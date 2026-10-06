@@ -590,6 +590,19 @@ export abstract class BaseLayoutController extends Disposable {
 		return this._ownerKeyForChat(session.resource, activeChat.resource, mainChat.resource, reader);
 	}
 
+	protected _registerPersistedOwnerKeys(keys: Iterable<URI>): void {
+		if (!this._chatLayoutEnabled) {
+			return;
+		}
+		for (const key of keys) {
+			try {
+				this._chatLayoutOwnerKeys.registerPersistedKey(key);
+			} catch (error) {
+				this._logService.error(error);
+			}
+		}
+	}
+
 	/**
 	 * Hook for a layout controller to create and own its auxiliary controllers.
 	 * The base implementation does nothing.
@@ -708,6 +721,7 @@ export abstract class BaseLayoutController extends Disposable {
 		}
 
 		if (this._chatLayoutEnabled) {
+			this._remapOwnerKeyState(from.resource, to.resource);
 			for (const { oldKey, newKey } of this._chatLayoutOwnerKeys.remapSession({ from, to })) {
 				this._remapOwnerKeyState(oldKey, newKey);
 			}
@@ -877,6 +891,7 @@ export abstract class BaseLayoutController extends Disposable {
 	// --- Persistence [B3] ---
 
 	private _applySessionLayoutEntries(entries: readonly ISessionLayoutEntry[]): void {
+		this._registerPersistedOwnerKeys(entries.map(entry => URI.parse(entry.sessionResource)));
 		for (const entry of entries) {
 			const resource = URI.parse(entry.sessionResource);
 			if (entry.editorWorkingSet) {

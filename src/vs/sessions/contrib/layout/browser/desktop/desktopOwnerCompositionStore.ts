@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ResourceMap } from '../../../../../base/common/map.js';
+import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -52,6 +52,10 @@ export class DesktopOwnerCompositionStore {
 
 	private readonly _compositionStorageKey: string;
 	private readonly _preHideStorageKey: string;
+
+	get ownerKeys(): Iterable<URI> {
+		return new ResourceSet([...this._byOwner.keys(), ...this._preHideByOwner.keys()]);
+	}
 
 	get(ownerKey: URI): ISidePaneState | undefined {
 		return this._byOwner.get(ownerKey);

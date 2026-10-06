@@ -19,6 +19,7 @@ import { ViewContainerLocation } from '../../../../../workbench/common/views.js'
 import { IActiveSession, IChatDeletedEvent } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChat, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { DesktopLayoutController } from '../../browser/desktopLayoutController.js';
+import { ChatLayoutOwnerKeyRegistry } from '../../browser/chatLayoutOwnerKeys.js';
 import { addPeerChat, createTestHarness, ICreateOptions, ITestLayoutHarness, makePaneComposite, makeSession, setActiveChat, TestStubEditorInput } from './layoutControllerTestUtils.js';
 
 const SIDE_PANE_COMPOSITION_STORAGE_KEY = 'sessions.chatLayout.sidePaneComposition';
@@ -99,6 +100,145 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		harness.activeGroupEditors = ['one', 'two'].map(name => store.add(new TestStubEditorInput(URI.file(`/${prefix}-${name}.txt`))));
 		harness.activeEditorInput = harness.activeGroupEditors[1];
 		harness.visibleEditorsList = harness.activeGroupEditors;
+	}
+
+	for (const mode of ['session', 'chat', 'chat-shared'] as const) {
+		test(`[review regression] ${mode} Details-only collapsed files round-trip without reopening another owner's files`, async () => {
+			createDesktopController({ chatLayoutMode: mode, activateAux: true });
+			const session = makeSession(URI.parse('session:collapsed'));
+			const main = session.mainChat.get();
+			const peer = addPeerChat(session, URI.parse('chat:collapsed-peer'));
+			const other = makeSession(URI.parse('session:collapsed-other'));
+			harness.activeSessionObs.set(session, undefined);
+			await settle();
+			setVisible(true, true);
+			openOrdinaryEditors('collapsed-main');
+			setVisible(false, true);
+			await settle();
+			const collapsed = harness.activeGroupEditors.filter(editor => editor.resource?.scheme === Schemas.file).map(editor => editor.resource?.path);
+			if (mode === 'session') {
+				harness.activeSessionObs.set(other, undefined);
+			} else {
+				setActiveChat(session, peer);
+			}
+			await settle();
+			setVisible(true, true);
+			await settle();
+			const otherFiles = harness.activeGroupEditors.filter(editor => editor.resource?.scheme === Schemas.file).map(editor => editor.resource?.path);
+			if (mode === 'session') {
+				harness.activeSessionObs.set(session, undefined);
+			} else {
+				setActiveChat(session, main);
+			}
+			await settle();
+			setVisible(true, true);
+			await settle();
+			const restored = harness.activeGroupEditors.filter(editor => editor.resource?.scheme === Schemas.file).map(editor => editor.resource?.path);
+			assert.deepStrictEqual({ collapsed, otherFiles, restored }, {
+				collapsed: [], otherFiles: [],
+				restored: mode === 'session' ? [] : ['/collapsed-main-one.txt', '/collapsed-main-two.txt'],
+			});
+		});
+	}
+
+	for (const mode of ['chat', 'chat-shared'] as const) {
+		for (const sameResource of [false, true]) {
+			test(`[review regression] ${mode} main draft promotion transfers composition and last-open state with same-resource=${sameResource}`, async () => {
+				const controller = createDesktopController({ chatLayoutMode: mode });
+				const existing = makeSession(URI.parse('session:promotion-existing'));
+				harness.activeSessionObs.set(existing, undefined);
+				await settle();
+				setVisible(true, false);
+				await settle();
+				harness.layoutService.toggleSidePane();
+				await settle();
+
+				const draft = makeSession(URI.parse('session:promotion-main-draft'), { isCreated: false });
+				harness.activeSessionObs.set(draft, undefined);
+				await settle();
+				setVisible(false, true);
+				await settle();
+				harness.layoutService.toggleSidePane();
+				await settle();
+				const before = { composition: controller.composition(draft.resource), preHide: controller.preHideComposition(draft.resource) };
+				const committed = makeSession(sameResource ? draft.resource : URI.parse('session:promotion-main-committed'));
+				harness.onDidReplaceSession.fire({ from: draft, to: committed });
+				const transferred = { composition: controller.composition(committed.resource), preHide: controller.preHideComposition(committed.resource) };
+				const source = { composition: controller.composition(draft.resource), preHide: controller.preHideComposition(draft.resource) };
+				harness.activeSessionObs.set(committed, undefined);
+				await settle();
+				harness.layoutService.toggleSidePane();
+				await settle();
+				const reopened = visible();
+				assert.deepStrictEqual({ before, transferred, source, reopened }, {
+					before: { composition: { editor: false, auxiliaryBar: false }, preHide: { editor: false, auxiliaryBar: true } },
+					transferred: { composition: { editor: false, auxiliaryBar: false }, preHide: { editor: false, auxiliaryBar: true } },
+					source: sameResource
+						? { composition: { editor: false, auxiliaryBar: false }, preHide: { editor: false, auxiliaryBar: true } }
+						: { composition: undefined, preHide: undefined },
+					reopened: mode === 'chat-shared' ? { editor: true, auxiliaryBar: false } : { editor: false, auxiliaryBar: true },
+				});
+			});
+		}
+
+		for (const action of ['delete', 'archive', 'remap'] as const) {
+			for (const compositionOnly of [false, true]) {
+				test(`[review regression] ${mode} reload ${action} cleans an unvisited ${compositionOnly ? 'composition-only' : 'layout'} peer with an unhydrated catalog`, async () => {
+					harness = createTestHarness(store, { desktopLayout: true, chatLayoutMode: mode, workspaceFolders: [{ uri: URI.file('/repo') }] });
+					const session = makeSession(URI.parse('session:reload-source'));
+					const peerResource = URI.parse('chat:unhydrated-peer');
+					const keys = new ChatLayoutOwnerKeyRegistry();
+					const oldKey = keys.resolveKey({ sessionResource: session.resource, chatResource: peerResource }, session.mainChat.get().resource);
+					const committed = makeSession(URI.parse('session:reload-destination'));
+					const newKey = keys.resolveKey({ sessionResource: committed.resource, chatResource: peerResource }, committed.mainChat.get().resource);
+					const compositionKey = mode === 'chat-shared' ? 'sessions.sharedChatLayout.sidePaneComposition' : SIDE_PANE_COMPOSITION_STORAGE_KEY;
+					const preHideKey = mode === 'chat-shared' ? 'sessions.sharedChatLayout.sidePanePreHideComposition' : SIDE_PANE_PRE_HIDE_COMPOSITION_STORAGE_KEY;
+					const layoutKey = mode === 'chat-shared' ? 'sessions.singlePane.sharedChatLayoutState' : CHAT_LAYOUT_STATE_STORAGE_KEY;
+					const composition = { editor: false, auxiliaryBar: false };
+					const preHide = { editor: true, auxiliaryBar: true };
+					const workingSet = { id: 'persisted-peer', name: 'persisted-peer' };
+					harness.storageService.store(compositionKey, JSON.stringify({ version: 1, entries: [[oldKey.toString(), composition]] }), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+					harness.storageService.store(preHideKey, JSON.stringify({ version: 1, entries: [[oldKey.toString(), preHide]] }), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+					if (!compositionOnly) {
+						harness.storageService.store(layoutKey, JSON.stringify({
+							version: 1, entries: [{
+								sessionResource: oldKey.toString(), editorWorkingSet: workingSet, panelVisible: true, panelViewContainerId: 'view.persisted-peer',
+							}]
+						}), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+					}
+					const controller = store.add(harness.instaService.createInstance(TestDesktopController));
+					await settle();
+					const retainedBeforeLifecycle = { composition: controller.composition(oldKey), preHide: controller.preHideComposition(oldKey), workingSet: controller.capturedWorkingSet(oldKey) };
+					if (action === 'delete') {
+						harness.onDidDeleteChat.fire({ session, sessionResource: session.resource, chatResource: peerResource });
+					} else if (action === 'archive') {
+						const archived = { ...session, isArchived: observableValue('archived', true) };
+						harness.onDidChangeSessions.fire({ added: [], removed: [], changed: [archived] });
+					} else {
+						harness.onDidReplaceSession.fire({ from: session, to: committed });
+					}
+					await settle();
+					const source = {
+						composition: controller.composition(oldKey), preHide: controller.preHideComposition(oldKey),
+						workingSet: controller.capturedWorkingSet(oldKey), panel: controller.capturedPanelVisibility(oldKey), view: controller.capturedPanelView(oldKey),
+					};
+					const destination = {
+						composition: controller.composition(newKey), preHide: controller.preHideComposition(newKey),
+						workingSet: controller.capturedWorkingSet(newKey), panel: controller.capturedPanelVisibility(newKey), view: controller.capturedPanelView(newKey),
+					};
+					const empty = { composition: undefined, preHide: undefined, workingSet: undefined, panel: undefined, view: undefined };
+					assert.deepStrictEqual({ retainedBeforeLifecycle, source, destination, deletedHandles: harness.deleteWorkingSetCalls }, {
+						retainedBeforeLifecycle: { composition, preHide, workingSet: compositionOnly ? undefined : workingSet },
+						source: empty,
+						destination: action === 'remap' ? {
+							composition, preHide, workingSet: compositionOnly ? undefined : workingSet,
+							panel: compositionOnly ? undefined : true, view: compositionOnly ? undefined : 'view.persisted-peer',
+						} : empty,
+						deletedHandles: action === 'remap' || compositionOnly ? [] : [workingSet.id],
+					});
+				});
+			}
+		}
 	}
 
 	for (const composition of [
@@ -1722,6 +1862,8 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		await settle();
 		setActiveChat(draft, draftPeer);
 		await settle();
+		const draftMainWorkingSet = controller.capturedWorkingSet(draft.resource);
+		assert.ok(draftMainWorkingSet, 'the outgoing main owner also has a working-set reference before promotion');
 		harness.visibleEditorsList = [{} as never];
 		harness.activeGroupEditors = [store.add(new TestStubEditorInput(URI.file('/draft-peer-handle.txt')))];
 		await settle();
@@ -1735,13 +1877,13 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		harness.onDidReplaceSession.fire({ from: draft, to: shared });
 		await settle();
 
-		assert.deepStrictEqual(harness.deleteWorkingSetCalls, [preExistingDestinationWorkingSet!.id], 'the promotion must never destroy the incoming peer handle it is installing, but the pre-existing destination handle it overwrites is now unreferenced by anything and must be correctly freed exactly once, not leaked');
+		assert.deepStrictEqual(harness.deleteWorkingSetCalls, [preExistingDestinationWorkingSet!.id, draftMainWorkingSet.id], 'both displaced destination and main-owner handles are released, never the incoming peer handle');
 		assert.deepStrictEqual(controller.capturedWorkingSet(legacyKey), peerWorkingSet, 'the promoted peer chat\'s working set becomes the tracked working set at the collapsed shared owner key');
 
 		harness.onDidChangeSessions.fire({ added: [], removed: [shared], changed: [] });
 		await settle();
 
-		assert.deepStrictEqual(harness.deleteWorkingSetCalls, [preExistingDestinationWorkingSet!.id, peerWorkingSet!.id], 'removing the session later still correctly deletes its (now-promoted) surviving working-set handle exactly once, and does not re-delete the already-freed orphan');
+		assert.deepStrictEqual(harness.deleteWorkingSetCalls, [preExistingDestinationWorkingSet!.id, draftMainWorkingSet.id, peerWorkingSet!.id], 'removing the session deletes its surviving peer handle exactly once, without re-deleting either displaced handle');
 	});
 
 	test('[R7] a persisted peer-chat owner record survives before the peer is known to the session\'s chat catalog, and restores once the peer is observed and focused', async () => {

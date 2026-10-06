@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { errorHandler } from '../../../../../base/common/errors.js';
 import { isEqual } from '../../../../../base/common/resources.js';
@@ -1604,48 +1605,52 @@ suite('DesktopLayoutController', () => {
 		});
 	});
 
-	test('[managed tabs / session switch] preserves the Changes header until a non-quick session workspace hydrates', async () => {
-		createDesktopController({ activateAux: true, workspaceFolders: [{ uri: URI.file('/repo') }] });
-		await settle();
+	for (const editorVisible of [false, true]) {
+		test(`[managed tabs / session switch] preserves the Changes header until a non-quick session workspace hydrates with Editor visible=${editorVisible}`, async () => {
+			createDesktopController({ activateAux: true, workspaceFolders: [{ uri: URI.file('/repo') }] });
+			await settle();
 
-		const first = makeSession(URI.parse('session:first'));
-		harness.activeSessionObs.set(first, undefined);
-		await settle();
-		const firstChangesResource = harness.sessionChangesService.getChangesEditorResource(first.resource);
-		harness.activeEditorInput = harness.activeGroupEditors.find(editor => editor.resource && isEqual(editor.resource, firstChangesResource));
-		assert.ok(harness.activeEditorInput);
-		harness.onDidActiveEditorChange.fire();
+			const first = makeSession(URI.parse('session:first'));
+			harness.activeSessionObs.set(first, undefined);
+			await settle();
+			const firstChangesResource = harness.sessionChangesService.getChangesEditorResource(first.resource);
+			harness.activeEditorInput = harness.activeGroupEditors.find(editor => editor.resource && isEqual(editor.resource, firstChangesResource));
+			assert.ok(harness.activeEditorInput);
+			harness.onDidActiveEditorChange.fire();
+			harness.layoutService.setPartHidden(!editorVisible, Parts.EDITOR_PART);
 
-		const workspace = observableValue<ISessionWorkspace | undefined>('pendingWorkspace', undefined);
-		const base = makeSession(URI.parse('session:pending'));
-		const chat = { ...base.activeChat.get(), workspace };
-		const pending = {
-			...base,
-			workspace,
-			activeChat: observableValue('activeChat', chat),
-			mainChat: constObservable(chat),
-			chats: observableValue('chats', [chat]),
-			openChats: observableValue('openChats', [chat]),
-			visibleChatTabs: constObservable([chat]),
-		};
-		harness.activeSessionObs.set(pending, undefined);
-		await settle();
-		harness.activeEditorInput = undefined;
-		harness.onDidActiveEditorChange.fire();
-		const beforeHydration = harness.contextKeyService.getContextKeyValue(DesktopChangesEditorTransitionContext.key);
-		workspace.set(first.workspace.get(), undefined);
-		await settle();
-		const afterHydration = {
-			keepChangesHeader: harness.contextKeyService.getContextKeyValue(DesktopChangesEditorTransitionContext.key),
-			hasIncomingChangesTab: harness.activeGroupEditors.some(editor =>
-				!!editor.resource && isEqual(harness.sessionChangesService.getSessionResource(editor.resource), pending.resource)),
-		};
+			const workspace = observableValue<ISessionWorkspace | undefined>('pendingWorkspace', undefined);
+			const base = makeSession(URI.parse('session:pending'));
+			const chat = { ...base.activeChat.get(), workspace };
+			const pending = {
+				...base,
+				workspace,
+				activeChat: observableValue('activeChat', chat),
+				mainChat: constObservable(chat),
+				chats: observableValue('chats', [chat]),
+				openChats: observableValue('openChats', [chat]),
+				visibleChatTabs: constObservable([chat]),
+			};
+			harness.activeSessionObs.set(pending, undefined);
+			await settle();
+			harness.activeEditorInput = undefined;
+			harness.onDidActiveEditorChange.fire();
+			const beforeHydration = harness.contextKeyService.getContextKeyValue(DesktopChangesEditorTransitionContext.key);
+			workspace.set(first.workspace.get(), undefined);
+			await settle();
+			const afterHydration = {
+				keepChangesHeader: harness.contextKeyService.getContextKeyValue(DesktopChangesEditorTransitionContext.key),
+				editorVisible: harness.layoutService.isVisible(Parts.EDITOR_PART, mainWindow),
+				hasIncomingChangesTab: harness.activeGroupEditors.some(editor =>
+					!!editor.resource && isEqual(harness.sessionChangesService.getSessionResource(editor.resource), pending.resource)),
+			};
 
-		assert.deepStrictEqual({ beforeHydration, afterHydration }, {
-			beforeHydration: true,
-			afterHydration: { keepChangesHeader: false, hasIncomingChangesTab: false },
+			assert.deepStrictEqual({ beforeHydration, afterHydration }, {
+				beforeHydration: true,
+				afterHydration: { keepChangesHeader: false, editorVisible, hasIncomingChangesTab: !editorVisible },
+			});
 		});
-	});
+	}
 
 	test('[managed tabs / session switch] does not retain the Changes header for a quick chat', async () => {
 		createDesktopController({ activateAux: true, workspaceFolders: [{ uri: URI.file('/repo') }] });

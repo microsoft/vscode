@@ -19,7 +19,7 @@ export class ChatLayoutOwnerKeyRegistry {
 		if (isEqual(owner.chatResource, mainChatResource)) {
 			return owner.sessionResource;
 		}
-		let bySession = this._keysBySession.get(owner.sessionResource);
+		const bySession = this._keysBySession.get(owner.sessionResource);
 		const existing = bySession?.get(owner.chatResource);
 		if (existing) {
 			return existing;
@@ -28,12 +28,31 @@ export class ChatLayoutOwnerKeyRegistry {
 			scheme: CHAT_LAYOUT_OWNER_KEY_SCHEME,
 			path: `/${encodeURIComponent(owner.sessionResource.toString())}/${encodeURIComponent(owner.chatResource.toString())}`,
 		});
+		this._registerKey(owner, key);
+		return key;
+	}
+
+	registerPersistedKey(key: URI): void {
+		if (key.scheme !== CHAT_LAYOUT_OWNER_KEY_SCHEME) {
+			return;
+		}
+		const segments = key.path.split('/');
+		if (segments.length !== 3 || !segments[1] || !segments[2]) {
+			throw new Error(`Malformed chat layout owner key: ${key.toString()}`);
+		}
+		this._registerKey({
+			sessionResource: URI.parse(decodeURIComponent(segments[1])),
+			chatResource: URI.parse(decodeURIComponent(segments[2])),
+		}, key);
+	}
+
+	private _registerKey(owner: IChatLayoutOwner, key: URI): void {
+		let bySession = this._keysBySession.get(owner.sessionResource);
 		if (!bySession) {
 			bySession = new ResourceMap<URI>();
 			this._keysBySession.set(owner.sessionResource, bySession);
 		}
 		bySession.set(owner.chatResource, key);
-		return key;
 	}
 
 	forgetChat(sessionResource: URI, chatResource: URI): URI | undefined {

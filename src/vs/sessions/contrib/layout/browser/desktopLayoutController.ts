@@ -138,6 +138,7 @@ export class DesktopLayoutController extends BaseLayoutController {
 	protected override _registerViewStateManagement(): void {
 		this._register(toDisposable(() => this._changesEditorTransitionContextKey.reset()));
 		this._compositionStore = this._instantiationService.createInstance(DesktopOwnerCompositionStore, this._sharedChatLayout);
+		this._registerPersistedOwnerKeys(this._compositionStore.ownerKeys);
 		const visibilityStore = this._instantiationService.createInstance(DesktopVisibilityProfileStore, this._sharedChatLayout);
 		const detailPanel = this._register(this._instantiationService.createInstance(DesktopDetailPanelCoordinator));
 
@@ -252,9 +253,11 @@ export class DesktopLayoutController extends BaseLayoutController {
 
 	protected override _onOwnerKeyRemapped(oldKey: URI, newKey: URI): void {
 		this._compositionStore?.remap(oldKey, newKey);
+		this._managedTabs?.remapOwnerKey(oldKey, newKey);
 	}
 
 	protected override _onOwnerKeysForgotten(keys: readonly URI[]): void {
 		this._compositionStore?.forget(keys);
+		this._managedTabs?.forgetOwnerKeys(keys);
 	}
 }
