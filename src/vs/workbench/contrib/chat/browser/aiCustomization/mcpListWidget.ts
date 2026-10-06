@@ -169,7 +169,16 @@ interface IMcpBuiltinItemEntry {
 	readonly extensionId?: ExtensionIdentifier;
 	readonly activeSessionServer?: AgentHostMcpServer;
 	readonly localServer?: IMcpServer;
-	readonly connector?: IConnectedCopilotConnectorMcpServer;
+}
+
+interface IMcpConnectorItemEntry {
+	readonly type: 'connector-item';
+	readonly id: string;
+	readonly label: string;
+	readonly description: string;
+	readonly activeSessionServer?: AgentHostMcpServer;
+	readonly localServer?: IMcpServer;
+	readonly connector: IConnectedCopilotConnectorMcpServer;
 }
 
 export function createBuiltinActiveSessionMcpEntries(servers: readonly AgentHostMcpServer[]): readonly IMcpSessionServerItemEntry[] {
@@ -180,15 +189,15 @@ export function isMcpServerCollectionVisible(collectionId: string, hiddenCollect
 	return !hiddenCollectionIds?.includes(collectionId);
 }
 
-export type IMcpInstalledEntry = IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry;
+export type IMcpInstalledEntry = IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry | IMcpConnectorItemEntry;
 
 function hasMcpInstalledEntryIcon(entry: IMcpInstalledEntry): boolean {
 	return getMcpInstalledEntryIcon(entry) !== undefined;
 }
 
 function getMcpInstalledEntryIcon(entry: IMcpInstalledEntry): CustomizationMarketplaceIcon | undefined {
-	if (entry.type === 'builtin-item') {
-		return entry.connector?.connector.icon;
+	if (entry.type === 'connector-item') {
+		return entry.connector.connector.icon;
 	}
 	if (entry.type !== 'server-item') {
 		return undefined;
@@ -303,7 +312,7 @@ interface IMcpServerItemTemplateData {
  * Exported for testing: the guard that keeps a row's actions alive across no-op updates is only
  * observable by driving the renderer itself.
  */
-export class McpServerItemRenderer extends Disposable implements IListRenderer<IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry, IMcpServerItemTemplateData> {
+export class McpServerItemRenderer extends Disposable implements IListRenderer<IMcpInstalledEntry, IMcpServerItemTemplateData> {
 	readonly templateId = 'mcpServerItem';
 	private readonly _templates = new Set<IMcpServerItemTemplateData>();
 	private _focusedRowKey: string | undefined;
@@ -380,7 +389,7 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 		return template;
 	}
 
-	renderElement(element: IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry, _index: number, templateData: IMcpServerItemTemplateData): void {
+	renderElement(element: IMcpInstalledEntry, _index: number, templateData: IMcpServerItemTemplateData): void {
 		this.renderEntry(element, templateData);
 	}
 
@@ -447,9 +456,17 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 		templateData.sourcePath.tabIndex = source?.open && rowKey === this._focusedRowKey ? 0 : -1;
 		this.renderDescription(templateData, element, !!source);
 
+		if (element.type === 'connector-item') {
+			templateData.container.classList.remove('builtin');
+			templateData.container.classList.add('has-detail');
+			templateData.name.textContent = formatDisplayName(element.label);
+			this.updateKnownServerStatus(templateData, element);
+			return;
+		}
+
 		if (element.type === 'builtin-item') {
 			templateData.container.classList.add('builtin');
-			templateData.container.classList.toggle('has-detail', element.connector !== undefined);
+			templateData.container.classList.toggle('has-detail', false);
 			templateData.name.textContent = formatDisplayName(element.label);
 			this.updateKnownServerStatus(templateData, element);
 
@@ -502,7 +519,7 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 		}
 	}
 
-	private updateKnownServerStatus(templateData: IMcpServerItemTemplateData, element: IMcpServerItemEntry | IMcpBuiltinItemEntry): void {
+	private updateKnownServerStatus(templateData: IMcpServerItemTemplateData, element: IMcpServerItemEntry | IMcpBuiltinItemEntry | IMcpConnectorItemEntry): void {
 		let localDisabled = false;
 		let connectionState: McpConnectionState | undefined;
 		const update = (reader?: IReader) => {
@@ -644,7 +661,7 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 	private renderDescription(template: IMcpServerItemTemplateData, element: IMcpInstalledEntry, hasSource: boolean): void {
 		const description = hasSource || element.type === 'session-server-item'
 			? ''
-			: element.type === 'builtin-item'
+			: element.type === 'builtin-item' || element.type === 'connector-item'
 				? element.description
 				: element.server.description?.trim() ?? '';
 		template.description.textContent = truncateToFirstLine(description);
@@ -995,7 +1012,7 @@ function getMcpErrorMessage(state: McpStatusKind | undefined, message: string | 
 	return message && /\S/u.test(message) ? message : localize('mcpServerErrorWithoutDetails', "The server reported an error without additional details.");
 }
 
-function getActiveSessionServer(entry: IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry): AgentHostMcpServer | undefined {
+function getActiveSessionServer(entry: IMcpInstalledEntry): AgentHostMcpServer | undefined {
 	return entry.type === 'session-server-item' ? entry.server : entry.activeSessionServer;
 }
 
@@ -1013,7 +1030,7 @@ function resolveMcpEntry(entry: IMcpInstalledEntry, customizations: IAgentHostCu
  * Which row a template is currently showing. List entries are recreated on every refresh, so
  * object identity says nothing about whether this is still the same server in the same place.
  */
-export function getMcpRowKey(entry: IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry): string {
+export function getMcpRowKey(entry: IMcpInstalledEntry): string {
 	switch (entry.type) {
 		case 'server-item':
 			return `server:${entry.server.id}:${entry.marketplace ? 1 : 0}`;
@@ -1021,6 +1038,8 @@ export function getMcpRowKey(entry: IMcpServerItemEntry | IMcpSessionServerItemE
 			return `session:${entry.server.id}`;
 		case 'builtin-item':
 			return `builtin:${entry.id}`;
+		case 'connector-item':
+			return `connector:${entry.id}`;
 	}
 }
 
@@ -1028,10 +1047,10 @@ export function getMcpEntryGroup(entry: IMcpInstalledEntry): 'user' | 'workspace
 	if (entry.type === 'server-item') {
 		return entry.server.local?.scope === LocalMcpServerScope.Workspace ? 'workspace' : 'user';
 	}
+	if (entry.type === 'connector-item') {
+		return 'plugins';
+	}
 	if (entry.type === 'builtin-item') {
-		if (entry.connector) {
-			return 'plugins';
-		}
 		if (entry.collectionId?.startsWith(PLUGIN_COLLECTION_PREFIX)) {
 			return 'plugins';
 		}
@@ -1105,12 +1124,16 @@ export function getMcpStatusRenderSignature(input: IMcpStatusRenderInput): strin
 	]);
 }
 
-function getMcpEntryLabel(element: IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry): string {
-	return element.type === 'session-server-item'
-		? getMcpServerDisplayLabel(element.server)
-		: element.type === 'builtin-item'
-			? element.label
-			: element.server.label;
+function getMcpEntryLabel(element: IMcpInstalledEntry): string {
+	switch (element.type) {
+		case 'server-item':
+			return element.server.label;
+		case 'session-server-item':
+			return getMcpServerDisplayLabel(element.server);
+		case 'builtin-item':
+		case 'connector-item':
+			return element.label;
+	}
 }
 
 /** The server's configuration key, which a managed catalog's display name can differ from. */
@@ -1124,6 +1147,8 @@ function getMcpEntrySourceUri(element: IMcpInstalledEntry): URI | undefined {
 			return element.server.local?.mcpResource;
 		case 'session-server-item':
 			return element.server.sourceUri;
+		case 'connector-item':
+			return element.activeSessionServer?.sourceUri;
 		case 'builtin-item':
 			return element.activeSessionServer?.sourceUri
 				?? element.localServer?.readDefinitions().get().server?.presentation?.origin?.uri
@@ -1232,10 +1257,10 @@ function getMcpServerCompatibilityId(element: IMcpInstalledEntry): string | unde
 	if (element.type === 'session-server-item') {
 		return undefined;
 	}
-	return element.localServer?.definition.id ?? (element.type === 'server-item' ? element.server.id : element.connector?.serverName);
+	return element.localServer?.definition.id ?? (element.type === 'server-item' ? element.server.id : element.type === 'connector-item' ? element.connector.serverName : undefined);
 }
 
-function getMcpStatusKind(entry: IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry, isSessionsWindow: boolean): McpStatusKind | undefined {
+function getMcpStatusKind(entry: IMcpInstalledEntry, isSessionsWindow: boolean): McpStatusKind | undefined {
 	if (entry.type === 'session-server-item') {
 		return getActiveSessionServerPresentation(entry.server).status;
 	}
@@ -1265,7 +1290,7 @@ function getMcpEntryAriaLabel(element: IMcpInstalledEntry, isSessionsWindow: boo
 	);
 }
 
-function getMcpDisabledReason(entry: IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry): CustomizationDisabledReason | undefined {
+function getMcpDisabledReason(entry: IMcpInstalledEntry): CustomizationDisabledReason | undefined {
 	if (entry.type === 'session-server-item') {
 		return entry.server.disabledReason;
 	}
@@ -1644,9 +1669,9 @@ function createBuiltinEntry(server: IMcpServer, activeSessionServer?: AgentHostM
 	};
 }
 
-function createConnectorMcpEntry(connector: IConnectedCopilotConnectorMcpServer, activeSessionServer?: AgentHostMcpServer): IMcpBuiltinItemEntry {
+function createConnectorMcpEntry(connector: IConnectedCopilotConnectorMcpServer, activeSessionServer?: AgentHostMcpServer): IMcpConnectorItemEntry {
 	return {
-		type: 'builtin-item',
+		type: 'connector-item',
 		id: `copilot-connector:${connector.id}`,
 		label: connector.serverName,
 		description: localize('mcpServerFromConnector', "Connector: {0}", connector.connector.displayName),
@@ -1655,8 +1680,8 @@ function createConnectorMcpEntry(connector: IConnectedCopilotConnectorMcpServer,
 	};
 }
 
-function isConnectorMcpEntry(entry: IMcpInstalledEntry): entry is IMcpBuiltinItemEntry & { readonly connector: IConnectedCopilotConnectorMcpServer } {
-	return entry.type === 'builtin-item' && entry.connector !== undefined;
+function isConnectorMcpEntry(entry: IMcpInstalledEntry): entry is IMcpConnectorItemEntry {
+	return entry.type === 'connector-item';
 }
 
 /**
@@ -2077,7 +2102,7 @@ export class McpListWidget extends Disposable {
 						if (entry.type === 'group-header') {
 							return localize('mcpGroupAriaLabel', "{0}, {1} items", entry.label, entry.count);
 						}
-						return entry.type === 'builtin-item' && entry.connector
+						return entry.type === 'connector-item'
 							? localize('connectorMcpServerAriaLabel', "{0}. Connector: {1}.", entry.connector.serverName, entry.connector.connector.displayName)
 							: entry.type === 'marketplace-item'
 								? localize('marketplaceMcpServerRowAriaLabel', "{0}. Available to install from the MCP marketplace.", entry.server.label)
@@ -2605,7 +2630,7 @@ export class McpListWidget extends Disposable {
 				for (const key of getWorkbenchServerMatchKeys(entry.server)) {
 					installedKeys.add(key.toLowerCase());
 				}
-			} else if (entry.type === 'builtin-item') {
+			} else if (entry.type === 'builtin-item' || entry.type === 'connector-item') {
 				installedKeys.add(entry.label.toLowerCase());
 				if (entry.localServer) {
 					for (const key of getRuntimeServerMatchKeys(entry.localServer)) {
@@ -3058,7 +3083,7 @@ export class McpListWidget extends Disposable {
 	private getInstalledEntryDescription(entry: IMcpInstalledEntry): string {
 		const description = entry.type === 'server-item'
 			? entry.server.description
-			: entry.type === 'builtin-item'
+			: entry.type === 'builtin-item' || entry.type === 'connector-item'
 				? entry.description
 				: '';
 		return truncateToFirstLine(description || localize('mcpNoDescription', "No description provided."));
@@ -3297,7 +3322,7 @@ export class McpListWidget extends Disposable {
 		}
 		const entry = this.getVisibleMcpEntries().find(entry => {
 			if (connectorName) {
-				return entry.type === 'builtin-item' && entry.connector?.connector.name === connectorName;
+				return entry.type === 'connector-item' && entry.connector.connector.name === connectorName;
 			}
 			if (serverId) {
 				switch (entry.type) {
@@ -3305,6 +3330,7 @@ export class McpListWidget extends Disposable {
 					case 'session-server-item':
 						return entry.server.id === serverId;
 					case 'builtin-item':
+					case 'connector-item':
 						return entry.id === serverId || entry.activeSessionServer?.id === serverId;
 					case 'group-header':
 					case 'marketplace-item':
@@ -3317,7 +3343,9 @@ export class McpListWidget extends Disposable {
 				case 'session-server-item':
 					return entry.server.name === serverName || entry.server.displayName === serverName;
 				case 'builtin-item':
-					return entry.label === serverName || entry.connector?.connector.displayName === serverName;
+					return entry.label === serverName;
+				case 'connector-item':
+					return entry.label === serverName || entry.connector.connector.displayName === serverName;
 				case 'group-header':
 				case 'marketplace-item':
 					return false;
@@ -3421,6 +3449,10 @@ export class McpListWidget extends Disposable {
 			const actions = getActiveSessionServerOptionsActions(this.commandService, this.agentHostCustomizationService, this.agentPluginService, this.customizationHarnessService.activeSessionResource.get(), entry.server);
 			actions.forEach(action => isDisposable(action) && disposables.add(action));
 			return actions;
+		}
+
+		if (entry.type === 'connector-item') {
+			return [];
 		}
 
 		if (entry.type === 'builtin-item') {
