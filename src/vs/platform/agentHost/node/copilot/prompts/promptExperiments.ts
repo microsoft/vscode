@@ -38,8 +38,18 @@ export interface ISubagentModelMix {
 }
 
 export interface ISubagentModelMixRequest {
-	/** The model the session's prompt is resolved for, or `undefined` when none is chosen at launch (e.g. server-side Auto). */
+	/**
+	 * The model the session's prompt is resolved for, or `undefined` when none
+	 * is chosen at launch (e.g. server-side Auto). With a `family` alias this
+	 * is the family, which decides whether the guidance applies at all.
+	 */
 	readonly sessionModelId: string | undefined;
+	/**
+	 * The model the session actually runs on, when a `family` alias makes it
+	 * differ from {@link sessionModelId}. This is the one a configured model
+	 * must not equal: the guidance tells the agent to delegate away from it.
+	 */
+	readonly runningModelId?: string;
 	/** The configured default subagent model, as set. */
 	readonly defaultModel: string | undefined;
 	/** The configured lightweight subagent model, as set. */
@@ -82,7 +92,7 @@ export function resolveSubagentModelMix(request: ISubagentModelMixRequest): ISub
 		return { mix: undefined, notes: [] };
 	}
 	const unusable = (modelId: string): string | undefined => {
-		if (modelId === request.sessionModelId) {
+		if (modelId === (request.runningModelId ?? request.sessionModelId)) {
 			return `'${modelId}' is the session's own model`;
 		}
 		return request.isModelAvailable(modelId) ? undefined : `'${modelId}' is not available to this account`;

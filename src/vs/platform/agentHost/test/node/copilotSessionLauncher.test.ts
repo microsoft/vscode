@@ -1979,11 +1979,11 @@ suite('CopilotSessionLauncher resume config', () => {
 		};
 		let lookups = 0;
 		/** The models the resolved prompt tells the agent to delegate to, and whether it still says to leave `model` unset. */
-		const guidance = async (values: Parameters<typeof createLauncher>[1], model: ModelSelection | undefined, available: readonly string[] | undefined) => {
+		const guidance = async (values: Parameters<typeof createLauncher>[1], model: ModelSelection | undefined, available: readonly string[] | 'notKnown' | undefined) => {
 			const before = lookups;
 			const config = await buildResumeConfig(createLauncher(store, values), model, undefined, undefined, available && (async () => {
 				lookups++;
-				return new Set(available);
+				return available === 'notKnown' ? undefined : new Set(available);
 			}));
 			const systemMessage = config.systemMessage;
 			assert.ok(systemMessage?.mode === 'customize');
@@ -2002,9 +2002,16 @@ suite('CopilotSessionLauncher resume config', () => {
 			bothAvailable: await guidance(configured, opus, ['model-default', 'model-light', 'claude-opus-5.5']),
 			lightweightUnavailable: await guidance(configured, opus, ['model-default']),
 			defaultUnavailable: await guidance(configured, opus, ['model-light']),
-			// A plan that cannot say what the account has is treated as nothing being available.
+			// Not knowing what the account has names nothing: a plan that cannot say,
+			// and a listing that has not arrived or failed.
 			availabilityUnknown: await guidance(configured, opus, undefined),
+			listNotKnown: await guidance(configured, opus, 'notKnown'),
 			aliasedToOpus: await guidance({ ...configured, modelCapabilityOverrides: { 'preview-model': { family: 'claude-opus-5.5' } } }, { id: 'preview-model' }, ['model-default']),
+			// With a family alias, "the session's own model" is the model it runs
+			// on, not the family its prompt is resolved for.
+			aliasedRunsOnTheDefault: await guidance({ [CopilotCliConfigKey.SubagentGuidanceDefaultModel]: 'claude-sonnet-5', modelCapabilityOverrides: { 'claude-sonnet-5': { family: 'claude-opus-5.5' } } }, { id: 'claude-sonnet-5' }, ['claude-sonnet-5', 'claude-opus-5.5']),
+			aliasedDefaultIsTheFamily: await guidance({ [CopilotCliConfigKey.SubagentGuidanceDefaultModel]: 'claude-opus-5.5', modelCapabilityOverrides: { 'preview-model': { family: 'claude-opus-5.5' } } }, { id: 'preview-model' }, ['preview-model', 'claude-opus-5.5']),
+			sessionRunsOnTheDefault: await guidance({ [CopilotCliConfigKey.SubagentGuidanceDefaultModel]: 'claude-opus-5.5' }, opus, ['claude-opus-5.5']),
 			// Sessions the guidance cannot apply to never wait on the account's models.
 			sonnetSession: await guidance(configured, { id: 'claude-sonnet-5.5' }, ['model-default', 'model-light']),
 			noModel: await guidance(configured, undefined, ['model-default', 'model-light']),
@@ -2015,7 +2022,11 @@ suite('CopilotSessionLauncher resume config', () => {
 			lightweightUnavailable: { named: ['model-default'], leavesModelUnset: false, lookedUpModels: true },
 			defaultUnavailable: { named: [], leavesModelUnset: true, lookedUpModels: true },
 			availabilityUnknown: off,
+			listNotKnown: { named: [], leavesModelUnset: true, lookedUpModels: true },
 			aliasedToOpus: { named: ['model-default'], leavesModelUnset: false, lookedUpModels: true },
+			aliasedRunsOnTheDefault: { named: [], leavesModelUnset: true, lookedUpModels: true },
+			aliasedDefaultIsTheFamily: { named: ['claude-opus-5.5'], leavesModelUnset: false, lookedUpModels: true },
+			sessionRunsOnTheDefault: { named: [], leavesModelUnset: true, lookedUpModels: true },
 			sonnetSession: off,
 			noModel: off,
 			notConfigured: off,

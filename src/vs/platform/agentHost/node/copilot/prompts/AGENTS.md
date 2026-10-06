@@ -96,17 +96,22 @@ With a default model set, the host's "leave the `task` tool's `model` unset" lin
 
 **No model id is written in this code.** The mix comes from the two settings, so an experiment chooses the models and can change them without a code change. `resolveSubagentModelMix` decides once per launch whether the guidance applies, and the launcher puts the result on the prompt context as `subagentModelMix`; the registry, the tool line and the contributor only read it.
 
-**A configured model is named only if this account can run it.** The launcher asks the agent for the ids in the runtime's model list, leaving out models an organization policy has disabled or not yet configured. The runtime builds the `task` tool's `model` choices from that same list and rejects a call naming anything else, so guidance naming an unavailable model would send the agent into failed calls. The outcomes:
+**A configured model is named only if this account can run it.** The launcher asks the agent for the ids in the runtime's model list for the current credential, leaving out models an organization policy has disabled or not yet configured. The runtime builds the `task` tool's `model` choices from that same list and rejects a call naming anything else, so guidance naming an unavailable model would send the agent into failed calls. The outcomes:
 
 | Situation | Result |
 | --- | --- |
 | Session model is not Claude Opus | Guidance off |
 | Default model is empty | Guidance off; the prompt is unchanged |
+| The account's models are not known: not listed yet, the listing failed, or the published list belongs to a credential that has since been replaced | Guidance off; the prompt is unchanged and a warning is logged. The published list is not used, since it may be empty or another account's |
 | Default model is unavailable, or is the session's own model | Guidance off; the prompt is unchanged and a warning is logged |
 | Lightweight model is empty or the same as the default | Guidance on, without the lightweight sentence |
 | Lightweight model is unavailable, or is the session's own model | Guidance on, without the lightweight sentence; a warning is logged |
 
-The model list is only fetched when a default model is configured and the session is on Opus, so the settings cost nothing while empty. The Opus check uses the effective model id, so a model aliased through `modelCapabilityOverrides.<model>.family` counts.
+The model list is only consulted when a default model is configured and the session is on Opus, so the settings cost nothing while empty. If the list is not current, the launch waits up to five seconds for the refresh that replaces it, starting one if none is pending.
+
+With a `modelCapabilityOverrides.<model>.family` alias, two ids are in play. The Opus check uses the family, so an aliased model counts. "The session's own model" is the model the session runs on, not the family.
+
+A session keeps the prompt it launched with, so with a default model configured a model switch restarts the session when it changes what the guidance says: into or out of Opus, or between Opus models when either is a model the settings name.
 
 Rules it follows, and that a new experiment should too:
 

@@ -33,8 +33,8 @@ suite('promptExperiments', () => {
 	});
 
 	/** Resolves a mix for an account that can run exactly `available`. */
-	function resolve(sessionModelId: string | undefined, defaultModel: string | undefined, lightweightModel: string | undefined, available: readonly string[]) {
-		return resolveSubagentModelMix({ sessionModelId, defaultModel, lightweightModel, isModelAvailable: modelId => available.includes(modelId) });
+	function resolve(sessionModelId: string | undefined, defaultModel: string | undefined, lightweightModel: string | undefined, available: readonly string[], runningModelId?: string) {
+		return resolveSubagentModelMix({ sessionModelId, runningModelId, defaultModel, lightweightModel, isModelAvailable: modelId => available.includes(modelId) });
 	}
 
 	test('subagent model guidance names the models it is given and no others', () => {
@@ -93,6 +93,9 @@ suite('promptExperiments', () => {
 			// Naming the session's own model would change nothing but the wording.
 			defaultIsSessionModel: resolve('claude-opus-5.5', 'claude-opus-5.5', 'light', available),
 			lightweightIsSessionModel: resolve('claude-opus-5.5', 'mid', 'claude-opus-5.5', available),
+			// With a family alias the session's own model is the one it runs on.
+			aliasedRunsOnTheDefault: resolve('claude-opus-5.5', 'claude-sonnet-5.5', undefined, available, 'claude-sonnet-5.5'),
+			aliasedDefaultIsTheFamily: resolve('claude-opus-5.5', 'claude-opus-5.5', undefined, available, 'preview-model').mix,
 		}, {
 			nothingConfigured: { mix: undefined, notes: [] },
 			emptyDefault: { mix: undefined, notes: [] },
@@ -103,6 +106,8 @@ suite('promptExperiments', () => {
 			dashedOpusId: { defaultModel: 'mid' },
 			defaultIsSessionModel: { mix: undefined, notes: ['default model \'claude-opus-5.5\' is the session\'s own model'] },
 			lightweightIsSessionModel: { mix: { defaultModel: 'mid' }, notes: ['lightweight model \'claude-opus-5.5\' is the session\'s own model'] },
+			aliasedRunsOnTheDefault: { mix: undefined, notes: ['default model \'claude-sonnet-5.5\' is the session\'s own model'] },
+			aliasedDefaultIsTheFamily: { defaultModel: 'claude-opus-5.5' },
 		});
 	});
 

@@ -4804,7 +4804,7 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('the models available for subagent model guidance leave out those policy has not enabled, and wait for a refresh in flight', async () => {
+	test('the models available for subagent model guidance are the current account\'s, less those policy has not enabled', async () => {
 		const client = new TestCopilotClient([], [
 			{ id: 'model-enabled', name: 'Enabled', policy: { state: 'enabled' } },
 			{ id: 'model-no-policy', name: 'No policy' },
@@ -4813,22 +4813,49 @@ suite('CopilotAgent', () => {
 		]);
 		const agent = createTestAgent(disposables, { copilotClient: client });
 		try {
-			const internals = agent as unknown as { _getAvailableModelIds(): Promise<ReadonlySet<string>> };
-			const beforeSignIn = [...await internals._getAvailableModelIds()];
+			const internals = agent as unknown as {
+				_getAvailableModelIds(): Promise<ReadonlySet<string> | undefined>;
+				_handleClientOperationFailure(error: unknown, operation: string): Promise<unknown>;
+			};
+			const available = async () => {
+				const ids = await internals._getAvailableModelIds();
+				return ids ? [...ids].sort() : 'notKnown';
+			};
+			const usable = ['model-enabled', 'model-no-policy'];
+			const beforeSignIn = await available();
 
 			// A launch that asks while the catalog is being listed gets the
 			// listed catalog, not the empty one published before it.
 			const gate = new DeferredPromise<void>();
 			client.modelListGate = gate.p;
-			await agent.authenticate('https://api.github.com', 'token');
-			const refresh = agent.refreshModels();
-			const duringRefresh = internals._getAvailableModelIds();
+			await agent.authenticate('https://api.github.com', 'token-a');
+			const duringFirstListing = available();
 			gate.complete();
-			await refresh;
+			client.modelListGate = undefined;
+			const firstListing = await duringFirstListing;
+
+			// A recovered client clears the catalog and schedules no refresh, so
+			// asking is what lists it again.
+			await internals._handleClientOperationFailure(new Error('Connection is closed.'), 'abort');
+			const publishedAfterRecovery = agent.models.get().length;
+			const afterRecovery = await available();
+
+			// The account changes and its catalog cannot be listed. The
+			// published catalog is still the previous account's, and must not
+			// be read as this one's.
+			for (let i = 0; i < 40; i++) {
+				client.modelListErrors.push(new Error('429 "too many requests"'));
+			}
+			await agent.authenticate('https://api.github.com', 'token-b');
+			const whileNewAccountCannotBeListed = await available();
+			const stillPublished = agent.models.get().length;
+
+			client.modelListErrors.length = 0;
+			const onceItCanBeListed = await available();
 
 			assert.deepStrictEqual(
-				{ beforeSignIn, duringRefresh: [...await duringRefresh].sort(), afterRefresh: [...await internals._getAvailableModelIds()].sort() },
-				{ beforeSignIn: [], duringRefresh: ['model-enabled', 'model-no-policy'], afterRefresh: ['model-enabled', 'model-no-policy'] }
+				{ beforeSignIn, firstListing, publishedAfterRecovery, afterRecovery, whileNewAccountCannotBeListed, stillPublished, onceItCanBeListed },
+				{ beforeSignIn: 'notKnown', firstListing: usable, publishedAfterRecovery: 0, afterRecovery: usable, whileNewAccountCannotBeListed: 'notKnown', stillPublished: 4, onceItCanBeListed: usable }
 			);
 		} finally {
 			await disposeAgent(agent);
@@ -17315,7 +17342,7 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('changeModel restarts a live SDK session when a prompt experiment is on and the switch crosses the Claude Opus boundary', async () => {
+		test('changeModel restarts a live SDK session when subagent model guidance is configured and the switch changes what it says', async () => {
 			const context = createTestAgentContext(disposables);
 			const agent = context.agent;
 			try {
@@ -17340,9 +17367,18 @@ suite('CopilotAgent', () => {
 				const onHaikuToSonnet = await change('claude-sonnet-5.5');
 				const onSonnetToOpus = await change('claude-opus-5.5');
 
+				// The guidance never names the session's own model, so between
+				// Opus models the prompt changes when one of them is a model the
+				// settings name.
+				context.configurationService.updateRootConfig({ [CopilotCliConfigKey.SubagentGuidanceDefaultModel]: 'claude-opus-5', [CopilotCliConfigKey.SubagentGuidanceLightweightModel]: 'claude-opus-4.5' });
+				const ontoTheDefault = await change('claude-opus-5');
+				const offTheDefault = await change('claude-opus-4.7');
+				const betweenUnnamedOpus = await change('claude-opus-5.5');
+				const ontoTheLightweight = await change('claude-opus-4.5');
+
 				assert.deepStrictEqual(
-					{ offOpusToHaiku, offHaikuToOpus, onOpusToOpus, onOpusToHaiku, onHaikuToSonnet, onSonnetToOpus },
-					{ offOpusToHaiku: 0, offHaikuToOpus: 0, onOpusToOpus: 0, onOpusToHaiku: 1, onHaikuToSonnet: 1, onSonnetToOpus: 2 }
+					{ offOpusToHaiku, offHaikuToOpus, onOpusToOpus, onOpusToHaiku, onHaikuToSonnet, onSonnetToOpus, ontoTheDefault, offTheDefault, betweenUnnamedOpus, ontoTheLightweight },
+					{ offOpusToHaiku: 0, offHaikuToOpus: 0, onOpusToOpus: 0, onOpusToHaiku: 1, onHaikuToSonnet: 1, onSonnetToOpus: 2, ontoTheDefault: 3, offTheDefault: 4, betweenUnnamedOpus: 4, ontoTheLightweight: 5 }
 				);
 			} finally {
 				await disposeAgent(agent);

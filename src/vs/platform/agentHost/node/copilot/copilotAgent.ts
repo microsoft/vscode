@@ -760,6 +760,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * picker.
 	 */
 	private _capiModels: readonly IAgentModelInfo[] = [];
+	/**
+	 * Whether {@link _capiModels} was listed with the current credential and
+	 * client. False before the first listing, once a token change or client
+	 * restart has superseded the listing, and after the list is cleared; true
+	 * again when a listing for the current source is published. A failed
+	 * refresh leaves it as it was: the last good list for the same source is
+	 * still that account's list, while a superseded one is not.
+	 */
+	private _capiModelsCurrent = false;
 	/** See {@link _getFallbackAutoModel}. */
 	private _fallbackAutoModel: IAgentModelInfo | undefined;
 	private _byokModels: readonly IAgentModelInfo[] = [];
@@ -778,6 +787,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	protected readonly _modelRefreshMaxAttempts: number = MODEL_REFRESH_MAX_ATTEMPTS;
 	protected readonly _modelRefreshBaseDelayMs: number = MODEL_REFRESH_BASE_DELAY_MS;
 	protected readonly _modelRefreshMaxDelayMs: number = MODEL_REFRESH_MAX_DELAY_MS;
+	/** How long a session launch waits for the account's models before treating them as unknown. Overridable in tests. */
+	protected readonly _availableModelsWaitMs: number = 5000;
 	/** Pending model-refresh retry timer; cleared on a fresh refresh, shutdown, or dispose. */
 	private readonly _modelRefreshRetry = this._register(new MutableDisposable());
 	/**
@@ -1301,6 +1312,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// change. Not hooked in `_ensureClient`, since `_listModels` calls
 		// it and would recurse.
 		this._capiModels = [];
+		this._capiModelsCurrent = false;
 		this._publishModels();
 		void this._scheduleModelRefresh();
 	}
@@ -1391,6 +1403,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._logService.error(error, '[Copilot] Failed to stop closed SDK client');
 		}
 		this._capiModels = [];
+		this._capiModelsCurrent = false;
 		this._publishModels();
 		return { failedTurnIds, stopSucceeded };
 	}
@@ -2308,6 +2321,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 */
 	private _scheduleModelRefresh(): Promise<void> {
 		const generation = ++this._modelCatalogGeneration;
+		this._capiModelsCurrent = false;
 		if (this._scheduledModelRefresh) {
 			this._scheduledModelRefresh.generation = generation;
 			return this._scheduledModelRefresh.deferred.p;
@@ -2374,6 +2388,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const tokenAtRefreshStart = this._githubCredentials.token;
 		if (!tokenAtRefreshStart) {
 			this._capiModels = [];
+			this._capiModelsCurrent = false;
 			this._publishModels();
 			return;
 		}
@@ -2381,6 +2396,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const models = await this._listModels(tokenAtRefreshStart);
 			if (this._githubCredentials.token === tokenAtRefreshStart && this._modelCatalogGeneration === generation) {
 				this._capiModels = models;
+				this._capiModelsCurrent = true;
 				this._publishModels();
 			}
 		} catch (err) {
@@ -5922,11 +5938,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * out of Opus with it on leaves a prompt written for the other model:
 	 * guidance to delegate to "lighter" models that are heavier than a Haiku
 	 * session's own, or no guidance at all for a session that became Opus.
+	 * So does a switch between Opus models when one of them is a model the
+	 * guidance is configured to name, since it never names the session's own.
 	 */
 	private _modelChangeAltersSystemPrompt(previousModelId: string | undefined, nextModelId: string): boolean {
 		// Configured is enough to restart on: whether the configured model is
 		// usable is settled by the relaunch, against the models at that moment.
-		if (!this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.SubagentGuidanceDefaultModel)?.trim()) {
+		const defaultModel = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.SubagentGuidanceDefaultModel)?.trim();
+		if (!defaultModel || previousModelId === nextModelId) {
 			return false;
 		}
 		// Same resolution the launcher uses to pick the prompt contributor: a
@@ -5935,7 +5954,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const isOpus = (modelId: string | undefined) => isClaudeOpusModelId(modelId === undefined
 			? undefined
 			: resolveModelCapabilityOverrideField(capabilityOverrides, modelId, 'family', (value): value is string => normalizeModelFamilyAlias(value) !== undefined) ?? modelId);
-		return isOpus(previousModelId) !== isOpus(nextModelId);
+		if (isOpus(previousModelId) !== isOpus(nextModelId)) {
+			return true;
+		}
+		// Within Opus the guidance never names the session's own model, so a
+		// switch to or from a model the settings name changes what it says.
+		const lightweightModel = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.SubagentGuidanceLightweightModel)?.trim();
+		const isNamed = (modelId: string | undefined) => modelId !== undefined && (modelId === defaultModel || modelId === lightweightModel);
+		return isOpus(nextModelId) && (isNamed(previousModelId) || isNamed(nextModelId));
 	}
 
 	private async _changeAgent(chat: URI, agent: AgentSelection | undefined, operationContext: URI | IAgentChatContext): Promise<void> {
@@ -6189,15 +6215,23 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * picker is built from, and the runtime builds the `task` tool's `model`
 	 * choices from the same listing.
 	 *
-	 * After sign-in, a token change or a client restart the published list is
-	 * about to be replaced and may still be empty, so an in-flight refresh is
-	 * waited for. The wait is bounded: a session launch must not hang on a
-	 * model listing.
+	 * Returns `undefined` when the list for the current credential and client
+	 * is not known: nothing has been listed yet, the last listing failed, or
+	 * the published list belongs to a credential that has since been replaced.
+	 * A caller must not read that as "no models": the published list may then
+	 * be empty, or be another account's.
+	 *
+	 * When the list is not current this waits for the refresh that will
+	 * replace it, starting one if none is pending (a client recovered from a
+	 * closed connection clears the list without scheduling a refresh). The
+	 * wait is bounded: a session launch must not hang on a model listing.
 	 */
-	private async _getAvailableModelIds(): Promise<ReadonlySet<string>> {
-		const pending = this._scheduledModelRefresh?.deferred.p ?? this._modelRefreshInFlight;
-		if (pending) {
-			await raceTimeout(pending, 5000);
+	private async _getAvailableModelIds(): Promise<ReadonlySet<string> | undefined> {
+		if (!this._capiModelsCurrent) {
+			await raceTimeout(this._invalidatingModelRefresh ?? this._scheduledModelRefresh?.deferred.p ?? this._modelRefreshInFlight ?? this.refreshModels(), this._availableModelsWaitMs);
+		}
+		if (!this._capiModelsCurrent) {
+			return undefined;
 		}
 		return new Set(this._models.get()
 			.filter(model => model.policyState === undefined || model.policyState === PolicyState.Enabled)
