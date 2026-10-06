@@ -9,6 +9,7 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { createRequire } from 'node:module';
 import { _electron } from 'playwright';
+import sqlite3 from '@vscode/sqlite3';
 import { shouldDownloadElectron } from '../../build/lib/electronVersion.ts';
 import { collectSnapshot } from '../../build/next/build-fast.ts';
 
@@ -65,6 +66,19 @@ if (mode === 'build') {
 		'git.autoRepositoryDetection': false, 'git.openRepositoryInParentFolders': 'never',
 		'npm.autoDetect': 'off', 'extensions.autoUpdate': false,
 	}));
+	const storage = path.join(profile, 'User', 'globalStorage');
+	await fs.mkdir(storage, { recursive: true });
+	const database = await new Promise<sqlite3.Database>((resolve, reject) => {
+		const instance = new sqlite3.Database(path.join(storage, 'state.vscdb'), error => error ? reject(error) : resolve(instance));
+	});
+	try {
+		await new Promise<void>((resolve, reject) => database.exec(
+			'CREATE TABLE IF NOT EXISTS ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB); INSERT INTO ItemTable (key, value) VALUES (\'builtinChatExtensionEnablementMigration\', \'true\');',
+			error => error ? reject(error) : resolve(),
+		));
+	} finally {
+		await new Promise<void>((resolve, reject) => database.close(error => error ? reject(error) : resolve()));
+	}
 	for (const [file, contents] of [
 		['sample.ts', 'export function coldBuildExample(value: number): number { return value + 1; }\n'],
 		['sample.html', '<'], ['sample.css', ''], ['package.json', '{ }'],

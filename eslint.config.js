@@ -2397,6 +2397,7 @@ export default defineConfig(
 						'test/cold-build-validation/**',
 						'build/**',
 						'node:*/**',
+						'@vscode/*',
 						'*'
 					]
 				},
