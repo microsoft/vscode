@@ -1123,12 +1123,12 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		const baseBranch = `${remote.name}/${pullRequest.baseRef}`;
 		const worktreePath = await this._worktreeCreationSequencer.queue(repositoryRoot.toString(), async () => {
 			try {
-				await this._gitService.fetch(repositoryRoot, toRemoteBranch(remote.name, pullRequest.headRef));
+				await this._gitService.fetch(repositoryRoot, toRemoteBranch(remote.name, pullRequest.headRef), { timeout: 60_000 });
 			} catch (error) {
 				throw new Error(localize('agentHost.pullRequest.fetchFailed', "Couldn't fetch branch '{0}' of pull request #{1} from remote '{2}': {3}", pullRequest.headRef, pullRequest.number, remote.name, errorMessage(error)));
 			}
 			try {
-				await this._gitService.fetch(repositoryRoot, toRemoteBranch(remote.name, pullRequest.baseRef));
+				await this._gitService.fetch(repositoryRoot, toRemoteBranch(remote.name, pullRequest.baseRef), { timeout: 60_000 });
 			} catch (error) {
 				this._logService.warn(`[${this._logLabel}:${sessionId}] Failed to fetch base branch '${pullRequest.baseRef}' of pull request #${pullRequest.number}: ${errorMessage(error)}`);
 			}

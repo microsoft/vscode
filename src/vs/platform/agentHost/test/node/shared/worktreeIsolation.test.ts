@@ -757,13 +757,15 @@ suite('WorktreeIsolation', () => {
 		const gitService = createGitService();
 		const logService = new TestLogService();
 		const operations: string[] = [];
+		const fetchTimeouts: (number | undefined)[] = [];
 		gitService.getBranch = async (_root, name) => ({
 			ref: `refs/remotes/${name}`,
 			name,
 			remote: 'origin',
 			kind: GitRefType.RemoteHead,
 		});
-		gitService.fetch = async (_root, branch) => {
+		gitService.fetch = async (_root, branch, options) => {
+			fetchTimeouts.push(options?.timeout);
 			operations.push(`fetch:${branch.remote}:${branch.ref}`);
 			throw new Error('network unavailable');
 		};
@@ -788,10 +790,12 @@ suite('WorktreeIsolation', () => {
 		assert.deepStrictEqual({
 			worktree: worktree?.toString(),
 			operations,
+			fetchTimeouts,
 			warnings: logService.warnings,
 		}, {
 			worktree: URI.joinPath(worktreesRoot, 'my-feature').toString(),
 			operations: ['fetch:origin:refs/remotes/origin/main', 'add:origin/main'],
+			fetchTimeouts: [undefined],
 			warnings: [`[AgentHost:s1] Failed to fetch remote 'origin' before creating worktree: network unavailable`],
 		});
 	});
@@ -806,7 +810,7 @@ suite('WorktreeIsolation', () => {
 	test('checks out a pull request on a new session branch tracking its head and diffs against its base', async () => {
 		// A local branch named after the pull request is never touched.
 		branchExists = true;
-		const fetched: string[] = [];
+		const fetched: { branch: string; timeout: number | undefined }[] = [];
 		const gitService: IAgentHostGitService = {
 			...createGitService(),
 			getFetchRemotes: async () => [
@@ -814,7 +818,7 @@ suite('WorktreeIsolation', () => {
 				{ name: 'origin', url: 'git@github.com:someone/vscode.git' },
 				{ name: 'upstream', url: 'ssh://git@ssh.github.com:443/Microsoft/VSCode.git' },
 			],
-			fetch: async (_root, branch) => { fetched.push(branch.name); },
+			fetch: async (_root, branch, options) => { fetched.push({ branch: branch.name, timeout: options?.timeout }); },
 		};
 		const isolation = createIsolation(disposables, {
 			gitService,
@@ -842,7 +846,7 @@ suite('WorktreeIsolation', () => {
 		}, {
 			worktree: URI.joinPath(worktreesRoot, 'pr-42-s1').toString(),
 			again: URI.joinPath(worktreesRoot, 'pr-42-s1').toString(),
-			fetched: ['upstream/feature/pr', 'upstream/main'],
+			fetched: [{ branch: 'upstream/feature/pr', timeout: 60_000 }, { branch: 'upstream/main', timeout: 60_000 }],
 			addWorktreeArgs: [{ commitish: 'upstream/feature/pr', newBranchName: 'agents/pr-42-s1', track: true }],
 			branchName: 'agents/pr-42-s1',
 			diffBaseBranch: 'upstream/main',

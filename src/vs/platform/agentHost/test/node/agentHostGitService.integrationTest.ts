@@ -17,6 +17,7 @@ import assert from 'assert';
 import * as cp from 'child_process';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from 'fs';
 import { rm } from 'fs/promises';
+import { createServer, type Socket } from 'net';
 import { tmpdir } from 'os';
 import { NullLogService } from '../../../log/common/log.js';
 import { join } from '../../../../base/common/path.js';
@@ -27,7 +28,7 @@ import { INativeEnvironmentService } from '../../../environment/common/environme
 import { FileService } from '../../../files/common/fileService.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { DiskFileSystemProvider } from '../../../files/node/diskFileSystemProvider.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, GitRefType } from '../../common/agentHostGitService.js';
 import type { ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentHostGitService } from '../../node/agentHostGitService.js';
@@ -1217,6 +1218,33 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
 			await rmDirWithRetry(wtPath);
 		}
+	});
+
+	(hasGit ? test : test.skip)('fetch bounds an unresponsive remote to five seconds unless its caller overrides the timeout', async function () {
+		this.timeout(20_000);
+		const dir = initRepo();
+		const sockets = new Set<Socket>();
+		const server = createServer(socket => {
+			sockets.add(socket);
+			socket.on('close', () => sockets.delete(socket));
+		});
+		disposables.add(toDisposable(() => {
+			for (const socket of sockets) {
+				socket.destroy();
+			}
+			server.close();
+		}));
+		await new Promise<void>((resolve, reject) => {
+			server.once('error', reject);
+			server.listen(0, '127.0.0.1', resolve);
+		});
+		const address = server.address();
+		assert.ok(address && typeof address !== 'string');
+		cp.execFileSync('git', ['remote', 'add', 'unresponsive', `git://127.0.0.1:${address.port}/repo`], { cwd: dir, env, stdio: 'pipe' });
+		const branch = { kind: GitRefType.RemoteHead as const, remote: 'unresponsive', name: 'unresponsive/main', ref: 'refs/remotes/unresponsive/main' };
+
+		await assert.rejects(svc!.fetch(URI.file(dir), branch), /git fetch timed out after 5000ms/);
+		await assert.rejects(svc!.fetch(URI.file(dir), branch, { timeout: 100 }), /git fetch timed out after 100ms/);
 	});
 
 	(hasGit ? test : test.skip)('removeWorktree preserves dirty work unless forced', async () => {

@@ -532,10 +532,10 @@ export class AgentHostGitService implements IAgentHostGitService {
 		return output !== undefined && output.trim().length > 0;
 	}
 
-	async fetch(workingDirectory: URI, branch: IRemoteBranch): Promise<void> {
+	async fetch(workingDirectory: URI, branch: IRemoteBranch, options?: { readonly timeout?: number }): Promise<void> {
 		const branchName = branch.name.substring(branch.remote.length + 1);
 		const refspec = `+refs/heads/${branchName}:${branch.ref}`;
-		await this._runGit(workingDirectory, ['fetch', branch.remote, refspec], { timeout: 60_000, throwOnError: true });
+		await this._runGit(workingDirectory, ['fetch', branch.remote, refspec], { timeout: options?.timeout, throwOnError: true });
 	}
 
 	async pull(workingDirectory: URI, options?: IPullOptions): Promise<void> {
