@@ -117,6 +117,7 @@ export interface ICanvasService {
 	readonly enabled: IObservable<boolean>;
 	readonly reopenableCanvases: IObservable<readonly ICanvasReopenTarget[]>;
 	isOwnerPresentable(reference: ICanvasReference, reader?: IReader): boolean;
+	revealCanvas(reference: ICanvasReference): Promise<void>;
 	reopenCanvas(reference: ICanvasReference): Promise<void>;
 	/** Restores a canvas admitted by this live service instance from its opaque working-set identifier. */
 	restoreCanvasInput(serializationId: string): CanvasInput | undefined;
@@ -173,7 +174,7 @@ export class CanvasInput extends EditorInput {
 	override get editorId(): string { return CanvasInput.EDITOR_ID; }
 	override get capabilities(): EditorInputCapabilities { return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton | EditorInputCapabilities.ForceReveal; }
 	override getName(): string { return this.canvas.get()?.title ?? localize('canvas.editorName', "Canvas"); }
-	override getDescription(): string { return localize('canvas.editorDescription', "Closing this tab hides the canvas. Reopen it from Add Tab in the Agents Window or ask the agent to open it again."); }
+	override getDescription(): string { return localize('canvas.editorDescription', "Closing this tab hides the canvas. Use its canvas pill or Add Tab in the Agents Window, or ask the agent to open it again."); }
 	override getIcon(): ThemeIcon { return Codicon.preview; }
 	override getTitle(_verbosity?: Verbosity): string { return this.getName(); }
 	override canReopen(): boolean { return false; }

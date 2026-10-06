@@ -14,11 +14,15 @@ import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CanvasesEnabledSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../../../workbench/common/editor.js';
+import { CanvasInput, ICanvasContextService, ICanvasService } from '../../../../../workbench/contrib/canvases/common/canvas.js';
+import { CanvasService } from '../../../../../workbench/contrib/canvases/electron-browser/canvasService.js';
 import { IAuxiliaryWindowService } from '../../../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { EditorService } from '../../../../../workbench/services/editor/browser/editorService.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
@@ -30,8 +34,7 @@ import { IChat, ISessionCanvas } from '../../../../services/sessions/common/sess
 import { ChatLayoutMode } from '../../../../common/chatLayout.js';
 import { BaseLayoutController } from '../../../layout/browser/baseSessionLayoutController.js';
 import { createTestHarness, makeSession } from '../../../layout/test/browser/layoutControllerTestUtils.js';
-import { ISessionCanvasService, SessionCanvasInput } from '../../common/sessionCanvas.js';
-import { SessionCanvasService } from '../../electron-browser/sessionCanvasService.js';
+import { SessionCanvasContextService } from '../../electron-browser/sessionCanvasService.js';
 import { SessionCanvasSerializer } from '../../electron-browser/sessionCanvasSerializer.js';
 
 class TestCanvasLayoutController extends BaseLayoutController { }
@@ -51,7 +54,7 @@ suite('Session canvas working sets', () => {
 		const factoryRegistry = Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory);
 		instantiationService.invokeFunction(accessor => factoryRegistry.start(accessor));
 		store.add(registerTestEditor('canvas-working-set-file', [new SyncDescriptor(TestFileEditorInput)], 'canvas-working-set-file'));
-		store.add(registerTestEditor(SessionCanvasInput.EDITOR_ID, [new SyncDescriptor(SessionCanvasInput)]));
+		store.add(registerTestEditor(CanvasInput.EDITOR_ID, [new SyncDescriptor(CanvasInput)]));
 		const parts = await createEditorParts(instantiationService, store);
 		store.add(parts.onDidAddGroup(group => {
 			for (const input of group.editors) {
@@ -70,10 +73,12 @@ suite('Session canvas working sets', () => {
 		}));
 		const configurationService = harness.instaService.invokeFunction(accessor => accessor.get(IConfigurationService)) as TestConfigurationService;
 		await configurationService.setUserConfiguration(CanvasesEnabledSettingId, true);
+		harness.instaService.stub(INotificationService, new TestNotificationService());
 		store.add(harness.instaService.createInstance(TestCanvasLayoutController));
-		const canvasService = store.add(harness.instaService.createInstance(SessionCanvasService));
-		instantiationService.stub(ISessionCanvasService, canvasService);
-		store.add(factoryRegistry.registerEditorSerializer(SessionCanvasInput.ID, SessionCanvasSerializer));
+		harness.instaService.stub(ICanvasContextService, store.add(harness.instaService.createInstance(SessionCanvasContextService)));
+		const canvasService = store.add(harness.instaService.createInstance(CanvasService));
+		instantiationService.stub(ICanvasService, canvasService);
+		store.add(factoryRegistry.registerEditorSerializer(CanvasInput.ID, SessionCanvasSerializer));
 		const canvas: ISessionCanvas = {
 			resource: URI.parse('test-canvas:/preview'),
 			instanceId: 'preview',
@@ -93,7 +98,7 @@ suite('Session canvas working sets', () => {
 		await timeout(0);
 		const file = store.add(new TestFileEditorInput(URI.file('/repo/file.txt'), 'canvas-working-set-file'));
 		await editorService.openEditor(file, { pinned: true, inactive: true });
-		const originalCanvas = editorService.editors.find(input => input instanceof SessionCanvasInput);
+		const originalCanvas = editorService.editors.find(input => input instanceof CanvasInput);
 		assert.ok(originalCanvas);
 		assert.ok(originalCanvas.serializationId);
 		const sessionB = makeSession(URI.parse('session:B'));
@@ -125,14 +130,14 @@ suite('Session canvas working sets', () => {
 				selection: parts.activeGroup.selectedEditors.map(input => input.typeId),
 				layout: parts.getLayout(),
 				reopenable: canvasService.reopenableCanvases.get().length,
-				canonical: (editorService.activeEditor as SessionCanvasInput | undefined)?.serializationId === originalCanvas.serializationId,
+				canonical: (editorService.activeEditor as CanvasInput | undefined)?.serializationId === originalCanvas.serializationId,
 				editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
 				focusPreserved: document.activeElement === focus,
 			}, {
 				sessionBEditors: 0,
-				editors: [SessionCanvasInput.ID, 'canvas-working-set-file'],
-				activeEditor: SessionCanvasInput.ID,
-				selection: [SessionCanvasInput.ID],
+				editors: [CanvasInput.ID, 'canvas-working-set-file'],
+				activeEditor: CanvasInput.ID,
+				selection: [CanvasInput.ID],
 				layout,
 				reopenable: 0,
 				canonical: true,
@@ -219,7 +224,7 @@ suite('Session canvas working sets', () => {
 		await switchTo(sessionA);
 		await canvasService.revealCanvas(originalCanvas.reference);
 		const afterReturn = harness.editorWorkingSetService.restoreState.get();
-		const canvasesAfterReturn = editorService.editors.filter(input => input instanceof SessionCanvasInput).length;
+		const canvasesAfterReturn = editorService.editors.filter(input => input instanceof CanvasInput).length;
 
 		harness.workspaceFolders = [...harness.workspaceFolders, { uri: otherWorkspace.uri }];
 		harness.onDidChangeWorkspaceFolders.fire();
@@ -256,7 +261,7 @@ suite('Session canvas working sets', () => {
 		(sessionA.activeChat as ISettableObservable<IChat>).set(peer, undefined);
 		await timeout(0);
 		const canvasesBeforeSwitch = editorService.editors
-			.filter((input): input is SessionCanvasInput => input instanceof SessionCanvasInput)
+			.filter((input): input is CanvasInput => input instanceof CanvasInput)
 			.map(input => input.reference.chat.toString())
 			.sort();
 
@@ -266,7 +271,7 @@ suite('Session canvas working sets', () => {
 		assert.deepStrictEqual({
 			canvasesBeforeSwitch,
 			canvasesAfterSwitch: editorService.editors
-				.filter((input): input is SessionCanvasInput => input instanceof SessionCanvasInput)
+				.filter((input): input is CanvasInput => input instanceof CanvasInput)
 				.map(input => input.reference.chat.toString())
 				.sort(),
 		}, {
@@ -291,7 +296,7 @@ suite('Session canvas working sets', () => {
 			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
 		}, {
 			layout,
-			groups: [[SessionCanvasInput.ID, 'canvas-working-set-file'], ['canvas-working-set-file']],
+			groups: [[CanvasInput.ID, 'canvas-working-set-file'], ['canvas-working-set-file']],
 			active: file.resource.toString(),
 			editorVisible: false,
 		});
@@ -304,7 +309,7 @@ suite('Session canvas working sets', () => {
 		store.add(toDisposable(() => focus.remove()));
 		harness.layoutService.setPartHidden(true, Parts.EDITOR_PART);
 		focus.focus();
-		const modalBeforeSwitch = parts.activeModalEditorPart?.activeGroup.editors.some(input => input instanceof SessionCanvasInput) === true;
+		const modalBeforeSwitch = parts.activeModalEditorPart?.activeGroup.editors.some(input => input instanceof CanvasInput) === true;
 
 		await switchTo(sessionB);
 		await switchTo(sessionA);
@@ -313,7 +318,7 @@ suite('Session canvas working sets', () => {
 		assert.deepStrictEqual({
 			modalBeforeSwitch,
 			modalAfterSwitch: parts.activeModalEditorPart !== undefined,
-			mainCanvases: parts.mainPart.activeGroup.editors.filter(input => input instanceof SessionCanvasInput).length,
+			mainCanvases: parts.mainPart.activeGroup.editors.filter(input => input instanceof CanvasInput).length,
 			activeEditor: editorService.activeEditor?.typeId,
 			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
 			focusPreserved: document.activeElement === focus,
@@ -321,7 +326,7 @@ suite('Session canvas working sets', () => {
 			modalBeforeSwitch: true,
 			modalAfterSwitch: false,
 			mainCanvases: 1,
-			activeEditor: SessionCanvasInput.ID,
+			activeEditor: CanvasInput.ID,
 			editorVisible: false,
 			focusPreserved: true,
 		});
@@ -341,11 +346,11 @@ suite('Session canvas working sets', () => {
 			afterSwitch,
 			activeAfterExplicitReopen: editorService.activeEditor?.typeId,
 			reopenableAfterExplicitReopen: canvasService.reopenableCanvases.get().length,
-			newPresentation: (editorService.activeEditor as SessionCanvasInput | undefined)?.serializationId !== originalCanvas.serializationId,
+			newPresentation: (editorService.activeEditor as CanvasInput | undefined)?.serializationId !== originalCanvas.serializationId,
 			genericReopenSupported: originalCanvas.canReopen(),
 		}, {
 			afterSwitch: { editors: ['canvas-working-set-file'], reopenable: 1 },
-			activeAfterExplicitReopen: SessionCanvasInput.ID,
+			activeAfterExplicitReopen: CanvasInput.ID,
 			reopenableAfterExplicitReopen: 0,
 			newPresentation: true,
 			genericReopenSupported: false,
@@ -357,7 +362,7 @@ suite('Session canvas working sets', () => {
 		await switchTo(sessionB);
 		canvases.set(undefined, undefined);
 		await switchTo(sessionA);
-		const restored = editorService.editors.find(input => input instanceof SessionCanvasInput);
+		const restored = editorService.editors.find(input => input instanceof CanvasInput);
 		assert.ok(restored);
 		const whileHydrating = {
 			title: restored.canvas.get()?.title,
@@ -398,7 +403,7 @@ suite('Session canvas working sets', () => {
 			const peerEditors = editorService.editors.map(input => input.getName());
 			sessionA.activeChat.set(main, undefined);
 			await timeout(0);
-			const restored = editorService.editors.find(input => input instanceof SessionCanvasInput);
+			const restored = editorService.editors.find(input => input instanceof CanvasInput);
 			assert.deepStrictEqual({
 				peerEditors,
 				mainEditors: editorService.editors.map(input => input.typeId),
@@ -406,7 +411,7 @@ suite('Session canvas working sets', () => {
 				exactChat: restored?.reference.chat.toString(),
 			}, {
 				peerEditors: ['Peer'],
-				mainEditors: [SessionCanvasInput.ID, 'canvas-working-set-file'],
+				mainEditors: [CanvasInput.ID, 'canvas-working-set-file'],
 				canonical: true, exactChat: main.resource.toString(),
 			});
 		});
@@ -416,13 +421,13 @@ suite('Session canvas working sets', () => {
 		const { editorService, canvasService, sessionA, sessionB, originalCanvas, switchTo } = await createHarness();
 		await switchTo(sessionB);
 		await switchTo(sessionA);
-		const canonical = editorService.editors.find(input => input instanceof SessionCanvasInput);
+		const canonical = editorService.editors.find(input => input instanceof CanvasInput);
 		await Promise.all([
 			canvasService.revealCanvas(originalCanvas.reference),
 			canvasService.revealCanvas(originalCanvas.reference),
 		]);
 		assert.deepStrictEqual({
-			canvases: editorService.editors.filter(input => input instanceof SessionCanvasInput).length,
+			canvases: editorService.editors.filter(input => input instanceof CanvasInput).length,
 			canonical: canonical?.serializationId === originalCanvas.serializationId,
 			originalDisposed: originalCanvas.isDisposed(),
 		}, { canvases: 1, canonical: true, originalDisposed: true });
@@ -460,8 +465,8 @@ suite('Session canvas working sets', () => {
 		const serializationId = originalCanvas.serializationId!;
 		canvasService.dispose();
 		canvases.set([{ ...canvas, source: undefined }], undefined);
-		const freshService = store.add(harness.instaService.createInstance(SessionCanvasService));
-		instantiationService.stub(ISessionCanvasService, freshService);
+		const freshService = store.add(harness.instaService.createInstance(CanvasService));
+		instantiationService.stub(ICanvasService, freshService);
 		await switchTo(sessionA);
 		assert.deepStrictEqual({
 			editors: editorService.editors.map(input => input.typeId),
