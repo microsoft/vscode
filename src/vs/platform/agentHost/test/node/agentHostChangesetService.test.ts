@@ -88,6 +88,8 @@ function createOperationService(): IAgentHostChangesetOperationService {
 		_serviceBrand: undefined,
 		registerContribution: () => toDisposable(() => { }),
 		updateOperations: () => { },
+		scheduleRelatedOperationsUpdate: () => { },
+		scheduleOwnerOperationsUpdate: () => { },
 		getOperations: () => undefined,
 		invokeChangesetOperation: async () => { throw new Error('not implemented'); },
 		dispose: () => { },
@@ -1705,6 +1707,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 	}
 
 	function build(options: {
+		session?: { resource: string; provider: string };
 		workingDirectories: string[];
 		git: IAgentHostGitService;
 		checkpoint: IAgentHostCheckpointService;
@@ -1716,6 +1719,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		isolation?: 'folder' | 'worktree';
 		peer?: { resource: string; db: TestSessionDatabase; turnId: string; workingDirectories?: readonly string[]; onDispose?: () => void; openError?: Error };
 	}): { svc: AgentHostChangesetService; stateManager: AgentHostStateManager; log: RecordingLogService } {
+		const resource = options.session?.resource ?? sessionStr;
 		const log = options.log ?? new RecordingLogService();
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const db = options.db ?? new TestSessionDatabase();
@@ -1761,8 +1765,8 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			options.telemetry ?? NullTelemetryService,
 		));
 		stateManager.createSession({
-			resource: sessionStr,
-			provider: 'mock',
+			resource,
+			provider: options.session?.provider ?? 'mock',
 			title: 'Test',
 			status: SessionStatus.Idle,
 			createdAt: new Date().toISOString(),
@@ -1770,13 +1774,13 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			workingDirectories: options.workingDirectories,
 		});
 		if (options.isolation) {
-			stateManager.setSessionConfig(sessionStr, {
+			stateManager.setSessionConfig(resource, {
 				schema: { type: 'object', properties: {} },
 				values: { [SessionConfigKey.Isolation]: options.isolation },
 			});
 		}
 		if (options.peer) {
-			stateManager.addChat(sessionStr, options.peer.resource, { workingDirectories: options.peer.workingDirectories });
+			stateManager.addChat(resource, options.peer.resource, { workingDirectories: options.peer.workingDirectories });
 			stateManager.dispatchServerAction(options.peer.resource, {
 				type: ActionType.ChatTurnStarted,
 				turnId: options.peer.turnId,
@@ -4005,6 +4009,114 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			return event.data;
 		}
 
+		for (const provider of ['copilotcli', 'copilot', 'claude', 'codex', 'custom-provider']) {
+			for (const scheme of [provider, 'ahp-session', ...(provider === 'copilotcli' ? ['copilot'] : [])]) {
+				test(`changesetComputed preserves exact baseline provider per scope for ${provider}/${scheme}`, async () => {
+					const resource = AgentSession.uri(scheme, 'telemetry-session').toString();
+					const peer = buildChatUri(resource, 'peer');
+					const folder = buildFolderChangesetOwnerUri(resource, getWorkingDirectoryScopeId(['file:///repo']));
+					const telemetry = new CapturingTelemetryService();
+					const git = createNoopGitService();
+					git.getRepositoryRoot = async wd => wd;
+					git.computeFileDiffsBetweenRefs = async () => [gitDiff('/repo/a.ts')];
+					git.computeSessionFileDiffs = async () => [gitDiff('/repo/a.ts')];
+					const { svc } = build({
+						session: { resource, provider },
+						workingDirectories: ['file:///repo'],
+						git,
+						checkpoint: makeCheckpoint(root => ({ parent: `${root}~p`, current: `${root}~c` })),
+						telemetry,
+						peer: { resource: peer, db: new TestSessionDatabase(), turnId: 'peer-turn' },
+						subscriptions: [
+							buildBranchChangesetUri(folder),
+							buildSessionChangesetUri(resource),
+							buildUncommittedChangesetUri(resource),
+							buildTurnChangesetUri(resource, 'turn'),
+							buildTurnChangesetUri(peer, 'peer-turn'),
+						],
+					});
+
+					svc.onTurnComplete(resource, 'turn');
+					svc.onTurnComplete(peer, 'peer-turn');
+					for (const kind of ['branch', 'session', 'uncommitted', 'turn']) {
+						await waitForTelemetry(telemetry, 'agentHost.changesetComputed', data => data.kind === kind);
+					}
+					await waitForTelemetry(telemetry, 'agentHost.changesetComputed', data => data.turnId === 'peer-turn' && data.kind === 'turn');
+
+					const expectedProvider = scheme === 'ahp-session' ? provider : scheme;
+					assert.deepStrictEqual(
+						telemetry.events.map(event => ({ kind: event.data.kind, turnId: event.data.turnId, provider: event.data.provider })),
+						telemetry.events.map(event => ({
+							kind: event.data.kind,
+							turnId: event.data.turnId,
+							provider: event.data.kind === 'branch' ? 'ahp-folder-changeset'
+								: event.data.kind === 'turn' && event.data.turnId === 'peer-turn' ? 'ahp-chat'
+									: expectedProvider,
+						})),
+					);
+				});
+			}
+		}
+
+		test('changesetComputed retains the provider when a session is removed during computation', async () => {
+			const resource = 'ahp-session:/removed-session';
+			const started = new DeferredPromise<void>();
+			const result = new DeferredPromise<readonly ISessionFileDiff[]>();
+			const telemetry = new CapturingTelemetryService();
+			const git = createNoopGitService();
+			git.computeSessionFileDiffs = async () => {
+				started.complete();
+				return result.p;
+			};
+			const { svc, stateManager } = build({
+				session: { resource, provider: 'copilotcli' },
+				workingDirectories: ['file:///repo'],
+				git,
+				checkpoint: NULL_CHECKPOINT_SERVICE,
+				telemetry,
+				subscriptions: [buildUncommittedChangesetUri(resource)],
+			});
+
+			svc.onTurnComplete(resource, undefined);
+			await started.p;
+			stateManager.removeSession(resource);
+			result.complete([]);
+			const data = await waitForTelemetry(telemetry, 'agentHost.changesetComputed', data => data.kind === 'uncommitted');
+
+			assert.deepStrictEqual({ provider: data.provider, agentSessionId: data.agentSessionId }, {
+				provider: 'copilotcli',
+				agentSessionId: 'removed-session',
+			});
+		});
+
+		for (const scheme of ['copilotcli', 'ahp-session']) {
+			test(`changesetComputed retains ${scheme} provider while waiting in the compute queue`, async () => {
+				const resource = AgentSession.uri(scheme, 'queued-session').toString();
+				const telemetry = new CapturingTelemetryService();
+				const { svc, stateManager } = build({
+					session: { resource, provider: 'copilotcli' },
+					workingDirectories: ['file:///repo'],
+					git: createNoopGitService(),
+					checkpoint: NULL_CHECKPOINT_SERVICE,
+					telemetry,
+					subscriptions: [buildTurnChangesetUri(resource, 'turn')],
+				});
+
+				svc.onTurnComplete(resource, 'turn');
+				stateManager.removeSession(resource);
+				svc.refreshSessionChangeset(resource, 'fileEditTracker');
+				await waitForTelemetry(telemetry, 'agentHost.changesetComputed', data => data.kind === 'turn');
+				await waitForTelemetry(telemetry, 'agentHost.changesetComputed', data => data.kind === 'session');
+
+				assert.deepStrictEqual(
+					telemetry.events.filter(event => event.data.kind === 'turn' || event.data.kind === 'session')
+						.map(event => ({ kind: event.data.kind, provider: event.data.provider }))
+						.sort((a, b) => String(a.kind).localeCompare(String(b.kind))),
+					[{ kind: 'session', provider: 'copilotcli' }, { kind: 'turn', provider: 'copilotcli' }],
+				);
+			});
+		}
+
 		test('changesetComputed (turn) carries correlation and omits multi-root fields for a single-root turn', async () => {
 			const telemetry = new CapturingTelemetryService();
 			const git = createNoopGitService();
@@ -4046,7 +4158,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 				hasFileCount: data.fileCount !== undefined,
 				hasMultiRootFields: data.uniqueGitFolderCount !== undefined || data.trackedEditFallbackFolderCount !== undefined,
 			}, {
-				provider: URI.parse(sessionStr).scheme,
+				provider: 'mock',
 				agentSessionId: AgentSession.id(sessionStr),
 				turnId: 'turn-1',
 				initiatorClientType: 'editor_window',

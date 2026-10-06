@@ -39,8 +39,8 @@ export class AutoIndentOperation {
 				}
 				indentationForSelections.push({ selection, indentation });
 			}
-			const autoClosingPairClose = AutoClosingOpenCharTypeOperation.getAutoClosingPairClose(config, model, selections, ch, false);
-			return this._getIndentationAndAutoClosingPairEdits(config, model, indentationForSelections, ch, autoClosingPairClose);
+			const autoClosingPair = AutoClosingOpenCharTypeOperation.getAutoClosingPair(config, model, selections, ch, false);
+			return this._getIndentationAndAutoClosingPairEdits(config, model, indentationForSelections, ch, autoClosingPair);
 		}
 		return;
 	}
@@ -78,18 +78,22 @@ export class AutoIndentOperation {
 		return actualIndentation;
 	}
 
-	private static _getIndentationAndAutoClosingPairEdits(config: CursorConfiguration, model: ITextModel, indentationForSelections: { selection: Selection; indentation: string }[], ch: string, autoClosingPairClose: string | null): EditOperationResult {
+	private static _getIndentationAndAutoClosingPairEdits(config: CursorConfiguration, model: ITextModel, indentationForSelections: { selection: Selection; indentation: string }[], ch: string, autoClosingPair: { open: string; close: string } | null): EditOperationResult {
+		const autoCloseWithUndoStop = autoClosingPair !== null && autoClosingPair.open.length > ch.length;
 		const commands: ICommand[] = indentationForSelections.map(({ selection, indentation }) => {
-			if (autoClosingPairClose !== null) {
+			if (autoClosingPair !== null && !autoCloseWithUndoStop) {
 				// Apply both auto closing pair edits and auto indentation edits
 				const indentationEdit = this._getEditFromIndentationAndSelection(config, model, indentation, selection, ch, false);
-				return new TypeWithIndentationAndAutoClosingCommand(indentationEdit, selection, ch, autoClosingPairClose);
+				return new TypeWithIndentationAndAutoClosingCommand(indentationEdit, selection, ch, autoClosingPair.close);
 			} else {
 				// Apply only auto indentation edits
 				const indentationEdit = this._getEditFromIndentationAndSelection(config, model, indentation, selection, ch, true);
 				return typeCommand(indentationEdit.range, indentationEdit.text, false);
 			}
 		});
+		if (autoClosingPair !== null && autoCloseWithUndoStop) {
+			return AutoClosingOpenCharTypeOperation.typeAndAutoCloseWithUndoStop(model, commands, ch, autoClosingPair.close);
+		}
 		const editOptions = { shouldPushStackElementBefore: true, shouldPushStackElementAfter: false };
 		return new EditOperationResult(EditOperationType.TypingOther, commands, editOptions);
 	}
@@ -151,19 +155,22 @@ export class AutoClosingOpenCharTypeOperation {
 
 	public static getEdits(config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string, chIsAlreadyTyped: boolean, isDoingComposition: boolean): EditOperationResult | undefined {
 		if (!isDoingComposition) {
-			const autoClosingPairClose = this.getAutoClosingPairClose(config, model, selections, ch, chIsAlreadyTyped);
-			if (autoClosingPairClose !== null) {
-				return this._runAutoClosingOpenCharType(selections, ch, chIsAlreadyTyped, autoClosingPairClose);
+			const autoClosingPair = this.getAutoClosingPair(config, model, selections, ch, chIsAlreadyTyped);
+			if (autoClosingPair !== null) {
+				return this._runAutoClosingOpenCharType(model, selections, ch, chIsAlreadyTyped, autoClosingPair);
 			}
 		}
 		return;
 	}
 
-	private static _runAutoClosingOpenCharType(selections: Selection[], ch: string, chIsAlreadyTyped: boolean, autoClosingPairClose: string): EditOperationResult {
+	private static _runAutoClosingOpenCharType(model: ITextModel, selections: Selection[], ch: string, chIsAlreadyTyped: boolean, autoClosingPair: { open: string; close: string }): EditOperationResult {
+		if (!chIsAlreadyTyped && autoClosingPair.open.length > ch.length) {
+			return this.typeAndAutoCloseWithUndoStop(model, selections.map(selection => typeCommand(selection, ch, false)), ch, autoClosingPair.close);
+		}
 		const commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
-			commands[i] = new TypeWithAutoClosingCommand(selection, ch, !chIsAlreadyTyped, autoClosingPairClose);
+			commands[i] = new TypeWithAutoClosingCommand(selection, ch, !chIsAlreadyTyped, autoClosingPair.close);
 		}
 		return new EditOperationResult(EditOperationType.TypingOther, commands, {
 			shouldPushStackElementBefore: true,
@@ -171,7 +178,35 @@ export class AutoClosingOpenCharTypeOperation {
 		});
 	}
 
-	public static getAutoClosingPairClose(config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string, chIsAlreadyTyped: boolean): string | null {
+	/**
+	 * Executes `typeCommands`, which type `ch`, and then inserts `autoClosingPairClose` after `ch` with an undo stop in between.
+	 * This way, undo first removes only the auto-closed characters and keeps a typed multi-character opening pair (e.g. `begin`).
+	 */
+	public static typeAndAutoCloseWithUndoStop(model: ITextModel, typeCommands: ICommand[], ch: string, autoClosingPairClose: string): EditOperationResult {
+		const expectedVersionId = model.getVersionId() + 1;
+		return new EditOperationResult(EditOperationType.TypingOther, typeCommands, {
+			shouldPushStackElementBefore: true,
+			shouldPushStackElementAfter: true,
+			followUp: selections => {
+				const canAutoClose = model.getVersionId() === expectedVersionId
+					&& selections.length === typeCommands.length && selections.every(s =>
+						s.isEmpty() && s.positionColumn > ch.length && model.getValueInRange(new Range(s.positionLineNumber, s.positionColumn - ch.length, s.positionLineNumber, s.positionColumn)) === ch
+					);
+				if (!canAutoClose) {
+					return null;
+				}
+				return new EditOperationResult(EditOperationType.TypingOther, selections.map(selection => new TypeWithAutoClosingCommand(selection, ch, false, autoClosingPairClose)), {
+					shouldPushStackElementBefore: false,
+					shouldPushStackElementAfter: false
+				});
+			}
+		});
+	}
+
+	/**
+	 * Returns the auto-closing pair whose opening ends with `ch`, together with the closing characters to insert.
+	 */
+	public static getAutoClosingPair(config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string, chIsAlreadyTyped: boolean): { open: string; close: string } | null {
 		for (const selection of selections) {
 			if (!selection.isEmpty()) {
 				return null;
@@ -292,9 +327,9 @@ export class AutoClosingOpenCharTypeOperation {
 			}
 		}
 		if (isContainedPairPresent) {
-			return pair.close.substring(0, pair.close.length - containedPairClose.length);
+			return { open: pair.open, close: pair.close.substring(0, pair.close.length - containedPairClose.length) };
 		} else {
-			return pair.close;
+			return { open: pair.open, close: pair.close };
 		}
 	}
 

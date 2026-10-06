@@ -15,12 +15,12 @@
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { IntervalTimer, RunOnceScheduler, disposableTimeout } from '../../../base/common/async.js';
-import { isObject } from '../../../base/common/types.js';
+import { hasKey, isObject } from '../../../base/common/types.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
 import { AhpJsonlLogger, getAhpLogByteLength } from '../common/ahpJsonlLogger.js';
-import type { AhpServerNotification, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse, ProtocolMessage } from '../common/state/sessionProtocol.js';
+import { isJsonRpcResponse, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../common/state/sessionProtocol.js';
 import type { IClientTransport } from '../common/state/sessionTransport.js';
 import { Reassembler } from '../common/webPubSub/chunking.js';
 import { type InboundResult, RELIABLE_JSON_SUBPROTOCOL, buildPublish, parseInbound } from '../common/webPubSub/framing.js';
@@ -29,7 +29,7 @@ import type { ParseGroupNameOptions } from '../common/webPubSub/groups.js';
 /** How often to sweep the reassembler for abandoned partial-chunk buffers. */
 const REASSEMBLY_SWEEP_INTERVAL_MS = 15_000;
 
-/** Upper bound on the WPS handshake and publish acknowledgement waits, not host execution. */
+/** Upper bound on relay joins, AHP handshakes and publish acknowledgement waits, not session execution. */
 const WPS_TIMEOUT_MS = 30_000;
 
 /**
@@ -126,6 +126,10 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 	private readonly _reassembler = new Reassembler();
 	private readonly _sweepTimer = this._register(new IntervalTimer());
 	private readonly _publishAckTimer = this._register(new RunOnceScheduler(() => this._checkPublishAckTimeout(), WPS_TIMEOUT_MS));
+	private readonly _handshakeTimer = this._register(new RunOnceScheduler(() => {
+		this._reportProtocolError('AHP handshake timed out', new Error('WPS host handshake timed out'), true);
+		this._fireClose();
+	}, WPS_TIMEOUT_MS));
 
 	private _ws: IWebSocketLike | undefined;
 	private _ackId = 0;
@@ -138,6 +142,10 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 	/** Guards against firing onClose / resolving connect more than once. */
 	private _closed = false;
 	private _connectResolved = false;
+	private _generation: number | undefined;
+	private _handshakeId: JsonRpcRequest['id'] | undefined;
+	private readonly _requests = new Set<JsonRpcRequest['id']>();
+	private readonly _closedBeforeHandshake = new Set<number>();
 	private readonly _watch = StopWatch.create(false);
 	private _publishAcknowledged = false;
 	private _hostFrames = 0;
@@ -364,21 +372,73 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 			this._reportProtocolError('invalid group message', err);
 			return;
 		}
-		if (result.kind === 'payload' || result.kind === 'pending') {
+		if (result.kind === 'payload' || result.kind === 'batch' || result.kind === 'pending') {
 			this._lastHostFrameMs = this._watch.elapsed();
 			if (++this._hostFrames === 1) {
 				this._logService.info(`${this._logContext()} first host frame received`);
 			}
 		}
-		if (result.kind === 'payload') {
-			this._hostMessages++;
-			const payload = result.payload as ProtocolMessage;
-			this._options.ahpLogger?.log(payload, 's2c', getAhpLogByteLength(JSON.stringify(payload)));
-			this._onMessage.fire(payload);
+		if (result.kind === 'closed') {
+			if (result.group.scope === 'client' && result.group.lane === 'to-client') {
+				if (this._handshakeId !== undefined) {
+					if (result.generation !== undefined) {
+						this._closedBeforeHandshake.add(result.generation);
+						if (this._closedBeforeHandshake.size > 128) {
+							this._options.onProtocolError?.(new Error('Relay handshake closure window exceeded'));
+							this._fireClose();
+						}
+					}
+				} else if (result.generation === undefined || result.generation === this._generation) {
+					this._fireClose();
+				}
+			}
+		} else if (result.kind === 'payload' || result.kind === 'batch') {
+			for (const value of result.kind === 'batch' ? result.payloads : [result.payload]) {
+				if (this._closed) {
+					break;
+				}
+				this._deliver(value as ProtocolMessage, result.generation);
+			}
 		} else if (result.kind === 'pending') {
+			if (this._handshakeId !== undefined && result.group.scope === 'client' && result.group.lane === 'to-client') {
+				this._handshakeTimer.schedule();
+			}
 			// Only host chunks count: relay acks and system frames arrive even when the host is dead.
 			this._onDidReceiveData.fire();
 		}
+	}
+
+	private _deliver(payload: ProtocolMessage, generation: number | undefined): void {
+		if (!isObject(payload) || payload.jsonrpc !== '2.0') {
+			this._options.onProtocolError?.(new Error('Invalid AHP relay message'));
+			return;
+		}
+		const response = isJsonRpcResponse(payload);
+		if (this._handshakeId !== undefined && !(response && payload.id === this._handshakeId)) {
+			return;
+		}
+		if (response && payload.id !== null && payload.id === this._handshakeId) {
+			if (generation !== undefined && this._closedBeforeHandshake.has(generation)) {
+				this._fireClose();
+				return;
+			}
+			this._generation = generation;
+			this._handshakeId = undefined;
+			this._handshakeTimer.cancel();
+			this._closedBeforeHandshake.clear();
+			this._requests.clear();
+		} else if (generation !== undefined && this._generation !== undefined && generation !== this._generation) {
+			if (response && payload.id !== null && this._requests.has(payload.id)) {
+				this._fireClose();
+			}
+			return;
+		}
+		if (response && payload.id !== null) {
+			this._requests.delete(payload.id);
+		}
+		this._hostMessages++;
+		this._logProtocolMessage(payload, 's2c');
+		this._onMessage.fire(payload);
 	}
 
 	/** Publish each chunk once; rejection or a missing acknowledgement after 30 seconds fails the transport. */
@@ -386,9 +446,25 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 		if (this._closed || !this._ws) {
 			throw new Error('WebPubSubRelayTransport is closed');
 		}
+		if (hasKey(message, { method: true, params: true }) && message.method === 'authenticate'
+			&& (!isObject(message.params) || typeof message.params['token'] !== 'string' || !message.params['token'].startsWith('copilot-sealed.v1.'))) {
+			throw new Error('Refusing to send plaintext authentication over Web PubSub');
+		}
+		if (hasKey(message, { id: true, method: true }) && (typeof message.id === 'number' || typeof message.id === 'string')) {
+			if (this._requests.size >= 1024) {
+				this._fireClose();
+				throw new Error('Web PubSub outstanding request limit exceeded');
+			}
+			this._requests.add(message.id);
+			if (message.method === 'initialize' || message.method === 'reconnect') {
+				this._handshakeId = message.id;
+				this._closedBeforeHandshake.clear();
+				this._handshakeTimer.schedule();
+			}
+		}
 		// Logged before chunking, so the transcript carries whole AHP messages rather than the
 		// relay frames they were split into.
-		this._options.ahpLogger?.log(message, 'c2s', getAhpLogByteLength(JSON.stringify(message)));
+		this._logProtocolMessage(message, 'c2s');
 		const frames = buildPublish({
 			group: this._options.toHostGroup,
 			nextAckId: () => ++this._ackId,
@@ -405,6 +481,16 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 				this._schedulePublishAckTimeout();
 			}
 		}
+	}
+
+	private _logProtocolMessage(message: ProtocolMessage | AhpServerNotification | JsonRpcNotification | JsonRpcResponse | JsonRpcRequest, direction: 'c2s' | 's2c'): void {
+		if (!this._options.ahpLogger) {
+			return;
+		}
+		const logged = hasKey(message, { method: true, params: true }) && message.method === 'authenticate' && isObject(message.params)
+			? { ...message, params: { ...message.params, token: '[REDACTED]' } }
+			: message;
+		this._options.ahpLogger.log(logged, direction, getAhpLogByteLength(JSON.stringify(message)));
 	}
 
 	private _schedulePublishAckTimeout(): void {
@@ -466,8 +552,11 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 		this._closed = true;
 		this._sweepTimer.cancel();
 		this._publishAckTimer.cancel();
+		this._handshakeTimer.cancel();
 		this._pendingJoinAcks.clear();
 		this._pendingPublishAcks.clear();
+		this._requests.clear();
+		this._closedBeforeHandshake.clear();
 		this._rejectConnect = undefined;
 		try {
 			this._ws?.close();

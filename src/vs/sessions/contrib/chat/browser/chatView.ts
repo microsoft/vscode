@@ -7,9 +7,11 @@ import './media/chatView.css';
 import './media/voiceChatView.css';
 import { $, isHTMLElement, size } from '../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { disposableTimeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { IKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
@@ -36,7 +38,8 @@ import { chatPersistentContentVisibleClass, ChatWidget, SESSIONS_CHAT_ITEM_HORIZ
 import { setModelPreservingInputTypedWhileLoading } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatModelReference, IChatService, ResponseModelState } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { isChatTranscriptContextVariableEntry, IChatRequestTranscriptContextVariableEntry, IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-import { ChatModel, IChatModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { ChatModel, IChatModel, IInputModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { isInConversationModelChoice } from '../../../../workbench/contrib/chat/common/modelSelection.js';
 import { ChatRequestTextPart } from '../../../../workbench/contrib/chat/common/requestParser/chatParserTypes.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
@@ -231,6 +234,8 @@ export class ChatView extends AbstractChatView {
 
 	static readonly TYPE = 'sessions.session';
 
+	static readonly REPLACED_PROVIDER_RELEASE_WARNING_DELAY_MS = 5_000;
+
 	override readonly kind: ChatViewKind = 'chat';
 
 	private readonly _widget: ChatWidget;
@@ -253,15 +258,25 @@ export class ChatView extends AbstractChatView {
 
 	/** Cancels any in-flight model load when a new session is set or the view disposes. */
 	private readonly _loadCts = this._register(new MutableDisposable<CancellationTokenSource>());
+	private _providerReloadCts: CancellationTokenSource | undefined;
 
 	private readonly _stickyScrollBackgroundReplica = this._register(new MutableDisposable<SessionsChatBackgroundReplica>());
 	private _stickyScrollBackgroundContainer: HTMLElement | undefined;
 
 	/** Tracks the current chat's interactivity and hides the input for read-only chats. */
 	private readonly _interactiveDisposable = this._register(new MutableDisposable());
+	private _onInput: (() => void) | undefined;
+	private readonly _loadedChatResource = observableValue<URI | undefined>(this, undefined);
+	private readonly _liveModelReady: IObservable<boolean>;
 
 	/** Tracks the currently loaded chat resource to avoid redundant reloads. */
 	private _currentChatResource: URI | undefined;
+	/**
+	 * The bound chat whose content provider was unregistered. Its model stays wired to the
+	 * provider that went away, so a replacement registering for the same session type never
+	 * reaches it; the chat is reloaded once one does.
+	 */
+	private _chatWithUnregisteredProvider: URI | undefined;
 	private readonly _currentChatResourceObs = observableValue<URI | undefined>(this, undefined);
 	private readonly _currentSessionObs = observableValue<ISession | undefined>(this, undefined);
 	override readonly hasVisibleTranscriptContent = observableValue(this, false);
@@ -404,6 +419,12 @@ export class ChatView extends AbstractChatView {
 			const model = chatModel.read(reader);
 			return isEqual(model?.sessionResource, this._currentChatResourceObs.read(reader)) && (model?.isInputBlocked.read(reader) ?? false);
 		});
+		this._liveModelReady = derived(this, reader => {
+			const model = chatModel.read(reader);
+			return isEqual(model?.sessionResource, this._currentChatResourceObs.read(reader))
+				&& !!model && !model.isReadOnly.read(reader) && !this.isLoadingTranscript.read(reader);
+		});
+		this._register(this._widget.onDidChangeDraft(() => this._handleDraftInput()));
 		this._setupTranscriptPreparationProgress(chatModel);
 		this._setupInitialTranscriptContext(chatModel);
 
@@ -458,9 +479,11 @@ export class ChatView extends AbstractChatView {
 		}));
 		this._register(chatPillsDebugService.register(this._chatPills, this._banners, this._isActiveObs));
 		this._ensureBannersMounted();
-		this._register(this.chatSessionsService.onDidChangeContentProviderSchemes(({ added }) => {
+		this._register(this.chatSessionsService.onDidChangeContentProviderSchemes(({ added, removed }) => {
+			this._trackUnregisteredContentProvider(removed);
 			// Remote providers are registered after their host connects, possibly after this view's initial load.
 			this._retryUnresolvedChatLoad(added);
+			this._reloadChatForReplacedProvider(added);
 		}));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -490,6 +513,14 @@ export class ChatView extends AbstractChatView {
 	}
 
 	private _setupTranscriptPreparationProgress(chatModel: IObservable<IChatModel | undefined>): void {
+		const hiddenResponseProgress = derived(this, reader => {
+			const request = chatModel.read(reader)?.lastRequestObs.read(reader);
+			const response = request?.isRequestHiddenFromTranscript ? request.response : undefined;
+			return response ? observableFromEvent(this, response.onDidChange, () => {
+				const progress = response.response.value.filter(part => part.kind === 'progressMessage').at(-1);
+				return progress ? renderAsPlaintext(progress.content) : undefined;
+			}) : constObservable(undefined);
+		});
 		let lastPreparationMessage: string | undefined;
 		let lastPreparationModel: ChatModel | undefined;
 		this._register(autorun(reader => {
@@ -540,7 +571,8 @@ export class ChatView extends AbstractChatView {
 				showProgress = shouldShowTranscriptPreparationProgress(requestCount, visibleRequestCount, hiddenRequestIncomplete);
 			}
 			const showCompletion = shouldShowTranscriptPreparationCompletion(requestCount, visibleRequestCount, hiddenRequestState, readyMessage);
-			const progress = preparation?.message ?? (showCompletion ? readyMessage : getTranscriptProgress(showProgress, activity));
+			const responseProgress = hiddenResponseProgress.read(reader).read(reader);
+			const progress = preparation?.message ?? (showCompletion ? readyMessage : getTranscriptProgress(showProgress, responseProgress ?? activity));
 			this._widget.setTranscriptProgress(progress, progress, preparation
 				? { detail: preparation.showLog ? { label: localize('sessionPreparation.showLog', "Show Log"), run: preparation.showLog } : undefined, onCancel: preparation.cancel, inTranscript: !!preparationModel }
 				: showCompletion ? { complete: true } : undefined);
@@ -586,7 +618,7 @@ export class ChatView extends AbstractChatView {
 		return this._widget;
 	}
 
-	override setChat(chat: IChat, historyKey?: string, session?: ISession): void {
+	override setChat(chat: IChat, historyKey?: string, session?: ISession, onInput?: () => void): void {
 		this.chatPillsDebugService.clear(this._chatPills);
 		const previousSession = this._currentSessionObs.get();
 		this._currentSessionObs.set(session, undefined);
@@ -594,6 +626,7 @@ export class ChatView extends AbstractChatView {
 		const resource = chat.resource;
 		const previousChatResource = this._currentChatResource;
 		const chatChanged = !isEqual(previousChatResource, resource);
+		this._onInput = onInput ?? (!chatChanged && chat.interactivity.get() === ChatInteractivity.Full ? this._onInput : undefined);
 		if (chatChanged) {
 			this._saveCurrentViewState();
 		}
@@ -610,7 +643,11 @@ export class ChatView extends AbstractChatView {
 		// non-Full interactivity is treated as read-only here (hidden chats are
 		// filtered out of the visible model before they reach a ChatView).
 		this._interactiveDisposable.value = autorun(reader => {
-			this._widget.setReadOnly(chat.interactivity.read(reader) !== ChatInteractivity.Full, this.isInputBlocked.read(reader));
+			const interactivity = chat.interactivity.read(reader);
+			const draftOnly = interactivity === ChatInteractivity.DraftOnly;
+			const loading = !!this._onInput && interactivity === ChatInteractivity.Full && (!this._liveModelReady.read(reader) || (session?.loading.read(reader) ?? false));
+			const draftLoaded = isEqual(this._loadedChatResource.read(reader), resource);
+			this._widget.setReadOnly(interactivity !== ChatInteractivity.Full || loading, ((draftOnly || loading) && draftLoaded) || this.isInputBlocked.read(reader));
 		});
 
 		// Skip loading if we're already showing this chat
@@ -637,7 +674,7 @@ export class ChatView extends AbstractChatView {
 			this._layoutChatWidget();
 		} else {
 			this._preparationModel.clear();
-			this._loadChat(resource, session, previousChatResource, previousSession);
+			this._loadChat(resource, session, { previousChatResource, previousSession });
 		}
 	}
 
@@ -658,12 +695,79 @@ export class ChatView extends AbstractChatView {
 		this._widget.setModel(model);
 	}
 
+	private _handleDraftInput(): void {
+		if (this._onInput && this._currentChatResource && isEqual(this._loadedChatResource.get(), this._currentChatResource)
+			&& (!this._liveModelReady.get() || this._currentSessionObs.get()?.remoteConnectionStatus?.get().kind !== 'connected')) {
+			this._onInput();
+		}
+	}
+
 	private _retryUnresolvedChatLoad(addedSessionTypes: readonly string[]): void {
+		if (this._providerReloadCts && !this._providerReloadCts.token.isCancellationRequested) {
+			return;
+		}
 		const resource = this._currentChatResource;
 		if (!resource || this._modelRef.value || this._preparationModel.value || !addedSessionTypes.includes(getChatSessionType(resource))) {
 			return;
 		}
 		this._loadChat(resource, this._currentSessionObs.get());
+	}
+
+	/**
+	 * A load still in flight binds to the removed provider's session just as a bound model does,
+	 * so it is tracked as well; a fresh load clears the mark.
+	 */
+	private _trackUnregisteredContentProvider(removedSessionTypes: readonly string[]): void {
+		const resource = this._currentChatResource;
+		if (resource && removedSessionTypes.includes(getChatSessionType(resource))) {
+			this._chatWithUnregisteredProvider = resource;
+		}
+	}
+
+	/**
+	 * Reload a bound chat once a content provider registers again for its session type. The model
+	 * on screen is still wired to the provider that went away — a sandbox served from history until
+	 * its environment was woken, or a host that reconnected with a new client — so nothing the new
+	 * provider streams reaches it and nothing sent from it reaches the host.
+	 */
+	private _reloadChatForReplacedProvider(addedSessionTypes: readonly string[]): void {
+		const resource = this._chatWithUnregisteredProvider;
+		if (!resource || !isEqual(resource, this._currentChatResource) || !this._modelRef.value || !addedSessionTypes.includes(getChatSessionType(resource))) {
+			return;
+		}
+		this._chatWithUnregisteredProvider = undefined;
+		const session = this._currentSessionObs.get();
+		const inputModelToPreserve = this._modelRef.value.object.inputModel;
+		this.logService.trace(`[ChatView] reloading chat after its content provider was replaced uri=${resource.toString()}`);
+		this._saveCurrentViewState();
+
+		this._loadCts.value?.cancel();
+		const cts = new CancellationTokenSource();
+		this._loadCts.value = cts;
+		this._providerReloadCts = cts;
+		// Wait for eviction: reacquiring before disposal can resurrect the old model.
+		const store = new DisposableStore();
+		const released = new Promise<void>(resolve => {
+			store.add(Event.once(Event.filter(this.chatService.onDidDisposeSession, e =>
+				e.reason === 'disposed' && e.sessionResources.some(disposed => isEqual(disposed, resource))))(() => resolve()));
+			store.add(disposableTimeout(() => {
+				this.logService.warn(`[ChatView] Waiting for the previous model to be released before reloading uri=${resource.toString()}`);
+			}, ChatView.REPLACED_PROVIDER_RELEASE_WARNING_DELAY_MS));
+			store.add(cts.token.onCancellationRequested(() => resolve()));
+		});
+		this._clearCurrentChat(session, resource);
+		this._setLoading(true);
+		const reloaded = released.then(() => {
+			store.dispose();
+			if (this._providerReloadCts === cts) {
+				this._providerReloadCts = undefined;
+			}
+			if (cts.token.isCancellationRequested || this._loadCts.value !== cts || !isEqual(this._currentChatResource, resource)) {
+				return;
+			}
+			this._loadChat(resource, session, { inputModelToPreserve });
+		});
+		this.showProgressWhile(reloaded, 800);
 	}
 
 	/**
@@ -675,11 +779,13 @@ export class ChatView extends AbstractChatView {
 		this.isLoadingTranscript.set(isLoading, undefined);
 	}
 
-	private _loadChat(resource: URI, session: ISession | undefined, previousChatResource?: URI, previousSession?: ISession): void {
+	private _loadChat(resource: URI, session: ISession | undefined, options?: { previousChatResource?: URI; previousSession?: ISession; inputModelToPreserve?: IInputModel }): void {
+		// A fresh load binds to whichever provider serves the chat now.
+		this._chatWithUnregisteredProvider = undefined;
 		// Cancel any in-flight load for the previous chat and start a fresh one.
 		this._loadCts.value?.cancel();
-		if (previousChatResource) {
-			this._clearCurrentChat(previousSession, previousChatResource);
+		if (options?.previousChatResource) {
+			this._clearCurrentChat(options.previousSession, options.previousChatResource);
 		}
 		const cts = new CancellationTokenSource();
 		this._loadCts.value = cts;
@@ -705,13 +811,37 @@ export class ChatView extends AbstractChatView {
 				return;
 			}
 			this.logService.trace(`[ChatView] setChat model loaded uri=${resource.toString()}`);
+			const inputState = options?.inputModelToPreserve ? this._widget.getInputState() : undefined;
+			const restoreInputFocus = !!inputState && this._widget.inputEditor.hasTextFocus();
+			if (inputState) {
+				const inputModel = ref.object.inputModel;
+				const intendedModel = options?.inputModelToPreserve?.intendedModel;
+				if (intendedModel) {
+					inputModel.setIntendedModel(intendedModel);
+				} else if (inputState.selectedModel && inputState.selectedModelReason && isInConversationModelChoice(inputState.selectedModelReason)) {
+					inputModel.setIntendedModel({
+						modelId: inputState.selectedModel.identifier, model: inputState.selectedModel,
+						reason: inputState.selectedModelReason, configuration: inputState.modelConfiguration,
+					});
+				}
+				// Preserve composing state without restoring the outgoing model's permissions.
+				inputModel.setState({ ...inputState, permissionLevel: inputModel.state.get()?.permissionLevel });
+			}
 			this._modelRef.value = ref;
 			this._updateWidgetLockState(getChatSessionType(ref.object.sessionResource));
-			setModelPreservingInputTypedWhileLoading(this._widget, inputBeforeLoad, () => this._widget.setModel(ref.object));
+			if (inputState) {
+				this._widget.setModel(ref.object);
+			} else {
+				setModelPreservingInputTypedWhileLoading(this._widget, inputBeforeLoad, () => this._widget.setModel(ref.object));
+			}
 			const widgetViewState = this.viewStateService.get(resource);
 			if (widgetViewState) {
 				this._widget.restoreViewState(widgetViewState);
 			}
+			if (restoreInputFocus) {
+				this._widget.focusInput();
+			}
+			this._loadedChatResource.set(resource, undefined);
 			this._setLoading(false);
 			if (session) {
 				this.sessionOpenTelemetryService.modelBound(session.resource, resource);

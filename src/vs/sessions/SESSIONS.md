@@ -105,6 +105,8 @@ A session groups one or more chats and exposes a main chat. Providers advertise 
 
 Chat origin and interactivity describe whether a chat is user-created, tool-created, interactive, read-only, or hidden. Presentation code uses those contracts instead of inferring behavior from resource shape.
 
+Draft-only interactivity allows local composition without permitting sends or transcript mutations. Providers may use it for recoverable offline sessions. User composition can request a connection through the owning chat group's connection controller; restored drafts and focus changes do not request a connection.
+
 When an unread chat in a multi-chat session becomes active, the view service asks the owning provider to mark that exact chat read. Activating the main chat does not directly mark the stored session aggregate read. The aggregate may remain unread after every chat becomes read, but it must be unread whenever any normal user-visible chat is unread. Tool-created subagent chats retain exact per-chat read state but do not participate in this aggregate. The main row always presents the main chat's exact read state, whether the chat hierarchy is expanded or collapsed; peer read state appears only on the corresponding peer row. Mark as Read and Mark as Unread on a session row target the main chat represented by that row; providers without independent chat read state may implement that operation through their session state.
 
 ### Workspaces and quick chats
@@ -166,6 +168,8 @@ A provider that must establish backend state for an existing session may impleme
 
 An editor-window draft handoff fills the existing New Session composer only when its input and attachments are empty. The handoff preserves occupied live or restored drafts, including their workspace, and yields to newer input or navigation while awaiting setup or workspace creation. It never sends a request or clears the source editor's draft.
 
+A contextual Agents Window invitation identifies an existing chat in the source editor. The handoff either opens that chat or navigates to the new-session composer without activating the invited session. This navigation is independent of onboarding enablement and takes precedence over startup restoration while preserving pending drafts. A dedicated, repeatable tour targets the invited session's list row and, when the handoff opened the chat, the new-session action. The tour is independent of new-session setup onboarding, respects disabled onboarding, and yields to cancellation or subsequent session navigation.
+
 The product protocol link `<product-protocol>://agents/new?prompt=<encoded text>&workspace=<optional encoded URI>` opens the Agents Window and applies its prompt and optional workspace through the same draft handoff. When `workspace` is omitted, the handoff explicitly selects No Workspace. Opening the link never submits the prompt, and an occupied composer remains unchanged.
 
 Automation editing uses an independent draft so it cannot replace the ordinary New Session composer. Providers advertise `supportsAutomationSessionConfiguration` when they restore `ISessionsProviderCreateSessionOptions.automationConfiguration` before the draft's first configuration resolution and implement `getAutomationSessionConfiguration` to capture the current template. The management service rejects canonical templates for providers without this capability, while deprecated flat aliases continue through ordinary model, mode, and permission operations. It distinguishes unsupported capture from a valid empty template, a replaced draft, and capture failure.
@@ -218,6 +222,8 @@ Providers may expose an `ISessionConfigurationSnapshot` of resolved draft config
 ### Existing session
 
 Requests route through `ISessionsManagementService` to the provider identified by the session. Providers update chat and session observables. Foreground sends may update view state through lifecycle notifications; background sends do not implicitly steal focus.
+
+A chat view binds its transcript to the content provider serving the chat's session type at load time. When that provider is unregistered and another registers for the same type — a sandbox opened from persisted history whose environment was then woken, or a host that reconnected with a new client — the view reloads the chat so the replacement serves it. A provider that merely goes away leaves the transcript on screen.
 
 ### Multiple chats
 
