@@ -27,9 +27,18 @@ export const chatNetworkDomainConfigurationProperties: Record<string, IConfigura
 			if (value === undefined) {
 				return undefined;
 			}
-			const hosts: unknown = typeof value === 'string' ? JSON.parse(value) : value;
+			let hosts: unknown = value;
+			if (typeof value === 'string') {
+				try {
+					hosts = JSON.parse(value);
+				} catch (error) {
+					console.warn('Failed to parse managed sandbox allowed hosts; ignoring the presentation override.', error);
+					return undefined;
+				}
+			}
 			if (!isStringArray(hosts)) {
-				throw new Error(`${COPILOT_SANDBOX_ALLOWED_HOSTS_KEY} must be a string array`);
+				console.warn('Managed sandbox allowed hosts must be a string array; ignoring the presentation override.');
+				return undefined;
 			}
 			return hosts;
 		},
