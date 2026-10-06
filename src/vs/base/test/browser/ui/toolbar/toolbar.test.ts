@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { IContextMenuProvider } from '../../../../browser/contextmenu.js';
-import { addDisposableListener } from '../../../../browser/dom.js';
+import { addDisposableListener, getWindow } from '../../../../browser/dom.js';
 import { ActionBar } from '../../../../browser/ui/actionbar/actionbar.js';
 import { BaseActionViewItem } from '../../../../browser/ui/actionbar/actionViewItems.js';
 import { ActionWithDropdownActionViewItem } from '../../../../browser/ui/dropdown/dropdownActionViewItem.js';
@@ -52,7 +53,73 @@ suite('ToolBar', () => {
 	});
 
 	teardown(() => {
+		sinon.restore();
 		container.remove();
+	});
+
+	test('defers responsive measurements and action changes while layout is suspended', async () => {
+		let availableWidth = 60;
+		const getAvailableWidth = sinon.spy(() => availableWidth);
+		const toolbar = store.add(new TestToolBar(container, contextMenuProvider, {
+			trailingSeparator: true,
+			responsiveBehavior: { enabled: true, kind: 'all', minItems: 1, getAvailableWidth },
+		}));
+		const getWidth = sinon.spy(toolbar.actionBarForTest, 'getWidth');
+		toolbar.setResponsiveLayoutEnabled(false);
+		toolbar.setActions(['a', 'b', 'c'].map(id => store.add(new Action(id, id))));
+		container.style.width = '80px';
+		toolbar.relayout();
+		const targetWindow = getWindow(container);
+		await new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => targetWindow.requestAnimationFrame(() => resolve())));
+		const hidden = { availableReads: getAvailableWidth.callCount, itemReads: getWidth.callCount, overflow: toolbar.hasOverflow() };
+
+		toolbar.setResponsiveLayoutEnabled(true);
+		const resumed = { availableReads: getAvailableWidth.callCount, overflow: toolbar.hasOverflow() };
+		toolbar.setResponsiveLayoutEnabled(false);
+		availableWidth = 300;
+		toolbar.setActions(['d', 'e'].map(id => store.add(new Action(id, id))));
+		toolbar.setResponsiveLayoutEnabled(true);
+		const beforeRepeatedEnable = getAvailableWidth.callCount;
+		toolbar.setResponsiveLayoutEnabled(true);
+		assert.deepStrictEqual({
+			hidden, resumed,
+			restored: Array.from({ length: toolbar.getItemsLength() }, (_, index) => toolbar.getItemAction(index)?.id),
+			repeatedEnableReads: getAvailableWidth.callCount - beforeRepeatedEnable,
+		}, {
+			hidden: { availableReads: 0, itemReads: 0, overflow: false },
+			resumed: { availableReads: 1, overflow: true },
+			restored: ['d', 'e', Separator.ID],
+			repeatedEnableReads: 0,
+		});
+	});
+
+	test('restores overflowed actions at the current width before returning from resume', () => {
+		let availableWidth = 55;
+		const toolbar = store.add(new ToolBar(container, contextMenuProvider, {
+			responsiveBehavior: { enabled: true, kind: 'all', minItems: 1, getAvailableWidth: () => availableWidth },
+		}));
+		toolbar.setActions(['a', 'b', 'c'].map(id => store.add(new Action(id, id))));
+		const overflowed = toolbar.hasOverflow();
+		toolbar.setResponsiveLayoutEnabled(false);
+		availableWidth = 300;
+		toolbar.relayout();
+		const stillOverflowed = toolbar.hasOverflow();
+		toolbar.setResponsiveLayoutEnabled(true);
+		assert.deepStrictEqual({ overflowed, stillOverflowed, restored: toolbar.hasOverflow(), items: toolbar.getItemsLength() }, {
+			overflowed: true, stillOverflowed: true, restored: false, items: 3,
+		});
+	});
+
+	test('does not resume measurements after disposal', () => {
+		const getAvailableWidth = sinon.spy(() => 100);
+		const toolbar = store.add(new ToolBar(container, contextMenuProvider, {
+			responsiveBehavior: { enabled: true, kind: 'all', getAvailableWidth },
+		}));
+		toolbar.setResponsiveLayoutEnabled(false);
+		toolbar.dispose();
+		toolbar.setResponsiveLayoutEnabled(true);
+		toolbar.relayout();
+		assert.strictEqual(getAvailableWidth.callCount, 0);
 	});
 
 	test('keeps the last primary action shrinkable when overflow is inserted', () => {

@@ -81,6 +81,7 @@ export class ChatInputPickerResponsiveLayout extends Disposable {
 
 	private readonly _mutationObserver: MutationObserver;
 	private readonly _scheduledLayout = this._register(new MutableDisposable());
+	private _layoutEnabled = true;
 	private _isLayouting = false;
 	private _measurement: IPickerLayoutMeasurement | undefined;
 	private _lastLayout: {
@@ -124,8 +125,20 @@ export class ChatInputPickerResponsiveLayout extends Disposable {
 
 	/** Coalesces parent layout and content notifications without waiting for resizing to finish. */
 	scheduleLayout(): void {
-		if (!this._store.isDisposed && !this._scheduledLayout.value) {
+		if (this._layoutEnabled && !this._store.isDisposed && !this._scheduledLayout.value) {
 			this._scheduledLayout.value = dom.runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(this._element), () => this.layout());
+		}
+	}
+
+	/** Suspends measurements while the owner hides the lane, retaining content invalidations and valid thresholds. */
+	setLayoutEnabled(enabled: boolean): void {
+		if (this._layoutEnabled === enabled || this._store.isDisposed) {
+			return;
+		}
+		this._layoutEnabled = enabled;
+		this._scheduledLayout.clear();
+		if (enabled) {
+			this.layout();
 		}
 	}
 
@@ -137,7 +150,7 @@ export class ChatInputPickerResponsiveLayout extends Disposable {
 	}
 
 	layout(availableWidth?: number): void {
-		if (this._store.isDisposed || this._isLayouting) {
+		if (!this._layoutEnabled || this._store.isDisposed || this._isLayouting) {
 			return;
 		}
 

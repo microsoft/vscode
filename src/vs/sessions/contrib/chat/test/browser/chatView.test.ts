@@ -14,13 +14,14 @@ import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { constObservable, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
 import { Selection } from '../../../../../editor/common/core/selection.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
@@ -59,6 +60,7 @@ import '../../../../../workbench/browser/media/style.css';
 import '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/media/chatAgentMergeContent.css';
 import '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/media/chatRequestOrigin.css';
 import { ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
+import { HIDE_INACTIVE_COMPARISON_INPUTS_SETTING } from '../../../sessionComparison/common/sessionComparison.js';
 
 suite('Sessions - Chat View', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -689,6 +691,74 @@ suite('Sessions - Chat View', () => {
 		view.setVisible(false);
 
 		assert.deepStrictEqual({ forwarded, isVisible: isVisible.get() }, { forwarded: [false, true], isVisible: false });
+	});
+
+	test('suspends inactive pickers but keeps visible comparison controls responsive', async () => {
+		const store = disposables.add(new DisposableStore());
+		const active = observableValue(store, false);
+		const sessions = ['a', 'b', 'c'].map(id => upcastPartial<IActiveSession>({ resource: URI.parse(`test:/${id}`) }));
+		const visibleSessions = observableValue<readonly IActiveSession[]>(store, sessions);
+		const comparisons = observableValue<readonly ISessionComparison[]>(store, []);
+		const comparison: ISessionComparison = {
+			id: 'comparison', groupId: 'group', title: 'Compare', createdAt: 1,
+			workspace: URI.file('/workspace'), prompt: 'Implement',
+			participants: sessions.map((session, index) => ({
+				id: String(index), role: SessionComparisonParticipantRole.Attempt, sessionResource: session.resource,
+				harness: { providerId: 'test', sessionTypeId: 'test', label: 'Test' },
+			})),
+		};
+		const configurationService = new TestConfigurationService({ [HIDE_INACTIVE_COMPARISON_INPUTS_SETTING]: false });
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		const screenReaderChanged = store.add(new Emitter<void>());
+		let screenReaderOptimized = false;
+		const forwarded: boolean[] = [];
+		const view: { _setupPickerLayout(): void } = Object.assign(Object.create(ChatView.prototype), {
+			_store: store,
+			_isActiveObs: active,
+			sessionsService: { visibleSessions },
+			comparisonService: { comparisons },
+			configurationService,
+			accessibilityService: {
+				onDidChangeScreenReaderOptimized: screenReaderChanged.event,
+				isScreenReaderOptimized: () => screenReaderOptimized,
+			},
+			_widget: { inputPart: { setPickerLayoutEnabled: (enabled: boolean) => forwarded.push(enabled) } },
+		});
+		view._setupPickerLayout();
+		const results = [forwarded.at(-1)];
+		active.set(true, undefined);
+		results.push(forwarded.at(-1));
+		active.set(false, undefined);
+		results.push(forwarded.at(-1));
+		comparisons.set([comparison], undefined);
+		const beforeComparisonResume = forwarded.at(-1);
+		await Promise.resolve();
+		results.push(forwarded.at(-1));
+		await configurationService.setUserConfiguration(HIDE_INACTIVE_COMPARISON_INPUTS_SETTING, true);
+		configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+			affectsConfiguration: key => key === HIDE_INACTIVE_COMPARISON_INPUTS_SETTING,
+		}));
+		results.push(forwarded.at(-1));
+		screenReaderOptimized = true;
+		screenReaderChanged.fire();
+		await Promise.resolve();
+		results.push(forwarded.at(-1));
+		screenReaderOptimized = false;
+		screenReaderChanged.fire();
+		results.push(forwarded.at(-1));
+		visibleSessions.set(sessions.slice(0, 2), undefined);
+		await Promise.resolve();
+		results.push(forwarded.at(-1));
+		comparisons.set([{ ...comparison, archivedAt: 2 }], undefined);
+		results.push(forwarded.at(-1));
+		comparisons.set([comparison], undefined);
+		store.dispose();
+		const callsBeforeDisposal = forwarded.length;
+		active.set(true, undefined);
+		await Promise.resolve();
+		assert.deepStrictEqual({ results, beforeComparisonResume, callsAfterDisposal: forwarded.length - callsBeforeDisposal }, {
+			results: [false, true, false, true, false, true, false, true, false], beforeComparisonResume: false, callsAfterDisposal: 0,
+		});
 	});
 
 	test('forwards new chat visibility to the aquarium host', () => {
