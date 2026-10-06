@@ -1262,7 +1262,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		// bottom panel) for as long as it is shown.
 		this._customViewVisibleKey = CustomViewVisibleContext.bindTo(accessor.get(IContextKeyService));
 		this._register(autorun(reader => {
-			this._applyCustomViewGridVisibility(this.customViewService.activeCustomView.read(reader));
+			this._applyCustomViewGridVisibility(this.customViewService.activeCustomViewOpen.read(reader)?.descriptor);
 		}));
 
 		// Editor opens should only affect the main editor part when
@@ -2659,6 +2659,9 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		if (this.partVisibility.customViewGrid === visible) {
 			// Swapping one custom view for another only changes what is rendered.
 			this.customViewGridPartService.setView(descriptor);
+			if (visible) {
+				this.focusPart(Parts.CUSTOM_VIEW_GRID_PART);
+			}
 			return;
 		}
 

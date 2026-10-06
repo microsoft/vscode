@@ -4073,7 +4073,7 @@ suite('Sessions - Workbench', () => {
 		});
 	});
 
-	test('swapping to another custom view re-renders it without touching the layout', () => {
+	test('swapping to another custom view re-renders and focuses it without touching the layout', () => {
 		const host = createHost({ partVisibility: { editor: true, auxiliaryBar: true, sessions: true } });
 		const first = {};
 		const second = {};
@@ -4087,11 +4087,13 @@ suite('Sessions - Workbench', () => {
 			customViewGridVisible: isVisible.call(host, Parts.CUSTOM_VIEW_GRID_PART),
 			sessions: isVisible.call(host, Parts.SESSIONS_PART),
 			eventsAfterSwap: host.events.length - eventsAfterShow,
+			focusedParts: host.focusedParts,
 		}, {
 			renderedCustomViews: [first, second],
 			customViewGridVisible: true,
 			sessions: false,
 			eventsAfterSwap: 0,
+			focusedParts: [Parts.CUSTOM_VIEW_GRID_PART, Parts.CUSTOM_VIEW_GRID_PART],
 		});
 	});
 

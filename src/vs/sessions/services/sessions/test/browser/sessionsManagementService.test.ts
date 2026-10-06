@@ -2045,6 +2045,461 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	suite('session navigation', () => {
+		test('visits custom views and the composer without recording the covered session again', async () => {
+			const first = stubSession({ sessionId: 'first', providerId: 'test', status: constObservable(SessionStatus.Completed) });
+			const second = stubSession({ sessionId: 'second', providerId: 'test', status: constObservable(SessionStatus.Completed) });
+			const provider = new class extends TestSessionsProvider {
+				override getSessions(): ISession[] { return [first, second]; }
+			}(first);
+			const { customViewService, view, contextKeyService } = createSessionsManagementService(first, disposables, provider);
+			const destination = () => customViewService.activeCustomView.get()?.id ?? view.activeSession.get()?.sessionId ?? 'newSession';
+
+			await view.openSession(first.resource);
+			showTestCustomView(customViewService, disposables);
+			await view.openSession(second.resource);
+			const recentBeforeNavigation = view.getRecentlyOpenedSessions().recent.map(session => session.sessionId);
+			const backward: string[] = [];
+			for (let i = 0; i < 3; i++) {
+				await view.openPreviousSession();
+				backward.push(destination());
+			}
+			const canGoFurtherBack = contextKeyService.getContextKeyValue('sessionsCanGoBack');
+			const forward: string[] = [];
+			for (let i = 0; i < 3; i++) {
+				await view.openNextSession();
+				forward.push(destination());
+			}
+
+			assert.deepStrictEqual({
+				backward, forward, canGoFurtherBack,
+				canGoFurtherForward: contextKeyService.getContextKeyValue('sessionsCanGoForward'),
+				recentBeforeNavigation,
+				recentAfterNavigation: view.getRecentlyOpenedSessions().recent.map(session => session.sessionId),
+			}, {
+				backward: ['test.customView', 'first', 'newSession'],
+				forward: ['first', 'test.customView', 'second'],
+				canGoFurtherBack: false,
+				canGoFurtherForward: false,
+				recentBeforeNavigation: ['second', 'first'],
+				recentAfterNavigation: ['second', 'first'],
+			});
+		});
+
+		for (const newSession of [false, true]) {
+			test(`explicitly reopening the visible ${newSession ? 'composer' : 'custom view'} after Back promotes its only entry`, async () => {
+				const first = stubSession({ sessionId: 'first', providerId: 'test', status: constObservable(SessionStatus.Completed) });
+				const second = stubSession({ sessionId: 'second', providerId: 'test', status: constObservable(SessionStatus.Completed) });
+				const provider = new class extends TestSessionsProvider {
+					override getSessions(): ISession[] { return [first, second]; }
+				}(first);
+				const { customViewService, view, contextKeyService } = createSessionsManagementService(first, disposables, provider);
+				disposables.add(customViewService.registerCustomView({ id: 'test.customView', ctor: new SyncDescriptor(TestCustomView) }));
+				const open = async () => newSession ? view.openNewSession() : customViewService.showCustomView('test.customView');
+				const destination = () => customViewService.activeCustomView.get()?.id ?? view.activeSession.get()?.sessionId ?? 'newSession';
+
+				await view.openSession(first.resource);
+				await open();
+				await view.openSession(second.resource);
+				await view.openPreviousSession();
+				await open();
+				const canGoForward = contextKeyService.getContextKeyValue('sessionsCanGoForward');
+				const backward: string[] = [];
+				for (let i = 0; i < (newSession ? 2 : 3); i++) {
+					await view.openPreviousSession();
+					backward.push(destination());
+				}
+
+				assert.deepStrictEqual({
+					canGoForward,
+					backward,
+					canGoFurtherBack: contextKeyService.getContextKeyValue('sessionsCanGoBack'),
+					recent: view.getRecentlyOpenedSessions().recent.map(session => session.sessionId),
+				}, {
+					canGoForward: false,
+					backward: newSession ? ['second', 'first'] : ['second', 'first', 'newSession'],
+					canGoFurtherBack: false,
+					recent: ['second', 'first'],
+				});
+			});
+
+			test(`reopening the visible ${newSession ? 'composer' : 'custom view'} cancels a pending Back`, async () => {
+				const session = stubSession({ sessionId: 'session', providerId: 'test', status: constObservable(SessionStatus.Completed) });
+				const resolutionStarted = new DeferredPromise<void>();
+				const resolution = new DeferredPromise<URI | undefined>();
+				let deferResolution = false;
+				const provider = new class extends TestSessionsProvider {
+					override resolveSessionResource(): Promise<URI | undefined> {
+						if (deferResolution) {
+							resolutionStarted.complete();
+							return resolution.p;
+						}
+						return Promise.resolve(undefined);
+					}
+				}(session);
+				const { customViewService, view, contextKeyService } = createSessionsManagementService(session, disposables, provider);
+				disposables.add(customViewService.registerCustomView({ id: 'test.customView', ctor: new SyncDescriptor(TestCustomView) }));
+				const open = async () => newSession ? view.openNewSession() : customViewService.showCustomView('test.customView');
+
+				await view.openSession(session.resource);
+				await open();
+				deferResolution = true;
+				const navigating = view.openPreviousSession();
+				await resolutionStarted.p;
+				await open();
+				deferResolution = false;
+				resolution.complete(undefined);
+				await navigating;
+				const afterResolution = customViewService.activeCustomView.get()?.id ?? view.activeSession.get()?.sessionId ?? 'newSession';
+				const canGoForward = contextKeyService.getContextKeyValue('sessionsCanGoForward');
+				await view.openPreviousSession();
+
+				assert.deepStrictEqual({
+					afterResolution,
+					canGoForward,
+					previous: view.activeSession.get()?.sessionId,
+					customView: customViewService.activeCustomView.get()?.id,
+				}, {
+					afterResolution: newSession ? 'newSession' : 'test.customView',
+					canGoForward: false,
+					previous: 'session',
+					customView: undefined,
+				});
+			});
+
+			test(`reopening the ${newSession ? 'composer' : 'session'} covered by a custom view records a single visit`, async () => {
+				const session = stubSession({ sessionId: 'session', providerId: 'test', status: constObservable(SessionStatus.Completed) });
+				const { customViewService, view } = createSessionsManagementService(session, disposables);
+				const open = () => newSession ? view.openNewSession() : view.openSession(session.resource);
+
+				await open();
+				showTestCustomView(customViewService, disposables);
+				await open();
+				await view.openPreviousSession();
+				const previous = customViewService.activeCustomView.get()?.id;
+				await view.openNextSession();
+
+				assert.deepStrictEqual({
+					previous,
+					customView: customViewService.activeCustomView.get()?.id,
+					session: view.activeSession.get()?.sessionId,
+				}, {
+					previous: 'test.customView',
+					customView: undefined,
+					session: newSession ? undefined : 'session',
+				});
+			});
+
+			test(`${newSession ? 'new-session' : 'custom-view'} navigation supersedes an in-flight history navigation`, async () => {
+				const first = stubSession({ sessionId: 'first', providerId: 'test', status: constObservable(SessionStatus.Completed) });
+				const second = stubSession({ sessionId: 'second', providerId: 'test', status: constObservable(SessionStatus.Completed) });
+				const third = stubSession({ sessionId: 'third', providerId: 'test', status: constObservable(SessionStatus.Completed) });
+				const resolutionStarted = new DeferredPromise<void>();
+				const resolution = new DeferredPromise<URI | undefined>();
+				let deferResolution = false;
+				const provider = new class extends TestSessionsProvider {
+					override getSessions(): ISession[] { return [first, second, third]; }
+					override resolveSessionResource(resource: URI): Promise<URI | undefined> {
+						if (deferResolution && extUriBiasedIgnorePathCase.isEqual(resource, first.resource)) {
+							resolutionStarted.complete();
+							return resolution.p;
+						}
+						return Promise.resolve(undefined);
+					}
+				}(first);
+				const { customViewService, view } = createSessionsManagementService(first, disposables, provider);
+
+				await view.openSession(first.resource);
+				await view.openSession(second.resource);
+				deferResolution = true;
+				const navigating = view.openPreviousSession();
+				await resolutionStarted.p;
+				if (newSession) {
+					await view.openNewSession();
+				} else {
+					showTestCustomView(customViewService, disposables);
+				}
+				const afterNavigation = customViewService.activeCustomView.get()?.id ?? view.activeSession.get()?.sessionId ?? 'newSession';
+				await view.openSession(third.resource);
+				resolution.complete(undefined);
+				await navigating;
+				const afterResolution = view.activeSession.get()?.sessionId;
+				await view.openPreviousSession();
+				const previousView = customViewService.activeCustomView.get()?.id ?? view.activeSession.get()?.sessionId ?? 'newSession';
+				await view.openPreviousSession();
+
+				assert.deepStrictEqual({
+					afterNavigation,
+					afterResolution,
+					previousView,
+					previous: view.activeSession.get()?.sessionId,
+				}, {
+					afterNavigation: newSession ? 'newSession' : 'test.customView',
+					afterResolution: 'third',
+					previousView: newSession ? 'newSession' : 'test.customView',
+					previous: 'second',
+				});
+			});
+		}
+
+		for (const delayed of [false, true]) {
+			test(`opening another chat from a custom view records only the requested destination (${delayed ? 'loading' : 'loaded'})`, async () => {
+				const firstChat: IChat = { ...stubChat, resource: URI.parse('test:///first-chat'), status: constObservable(SessionStatus.Completed) };
+				const secondChat: IChat = { ...stubChat, resource: URI.parse('test:///second-chat'), status: constObservable(SessionStatus.Completed) };
+				const chats = observableValue<readonly IChat[]>('chats', [firstChat]);
+				const loading = observableValue('loading', false);
+				const session = stubSession({
+					sessionId: 'session', providerId: 'test', status: constObservable(SessionStatus.Completed),
+					chats, mainChat: constObservable(firstChat), loading, capabilities: constObservable({ supportsMultipleChats: true }),
+				});
+				const { customViewService, view, contextKeyService } = createSessionsManagementService(session, disposables);
+				const destination = () => customViewService.activeCustomView.get()?.id ?? view.activeSession.get()?.activeChat.get().resource.toString() ?? 'newSession';
+
+				await view.openChat(session, firstChat.resource);
+				showTestCustomView(customViewService, disposables);
+				if (delayed) {
+					loading.set(true, undefined);
+				} else {
+					chats.set([firstChat, secondChat], undefined);
+				}
+				const opening = view.openChat(session, secondChat.resource);
+				if (delayed) {
+					await timeout(0);
+					chats.set([firstChat, secondChat], undefined);
+					loading.set(false, undefined);
+				}
+				await opening;
+				const opened = destination();
+				const backward: string[] = [];
+				for (let i = 0; i < 3; i++) {
+					await view.openPreviousSession();
+					backward.push(destination());
+				}
+				const canGoFurtherBack = contextKeyService.getContextKeyValue('sessionsCanGoBack');
+				const forward: string[] = [];
+				for (let i = 0; i < 3; i++) {
+					await view.openNextSession();
+					forward.push(destination());
+				}
+
+				assert.deepStrictEqual({ opened, backward, forward, canGoFurtherBack }, {
+					opened: secondChat.resource.toString(),
+					backward: ['test.customView', firstChat.resource.toString(), 'newSession'],
+					forward: [firstChat.resource.toString(), 'test.customView', secondChat.resource.toString()],
+					canGoFurtherBack: false,
+				});
+			});
+		}
+
+		for (const open of ['session', 'chat'] as const) {
+			for (const delayed of [false, true]) {
+				test(`opening a ${open} to the side records only the requested chat (${delayed ? 'loading' : 'loaded'})`, async () => {
+					const firstChat: IChat = { ...stubChat, resource: URI.parse('test:///first/main'), status: constObservable(SessionStatus.Completed) };
+					const targetMain: IChat = { ...firstChat, resource: URI.parse('test:///target/main') };
+					const targetPeer: IChat = { ...firstChat, resource: URI.parse('test:///target/peer') };
+					const first = stubSession({
+						sessionId: 'first', providerId: 'test', status: constObservable(SessionStatus.Completed),
+						chats: constObservable([firstChat]), mainChat: constObservable(firstChat),
+					});
+					const chats = observableValue<readonly IChat[]>('chats', delayed ? [targetMain] : [targetMain, targetPeer]);
+					const loading = observableValue('loading', delayed);
+					const target = stubSession({
+						sessionId: 'target', providerId: 'test', status: constObservable(SessionStatus.Completed),
+						chats, mainChat: constObservable(targetMain), loading, capabilities: constObservable({ supportsMultipleChats: true }),
+					});
+					const provider = new class extends TestSessionsProvider {
+						override getSessions(): ISession[] { return [first, target]; }
+					}(first);
+					const { customViewService, view, sessionsPartService, contextKeyService } = createSessionsManagementService(first, disposables, provider);
+					sessionsPartService.sessionViews.set(target.sessionId, upcastPartial<SessionView>({
+						openChatToSide: resource => view.openChat(target, resource),
+					}));
+					const destination = () => customViewService.activeCustomView.get()?.id ?? view.activeSession.get()?.activeChat.get().resource.toString() ?? 'newSession';
+
+					await view.openSession(first.resource);
+					showTestCustomView(customViewService, disposables);
+					const opening = open === 'session'
+						? view.openSessionToSide(target, { chatResource: targetPeer.resource })
+						: view.openChatToSide(target, targetPeer.resource);
+					if (delayed) {
+						await timeout(0);
+						chats.set([targetMain, targetPeer], undefined);
+						loading.set(false, undefined);
+					}
+					await opening;
+					const opened = destination();
+					const backward: string[] = [];
+					for (let i = 0; i < 3; i++) {
+						await view.openPreviousSession();
+						backward.push(destination());
+					}
+					const canGoFurtherBack = contextKeyService.getContextKeyValue('sessionsCanGoBack');
+					const forward: string[] = [];
+					for (let i = 0; i < 3; i++) {
+						await view.openNextSession();
+						forward.push(destination());
+					}
+
+					assert.deepStrictEqual({ opened, backward, forward, canGoFurtherBack }, {
+						opened: targetPeer.resource.toString(),
+						backward: ['test.customView', firstChat.resource.toString(), 'newSession'],
+						forward: [firstChat.resource.toString(), 'test.customView', targetPeer.resource.toString()],
+						canGoFurtherBack: false,
+					});
+				});
+			}
+		}
+
+		test('batch side-opening a visible main chat does not promote its previously active peer', async () => {
+			const main: IChat = { ...stubChat, resource: URI.parse('test:///target/main'), status: constObservable(SessionStatus.Completed) };
+			const peer: IChat = { ...main, resource: URI.parse('test:///target/peer') };
+			const target = stubSession({
+				sessionId: 'target', providerId: 'test', status: constObservable(SessionStatus.Completed),
+				chats: constObservable([main, peer]), mainChat: constObservable(main), capabilities: constObservable({ supportsMultipleChats: true }),
+			});
+			const firstChat: IChat = { ...main, resource: URI.parse('test:///first/main') };
+			const first = stubSession({
+				sessionId: 'first', providerId: 'test', status: constObservable(SessionStatus.Completed),
+				chats: constObservable([firstChat]), mainChat: constObservable(firstChat),
+			});
+			const provider = new class extends TestSessionsProvider {
+				override getSessions(): ISession[] { return [first, target]; }
+			}(first);
+			const { customViewService, view, sessionsPartService, contextKeyService } = createSessionsManagementService(first, disposables, provider);
+			sessionsPartService.sessionViews.set(target.sessionId, upcastPartial<SessionView>({
+				openChatToSide: resource => view.openChat(target, resource),
+			}));
+			const destination = () => customViewService.activeCustomView.get()?.id ?? view.activeSession.get()?.activeChat.get().resource.toString() ?? 'newSession';
+
+			await view.openChat(target, peer.resource);
+			await view.openSessionToSide(first);
+			showTestCustomView(customViewService, disposables);
+			await view.openSessionsAt([target], first.sessionId, 'right', { forceMainChat: true });
+			const opened = destination();
+			const backward: string[] = [];
+			for (let i = 0; i < 4; i++) {
+				await view.openPreviousSession();
+				backward.push(destination());
+			}
+
+			assert.deepStrictEqual({
+				opened, backward, canGoFurtherBack: contextKeyService.getContextKeyValue('sessionsCanGoBack'),
+			}, {
+				opened: main.resource.toString(),
+				backward: ['test.customView', firstChat.resource.toString(), peer.resource.toString(), 'newSession'],
+				canGoFurtherBack: false,
+			});
+		});
+
+		test('a superseded nested-chat creation does not dismiss or refocus a custom view', async () => {
+			const mainChat: IChat = { ...stubChat, status: constObservable(SessionStatus.Completed) };
+			const createdChat: IChat = { ...stubChat, resource: URI.parse('test:///created-chat'), status: constObservable(SessionStatus.Untitled) };
+			const session = stubSession({
+				sessionId: 'session', providerId: 'test', status: constObservable(SessionStatus.Completed),
+				chats: constObservable([mainChat]), mainChat: constObservable(mainChat), capabilities: constObservable({ supportsMultipleChats: true }),
+			});
+			const creationStarted = new DeferredPromise<void>();
+			const creation = new DeferredPromise<IChat>();
+			const provider = new class extends TestSessionsProvider {
+				override createNewChat(): Promise<IChat> {
+					creationStarted.complete();
+					return creation.p;
+				}
+			}(session);
+			const { customViewService, view, sessionsPartService } = createSessionsManagementService(session, disposables, provider);
+
+			await view.openSession(session.resource);
+			const opening = view.openNewChatInSession(session, { forceNew: true });
+			await creationStarted.p;
+			showTestCustomView(customViewService, disposables);
+			const focusCount = sessionsPartService.focusedSessions.length;
+			creation.complete(createdChat);
+			await opening;
+
+			assert.deepStrictEqual({
+				customView: customViewService.activeCustomView.get()?.id,
+				chat: view.activeSession.get()?.activeChat.get().resource.toString(),
+				refocused: sessionsPartService.focusedSessions.length > focusCount,
+			}, { customView: 'test.customView', chat: mainChat.resource.toString(), refocused: false });
+		});
+
+		test('session resource redirects preserve forward history', async () => {
+			const legacy = stubSession({ sessionId: 'legacy', providerId: 'test', status: constObservable(SessionStatus.Completed) });
+			const replacement = stubSession({ sessionId: 'replacement', providerId: 'test', status: constObservable(SessionStatus.Completed) });
+			const next = stubSession({ sessionId: 'next', providerId: 'test', status: constObservable(SessionStatus.Completed) });
+			const provider = new class extends TestSessionsProvider {
+				override getSessions(): ISession[] { return [legacy, replacement, next]; }
+				override resolveSessionResource(resource: URI): Promise<URI | undefined> {
+					return Promise.resolve(extUriBiasedIgnorePathCase.isEqual(resource, legacy.resource) ? replacement.resource : undefined);
+				}
+			}(legacy);
+			const { view } = createSessionsManagementService(legacy, disposables, provider);
+
+			view.showSession(legacy.resource);
+			await view.openSession(next.resource);
+			await view.openPreviousSession();
+			const previous = view.activeSession.get()?.sessionId;
+			await view.openNextSession();
+
+			assert.deepStrictEqual({
+				previous,
+				next: view.activeSession.get()?.sessionId,
+				recent: view.getRecentlyOpenedSessions().recent.map(session => session.sessionId),
+			}, { previous: 'replacement', next: 'next', recent: ['next', 'legacy'] });
+		});
+
+		test('opening the already-active composer cancels an unresolved session open', async () => {
+			const session = stubSession({ sessionId: 'session', providerId: 'test', status: constObservable(SessionStatus.Completed) });
+			const resolutionStarted = new DeferredPromise<void>();
+			const resolution = new DeferredPromise<URI | undefined>();
+			const provider = new class extends TestSessionsProvider {
+				override resolveSessionResource(): Promise<URI | undefined> {
+					resolutionStarted.complete();
+					return resolution.p;
+				}
+			}(session);
+			const { view } = createSessionsManagementService(session, disposables, provider);
+
+			const opening = view.openSession(session.resource);
+			await resolutionStarted.p;
+			await view.openNewSession();
+			resolution.complete(undefined);
+			await opening;
+
+			assert.deepStrictEqual({
+				active: view.activeSession.get()?.sessionId,
+				recent: view.getRecentlyOpenedSessions().recent.map(session => session.sessionId),
+			}, { active: undefined, recent: [] });
+		});
+
+		test('returning to new-session restores the existing draft', async () => {
+			const folderUri = URI.file('/test/workspace');
+			const workspace: ISessionWorkspace = {
+				uri: folderUri, label: 'workspace', icon: Codicon.folder,
+				folders: [{ root: folderUri, workingDirectory: folderUri, name: 'workspace', description: undefined }],
+				requiresWorkspaceTrust: false, isVirtualWorkspace: false,
+			};
+			const session = stubSession({ sessionId: 'session', providerId: 'test', status: constObservable(SessionStatus.Completed) });
+			const draft = stubSession({ sessionId: 'draft', providerId: 'test', status: constObservable(SessionStatus.Untitled), workspace: constObservable(workspace) });
+			const provider = new class extends TestSessionsProvider {
+				override resolveWorkspace(): ISessionWorkspace { return workspace; }
+				override createNewSession(): ISession { return draft; }
+			}(session);
+			const { service, view, contextKeyService } = createSessionsManagementService(session, disposables, provider);
+
+			await view.openNewSession({ folderUri });
+			await view.openSession(session.resource);
+			await view.openPreviousSession();
+
+			assert.deepStrictEqual({
+				active: view.activeSession.get()?.sessionId,
+				draftPreserved: service.newSession.get() === draft,
+				canGoBack: contextKeyService.getContextKeyValue('sessionsCanGoBack'),
+				canGoForward: contextKeyService.getContextKeyValue('sessionsCanGoForward'),
+			}, { active: 'draft', draftPreserved: true, canGoBack: false, canGoForward: true });
+		});
+	});
+
 	test('publishes navigation requests even when the empty composer is already active', async () => {
 		const session = stubSession({ sessionId: 'session', providerId: 'test' });
 		const { view } = createSessionsManagementService(session, disposables);
