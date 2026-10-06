@@ -572,10 +572,13 @@ export class ModelPickerWidget extends Disposable {
 			return;
 		}
 
-		const telemetrySession = new ModelPickerTelemetrySession(this._telemetryService, this._languageModelsService, trigger, this._selectedModel, this._delegate.getChatSessionId?.(), this._delegate.getProvider ? this._delegate.getProvider() : 'unknown');
+		const telemetrySession = new ModelPickerTelemetrySession(this._telemetryService, this._languageModelsService, trigger, this._selectedModel, {
+			chatSessionId: this._delegate.getChatSessionId?.(),
+			agentSessionId: this._delegate.getAgentSessionId?.(),
+		}, this._delegate.getProvider ? this._delegate.getProvider() : 'unknown');
 
 		const onSelect = (model: ILanguageModelChatMetadataAndIdentifier) => {
-			telemetrySession.logModelChange(this._selectedModel, model, this._delegate.getChatSessionId?.());
+			telemetrySession.logModelChange(this._selectedModel, model);
 			this._selectedModel = model;
 			this._renderLabel();
 			this._onDidChangeSelection.fire(model);

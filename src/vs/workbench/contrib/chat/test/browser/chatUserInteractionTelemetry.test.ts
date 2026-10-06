@@ -12,7 +12,10 @@ import { ExtensionIdentifier } from '../../../../../platform/extensions/common/e
 import { TelemetryTrustedValue } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ChatUserInteractionTimingResult, isChatFirstVisibleProgress } from '../../browser/chatUserInteractionTelemetry.js';
 import { IChatProgress, IChatToolInvocation, IChatToolInvocationSerialized } from '../../common/chatService/chatService.js';
-import { getChatSessionTelemetryContext } from '../../common/chatService/chatServiceTelemetry.js';
+import { getChatSessionTelemetryContext, getChatSessionTelemetryIds } from '../../common/chatService/chatServiceTelemetry.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../common/constants.js';
 import { IChatProgressResponseContent, IChatRequestModel, IChatResponseModel } from '../../common/model/chatModel.js';
 import { ToolInvocationPresentation } from '../../common/tools/languageModelToolsService.js';
@@ -225,6 +228,37 @@ suite('ChatUserInteractionTelemetry', () => {
 			{ chatSessionId: 'session-id#peer-one', sessionType: 'remote-agent-host', harness: 'copilot' },
 			{ chatSessionId: 'session-id#peer-two', sessionType: 'remote-agent-host', harness: 'copilot' },
 		]);
+	});
+
+	test('resolves owner identity without guessing from frontend aliases or remote authorities', () => {
+		const instantiation = disposables.add(new TestInstantiationService());
+		instantiation.stub(IAgentHostConnectionsService, {
+			resolveSessionResourceIdentity: () => ({
+				connectionAuthority: 'private-host',
+				backendSession: URI.parse('copilotcli:/backend-session'),
+			}),
+		});
+		for (const scheme of ['agent-host-copilot', 'remote-private-host-copilot']) {
+			for (const fragment of ['', 'peer-one', 'peer-two']) {
+				const resource = URI.from({ scheme, path: '/frontend-session', fragment });
+				const ids = getChatSessionTelemetryIds(resource, instantiation.get(IAgentHostConnectionsService));
+				assert.deepStrictEqual(ids, {
+					chatSessionId: getChatSessionTelemetryContext(resource).chatSessionId,
+					agentSessionId: 'backend-session',
+				});
+				assert.ok(!JSON.stringify(ids).includes('private-host'));
+			}
+		}
+		instantiation.stub(IAgentHostConnectionsService, { resolveSessionResourceIdentity: () => undefined });
+		assert.deepStrictEqual(getChatSessionTelemetryIds(URI.parse('remote-unknown-host-copilot:/session'), instantiation.get(IAgentHostConnectionsService)), { chatSessionId: 'session' });
+	});
+
+	test('does not invent an Agent Host owner for local or provisional sessions', () => {
+		for (const resource of [LocalChatSessionUri.forSession('local-session'), URI.parse('agent-host-copilotcli:/untitled-123')]) {
+			assert.deepStrictEqual(getChatSessionTelemetryIds(resource, { resolveSessionResourceIdentity: () => assert.fail('Unexpected owner resolution') }), {
+				chatSessionId: getChatSessionTelemetryContext(resource).chatSessionId,
+			});
+		}
 	});
 
 	for (const result of ['cancelled', 'error', 'completedWithoutProgress', 'notDispatched', 'queued', 'navigated', 'hidden', 'disposed'] satisfies Exclude<ChatUserInteractionTimingResult, 'success'>[]) {

@@ -26,6 +26,7 @@ export interface IFileEditAttributionSource {
 	readonly modelId?: string;
 	readonly autoTier?: string;
 	readonly conversationId: string;
+	readonly agentSessionId?: string;
 	readonly chatSessionId?: string;
 	readonly requestId: string;
 	readonly harness: string;
@@ -177,6 +178,7 @@ function isFileEditAttributionSource(source: unknown): source is IFileEditAttrib
 	return (candidate.modelId === undefined || typeof candidate.modelId === 'string') &&
 		(candidate.autoTier === undefined || typeof candidate.autoTier === 'string') &&
 		typeof candidate.conversationId === 'string' &&
+		(candidate.agentSessionId === undefined || typeof candidate.agentSessionId === 'string') &&
 		(candidate.chatSessionId === undefined || typeof candidate.chatSessionId === 'string') &&
 		typeof candidate.requestId === 'string' &&
 		typeof candidate.harness === 'string';
