@@ -11,6 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { runWindowsMxc } from '../../node/mxcMain.js';
 
 const waitForStream = promisify(finished);
+const signals: NodeJS.Signals[] = ['SIGINT', 'SIGTERM', 'SIGBREAK'];
 
 suite('Windows MXC SDK runner', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -38,7 +39,7 @@ suite('Windows MXC SDK runner', () => {
 			network: { egress: { default: 'deny' }, ingress: { default: 'deny' } },
 			ui: { disable: false, clipboard: 'none', allowInputInjection: false },
 		};
-		const listenerCounts = [process.listenerCount('SIGINT'), process.listenerCount('SIGTERM')];
+		const listenerCounts = signals.map(signal => process.listenerCount(signal));
 		try {
 			const exitCode = await runWindowsMxc(request, async value => {
 				receivedRequest = value;
@@ -49,18 +50,23 @@ suite('Windows MXC SDK runner', () => {
 					warnings: ['sandbox warning'],
 					wait: async () => {
 						await waitForStream(stdin);
-						stdout.end('terminal output');
-						stderr.end('terminal error');
-						await Promise.all([waitForStream(stdout), waitForStream(stderr)]);
+						setImmediate(() => {
+							stdout.end('terminal output');
+							setImmediate(() => stderr.end('terminal error'));
+						});
 						return { exitCode: 7, timedOut: false };
 					},
 					kill: () => { },
-					dispose: () => { disposed = true; },
+					dispose: () => {
+						disposed = true;
+						stdout.destroy();
+						stderr.destroy();
+					},
 				};
 			}, input, output, errorOutput);
 			deepStrictEqual({
 				receivedRequest, receivedInput, receivedOutput, receivedError, exitCode, disposed,
-				listenerCounts: [process.listenerCount('SIGINT'), process.listenerCount('SIGTERM')],
+				listenerCounts: signals.map(signal => process.listenerCount(signal)),
 			}, {
 				receivedRequest: request,
 				receivedInput: 'terminal input',
@@ -83,9 +89,63 @@ suite('Windows MXC SDK runner', () => {
 		}), /Sandbox unavailable/);
 	});
 
+	for (const signal of signals) {
+		test(`forwards ${signal} to the sandbox and removes the handler`, async () => {
+			let killCount = 0;
+			let disposed = false;
+			const listenerCounts = signals.map(signal => process.listenerCount(signal));
+			const exitCode = await runWindowsMxc({ command: 'echo hello' }, async () => ({
+				standardInput: null,
+				standardOutput: null,
+				standardError: null,
+				warnings: [],
+				wait: async () => {
+					process.emit(signal);
+					return { exitCode: 1, timedOut: false };
+				},
+				kill: () => { killCount++; },
+				dispose: () => { disposed = true; },
+			}));
+			deepStrictEqual({
+				killCount, disposed, exitCode,
+				listenerCounts: signals.map(signal => process.listenerCount(signal)),
+			}, { killCount: 1, disposed: true, exitCode: 1, listenerCounts });
+		});
+	}
+
+	test('surfaces output errors and cleans up stream and signal handlers', async () => {
+		const stdout = new PassThrough();
+		const output = new PassThrough();
+		let disposed = false;
+		const listenerCounts = signals.map(signal => process.listenerCount(signal));
+		const streamListenerCounts = ['end', 'finish', 'error', 'close'].map(event => stdout.listenerCount(event));
+		try {
+			await rejects(runWindowsMxc({ command: 'echo hello' }, async () => ({
+				standardInput: null,
+				standardOutput: stdout,
+				standardError: null,
+				warnings: [],
+				wait: async () => {
+					setImmediate(() => stdout.destroy(new Error('Output failed')));
+					return { exitCode: 0, timedOut: false };
+				},
+				kill: () => { },
+				dispose: () => { disposed = true; },
+			}), Readable.from([]), output), /Output failed/);
+			deepStrictEqual({
+				disposed,
+				listenerCounts: signals.map(signal => process.listenerCount(signal)),
+				streamListenerCounts: ['end', 'finish', 'error', 'close'].map(event => stdout.listenerCount(event)),
+			}, { disposed: true, listenerCounts, streamListenerCounts });
+		} finally {
+			stdout.destroy();
+			output.destroy();
+		}
+	});
+
 	test('disposes the process and signal handlers when execution fails', async () => {
 		let disposed = false;
-		const listenerCounts = [process.listenerCount('SIGINT'), process.listenerCount('SIGTERM')];
+		const listenerCounts = signals.map(signal => process.listenerCount(signal));
 		await rejects(runWindowsMxc({ command: 'echo hello' }, async () => ({
 			standardInput: null,
 			standardOutput: null,
@@ -97,7 +157,7 @@ suite('Windows MXC SDK runner', () => {
 		})), /Execution failed/);
 		deepStrictEqual({
 			disposed,
-			listenerCounts: [process.listenerCount('SIGINT'), process.listenerCount('SIGTERM')],
+			listenerCounts: signals.map(signal => process.listenerCount(signal)),
 		}, { disposed: true, listenerCounts });
 	});
 });

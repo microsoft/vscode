@@ -5,11 +5,11 @@
 
 import type { ContainerRequest, MxcProcess } from '@microsoft/mxc-sdk/v1';
 import { readFile } from 'fs/promises';
-import type { Readable, Writable } from 'stream';
-import { fileURLToPath } from 'node:url';
+import { finished, type Readable, type Writable } from 'stream';
+import { fileURLToPath } from 'url';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 
-/** Streams an MXC workload through the terminal without interpreting its sandbox policy. */
+/** Streams an MXC workload through the terminal, forwards termination signals, and drains output before disposal. */
 export async function runWindowsMxc(
 	request: ContainerRequest,
 	spawn: (request: ContainerRequest) => Promise<Pick<MxcProcess, 'standardInput' | 'standardOutput' | 'standardError' | 'wait' | 'kill' | 'dispose' | 'warnings'>> = async request => (await import('@microsoft/mxc-sdk/v1')).spawn(request),
@@ -21,15 +21,23 @@ export async function runWindowsMxc(
 	try {
 		const sandbox = store.add(await spawn(request));
 		const kill = () => sandbox.kill();
-		process.on('SIGINT', kill);
-		process.on('SIGTERM', kill);
-		store.add(toDisposable(() => {
-			process.off('SIGINT', kill);
-			process.off('SIGTERM', kill);
-		}));
+		const signals: NodeJS.Signals[] = ['SIGINT', 'SIGTERM', 'SIGBREAK'];
+		for (const signal of signals) {
+			process.on(signal, kill);
+			store.add(toDisposable(() => process.off(signal, kill)));
+		}
 		const stdin = sandbox.standardInput;
 		const stdout = sandbox.standardOutput;
 		const stderr = sandbox.standardError;
+		const outputFinished = [stdout, stderr].map(stream => stream ? new Promise<void>((resolve, reject) => {
+			store.add(toDisposable(finished(stream, { readable: true, writable: false }, error => {
+				if (error) {
+					reject(error);
+				} else {
+					resolve();
+				}
+			})));
+		}) : undefined);
 		if (stdin) {
 			input.pipe(stdin);
 			store.add(toDisposable(() => input.unpipe(stdin)));
@@ -40,7 +48,7 @@ export async function runWindowsMxc(
 			stdout?.unpipe(output);
 			stderr?.unpipe(errorOutput);
 		}));
-		const result = await sandbox.wait();
+		const [result] = await Promise.all([sandbox.wait(), Promise.all(outputFinished)]);
 		for (const warning of sandbox.warnings) {
 			errorOutput.write(`${warning}\n`);
 		}
