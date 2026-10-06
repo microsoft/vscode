@@ -33,6 +33,7 @@ import { AICustomizationDiscoveryPage } from '../../../browser/aiCustomization/a
 import { IAICustomizationItemSource, IAICustomizationListItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel, ItemsModelSection } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
 import { DELETE_AI_CUSTOMIZATION_ID } from '../../../browser/aiCustomization/aiCustomizationManagement.js';
+import { MANAGE_PLUGIN_MARKETPLACES_COMMAND_ID } from '../../../browser/actions/chatPluginActions.js';
 import { AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { createCustomizationMarketplaceInstallationSnapshot, CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallService } from '../../../common/customizationMarketplaceInstallService.js';
@@ -106,8 +107,10 @@ suite('AICustomizationDiscoveryPage', () => {
 		const marketplaceChanges = store.add(new Emitter<void>());
 		const recoveryActions = new Map<string, ICustomizationMarketplaceSourceRecoveryAction>();
 		const deletions: DeferredPromise<void>[] = [];
+		const commands: { id: string; args: readonly unknown[] }[] = [];
 		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
-			override executeCommand<R = unknown>(commandId: string, ..._args: unknown[]): Promise<R | undefined> {
+			override executeCommand<R = unknown>(commandId: string, ...args: unknown[]): Promise<R | undefined> {
+				commands.push({ id: commandId, args });
 				if (commandId === DELETE_AI_CUSTOMIZATION_ID) {
 					const result = new DeferredPromise<void>();
 					deletions.push(result);
@@ -224,7 +227,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			return sourceMenu.getActions();
 		}
 		return {
-			page, container, configuration, requests, marketplaceChanges, entitlement, sentimentChanged, recoveryActions, notifications, getSourceActions, listService, creationEvents, opened, openedDetails, openedInstalled, deletions, installs, repairs, cancellations,
+			page, container, configuration, requests, marketplaceChanges, entitlement, sentimentChanged, recoveryActions, notifications, getSourceActions, listService, creationEvents, opened, openedDetails, openedInstalled, deletions, installs, repairs, cancellations, commands,
 			setInstallState: (resource: ICustomizationMarketplaceResource, state: CustomizationMarketplaceInstallState) => {
 				const key = getCustomizationMarketplaceResourceKey(resource);
 				installStates.set(key, state);
@@ -252,6 +255,13 @@ suite('AICustomizationDiscoveryPage', () => {
 				assert.ok(button);
 				button.click();
 				const action = sourceMenu?.getActions?.().find(action => action.id === `customizationDiscovery.source.${id ?? 'all'}`);
+				assert.ok(action);
+				await action.run();
+				sourceMenu?.onHide?.(false);
+				sourceMenu = undefined;
+			},
+			configureMarketplaces: async () => {
+				const action = getSourceActions().find(action => action.id === 'customizationDiscovery.source.configure');
 				assert.ok(action);
 				await action.run();
 				sourceMenu?.onHide?.(false);
@@ -1548,6 +1558,15 @@ suite('AICustomizationDiscoveryPage', () => {
 			disabledSelectable: false,
 			content: ['public-mail'],
 		});
+	});
+
+	test('Configure Marketplaces opens the marketplace management quick pick', async () => {
+		const fixture = createPage(['agentFinder']);
+		await fixture.configureMarketplaces();
+		assert.deepStrictEqual(fixture.commands, [{
+			id: MANAGE_PLUGIN_MARKETPLACES_COMMAND_ID,
+			args: [],
+		}]);
 	});
 
 
