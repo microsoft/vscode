@@ -233,7 +233,7 @@ describe('CustomEndpointBYOKModelProvider', () => {
 			};
 		}
 
-		it('omits store after cloning a Custom Endpoint Responses endpoint when zeroDataRetentionEnabled is omitted', async () => {
+		it('omits store and previous_response_id after cloning a Custom Endpoint Responses endpoint when zeroDataRetentionEnabled is omitted', async () => {
 			const endpoint = (await createConfiguredResponsesEndpoint()).cloneWithTokenOverride(64000);
 			const body = createResponsesBody(endpoint);
 
@@ -244,7 +244,36 @@ describe('CustomEndpointBYOKModelProvider', () => {
 			}).toEqual({
 				storePresent: false,
 				store: undefined,
-				previousResponseId: customResponsesMarker,
+				previousResponseId: undefined,
+			});
+		});
+
+		it('issue #331636: sends the full tool-call history to stateless Custom Endpoint Responses servers', async () => {
+			const endpoint = await createConfiguredResponsesEndpoint();
+			const body = endpoint.createRequestBody({
+				debugName: 'test',
+				messages: [
+					{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'list the workspace' }] },
+					{
+						role: Raw.ChatRole.Assistant,
+						content: [{ type: Raw.ChatCompletionContentPartKind.Opaque, value: { type: CustomDataPartMimeTypes.StatefulMarker, value: { modelId: customResponsesModelId, marker: customResponsesMarker } } }],
+						toolCalls: [{ id: 'call_1', type: 'function', function: { name: 'list_dir', arguments: '{}' } }],
+					},
+					{ role: Raw.ChatRole.Tool, toolCallId: 'call_1', content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'a.txt' }] },
+				],
+				requestId: 'test-custom-responses-tool-follow-up',
+				postOptions: {},
+				ignoreStatefulMarker: false,
+				finishedCb: undefined,
+				location: ChatLocation.Other,
+			});
+
+			expect({
+				previousResponseId: body.previous_response_id,
+				input: body.input?.map(item => ('type' in item ? item.type : undefined)),
+			}).toEqual({
+				previousResponseId: undefined,
+				input: ['message', 'function_call', 'function_call_output'],
 			});
 		});
 

@@ -256,6 +256,15 @@ export class CustomEndpointOAIEndpoint extends OpenAIEndpoint {
 		return !!this.modelMetadata.supported_endpoints?.includes(ModelSupportedEndpoint.Messages);
 	}
 
+	/**
+	 * Many OpenAI-compatible Responses implementations (e.g. DeepSeek) are stateless and
+	 * ignore `previous_response_id`, so only chain when the user explicitly sets
+	 * `zeroDataRetentionEnabled: false`.
+	 */
+	protected override get supportsStatefulResponses(): boolean {
+		return this.modelMetadata.zeroDataRetentionEnabled === false;
+	}
+
 	override createRequestBody(options: ICreateEndpointBodyOptions): IEndpointBody {
 		const body = super.createRequestBody(options);
 		if (this.useResponsesApi && this.modelMetadata.zeroDataRetentionEnabled === undefined) {
