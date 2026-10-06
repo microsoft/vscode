@@ -15,7 +15,7 @@ import { buildBranchChangesetUri, buildDefaultChangesetCatalog, buildSessionChan
 import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, ChangesetOperationScope, ChangesetOperationStatus, SessionStatus, withSessionGitState, type ISessionFileDiff, type ISessionGitHubState, type ISessionGitState } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, ChangesetOperationScope, ChangesetOperationStatus, SessionStatus, withSessionGitState, type ChangesetOperation, type ISessionFileDiff, type ISessionGitHubState, type ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentConfigurationService, getEffectiveWorkingDirectories, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostChangesetCoordinator } from '../../node/agentHostChangesetCoordinator.js';
 import { resolveChangesetSubscriptions } from '../../node/agentHostChangesetSummary.js';
@@ -92,6 +92,16 @@ suite('ChangesetSessionCoordinator', () => {
 				updateOperationsCalls.push(sessionKey);
 				super.updateOperations(sessionKey, changeset, gitState, gitHubState);
 			}
+
+			override scheduleRelatedOperationsUpdate(resourceKey: string): void {
+				updateOperationsCalls.push(resourceKey);
+				super.scheduleRelatedOperationsUpdate(resourceKey);
+			}
+
+			override scheduleOwnerOperationsUpdate(ownerKey: string): void {
+				updateOperationsCalls.push(ownerKey);
+				super.scheduleOwnerOperationsUpdate(ownerKey);
+			}
 		}
 		const operationService = disposables.add(new RecordingOperationService(stateManager, gitStateService, subscriptions, configurationService));
 		const instantiationService = disposables.add(new InstantiationService(new ServiceCollection(
@@ -107,6 +117,50 @@ suite('ChangesetSessionCoordinator', () => {
 		), /*strict*/ true));
 		const coordinator = disposables.add(instantiationService.createInstance(AgentHostChangesetCoordinator));
 		return { stateManager, changesets, subscriptions, monitor, gitService, gitStateService, coordinator, operationService, updateOperationsCalls };
+	}
+
+	async function seedLargeMultiChatChangesets(stateManager: AgentHostStateManager, subscriptions: IAgentHostChangesetSubscriptionService, session: string): Promise<{
+		readonly chats: string[];
+		readonly sessionChangesets: string[];
+		readonly chatChangesets: ReadonlyMap<string, readonly string[]>;
+	}> {
+		const defaultChat = buildDefaultChatUri(session);
+		stateManager.dispatchServerAction(defaultChat, { type: ActionType.ChatWorkingDirectorySet, directory: 'file:///repoA' });
+		const chats = [defaultChat];
+		for (let i = 1; i < 32; i++) {
+			const chat = buildChatUri(session, `peer-${i}`);
+			stateManager.addChat(session, chat, { workingDirectories: ['file:///repoA'] });
+			chats.push(chat);
+		}
+		await tick();
+
+		const operations: readonly ChangesetOperation[] = [{
+			id: 'test-operation',
+			label: 'Test',
+			scopes: [ChangesetOperationScope.Changeset],
+			status: ChangesetOperationStatus.Idle,
+		}];
+		const chatChangesets = new Map<string, readonly string[]>();
+		for (const chat of chats) {
+			const changesets: string[] = [];
+			for (let i = 0; i < 25; i++) {
+				const changeset = buildTurnChangesetUri(chat, `turn-${i}`);
+				stateManager.registerChangeset(changeset);
+				subscriptions.addSubscription(chat, changeset);
+				stateManager.dispatchServerAction(changeset, { type: ActionType.ChangesetOperationsChanged, operations: [...operations] });
+				changesets.push(changeset);
+			}
+			chatChangesets.set(chat, changesets);
+		}
+		const sessionChangesets: string[] = [];
+		for (let i = 0; i < 4; i++) {
+			const changeset = buildTurnChangesetUri(session, `aggregate-${i}`);
+			stateManager.registerChangeset(changeset);
+			subscriptions.addSubscription(session, changeset);
+			stateManager.dispatchServerAction(changeset, { type: ActionType.ChangesetOperationsChanged, operations: [...operations] });
+			sessionChangesets.push(changeset);
+		}
+		return { chats, sessionChangesets, chatChangesets };
 	}
 
 	for (const cancelled of [false, true]) {
@@ -446,7 +500,7 @@ suite('ChangesetSessionCoordinator', () => {
 			operationRefreshes: environment.updateOperationsCalls.slice(baseline),
 			chatSummaryRefreshes: environment.changesets.chatSummaryRefreshes.slice(summaryBaseline),
 		}, {
-			operationRefreshes: [session],
+			operationRefreshes: [session, buildDefaultChatUri(session), peer],
 			chatSummaryRefreshes: [buildDefaultChatUri(session), peer],
 		});
 
@@ -468,7 +522,7 @@ suite('ChangesetSessionCoordinator', () => {
 			operationRefreshes: environment.updateOperationsCalls.slice(afterAdd),
 			chatSummaryRefreshes: environment.changesets.chatSummaryRefreshes.slice(summariesAfterAdd),
 		}, {
-			operationRefreshes: [session],
+			operationRefreshes: [session, buildDefaultChatUri(session), peer],
 			chatSummaryRefreshes: [buildDefaultChatUri(session), peer],
 		});
 	});
@@ -493,6 +547,68 @@ suite('ChangesetSessionCoordinator', () => {
 			operationRefreshes: [chat],
 			gitRefreshes: [chat],
 			chatSummaryRefreshes: [chat],
+		});
+	});
+
+	test('set_workspace invalidates only the affected chat and aggregate owner in a large multi-chat session', async () => {
+		const session = AgentSession.uri('mock', 'large-set-workspace').toString();
+		const environment = createEnvironment();
+		createSession(environment.stateManager, session, 'file:///repoA');
+		const seeded = await seedLargeMultiChatChangesets(environment.stateManager, environment.subscriptions, session);
+		const defaultChat = buildDefaultChatUri(session);
+		const operationChanges: string[] = [];
+		disposables.add(environment.stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.action.type === ActionType.ChangesetOperationsChanged) {
+				operationChanges.push(envelope.channel);
+			}
+		}));
+
+		environment.stateManager.dispatchServerAction(session, {
+			type: ActionType.SessionWorkingDirectoryReplaced,
+			directory: 'file:///repoA',
+			replacement: 'file:///repoB',
+		});
+		environment.stateManager.dispatchServerAction(defaultChat, { type: ActionType.ChatWorkingDirectoryRemoved, directory: 'file:///repoA' });
+		environment.stateManager.dispatchServerAction(defaultChat, { type: ActionType.ChatWorkingDirectorySet, directory: 'file:///repoB' });
+		await tick();
+
+		assert.deepStrictEqual({
+			watchedChats: seeded.chats.length,
+			subscriptions: seeded.sessionChangesets.length + [...seeded.chatChangesets.values()].reduce((total, changesets) => total + changesets.length, 0),
+			operationChanges: operationChanges.length,
+			changedOnlyExpectedOwners: operationChanges.every(channel => seeded.sessionChangesets.includes(channel) || seeded.chatChangesets.get(defaultChat)?.includes(channel)),
+		}, {
+			watchedChats: 32,
+			subscriptions: 804,
+			operationChanges: 4,
+			changedOnlyExpectedOwners: true,
+		});
+	});
+
+	test('create_session relationship=currentSession does not invalidate existing scoped chats in a large multi-chat session', async () => {
+		const session = AgentSession.uri('mock', 'large-create-session').toString();
+		const environment = createEnvironment();
+		createSession(environment.stateManager, session, 'file:///repoA');
+		const seeded = await seedLargeMultiChatChangesets(environment.stateManager, environment.subscriptions, session);
+		const operationChanges: string[] = [];
+		disposables.add(environment.stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.action.type === ActionType.ChangesetOperationsChanged) {
+				operationChanges.push(envelope.channel);
+			}
+		}));
+
+		environment.stateManager.dispatchServerAction(session, { type: ActionType.SessionWorkingDirectorySet, directory: 'file:///repoB' });
+		environment.stateManager.addChat(session, buildChatUri(session, 'new-peer'), { workingDirectories: ['file:///repoB'] });
+		await tick();
+
+		assert.deepStrictEqual({
+			watchedChats: seeded.chats.length,
+			subscriptions: seeded.sessionChangesets.length + [...seeded.chatChangesets.values()].reduce((total, changesets) => total + changesets.length, 0),
+			operationChanges,
+		}, {
+			watchedChats: 32,
+			subscriptions: 804,
+			operationChanges: seeded.sessionChangesets,
 		});
 	});
 
@@ -556,7 +672,7 @@ suite('ChangesetSessionCoordinator', () => {
 
 		assert.deepStrictEqual(
 			[...environment.updateOperationsCalls.slice(baseline)].sort(),
-			[parentSession, subagentSession].sort(),
+			[parentSession, buildDefaultChatUri(parentSession), subagentSession].sort(),
 			'a parent root change refreshes every parent operation owner once and its inheriting subagent',
 		);
 	});
@@ -1084,6 +1200,29 @@ suite('ChangesetSessionCoordinator', () => {
 				buildBranchChangesetOwner(session, [peerRoot.toString()]),
 			],
 			disposals: [peerRoot.toString()],
+		});
+	});
+
+	test('removing a chat keeps a branch summary shared with another chat', async () => {
+		const session = AgentSession.uri('mock', 'shared-chat-summary').toString();
+		const peer = buildChatUri(session, 'peer');
+		const root = URI.file('/projects/shared');
+		const environment = createEnvironment(undefined, createRoutingGitService(new Map([[root.toString(), root]])));
+		createSession(environment.stateManager, session, root.toString());
+		environment.stateManager.addChat(session, peer, { workingDirectories: [root.toString()] });
+		environment.stateManager.setSessionConfig(session, { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: 'worktree' } });
+		environment.coordinator.onFirstSubscriber(URI.parse(session));
+		await environment.monitor.waitForAcquisitions(1);
+
+		environment.stateManager.dispatchServerAction(session, { type: ActionType.SessionChatRemoved, chat: peer });
+		await tick();
+
+		assert.deepStrictEqual({
+			removedOwners: environment.changesets.removedOwners,
+			disposals: environment.monitor.disposals,
+		}, {
+			removedOwners: [peer],
+			disposals: [],
 		});
 	});
 
