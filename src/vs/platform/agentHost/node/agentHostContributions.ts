@@ -7,6 +7,7 @@ import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { IInstantiationService, ServicesAccessor } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
+import { AgentHostCheckoutOperationContribution } from './agentHostCheckoutOperationProvider.js';
 import { IAgentHostStateManager } from './agentHostStateManager.js';
 import { AgentHostCommitOperationContribution } from './agentHostCommitOperationProvider.js';
 import { IAgentHostCompletions } from './agentHostCompletions.js';
@@ -31,6 +32,7 @@ export function activateAgentHostContributions(accessor: ServicesAccessor, insta
 		store.add(changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostMergeOperationContribution)));
 		store.add(changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostSyncOperationContribution)));
 		store.add(changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostDiscardChangesOperationContribution)));
+		store.add(changesetOperationService.registerContribution(instantiationService.createInstance(AgentHostCheckoutOperationContribution)));
 
 		const completions = accessor.get(IAgentHostCompletions);
 		const stateManager = accessor.get(IAgentHostStateManager);
@@ -43,6 +45,7 @@ export function activateAgentHostContributions(accessor: ServicesAccessor, insta
 		)));
 		store.add(completions.registerProvider(new CodexCompactCompletionProvider(
 			session => (stateManager.getSessionState(session)?.turns.length ?? 0) > 0,
+			session => stateManager.getSessionSummary(session)?.provider,
 		)));
 		store.add(registerBuiltInChatContributions(accessor.get(IAgentHostChatContributions)));
 		return store;

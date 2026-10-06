@@ -512,7 +512,7 @@ suite('getQuotaUsage', () => {
 			unlimitedWithoutCredits: getQuotaUsage({ percentRemaining: 100, unlimited: true }),
 			unlimitedPooledDepleted: getQuotaUsage({ percentRemaining: 0, unlimited: true, hasQuota: false, creditsUsed: 500 }),
 			cappedWithRemaining: getQuotaUsage({ percentRemaining: 25, unlimited: false, entitlement: 400, quotaRemaining: 100 }),
-			cappedPrefersCreditsUsed: getQuotaUsage({ percentRemaining: 25, unlimited: false, entitlement: 400, quotaRemaining: 100, creditsUsed: 303 }),
+			cappedIgnoresCreditsUsed: getQuotaUsage({ percentRemaining: 6.2, unlimited: false, entitlement: 13000, quotaRemaining: 807.7, creditsUsed: 14517 }),
 			cappedWithoutRemaining: getQuotaUsage({ percentRemaining: 25, unlimited: false, entitlement: 400 }),
 			cappedWithoutEntitlement: getQuotaUsage({ percentRemaining: 25, unlimited: false }),
 			cappedZeroEntitlement: getQuotaUsage({ percentRemaining: 25, unlimited: false, entitlement: 0 }),
@@ -522,7 +522,7 @@ suite('getQuotaUsage', () => {
 			unlimitedWithoutCredits: undefined,
 			unlimitedPooledDepleted: undefined,
 			cappedWithRemaining: { kind: QuotaUsageKind.Percentage, usedPercentage: 75, used: 300, total: 400 },
-			cappedPrefersCreditsUsed: { kind: QuotaUsageKind.Percentage, usedPercentage: 75, used: 303, total: 400 },
+			cappedIgnoresCreditsUsed: { kind: QuotaUsageKind.Percentage, usedPercentage: 93.8, used: 12192.3, total: 13000 },
 			cappedWithoutRemaining: { kind: QuotaUsageKind.Percentage, usedPercentage: 75, used: 300, total: 400 },
 			cappedWithoutEntitlement: { kind: QuotaUsageKind.Percentage, usedPercentage: 75, used: undefined, total: undefined },
 			cappedZeroEntitlement: { kind: QuotaUsageKind.Percentage, usedPercentage: 75, used: undefined, total: undefined },
@@ -586,6 +586,52 @@ suite('ChatEntitlementService', () => {
 			afterNoChange: ['remaining'],
 		});
 	});
+
+	const availabilityChanges: { name: string; before: ChatEntitlementService['quotas']; after: ChatEntitlementService['quotas'] }[] = [
+		{
+			name: 'additional usage permission',
+			before: { premiumChat: { percentRemaining: 0, unlimited: false }, additionalUsageEnabled: true },
+			after: { premiumChat: { percentRemaining: 0, unlimited: false }, additionalUsageEnabled: false },
+		},
+		{
+			name: 'pooled allowance availability',
+			before: { premiumChat: { percentRemaining: 100, unlimited: true, hasQuota: true } },
+			after: { premiumChat: { percentRemaining: 100, unlimited: true, hasQuota: false } },
+		},
+		{
+			name: 'premium allowance becomes limited',
+			before: { premiumChat: { percentRemaining: 0, unlimited: true } },
+			after: { premiumChat: { percentRemaining: 0, unlimited: false } },
+		},
+		{
+			name: 'session rate limit becomes limited',
+			before: { sessionRateLimit: { percentRemaining: 0, unlimited: true } },
+			after: { sessionRateLimit: { percentRemaining: 0, unlimited: false } },
+		},
+		{
+			name: 'weekly rate limit becomes limited',
+			before: { weeklyRateLimit: { percentRemaining: 0, unlimited: true } },
+			after: { weeklyRateLimit: { percentRemaining: 0, unlimited: false } },
+		},
+	];
+	for (const { name, before, after } of availabilityChanges) {
+		test(`signals quota availability changes without a percentage change: ${name}`, () => {
+			const service = createService();
+			service.acceptQuotas(before);
+			let changes = 0;
+			store.add(service.onDidChangeQuotaRemaining(() => changes++));
+
+			service.acceptQuotas(after);
+			const afterChange = changes;
+			service.acceptQuotas(after);
+			const afterIdenticalSnapshot = changes;
+			service.acceptQuotas(before);
+
+			assert.deepStrictEqual({ afterChange, afterIdenticalSnapshot, afterRecovery: changes }, {
+				afterChange: 1, afterIdenticalSnapshot: 1, afterRecovery: 2,
+			});
+		});
+	}
 
 	test('merges defined snapshot fields until the snapshot is removed', () => {
 		const service = createService();

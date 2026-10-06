@@ -4,19 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { disposableTimeout } from '../../../../../base/common/async.js';
-import { Event } from '../../../../../base/common/event.js';
-import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { Disposable, DisposableMap, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { type IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { hasExhaustedReconnectAttempts, type IRemoteAgentHostReconnectPolicy } from '../../../../../platform/agentHost/common/reconnectPolicy.js';
 import { PROTOCOL_VERSION } from '../../../../../platform/agentHost/common/state/protocol/version/registry.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
-import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { IAgentHostConnectProgress } from '../../../../common/agentHostSessionsProvider.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
-import { watchForIncompatibleNotifications } from './remoteHostOptions.js';
+import { type IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { type IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { type ILogService } from '../../../../../platform/log/common/log.js';
+import { type INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { type ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { EntryDrivenProviderContribution } from './entryDrivenProviderContribution.js';
 
 /**
  * Per-host auto-reconnect state for a managed (in-renderer relay) remote
@@ -33,6 +30,8 @@ export class ManagedReconnectState extends Disposable {
 	paused = false;
 	/** Wall-clock timestamp when {@link paused} was last set to true. */
 	pausedAt = 0;
+	/** Whether automatic triggers must not resume this state. */
+	requiresUserInitiatedResume = false;
 
 	get hasPendingTimer(): boolean {
 		return !!this._timer.value;
@@ -56,6 +55,15 @@ export class ManagedReconnectState extends Disposable {
 		this.attempts = 0;
 		this.paused = false;
 		this._timer.clear();
+		this.requiresUserInitiatedResume = false;
+	}
+
+	resumeAutomatically(): boolean {
+		if (!this.paused || this.requiresUserInitiatedResume) {
+			return false;
+		}
+		this.resetForResume();
+		return true;
 	}
 }
 
@@ -73,6 +81,10 @@ export interface IManagedReconnectAttemptOptions {
 	readonly reconnectPolicy: IRemoteAgentHostReconnectPolicy;
 	/** Whether the given error should pause (rather than retry) auto-reconnect. */
 	readonly shouldPause: (err: unknown) => boolean;
+	/** Whether the pause must be resumed by an explicit user action. */
+	readonly requiresUserInitiatedResume?: (err: unknown) => boolean;
+	/** Describes why a reconnect was paused for logging. */
+	readonly getPauseReason?: (err: unknown) => string;
 	/**
 	 * Optional pre-flight gate. Return `{ skip: true }` to bail WITHOUT
 	 * incrementing the attempt counter (so a long-unavailable host can't burn
@@ -81,21 +93,17 @@ export interface IManagedReconnectAttemptOptions {
 	readonly preCheck?: (userInitiated: boolean) => Promise<{ readonly skip: boolean; readonly reason?: string } | undefined>;
 	/** Perform the actual (re)connect. */
 	readonly doConnect: () => Promise<void>;
-	/** Schedule the next retry after a non-terminal failure. */
-	readonly schedule: (state: ManagedReconnectState) => void;
+	/** Schedule the next retry after a non-terminal failure. Omit for on-demand-only reconnects. */
+	readonly schedule?: (state: ManagedReconnectState) => void;
 }
 
 /**
  * Shared base for contributions that own in-renderer relay remote agent hosts
- * (WSL, and conceptually SSH/tunnels). Encapsulates the sessions-provider
+ * (WSL and SSH). Encapsulates the sessions-provider
  * registry and the managed auto-reconnect state machine so concrete
  * contributions only implement their type-specific discovery/connect logic.
  */
-export abstract class ManagedReconnectAgentHostContribution extends Disposable {
-
-	/** Per-address sessions provider stores. */
-	protected readonly _providerStores = this._register(new DisposableMap<string, DisposableStore>());
-	protected readonly _providerInstances = new Map<string, RemoteAgentHostSessionsProvider>();
+export abstract class ManagedReconnectAgentHostContribution extends EntryDrivenProviderContribution {
 
 	/** Per-key auto-reconnect state (timer + attempts + paused). */
 	protected readonly _reconnectStates = this._register(new DisposableMap<string, ManagedReconnectState>());
@@ -108,47 +116,14 @@ export abstract class ManagedReconnectAgentHostContribution extends Disposable {
 	protected readonly _pendingReconnects = new Map<string, Promise<void>>();
 
 	constructor(
-		protected readonly _remoteAgentHostService: IRemoteAgentHostService,
-		protected readonly _configurationService: IConfigurationService,
+		remoteAgentHostService: IRemoteAgentHostService,
+		configurationService: IConfigurationService,
 		protected readonly _logService: ILogService,
-		protected readonly _instantiationService: IInstantiationService,
-		protected readonly _sessionsProvidersService: ISessionsProvidersService,
-		protected readonly _notificationService: INotificationService,
+		instantiationService: IInstantiationService,
+		sessionsProvidersService: ISessionsProvidersService,
+		notificationService: INotificationService,
 	) {
-		super();
-	}
-
-	protected get _enabled(): boolean {
-		return this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId);
-	}
-
-	// -- Provider registry --
-
-	protected _createProvider(address: string, name: string, options: {
-		readonly connectOnDemand?: () => Promise<void>;
-		readonly disconnectOnDemand?: () => Promise<void>;
-		readonly onDidReportConnectProgress?: Event<IAgentHostConnectProgress>;
-		readonly initialStatus?: RemoteAgentHostConnectionStatus;
-	}): RemoteAgentHostSessionsProvider {
-		const store = new DisposableStore();
-		const provider = this._instantiationService.createInstance(
-			RemoteAgentHostSessionsProvider, {
-			address,
-			name,
-			connectOnDemand: options.connectOnDemand,
-			disconnectOnDemand: options.disconnectOnDemand,
-			onDidReportConnectProgress: options.onDidReportConnectProgress,
-		});
-		if (options.initialStatus !== undefined) {
-			provider.setConnectionStatus(options.initialStatus);
-		}
-		store.add(provider);
-		store.add(this._sessionsProvidersService.registerProvider(provider));
-		store.add(watchForIncompatibleNotifications(provider, this._instantiationService, this._notificationService));
-		this._providerInstances.set(address, provider);
-		store.add(toDisposable(() => this._providerInstances.delete(address)));
-		this._providerStores.set(address, store);
-		return provider;
+		super(remoteAgentHostService, configurationService, instantiationService, sessionsProvidersService, notificationService);
 	}
 
 	// -- Managed auto-reconnect --
@@ -170,8 +145,7 @@ export abstract class ManagedReconnectAgentHostContribution extends Disposable {
 	protected _resumeReconnects(logKind: string): number {
 		let resumed = 0;
 		for (const [, state] of this._reconnectStates) {
-			if (state.paused) {
-				state.resetForResume();
+			if (state.resumeAutomatically()) {
 				resumed++;
 			}
 		}
@@ -229,11 +203,12 @@ export abstract class ManagedReconnectAgentHostContribution extends Disposable {
 					provider?.setConnectionStatus(RemoteAgentHostConnectionStatus.disconnected);
 				}
 				if (opts.shouldPause(err)) {
-					this._logService.info(`[RemoteAgentHost] Pausing ${opts.kind} auto-reconnect for ${opts.key} after user cancellation`);
+					this._logService.info(`[RemoteAgentHost] Pausing ${opts.kind} auto-reconnect for ${opts.key} after ${opts.getPauseReason?.(err) ?? 'user cancellation'}`);
 					provider?.unpublishCachedSessions();
 					const liveState = this._getOrCreateReconnectState(opts.key);
 					liveState.paused = true;
 					liveState.pausedAt = Date.now();
+					liveState.requiresUserInitiatedResume = opts.requiresUserInitiatedResume?.(err) ?? false;
 					return;
 				}
 				this._logService.error(`[RemoteAgentHost] ${opts.kind} reconnect failed for ${opts.key}`, err);
@@ -265,7 +240,7 @@ export abstract class ManagedReconnectAgentHostContribution extends Disposable {
 				if (opts.userInitiated) {
 					return;
 				}
-				opts.schedule(liveState);
+				opts.schedule?.(liveState);
 			}
 		})();
 		this._pendingReconnects.set(opts.key, runPromise);

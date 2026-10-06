@@ -6,6 +6,7 @@
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { AggressivenessLevel, AggressivenessSetting, DEFAULT_USER_HAPPINESS_SCORE_CONFIGURATION, parseUserHappinessScoreConfigurationString, UserHappinessScoreConfiguration } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { IInlineEditsModelService } from '../../../platform/inlineEdits/common/inlineEditsModelService';
+import { resolveModelConfigValue } from '../../../platform/inlineEdits/common/modelConfigurationResolution';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
@@ -219,7 +220,7 @@ export class UserInteractionMonitor {
 	// Creates a DelaySession based on recent user interactions
 
 	public createDelaySession(requestTime: number | undefined): DelaySession {
-		const baseDebounceTime = this._modelService.selectedModelConfiguration().debounce ?? this._configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsDebounce, this._experimentationService);
+		const baseDebounceTime = resolveModelConfigValue(this._configurationService, this._experimentationService, ConfigKey.TeamInternal.InlineEditsDebounce, this._modelService.selectedModelConfiguration().debounce);
 
 		const backoffDebounceEnabled = this._configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsBackoffDebounceEnabled, this._experimentationService);
 		const expectedTotalTime = backoffDebounceEnabled ? this._getExpectedTotalTime(baseDebounceTime) : undefined;

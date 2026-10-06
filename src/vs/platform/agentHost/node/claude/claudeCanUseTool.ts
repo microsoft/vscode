@@ -10,6 +10,7 @@ import { ClaudePermissionMode, ClaudeSessionConfigKey } from '../../common/claud
 import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { ChatInputResponseKind, ToolCallPendingConfirmationState, ToolCallStatus } from '../../common/state/protocol/state.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
+import { getServerToolDisplay } from '../shared/serverToolGroups.js';
 import { ClaudeAgentSession } from './claudeAgentSession.js';
 import { extractServerToolName } from './claudeServerToolMcpServer.js';
 import { buildAskUserSessionInputQuestions, buildExitPlanModeConfirmationState, flattenAskUserAnswers, parseAskUserQuestionInput } from './claudeInteractiveTools.js';
@@ -149,16 +150,17 @@ async function dispatchCanUseTool(
 	const permissionKind = getClaudePermissionKind(toolName);
 	const displayName = getClaudeToolDisplayName(toolName);
 	const permissionPath = options.blockedPath ?? getClaudeToolPath(toolName, input);
-	const toolInputString = getClaudeToolInputString(toolName, input);
+	const serverDisplay = serverToolName ? getServerToolDisplay(serverToolName, input) : undefined;
+	const toolInputString = serverDisplay?.hideConfirmationInput ? undefined : getClaudeToolInputString(toolName, input);
 	const meta = buildClaudeToolMeta(toolName);
 	const state: ToolCallPendingConfirmationState = {
 		status: ToolCallStatus.PendingConfirmation,
 		toolCallId: options.toolUseID,
 		toolName,
 		displayName,
-		invocationMessage: getClaudeInvocationMessage(toolName, displayName, input),
+		invocationMessage: serverDisplay?.confirmationMessage ?? getClaudeInvocationMessage(toolName, displayName, input),
 		toolInput: toolInputString,
-		confirmationTitle: getClaudeConfirmationTitle(toolName),
+		confirmationTitle: serverDisplay?.confirmationTitle ?? getClaudeConfirmationTitle(toolName),
 		...(meta ? { _meta: meta } : {}),
 	};
 

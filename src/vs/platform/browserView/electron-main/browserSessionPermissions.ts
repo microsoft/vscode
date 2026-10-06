@@ -22,7 +22,7 @@ import {
 	isAlwaysAllowedPermission,
 	toOriginKey,
 } from '../common/browserPermissions.js';
-import { BrowserViewStorageScope, IBrowserViewPermissionRequestEvent, IBrowserViewStorageKeys } from '../common/browserView.js';
+import { IBrowserViewPermissionRequestEvent, IBrowserViewStorageKeys, isInMemoryStorageScope } from '../common/browserView.js';
 import type { BrowserSession } from './browserSession.js';
 
 /** Time the main process waits for a prompt answer before a non-persisted deny. */
@@ -146,7 +146,7 @@ export class BrowserSessionPermissions extends Disposable implements IBrowserSes
 	constructor(session: BrowserSession) {
 		super();
 
-		this.storageKeys = session.storageScope === BrowserViewStorageScope.Ephemeral
+		this.storageKeys = isInMemoryStorageScope(session.storageScope)
 			? {}
 			: { permissions: `browser.permissions.${session.id}` };
 

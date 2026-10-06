@@ -18,12 +18,14 @@
  * they do while waiting: Workbench chat shows a stand-in, since being wrong costs a repaint, while
  * the Agents Window waits, since it writes through to a backend.
  */
+import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
 import { IIntendedModelHolder } from '../../../common/model/chatModel.js';
 import { IIntendedModelSelection, InitialModelSelectionResult, isInConversationModelChoice, isRestoredModelReason, ModelSelectionReason, resolveConfiguredModel, resolveInitialModelSelection, resolveModelIdentifier, RestoredModelReason } from '../../../common/modelSelection.js';
 import { findBestMatchingModel, IsModelSupportedHere, resolveModelFromSyncState, shouldResetModelToDefault, shouldResetOnModelListChange } from './chatInputModelUtils.js';
+import { isByokModel } from '../../../common/chatSelectedModel.js';
 import { IChatModelSelectionDiagnostics, NullChatModelSelectionDiagnostics } from './chatModelSelectionDiagnostics.js';
 
 /** What a surface supplies: its catalog, its idea of usable, and what to do with a decision. */
@@ -68,6 +70,8 @@ export class ChatInputModelSelectionController extends Disposable {
 
 	private readonly _currentModel = observableValue<ILanguageModelChatMetadataAndIdentifier | undefined>(this, undefined);
 	readonly currentModel: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined> = this._currentModel;
+	private readonly _onDidChangeUserSelectedModel = this._register(new Emitter<{ readonly fromModelId: string; readonly toModelId: string }>());
+	readonly onDidChangeUserSelectedModel = this._onDidChangeUserSelectedModel.event;
 	private _selectionReason: ModelSelectionReason | undefined;
 	private _pendingProgrammaticSelection: IPendingProgrammaticSelection | undefined;
 
@@ -138,6 +142,9 @@ export class ChatInputModelSelectionController extends Disposable {
 			}
 			this._diagnostics.report('explicit-selection-failed', { model: model.identifier, error: String(error) }, 'error');
 			throw error;
+		}
+		if (previousModel && previousModel.identifier !== model.identifier) {
+			this._onDidChangeUserSelectedModel.fire({ fromModelId: previousModel.identifier, toModelId: model.identifier });
 		}
 	}
 
@@ -288,23 +295,31 @@ export class ChatInputModelSelectionController extends Disposable {
 	}
 
 	reconcileModelListChange(models: readonly ILanguageModelChatMetadataAndIdentifier[]): void {
+		const currentModel = this._currentModel.get();
+		const republishedCurrentModel = currentModel && models.find(model => model.identifier === currentModel.identifier);
+		if (republishedCurrentModel && republishedCurrentModel !== currentModel) {
+			// A provider can enrich a model after it was selected (for example, when a
+			// second catalogue supplies its context-size schema). Refresh the displayed
+			// snapshot without reapplying or persisting a selection that did not change.
+			this._display(republishedCurrentModel);
+		}
 		if (this.applyConfiguredDefault() || this._reconcilePendingProgrammaticSelection() || this._restoreRememberedModel()) {
 			return;
 		}
-		const currentModel = this._currentModel.get();
+		const reconciledCurrentModel = this._currentModel.get();
 		const declaredDefault = this._runtime.getDeclaredDefaultModel(models);
 		if (this._runtime.isEmpty()
 			&& this._selectionReason === ModelSelectionReason.FirstAvailable
 			&& declaredDefault
-			&& currentModel?.identifier !== declaredDefault.identifier) {
+			&& reconciledCurrentModel?.identifier !== declaredDefault.identifier) {
 			// Still the first thing on offer, only now the pool has said which that is.
 			this._applyModel(declaredDefault, ModelSelectionReason.FirstAvailable);
 			return;
 		}
-		if (!shouldResetOnModelListChange(currentModel?.identifier, [...models])) {
+		if (!shouldResetOnModelListChange(reconciledCurrentModel?.identifier, [...models])) {
 			return;
 		}
-		const match = findBestMatchingModel(currentModel, models);
+		const match = findBestMatchingModel(reconciledCurrentModel, models);
 		if (match) {
 			// The same selection republished under another identifier, so whoever chose it still has.
 			this._applyModel(match, this._selectionReason);
@@ -449,9 +464,14 @@ export class ChatInputModelSelectionController extends Disposable {
 		return this._runtime.getIntentHolder().intendedModel;
 	}
 
-	/** The model to fall back to: the surface's declared default, else the first on offer. */
+	/**
+	 * The model to fall back to: the declared default, else the first non-BYOK model, else the first
+	 * on offer — but never a billable stand-in for a model the conversation is still awaiting.
+	 */
 	private _defaultModel(models: readonly ILanguageModelChatMetadataAndIdentifier[]): ILanguageModelChatMetadataAndIdentifier | undefined {
-		return this._runtime.getDeclaredDefaultModel(models) ?? models[0];
+		return this._runtime.getDeclaredDefaultModel(models)
+			?? models.find(model => !isByokModel(model.metadata))
+			?? (this.isAwaitingRememberedModel() ? undefined : models[0]);
 	}
 
 	/** The models selectable for the bound session right now. */

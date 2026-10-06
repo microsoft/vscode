@@ -5,6 +5,7 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { $ } from '../../../../../../base/browser/dom.js';
+import { HoverStyle } from '../../../../../../base/browser/ui/hover/hover.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { combinedDisposable, Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, derivedObservableWithCache, IObservable } from '../../../../../../base/common/observable.js';
@@ -18,8 +19,8 @@ import { IEditorService } from '../../../../../services/editor/common/editorServ
 import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
 import { IChatRendererContent, IChatTurnPillsPart } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
-import { IChatResponseFileChangesService } from '../../chatResponseFileChangesService.js';
-import { EMPTY_DIFF_STATS, IDiffStats, observeTurnStatusPillsEnabled } from '../chatTurnPills.js';
+import { AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES, IChatResponseFileChangesService } from '../../chatResponseFileChangesService.js';
+import { EMPTY_DIFF_STATS, IDiffStats } from '../chatTurnPills.js';
 import { renderChangesSummaryFileList } from './chatChangesSummaryPart.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
@@ -53,7 +54,7 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 		// keep the last non-empty result rather than dropping a rendered summary.
 		this._diffs = derivedObservableWithCache<readonly IEditSessionEntryDiff[]>(this, (reader, lastValue) => {
 			const diffs = providedDiffs.read(reader);
-			return diffs.length > 0 ? diffs : (lastValue ?? diffs);
+			return diffs.length > 0 || diffs === AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES ? diffs : (lastValue ?? diffs);
 		});
 
 		const providedStats = this._chatResponseFileChangesService.getChangeStatsForRequest?.(
@@ -67,7 +68,7 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 			}
 			const diffs = this._diffs.read(reader);
 			if (diffs.length === 0) {
-				return lastValue ?? EMPTY_DIFF_STATS;
+				return diffs === AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES ? EMPTY_DIFF_STATS : (lastValue ?? EMPTY_DIFF_STATS);
 			}
 			let insertions = 0, deletions = 0;
 			for (const diff of diffs) {
@@ -77,9 +78,7 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 			return { files: diffs.length, insertions, deletions };
 		});
 
-		const turnStatusPillsEnabled = observeTurnStatusPillsEnabled(this._configurationService);
-		const changesEnabled = derived(this, reader => turnStatusPillsEnabled.read(reader));
-		const showChanges = derived(this, reader => changesEnabled.read(reader) && stats.read(reader).files > 0);
+		const showChanges = derived(this, reader => stats.read(reader).files > 0);
 
 		const root = this.domNode.appendChild($('.checkpoint-file-changes-summary.checkpoint-file-changes-compact'));
 		const details = root.appendChild(document.createElement('details'));
@@ -108,7 +107,8 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 		const removedLabel = counts.appendChild($('span.deletions'));
 
 		const hoverDisposable = this._hoverService.setupDelayedHover(counts, () => ({
-			content: localize2('chat.viewTurnFileChangesSummary', 'View All File Changes')
+			content: localize2('chat.viewTurnFileChangesSummary', 'View Turn Changes'),
+			style: HoverStyle.Pointer,
 		}));
 		const clickDisposable = dom.addDisposableListener(counts, 'click', (e) => {
 			this._openChanges();
@@ -124,8 +124,8 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 			addedLabel.textContent = `+${insertions}`;
 			removedLabel.textContent = `-${deletions}`;
 			counts.setAttribute('aria-label', localize(
-				'chat.turnChanges.viewAllAccessible',
-				'View all file changes: {0}, {1} lines added, {2} lines deleted',
+				'chat.turnChanges.viewTurnAccessible',
+				'View turn changes: {0}, {1} lines added, {2} lines deleted',
 				fileCountLabel,
 				insertions,
 				deletions

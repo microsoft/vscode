@@ -69,6 +69,33 @@ suite('serverToolGroups display', () => {
 		});
 	});
 
+	test('set_workspace resolves to outcome-oriented confirmation display', () => {
+		const confirmation = (isolation: boolean) => {
+			const display = getServerToolDisplay('set_workspace', { workspaceFolder: '/workspace/app', isolation });
+			return {
+				title: display?.confirmationTitle,
+				message: text(display?.confirmationMessage),
+				hideInput: display?.hideConfirmationInput,
+			};
+		};
+
+		assert.deepStrictEqual({
+			direct: confirmation(false),
+			isolated: confirmation(true),
+		}, {
+			direct: {
+				title: 'Change Workspace to app?',
+				message: 'Change this chat\'s workspace to /workspace/app and make changes directly in that folder? Other chats keep their workspaces.',
+				hideInput: true,
+			},
+			isolated: {
+				title: 'Change Workspace to app?',
+				message: 'Change this chat\'s workspace to a new worktree of /workspace/app? Other chats keep their workspaces.',
+				hideInput: true,
+			},
+		});
+	});
+
 	test('fast tools omit a duplicate completion message', () => {
 		const past = (resultText?: string) =>
 			text(getServerToolDisplay('listComments', undefined, { text: resultText, success: true })?.pastTenseMessage);

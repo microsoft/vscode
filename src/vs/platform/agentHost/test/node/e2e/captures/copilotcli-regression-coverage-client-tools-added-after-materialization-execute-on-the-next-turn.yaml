@@ -1,0 +1,53 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "READY". Do not call tools.
+    response:
+      content: READY
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "READY". Do not call tools.
+        - role: assistant
+          content: READY
+        - role: user
+          content: Call added_probe exactly once and report its result.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: added_probe
+          input: {}
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "READY". Do not call tools.
+        - role: assistant
+          content: READY
+        - role: user
+          content: Call added_probe exactly once and report its result.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: added_probe
+              input: {}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: LIVE_PROBE_RESULT
+    response:
+      content: 'The result of `added_probe` is: **LIVE_PROBE_RESULT**'
+      stopReason: end_turn

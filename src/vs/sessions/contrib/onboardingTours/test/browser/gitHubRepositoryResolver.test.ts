@@ -12,7 +12,7 @@ import { FileService } from '../../../../../platform/files/common/fileService.js
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { getGitHubRepositoryFromRemoteUrl } from '../../../../../workbench/contrib/git/common/utils.js';
-import { parseGitHubRepositoryFromGitConfig, resolveGitHubRepositoryFromGitConfig } from '../../browser/gitHubRepositoryResolver.js';
+import { parseGitHubRepositoryFromGitConfig, resolveGitHubRepositoryFromGitConfig, resolveGitRepositoryFromGitConfig } from '../../../../services/sessions/browser/gitHubRepositoryResolver.js';
 
 const ROOT = URI.from({ scheme: 'vscode-tests', path: '/workspace' });
 
@@ -81,6 +81,21 @@ suite('GitHubRepositoryResolver', () => {
 		assert.deepStrictEqual(await resolveGitHubRepositoryFromGitConfig(fileService, joinPath(ROOT, 'src', 'feature')), {
 			owner: 'microsoft',
 			repo: 'vscode',
+		});
+	});
+
+	test('identifies a Git repository without a GitHub remote', async () => {
+		const fileService = disposables.add(new FileService(new NullLogService()));
+		const provider = disposables.add(new InMemoryFileSystemProvider());
+		disposables.add(fileService.registerProvider(ROOT.scheme, provider));
+		await fileService.createFolder(joinPath(ROOT, '.git'));
+		await fileService.writeFile(joinPath(ROOT, '.git', 'config'), VSBuffer.fromString(`
+			[remote "origin"]
+				url = https://gitlab.com/owner/project.git
+		`));
+
+		assert.deepStrictEqual(await resolveGitRepositoryFromGitConfig(fileService, ROOT), {
+			gitHub: undefined,
 		});
 	});
 });

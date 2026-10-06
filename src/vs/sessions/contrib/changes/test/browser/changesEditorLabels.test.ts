@@ -11,10 +11,16 @@ import { TestEnvironmentService, TestLifecycleService, TestPathService, TestRemo
 import { TestContextService, TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { LabelService } from '../../../../../workbench/services/label/common/labelService.js';
 import { getChangesEditorFileStats, getChangesEditorLabels } from '../../browser/changesEditorLabels.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { extUri } from '../../../../../base/common/resources.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 
 suite('ChangesEditorLabels', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const uriIdentityService = new class extends mock<IUriIdentityService>() {
+		override readonly extUri = extUri;
+	};
 
 	function createLabelService(): LabelService {
 		const labelService = disposables.add(new LabelService(
@@ -23,7 +29,8 @@ suite('ChangesEditorLabels', () => {
 			new TestPathService(URI.file('/Users/test')),
 			new TestRemoteAgentService(),
 			disposables.add(new TestStorageService()),
-			disposables.add(new TestLifecycleService())
+			disposables.add(new TestLifecycleService()),
+			uriIdentityService
 		));
 		disposables.add(labelService.registerFormatter(AGENT_HOST_LABEL_FORMATTER));
 		return labelService;

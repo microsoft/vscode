@@ -13,6 +13,7 @@ import { AUTH_SCOPE_SEPARATOR, fetchAuthorizationServerMetadata, fetchResourceMe
 import { SSEParser } from '../../../base/common/sseParser.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { vArray, vNumber, vObj, vObjAny, vOptionalProp, vString } from '../../../base/common/validation.js';
+import { localize } from '../../../nls.js';
 import { ConfigurationTarget } from '../../../platform/configuration/common/configuration.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
@@ -333,10 +334,7 @@ type HttpModeT =
 
 const MAX_FOLLOW_REDIRECTS = 5;
 const REDIRECT_STATUS_CODES = [301, 302, 303, 307, 308];
-// MCP server URLs are restricted to http(s) at configuration time; the redirect
-// path must enforce the same so a Location header cannot reach unix://, pipe://,
-// file://, etc.
-const ALLOWED_REDIRECT_PROTOCOLS = new Set(['http:', 'https:']);
+const HTTP_PROTOCOLS = new Set(['http:', 'https:']);
 // Credential-bearing headers that must not be replayed to a different origin
 // after a redirect (matches browser fetch / curl behavior). Compared case-insensitively.
 const CROSS_ORIGIN_STRIPPED_HEADERS = new Set(['authorization', 'cookie', 'proxy-authorization', 'mcp-session-id']);
@@ -348,6 +346,15 @@ function setHostHeader(headers: Record<string, string>, name: string, value: str
 		}
 	}
 	headers[name] = value;
+}
+
+function isSameSocketEndpoint(url: string, configuredUrl: string): boolean {
+	const destination = URI.parse(url);
+	const configured = URI.parse(configuredUrl);
+	// The Node dispatcher uses the decoded path as the socket, and the fragment as the HTTP route.
+	return (configured.scheme === 'unix' || configured.scheme === 'pipe')
+		&& destination.scheme === configured.scheme
+		&& destination.path === configured.path;
 }
 
 /**
@@ -390,9 +397,17 @@ export class McpHTTPHandle extends Disposable {
 				await this._send(message);
 			}
 		} catch (err) {
-			const msg = `Error sending message to ${this._launch.uri}: ${stringifyError(err)}`;
-			this._proxy.$onDidChangeState(this._id, { state: McpConnectionState.Kind.Error, message: msg });
+			this._handleSendError(err);
 		}
+	}
+
+	private _handleSendError(err: unknown): void {
+		if (this._store.isDisposed) {
+			return;
+		}
+		const message = `Error sending message to ${this._launch.uri}: ${stringifyError(err)}`;
+		this.dispose();
+		this._proxy.$onDidChangeState(this._id, { state: McpConnectionState.Kind.Error, message });
 	}
 
 	async close() {
@@ -448,10 +463,13 @@ export class McpHTTPHandle extends Disposable {
 	 */
 	private async _sendStreamableHttp(message: string, sessionId: string | undefined) {
 		const asBytes = new TextEncoder().encode(message) as Uint8Array<ArrayBuffer>;
-		const headers: Record<string, string> = {
-			...Object.fromEntries(this._launch.headers),
+		const transportHeaders = {
 			'Content-Type': 'application/json',
 			Accept: 'text/event-stream, application/json',
+		};
+		const headers: Record<string, string> = {
+			...Object.fromEntries(this._launch.headers),
+			...transportHeaders,
 		};
 		if (sessionId) {
 			headers['Mcp-Session-Id'] = sessionId;
@@ -465,7 +483,8 @@ export class McpHTTPHandle extends Disposable {
 				headers,
 				body: asBytes,
 			},
-			headers
+			headers,
+			transportHeaders,
 		);
 
 		const wasUnknown = this._mode.value === HttpMode.Unknown;
@@ -512,10 +531,14 @@ export class McpHTTPHandle extends Disposable {
 	}
 
 	private async _sseFallbackWithMessage(message: string) {
-		const endpoint = await this._attachSSE();
-		if (endpoint) {
-			this._mode = { value: HttpMode.SSE, endpoint };
-			await this._sendLegacySSE(endpoint, message);
+		try {
+			const endpoint = await this._attachSSE();
+			if (endpoint) {
+				this._mode = { value: HttpMode.SSE, endpoint };
+				await this._sendLegacySSE(endpoint, message);
+			}
+		} catch (err) {
+			this._handleSendError(err);
 		}
 	}
 
@@ -572,17 +595,18 @@ export class McpHTTPHandle extends Disposable {
 
 			let res: CommonResponse;
 			try {
+				const transportHeaders: Record<string, string> = { 'Accept': 'text/event-stream' };
+				if (lastEventId) {
+					transportHeaders['Last-Event-ID'] = lastEventId;
+				}
 				const headers: Record<string, string> = {
 					...Object.fromEntries(this._launch.headers),
-					'Accept': 'text/event-stream',
+					...transportHeaders,
 				};
 				await this._addAuthHeader(headers);
 
 				if (this._mode.value === HttpMode.Http && this._mode.sessionId !== undefined) {
 					headers['Mcp-Session-Id'] = this._mode.sessionId;
-				}
-				if (lastEventId) {
-					headers['Last-Event-ID'] = lastEventId;
 				}
 
 				res = await this._fetchWithAuthRetry(
@@ -591,7 +615,8 @@ export class McpHTTPHandle extends Disposable {
 						method: 'GET',
 						headers,
 					},
-					headers
+					headers,
+					transportHeaders,
 				);
 			} catch (e) {
 				this._log(LogLevel.Info, `Error connecting to ${this._launch.uri} for async notifications, will retry`);
@@ -635,9 +660,10 @@ export class McpHTTPHandle extends Disposable {
 	 */
 	private async _attachSSE(): Promise<string | undefined> {
 		const postEndpoint = new DeferredPromise<string>();
+		const transportHeaders = { 'Accept': 'text/event-stream' };
 		const headers: Record<string, string> = {
 			...Object.fromEntries(this._launch.headers),
-			'Accept': 'text/event-stream',
+			...transportHeaders,
 		};
 		await this._addAuthHeader(headers);
 
@@ -649,7 +675,8 @@ export class McpHTTPHandle extends Disposable {
 					method: 'GET',
 					headers,
 				},
-				headers
+				headers,
+				transportHeaders,
 			);
 			if (res.status >= 300) {
 				this._proxy.$onDidChangeState(this._id, { state: McpConnectionState.Kind.Error, message: `${res.status} status connecting to ${this._launch.uri} as SSE: ${await this._getErrText(res)}` });
@@ -682,16 +709,17 @@ export class McpHTTPHandle extends Disposable {
 	 */
 	private async _sendLegacySSE(url: string, message: string) {
 		const asBytes = new TextEncoder().encode(message) as Uint8Array<ArrayBuffer>;
+		const transportHeaders = { 'Content-Type': 'application/json' };
 		const headers: Record<string, string> = {
 			...Object.fromEntries(this._launch.headers),
-			'Content-Type': 'application/json',
+			...transportHeaders,
 		};
 		await this._addAuthHeader(headers);
 		const res = await this._fetch(url, {
 			method: 'POST',
 			headers,
 			body: asBytes,
-		});
+		}, { transportHeaders });
 
 		if (res.status >= 300) {
 			this._log(LogLevel.Warning, `${res.status} status sending message to ${this._postEndpoint}: ${await this._getErrText(res)}`);
@@ -710,12 +738,11 @@ export class McpHTTPHandle extends Disposable {
 			try {
 				chunk = await raceCancellationError(reader.read(), this._cts.token);
 			} catch (err) {
-				reader.cancel();
 				if (this._store.isDisposed) {
 					return;
-				} else {
-					throw err;
 				}
+				await reader.cancel();
+				throw err;
 			}
 
 			if (chunk.value) {
@@ -802,18 +829,22 @@ export class McpHTTPHandle extends Disposable {
 	 * it will populate the auth metadata and retry once.
 	 * If we already have auth metadata, check if the scopes changed and update them.
 	 */
-	private async _fetchWithAuthRetry(mcpUrl: string, init: MinimalRequestInit, headers: Record<string, string>): Promise<CommonResponse> {
-		const doFetch = () => this._fetch(mcpUrl, init);
+	private async _fetchWithAuthRetry(mcpUrl: string, init: MinimalRequestInit, headers: Record<string, string>, transportHeaders?: Readonly<Record<string, string>>): Promise<CommonResponse> {
+		const doFetch = () => this._fetch(mcpUrl, init, { transportHeaders });
 
 		let res = await doFetch();
 		if (isAuthStatusCode(res.status)) {
 			if (!this._authMetadata) {
+				const protocolHeaders = { 'MCP-Protocol-Version': MCP.LATEST_PROTOCOL_VERSION };
 				this._authMetadata = await createAuthMetadata(mcpUrl, res.headers, {
 					sameOriginHeaders: {
 						...Object.fromEntries(this._launch.headers),
-						'MCP-Protocol-Version': MCP.LATEST_PROTOCOL_VERSION
+						...protocolHeaders,
 					},
-					fetch: (url, init) => this._fetch(url, init as MinimalRequestInit),
+					fetch: (url, init) => this._fetch(url, init, {
+						isAuthMetadata: true,
+						transportHeaders: init.headers['MCP-Protocol-Version'] === MCP.LATEST_PROTOCOL_VERSION ? protocolHeaders : undefined,
+					}),
 					log: (level, message) => this._log(level, message)
 				});
 				this._proxy.$logMcpAuthSetup(this._authMetadata.telemetry);
@@ -845,8 +876,25 @@ export class McpHTTPHandle extends Disposable {
 		return res;
 	}
 
-	private async _fetch(url: string, init: MinimalRequestInit): Promise<CommonResponse> {
-		setHostHeader(init.headers, 'user-agent', `${product.nameLong}/${product.version}`);
+	private async _fetch(url: string, init: MinimalRequestInit, options: { isAuthMetadata?: boolean; transportHeaders?: Readonly<Record<string, string>> } = {}): Promise<CommonResponse> {
+		const destination = new URL(url);
+		const configuredUrl = this._launch.uri.toString(true);
+		const isHttp = HTTP_PROTOCOLS.has(destination.protocol);
+		const isSameOrigin = isHttp
+			? destination.origin === new URL(configuredUrl).origin
+			: isSameSocketEndpoint(url, configuredUrl);
+		if (!isHttp && !isSameOrigin) {
+			throw new Error(localize('mcpUnsupportedDestination', "MCP server selected a non-http(s) destination ({0}), which is not allowed", destination.protocol));
+		}
+
+		const transportHeaders = { ...options.transportHeaders, 'user-agent': `${product.nameLong}/${product.version}` };
+		init = { ...init, headers: { ...init.headers } };
+		for (const [name, value] of Object.entries(transportHeaders)) {
+			setHostHeader(init.headers, name, value);
+		}
+		if (!isSameOrigin) {
+			init.headers = this._stripCrossOriginHeaders(init.headers, transportHeaders);
+		}
 
 		if (canLog(this._logService.getLevel(), LogLevel.Trace)) {
 			const traceObj: any = { ...init, headers: { ...init.headers } };
@@ -862,6 +910,20 @@ export class McpHTTPHandle extends Disposable {
 		let currentUrl = url;
 		let response!: CommonResponse;
 		for (let redirectCount = 0; redirectCount < MAX_FOLLOW_REDIRECTS; redirectCount++) {
+			if (this._cts.token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			if (!options.isAuthMetadata) {
+				const denied = await raceCancellationError(this._proxy.$checkMcpServerAllowed(this._id, currentUrl), this._cts.token);
+				if (denied !== undefined) {
+					this.dispose();
+					this._proxy.$onDidChangeState(this._id, { state: McpConnectionState.Kind.Error, message: denied });
+					throw new Error(denied);
+				}
+			}
+			if (this._cts.token.isCancellationRequested) {
+				throw new CancellationError();
+			}
 			response = await this._fetchInternal(currentUrl, {
 				...init,
 				signal: this._abortCtrl.signal,
@@ -885,18 +947,12 @@ export class McpHTTPHandle extends Disposable {
 			// reaching the unix:// / pipe:// socket dispatcher or other local schemes.
 			// Fail closed so the connection errors deterministically rather than the
 			// caller treating the 3xx response as final.
-			if (!ALLOWED_REDIRECT_PROTOCOLS.has(nextUrlParsed.protocol)) {
+			if (!HTTP_PROTOCOLS.has(nextUrlParsed.protocol)) {
 				throw new Error(`MCP server redirected to a non-http(s) target (${nextUrlParsed.protocol}), which is not allowed`);
 			}
 
-			// On a cross-origin redirect, strip credential-bearing headers so tokens and
-			// session ids configured for the original origin are not replayed to another host.
 			if (currentUrlParsed.origin !== nextUrlParsed.origin) {
-				for (const name of Object.keys(init.headers)) {
-					if (CROSS_ORIGIN_STRIPPED_HEADERS.has(name.toLowerCase())) {
-						delete init.headers[name];
-					}
-				}
+				init.headers = this._stripCrossOriginHeaders(init.headers, transportHeaders);
 			}
 
 			const nextUrl = nextUrlParsed.toString();
@@ -919,6 +975,16 @@ export class McpHTTPHandle extends Disposable {
 		}
 
 		return response;
+	}
+
+	private _stripCrossOriginHeaders(headers: Record<string, string>, transportHeaders: Readonly<Record<string, string>>): Record<string, string> {
+		const configuredNames = new Set(this._launch.headers.map(([name]) => name.toLowerCase()));
+		const filtered = Object.fromEntries(Object.entries(headers).filter(([name]) =>
+			!CROSS_ORIGIN_STRIPPED_HEADERS.has(name.toLowerCase()) && !configuredNames.has(name.toLowerCase())));
+		for (const [name, value] of Object.entries(transportHeaders)) {
+			setHostHeader(filtered, name, value);
+		}
+		return filtered;
 	}
 
 	protected _fetchInternal(url: string, init?: CommonRequestInit): Promise<CommonResponse> {

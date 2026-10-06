@@ -10,25 +10,31 @@ import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { KeyCode } from '../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
 import { localize } from '../../../nls.js';
 
 /**
- * Content shown by a {@link SessionReadOnlyBanner}: a message and an optional
- * inline action (e.g. "Restore" for an archived session). The action's callback
- * is supplied by the owner so the banner stays purely presentational.
+ * Content shown by a {@link SessionReadOnlyBanner}: an optional icon, message,
+ * and optional inline action. The action's callback is supplied by the owner so
+ * the banner stays purely presentational.
  */
 export interface ISessionReadOnlyBannerContent {
+	readonly icon?: ThemeIcon;
 	readonly message: string;
+	/**
+	 * Text announced instead of {@link message}. Set this when the visible text
+	 * changes faster than it is worth speaking — a per-second countdown, say —
+	 * so the live region announces a stable summary rather than every tick.
+	 */
+	readonly ariaLabel?: string;
 	readonly action?: { readonly label: string; readonly run: () => void };
 }
 
 /**
- * A small, self-contained status banner that indicates the current chat is
- * read-only (non-interactive). Mirrors the read-only editor banner in VS Code:
- * a subtle full-width bar with a leading icon and a single line of text. Shown
- * in place of the composer for read-only chats (e.g. a subagent's transcript,
- * or an archived session), where it explains why there is no input and — when
- * the owner supplies one — offers an inline action to make it interactive again.
+ * A small, self-contained status banner for the current chat. It mirrors the
+ * read-only editor banner: a subtle full-width bar with a leading icon and one
+ * line of text. It can explain both a non-interactive chat and a remote-host
+ * state without adding another bar to the group.
  *
  * Purely presentational: visibility is driven by the owning chat view via
  * {@link setVisible} and its content via {@link setContent}.
@@ -39,7 +45,9 @@ export class SessionReadOnlyBanner extends Disposable {
 
 	private _visible = false;
 
+	private readonly _icon: HTMLElement;
 	private readonly _text: HTMLElement;
+	private readonly _announcement: HTMLElement;
 	private readonly _actionContainer: HTMLElement;
 	private readonly _actionDisposables = this._register(new DisposableStore());
 
@@ -47,15 +55,18 @@ export class SessionReadOnlyBanner extends Disposable {
 		super();
 
 		this.domNode = dom.$('.session-readonly-banner');
-		// A `role="status"` live region is announced from its text content, so no
-		// `aria-label` is needed (setting one to the same string would just
-		// override the accessible name without changing the announcement).
+		// A `role="status"` live region is announced from its text content. The
+		// visible text is hidden from that content and mirrored into a dedicated
+		// element, so text that changes every second can be announced as a stable
+		// summary instead of queueing an utterance per update.
 		this.domNode.setAttribute('role', 'status');
 
-		const icon = dom.append(this.domNode, dom.$('.session-readonly-banner-icon'));
-		icon.appendChild(renderIcon(Codicon.lock));
+		this._icon = dom.append(this.domNode, dom.$('.session-readonly-banner-icon'));
+		this._icon.setAttribute('aria-hidden', 'true');
 
 		this._text = dom.append(this.domNode, dom.$('span.session-readonly-banner-text'));
+		this._text.setAttribute('aria-hidden', 'true');
+		this._announcement = dom.append(this.domNode, dom.$('span.session-readonly-banner-announcement'));
 		this._actionContainer = dom.append(this.domNode, dom.$('span.session-readonly-banner-action'));
 
 		this.setContent({ message: localize('sessionReadOnlyBanner.message', "This chat is read-only") });
@@ -72,7 +83,15 @@ export class SessionReadOnlyBanner extends Disposable {
 	}
 
 	setContent(content: ISessionReadOnlyBannerContent): void {
+		dom.clearNode(this._icon);
+		this._icon.appendChild(renderIcon(content.icon ?? Codicon.lock));
 		this._text.textContent = content.message;
+		// Re-writing identical text would queue a fresh announcement, which is
+		// exactly what a ticking countdown must avoid.
+		const announced = content.ariaLabel ?? content.message;
+		if (this._announcement.textContent !== announced) {
+			this._announcement.textContent = announced;
+		}
 
 		this._actionDisposables.clear();
 		dom.clearNode(this._actionContainer);
@@ -96,4 +115,3 @@ export class SessionReadOnlyBanner extends Disposable {
 		}
 	}
 }
-

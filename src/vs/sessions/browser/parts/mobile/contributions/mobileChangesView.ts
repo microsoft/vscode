@@ -26,7 +26,7 @@ const $ = DOM.$;
 /**
  * Command id for opening the {@link MobileChangesView}.
  *
- * Takes no arguments. The view reads the active session's changes from
+ * Takes no arguments. The view reads the active chat's changes from
  * {@link ISessionsService}. Phone-only.
  */
 export const MOBILE_OPEN_CHANGES_VIEW_COMMAND_ID = 'sessions.mobile.openChangesView';
@@ -162,7 +162,7 @@ export class MobileChangesView extends Disposable {
 		this.viewStore.add(DOM.addDisposableListener(backBtn, TouchEventType.Tap, () => this.dispose()));
 
 		const info = DOM.append(header, $('div.mobile-overlay-header-info'));
-		DOM.append(info, $('div.mobile-overlay-header-title')).textContent = localize('changesView.title', "Session Changes");
+		DOM.append(info, $('div.mobile-overlay-header-title')).textContent = localize('changesView.title', "Changes");
 		this.subtitleEl = DOM.append(info, $('div.mobile-overlay-header-subtitle'));
 
 		// -- Body -------------------------------------------------
@@ -172,12 +172,12 @@ export class MobileChangesView extends Disposable {
 
 		this.emptyEl = DOM.append(body, $('div.mobile-overlay-empty-state'));
 		this.emptyEl.style.display = 'none';
-		this.emptyEl.textContent = localize('changesView.empty', "No changes in this session yet.");
+		this.emptyEl.textContent = localize('changesView.empty', "No changes yet.");
 
 		// -- Subscribe to live changes -----------------------------
 		this.viewStore.add(autorun(reader => {
 			const session = this.sessionsService.activeSession.read(reader);
-			const rows = (session?.changes.read(reader) ?? []).map(toRow).sort(compareRows);
+			const rows = (session?.activeChat.read(reader).changes.read(reader) ?? []).map(toRow).sort(compareRows);
 			this.renderList(rows);
 		}));
 	}

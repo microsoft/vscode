@@ -101,7 +101,7 @@ export default class MergeDecorator implements vscode.Disposable {
 				outlineColor: new vscode.ThemeColor('merge.border')
 			});
 
-			this.decorations['splitter'] = vscode.window.createTextEditorDecorationType({
+			this.decorations.splitter = vscode.window.createTextEditorDecorationType({
 				color: new vscode.ThemeColor('editor.foreground'),
 				outlineStyle: 'solid',
 				outlineWidth: '1pt',

@@ -6,15 +6,20 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { arrayEquals } from '../../../../base/common/equals.js';
 import { autorun, derivedOpts, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
-import { isEqual } from '../../../../base/common/resources.js';
+import { isEqual, isEqualOrParent, relativePath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
+import { linesDiffComputers } from '../../../../editor/common/diff/linesDiffComputers.js';
+import { LineRangeMapping } from '../../../../editor/common/diff/rangeMapping.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
-import { getGitHubPullRequestRefs, IGitHubPullRequestRef } from '../../../services/sessions/common/session.js';
+import { IGitHubPullRequestReview } from '../../github/common/types.js';
+import { getGitHubPullRequestRefs, IChat, IGitHubPullRequestRef, ISessionFileChange } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { parsePRContentUri } from '../../github/common/utils.js';
 // --- Types -------------------------------------------------------------------
 
 export interface ICodeReviewSuggestion {
@@ -39,7 +44,7 @@ export const enum PRReviewStateKind {
 export type IPRReviewState =
 	| { readonly kind: PRReviewStateKind.None }
 	| { readonly kind: PRReviewStateKind.Loading }
-	| { readonly kind: PRReviewStateKind.Loaded; readonly comments: readonly IPRReviewComment[] }
+	| { readonly kind: PRReviewStateKind.Loaded; readonly comments: readonly IPRReviewComment[]; readonly incompletePullRequests: readonly Pick<IGitHubPullRequestRef, 'owner' | 'repo' | 'number'>[] }
 	| { readonly kind: PRReviewStateKind.Error; readonly reason: string };
 
 export interface IPRReviewComment {
@@ -49,6 +54,15 @@ export interface IPRReviewComment {
 	readonly range: IRange;
 	readonly body: string;
 	readonly author: string;
+}
+
+export interface IPRReviewCommentTarget {
+	readonly pullRequest: IGitHubPullRequestRef;
+	readonly commitId: string;
+	readonly path: string;
+	readonly startLine: number | undefined;
+	readonly line: number;
+	readonly pendingReview: Pick<IGitHubPullRequestReview, 'id' | 'nodeId'> | undefined;
 }
 
 // --- Service Interface -------------------------------------------------------
@@ -63,6 +77,9 @@ export interface ICodeReviewService {
 	 * Returns unresolved review comments from every PR associated with the session.
 	 */
 	getPRReviewState(sessionResource: URI): IObservable<IPRReviewState>;
+	getPRReviewCommentPullRequests(sessionResource: URI, resource: URI): readonly IGitHubPullRequestRef[];
+	getPRReviewCommentTargets(sessionResource: URI, resource: URI, range: IRange, currentContent: string, pullRequest?: Pick<IGitHubPullRequestRef, 'owner' | 'repo' | 'number'>): Promise<readonly IPRReviewCommentTarget[]>;
+	createPRReviewComment(target: IPRReviewCommentTarget, body: string): Promise<void>;
 
 	/**
 	 * Resolve a PR review thread on GitHub and remove it from local state.
@@ -93,10 +110,78 @@ interface IPRSessionReviewData {
 	readonly state: ISettableObservable<IPRReviewState>;
 }
 
+interface IPRReviewCommentContext {
+	readonly path: string;
+	readonly pullRequests: readonly IGitHubPullRequestRef[];
+}
+
 interface IActivePRReviewContext {
 	readonly sessionResource: URI;
 	readonly workingDirectory: URI | undefined;
 	readonly pullRequests: readonly IGitHubPullRequestRef[];
+}
+
+export function commentableRightLines(patch: string): ReadonlySet<number> {
+	const lines = new Set<number>();
+	let rightLine: number | undefined;
+	for (const patchLine of patch.split('\n')) {
+		const hunk = /^@@ -\d+(?:,\d+)? \+(?<start>\d+)(?:,\d+)? @@/.exec(patchLine);
+		if (hunk?.groups) {
+			rightLine = Number(hunk.groups.start);
+			continue;
+		}
+		if (rightLine === undefined || patchLine.startsWith('\\')) {
+			continue;
+		}
+		if (patchLine.startsWith('-')) {
+			continue;
+		}
+		if (patchLine.startsWith('+') || patchLine.startsWith(' ')) {
+			lines.add(rightLine++);
+		}
+	}
+	return lines;
+}
+
+export function mapCurrentLineToPullRequestLine(pullRequestContent: string, currentContent: string, currentLine: number): number | undefined {
+	return mapCurrentRangeToPullRequestRange(pullRequestContent, currentContent, {
+		startLineNumber: currentLine,
+		endLineNumber: currentLine,
+	})?.startLineNumber;
+}
+
+export function mapCurrentRangeToPullRequestRange(
+	pullRequestContent: string,
+	currentContent: string,
+	currentRange: Pick<IRange, 'startLineNumber' | 'endLineNumber'>,
+): Pick<IRange, 'startLineNumber' | 'endLineNumber'> | undefined {
+	const pullRequestLines = splitLines(pullRequestContent);
+	const currentLines = splitLines(currentContent);
+	const diff = linesDiffComputers.getDefault().computeDiff(pullRequestLines, currentLines, {
+		ignoreTrimWhitespace: false,
+		maxComputationTimeMs: 1000,
+		computeMoves: false,
+	});
+	if (diff.hitTimeout) {
+		return undefined;
+	}
+	const unchanged = LineRangeMapping.inverse(diff.changes, pullRequestLines.length, currentLines.length);
+	const mapping = unchanged.find(mapping =>
+		mapping.modified.contains(currentRange.startLineNumber)
+		&& mapping.modified.contains(currentRange.endLineNumber)
+	);
+	if (!mapping) {
+		return undefined;
+	}
+	const lineOffset = mapping.original.startLineNumber - mapping.modified.startLineNumber;
+	return {
+		startLineNumber: currentRange.startLineNumber + lineOffset,
+		endLineNumber: currentRange.endLineNumber + lineOffset,
+	};
+}
+
+function splitLines(content: string): string[] {
+	return content.split(/\r\n|\r|\n/);
 }
 
 export class CodeReviewService extends Disposable implements ICodeReviewService {
@@ -132,7 +217,7 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 			if (!activeSession) {
 				return undefined;
 			}
-			const workspace = activeSession.workspace.read(reader);
+			const workspace = activeSession.activeChat.read(reader).workspace.read(reader);
 			const gitHubInfo = workspace?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
 			return {
 				sessionResource: activeSession.resource,
@@ -163,11 +248,15 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 
 			const converted = this._convertedPRCommentsBySession.get(context.sessionResource.toString());
 			const comments: IPRReviewComment[] = [];
-			let hasLoadedAll = true;
+			const incompletePullRequests: Pick<IGitHubPullRequestRef, 'owner' | 'repo' | 'number'>[] = [];
+			let initialRefreshCompleted = true;
 			for (const pullRequest of context.pullRequests) {
 				const reviewThreadsRef = reader.store.add(this._gitHubService.createPullRequestReviewThreadsModelReference(pullRequest.owner, pullRequest.repo, pullRequest.number));
 				const reviewThreadsModel = reviewThreadsRef.object;
-				hasLoadedAll = reviewThreadsModel.hasLoaded.read(reader) && hasLoadedAll;
+				initialRefreshCompleted = reviewThreadsModel.initialRefreshCompleted.read(reader) && initialRefreshCompleted;
+				if (!reviewThreadsModel.hasLoaded.read(reader)) {
+					incompletePullRequests.push(pullRequest);
+				}
 				const threads = reviewThreadsModel.reviewThreads.read(reader);
 				for (const thread of threads) {
 					if (thread.isResolved) {
@@ -183,22 +272,23 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 					}
 					const fileUri = URI.joinPath(baseUri, thread.path);
 					const line = thread.line ?? 1;
+					const startLine = thread.startLine ?? line;
 					const firstComment = thread.comments[0];
 					comments.push({
 						id: String(thread.id),
 						pullRequest,
 						uri: fileUri,
-						range: new Range(line, 1, line, 1),
+						range: new Range(startLine, 1, line, 1),
 						body: firstComment?.body ?? '',
 						author: firstComment?.author.login ?? '',
 					});
 				}
 			}
-			if (!hasLoadedAll) {
+			if (!initialRefreshCompleted) {
 				data.state.set({ kind: PRReviewStateKind.Loading }, undefined);
 				return;
 			}
-			data.state.set({ kind: PRReviewStateKind.Loaded, comments }, undefined);
+			data.state.set({ kind: PRReviewStateKind.Loaded, comments, incompletePullRequests }, undefined);
 		}));
 	}
 
@@ -215,9 +305,141 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 		return this._getOrCreatePRReviewData(sessionResource).state;
 	}
 
+	getPRReviewCommentPullRequests(sessionResource: URI, resource: URI): readonly IGitHubPullRequestRef[] {
+		return this._getPRReviewCommentContext(sessionResource, resource)?.pullRequests ?? [];
+	}
+
+	private _getPRReviewCommentContext(sessionResource: URI, resource: URI): IPRReviewCommentContext | undefined {
+		const chat = this._getFocusedChat(sessionResource);
+		const workspace = chat?.workspace.get();
+		const pullRequestContent = parsePRContentUri(resource);
+		if (pullRequestContent) {
+			const pullRequests = workspace?.folders
+				.flatMap(folder => getGitHubPullRequestRefs(folder.gitRepository?.gitHubInfo.get()))
+				.filter(pullRequest =>
+					pullRequest.owner === pullRequestContent.owner
+					&& pullRequest.repo === pullRequestContent.repo
+					&& pullRequest.number === pullRequestContent.prNumber
+				) ?? [];
+			return {
+				path: pullRequestContent.fileName,
+				pullRequests,
+			};
+		}
+		const workspaceResource = this._resolveWorkspaceResource(resource, chat?.changes.get());
+		const folder = workspace?.folders.find(folder => isEqualOrParent(workspaceResource, folder.workingDirectory));
+		const path = folder ? relativePath(folder.workingDirectory, workspaceResource) : undefined;
+		if (!folder || !path) {
+			return undefined;
+		}
+
+		return {
+			path,
+			pullRequests: getGitHubPullRequestRefs(folder.gitRepository?.gitHubInfo.get())
+				.filter(pullRequest => {
+					const state = pullRequest.liveState ?? pullRequest.state;
+					return state === undefined || state === 'open';
+				}),
+		};
+	}
+
+	private _getFocusedChat(sessionResource: URI): IChat | undefined {
+		const activeSession = this._sessionsService.activeSession.get();
+		if (activeSession && isEqual(activeSession.resource, sessionResource)) {
+			return activeSession.activeChat.get();
+		}
+		return this._sessionsManagementService.getSession(sessionResource)?.mainChat.get();
+	}
+
+	async getPRReviewCommentTargets(
+		sessionResource: URI,
+		resource: URI,
+		range: IRange,
+		currentContent: string,
+		pullRequest?: Pick<IGitHubPullRequestRef, 'owner' | 'repo' | 'number'>,
+	): Promise<readonly IPRReviewCommentTarget[]> {
+		const context = this._getPRReviewCommentContext(sessionResource, resource);
+		if (!context) {
+			return [];
+		}
+
+		const pullRequests = pullRequest
+			? context.pullRequests.filter(candidate => candidate.owner === pullRequest.owner && candidate.repo === pullRequest.repo && candidate.number === pullRequest.number)
+			: context.pullRequests;
+		const targets = await Promise.all(pullRequests.map(async pullRequest => {
+			const pullRequestRef = this._gitHubService.createPullRequestModelReference(pullRequest.owner, pullRequest.repo, pullRequest.number);
+			try {
+				await pullRequestRef.object.refresh();
+				const details = pullRequestRef.object.pullRequest.get();
+				if (!details) {
+					return undefined;
+				}
+				const changedFiles = await this._gitHubService.getPullRequestChangedFiles(pullRequest.owner, pullRequest.repo, pullRequest.number);
+				const changedFile = changedFiles.find(file => file.filename === context.path);
+				if (!changedFile?.patch) {
+					return undefined;
+				}
+				const headContent = await this._gitHubService.getFileContent(pullRequest.owner, pullRequest.repo, context.path, details.headSha);
+				const pullRequestRange = mapCurrentRangeToPullRequestRange(headContent, currentContent, range);
+				if (!pullRequestRange) {
+					return undefined;
+				}
+				const commentableLines = commentableRightLines(changedFile.patch);
+				for (let line = pullRequestRange.startLineNumber; line <= pullRequestRange.endLineNumber; line++) {
+					if (!commentableLines.has(line)) {
+						return undefined;
+					}
+				}
+				const line = pullRequestRange.endLineNumber;
+				const startLine = pullRequestRange.startLineNumber === line ? undefined : pullRequestRange.startLineNumber;
+				const pendingReview = pullRequestRef.object.reviews.get()?.find(review => review.state === 'PENDING');
+				return {
+					pullRequest,
+					commitId: details.headSha,
+					path: context.path,
+					startLine,
+					line,
+					pendingReview: pendingReview ? { id: pendingReview.id, nodeId: pendingReview.nodeId } : undefined,
+				};
+			} finally {
+				pullRequestRef.dispose();
+			}
+		}));
+		return targets.filter(target => target !== undefined);
+	}
+
+	private _resolveWorkspaceResource(resource: URI, changes: readonly ISessionFileChange[] | undefined): URI {
+		for (const change of changes ?? []) {
+			const current = isIChatSessionFileChange2(change) ? change.modifiedUri ?? change.uri : change.modifiedUri;
+			const candidates = isIChatSessionFileChange2(change)
+				? [change.uri, change.modifiedUri, change.originalUri]
+				: [change.modifiedUri, change.originalUri];
+			if (candidates.some(candidate => candidate && (isEqual(candidate, resource) || candidate.fsPath === resource.fsPath))) {
+				return current;
+			}
+		}
+		return resource;
+	}
+
+	async createPRReviewComment(target: IPRReviewCommentTarget, body: string): Promise<void> {
+		const { owner, repo, number } = target.pullRequest;
+		const pullRequestRef = this._gitHubService.createPullRequestModelReference(owner, repo, number);
+		try {
+			await pullRequestRef.object.postReviewComment(body, target.commitId, target.path, target.line, target.startLine, target.pendingReview);
+		} finally {
+			pullRequestRef.dispose();
+		}
+
+		const reviewThreadsRef = this._gitHubService.createPullRequestReviewThreadsModelReference(owner, repo, number);
+		try {
+			await reviewThreadsRef.object.refresh(true);
+		} finally {
+			reviewThreadsRef.dispose();
+		}
+	}
+
 	async resolvePRReviewThread(sessionResource: URI, threadId: string, pullRequest?: Pick<IGitHubPullRequestRef, 'owner' | 'repo' | 'number'>): Promise<void> {
-		const session = this._sessionsManagementService.getSession(sessionResource);
-		const gitHubInfo = session?.workspace.get()?.folders[0]?.gitRepository?.gitHubInfo.get();
+		const gitHubInfo = this._getFocusedChat(sessionResource)?.workspace.get()?.folders[0]?.gitRepository?.gitHubInfo.get();
 		const state = this._prReviewBySession.get(sessionResource.toString())?.state.get();
 		const source = pullRequest
 			?? (state?.kind === PRReviewStateKind.Loaded ? state.comments.find(comment => comment.id === threadId)?.pullRequest : undefined)
@@ -239,7 +461,7 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 			const currentState = data.state.get();
 			if (currentState.kind === PRReviewStateKind.Loaded) {
 				const filtered = currentState.comments.filter(c => c.id !== threadId);
-				data.state.set({ kind: PRReviewStateKind.Loaded, comments: filtered }, undefined);
+				data.state.set({ ...currentState, comments: filtered }, undefined);
 			}
 		}
 	}
@@ -272,7 +494,7 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 			const currentState = data.state.get();
 			if (currentState.kind === PRReviewStateKind.Loaded) {
 				const filtered = currentState.comments.filter(c => c.id !== commentId);
-				data.state.set({ kind: PRReviewStateKind.Loaded, comments: filtered }, undefined);
+				data.state.set({ ...currentState, comments: filtered }, undefined);
 			}
 		}
 	}

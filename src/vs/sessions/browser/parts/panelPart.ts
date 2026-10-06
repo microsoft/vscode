@@ -31,6 +31,8 @@ import { IPaneCompositeBarOptions } from '../../../workbench/browser/parts/paneC
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { Extensions } from '../../../workbench/browser/panecomposite.js';
+import { isPhoneLayout } from './mobile/mobileLayout.js';
+import { mainWindow } from '../../../base/browser/window.js';
 
 /**
  * Panel part specifically for agent sessions workbench.
@@ -119,6 +121,12 @@ export class PanelPart extends AbstractPaneCompositePart {
 				this.updateCompositeBar(true);
 			}
 		}));
+		this._register(this.layoutService.onDidChangePanelAlignment(() => this.relayoutForInsets()));
+		this._register(this.layoutService.onDidChangePartVisibility(e => {
+			if (e.partId === Parts.SIDEBAR_PART || e.partId === Parts.EDITOR_PART || e.partId === Parts.AUXILIARYBAR_PART) {
+				this.relayoutForInsets();
+			}
+		}));
 	}
 
 	override updateStyles(): void {
@@ -176,15 +184,32 @@ export class PanelPart extends AbstractPaneCompositePart {
 		}
 
 		// Layout content with reduced dimensions to account for visual margins and border.
-		const borderTotal = 2; // 1px border on each side
+		const compact = this.layoutService.isModernUICompact();
+		const borderTotal = compact ? 0 : 2;
+		const marginTop = compact ? 0 : PanelPart.MARGIN_TOP;
+		const marginLeft = !compact && !isPhoneLayout(this.layoutService) && !this.layoutService.isVisible(Parts.SIDEBAR_PART)
+			? AGENTS_FLOATING_PANEL_GAP
+			: 0;
+		const editorPaneVisible = this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow) || this.layoutService.isVisible(Parts.AUXILIARYBAR_PART);
+		const marginRight = !compact && this.layoutService.getPanelAlignment() === 'center' && editorPaneVisible
+			? AGENTS_FLOATING_PANEL_GAP
+			: 0;
 		super.layout(
-			width - borderTotal,
-			height - PanelPart.MARGIN_TOP - borderTotal,
+			width - marginLeft - marginRight - borderTotal,
+			height - marginTop - borderTotal,
 			top, left
 		);
 
 		// Restore the full grid-allocated dimensions so that Part.relayout() works correctly.
 		Part.prototype.layout.call(this, width, height, top, left);
+	}
+
+	private relayoutForInsets(): void {
+		const dimension = this.dimension;
+		const position = this.contentPosition;
+		if (dimension && position) {
+			this.layout(dimension.width, dimension.height, position.top, position.left);
+		}
 	}
 
 	protected override shouldShowCompositeBar(): boolean {

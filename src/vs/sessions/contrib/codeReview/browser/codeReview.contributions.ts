@@ -6,19 +6,18 @@
 import { Codicon } from '../../../../base/common/codicons.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ActiveEditorContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
-import { IsPhoneLayoutContext, SessionHasChangesContext, SessionIsCreatedContext, SessionWorkspaceIsVirtualContext, SessionProviderIdContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
+import { SessionHasChangesContext, SessionIsCreatedContext, SessionWorkspaceIsVirtualContext, DesktopLayoutContext } from '../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { CodeReviewService, ICodeReviewService } from './codeReviewService.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
-import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionChangesEditorInput } from '../../changes/browser/sessionChangesEditorInput.js';
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
@@ -27,23 +26,12 @@ registerSingleton(ICodeReviewService, CodeReviewService, InstantiationType.Delay
 
 const CODE_REVIEW_QUERY = '/code-review';
 
-const singlePaneDetailPanel = SinglePaneLayoutEnabledContext;
+const desktopDetailPanel = DesktopLayoutContext;
 
-// Code review is shown in the single-pane editor title bar, so it is only
-// contributed to the classic changes button bar when single-pane is off.
-const codeReviewChangesToolbarWhen = ContextKeyExpr.and(
-	IsSessionsWindowContext,
-	SessionWorkspaceIsVirtualContext.toNegated(),
-	IsPhoneLayoutContext.negate(),
-	SessionIsCreatedContext,
-	ContextKeyExpr.regex(SessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
-	singlePaneDetailPanel.negate(),
-);
-
-const singlePaneCodeReviewWhen = ContextKeyExpr.and(
+const desktopCodeReviewWhen = ContextKeyExpr.and(
 	IsSessionsWindowContext,
 	ActiveEditorContext.isEqualTo(SessionChangesEditorInput.EDITOR_ID),
-	singlePaneDetailPanel,
+	desktopDetailPanel,
 	IsAuxiliaryWindowContext.toNegated(),
 	IsTopRightEditorGroupContext,
 	SessionWorkspaceIsVirtualContext.toNegated(),
@@ -63,20 +51,12 @@ class RunSessionCodeReviewAction extends Action2 {
 			category: CHAT_CATEGORY,
 			icon: Codicon.codeReview,
 			precondition: ContextKeyExpr.or(ChatContextKeys.hasAgentSessionChanges, SessionHasChangesContext),
-			menu: [
-				{
-					id: MenuId.AgentsChangesToolbar,
-					group: 'navigation',
-					order: 7,
-					when: codeReviewChangesToolbarWhen,
-				},
-				{
-					id: Menus.SessionsEditorTitle,
-					group: 'navigation',
-					order: 10,
-					when: singlePaneCodeReviewWhen,
-				},
-			],
+			menu: {
+				id: Menus.SessionsEditorHeaderLayout,
+				group: 'navigation',
+				order: 10,
+				when: desktopCodeReviewWhen,
+			},
 		});
 	}
 

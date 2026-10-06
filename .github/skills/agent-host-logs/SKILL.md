@@ -72,6 +72,12 @@ Window/client <-> AHP <-> Agent Host process <-> Copilot SDK
 
 Useful correlation fields include the raw session ID, session/chat URI, `turnId`, `interactionId`, tool/request IDs, JSON-RPC request `id`, AHP `serverSeq`, and event `id`/`parentId`.
 
+## Copilot Session Refresh Failures
+
+At the default Info log level, `agenthost*.log` records the refresh operation, configuration and SDK session IDs, chat, turn, and first matching `reason`. Only the first matching trigger is reported, preserving the restart checks' short-circuit order. Structural reasons distinguish client tools, client plugins, and root MCP configuration without logging their contents.
+
+Follow `Preparing SDK session` and the paired `SDK resumeSession started` / `settled` records by `attemptId`. Follow each attached SDK session's shutdown and disconnect records by `instanceId`, which distinguishes successive wrappers of the same SDK session. A `disconnect wait completed` record with `disconnectRpc=pending` and `shutdownReceived=true` means the shutdown notification unblocked the caller before the disconnect RPC settled. A later RPC completion or failure, including after `disposed=true`, is logged separately. Neither the notification nor the host-side wait alone proves that native cleanup finished; correlate these with the SDK process log before concluding there was a teardown/resume race.
+
 ## Important Tips
 
 - `events.jsonl`, Copilot SDK logs, and AHP timestamps are normally UTC. The plain `.log` files may use local machine time; remote logs may use another timezone.

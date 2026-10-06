@@ -1061,8 +1061,15 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		} else {
 			template.deprecationWarningElement.innerText = deprecationText;
 		}
-		template.deprecationWarningElement.prepend($('.codicon.codicon-error'));
+		const isInformationalDeprecation = element.setting.deprecationMessageSeverity === 'info';
+		const deprecationIcon = isInformationalDeprecation ? $('.codicon.codicon-info') : $('.codicon.codicon-error');
+		deprecationIcon.setAttribute('role', 'img');
+		deprecationIcon.setAttribute('aria-label', isInformationalDeprecation
+			? localize('setting.deprecationMessageSeverity.info', "Info")
+			: localize('setting.deprecationMessageSeverity.warning', "Warning"));
+		template.deprecationWarningElement.prepend(deprecationIcon);
 		template.containerElement.classList.toggle('is-deprecated', !!deprecationText);
+		template.containerElement.classList.toggle('is-deprecated-info', !!deprecationText && isInformationalDeprecation);
 
 		this.renderValue(element, <ISettingItemTemplate>template, onChange);
 
@@ -1384,6 +1391,8 @@ class SettingArrayRenderer extends AbstractSettingRenderer implements ITreeRende
 			}
 
 			if (
+				template.context.settingsTarget !== ConfigurationTarget.WORKSPACE &&
+				!URI.isUri(template.context.settingsTarget) &&
 				template.context.defaultValue &&
 				Array.isArray(template.context.defaultValue) &&
 				template.context.defaultValue.length === newValue.length &&

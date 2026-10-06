@@ -65,7 +65,7 @@ function createModel(store: Pick<DisposableStore, 'add'>, id: string, options: {
 	requestInProgress: ReturnType<typeof observableValue<boolean>>;
 	requestNeedsInput: ReturnType<typeof observableValue<IChatRequestNeedsInputInfo | undefined>>;
 	setPendingRequestCount: (count: number) => void;
-	endLastResponse: (outcome: { isCanceled?: boolean; errorDetails?: IChatResponseErrorDetails }) => void;
+	endLastResponse: (outcome?: { isCanceled?: boolean; errorDetails?: IChatResponseErrorDetails; completionTimestamp?: number | null }) => void;
 } {
 	const requestInProgress = observableValue<boolean>(`in-progress-${id}`, options.requestInProgress ?? true);
 	const requestNeedsInput = observableValue<IChatRequestNeedsInputInfo | undefined>(`needs-input-${id}`, undefined);
@@ -74,6 +74,7 @@ function createModel(store: Pick<DisposableStore, 'add'>, id: string, options: {
 	const response = new class extends mock<IChatResponseModel>() {
 		override isCanceled = false;
 		override result: IChatAgentResult | undefined = undefined;
+		override completionTimestamp: number | undefined = undefined;
 		override readonly response = new class extends mock<IResponse>() {
 			override readonly value = [];
 		};
@@ -98,9 +99,10 @@ function createModel(store: Pick<DisposableStore, 'add'>, id: string, options: {
 		pendingRequests = Array.from({ length: count }, () => new class extends mock<IChatPendingRequest>() { });
 		onDidChangePendingRequests.fire();
 	};
-	const endLastResponse = (outcome: { isCanceled?: boolean; errorDetails?: IChatResponseErrorDetails }) => {
+	const endLastResponse = (outcome: { isCanceled?: boolean; errorDetails?: IChatResponseErrorDetails; completionTimestamp?: number | null } = {}) => {
 		response.isCanceled = outcome.isCanceled ?? false;
 		response.result = outcome.errorDetails ? { errorDetails: outcome.errorDetails } : undefined;
+		response.completionTimestamp = outcome.completionTimestamp === null ? undefined : outcome.completionTimestamp ?? Date.now();
 		requestInProgress.set(false, undefined);
 	};
 	return { model, requestInProgress, requestNeedsInput, setPendingRequestCount, endLastResponse };
@@ -109,11 +111,31 @@ function createModel(store: Pick<DisposableStore, 'add'>, id: string, options: {
 suite('ChatWindowNotifier', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	class TestChatWindowNotifier extends ChatWindowNotifier {
+		protected override _getIdleNotificationDelay(): number {
+			return 0;
+		}
+
+		protected override _getBackgroundNotificationDelay(): number {
+			return 0;
+		}
+	}
+
+	/**
+	 * Drains the chained zero-delay timers a notification passes through: the idle
+	 * debounce and the background-window delay.
+	 */
+	async function flushNotifications(): Promise<void> {
+		await timeout(0);
+		await timeout(0);
+		await timeout(0);
+	}
+
 	function createNotifier(model: IChatModel): TestHostService {
 		const chatService = new TestChatService();
 		chatService.chatModels.set([model], undefined);
 		const host = new TestHostService();
-		store.add(new ChatWindowNotifier(
+		store.add(new TestChatWindowNotifier(
 			chatService,
 			new TestChatWidgetService(),
 			host,
@@ -131,7 +153,7 @@ suite('ChatWindowNotifier', () => {
 
 		setPendingRequestCount(1);
 		requestInProgress.set(false, undefined);
-		await timeout(600);
+		await flushNotifications();
 
 		assert.deepStrictEqual(host.toasts, []);
 	});
@@ -140,7 +162,7 @@ suite('ChatWindowNotifier', () => {
 		const { model } = createModel(store, 'never-ran', { requestInProgress: false, hasRequest: false });
 		const host = createNotifier(model);
 
-		await timeout(600);
+		await flushNotifications();
 
 		assert.deepStrictEqual(host.toasts, []);
 	});
@@ -155,7 +177,7 @@ suite('ChatWindowNotifier', () => {
 		failed.endLastResponse({ errorDetails: { message: 'boom' } });
 		cancelled.setPendingRequestCount(1);
 		cancelled.endLastResponse({ isCanceled: true });
-		await timeout(600);
+		await flushNotifications();
 
 		assert.deepStrictEqual([
 			failedHost.toasts.map(toast => toast.dedupeKey),
@@ -167,11 +189,11 @@ suite('ChatWindowNotifier', () => {
 	});
 
 	test('notifies after a model becomes fully idle', async () => {
-		const { model, requestInProgress } = createModel(store, 'idle');
+		const { model, endLastResponse } = createModel(store, 'idle');
 		const host = createNotifier(model);
 
-		requestInProgress.set(false, undefined);
-		await timeout(550);
+		endLastResponse();
+		await flushNotifications();
 
 		assert.deepStrictEqual(host.toasts, [{
 			title: 'Session: Fix idle',
@@ -181,13 +203,28 @@ suite('ChatWindowNotifier', () => {
 		}]);
 	});
 
+	test('does not notify when a session replays history as it loads', async () => {
+		const restoredWithTime = createModel(store, 'restored');
+		const restoredHost = createNotifier(restoredWithTime.model);
+		const restoredWithoutTime = createModel(store, 'restored-untimed');
+		const restoredWithoutTimeHost = createNotifier(restoredWithoutTime.model);
+
+		// Replaying history completes each response with the time it originally
+		// finished, or with none at all when that time was never recorded.
+		restoredWithTime.endLastResponse({ completionTimestamp: Date.now() - 60_000 });
+		restoredWithoutTime.endLastResponse({ completionTimestamp: null });
+		await flushNotifications();
+
+		assert.deepStrictEqual([restoredHost.toasts, restoredWithoutTimeHost.toasts], [[], []]);
+	});
+
 	test('only notifies for needed input when a request ends needing input', async () => {
 		const { model, requestInProgress, requestNeedsInput } = createModel(store, 'needs-input');
 		const host = createNotifier(model);
 
 		requestNeedsInput.set({ title: 'Fix needs-input' }, undefined);
 		requestInProgress.set(false, undefined);
-		await timeout(50);
+		await flushNotifications();
 
 		assert.deepStrictEqual(host.toasts.map(toast => toast.dedupeKey), [
 			'chat-session:test:/needs-input:needsInput',
