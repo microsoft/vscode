@@ -615,9 +615,14 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 					return;
 				}
 				this._logService.trace('node-pty.IPty#pid');
-				exec('lsof -OPln -p ' + this._ptyProcess.pid + ' | grep cwd', { env: { ...process.env, LANG: 'en_US.UTF-8' } }, (error, stdout, stderr) => {
+				exec('lsof -a -p ' + this._ptyProcess.pid + ' -d cwd -F n', { env: { ...process.env, LANG: 'en_US.UTF-8' } }, (error, stdout, stderr) => {
 					if (!error && stdout !== '') {
-						resolve(stdout.substring(stdout.indexOf('/'), stdout.length - 1));
+						const cwd = parseLsofCwd(stdout);
+						if (cwd) {
+							resolve(cwd);
+							return;
+						}
+						resolve(this._initialCwd);
 					} else {
 						this._logService.error('lsof did not run successfully, it may not be on the $PATH?', error, stdout, stderr);
 						resolve(this._initialCwd);
@@ -667,6 +672,11 @@ class DelayedResizer extends Disposable {
 		}, 1000);
 		this._register(toDisposable(() => clearTimeout(this._timeout)));
 	}
+}
+
+export function parseLsofCwd(stdout: string): string | undefined {
+	const cwd = stdout.split('\n').find(line => line.startsWith('n'));
+	return cwd?.substring(1);
 }
 
 function hasConptyOption(obj: IPtyForkOptions | IWindowsPtyForkOptions): obj is IWindowsPtyForkOptions {
