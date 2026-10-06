@@ -141,6 +141,10 @@ const RECENT_LOCAL_SESSION_UPDATES_STORAGE_KEY = 'recentLocalSessionUpdates';
 /** A catalog pass slower than this is logged at info, since it delays every session-list refresh. */
 const SLOW_LIST_SESSIONS_THRESHOLD_MS = 1_000;
 
+function usesStandardSessionUris(provider: AgentProvider): boolean {
+	return provider === COPILOT_CLI_AGENT_PROVIDER_ID || provider === CODEX_AGENT_PROVIDER_ID || provider === CLAUDE_AGENT_PROVIDER_ID;
+}
+
 /** A recent update to one local Agent Host session. */
 interface IRecentLocalSessionUpdate {
 	readonly session: string;
@@ -619,6 +623,7 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _chatCatalogMutationSequencer = new SequencerByKey<string>();
 	private readonly _sessionCreationSequencer = new SequencerByKey<string>();
 	private readonly _additionalWorktreeSequencer = new SequencerByKey<string>();
+	private readonly _providerIdentityAdmissionSequencer = new SequencerByKey<AgentProvider>();
 
 	/** Protocol: fires when state is mutated by an action. */
 	private readonly _onDidAction = this._register(new Emitter<ActionEnvelope>());
@@ -1383,7 +1388,7 @@ export class AgentService extends Disposable implements IAgentService {
 			this._catalogReconciliationService.wakeParkedSessions();
 			this._catalogReconciliationService.schedule();
 			provider.setServerToolHost?.(this._serverToolHost);
-			provider.setKnownSessionsFilter?.(sessions => this._filterKnownSessions(sessions));
+			provider.setKnownSessionsFilter?.(sessions => this._filterKnownSessions(provider.id, sessions));
 			// Deterministic subagent membership ordering: apply a spawned subagent's
 			// catalog membership (via the spawn-channel handlers) BEFORE
 			// AgentSideEffects — registered next — handles the same signal and starts
@@ -1904,7 +1909,22 @@ export class AgentService extends Disposable implements IAgentService {
 	/** `undefined` means the provider catalog is unavailable; deferred waits for external readiness. */
 	private async _enumerateLegacyProviderSessions(provider: IAgent): Promise<readonly IAgentSessionMetadata[] | undefined | typeof AgentChatMigrationDeferred> {
 		const chats = await provider.listChatsToMigrate();
-		return chats === AgentChatMigrationDeferred ? chats : chats?.map(metadata => this._toSessionMetadata(metadata, provider.id));
+		if (chats === AgentChatMigrationDeferred || chats === undefined) {
+			return chats;
+		}
+		const sessions = chats.map(metadata => this._toSessionMetadata(metadata, provider.id));
+		if (!usesStandardSessionUris(provider.id)) {
+			return sessions;
+		}
+		const resolved = await this._sessionRegistry.resolveDiscoveredSessionIdentities(provider.id, sessions.map(metadata => metadata.session));
+		return sessions.flatMap(metadata => {
+			const identity = resolved.get(metadata.session.toString());
+			if (identity?.status === 'conflict') {
+				this._logService.warn(`[AgentService] ${identity.message}; preserving both identities without importing this backing`);
+				return identity.sessions.map(session => ({ ...metadata, session }));
+			}
+			return [identity?.existing ? { ...metadata, session: identity.session } : metadata];
+		});
 	}
 
 	/**
@@ -2646,14 +2666,28 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private async _migrateAndRegisterDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<void> {
-		if (this._deferredProviderMigrations.has(provider.id)) {
+		const wasDeferred = this._deferredProviderMigrations.has(provider.id);
+		const initialMigration = this._initialProviderMigrations.get(provider.id);
+		if (initialMigration) {
+			try {
+				await initialMigration;
+			} catch (err) {
+				this._logService.warn(`[AgentService] initial provider catalog for ${provider.id} was unavailable before chat discovery`, err);
+				try {
+					await this._replaceFailedInitialProviderMigration(provider, initialMigration);
+				} catch (retryError) {
+					this._logService.warn(`[AgentService] provider catalog retry for ${provider.id} failed before chat discovery; registering the delivered discovery batch`, retryError);
+				}
+			}
+		}
+		if (this._deferredProviderMigrations.has(provider.id) && (wasDeferred || chats.length > 0)) {
 			try {
 				await this._ensureSessionsV2Imported(provider, true);
 			} catch (err) {
 				this._logService.warn(`[AgentService] registry migration: failed for provider ${provider.id} after chat discovery`, err);
 			}
 		}
-		await this._registerDiscoveredChatsWithStartupTelemetry(provider, chats);
+		await this._providerIdentityAdmissionSequencer.queue(provider.id, () => this._registerDiscoveredChatsWithStartupTelemetry(provider, chats));
 	}
 
 	private async _registerDiscoveredChatsWithStartupTelemetry(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<void> {
@@ -2738,16 +2772,17 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!this._isSessionCatalogEnabled()) {
 			return Promise.resolve();
 		}
-		return this._ensureProviderCatalog(provider, this._providerMigrations, force, async runForce => {
-			const timing = this._startupPerformance.start('sessionMigration', provider.id);
-			timing?.setMetrics({ migrationState: 'unknown', migrationForced: runForce });
-			try {
-				await this._importProviderSessionsV2(provider, runForce, timing);
-			} catch (error) {
-				timing?.complete('error');
-				throw error;
-			}
-		});
+		return this._ensureProviderCatalog(provider, this._providerMigrations, force, runForce =>
+			this._providerIdentityAdmissionSequencer.queue(provider.id, async () => {
+				const timing = this._startupPerformance.start('sessionMigration', provider.id);
+				timing?.setMetrics({ migrationState: 'unknown', migrationForced: runForce });
+				try {
+					await this._importProviderSessionsV2(provider, runForce, timing);
+				} catch (error) {
+					timing?.complete('error');
+					throw error;
+				}
+			}));
 	}
 
 	private _ensureProviderCatalog(
@@ -2816,10 +2851,28 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 
 	private async _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[], awaitReconciliation = true, observation?: IDiscoveryRegistrationObservation): Promise<boolean> {
+		const providerMetadata = chats.map(({ external, ...metadata }) => ({
+			external,
+			metadata: this._toSessionMetadata(metadata, provider.id),
+		}));
+		const resolvedIdentities = usesStandardSessionUris(provider.id)
+			? await this._sessionRegistry.resolveDiscoveredSessionIdentities(provider.id, providerMetadata.map(candidate => candidate.metadata.session))
+			: new Map();
+		const candidates = providerMetadata.map(candidate => {
+			const resolution = readSessionEhcliAdoptable(candidate.metadata._meta)
+				? undefined
+				: resolvedIdentities.get(candidate.metadata.session.toString());
+			return {
+				...candidate,
+				providerSession: candidate.metadata.session,
+				resolution,
+				metadata: resolution?.status === 'resolved' ? { ...candidate.metadata, session: resolution.session } : candidate.metadata,
+			};
+		});
 		// Keys only: discovery arrives in batches, and the full listing re-runs the
 		// per-row provenance migration for every registered session each time.
 		const discoveredSessionKeys = provider.id === CODEX_AGENT_PROVIDER_ID
-			? chats.map(chat => parseRequiredSessionUriFromChatUri(chat.chat))
+			? candidates.map(candidate => candidate.metadata.session)
 			: [];
 		const [runtimeCompatibleKeys, registeredRecency, persistedExclusions, codexCatalogRows] = await Promise.all([
 			this._sessionRegistry.listRuntimeCompatibleSessionKeys(),
@@ -2853,12 +2906,16 @@ export class AgentService extends Disposable implements IAgentService {
 		const changedMetadataSessions: string[] = [];
 		const untitledExternal: IAgentSessionMetadata[] = [];
 		const modifiedTimeAdvances: { readonly session: URI; readonly modifiedTime: number }[] = [];
-		const results = await Promise.all(chats.map(({ external: reportedExternal, ...metadata }) => discoveryLimiter.queue(async () => {
-			const sessionMetadata = this._toSessionMetadata(metadata, provider.id);
+		const results = await Promise.all(candidates.map(({ external: reportedExternal, metadata: sessionMetadata, providerSession, resolution }) => discoveryLimiter.queue(async () => {
 			const session = sessionMetadata.session;
 			try {
+				if (resolution?.status === 'conflict') {
+					this._logService.warn(`[AgentService] ${resolution.message}; skipping discovery for ${providerSession.toString()}`);
+					this._recordDiscoveryRegistrationProgress(observation, 'failed');
+					return false;
+				}
 				// Registered identities retain provenance; only changed restored titles need per-session I/O.
-				if (registeredKeys.has(session.toString())) {
+				if (resolution?.registered || registeredKeys.has(session.toString())) {
 					alreadyRegistered++;
 					const live = this._stateManager.getSessionSummary(session.toString());
 					if (live && readSessionExternal(live._meta) && !this._stateManager.hasActiveTurn(session.toString())) {
@@ -2885,10 +2942,10 @@ export class AgentService extends Disposable implements IAgentService {
 					this._recordDiscoveryRegistrationProgress(observation, 'filtered');
 					return false;
 				}
-				if (isSubagentSession(session.toString())) {
+				if (isSubagentSession(providerSession.toString())) {
 					queueExclusion({
 						provider: provider.id,
-						session: session.toString(),
+						session: providerSession.toString(),
 						reason: 'subagent',
 						fingerprint: 'uri-v1',
 					});
@@ -2896,11 +2953,11 @@ export class AgentService extends Disposable implements IAgentService {
 					this._recordDiscoveryRegistrationProgress(observation, 'filtered');
 					return false;
 				}
-				const persistedExclusion = exclusions.get(session.toString());
-				if (persistedExclusion?.reason === 'backing' || await this._isChatBacking(session)) {
+				const persistedExclusion = exclusions.get(providerSession.toString()) ?? exclusions.get(session.toString());
+				if (persistedExclusion?.reason === 'backing' || await this._isChatBacking(providerSession)) {
 					queueExclusion({
 						provider: provider.id,
-						session: session.toString(),
+						session: providerSession.toString(),
 						reason: 'backing',
 						fingerprint: 'backing-v1',
 					});
@@ -2908,7 +2965,7 @@ export class AgentService extends Disposable implements IAgentService {
 					this._recordDiscoveryRegistrationProgress(observation, 'filtered');
 					return false;
 				}
-				const registrationFacts = await this._readSessionRegistrationFacts(session);
+				const registrationFacts = await this._readSessionRegistrationFacts(providerSession);
 				if (registrationFacts.chatBacking) {
 					suppressed++;
 					this._recordDiscoveryRegistrationProgress(observation, 'filtered');
@@ -2926,9 +2983,13 @@ export class AgentService extends Disposable implements IAgentService {
 					this._recordDiscoveryRegistrationProgress(observation, 'filtered');
 					return false;
 				}
-				const identity: IRegisteredSession = { session, provider: provider.id, startTime: metadata.startTime, modifiedTime: metadata.modifiedTime, external, source: external ? 'discovery' : 'restore' };
+				if (!isEqual(session, providerSession) && await this._sessionRegistry.isTombstoned(providerSession)) {
+					this._recordDiscoveryRegistrationProgress(observation, 'filtered');
+					return false;
+				}
+				const identity: IRegisteredSession = { session, provider: provider.id, startTime: sessionMetadata.startTime, modifiedTime: sessionMetadata.modifiedTime, external, source: external ? 'discovery' : 'restore' };
 				const registered = await this._retryRegistryMutation(
-					() => this._sessionRegistry.register(session, identity, { checkTombstone: true }),
+					() => this._sessionRegistry.registerDiscovered(session, providerSession, identity),
 					`discovery registration for ${session.toString()}`,
 				);
 				if (registered) {
@@ -2936,6 +2997,11 @@ export class AgentService extends Disposable implements IAgentService {
 					const effectiveIdentity = await this._sessionRegistry.get(session, entry => this._migrateRegisteredSession(entry));
 					if (!effectiveIdentity) {
 						throw new Error(`Missing registered identity for discovered session ${session.toString()}`);
+					}
+					if (effectiveIdentity.provider !== provider.id) {
+						this._recordDiscoveryRegistrationProgress(observation, 'failed');
+						this._logService.warn(`[AgentService] Discovered session ${session.toString()} belongs to provider ${effectiveIdentity.provider}, not ${provider.id}; skipping catalog synchronization`);
+						return false;
 					}
 					const effectiveExternal = effectiveIdentity.external;
 					registryChanged = true;
@@ -3544,14 +3610,21 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/** Returns registered candidates. Tombstones remain candidates so registration can reject them atomically. */
-	private async _filterKnownSessions(sessions: readonly URI[]): Promise<ReadonlySet<string>> {
+	private async _filterKnownSessions(provider: AgentProvider, sessions: readonly URI[]): Promise<ReadonlySet<string>> {
 		const registered = await this._sessionRegistry.listSessionKeys();
+		const resolutions = usesStandardSessionUris(provider)
+			? await this._sessionRegistry.resolveDiscoveredSessionIdentities(provider, sessions)
+			: new Map();
 		const known = new Set<string>();
 		for (const session of sessions) {
 			const key = session.toString();
-			const provider = AgentSession.provider(session);
-			const exclusion = provider ? await this._sessionRegistry.getSessionsV2Exclusion(provider, session) : undefined;
-			if (registered.has(key) || exclusion?.reason === 'backing' || await this._isChatBacking(session)) {
+			const sessionProvider = AgentSession.provider(session);
+			const exclusion = sessionProvider ? await this._sessionRegistry.getSessionsV2Exclusion(sessionProvider, session) : undefined;
+			const resolution = resolutions.get(key);
+			if (resolution?.status === 'conflict') {
+				this._logService.warn(`[AgentService] ${resolution.message}; suppressing discovery candidate ${key}`);
+				known.add(key);
+			} else if (registered.has(key) || resolution?.registered || exclusion?.reason === 'backing' || await this._isChatBacking(session)) {
 				known.add(key);
 			}
 		}
@@ -5427,8 +5500,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const turnId = source?.turnId ?? (sourceChat ? this._stateManager.getChatState(sourceChat)?.activeTurn?.id : undefined);
 		const clientId = sourceChat && turnId ? this._turnTracker.getInitiatorClientId(sourceChat, turnId) : config?.activeClient?.clientId;
 		const legacy = clientId !== undefined && this._clientConnections.usesLegacySessionUris(clientId);
-		const nativeProvider = provider.id === COPILOT_CLI_AGENT_PROVIDER_ID || provider.id === CODEX_AGENT_PROVIDER_ID || provider.id === CLAUDE_AGENT_PROVIDER_ID;
-		if (!nativeProvider) {
+		if (!usesStandardSessionUris(provider.id)) {
 			return AgentSession.uri(provider.id, generateUuid());
 		}
 		const registeredIds = new Set([...await this._sessionRegistry.listRuntimeCompatibleSessionKeys()].map(key => AgentSession.id(key)));
