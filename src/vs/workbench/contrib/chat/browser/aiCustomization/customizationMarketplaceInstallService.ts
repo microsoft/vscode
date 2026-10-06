@@ -39,6 +39,7 @@ import { IAgentPluginService } from '../../common/plugins/agentPluginService.js'
 import { IAgentPluginRepositoryService } from '../../common/plugins/agentPluginRepositoryService.js';
 import { IPluginGitService } from '../../common/plugins/pluginGitService.js';
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
+import { parseMarketplaceReference } from '../../common/plugins/marketplaceReference.js';
 import { IMarketplacePlugin, IPluginMarketplaceService, PluginSourceKind } from '../../common/plugins/pluginMarketplaceService.js';
 import { SKILL_FILENAME } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
@@ -472,7 +473,8 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 	}
 
 	private getRelevantRecords(): ICustomizationMarketplaceInstallationRecord[] {
-		return [...this.getRecordsByKind('plugin'), ...this.getRecordsByKind('mcp'), ...this.getApplicableSkillRecords(), ...this.getApplicableConnectorRecords()];
+		return [...this.getRecordsByKind('plugin'), ...this.getRecordsByKind('mcp'), ...this.getApplicableSkillRecords(), ...this.getApplicableConnectorRecords()]
+			.filter(record => !this.isProviderManagedInstallation(record.installation));
 	}
 
 	private async synchronizeConnectedConnectorRecords(): Promise<void> {
@@ -557,6 +559,9 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 	}
 
 	private findRecord(resource: ICustomizationMarketplaceResource): ICustomizationMarketplaceInstallationRecord | undefined {
+		if (this.getInstallProviderBinding(resource)) {
+			return undefined;
+		}
 		if (resource.installation?.kind === 'copilotConnector') {
 			const account = this.copilotConnectorsService.account;
 			return account ? this.findConnectorRecord(resource.installation.name, account) : undefined;
@@ -738,12 +743,13 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		if (providerInstallation) {
 			return this.getProviderInstallState(providerInstallation);
 		}
+		const providerBinding = this.getInstallProviderBinding(resource);
 		const ownerAssociation = this.findRecord(resource);
 		if (ownerAssociation?.id.startsWith('owner:') && !this.isOwnerAssociationCurrent(resource, ownerAssociation)) {
 			this.removeRecord(ownerAssociation);
 			this.installationSnapshot = undefined;
 		}
-		const recorded = this.installations.get().findByResource(resource);
+		const recorded = providerBinding ? undefined : this.installations.get().findByResource(resource);
 		if (recorded) {
 			return recorded.state;
 		}
@@ -774,7 +780,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			if (!this.configurationService.getValue<boolean>(ChatConfiguration.PluginsEnabled)) {
 				return { kind: 'unavailable', message: localize('customizationMarketplace.pluginsDisabled', "Enable agent plugins to install this resource.") };
 			}
-			const installed = this.pluginMarketplaceService.installedPlugins.get().find(({ plugin }) => getPluginMarketplaceIdentifier(plugin) === resource.identifier);
+			const installed = providerBinding ? undefined : this.pluginMarketplaceService.installedPlugins.get().find(({ plugin }) => getPluginMarketplaceIdentifier(plugin) === resource.identifier);
 			if (installed) {
 				const target = { kind: 'plugin' as const, uri: installed.pluginUri };
 				this.associateInstalledResource(resource, target);
@@ -795,7 +801,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			if (!this.configurationService.getValue<boolean>(ChatConfiguration.PluginsEnabled)) {
 				return { kind: 'unavailable', message: localize('customizationMarketplace.pluginsDisabled', "Enable agent plugins to install this resource.") };
 			}
-			const installed = this.pluginMarketplaceService.installedPlugins.get().find(({ plugin }) =>
+			const installed = providerBinding ? undefined : this.pluginMarketplaceService.installedPlugins.get().find(({ plugin }) =>
 				(resource.version === undefined || plugin.version === resource.version) && matchesPluginInstallation(plugin, source)
 			);
 			if (installed) {
@@ -826,7 +832,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 				: { kind: 'unavailable', message: localize('customizationMarketplace.connectorNotActionable', "This connector cannot be connected while its status is '{0}'. Refresh and try again.", presentation.statusLabel) };
 		}
 		if (source.kind === 'mcp') {
-			const installed = this.getInstalledMcpServer(source.name, source.version);
+			const installed = providerBinding ? undefined : this.getInstalledMcpServer(source.name, source.version);
 			if (installed) {
 				const target = { kind: 'mcp' as const, id: installed.id };
 				this.associateInstalledResource(resource, target);
@@ -896,6 +902,10 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			|| this.providerInstallations.some(installation => this.matchesProviderInstallation(installation.resource, resource)))
 			? binding
 			: undefined;
+	}
+
+	private isProviderManagedInstallation(installation: CustomizationMarketplaceInstallation): boolean {
+		return !!this.providerBinding && (installation.kind === 'skill' || installation.kind === 'mcp' || installation.kind === 'plugin' || installation.kind === 'configuredPlugin');
 	}
 
 	private associateInstalledResource(resource: ICustomizationMarketplaceResource, target: Extract<CustomizationMarketplaceInstallationRecordTarget, { readonly kind: 'plugin' | 'mcp' }>): void {
@@ -971,6 +981,12 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			getCustomizationMarketplaceInstallTelemetryContext('marketplace', resource.installation),
 			async () => {
 				if (providerBinding) {
+					if (resource.installation?.kind === 'configuredPlugin') {
+						const plugin = await this.resolveConfiguredPlugin(resource, token);
+						if (!await this.pluginInstallService.ensureMarketplaceTrusted(plugin.marketplaceReference, token)) {
+							throw new CancellationError();
+						}
+					}
 					await providerBinding.provider.install(providerBinding.session, resource, token);
 					if (providerBinding === this.providerBinding) {
 						await this.refreshProviderInstallations(providerBinding);
@@ -1042,6 +1058,9 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 				this.pendingRepairs.delete(key);
 				this.emitChange();
 			}
+			return;
+		}
+		if (providerBinding) {
 			return;
 		}
 		const record = this.findRecord(resource);
@@ -1130,6 +1149,9 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 				this.pendingUninstalls.delete(key);
 				this.emitChange();
 			}
+			return;
+		}
+		if (providerBinding) {
 			return;
 		}
 		const connector = resource.installation?.kind === 'copilotConnector' ? resource.installation : undefined;
@@ -1333,20 +1355,44 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		return { ...record, target };
 	}
 
+	private async resolveConfiguredPlugin(resource: ICustomizationMarketplaceResource, token: CancellationToken): Promise<IMarketplacePlugin> {
+		const source = resource.installation;
+		if (source?.kind !== 'configuredPlugin') {
+			throw new Error(localize('customizationMarketplace.pluginIdentityUnavailable', "This plugin does not provide configured marketplace identity."));
+		}
+		const discoveredReference = source.marketplaceSource ? parseMarketplaceReference(source.marketplaceSource) : undefined;
+		if (source.marketplaceId && (!discoveredReference || discoveredReference.canonicalId !== source.marketplaceId)) {
+			throw new Error(localize('customizationMarketplace.pluginIdentityChanged', "This plugin's marketplace identity changed after discovery. Refresh Discover and try again."));
+		}
+		const currentReference = source.marketplaceId
+			? this.pluginMarketplaceService.getMarketplaceReferences().find(reference => reference.canonicalId === source.marketplaceId)
+			: undefined;
+		if (source.marketplaceId && !currentReference) {
+			if (discoveredReference && this.pluginMarketplaceService.isStrictMarketplacePolicyActive() &&
+				!await this.pluginInstallService.ensureMarketplaceTrusted(discoveredReference, token)) {
+				throw new CancellationError();
+			}
+			throw new Error(localize('customizationMarketplace.pluginUnavailable', "This plugin is no longer available from a configured marketplace. Refresh Discover and try again."));
+		}
+		const marketplaceIds = source.marketplaceId ? new Set([source.marketplaceId]) : undefined;
+		const plugins = await this.pluginMarketplaceService.fetchMarketplacePlugins(token, marketplaceIds);
+		this.checkEnabled(resource.sourceId, token);
+		const plugin = plugins.find(plugin =>
+			isPluginMarketplaceReferenceAvailableInDiscover(this.configurationService, plugin.marketplaceReference) &&
+			getPluginMarketplaceIdentifier(plugin) === resource.identifier);
+		if (!plugin || source.name && plugin.name !== source.name || source.marketplace && plugin.marketplaceName !== source.marketplace) {
+			throw new Error(localize('customizationMarketplace.pluginUnavailable', "This plugin is no longer available from a configured marketplace. Refresh Discover and try again."));
+		}
+		return plugin;
+	}
+
 	private async installTarget(resource: ICustomizationMarketplaceResource, token: CancellationToken): Promise<CustomizationMarketplaceInstallationRecordTarget> {
 		const source = resource.installation;
 		if (!source) {
 			throw new Error(localize('customizationMarketplace.sourceUnavailable', "This resource does not provide a supported installation source."));
 		}
 		if (source.kind === 'configuredPlugin') {
-			const plugins = await this.pluginMarketplaceService.fetchMarketplacePlugins(token);
-			this.checkEnabled(resource.sourceId, token);
-			const plugin = plugins.find(plugin =>
-				isPluginMarketplaceReferenceAvailableInDiscover(this.configurationService, plugin.marketplaceReference) &&
-				getPluginMarketplaceIdentifier(plugin) === resource.identifier);
-			if (!plugin) {
-				throw new Error(localize('customizationMarketplace.pluginUnavailable', "This plugin is no longer available from a configured marketplace. Refresh Discover and try again."));
-			}
+			const plugin = await this.resolveConfiguredPlugin(resource, token);
 			await this.pluginInstallService.installPlugin(plugin, token);
 			this.checkEnabled(resource.sourceId, token);
 			const uri = this.pluginInstallService.getPluginInstallUri(plugin);

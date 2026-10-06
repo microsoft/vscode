@@ -113,6 +113,22 @@ function pluginResource(path = 'plugins/demo'): ICustomizationMarketplaceResourc
 	});
 }
 
+function configuredPluginResource(plugin: IMarketplacePlugin): ICustomizationMarketplaceResource {
+	return resource({
+		sourceId: CustomizationMarketplaceSources.PluginMarketplaces.id,
+		identifier: getPluginMarketplaceIdentifier(plugin),
+		displayName: plugin.name,
+		mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+		installation: {
+			kind: 'configuredPlugin',
+			name: plugin.name,
+			marketplace: plugin.marketplaceName,
+			marketplaceId: plugin.marketplaceReference.canonicalId,
+			marketplaceSource: plugin.marketplaceReference.rawValue,
+		},
+	});
+}
+
 function mcpResource(): ICustomizationMarketplaceResource {
 	return resource({
 		identifier: 'mcp-resource',
@@ -275,7 +291,10 @@ suite('CustomizationMarketplaceInstallService', () => {
 			override readonly onDidChangeMarketplaces = marketplaceChanges.event;
 			readCount = 0;
 			availablePlugins: IMarketplaceInstalledPlugin['plugin'][] = [];
+			strictMarketplacePolicy = false;
 			override async fetchMarketplacePlugins() { return this.availablePlugins; }
+			override getMarketplaceReferences() { return this.availablePlugins.map(plugin => plugin.marketplaceReference); }
+			override isStrictMarketplacePolicyActive() { return this.strictMarketplacePolicy; }
 			override get installedPlugins() {
 				this.readCount++;
 				return installedPlugins;
@@ -295,7 +314,13 @@ suite('CustomizationMarketplaceInstallService', () => {
 			readonly calls: { source: string; options: IInstallPluginFromSourceOptions | undefined }[] = [];
 			readonly directInstalls: IMarketplaceInstalledPlugin['plugin'][] = [];
 			readonly uninstalls: URI[] = [];
+			readonly trustChecks: IMarketplaceReference[] = [];
+			trustResult = true;
 			onDirectInstall: ((token: CancellationToken | undefined) => Promise<void>) | undefined;
+			override async ensureMarketplaceTrusted(reference: IMarketplaceReference): Promise<boolean> {
+				this.trustChecks.push(reference);
+				return this.trustResult;
+			}
 			override async installPlugin(plugin: IMarketplaceInstalledPlugin['plugin'], token?: CancellationToken) {
 				this.directInstalls.push(plugin);
 				await this.onDirectInstall?.(token);
@@ -1206,6 +1231,112 @@ suite('CustomizationMarketplaceInstallService', () => {
 		assert.deepStrictEqual({ calls, state: fixture.service.getInstallState(candidate).kind }, {
 			calls: ['install', 'repair', 'uninstall'],
 			state: 'available',
+		});
+	});
+
+	test('treats provider inventory absence as authoritative over Local plugin and MCP discovery', async () => {
+		const provider = new class implements ICustomizationMarketplaceInstallProvider {
+			readonly onDidChange = Event.None;
+			getInstallations() { return Promise.resolve([]); }
+			install(): Promise<void> { throw new Error('Unexpected install'); }
+			repair(): Promise<void> { throw new Error('Unexpected repair'); }
+			uninstall(): Promise<void> { throw new Error('Unexpected uninstall'); }
+		}();
+		const fixture = await createFixture({ enabled: true, installProvider: provider });
+		const localPlugin = installedPlugin({ kind: PluginSourceKind.GitHub, repo: 'owner/catalog', ref: 'release', path: 'plugins/demo' });
+		fixture.installedPlugins.set([localPlugin], undefined);
+		fixture.mcpService.local = [mcpServer('io.example/demo', McpServerInstallState.Installed)];
+		await timeout(0);
+
+		const plugin = pluginResource();
+		const mcp = mcpResource();
+		const states = [fixture.service.getInstallState(plugin).kind, fixture.service.getInstallState(mcp).kind];
+		await fixture.service.uninstall(plugin);
+		await fixture.service.uninstall(mcp);
+
+		assert.deepStrictEqual({
+			states,
+			associations: fixture.service.installations.get().installations.length,
+			localPlugins: fixture.installedPlugins.get().length,
+			localMcpServers: fixture.mcpService.local.length,
+			pluginUninstalls: fixture.pluginService.uninstalls,
+			mcpUninstalls: fixture.mcpService.uninstalls,
+		}, {
+			states: ['available', 'available'],
+			associations: 0,
+			localPlugins: 1,
+			localMcpServers: 1,
+			pluginUninstalls: [],
+			mcpUninstalls: [],
+		});
+	});
+
+	test('preserves independently owned gallery and connector state with an active provider', async () => {
+		const provider = new class implements ICustomizationMarketplaceInstallProvider {
+			readonly onDidChange = Event.None;
+			getInstallations() { return Promise.resolve([]); }
+			install(): Promise<void> { throw new Error('Unexpected install'); }
+			repair(): Promise<void> { throw new Error('Unexpected repair'); }
+			uninstall(): Promise<void> { throw new Error('Unexpected uninstall'); }
+		}();
+		const fixture = await createFixture({ enabled: true, installProvider: provider });
+		fixture.mcpService.local = [mcpServer('io.example/demo', McpServerInstallState.Installed, 'io.example/demo', fixture.mcpGalleryManifestService.customUrl)];
+		fixture.connectedConnectors.add('mail');
+		fixture.connectorChanges.fire();
+		await timeout(0);
+
+		const gallery = fixture.service.getInstallState(galleryMcpResource());
+		const connector = fixture.service.getInstallState(connectorResource());
+
+		assert.deepStrictEqual([gallery.kind, connector.kind], ['installed', 'installed']);
+	});
+
+	test('validates configured marketplace trust before invoking the SDK provider', async () => {
+		let providerInstalls = 0;
+		const provider = new class implements ICustomizationMarketplaceInstallProvider {
+			readonly onDidChange = Event.None;
+			getInstallations() { return Promise.resolve([]); }
+			async install(): Promise<void> { providerInstalls++; }
+			repair(): Promise<void> { throw new Error('Unexpected repair'); }
+			uninstall(): Promise<void> { throw new Error('Unexpected uninstall'); }
+		}();
+		const fixture = await createFixture({ enabled: true, installProvider: provider });
+		const plugin = { ...installedPlugin({ kind: PluginSourceKind.RelativePath, path: 'plugins/demo' }).plugin, marketplaceName: 'owner-catalog' };
+		fixture.marketplaceService.availablePlugins = [plugin];
+
+		await fixture.service.install(configuredPluginResource(plugin));
+
+		assert.deepStrictEqual({
+			providerInstalls,
+			trustChecks: fixture.pluginService.trustChecks.map(reference => reference.canonicalId),
+		}, {
+			providerInstalls: 1,
+			trustChecks: [plugin.marketplaceReference.canonicalId],
+		});
+	});
+
+	test('blocks stale configured marketplaces under strict policy before invoking the SDK provider', async () => {
+		let providerInstalls = 0;
+		const provider = new class implements ICustomizationMarketplaceInstallProvider {
+			readonly onDidChange = Event.None;
+			getInstallations() { return Promise.resolve([]); }
+			async install(): Promise<void> { providerInstalls++; }
+			repair(): Promise<void> { throw new Error('Unexpected repair'); }
+			uninstall(): Promise<void> { throw new Error('Unexpected uninstall'); }
+		}();
+		const fixture = await createFixture({ enabled: true, installProvider: provider });
+		const plugin = { ...installedPlugin({ kind: PluginSourceKind.RelativePath, path: 'plugins/demo' }).plugin, marketplaceName: 'owner-catalog' };
+		fixture.marketplaceService.strictMarketplacePolicy = true;
+		fixture.pluginService.trustResult = false;
+
+		await assert.rejects(fixture.service.install(configuredPluginResource(plugin)), isCancellationError);
+
+		assert.deepStrictEqual({
+			providerInstalls,
+			trustChecks: fixture.pluginService.trustChecks.map(reference => reference.canonicalId),
+		}, {
+			providerInstalls: 0,
+			trustChecks: [plugin.marketplaceReference.canonicalId],
 		});
 	});
 

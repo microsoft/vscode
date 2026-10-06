@@ -183,6 +183,9 @@ export class CopilotCustomizationInstallations extends Disposable {
 				throw this.resultError(result, localize('copilot.customizationInstallation.skillPlanFailed', "The SDK could not prepare this skill installation."));
 			}
 			const plan = result.outcome.plan;
+			if (request.version !== undefined && plan.review.catalogue.version !== request.version) {
+				throw new Error(localize('copilot.customizationInstallation.catalogVersionChanged', "The SDK catalog version changed after discovery. Refresh Discover and try again."));
+			}
 			const review = this.toSkillReview(generateUuid(), 'install', plan.review);
 			this.addOperation(new PendingCustomizationInstallation(
 				review.operationId,

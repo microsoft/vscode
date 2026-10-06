@@ -51,7 +51,7 @@ export class PluginInstallService implements IPluginInstallService {
 
 	async installPlugin(plugin: IMarketplacePlugin, token: CancellationToken = CancellationToken.None): Promise<void> {
 		this.throwIfCancelled(token);
-		if (!await this._ensureMarketplaceTrusted(plugin, token)) {
+		if (!await this.ensureMarketplaceTrusted(plugin.marketplaceReference, token)) {
 			throw new CancellationError();
 		}
 		this.throwIfCancelled(token);
@@ -141,7 +141,7 @@ export class PluginInstallService implements IPluginInstallService {
 			marketplaceType: MarketplaceType.OpenPlugin,
 		};
 
-		if (!await this._ensureMarketplaceTrusted(tempPlugin)) {
+		if (!await this.ensureMarketplaceTrusted(tempPlugin.marketplaceReference)) {
 			return { success: false };
 		}
 
@@ -289,7 +289,7 @@ export class PluginInstallService implements IPluginInstallService {
 				marketplaceReference: reference,
 				marketplaceType: MarketplaceType.OpenPlugin,
 			};
-			if (!await this._ensureMarketplaceTrusted(tempPlugin)) {
+			if (!await this.ensureMarketplaceTrusted(tempPlugin.marketplaceReference)) {
 				return { success: false };
 			}
 			return this._installDiscoveredPlugins(reference, discoveredPlugins, options);
@@ -664,8 +664,8 @@ export class PluginInstallService implements IPluginInstallService {
 
 	// --- Trust gate -------------------------------------------------------------
 
-	private async _ensureMarketplaceTrusted(plugin: IMarketplacePlugin, token: CancellationToken = CancellationToken.None): Promise<boolean> {
-		if (this._pluginMarketplaceService.isMarketplaceTrusted(plugin.marketplaceReference)) {
+	async ensureMarketplaceTrusted(reference: IMarketplaceReference, token: CancellationToken = CancellationToken.None): Promise<boolean> {
+		if (this._pluginMarketplaceService.isMarketplaceTrusted(reference)) {
 			return true;
 		}
 
@@ -676,7 +676,7 @@ export class PluginInstallService implements IPluginInstallService {
 		if (this._pluginMarketplaceService.isStrictMarketplacePolicyActive()) {
 			this._notificationService.notify({
 				severity: Severity.Warning,
-				message: localize('strictMarketplaceBlockedInstall', "Plugins from '{0}' are blocked by your organization's policy.", plugin.marketplaceReference.displayLabel),
+				message: localize('strictMarketplaceBlockedInstall', "Plugins from '{0}' are blocked by your organization's policy.", reference.displayLabel),
 				actions: {
 					primary: [new Action('chat.plugins.viewMarketplacePolicy', localize('viewPolicySettings', "View Policy Settings"), undefined, true, () => {
 						return this._commandService.executeCommand('workbench.action.openSettings', ChatConfiguration.StrictMarketplaces);
@@ -688,8 +688,8 @@ export class PluginInstallService implements IPluginInstallService {
 
 		const { confirmed } = await this._dialogService.confirm({
 			type: 'question',
-			message: localize('trustMarketplace', "Trust Plugins from '{0}'?", plugin.marketplaceReference.displayLabel),
-			detail: localize('trustMarketplaceDetail', "Plugins can run code on your machine. Only install plugins from sources you trust.\n\nSource: {0}", plugin.marketplaceReference.rawValue),
+			message: localize('trustMarketplace', "Trust Plugins from '{0}'?", reference.displayLabel),
+			detail: localize('trustMarketplaceDetail', "Plugins can run code on your machine. Only install plugins from sources you trust.\n\nSource: {0}", reference.rawValue),
 			primaryButton: localize({ key: 'trustAndInstall', comment: ['&& denotes a mnemonic'] }, "&&Trust"),
 			custom: {
 				icon: Codicon.shield,
@@ -701,7 +701,7 @@ export class PluginInstallService implements IPluginInstallService {
 			return false;
 		}
 
-		this._pluginMarketplaceService.trustMarketplace(plugin.marketplaceReference);
+		this._pluginMarketplaceService.trustMarketplace(reference);
 		return true;
 	}
 

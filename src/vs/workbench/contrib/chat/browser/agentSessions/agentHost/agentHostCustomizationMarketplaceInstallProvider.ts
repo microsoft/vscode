@@ -8,6 +8,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../../../base/common/map.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { IAgentCustomizationInstallation, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview } from '../../../../../../platform/agentHost/common/agent.js';
@@ -16,12 +17,16 @@ import { IAgentHostService } from '../../../../../../platform/agentHost/common/a
 import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceResource } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IRecordedCustomizationMarketplaceResource, ICustomizationMarketplaceInstallProvider } from '../../../common/customizationMarketplaceInstallService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IAgentHostCustomizationService } from './agentHostCustomizationService.js';
 
+const maxCachedReceiptSessions = 50;
+
 export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable implements ICustomizationMarketplaceInstallProvider {
 	private readonly _onDidChange = this._register(new Emitter<void>());
+	private readonly receiptInstallations = new ResourceMap<readonly IRecordedCustomizationMarketplaceResource[]>();
 	readonly onDidChange: Event<void>;
 
 	constructor(
@@ -31,6 +36,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		@IAgentHostCustomizationService private readonly agentHostCustomizationService: IAgentHostCustomizationService,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@IDialogService private readonly dialogService: IDialogService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 		this.onDidChange = Event.any(
@@ -47,7 +53,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		if (installation?.kind === 'plugin') {
 			return localize('agentHost.customizationInstall.directPluginUnavailable', "The SDK cannot yet install a catalog plugin at its exact pinned revision.");
 		}
-		if (installation?.kind === 'configuredPlugin' && (!installation.name || !installation.marketplace)) {
+		if (installation?.kind === 'configuredPlugin' && (!installation.name || !installation.marketplace || !installation.marketplaceId || !installation.marketplaceSource)) {
 			return localize('agentHost.customizationInstall.pluginIdentityUnavailable', "The SDK plugin installation identity is unavailable.");
 		}
 		if ((installation?.kind === 'skill' || installation?.kind === 'mcp') && !resource.externalUrl && !resource.url) {
@@ -58,14 +64,35 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 
 	async getInstallations(sessionResource: URI, token: CancellationToken): Promise<readonly IRecordedCustomizationMarketplaceResource[]> {
 		this.throwIfCancelled(token);
+		const pluginInstallations = this.getPluginInstallations();
 		if (!this.agentHostService.listCustomizationInstallations) {
-			return this.getPluginInstallations();
+			return pluginInstallations;
 		}
-		const installations = await this.agentHostService.listCustomizationInstallations(this.providerId, this.getBackendSession(sessionResource));
+		let backendSession: URI;
+		try {
+			backendSession = this.getBackendSession(sessionResource);
+		} catch (error) {
+			this.throwIfCancelled(token);
+			this.logService.error('[AgentHostCustomizationMarketplace] Unable to resolve the session for SDK installation receipts', error);
+			return pluginInstallations;
+		}
+		let installations: readonly IAgentCustomizationInstallation[];
+		try {
+			installations = await this.agentHostService.listCustomizationInstallations(this.providerId, backendSession);
+		} catch (error) {
+			this.throwIfCancelled(token);
+			this.logService.error('[AgentHostCustomizationMarketplace] Unable to load session-bound SDK installation receipts', error);
+			return [...(this.receiptInstallations.get(backendSession) ?? []), ...pluginInstallations];
+		}
 		this.throwIfCancelled(token);
+		const receiptInstallations = installations.map(installation => this.toRecordedInstallation(sessionResource, installation));
+		this.receiptInstallations.set(backendSession, receiptInstallations);
+		while (this.receiptInstallations.size > maxCachedReceiptSessions) {
+			this.receiptInstallations.delete(this.receiptInstallations.keys().next().value!);
+		}
 		return [
-			...installations.map(installation => this.toRecordedInstallation(sessionResource, installation)),
-			...this.getPluginInstallations(),
+			...receiptInstallations,
+			...pluginInstallations,
 		];
 	}
 
@@ -73,7 +100,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		this.throwIfCancelled(token);
 		const installation = resource.installation;
 		if (installation?.kind === 'configuredPlugin') {
-			if (!installation.name || !installation.marketplace) {
+			if (!installation.name || !installation.marketplace || !installation.marketplaceId || !installation.marketplaceSource) {
 				throw new Error(localize('agentHost.customizationInstall.pluginIdentityUnavailable', "The SDK plugin installation identity is unavailable."));
 			}
 			if (!this.agentHostService.installPlugin) {

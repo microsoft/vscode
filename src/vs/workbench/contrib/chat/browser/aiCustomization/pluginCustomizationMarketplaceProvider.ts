@@ -126,7 +126,13 @@ function toMarketplaceEntry(plugin: IMarketplacePlugin, registry: 'custom' | 'de
 		...(plugin.readmeUri ? { readmeUri: plugin.readmeUri } : {}),
 		score: search ? 0 : undefined,
 		priority: registry === 'custom' ? 1 : 0,
-		installation: { kind: 'configuredPlugin', name: plugin.name, marketplace: plugin.marketplace },
+		installation: {
+			kind: 'configuredPlugin',
+			name: plugin.name,
+			marketplace: plugin.marketplaceName,
+			marketplaceId: plugin.marketplaceReference.canonicalId,
+			marketplaceSource: plugin.marketplaceReference.rawValue,
+		},
 	};
 }
 

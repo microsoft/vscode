@@ -161,6 +161,15 @@ suite('CopilotCustomizationInstallations', () => {
 		serviceRef.value = service;
 
 		const inventory = await service.list(URI.parse('agent-host-copilotcli:///session'));
+		const versionMismatch = await service.prepare(URI.parse('agent-host-copilotcli:///session'), {
+			mediaType: 'application/ai-skill',
+			identifier: catalogue.resourceId,
+			displayName: catalogue.displayName,
+			description: catalogue.description,
+			version: '2.0.0',
+			itemUrl: catalogue.itemUrl,
+			installation: { kind: 'skill' },
+		}).then(() => undefined, error => error instanceof Error ? error.message : String(error));
 		const review = await service.prepare(URI.parse('agent-host-copilotcli:///session'), {
 			mediaType: 'application/ai-skill',
 			identifier: catalogue.resourceId,
@@ -183,6 +192,7 @@ suite('CopilotCustomizationInstallations', () => {
 		assert.deepStrictEqual({
 			inventory,
 			review,
+			versionMismatch,
 			prematureDecision,
 			decisions,
 		}, {
@@ -206,6 +216,7 @@ suite('CopilotCustomizationInstallations', () => {
 				fileCount: 1,
 				totalBytes: 12,
 			},
+			versionMismatch: 'The SDK catalog version changed after discovery. Refresh Discover and try again.',
 			prematureDecision: 'cancel',
 			decisions: ['confirm'],
 		});
