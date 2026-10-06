@@ -10298,6 +10298,61 @@ suite('CopilotAgentSession', () => {
 		});
 
 		for (const platform of ['linux', 'darwin', 'win32'] as const) {
+			test(`per-request sandbox: skips extra read grants under managed readonly paths on ${platform}`, async () => {
+				const sandboxPolicy: { enabled: boolean; readonlyPaths?: string[] } = { enabled: true };
+				const { session, mockSession } = await createAgentSession(disposables, {
+					platform,
+					sandboxPolicy,
+					rootValues: {
+						[AgentHostSandboxConfigKey.Sandbox]: {
+							[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On,
+							[AgentHostSandboxKey.UserConfiguredPaths]: { readonlyPaths: ['local-reference'] },
+						},
+					},
+				});
+				const paths = [];
+				for (const [index, managed] of [undefined, ['managed-reference'], [], undefined].entries()) {
+					sandboxPolicy.readonlyPaths = managed;
+					await session.send('hello', undefined, `turn-${index}`);
+					const applied = mockSession.sandboxConfigUpdates.at(-1) as SandboxConfig;
+					paths.push(applied.userPolicy?.filesystem?.readonlyPaths);
+				}
+				const attachmentsPath = platform === 'win32' ? TEST_SESSION_ATTACHMENTS_DIR.replace(/\//g, '\\') : TEST_SESSION_ATTACHMENTS_DIR;
+				assert.deepStrictEqual(paths, [
+					['local-reference', attachmentsPath],
+					['managed-reference'],
+					undefined,
+					['local-reference', attachmentsPath],
+				]);
+			});
+
+			test(`per-request sandbox: local outbound denial wins over managed permission on ${platform}`, async () => {
+				const { session, mockSession } = await createAgentSession(disposables, {
+					platform,
+					sandboxPolicy: { enabled: true, allowOutbound: true },
+					rootValues: {
+						[AgentHostSandboxConfigKey.Sandbox]: {
+							[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On,
+							[AgentHostSandboxKey.AllowNetwork]: false,
+						},
+					},
+				});
+
+				await session.send('hello', undefined, 'turn-1');
+
+				const attachmentsPath = platform === 'win32' ? TEST_SESSION_ATTACHMENTS_DIR.replace(/\//g, '\\') : TEST_SESSION_ATTACHMENTS_DIR;
+				assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), {
+					enabled: true,
+					addCurrentWorkingDirectory: true,
+					allowBypass: false,
+					auth: { git: true, gh: true },
+					userPolicy: {
+						filesystem: { readonlyPaths: [attachmentsPath] },
+						network: { allowOutbound: false },
+					},
+				});
+			});
+
 			test(`per-request sandbox: sends managed outbound denial and keeps local bypass false on ${platform}`, async () => {
 				const sandboxPolicy = { enabled: true, allowBypass: true, allowOutbound: false };
 				const { session, mockSession } = await createAgentSession(disposables, {
@@ -10326,13 +10381,14 @@ suite('CopilotAgentSession', () => {
 				[AgentHostSandboxKey.SandboxMcpServers, true],
 				[AgentHostSandboxKey.SandboxLspServers, true],
 				[AgentHostSandboxKey.AllowDevToolAccess, false],
+				[AgentHostSandboxKey.AddCurrentWorkingDirectory, false],
 				[AgentHostSandboxKey.AllowLocalNetwork, false],
 				[AgentHostSandboxKey.AuthenticateGit, false],
 				[AgentHostSandboxKey.AuthenticateGh, false],
 			] as const) {
 				test(`per-request sandbox: enforces ${key} and restores local choices on ${platform}`, async () => {
 					for (const local of [false, true]) {
-						const sandboxPolicy: { enabled: boolean; sandboxMcpServers?: boolean; sandboxLspServers?: boolean; allowDevToolAccess?: boolean; allowLocalNetwork?: boolean; authenticateGit?: boolean; authenticateGh?: boolean } = { enabled: true };
+						const sandboxPolicy: { enabled: boolean; sandboxMcpServers?: boolean; sandboxLspServers?: boolean; allowDevToolAccess?: boolean; addCurrentWorkingDirectory?: boolean; allowLocalNetwork?: boolean; authenticateGit?: boolean; authenticateGh?: boolean } = { enabled: true };
 						const { session, mockSession } = await createAgentSession(disposables, {
 							platform,
 							sandboxPolicy,
