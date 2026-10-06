@@ -10336,6 +10336,163 @@ suite('AgentHostChatContribution', () => {
 
 	suite('tool invocation rendering', () => {
 
+		suite('customization listener lifecycle', () => {
+
+			function trackCustomizationListeners() {
+				let listenerCount = 0;
+				const changed = disposables.add(new Emitter<void>({
+					onDidAddListener: () => listenerCount++,
+					onWillRemoveListener: () => listenerCount--,
+				}));
+				const service = new class extends NullAgentHostCustomizationService {
+					servers: ReturnType<IAgentHostCustomizationService['getMcpServers']> = [];
+					override readonly onDidChangeCustomizations = changed.event;
+					override getMcpServers() { return this.servers; }
+				};
+				return { service, changed, getListenerCount: () => listenerCount };
+			}
+
+			test('does not retain customization listeners for ordinary tools within a live turn', async () => {
+				const { service, getListenerCount } = trackCustomizationListeners();
+				const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { customizationServiceOverride: service });
+				const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+				const baseline = getListenerCount();
+				const listenerCounts: number[] = [];
+
+				for (let i = 0; i < 20; i++) {
+					const toolCallId = `tool-${i}`;
+					fire({ type: ActionType.ChatToolCallStart, turnId, toolCallId, toolName: 'view', displayName: 'Read File' });
+					listenerCounts.push(getListenerCount() - baseline);
+					fire({ type: ActionType.ChatToolCallReady, turnId, toolCallId, invocationMessage: 'Reading file', confirmed: ToolCallConfirmationReason.NotNeeded });
+					listenerCounts.push(getListenerCount() - baseline);
+					fire({ type: ActionType.ChatToolCallComplete, turnId, toolCallId, result: { success: true, pastTenseMessage: 'Read file' } });
+					listenerCounts.push(getListenerCount() - baseline);
+				}
+
+				const afterTools = getListenerCount() - baseline;
+				fire({ type: ActionType.ChatTurnComplete, turnId, duration: 1 });
+				await turnPromise;
+				const tools = collected.flat().filter(part => part.kind === 'toolInvocation');
+				assert.deepStrictEqual({
+					maxAdditionalListeners: Math.max(...listenerCounts),
+					afterTools,
+					afterTurn: getListenerCount() - baseline,
+					toolCount: tools.length,
+					allToolsCompleted: tools.every(tool => IChatToolInvocation.isComplete(tool)),
+				}, {
+					maxAdditionalListeners: 0,
+					afterTools: 0,
+					afterTurn: 0,
+					toolCount: 20,
+					allToolsCompleted: true,
+				});
+			});
+
+			test('refreshes connector names only while a tool is waiting for authentication', async () => {
+				const { service, changed, getListenerCount } = trackCustomizationListeners();
+				const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { customizationServiceOverride: service });
+				const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+				const baseline = getListenerCount();
+				const toolCallId = 'mcp-tool';
+				fire({ type: ActionType.ChatToolCallStart, turnId, toolCallId, toolName: 'search', displayName: 'Search', contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'mcp-1' } });
+				fire({ type: ActionType.ChatToolCallReady, turnId, toolCallId, invocationMessage: 'Searching', confirmed: ToolCallConfirmationReason.NotNeeded });
+				const invocation = collected.flat().find(part => part.kind === 'toolInvocation');
+				assert.ok(invocation);
+
+				const listenerCounts: number[] = [];
+				const serverNames: (string | undefined)[] = [];
+				const record = () => {
+					const state = invocation.state.get();
+					listenerCounts.push(getListenerCount() - baseline);
+					serverNames.push(state.type === IChatToolInvocation.StateKind.WaitingForAuthentication ? state.server.name : undefined);
+				};
+				const requireAuthentication = () => fire({
+					type: ActionType.ChatToolCallAuthRequired,
+					turnId,
+					toolCallId,
+					auth: { reason: McpAuthRequiredReason.Required, resource: { resource: 'https://mcp.example.com', resource_name: 'Example MCP', authorization_servers: [] } },
+				});
+				record();
+				requireAuthentication();
+				record();
+
+				service.servers = [{
+					id: '/mcp-1',
+					name: 'Example MCP',
+					displayName: 'Example',
+					enabled: true,
+					status: McpServerStatus.Ready,
+					state: { kind: McpServerStatus.Ready },
+					start: async () => { },
+					stop: async () => { },
+					setEnabled: () => { },
+				}];
+				changed.fire();
+				changed.fire();
+				record();
+
+				fire({ type: ActionType.ChatToolCallAuthResolved, turnId, toolCallId });
+				service.servers = [{ ...service.servers[0], displayName: 'Renamed' }];
+				changed.fire();
+				record();
+				requireAuthentication();
+				record();
+				fire({ type: ActionType.ChatToolCallComplete, turnId, toolCallId, result: { success: false, pastTenseMessage: 'Cancelled search' } });
+				record();
+				fire({ type: ActionType.ChatTurnComplete, turnId, duration: 1 });
+				await turnPromise;
+
+				assert.deepStrictEqual({
+					listenerCounts,
+					serverNames,
+					afterTurn: getListenerCount() - baseline,
+					completed: IChatToolInvocation.isComplete(invocation),
+				}, {
+					listenerCounts: [0, 1, 1, 0, 1, 0],
+					serverNames: [undefined, 'Example MCP', 'Example (Connector)', undefined, 'Renamed (Connector)', undefined],
+					afterTurn: 0,
+					completed: true,
+				});
+			});
+
+			for (const ending of ['turn cancellation', 'handler disposal'] as const) {
+				test(`${ending} releases a pending authentication listener`, async () => {
+					const { service, getListenerCount } = trackCustomizationListeners();
+					const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { customizationServiceOverride: service });
+					const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+					const baseline = getListenerCount();
+					const toolCallId = 'mcp-tool';
+					fire({ type: ActionType.ChatToolCallStart, turnId, toolCallId, toolName: 'search', displayName: 'Search', contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'mcp-1' } });
+					fire({ type: ActionType.ChatToolCallReady, turnId, toolCallId, invocationMessage: 'Searching', confirmed: ToolCallConfirmationReason.NotNeeded });
+					fire({
+						type: ActionType.ChatToolCallAuthRequired,
+						turnId,
+						toolCallId,
+						auth: { reason: McpAuthRequiredReason.Required, resource: { resource: 'https://mcp.example.com', authorization_servers: [] } },
+					});
+					const waitingListeners = getListenerCount() - baseline;
+
+					if (ending === 'turn cancellation') {
+						fire({ type: ActionType.ChatTurnCancelled, turnId, duration: 1 });
+					} else {
+						sessionHandler.dispose();
+					}
+					await turnPromise;
+					const invocation = collected.flat().find(part => part.kind === 'toolInvocation');
+					assert.ok(invocation);
+					assert.deepStrictEqual({
+						waitingListeners,
+						remainingListeners: getListenerCount(),
+						completed: IChatToolInvocation.isComplete(invocation),
+					}, {
+						waitingListeners: 1,
+						remainingListeners: ending === 'turn cancellation' ? baseline : 0,
+						completed: true,
+					});
+				});
+			}
+		});
+
 		test('terminal metadata is observable before terminal revival completes', async () => {
 			const terminalRevival = new DeferredPromise<ITerminalInstance>();
 			let revivalStarted = false;

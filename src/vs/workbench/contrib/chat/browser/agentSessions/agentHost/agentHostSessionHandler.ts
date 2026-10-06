@@ -4429,6 +4429,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						},
 					}, opts.chatURI);
 				});
+				reader.store.add(this._customizationService.onDidChangeCustomizations(() => this._refreshToolAuthenticationServerName(invocation, opts.sessionResource)));
 			} else if (status === ToolCallStatus.Running || status === ToolCallStatus.PendingResultConfirmation) {
 				if (priorStatus === ToolCallStatus.AuthRequired) {
 					invocation.setAuthenticationResolved();
@@ -4467,8 +4468,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				invocation.didExecuteTool(undefined);
 			}
 		}));
-		this._refreshToolAuthenticationServerName(invocation, opts.sessionResource);
-		store.add(this._customizationService.onDidChangeCustomizations(() => this._refreshToolAuthenticationServerName(invocation, opts.sessionResource)));
 	}
 
 	private _refreshToolAuthenticationServerName(invocation: ChatToolInvocation, sessionResource: URI): void {
