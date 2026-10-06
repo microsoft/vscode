@@ -3876,6 +3876,35 @@ suite('stateToProgressAdapter', () => {
 			}
 		});
 
+		test('keeps a managed plugin preparation failure visible and its host text inert', () => {
+			const text = 'Some plugins required by your organization admin could not be prepared. Continuing with the current setup. <command:evil> [details](command:evil) <b>security-guard</b>';
+			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState([{
+				kind: ResponsePartKind.SystemNotification,
+				content: text,
+				_meta: toAgentSystemNotificationMeta({
+					kind: AgentSystemNotificationKind.ManagedPluginPreparationFailure,
+					severity: AgentSystemNotificationSeverity.Warning,
+				}),
+			}]), undefined);
+			const warning = result[0];
+			assert.ok(warning.kind === 'warning');
+
+			const rendered = renderMarkdown(warning.content);
+			try {
+				assert.deepStrictEqual({
+					keepVisibleWhenCollapsed: warning.keepVisibleWhenCollapsed,
+					links: rendered.element.querySelectorAll('a').length,
+					text: rendered.element.textContent,
+				}, {
+					keepVisibleWhenCollapsed: true,
+					links: 0,
+					text,
+				});
+			} finally {
+				rendered.dispose();
+			}
+		});
+
 		test('styles workspace transitions as accessible transcript boundaries', () => {
 			const notice = (workspaceKind: AgentSystemNotificationWorkspaceKind) => activeTurnToProgress(URI.file('/'), createActiveTurnState([{
 				kind: ResponsePartKind.SystemNotification,
