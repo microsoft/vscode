@@ -34,7 +34,7 @@ function host(id: string, name = 'Machine', status = 'online'): IMissionControlE
 suite('Mission Control retained inventory', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function fixture(storage = store.add(new InMemoryStorageService()), initialAccount: string | undefined = firstAccount, built = false, extensionDevelopment = false) {
+	function fixture(storage = store.add(new InMemoryStorageService()), initialAccount: string | undefined = firstAccount, built = true, extensionDevelopment = false) {
 		const instantiation = store.add(new TestInstantiationService());
 		const accountChanged = store.add(new Emitter<string | undefined>());
 		const authenticationChanged = store.add(new Emitter<{ providerId: string; label: string; event: AuthenticationSessionsChangeEvent }>());
@@ -298,13 +298,19 @@ suite('Mission Control retained inventory', () => {
 		}));
 	}
 
-	test('built extension-development windows use the same development gate as the command and menu', async () => {
-		const { service, calls } = fixture(undefined, firstAccount, true, true);
-		await service.refresh(CancellationToken.None);
-		await service.connect('remote', CancellationToken.None);
-		assert.deepStrictEqual({ enabled: service.enabled, lists: calls.lists, connections: calls.connects.length },
-			{ enabled: true, lists: 1, connections: 1 });
-	});
+	for (const { name, built, extensionDevelopment } of [
+		{ name: 'source', built: false, extensionDevelopment: false },
+		{ name: 'extension development', built: true, extensionDevelopment: true },
+		{ name: 'normal built product', built: true, extensionDevelopment: false },
+	]) {
+		test(`discovers and connects hosts in ${name} windows`, async () => {
+			const { service, calls } = fixture(undefined, firstAccount, built, extensionDevelopment);
+			await service.refresh(CancellationToken.None);
+			await service.connect('remote', CancellationToken.None);
+			assert.deepStrictEqual({ enabled: service.enabled, lists: calls.lists, connections: calls.connects.length },
+				{ enabled: true, lists: 1, connections: 1 });
+		});
+	}
 
 	test('connect, disconnect and reconnect retain inventory and revalidate availability', async () => {
 		const { service, calls } = fixture();
@@ -423,13 +429,15 @@ suite('Mission Control retained inventory', () => {
 		});
 	}
 
-	for (const gate of ['built', 'remote-disabled', 'AI-disabled'] as const) {
+	for (const gate of ['remote-disabled', 'AI-disabled', 'AI-master-setting'] as const) {
 		test(`${gate} never discovers or connects hosts`, async () => {
-			const { service, calls, configuration, disableAI } = fixture(undefined, firstAccount, gate === 'built');
+			const { service, calls, configuration, disableAI } = fixture();
 			if (gate === 'remote-disabled') {
 				await configuration.setUserConfiguration(RemoteAgentHostsEnabledSettingId, false);
 			} else if (gate === 'AI-disabled') {
 				disableAI();
+			} else {
+				await configuration.setUserConfiguration('chat.disableAIFeatures', true);
 			}
 			await service.refresh(CancellationToken.None);
 			await assert.rejects(service.connect('remote', CancellationToken.None), CancellationError);

@@ -147,7 +147,7 @@ suite('Mission Control environment picker', () => {
 
 	test('does not expose discovery when AI features are disabled', async () => {
 		const { calls, quickPick, run } = fixture([], false);
-		await assert.rejects(async () => run(), /require remote AI features/);
+		await assert.rejects(async () => run(), /require remote agent hosts and AI features to be enabled/);
 		assert.deepStrictEqual({ requests: calls.tokens.length, shown: quickPick.shown.isSettled }, { requests: 0, shown: false });
 	});
 

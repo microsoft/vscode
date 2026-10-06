@@ -34,7 +34,6 @@ import { SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_G
 import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
-import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING } from './responseSelectionSideChatController.js';
@@ -55,8 +54,7 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 
 		const content: string[] = [];
 		content.push(localize('sessionsChat.overview', "You are in the Agents window. The Agents window is a dedicated workspace for working with AI agents. It provides a chat interface, a changes view for reviewing agent-generated changes, a file explorer, and customization options."));
-		const environment = accessor.get(IEnvironmentService);
-		if ((!environment.isBuilt || environment.isExtensionDevelopment) && !accessor.get(IChatEntitlementService).sentiment.hidden
+		if (!accessor.get(IChatEntitlementService).sentiment.hidden
 			&& configurationService.getValue<boolean>('chat.disableAIFeatures') !== true
 			&& configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
 			content.push(localize('sessionsChat.missionControlHosts', "In Manage Remote Agent Hosts or the workspace picker, choose Mission Control to discover your user-local hosts without starting compute or sessions. Use the arrow keys to choose a host and Enter to connect. Tab reaches Refresh Hosts and each row's Hide in This Profile or Restore Host button. Hidden hosts remain in the Hidden in This Profile section; Enter restores one. A previously open chat may reconnect on restoration. Escape returns to the previous control. Host options offer Reconnect, Disconnect, Rename, and Hide in This Profile. Rename changes only this profile's label, not the remote machine's name. Offline hosts require their owning application to be running; relay connection state is separate from session activity."));
