@@ -136,6 +136,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		const recordedResources = new Map<string, ICustomizationMarketplaceResource>();
 		const repairs: string[] = [];
 		const cancellations: string[] = [];
+		const uninstalls: string[] = [];
 		let onRepair: ((resource: ICustomizationMarketplaceResource) => Promise<void>) | undefined;
 		const getInstallations = () => createCustomizationMarketplaceInstallationSnapshot([...recordedResources.values()].flatMap(resource => {
 			const state = installStates.get(getCustomizationMarketplaceResourceKey(resource));
@@ -171,6 +172,12 @@ suite('AICustomizationDiscoveryPage', () => {
 				const result = new DeferredPromise<void>();
 				installs.push({ identifier: resource.identifier, result });
 				await result.p;
+			}
+			override async uninstall(resource: ICustomizationMarketplaceResource): Promise<void> {
+				const key = getCustomizationMarketplaceResourceKey(resource);
+				uninstalls.push(resource.identifier);
+				installStates.set(key, { kind: 'available' });
+				installChanges.fire();
 			}
 			override cancelConnectorOperation(resource: ICustomizationMarketplaceResource): void {
 				cancellations.push(resource.identifier);
@@ -224,7 +231,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			return sourceMenu.getActions();
 		}
 		return {
-			page, container, configuration, requests, marketplaceChanges, entitlement, sentimentChanged, recoveryActions, notifications, getSourceActions, listService, creationEvents, opened, openedDetails, openedInstalled, deletions, installs, repairs, cancellations,
+			page, container, configuration, requests, marketplaceChanges, entitlement, sentimentChanged, recoveryActions, notifications, getSourceActions, listService, creationEvents, opened, openedDetails, openedInstalled, deletions, installs, repairs, cancellations, uninstalls,
 			setInstallState: (resource: ICustomizationMarketplaceResource, state: CustomizationMarketplaceInstallState) => {
 				const key = getCustomizationMarketplaceResourceKey(resource);
 				installStates.set(key, state);
@@ -947,6 +954,44 @@ suite('AICustomizationDiscoveryPage', () => {
 				mcpServerId: undefined,
 				mcpConnectorName: undefined,
 			}],
+		});
+	});
+
+	test('installed browse cards can uninstall without opening details', async () => {
+		const candidate = resource('installed-mcp', {
+			displayName: 'Azure AI Foundry',
+			mediaType: CustomizationMarketplaceMediaType.McpServer,
+		});
+		const fixture = createPage(['agentFinder']);
+		fixture.setInstallState(candidate, { kind: 'installed', target: { kind: 'mcp', id: 'azure-ai-foundry' } });
+		fixture.notifyInstallChange();
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [candidate] });
+		await timeout(0);
+		const action = fixture.container.querySelector<HTMLButtonElement>('.customization-discovery-card-actions .monaco-button');
+		assert.ok(action);
+		const before = {
+			label: action.textContent,
+			disabled: action.getAttribute('aria-disabled'),
+			ariaLabel: action.getAttribute('aria-label'),
+		};
+		action.click();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			before,
+			uninstalls: fixture.uninstalls,
+			openedDetails: fixture.openedDetails,
+			actionAfter: fixture.container.querySelector<HTMLButtonElement>('.customization-discovery-card-actions .monaco-button')?.textContent,
+		}, {
+			before: {
+				label: 'Uninstall',
+				disabled: 'false',
+				ariaLabel: 'Uninstall Azure AI Foundry',
+			},
+			uninstalls: ['installed-mcp'],
+			openedDetails: [],
+			actionAfter: 'Install',
 		});
 	});
 
