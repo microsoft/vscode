@@ -196,45 +196,12 @@ suite('TerminalSandboxService - network domains', () => {
 		}
 
 		buildWindowsMxcSandboxPayload(commandLine: string, policy: IWindowsMxcSandboxPolicy, workingDirectory?: string, containerName: string = 'vscode-terminal-sandbox', containment: IWindowsMxcPolicyContainment = 'process'): Promise<IWindowsMxcConfig> {
-			const clearPolicy = policy.filesystem?.clearPolicyOnExit ?? true;
 			return Promise.resolve({
-				version: policy.version,
-				containerId: containerName,
-				containment,
-				lifecycle: {
-					destroyOnExit: true,
-					preservePolicy: !clearPolicy,
-				},
-				process: {
-					commandLine,
-					cwd: workingDirectory,
-					timeout: policy.timeoutMs ?? 0,
-				},
-				processContainer: {
-					name: containerName,
-					leastPrivilege: false,
-					capabilities: policy.network?.allowOutbound ? ['internetClient'] : [],
-					ui: {
-						isolation: 'container',
-						desktopSystemControl: false,
-						systemSettings: 'none',
-						ime: false,
-					},
-				},
-				filesystem: {
-					readwritePaths: [...(policy.filesystem?.readwritePaths ?? [])],
-					readonlyPaths: [...(policy.filesystem?.readonlyPaths ?? [])],
-					deniedPaths: [...(policy.filesystem?.deniedPaths ?? [])],
-				},
-				network: {
-					defaultPolicy: policy.network?.allowOutbound ? 'allow' : 'block',
-					...(policy.network ? { enforcementMode: 'capabilities' } : {}),
-				},
-				ui: {
-					disable: !(policy.ui?.allowWindows ?? false),
-					clipboard: policy.ui?.clipboard ?? 'none',
-					injection: policy.ui?.allowInputInjection ?? false,
-				},
+				...policy,
+				command: commandLine,
+				workingDirectory,
+				containerName,
+				containment: { type: containment },
 			});
 		}
 	}
@@ -1527,7 +1494,7 @@ suite('TerminalSandboxService - network domains', () => {
 
 	test('should prefix wrapped command with ELECTRON_RUN_AS_NODE=1 when no remote env is available', async function () {
 		if (isWindows) {
-			// Local Windows uses MXC, which launches wxc-exec.exe directly instead of SRT through Electron-as-Node.
+			// Windows uses PowerShell syntax to launch the MXC SDK runner.
 			this.skip();
 		}
 		remoteAgentService.remoteEnvironment = null;
@@ -1573,20 +1540,22 @@ suite('TerminalSandboxService - network domains', () => {
 		const config = JSON.parse(configContent);
 
 		strictEqual(wrapped.isSandboxWrapped, true);
-		ok(wrapped.command.includes('node_modules\\@microsoft\\mxc-sdk\\bin\\arm64\\wxc-exec.exe'), `Wrapped command should use the MXC Windows executable. Actual: ${wrapped.command}`);
+		ok(wrapped.command.includes('out\\vs\\platform\\sandbox\\node\\mxcMain.js'), `Wrapped command should use the MXC SDK runner. Actual: ${wrapped.command}`);
 		ok(wrapped.command.includes(configPath), `Wrapped command should pass the MXC config path. Actual: ${wrapped.command}`);
-		strictEqual(config.version, '0.6.0-alpha');
-		strictEqual(config.containment, 'process');
-		strictEqual(config.process.commandLine, '"c:\\program files\\powershell\\7\\pwsh.exe" -NoProfile -Command "echo test"');
-		strictEqual(config.process.cwd, 'c:\\workspace-one');
-		ok(config.process.env.includes('SystemRoot=c:\\windows'), 'SystemRoot should be injected into the MXC process env');
-		ok(config.process.env.includes('PATH=c:\\tools\\node;c:\\windows\\system32'), 'PATH should be injected into the MXC process env');
-		ok(config.process.env.includes('ComSpec=c:\\windows\\system32\\cmd.exe'), 'ComSpec should be injected into the MXC process env');
-		ok(config.process.env.includes('PATHEXT=.COM;.EXE;.BAT;.CMD;.PS1'), 'PATHEXT should be injected into the MXC process env');
-		ok(config.process.env.includes('PSModulePath=c:\\users\\test\\documents\\powershell\\modules;c:\\program files\\powershell\\modules'), 'PSModulePath should be injected into the MXC process env');
-		ok(config.process.env.includes('USERPROFILE=c:\\users\\test'), 'USERPROFILE should be injected into the MXC process env');
-		ok(config.process.env.includes('APPDATA=c:\\users\\test\\appdata\\roaming'), 'APPDATA should be injected into the MXC process env');
-		ok(config.process.env.includes('PSHOME=c:\\program files\\powershell\\7'), 'PSHOME should be injected into the MXC process env');
+		strictEqual(config.version, undefined);
+		deepStrictEqual(config.containment, { type: 'process' });
+		strictEqual(config.command, '"c:\\program files\\powershell\\7\\pwsh.exe" -NoProfile -Command "echo test"');
+		strictEqual(config.workingDirectory, 'c:\\workspace-one');
+		deepStrictEqual(config.environment, {
+			SystemRoot: 'c:\\windows',
+			PATH: 'c:\\tools\\node;c:\\windows\\system32',
+			ComSpec: 'c:\\windows\\system32\\cmd.exe',
+			PATHEXT: '.COM;.EXE;.BAT;.CMD;.PS1',
+			PSModulePath: 'c:\\users\\test\\documents\\powershell\\modules;c:\\program files\\powershell\\modules',
+			USERPROFILE: 'c:\\users\\test',
+			APPDATA: 'c:\\users\\test\\appdata\\roaming',
+			PSHOME: 'c:\\program files\\powershell\\7',
+		});
 		ok(config.filesystem.readwritePaths.includes('c:\\workspace-one'), 'Workspace folder should be writable in the MXC config');
 		ok(config.filesystem.readwritePaths.some((path: string) => path.includes('tmp_vscode_7')), 'Sandbox temp dir should be writable in the MXC config');
 		ok(config.filesystem.readonlyPaths.includes('c:\\tools\\node'), 'MXC available tools policy should add tool paths to readonly paths');
