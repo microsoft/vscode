@@ -175,14 +175,31 @@ suite('Cloud Sandbox install setup', () => {
 		const root = fixture(t);
 		const script = path.join(root, 'file-limit-inheritance.ts');
 		fs.writeFileSync(script, `
-			import { execFileSync } from 'node:child_process';
+			import { execFileSync, spawnSync } from 'node:child_process';
 			import { raiseCloudSandboxFileLimit } from ${JSON.stringify(new URL('../../npm/cloudSandbox.ts', import.meta.url).href)};
+			const hard = execFileSync('prlimit', ['--pid', String(process.pid), '--nofile', '--noheadings', '--raw', '--output', 'HARD'], { encoding: 'utf8' }).trim();
+			if (hard !== 'unlimited' && Number(hard) < 1048576) {
+				const probe = spawnSync('prlimit', ['--pid', String(process.pid), '--nofile=1048576:1048576'], {
+					encoding: 'utf8', env: { ...process.env, LC_ALL: 'C' },
+				});
+				if (probe.status === 1 && probe.stderr.includes('Operation not permitted')) {
+					console.error('The Linux host cannot raise its hard file limit of ' + hard + ' to 1048576.');
+					process.exit(77);
+				}
+				if (probe.status !== 0) {
+					throw probe.error ?? new Error(probe.stderr);
+				}
+			}
 			execFileSync('prlimit', ['--pid', String(process.pid), '--nofile=1024:']);
 			raiseCloudSandboxFileLimit(process.pid, { env: { ...process.env, GITHUB_ENVIRONMENT_ID: 'test-environment' } });
 			const inherited = execFileSync('/bin/sh', ['-c', 'ulimit -Sn'], { encoding: 'utf8' }).trim();
 			console.log(JSON.stringify({ inherited }));
 		`);
 		const result = spawnSync(process.execPath, [script], { encoding: 'utf8', timeout: 10_000 });
+		if (result.status === 77) {
+			t.skip(result.stderr.trim());
+			return;
+		}
 		assert.equal(result.status, 0, result.stdout + result.stderr);
 		assert.deepStrictEqual(JSON.parse(result.stdout.trim().split('\n').at(-1)!), { inherited: '1048576' });
 	});
