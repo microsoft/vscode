@@ -64,7 +64,7 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 		if (!this._enabled || !this._inventory.enabled) {
 			return [];
 		}
-		return this._inventory.hosts.get().filter(host => !host.hidden).map(host => ({
+		return this._inventory.hosts.get().map(host => ({
 			name: host.name,
 			connection: { type: RemoteAgentHostEntryType.CloudSandbox, environmentKind: 'user-local', environmentId: host.id, address: cloudSandboxAddress(host.id) },
 		}));
@@ -91,7 +91,6 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 				...options,
 				connectOnDemand: whileRegistered(options.connectOnDemand),
 				disconnectOnDemand: whileRegistered(options.disconnectOnDemand),
-				removeOnDemand: whileRegistered(options.removeOnDemand),
 				setDisplayName: name => {
 					if (labels.isDisposed) {
 						throw new CancellationError();
@@ -134,7 +133,7 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 		return {
 			connectOnDemand: () => forCurrentAccount(() => this._inventory.connect(id, CancellationToken.None)),
 			disconnectOnDemand: () => forCurrentAccount(() => this._inventory.disconnect(id)),
-			removeOnDemand: () => forCurrentAccount(() => this._inventory.hide(id)),
+			canRemove: false,
 			setDisplayName: name => {
 				checkAccount();
 				this._inventory.setDisplayName(id, name);
@@ -142,27 +141,23 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 			sessionCacheKey: `missionControl.userLocalSessions.v1.${encodeURIComponent(this._profileService.currentProfile.id)}.${encodeURIComponent(account)}.${id}`,
 			retainSessionsOnDisconnect: true,
 			readOnlyWhenDisconnected: true,
-			removeLabel: localize('missionControl.hideHost', "Hide in This Profile"),
 			disconnectLabel: localize('missionControl.disconnectHost', "Disconnect"),
 			hostDescription: derived(this, reader => {
 				const hosts = this._inventory.hosts.read(reader);
 				const host = hosts.find(host => host.id === id);
-				const availability = host?.status === 'online' ? localize('missionControl.available', "Last reported online")
-					: localize('missionControl.unavailable', "Offline or unavailable; start its owning application");
-				const duplicate = hosts.filter(candidate => (candidate.displayName ?? candidate.name) === (host?.displayName ?? host?.name)).length > 1;
-				return duplicate ? localize('missionControl.hostDescriptionDuplicate', "Mission Control · {0} · Host {1}", availability, id.slice(-8))
-					: localize('missionControl.hostDescription', "Mission Control · {0}", availability);
+				return host?.status === 'online' ? localize('missionControl.available', "Online")
+					: localize('missionControl.unavailable', "Offline");
 			}),
 			connectionLabels: {
-				unavailableTitle: localize('missionControl.unavailableTitle', "Mission Control Host Disconnected"),
-				unavailableDescription: localize('missionControl.unavailableDescription', "Start the host's owning application, then reconnect. This does not start or replace its compute."),
-				unavailable: localize('missionControl.unavailableBanner', "Mission Control relay disconnected."),
-				connectingTitle: localize('missionControl.connectingTitle', "Connecting to Mission Control Host"),
-				connecting: localize('missionControl.connectingBanner', "Connecting to the Mission Control relay..."),
-				reconnecting: localize('missionControl.reconnectingBanner', "Reconnecting to the Mission Control relay..."),
-				reconnectingIn: seconds => localize('missionControl.reconnectingIn', "Reconnecting to the Mission Control relay in {0}s...", seconds),
-				incompatibleTitle: localize('missionControl.incompatibleTitle', "Mission Control Host Incompatible"),
-				incompatible: localize('missionControl.incompatibleBanner', "The host's Agent Host Protocol version is incompatible."),
+				unavailableTitle: localize('missionControl.unavailableTitle', "Environment Disconnected"),
+				unavailableDescription: localize('missionControl.unavailableDescription', "Start the environment's owning application, then reconnect. This does not start or replace its compute."),
+				unavailable: localize('missionControl.unavailableBanner', "Environment disconnected."),
+				connectingTitle: localize('missionControl.connectingTitle', "Connecting to Environment"),
+				connecting: localize('missionControl.connectingBanner', "Connecting to the environment..."),
+				reconnecting: localize('missionControl.reconnectingBanner', "Reconnecting to the environment..."),
+				reconnectingIn: seconds => localize('missionControl.reconnectingIn', "Reconnecting to the environment in {0}s...", seconds),
+				incompatibleTitle: localize('missionControl.incompatibleTitle', "Environment Incompatible"),
+				incompatible: localize('missionControl.incompatibleBanner', "The environment's Agent Host Protocol version is incompatible."),
 			},
 		};
 	}
@@ -170,7 +165,7 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 
 registerWorkbenchContribution2(MissionControlAgentHostContribution.ID, MissionControlAgentHostContribution, WorkbenchPhase.AfterRestored);
 MenuRegistry.appendMenuItem(Menus.SessionWorkspaceManage, {
-	command: { id: ConnectMissionControlEnvironmentCommand, title: localize('connectMissionControlHost', "Mission Control"), icon: Codicon.remote },
+	command: { id: ConnectMissionControlEnvironmentCommand, title: localize('connectMissionControlHost', "Environments"), icon: Codicon.remote },
 	when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.not('config.chat.disableAIFeatures'), ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true)),
 	group: '1_add',
 	order: 5,

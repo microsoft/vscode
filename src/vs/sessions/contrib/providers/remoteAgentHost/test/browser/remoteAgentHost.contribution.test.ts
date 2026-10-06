@@ -604,7 +604,7 @@ suite('Remote agent host provider ownership', () => {
 		], [CloudSandboxApiService, CloudSandboxAgentHostService]);
 	});
 
-	test('native MC providers use visible account inventory rather than staged managed sandbox entries', () => {
+	test('native MC providers use endpoint inventory rather than staged managed sandbox entries and cannot be removed locally', () => {
 		const entries: IRemoteAgentHostEntry[] = [
 			{ name: 'Native', connection: { type: RemoteAgentHostEntryType.CloudSandbox, address: 'cloudsandbox:native', environmentId: 'native', environmentKind: 'user-local' } },
 			{ name: 'Sandbox', connection: { type: RemoteAgentHostEntryType.CloudSandbox, address: 'cloudsandbox:sandbox', environmentId: 'sandbox' } },
@@ -619,7 +619,6 @@ suite('Remote agent host provider ownership', () => {
 			override readonly accountKey = 'account';
 			override readonly hosts = observableValue(this, [
 				{ id: 'native', name: 'Native', kind: 'user-local', status: 'offline' },
-				{ id: 'hidden', name: 'Hidden', kind: 'user-local', status: 'online', hidden: true },
 			]);
 		}();
 		owner._profileService = new class extends mock<IUserDataProfileService>() {
@@ -630,10 +629,12 @@ suite('Remote agent host provider ownership', () => {
 		const options = owner._getProviderOptions(entries[0]);
 		assert.deepStrictEqual({
 			entries: owner._getProviderEntries(),
-			connectable: typeof options.connectOnDemand === 'function' && typeof options.disconnectOnDemand === 'function' && typeof options.removeOnDemand === 'function',
+			connectable: typeof options.connectOnDemand === 'function' && typeof options.disconnectOnDemand === 'function',
+			canRemove: options.canRemove,
+			remove: options.removeOnDemand,
 			retained: options.retainSessionsOnDisconnect,
 			readOnlyOffline: options.readOnlyWhenDisconnected,
-		}, { entries: [entries[0]], connectable: true, retained: true, readOnlyOffline: true });
+		}, { entries: [entries[0]], connectable: true, canRemove: false, remove: undefined, retained: true, readOnlyOffline: true });
 	});
 
 	test('gives WebSocket and SSH entries distinct owners while the shared contribution registers none', () => {
