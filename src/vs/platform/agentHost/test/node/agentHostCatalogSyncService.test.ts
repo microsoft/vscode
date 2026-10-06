@@ -133,6 +133,76 @@ suite('AgentHostCatalogSyncService', () => {
 		};
 	}
 
+	test('traces queued catalog work separately from its execution and preserves failures', async () => {
+		const { local, central } = await createHarness();
+		const traces: { operationId: string; stage: string; outcome?: string; queueWaitMs?: number; executionMs?: number }[] = [];
+		const logService = new class extends NullLogService {
+			override trace(message: string): void {
+				const match = /operationId=(?<operationId>[^,]+), kind=write, stage=(?<stage>[^,]+)(?:, outcome=(?<outcome>[^,]+))?(?:, queueWaitMs=(?<queueWaitMs>\d+))?(?:, executionMs=(?<executionMs>\d+))?$/.exec(message);
+				if (match?.groups) {
+					traces.push({
+						operationId: match.groups.operationId,
+						stage: match.groups.stage,
+						outcome: match.groups.outcome,
+						queueWaitMs: match.groups.queueWaitMs === undefined ? undefined : Number(match.groups.queueWaitMs),
+						executionMs: match.groups.executionMs === undefined ? undefined : Number(match.groups.executionMs),
+					});
+				}
+			}
+		}();
+		const service = new AgentHostCatalogSyncService(createSessionDataService(local), central, logService);
+		const started = new DeferredPromise<void>();
+		const release = new DeferredPromise<void>();
+		const blocker = service.runExclusive(session, async () => {
+			started.complete();
+			await release.p;
+		});
+		await started.p;
+		const queued = service.runExclusive(session, async () => { throw new Error('catalog operation failed'); });
+		const rejected = assert.rejects(queued, /catalog operation failed/);
+		const beforeRelease = traces.map(trace => trace.stage);
+		release.complete();
+		await Promise.all([blocker, rejected]);
+
+		assert.deepStrictEqual({
+			beforeRelease,
+			stages: traces.map(trace => [trace.stage, trace.outcome]),
+			operationCount: new Set(traces.map(trace => trace.operationId)).size,
+			validDurations: traces.filter(trace => trace.stage === 'settled').every(trace => trace.queueWaitMs !== undefined && trace.queueWaitMs >= 0 && trace.executionMs !== undefined && trace.executionMs >= 0),
+		}, {
+			beforeRelease: ['queued', 'started', 'queued'],
+			stages: [
+				['queued', undefined],
+				['started', undefined],
+				['queued', undefined],
+				['settled', 'completed'],
+				['started', undefined],
+				['settled', 'failed'],
+			],
+			operationCount: 2,
+			validDurations: true,
+		});
+	});
+
+	test('traces the local write boundary before awaiting it', async () => {
+		const { local, central } = await createHarness();
+		const stages: string[] = [];
+		const logService = new class extends NullLogService {
+			override trace(message: string): void {
+				const match = /attempt=\d+, stage=(?<stage>[^,]+)/.exec(message);
+				if (match?.groups) {
+					stages.push(match.groups.stage);
+				}
+			}
+		}();
+		const service = new AgentHostCatalogSyncService(createSessionDataService(local), central, logService);
+		local.failLocalWrite = true;
+
+		await assert.rejects(service.synchronize(session, { data: data('one'), legacyMetadata: {} }), /local write failed/);
+
+		assert.deepStrictEqual(stages, ['readLocalReceipt', 'readCentralCatalog', 'readLegacyMetadata', 'writeLocalReceipt']);
+	});
+
 	test('writes legacy metadata and pending receipt before sessions_v2, then clears payload on exact acknowledgement', async () => {
 		const order: string[] = [];
 		const { local, central, service } = await createHarness(order);
