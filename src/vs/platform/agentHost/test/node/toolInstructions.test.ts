@@ -8,6 +8,7 @@ import type { SectionOverride } from '@github/copilot-sdk';
 import { COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION, COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS, resolveToolInstructionsOverride, toolSearchInstructionLines, universalToolInstructions, type IToolInstructionContext } from '../../node/copilot/prompts/toolInstructions.js';
 import type { SchemaValues } from '../../common/agentHostSchema.js';
 import { copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
+import { subagentModelGuidanceLines } from '../../node/copilot/prompts/promptExperiments.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME } from '../../common/toolSearchConstants.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
@@ -58,6 +59,19 @@ suite('toolInstructions', () => {
 			]);
 		});
 
+		test('subagent model guidance replaces the "leave model unset" lines when a model mix is resolved for the session', () => {
+			const mix = { defaultModel: 'model-default', lightweightModel: 'model-light' };
+			assert.deepStrictEqual({
+				noMix: universalToolInstructions(context()),
+				mix: universalToolInstructions({ ...context(), subagentModelMix: mix }),
+				defaultOnly: universalToolInstructions({ ...context(), subagentModelMix: { defaultModel: 'model-default' } }),
+			}, {
+				noMix: UNCONDITIONAL_TOOL_INSTRUCTIONS,
+				mix: `${LARGE_OUTPUT_LINE}\n${subagentModelGuidanceLines(mix)}`,
+				defaultOnly: `${LARGE_OUTPUT_LINE}\n${subagentModelGuidanceLines({ defaultModel: 'model-default' })}`,
+			});
+		});
+
 		test('adds the registered browser line only when openBrowserPage + an agentic browser tool are present', () => {
 			assert.deepStrictEqual(
 				[
@@ -101,10 +115,15 @@ suite('toolInstructions', () => {
 			]);
 		});
 
-		test('preserves a remove or transform-function override untouched', () => {
-			const transform = (s: string) => s;
+		test('preserves a remove override untouched', () => {
 			assert.deepStrictEqual(resolveToolInstructionsOverride(hasTools('a'), { action: 'remove' }, [lineFor('a')]), { action: 'remove' });
-			assert.deepStrictEqual(resolveToolInstructionsOverride(hasTools('a'), { action: transform }, [lineFor('a')]), { action: transform });
+		});
+
+		test('appends the rendered lines after a transform override\'s output', async () => {
+			const composed = resolveToolInstructionsOverride(hasTools('a'), { action: (s: string) => s.toUpperCase() }, [lineFor('a')]);
+			assert.ok(composed && typeof composed.action === 'function');
+			assert.strictEqual(await composed.action('foundation'), 'FOUNDATION\n\nuse a');
+			assert.strictEqual(await composed.action('foundation\n\n'), 'FOUNDATION\n\nuse a');
 		});
 	});
 

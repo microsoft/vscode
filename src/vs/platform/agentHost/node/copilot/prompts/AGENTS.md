@@ -7,7 +7,8 @@ This directory customizes the system prompt for Copilot CLI **agent host** (ahp+
 - `promptRegistry.ts` — `AgentHostPromptRegistry`: resolves the final `SystemMessageConfig` for a session's model. Defines the `IAgentHostPrompt` contributor interface and the `IAgentHostPromptContext` read-time context.
 - `systemMessage.ts` — the default message (`COPILOT_AGENT_HOST_SYSTEM_MESSAGE`), shared identity text, the `fullSystemPrompt` / `sectionOverrides` builders, and `describeSystemMessageConfig` (the one-line log summary).
 - `toolInstructions.ts` — the model-agnostic `tool_instructions` layer: gated or unconditional nudges (`TOOL_INSTRUCTION_LINES`) composed into the SDK's `tool_instructions` section, including the default-model guidance for subagents.
-- `anthropicPrompt.ts` — example per-model contributor (Claude Opus 4.8).
+- `anthropicPrompt.ts` — the Claude Opus contributor: applies the opt-in subagent model guidance experiment as a section transform.
+- `promptExperiments.ts` — the text edits behind that experiment (see [Prompt experiments](#prompt-experiments)).
 - `openaiPrompt.ts` — OpenAI targeted post-edit inspection guidance, appended to `code_change_rules` without replacing the SDK foundation prompt.
 - `allPrompts.ts` — side-effect import hub; importing it registers every contributor into the shared `agentHostPromptRegistry`.
 
@@ -27,9 +28,9 @@ There are two ways to customize, and a model can use both at once.
 
 ## Lever 1 — universal, all models (`toolInstructions.ts`)
 
-Guidance that should apply to **every** model. A line can be unconditional for host-wide behavior such as reading offloaded tool output, gated on a client tool as the browser line is, or gated on a host setting as the subagent model-guidance line is.
+Guidance that should apply to **every** model. A line can be unconditional for host-wide behavior such as reading offloaded tool output, gated on a client tool as the browser line is, or driven by something the launcher resolved for the session, as the subagent line is.
 
-1. Write a `ToolInstructionLine` — a function `(context) => string | undefined` that returns one sentence (no surrounding newlines), or `undefined` when its gate does not apply. The `IToolInstructionContext` exposes `hasTool(name)` and `getSetting(key)` (a `CopilotCliConfigKey`).
+1. Write a `ToolInstructionLine` — a function `(context) => string | undefined` that returns one sentence (no surrounding newlines), or `undefined` when its gate does not apply. The `IToolInstructionContext` exposes `hasTool(name)`, `getSetting(key)` (a `CopilotCliConfigKey`) and `subagentModelMix` (the models subagent model guidance names for this session; undefined when it does not apply).
 2. Add it to `TOOL_INSTRUCTION_LINES`.
 
 ```ts
@@ -43,7 +44,7 @@ const TOOL_INSTRUCTION_LINES: readonly ToolInstructionLine[] = [largeOutputToolI
 
 **Caveat — `hasTool` sees CLIENT tools only.** It is `context.hasClientTool`, which knows only the forwarded workbench tools, addressed by their **camelCase `toolReferenceName`** (e.g. `openBrowserPage`, `runTask`, `getTaskOutput`) — NOT the extension's snake_case ids, and NOT shell / server-SDK / MCP tools (MCP is discovered dynamically and isn't in the launch snapshot). A line gated on a name that is never a client tool silently never renders. The default client-tool allowlist is `chat.agentHost.clientTools` (see `chat.shared.contribution.ts`). Broadening this context is a known follow-up.
 
-These lines compose with a per-model `tool_instructions` override (see `composeToolInstructions`), so Lever 1 and Lever 2 stack.
+These lines compose with a per-model `tool_instructions` override (see `composeToolInstructions`), so Lever 1 and Lever 2 stack. That includes a transform override: the lines are appended after the transform's output. Only a `remove` override is left alone.
 
 ## Tool search (deferred tool loading)
 
@@ -81,6 +82,44 @@ agentHostPromptRegistry.registerPrompt(MyModelPrompt);   // then add `import './
 Matching: a contributor matches a model by `static matchesModel(model)` (takes precedence) or by `familyPrefixes` (model-id `startsWith`). The registry resolves **exactly one** contributor per model (first match wins) — base + version layering is a known follow-up.
 
 This branch's OpenAI contributor is unconditional for GPT families, legacy `o1`/`o3`/`o4` families, and the `openai` family alias; it has no setting. GPT and `openai` matching follows Copilot Chat's `isOpenAIModel` family conventions, case-insensitively. Agent Host has a model ID rather than endpoint-provider metadata; a custom model ID can use the existing `family` override to route through a known OpenAI family. The experiment is isolated to the branch and tracked in [microsoft/vscode-internalbacklog#9579](https://github.com/microsoft/vscode-internalbacklog/issues/9579). It discourages automatic post-edit rereads and full-diff reviews, but preserves targeted reads for failed checks, ambiguous tool output, or correctness uncertainty, required validation, and explicitly requested broader reviews. It does not change delegation or non-OpenAI models. Guidance is resolved on session create/resume; existing in-flight sessions keep their launch-time prompt.
+
+## Prompt experiments
+
+`promptExperiments.ts` holds the one opt-in change to the Claude Opus prompt, applied by the contributor in `anthropicPrompt.ts`. It changes one thing and has its own settings, empty by default and registered for experiment rollout, so an effect can be attributed to it.
+
+| Setting | Config key | What it does |
+| --- | --- | --- |
+| `chat.agentHost.subagentModelGuidance.defaultModel` | `SubagentGuidanceDefaultModel` | The model id the session is told to run subagents on by default. Empty turns the guidance off. |
+| `chat.agentHost.subagentModelGuidance.lightweightModel` | `SubagentGuidanceLightweightModel` | Optional. The model id for searching, reading and summarizing, and running commands. Empty leaves that sentence out. |
+
+With a default model set, the host's "leave the `task` tool's `model` unset" lines are replaced with guidance naming the configured models, and the foundation's "Trust the harness defaults for subagents" rule is narrowed to `reasoning_effort` and `context_tier`.
+
+**No model id is written in this code.** The mix comes from the two settings, so an experiment chooses the models and can change them without a code change. `resolveSubagentModelMix` decides once per launch whether the guidance applies, and the launcher puts the result on the prompt context as `subagentModelMix`; the registry, the tool line and the contributor only read it.
+
+**A configured model is named only if this account can run it.** The launcher asks the agent for the ids in the runtime's model list for the current credential, leaving out models an organization policy has disabled or not yet configured. The runtime builds the `task` tool's `model` choices from that same list and rejects a call naming anything else, so guidance naming an unavailable model would send the agent into failed calls. The outcomes:
+
+| Situation | Result |
+| --- | --- |
+| Session model is not Claude Opus | Guidance off |
+| Default model is empty | Guidance off; the prompt is unchanged |
+| The account's models are not known: not listed yet, the listing failed, or the published list belongs to a credential that has since been replaced | Guidance off; the prompt is unchanged and a warning is logged. The published list is not used, since it may be empty or another account's |
+| Default model is unavailable, or is the session's own model | Guidance off; the prompt is unchanged and a warning is logged |
+| Lightweight model is empty or the same as the default | Guidance on, without the lightweight sentence |
+| Lightweight model is unavailable, or is the session's own model | Guidance on, without the lightweight sentence; a warning is logged |
+
+The model list is only consulted when a default model is configured and the session is on Opus, so the settings cost nothing while empty. If the list is not current, the launch waits up to five seconds for the refresh that replaces it, starting one if none is pending.
+
+With a `modelCapabilityOverrides.<model>.family` alias, two ids are in play. The Opus check uses the family, so an aliased model counts. "The session's own model" is the model the session runs on, not the family.
+
+A session keeps the prompt it launched with, so with a default model configured a model switch restarts the session when it changes what the guidance says: into or out of Opus, or between Opus models when either is a model the settings name.
+
+Rules it follows, and that a new experiment should too:
+
+- **Transforms, never `replace`.** The foundation prompt, its guardrails and its per-session content stay; only the named sentences change.
+- **Each edit matches a whole sentence or bullet.** If the foundation rewords it, the edit leaves the text alone instead of mangling its neighbours. That also means it silently stops applying, so `promptExperiments.test.ts` pins every pattern against the foundation text it targets. Refresh those fixtures from a real request when the runtime is updated.
+- **Checked against the real runtime.** `copilotPromptsE2E.integrationTest.ts` runs a replayed Opus turn with the settings empty, with two available models, and with an unavailable default model. It asserts that the first two prompts differ by exactly these edits, that every model the guidance names is one of the `task` tool's `model` choices in the same request, and that the unavailable model leaves the prompt unchanged. It found something unit tests could not: the runtime renders the `tool_instructions` group's intro sentence inside `<tools>` when the group is transformed. That cannot be avoided from here and is pinned in that test as a known side effect of subagent model guidance.
+- **No contradictions left behind.** Guidance that reverses an existing instruction removes or narrows that instruction in the same change. One contradiction cannot be removed from here: the `task` tool's `model` parameter has its own "leave unset" description, owned by the runtime, so the guidance says it takes precedence.
+- **The mix is configuration, not code.** Model ids go stale, and which lighter model is worth delegating to is a measured question that differs by model and by task. The durable form is for the runtime to list the models that cost less than the session's.
 
 ## Related — per-model experimentation knobs (`copilotCliConfig.ts`)
 

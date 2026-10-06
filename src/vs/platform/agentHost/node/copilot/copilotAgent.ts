@@ -44,6 +44,7 @@ import { createAgentModelNoticesMeta } from '../../common/agentModelNotices.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, COPILOT_HYDRA_FUSION_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAME, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, normalizeModelFamilyAlias, normalizeSkillCharBudget, resolveModelCapabilityOverrideField, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
+import { isClaudeOpusModelId } from './prompts/promptExperiments.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
@@ -64,7 +65,7 @@ import type { ErrorInfo } from '../../common/state/protocol/common/state.js';
 import { ProtectedResourceMetadata, type AgentSelection, type BackgroundWork, type ConfigPropertySchema, type ConfigSchema, type CustomizationEnablement, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, AuthRequiredReason, type AuthRequiredParams, type SessionAction } from '../../common/state/sessionActions.js';
 import { areAdditionalWorkingDirectoriesEqual } from '../../common/state/sessionWorkingDirectories.js';
-import { CustomizationLoadStatus, CustomizationType, ChatInputResponseKind, customizationId, buildChatUri, buildDefaultChatUri, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY, AH_META_IS_READ_DB_KEY, isDefaultChatUri, parseRequiredSessionUriFromChatUri, withSessionEhcliAdoptable, withSessionWorkspaceless, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type ISessionFolderPickerDecision, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ChatInputAnswer, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
+import { CustomizationLoadStatus, CustomizationType, ChatInputResponseKind, customizationId, buildChatUri, buildDefaultChatUri, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY, AH_META_IS_READ_DB_KEY, isDefaultChatUri, parseRequiredSessionUriFromChatUri, withSessionEhcliAdoptable, withSessionWorkspaceless, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type ISessionFolderPickerDecision, type MessageAttachment, type PendingMessage, type PluginCustomization, PolicyState, type ChatInputAnswer, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { CopilotChatDiscovery, ICopilotChatDiscoveryScan } from './copilotChatDiscovery.js';
 import { getByokLmAgentModelId, resolveByokLmEnablement } from '../../common/agentHostByokLm.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
@@ -760,6 +761,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * picker.
 	 */
 	private _capiModels: readonly IAgentModelInfo[] = [];
+	/**
+	 * Whether {@link _capiModels} was listed with the current credential and
+	 * client. False before the first listing, once a token change or client
+	 * restart has superseded the listing, and after the list is cleared; true
+	 * again when a listing for the current source is published. A failed
+	 * refresh leaves it as it was: the last good list for the same source is
+	 * still that account's list, while a superseded one is not.
+	 */
+	private _capiModelsCurrent = false;
 	/** See {@link _getFallbackAutoModel}. */
 	private _fallbackAutoModel: IAgentModelInfo | undefined;
 	private _byokModels: readonly IAgentModelInfo[] = [];
@@ -778,6 +788,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	protected readonly _modelRefreshMaxAttempts: number = MODEL_REFRESH_MAX_ATTEMPTS;
 	protected readonly _modelRefreshBaseDelayMs: number = MODEL_REFRESH_BASE_DELAY_MS;
 	protected readonly _modelRefreshMaxDelayMs: number = MODEL_REFRESH_MAX_DELAY_MS;
+	/** How long a session launch waits for the account's models before treating them as unknown. Overridable in tests. */
+	protected readonly _availableModelsWaitMs: number = 5000;
 	/** Pending model-refresh retry timer; cleared on a fresh refresh, shutdown, or dispose. */
 	private readonly _modelRefreshRetry = this._register(new MutableDisposable());
 	/**
@@ -1304,6 +1316,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// change. Not hooked in `_ensureClient`, since `_listModels` calls
 		// it and would recurse.
 		this._capiModels = [];
+		this._capiModelsCurrent = false;
 		this._publishModels();
 		void this._scheduleModelRefresh();
 	}
@@ -1394,6 +1407,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._logService.error(error, '[Copilot] Failed to stop closed SDK client');
 		}
 		this._capiModels = [];
+		this._capiModelsCurrent = false;
 		this._publishModels();
 		return { failedTurnIds, stopSucceeded };
 	}
@@ -2333,6 +2347,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 */
 	private _scheduleModelRefresh(): Promise<void> {
 		const generation = ++this._modelCatalogGeneration;
+		this._capiModelsCurrent = false;
 		if (this._scheduledModelRefresh) {
 			this._scheduledModelRefresh.generation = generation;
 			return this._scheduledModelRefresh.deferred.p;
@@ -2399,6 +2414,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const tokenAtRefreshStart = this._githubCredentials.token;
 		if (!tokenAtRefreshStart) {
 			this._capiModels = [];
+			this._capiModelsCurrent = false;
 			this._publishModels();
 			return;
 		}
@@ -2406,6 +2422,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const models = await this._listModels(tokenAtRefreshStart);
 			if (this._githubCredentials.token === tokenAtRefreshStart && this._modelCatalogGeneration === generation) {
 				this._capiModels = models;
+				this._capiModelsCurrent = true;
 				this._publishModels();
 			}
 		} catch (err) {
@@ -4888,7 +4905,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		);
 		const refreshReason = (entry.requiresRestartAfterWorkingDirectoryChange ? 'workingDirectoryChanged' : undefined)
 			?? (primaryDirectoryChanged ? 'primaryDirectoryChanged' : undefined)
-			?? (entry.requiresRestartAfterModelChange ? 'hydraFusionModelChanged' : undefined)
+			?? (entry.requiresRestartAfterModelChange ? entry.modelChangeRestartReason ?? 'hydraFusionModelChanged' : undefined)
 			?? (rootsChanged ? 'additionalDirectoriesChanged' : undefined)
 			?? structuralRestartReason
 			?? (disabledRootMcpServersChanged ? 'disabledRootMcpServersChanged' : undefined)
@@ -5943,6 +5960,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 				await entry?.setModel(model.id, resolveCopilotReasoningEffort(model, this._configurationService, this._logService, current.configurationId), getCopilotContextTier(model, longContextWindow, freeLongContext), autoTier);
 				if (entry && previousModelId !== model.id && (previousModelId === COPILOT_HYDRA_FUSION_MODEL_ID || model.id === COPILOT_HYDRA_FUSION_MODEL_ID)) {
 					entry.markModelChangeRequiresRestart();
+				} else if (entry && this._modelChangeAltersSystemPrompt(previousModelId, model.id)) {
+					entry.markModelChangeRequiresRestart('promptExperimentModelChanged');
 				}
 				// Keep the session-scope metadata in step for resumes that fall back
 				// to it; chat leaves persist through their backing instead.
@@ -5957,6 +5976,39 @@ export class CopilotAgent extends Disposable implements IAgent {
 				this._onDidChangeChatData.fire({ chat, providerData: encodeProviderData(updated) });
 			}
 		});
+	}
+
+	/**
+	 * Whether switching a live session between these models changes its system
+	 * prompt. The prompt is resolved once at launch, and the opt-in subagent
+	 * model guidance applies to Claude Opus sessions only, so a switch into or
+	 * out of Opus with it on leaves a prompt written for the other model:
+	 * guidance to delegate to "lighter" models that are heavier than a Haiku
+	 * session's own, or no guidance at all for a session that became Opus.
+	 * So does a switch between Opus models when one of them is a model the
+	 * guidance is configured to name, since it never names the session's own.
+	 */
+	private _modelChangeAltersSystemPrompt(previousModelId: string | undefined, nextModelId: string): boolean {
+		// Configured is enough to restart on: whether the configured model is
+		// usable is settled by the relaunch, against the models at that moment.
+		const defaultModel = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.SubagentGuidanceDefaultModel)?.trim();
+		if (!defaultModel || previousModelId === nextModelId) {
+			return false;
+		}
+		// Same resolution the launcher uses to pick the prompt contributor: a
+		// `family` alias stands in for the model id.
+		const capabilityOverrides = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ModelCapabilityOverrides);
+		const isOpus = (modelId: string | undefined) => isClaudeOpusModelId(modelId === undefined
+			? undefined
+			: resolveModelCapabilityOverrideField(capabilityOverrides, modelId, 'family', (value): value is string => normalizeModelFamilyAlias(value) !== undefined) ?? modelId);
+		if (isOpus(previousModelId) !== isOpus(nextModelId)) {
+			return true;
+		}
+		// Within Opus the guidance never names the session's own model, so a
+		// switch to or from a model the settings name changes what it says.
+		const lightweightModel = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.SubagentGuidanceLightweightModel)?.trim();
+		const isNamed = (modelId: string | undefined) => modelId !== undefined && (modelId === defaultModel || modelId === lightweightModel);
+		return isOpus(nextModelId) && (isNamed(previousModelId) || isNamed(nextModelId));
 	}
 
 	private async _changeAgent(chat: URI, agent: AgentSelection | undefined, operationContext: URI | IAgentChatContext): Promise<void> {
@@ -6202,6 +6254,37 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/** Instantiates a session; the caller must initialize and register it on success. */
+	/**
+	 * The ids of the models this account can run right now: those the runtime
+	 * lists for it that policy has enabled, or says nothing about. A model an
+	 * organization disabled, or one whose terms the user has not accepted, is
+	 * listed but cannot be run, so it is left out. This is the list the model
+	 * picker is built from, and the runtime builds the `task` tool's `model`
+	 * choices from the same listing.
+	 *
+	 * Returns `undefined` when the list for the current credential and client
+	 * is not known: nothing has been listed yet, the last listing failed, or
+	 * the published list belongs to a credential that has since been replaced.
+	 * A caller must not read that as "no models": the published list may then
+	 * be empty, or be another account's.
+	 *
+	 * When the list is not current this waits for the refresh that will
+	 * replace it, starting one if none is pending (a client recovered from a
+	 * closed connection clears the list without scheduling a refresh). The
+	 * wait is bounded: a session launch must not hang on a model listing.
+	 */
+	private async _getAvailableModelIds(): Promise<ReadonlySet<string> | undefined> {
+		if (!this._capiModelsCurrent) {
+			await raceTimeout(this._invalidatingModelRefresh ?? this._scheduledModelRefresh?.deferred.p ?? this._modelRefreshInFlight ?? this.refreshModels(), this._availableModelsWaitMs);
+		}
+		if (!this._capiModelsCurrent) {
+			return undefined;
+		}
+		return new Set(this._models.get()
+			.filter(model => model.policyState === undefined || model.policyState === PolicyState.Enabled)
+			.map(model => model.id));
+	}
+
 	private _createAgentSession(launchPlan: CopilotSessionLaunchPlan, customizationDirectory: URI | undefined, activeClient: ActiveClient, identity?: ICopilotAgentSessionIdentity): CopilotAgentSession {
 		const sessionUri = identity?.sessionUri ?? AgentSession.uri(this.id, launchPlan.sessionId);
 		const chatChannelUri = identity?.chatChannelUri ?? this._findBoundSessionChatUri(launchPlan.sessionId) ?? URI.parse(buildDefaultChatUri(sessionUri));
@@ -6223,7 +6306,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					}
 				},
 				sessionLauncher: this._sessionLauncher,
-				launchPlan,
+				launchPlan: { ...launchPlan, getAvailableModelIds: () => this._getAvailableModelIds() },
 				shellManager: launchPlan.shellManager,
 				workingDirectory: launchPlan.workingDirectory,
 				customizationDirectory,

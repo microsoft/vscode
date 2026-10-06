@@ -13,6 +13,7 @@ import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE } from '../../node/copilot/prompts/sy
 import { AGENT_HOST_FILE_LINK_INSTRUCTIONS } from '../../node/shared/fileLinkInstructions.js';
 import { AGENT_HOST_WORKSPACELESS_INSTRUCTIONS } from '../../node/shared/workspacelessInstructions.js';
 import { COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION, COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS } from '../../node/copilot/prompts/toolInstructions.js';
+import { subagentModelGuidanceLines } from '../../node/copilot/prompts/promptExperiments.js';
 import { BrowserChatToolReferenceName } from '../../../browserView/common/browserChatToolReferenceNames.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME } from '../../common/toolSearchConstants.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -167,11 +168,11 @@ suite('AgentHostPromptRegistry', () => {
 		registry.registerPrompt(class {
 			static readonly familyPrefixes = ['claude'];
 			resolveSectionOverrides(_model: ModelSelection, ctx: IAgentHostPromptContext): Partial<Record<SystemMessageSection, SectionOverride>> | undefined {
-				return ctx.getSetting(CopilotCliConfigKey.Opus48Prompt) === true ? { tone: { action: 'append', content: 'GATED' } } : undefined;
+				return ctx.getSetting(CopilotCliConfigKey.ClaudeAdvisor) === true ? { tone: { action: 'append', content: 'GATED' } } : undefined;
 			}
 		});
 		assert.deepStrictEqual(
-			registry.resolveSystemMessageConfig({ id: 'claude-x' }, context({ [CopilotCliConfigKey.Opus48Prompt]: true })),
+			registry.resolveSystemMessageConfig({ id: 'claude-x' }, context({ [CopilotCliConfigKey.ClaudeAdvisor]: true })),
 			withUniversalAgentHostInstructions({
 				mode: 'customize',
 				sections: {
@@ -186,17 +187,51 @@ suite('AgentHostPromptRegistry', () => {
 		);
 	});
 
-	suite('Opus contributor (registered via allPrompts)', () => {
-		const opusModel: ModelSelection = { id: 'claude-opus-4-8' };
+	suite('Claude Opus contributor (registered via allPrompts)', () => {
+		const opusModel: ModelSelection = { id: 'claude-opus-5.5' };
+		const DEFAULT = withUniversalAgentHostInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE);
 
-		function resolveOpus(enabled: boolean | undefined) {
-			return agentHostPromptRegistry.resolveSystemMessageConfig(opusModel, context(enabled === undefined ? {} : { [CopilotCliConfigKey.Opus48Prompt]: enabled }));
+		async function applyTransform(override: SectionOverride | undefined, content: string): Promise<string> {
+			assert.ok(override && typeof override.action === 'function');
+			return override.action(content);
 		}
 
-		test('applies customize overrides only when enabled', () => {
-			assert.deepStrictEqual(resolveOpus(undefined), withUniversalAgentHostInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE));
-			assert.deepStrictEqual(resolveOpus(false), withUniversalAgentHostInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE));
-			assert.strictEqual(resolveOpus(true).mode, 'customize');
+		const mix = { defaultModel: 'model-default', lightweightModel: 'model-light' };
+
+		test('contributes nothing when no subagent model mix is resolved for the session', () => {
+			assert.deepStrictEqual(agentHostPromptRegistry.resolveSystemMessageConfig(opusModel, context()), DEFAULT);
+			assert.deepStrictEqual(agentHostPromptRegistry.resolveSystemMessageConfig(opusModel, { ...context(), subagentModelMix: undefined }), DEFAULT);
+		});
+
+		test('subagent model guidance swaps the "leave model unset" lines for the guidance and narrows the foundation rule', async () => {
+			const config = agentHostPromptRegistry.resolveSystemMessageConfig(opusModel, { ...context(), subagentModelMix: mix });
+			assert.ok(config.mode === 'customize');
+			assert.deepStrictEqual(Object.keys(config.sections ?? {}).sort(), ['identity', 'tool_instructions']);
+			const foundation = '<task>\n* Prefer custom agents over built-ins.\n* Trust the harness defaults for subagents. Specify a value only when the user asks. The runtime resolves `/subagents` preferences when these fields are omitted.\n* Give a bounded objective/stop.\n</task>';
+			assert.strictEqual(
+				await applyTransform(config.sections?.tool_instructions, foundation),
+				[
+					'<task>',
+					'* Prefer custom agents over built-ins.',
+					'* For a subagent\'s `reasoning_effort` and `context_tier`, trust the harness defaults. Specify a value only when the user\'s current request or applicable persistent custom instructions (including global instructions) explicitly require that value for the subagent. Do not reuse values from earlier requests or infer unspecified values from the parent configuration.',
+					'* Give a bounded objective/stop.',
+					'</task>',
+					'',
+					COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION,
+					subagentModelGuidanceLines(mix),
+				].join('\n')
+			);
+		});
+
+		test('a mix with only a default model overrides the same sections and names that one model', async () => {
+			const defaultOnly = { defaultModel: 'model-default' };
+			const config = agentHostPromptRegistry.resolveSystemMessageConfig(opusModel, { ...context(), subagentModelMix: defaultOnly });
+			assert.ok(config.mode === 'customize');
+			const toolInstructions = await applyTransform(config.sections?.tool_instructions, '<task>\n</task>');
+			assert.deepStrictEqual(
+				{ sections: Object.keys(config.sections ?? {}).sort(), toolInstructions, modelsNamed: toolInstructions.match(/`model-[a-z]+`/g) },
+				{ sections: ['identity', 'tool_instructions'], toolInstructions: `<task>\n</task>\n\n${COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION}\n${subagentModelGuidanceLines(defaultOnly)}`, modelsNamed: ['`model-default`'] }
+			);
 		});
 	});
 
@@ -268,13 +303,15 @@ suite('AgentHostPromptRegistry', () => {
 		// Mirrors the launcher's composition in `_buildSessionConfig`: the
 		// resolved family becomes the effective model id handed to the registry.
 		test('an aliased preview model routes to the family contributor', () => {
-			const overrides = { 'preview-model-x': { family: 'claude-opus-4.8' } };
+			const overrides = { 'preview-model-x': { family: 'claude-opus-5.5' } };
 			const family = resolveModelCapabilityOverrideField(overrides, 'preview-model-x', 'family', (value): value is string => normalizeModelFamilyAlias(value) !== undefined);
 			const result = agentHostPromptRegistry.resolveSystemMessageConfig(
 				{ id: 'preview-model-x', ...(family ? { id: family } : {}) },
-				context({ [CopilotCliConfigKey.Opus48Prompt]: true })
+				{ ...context(), subagentModelMix: { defaultModel: 'model-default' } }
 			);
-			assert.strictEqual(result.mode, 'customize');
+			assert.ok(result.mode === 'customize');
+			// Only the Claude Opus contributor transforms this section; every other model gets an append.
+			assert.strictEqual(typeof result.sections?.tool_instructions?.action, 'function');
 		});
 	});
 

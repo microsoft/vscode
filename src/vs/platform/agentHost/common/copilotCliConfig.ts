@@ -33,8 +33,10 @@ export const enum CopilotCliConfigKey {
 	Tgrep = 'tgrep',
 	/** Enable the SDK cross-session store and Chronicle commands. */
 	LocalIndexEnabled = 'localIndexEnabled',
-	/** Apply Opus 4.8-tuned system-prompt overrides on Opus 4.8 models. Off by default. */
-	Opus48Prompt = 'opus48Prompt',
+	/** On Claude Opus models, the model the agent is told to run a subagent on by default. Empty (the default) leaves subagents on the harness default model. */
+	SubagentGuidanceDefaultModel = 'subagentGuidanceDefaultModel',
+	/** With {@link SubagentGuidanceDefaultModel} set, the model named for search, read and run-and-report subagents. Optional. */
+	SubagentGuidanceLightweightModel = 'subagentGuidanceLightweightModel',
 	/** Enable runtime tool search (deferred-tool loading) for Copilot SDK sessions. On by default. */
 	ToolSearchEnabled = 'toolSearchEnabled',
 	/** Minimum tool count before MCP/external tools are deferred behind tool search. 0 = always defer. */
@@ -70,7 +72,9 @@ export const CopilotTgrepEnabledSettingId = 'chat.copilot.tgrep.enabled';
 
 export const CopilotLocalIndexEnabledSettingId = 'github.copilot.chat.localIndex.enabled';
 
-export const AgentHostOpus48PromptEnabledSettingId = 'chat.agentHost.opus48Prompt.enabled';
+export const AgentHostSubagentGuidanceDefaultModelSettingId = 'chat.agentHost.subagentModelGuidance.defaultModel';
+
+export const AgentHostSubagentGuidanceLightweightModelSettingId = 'chat.agentHost.subagentModelGuidance.lightweightModel';
 
 export const AgentHostToolSearchEnabledSettingId = 'chat.agentHost.copilot.toolSearch.enabled';
 
@@ -210,11 +214,17 @@ export const copilotCliConfigSchema = createSchema({
 		description: localize('agentHost.config.localIndexEnabled.description', "Whether Copilot SDK sessions use the local cross-session store for Chronicle indexing and retrieval."),
 		default: true,
 	}),
-	[CopilotCliConfigKey.Opus48Prompt]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.opus48Prompt.title', "Opus 4.8 Agent Prompt"),
-		description: localize('agentHost.config.opus48Prompt.description', "When enabled, Copilot SDK sessions running a Claude Opus 4.8 model apply Opus 4.8-tuned system-prompt section overrides on top of the default system message."),
-		default: false,
+	[CopilotCliConfigKey.SubagentGuidanceDefaultModel]: schemaProperty<string>({
+		type: 'string',
+		title: localize('agentHost.config.subagentGuidanceDefaultModel.title', "Subagent Guidance: Default Model"),
+		description: localize('agentHost.config.subagentGuidanceDefaultModel.description', "The model that Copilot SDK sessions running a Claude Opus model are told to run a subagent on by default. Applied only when the model is available to the account. When empty, subagents use the harness default model."),
+		default: '',
+	}),
+	[CopilotCliConfigKey.SubagentGuidanceLightweightModel]: schemaProperty<string>({
+		type: 'string',
+		title: localize('agentHost.config.subagentGuidanceLightweightModel.title', "Subagent Guidance: Lightweight Model"),
+		description: localize('agentHost.config.subagentGuidanceLightweightModel.description', "With a default subagent model set, the model named for subagents that search, read and summarize, or run commands and report what they print. Applied only when the model is available to the account. Optional."),
+		default: '',
 	}),
 	[CopilotCliConfigKey.ToolSearchEnabled]: schemaProperty<boolean>({
 		type: 'boolean',

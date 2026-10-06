@@ -10,6 +10,7 @@ import type { ModelSelection } from '../../../common/state/protocol/state.js';
 import { AGENT_HOST_FILE_LINK_INSTRUCTIONS } from '../../shared/fileLinkInstructions.js';
 import { AGENT_HOST_WORKSPACELESS_INSTRUCTIONS } from '../../shared/workspacelessInstructions.js';
 import { appendSystemMessageContent, COPILOT_AGENT_HOST_SYSTEM_MESSAGE, fullSystemPrompt, sectionOverrides, withDefaultSections } from './systemMessage.js';
+import type { ISubagentModelMix } from './promptExperiments.js';
 import { resolveToolInstructionsOverride, toolSearchInstructionLines, universalToolInstructions, type IToolInstructionContext } from './toolInstructions.js';
 
 type CopilotCliConfigDefinition = typeof copilotCliConfigSchema.definition;
@@ -60,6 +61,15 @@ export interface IAgentHostPromptContext {
 	 * from the session's `workspaceless` marker.
 	 */
 	workspaceless: boolean;
+
+	/**
+	 * The models the opt-in subagent model guidance names for this session, or
+	 * `undefined` when the guidance is off or does not apply. The launcher
+	 * resolves it from the two guidance settings and has already checked each
+	 * model against what the account can use (see `resolveSubagentModelMix`),
+	 * so a contributor can put these names in the prompt as they are.
+	 */
+	subagentModelMix?: ISubagentModelMix;
 }
 
 /**
@@ -201,6 +211,7 @@ export class AgentHostPromptRegistry {
 		const lineContext: IToolInstructionContext = {
 			hasTool: name => context.hasClientTool(name),
 			getSetting: key => context.getSetting(key),
+			subagentModelMix: context.subagentModelMix,
 		};
 		if (config.mode === 'replace') {
 			const lines = universalToolInstructions(lineContext, toolSearchInstructionLines(context.toolSearchActive));

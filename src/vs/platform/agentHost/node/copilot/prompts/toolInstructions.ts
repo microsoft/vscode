@@ -9,6 +9,7 @@ import { BrowserChatToolReferenceName, browserChatToolReferenceNames } from '../
 import type { SchemaValue } from '../../../common/agentHostSchema.js';
 import { copilotCliConfigSchema } from '../../../common/copilotCliConfig.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME } from '../../../common/toolSearchConstants.js';
+import { subagentModelGuidanceLines, type ISubagentModelMix } from './promptExperiments.js';
 
 /**
  * Model-agnostic guidance for the `tool_instructions` system-prompt section.
@@ -40,6 +41,9 @@ export interface IToolInstructionContext {
 
 	/** The host-level value for a Copilot CLI setting, or `undefined` when unset. */
 	getSetting<K extends keyof CopilotCliConfigDefinition & string>(key: K): SchemaValue<CopilotCliConfigDefinition[K]> | undefined;
+
+	/** The models subagent model guidance names for this session, or `undefined` when it does not apply. */
+	readonly subagentModelMix?: ISubagentModelMix;
 }
 
 /**
@@ -65,7 +69,14 @@ export const COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS = [
 	'When launching subagents with the task tool, leave the `model`, `reasoning_effort`, and `context_tier` parameters unset — each agent type already runs on a model suited to it, and overriding the model changes the session\'s cost and behavior profile.',
 	'Only set the task tool\'s `model` parameter when the user explicitly names the model the subagent should run on.',
 ].join('\n');
-const subagentToolInstructions: ToolInstructionLine = () => COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS;
+/**
+ * The default keeps subagents on the harness model. When subagent model
+ * guidance applies to the session, it is told which lighter model to choose
+ * instead; the two are alternatives, never both, so the prompt does not say
+ * "choose a model" and "leave it unset".
+ */
+const subagentToolInstructions: ToolInstructionLine = ({ subagentModelMix }) =>
+	subagentModelMix ? subagentModelGuidanceLines(subagentModelMix) : COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS;
 
 /**
  * Front-end guidance for the integrated browser tools, ported from the Copilot
@@ -114,7 +125,8 @@ export function universalToolInstructions(context: IToolInstructionContext, line
 /**
  * Folds universal tool-instructions `content` into a per-model contributor's
  * `existing` `tool_instructions` override (if any), so a contributor's section
- * is preserved rather than clobbered.
+ * is preserved rather than clobbered. A transform override is wrapped so the
+ * universal lines are appended after its output; only `remove` is left alone.
  *
  * @param existing the per-model contributor's `tool_instructions` override, if any.
  */
@@ -124,10 +136,18 @@ function composeToolInstructions(existing: SectionOverride | undefined, content:
 	if (!existing) {
 		return { action: 'append', content: `\n${content}` };
 	}
-	// A `remove` or transform-function override is a deliberate, non-composable
-	// choice by the contributor; preserve it untouched rather than fight it.
-	if (existing.action === 'remove' || typeof existing.action === 'function') {
+	// A `remove` override is a deliberate, non-composable choice by the
+	// contributor: there is no section left to fold our lines into.
+	if (existing.action === 'remove') {
 		return existing;
+	}
+	// A transform rewrites the foundation section; run it, then append our lines
+	// to its result so host plumbing survives whatever the contributor changed.
+	// A blank line separates them, as it does when the lines are appended to the
+	// untransformed section.
+	if (typeof existing.action === 'function') {
+		const transform = existing.action;
+		return { action: async current => `${(await transform(current)).replace(/\n+$/, '')}\n\n${content}` };
 	}
 	// Fold our lines into the contributor's content (preserve it, don't clobber),
 	// then pad relative to the foundation by where this action places the content:

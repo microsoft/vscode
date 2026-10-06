@@ -42,6 +42,7 @@ import { ShellManager, createShellTools, type IUnsandboxedCommandConfirmationReq
 import { isAutoModel, isGpt56Model } from './modelIdentifiers.js';
 import { EPHEMERAL_DISABLED_COPILOT_TOOLS } from './copilotToolDisplay.js';
 import './prompts/allPrompts.js';
+import { isClaudeOpusModelId, resolveSubagentModelMix, type ISubagentModelMix } from './prompts/promptExperiments.js';
 import { agentHostPromptRegistry, type IAgentHostPromptContext } from './prompts/promptRegistry.js';
 import { applyConfiguredPromptOverrides } from './prompts/promptOverride.js';
 import { describeSystemMessageConfig, fullSystemPrompt } from './prompts/systemMessage.js';
@@ -297,6 +298,16 @@ interface ICopilotSessionLaunchBase {
 	 * layer (session `_meta`, stored metadata) that this value flows from.
 	 */
 	readonly workspaceless?: boolean;
+
+	/**
+	 * The ids of the models the account can run right now: listed by the
+	 * provider and not disabled by policy. Read at each (re)launch, and only
+	 * when subagent model guidance is configured, to keep a model the account
+	 * cannot use out of the prompt. Resolves to `undefined` when the account's
+	 * models are not known (not listed yet, or the listing failed). Unknown,
+	 * like the function being absent, means no model is named.
+	 */
+	readonly getAvailableModelIds?: () => Promise<ReadonlySet<string> | undefined>;
 }
 
 export interface ICopilotCreateSessionLaunchPlan extends ICopilotSessionLaunchBase {
@@ -694,6 +705,44 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		@IAgentHostSessionOpenTelemetry private readonly _sessionOpenTelemetry: IAgentHostSessionOpenTelemetry,
 	) { }
 
+	/**
+	 * The models subagent model guidance may name for this launch. The two
+	 * settings are free text, so each configured model is checked against the
+	 * models the account can use before it reaches the prompt; one that fails is
+	 * left out and logged. The account's models are read only when a default
+	 * model is configured, so a launch without the guidance pays nothing.
+	 */
+	private async _resolveSubagentModelMix(plan: CopilotSessionLaunchPlan, promptModelId: string | undefined, runningModelId: string | undefined): Promise<ISubagentModelMix | undefined> {
+		const defaultModel = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.SubagentGuidanceDefaultModel);
+		const lightweightModel = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.SubagentGuidanceLightweightModel);
+		if (!defaultModel?.trim() && !lightweightModel?.trim()) {
+			return undefined;
+		}
+		// Only a session the guidance could apply to waits on the account's models.
+		let availableModelIds: ReadonlySet<string> | undefined;
+		if (defaultModel?.trim() && isClaudeOpusModelId(promptModelId)) {
+			availableModelIds = await plan.getAvailableModelIds?.();
+			if (!availableModelIds) {
+				this._logService.warn(`[Copilot:${plan.sessionId}] Subagent model guidance: the account's models are not known, so no model can be checked; left out of the prompt`);
+				return undefined;
+			}
+		}
+		const { mix, notes } = resolveSubagentModelMix({
+			sessionModelId: promptModelId,
+			runningModelId,
+			defaultModel,
+			lightweightModel,
+			isModelAvailable: modelId => availableModelIds?.has(modelId) === true,
+		});
+		if (mix) {
+			this._logService.info(`[Copilot:${plan.sessionId}] Subagent model guidance: default='${mix.defaultModel}', lightweight=${mix.lightweightModel ? `'${mix.lightweightModel}'` : 'none'}`);
+		}
+		for (const note of notes) {
+			this._logService.warn(`[Copilot:${plan.sessionId}] Subagent model guidance: ${note}; left out of the prompt`);
+		}
+		return mix;
+	}
+
 	async launch(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionWrapper> {
 		this._logService.info(`[Copilot:${plan.sessionId}] Preparing SDK session: kind=${plan.kind}, configuration=${runtime.configurationResource.toString()}, chat=${runtime.chatUri.toString()}`);
 		let managedSettingsResolved = false;
@@ -1077,6 +1126,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			hasClientTool: name => clientToolNames.has(name),
 			workspaceless: plan.workspaceless === true,
 			toolSearchActive,
+			subagentModelMix: await this._resolveSubagentModelMix(plan, effectiveModel?.id, model?.id),
 		};
 		const additionalDirectories = plan.additionalDirectories?.map(d => d.fsPath);
 		// Resolved once per (re)launch — the SDK has no mid-session system-message
