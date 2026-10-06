@@ -67,6 +67,7 @@ import { ActionType, AuthRequiredReason, type ChatAction, type SessionAction } f
 
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
+import type { IAgentHostPullRequestResolver } from '../../node/shared/pullRequestResolver.js';
 import { detachedWorktreeRecordUri, IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation, WorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { writeSessionAdditionalWorktrees } from '../../node/shared/sessionAdditionalWorktrees.js';
 import { AgentHostCatalogSourceResolver } from '../../node/agentHostCatalogSourceResolver.js';
@@ -5654,7 +5655,10 @@ suite('CopilotAgent', () => {
 						git.existingBranches.add('peer-branch');
 						const isolation = disposables.add(new WorktreeIsolation({
 							_serviceBrand: undefined, generateBranchName: async () => 'unused',
-						}, git, sessionDataService, new NullLogService()));
+						}, git, {
+							_serviceBrand: undefined,
+							resolve: async () => { throw new Error('Pull request resolution is not expected.'); },
+						} satisfies IAgentHostPullRequestResolver, sessionDataService, new NullLogService()));
 						if (archived) {
 							await isolation.setDetachedWorktreeArchived(handle, true);
 						} else {
