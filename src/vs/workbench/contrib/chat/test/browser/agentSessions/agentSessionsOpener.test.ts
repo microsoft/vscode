@@ -191,4 +191,39 @@ suite('AgentSessionsOpener', () => {
 
 		assert.strictEqual(handledSession?.resource.toString(), twin.toString());
 	});
+
+	test('reports a migrated session refresh failure without swallowing it', async () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const events: { name: string; data: unknown }[] = [];
+		const error = new Error('refresh failed');
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ITelemetryService, new class extends mock<ITelemetryService>() {
+			override publicLog2(): void { }
+			override publicLogError2<E, C>(name: string, data?: E): void {
+				events.push({ name, data });
+			}
+		});
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({ [ChatConfiguration.MigrateLegacyCopilotCliSessions]: true }));
+		instantiationService.stub(IProgressService, upcastPartial<IProgressService>({ withProgress: (_options, task) => task({ report() { } }) }));
+		instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({
+			ambientConnection: new class extends mock<IAgentConnection>() {
+				override getSubscription<T>(): IReference<IAgentSubscription<T>> {
+					return { object: upcastPartial<IAgentSubscription<T>>({ value: {} as T }), dispose() { } };
+				}
+			},
+		}));
+		instantiationService.stub(IAgentSessionsService, upcastPartial<IAgentSessionsService>({
+			getSession: () => undefined,
+			model: upcastPartial<IAgentSessionsService['model']>({ resolve: async () => { throw error; } }),
+		}));
+		await assert.rejects(instantiationService.invokeFunction(openSessionByResource, URI.parse('copilotcli:/sess-abc')), error);
+		assert.deepStrictEqual(events, [{
+			name: 'agentHost.legacyCopilotCliMigrationOpen',
+			data: {
+				source: 'open', surfaced: false, reason: 'resolveFailed',
+				migrationSessionId: '6a27283bcdda2b8d8ca87884c1ae452dcded34fc',
+				errorCode: undefined, errorMessage: 'refresh failed',
+			},
+		}]);
+	});
 });

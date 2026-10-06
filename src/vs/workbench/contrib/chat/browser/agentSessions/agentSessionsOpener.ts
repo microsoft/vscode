@@ -132,8 +132,14 @@ async function resolveMigratedSessionForOpen(accessor: ServicesAccessor, resourc
 				const fallback = await resolveMigratedSession(agentSessionsService, twin);
 				return fallback && !fallback.metadata?.[SESSION_META_EHCLI_ADOPTABLE_KEY] ? fallback : undefined;
 			}
-			const surfaced = await resolveMigratedSession(agentSessionsService, migrated);
-			reportLegacyMigrationOpen(telemetryService, 'open', !!surfaced);
+			let surfaced: IAgentSession | undefined;
+			try {
+				surfaced = await resolveMigratedSession(agentSessionsService, migrated);
+			} catch (error) {
+				reportLegacyMigrationOpen(telemetryService, 'open', migrated, false, error);
+				throw error;
+			}
+			reportLegacyMigrationOpen(telemetryService, 'open', migrated, !!surfaced);
 			if (!surfaced) {
 				logService.warn(`[AgentHost] migrated ${resource.toString()} to ${migrated.toString()} but it is not in this window's list after refreshing provider '${getChatSessionType(migrated)}'; opening the legacy session instead.`);
 			}
