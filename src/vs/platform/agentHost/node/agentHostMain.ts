@@ -61,6 +61,8 @@ import ErrorTelemetry from '../../telemetry/node/errorTelemetry.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AgentHostLaunchKindEnvVar, readAgentHostLaunchKind, type AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
 import { markNodeCompileCacheReady } from '../../../base/node/nodeCompileCache.js';
+import { getAgentHostProtocolVersion } from '../common/agentHostProtocolVersion.js';
+import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 
 // Entry point for the agent host utility process.
 // Sets up IPC, logging, and registers agent providers (Copilot).
@@ -120,6 +122,10 @@ async function startAgentHost(): Promise<void> {
 	let proxyResolver!: IAgentHostProxyResolver;
 	const hostLaunchKind = readAgentHostLaunchKind(process.env[AgentHostLaunchKindEnvVar]);
 	try {
+		const protocolVersion = getAgentHostProtocolVersion();
+		if (protocolVersion !== PROTOCOL_VERSION) {
+			logService.warn(`[AgentHost] Development protocol version override active: ${protocolVersion} (built-in ${PROTOCOL_VERSION}). Protocol messages are unchanged.`);
+		}
 		byokLmBridgeRegistry = new ByokLmBridgeRegistry();
 		runtime = await createAgentHostRuntime({
 			environmentService,

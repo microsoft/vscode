@@ -79,6 +79,10 @@ suite('Local Agent Host Endpoint Metadata', () => {
 		});
 	});
 
+	test('advertises the overridden protocol version', () => {
+		assert.strictEqual(createLocalAgentHostEndpointMetadata(userDataPath, '0.9.0').protocolVersion, '0.9.0');
+	});
+
 	if (process.platform !== 'win32') {
 		test('uses a bounded path under the system temporary directory', () => {
 			const deeplyNested = join(userDataPath, ...Array.from({ length: 40 }, (_, index) => `deep-${index}`));

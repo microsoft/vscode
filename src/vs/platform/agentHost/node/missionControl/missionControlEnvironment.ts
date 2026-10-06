@@ -13,7 +13,7 @@ import type { Event } from '../../../../base/common/event.js';
 import type { IMissionControlOptions } from '../../common/agentService.js';
 import { parseGroupName } from '../../common/webPubSub/groups.js';
 import { RELIABLE_JSON_SUBPROTOCOL } from '../../common/webPubSub/framing.js';
-import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
+import { getAgentHostProtocolVersion } from '../../common/agentHostProtocolVersion.js';
 import { MissionControlControlVerifier, type IMissionControlSigningKey } from './missionControlControl.js';
 import { MissionControlProtocolServer, type IMissionControlSocket } from './missionControlProtocolServer.js';
 import { MissionControlAuthentication, MissionControlSealing, resolveMissionControlOwner } from './missionControlAuthentication.js';
@@ -38,6 +38,7 @@ interface IEnvironmentResponse {
 const heartbeatInterval = 60_000;
 
 export interface IMissionControlEnvironmentHost {
+	readonly protocolVersion?: string;
 	readonly userDataPath: string;
 	readonly name: string;
 	readonly fetch: typeof fetch;
@@ -485,7 +486,7 @@ export class MissionControlEnvironment extends Disposable {
 				return;
 			}
 		}
-		const capabilities = { ahp_version: PROTOCOL_VERSION, features: [], current_sessions: await this._boundedRegistrationWork(this._host.getSessionCount?.() ?? Promise.resolve(0)) };
+		const capabilities = { ahp_version: getAgentHostProtocolVersion(this._host.protocolVersion), features: [], current_sessions: await this._boundedRegistrationWork(this._host.getSessionCount?.() ?? Promise.resolve(0)) };
 		let remoteControl: Record<string, unknown> | undefined;
 		if (options.live) {
 			if (!this._host.getRemoteControlPolicy) {

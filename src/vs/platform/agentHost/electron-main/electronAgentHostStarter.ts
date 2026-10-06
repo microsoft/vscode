@@ -25,6 +25,7 @@ import { buildAgentHostTelemetryIdEnv, IAgentHostForwardedTelemetryIds } from '.
 import { AgentHostLaunchKind, AgentHostLaunchKindEnvVar, telemetryLevelToAgentHostValue } from '../common/agentHostTelemetry.js';
 import { AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentBinaryArgsSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostCodexAgentSdkRootSettingId, AgentHostCodexAgentCodexHomeSettingId, AgentHostIpcChannels, AgentHostOTelCaptureContentSettingId, AgentHostOTelCaptureIdentitySettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOutfileSettingId, AgentHostOTelPolicyIpcChannel, AgentHostOTelPolicyState, AgentHostRestartIpcChannel, AgentHostWillRestartIpcChannel, buildAgentHostOTelEnv, buildAgentSdkEnv, IAgentHostManagementService, IAgentHostOTelSettings, readAgentHostOTelPolicySettings } from '../common/agentService.js';
 import { deepClone } from '../../../base/common/objects.js';
+import { AgentHostProtocolVersionOverrideEnvVar, AgentHostProtocolVersionOverrideSettingId, getAgentHostProtocolVersion } from '../common/agentHostProtocolVersion.js';
 import '../common/agentHostStarter.config.contribution.js';
 
 export class ElectronAgentHostStarter extends Disposable implements IAgentHostStarter {
@@ -183,6 +184,7 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 					VSCODE_PIPE_LOGGING: 'true',
 					VSCODE_VERBOSE_LOGGING: 'true',
 					[AgentHostLaunchKindEnvVar]: AgentHostLaunchKind.VSCodeMainProcess,
+					[AgentHostProtocolVersionOverrideEnvVar]: getAgentHostProtocolVersion(this._configurationService.getValue<string>(AgentHostProtocolVersionOverrideSettingId)),
 					...sdkEnv,
 					...otelEnv,
 					...telemetryIdEnv,

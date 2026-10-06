@@ -43,6 +43,12 @@ Selection revalidates availability. An offline user-local host is not woken or r
 
 New native allocations negotiate standard `ahp-session` resources with a separate provider. Existing legacy and standard session/chat resources, SDK backings, and storage remain immutable. The client consumes exact advertised resources; MC does not impose a global Copilot alias. See the [identity contract](../../../../sessions/contrib/providers/agentHost/AGENT_HOST_SESSIONS_PROVIDER.md#identity).
 
+### Development protocol-version override
+
+For compatibility testing, set `chat.agentHost.protocolVersionOverride` to a `MAJOR.MINOR.PATCH` string, such as `0.9.0`, then run **Developer: Restart Local Agent Host**. An empty string restores the built-in version. The override applies to host handshake negotiation, local endpoint metadata, and Mission Control registration/heartbeats. Client-side version offers remain unchanged. Standalone test hosts can use `VSCODE_AGENT_HOST_PROTOCOL_VERSION_OVERRIDE`.
+
+This only changes the host's declared version; it does not translate messages, add compatibility adapters, or guarantee interoperability. Invalid versions are rejected, and the host logs a warning when an override changes its built-in version. The setting is machine-local and excluded from Settings Sync.
+
 ## Security and data handling
 
 The [security requirements matrix](./MISSION_CONTROL_SECURITY_REQUIREMENTS.md) links each requirement to implementation and tests. The supported boundary includes canonical-owner sealed authentication, signed control requests, lane/client-ID binding, passive mutation refusal, locally known workspace/resource grants, minimal pre-authentication state, and host-wide root-configuration exclusion. Remote windows cannot overwrite the owning machine's root settings or managed permissions.

@@ -567,6 +567,7 @@ suite('Mission Control WPS', () => {
 			const service = store.add(new MissionControlEnvironment({
 				userDataPath: path,
 				name: 'VS Code OSS',
+				protocolVersion: '0.9.0',
 				fetch: fakeFetch,
 				attach: () => ({ dispose() { } }),
 				onError: error => errors.push(error instanceof Error ? error.message : String(error)),
@@ -594,6 +595,7 @@ suite('Mission Control WPS', () => {
 				offline: requests.at(-1)?.body?.status,
 				closed: sockets.every(socket => socket.closed),
 				errors,
+				advertisedVersions: requests.filter(request => request.body?.capabilities).map(request => (request.body!.capabilities as { ahp_version: string }).ahp_version),
 			}, {
 				requests: [
 					['/cmc_internal/api/agents/environments/register', true, 'user-local', persisted],
@@ -609,6 +611,7 @@ suite('Mission Control WPS', () => {
 				offline: 'offline',
 				closed: true,
 				errors: ['Mission Control WPS socket closed (code 1006)'],
+				advertisedVersions: ['0.9.0', '0.9.0', '0.9.0'],
 			});
 			service.dispose();
 		} finally {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PROTOCOL_VERSION } from './state/protocol/version/registry.js';
+import { getAgentHostProtocolVersion } from './agentHostProtocolVersion.js';
 
 export const remoteAgentHostStateSchemaVersion = 1;
 
@@ -38,6 +38,7 @@ export function createRemoteAgentHostState(options: {
 	readonly connectionToken: string | undefined;
 	readonly quality?: string;
 	readonly tunnelName?: string;
+	readonly protocolVersion?: string;
 }): IRemoteAgentHostState {
 	return {
 		schemaVersion: remoteAgentHostStateSchemaVersion,
@@ -45,7 +46,7 @@ export function createRemoteAgentHostState(options: {
 		port: options.port,
 		host: options.host,
 		connectionToken: options.connectionToken ?? null,
-		protocolVersion: PROTOCOL_VERSION,
+		protocolVersion: getAgentHostProtocolVersion(options.protocolVersion),
 		quality: options.quality,
 		tunnelName: options.tunnelName,
 	};
