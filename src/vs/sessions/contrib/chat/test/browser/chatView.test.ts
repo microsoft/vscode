@@ -65,6 +65,44 @@ suite('Sessions - Chat View', () => {
 
 	teardown(() => sinon.restore());
 
+	test('reads the widget offset only for a visible external banner and follows changes in its height', () => {
+		const element = dom.$('.chat-view-chat');
+		const banner = dom.append(element, dom.$('.external-session-banner.hidden'));
+		const progress = dom.append(element, dom.$('.monaco-progress-container'));
+		const widgetContainer = dom.append(element, dom.$('.chat-view-widget'));
+		const layouts: number[][] = [];
+		const progressOffsets: string[] = [];
+		let offsetReads = 0;
+		let bannerHeight = 35;
+		Object.defineProperty(widgetContainer, 'offsetTop', { get: () => { offsetReads++; return bannerHeight; } });
+		const view: { _layoutChatWidget(): void } = Object.assign(Object.create(ChatView.prototype), {
+			element,
+			_lastLayout: { width: 500, height: 400 },
+			_externalSessionBanner: { domNode: banner },
+			_widgetContainer: widgetContainer,
+			_widget: { layout: (height: number, width: number) => layouts.push([height, width]) },
+			_comparisonResult: { layout: () => { } },
+			_layoutStickyScrollBackground: () => { },
+		});
+		view._layoutChatWidget();
+		const hiddenReads = offsetReads;
+		progressOffsets.push(progress.style.top);
+		banner.classList.remove('hidden');
+		view._layoutChatWidget();
+		progressOffsets.push(progress.style.top);
+		bannerHeight = 60;
+		view._layoutChatWidget();
+		progressOffsets.push(progress.style.top);
+		banner.classList.add('hidden');
+		view._layoutChatWidget();
+		progressOffsets.push(progress.style.top);
+		assert.deepStrictEqual({ hiddenReads, offsetReads, layouts, progressOffsets }, {
+			hiddenReads: 0, offsetReads: 2,
+			layouts: [[400, 500], [365, 500], [340, 500], [400, 500]],
+			progressOffsets: ['0px', '35px', '60px', '0px'],
+		});
+	});
+
 	test('summarizes only comparison evaluators in their main chat', () => {
 		const attempt = URI.parse('test:/attempt');
 		const judge = URI.parse('test:/judge');
