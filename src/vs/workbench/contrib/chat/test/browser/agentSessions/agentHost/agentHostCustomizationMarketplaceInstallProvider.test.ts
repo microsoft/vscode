@@ -60,7 +60,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		});
 	});
 
-	test('projects SDK catalog selections with github-app publisher avatars', async () => {
+	test('projects non-empty SDK catalog searches and declines browse requests', async () => {
 		const frontendSession = URI.parse('agent-host-copilotcli:/frontend-session');
 		const backendSession = URI.parse('ahp-session:/backend-session');
 		const calls: { readonly provider: string; readonly session: string; readonly query: string }[] = [];
@@ -101,9 +101,11 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		));
 
 		const page = await provider.query(frontendSession, { query: 'demo', pageSize: 12 }, CancellationToken.None);
+		const browse = await provider.query(frontendSession, {}, CancellationToken.None);
 
 		assert.deepStrictEqual({
 			calls,
+			browse,
 			page: page && {
 				...page,
 				items: page.items.map(item => ({
@@ -114,6 +116,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			},
 		}, {
 			calls: [{ provider: 'copilotcli', session: backendSession.toString(), query: 'demo' }],
+			browse: undefined,
 			page: {
 				items: [{
 					identifier: 'selection',

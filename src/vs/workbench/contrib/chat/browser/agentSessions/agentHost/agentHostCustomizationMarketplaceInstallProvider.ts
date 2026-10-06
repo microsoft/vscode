@@ -75,7 +75,8 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 
 	async query(sessionResource: URI, options: ICustomizationMarketplaceSourceQuery, token: CancellationToken): Promise<ICustomizationMarketplaceSourcePage | undefined> {
 		this.throwIfCancelled(token);
-		if (!this.agentHostService.searchCustomizationMarketplace) {
+		const query = options.query?.trim();
+		if (!query || !this.agentHostService.searchCustomizationMarketplace) {
 			return undefined;
 		}
 		let backendSession: URI;
@@ -85,7 +86,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 			return undefined;
 		}
 		const result = await this.agentHostService.searchCustomizationMarketplace(this.providerId, backendSession, {
-			query: options.query ?? '',
+			query,
 			mediaType: options.mediaType,
 			limit: options.pageSize ?? 30,
 			cursor: options.cursor,
