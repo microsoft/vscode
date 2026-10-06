@@ -128,8 +128,6 @@ type McpAuthHandler = NonNullable<SessionConfig['onMcpAuthRequest']>;
 type McpAuthRequest = Parameters<McpAuthHandler>[0];
 type McpAuthResult = Awaited<ReturnType<McpAuthHandler>>;
 type CopilotSdkExecutionOutcome<T> = { readonly kind: 'executed'; readonly value: T } | { readonly kind: 'skipped' };
-// Remove this compatibility signature once the pinned SDK exposes startServers (github/copilot-agent-runtime#22835).
-type McpListWithOptions = (options: { startServers: boolean }) => ReturnType<CopilotSession['rpc']['mcp']['list']>;
 
 interface IClientToolSdkPolicy {
 	readonly overridesBuiltInTool?: true;
@@ -615,7 +613,7 @@ type McpLifecycleOrigin = 'statusChanged' | 'inventory';
 
 /**
  * SDK-neutral fields carried into a lifecycle log record from a live
- * `session.mcp_server_status_changed` event or the `rpc.mcp.list` inventory.
+ * `session.mcp_server_status_changed` event or the `rpc.mcp.listConfigured` inventory.
  */
 interface IMcpLifecycleLogInfo {
 	readonly name: string;
@@ -627,7 +625,7 @@ interface IMcpLifecycleLogInfo {
 	readonly pluginVersion?: string;
 }
 
-type McpServer = Awaited<ReturnType<CopilotSession['rpc']['mcp']['list']>>['servers'][number];
+type McpServer = Awaited<ReturnType<CopilotSession['rpc']['mcp']['list']>>['servers'][number] & { enabled?: boolean };
 
 class DirectUsageAccumulator {
 	private readonly _tokenTotalsByModel = new Map<string, Mutable<ITurnTokenTotal>>();
@@ -4808,13 +4806,13 @@ export class CopilotAgentSession extends Disposable {
 		if (this._getDesiredMcpServerEnablementByName().size === 0) {
 			return;
 		}
-		const { servers } = await (this._wrapper.session.rpc.mcp.list as McpListWithOptions)({ startServers: false });
+		const { servers } = await this._wrapper.session.rpc.mcp.listConfigured();
 		this._markMcpLaunchConfigurationDirty();
 		const desiredEnablement = this._getDesiredMcpServerEnablementByName();
 		if (desiredEnablement.size === 0) {
 			return;
 		}
-		const observedEnablement = new Map(servers.map(server => [server.name, server.status !== 'disabled' && server.status !== 'not_configured'] as const));
+		const observedEnablement = new Map(servers.map(server => [server.name, server.enabled] as const));
 		let changed = false;
 		for (const [serverName, desired] of desiredEnablement) {
 			const enabled = observedEnablement.get(serverName);
@@ -7774,7 +7772,7 @@ export class CopilotAgentSession extends Disposable {
 		// agent host's OTLP log stream and the per-server Output channels.
 		this._register(wrapper.onMcpServersLoaded(() => {
 			// The SDK re-emits a cached loaded snapshot on later turns, not live connection state.
-			this._logService.trace(`[Copilot:${sessionId}] MCP server inventory invalidated by session.mcp_servers_loaded; refreshing rpc.mcp.list`);
+			this._logService.trace(`[Copilot:${sessionId}] MCP server inventory invalidated by session.mcp_servers_loaded; refreshing rpc.mcp.listConfigured`);
 			void this._refreshMcpServersFromRpc().catch(err => {
 				this._logService.warn(`[Copilot:${sessionId}] Failed to refresh MCP server inventory after session.mcp_servers_loaded`, err);
 			});
@@ -7822,11 +7820,7 @@ export class CopilotAgentSession extends Disposable {
 			this._slashCommandProvider.clearCache();
 		}));
 
-		// Seed the inventory with any servers the SDK has already loaded by
-		// the time we attach. The `session.mcp_servers_loaded` event may
-		// have fired before our subscription (e.g. for restored sessions or
-		// when servers are configured at session-creation time), and there
-		// is no replay. Later loaded events invalidate this RPC inventory.
+		// Discover configured servers without starting them; loaded events invalidate this inventory.
 		this._seedMcpServersFromRpc();
 	}
 
@@ -7849,7 +7843,7 @@ export class CopilotAgentSession extends Disposable {
 		const requestVersion = ++this._mcpInventoryRequestVersion;
 		while (!this._store.isDisposed) {
 			const lifecycleVersion = this._mcpLifecycleVersion;
-			const result = await (mcpRpc.list as McpListWithOptions)({ startServers: false });
+			const result = await mcpRpc.listConfigured();
 			const userServerNames = result.servers.some(server => server.source === undefined)
 				? await this._getUserMcpServerNames?.()
 				: undefined;
@@ -7862,18 +7856,20 @@ export class CopilotAgentSession extends Disposable {
 			}
 			this._logMcpServersSnapshot(result.servers.map(s => ({
 				name: s.name,
-				status: s.status,
-				error: s.error,
+				status: s.live?.status ?? 'stopped',
+				error: s.live?.error,
 				source: s.source,
 				pluginName: s.sourcePlugin,
 				pluginVersion: s.sourcePluginVersion,
 			})), 'inventory');
 			this._applyMcpServerList(result.servers.map(server => ({
 				...server,
+				status: server.live?.status ?? 'stopped',
+				error: server.live?.error,
 				source: server.source ?? (userServerNames?.has(server.name) ? 'user' : undefined),
 			})));
 			for (const server of result.servers) {
-				if (server.status === 'connected') {
+				if (server.live?.status === 'connected') {
 					void this._refreshMcpToolRoutingCache(server.name).catch(error => {
 						this._logService.warn(`[Copilot:${this.sessionId}] Failed to refresh MCP tool routing metadata for '${server.name}'`, error);
 					});
@@ -7883,7 +7879,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	private _applyMcpServerList(servers: Awaited<ReturnType<CopilotSession['rpc']['mcp']['list']>>['servers']): void {
+	private _applyMcpServerList(servers: McpServer[]): void {
 		const serverNames = new Set(servers.map(server => server.name));
 		for (const serverName of this._lastMcpAuthRequirements.keys()) {
 			if (!serverNames.has(serverName)) {
@@ -8040,7 +8036,7 @@ export class CopilotAgentSession extends Disposable {
 			displayName: this._mcpServerDisplayNames.get(server.name),
 			state: this._translateSdkMcpStatus(server.name, server.status, server.error, hasPendingAuthentication),
 			...(server.status === 'pending' && !hasPendingAuthentication ? { allowAuthRequiredToStarting: true } : {}),
-			enabled: server.status !== 'disabled' && server.status !== 'not_configured',
+			enabled: server.enabled ?? (server.status !== 'disabled' && server.status !== 'not_configured'),
 			...provenance,
 			pluginVersion: server.sourcePluginVersion,
 		};

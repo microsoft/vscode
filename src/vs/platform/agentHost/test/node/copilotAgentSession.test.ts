@@ -608,13 +608,22 @@ class MockCopilotSession {
 			},
 		},
 		mcp: {
-			list: async (options?: { startServers?: boolean }) => {
+			list: async () => {
+				this.mcpMaterializingListCalls++;
+				throw new Error('Session inventory must not materialize MCP servers');
+			},
+			listConfigured: async (): ReturnType<CopilotSession['rpc']['mcp']['listConfigured']> => {
 				this.mcpListCalls++;
-				this.mcpListOptions.push(options);
 				if (this.mcpListError !== undefined) {
 					throw this.mcpListError;
 				}
-				const result = this.mcpListResult;
+				const result = this.mcpConfiguredListResult ?? {
+					servers: this.mcpListResult.servers.map(({ status, error, ...server }) => ({
+						...server,
+						enabled: status !== 'disabled' && status !== 'not_configured',
+						live: { status, error },
+					})),
+				};
 				await this.mcpListGates.shift();
 				return result;
 			},
@@ -759,8 +768,9 @@ class MockCopilotSession {
 	readonly shellInitScriptUpdates: unknown[] = [];
 
 	mcpListResult: Awaited<ReturnType<CopilotSession['rpc']['mcp']['list']>> = { servers: [] };
+	mcpConfiguredListResult: Awaited<ReturnType<CopilotSession['rpc']['mcp']['listConfigured']>> | undefined;
 	mcpListCalls = 0;
-	mcpListOptions: Array<{ startServers?: boolean } | undefined> = [];
+	mcpMaterializingListCalls = 0;
 	mcpListGates: Promise<void>[] = [];
 	mcpListError: unknown = undefined;
 	mcpEnableError: unknown = undefined;
@@ -19850,8 +19860,98 @@ Use the attached image as context.
 
 			await timeout(0);
 
-			assert.deepStrictEqual(mockSession.mcpListOptions, [{ startServers: false }]);
+			assert.deepStrictEqual({
+				configuredListCalls: mockSession.mcpListCalls,
+				materializingListCalls: mockSession.mcpMaterializingListCalls,
+			}, { configuredListCalls: 1, materializingListCalls: 0 });
 		});
+
+		test('publishes cold configured servers without claiming readiness or fetching tools', async () => {
+			const { session, mockSession } = await createAgentSession(disposables, {
+				resolveCustomizationEnablement: target => ({
+					kind: 'resolved',
+					enablement: [{ kind: CustomizationEnablementKind.Session, enabled: target.name !== 'disabled' }],
+					enabled: target.name !== 'disabled',
+					workingDirectory: { kind: 'workspaceless' },
+				}),
+				configureMockSession: mock => {
+					mock.mcpConfiguredListResult = {
+						servers: [
+							{ name: 'sleepy', enabled: true, source: 'user' },
+							{ name: 'disabled', enabled: false, source: 'workspace' },
+							{ name: 'plugin-server', enabled: true, source: 'plugin', sourcePlugin: 'acme', sourcePluginVersion: '1.0.0' },
+						]
+					};
+				},
+			});
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				servers: session.topLevelMcpCustomizations().map(server => ({
+					name: server.name,
+					enabled: isCustomizationEnabled(server),
+					state: server.state,
+					source: readMcpServerSource(server),
+					plugin: readMcpServerSourcePlugin(server),
+				})),
+				listCalls: mockSession.mcpMaterializingListCalls,
+				toolCalls: mockSession.mcpListToolsCalls,
+				enableCalls: mockSession.mcpEnableCalls,
+			}, {
+				servers: [
+					{ name: 'sleepy', enabled: true, state: { kind: McpServerStatus.Stopped }, source: 'user', plugin: undefined },
+					{ name: 'disabled', enabled: false, state: { kind: McpServerStatus.Stopped }, source: 'workspace', plugin: undefined },
+					{ name: 'plugin-server', enabled: true, state: { kind: McpServerStatus.Stopped }, source: 'plugin', plugin: 'acme' },
+				],
+				listCalls: 0,
+				toolCalls: [],
+				enableCalls: [],
+			});
+		});
+
+		for (const liveStatus of [undefined, 'stopped', 'not_configured'] as const) {
+			for (const enabled of [false, true]) {
+				for (const desired of [false, true]) {
+					test(`reconciles configured enablement ${enabled} with desired ${desired} and live status ${liveStatus}`, async () => {
+						const serverName = 'sleepy';
+						const id = 'mcp-top-level:copilotcli:test-session-1:sleepy';
+						const { session, mockSession } = await createAgentSession(disposables, {
+							sessionCustomizations: () => [{
+								type: CustomizationType.McpServer, id, uri: id, name: serverName,
+								state: { kind: McpServerStatus.Stopped },
+							}],
+							resolveCustomizationEnablement: () => ({
+								kind: 'resolved',
+								enablement: [{ kind: CustomizationEnablementKind.Session, enabled: desired }],
+								enabled: desired,
+								workingDirectory: { kind: 'workspaceless' },
+							}),
+							configureMockSession: mock => {
+								mock.mcpConfiguredListResult = {
+									servers: [{
+										name: serverName, enabled, live: liveStatus ? { status: liveStatus } : undefined,
+									}]
+								};
+							},
+						});
+
+						await session.send('reconcile sleepy');
+
+						assert.deepStrictEqual({
+							enable: mockSession.mcpEnableCalls,
+							disable: mockSession.mcpDisableCalls,
+							materializingListCalls: mockSession.mcpMaterializingListCalls,
+							toolCalls: mockSession.mcpListToolsCalls,
+						}, {
+							enable: desired && !enabled ? [{ serverName }] : [],
+							disable: !desired && enabled ? [{ serverName }] : [],
+							materializingListCalls: 0,
+							toolCalls: [],
+						});
+					});
+				}
+			}
+		}
 
 		test('does not enable a server while its customization resolution is pending', async () => {
 			const serverName = 'azure';
@@ -19939,12 +20039,14 @@ Use the attached image as context.
 			assert.deepStrictEqual({
 				staleControllerState,
 				disableCalls: mockSession.mcpDisableCalls,
-				nonStartingListCalls: mockSession.mcpListOptions.filter(options => options?.startServers === false).length,
+				nonStartingListCalls: mockSession.mcpListCalls,
+				materializingListCalls: mockSession.mcpMaterializingListCalls,
 				sendRequests: mockSession.sendRequests,
 			}, {
 				staleControllerState: { kind: McpServerStatus.Stopped },
 				disableCalls: [{ serverName }],
 				nonStartingListCalls: 3,
+				materializingListCalls: 0,
 				sendRequests: [],
 			});
 
@@ -19992,12 +20094,14 @@ Use the attached image as context.
 			assert.deepStrictEqual({
 				staleControllerState,
 				enableCalls: mockSession.mcpEnableCalls,
-				nonStartingListCalls: mockSession.mcpListOptions.filter(options => options?.startServers === false).length,
+				nonStartingListCalls: mockSession.mcpListCalls,
+				materializingListCalls: mockSession.mcpMaterializingListCalls,
 				sendRequests: mockSession.sendRequests,
 			}, {
 				staleControllerState: { kind: McpServerStatus.Ready },
 				enableCalls: [{ serverName }],
 				nonStartingListCalls: 3,
+				materializingListCalls: 0,
 				sendRequests: [],
 			});
 
@@ -21665,7 +21769,7 @@ Use the attached image as context.
 			assert.deepStrictEqual(action.customization.state, { kind: McpServerStatus.Starting });
 		});
 
-		test('seeds inventory from rpc.mcp.list at subscription time', async () => {
+		test('seeds inventory from rpc.mcp.listConfigured at subscription time', async () => {
 			const { signals, waitForSignal } = await createAgentSession(disposables, {
 				configureMockSession: m => {
 					m.mcpListResult = {
@@ -22005,7 +22109,7 @@ Use the attached image as context.
 			});
 		});
 
-		test('logs a warning and continues when rpc.mcp.list rejects', async () => {
+		test('logs a warning and continues when rpc.mcp.listConfigured rejects', async () => {
 			const logService = new CapturingLogService();
 			const { mockSession, waitForSignal } = await createAgentSession(disposables, {
 				logService,
