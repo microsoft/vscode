@@ -14,7 +14,7 @@ import { CopilotCustomizationInstallations } from '../../node/copilot/customizat
 suite('CopilotCustomizationInstallations', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('requires the exact materialized policy session before starting the SDK', async () => {
+	test('fails before starting the SDK when no policy-session factory is available', async () => {
 		let clientRequests = 0;
 		const service = store.add(new CopilotCustomizationInstallations(async () => {
 			clientRequests++;
@@ -29,6 +29,63 @@ suite('CopilotCustomizationInstallations', () => {
 		assert.deepStrictEqual({ clientRequests, search }, {
 			clientRequests: 0,
 			search: { kind: 'unavailable', reason: 'session' },
+		});
+	});
+
+	test('creates and reuses a hidden policy session when no chat is materialized', async () => {
+		const policySessionIds: (string | undefined)[] = [];
+		const catalog = new class extends mock<CopilotClient['rpc']['catalog']>() {
+			override readonly search: CopilotClient['rpc']['catalog']['search'] = async request => {
+				policySessionIds.push(request.policySessionId);
+				return {
+					kind: 'succeeded' as const,
+					searchId: 'search',
+					candidates: [],
+					truncated: false,
+					negotiated: { runtimeProtocolVersion: 3, grantedCapabilities: [] },
+				};
+			};
+		}();
+		const client = {
+			rpc: {
+				catalog,
+				skills: new class extends mock<CopilotClient['rpc']['skills']>() { }(),
+				mcp: new class extends mock<CopilotClient['rpc']['mcp']>() { }(),
+			},
+		};
+		let created = 0;
+		let disposed = 0;
+		const service = store.add(new CopilotCustomizationInstallations(
+			async () => client,
+			() => undefined,
+			async (requestedClient, sessionId) => {
+				created++;
+				return {
+					client: requestedClient,
+					sessionId,
+					async dispose() { disposed++; },
+				};
+			},
+		));
+
+		await service.search(URI.parse('agent-host-copilotcli:///unmaterialized'), { query: 'first', limit: 10 });
+		await service.search(URI.parse('agent-host-copilotcli:///unmaterialized'), { query: 'second', limit: 10 });
+		await service.releasePolicySession(client);
+		await service.search(URI.parse('agent-host-copilotcli:///unmaterialized'), { query: 'third', limit: 10 });
+		await service.releasePolicySession(client);
+
+		assert.deepStrictEqual({
+			created,
+			disposed,
+			hasIds: policySessionIds.every(id => typeof id === 'string' && id.length > 0),
+			reusedFirst: policySessionIds[0] === policySessionIds[1],
+			replacedAfterRelease: policySessionIds[1] !== policySessionIds[2],
+		}, {
+			created: 2,
+			disposed: 2,
+			hasIds: true,
+			reusedFirst: true,
+			replacedAfterRelease: true,
 		});
 	});
 

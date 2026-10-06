@@ -400,7 +400,10 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 
 	private getBackendSession(sessionResource: URI): URI {
 		const identity = this.agentHostConnectionsService.resolveSessionResourceIdentity(sessionResource);
-		if (!identity || identity.connectionAuthority !== AMBIENT_AGENT_HOST_AUTHORITY) {
+		if (!identity) {
+			return sessionResource;
+		}
+		if (identity.connectionAuthority !== AMBIENT_AGENT_HOST_AUTHORITY) {
 			throw new Error(localize('agentHost.customizationInstall.sessionUnavailable', "The selected local Agent Host session is unavailable."));
 		}
 		return identity.backendSession;

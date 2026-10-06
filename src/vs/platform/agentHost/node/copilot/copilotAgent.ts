@@ -818,10 +818,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _invalidatingModelRefresh: Promise<void> | undefined;
 
 	private _client: CopilotClient | undefined;
-	private readonly _customizationInstallations = this._register(new CopilotCustomizationInstallations(
-		() => this._ensureClient(),
-		session => this._findSessionChat(session)?.sessionId,
-	));
+	private readonly _customizationInstallations: CopilotCustomizationInstallations;
 	private readonly _extensionSdkPathByClient = new WeakMap<CopilotClient, string>();
 	private _clientGeneration = 0;
 	private _clientConnectorAuthentication: { readonly connectorsEnabled: boolean; readonly enterpriseHost: string | undefined; readonly token: string | undefined } | undefined;
@@ -990,6 +987,35 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._lastStartupConfig = this._readClientStartupConfig();
 		this._plugins = this._register(this._instantiationService.createInstance(PluginController, () => this._ensureClient()));
 		this._sessionLauncher = this._instantiationService.createInstance(CopilotSessionLauncher);
+		this._customizationInstallations = this._register(new CopilotCustomizationInstallations(
+			() => this._ensureClient(),
+			session => this._findSessionChat(session)?.sessionId,
+			async (client, sessionId) => {
+				const copilotClient = client as CopilotClient;
+				const session = await this._sessionLauncher.createCustomizationPolicySession(
+					copilotClient,
+					sessionId,
+					getCopilotHomePath(this._environmentService.userHome.fsPath, process.env),
+					this._getGitHubSessionCredentials(),
+				);
+				return {
+					client,
+					sessionId: session.sessionId,
+					dispose: async () => {
+						try {
+							await session.disconnect();
+						} catch (error) {
+							this._logService.debug(`[Copilot] Hidden customization policy session '${session.sessionId}' was already disconnected: ${getErrorMessage(error)}`);
+						}
+						try {
+							await copilotClient.deleteSession(session.sessionId);
+						} catch (error) {
+							this._logService.debug(`[Copilot] Hidden customization policy session '${session.sessionId}' was already removed: ${getErrorMessage(error)}`);
+						}
+					},
+				};
+			},
+		));
 		const discoveryRoot = URI.file(join(getCopilotHomePath(this._environmentService.userHome.fsPath, process.env), 'session-state'));
 		this._copilotChatDiscovery = this._register(this._instantiationService.createInstance(CopilotChatDiscovery,
 			discoveryRoot, scan => this._emitCopilotChats(scan)));
@@ -2115,6 +2141,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return;
 		}
 		this._logService.info(`[Copilot] Auth token ${token ? 'updated' : 'cleared'}`);
+		await this._customizationInstallations.releasePolicySession();
 		this._telemetryAuthenticationGeneration++;
 		this._updateRestrictedTelemetry(token);
 		this._refreshProxy();
@@ -2608,6 +2635,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._client = undefined;
 			this._clientConnectorAuthentication = undefined;
 			this._clientStarting = undefined;
+			await this._customizationInstallations.releasePolicySession(client);
 			await client?.stop();
 			// The runtime subprocess is now dead, so it is safe to release the BYOK
 			// proxy handle: the next session launch mints a fresh nonce. See the
@@ -3427,13 +3455,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 		});
 	}
 
-	private async _listSdkSessions<T>(reason: 'chats to migrate' | 'discoverable chats' | 'prewarm session metadata', listSessions: (client: CopilotClient) => Promise<readonly T[]>): Promise<readonly T[] | undefined> {
+	private async _listSdkSessions<T extends { readonly sessionId: string }>(reason: 'chats to migrate' | 'discoverable chats' | 'prewarm session metadata', listSessions: (client: CopilotClient) => Promise<readonly T[]>): Promise<readonly T[] | undefined> {
 		this._startupPerformance.mark('providerContext', { provider: this.id, activationState: 'notRequired', sdkAvailability: 'available' });
 		const phase = reason === 'chats to migrate' ? 'sessionMigrationScan' : reason === 'discoverable chats' ? 'sessionDiscoveryScan' : 'sessionMetadataScan';
 		const timing = this._startupPerformance.start(phase, this.id);
 		this._logService.info(`[Copilot] Listing ${reason}...`);
 		try {
-			const sessions = await this._retryAfterClosedConnection('listSessions', listSessions);
+			const listed = await this._retryAfterClosedConnection('listSessions', listSessions);
+			const sessions = listed.filter(session => !this._customizationInstallations.isPolicySessionId(session.sessionId));
 			timing?.complete('success', { scannedSessionCount: sessions.length });
 			this._logService.info(`[Copilot] Listed ${sessions.length} SDK session(s) for ${reason}`);
 			return sessions;

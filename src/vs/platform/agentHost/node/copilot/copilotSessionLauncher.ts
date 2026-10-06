@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AttributedPermissionResult, ContextTier, CopilotClient, ElicitationContext, ElicitationResult, ExitPlanModeRequest, ExitPlanModeResult, ModelCapabilitiesOverride, NamedProviderConfig, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ResumeSessionConfig, SessionConfig, SessionEvent, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
+import type { AttributedPermissionResult, ContextTier, CopilotClient, CopilotSession, ElicitationContext, ElicitationResult, ExitPlanModeRequest, ExitPlanModeResult, ModelCapabilitiesOverride, NamedProviderConfig, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ResumeSessionConfig, SessionConfig, SessionEvent, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { equals as objectsEqual } from '../../../../base/common/objects.js';
@@ -693,6 +693,49 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
 		@IAgentHostSessionOpenTelemetry private readonly _sessionOpenTelemetry: IAgentHostSessionOpenTelemetry,
 	) { }
+
+	async createCustomizationPolicySession(client: CopilotClient, sessionId: string, workingDirectory: string, githubCredentials: CopilotGitHubSessionCredentials): Promise<CopilotSession> {
+		const discovered = await client.rpc.mcp.discover({
+			workingDirectory,
+			includeEffectiveSource: false,
+		});
+		const disabledMcpServers = [...new Set([
+			...discovered.servers.map(server => server.name),
+			'github-mcp-server',
+		])].sort();
+		const copilotConnectorsEnabled = this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) === true;
+		const session = await client.createSession({
+			sessionId,
+			clientName: AGENT_HOST_COPILOT_CLIENT_NAME,
+			workingDirectory,
+			enableConfigDiscovery: true,
+			enableSkills: true,
+			skipCustomInstructions: true,
+			requestExtensions: false,
+			requestCanvasRenderer: false,
+			enableMcpApps: false,
+			enableSessionStore: false,
+			infiniteSessions: { enabled: false },
+			memory: { enabled: false },
+			enableHostGitOperations: false,
+			remoteSession: 'off',
+			mcpOAuthTokenStorage: 'in-memory',
+			disabledMcpServers,
+			availableTools: [],
+			excludedTools: ['builtin:*', 'mcp:*', 'custom:*'],
+			managedSettings: { permissions: this._managedSettingsService.permissions },
+			enableManagedSettings: true,
+			featureFlags: {
+				CONNECTORS: copilotConnectorsEnabled,
+				TGREP: false,
+				CONTENT_EXCLUSION: true,
+				...(copilotConnectorsEnabled ? { MANAGED_MCP_SERVERS: true } : {}),
+			},
+			...githubCredentials.sdkSessionOptions,
+		});
+		this._logService.info('[Copilot] Created hidden customization policy session');
+		return session;
+	}
 
 	async launch(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionWrapper> {
 		this._logService.info(`[Copilot:${plan.sessionId}] Preparing SDK session: kind=${plan.kind}, configuration=${runtime.configurationResource.toString()}, chat=${runtime.chatUri.toString()}`);

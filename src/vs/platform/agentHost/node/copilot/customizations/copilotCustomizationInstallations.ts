@@ -6,7 +6,7 @@
 import type { CopilotClient, InstallationConfirmationHandler, InstallationConfirmationRequest } from '@github/copilot-sdk';
 import { disposableTimeout } from '../../../../../base/common/async.js';
 import { structuralEquals } from '../../../../../base/common/equals.js';
-import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -28,6 +28,7 @@ const catalogSearchCapabilities = [
 ];
 const retainedCatalogLifetimeMs = 4 * 60_000;
 const maxRetainedCatalogEntries = 1000;
+const policySessionIdleTimeoutMs = 10 * 60_000;
 
 const skillInstallationContract = {
 	...catalogContract,
@@ -46,6 +47,12 @@ interface ISdkResult {
 
 interface ICopilotCustomizationInstallationClient {
 	readonly rpc: Pick<CopilotClient['rpc'], 'catalog' | 'skills' | 'mcp'>;
+}
+
+export interface ICopilotCustomizationPolicySession {
+	readonly client: ICopilotCustomizationInstallationClient;
+	readonly sessionId: string;
+	dispose(): Promise<void>;
 }
 
 interface IPortableInstallationSummary {
@@ -130,6 +137,11 @@ export class CopilotCustomizationInstallations extends Disposable {
 	private readonly operations = this._register(new DisposableMap<string, PendingCustomizationInstallation>());
 	private readonly catalogSelections = this._register(new DisposableMap<string, RetainedCatalogSelection>());
 	private readonly catalogCursors = this._register(new DisposableMap<string, RetainedCatalogCursor>());
+	private readonly policySessionIdle = this._register(new MutableDisposable<IDisposable>());
+	private policySession: ICopilotCustomizationPolicySession | undefined;
+	private policySessionCreation: Promise<ICopilotCustomizationPolicySession> | undefined;
+	private policySessionGeneration = 0;
+	private readonly policySessionIds = new Set<string>();
 
 	readonly confirmationHandler: InstallationConfirmationHandler = (request, token) => {
 		if (token.isCancellationRequested) {
@@ -143,16 +155,18 @@ export class CopilotCustomizationInstallations extends Disposable {
 	constructor(
 		private readonly getClient: () => Promise<ICopilotCustomizationInstallationClient>,
 		private readonly getPolicySessionId: (session: URI) => string | undefined,
+		private readonly createPolicySession?: (client: ICopilotCustomizationInstallationClient, sessionId: string) => Promise<ICopilotCustomizationPolicySession>,
 	) {
 		super();
 	}
 
 	async search(session: URI, request: IAgentCustomizationMarketplaceSearchRequest): Promise<IAgentCustomizationMarketplaceSearchResult> {
-		const policySessionId = this.getPolicySessionId(session);
-		if (!policySessionId) {
+		const visiblePolicySessionId = this.getPolicySessionId(session);
+		if (!visiblePolicySessionId && !this.createPolicySession) {
 			return { kind: 'unavailable', reason: 'session' };
 		}
 		const client = await this.getClient();
+		const policySessionId = visiblePolicySessionId ?? await this.getOrCreatePolicySessionId(client);
 		const retainedCursor = request.cursor ? this.catalogCursors.deleteAndLeak(request.cursor) : undefined;
 		if (request.cursor && (!retainedCursor || retainedCursor.client !== client || retainedCursor.policySessionId !== policySessionId)) {
 			retainedCursor?.dispose();
@@ -199,8 +213,9 @@ export class CopilotCustomizationInstallations extends Disposable {
 	}
 
 	async list(session: URI): Promise<readonly IAgentCustomizationInstallation[]> {
-		const policySessionId = this.requirePolicySessionId(session);
+		const visiblePolicySessionId = this.getVisiblePolicySessionId(session);
 		const client = await this.getClient();
+		const policySessionId = visiblePolicySessionId ?? await this.getOrCreatePolicySessionId(client);
 		const [skills, mcp] = await Promise.all([
 			client.rpc.skills.installations.list({ contract: skillInstallationContract, policySessionId }),
 			client.rpc.mcp.installations.list({ contract: mcpInstallationContract, policySessionId }),
@@ -212,8 +227,9 @@ export class CopilotCustomizationInstallations extends Disposable {
 	}
 
 	async recover(session: URI): Promise<readonly IAgentCustomizationInstallation[]> {
-		const policySessionId = this.requirePolicySessionId(session);
+		const visiblePolicySessionId = this.getVisiblePolicySessionId(session);
 		const client = await this.getClient();
+		const policySessionId = visiblePolicySessionId ?? await this.getOrCreatePolicySessionId(client);
 		const [skills, mcp] = await Promise.all([
 			client.rpc.skills.installations.recover({ contract: skillInstallationContract, policySessionId }),
 			client.rpc.mcp.installations.recover({ contract: mcpInstallationContract, policySessionId }),
@@ -225,8 +241,9 @@ export class CopilotCustomizationInstallations extends Disposable {
 	}
 
 	async prepare(session: URI, request: IAgentCustomizationInstallationRequest | { readonly installationId: string }): Promise<IAgentCustomizationInstallationReview> {
-		const policySessionId = this.requirePolicySessionId(session);
+		const visiblePolicySessionId = this.getVisiblePolicySessionId(session);
 		const client = await this.getClient();
+		const policySessionId = visiblePolicySessionId ?? await this.getOrCreatePolicySessionId(client);
 		return hasKey(request, { installationId: true })
 			? this.prepareUninstall(client, policySessionId, request.installationId)
 			: this.prepareInstall(client, policySessionId, request);
@@ -673,12 +690,99 @@ export class CopilotCustomizationInstallations extends Disposable {
 		this.operations.set(operation.id, operation);
 	}
 
-	private requirePolicySessionId(session: URI): string {
+	private getVisiblePolicySessionId(session: URI): string | undefined {
 		const policySessionId = this.getPolicySessionId(session);
-		if (!policySessionId) {
+		if (policySessionId) {
+			return policySessionId;
+		}
+		if (!this.createPolicySession) {
 			throw new Error(localize('copilot.customizationInstallation.sessionRequired', "Start a Copilot agent session before managing SDK installations."));
 		}
-		return policySessionId;
+		return undefined;
+	}
+
+	private async getOrCreatePolicySessionId(client: ICopilotCustomizationInstallationClient): Promise<string> {
+		let current = this.policySession;
+		if (current?.client === client) {
+			this.touchPolicySession(current);
+			return current.sessionId;
+		}
+		if (current) {
+			await this.releasePolicySession();
+		}
+		let creating = this.policySessionCreation;
+		if (!creating) {
+			const generation = ++this.policySessionGeneration;
+			const sessionId = generateUuid();
+			this.policySessionIds.add(sessionId);
+			creating = this.createPolicySession!(client, sessionId).then(async created => {
+				if (created.sessionId !== sessionId || generation !== this.policySessionGeneration) {
+					try {
+						await created.dispose();
+					} finally {
+						this.policySessionIds.delete(sessionId);
+					}
+					throw new Error(localize('copilot.customizationInstallation.runtimeChanged', "The customization runtime restarted. Start the operation again."));
+				}
+				this.policySession = created;
+				return created;
+			}, error => {
+				this.policySessionIds.delete(sessionId);
+				throw error;
+			});
+			this.policySessionCreation = creating;
+			const clearCreation = () => {
+				if (this.policySessionCreation === creating) {
+					this.policySessionCreation = undefined;
+				}
+			};
+			void creating.then(clearCreation, clearCreation);
+		}
+		current = await creating;
+		if (current.client !== client) {
+			await this.releasePolicySession();
+			throw new Error(localize('copilot.customizationInstallation.runtimeChanged', "The customization runtime restarted. Start the operation again."));
+		}
+		this.touchPolicySession(current);
+		return current.sessionId;
+	}
+
+	private touchPolicySession(session: ICopilotCustomizationPolicySession): void {
+		this.policySessionIdle.value = disposableTimeout(() => void this.releasePolicySession(session.client), policySessionIdleTimeoutMs);
+	}
+
+	async releasePolicySession(client?: ICopilotCustomizationInstallationClient): Promise<void> {
+		const generation = ++this.policySessionGeneration;
+		this.policySessionIdle.clear();
+		const current = this.policySession;
+		if (current && (!client || current.client === client)) {
+			this.policySession = undefined;
+			try {
+				await current.dispose();
+			} finally {
+				this.policySessionIds.delete(current.sessionId);
+			}
+		}
+		const creating = this.policySessionCreation;
+		if (creating) {
+			try {
+				const created = await creating;
+				if (generation === this.policySessionGeneration && (!client || created.client === client)) {
+					this.policySession = undefined;
+					try {
+						await created.dispose();
+					} finally {
+						this.policySessionIds.delete(created.sessionId);
+					}
+				}
+			} catch {
+				// Creation owns and reports its failure.
+			}
+		}
+	}
+
+	isPolicySessionId(sessionId: string): boolean {
+		return this.policySessionIds.has(sessionId);
 	}
 
 	private resultError(result: ISdkResult, fallback: string): Error {
@@ -697,6 +801,11 @@ export class CopilotCustomizationInstallations extends Disposable {
 				? localize('copilot.customizationInstallation.installNotCompleted', "The SDK did not complete this customization installation.")
 				: localize('copilot.customizationInstallation.uninstallNotCompleted', "The SDK did not complete this customization removal."));
 		}
+	}
+
+	override dispose(): void {
+		void this.releasePolicySession();
+		super.dispose();
 	}
 
 }
