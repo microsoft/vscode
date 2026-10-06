@@ -1092,6 +1092,12 @@ export class AgentHostE2EServerLease {
 		return this._config.provider === 'copilotcli';
 	}
 
+	preserveRuntimeLogs(label: string): void {
+		const destination = join(process.cwd(), '.build', 'logs', 'integration-tests', `agent-host-e2e-${process.pid}-${basename(this._startOptions.homeDir)}`);
+		preserveAgentHostE2ELogs(this._startOptions.userDataDir, this._startOptions.homeDir, destination, label, 'diagnostic');
+		process.stdout.write(`[agent-host-e2e] Preserved diagnostic logs for "${label}" under ${destination}\n`);
+	}
+
 	/**
 	 * Tail the Agent Host log and, for Copilot, the bundled CLI log into the test
 	 * output. Best-effort: never throws because it runs during failed-test teardown.

@@ -60,6 +60,27 @@ suite('Agent Host E2E diagnostics', () => {
 		});
 	});
 
+	test('retains passing diagnostic labels without reporting a failure', () => {
+		const root = mkdtempSync(join(tmpdir(), 'agent-host-diagnostics-'));
+		disposables.add(toDisposable(() => rmSync(root, { recursive: true, force: true })));
+		const destination = join(root, 'retained');
+		const source = join(root, 'logs', 'first', 'agenthost-server.log');
+		mkdirSync(dirname(source), { recursive: true });
+		writeFileSync(source, 'successful cleanup');
+
+		preserveAgentHostE2ELogs(root, root, destination, 'passing diagnostic iteration', 'diagnostic');
+
+		assert.deepStrictEqual({
+			label: readFileSync(join(destination, 'diagnostics.log'), 'utf8'),
+			log: readFileSync(join(destination, 'host', 'first', 'agenthost-server.log'), 'utf8'),
+			failure: existsSync(join(destination, 'failures.log')),
+		}, {
+			label: 'passing diagnostic iteration\n',
+			log: 'successful cleanup',
+			failure: false,
+		});
+	});
+
 	test('surfaces errors other than absent log directories', () => {
 		const root = mkdtempSync(join(tmpdir(), 'agent-host-diagnostics-'));
 		disposables.add(toDisposable(() => rmSync(root, { recursive: true, force: true })));

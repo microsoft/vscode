@@ -146,6 +146,9 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 			const errors: Error[] = [];
 			try {
 				await lease.release(createdSessions, failed);
+				if (!failed && this.currentTest?.title.startsWith('automation lifecycle: an unavailable model produces a durable failed run')) {
+					lease.preserveRuntimeLogs(this.currentTest.title);
+				}
 			} catch (error) {
 				errors.push(error instanceof Error ? error : new Error(String(error)));
 			}

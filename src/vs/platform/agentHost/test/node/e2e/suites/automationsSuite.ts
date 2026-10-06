@@ -482,28 +482,31 @@ export function defineAutomationsTests(context: IAgentHostE2ETestContext): void 
 		assert.strictEqual(entryFor(await subscribeCatalog(), resource), undefined);
 	});
 
-	conformanceTest(context, 'automation lifecycle: an unavailable model produces a durable failed run', async function () {
-		const { resource, definition } = await prepareRunDefinition('automation-failed-model');
-		await createAutomation(resource, {
-			...definition,
-			message: {
-				text: 'This request must fail without contacting a model.',
-				origin: { kind: MessageKind.Automation },
-				model: { id: 'unavailable-e2e-model' },
-			},
+	for (let iteration = 0; iteration < 20; iteration++) {
+		const title = 'automation lifecycle: an unavailable model produces a durable failed run' + (iteration === 0 ? '' : ` (iteration ${iteration + 1})`);
+		conformanceTest(context, title, async function () {
+			const { resource, definition } = await prepareRunDefinition('automation-failed-model');
+			await createAutomation(resource, {
+				...definition,
+				message: {
+					text: 'This request must fail without contacting a model.',
+					origin: { kind: MessageKind.Automation },
+					model: { id: 'unavailable-e2e-model' },
+				},
+			});
+			const run = await runAutomation(resource, generateUuid());
+			const failed = await waitForRun(run.resource, AutomationRunStatus.Failed);
+			assert.strictEqual(failed.lifecycle.status, AutomationRunStatus.Failed);
+			assert.match(failed.lifecycle.error.message, /model/i);
+			for (const session of failed.sessions) {
+				await context.client.call('disposeSession', { channel: session });
+				context.createdSessions.splice(context.createdSessions.indexOf(session), 1);
+			}
+			await context.restartServer();
+			await initializeRoot('automation-failed-restored');
+			assert.deepStrictEqual(await waitForRun(run.resource, AutomationRunStatus.Failed, false), failed);
 		});
-		const run = await runAutomation(resource, generateUuid());
-		const failed = await waitForRun(run.resource, AutomationRunStatus.Failed);
-		assert.strictEqual(failed.lifecycle.status, AutomationRunStatus.Failed);
-		assert.match(failed.lifecycle.error.message, /model/i);
-		for (const session of failed.sessions) {
-			await context.client.call('disposeSession', { channel: session });
-			context.createdSessions.splice(context.createdSessions.indexOf(session), 1);
-		}
-		await context.restartServer();
-		await initializeRoot('automation-failed-restored');
-		assert.deepStrictEqual(await waitForRun(run.resource, AutomationRunStatus.Failed, false), failed);
-	});
+	}
 
 	function parityAutomationTest(title: string, run: Mocha.AsyncFunc): void {
 		if (context.tier === 'parity') {

@@ -7,10 +7,10 @@ import { appendFileSync, cpSync, mkdirSync, statSync } from 'fs';
 import { getErrorCode } from '../../../../../../base/common/errors.js';
 import { join } from '../../../../../../base/common/path.js';
 
-/** Retains all host incarnations and provider logs before failed-test cleanup removes the isolated home. */
-export function preserveAgentHostE2ELogs(userDataDir: string, homeDir: string, destination: string, label: string): void {
+/** Retains all host incarnations and provider logs before cleanup removes the isolated home. */
+export function preserveAgentHostE2ELogs(userDataDir: string, homeDir: string, destination: string, label: string, kind: 'failure' | 'diagnostic' = 'failure'): void {
 	mkdirSync(destination, { recursive: true });
-	appendFileSync(join(destination, 'failures.log'), `${label}\n`);
+	appendFileSync(join(destination, kind === 'failure' ? 'failures.log' : 'diagnostics.log'), `${label}\n`);
 	for (const [source, name] of [
 		[join(userDataDir, 'logs'), 'host'],
 		[join(homeDir, '.copilot', 'logs'), 'copilot'],

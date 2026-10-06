@@ -604,6 +604,8 @@ Follow the pending boundary into its owning service or provider runtime before c
 
 For a catalog drain, correlate `catalogStateWrite` iteration records with `[AgentHostCatalogSync]` records for the same session. Catalog queue records separate `queueWaitMs` from `executionMs`; synchronization stages identify whether local receipt access, central catalog access, or acknowledgement is pending. These timings include nested queues and native I/O, so a slow database stage alone does not prove filesystem or worker-pool contention.
 
+The unavailable-model lifecycle scenario runs 20 independent iterations, each retaining the original assertions and deadlines. Passing iterations retain host and provider logs after cleanup with a `diagnostics.log` label; these captures are separate from failure reports.
+
 ### Replayed text is doubled (`VALUEVALUE`)
 
 The Responses (`/responses`) regenerator announces each output item before streaming it. If `response.output_item.added` carries the item's final content, a consumer that accumulates that content *and* the following deltas counts the same text twice, so a recorded `SHELL_VALUE_73` replays as `SHELL_VALUE_73SHELL_VALUE_73`.
