@@ -232,6 +232,9 @@ A mismatch fails the test as `[capi-replay] N model request mismatch(es)` and pr
 Replay is the default — no setup, no token:
 
 ```bash
+# Refresh client output when running from local sources without an existing build task.
+npm run build-fast -- --client-only
+
 # Run conformance and all provider suites in parallel.
 npm run test-agent-host-e2e
 
@@ -241,6 +244,8 @@ npm run test-agent-host-e2e -- --jobs 2
 # Run one provider.
 ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts
 ```
+
+The complete-suite runner reuses Electron when its installed version matches the repository configuration and the platform's executable is present (and executable on POSIX). Missing or incompatible installations are refreshed. `VSCODE_FORCE_PRELAUNCH=1` forces a refresh; `VSCODE_SKIP_PRELAUNCH=1` explicitly bypasses preparation and takes precedence over the force flag. Output refresh and Electron preparation do not type-check the sources.
 
 The complete-suite runner starts one test process per entrypoint and runs up to five concurrently, including the separate Copilot OTel suite. `AGENT_HOST_E2E_JOBS` or `--jobs` can lower the worker count. Each process's output is printed as one block when it completes, and any Mocha failure details are repeated after the final suite summary so failures remain easy to find. Recording and snapshot-update modes remain per-provider commands so they never make concurrent writes or real CAPI requests.
 
@@ -611,6 +616,14 @@ Keep asserting the real tool result: the replayed assistant text can report the 
 
 When a test times out waiting for a notification and it is **not** platform-specific local execution (above), the failure is usually inside the bundled provider SDK/CLI. Every failed test tails the Agent Host process log into the test output before its temporary user-data directory is removed; look for the `[agent-host-e2e] # …` lines, including provider stderr and pipeline errors. For the **Copilot** provider, the harness additionally tails the most recent Copilot runtime (`@github/copilot` CLI) `process-*.log`, which records startup, auth, model requests, and the turn lifecycle. A turn that started but never produced a model response, a panic, or an out-of-order / protocol error points at the SDK/CLI. Re-record after an SDK bump if the fixture is stale; otherwise treat it as a genuine regression. The Copilot runtime runs at `--log trace` in this harness, and its full logs live under the server's temp home (`${homeDir}/.copilot/logs`) until the suite tears down.
 
+### Session disposal times out
+
+Correlate the protocol request with `[AgentService] disposeSession` trace records. Each cleanup operation has an `operationId`, a `stage` logged before its await, and cumulative `elapsedMs`. The last stage without a following stage identifies the pending cleanup boundary; `complete` is emitted only after successful cleanup. A request with no stage record may still be waiting for an in-flight residency release.
+
+Follow the pending boundary into its owning service or provider runtime before classifying the failure. A completed turn or failed automation run does not establish that session cleanup is finished, and a delayed disposal response alone does not distinguish a product race from worker resource contention.
+
+For a catalog drain, correlate `catalogStateWrite` iteration records with `[AgentHostCatalogSync]` records for the same session. Catalog queue records separate `queueWaitMs` from `executionMs`; synchronization stages identify whether local receipt access, central catalog access, or acknowledgement is pending. These timings include nested queues and native I/O, so a slow database stage alone does not prove filesystem or worker-pool contention.
+
 ### Replayed text is doubled (`VALUEVALUE`)
 
 The Responses (`/responses`) regenerator announces each output item before streaming it. If `response.output_item.added` carries the item's final content, a consumer that accumulates that content *and* the following deltas counts the same text twice, so a recorded `SHELL_VALUE_73` replays as `SHELL_VALUE_73SHELL_VALUE_73`.
@@ -620,6 +633,12 @@ The Responses (`/responses`) regenerator announces each output item before strea
 ### A test passes on macOS/Linux but fails on Windows
 
 Same as above — it's platform-specific real execution, not the proxy. See the worktree and provider-specific file-operation gates for established patterns.
+
+### Codex passes its tests but cannot remove its temporary home
+
+Codex's native plugin marketplace starts a background Git fetch of `openai/plugins` outside the replay proxy. If shutdown interrupts that work, Windows can keep a `.codex/.tmp/plugins-clone-*` directory locked: synchronous removal reports `EPERM`, while asynchronous removal identifies the clone directory with `EBUSY`. This caused the intermittent suite-cleanup failure tracked in [#339760](https://github.com/microsoft/vscode/issues/339760).
+
+Codex record/replay servers disable `features.plugins` to keep this unrelated marketplace bootstrap out of the tests. Client-provided plugin skills, agents, and MCP servers are configured by the host independently and remain covered by the same tests. Keep cleanup strict and retain its underlying filesystem errors so other teardown failures remain diagnosable.
 
 ### Fixture leaks a username / absolute path / token
 
@@ -636,6 +655,18 @@ You're accidentally in record mode (`AGENT_HOST_REPLAY_RECORD` set) without a to
 ### A test passes alone but fails only when run after another test (shared server)
 
 In replay one server serves every test (see [Server lifecycle](#server-lifecycle)), so a test that returns **mid-turn** leaks: the SDK's continuation call fires after the fixture is swapped and lands in a later test's window as an unrecorded call (a `POST /v1/messages` / `POST /responses` cache miss, usually attributed to the *next* test's teardown). Fix the culprit — the test that returned mid-turn — by draining its turn to `turnComplete` before it ends. (Verify by running the suspected test alone via `--grep`, which gives it a clean one-test server; if it passes alone but fails after a sibling, that's the leak.)
+
+### Read or archive state is lost after a graceful host restart
+
+Check the logs from both sides of the restart for storage load errors and failed shutdown drains. A `root/sessionSummaryChanged` notification precedes background catalog synchronization; graceful shutdown must drain those writes even if global storage or another persistence flush fails. Host-owned JSON storage uses atomic replacement so an interrupted write cannot leave the next host with a truncated file. Keep the restart assertions intact: sleeping after the notification would hide a persistence failure rather than fix it.
+
+### A snapshot intermittently includes `chat/isReadChanged` after `chat/turnComplete`
+
+Turn completion precedes the unread lifecycle action. Wait for `chat/isReadChanged` with `isRead: false` on the same chat and a greater `serverSeq` before taking the snapshot. The turn driver and snapshot scenario runner share this barrier; do not remove the unread action from the snapshot or add a sleep.
+
+### A later test fails on unexpected console output after a snapshot mismatch
+
+Check for a `Deleting 1 old snapshots` message from the preceding test. A previous failed iteration leaves a diagnostic `.actual` file; a passing iteration removes it. Diagnostic cleanup must not report a baseline mutation, which CI correctly rejects. The snapshot helper cleans these artifacts silently while continuing to report removal of actual baselines.
 
 ### CI infra flakes (not your code)
 

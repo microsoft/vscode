@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
+import { hostname } from 'os';
 import { Event } from '../../../../base/common/event.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { mock } from '../../../../base/test/common/mock.js';
@@ -36,14 +37,29 @@ suite('Mission Control host integration', () => {
 		[undefined, 'Code - OSS Dev', 'VS Code OSS'],
 		['exploration', 'Code - Exploration', 'Code - Exploration'],
 	] as const) {
-		test(`uses the product display name for ${nameShort}`, () => {
+		test(`uses a machine-first name with the ${nameShort} application in parentheses`, () => {
 			const product = new class extends mock<IProductService>() {
 				override readonly quality = quality;
 				override readonly nameShort = nameShort;
 			}();
-			assert.strictEqual(getMissionControlEnvironmentName(product), expected);
+			const machineNames = ['Robs-MacBook-Pro.local', 'Robs-MacBook-Pro.LOCAL', 'WORKSTATION-01', 'workstation.example.com', 'local-server', 'machine.local.example.com'];
+			assert.deepStrictEqual(machineNames.map(name => getMissionControlEnvironmentName(product, name)), [
+				`Robs-MacBook-Pro (${expected})`,
+				`Robs-MacBook-Pro (${expected})`,
+				`WORKSTATION-01 (${expected})`,
+				`workstation.example.com (${expected})`,
+				`local-server (${expected})`,
+				`machine.local.example.com (${expected})`,
+			]);
 		});
 	}
+
+	test('defaults to the owning machine hostname', () => {
+		const product = new class extends mock<IProductService>() {
+			override readonly quality = 'insider';
+		}();
+		assert.strictEqual(getMissionControlEnvironmentName(product), `${hostname().replace(/\.local$/i, '')} (VS Code Insiders)`);
+	});
 
 	function createHost(instantiation = store.add(new TestInstantiationService())) {
 		const counts = { requests: 0, handlers: 0 };

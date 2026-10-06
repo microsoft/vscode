@@ -28,6 +28,7 @@ import { AgentHostOpenSessionLinkOpenerContribution } from './openSessionLinkOpe
 import { AgentHostSessionListContribution } from './agentHostSessionListContribution.js';
 import { AgentHostSdkSetupNotificationContribution } from './agentHostSdkSetupNotification.js';
 import { AgentHostSandboxNotifications } from './agentHostSandboxNotifications.js';
+import { AgentHostRemoteByokNotificationContribution } from './agentHostRemoteByokNotification.js';
 import { AgentHostSignedOutModelsNotificationContribution } from './agentHostSignedOutModelsNotification.js';
 import { AgentHostTerminalContribution } from './agentHostTerminalContribution.js';
 import { CopilotConfigSlashSubmitHandlerContribution } from './copilotConfigSlashSubmitHandler.js';
@@ -57,6 +58,7 @@ registerWorkbenchContribution2(AgentHostTerminalContribution.ID, AgentHostTermin
 registerWorkbenchContribution2(AgentHostCopilotCliSettingsContribution.ID, AgentHostCopilotCliSettingsContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentHostAllowSignedOutWhenUsableContribution.ID, AgentHostAllowSignedOutWhenUsableContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentHostSignedOutModelsNotificationContribution.ID, AgentHostSignedOutModelsNotificationContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(AgentHostRemoteByokNotificationContribution.ID, AgentHostRemoteByokNotificationContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentHostSdkSetupNotificationContribution.ID, AgentHostSdkSetupNotificationContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentHostSandboxNotifications.ID, AgentHostSandboxNotifications, WorkbenchPhase.AfterRestored);
 

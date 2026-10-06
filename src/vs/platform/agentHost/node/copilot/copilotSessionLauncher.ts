@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AttributedPermissionResult, ContextTier, CopilotClient, CopilotSession, ElicitationContext, ElicitationResult, ExitPlanModeRequest, ExitPlanModeResult, ModelCapabilitiesOverride, NamedProviderConfig, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ResumeSessionConfig, SessionConfig, SessionEvent, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
+import type { AttributedPermissionResult, ConnectorStatus, ContextTier, CopilotClient, CopilotSession, ElicitationContext, ElicitationResult, ExitPlanModeRequest, ExitPlanModeResult, ModelCapabilitiesOverride, NamedProviderConfig, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ResumeSessionConfig, SessionConfig, SessionEvent, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { equals as objectsEqual } from '../../../../base/common/objects.js';
@@ -118,6 +118,9 @@ export function toSdkReasoningEffort(effort: AgentHostReasoningEffort | undefine
 
 const ContextTiers = ['default', 'long_context'] as const;
 export const AGENT_HOST_COPILOT_CLIENT_NAME = 'vscode-agent-host';
+
+/** Copilot runtime feature flag that stores memories in the repository's `.github/copilot-memories.jsonl`. */
+const COPILOT_LOCAL_MEMORY_FEATURE_FLAG = 'copilot_swe_agent_memory_in_repo_store';
 
 type UserInputHandler = NonNullable<SessionConfig['onUserInputRequest']>;
 type UserInputRequest = Parameters<UserInputHandler>[0];
@@ -862,6 +865,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		if (this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) !== true) {
 			return displayNames;
 		}
+		let status: ConnectorStatus;
 		try {
 			const capabilities = await session.rpc.connectors.getCapabilities();
 			if (capabilities.availability !== 'enabled') {
@@ -888,14 +892,20 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				this._logService.warn(`[Copilot:${plan.sessionId}] Connector MCP reconciliation skipped because the session account could not be resolved`);
 				return displayNames;
 			}
-			const status = await session.rpc.connectors.reconcile({ accountId: account.selectionId, refreshCatalog: true });
-			const connectorDisplayNames = new Map(status.catalog?.connectors.map(connector => [connector.name, connector.displayName.trim() || connector.name]));
-			for (const server of status.runtimeServers) {
-				displayNames.set(server.runtimeServerId, connectorDisplayNames.get(server.connectorName) ?? server.connectorName);
-			}
+			status = await session.rpc.connectors.reconcile({ accountId: account.selectionId, refreshCatalog: true });
 			this._logService.info(`[Copilot:${plan.sessionId}] Reconciled ${status.runtimeServers.length} connector MCP server(s) through the Copilot runtime`);
 		} catch (error) {
-			this._logService.warn(`[Copilot:${plan.sessionId}] Connector MCP reconciliation failed; continuing without connector tools: ${getErrorMessage(error)}`);
+			this._logService.warn(`[Copilot:${plan.sessionId}] Connector MCP reconciliation failed; using the current Connector state when available: ${getErrorMessage(error)}`);
+			try {
+				status = await session.rpc.connectors.getStatus();
+			} catch (statusError) {
+				this._logService.warn(`[Copilot:${plan.sessionId}] Unable to read the current Connector state after reconciliation failed: ${getErrorMessage(statusError)}`);
+				return displayNames;
+			}
+		}
+		const connectorDisplayNames = new Map(status.catalog?.connectors.map(connector => [connector.name, connector.displayName.trim() || connector.name]));
+		for (const server of status.runtimeServers) {
+			displayNames.set(server.runtimeServerId, connectorDisplayNames.get(server.connectorName) ?? server.connectorName);
 		}
 		return displayNames;
 	}
@@ -1010,6 +1020,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// renderer reports no BYOK models), merged into the returned config so both
 		// createSession and resumeSession advertise the models to the runtime.
 		const hydraFusionEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusion) === true;
+		// Throwaway chat surfaces skip memory, like the other heavyweight features they omit.
+		const memoryEnabled = !plan.isEphemeral && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Memory) === true;
+		const localMemoryEnabled = memoryEnabled && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.LocalMemory) === true;
 		const tgrepEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Tgrep) === true;
 		const copilotConnectorsEnabled = this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) === true;
 		// The runtime defaults CONNECTORS on, so the VS Code rollout gate must explicitly disable it.
@@ -1017,6 +1030,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			CONNECTORS: copilotConnectorsEnabled,
 			TGREP: tgrepEnabled,
 			CONTENT_EXCLUSION: true,
+			// When on, the runtime uses the in-repo memory store instead of cloud memory.
+			// Always explicit so only the VS Code opt-in can switch the store.
+			[COPILOT_LOCAL_MEMORY_FEATURE_FLAG]: localMemoryEnabled,
 			...(copilotConnectorsEnabled ? { MANAGED_MCP_SERVERS: true } : {}),
 			...(hydraFusionEnabled ? { HYDRAFUSION: true, HYDRAFUSION_ROLLOUT: true } : {}),
 		};
@@ -1217,6 +1233,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			// it, `rpc.plan.read()` returns `path: null` and the SDK
 			// never emits `exit_plan_mode.requested`.
 			infiniteSessions: { enabled: true },
+			// Always explicit so the VS Code opt-in gates memory instead of the runtime default.
+			memory: { enabled: memoryEnabled },
 			// Per-session remote export: the client-level `--remote` flag
 			// (enableRemoteSessions) enables the CLI capability, but each
 			// session must opt in via `remoteSession` to actually export

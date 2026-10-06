@@ -115,7 +115,7 @@ type GitTurnDiffSource =
 interface IStaticChangesetRequest {
 	readonly changedTurnId: string | undefined;
 	readonly statusBeforeRefresh: ChangesetState | undefined;
-	readonly reportTelemetry: boolean;
+	readonly provider: string | undefined;
 	readonly clientContext: IAgentHostClientTelemetryContext | undefined;
 	readonly strategy: ChangesetDiffStrategy;
 }
@@ -243,6 +243,19 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	private _hasWorkingDirectory(session: ProtocolURI): boolean {
 		return !this._worktree.isWorkingDirectoryPending(AgentSession.id(containingSessionUri(session)))
 			&& !!this._getEffectiveWorkingDirectories(session)?.[0];
+	}
+
+	/** Preserves URI-scheme telemetry categories and resolves provider-neutral sessions from metadata. */
+	private _getTelemetryProvider(owner: ProtocolURI): string {
+		const legacyProvider = AgentSession.provider(owner);
+		if (legacyProvider !== undefined) {
+			return legacyProvider;
+		}
+		const provider = this._stateManager.getSessionSummary(owner)?.provider;
+		if (!provider) {
+			this._logService.warn(`[AgentHostChangesetService] Missing telemetry provider for ${owner}`);
+		}
+		return provider ?? 'unknown';
 	}
 
 	registerStaticChangesets(session: ProtocolURI): void {
@@ -639,7 +652,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		return this._queueTurnChangeset(session, turnId, false, undefined, strategy);
 	}
 
-	private async _computeTurnChangeset(session: ProtocolURI, turnId: string, reportTelemetry: boolean, clientContext?: IAgentHostClientTelemetryContext, strategy: ChangesetDiffStrategy = 'auto'): Promise<ProtocolURI> {
+	private async _computeTurnChangeset(session: ProtocolURI, turnId: string, provider: string | undefined, clientContext?: IAgentHostClientTelemetryContext, strategy: ChangesetDiffStrategy = 'auto'): Promise<ProtocolURI> {
 		const turnUri = buildTurnChangesetUri(session, turnId);
 		this._markChangesetComputing(turnUri);
 		const stopWatch = StopWatch.create();
@@ -682,9 +695,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			}
 			return turnUri;
 		} finally {
-			if (reportTelemetry) {
+			if (provider !== undefined) {
 				const workingDirectories = this._configurationService.getEffectiveWorkingDirectories(session);
-				reportAgentHostTurnChangesetComputed(this._telemetryService, session, turnId, {
+				reportAgentHostTurnChangesetComputed(this._telemetryService, provider, session, turnId, {
 					outcome,
 					durationMs: stopWatch.elapsed(),
 					isMultiRoot: isMultiRootSession(workingDirectories),
@@ -833,7 +846,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		return this._queueUncommittedChangeset(session, undefined, false);
 	}
 
-	private async _computeUncommittedChangeset(session: ProtocolURI, turnId: string | undefined, reportTelemetry: boolean, clientContext?: IAgentHostClientTelemetryContext, statusBeforeRefresh?: ChangesetState): Promise<ProtocolURI> {
+	private async _computeUncommittedChangeset(session: ProtocolURI, turnId: string | undefined, provider: string | undefined, clientContext?: IAgentHostClientTelemetryContext, statusBeforeRefresh?: ChangesetState): Promise<ProtocolURI> {
 		const uncommittedUri = this._stateManager.registerChangeset(buildUncommittedChangesetUri(session));
 		if (!this._hasSubscription(session, uncommittedUri) || !this._getEffectiveWorkingDirectories(session)?.[0]) {
 			this._restoreStaticChangesetStatus(uncommittedUri, statusBeforeRefresh);
@@ -874,8 +887,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			});
 			outcome = 'error';
 		} finally {
-			if (reportTelemetry) {
-				reportAgentHostStaticChangesetComputed(this._telemetryService, session, turnId, {
+			if (provider !== undefined) {
+				reportAgentHostStaticChangesetComputed(this._telemetryService, provider, session, turnId, {
 					kind: 'uncommitted',
 					outcome,
 					durationMs: stopWatch.elapsed(),
@@ -1644,8 +1657,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	private _queueTurnChangeset(session: ProtocolURI, turnId: string, reportTelemetry: boolean, clientContext?: IAgentHostClientTelemetryContext, strategy: ChangesetDiffStrategy = 'auto'): Promise<ProtocolURI> {
+		const provider = reportTelemetry ? this._getTelemetryProvider(session) : undefined;
 		this._markChangesetComputing(buildTurnChangesetUri(session, turnId));
-		return this._diffComputationSequencer.queue(`${session}\u0000turn\u0000${turnId}`, () => this._computeTurnChangeset(session, turnId, reportTelemetry, clientContext, strategy));
+		return this._diffComputationSequencer.queue(`${session}\u0000turn\u0000${turnId}`, () => this._computeTurnChangeset(session, turnId, provider, clientContext, strategy));
 	}
 
 	private _scheduleUncommittedRecompute(session: ProtocolURI, turnId: string | undefined, reportTelemetry: boolean = false, clientContext?: IAgentHostClientTelemetryContext): void {
@@ -1653,12 +1667,13 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	private _queueUncommittedChangeset(session: ProtocolURI, turnId: string | undefined, reportTelemetry: boolean, clientContext?: IAgentHostClientTelemetryContext): Promise<ProtocolURI> {
+		const provider = reportTelemetry ? this._getTelemetryProvider(session) : undefined;
 		const changesetUri = buildUncommittedChangesetUri(session);
 		let statusBeforeRefresh: ChangesetState | undefined;
 		if (this._hasSubscription(session, changesetUri) && this._getEffectiveWorkingDirectories(session)?.[0]) {
 			statusBeforeRefresh = this._markChangesetComputing(changesetUri);
 		}
-		return this._diffComputationSequencer.queue(`${session}\u0000uncommitted`, () => this._computeUncommittedChangeset(session, turnId, reportTelemetry, clientContext, statusBeforeRefresh));
+		return this._diffComputationSequencer.queue(`${session}\u0000uncommitted`, () => this._computeUncommittedChangeset(session, turnId, provider, clientContext, statusBeforeRefresh));
 	}
 
 	/**
@@ -1668,17 +1683,18 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * but do not fail the turn.
 	 */
 	private _scheduleStaticRecompute(session: ProtocolURI, kind: StaticChangesetKind, changedTurnId?: string, reportTelemetry: boolean = false, clientContext?: IAgentHostClientTelemetryContext, strategy: ChangesetDiffStrategy = 'auto'): void {
+		const provider = reportTelemetry ? this._getTelemetryProvider(session) : undefined;
 		const key = `${session}\u0000${kind}`;
 		const statusBeforeRefresh = this._markChangesetComputing(staticChangesetUri(session, kind));
 		const existing = this._scheduledStaticRecomputes.get(key);
-		const request: IStaticChangesetRequest = { changedTurnId, statusBeforeRefresh, reportTelemetry, clientContext, strategy };
+		const request: IStaticChangesetRequest = { changedTurnId, statusBeforeRefresh, provider, clientContext, strategy };
 		if (existing) {
 			const lastRequest = existing.requests.at(-1);
 			if (lastRequest?.strategy === strategy) {
 				existing.requests[existing.requests.length - 1] = {
 					changedTurnId: changedTurnId !== undefined && changedTurnId === lastRequest.changedTurnId ? changedTurnId : undefined,
 					statusBeforeRefresh: lastRequest.statusBeforeRefresh ?? statusBeforeRefresh,
-					reportTelemetry: reportTelemetry || lastRequest.reportTelemetry,
+					provider: lastRequest.provider ?? provider,
 					clientContext: clientContext ?? lastRequest.clientContext,
 					strategy,
 				};
@@ -1694,7 +1710,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			try {
 				while (scheduled.requests.length > 0) {
 					const request = scheduled.requests.shift()!;
-					await this._doComputeStaticChangeset(session, kind, request.changedTurnId, request.statusBeforeRefresh, request.reportTelemetry, request.clientContext, request.strategy);
+					await this._doComputeStaticChangeset(session, kind, request.changedTurnId, request.statusBeforeRefresh, request.provider, request.clientContext, request.strategy);
 				}
 			} finally {
 				if (this._scheduledStaticRecomputes.get(key) === scheduled) {
@@ -1722,7 +1738,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		return previous;
 	}
 
-	private async _doComputeStaticChangeset(session: ProtocolURI, kind: StaticChangesetKind, changedTurnId?: string, statusBeforeRefresh?: ChangesetState, reportTelemetry: boolean = false, clientContext?: IAgentHostClientTelemetryContext, strategy: ChangesetDiffStrategy = 'auto'): Promise<void> {
+	private async _doComputeStaticChangeset(session: ProtocolURI, kind: StaticChangesetKind, changedTurnId?: string, statusBeforeRefresh?: ChangesetState, provider?: string, clientContext?: IAgentHostClientTelemetryContext, strategy: ChangesetDiffStrategy = 'auto'): Promise<void> {
 		const changesetUri = staticChangesetUri(session, kind);
 		const stopWatch = StopWatch.create();
 		const summarySession = containingSessionUri(session);
@@ -1737,8 +1753,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		// Emitted exactly once per compute: from the DB-open catch below (which
 		// returns before the main finally) or from the main finally otherwise.
 		const emitStaticTelemetry = () => {
-			if (reportTelemetry) {
-				reportAgentHostStaticChangesetComputed(this._telemetryService, session, changedTurnId, {
+			if (provider !== undefined) {
+				reportAgentHostStaticChangesetComputed(this._telemetryService, provider, session, changedTurnId, {
 					kind,
 					outcome,
 					durationMs: stopWatch.elapsed(),

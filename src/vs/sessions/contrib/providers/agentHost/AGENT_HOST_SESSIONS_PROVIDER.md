@@ -71,6 +71,8 @@ Agent provider names form logical session-type identifiers. Resource URI schemes
 
 Native backend resources are immutable: historical provider-scheme sessions keep their addresses, while new allocations may use `ahp-session:/<uuid>`. The advertised provider is separate from the backend resource. Both forms adapt to the same stable local `agent-host-<provider>` or remote `remote-<authority>-<provider>` frontend scheme. Adapter caches retain the exact backend resource and provider across offline reloads; frontend state is not rekeyed.
 
+Native SDK catalog entries are provider backing references, not protocol session identities until the local Agent Host admits them. Discovery resolves a provider and backing ID to an existing exact registered URI; a previously unseen backing defaults to `ahp-session:/<backing-id>`. Explicit predecessor-adoption flows retain their provider-scheme identity. This resolution is local-host behavior only: remote and third-party host-advertised resources remain opaque and are preserved verbatim.
+
 Native hosts and capable VS Code clients declare `_meta["vscode.ahpSessionUris"] = true`. Creation uses standard addressing when supported, or legacy addressing for an identified native host without that capability. New hosts declare `_meta["vscode.agentHost"] = true`; older hosts are identified by their validated root `hostBuild` metadata, without comparing version numbers. Unmarked conforming hosts remain standard AHP peers. Identified legacy VS Code connections see legacy sessions only; this does not change host state or project backend URI aliases onto the wire. Reconnection retains or renegotiates connection capabilities without readdressing any session.
 
 ## Session adaptation

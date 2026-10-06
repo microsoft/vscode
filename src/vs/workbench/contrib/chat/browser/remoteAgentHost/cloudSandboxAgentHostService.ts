@@ -57,6 +57,7 @@ const SANDBOX_RECONNECT_POLICY = {
 	maxElapsedTimeMs: MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES * MIN_CREDENTIAL_REFRESH_DELAY_MS,
 	jitter: true,
 };
+const USER_LOCAL_RECONNECT_POLICY = { ...SANDBOX_RECONNECT_POLICY, maxElapsedTimeMs: 120_000 };
 
 interface IStagedCloudSandboxConnection {
 	readonly entry: IRemoteAgentHostEntry;
@@ -247,7 +248,7 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 				{
 					clientId: staged.clientId,
 					clientInfo: this._environmentService.isSessionsWindow ? agentsWindowAgentHostClientInfo : editorWindowAgentHostClientInfo,
-					reconnectPolicy: SANDBOX_RECONNECT_POLICY,
+					reconnectPolicy: staged.options.environmentKind === 'user-local' ? USER_LOCAL_RECONNECT_POLICY : SANDBOX_RECONNECT_POLICY,
 					prepareReconnect: () => traceConnectionOperation(diagnosticObserver, 'credentials', async () => {
 						try {
 							if (staged.reconnectRequiresRefresh || staged.options.environmentKind === 'user-local') {
@@ -426,7 +427,7 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 
 			// A token only means Mission Control believes the environment is online — a sandbox deleted
 			// minutes ago still has a fresh heartbeat, so one is minted for a host that is already gone.
-			// The handshake's liveness watchdog settles that case.
+			// The protocol client's liveness watchdog, armed before the handshake, settles that case.
 			establishing = true;
 			clientId = clientToken.client_id;
 			this._logService.info(`${LOG_PREFIX} Credentials ready: environmentId=${options.environmentId} sessionId=${options.sessionId ?? 'none'} clientId=${clientId} durationMs=${watch.elapsed()}`);

@@ -279,7 +279,7 @@ suite('mcpListWidget', () => {
 			server: { id: 'other-server', label: 'Mail' },
 		};
 		const connectorEntry = {
-			type: 'builtin-item' as const,
+			type: 'connector-item' as const,
 			id: 'copilot-connector:mail:mail-mcp',
 			label: 'mail-mcp',
 			description: 'Connector: Mail',
@@ -403,7 +403,7 @@ suite('mcpListWidget', () => {
 			mcpServers: [{ name: 'mail-mcp', type: 'http' }],
 		};
 		const entry: IMcpInstalledEntry = {
-			type: 'builtin-item',
+			type: 'connector-item',
 			id: 'copilot-connector:mail:mail-mcp',
 			label: 'mail-mcp',
 			description: 'Connector: Mail',
@@ -459,17 +459,31 @@ suite('mcpListWidget', () => {
 			type: 'server-item',
 			server: { id: scope, local: { scope } as IWorkbenchLocalMcpServer } as IWorkbenchMcpServer,
 		});
+		const connector: ICopilotConnector = {
+			name: 'kusto',
+			displayName: 'Azure Data Explorer',
+			description: 'Query Azure Data Explorer.',
+			tags: [],
+			keywords: [],
+			capabilities: [],
+			representativeQueries: [],
+			connectionStatus: 'connected',
+			scopes: [],
+			mcpServers: [{ name: 'kusto', type: 'http' }],
+		};
 
 		assert.deepStrictEqual([
 			getMcpEntryGroup(localEntry(LocalMcpServerScope.User)),
 			getMcpEntryGroup(localEntry(LocalMcpServerScope.Workspace)),
 			getMcpEntryGroup({ type: 'builtin-item', id: 'plugin', label: 'Plugin', description: '', collectionId: `${MCP_PLUGIN_COLLECTION_ID_PREFIX}plugin` }),
+			getMcpEntryGroup({ type: 'connector-item', id: 'connector', label: 'kusto', description: '', connector: { id: 'kusto:kusto', connector, serverName: 'kusto' } }),
 			getMcpEntryGroup({ type: 'builtin-item', id: 'extension', label: 'Extension', description: '', extensionId: new ExtensionIdentifier('publisher.extension') }),
 			getMcpEntryGroup({ type: 'builtin-item', id: 'copilot', label: 'GitHub', description: '', extensionId: new ExtensionIdentifier('GitHub.copilot-chat') }),
 			getMcpEntryGroup(createBuiltinActiveSessionMcpEntries([createAgentHostServer()])[0]),
 		], [
 			'user',
 			'workspace',
+			'plugins',
 			'plugins',
 			'extensions',
 			'builtin',
@@ -1959,6 +1973,50 @@ suite('mcpListWidget', () => {
 				darkIcon: { image: 'https://example.com/mcp-dark.png', fallbackDisplay: 'none', visibleChildren: 1 },
 				lightIcon: { image: 'https://example.com/mcp-light.png', fallbackDisplay: 'none', visibleChildren: 1 },
 				detailIcon: 'https://example.com/mcp-dark.png',
+			});
+		});
+
+		test('renders a connected Connector catalog icon', () => {
+			const ctx = createRenderer(createAgentHostServer(), false);
+			disposables.add(ctx.store);
+			const icon = URI.parse('https://example.com/connector.png');
+			const connector: ICopilotConnector = {
+				name: 'mail',
+				displayName: 'Mail',
+				description: 'Search mail',
+				icon,
+				tags: [],
+				keywords: [],
+				capabilities: [],
+				representativeQueries: [],
+				connectionStatus: 'connected',
+				scopes: [],
+				mcpServers: [{ name: 'mail-mcp', type: 'http' }],
+			};
+			const entry: Entry = {
+				type: 'connector-item',
+				id: 'copilot-connector:mail:mail-mcp',
+				label: 'mail-mcp',
+				description: 'Connector: Mail',
+				connector: { id: 'mail:mail-mcp', connector, serverName: 'mail-mcp' },
+			};
+
+			ctx.render(entry);
+
+			assert.deepStrictEqual({
+				icon: ctx.readIcon(),
+				rowKey: getMcpRowKey(entry),
+				isBuiltin: ctx.templateData.container.classList.contains('builtin'),
+				hasDetail: ctx.templateData.container.classList.contains('has-detail'),
+			}, {
+				icon: {
+					image: icon.toString(),
+					fallbackDisplay: 'none',
+					visibleChildren: 1,
+				},
+				rowKey: 'connector:copilot-connector:mail:mail-mcp',
+				isBuiltin: false,
+				hasDetail: true,
 			});
 		});
 

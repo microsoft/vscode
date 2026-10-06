@@ -31,13 +31,50 @@ suite('Chat Accessibility Help', () => {
 		assert.ok(help.includes('use /sandbox policy to view the effective sandbox policy. In the response, use Tab to focus Open Sandbox Policy and Enter to open the formatted report.'));
 	});
 
+	for (const isSessionsWindow of [false, true]) {
+		test(`documents the remote BYOK warning only in the editor (isSessionsWindow: ${isSessionsWindow})`, () => {
+			const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), false, isSessionsWindow);
+			assert.deepStrictEqual({
+				keyboard: help.includes('Use Tab to reach Dismiss notification or Don\'t Show Again, then Enter or Space to activate it.'),
+				oncePerWindow: help.includes('The warning does not repeat in other chats in the same window.'),
+				persistence: help.includes('Don\'t Show Again permanently hides this warning for your profile, including when new models are added.'),
+			}, { keyboard: !isSessionsWindow, oncePerWindow: !isSessionsWindow, persistence: !isSessionsWindow });
+		});
+	}
+
+	test('documents generated image previews and saving', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			standalone: help.includes('Image generation appears separately from thinking and tool-call groups'),
+			harnesses: help.includes('Copilot and Codex agent sessions share this presentation'),
+			position: help.includes('Completed steps collapse only before the first image-generation tool, keeping image tools in their original position'),
+			placeholder: help.includes('A compact decorative band of shifting glyphs remains visible below the dropdown'),
+			overlapping: help.includes('Overlapping image-generation attempts each keep their own input dropdown and share one animation'),
+			reducedMotion: help.includes('does not indicate a percentage complete and stays still when reduced motion is enabled or a high contrast theme is active'),
+			reveal: help.includes('The reveal is skipped in those modes and when reopening a chat'),
+			dropdown: help.includes('While generation runs, expand the tool dropdown to inspect the submitted prompt'),
+			expand: help.includes('Tab to focus the dropdown and Enter or Space to expand or collapse it'),
+			progress: help.includes('Only the persistent progress line rotates through painting-themed phrases, without repeatedly announcing them'),
+			imageModel: help.includes('Its title says Using the image model to generate an image when the model is available, and does not shimmer'),
+			imageAndDropdown: help.includes('Successful generation shows the Generated image dropdown, including the image model when available, with a single image below it even when collapsed'),
+			failure: help.includes('Generated image failed row can be expanded to inspect the error'),
+			restoredState: help.includes('Completed and failed image tools keep their final status when you reopen the chat'),
+			cancelledState: help.includes('Stopping image generation shows Image generation cancelled, not a generation error'),
+			previews: help.includes('Image previews start loading as soon as generation succeeds, even if the response is still in progress'),
+			loading: help.includes('A preview is marked as busy while its bytes load'),
+			loadFailure: help.includes('Unable to load image indicates a problem loading the preview, not a failed generation'),
+			keyboard: help.includes('Tab or Shift+Tab to focus an image and Enter to open it'),
+			save: help.includes('Use the Save action to the right of the image to save generated images'),
+		}, { standalone: true, harnesses: true, position: true, placeholder: true, overlapping: true, reducedMotion: true, reveal: true, dropdown: true, expand: true, progress: true, imageModel: true, imageAndDropdown: true, failure: true, restoredState: true, cancelledState: true, previews: true, loading: true, loadFailure: true, keyboard: true, save: true });
+	});
+
 	for (const type of ['panelChat', 'editsView', 'agentView'] as const) {
 		test(`documents skipping MCP startup only on supported surfaces (${type})`, () => {
 			const help = getAccessibilityHelpText(type, new MockKeybindingService(), false);
 			assert.strictEqual(help.includes('When a chat turn is waiting for MCP servers to start, a Skip link may appear. Use Tab to focus Skip and press Enter or Space to continue the turn while those servers start in the background. The current startup message disappears immediately and focus returns to the chat input. New server startups may show another message.'), type !== 'editsView');
 		});
 
-		test(`documents Copilot introduction and parallel invitation behavior in ${type}`, () => {
+		test(`documents Copilot introduction and Agents Window invitation behavior in ${type}`, () => {
 			const help = getAccessibilityHelpText(type, new MockKeybindingService(), false);
 			assert.deepStrictEqual({
 				introductionModes: help.includes('when the session starts or after the first request is submitted'),
@@ -49,12 +86,16 @@ suite('Chat Accessibility Help', () => {
 				switchSurveyKeyboard: help.includes('Use Up and Down Arrow to choose why you switched, then press Enter or Space to submit'),
 				switchSurveyAcknowledgement: help.includes('a message confirms that your feedback was recorded'),
 				switchSurveyFeedbackLink: help.includes('Use Tab to reach Share it on GitHub to provide specific feedback in a GitHub issue'),
-				agentHostOnly: help.includes('When another Agent Host session is running, a new Agent Host chat'),
-				copy: help.includes('copies the current prompt and attachments from that input without sending them or clearing it'),
-				singleOwner: help.includes('Only one chat input notification is shown at a time'),
-				preserve: help.includes('An existing draft in the Agents Window is kept'),
-				ignore: help.includes('Ignore turns off future invitations'),
-				dismiss: help.includes('only hides the invitation for this chat until the window reloads'),
+				agentHostOnly: help.includes('A running Agent Host chat may show an invitation'),
+				handoff: help.includes('opens the Agents Window and highlights this session\'s row'),
+				optionalReveal: help.includes('Disable chat.agentsWindowBanner.revealCurrentSession to open the New Session view instead'),
+				newSessionStep: help.includes('Choose Next to highlight the New Session button, which you can activate to start another task'),
+				tourActions: help.includes('Choose Understood to finish the tour, or press Escape to dismiss it'),
+				singleOwner: help.includes('Only one invitation is shown across editor windows at a time'),
+				preserve: help.includes('Sending another message or completing a task does not dismiss the invitation'),
+				mute: help.includes('Don\'t Show Again turns off all future Agents Window invitations'),
+				dismiss: help.includes('created five more Agent Host sessions in editor windows and at least 24 hours have passed'),
+				input: help.includes('temporarily hidden while the session needs input'),
 				hiddenInAgents: !getAccessibilityHelpText(type, new MockKeybindingService(), false, true).includes('new Copilot harness chat'),
 			}, {
 				introductionModes: true,
@@ -67,11 +108,15 @@ suite('Chat Accessibility Help', () => {
 				switchSurveyAcknowledgement: true,
 				switchSurveyFeedbackLink: true,
 				agentHostOnly: true,
-				copy: true,
+				handoff: true,
+				optionalReveal: true,
+				newSessionStep: true,
+				tourActions: true,
 				singleOwner: true,
 				preserve: true,
-				ignore: true,
+				mute: true,
 				dismiss: true,
+				input: true,
 				hiddenInAgents: true,
 			});
 		});

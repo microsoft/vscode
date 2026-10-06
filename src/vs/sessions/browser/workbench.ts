@@ -69,6 +69,7 @@ import { EDITOR_PART_DEFAULT_WIDTH, EDITOR_PART_MINIMUM_WIDTH } from './parts/ed
 import { IContextKey, IContextKeyService } from '../../platform/contextkey/common/contextkey.js';
 import { CustomViewVisibleContext, EditorMaximizedContext, IsPhoneLayoutContext, DesktopLayoutContext } from '../common/contextkeys.js';
 import { SessionsLayoutPolicy } from './layoutPolicy.js';
+import { ChatLayoutPresentation } from '../common/chatLayout.js';
 import { AGENTS_PART_CARD_CLASS } from './parts/agentsPartCard.js';
 import { MobileNavigationStack } from './mobileNavigationStack.js';
 import { MobileTitlebarPart } from './parts/mobile/mobileTitlebarPart.js';
@@ -199,10 +200,15 @@ export interface IAgentWorkbenchLayoutService extends IWorkbenchLayoutService, I
 	/** Hides the side pane as one semantic transition. */
 	hideSidePane(): void;
 
+	captureSidePaneComposition(): ISidePaneState;
+
+	restoreSidePaneComposition(composition: ISidePaneState): void;
+
 	readonly onDidChangeEditorMaximized: Event<void>;
 
 	/** The concrete Agents workbench presentation selected at startup. */
 	readonly agentWorkbenchLayout: AgentWorkbenchLayout;
+	readonly chatLayoutPresentation: ChatLayoutPresentation;
 
 	/**
 	 * Suppresses the automatic editor part show/hide that normally fires from
@@ -437,6 +443,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 	private mainWindowFullscreen = false;
 	private readonly maximized = new Set<number>();
 	protected readonly layoutPolicy = this._register(new SessionsLayoutPolicy());
+	chatLayoutPresentation!: ChatLayoutPresentation;
 	private readonly mobileNavStack = this._register(new MobileNavigationStack());
 	private mobileTopBarElement: HTMLElement | undefined;
 	private focusMobileTopBar: (() => void) | undefined;
@@ -561,6 +568,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 				const lifecycleService = accessor.get(ILifecycleService);
 				const storageService = accessor.get(IStorageService);
 				const configurationService = accessor.get(IConfigurationService);
+				this.chatLayoutPresentation = this._register(new ChatLayoutPresentation(configurationService, this.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop, this.layoutPolicy.isPhoneLayout));
 				const hostService = accessor.get(IHostService);
 				const hoverService = accessor.get(IHoverService);
 				const dialogService = accessor.get(IDialogService);
@@ -2374,6 +2382,29 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 	hideSidePane(): void {
 		if (this.isSidePaneVisible()) {
 			this.toggleSidePane();
+		}
+	}
+
+	captureSidePaneComposition(): ISidePaneState {
+		return this._getSidePaneState();
+	}
+
+	restoreSidePaneComposition(composition: ISidePaneState): void {
+		const before = this._getSidePaneState();
+		if (before.editor === composition.editor && before.auxiliaryBar === composition.auxiliaryBar) {
+			return;
+		}
+
+		const suppressEditorPartAutoVisibility = this.suppressEditorPartAutoVisibility();
+		try {
+			this.setEditorHidden(!composition.editor, false, true);
+			this._setAuxiliaryBarHidden(!composition.auxiliaryBar, undefined, true);
+		} finally {
+			suppressEditorPartAutoVisibility.dispose();
+		}
+
+		if (!before.editor && !before.auxiliaryBar && (composition.editor || composition.auxiliaryBar)) {
+			this._onSidePaneRevealed();
 		}
 	}
 

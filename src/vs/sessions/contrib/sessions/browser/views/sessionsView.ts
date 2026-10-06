@@ -610,7 +610,6 @@ export class SessionsView extends ViewPane {
 		));
 		const menuState = derivedOpts<{
 			readonly options: readonly (ISessionFilterOption & { readonly checked: boolean })[];
-			readonly environmentTitle: string;
 			readonly emptySourcesTitle: string | undefined;
 		}>({ owner: this, equalsFn: structuralEquals }, reader => {
 			changed.read(reader);
@@ -629,30 +628,21 @@ export class SessionsView extends ViewPane {
 				}
 			}
 			const includedEnvironments = [...environmentLabels].filter(([id]) => !sessionsControl.filters.isExcluded({ kind: 'environment', id }));
-			let environmentTitle = localize('environment', "Environment");
-			if (includedEnvironments.length === 0) {
-				environmentTitle = localize('environment.none', "Environment (None)");
-			} else if (includedEnvironments.length === 1) {
-				environmentTitle = localize('environment.selected', "Environment ({0})", includedEnvironments[0][1]);
-			} else if (includedEnvironments.length < environmentLabels.size) {
-				environmentTitle = localize('environment.multiple', "Environment ({0} Selected)", includedEnvironments.length);
-			}
 			const scopedOptions = options
 				.filter(option => option.filter.kind !== 'application' || !sessionsControl.filters.isExcluded({ kind: 'environment', id: option.filter.environment }))
 				.map(option => ({ ...option, checked: !sessionsControl.filters.isExcluded(option.filter) }));
 			return {
 				options: scopedOptions,
-				environmentTitle,
 				emptySourcesTitle: scopedOptions.some(option => option.filter.kind === 'application') ? undefined
 					: includedEnvironments.length === 0 ? localize('selectEnvironmentFirst', "Select an Environment First")
 						: localize('noCreatingApplications', "No Applications Found"),
 			};
 		});
 		this._register(autorun(reader => {
-			const { options, environmentTitle, emptySourcesTitle } = menuState.read(reader);
+			const { options, emptySourcesTitle } = menuState.read(reader);
 			reader.store.add(MenuRegistry.appendMenuItem(Menus.SessionsViewFilter, {
 				submenu: Menus.SessionsViewEnvironment,
-				title: environmentTitle,
+				title: localize('environment', "Environment"),
 				group: '2_filters',
 				order: 0,
 			}));

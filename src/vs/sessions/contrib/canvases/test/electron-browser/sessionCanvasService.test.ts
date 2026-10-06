@@ -26,8 +26,8 @@ import { Menus } from '../../../../browser/menus.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISessionCanvas, ISessionCapabilities } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { SessionCanvasInput } from '../../common/sessionCanvas.js';
-import { registerSessionCanvasAddTabActions, REOPEN_SESSION_CANVAS_COMMAND_ID } from '../../electron-browser/sessionCanvasActions.js';
+import { REVEAL_SESSION_CANVAS_COMMAND_ID, SessionCanvasInput } from '../../common/sessionCanvas.js';
+import { registerSessionCanvasActions, REOPEN_SESSION_CANVAS_COMMAND_ID } from '../../electron-browser/sessionCanvasActions.js';
 import { SessionCanvasService } from '../../electron-browser/sessionCanvasService.js';
 
 suite('SessionCanvasService', () => {
@@ -118,6 +118,39 @@ suite('SessionCanvasService', () => {
 		const { opened } = createHarness(false);
 
 		assert.deepStrictEqual(opened, []);
+	});
+
+	test('focuses an open canvas and reopens it after dismissal', async () => {
+		const { canvasService, opened, openOptions } = createHarness();
+		const original = opened[0];
+		const registration = store.add(registerSessionCanvasActions(canvasService));
+		const command = CommandsRegistry.getCommand(REVEAL_SESSION_CANVAS_COMMAND_ID);
+		assert.ok(command);
+
+		await command.handler(upcastPartial<ServicesAccessor>({}), original.reference);
+		const focusedInput = opened[1];
+		original.dispose();
+		const reopenableAfterDismiss = canvasService.reopenableCanvases.get().length;
+		await command.handler(upcastPartial<ServicesAccessor>({}), original.reference);
+		registration.dispose();
+
+		assert.deepStrictEqual({
+			focusedExistingInput: focusedInput === original,
+			reopenableAfterDismiss,
+			reopenedWithNewInput: opened[2] !== original,
+			openOptions,
+			commandRegisteredAfterDispose: CommandsRegistry.getCommand(REVEAL_SESSION_CANVAS_COMMAND_ID) !== undefined,
+		}, {
+			focusedExistingInput: true,
+			reopenableAfterDismiss: 1,
+			reopenedWithNewInput: true,
+			openOptions: [
+				{ pinned: true, revealIfOpened: true, preserveFocus: false },
+				{ pinned: true, revealIfOpened: true, preserveFocus: false },
+				{ pinned: true, revealIfOpened: true, preserveFocus: false },
+			],
+			commandRegisteredAfterDispose: false,
+		});
 	});
 
 	test('closes Canvases when the setting is disabled', async () => {
@@ -310,7 +343,7 @@ suite('SessionCanvasService', () => {
 			{ resource: URI.parse('agent-host-canvas:/logs-semantic'), instanceId: '1', title: 'Logs', source: URI.parse('https://example.test/logs-semantic') },
 		];
 		const { canvasService, canvases: canvasStates, opened } = createHarness(true, canvases);
-		const registration = store.add(registerSessionCanvasAddTabActions(canvasService));
+		const registration = store.add(registerSessionCanvasActions(canvasService));
 		for (const input of [...opened]) {
 			input.dispose();
 		}

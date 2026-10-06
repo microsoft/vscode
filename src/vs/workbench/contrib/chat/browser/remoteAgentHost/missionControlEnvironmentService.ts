@@ -1,0 +1,340 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { disposableTimeout, raceCancellationError } from '../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
+import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { observableValue } from '../../../../../base/common/observable.js';
+import { isObject } from '../../../../../base/common/types.js';
+import { localize } from '../../../../../nls.js';
+import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { cloudSandboxAddress, ICloudSandboxAgentHostService, ICloudSandboxApiService } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { IMissionControlEnvironmentService, IMissionControlHost } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
+
+const INVENTORY_PREFIX = 'missionControl.userLocalHosts.v1.';
+const CONNECT_TIMEOUT_MS = 60_000;
+
+function isHost(value: unknown): value is IMissionControlHost {
+	const host = value as Partial<IMissionControlHost> | undefined;
+	return isObject(host)
+		&& typeof host.id === 'string' && /^[A-Za-z0-9_-]+$/.test(host.id)
+		&& typeof host.name === 'string' && !!host.name.trim()
+		&& host.kind === 'user-local' && typeof host.status === 'string'
+		&& (host.hidden === undefined || typeof host.hidden === 'boolean')
+		&& (host.displayName === undefined || typeof host.displayName === 'string');
+}
+
+export class MissionControlEnvironmentService extends Disposable implements IMissionControlEnvironmentService {
+	declare readonly _serviceBrand: undefined;
+	readonly hosts = observableValue<readonly IMissionControlHost[]>(this, []);
+	private _accountKey: string | undefined;
+	private _ownEnvironment: string | undefined;
+	private _generation = 0;
+	private _refreshGeneration = 0;
+	private _initializing: Promise<void> | undefined;
+	private readonly _connects = this._register(new DisposableMap<string, CancellationTokenSource>());
+
+	constructor(
+		@ICloudSandboxApiService private readonly _api: ICloudSandboxApiService,
+		@ICloudSandboxAgentHostService private readonly _connections: ICloudSandboxAgentHostService,
+		@IAgentHostService private readonly _local: IAgentHostService,
+		@IStorageService private readonly _storage: IStorageService,
+		@IConfigurationService private readonly _configuration: IConfigurationService,
+		@IChatEntitlementService private readonly _entitlement: IChatEntitlementService,
+		@ILogService private readonly _log: ILogService,
+		@IAuthenticationService authentication: IAuthenticationService,
+		@IRemoteAgentHostService private readonly _remote: IRemoteAgentHostService,
+	) {
+		super();
+		this._register(toDisposable(() => this._withdraw()));
+		this._register(_api.onDidChangeAccount(account => {
+			if (account !== this._accountKey) {
+				this._withdraw();
+				void this.refresh(CancellationToken.None).catch(error => this._reportBackgroundError(error));
+			}
+		}));
+		this._register(authentication.onDidChangeSessions(e => {
+			if (e.event.removed?.some(session => JSON.stringify([e.providerId, session.account.id]) === this._accountKey)
+				&& ![...(e.event.added ?? []), ...(e.event.changed ?? [])].some(session => JSON.stringify([e.providerId, session.account.id]) === this._accountKey)) {
+				this._withdraw();
+			}
+		}));
+		const updateEnabled = () => {
+			if (!this.enabled) {
+				this._withdraw();
+			} else {
+				void this.refresh(CancellationToken.None).catch(error => this._reportBackgroundError(error));
+			}
+		};
+		this._register(_configuration.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(RemoteAgentHostsEnabledSettingId) || e.affectsConfiguration('chat.disableAIFeatures')) {
+				updateEnabled();
+			}
+		}));
+		this._register(_entitlement.onDidChangeSentiment(updateEnabled));
+		this._register(_storage.onDidChangeValue(StorageScope.PROFILE, undefined, this._store)(e => {
+			if (this._accountKey && e.key.startsWith(this._storagePrefix)) {
+				this._restore();
+			}
+		}));
+	}
+
+	get accountKey(): string | undefined { return this._accountKey; }
+	get enabled(): boolean {
+		return !this._entitlement.sentiment.hidden
+			&& this._configuration.getValue<boolean>('chat.disableAIFeatures') !== true
+			&& this._configuration.getValue<boolean>(RemoteAgentHostsEnabledSettingId) === true;
+	}
+
+	private get _storagePrefix(): string { return `${INVENTORY_PREFIX}${encodeURIComponent(this._accountKey!)}.`; }
+
+	initialize(): Promise<void> {
+		if (!this.enabled || this._store.isDisposed) {
+			return Promise.resolve();
+		}
+		if (!this._initializing) {
+			const generation = this._generation;
+			const promise = this._initialize(generation);
+			this._initializing = promise;
+			void promise.finally(() => {
+				if (this._initializing === promise) {
+					this._initializing = undefined;
+				}
+			}).catch(error => this._reportBackgroundError(error));
+		}
+		return this._initializing;
+	}
+
+	private async _initialize(generation: number): Promise<void> {
+		const account = await this._api.getAccountKey();
+		const own = await this._local.getMissionControlEnvironmentId?.();
+		this._checkGeneration(generation);
+		if (account !== this._accountKey) {
+			this._withdraw();
+			this._accountKey = account;
+			this._ownEnvironment = own;
+			if (account) {
+				this._restore();
+			}
+		} else if (own !== this._ownEnvironment) {
+			this._ownEnvironment = own;
+			this._replaceHosts(this.hosts.get().filter(host => host.id !== own));
+		}
+	}
+
+	async refresh(token: CancellationToken): Promise<void> {
+		if (!this.enabled) {
+			return;
+		}
+		await raceCancellationError(this.initialize(), token);
+		if (!this._accountKey) {
+			return;
+		}
+		const generation = this._generation;
+		const refreshGeneration = ++this._refreshGeneration;
+		const account = this._accountKey;
+		const environments = await this._api.listEnvironments(token, { refresh: true });
+		const own = await this._local.getMissionControlEnvironmentId?.();
+		const currentAccount = await this._api.getAccountKey();
+		this._checkGeneration(generation, token);
+		if (account !== currentAccount || refreshGeneration !== this._refreshGeneration) {
+			throw new CancellationError();
+		}
+		this._ownEnvironment = own;
+		const previous = new Map(this.hosts.get().map(host => [host.id, host]));
+		const next = new Map<string, IMissionControlHost>();
+		for (const environment of environments) {
+			if (environment.kind === 'user-local' && environment.id !== this._ownEnvironment) {
+				const retained = previous.get(environment.id);
+				next.set(environment.id, {
+					id: environment.id, name: environment.name, kind: 'user-local', status: environment.status,
+					hidden: retained?.hidden, displayName: retained?.displayName,
+				});
+			}
+		}
+		// Absence is not remote deletion: retained hosts and their history stay manageable.
+		for (const host of previous.values()) {
+			if (!next.has(host.id) && host.id !== this._ownEnvironment) {
+				next.set(host.id, { ...host, status: 'unavailable' });
+			}
+		}
+		this._replaceHosts([...next.values()]);
+		this._persist();
+	}
+
+	async connect(id: string, token: CancellationToken): Promise<void> {
+		const operation = new DisposableStore();
+		const source = operation.add(new CancellationTokenSource(token));
+		let timedOut = false;
+		let connecting = false;
+		operation.add(disposableTimeout(() => {
+			timedOut = true;
+			source.cancel();
+		}, CONNECT_TIMEOUT_MS));
+		try {
+			await raceCancellationError(this.initialize(), source.token);
+			const host = this._requireHost(id);
+			if (this._connects.has(id)) {
+				throw new Error(localize('missionControl.connectInProgress', "A connection to {0} is already in progress.", host.displayName ?? host.name));
+			}
+			const generation = this._generation;
+			this._connects.set(id, source);
+			const environment = await raceCancellationError(this._api.getEnvironment(id, source.token), source.token);
+			const account = await raceCancellationError(this._api.getAccountKey(), source.token);
+			this._checkGeneration(generation, source.token);
+			this._requireHost(id);
+			if (account !== this._accountKey || environment.id !== id) {
+				throw new CancellationError();
+			}
+			if (environment.status !== 'online') {
+				throw new Error(localize('missionControl.hostOffline', "{0} is not online. Start its owning application before connecting. Mission Control will not start or replace this machine.", host.displayName ?? host.name));
+			}
+			const connection = this._remote.connections.find(connection => connection.address === cloudSandboxAddress(id));
+			if (connection && connection.status.kind !== 'connected') {
+				await raceCancellationError(this._connections.disconnect(id), source.token);
+				this._checkGeneration(generation, source.token);
+				this._requireHost(id);
+			}
+			connecting = true;
+			await raceCancellationError(this._connections.connect({ environmentId: id, name: host.name, environmentKind: 'user-local' }, source.token), source.token);
+			this._checkGeneration(generation, source.token);
+			this._requireHost(id);
+		} catch (error) {
+			if (timedOut) {
+				if (connecting && this._connects.get(id) === source) {
+					await this._connections.disconnect(id);
+				}
+				throw new Error(localize('missionControl.connectTimedOut', "Connecting to the Mission Control host timed out. Ensure its owning application is running, then reconnect."));
+			}
+			throw error;
+		} finally {
+			if (this._connects.get(id) === source) {
+				this._connects.deleteAndDispose(id);
+			}
+			operation.dispose();
+		}
+	}
+
+	async disconnect(id: string): Promise<void> {
+		this._cancelConnect(id);
+		await this._connections.disconnect(id);
+	}
+
+	async hide(id: string): Promise<void> {
+		this._requireHost(id);
+		this.hosts.set(this.hosts.get().map(host => host.id === id ? { ...host, hidden: true } : host), undefined);
+		this._setPreference(id, 'hidden', true);
+		await this.disconnect(id);
+	}
+
+	restore(id: string): void {
+		this._requireHost(id, true);
+		this._setPreference(id, 'hidden', undefined);
+	}
+
+	setDisplayName(id: string, name: string | undefined): void {
+		this._requireHost(id, true);
+		this._setPreference(id, 'displayName', name?.trim() || undefined);
+	}
+
+	private _requireHost(id: string, includeHidden = false): IMissionControlHost {
+		const host = this.hosts.get().find(host => host.id === id && (includeHidden || !host.hidden));
+		if (!this.enabled || !this._accountKey || !host) {
+			throw new CancellationError();
+		}
+		return host;
+	}
+
+	private _setPreference(id: string, preference: 'hidden' | 'displayName', value: boolean | string | undefined): void {
+		const key = `${this._storagePrefix}${id}.${preference}`;
+		if (value === undefined) {
+			this._storage.remove(key, StorageScope.PROFILE);
+		} else {
+			this._storage.store(key, value, StorageScope.PROFILE, StorageTarget.MACHINE);
+		}
+		this._restore();
+	}
+
+	private _persist(): void {
+		if (this._accountKey) {
+			this._storage.storeAll(this.hosts.get().map(host => ({
+				key: `${this._storagePrefix}${host.id}.metadata`,
+				value: JSON.stringify({ id: host.id, name: host.name, kind: 'user-local', status: host.status }),
+				scope: StorageScope.PROFILE,
+				target: StorageTarget.MACHINE,
+			})), false);
+		}
+	}
+
+	private _restore(): void {
+		try {
+			const hosts: IMissionControlHost[] = [];
+			for (const key of this._storage.keys(StorageScope.PROFILE, StorageTarget.MACHINE)) {
+				if (!key.startsWith(this._storagePrefix) || !key.endsWith('.metadata')) {
+					continue;
+				}
+				const host: unknown = JSON.parse(this._storage.get(key, StorageScope.PROFILE)!);
+				if (!isHost(host) || key !== `${this._storagePrefix}${host.id}.metadata`) {
+					throw new Error('Invalid Mission Control host inventory.');
+				}
+				if (host.id !== this._ownEnvironment) {
+					hosts.push({
+						id: host.id, name: host.name, kind: 'user-local', status: host.status,
+						hidden: this._storage.getBoolean(`${this._storagePrefix}${host.id}.hidden`, StorageScope.PROFILE),
+						displayName: this._storage.get(`${this._storagePrefix}${host.id}.displayName`, StorageScope.PROFILE),
+					});
+				}
+			}
+			this._replaceHosts(hosts);
+		} catch (error) {
+			this._log.error('Failed to restore Mission Control host inventory', error);
+		}
+	}
+
+	private _replaceHosts(hosts: readonly IMissionControlHost[]): void {
+		const visible = new Set(hosts.filter(host => !host.hidden).map(host => host.id));
+		for (const previous of this.hosts.get()) {
+			if (!previous.hidden && !visible.has(previous.id)) {
+				void this.disconnect(previous.id).catch(error => this._log.error('Failed to withdraw Mission Control host', error));
+			}
+		}
+		this.hosts.set(hosts, undefined);
+	}
+
+	private _checkGeneration(generation: number, token = CancellationToken.None): void {
+		if (generation !== this._generation || token.isCancellationRequested || !this.enabled || this._store.isDisposed) {
+			throw new CancellationError();
+		}
+	}
+
+	private _cancelConnect(id: string): void {
+		this._connects.get(id)?.cancel();
+		this._connects.deleteAndDispose(id);
+	}
+
+	private _withdraw(): void {
+		this._generation++;
+		this._initializing = undefined;
+		for (const host of this.hosts.get()) {
+			this._cancelConnect(host.id);
+			void this._connections.disconnect(host.id).catch(error => this._log.error('Failed to withdraw Mission Control host', error));
+		}
+		this._accountKey = undefined;
+		this.hosts.set([], undefined);
+	}
+
+	private _reportBackgroundError(error: unknown): void {
+		if (!isCancellationError(error)) {
+			this._log.warn('Mission Control host discovery failed; retaining cached hosts', error);
+		}
+	}
+}
