@@ -19,6 +19,7 @@ import { IFileWriteOptions, IStat } from '../../../../../../platform/files/commo
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { parseWorkspaceRootMcpConfiguration } from '../../../../../../platform/mcp/common/mcpWorkspaceConfiguration.js';
 import { IWorkspaceFolderData } from '../../../../../../platform/workspace/common/workspace.js';
 import { AbstractVariableResolverService } from '../../../../../services/configurationResolver/common/variableResolver.js';
 import { McpServerCustomizationMigrator } from '../../../browser/aiCustomization/mcpServerCustomizationMigration.js';
@@ -786,6 +787,43 @@ suite('McpServerCustomizationMigration', () => {
 			commentPreserved: true,
 		});
 	});
+
+	for (const wrapped of [true, false]) {
+		test(`reads migrated servers from each root's ${wrapped ? 'wrapped' : 'flat'} configuration`, async () => {
+			const roots = [URI.file('/first'), URI.file('/second')];
+			const fileService = createFileService();
+			const configurations: IMcpServerConfiguration[] = roots.map((root, index) => ({
+				type: McpServerType.LOCAL,
+				command: 'node',
+				args: [`${root.path}/server.js`],
+				env: { MODE: `root-${index}` },
+			}));
+			const existing = { type: 'http', url: 'https://example.com/mcp' };
+			for (const [index, root] of roots.entries()) {
+				await fileService.writeFile(URI.joinPath(root, '.vscode', 'mcp.json'), VSBuffer.fromString(JSON.stringify({
+					servers: { selected: configurations[index], unselected: { command: 'other' } },
+				})));
+				const servers = { existing };
+				await fileService.writeFile(URI.joinPath(root, '.mcp.json'), VSBuffer.fromString(JSON.stringify(wrapped ? { mcpServers: servers } : servers)));
+			}
+
+			const result = await createMigrator(fileService).migrate(roots.map((root, index) => candidate(root, 'selected', configurations[index])));
+
+			assert.deepStrictEqual(JSON.parse(JSON.stringify({
+				result,
+				files: await Promise.all(roots.map(async root => ({
+					source: parse((await fileService.readFile(URI.joinPath(root, '.vscode', 'mcp.json'))).value.toString()),
+					target: parseWorkspaceRootMcpConfiguration((await fileService.readFile(URI.joinPath(root, '.mcp.json'))).value.toString()),
+				}))),
+			})), {
+				result: { migratedCount: 2, failures: [] },
+				files: configurations.map(configuration => ({
+					source: { servers: { unselected: { command: 'other' } } },
+					target: { wrapped, servers: { existing, selected: configuration } },
+				})),
+			});
+		});
+	}
 
 	test('accepts an equivalent target and rejects a conflicting target', async () => {
 		const root = URI.file('/targets');
