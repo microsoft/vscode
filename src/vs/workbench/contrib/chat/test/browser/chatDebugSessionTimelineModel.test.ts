@@ -103,7 +103,7 @@ suite('ChatDebugSessionTimelineModel', () => {
 			metadata: event.metadata,
 			rawRecordIds: event.rawRecords.map(record => record.id),
 		})), [
-			{ category: 'tool', title: 'browser', summary: '', metadata: ['100 ms'], rawRecordIds: ['external-start', 'external-end'] },
+			{ category: 'tool', title: 'browser', summary: 'https://example.com', metadata: ['100 ms'], rawRecordIds: ['external-start', 'external-end'] },
 			{ category: 'subagent', title: 'Explore', summary: 'Subagent completed.', metadata: ['model', '50 ms'], rawRecordIds: ['subagent-start', 'subagent-end'] },
 			{ category: 'subagent', title: 'Subagent', summary: 'Subagent completed.', metadata: [], rawRecordIds: ['orphan-subagent'] },
 		]);
