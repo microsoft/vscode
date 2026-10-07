@@ -3571,6 +3571,7 @@ suite('ProtocolServerHandler', () => {
 		const defaultChat = URI.parse(`${sessionUri}/chat/default`);
 		const peerChat = URI.parse(`${sessionUri}/chat/peer`);
 		const unknownStatusChat = URI.parse(`${sessionUri}/chat/unknown`);
+		const activeChat = URI.parse(`${sessionUri}/chat/active`);
 		agentService.listedSessions.push({
 			session: URI.parse(sessionUri),
 			startTime: 1000,
@@ -3580,6 +3581,7 @@ suite('ProtocolServerHandler', () => {
 				{ chat: defaultChat, kind: 'default', summary: 'Default Chat', isRead: true },
 				{ chat: peerChat, kind: 'peer', summary: 'Peer Chat', origin: { kind: ChatOriginKind.Fork, chat: defaultChat.toString(), turnId: 'turn-1' }, interactivity: ChatInteractivity.Hidden, archived: true, isRead: false },
 				{ chat: unknownStatusChat, kind: 'peer', summary: 'Unknown Status Chat' },
+				{ chat: activeChat, kind: 'peer', summary: 'Active Chat', status: SessionStatus.InProgress | SessionStatus.IsRead, isRead: true },
 			],
 		});
 
@@ -3598,6 +3600,7 @@ suite('ProtocolServerHandler', () => {
 				{ resource: defaultChat.toString(), title: 'Default Chat', origin: undefined, status: SessionStatus.Idle | SessionStatus.IsRead },
 				{ resource: peerChat.toString(), title: 'Peer Chat', status: SessionStatus.Idle | SessionStatus.IsArchived, origin: { kind: ChatOriginKind.Fork, chat: defaultChat.toString(), turnId: 'turn-1' }, interactivity: ChatInteractivity.Hidden, archived: true },
 				{ resource: unknownStatusChat.toString(), title: 'Unknown Status Chat', origin: undefined },
+				{ resource: activeChat.toString(), title: 'Active Chat', origin: undefined, status: SessionStatus.InProgress | SessionStatus.IsRead },
 			],
 			defaultChat: defaultChat.toString(),
 		});
