@@ -333,11 +333,6 @@ export class OutlineModel extends TreeElement {
 		return result;
 	}
 
-	getItemById(id: string): TreeElement | undefined {
-		// eslint-disable-next-line no-restricted-syntax
-		return TreeElement.getElementById(id, this);
-	}
-
 	updateMarker(marker: IOutlineMarker[]): void {
 		// sort markers by start range so that we can use
 		// outline element starts for quicker look up

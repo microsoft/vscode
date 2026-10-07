@@ -527,7 +527,6 @@ export abstract class AbstractMcpResourceManagementService extends AbstractCommo
 	}
 
 	protected abstract getLocalServerInfo(name: string, mcpServerConfig: IMcpServerConfiguration): Promise<ILocalMcpServerInfo | undefined>;
-	protected abstract installFromUri(uri: URI, options?: Omit<InstallOptions, 'mcpResource'>): Promise<ILocalMcpServer>;
 }
 
 export class McpUserResourceManagementService extends AbstractMcpResourceManagementService {
@@ -643,10 +642,6 @@ export class McpUserResourceManagementService extends AbstractMcpResourceManagem
 			throw new Error(`Invalid MCP server location for ${name}`);
 		}
 		return location;
-	}
-
-	protected override installFromUri(uri: URI, options?: Omit<InstallOptions, 'mcpResource'>): Promise<ILocalMcpServer> {
-		throw new Error('Method not supported.');
 	}
 
 	override canInstall(): true | IMarkdownString {

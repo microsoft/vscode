@@ -205,16 +205,6 @@ export class McpServerMetadataCache extends Disposable {
 	getServers(collectionId: string) {
 		return this.extensionServers.get(collectionId);
 	}
-
-	/** Sets cached servers for a collection */
-	storeServers(collectionId: string, entry: IServerCacheEntry | undefined): void {
-		if (entry) {
-			this.extensionServers.set(collectionId, entry);
-		} else {
-			this.extensionServers.delete(collectionId);
-		}
-		this.didChange = true;
-	}
 }
 
 /**

@@ -727,10 +727,6 @@ export class BrowserHostService extends Disposable implements IHostService {
 		}
 	}
 
-	async getBrowserId(): Promise<string | undefined> {
-		return undefined;
-	}
-
 	//#endregion
 
 	//#region Native Handle

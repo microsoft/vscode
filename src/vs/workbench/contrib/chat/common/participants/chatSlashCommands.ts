@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IProgress } from '../../../../../platform/progress/common/progress.js';
 import { IChatMessage } from '../languageModels.js';
-import { IChatFollowup, IChatProgress, IChatResponseProgressFileTreeData, IChatSendRequestOptions } from '../chatService/chatService.js';
+import { IChatFollowup, IChatProgress, IChatSendRequestOptions } from '../chatService/chatService.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { ChatAgentLocation, ChatModeKind } from '../constants.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -54,9 +54,6 @@ export interface IChatSlashData {
 	when?: ContextKeyExpression;
 }
 
-export interface IChatSlashFragment {
-	content: string | { treeData: IChatResponseProgressFileTreeData };
-}
 export type IChatSlashCallback = { (prompt: string, progress: IProgress<IChatProgress>, history: IChatMessage[], location: ChatAgentLocation, sessionResource: URI, token: CancellationToken, options?: IChatSendRequestOptions): Promise<{ followUp: IChatFollowup[] } | void> };
 
 export const IChatSlashCommandService = createDecorator<IChatSlashCommandService>('chatSlashCommandService');
@@ -66,7 +63,6 @@ export const IChatSlashCommandService = createDecorator<IChatSlashCommandService
  */
 export interface IChatSlashCommandService {
 	_serviceBrand: undefined;
-	readonly onDidChangeCommands: Event<void>;
 	registerSlashCommand(data: IChatSlashData, command: IChatSlashCallback): IDisposable;
 	executeCommand(id: string, prompt: string, progress: IProgress<IChatProgress>, history: IChatMessage[], location: ChatAgentLocation, sessionResource: URI, token: CancellationToken, options?: IChatSendRequestOptions): Promise<{ followUp: IChatFollowup[] } | void>;
 	getCommands(location: ChatAgentLocation, mode: ChatModeKind): Array<IChatSlashData>;
@@ -82,7 +78,6 @@ export class ChatSlashCommandService extends Disposable implements IChatSlashCom
 	private readonly _commands = new Map<string, RegisteredSlashCommand[]>();
 
 	private readonly _onDidChangeCommands = this._register(new Emitter<void>());
-	readonly onDidChangeCommands: Event<void> = this._onDidChangeCommands.event;
 
 	constructor(@IExtensionService private readonly _extensionService: IExtensionService) {
 		super();

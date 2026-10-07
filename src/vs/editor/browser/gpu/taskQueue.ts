@@ -5,7 +5,6 @@
 
 import { getActiveWindow } from '../../../base/browser/dom.js';
 import { Disposable, toDisposable, type IDisposable } from '../../../base/common/lifecycle.js';
-import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 
 /**
@@ -157,26 +156,3 @@ class IdleTaskQueueInternal extends TaskQueue {
  * This reverts to a {@link PriorityTaskQueue} if the environment does not support idle callbacks.
  */
 export const IdleTaskQueue = ('requestIdleCallback' in getActiveWindow()) ? IdleTaskQueueInternal : PriorityTaskQueue;
-
-/**
- * An object that tracks a single debounced task that will run on the next idle frame. When called
- * multiple times, only the last set task will run.
- */
-export class DebouncedIdleTask {
-	private _queue: ITaskQueue;
-
-	constructor(
-		@IInstantiationService instantiationService: IInstantiationService
-	) {
-		this._queue = instantiationService.createInstance(IdleTaskQueue);
-	}
-
-	public set(task: () => boolean | void): void {
-		this._queue.clear();
-		this._queue.enqueue(task);
-	}
-
-	public flush(): void {
-		this._queue.flush();
-	}
-}

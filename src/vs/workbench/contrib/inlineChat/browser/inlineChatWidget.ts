@@ -14,7 +14,6 @@ import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle
 import { autorun, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
-import { ICodeEditorViewState } from '../../../../editor/common/editorCommon.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../nls.js';
 import { IAccessibleViewService } from '../../../../platform/accessibility/browser/accessibleView.js';
@@ -46,12 +45,6 @@ import { ChatAgentVoteDirection, IChatService } from '../../chat/common/chatServ
 import { isResponseVM } from '../../chat/common/model/chatViewModel.js';
 import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED, inlineChatBackground, inlineChatForeground } from '../common/inlineChat.js';
 import './media/inlineChat.css';
-
-export interface InlineChatWidgetViewState {
-	editorViewState: ICodeEditorViewState;
-	input: string;
-	placeholder: string;
-}
 
 export interface IInlineChatWidgetConstructionOptions {
 

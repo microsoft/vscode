@@ -861,7 +861,6 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 	static readonly CONTROL_SELECTOR = '.' + this.CONTROL_CLASS;
 	static readonly CONTENTS_CLASS = 'setting-item-contents';
 	static readonly CONTENTS_SELECTOR = '.' + this.CONTENTS_CLASS;
-	static readonly ALL_ROWS_SELECTOR = '.monaco-list-row';
 
 	static readonly SETTING_KEY_ATTR = 'data-key';
 	static readonly SETTING_ID_ATTR = 'data-id';
@@ -2335,16 +2334,6 @@ export class SettingTreeRenderers extends Disposable {
 	getDOMElementsForSettingKey(treeContainer: HTMLElement, key: string): NodeListOf<HTMLElement> {
 		// eslint-disable-next-line no-restricted-syntax
 		return treeContainer.querySelectorAll(`[${AbstractSettingRenderer.SETTING_KEY_ATTR}="${key}"]`);
-	}
-
-	getKeyForDOMElementInSetting(element: HTMLElement): string | null {
-		const settingElement = this.getSettingDOMElementForDOMElement(element);
-		return settingElement && settingElement.getAttribute(AbstractSettingRenderer.SETTING_KEY_ATTR);
-	}
-
-	getIdForDOMElementInSetting(element: HTMLElement): string | null {
-		const settingElement = this.getSettingDOMElementForDOMElement(element);
-		return settingElement && settingElement.getAttribute(AbstractSettingRenderer.SETTING_ID_ATTR);
 	}
 
 	override dispose(): void {

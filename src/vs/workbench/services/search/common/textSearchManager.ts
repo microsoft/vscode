@@ -343,22 +343,8 @@ export class BatchedCollector<T> {
 		this.addItemToBatch(item, size);
 	}
 
-	addItems(items: T[], size: number): void {
-		if (!items) {
-			return;
-		}
-
-		this.addItemsToBatch(items, size);
-	}
-
 	private addItemToBatch(item: T, size: number): void {
 		this.batch.push(item);
-		this.batchSize += size;
-		this.onUpdate();
-	}
-
-	private addItemsToBatch(item: T[], size: number): void {
-		this.batch = this.batch.concat(item);
 		this.batchSize += size;
 		this.onUpdate();
 	}

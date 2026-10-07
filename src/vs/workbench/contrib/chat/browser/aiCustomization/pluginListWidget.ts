@@ -47,18 +47,16 @@ import { ChatConfiguration } from '../../common/constants.js';
 import { IAICustomizationItemsModel } from './aiCustomizationItemsModel.js';
 import { UpdateAgentPluginsCommandId } from '../chat.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { getErrorMessage } from '../../../../../base/common/errors.js';
 import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { getPluginInclusionLabel } from './aiCustomizationPresentation.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
-import { createCustomizationCardPrimaryAction, CustomizationCardListController, getVirtualizedSectionMinimumHeight, layoutVirtualizedSectionList, layoutVirtualizedSections, setVirtualizedRowActionsTabbable, trackCustomizationCardPrimaryActionFocus } from './customizationCardList.js';
+import { getVirtualizedSectionMinimumHeight, layoutVirtualizedSectionList, layoutVirtualizedSections, setVirtualizedRowActionsTabbable } from './customizationCardList.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { asTreeRenderer, customizationTreeStyles, getCustomizationTreeContentHeight, ICustomizationTreeGroup } from './customizationTree.js';
 import { CustomizationToggle } from './customizationToggle.js';
 import { affectsCustomizationDiscoveryAvailability, isCustomizationDiscoveryAvailable } from './customizationMarketplaceConfiguration.js';
-import { getAvailableCustomizationMarketplaceInstallTelemetryContext, runCustomizationMarketplaceInstallWithTelemetry } from '../../common/customizationMarketplaceInstallTelemetry.js';
 
 const $ = DOM.$;
 
@@ -778,9 +776,7 @@ export class PluginListWidget extends Disposable {
 	private backButtonContainer!: HTMLElement;
 	private backButton!: Button;
 	private installedCreateButton: Button | undefined;
-	private readonly cardDisposables = this._register(new DisposableStore());
 	private readonly pendingSectionLayout = this._register(new MutableDisposable());
-	private readonly cardListControllers = new WeakMap<HTMLElement, CustomizationCardListController>();
 	private sectionLists: IPluginSectionList[] = [];
 
 	private installedItems: IInstalledPluginItem[] = [];
@@ -824,7 +820,6 @@ export class PluginListWidget extends Disposable {
 		@ICustomizationMarketplaceService private readonly customizationMarketplaceService: ICustomizationMarketplaceService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ICustomizationMarketplaceInstallService private readonly marketplaceInstallService: ICustomizationMarketplaceInstallService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 		this.element = $('.mcp-list-widget.plugin-list-widget'); // reuse MCP shell, add plugin-specific row styling
@@ -1247,14 +1242,6 @@ export class PluginListWidget extends Disposable {
 		this.emptyContainer.style.display = 'flex';
 	}
 
-	private addSurfaceActivation(surface: HTMLElement, label: string, callback: () => void, ...classNames: string[]): HTMLButtonElement {
-		const primaryAction = createCustomizationCardPrimaryAction(surface, label, ...classNames);
-		trackCustomizationCardPrimaryActionFocus(primaryAction, surface.closest<HTMLElement>('.plugin-home-row') ?? surface, this.cardDisposables);
-		this.rememberCardFocusElement(primaryAction);
-		this.cardDisposables.add(DOM.addDisposableListener(primaryAction, 'click', callback));
-		return primaryAction;
-	}
-
 	private getPluginEntryAriaLabel(element: IPluginListEntry): string | IObservable<string> {
 		if (element.type === 'group-header') {
 			return localize('pluginGroupAriaLabel', "{0}, {1} items", element.label, element.count);
@@ -1646,176 +1633,6 @@ export class PluginListWidget extends Disposable {
 		}
 	}
 
-	protected appendInstalledPluginRow(parent: HTMLElement, item: IInstalledPluginItem): void {
-		const row = DOM.append(parent, $('.plugin-list-item.plugin-home-row.plugin-installed-item'));
-		const primaryAction = this.addSurfaceActivation(row, localize('installedPluginRowAriaLabel', "{0}. {1}", item.name, getPluginInclusionLabel(item.plugin)), () => this._onDidSelectPlugin.fire(item));
-
-		const details = DOM.append(primaryAction, $('.plugin-list-item-details'));
-		const nameRow = DOM.append(details, $('.plugin-list-item-name-row'));
-		const name = DOM.append(nameRow, $('.plugin-list-item-name'));
-		name.textContent = formatDisplayName(item.name);
-		name.title = item.name;
-		if (!item.marketplace) {
-			const source = DOM.append(nameRow, $('.inline-badge.plugin-source-badge'));
-			source.textContent = localize('pluginLocalSourceBadge', "Local");
-			source.title = localize('pluginLocalSourceTooltip', "Installed from a local source");
-		}
-
-		const description = DOM.append(details, $('.plugin-list-item-description'));
-		description.textContent = truncateToFirstLine(item.description || localize('pluginNoDescription', "No description provided."));
-		const metadata = DOM.append(details, $('.plugin-list-item-metadata'));
-		metadata.textContent = getInstalledPluginMetadata(item);
-		metadata.style.display = metadata.textContent ? '' : 'none';
-
-		const actions = DOM.append(row, $('.plugin-list-item-action'));
-		const toggle = this.appendInstalledPluginToggle(actions, row, primaryAction, item);
-		const more = this.cardDisposables.add(new Button(actions, {
-			...getButtonStyles({
-				buttonSecondaryBackground: undefined,
-				buttonSecondaryForeground: undefined,
-				buttonSecondaryHoverBackground: undefined,
-				buttonSecondaryBorder: undefined,
-			}),
-			secondary: true,
-			ariaLabel: localize('pluginMoreActionsAria', "More actions for {0}", item.name),
-		}));
-		more.element.classList.add('plugin-card-icon-button');
-		more.icon = Codicon.ellipsis;
-		this.cardDisposables.add(more.onDidClick(() => this.showInstalledPluginActions(item, more.element)));
-		this.cardListControllers.get(parent)?.addItem({
-			row,
-			primaryAction,
-			label: item.name,
-			actions: [toggle, more.element],
-			contextMenuAction: more.element,
-		});
-	}
-
-	private appendInstalledPluginToggle(parent: HTMLElement, row: HTMLElement, primaryAction: HTMLElement, item: IInstalledPluginItem): HTMLElement {
-		let renderedState = item.plugin.enablement.get();
-		const toggle = this.cardDisposables.add(this.instantiationService.createInstance(CustomizationToggle, { ariaLabel: item.name }));
-		const switchElement = toggle.domNode;
-		DOM.append(parent, switchElement);
-		const update = (state: ContributionEnablementState, policyEnablement: boolean | undefined) => {
-			renderedState = state;
-			const checked = isContributionEnabled(state);
-			const managed = policyEnablement !== undefined;
-			const workspaceScope = state === ContributionEnablementState.EnabledWorkspace || state === ContributionEnablementState.DisabledWorkspace;
-			const toggleLabel = checked
-				? (workspaceScope ? localize('excludePluginWorkspaceAria', "Exclude {0} from Workspace", item.name) : localize('excludePluginProfileAria', "Exclude {0} from Profile", item.name))
-				: (workspaceScope ? localize('includePluginWorkspaceAria', "Include {0} in Workspace", item.name) : localize('includePluginProfileAria', "Include {0} for Profile", item.name));
-			const accessibleLabel = managed ? localize('pluginManagedByOrganizationAria', "{0} is managed by your organization", item.name) : toggleLabel;
-			toggle.disabled = managed;
-			toggle.checked = checked;
-			toggle.setAriaLabel(accessibleLabel, managed ? localize('pluginPolicyBlockedSwitch', "This plugin is managed by your organization.") : toggleLabel);
-			row.classList.toggle('disabled', !checked);
-			primaryAction.setAttribute('aria-label', localize('installedPluginRowAriaLabel', "{0}. {1}", item.name, getPluginInclusionLabel(item.plugin)));
-		};
-		this.cardDisposables.add(autorun(reader => {
-			const state = item.plugin.enablement.read(reader);
-			update(state, getPluginPolicyEnablement(item.plugin, reader));
-		}));
-		this.cardDisposables.add(toggle.onChange(() => {
-			const policyEnablement = getPluginPolicyEnablement(item.plugin);
-			if (policyEnablement !== undefined) {
-				update(renderedState, policyEnablement);
-				return;
-			}
-			const nextState = getToggledPluginEnablementState(renderedState);
-			const effectiveState = setPluginEnablementAndReadEffective(this.agentPluginService.enablementModel, item.plugin.uri.toString(), nextState);
-			update(effectiveState, getPluginPolicyEnablement(item.plugin));
-			status(localize('pluginInclusionChanged', "{0}. {1}.", item.name, getPluginInclusionLabel(item.plugin)));
-		}));
-		return switchElement;
-	}
-
-	protected appendRemotePluginRow(parent: HTMLElement, item: ICustomizationItem): void {
-		const row = DOM.append(parent, $('.plugin-list-item.plugin-home-row.plugin-remote-item'));
-		row.setAttribute('role', 'listitem');
-		row.setAttribute('aria-label', localize('pluginRemoteCardAria', "{0}. Remote plugin", item.name));
-		row.classList.toggle('disabled', item.enabled === false);
-
-		const details = DOM.append(row, $('.plugin-list-item-details'));
-		const nameRow = DOM.append(details, $('.plugin-list-item-name-row'));
-		const name = DOM.append(nameRow, $('.plugin-list-item-name'));
-		name.textContent = formatDisplayName(item.name);
-		const source = DOM.append(nameRow, $('.inline-badge.plugin-source-badge'));
-		source.textContent = localize('remotePluginSource', "Remote");
-		source.title = localize('remotePluginMetadata', "Remote agent host");
-		const description = DOM.append(details, $('.plugin-list-item-description'));
-		description.textContent = item.description || localize('pluginNoDescription', "No description provided.");
-		const metadata = DOM.append(details, $('.plugin-list-item-metadata'));
-		metadata.textContent = localize('remotePluginConfigurationSource', "Configured on the active remote agent host");
-
-		const status = DOM.append(row, $('.plugin-list-item-status'));
-		const statusLabel = getRemotePluginStatusLabel(item);
-		if (statusLabel) {
-			status.textContent = statusLabel;
-			status.classList.toggle('disabled', item.enabled === false || item.status === 'degraded' || item.status === 'error');
-		} else {
-			status.style.display = 'none';
-		}
-		let more: Button | undefined;
-		if (item.actions?.length) {
-			const actions = DOM.append(row, $('.plugin-list-item-action'));
-			const moreButton = this.cardDisposables.add(new Button(actions, {
-				...getButtonStyles({
-					buttonSecondaryBackground: undefined,
-					buttonSecondaryForeground: undefined,
-					buttonSecondaryHoverBackground: undefined,
-					buttonSecondaryBorder: undefined,
-				}),
-				secondary: true,
-				ariaLabel: localize('pluginMoreActionsAria', "More actions for {0}", item.name),
-			}));
-			moreButton.element.classList.add('plugin-card-icon-button');
-			moreButton.icon = Codicon.ellipsis;
-			this.rememberCardFocusElement(moreButton.element);
-			this.cardDisposables.add(moreButton.onDidClick(() => this.showRemotePluginActions(item, moreButton.element)));
-			more = moreButton;
-		}
-		this.cardListControllers.get(parent)?.addItem({
-			row,
-			primaryAction: row,
-			label: item.name,
-			actions: more ? [more.element] : [],
-			contextMenuAction: more?.element,
-		});
-	}
-
-	protected appendMarketplacePluginRow(parent: HTMLElement, item: IMarketplacePluginItem): void {
-		const row = DOM.append(parent, $('.plugin-list-item.plugin-home-row.plugin-marketplace-home-row'));
-		const primaryAction = this.addSurfaceActivation(row, localize('marketplacePluginRowAriaLabel', "{0}. Available to install from {1}.", item.name, item.marketplace), () => this._onDidSelectPlugin.fire(item));
-
-		const details = DOM.append(primaryAction, $('.plugin-list-item-details'));
-		const nameRow = DOM.append(details, $('.plugin-list-item-name-row'));
-		const name = DOM.append(nameRow, $('.plugin-list-item-name'));
-		name.textContent = item.name;
-		name.title = item.name;
-		const description = DOM.append(details, $('.plugin-list-item-description'));
-		description.textContent = truncateToFirstLine(item.description || localize('pluginNoDescription', "No description provided."));
-
-		const actions = DOM.append(row, $('.plugin-list-item-action'));
-		const install = this.cardDisposables.add(new Button(actions, {
-			...getButtonStyles({ buttonSecondaryHoverBackground: undefined }),
-			secondary: true,
-			ariaLabel: localize('installPluginAria', "Install {0}", item.name),
-		}));
-		install.element.classList.add('plugin-list-item-install-button');
-		install.label = localize('install', "Install");
-		this.cardDisposables.add(install.onDidClick(() => this.installMarketplacePlugin(item, install)));
-		this.cardListControllers.get(parent)?.addItem({
-			row,
-			primaryAction,
-			label: item.name,
-			actions: [install.element],
-		});
-	}
-
-	private rememberCardFocusElement(element: HTMLElement): void {
-		this.firstCardFocusElement ??= element;
-	}
-
 	private getUninstalledMarketplaceItems(items: readonly IMarketplacePluginItem[] = this.marketplaceItems): IMarketplacePluginItem[] {
 		const installedUris = new Set(this.agentPluginService.plugins.get().map(p => p.uri.toString()));
 		return items.filter(item => {
@@ -1831,36 +1648,6 @@ export class PluginListWidget extends Disposable {
 			});
 			return !installedUris.has(expectedUri.toString());
 		});
-	}
-
-	private async installMarketplacePlugin(item: IMarketplacePluginItem, button: Button): Promise<void> {
-		button.label = localize('installing', "Installing...");
-		button.enabled = false;
-		try {
-			await runCustomizationMarketplaceInstallWithTelemetry(
-				this.telemetryService,
-				getAvailableCustomizationMarketplaceInstallTelemetryContext('plugin'),
-				async () => {
-					await this.pluginInstallService.installPlugin({
-						name: item.name,
-						description: item.description,
-						version: item.version ?? '',
-						sourceDescriptor: item.sourceDescriptor,
-						source: item.source,
-						marketplace: item.marketplace,
-						marketplaceReference: item.marketplaceReference,
-						marketplaceType: item.marketplaceType,
-						readmeUri: item.readmeUri,
-					});
-				},
-			);
-			button.label = localize('installed', "Installed");
-			void this.refresh();
-		} catch (error) {
-			button.label = localize('install', "Install");
-			button.enabled = true;
-			this.notificationService.error(localize('pluginInstallFailed', "Unable to install plugin: {0}", getErrorMessage(error)));
-		}
 	}
 
 	private async queryMarketplaceSnapshot(): Promise<void> {
@@ -2156,13 +1943,6 @@ export class PluginListWidget extends Disposable {
 	 */
 	fireItemCount(): void {
 		this._onDidChangeItemCount.fire(this.itemCount);
-	}
-
-	/**
-	 * Whether the widget is currently in marketplace browse mode.
-	 */
-	isInBrowseMode(): boolean {
-		return this.browseMode;
 	}
 
 	/**

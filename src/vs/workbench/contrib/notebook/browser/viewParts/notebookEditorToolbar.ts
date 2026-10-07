@@ -46,21 +46,6 @@ export enum RenderLabel {
 
 export type RenderLabelWithFallback = true | false | 'always' | 'never' | 'dynamic';
 
-export function convertConfiguration(value: RenderLabelWithFallback): RenderLabel {
-	switch (value) {
-		case true:
-			return RenderLabel.Always;
-		case false:
-			return RenderLabel.Never;
-		case 'always':
-			return RenderLabel.Always;
-		case 'never':
-			return RenderLabel.Never;
-		case 'dynamic':
-			return RenderLabel.Dynamic;
-	}
-}
-
 const ICON_ONLY_ACTION_WIDTH = 21;
 const TOGGLE_MORE_ACTION_WIDTH = 21;
 const ACTION_PADDING = 8;

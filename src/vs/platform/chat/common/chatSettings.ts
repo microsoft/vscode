@@ -36,8 +36,6 @@ export function toChatMicrosoftAuthenticationMode(value: unknown): ChatMicrosoft
 	return ChatMicrosoftAuthenticationMode.Never;
 }
 
-export const ChatEditAutoApproveSettingId = 'chat.tools.edits.autoApprove';
-
 export type ChatEditAutoApprovePatterns = Readonly<Record<string, boolean>>;
 
 export const enum ChatExternalSessionsMode {

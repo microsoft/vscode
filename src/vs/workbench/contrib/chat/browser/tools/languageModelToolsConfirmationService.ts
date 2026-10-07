@@ -67,19 +67,6 @@ class GenericConfirmStore extends Disposable {
 		}
 	}
 
-	public getAutoConfirmation(id: string): 'workspace' | 'profile' | 'session' | 'never' {
-		if (this._workspaceStore.value.getAutoConfirm(id)) {
-			return 'workspace';
-		}
-		if (this._profileStore.value.getAutoConfirm(id)) {
-			return 'profile';
-		}
-		if (this._memoryStore.has(id)) {
-			return 'session';
-		}
-		return 'never';
-	}
-
 	public getAutoConfirmationIn(id: string, scope: 'workspace' | 'profile' | 'session'): boolean {
 		if (scope === 'workspace') {
 			return !!this._workspaceStore.value.getAutoConfirm(id);

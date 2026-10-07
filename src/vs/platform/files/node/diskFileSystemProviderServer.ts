@@ -15,7 +15,6 @@ import { ReadableStreamEventPayload, listenStream } from '../../../base/common/s
 import { IStat, IFileReadStreamOptions, IFileWriteOptions, IFileOpenOptions, IFileDeleteOptions, IFileOverwriteOptions, IFileChange, IWatchOptions, FileType, IFileAtomicReadOptions } from '../common/files.js';
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
-import { IRecursiveWatcherOptions } from '../common/watcher.js';
 
 export interface ISessionFileWatcher extends IDisposable {
 	watch(req: number, resource: URI, opts: IWatchOptions): IDisposable;
@@ -309,10 +308,6 @@ export abstract class AbstractSessionFileWatcher extends Disposable implements I
 
 		this._register(this.fileWatcher.onDidChangeFile(events => localChangeEmitter.fire(events)));
 		this._register(this.fileWatcher.onDidWatchError(error => sessionEmitter.fire(error)));
-	}
-
-	protected getRecursiveWatcherOptions(environmentService: IEnvironmentService): IRecursiveWatcherOptions | undefined {
-		return undefined; // subclasses can override
 	}
 
 	protected getExtraExcludes(environmentService: IEnvironmentService): string[] | undefined {

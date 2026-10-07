@@ -75,10 +75,8 @@ interface ITrustedUriItem {
 
 class WorkspaceTrustedUrisTable extends Disposable {
 	private readonly _onDidAcceptEdit: Emitter<ITrustedUriItem> = this._register(new Emitter<ITrustedUriItem>());
-	readonly onDidAcceptEdit: Event<ITrustedUriItem> = this._onDidAcceptEdit.event;
 
 	private readonly _onDidRejectEdit: Emitter<ITrustedUriItem> = this._register(new Emitter<ITrustedUriItem>());
-	readonly onDidRejectEdit: Event<ITrustedUriItem> = this._onDidRejectEdit.event;
 
 	private _onEdit: Emitter<ITrustedUriItem> = this._register(new Emitter<ITrustedUriItem>());
 	readonly onEdit: Event<ITrustedUriItem> = this._onEdit.event;

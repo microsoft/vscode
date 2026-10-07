@@ -565,15 +565,6 @@ export abstract class BaseCellViewModel extends Disposable {
 		}
 	}
 
-	getLineScrollTopOffset(line: number): number {
-		if (!this._textEditor) {
-			return 0;
-		}
-
-		const editorPadding = this._viewContext.notebookOptions.computeEditorPadding(this.internalMetadata, this.uri);
-		return this._textEditor.getTopForLineNumber(line) + editorPadding.top;
-	}
-
 	getPositionScrollTopOffset(range: Selection | Range): number {
 		if (!this._textEditor) {
 			return 0;

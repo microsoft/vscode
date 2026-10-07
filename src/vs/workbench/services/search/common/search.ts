@@ -13,7 +13,6 @@ import { fuzzyContains, getNLines } from '../../../../base/common/strings.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { IFilesConfiguration } from '../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { ITelemetryData } from '../../../../platform/telemetry/common/telemetry.js';
 import { Event } from '../../../../base/common/event.js';
 import * as paths from '../../../../base/common/path.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
@@ -24,7 +23,6 @@ import { ResourceSet } from '../../../../base/common/map.js';
 export { TextSearchCompleteMessageType };
 
 export const VIEWLET_ID = 'workbench.view.search';
-export const PANEL_ID = 'workbench.panel.search';
 export const VIEW_ID = 'workbench.view.search';
 export const SEARCH_RESULT_LANGUAGE_ID = 'search-result';
 
@@ -562,10 +560,6 @@ export function serializeSearchError(searchError: SearchError): Error {
 	const details = { message: searchError.message, code: searchError.code };
 	return new Error(JSON.stringify(details));
 }
-export interface ITelemetryEvent {
-	eventName: string;
-	data: ITelemetryData;
-}
 
 export interface IRawSearchService {
 	fileSearch(search: IRawFileQuery): Event<ISerializedSearchProgressItem | ISerializedSearchComplete>;
@@ -656,29 +650,6 @@ export interface ISerializedFileMatch {
 // Type of the possible values for progress calls from the engine
 export type ISerializedSearchProgressItem = ISerializedFileMatch | ISerializedFileMatch[] | IProgressMessage;
 export type IFileSearchProgressItem = IRawFileMatch | IRawFileMatch[] | IProgressMessage;
-
-
-export class SerializableFileMatch implements ISerializedFileMatch {
-	path: string;
-	results: ITextSearchMatch[];
-
-	constructor(path: string) {
-		this.path = path;
-		this.results = [];
-	}
-
-	addMatch(match: ITextSearchMatch): void {
-		this.results.push(match);
-	}
-
-	serialize(): ISerializedFileMatch {
-		return {
-			path: this.path,
-			results: this.results,
-			numMatches: this.results.length
-		};
-	}
-}
 
 /**
  *  Computes the patterns that the provider handles. Discards sibling clauses and 'false' patterns

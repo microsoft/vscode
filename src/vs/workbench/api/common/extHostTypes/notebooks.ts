@@ -88,15 +88,6 @@ export class NotebookCellData {
 		}
 	}
 
-	static isNotebookCellDataArray(value: unknown): value is vscode.NotebookCellData[] {
-		return Array.isArray(value) && (<unknown[]>value).every(elem => NotebookCellData.isNotebookCellData(elem));
-	}
-
-	static isNotebookCellData(value: unknown): value is vscode.NotebookCellData {
-		// return value instanceof NotebookCellData;
-		return true;
-	}
-
 	kind: NotebookCellKind;
 	value: string;
 	languageId: string;
@@ -178,18 +169,6 @@ export class NotebookEdit implements vscode.NotebookEdit {
 }
 
 export class NotebookCellOutputItem {
-
-	static isNotebookCellOutputItem(obj: unknown): obj is vscode.NotebookCellOutputItem {
-		if (obj instanceof NotebookCellOutputItem) {
-			return true;
-		}
-		if (!obj) {
-			return false;
-		}
-		return typeof (<vscode.NotebookCellOutputItem>obj).mime === 'string'
-			&& (<vscode.NotebookCellOutputItem>obj).data instanceof Uint8Array;
-	}
-
 	static error(err: Error | { name: string; message?: string; stack?: string }): NotebookCellOutputItem {
 		const obj = {
 			name: err.name,
@@ -236,17 +215,6 @@ export class NotebookCellOutputItem {
 }
 
 export class NotebookCellOutput {
-
-	static isNotebookCellOutput(candidate: unknown): candidate is vscode.NotebookCellOutput {
-		if (candidate instanceof NotebookCellOutput) {
-			return true;
-		}
-		if (!candidate || typeof candidate !== 'object') {
-			return false;
-		}
-		return typeof (<NotebookCellOutput>candidate).id === 'string' && Array.isArray((<NotebookCellOutput>candidate).items);
-	}
-
 	static ensureUniqueMimeTypes(items: NotebookCellOutputItem[], warn: boolean = false): NotebookCellOutputItem[] {
 		const seen = new Set<string>();
 		const removeIdx = new Set<number>();

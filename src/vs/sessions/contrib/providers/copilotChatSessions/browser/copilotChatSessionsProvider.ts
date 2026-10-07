@@ -245,10 +245,6 @@ function isModelOptionGroup(group: IChatSessionProviderOptionGroup): boolean {
 	return nameLower === 'model' || nameLower === 'models';
 }
 
-function isRepositoriesOptionGroup(group: IChatSessionProviderOptionGroup): boolean {
-	return group.id === 'repositories';
-}
-
 /**
  * Remote new session for Cloud agent sessions.
  * Implements {@link ICopilotChatSession} (session facade) and provides
@@ -452,20 +448,6 @@ export class RemoteNewSession extends Disposable implements ICopilotChatSession 
 		return { modelOption: { group, value: this._getValueForGroup(group) }, isResolved: true };
 	}
 
-	getOtherOptionGroups(): ISessionOptionGroup[] {
-		const groups = this._getOptionGroups();
-		if (!groups) {
-			return [];
-		}
-		return groups
-			.filter(g => !isModelOptionGroup(g) && !isRepositoriesOptionGroup(g) && this._isOptionGroupVisible(g))
-			.map(g => ({ group: g, value: this._getValueForGroup(g) }));
-	}
-
-	getOptionValue(groupId: string): IChatSessionProviderOptionItem | undefined {
-		return this.selectedOptions.get(groupId);
-	}
-
 	setOptionValue(groupId: string, value: IChatSessionProviderOptionItem): void {
 		this.setOption(groupId, value);
 	}
@@ -474,14 +456,6 @@ export class RemoteNewSession extends Disposable implements ICopilotChatSession 
 
 	private _getOptionGroups(): IChatSessionProviderOptionGroup[] | undefined {
 		return this.chatSessionsService.getOptionGroupsForSessionType(this.target);
-	}
-
-	private _isOptionGroupVisible(group: IChatSessionProviderOptionGroup): boolean {
-		if (!group.when) {
-			return true;
-		}
-		const expr = ContextKeyExpr.deserialize(group.when);
-		return !expr || this.contextKeyService.contextMatchesRules(expr);
 	}
 
 	private _updateWhenClauseKeys(): void {

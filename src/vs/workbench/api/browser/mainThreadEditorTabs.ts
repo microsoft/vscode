@@ -7,7 +7,6 @@ import { Event } from '../../../base/common/event.js';
 import { DisposableMap, DisposableStore } from '../../../base/common/lifecycle.js';
 import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
-import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { AnyInputDto, ExtHostContext, IEditorTabDto, IEditorTabGroupDto, IExtHostEditorTabsShape, MainContext, MainThreadEditorTabsShape, TabInputKind, TabModelOperationKind, TextDiffInputDto } from '../common/extHost.protocol.js';
 import { EditorResourceAccessor, GroupModelChangeKind, SideBySideEditor } from '../../common/editor.js';
@@ -24,9 +23,9 @@ import { MultiDiffEditorInput } from '../../contrib/multiDiffEditor/browser/mult
 import { NotebookEditorInput } from '../../contrib/notebook/common/notebookEditorInput.js';
 import { TerminalEditorInput } from '../../contrib/terminal/browser/terminalEditorInput.js';
 import { WebviewInput } from '../../contrib/webviewPanel/browser/webviewEditorInput.js';
-import { columnToEditorGroup, EditorGroupColumn, editorGroupToColumn } from '../../services/editor/common/editorGroupColumn.js';
-import { GroupDirection, IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from '../../services/editor/common/editorGroupsService.js';
-import { IEditorsChangeEvent, IEditorService, SIDE_GROUP } from '../../services/editor/common/editorService.js';
+import { editorGroupToColumn } from '../../services/editor/common/editorGroupColumn.js';
+import { IEditorGroup, IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
+import { IEditorsChangeEvent, IEditorService } from '../../services/editor/common/editorService.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 
 interface TabInfo {
@@ -51,7 +50,6 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 	constructor(
 		extHostContext: IExtHostContext,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService private readonly _logService: ILogService,
 		@IEditorService editorService: IEditorService
 	) {
@@ -610,46 +608,6 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		}
 	}
 	//#region Messages received from Ext Host
-	$moveTab(tabId: string, index: number, viewColumn: EditorGroupColumn, preserveFocus?: boolean): void {
-		const groupId = columnToEditorGroup(this._editorGroupsService, this._configurationService, viewColumn);
-		const tabInfo = this._tabInfoLookup.get(tabId);
-		const tab = tabInfo?.tab;
-		if (!tab) {
-			throw new Error(`Attempted to close tab with id ${tabId} which does not exist`);
-		}
-		let targetGroup: IEditorGroup | undefined;
-		const sourceGroup = this._editorGroupsService.getGroup(tabInfo.group.id);
-		if (!sourceGroup) {
-			return;
-		}
-		// If group index is out of bounds then we make a new one that's to the right of the last group
-		if (this._groupLookup.get(groupId) === undefined) {
-			let direction = GroupDirection.RIGHT;
-			// Make sure we respect the user's preferred side direction
-			if (viewColumn === SIDE_GROUP) {
-				direction = preferredSideBySideGroupDirection(this._configurationService);
-			}
-			targetGroup = this._editorGroupsService.addGroup(this._editorGroupsService.groups[this._editorGroupsService.groups.length - 1], direction);
-		} else {
-			targetGroup = this._editorGroupsService.getGroup(groupId);
-		}
-		if (!targetGroup) {
-			return;
-		}
-
-		// Similar logic to if index is out of bounds we place it at the end
-		if (index < 0 || index > targetGroup.editors.length) {
-			index = targetGroup.editors.length;
-		}
-		// Find the correct EditorInput using the tab info
-		const editorInput = tabInfo?.editorInput;
-		if (!editorInput) {
-			return;
-		}
-		// Move the editor to the target group
-		sourceGroup.moveEditor(editorInput, targetGroup, { index, preserveFocus });
-		return;
-	}
 
 	async $closeTab(tabIds: string[], preserveFocus?: boolean): Promise<boolean> {
 		const groups: Map<IEditorGroup, EditorInput[]> = new Map();

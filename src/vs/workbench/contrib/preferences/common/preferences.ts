@@ -29,11 +29,6 @@ export interface IWorkbenchSettingsConfiguration {
 	};
 }
 
-export interface IEndpointDetails {
-	urlBase: string;
-	key?: string;
-}
-
 export const IPreferencesSearchService = createDecorator<IPreferencesSearchService>('preferencesSearchService');
 
 export interface IPreferencesSearchService {

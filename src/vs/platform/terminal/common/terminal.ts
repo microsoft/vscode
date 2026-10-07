@@ -174,7 +174,6 @@ export interface IRawTerminalInstanceLayoutInfo<T> {
 	terminal: T;
 }
 export type ITerminalInstanceLayoutInfoById = IRawTerminalInstanceLayoutInfo<number>;
-export type ITerminalInstanceLayoutInfo = IRawTerminalInstanceLayoutInfo<IPtyHostAttachTarget>;
 
 export interface IRawTerminalTabLayoutInfo<T> {
 	isActive: boolean;

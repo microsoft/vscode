@@ -228,16 +228,6 @@ export class LineRange {
 		return 0;
 	}
 
-	public distanceToLine(lineNumber: number): number {
-		if (this.contains(lineNumber)) {
-			return 0;
-		}
-		if (lineNumber < this.startLineNumber) {
-			return this.startLineNumber - lineNumber;
-		}
-		return lineNumber - this.endLineNumberExclusive;
-	}
-
 	public addMargin(marginTop: number, marginBottom: number): LineRange {
 		return new LineRange(
 			this.startLineNumber - marginTop,

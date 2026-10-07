@@ -41,7 +41,6 @@ export class ChatEditingNotebookCellEntry extends Disposable {
 		return this._textModelChangeService.diffInfo;
 	}
 	private readonly _maxModifiedLineNumber = observableValue<number>(this, 0);
-	readonly maxModifiedLineNumber = this._maxModifiedLineNumber;
 
 	protected readonly _stateObs = observableValue<ModifiedFileEntryState>(this, ModifiedFileEntryState.Modified);
 	readonly state: IObservable<ModifiedFileEntryState> = this._stateObs;

@@ -35,7 +35,6 @@ export interface ICustomEditorService {
 
 	readonly models: ICustomEditorModelManager;
 
-	getCustomEditor(viewType: string): CustomEditorInfo | undefined;
 	getAllCustomEditors(resource: URI): CustomEditorInfoCollection;
 	getContributedCustomEditors(resource: URI): CustomEditorInfoCollection;
 	getUserConfiguredCustomEditors(resource: URI): CustomEditorInfoCollection;
@@ -155,19 +154,6 @@ export class CustomEditorInfoCollection {
 					return false;
 			}
 		});
-	}
-
-	/**
-	 * Find the best available editor to use.
-	 *
-	 * Unlike the `defaultEditor`, a bestAvailableEditor can exist even if there are other editors with
-	 * the same priority.
-	 */
-	public get bestAvailableEditor(): CustomEditorInfo | undefined {
-		const editors = Array.from(this.allEditors).sort((a, b) => {
-			return priorityToRank(a.priority.editor) - priorityToRank(b.priority.editor);
-		});
-		return editors[0];
 	}
 }
 

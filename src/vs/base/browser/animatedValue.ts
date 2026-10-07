@@ -61,33 +61,6 @@ export function easeOutCubic(passedTime: number, start: number, length: number, 
 	return length * ((passedTime = passedTime / totalDuration - 1) * passedTime * passedTime + 1) + start;
 }
 
-export function linear(passedTime: number, start: number, length: number, totalDuration: number): number {
-	return length * passedTime / totalDuration + start;
-}
-
-export class LoopingAnimatedValue implements IAnimatedValue {
-	public static startNow(startValue: number, endValue: number, durationMs: number, interpolationFunction: InterpolationFunction): LoopingAnimatedValue {
-		return new LoopingAnimatedValue(startValue, endValue, durationMs, Date.now(), interpolationFunction);
-	}
-
-	constructor(
-		private readonly _startValue: number,
-		private readonly _endValue: number,
-		private readonly _durationMs: number,
-		private readonly _startTimeMs: number,
-		private readonly _interpolationFunction: InterpolationFunction,
-	) { }
-
-	isFinished(nowMs: number): boolean {
-		return false;
-	}
-
-	getValue(nowMs: number): number {
-		const timePassed = (nowMs - this._startTimeMs) % this._durationMs;
-		return this._interpolationFunction(timePassed, this._startValue, this._endValue - this._startValue, this._durationMs);
-	}
-}
-
 export class ObservableAnimatedValue<T extends IAnimatedValue = IAnimatedValue> {
 	public static const(value: number): ObservableAnimatedValue {
 		return new ObservableAnimatedValue(AnimatedValue.const(value));

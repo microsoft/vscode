@@ -5,10 +5,6 @@
 
 import { ISpliceable } from '../../../common/sequence.js';
 
-export interface ISpreadSpliceable<T> {
-	splice(start: number, deleteCount: number, ...elements: T[]): void;
-}
-
 export class CombinedSpliceable<T> implements ISpliceable<T> {
 
 	constructor(private spliceables: ISpliceable<T>[]) { }

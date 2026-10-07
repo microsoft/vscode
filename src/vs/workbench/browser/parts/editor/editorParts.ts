@@ -614,10 +614,6 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		};
 	}
 
-	getWorkingSets(): IEditorWorkingSet[] {
-		return this.editorWorkingSets.map(workingSet => ({ id: workingSet.id, name: workingSet.name }));
-	}
-
 	deleteWorkingSet(workingSet: IEditorWorkingSet): void {
 		const index = this.indexOfWorkingSet(workingSet);
 		if (typeof index === 'number') {

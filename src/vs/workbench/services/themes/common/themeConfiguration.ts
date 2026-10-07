@@ -388,18 +388,6 @@ export class ThemeConfiguration {
 		return settings && settings.default?.value === settings.value;
 	}
 
-	public findAutoConfigurationTarget(key: string) {
-		const settings = this.configurationService.inspect(key);
-		if (!types.isUndefined(settings.workspaceFolderValue)) {
-			return ConfigurationTarget.WORKSPACE_FOLDER;
-		} else if (!types.isUndefined(settings.workspaceValue)) {
-			return ConfigurationTarget.WORKSPACE;
-		} else if (!types.isUndefined(settings.userRemoteValue)) {
-			return ConfigurationTarget.USER_REMOTE;
-		}
-		return ConfigurationTarget.USER;
-	}
-
 	private async writeConfiguration(key: string, value: unknown, settingsTarget: ThemeSettingTarget): Promise<void> {
 		if (settingsTarget === undefined || settingsTarget === 'preview') {
 			return;

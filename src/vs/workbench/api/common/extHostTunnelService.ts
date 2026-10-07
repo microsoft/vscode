@@ -44,11 +44,6 @@ export namespace TunnelDtoConverter {
 	}
 }
 
-export interface Tunnel extends vscode.Disposable {
-	remote: { port: number; host: string };
-	localAddress: string;
-}
-
 export interface IExtHostTunnelService extends ExtHostTunnelServiceShape {
 	readonly _serviceBrand: undefined;
 	openTunnel(extension: IExtensionDescription, forward: TunnelOptions): Promise<vscode.Tunnel | undefined>;

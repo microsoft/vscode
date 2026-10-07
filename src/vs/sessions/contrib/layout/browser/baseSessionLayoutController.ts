@@ -776,17 +776,6 @@ export abstract class BaseLayoutController extends Disposable {
 	}
 
 	/**
-	 * Whether the auxiliary bar currently has at least one active view container
-	 * (shown as a tab). Mirrors the workbench's own container-visibility rule
-	 * (`!hideIfEmpty || isViewContainerActive`, folded into `isViewContainerActive`).
-	 */
-	protected _hasActiveAuxViewContainers(): boolean {
-		return this._viewDescriptorService
-			.getViewContainersByLocation(ViewContainerLocation.AuxiliaryBar)
-			.some(container => this._viewsService.isViewContainerActive(container.id));
-	}
-
-	/**
 	 * Records a completed whole-side-pane toggle from the did event's before/after
 	 * state while {@link _togglingSidePane} is still set.
 	 */

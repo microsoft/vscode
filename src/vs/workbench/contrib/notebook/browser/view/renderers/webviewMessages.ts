@@ -558,6 +558,3 @@ export type ToWebviewMessage = IClearMessage |
 	IReturnOutputItemMessage |
 	ISelectOutputItemMessage |
 	ISelectInputOutputItemMessage;
-
-
-export type AnyMessage = FromWebviewMessage | ToWebviewMessage;

@@ -8,7 +8,7 @@ import { IChannel, IServerChannel, getDelayedChannel } from '../../../../base/pa
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ISharedProcessService } from '../../../../platform/ipc/electron-browser/services.js';
-import { SharedProcessChannelConnection, SharedProcessRawConnection } from '../../../../platform/sharedProcess/common/sharedProcess.js';
+import { SharedProcessChannelConnection } from '../../../../platform/sharedProcess/common/sharedProcess.js';
 import { mark } from '../../../../base/common/performance.js';
 import { Barrier, timeout } from '../../../../base/common/async.js';
 import { acquirePort } from '../../../../base/parts/ipc/electron-browser/ipc.mp.js';
@@ -64,18 +64,5 @@ export class SharedProcessService extends Disposable implements ISharedProcessSe
 
 	registerChannel(channelName: string, channel: IServerChannel<string>): void {
 		this.withSharedProcessConnection.then(connection => connection.registerChannel(channelName, channel));
-	}
-
-	async createRawConnection(): Promise<MessagePort> {
-
-		// Await initialization of the shared process
-		await this.withSharedProcessConnection;
-
-		// Create a new port to the shared process
-		this.logService.trace('Renderer->SharedProcess#createRawConnection: before acquirePort');
-		const port = await acquirePort(SharedProcessRawConnection.request, SharedProcessRawConnection.response);
-		this.logService.trace('Renderer->SharedProcess#createRawConnection: connection established');
-
-		return port;
 	}
 }

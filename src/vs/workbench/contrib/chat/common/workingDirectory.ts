@@ -26,11 +26,6 @@ export class WorkingDirectory {
 		return this._uri;
 	}
 
-	/** Whether an explicit working directory is set. */
-	get hasExplicitWorkingDirectory(): boolean {
-		return !!this._uri;
-	}
-
 	/**
 	 * Returns the workspace folder containing the given resource.
 	 * When a working directory is set, only checks against it.

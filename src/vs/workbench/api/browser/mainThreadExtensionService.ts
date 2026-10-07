@@ -16,7 +16,7 @@ import { ILocalExtension } from '../../../platform/extensionManagement/common/ex
 import { areSameExtensions } from '../../../platform/extensionManagement/common/extensionManagementUtil.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
-import { IRemoteConnectionData, ManagedRemoteConnection, RemoteConnection, RemoteConnectionType, ResolvedAuthority, WebSocketRemoteConnection } from '../../../platform/remote/common/remoteAuthorityResolver.js';
+import { ManagedRemoteConnection, RemoteConnection, RemoteConnectionType, ResolvedAuthority, WebSocketRemoteConnection } from '../../../platform/remote/common/remoteAuthorityResolver.js';
 import { ExtHostContext, ExtHostExtensionServiceShape, MainContext, MainThreadExtensionServiceShape } from '../common/extHost.protocol.js';
 import { IExtension, IExtensionsWorkbenchService } from '../../contrib/extensions/common/extensions.js';
 import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
@@ -221,9 +221,6 @@ class ExtensionHostProxy implements IExtensionHostProxy {
 	}
 	setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void> {
 		return this._actual.$setRemoteEnvironment(env);
-	}
-	updateRemoteConnectionData(connectionData: IRemoteConnectionData): Promise<void> {
-		return this._actual.$updateRemoteConnectionData(connectionData);
 	}
 	deltaExtensions(extensionsDelta: IExtensionDescriptionDelta): Promise<void> {
 		return this._actual.$deltaExtensions(extensionsDelta);

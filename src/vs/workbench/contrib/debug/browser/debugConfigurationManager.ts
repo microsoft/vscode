@@ -407,14 +407,6 @@ export class ConfigurationManager implements IConfigurationManager {
 		return this._onDidSelectConfigurationName.event;
 	}
 
-	getWorkspaceLaunch(): ILaunch | undefined {
-		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
-			return this.launches[this.launches.length - 1];
-		}
-
-		return undefined;
-	}
-
 	async selectConfiguration(launch: ILaunch | undefined, name?: string, config?: IConfig, dynamicConfig?: { type?: string }): Promise<void> {
 		if (typeof launch === 'undefined') {
 			const rootUri = this.historyService.getLastActiveWorkspaceRoot();

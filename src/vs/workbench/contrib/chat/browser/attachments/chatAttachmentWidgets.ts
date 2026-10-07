@@ -149,10 +149,6 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 		}));
 	}
 
-	protected modelSupportsVision() {
-		return modelSupportsVision(this.currentLanguageModel);
-	}
-
 	private _hasClearButton = false;
 
 	protected appendDeletionHint(ariaLabel: string): string {

@@ -709,11 +709,6 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	saveWorkingSet(name: string): IEditorWorkingSet;
 
 	/**
-	 * Returns all known editor working sets.
-	 */
-	getWorkingSets(): IEditorWorkingSet[];
-
-	/**
 	 * Applies the working set. Use `empty` to apply an empty working set.
 	 *
 	 * @returns `true` when the working set as applied.
@@ -732,12 +727,6 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	 * @returns - A disposable object to unregister the provider.
 	 */
 	registerContextKeyProvider<T extends ContextKeyValue>(provider: IEditorGroupContextKeyProvider<T>): IDisposable;
-}
-
-export const enum OpenEditorContext {
-	NEW_EDITOR = 1,
-	MOVE_EDITOR = 2,
-	COPY_EDITOR = 3
 }
 
 export interface IActiveEditorActions {

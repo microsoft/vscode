@@ -45,9 +45,6 @@ export const Context = {
 export const suggestWidgetStatusbarMenu = new MenuId('suggestWidgetStatusBar');
 
 export class CompletionItem {
-
-	_brand!: 'ISuggestionItem';
-
 	//
 	readonly editStart: IPosition;
 	readonly editInsertEnd: IPosition;

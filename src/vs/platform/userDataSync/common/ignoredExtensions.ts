@@ -17,7 +17,6 @@ export interface IIgnoredExtensionsManagementService {
 	hasToNeverSyncExtension(extensionId: string): boolean;
 	hasToAlwaysSyncExtension(extensionId: string): boolean;
 	updateIgnoredExtensions(ignoredExtensionId: string, ignore: boolean): Promise<void>;
-	updateSynchronizedExtensions(ignoredExtensionId: string, sync: boolean): Promise<void>;
 }
 
 export class IgnoredExtensionsManagementService implements IIgnoredExtensionsManagementService {
@@ -47,19 +46,6 @@ export class IgnoredExtensionsManagementService implements IIgnoredExtensionsMan
 		// Add only if ignored
 		if (ignore) {
 			currentValue.push(ignoredExtensionId.toLowerCase());
-		}
-
-		return this.configurationService.updateValue('settingsSync.ignoredExtensions', currentValue.length ? currentValue : undefined, ConfigurationTarget.USER);
-	}
-
-	updateSynchronizedExtensions(extensionId: string, sync: boolean): Promise<void> {
-		// first remove the extension completely from ignored extensions
-		let currentValue = [...this.configurationService.getValue<string[]>('settingsSync.ignoredExtensions')].map(id => id.toLowerCase());
-		currentValue = currentValue.filter(v => v !== extensionId && v !== `-${extensionId}`);
-
-		// Add only if synced
-		if (sync) {
-			currentValue.push(`-${extensionId.toLowerCase()}`);
 		}
 
 		return this.configurationService.updateValue('settingsSync.ignoredExtensions', currentValue.length ? currentValue : undefined, ConfigurationTarget.USER);

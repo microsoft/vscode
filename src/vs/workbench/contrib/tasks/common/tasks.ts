@@ -8,7 +8,7 @@ import * as Types from '../../../../base/common/types.js';
 import * as resources from '../../../../base/common/resources.js';
 import { IJSONSchemaMap } from '../../../../base/common/jsonSchema.js';
 import * as Objects from '../../../../base/common/objects.js';
-import { UriComponents, URI } from '../../../../base/common/uri.js';
+import { URI } from '../../../../base/common/uri.js';
 
 import { ProblemMatcher } from './problemMatcher.js';
 import { IWorkspaceFolder, IWorkspace } from '../../../../platform/workspace/common/workspace.js';
@@ -469,11 +469,6 @@ export interface IExtensionTaskSource extends IBaseTaskSource {
 	readonly workspaceFolder: IWorkspaceFolder | undefined;
 }
 
-export interface IExtensionTaskSourceTransfer {
-	__workspaceFolder: UriComponents;
-	__definition: { type: string;[name: string]: unknown };
-}
-
 export interface IInMemoryTaskSource extends IBaseTaskSource {
 	readonly kind: 'inMemory';
 }
@@ -683,10 +678,6 @@ export abstract class CommonTask {
 		return undefined;
 	}
 
-	public getTelemetryKind(): string {
-		return 'unknown';
-	}
-
 	public matches(key: string | KeyedTaskIdentifier | undefined, compareId: boolean = false): boolean {
 		if (key === undefined) {
 			return false;
@@ -856,14 +847,6 @@ export class CustomTask extends CommonTask {
 		return (this._source.config.workspace && this._source.config.workspace.configuration) ? resources.basename(this._source.config.workspace.configuration) : undefined;
 	}
 
-	public override getTelemetryKind(): string {
-		if (this._source.customizes) {
-			return 'workspace>extension';
-		} else {
-			return 'workspace';
-		}
-	}
-
 	protected fromObject(object: Record<string, unknown>): CustomTask {
 		const obj = object as unknown as CustomTask;
 		return new CustomTask(obj._id, obj._source, obj._label, obj.type, obj.command, obj.hasDefinedMatchers, obj.runOptions, obj.configurationProperties);
@@ -1020,10 +1003,6 @@ export class ContributedTask extends CommonTask {
 		return this._source.workspaceFolder;
 	}
 
-	public override getTelemetryKind(): string {
-		return 'extension';
-	}
-
 	protected fromObject(object: Record<string, unknown>): ContributedTask {
 		const obj = object as unknown as ContributedTask;
 		return new ContributedTask(obj._id, obj._source, obj._label, obj.type, obj.defines, obj.command, obj.hasDefinedMatchers, obj.runOptions, obj.configurationProperties);
@@ -1052,10 +1031,6 @@ export class InMemoryTask extends CommonTask {
 
 	public static is(value: unknown): value is InMemoryTask {
 		return value instanceof InMemoryTask;
-	}
-
-	public override getTelemetryKind(): string {
-		return 'composite';
 	}
 
 	public override getMapKey(): string {

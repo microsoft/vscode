@@ -1063,10 +1063,6 @@ function normalizeLineRanges(ranges: Range[]): Range[] {
  * Represents a view line. Can be used to efficiently query more information about it.
  */
 class ViewLineInfo {
-	public get isWrappedLineContinuation(): boolean {
-		return this.modelLineWrappedLineIdx > 0;
-	}
-
 	constructor(
 		public readonly modelLineNumber: number,
 		public readonly modelLineWrappedLineIdx: number,

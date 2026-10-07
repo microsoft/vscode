@@ -28,10 +28,6 @@ export const enum ViewMode {
 	Tree = 'tree'
 }
 
-export interface IBaselineResourceProvider {
-	getBaselineResource(resource: URI): Promise<URI>;
-}
-
 export const ISCMService = createDecorator<ISCMService>('scm');
 
 export interface ISCMResourceDecorations {
@@ -241,7 +237,6 @@ export interface ISCMViewService {
 	readonly graphShowOutgoingChangesConfig: IObservable<boolean>;
 
 	repositories: ISCMRepository[];
-	readonly onDidChangeRepositories: Event<ISCMViewVisibleRepositoryChangeEvent>;
 	readonly didFinishLoadingRepositories: IObservable<boolean>;
 
 	visibleRepositories: readonly ISCMRepository[];

@@ -148,10 +148,6 @@ export class ExtHostCell {
 		this._internalMetadata = newInternalMetadata;
 		this._previousResult = Object.freeze(extHostTypeConverters.NotebookCellExecutionSummary.to(newInternalMetadata));
 	}
-
-	setMime(newMime: string | undefined) {
-
-	}
 }
 
 

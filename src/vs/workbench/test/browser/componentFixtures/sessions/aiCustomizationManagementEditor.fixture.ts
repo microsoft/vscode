@@ -179,7 +179,6 @@ function createMockAICustomizationItemsModel(): IAICustomizationItemsModel {
 		override readonly onDidAICustomizationItemsChange = Event.None;
 		override async fetchProviderItems() { return []; }
 		override async fetchAICustomizationItems(_promptType: PromptsType) { return []; }
-		override async fetchSourceFolders(_promptType: PromptsType) { return []; }
 	}();
 
 	return new class extends mock<IAICustomizationItemsModel>() {
@@ -1080,7 +1079,6 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		...(agentFinderPublicFeedEnabled ? customizationMarketplaceResources : []),
 		...(options.copilotConnectorsEnabled ? [copilotConnectorMarketplaceResource] : []),
 	];
-	const skillUIIntegrations = options.skillUIIntegrations ?? new Map();
 	const managementSections = options.managementSections ?? [
 		AICustomizationManagementSection.Plugins,
 		AICustomizationManagementSection.McpServers,
@@ -1460,10 +1458,8 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				override readonly hasOverrideProjectRoot = observableValue('hasOverride', false);
 				override getActiveProjectRoot() { return URI.file('/workspace'); }
 				override clearOverrideProjectRoot() { }
-				override setOverrideProjectRoot() { }
 				override readonly managementSections = managementSections;
 				override async generateCustomization() { }
-				override getSkillUIIntegrations() { return skillUIIntegrations; }
 			}());
 			reg.defineInstance(ICustomizationHarnessService, harnessService);
 			reg.defineInstance(IAgentHostCustomizationService, agentHostCustomizationService);
@@ -1475,7 +1471,6 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				override readonly onDidChangeCustomizations = Event.None;
 				override async getCustomizations() { return undefined; }
 				override getRegisteredChatSessionItemProviders() { return []; }
-				override hasCustomizationsProvider() { return false; }
 			}());
 			reg.defineInstance(IAutomationService, new class extends mock<IAutomationService>() {
 				override readonly automations = constObservable([]);

@@ -216,11 +216,6 @@ class NotebookDiffEditorSerializer implements IEditorSerializer {
 			return NotebookDiffEditorInput.create(instantiationService, resource, name, undefined, originalResource, viewType);
 		}
 	}
-
-	static canResolveBackup(editorInput: EditorInput, backupResource: URI): boolean {
-		return false;
-	}
-
 }
 type SerializedNotebookEditorData = { resource: URI; preferredResource: URI; viewType: string; options?: NotebookEditorInputOptions };
 class NotebookEditorSerializer implements IEditorSerializer {

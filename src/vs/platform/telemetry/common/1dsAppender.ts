@@ -84,7 +84,6 @@ export abstract class AbstractOneDataSystemAppender implements ITelemetryAppende
 
 	protected _aiCoreOrKey: IAppInsightsCore | string | undefined;
 	private _asyncAiCore: Promise<IAppInsightsCore> | null;
-	protected readonly endPointUrl = endpointUrl;
 	protected readonly endPointHealthUrl = endpointHealthUrl;
 
 	constructor(

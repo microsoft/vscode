@@ -276,10 +276,6 @@ export function isActionItem(e: HTMLElement): boolean {
 	return isListElementDescendantOfClass(e, 'action-item');
 }
 
-export function isMonacoTwistie(e: HTMLElement): boolean {
-	return isListElementDescendantOfClass(e, 'monaco-tl-twistie');
-}
-
 export function isStickyScrollElement(e: HTMLElement): boolean {
 	return isListElementDescendantOfClass(e, 'monaco-tree-sticky-row');
 }

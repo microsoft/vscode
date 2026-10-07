@@ -8,11 +8,6 @@ export interface IRange {
 	end: number;
 }
 
-export interface IRangedGroup {
-	range: IRange;
-	size: number;
-}
-
 export namespace Range {
 
 	/**

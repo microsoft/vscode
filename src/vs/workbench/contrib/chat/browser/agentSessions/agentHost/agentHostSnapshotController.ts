@@ -57,8 +57,6 @@ interface IAgentHostCheckpoint {
  * {@link addToolCallEdits} as turns and tool calls arrive.
  */
 export class AgentHostSnapshotController extends Disposable implements IChatEditingSession {
-
-	readonly supportsKeepUndo = false;
 	readonly isGlobalEditingSession = false;
 
 	readonly state: IObservable<ChatEditingSessionState> = constObservable(ChatEditingSessionState.Idle);

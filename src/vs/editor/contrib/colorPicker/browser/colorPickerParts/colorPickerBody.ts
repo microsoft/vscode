@@ -78,14 +78,6 @@ export class ColorPickerBody extends Disposable {
 		return this._saturationBox;
 	}
 
-	get opacityStrip() {
-		return this._opacityStrip;
-	}
-
-	get hueStrip() {
-		return this._hueStrip;
-	}
-
 	get enterButton() {
 		return this._insertButton;
 	}

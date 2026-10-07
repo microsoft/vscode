@@ -59,7 +59,6 @@ export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, ID
 	registerTerminalQuickFixProvider(id: string, extensionId: string, provider: vscode.TerminalQuickFixProvider): vscode.Disposable;
 	getEnvironmentVariableCollection(extension: IExtensionDescription): IEnvironmentVariableCollection;
 	getTerminalById(id: number): ExtHostTerminal | null;
-	getTerminalIdByApiObject(apiTerminal: vscode.Terminal): number | null;
 	registerTerminalCompletionProvider(extension: IExtensionDescription, provider: vscode.TerminalCompletionProvider<vscode.TerminalCompletionItem>, ...triggerCharacters: string[]): vscode.Disposable;
 }
 
@@ -422,7 +421,6 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	protected _terminalProcesses: Map<number, ITerminalChildProcess> = new Map();
 	protected _terminalProcessDisposables: { [id: number]: IDisposable } = {};
 	protected _extensionTerminalAwaitingStart: { [id: number]: { initialDimensions: ITerminalDimensionsDto | undefined } | undefined } = {};
-	protected _getTerminalPromises: { [id: number]: Promise<ExtHostTerminal | undefined> } = {};
 	protected _environmentVariableCollections: Map<string, UnifiedEnvironmentVariableCollection> = new Map();
 	private _defaultProfile: ITerminalProfile | undefined;
 	private _defaultAutomationProfile: ITerminalProfile | undefined;
@@ -721,10 +719,6 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 
 	}
 
-	public $acceptProcessAckDataEvent(id: number, charCount: number): void {
-		this._terminalProcesses.get(id)?.acknowledgeDataEvent(charCount);
-	}
-
 	public $acceptProcessInput(id: number, data: string): void {
 		this._terminalProcesses.get(id)?.input(data);
 	}
@@ -740,17 +734,6 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		this.getTerminalById(id)?.setSelection(selection);
 	}
 
-	public $acceptProcessResize(id: number, cols: number, rows: number): void {
-		try {
-			this._terminalProcesses.get(id)?.resize(cols, rows);
-		} catch (error) {
-			// We tried to write to a closed pipe / channel.
-			if (error.code !== 'EPIPE' && error.code !== 'ERR_IPC_CHANNEL_CLOSED') {
-				throw (error);
-			}
-		}
-	}
-
 	public $acceptProcessShutdown(id: number, immediate: boolean): void {
 		this._terminalProcesses.get(id)?.shutdown(immediate);
 	}
@@ -762,11 +745,6 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	public $acceptProcessRequestCwd(id: number): void {
 		this._terminalProcesses.get(id)?.getCwd().then(cwd => this._proxy.$sendProcessProperty(id, { type: ProcessPropertyType.Cwd, value: cwd }));
 	}
-
-	public $acceptProcessRequestLatency(id: number): Promise<number> {
-		return Promise.resolve(id);
-	}
-
 
 	public registerProfileProvider(extension: IExtensionDescription, id: string, provider: vscode.TerminalProfileProvider): vscode.Disposable {
 		if (this._profileProviders.has(id)) {
@@ -1011,13 +989,6 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 
 	public getTerminalById(id: number): ExtHostTerminal | null {
 		return this._getTerminalObjectById(this._terminals, id);
-	}
-
-	public getTerminalIdByApiObject(terminal: vscode.Terminal): number | null {
-		const index = this._terminals.findIndex(item => {
-			return item.value === terminal;
-		});
-		return index >= 0 ? index : null;
 	}
 
 	private _getTerminalObjectById<T extends ExtHostTerminal>(array: T[], id: number): T | null {

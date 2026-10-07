@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IListRenderer } from '../../../../../base/browser/ui/list/list.js';
-import { ITreeNode, ITreeRenderer } from '../../../../../base/browser/ui/tree/tree.js';
-import { localize } from '../../../../../nls.js';
+import { ITreeRenderer } from '../../../../../base/browser/ui/tree/tree.js';
 
 export interface ICustomizationTreeGroup<T> {
 	readonly id: string;
@@ -36,18 +35,4 @@ export function asTreeRenderer<T, TTemplateData>(renderer: IListRenderer<T, TTem
 			: undefined,
 		disposeTemplate: templateData => renderer.disposeTemplate(templateData),
 	};
-}
-
-export function getTreeNodeElement<T>(node: ITreeNode<T>): T {
-	return node.element;
-}
-
-export function getCustomizationTreeAriaLabel(label: string, count: number, collapsed: boolean): string {
-	return localize(
-		'customizationTreeGroupAriaLabel',
-		"{0}, {1} items, {2}",
-		label,
-		count,
-		collapsed ? localize('collapsed', "collapsed") : localize('expanded', "expanded"),
-	);
 }

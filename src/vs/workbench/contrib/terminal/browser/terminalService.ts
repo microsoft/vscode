@@ -107,11 +107,6 @@ export class TerminalService extends Disposable implements ITerminalService {
 
 	private _reconnectedTerminalGroups: Promise<ITerminalGroup[]> | undefined;
 
-	private _reconnectedTerminals: Map<string, ITerminalInstance[]> = new Map();
-	getReconnectedTerminals(reconnectionOwner: string): ITerminalInstance[] | undefined {
-		return this._reconnectedTerminals.get(reconnectionOwner);
-	}
-
 	private _activeInstance: ITerminalInstance | undefined;
 	get activeInstance(): ITerminalInstance | undefined {
 		// Check if either an editor or panel terminal has focus and return that, regardless of the
@@ -153,9 +148,6 @@ export class TerminalService extends Disposable implements ITerminalService {
 	private readonly _onDidChangeActiveGroup = this._register(new Emitter<ITerminalGroup | undefined>());
 	get onDidChangeActiveGroup(): Event<ITerminalGroup | undefined> { return this._onDidChangeActiveGroup.event; }
 
-	// Lazily initialized events that fire when the specified event fires on _any_ terminal
-	// TODO: Batch events
-	@memoize get onAnyInstanceData() { return this._register(this.createOnInstanceEvent(instance => Event.map(instance.onData, data => ({ instance, data })))).event; }
 	@memoize get onAnyInstanceDataInput() { return this._register(this.createOnInstanceEvent(e => Event.map(e.onDidInputData, () => e, e.store))).event; }
 	@memoize get onAnyInstanceIconChange() { return this._register(this.createOnInstanceEvent(e => e.onIconChanged)).event; }
 	@memoize get onAnyInstanceMaximumDimensionsChange() { return this._register(this.createOnInstanceEvent(e => Event.map(e.onMaximumDimensionsChanged, () => e, e.store))).event; }

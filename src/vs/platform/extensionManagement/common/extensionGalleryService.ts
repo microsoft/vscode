@@ -284,10 +284,6 @@ class Query {
 		return new Query({ ...this.state, flags: distinct(flags) });
 	}
 
-	withAssetTypes(...assetTypes: string[]): Query {
-		return new Query({ ...this.state, assetTypes });
-	}
-
 	withSource(source: string): Query {
 		return new Query({ ...this.state, source });
 	}

@@ -47,10 +47,6 @@ export class WebviewThemeDataProvider extends Disposable {
 		}));
 	}
 
-	public getTheme(): IWorkbenchColorTheme {
-		return this._themeService.getColorTheme();
-	}
-
 	public getWebviewThemeData(): WebviewThemeData {
 		if (!this._cachedWebViewThemeData) {
 			const configuration = this._configurationService.getValue<IEditorOptions>('editor');

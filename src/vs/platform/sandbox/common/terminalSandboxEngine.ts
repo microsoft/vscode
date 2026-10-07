@@ -185,10 +185,6 @@ export class TerminalSandboxEngine extends Disposable {
 		return this._areUnsandboxedCommandsAllowed();
 	}
 
-	areRetryWithAllowNetworkRequestsAllowed(): boolean {
-		return this._areRetryWithAllowNetworkRequestsAllowed();
-	}
-
 	async getOS(): Promise<OperatingSystem> {
 		this._os = await this._host.getOS();
 		return this._os;

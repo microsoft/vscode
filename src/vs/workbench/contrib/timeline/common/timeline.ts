@@ -8,15 +8,10 @@ import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Command } from '../../../../editor/common/languages.js';
-import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IAccessibilityInformation } from '../../../../platform/accessibility/common/accessibility.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
-
-export function toKey(extension: ExtensionIdentifier | string, source: string) {
-	return `${typeof extension === 'string' ? extension : ExtensionIdentifier.toKey(extension)}|${source}`;
-}
 
 export const TimelinePaneId = 'timeline';
 

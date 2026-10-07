@@ -133,8 +133,6 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 
 	private _lastLayout: { readonly width: number; readonly height: number; readonly top: number; readonly left: number } | undefined;
 
-	/** Whether this group is the active (focused) group within the session. */
-	private _groupActive = false;
 	/** Whether this group's session is the active session in the sessions part. */
 	private _sessionActive = true;
 	/** Whether this group's session is currently visible in the sessions part. */
@@ -426,12 +424,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 
 	/** Whether this group is the active (focused) group within the session. */
 	setGroupActive(active: boolean): void {
-		this._groupActive = active;
 		this.element.classList.toggle('active-group', active);
-	}
-
-	get groupActive(): boolean {
-		return this._groupActive;
 	}
 
 	/** Whether this group's session is the active session in the sessions part. */

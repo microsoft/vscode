@@ -27,7 +27,7 @@ import { IEditorService } from '../../../../../services/editor/common/editorServ
 import { createFileIconThemableTreeContainerScope } from '../../../../files/browser/views/explorerView.js';
 import { MultiDiffEditorInput } from '../../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { MultiDiffEditorItem } from '../../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
-import { IChatEditingSession, IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
+import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
 import { ChatEditingSnapshotTextModelContentProvider } from '../../chatEditing/chatEditingTextModelContentProviders.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
@@ -139,8 +139,6 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 
 	public readonly domNode: HTMLElement;
 
-	private readonly diffsBetweenRequests = new Map<string, IObservable<IEditSessionEntryDiff | undefined>>();
-
 	private fileChangesDiffsObservable: IObservable<readonly IEditSessionEntryDiff[]>;
 	private readonly detailsElement: HTMLDetailsElement;
 
@@ -193,16 +191,6 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 			.map(models => Iterable.find(models, m => isEqual(m.sessionResource, sessionResource)))
 			.map(model => model?.editingSession?.getDiffsForFilesInRequest(requestId))
 			.map((diffs, r) => diffs?.read(r) || Iterable.empty());
-	}
-
-	public getCachedEntryDiffBetweenRequests(editSession: IChatEditingSession, uri: URI, startRequestId: string, stopRequestId: string): IObservable<IEditSessionEntryDiff | undefined> | undefined {
-		const key = `${uri}\0${startRequestId}\0${stopRequestId}`;
-		let observable = this.diffsBetweenRequests.get(key);
-		if (!observable) {
-			observable = editSession.getEntryDiffBetweenRequests(uri, startRequestId, stopRequestId);
-			this.diffsBetweenRequests.set(key, observable);
-		}
-		return observable;
 	}
 
 	private renderHeader(container: HTMLElement): IDisposable {

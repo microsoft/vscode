@@ -674,17 +674,6 @@ export interface IVoiceClientService {
 	 * `text`, which every dedup and retry-reuse guard keys on.
 	 */
 	requestNarration(codingSessionId: string, kind: VoiceNarrationKind, text: string, narrationId?: string, checkpoint?: IVoiceCheckpointNarrationMetadata, confirmationType?: VoiceConfirmationType, pending?: { pendingId: string }): string | undefined;
-	/**
-	 * Notify the backend of a session state transition.
-	 *
-	 * ``detail`` carries the human-readable description of the transition
-	 * (e.g. the confirmation prompt content for ``waiting_for_confirmation``)
-	 * and ``lastResponseSummary`` carries the agent's last response text for
-	 * ``idle`` transitions. Including them inline ensures the BE has the data
-	 * it needs to react/summarise without depending on the separate (debounced)
-	 * ``session_context`` delta arriving first or being current.
-	 */
-	sendSessionStateChange(sessionId: string, newState: string, label: string, detail?: string, lastResponseSummary?: string): void;
 	stopSpeaking(): void;
 	sendStartSession(context: IVoiceSessionContext, machineId: string, priorTimeline?: readonly IVoicePriorTimelineEntry[], turnConfigOverride?: IVoiceTurnConfig, voiceInstructions?: string): void;
 	sendResumeSession(context: IVoiceSessionContext, machineId: string, voiceInstructions?: string): void;

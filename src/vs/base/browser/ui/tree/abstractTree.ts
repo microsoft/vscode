@@ -3238,10 +3238,6 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		this.view.focusFirst(browserEvent, this.getFocusNavigationFilter(filter));
 	}
 
-	setFocusNavigationFilter(filter: ((node: ITreeNode<T, TFilterData>) => boolean) | undefined): void {
-		this.additionalFocusNavigationFilter = filter;
-	}
-
 	private getFocusNavigationFilter(filter: ((node: ITreeNode<T, TFilterData>) => boolean) | undefined): ((node: ITreeNode<T, TFilterData>) => boolean) | undefined {
 		const additionalFilter = this.additionalFocusNavigationFilter;
 		if (!additionalFilter) {

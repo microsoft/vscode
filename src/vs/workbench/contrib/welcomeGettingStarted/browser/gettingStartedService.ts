@@ -66,8 +66,6 @@ export interface IWalkthrough {
 	walkthroughPageTitle: string;
 }
 
-export type IWalkthroughLoose = Omit<IWalkthrough, 'steps'> & { steps: (Omit<IWalkthroughStep, 'description'> & { description: string })[] };
-
 export interface IResolvedWalkthrough extends IWalkthrough {
 	steps: IResolvedWalkthroughStep[];
 	newItems: boolean;
@@ -104,8 +102,6 @@ export interface IWalkthroughsService {
 
 	getWalkthroughs(): IResolvedWalkthrough[];
 	getWalkthrough(id: string): IResolvedWalkthrough;
-
-	registerWalkthrough(descriptor: IWalkthroughLoose): void;
 
 	progressByEvent(eventName: string): void;
 	progressStep(id: string): void;
@@ -569,13 +565,6 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 
 		this.sessionEvents.add(event);
 		this.completionListeners.get(event)?.forEach(id => this.progressStep(id));
-	}
-
-	registerWalkthrough(walkthoughDescriptor: IWalkthroughLoose) {
-		this._registerWalkthrough({
-			...walkthoughDescriptor,
-			steps: walkthoughDescriptor.steps.map(step => ({ ...step, description: parseDescription(step.description) }))
-		});
 	}
 
 	_registerWalkthrough(walkthroughDescriptor: IWalkthrough): void {

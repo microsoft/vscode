@@ -304,26 +304,6 @@ export class SettingsTargetsWidget extends Widget {
 		}
 	}
 
-	setResultCount(settingsTarget: SettingsTarget, count: number): void {
-		if (settingsTarget === ConfigurationTarget.WORKSPACE) {
-			let label = this.contextService.getWorkspace().name ?? localize('workspaceSettings', "Workspace");
-			if (count) {
-				label += ` (${count})`;
-			}
-
-			this.workspaceSettings.label = label;
-		} else if (settingsTarget === ConfigurationTarget.USER_LOCAL) {
-			let label = localize('userSettings', "User");
-			if (count) {
-				label += ` (${count})`;
-			}
-
-			this.userLocalSettings.label = label;
-		} else if (settingsTarget instanceof URI) {
-			this.folderSettings.setCount(settingsTarget, count);
-		}
-	}
-
 	updateLanguageFilterIndicators(filter: string | undefined) {
 		this.resetLabels();
 		if (filter) {

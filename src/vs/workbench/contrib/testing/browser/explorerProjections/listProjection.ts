@@ -23,8 +23,6 @@ import { ITestItemUpdate, InternalTestItem, TestDiffOpType, TestItemExpandState,
 class ListTestItemElement extends TestItemTreeElement {
 	private errorChild?: TestTreeErrorMessage;
 
-	public descriptionParts: string[] = [];
-
 	public override get description() {
 		return this.chain.map(c => c.item.label).join(flatTestItemDelimiter);
 	}

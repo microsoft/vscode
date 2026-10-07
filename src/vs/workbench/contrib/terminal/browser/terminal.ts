@@ -389,7 +389,6 @@ export interface IMarkTracker {
 	selectToPreviousLine(): void;
 	selectToNextLine(): void;
 	clear(): void;
-	scrollToClosestMarker(startMarkerId: string, endMarkerId?: string, highlight?: boolean | undefined): void;
 
 	scrollToLine(line: number, position: ScrollPosition): void;
 	revealCommand(command: ITerminalCommand | ICurrentPartialCommand | URI, position?: ScrollPosition): void;
@@ -550,8 +549,6 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	// Group events
 	readonly onDidChangeActiveGroup: Event<ITerminalGroup | undefined>;
 
-	// Multiplexed events
-	readonly onAnyInstanceData: Event<{ instance: ITerminalInstance; data: string }>;
 	readonly onAnyInstanceDataInput: Event<ITerminalInstance>;
 	readonly onAnyInstanceIconChange: Event<{ instance: ITerminalInstance; userInitiated: boolean }>;
 	readonly onAnyInstanceMaximumDimensionsChange: Event<ITerminalInstance>;
@@ -587,13 +584,6 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	 * Creates a raw terminal instance, this should not be used outside of the terminal part.
 	 */
 	getInstanceFromId(terminalId: number): ITerminalInstance | undefined;
-
-	/**
-	 * An owner of terminals might be created after reconnection has occurred,
-	 * so store them to be requested/adopted later
-	 * @deprecated Use {@link onDidReconnectToSession}
-	 */
-	getReconnectedTerminals(reconnectionOwner: string): ITerminalInstance[] | undefined;
 
 	getActiveOrCreateInstance(options?: { acceptsInput?: boolean }): Promise<ITerminalInstance>;
 	revealTerminal(source: ITerminalInstance, preserveFocus?: boolean): Promise<void>;
@@ -1028,7 +1018,6 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 
 	readonly onProcessIdReady: Event<ITerminalInstance>;
 	readonly onProcessReplayComplete: Event<void>;
-	readonly onRequestExtHostProcess: Event<ITerminalInstance>;
 	readonly onDimensionsChanged: Event<void>;
 	readonly onMaximumDimensionsChanged: Event<void>;
 	readonly onDidChangeHasChildProcesses: Event<boolean>;
@@ -1181,15 +1170,6 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	 * Adds a marker to the buffer, mapping it to an ID if provided.
 	 */
 	addBufferMarker(properties: IMarkProperties): void;
-
-	/**
-	 *
-	 * @param startMarkId The ID for the start marker
-	 * @param endMarkId The ID for the end marker
-	 * @param highlight Whether the buffer from startMarker to endMarker
-	 * should be highlighted
-	 */
-	scrollToMark(startMarkId: string, endMarkId?: string, highlight?: boolean): void;
 
 	/**
 	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.
@@ -1454,11 +1434,6 @@ export interface IXtermTerminal extends IDisposable {
 	readonly isFocused: boolean;
 
 	/**
-	 * Whether a canvas-based renderer is being used.
-	 */
-	readonly isGpuAccelerated: boolean;
-
-	/**
 	 * The last `onData` input event fired by {@link RawXtermTerminal.onData}.
 	 */
 	readonly lastInputEvent: string | undefined;
@@ -1572,11 +1547,6 @@ export interface IXtermTerminal extends IDisposable {
 	 * last line).
 	 */
 	getContentsAsText(startMarker?: IXtermMarker, endMarker?: IXtermMarker): string;
-
-	/**
-	 * Gets the buffer contents as HTML.
-	 */
-	getContentsAsHtml(): Promise<string>;
 
 	/**
 	 * Refreshes the terminal after it has been moved.

@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { join, normalize } from '../../../../../base/common/path.js';
 import * as platform from '../../../../../base/common/platform.js';
-import { IDebugAdapterExecutable, IConfig, IDebugSession, IAdapterManager, IDebuggerContribution } from '../../common/debug.js';
+import { IAdapterManager, IDebuggerContribution } from '../../common/debug.js';
 import { Debugger } from '../../common/debugger.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -134,9 +134,6 @@ suite('Debug - Debugger', () => {
 
 
 	const adapterManager = <IAdapterManager>{
-		getDebugAdapterDescriptor(session: IDebugSession, config: IConfig): Promise<IDebugAdapterExecutable | undefined> {
-			return Promise.resolve(undefined);
-		}
 	};
 
 	ensureNoDisposablesAreLeakedInTestSuite();

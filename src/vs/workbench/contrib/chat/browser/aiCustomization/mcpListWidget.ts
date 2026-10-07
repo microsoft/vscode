@@ -3126,33 +3126,6 @@ export class McpListWidget extends Disposable {
 		return { element: switchElement, update };
 	}
 
-	protected appendMarketplaceServerRow(parent: HTMLElement, server: IWorkbenchMcpServer): void {
-		const row = DOM.append(parent, $('.plugin-list-item.plugin-home-row.plugin-marketplace-home-row'));
-		const primaryAction = this.addSurfaceActivation(row, localize('marketplaceMcpServerRowAriaLabel', "{0}. Available to install from the MCP marketplace.", server.label), () => this._onDidSelectServer.fire(createWorkbenchMcpServerDetailInput(server)));
-		const details = DOM.append(primaryAction, $('.plugin-list-item-details'));
-		const nameRow = DOM.append(details, $('.plugin-list-item-name-row'));
-		const name = DOM.append(nameRow, $('.plugin-list-item-name'));
-		name.textContent = server.label;
-		name.title = server.label;
-		const description = DOM.append(details, $('.plugin-list-item-description'));
-		description.textContent = truncateToFirstLine(server.description || localize('mcpNoDescription', "No description provided."));
-		const actions = DOM.append(row, $('.plugin-list-item-action'));
-		const install = this.cardDisposables.add(new Button(actions, {
-			...getButtonStyles({ buttonSecondaryHoverBackground: undefined }),
-			secondary: true,
-			ariaLabel: localize('installMcpServerAria', "Install {0}", server.label),
-		}));
-		install.element.classList.add('plugin-list-item-install-button');
-		install.label = localize('install', "Install");
-		this.cardDisposables.add(install.onDidClick(() => this.installMarketplaceServer(server, install)));
-		this.cardListControllers.get(parent)?.addItem({
-			row,
-			primaryAction,
-			label: server.label,
-			actions: [install.element],
-		});
-	}
-
 	private async installMarketplaceServer(server: IWorkbenchMcpServer, button: Button): Promise<void> {
 		button.label = localize('installing', "Installing...");
 		button.enabled = false;
@@ -3338,10 +3311,6 @@ export class McpListWidget extends Disposable {
 	 */
 	fireItemCount(): void {
 		this._onDidChangeItemCount.fire(this.itemCount);
-	}
-
-	isInBrowseMode(): boolean {
-		return false;
 	}
 
 	exitBrowseMode(): void { }

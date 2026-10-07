@@ -359,25 +359,3 @@ export function segmentHasFlag(segment: ICommandSegment, flags: readonly string[
 	}
 	return false;
 }
-
-/**
- * Iterate over every segment in the parsed command. Useful for filters that
- * want to act on any segment of a pipeline (e.g. `cat foo.txt | grep bar`
- * — the `cat` filter wants to fire on the first segment).
- */
-export function findSegments(
-	parsed: IParsedCommand,
-	predicate: (head: { head: string; sub: string | undefined }, segment: ICommandSegment) => boolean,
-): ICommandSegment[] {
-	const out: ICommandSegment[] = [];
-	for (const seg of parsed.segments) {
-		const head = segmentHead(seg);
-		if (!head) {
-			continue;
-		}
-		if (predicate(head, seg)) {
-			out.push(seg);
-		}
-	}
-	return out;
-}

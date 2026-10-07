@@ -411,15 +411,6 @@ export class CustomizedMenuWorkbenchToolBar extends WorkbenchToolBar {
 		this.updateToolbar();
 	}
 
-	setAdditionalPrimaryActions(actions: IAction[]): void {
-		if (equals(this.additionalPrimaryActions, actions, (a, b) => a === b)) {
-			return;
-		}
-
-		this.additionalPrimaryActions = actions;
-		this.updateToolbar();
-	}
-
 	setAdditionalSecondaryActions(actions: IAction[]): void {
 		if (equals(this.additionalActions, actions, (a, b) => a === b)) {
 			return;

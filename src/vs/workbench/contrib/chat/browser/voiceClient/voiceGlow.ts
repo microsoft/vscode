@@ -176,14 +176,3 @@ export interface IVoiceRimAccent {
 	readonly saturation: number;
 	readonly lightness: number;
 }
-
-/**
- * Box-shadow for a voice mic/icon button glow, shared by surfaces that light up
- * the microphone glyph in addition to the input border.
- */
-export function computeVoiceMicGlowBoxShadow(voiceState: VoiceGlowState, intensity: number, colors: IVoiceGlowColors = DEFAULT_VOICE_GLOW_COLORS): string {
-	const { r, g, b } = voiceGlowStateColor(voiceState, colors).rgba;
-	const shadowSpread = 3 + intensity * 8;
-	const shadowAlpha = 0.2 + intensity * 0.45;
-	return `0 0 ${shadowSpread}px rgba(${r},${g},${b},${shadowAlpha})`;
-}

@@ -441,61 +441,6 @@ export class TokenStore implements IDisposable {
 		return result;
 	}
 
-	public deepCopy(): TokenStore {
-		const newStore = new TokenStore(this._textModel);
-		newStore._root = this._copyNodeIterative(this._root);
-		return newStore;
-	}
-
-	private _copyNodeIterative(root: Node): Node {
-		const newRoot = isLeaf(root)
-			? { length: root.length, token: root.token, tokenQuality: root.tokenQuality, height: root.height }
-			: new ListNode(root.height);
-
-		const stack: Array<[Node, Node]> = [[root, newRoot]];
-
-		while (stack.length > 0) {
-			const [oldNode, clonedNode] = stack.pop()!;
-			if (!isLeaf(oldNode)) {
-				for (const child of oldNode.children) {
-					const childCopy = isLeaf(child)
-						? { length: child.length, token: child.token, tokenQuality: child.tokenQuality, height: child.height }
-						: new ListNode(child.height);
-
-					(clonedNode as ListNode).appendChild(childCopy);
-					stack.push([child, childCopy]);
-				}
-			}
-		}
-
-		return newRoot;
-	}
-
-	/**
-	 * Returns a string representation of the token tree using an iterative approach
-	 */
-	printTree(root: Node = this._root): string {
-		const result: string[] = [];
-		const stack: Array<[Node, number]> = [[root, 0]];
-
-		while (stack.length > 0) {
-			const [node, depth] = stack.pop()!;
-			const indent = '  '.repeat(depth);
-
-			if (isLeaf(node)) {
-				result.push(`${indent}Leaf(length: ${node.length}, token: ${node.token}, refresh: ${node.tokenQuality})\n`);
-			} else {
-				result.push(`${indent}List(length: ${node.length})\n`);
-				// Push children in reverse order so they get processed left-to-right
-				for (let i = node.children.length - 1; i >= 0; i--) {
-					stack.push([node.children[i], depth + 1]);
-				}
-			}
-		}
-
-		return result.join('');
-	}
-
 	dispose(): void {
 		const stack: Array<[Node, boolean]> = [[this._root, false]];
 		while (stack.length > 0) {

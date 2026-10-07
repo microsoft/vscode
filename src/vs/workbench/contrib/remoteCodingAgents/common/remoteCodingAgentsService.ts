@@ -21,7 +21,6 @@ export interface IRemoteCodingAgent {
 
 export interface IRemoteCodingAgentsService {
 	readonly _serviceBrand: undefined;
-	getRegisteredAgents(): IRemoteCodingAgent[];
 	getAvailableAgents(): IRemoteCodingAgent[];
 	registerAgent(agent: IRemoteCodingAgent): void;
 }
@@ -44,10 +43,6 @@ export class RemoteCodingAgentsService extends Disposable implements IRemoteCodi
 		this._register(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(this.contextKeys))(() => {
 			this.updateContextKeys();
 		}));
-	}
-
-	getRegisteredAgents(): IRemoteCodingAgent[] {
-		return [...this.agents];
 	}
 
 	getAvailableAgents(): IRemoteCodingAgent[] {

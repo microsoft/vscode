@@ -76,10 +76,8 @@ export const IWorkbenchMcpManagementService = refineServiceDecorator<IMcpManagem
 export interface IWorkbenchMcpManagementService extends IMcpManagementService {
 	readonly _serviceBrand: undefined;
 
-	readonly onInstallMcpServerInCurrentProfile: Event<InstallWorkbenchMcpServerEvent>;
 	readonly onDidInstallMcpServersInCurrentProfile: Event<readonly IWorkbenchMcpServerInstallResult[]>;
 	readonly onDidUpdateMcpServersInCurrentProfile: Event<readonly IWorkbenchMcpServerInstallResult[]>;
-	readonly onUninstallMcpServerInCurrentProfile: Event<UninstallWorkbenchMcpServerEvent>;
 	readonly onDidUninstallMcpServerInCurrentProfile: Event<DidUninstallWorkbenchMcpServerEvent>;
 	readonly onDidChangeProfile: Event<void>;
 
@@ -107,7 +105,6 @@ export class WorkbenchMcpManagementService extends AbstractMcpManagementService 
 	readonly onDidUninstallMcpServer = this._onDidUninstallMcpServer.event;
 
 	private readonly _onInstallMcpServerInCurrentProfile = this._register(new Emitter<InstallWorkbenchMcpServerEvent>());
-	readonly onInstallMcpServerInCurrentProfile = this._onInstallMcpServerInCurrentProfile.event;
 
 	private readonly _onDidInstallMcpServersInCurrentProfile = this._register(new Emitter<readonly IWorkbenchMcpServerInstallResult[]>());
 	readonly onDidInstallMcpServersInCurrentProfile = this._onDidInstallMcpServersInCurrentProfile.event;
@@ -116,7 +113,6 @@ export class WorkbenchMcpManagementService extends AbstractMcpManagementService 
 	readonly onDidUpdateMcpServersInCurrentProfile = this._onDidUpdateMcpServersInCurrentProfile.event;
 
 	private readonly _onUninstallMcpServerInCurrentProfile = this._register(new Emitter<UninstallWorkbenchMcpServerEvent>());
-	readonly onUninstallMcpServerInCurrentProfile = this._onUninstallMcpServerInCurrentProfile.event;
 
 	private readonly _onDidUninstallMcpServerInCurrentProfile = this._register(new Emitter<DidUninstallWorkbenchMcpServerEvent>());
 	readonly onDidUninstallMcpServerInCurrentProfile = this._onDidUninstallMcpServerInCurrentProfile.event;
@@ -544,10 +540,6 @@ class WorkspaceMcpResourceManagementService extends AbstractMcpResourceManagemen
 	}
 
 	override updateMetadata(): Promise<ILocalMcpServer> {
-		throw new Error('Not supported');
-	}
-
-	protected override installFromUri(): Promise<ILocalMcpServer> {
 		throw new Error('Not supported');
 	}
 

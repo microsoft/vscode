@@ -605,10 +605,6 @@ export interface ISerializedTestResults {
 	request: ResolvedTestRunRequest;
 }
 
-export interface ITestCoverage {
-	files: IFileCoverage[];
-}
-
 export interface ICoverageCount {
 	covered: number;
 	total: number;
@@ -677,9 +673,6 @@ function deserializeThingWithLocation<T extends { location?: IRange | IPosition 
 	serialized.location = serialized.location ? (Position.isIPosition(serialized.location) ? Position.lift(serialized.location) : Range.lift(serialized.location)) : undefined;
 	return serialized as T & { location?: Range | Position };
 }
-
-/** Number of recent runs in which coverage reports should be retained. */
-export const KEEP_N_LAST_COVERAGE_REPORTS = 3;
 
 export const enum DetailType {
 	Declaration,

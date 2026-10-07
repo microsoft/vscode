@@ -7,7 +7,6 @@ import assert from 'assert';
 import * as dom from '../../../../../base/browser/dom.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -39,7 +38,6 @@ suite('BtwSlashCommandContribution', () => {
 		let registered: { data: IChatSlashData; callback: IChatSlashCallback } | undefined;
 		instantiationService.stub(IChatSlashCommandService, {
 			_serviceBrand: undefined,
-			onDidChangeCommands: Event.None,
 			registerSlashCommand: (data, callback) => {
 				registered = { data, callback };
 				return toDisposable(() => undefined);

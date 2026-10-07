@@ -1065,32 +1065,6 @@ export class AgentHostStateManager extends Disposable {
 		});
 	}
 
-	/**
-	 * Applies a {@link SessionStatus} flag to a session that has NO live state.
-	 *
-	 * Archived/read state is durable and mutable whether or not the session is
-	 * materialized, and AHP publishes such catalogue mutations via
-	 * `root/sessionSummaryChanged` so clients tracking the session list converge
-	 * without subscribing to every session.
-	 *
-	 * No-ops for a live session (the reducer owns that), one never announced, or
-	 * a flag already in the requested position.
-	 */
-	setSurfacedSessionStatusFlag(session: string, flag: SessionStatus, set: boolean): void {
-		if (this._sessionStates.has(session)) {
-			return;
-		}
-		const announced = this._summaryNotifier.getAnnounced(session);
-		if (!announced) {
-			return;
-		}
-		const status = withSessionStatusFlag(announced.status, flag, set);
-		if (status === announced.status) {
-			return;
-		}
-		this._summaryNotifier.applyAnnouncedChanges(session, { status });
-	}
-
 	/** Updates passive status metadata and optional exact chat read state for an unloaded session. */
 	setSurfacedSessionStatusAndChats(session: string, status: SessionStatus, chats?: SessionSummary['chats']): void {
 		if (!this._sessionStates.has(session) && this._summaryNotifier.getAnnounced(session)) {

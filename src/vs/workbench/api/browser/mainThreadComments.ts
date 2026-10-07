@@ -166,7 +166,6 @@ export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 	}
 
 	private readonly _onDidChangeApplicability = new Emitter<languages.CommentThreadApplicability | undefined>();
-	readonly onDidChangeApplicability: Event<languages.CommentThreadApplicability | undefined> = this._onDidChangeApplicability.event;
 
 	public get isTemplate(): boolean {
 		return this._isTemplate;
@@ -208,10 +207,6 @@ export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 		if (modified('state')) { this.state = changes.state!; }
 		if (modified('applicability')) { this.applicability = changes.applicability!; }
 		if (modified('isTemplate')) { this._isTemplate = changes.isTemplate!; }
-	}
-
-	hasComments(): boolean {
-		return !!this.comments && this.comments.length > 0;
 	}
 
 	dispose() {

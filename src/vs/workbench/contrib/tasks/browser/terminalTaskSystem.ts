@@ -114,9 +114,6 @@ class VariableResolver {
 
 
 export class TerminalTaskSystem extends Disposable implements ITaskSystem {
-
-	public static TelemetryEventName: string = 'taskService';
-
 	private static readonly ProcessVarName = '__process__';
 
 	private static _shellQuotes: IStringDictionary<IShellQuotingOptions> = {
@@ -1949,39 +1946,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			}
 		}
 		return result;
-	}
-
-	static WellKnownCommands: IStringDictionary<boolean> = {
-		'ant': true,
-		'cmake': true,
-		'eslint': true,
-		'gradle': true,
-		'grunt': true,
-		'gulp': true,
-		'jake': true,
-		'jenkins': true,
-		'jshint': true,
-		'make': true,
-		'maven': true,
-		'msbuild': true,
-		'msc': true,
-		'nmake': true,
-		'npm': true,
-		'rake': true,
-		'tsc': true,
-		'xbuild': true
-	};
-
-	public getSanitizedCommand(cmd: string): string {
-		let result = cmd.toLowerCase();
-		const index = result.lastIndexOf(path.sep);
-		if (index !== -1) {
-			result = result.substring(index + 1);
-		}
-		if (TerminalTaskSystem.WellKnownCommands[result]) {
-			return result;
-		}
-		return 'other';
 	}
 
 	public async getTaskForTerminal(instanceId: number): Promise<Task | undefined> {

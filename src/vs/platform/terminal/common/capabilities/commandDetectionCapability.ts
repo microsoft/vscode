@@ -143,7 +143,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			get onCommandStartedEmitter() { return that._onCommandStarted; }
 			get onCommandExecutedEmitter() { return that._onCommandExecuted; }
 			get dimensions() { return that._dimensions; }
-			get isCommandStorageDisabled() { return that.__isCommandStorageDisabled; }
 			get commandMarkers() { return that._commandMarkers; }
 			set commandMarkers(value) { that._commandMarkers = value; }
 			get clearCommandsInViewport() { return that._clearCommandsInViewport.bind(that); }
@@ -236,7 +235,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 					get onCommandStartedEmitter() { return that._onCommandStarted; }
 					get onCommandExecutedEmitter() { return that._onCommandExecuted; }
 					get dimensions() { return that._dimensions; }
-					get isCommandStorageDisabled() { return that.__isCommandStorageDisabled; }
 					get commandMarkers() { return that._commandMarkers; }
 					set commandMarkers(value) { that._commandMarkers = value; }
 					get clearCommandsInViewport() { return that._clearCommandsInViewport.bind(that); }
@@ -524,7 +522,6 @@ interface ICommandDetectionHeuristicsHooks {
 	readonly onCommandStartedEmitter: Emitter<ITerminalCommand>;
 	readonly onCommandExecutedEmitter: Emitter<ITerminalCommand>;
 	readonly dimensions: ITerminalDimensions;
-	readonly isCommandStorageDisabled: boolean;
 
 	commandMarkers: IMarker[];
 

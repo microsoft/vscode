@@ -28,20 +28,6 @@ class Parser {
 	private _itemsConstructed: number = 0;
 	private _itemsFromCache: number = 0;
 
-	/**
-	 * Reports how many nodes were constructed in the last parse operation.
-	*/
-	get nodesConstructed() {
-		return this._itemsConstructed;
-	}
-
-	/**
-	 * Reports how many nodes were reused in the last parse operation.
-	*/
-	get nodesReused() {
-		return this._itemsFromCache;
-	}
-
 	constructor(
 		private readonly tokenizer: Tokenizer,
 		edits: TextEditInfo[],

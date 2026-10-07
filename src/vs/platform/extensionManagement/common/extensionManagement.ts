@@ -395,14 +395,6 @@ export interface IExtensionQueryOptions {
 	source?: string;
 }
 
-export interface IExtensionGalleryCapabilities {
-	readonly query: {
-		readonly sortBy: readonly SortBy[];
-		readonly filters: readonly FilterType[];
-	};
-	readonly allRepositorySigned: boolean;
-}
-
 export const IExtensionGalleryService = createDecorator<IExtensionGalleryService>('extensionGalleryService');
 
 /**

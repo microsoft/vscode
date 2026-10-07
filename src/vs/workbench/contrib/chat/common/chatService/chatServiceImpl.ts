@@ -18,7 +18,6 @@ import { equals } from '../../../../../base/common/objects.js';
 import { autorun, derived, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
-import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
@@ -319,10 +318,6 @@ export class ChatService extends Disposable implements IChatService {
 		});
 	}
 
-	public get editingSessions() {
-		return [...this._sessionModels.values()].map(v => v.editingSession).filter(isDefined);
-	}
-
 	getPendingRequestSessionTypes(): readonly string[] {
 		const sessionTypes = new Set(Array.from(this._inFlightUntitledMaterializations.keys(), getChatSessionType));
 		for (const model of this._sessionModels.values()) {
@@ -481,20 +476,6 @@ export class ChatService extends Disposable implements IChatService {
 			this.error('deserializeChats', `Malformed session data: ${err}. [${sessionData.substring(0, 20)}${sessionData.length > 20 ? '...' : ''}]`);
 			return {};
 		}
-	}
-
-	/**
-	 * Returns an array of chat details for all persisted chat sessions that have at least one request.
-	 * Chat sessions that have already been loaded into the chat view are excluded from the result.
-	 * Imported chat sessions are also excluded from the result.
-	 * TODO this is only used by the old "show chats" command which can be removed when the pre-agents view
-	 * options are removed.
-	 */
-	async getLocalSessionHistory(): Promise<IChatDetail[]> {
-		const liveSessionItems = await this.getLiveSessionItems();
-		const historySessionItems = await this.getHistorySessionItems();
-
-		return [...liveSessionItems, ...historySessionItems];
 	}
 
 	/**

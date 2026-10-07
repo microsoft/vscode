@@ -8,7 +8,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { ResourceEdit, ResourceFileEdit, ResourceTextEdit } from '../../../../editor/browser/services/bulkEditService.js';
 import { ResourceNotebookCellEdit } from './bulkCellEdits.js';
@@ -20,7 +20,6 @@ export class ConflictDetector {
 	private readonly _disposables = new DisposableStore();
 
 	private readonly _onDidConflict = new Emitter<this>();
-	readonly onDidConflict: Event<this> = this._onDidConflict.event;
 
 	constructor(
 		edits: ResourceEdit[],

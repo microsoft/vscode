@@ -351,10 +351,6 @@ export class ChatImplicitContexts extends Disposable {
 		return Array.from(this._values.keys());
 	}
 
-	get hasEnabled(): boolean {
-		return Array.from(this._values.keys()).some(v => v.enabled);
-	}
-
 	setEnabled(enabled: boolean): void {
 		this._enabled = enabled;
 		this.values.forEach((v) => v.enabled = enabled);
@@ -362,22 +358,6 @@ export class ChatImplicitContexts extends Disposable {
 
 	get hasValue(): boolean {
 		return this.values.some(v => v.value !== undefined);
-	}
-
-	get hasNonUri(): boolean {
-		return this.values.some(v => v.value !== undefined && !URI.isUri(v.value));
-	}
-
-	getLocations(): Location[] {
-		return this.values.filter(v => isLocation(v.value)).map(v => v.value as Location);
-	}
-
-	getUris(): URI[] {
-		return this.values.filter(v => URI.isUri(v.value)).map(v => v.value as URI);
-	}
-
-	get hasNonStringContext(): boolean {
-		return this.values.some(v => v.value !== undefined && !isStringImplicitContextValue(v.value));
 	}
 
 	enabledBaseEntries(includeAllLocations: boolean): IChatRequestVariableEntry[] {

@@ -7,7 +7,6 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { DisposableStore, dispose, IDisposable } from '../../../base/common/lifecycle.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
-import { ITelemetryData, ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { IFileMatch, IFileQuery, IRawFileMatch2, ISearchComplete, ISearchCompleteStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, ITextQuery, QueryType, SearchProviderType } from '../../services/search/common/search.js';
 import { ExtHostContext, ExtHostSearchShape, MainContext, MainThreadSearchShape } from '../common/extHost.protocol.js';
@@ -26,7 +25,6 @@ export class MainThreadSearch implements MainThreadSearchShape {
 	constructor(
 		extHostContext: IExtHostContext,
 		@ISearchService private readonly _searchService: ISearchService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IConfigurationService _configurationService: IConfigurationService,
 		@IContextKeyService protected contextKeyService: IContextKeyService,
 	) {
@@ -90,10 +88,6 @@ export class MainThreadSearch implements MainThreadSearchShape {
 		}
 
 		provider.handleKeywordResult(session, data);
-	}
-
-	$handleTelemetry(eventName: string, data: ITelemetryData | undefined): void {
-		this._telemetryService.publicLog(eventName, data);
 	}
 }
 

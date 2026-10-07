@@ -101,7 +101,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	};
 	private static _lastKillOrStart = 0;
 	private _exitCode: number | undefined;
-	private _exitMessage: string | undefined;
 	private _closeTimeout: Timeout | undefined;
 	private _ptyProcess: IPty | undefined;
 	private _currentTitle: string = '';
@@ -115,7 +114,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	private _isPtyPaused: boolean = false;
 	private _unacknowledgedCharCount: number = 0;
-	get exitMessage(): string | undefined { return this._exitMessage; }
 
 	get currentTitle(): string { return this._windowsShellHelper?.shellTitle || this._currentTitle; }
 	get shellType(): TerminalShellType | undefined { return isWindows ? this._windowsShellHelper?.shellType : posixShellTypeMap.get(this._currentTitle) || generalShellTypeMap.get(this._currentTitle); }

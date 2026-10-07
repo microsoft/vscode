@@ -31,9 +31,6 @@ export interface IOptions {
 }
 
 export class PatternInputWidget extends Widget {
-
-	static OPTION_CHANGE: string = 'optionChange';
-
 	inputFocusTracker!: dom.IFocusTracker;
 
 	private width: number;
@@ -126,14 +123,6 @@ export class PatternInputWidget extends Widget {
 
 	onSearchSubmit(): void {
 		this.inputBox.addToHistory();
-	}
-
-	showNextTerm() {
-		this.inputBox.showNextValue();
-	}
-
-	showPreviousTerm() {
-		this.inputBox.showPreviousValue();
 	}
 
 	private render(options: IOptions): void {

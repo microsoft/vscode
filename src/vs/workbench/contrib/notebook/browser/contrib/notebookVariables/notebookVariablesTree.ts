@@ -12,7 +12,6 @@ import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { ILocalizedString, localize, localize2 } from '../../../../../../nls.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { WorkbenchObjectTree } from '../../../../../../platform/list/browser/listService.js';
 import { DebugExpressionRenderer } from '../../../../debug/browser/debugExpressionRenderer.js';
 import { INotebookVariableElement } from './notebookVariablesDataSource.js';
 
@@ -21,8 +20,6 @@ const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
 
 export const NOTEBOOK_TITLE: ILocalizedString = localize2('notebook.notebookVariables', "Notebook Variables");
 export const REPL_TITLE: ILocalizedString = localize2('notebook.ReplVariables', "REPL Variables");
-
-export class NotebookVariablesTree extends WorkbenchObjectTree<INotebookVariableElement> { }
 
 export class NotebookVariablesDelegate implements IListVirtualDelegate<INotebookVariableElement> {
 

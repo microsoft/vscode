@@ -119,11 +119,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		this._updatePlaceholder();
 	}
 
-	resetPlaceholder(): void {
-		this._forcedPlaceholder = undefined;
-		this._updatePlaceholder();
-	}
-
 	updateInput(text: string, selectAll = true): void {
 		const widget = this._terminalChatWidget?.value.inlineChatWidget;
 		if (widget) {

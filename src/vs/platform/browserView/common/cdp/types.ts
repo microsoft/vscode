@@ -54,16 +54,6 @@ export class CDPInvalidParamsError extends CDPError {
 }
 
 /**
- * Error thrown for internal CDP errors
- */
-export class CDPInternalError extends CDPError {
-	constructor(message: string) {
-		super(message, CDPErrorCode.InternalError);
-		this.name = 'CDPInternalError';
-	}
-}
-
-/**
  * Error thrown for generic CDP server errors
  */
 export class CDPServerError extends CDPError {

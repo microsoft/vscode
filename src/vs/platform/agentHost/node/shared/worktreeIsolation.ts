@@ -76,7 +76,6 @@ export interface IAgentHostWorktreeIsolation extends IAgentHostWorktreePendingSt
 	/** Retains the previous checkout under session ownership without using it as the current workspace. */
 	retainSessionWorktree(sessionUri: URI, sessionId: string): Promise<void>;
 	canAutomaticallyDeleteArchivedSession(sessionUri: URI): Promise<boolean>;
-	isWorktreeCleanupNeeded(sessionUri: URI): Promise<boolean>;
 	removeSessionWorktree(sessionId: string, worktree: ISessionWorktree | undefined): Promise<void>;
 	discardSessionWorktree(sessionUri: URI, sessionId: string, worktree: ISessionWorktree | undefined, options?: { readonly preserveWorkingDirectory: boolean }): Promise<void>;
 	cleanupWorktree(sessionUri: URI, sessionId: string): Promise<void>;
@@ -1429,29 +1428,6 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			}
 			this._logService.warn(`[${this._logLabel}:${AgentSession.id(sessionUri)}] Failed to inspect worktree before automatic session deletion: ${errorMessage(error)}`);
 			return false;
-		}
-	}
-
-	async isWorktreeCleanupNeeded(sessionUri: URI): Promise<boolean> {
-		let meta: IWorktreeMetadata | undefined;
-		try {
-			meta = await this._readWorktreeMetadata(sessionUri);
-		} catch (error) {
-			this._logService.warn(`[${this._logLabel}:${AgentSession.id(sessionUri)}] Failed to read worktree metadata before automatic cleanup: ${errorMessage(error)}`);
-			return true;
-		}
-		if (!meta?.worktreePath || !meta.repositoryRoot) {
-			return false;
-		}
-		try {
-			await fs.access(meta.worktreePath.fsPath);
-			return true;
-		} catch (error) {
-			if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-				return false;
-			}
-			this._logService.warn(`[${this._logLabel}:${AgentSession.id(sessionUri)}] Failed to inspect worktree before automatic cleanup: ${errorMessage(error)}`);
-			return true;
 		}
 	}
 

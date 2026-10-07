@@ -1028,34 +1028,6 @@ export function getNodePath(node: Node): JSONPath {
 	return path;
 }
 
-/**
- * Evaluates the JavaScript object of the given JSON DOM node
- */
-export function getNodeValue(node: Node): any {
-	switch (node.type) {
-		case 'array':
-			return node.children!.map(getNodeValue);
-		case 'object': {
-			const obj = Object.create(null);
-			for (const prop of node.children!) {
-				const valueNode = prop.children![1];
-				if (valueNode) {
-					obj[prop.children![0].value] = getNodeValue(valueNode);
-				}
-			}
-			return obj;
-		}
-		case 'null':
-		case 'string':
-		case 'number':
-		case 'boolean':
-			return node.value;
-		default:
-			return undefined;
-	}
-
-}
-
 export function contains(node: Node, offset: number, includeRightBound = false): boolean {
 	return (offset >= node.offset && offset < (node.offset + node.length)) || includeRightBound && (offset === (node.offset + node.length));
 }

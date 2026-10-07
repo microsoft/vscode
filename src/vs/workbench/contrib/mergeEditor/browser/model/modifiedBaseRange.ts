@@ -82,10 +82,6 @@ export class ModifiedBaseRange {
 		return inputNumber === 1 ? this.input1Range : this.input2Range;
 	}
 
-	public getInputCombinedDiff(inputNumber: 1 | 2): DetailedLineRangeMapping | undefined {
-		return inputNumber === 1 ? this.input1CombinedDiff : this.input2CombinedDiff;
-	}
-
 	public getInputDiffs(inputNumber: 1 | 2): readonly DetailedLineRangeMapping[] {
 		return inputNumber === 1 ? this.input1Diffs : this.input2Diffs;
 	}

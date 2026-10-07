@@ -9,7 +9,6 @@ export class CharacterPairSupport {
 
 	static readonly DEFAULT_AUTOCLOSE_BEFORE_LANGUAGE_DEFINED_QUOTES = ';:.,=}])> \n\t';
 	static readonly DEFAULT_AUTOCLOSE_BEFORE_LANGUAGE_DEFINED_BRACKETS = '\'"`;:.,=}])> \n\t';
-	static readonly DEFAULT_AUTOCLOSE_BEFORE_WHITESPACE = ' \n\t';
 
 	private readonly _autoClosingPairs: StandardAutoClosingPairConditional[];
 	private readonly _surroundingPairs: IAutoClosingPair[];

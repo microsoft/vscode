@@ -18,7 +18,7 @@ import { ILogService } from '../../../log/common/log.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { ClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
-import { ClaudeRuntimeEffortLevel, toRuntimeEffortLevel, resolveClaudeEffort } from '../../common/claudeModelConfig.js';
+import { toRuntimeEffortLevel, resolveClaudeEffort } from '../../common/claudeModelConfig.js';
 import { AgentSignal, IAgentSessionProjectInfo } from '../../common/agent.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
@@ -1015,16 +1015,6 @@ export class ClaudeAgentSession extends Disposable {
 		await this._pipeline?.shutdownAndWait();
 	}
 
-	/**
-	 * Seed the pipeline's current + applied config cache from
-	 * materialize-time `Options`. The SDK already starts with these
-	 * values, so the cache prevents a redundant first `setModel` /
-	 * `applyFlagSettings` call.
-	 */
-	seedBijectiveState(state: { model?: string; effort?: ClaudeRuntimeEffortLevel; permissionMode?: PermissionMode }): void {
-		this._requirePipeline().seedCurrentConfig(state.model, state.effort, state.permissionMode);
-	}
-
 	attachRematerializer(rematerializer: IRematerializer): void {
 		this._requirePipeline().attachRematerializer(rematerializer);
 	}
@@ -1398,16 +1388,6 @@ export class ClaudeAgentSession extends Disposable {
 		return this._pendingClientToolCalls.respond(toolCallId, converted);
 	}
 
-	/**
-	 * Drive a yield-restart so the SDK picks up the new client-tool set
-	 * on its next user request. Public entry point for callers that need
-	 * to force a tool-only rebind; internal pre-flight goes through
-	 * {@link _rebindForSyncedState}.
-	 */
-	async rebindForClientTools(): Promise<void> {
-		await this._rebindForSyncedState();
-	}
-
 	// #endregion
 
 	// #region Phase 11 — customizations / plugins
@@ -1454,15 +1434,6 @@ export class ClaudeAgentSession extends Disposable {
 		this._clientCustomizationEnablement.delete(clientId);
 		this._clientCustomizationEnablement.set(clientId, { pluginEnablement, childEnablement });
 		this._rebuildClientCustomizationEnablement();
-	}
-
-	/**
-	 * Snapshot of the **client-pushed** customizations on this session.
-	 * Does NOT include server-side (SDK-discovered) entries — use
-	 * {@link getSessionCustomizations} for the merged view.
-	 */
-	getClientCustomizations(): readonly ISyncedCustomization[] {
-		return this.clientCustomizationsDiff.model.state.get().synced;
 	}
 
 	/** Snapshot of the last {@link getSessionCustomizations} result, read by {@link _enrichSignalWithMcpContributor}. */

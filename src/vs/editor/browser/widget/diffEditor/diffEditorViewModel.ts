@@ -61,10 +61,6 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 		this._activeMovedText.set(movedText, undefined);
 	}
 
-	public setHoveredMovedText(movedText: MovedText | undefined): void {
-		this._hoveredMovedText.set(movedText, undefined);
-	}
-
 	private readonly _cancellationTokenSource = new CancellationTokenSource();
 
 	private readonly _diffProvider = derived(this, reader => {

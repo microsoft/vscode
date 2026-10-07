@@ -64,21 +64,6 @@ export class NativeRecordingService extends Disposable implements IRecordingServ
 		}
 	}
 
-	getSupportedFormats(): { mimeType: string; label: string; extension: string }[] {
-		const formats: { mimeType: string; label: string; extension: string }[] = [];
-		if (typeof MediaRecorder !== 'undefined') {
-			if (MediaRecorder.isTypeSupported('video/mp4')) {
-				formats.push({ mimeType: 'video/mp4', label: 'MP4', extension: 'mp4' });
-			}
-			if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9')) {
-				formats.push({ mimeType: 'video/webm;codecs=vp9', label: 'WebM', extension: 'webm' });
-			} else if (MediaRecorder.isTypeSupported('video/webm')) {
-				formats.push({ mimeType: 'video/webm', label: 'WebM', extension: 'webm' });
-			}
-		}
-		return formats;
-	}
-
 	async startRecording(preferredMimeType?: string): Promise<void> {
 		if (!this.isSupported) {
 			throw new Error('Recording is not supported in this environment (MediaRecorder / getDisplayMedia unavailable).');

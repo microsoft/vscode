@@ -227,10 +227,6 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 		this._onDidChangeResponsiveState.fire(this._responsiveState);
 	}
 
-	public get responsiveState(): ResponsiveState {
-		return this._responsiveState;
-	}
-
 	public transformIncomingURIs<T>(obj: T): T {
 		if (!this._uriTransformer) {
 			return obj;

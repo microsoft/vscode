@@ -382,9 +382,6 @@ export function isLegacySshRawEntry(entry: IRawRemoteAgentHostEntry): boolean {
 		|| entry.sshPort !== undefined;
 }
 
-/** Where durable copies of a remote agent host entry live. */
-export type RemoteAgentHostEntryStore = 'settings' | 'storage' | 'runtime';
-
 /**
  * Static, per-connection-type description of how an entry is addressed,
  * persisted and connected. Collects the behavioural differences between

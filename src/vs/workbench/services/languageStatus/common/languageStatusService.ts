@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import Severity from '../../../../base/common/severity.js';
@@ -27,10 +26,6 @@ export interface ILanguageStatus {
 	readonly source: string;
 	readonly command: Command | undefined;
 	readonly accessibilityInfo: IAccessibilityInformation | undefined;
-}
-
-export interface ILanguageStatusProvider {
-	provideLanguageStatus(langId: string, token: CancellationToken): Promise<ILanguageStatus | undefined>;
 }
 
 export const ILanguageStatusService = createDecorator<ILanguageStatusService>('ILanguageStatusService');

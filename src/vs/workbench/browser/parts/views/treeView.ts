@@ -210,8 +210,6 @@ class Tree extends WorkbenchAsyncDataTree<ITreeItem, ITreeItem, FuzzyScore> { }
 abstract class AbstractTreeView extends Disposable implements ITreeView {
 
 	private isVisible: boolean = false;
-	private _hasIconForParentNode = false;
-	private _hasIconForLeafNode = false;
 
 	private collapseAllContextKey: RawContextKey<boolean> | undefined;
 	private collapseAllContext: IContextKey<boolean> | undefined;
@@ -520,14 +518,6 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 
 	set manuallyManageCheckboxes(manuallyManageCheckboxes: boolean) {
 		this._manuallyManageCheckboxes = manuallyManageCheckboxes;
-	}
-
-	get hasIconForParentNode(): boolean {
-		return this._hasIconForParentNode;
-	}
-
-	get hasIconForLeafNode(): boolean {
-		return this._hasIconForLeafNode;
 	}
 
 	get visible(): boolean {

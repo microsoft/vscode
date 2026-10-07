@@ -315,7 +315,6 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		services.set(IAgentHostChatContributions, chatContributions);
 		services.set(IAgentHostSessionPromptService, {
 			_serviceBrand: undefined,
-			startSessionPrompt: async () => URI.parse('agent-host-session://comparison-judge'),
 		});
 		services.set(IAgentHostTurnService, new AgentHostTurnService(stateManager, chatContributions, instantiationService));
 		services.set(IAgentHostSessionTitleController, disposables.add(new AgentHostSessionTitleController(stateManager, { sessionDataService }, logService)));

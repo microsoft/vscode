@@ -200,24 +200,6 @@ export function tryParseVersion(version: string | undefined): IVersion | undefin
 }
 
 /**
- * Processes an error message and returns a user-friendly version of it, or undefined if the error should be ignored.
- */
-export function preprocessError(error?: string): string | undefined {
-	if (!error) {
-		return undefined;
-	}
-
-	if (/The request timed out|The network connection was lost/i.test(error)) {
-		return undefined;
-	}
-
-	return error.replace(
-		/See https:\/\/github\.com\/Squirrel\/Squirrel\.Mac\/issues\/182 for more information/,
-		'This might mean the application was put on quarantine by macOS. See [this link](https://github.com/microsoft/vscode/issues/7426#issuecomment-425093469) for more information'
-	);
-}
-
-/**
  * Determines whether there is a major or minor version change between two versions.
  */
 export function isMajorMinorVersionChange(previousVersion?: string, newVersion?: string): boolean {

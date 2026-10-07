@@ -12,7 +12,6 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { NotebookSetting } from '../../notebook/common/notebookCommon.js';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../platform/accessibility/common/accessibility.js';
-import { URI } from '../../../../base/common/uri.js';
 import product from '../../../../platform/product/common/product.js';
 
 interface IGettingStartedContentProvider {
@@ -27,10 +26,6 @@ const defaultChat = {
 	privacyStatementUrl: product.defaultChatAgent?.privacyStatementUrl ?? ''
 };
 
-export function copilotSettingsMessage(manageSettingsUrl: string): string {
-	return localize({ key: 'settings', comment: ['{Locked="["}', '{Locked="]({0})"}', '{Locked="]({1})"}'] }, "{0} Copilot may show [public code]({1}) suggestions and use your data to improve the product. You can change these [settings]({2}) anytime.", defaultChat.provider.default.name, defaultChat.publicCodeMatchesUrl, manageSettingsUrl);
-}
-
 class GettingStartedContentProviderRegistry {
 
 	private readonly providers = new Map<string, IGettingStartedContentProvider>();
@@ -44,24 +39,6 @@ class GettingStartedContentProviderRegistry {
 	}
 }
 export const gettingStartedContentRegistry = new GettingStartedContentProviderRegistry();
-
-export async function moduleToContent(resource: URI): Promise<string> {
-	if (!resource.query) {
-		throw new Error('Getting Started: invalid resource');
-	}
-
-	const query = JSON.parse(resource.query);
-	if (!query.moduleId) {
-		throw new Error('Getting Started: invalid resource');
-	}
-
-	const provider = gettingStartedContentRegistry.getProvider(query.moduleId);
-	if (!provider) {
-		throw new Error(`Getting Started: no provider registered for ${query.moduleId}`);
-	}
-
-	return provider();
-}
 
 gettingStartedContentRegistry.registerProvider('vs/workbench/contrib/welcomeGettingStarted/common/media/theme_picker', themePickerContent);
 gettingStartedContentRegistry.registerProvider('vs/workbench/contrib/welcomeGettingStarted/common/media/theme_picker_small', themePickerSmallContent);

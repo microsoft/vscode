@@ -35,8 +35,6 @@ export class CustomizationCreatorService {
 		@ICommandService private readonly commandService: ICommandService,
 		@IChatService private readonly chatService: IChatService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
-		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
-		@IPromptsService private readonly promptsService: IPromptsService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
@@ -107,23 +105,7 @@ export class CustomizationCreatorService {
 			},
 		});
 	}
-
-	/**
-	 * Resolves the workspace directory for a new customization file based on the
-	 * active project root.
-	 */
-	resolveTargetDirectory(type: PromptsType): URI | undefined {
-		return resolveWorkspaceTargetDirectory(this.workspaceService, type);
-	}
-
-	/**
-	 * Resolves the user-level directory for a new customization file.
-	 */
-	async resolveUserDirectory(type: PromptsType): Promise<URI | undefined> {
-		return resolveUserTargetDirectory(this.promptsService, type);
-	}
 }
-
 
 export class CustomizationLocationPicker {
 	constructor(

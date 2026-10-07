@@ -10,7 +10,6 @@ import { IObservable, observableValue, ISettableObservable, autorun, transaction
 import { ContextKeyValue, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { Position } from '../../../common/core/position.js';
-import { PositionOffsetTransformer } from '../../../common/core/text/positionToOffset.js';
 import { Range } from '../../../common/core/range.js';
 import { TextReplacement, TextEdit } from '../../../common/core/edits/textEdit.js';
 import { getPositionOffsetTransformerFromTextModel } from '../../../common/core/text/getPositionOffsetTransformerFromTextModel.js';
@@ -19,20 +18,6 @@ import { ITextModel } from '../../../common/model.js';
 const array: ReadonlyArray<any> = [];
 export function getReadonlyEmptyArray<T>(): readonly T[] {
 	return array;
-}
-
-export function addPositions(pos1: Position, pos2: Position): Position {
-	return new Position(pos1.lineNumber + pos2.lineNumber - 1, pos2.lineNumber === 1 ? pos1.column + pos2.column - 1 : pos2.column);
-}
-
-export function subtractPositions(pos1: Position, pos2: Position): Position {
-	return new Position(pos1.lineNumber - pos2.lineNumber + 1, pos1.lineNumber - pos2.lineNumber === 0 ? pos1.column - pos2.column + 1 : pos1.column);
-}
-
-export function substringPos(text: string, pos: Position): string {
-	const transformer = new PositionOffsetTransformer(text);
-	const offset = transformer.getOffset(pos);
-	return text.substring(offset);
 }
 
 export function getEndPositionsAfterApplying(edits: readonly TextReplacement[]): Position[] {

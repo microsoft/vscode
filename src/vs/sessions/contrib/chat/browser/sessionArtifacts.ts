@@ -48,9 +48,6 @@ import { IGitHubService as ISessionsGitHubService } from '../../github/browser/g
 
 const OPEN_IMAGE_CAROUSEL_COMMAND_ID = 'workbench.action.chat.openImageInCarousel';
 
-/** Action id of the references pill. */
-export const SESSION_REFERENCES_PILL_ID = 'sessions.chatPills.references';
-
 const artifactIcons: ReadonlyMap<SessionArtifactKind, ThemeIcon> = new Map([
 	[SessionArtifactKind.PullRequest, Codicon.gitPullRequest],
 	[SessionArtifactKind.Issue, Codicon.issues],

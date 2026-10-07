@@ -110,10 +110,6 @@ export class RemoteAuthorityResolverError extends ErrorNoTelemetry {
 		return (err instanceof RemoteAuthorityResolverError) && err._code === RemoteAuthorityResolverErrorCode.NoResolverFound;
 	}
 
-	public static isInvalidAuthority(err: any): boolean {
-		return (err instanceof RemoteAuthorityResolverError) && err._code === RemoteAuthorityResolverErrorCode.InvalidAuthority;
-	}
-
 	public static isHandled(err: any): boolean {
 		return (err instanceof RemoteAuthorityResolverError) && err.isHandled;
 	}

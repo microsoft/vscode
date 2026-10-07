@@ -636,7 +636,6 @@ export abstract class DiffElementCellViewModelBase extends DiffElementViewModelB
 	abstract getOutputOffsetInCell(diffSide: DiffSide, index: number): number;
 	abstract getOutputOffsetInContainer(diffSide: DiffSide, index: number): number;
 	abstract updateOutputHeight(diffSide: DiffSide, index: number, height: number): void;
-	abstract getNestedCellViewModel(diffSide: DiffSide): DiffNestedCellViewModel;
 
 	getComputedCellContainerWidth(layoutInfo: NotebookLayoutInfo, diffEditor: boolean, fullWidth: boolean) {
 		if (fullWidth) {
@@ -839,10 +838,6 @@ export class SideBySideDiffElementViewModel extends DiffElementCellViewModelBase
 		return Math.max(this.original.getOutputTotalHeight(), this.modified.getOutputTotalHeight());
 	}
 
-	getNestedCellViewModel(diffSide: DiffSide): DiffNestedCellViewModel {
-		return diffSide === DiffSide.Original ? this.original : this.modified;
-	}
-
 	getCellByUri(cellUri: URI): IGenericCellViewModel {
 		if (cellUri.toString() === this.original.uri.toString()) {
 			return this.original;
@@ -938,11 +933,6 @@ export class SingleSideDiffElementViewModel extends DiffElementCellViewModelBase
 			reason: 'Cell content has changed',
 		};
 	}
-
-	getNestedCellViewModel(diffSide: DiffSide): DiffNestedCellViewModel {
-		return this.type === 'insert' ? this.modified! : this.original!;
-	}
-
 
 	checkIfOutputsModified(): false | { reason: string | undefined } {
 		return false;

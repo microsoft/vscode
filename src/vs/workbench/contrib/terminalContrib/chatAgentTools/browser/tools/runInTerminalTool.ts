@@ -733,13 +733,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	 * `onDisposed` handler.
 	 */
 	private static readonly _killedByTool = new Set<string>();
-	public static getBackgroundOutput(id: string): string {
-		const execution = RunInTerminalTool._activeExecutions.get(id);
-		if (!execution) {
-			throw new Error('Invalid terminal ID');
-		}
-		return execution.getOutput();
-	}
 
 	/**
 	 * Gets an active terminal execution by ID. Returns undefined if not found.
@@ -747,20 +740,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	 */
 	public static getExecution(id: string): IActiveTerminalExecution | undefined {
 		return RunInTerminalTool._activeExecutions.get(id);
-	}
-
-	/**
-	 * Removes an active terminal execution by ID and disposes it.
-	 * @returns true if the execution was found and removed, false otherwise.
-	 */
-	public static removeExecution(id: string): boolean {
-		const execution = RunInTerminalTool._activeExecutions.get(id);
-		if (!execution) {
-			return false;
-		}
-		execution.dispose();
-		RunInTerminalTool._activeExecutions.delete(id);
-		return true;
 	}
 
 	/**
@@ -3378,10 +3357,6 @@ class ActiveTerminalExecution extends Disposable implements IActiveTerminalExecu
 		return this._isBackground;
 	}
 
-	get startMarker(): IXtermMarker | undefined {
-		return this._startMarker;
-	}
-
 	readonly strategy: ITerminalExecuteStrategy;
 	private readonly _toolTerminal: IToolTerminal;
 
@@ -3441,13 +3416,6 @@ class ActiveTerminalExecution extends Disposable implements IActiveTerminalExecu
 			this._completionDeferred.error(e);
 			throw e;
 		}
-	}
-
-	/**
-	 * Switches this execution to foreground mode, meaning callers will await its completion.
-	 */
-	setForeground(): void {
-		this._isBackground = false;
 	}
 
 	/**

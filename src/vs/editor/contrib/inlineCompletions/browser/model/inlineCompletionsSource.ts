@@ -582,10 +582,6 @@ class UpdateRequest {
 			&& this.versionId === other.versionId
 			&& isSubset(other.providers, this.providers);
 	}
-
-	public get isExplicitRequest() {
-		return this.context.triggerKind === InlineCompletionTriggerKind.Explicit;
-	}
 }
 
 class RequestResponseData {

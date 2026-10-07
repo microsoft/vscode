@@ -454,10 +454,6 @@ export class NotebookWorker implements IWebWorkerServerRequestHandler, IDisposab
 		return true;
 	}
 
-
-	isOriginalCellMatchedWithModifiedCell(originalCell: MirrorCell) {
-		return (originalCell.internalMetadata?.internalId as string || '').startsWith(PREFIX_FOR_UNMATCHED_ORIGINAL_CELLS);
-	}
 	updateCellIdsBasedOnMappings(mappings: { modified: number; original: number }[], originalCells: MirrorCell[], modifiedCells: MirrorCell[]): boolean {
 		const uuids = new Map<number, string>();
 		originalCells.map((cell, index) => {
@@ -524,20 +520,6 @@ export class NotebookWorker implements IWebWorkerServerRequestHandler, IDisposab
 export function create(): IWebWorkerServerRequestHandler {
 	return new NotebookWorker();
 }
-
-export type CellDiffInfo = {
-	originalCellIndex: number;
-	modifiedCellIndex: number;
-	type: 'unchanged' | 'modified';
-} |
-{
-	originalCellIndex: number;
-	type: 'delete';
-} |
-{
-	modifiedCellIndex: number;
-	type: 'insert';
-};
 
 interface ICell {
 	cellKind: CellKind;

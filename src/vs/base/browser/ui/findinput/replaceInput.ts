@@ -54,9 +54,6 @@ class PreserveCaseToggle extends Toggle {
 }
 
 export class ReplaceInput extends Widget {
-
-	static readonly OPTION_CHANGE: string = 'optionChange';
-
 	private contextViewProvider: IContextViewProvider | undefined;
 	private placeholder: string;
 	private validation?: IInputValidator;

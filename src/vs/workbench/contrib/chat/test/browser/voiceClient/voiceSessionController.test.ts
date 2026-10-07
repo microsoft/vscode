@@ -315,7 +315,6 @@ class TestTtsPlaybackService extends mock<ITtsPlaybackService>() {
 	private readonly playbackStoppedEmitter = new Emitter<void>();
 
 	override get isPlaying(): boolean { return this.playing; }
-	override readonly onPlaybackStarted = Event.None;
 	override readonly onPlaybackStopped = this.playbackStoppedEmitter.event;
 	override readonly analyserNode = undefined;
 	override ensureContext(): AudioContext {

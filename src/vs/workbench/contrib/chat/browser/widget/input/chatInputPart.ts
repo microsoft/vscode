@@ -540,7 +540,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	readonly onDidChangeChatPetHorizontalPlatforms = this._onDidChangeChatPetHorizontalPlatforms.event;
 	private inputContainer!: HTMLElement;
 	private inputEnabled = true;
-	private inputAndSideToolbar!: HTMLElement;
 	private readonly _notificationWidget = this._register(new MutableDisposable<ChatInputNotificationWidget>());
 	private readonly _goalBannerWidget = this._register(new MutableDisposable<ChatGoalBannerWidget>());
 	private readonly _onDidDismissGoalBanner = this._register(new Emitter<void>());
@@ -591,10 +590,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	setInputToolbarAriaLabel(label: string): void {
 		this.inputActionsToolbar.setAriaLabel(label);
-	}
-
-	get inputRowHeight(): number {
-		return this.inputAndSideToolbar.offsetHeight;
 	}
 
 	get persistentContentContainerElement(): HTMLElement {
@@ -857,10 +852,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._currentChatModesObservable;
 	}
 
-	public get currentPermissionLevelObs(): IObservable<ChatPermissionLevel> {
-		return this._currentPermissionLevel;
-	}
-
 	public get currentModeInfo(): IChatRequestModeInfo {
 		const mode = this._currentModeObservable.get();
 		const modeId: 'ask' | 'agent' | 'edit' | 'custom' | undefined = mode.isBuiltin ? this.currentModeKind : 'custom';
@@ -910,15 +901,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 		}
 		return edits;
-	}
-
-	private _attemptedWorkingSetEntriesCount: number = 0;
-	/**
-	 * The number of working set entries that the user actually wanted to attach.
-	 * This is less than or equal to {@link ChatInputPart.chatEditWorkingSetFiles}.
-	 */
-	public get attemptedWorkingSetEntriesCount() {
-		return this._attemptedWorkingSetEntriesCount;
 	}
 
 	/**
@@ -2204,11 +2186,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._modelSelectionController.ensureCurrentModelSupported();
 	}
 
-	/** Resets the language model to the location default, forgetting what was preferred before. */
-	public resetLanguageModelToDefault(): void {
-		this._modelSelectionController.resetToDefault(this.getCurrentSessionType());
-	}
-
 	private _createDraftChangeListeners(): DisposableStore {
 		const store = new DisposableStore();
 		store.add(this._inputEditor.onDidType(() => this._onDidChangeDraft.fire()));
@@ -3009,17 +2986,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return sessionResource ? (getAgentSessionProvider(sessionResource) ?? getChatSessionType(sessionResource)) : undefined;
 	}
 
-	/**
-	 * Selects (or clears) the pending delegation target. While a target is pending, the widget
-	 * locks to the target agent and the `hasPendingDelegationTarget` context key hides the
-	 * agent and model pickers. Re-selecting the active session clears the pending target and
-	 * restores the pickers.
-	 */
-	public continueInSession(provider: AgentSessionTarget): void {
-		this.setPendingDelegationTarget(provider);
-		this.focus();
-	}
-
 	private setPendingDelegationTarget(provider: AgentSessionTarget): void {
 		const isActive = this.getActiveSessionTypeForDelegation() === provider;
 		this._pendingDelegationTarget = isActive ? undefined : provider;
@@ -3430,7 +3396,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this.followupsContainer = elements.followupsContainer;
 		const inputAndSideToolbar = elements.inputAndSideToolbar; // The chat input and toolbar to the right
-		this.inputAndSideToolbar = inputAndSideToolbar;
 		const inputContainer = elements.inputContainer; // The chat editor, attachments, and toolbars
 		this.inputContainer = inputContainer;
 		const editorContainer = elements.editorContainer;
@@ -4814,10 +4779,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._currentToolConfirmationCarousel?.activateFirstToolForSubagent(subAgentInvocationId);
 	}
 
-	hasToolInConfirmationCarousel(toolCallId: string): boolean {
-		return this._currentToolConfirmationCarousel?.hasToolInvocation(toolCallId) ?? false;
-	}
-
 	get hasActiveToolConfirmationCarousel(): boolean {
 		const carousel = this._currentToolConfirmationCarousel;
 		return !!carousel && carousel.pendingCount > 0;
@@ -4847,10 +4808,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			dom.hide(this.chatToolConfirmationCarouselContainer);
 		}
 		this._onDidChangeActiveConfirmationSubagent.fire(carousel?.activeSubAgentInvocationId);
-	}
-
-	setWorkingSetCollapsed(collapsed: boolean): void {
-		this._workingSetCollapsed.set(collapsed, undefined);
 	}
 
 	renderChatEditingSessionState(chatEditingSession: IChatEditingSession | null) {

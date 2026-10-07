@@ -210,10 +210,6 @@ export abstract class AbstractDebugAdapter implements IDebugAdapter {
 		this.pendingRequestTimers.delete(requestSeq);
 	}
 
-	getPendingRequestIds(): number[] {
-		return Array.from(this.pendingRequests.keys());
-	}
-
 	dispose(): void {
 		for (const timer of this.pendingRequestTimers.values()) {
 			clearTimeout(timer);

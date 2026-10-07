@@ -8,7 +8,6 @@ import { localize } from '../../../../nls.js';
 import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
 import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { ChatConfiguration, ChatModeKind, OPEN_AGENTS_WINDOW_COMMAND_ID, OPEN_AGENTS_WINDOW_PRECONDITION, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID } from '../common/constants.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
@@ -49,22 +48,6 @@ export interface ITipBuildContext {
 	 * Builders should fall back to their default localized strings when a treatment is not set.
 	 */
 	readonly experimentalTipMessages: ReadonlyMap<string, string>;
-}
-
-/**
- * Gets the display label for a command, looking it up from MenuRegistry.
- * Falls back to extracting a readable name from the command ID.
- */
-export function getCommandLabel(commandId: string): string {
-	const command = MenuRegistry.getCommand(commandId);
-	if (command?.title) {
-		// Handle both string and ILocalizedString formats
-		return typeof command.title === 'string' ? command.title : command.title.value;
-	}
-	// Fallback: extract readable name from command ID
-	// e.g., 'workbench.action.chat.openEditSession' -> 'openEditSession'
-	const parts = commandId.split('.');
-	return parts[parts.length - 1];
 }
 
 /**

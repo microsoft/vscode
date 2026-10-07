@@ -124,10 +124,6 @@ export abstract class ConvenientObservable<T, TChange> implements IObservableWit
 
 	public abstract get debugName(): string;
 
-	protected get debugValue() {
-		return this.get();
-	}
-
 	get debug(): DebugHelper {
 		return new DebugHelper(this);
 	}
@@ -135,14 +131,6 @@ export abstract class ConvenientObservable<T, TChange> implements IObservableWit
 
 class DebugHelper {
 	constructor(public readonly observable: IObservableWithChange<any, any>) {
-	}
-
-	getDependencyGraph(): string {
-		return _debugGetObservableGraph(this.observable, { type: 'dependencies' });
-	}
-
-	getObserverGraph(): string {
-		return _debugGetObservableGraph(this.observable, { type: 'observers' });
 	}
 }
 

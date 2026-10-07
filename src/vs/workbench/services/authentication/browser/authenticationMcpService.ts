@@ -72,20 +72,6 @@ export interface IAuthenticationMcpService {
 	 * @param session
 	 */
 	updateSessionPreference(providerId: string, mcpServerId: string, session: AuthenticationSession): void;
-	/**
-	 * @deprecated Gets the session preference for the given provider and MCP server
-	 * @param providerId
-	 * @param mcpServerId
-	 * @param scopes
-	 */
-	getSessionPreference(providerId: string, mcpServerId: string, scopes: string[]): string | undefined;
-	/**
-	 * @deprecated Removes the session preference for the given provider and MCP server
-	 * @param providerId
-	 * @param mcpServerId
-	 * @param scopes
-	 */
-	removeSessionPreference(providerId: string, mcpServerId: string, scopes: string[]): void;
 	selectSession(providerId: string, mcpServerId: string, mcpServerName: string, scopes: string[], possibleSessions: readonly AuthenticationSession[], options?: IAuthenticationProviderSessionOptions): Promise<AuthenticationSession>;
 	requestSessionAccess(providerId: string, mcpServerId: string, mcpServerName: string, scopes: string[], possibleSessions: readonly AuthenticationSession[]): void;
 	requestNewSession(providerId: string, scopes: string[], mcpServerId: string, mcpServerName: string): Promise<void>;
@@ -269,32 +255,6 @@ export class AuthenticationMcpService extends Disposable implements IAuthenticat
 		// a specific workspace to override the global preference.
 		this.storageService.store(key, session.id, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		this.storageService.store(key, session.id, StorageScope.APPLICATION, StorageTarget.MACHINE);
-	}
-
-	getSessionPreference(providerId: string, mcpServerId: string, scopes: string[]): string | undefined {
-		// The 3 parts of this key are important:
-		// * MCP server id: The MCP server that has a preference
-		// * Provider id: The provider that the preference is for
-		// * The scopes: The subset of sessions that the preference applies to
-		const key = `${mcpServerId}-${providerId}-${scopes.join(SCOPESLIST_SEPARATOR)}`;
-
-		// If a preference is set in the workspace, use that. Otherwise, use the global preference.
-		return this.storageService.get(key, StorageScope.WORKSPACE) ?? this.storageService.get(key, StorageScope.APPLICATION);
-	}
-
-	removeSessionPreference(providerId: string, mcpServerId: string, scopes: string[]): void {
-		// The 3 parts of this key are important:
-		// * MCP server id: The MCP server that has a preference
-		// * Provider id: The provider that the preference is for
-		// * The scopes: The subset of sessions that the preference applies to
-		const key = `${mcpServerId}-${providerId}-${scopes.join(SCOPESLIST_SEPARATOR)}`;
-
-		// This won't affect any other workspaces that have a preference set, but it will remove the preference
-		// for this workspace and the global preference. This is only paired with a call to updateSessionPreference...
-		// so we really don't _need_ to remove them as they are about to be overridden anyway... but it's more correct
-		// to remove them first... and in case this gets called from somewhere else in the future.
-		this.storageService.remove(key, StorageScope.WORKSPACE);
-		this.storageService.remove(key, StorageScope.APPLICATION);
 	}
 
 	private _updateAccountAndSessionPreferences(providerId: string, mcpServerId: string, session: AuthenticationSession): void {

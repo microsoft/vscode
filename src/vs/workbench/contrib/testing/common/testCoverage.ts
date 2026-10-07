@@ -12,7 +12,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { TestId } from './testId.js';
 import { LiveTestResult } from './testResult.js';
-import { CoverageDetails, DetailType, ICoverageCount, IFileCoverage } from './testTypes.js';
+import { CoverageDetails, ICoverageCount, IFileCoverage } from './testTypes.js';
 
 export interface ICoverageAccessor {
 	getCoverageDetails: (id: string, testId: string | undefined, token: CancellationToken) => Promise<CoverageDetails[]>;
@@ -292,30 +292,3 @@ export class FileCoverage extends AbstractFileCoverage {
 		}
 	}
 }
-
-export const totalFromCoverageDetails = (uri: URI, details: CoverageDetails[]): IFileCoverage => {
-	const fc: IFileCoverage = {
-		id: '',
-		uri,
-		statement: ICoverageCount.empty(),
-	};
-
-	for (const detail of details) {
-		if (detail.type === DetailType.Statement) {
-			fc.statement.total++;
-			fc.statement.total += detail.count ? 1 : 0;
-
-			for (const branch of detail.branches || []) {
-				fc.branch ??= ICoverageCount.empty();
-				fc.branch.total++;
-				fc.branch.covered += branch.count ? 1 : 0;
-			}
-		} else {
-			fc.declaration ??= ICoverageCount.empty();
-			fc.declaration.total++;
-			fc.declaration.covered += detail.count ? 1 : 0;
-		}
-	}
-
-	return fc;
-};

@@ -11,7 +11,6 @@ import { LineTokens } from './lineTokens.js';
  * This class represents a sequence of tokens.
  * Conceptually, each token has a length and a metadata number.
  * A token array might be used to annotate a string with metadata.
- * Use {@link TokenWithTextArrayBuilder} to efficiently create a token array.
  *
  * TODO: Make this class more efficient (e.g. by using a Int32Array).
 */
@@ -91,19 +90,4 @@ export class TokenWithTextInfo {
 		public readonly text: string,
 		public readonly metadata: TokenMetadata,
 	) { }
-}
-
-/**
- * TODO: Make this class more efficient (e.g. by using a Int32Array).
-*/
-export class TokenWithTextArrayBuilder {
-	private readonly _tokens: TokenWithTextInfo[] = [];
-
-	public add(text: string, metadata: TokenMetadata): void {
-		this._tokens.push(new TokenWithTextInfo(text, metadata));
-	}
-
-	public build(): TokenWithTextArray {
-		return TokenWithTextArray.create(this._tokens);
-	}
 }

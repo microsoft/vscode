@@ -855,8 +855,4 @@ class PlaceHolderToggleCompositeBadgeAction extends ToggleCompositeBadgeAction {
 	constructor(id: string, compositeBar: ICompositeBar) {
 		super({ id, name: id, classNames: undefined }, compositeBar);
 	}
-
-	setCompositeBarActionItem(actionItem: ICompositeBarActionItem): void {
-		this.label = actionItem.name;
-	}
 }

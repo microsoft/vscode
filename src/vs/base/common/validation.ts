@@ -107,8 +107,6 @@ export function vUnknown(): ValidatorBase<unknown> {
 	return vUnchecked();
 }
 
-export type ObjectProperties = Record<string, unknown>;
-
 export class Optional<T extends IValidator<unknown>> {
 	constructor(public readonly validator: T) { }
 }
@@ -231,47 +229,6 @@ export function vArray<T>(validator: IValidator<T>): ValidatorBase<T[]> {
 	return new ArrayValidator(validator);
 }
 
-type vTupleType<T extends IValidator<unknown>[]> = { [K in keyof T]: ValidatorType<T[K]> };
-
-class TupleValidator<T extends IValidator<unknown>[]> extends ValidatorBase<vTupleType<T>> {
-	constructor(private readonly validators: T) {
-		super();
-	}
-
-	validate(content: unknown): { content: vTupleType<T>; error: undefined } | { content: undefined; error: ValidationError } {
-		if (!Array.isArray(content)) {
-			return { content: undefined, error: { message: 'Expected array' } };
-		}
-
-		if (content.length !== this.validators.length) {
-			return { content: undefined, error: { message: `Expected tuple of length ${this.validators.length}, but got ${content.length}` } };
-		}
-
-		const result = [] as vTupleType<T>;
-		for (let i = 0; i < this.validators.length; i++) {
-			const validator = this.validators[i];
-			const { content: value, error } = validator.validate(content[i]);
-			if (error) {
-				return { content: undefined, error: { message: `Error in element ${i}: ${error.message}` } };
-			}
-			result.push(value);
-		}
-
-		return { content: result, error: undefined };
-	}
-
-	getJSONSchema(): IJSONSchema {
-		return {
-			type: 'array',
-			items: this.validators.map(validator => validator.getJSONSchema()),
-		};
-	}
-}
-
-export function vTuple<T extends IValidator<unknown>[]>(...validators: T): ValidatorBase<vTupleType<T>> {
-	return new TupleValidator(validators);
-}
-
 class UnionValidator<T extends IValidator<unknown>[]> extends ValidatorBase<ValidatorType<T[number]>> {
 	constructor(private readonly validators: T) {
 		super();
@@ -354,24 +311,6 @@ class LiteralValidator<T extends string> extends ValidatorBase<T> {
 
 export function vLiteral<T extends string>(value: T): ValidatorBase<T> {
 	return new LiteralValidator(value);
-}
-
-class LazyValidator<T> extends ValidatorBase<T> {
-	constructor(private readonly fn: () => IValidator<T>) {
-		super();
-	}
-
-	validate(content: unknown): { content: T; error: undefined } | { content: undefined; error: ValidationError } {
-		return this.fn().validate(content);
-	}
-
-	getJSONSchema(): IJSONSchema {
-		return this.fn().getJSONSchema();
-	}
-}
-
-export function vLazy<T>(fn: () => IValidator<T>): ValidatorBase<T> {
-	return new LazyValidator(fn);
 }
 
 class UseRefSchemaValidator<T> extends ValidatorBase<T> {

@@ -8,7 +8,7 @@ import * as performance from '../../../base/common/performance.js';
 import { URI } from '../../../base/common/uri.js';
 import { IURITransformer } from '../../../base/common/uriIpc.js';
 import { IMessagePassingProtocol } from '../../../base/parts/ipc/common/ipc.js';
-import { MainContext, MainThreadConsoleShape } from './extHost.protocol.js';
+import { MainContext } from './extHost.protocol.js';
 import { IExtensionHostInitData } from '../../services/extensions/common/extensionHostProtocol.js';
 import { RPCProtocol } from '../../services/extensions/common/rpcProtocol.js';
 import { ExtensionError, ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
@@ -27,10 +27,6 @@ import { IExtHostApiDeprecationService } from './extHostApiDeprecationService.js
 
 export interface IExitFn {
 	(code?: number): any;
-}
-
-export interface IConsolePatchFn {
-	(mainThreadConsole: MainThreadConsoleShape): any;
 }
 
 export abstract class ErrorHandler {

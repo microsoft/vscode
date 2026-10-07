@@ -103,10 +103,6 @@ export class BracketPairInfo {
 	public get openingBracketInfo(): OpeningBracketKind {
 		return this.bracketPairNode.openingBracket.bracketInfo as OpeningBracketKind;
 	}
-
-	public get closingBracketInfo(): ClosingBracketKind | undefined {
-		return this.bracketPairNode.closingBracket?.bracketInfo as ClosingBracketKind | undefined;
-	}
 }
 
 export class BracketPairWithMinIndentationInfo extends BracketPairInfo {

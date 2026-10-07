@@ -58,12 +58,11 @@ import {
 	type ToolCallCancelledState,
 	type ToolCallCompletedState,
 	type ToolCallResult,
-	type ToolCallState,
 	type ToolResultContent,
 	type ToolResultSubagentContent,
 	type ToolResultTextContent,
 	type UsageInfo,
-	type Message,
+	type Message
 } from './protocol/state.js';
 
 // Re-export everything from the protocol state module
@@ -489,11 +488,6 @@ export function customizationId(uri: string, range?: TextRange): string {
  * A tool call in a terminal state, stored in completed turns.
  */
 export type ICompletedToolCall = ToolCallCompletedState | ToolCallCancelledState;
-
-/**
- * Derived status type for the tool call lifecycle.
- */
-export type ToolCallStatusString = ToolCallState['status'];
 
 // ---- Tool output helper -----------------------------------------------------
 
@@ -1038,26 +1032,6 @@ export function mergeSessionWithDefaultChat(session: SessionState, chat: ChatSta
 		queuedMessages: chat?.queuedMessages,
 		draft: chat?.draft,
 	};
-}
-
-/**
- * Resolves the active turn of a session's default chat, if any.
- */
-export function getActiveTurn(chat: ChatState | undefined): ActiveTurn | undefined {
-	return chat?.activeTurn;
-}
-
-/**
- * Resolves the default chat's catalog summary from a session, if present.
- */
-export function getDefaultChat(session: SessionState): ChatSummary | undefined {
-	if (session.defaultChat !== undefined) {
-		const match = session.chats.find(c => c.resource === session.defaultChat);
-		if (match) {
-			return match;
-		}
-	}
-	return session.chats[0];
 }
 
 // ---- SessionMeta accessors -------------------------------------------------

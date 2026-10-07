@@ -112,7 +112,6 @@ function createMockWorkspaceService(): IAICustomizationWorkspaceService {
 		override readonly activeProjectRoot = activeProjectRoot;
 		override readonly hasOverrideProjectRoot = observableValue('hasOverride', false);
 		override getActiveProjectRoot() { return URI.file('/workspace'); }
-		override getSkillUIIntegrations() { return new Map(); }
 	}();
 }
 

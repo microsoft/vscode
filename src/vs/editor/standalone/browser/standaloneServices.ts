@@ -1022,9 +1022,6 @@ class StandaloneAccessbilitySignalService implements IAccessibilitySignalService
 	async playSignal(cue: AccessibilitySignal, options: {}): Promise<void> {
 	}
 
-	async playSignals(cues: AccessibilitySignal[]): Promise<void> {
-	}
-
 	getEnabledState(signal: AccessibilitySignal, userGesture: boolean, modality?: AccessibilityModality | undefined): IValueWithChangeEvent<boolean> {
 		return ValueWithChangeEvent.const(false);
 	}

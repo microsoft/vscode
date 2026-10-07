@@ -809,10 +809,6 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 	}
 
-	moveItemToTrash(windowId: number | undefined, fullPath: string): Promise<void> {
-		return shell.trashItem(fullPath);
-	}
-
 	async getMediaAccessStatus(windowId: number | undefined, mediaType: 'microphone' | 'camera' | 'screen'): Promise<'not-determined' | 'granted' | 'denied' | 'restricted' | 'unknown'> {
 		// systemPreferences.getMediaAccessStatus is implemented on macOS only.
 		// On Linux and Windows there's no per-app screen-recording permission

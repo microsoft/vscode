@@ -5,7 +5,7 @@
 
 import * as DOM from '../../../../base/browser/dom.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { derived, IObservable, observableValue } from '../../../../base/common/observable.js';
+import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -51,23 +51,6 @@ export const IMobileVisualViewport = createDecorator<IMobileVisualViewport>('mob
  */
 export interface IMobileVisualViewport {
 	readonly _serviceBrand: undefined;
-
-	/**
-	 * Observable: the current virtual keyboard height in CSS pixels,
-	 * computed as `max(0, window.innerHeight - visualViewport.height)`.
-	 * Always `0` on platforms without `visualViewport` support.
-	 */
-	readonly keyboardHeight: IObservable<number>;
-
-	/**
-	 * Observable: `true` when {@link keyboardHeight} exceeds
-	 * {@link KEYBOARD_VISIBLE_THRESHOLD_PX}. Cheaper for consumers than
-	 * subscribing to `keyboardHeight` directly when they only care
-	 * about the keyboard-visible transition (it only fires on the
-	 * boolean flip, not on every height micro-change during the
-	 * keyboard open/close animation).
-	 */
-	readonly isKeyboardVisible: IObservable<boolean>;
 }
 
 /**
@@ -118,12 +101,6 @@ export class MobileVisualViewport extends Disposable implements IMobileVisualVie
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _keyboardHeight = observableValue<number>(this, 0);
-
-	readonly keyboardHeight: IObservable<number> = this._keyboardHeight;
-
-	readonly isKeyboardVisible: IObservable<boolean> = derived(this, reader =>
-		this._keyboardHeight.read(reader) > KEYBOARD_VISIBLE_THRESHOLD_PX
-	);
 
 	private readonly _keyboardVisibleCtx: IContextKey<boolean>;
 	private readonly mainContainer: HTMLElement;

@@ -3,12 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { decodeBase64, VSBuffer } from '../../../base/common/buffer.js';
-import { joinPath } from '../../../base/common/resources.js';
-import { URI } from '../../../base/common/uri.js';
-import { IFileService } from '../../files/common/files.js';
+import { decodeBase64 } from '../../../base/common/buffer.js';
 import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
-import { ILogService } from '../../log/common/log.js';
 import { IImageResizeService } from '../common/imageResizeService.js';
 
 
@@ -97,17 +93,6 @@ export class ImageResizeService implements IImageResizeService {
 		return new TextEncoder().encode(data);
 	}
 
-	// Only used for URLs
-	convertUint8ArrayToString(data: Uint8Array): string {
-		try {
-			const decoder = new TextDecoder();
-			const decodedString = decoder.decode(data);
-			return decodedString;
-		} catch {
-			return '';
-		}
-	}
-
 	isValidBase64(str: string): boolean {
 		try {
 			decodeBase64(str);
@@ -116,56 +101,6 @@ export class ImageResizeService implements IImageResizeService {
 			return false;
 		}
 	}
-
-	async createFileForMedia(fileService: IFileService, imagesFolder: URI, dataTransfer: Uint8Array, mimeType: string): Promise<URI | undefined> {
-		const exists = await fileService.exists(imagesFolder);
-		if (!exists) {
-			await fileService.createFolder(imagesFolder);
-		}
-
-		const ext = mimeType.split('/')[1] || 'png';
-		const filename = `image-${Date.now()}.${ext}`;
-		const fileUri = joinPath(imagesFolder, filename);
-
-		const buffer = VSBuffer.wrap(dataTransfer);
-		await fileService.writeFile(fileUri, buffer);
-
-		return fileUri;
-	}
-
-	async cleanupOldImages(fileService: IFileService, logService: ILogService, imagesFolder: URI): Promise<void> {
-		const exists = await fileService.exists(imagesFolder);
-		if (!exists) {
-			return;
-		}
-
-		const duration = 7 * 24 * 60 * 60 * 1000; // 7 days
-		const files = await fileService.resolve(imagesFolder);
-		if (!files.children) {
-			return;
-		}
-
-		await Promise.all(files.children.map(async (file) => {
-			try {
-				const timestamp = this.getTimestampFromFilename(file.name);
-				if (timestamp && (Date.now() - timestamp > duration)) {
-					await fileService.del(file.resource);
-				}
-			} catch (err) {
-				logService.error('Failed to clean up old images', err);
-			}
-		}));
-	}
-
-	getTimestampFromFilename(filename: string): number | undefined {
-		const match = filename.match(/image-(\d+)\./);
-		if (match) {
-			return parseInt(match[1], 10);
-		}
-		return undefined;
-	}
-
-
 }
 
 registerSingleton(IImageResizeService, ImageResizeService, InstantiationType.Delayed);

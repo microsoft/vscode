@@ -25,7 +25,6 @@ import { INotebookLoggingService } from '../notebookLoggingService.js';
 
 export class NotebookCellTextModel extends Disposable implements ICell {
 	private readonly _onDidChangeTextModel = this._register(new Emitter<void>());
-	readonly onDidChangeTextModel: Event<void> = this._onDidChangeTextModel.event;
 	private readonly _onDidChangeOutputs = this._register(new Emitter<NotebookCellOutputsSplice>());
 	readonly onDidChangeOutputs: Event<NotebookCellOutputsSplice> = this._onDidChangeOutputs.event;
 

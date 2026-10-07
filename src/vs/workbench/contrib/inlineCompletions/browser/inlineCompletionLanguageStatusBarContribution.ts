@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createHotClass } from '../../../../base/common/hotReloadHelpers.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorunWithStore, debouncedObservable, derived, observableFromEvent } from '../../../../base/common/observable.js';
 import Severity from '../../../../base/common/severity.js';
 import { isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
@@ -19,7 +19,6 @@ export class InlineCompletionLanguageStatusBarContribution extends Disposable im
 	public static readonly hot = createHotClass(this);
 
 	public static Id = 'vs.contrib.inlineCompletionLanguageStatusBarContribution';
-	public static readonly languageStatusBarDisposables = new Set<DisposableStore>();
 
 	private _activeEditor;
 	private _state;

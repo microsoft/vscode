@@ -13,20 +13,6 @@ export { computeAggregateIssueIcon, computeIssueIcon } from '../../../../workben
 export const OPEN_PULL_REQUEST_ACTION_ID = 'workbench.agentSessions.action.openPullRequest';
 export const OPEN_ISSUE_ACTION_ID = 'workbench.agentSessions.action.openIssue';
 
-//#region Session Context
-
-/**
- * GitHub context derived from an active session, providing
- * the owner/repo and optionally the PR number.
- */
-export interface IGitHubSessionContext {
-	readonly owner: string;
-	readonly repo: string;
-	readonly prNumber: number | undefined;
-}
-
-//#endregion
-
 //#region Repository
 
 export interface IGitHubRepository {

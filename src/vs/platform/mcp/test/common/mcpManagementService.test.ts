@@ -88,10 +88,6 @@ class TestMcpResourceManagementService extends AbstractMcpResourceManagementServ
 		return Promise.resolve(undefined);
 	}
 
-	protected override installFromUri(_uri: URI): Promise<ILocalMcpServer> {
-		throw new Error('Not supported');
-	}
-
 	override installFromGallery(_server: IGalleryMcpServer, _options?: InstallOptions): Promise<ILocalMcpServer> {
 		throw new Error('Not supported');
 	}

@@ -1347,14 +1347,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._onDidFocus.fire();
 	}
 
-	focusTodosView(): boolean {
-		if (!this.input.hasVisibleTodos()) {
-			return false;
-		}
-
-		return this.input.focusTodoList();
-	}
-
 	toggleTodosViewFocus(): boolean {
 		if (!this.input.hasVisibleTodos()) {
 			return false;
@@ -3221,28 +3213,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			interaction.cancel(isCancellationError(error) ? 'cancelled' : 'error');
 			throw error;
 		}
-	}
-
-	async rerunLastRequest(): Promise<void> {
-		if (this._readOnly || this.isTranscriptProgressActive || !this.viewModel || this.viewModel.model.isInputBlocked.get()) {
-			return;
-		}
-
-		const sessionResource = this.viewModel.sessionResource;
-		const lastRequest = this.chatService.getSession(sessionResource)?.getRequests().at(-1);
-		if (!lastRequest) {
-			return;
-		}
-
-		const options: IChatSendRequestOptions = {
-			attempt: lastRequest.attempt + 1,
-			location: this.location,
-			...this.getSelectedModelRequestOptions(),
-			modeInfo: this.input.currentModeInfo,
-		};
-		const result = await this.chatService.resendRequest(lastRequest, options);
-		this.logThinkingStyleUsage('rerun');
-		return result;
 	}
 
 	private getConfiguredThinkingStyle(): ThinkingDisplayMode {

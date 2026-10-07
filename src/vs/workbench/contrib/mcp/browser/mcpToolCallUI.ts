@@ -263,7 +263,7 @@ export class McpToolCallUI extends Disposable {
 	public readonly onNotification: Event<{ readonly method: string; readonly params?: unknown }>;
 
 	constructor(
-		private readonly _uiData: IMcpToolCallUIData,
+		_uiData: IMcpToolCallUIData,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 	) {
@@ -389,13 +389,6 @@ export class McpToolCallUI extends Disposable {
 				},
 			};
 		});
-	}
-
-	/**
-	 * Gets the underlying UI data.
-	 */
-	public get uiData(): IMcpToolCallUIData {
-		return this._uiData;
 	}
 
 	/**

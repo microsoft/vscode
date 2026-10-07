@@ -10696,7 +10696,6 @@ suite('ChatListRenderer', () => {
 				override acceptActiveToolConfirmation(): void { this.currentCarousel?.acceptActiveConfirmation(); }
 				override get hasActiveToolConfirmationCarousel() { return !!this.currentCarousel?.pendingCount; }
 				get currentCarousel() { return currentViewModel ? carousels.get(currentViewModel.sessionResource.toString()) : undefined; }
-				override hasToolInConfirmationCarousel(id: string): boolean { return this.currentCarousel?.hasToolInvocation(id) ?? false; }
 				override addToolToConfirmationCarousel(...args: Parameters<ChatInputPart['addToolToConfirmationCarousel']>): void {
 					const [tool, factory, subagentId, title, reveal, revealLabel, toolPart] = args;
 					assert.ok(currentViewModel);

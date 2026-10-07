@@ -5,7 +5,7 @@
 
 import { DeferredPromise, raceCancellation } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { AiSettingsSearchResult, AiSettingsSearchResultKind, IAiSettingsSearchProvider, IAiSettingsSearchService } from './aiSettingsSearch.js';
@@ -19,7 +19,6 @@ export class AiSettingsSearchService extends Disposable implements IAiSettingsSe
 	private _embeddingsResultsPromises: Map<string, DeferredPromise<string[]>> = new Map();
 
 	private _onProviderRegistered: Emitter<void> = this._register(new Emitter<void>());
-	readonly onProviderRegistered: Event<void> = this._onProviderRegistered.event;
 
 	isEnabled(): boolean {
 		return this._providers.length > 0;

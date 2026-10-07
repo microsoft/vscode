@@ -223,9 +223,6 @@ export class ResourceMarkersRenderer implements ITreeRenderer<ResourceMarkers, R
 	}
 }
 
-export class FileResourceMarkersRenderer extends ResourceMarkersRenderer {
-}
-
 export class MarkerRenderer implements ITreeRenderer<Marker, MarkerFilterData, IMarkerTemplateData> {
 
 	constructor(

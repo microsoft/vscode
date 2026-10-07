@@ -187,10 +187,6 @@ export interface IExtensionPromptPath extends IPromptPathBase {
 	readonly when?: string;
 }
 
-export function isExtensionPromptPath(obj: IPromptPath): obj is IExtensionPromptPath {
-	return obj.storage === PromptsStorage.extension;
-}
-
 export interface ILocalPromptPath extends IPromptPathBase {
 	readonly storage: PromptsStorage.local;
 }
@@ -211,10 +207,6 @@ export interface IPluginPromptPath extends IPromptPathBase {
  */
 export interface IBuiltinPromptPath extends IPromptPathBase {
 	readonly storage: PromptsStorage.builtIn;
-}
-
-export function isBuiltinPromptPath(obj: IPromptPath): obj is IBuiltinPromptPath {
-	return obj.storage === PromptsStorage.builtIn;
 }
 
 export type IAgentSource = {

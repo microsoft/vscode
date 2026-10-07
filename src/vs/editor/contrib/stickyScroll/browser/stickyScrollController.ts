@@ -34,7 +34,6 @@ import { mainWindow } from '../../../../base/browser/window.js';
 
 export interface IStickyScrollController {
 	get stickyScrollCandidateProvider(): IStickyLineCandidateProvider;
-	get stickyScrollWidgetState(): StickyScrollWidgetState;
 	readonly stickyScrollWidgetHeight: number;
 	isFocused(): boolean;
 	focus(): void;
@@ -153,10 +152,6 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 
 	get stickyScrollCandidateProvider(): IStickyLineCandidateProvider {
 		return this._stickyLineCandidateProvider;
-	}
-
-	get stickyScrollWidgetState(): StickyScrollWidgetState {
-		return this._widgetState;
 	}
 
 	get stickyScrollWidgetHeight(): number {

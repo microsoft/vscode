@@ -33,9 +33,6 @@ export class NotebookEditorWorkerServiceImpl extends Disposable implements INote
 
 		this._workerManager = this._register(new WorkerManager(notebookService, modelService, webWorkerService));
 	}
-	canComputeDiff(original: URI, modified: URI): boolean {
-		throw new Error('Method not implemented.');
-	}
 
 	computeDiff(original: URI, modified: URI): Promise<INotebookDiffResult> {
 		return this._workerManager.withWorker().then(client => {

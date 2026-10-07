@@ -22,11 +22,6 @@ import { IMcpClientMethods, McpConnectionState, McpError, MpcResponseError } fro
 import { isTaskResult, translateMcpLogMessage } from './mcpTypesUtils.js';
 import { MCP } from './modelContextProtocol.js';
 
-export interface McpRoot {
-	uri: string;
-	name?: string;
-}
-
 export interface IMcpServerRequestHandlerOptions extends IMcpClientMethods {
 	/** MCP message transport */
 	launch: IMcpMessageTransport;
@@ -75,7 +70,6 @@ export class McpServerRequestHandler extends Disposable {
 
 	// Event emitters for server notifications
 	private readonly _onDidReceiveCancelledNotification = this._register(new Emitter<MCP.CancelledNotification>());
-	readonly onDidReceiveCancelledNotification = this._onDidReceiveCancelledNotification.event;
 
 	private readonly _onDidReceiveProgressNotification = this._register(new Emitter<MCP.ProgressNotification>());
 	readonly onDidReceiveProgressNotification = this._onDidReceiveProgressNotification.event;
@@ -84,7 +78,6 @@ export class McpServerRequestHandler extends Disposable {
 	readonly onDidReceiveElicitationCompleteNotification = this._onDidReceiveElicitationCompleteNotification.event;
 
 	private readonly _onDidChangeResourceList = this._register(new Emitter<void>());
-	readonly onDidChangeResourceList = this._onDidChangeResourceList.event;
 
 	private readonly _onDidUpdateResource = this._register(new Emitter<MCP.ResourceUpdatedNotification>());
 	readonly onDidUpdateResource = this._onDidUpdateResource.event;

@@ -248,7 +248,6 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	@memoize
 	get serviceMachineIdResource(): URI { return joinPath(URI.file(this.userDataPath), 'machineid'); }
 
-	get crashReporterId(): string | undefined { return this.args['crash-reporter-id']; }
 	get crashReporterDirectory(): string | undefined { return this.args['crash-reporter-directory']; }
 
 	@memoize

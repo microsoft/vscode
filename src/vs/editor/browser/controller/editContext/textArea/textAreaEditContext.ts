@@ -462,10 +462,6 @@ export class TextAreaEditContext extends AbstractEditContext {
 		this._textAreaInput.writeNativeTextAreaContent(reason);
 	}
 
-	public getTextAreaDomNode(): HTMLTextAreaElement {
-		return this.textArea.domNode;
-	}
-
 	public override dispose(): void {
 		super.dispose();
 		this.textArea.domNode.remove();

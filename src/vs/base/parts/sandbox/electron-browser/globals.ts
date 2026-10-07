@@ -131,7 +131,6 @@ export const ipcRenderer: IpcRenderer = vscodeGlobal.ipcRenderer;
 export const ipcMessagePort: IpcMessagePort = vscodeGlobal.ipcMessagePort;
 export const webFrame: WebFrame = vscodeGlobal.webFrame;
 export const process: ISandboxNodeProcess = vscodeGlobal.process;
-export const context: ISandboxContext = vscodeGlobal.context;
 export const webUtils: WebUtils = vscodeGlobal.webUtils;
 
 /**

@@ -169,7 +169,6 @@ export class EditorTextPropertySignalsContribution extends Disposable implements
 interface TextProperty {
 	readonly positionSignal?: AccessibilitySignal;
 	readonly lineSignal?: AccessibilitySignal;
-	readonly debounceWhileTyping?: boolean;
 	createSource(editor: ICodeEditor, model: ITextModel): TextPropertySource;
 }
 
@@ -193,7 +192,6 @@ class TextPropertySource {
 }
 
 class MarkerTextProperty implements TextProperty {
-	public readonly debounceWhileTyping = true;
 	constructor(
 		public readonly positionSignal: AccessibilitySignal,
 		public readonly lineSignal: AccessibilitySignal,

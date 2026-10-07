@@ -478,13 +478,6 @@ export function getCustomizationMigrationCategory(id: CustomizationMigrationCate
 	return category;
 }
 
-/**
- * All prompt types the given categories can discover, so candidates can be collected with one pass per type.
- */
-export function getCustomizationMigrationSourceTypes(categories: readonly ICustomizationMigrationCategory[]): readonly PromptsType[] {
-	return Array.from(new Set(categories.flatMap(category => category.sourceTypes ?? [])));
-}
-
 function getFileCandidateLabel(customization: CustomizationMigrationCandidate): string {
 	if (isMcpServerCustomizationMigrationCandidate(customization)) {
 		throw new Error('Expected a file migration candidate');

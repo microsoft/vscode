@@ -58,13 +58,6 @@ interface IGitHubRepositoryPick extends IQuickPickItem {
 	readonly folderUri?: URI;
 }
 
-/**
- * Command ID that extensions can call to enable debug tools for the current
- * chat session. Sets the context key and immediately flushes tool updates so
- * that newly-enabled tools are visible on the next `vscode.lm.tools` read.
- */
-export const EnableChatDebugToolsCommandId = 'chat.enableDebugTools';
-
 export function shouldShowOpenEditorsContext(widget: Pick<IChatWidget, 'viewModel' | 'lockedAgentId'>, hasEligibleOpenEditors: boolean): boolean {
 	if (!hasEligibleOpenEditors) {
 		return false;

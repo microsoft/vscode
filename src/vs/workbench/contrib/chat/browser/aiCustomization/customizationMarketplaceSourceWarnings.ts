@@ -49,10 +49,6 @@ export class CustomizationMarketplaceSourceWarnings extends Disposable {
 		return this.errors.some(error => this.actions.get(error.sourceId)?.kind !== 'signIn');
 	}
 
-	get firstActionElement(): HTMLElement | undefined {
-		return this.buttons[0]?.element;
-	}
-
 	update(errors: readonly ICustomizationMarketplaceSourceError[], loading: boolean): void {
 		if (this.recoveringSourceId && !errors.some(error => error.sourceId === this.recoveringSourceId)) {
 			this.recovery.value?.cancel();

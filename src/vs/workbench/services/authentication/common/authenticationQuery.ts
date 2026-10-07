@@ -8,27 +8,6 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { AuthenticationSessionAccount } from './authentication.js';
 
 /**
- * Statistics about authentication usage
- */
-export interface IAuthenticationUsageStats {
-	readonly totalSessions: number;
-	readonly totalAccounts: number;
-	readonly recentActivity: {
-		readonly accountName: string;
-		readonly lastUsed: number;
-		readonly usageCount: number;
-	}[];
-}
-
-/**
- * Information about entities using authentication within a provider
- */
-export interface IActiveEntities {
-	readonly extensions: string[];
-	readonly mcpServers: string[];
-}
-
-/**
  * Base query interface with common properties
  */
 export interface IBaseQuery {
@@ -118,16 +97,6 @@ export interface IAccountExtensionQuery extends IBaseQuery {
 	}[];
 
 	/**
-	 * Remove all usage data for this extension on this account
-	 */
-	removeUsage(): void;
-
-	/**
-	 * Set this account as the preferred account for this extension
-	 */
-	setAsPreferred(): void;
-
-	/**
 	 * Check if this account is the preferred account for this extension
 	 */
 	isPreferred(): boolean;
@@ -178,16 +147,6 @@ export interface IAccountMcpServerQuery extends IBaseQuery {
 	}[];
 
 	/**
-	 * Remove all usage data for this MCP server on this account
-	 */
-	removeUsage(): void;
-
-	/**
-	 * Set this account as the preferred account for this MCP server
-	 */
-	setAsPreferred(): void;
-
-	/**
 	 * Check if this account is the preferred account for this MCP server
 	 */
 	isPreferred(): boolean;
@@ -210,12 +169,6 @@ export interface IAccountExtensionsQuery extends IBaseQuery {
 	 * @returns Array of objects containing extension data including trusted state
 	 */
 	getAllowedExtensions(): { id: string; name: string; allowed?: boolean; lastUsed?: number; trusted?: boolean }[];
-
-	/**
-	 * Grant access to this account for all specified extensions
-	 * @param extensionIds Array of extension IDs to grant access to
-	 */
-	allowAccess(extensionIds: string[]): void;
 
 	/**
 	 * Remove access to this account for all specified extensions
@@ -241,12 +194,6 @@ export interface IAccountMcpServersQuery extends IBaseQuery {
 	 * @returns Array of objects containing MCP server data including trusted state
 	 */
 	getAllowedMcpServers(): { id: string; name: string; allowed?: boolean; lastUsed?: number; trusted?: boolean; url?: string; agentHost?: { authority: string; label: string } }[];
-
-	/**
-	 * Grant access to this account for all specified MCP servers
-	 * @param mcpServerIds Array of MCP server IDs to grant access to
-	 */
-	allowAccess(mcpServerIds: string[]): void;
 
 	/**
 	 * Remove access to this account for all specified MCP servers
@@ -322,12 +269,6 @@ export interface IProviderMcpServerQuery extends IBaseQuery {
 	readonly mcpServerId: string;
 
 	/**
-	 * Get the last used account for this MCP server within a provider
-	 * @returns The account name, or undefined if no preference is set
-	 */
-	getLastUsedAccount(): Promise<string | undefined>;
-
-	/**
 	 * Get the preferred account for this MCP server within a provider
 	 * @returns The account name, or undefined if no preference is set
 	 */
@@ -343,12 +284,6 @@ export interface IProviderMcpServerQuery extends IBaseQuery {
 	 * Remove the account preference for this MCP server within a provider
 	 */
 	removeAccountPreference(): void;
-
-	/**
-	 * Get all accounts that this MCP server has used within this provider
-	 * @returns Array of account names
-	 */
-	getUsedAccounts(): Promise<string[]>;
 }
 
 /**
@@ -375,30 +310,6 @@ export interface IProviderQuery extends IBaseQuery {
 	 * @returns A provider-MCP server query interface
 	 */
 	mcpServer(mcpServerId: string): IProviderMcpServerQuery;
-
-	/**
-	 * Get information about active entities (extensions and MCP servers) within this provider
-	 * @returns Information about entities that have used authentication
-	 */
-	getActiveEntities(): Promise<IActiveEntities>;
-
-	/**
-	 * Get all account names for this provider
-	 * @returns Array of account names
-	 */
-	getAccountNames(): Promise<string[]>;
-
-	/**
-	 * Get usage statistics for this provider
-	 * @returns Usage statistics
-	 */
-	getUsageStats(): Promise<IAuthenticationUsageStats>;
-
-	/**
-	 * Execute a callback for each account in this provider
-	 * @param callback Function to execute for each account
-	 */
-	forEachAccount(callback: (accountQuery: IAccountQuery) => void): Promise<void>;
 }
 
 /**

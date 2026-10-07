@@ -70,7 +70,6 @@ export interface ITaskService {
 	readonly onDidChangeTaskProviders: Event<void>;
 	isReconnected: boolean;
 	readonly onDidReconnectToTasks: Event<void>;
-	supportsMultipleTaskExecutions: boolean;
 
 	configureAction(): Action;
 	run(task: Task | undefined, options?: IProblemMatcherRunOptions, runSource?: TaskRunSource): Promise<ITaskSummary | undefined>;
@@ -109,11 +108,4 @@ export interface ITaskService {
 	readonly onDidChangeTaskConfig: Event<void>;
 	readonly hasTaskSystemInfo: boolean;
 	registerSupportedExecutions(custom?: boolean, shell?: boolean, process?: boolean): void;
-
-	extensionCallbackTaskComplete(task: Task, result: number | undefined): Promise<void>;
-}
-
-export interface ITaskTerminalStatus {
-	terminalId: number;
-	status: string;
 }

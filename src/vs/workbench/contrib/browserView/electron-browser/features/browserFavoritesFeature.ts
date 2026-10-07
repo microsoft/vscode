@@ -222,10 +222,6 @@ export class BrowserFavoritesFeature extends BrowserEditorContribution {
 		this._indicator.setVisible(false);
 	}
 
-	isFavorite(url: string): boolean {
-		return this._urls.has(url);
-	}
-
 	toggleCurrent(): void {
 		const url = this.editor.model?.url;
 		if (url) {

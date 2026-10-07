@@ -14,47 +14,6 @@ import { Range, FileSearchProvider2, FileSearchProviderOptions, ProviderResult, 
 // TODO: delete this when search apis are adopted by all first-party extensions
 
 /**
- * A relative pattern is a helper to construct glob patterns that are matched
- * relatively to a base path. The base path can either be an absolute file path
- * or a [workspace folder](#WorkspaceFolder).
- */
-export interface RelativePattern {
-
-	/**
-	 * A base file path to which this pattern will be matched against relatively.
-	 */
-	base: string;
-
-	/**
-	 * A file glob pattern like `*.{ts,js}` that will be matched on file paths
-	 * relative to the base path.
-	 *
-	 * Example: Given a base of `/home/work/folder` and a file path of `/home/work/folder/index.js`,
-	 * the file glob pattern will match on `index.js`.
-	 */
-	pattern: string;
-}
-
-/**
- * A file glob pattern to match file paths against. This can either be a glob pattern string
- * (like `** /*.{ts,js}` without space before / or `*.{ts,js}`) or a [relative pattern](#RelativePattern).
- *
- * Glob patterns can have the following syntax:
- * * `*` to match zero or more characters in a path segment
- * * `?` to match on one character in a path segment
- * * `**` to match any number of path segments, including none
- * * `{}` to group conditions (e.g. `** /*.{ts,js}` without space before / matches all TypeScript and JavaScript files)
- * * `[]` to declare a range of characters to match in a path segment (e.g., `example.[0-9]` to match on `example.0`, `example.1`, …)
- * * `[!...]` to negate a range of characters to match in a path segment (e.g., `example.[!0-9]` to match on `example.a`, `example.b`, but not `example.0`)
- *
- * Note: a backslash (`\`) is not valid within a glob pattern. If you have an existing file
- * path to match against, consider to use the [relative pattern](#RelativePattern) support
- * that takes care of converting any backslash into slash. Otherwise, make sure to convert
- * any backslash to slash when creating the glob pattern.
- */
-export type GlobPattern = string | RelativePattern;
-
-/**
  * The parameters of a query for text search.
  */
 export interface TextSearchQuery {
@@ -176,35 +135,6 @@ export interface TextSearchOptions extends SearchOptions {
 	 * See the vscode setting `"files.encoding"`
 	 */
 	encoding?: string;
-
-	/**
-	 * Number of lines of context to include before each match.
-	 */
-	beforeContext?: number;
-
-	/**
-	 * Number of lines of context to include after each match.
-	 */
-	afterContext?: number;
-}
-/**
- * Options that apply to AI text search.
- */
-export interface AITextSearchOptions extends SearchOptions {
-	/**
-	 * The maximum number of results to be returned.
-	 */
-	maxResults: number;
-
-	/**
-	 * Options to specify the size of the result text preview.
-	 */
-	previewOptions?: TextSearchPreviewOptions;
-
-	/**
-	 * Exclude files larger than `maxFileSize` in bytes.
-	 */
-	maxFileSize?: number;
 
 	/**
 	 * Number of lines of context to include before each match.
@@ -366,74 +296,6 @@ export interface TextSearchProvider {
 	 * @param token A cancellation token.
 	 */
 	provideTextSearchResults(query: TextSearchQuery, options: TextSearchOptions, progress: IProgress<TextSearchResult>, token: CancellationToken): ProviderResult<TextSearchComplete>;
-}
-/**
- * Options that can be set on a findTextInFiles search.
- */
-export interface FindTextInFilesOptions {
-	/**
-	 * A [glob pattern](#GlobPattern) that defines the files to search for. The glob pattern
-	 * will be matched against the file paths of files relative to their workspace. Use a [relative pattern](#RelativePattern)
-	 * to restrict the search results to a [workspace folder](#WorkspaceFolder).
-	 */
-	include?: GlobPattern;
-
-	/**
-	 * A [glob pattern](#GlobPattern) that defines files and folders to exclude. The glob pattern
-	 * will be matched against the file paths of resulting matches relative to their workspace. When `undefined` only default excludes will
-	 * apply, when `null` no excludes will apply.
-	 */
-	exclude?: GlobPattern | null;
-
-	/**
-	 * The maximum number of results to search for
-	 */
-	maxResults?: number;
-
-	/**
-	 * Whether external files that exclude files, like .gitignore, should be respected.
-	 * See the vscode setting `"search.useIgnoreFiles"`.
-	 */
-	useIgnoreFiles?: boolean;
-
-	/**
-	 * Whether global files that exclude files, like .gitignore, should be respected.
-	 * See the vscode setting `"search.useGlobalIgnoreFiles"`.
-	 */
-	useGlobalIgnoreFiles?: boolean;
-
-	/**
-	 * Whether files in parent directories that exclude files, like .gitignore, should be respected.
-	 * See the vscode setting `"search.useParentIgnoreFiles"`.
-	 */
-	useParentIgnoreFiles: boolean;
-
-	/**
-	 * Whether symlinks should be followed while searching.
-	 * See the vscode setting `"search.followSymlinks"`.
-	 */
-	followSymlinks?: boolean;
-
-	/**
-	 * Interpret files using this encoding.
-	 * See the vscode setting `"files.encoding"`
-	 */
-	encoding?: string;
-
-	/**
-	 * Options to specify the size of the result text preview.
-	 */
-	previewOptions?: TextSearchPreviewOptions;
-
-	/**
-	 * Number of lines of context to include before each match.
-	 */
-	beforeContext?: number;
-
-	/**
-	 * Number of lines of context to include after each match.
-	 */
-	afterContext?: number;
 }
 
 function newToOldFileProviderOptions(options: FileSearchProviderOptions): FileSearchOptions[] {

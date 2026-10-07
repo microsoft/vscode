@@ -100,9 +100,6 @@ export class QuickTree<T extends IQuickTreeItem> extends QuickInput implements I
 	isCollapsed(element: T): boolean {
 		return this.ui.tree.tree.isCollapsed(element);
 	}
-	focusOnInput(): void {
-		this.ui.inputBox.setFocus();
-	}
 
 	reveal(element: T): void {
 		this.ui.tree.tree.reveal(element);

@@ -92,26 +92,6 @@ export function isMouseUpEventDragFromMouseDown(mouseDownInfo: { lineNumber: num
 	return lineNumber;
 }
 
-export function isMouseUpEventMatchMouseDown(mouseDownInfo: { lineNumber: number } | null, e: IEditorMouseEvent) {
-	if (!mouseDownInfo) {
-		return null;
-	}
-
-	const { lineNumber } = mouseDownInfo;
-
-	const range = e.target.range;
-
-	if (!range || range.startLineNumber !== lineNumber) {
-		return null;
-	}
-
-	if (e.target.type !== MouseTargetType.GUTTER_LINE_DECORATIONS) {
-		return null;
-	}
-
-	return lineNumber;
-}
-
 export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget {
 	private _commentThreadWidget!: CommentThreadWidget;
 	private readonly _onDidClose = new Emitter<ReviewZoneWidget | undefined>();
@@ -180,10 +160,6 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 	public get onDidClose(): Event<ReviewZoneWidget | undefined> {
 		return this._onDidClose.event;
-	}
-
-	public get onDidCreateThread(): Event<ReviewZoneWidget> {
-		return this._onDidCreateThread.event;
 	}
 
 	public get onDidChangeExpandedState(): Event<boolean> {

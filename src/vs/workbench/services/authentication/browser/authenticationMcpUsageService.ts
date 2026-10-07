@@ -23,15 +23,6 @@ export const IAuthenticationMcpUsageService = createDecorator<IAuthenticationMcp
 export interface IAuthenticationMcpUsageService {
 	readonly _serviceBrand: undefined;
 	/**
-	 * Initializes the cache of MCP servers that use authentication. Ideally used in a contribution that can be run eventually after the workspace is loaded.
-	 */
-	initializeUsageCache(): Promise<void>;
-	/**
-	 * Checks if an MCP server uses authentication
-	 * @param mcpServerId The id of the MCP server to check
-	 */
-	hasUsedAuth(mcpServerId: string): Promise<boolean>;
-	/**
 	 * Reads the usages for an account
 	 * @param providerId The id of the authentication provider to get usages for
 	 * @param accountName The name of the account to get usages for
@@ -86,15 +77,6 @@ export class AuthenticationMcpUsageService extends Disposable implements IAuthen
 				() => this._addToCache(provider.id)
 			)
 		));
-	}
-
-	async initializeUsageCache(): Promise<void> {
-		await this._queue.queue(() => Promise.all(this._authenticationService.getProviderIds().map(providerId => this._addToCache(providerId))));
-	}
-
-	async hasUsedAuth(mcpServerId: string): Promise<boolean> {
-		await this._queue.whenIdle();
-		return this._mcpServersUsingAuth.has(mcpServerId);
 	}
 
 	readAccountUsages(providerId: string, accountName: string): IAuthenticationMcpUsage[] {

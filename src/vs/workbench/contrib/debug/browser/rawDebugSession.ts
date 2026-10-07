@@ -212,10 +212,6 @@ export class RawDebugSession implements IDisposable {
 		return this._onDidTerminateDebugee.event;
 	}
 
-	get onDidExitDebugee(): Event<DebugProtocol.ExitedEvent> {
-		return this._onDidExitDebugee.event;
-	}
-
 	get onDidThread(): Event<DebugProtocol.ThreadEvent> {
 		return this._onDidThread.event;
 	}
@@ -254,10 +250,6 @@ export class RawDebugSession implements IDisposable {
 
 	get onDidInvalidateMemory(): Event<DebugProtocol.MemoryEvent> {
 		return this._onDidInvalidateMemory.event;
-	}
-
-	get onDidEvent(): Event<DebugProtocol.Event> {
-		return this._onDidEvent.event;
 	}
 
 	//---- DebugAdapter lifecycle

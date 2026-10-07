@@ -112,7 +112,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	private readonly _onProcessReady = this._register(new Emitter<IProcessReadyEvent>());
 	readonly onProcessReady = this._onProcessReady.event;
 	private readonly _onProcessStateChange = this._register(new Emitter<void>());
-	readonly onProcessStateChange = this._onProcessStateChange.event;
 	private readonly _onBeforeProcessData = this._register(new Emitter<IBeforeProcessDataEvent>());
 	readonly onBeforeProcessData = this._onBeforeProcessData.event;
 	private readonly _onProcessData = this._register(new Emitter<IProcessDataEvent>());

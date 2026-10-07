@@ -293,9 +293,4 @@ export class IconSelectBox extends Disposable {
 		}
 		this.focusIcon(previousRowIndex);
 	}
-
-	getFocusedIcon(): ThemeIcon {
-		return this.renderedIcons[this.focusedItemIndex].icon;
-	}
-
 }

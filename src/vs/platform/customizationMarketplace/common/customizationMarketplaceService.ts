@@ -215,11 +215,6 @@ export interface ICustomizationMarketplaceService {
 	getSourceRecoveryAction?(sourceId: string): ICustomizationMarketplaceSourceRecoveryAction | undefined;
 }
 
-export const IAgentFinderMarketplaceService = createDecorator<IAgentFinderMarketplaceService>('agentFinderMarketplaceService');
-
-/** AgentFinder marketplace transport, hosted in the shared process on desktop. */
-export interface IAgentFinderMarketplaceService extends ICustomizationMarketplaceService { }
-
 export interface ICustomizationMarketplaceQueryService {
 	query(options: ICustomizationMarketplaceRequest, token: CancellationToken): Promise<ICustomizationMarketplacePage>;
 }

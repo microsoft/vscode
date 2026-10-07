@@ -1336,10 +1336,6 @@ class ExtHostChatAgent {
 		this._onDidPerformAction.fire(event);
 	}
 
-	setChatRequestPauseState(pauseState: vscode.ChatParticipantPauseStateEvent) {
-		this._pauseStateEmitter.fire(pauseState);
-	}
-
 	async invokeCompletionProvider(query: string, token: CancellationToken): Promise<vscode.ChatCompletionItem[]> {
 		if (!this._agentVariableProvider) {
 			return [];

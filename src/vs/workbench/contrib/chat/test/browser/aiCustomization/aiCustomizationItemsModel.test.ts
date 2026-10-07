@@ -149,12 +149,10 @@ suite('AICustomizationItemsModel', () => {
 				managementSections: [AICustomizationManagementSection.Agents],
 				isSessionsWindow: false,
 				welcomePageFeatures: { showGettingStartedBanner: false },
-				getSkillUIIntegrations: () => new Map(),
 				hasOverrideProjectRoot: observableValue('test', false),
 				commitFiles: async () => { },
 				deleteFiles: async () => { },
 				generateCustomization: async () => { },
-				setOverrideProjectRoot: () => { },
 				clearOverrideProjectRoot: () => { },
 			});
 
@@ -755,12 +753,10 @@ suite('AICustomizationItemsModel', () => {
 				managementSections: [AICustomizationManagementSection.Agents],
 				isSessionsWindow: false,
 				welcomePageFeatures: { showGettingStartedBanner: false },
-				getSkillUIIntegrations: () => new Map(),
 				hasOverrideProjectRoot: observableValue('test', false),
 				commitFiles: async () => { },
 				deleteFiles: async () => { },
 				generateCustomization: async () => { },
-				setOverrideProjectRoot: () => { },
 				clearOverrideProjectRoot: () => { },
 			});
 			const activeSessionResource = observableValue('activeSessionResource', sessionResource);
@@ -1001,12 +997,10 @@ suite('AICustomizationItemsModel', () => {
 				managementSections: [AICustomizationManagementSection.Agents],
 				isSessionsWindow: false,
 				welcomePageFeatures: { showGettingStartedBanner: false },
-				getSkillUIIntegrations: () => new Map(),
 				hasOverrideProjectRoot: observableValue('test', false),
 				commitFiles: async () => { },
 				deleteFiles: async () => { },
 				generateCustomization: async () => { },
-				setOverrideProjectRoot: () => { },
 				clearOverrideProjectRoot: () => { },
 			});
 			const activeSessionResource = observableValue('activeSessionResource', sessionResource);

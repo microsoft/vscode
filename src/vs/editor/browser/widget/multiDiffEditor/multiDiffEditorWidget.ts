@@ -189,12 +189,6 @@ export class MultiDiffEditorWidget extends Disposable {
 		this.setRenderSideBySide(!(this._diffLayoutOptions.get()?.renderSideBySide ?? true));
 	}
 
-	public setDiffWordWrap(diffWordWrap: 'off' | 'on' | 'inherit'): void {
-		this._updateDiffLayoutOptions({
-			diffWordWrap,
-		});
-	}
-
 	private _updateDiffLayoutOptions(options: IDiffEditorOptions): void {
 		const currentOptions = this._diffLayoutOptions.get();
 		const updatedOptions = { ...currentOptions, ...options };

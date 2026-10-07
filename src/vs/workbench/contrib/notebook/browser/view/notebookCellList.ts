@@ -552,11 +552,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		this.cellOverlays.layout();
 	}
 
-	getModelIndex(cell: CellViewModel): number | undefined {
-		const viewIndex = this.indexOf(cell);
-		return this.getModelIndex2(viewIndex);
-	}
-
 	getModelIndex2(viewIndex: number): number | undefined {
 		if (!this.hiddenRangesPrefixSum) {
 			return viewIndex;

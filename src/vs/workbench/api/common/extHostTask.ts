@@ -375,12 +375,6 @@ class TaskExecutionImpl implements vscode.TaskExecution {
 		this.#tasks.terminateTask(this);
 	}
 
-	public fireDidStartProcess(value: tasks.ITaskProcessStartedDTO): void {
-	}
-
-	public fireDidEndProcess(value: tasks.ITaskProcessEndedDTO): void {
-	}
-
 	public get terminal(): vscode.Terminal | undefined {
 		return this._terminal;
 	}
@@ -743,8 +737,6 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape, IExtHostTask 
 		}
 	}
 
-	public abstract $jsonTasksSupported(): Promise<boolean>;
-
 	public abstract $findExecutable(command: string, cwd?: string | undefined, paths?: string[] | undefined): Promise<string | undefined>;
 }
 
@@ -835,10 +827,6 @@ export class WorkerExtHostTask extends ExtHostTaskBase {
 			variables: Object.create(null)
 		};
 		return result;
-	}
-
-	public async $jsonTasksSupported(): Promise<boolean> {
-		return false;
 	}
 
 	public async $findExecutable(command: string, cwd?: string | undefined, paths?: string[] | undefined): Promise<string | undefined> {

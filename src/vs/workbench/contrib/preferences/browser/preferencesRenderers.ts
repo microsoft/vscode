@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EventHelper, getDomNodePagePosition } from '../../../../base/browser/dom.js';
+import { EventHelper } from '../../../../base/browser/dom.js';
 import { IAction, SubmenuAction } from '../../../../base/common/actions.js';
 import { Delayer } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -16,7 +16,6 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from '../../../../editor/browser/editorBrowser.js';
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
-import { Position } from '../../../../editor/common/core/position.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
 import { ICursorPositionChangedEvent } from '../../../../editor/common/cursorEvents.js';
@@ -52,9 +51,7 @@ import { McpCommandIds } from '../../mcp/common/mcpCommandIds.js';
 export interface IPreferencesRenderer extends IDisposable {
 	render(): void;
 	updatePreference(key: string, value: unknown, source: ISetting): void;
-	focusPreference(setting: ISetting): void;
 	clearFocus(setting: ISetting): void;
-	editPreference(setting: ISetting): boolean;
 }
 
 export class UserSettingsRenderer extends Disposable implements IPreferencesRenderer {
@@ -127,25 +124,9 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 		return this.preferencesModel.getPreference(key);
 	}
 
-	focusPreference(setting: ISetting): void {
-		const s = this.getSetting(setting);
-		if (s) {
-			this.settingHighlighter.highlight(s, true);
-			this.editor.setPosition({ lineNumber: s.keyRange.startLineNumber, column: s.keyRange.startColumn });
-		} else {
-			this.settingHighlighter.clear(true);
-		}
-	}
-
 	clearFocus(setting: ISetting): void {
 		this.settingHighlighter.clear(true);
 	}
-
-	editPreference(setting: ISetting): boolean {
-		const editableSetting = this.getSetting(setting);
-		return !!(editableSetting && this.editSettingActionRenderer.activateOnSetting(editableSetting));
-	}
-
 }
 
 export class WorkspaceSettingsRenderer extends UserSettingsRenderer implements IPreferencesRenderer {
@@ -367,32 +348,6 @@ class EditSettingRenderer extends Disposable {
 			getAnchor: () => e.event,
 			getActions: () => actions
 		});
-	}
-
-	activateOnSetting(setting: ISetting): boolean {
-		const startLine = setting.keyRange.startLineNumber;
-		const settings = this.getSettings(startLine);
-		if (!settings.length) {
-			return false;
-		}
-
-		this.editPreferenceWidgetForMouseMove.show(startLine, '', settings);
-		const actions = this.getActions(this.editPreferenceWidgetForMouseMove.preferences[0], this.getConfigurationsMap()[this.editPreferenceWidgetForMouseMove.preferences[0].key]);
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => this.toAbsoluteCoords(new Position(startLine, 1)),
-			getActions: () => actions
-		});
-
-		return true;
-	}
-
-	private toAbsoluteCoords(position: Position): { x: number; y: number } {
-		const positionCoords = this.editor.getScrolledVisiblePosition(position);
-		const editorCoords = getDomNodePagePosition(this.editor.getDomNode()!);
-		const x = editorCoords.left + positionCoords!.left;
-		const y = editorCoords.top + positionCoords!.top + positionCoords!.height;
-
-		return { x, y: y + 10 };
 	}
 
 	private getConfigurationsMap(): { [qualifiedKey: string]: IConfigurationPropertySchema } {

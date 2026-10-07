@@ -1123,14 +1123,6 @@ class MirroredTestCollection extends AbstractIncrementalTestCollection<MirroredC
 	}
 
 	/**
-	 *
-	 * If the test ID exists, returns its underlying ID.
-	 */
-	public getMirroredTestDataById(itemId: string) {
-		return this.items.get(itemId);
-	}
-
-	/**
 	 * If the test item is a mirrored test item, returns its underlying ID.
 	 */
 	public getMirroredTestDataByReference(item: vscode.TestItem) {

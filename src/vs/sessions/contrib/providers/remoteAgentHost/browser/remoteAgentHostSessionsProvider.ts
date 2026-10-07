@@ -985,11 +985,6 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		return alias && agentProvider === alias.ui ? alias.backend : super._backendSessionScheme(agentProvider);
 	}
 
-	protected override _logicalSessionTypeForBackendScheme(backendScheme: string): string {
-		const alias = this._sessionSchemeAlias;
-		return alias && backendScheme === alias.backend ? alias.ui : backendScheme;
-	}
-
 	setAuthenticationPending(pending: boolean): void {
 		// Sticky: once the first authentication pass settles, never surface
 		// pending again. Subsequent re-auths happen silently in the background.

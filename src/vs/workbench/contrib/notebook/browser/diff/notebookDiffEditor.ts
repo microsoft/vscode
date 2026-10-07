@@ -113,7 +113,6 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	readonly onDidScroll: Event<void> = this._onDidScroll.event;
 	readonly onDidChangeScroll: Event<void> = this._onDidScroll.event;
 	private _eventDispatcher: NotebookDiffEditorEventDispatcher | undefined;
-	protected _scopeContextKeyService!: IContextKeyService;
 	private _model: INotebookDiffEditorModel | null = null;
 	private readonly diffEditorCalcuator: IDiffEditorHeightCalculatorService;
 	private readonly _modifiedResourceDisposableStore = this._register(new DisposableStore());

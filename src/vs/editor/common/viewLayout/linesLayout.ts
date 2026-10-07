@@ -516,13 +516,6 @@ export class LinesLayout {
 	}
 
 	/**
-	 * Returns if there is any whitespace in the document.
-	 */
-	public hasWhitespace(): boolean {
-		return this.getWhitespacesCount() > 0;
-	}
-
-	/**
 	 * The maximum min width for all whitespaces.
 	 */
 	public getWhitespaceMinWidth(): number {

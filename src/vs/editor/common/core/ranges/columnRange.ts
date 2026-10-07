@@ -12,10 +12,6 @@ import { Range } from '../range.js';
  * Use {@lik OffsetRange} to represent a 0-based range.
 */
 export class ColumnRange {
-	public static fromOffsetRange(offsetRange: OffsetRange): ColumnRange {
-		return new ColumnRange(offsetRange.start + 1, offsetRange.endExclusive + 1);
-	}
-
 	constructor(
 		/** 1-based */
 		public readonly startColumn: number,

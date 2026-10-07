@@ -9,14 +9,6 @@ import type { ILinkLocation } from '../../taskHelpers.js';
 import type { IMarker as XtermMarker } from '@xterm/xterm';
 import type { URI } from '../../../../../../../base/common/uri.js';
 
-export interface IConfirmationPrompt {
-	prompt: string;
-	options: string[];
-	descriptions?: string[];
-	detectedRequestForFreeFormInput: boolean;
-	suggestedInput?: string;
-}
-
 export interface IExecution {
 	getOutput: (marker?: XtermMarker) => string;
 	isActive?: () => Promise<boolean>;

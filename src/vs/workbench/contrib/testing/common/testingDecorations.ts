@@ -10,7 +10,6 @@ import { URI } from '../../../../base/common/uri.js';
 import { Position } from '../../../../editor/common/core/position.js';
 import { IModelDeltaDecoration } from '../../../../editor/common/model.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { ITestMessage } from './testTypes.js';
 
 export interface ITestingDecorationsService {
 	_serviceBrand: undefined;
@@ -20,12 +19,6 @@ export interface ITestingDecorationsService {
 	 * Interested consumers should call {@link syncDecorations} to update them.
 	 */
 	readonly onDidChange: Event<void>;
-
-	/**
-	 * Signals the code underlying a test message has changed, and it should
-	 * no longer be decorated in the source.
-	 */
-	invalidateResultMessage(message: ITestMessage): void;
 
 	/**
 	 * Ensures decorations in the given document URI are up to date,

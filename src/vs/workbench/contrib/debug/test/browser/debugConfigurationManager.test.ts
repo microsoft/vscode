@@ -15,7 +15,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { IRemoteAgentEnvironment } from '../../../../../platform/remote/common/remoteAgentEnvironment.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { ConfigurationManager } from '../../browser/debugConfigurationManager.js';
-import { DebugConfigurationProviderTriggerKind, IAdapterManager, IConfig, IDebugAdapterExecutable, IDebugSession } from '../../common/debug.js';
+import { DebugConfigurationProviderTriggerKind, IAdapterManager, IConfig } from '../../common/debug.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { ITestInstantiationService, TestRemoteAgentService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
@@ -29,10 +29,6 @@ suite('debugConfigurationManager', () => {
 	let contextService: TestContextService;
 
 	const adapterManager = <IAdapterManager>{
-		getDebugAdapterDescriptor(session: IDebugSession, config: IConfig): Promise<IDebugAdapterExecutable | undefined> {
-			return Promise.resolve(undefined);
-		},
-
 		activateDebuggers(activationEvent: string, debugType?: string): Promise<void> {
 			return Promise.resolve();
 		},

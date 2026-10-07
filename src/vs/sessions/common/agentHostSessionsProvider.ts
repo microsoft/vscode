@@ -300,8 +300,6 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	getSessionConfigCompletions(sessionId: string, property: string, query?: string): Promise<readonly SessionConfigValueItem[]>;
 	/** Returns the resolved config that should be sent to createSession. */
 	getCreateSessionConfig(sessionId: string): Record<string, unknown> | undefined;
-	/** Clears dynamic configuration state for an abandoned new session. */
-	clearSessionConfig(sessionId: string): void;
 	/**
 	 * Returns the persisted Agent Merge state of a running session's folder.
 	 * Each folder a chat works in has its own Agent Merge; pass `chat` for the

@@ -29,10 +29,6 @@ export interface IOriginalEditorInlineDiffViewState {
 }
 
 export class OriginalEditorInlineDiffView extends Disposable implements IInlineEditsView {
-	public static supportsInlineDiffRendering(mapping: DetailedLineRangeMapping): boolean {
-		return allowsTrueInlineDiffRendering(mapping);
-	}
-
 	private readonly _onDidClick = this._register(new Emitter<InlineEditClickEvent>());
 	readonly onDidClick = this._onDidClick.event;
 

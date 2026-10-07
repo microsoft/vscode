@@ -109,9 +109,6 @@ export interface ISpeechService {
 	 */
 	createSpeechToTextSession(token: CancellationToken, context?: string): Promise<ISpeechToTextSession>;
 
-	readonly onDidStartTextToSpeechSession: Event<void>;
-	readonly onDidEndTextToSpeechSession: Event<void>;
-
 	readonly hasActiveTextToSpeechSession: boolean;
 
 	/**

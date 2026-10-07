@@ -34,20 +34,6 @@ export interface SendToGroupCommand {
 	readonly data: ChunkEnvelope;
 }
 
-/**
- * Web PubSub group-message envelope on the inbound wire. The `from: 'group'`
- * discriminant distinguishes group-fanout messages from service-level events.
- */
-export interface GroupMessage {
-	readonly type: 'message';
-	readonly from: 'group';
-	readonly group: string;
-	readonly dataType: 'json';
-	readonly data: ChunkEnvelope;
-	readonly fromUserId?: string;
-	readonly sequenceId?: number;
-}
-
 /** Options accepted by {@link buildPublish}. */
 export interface BuildPublishOptions {
 	/** Target group name (must be a valid {@link parseGroupName} input). */

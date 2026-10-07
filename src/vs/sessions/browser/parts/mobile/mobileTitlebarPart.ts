@@ -75,7 +75,6 @@ export class MobileTitlebarPart extends Disposable {
 	readonly onDidClickNewSession: Event<void> = this._onDidClickNewSession.event;
 
 	private readonly _onDidClickTitle = this._register(new Emitter<void>());
-	readonly onDidClickTitle: Event<void> = this._onDidClickTitle.event;
 
 	// Account indicator state
 	private readonly accountButton: HTMLElement;

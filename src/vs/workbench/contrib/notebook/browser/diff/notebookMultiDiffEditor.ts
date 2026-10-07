@@ -46,7 +46,6 @@ export class NotebookMultiTextDiffEditor extends EditorPane {
 	private _multiDiffEditorWidget?: MultiDiffEditorWidget;
 	static readonly ID: string = NOTEBOOK_MULTI_DIFF_EDITOR_ID;
 	private _fontInfo: FontInfo | undefined;
-	protected _scopeContextKeyService!: IContextKeyService;
 	private readonly modelSpecificResources: DisposableStore;
 	private _model?: INotebookDiffEditorModel;
 	private viewModel?: NotebookDiffViewModel;

@@ -6,7 +6,6 @@
 import { IReference, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { ITransaction, autorun, transaction } from '../../../../../base/common/observable.js';
-import { isEqual } from '../../../../../base/common/resources.js';
 import { assertType } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { getCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
@@ -183,15 +182,6 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 	getDiffInfo(): Promise<IDocumentDiff> {
 		return this._textModelChangeService.getDiffInfo();
-	}
-
-	equalsSnapshot(snapshot: ISnapshotEntry | undefined): boolean {
-		return !!snapshot &&
-			isEqual(this.modifiedURI, snapshot.resource) &&
-			this.modifiedModel.getLanguageId() === snapshot.languageId &&
-			this.originalModel.getValue() === snapshot.original &&
-			this.modifiedModel.getValue() === snapshot.current &&
-			this.state.get() === snapshot.state;
 	}
 
 	createSnapshot(chatSessionResource: URI, requestId: string | undefined, undoStop: string | undefined): ISnapshotEntry {

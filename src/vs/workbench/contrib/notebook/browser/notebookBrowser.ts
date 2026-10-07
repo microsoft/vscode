@@ -108,12 +108,10 @@ export interface ICellOutputViewModel extends IDisposable {
 	model: ICellOutput;
 	resolveMimeTypes(textModel: NotebookTextModel, kernelProvides: readonly string[] | undefined): [readonly IOrderedMimeType[], number];
 	pickedMimeType: IOrderedMimeType | undefined;
-	hasMultiMimeType(): boolean;
 	readonly onDidResetRenderer: Event<void>;
 	readonly visible: IObservable<boolean>;
 	setVisible(visible: boolean, force?: boolean): void;
 	resetRenderer(): void;
-	toRawJSON(): any;
 }
 
 export interface IDisplayOutputViewModel extends ICellOutputViewModel {
@@ -502,7 +500,6 @@ export interface INotebookViewModel {
 	getOverviewRulerDecorations(): INotebookDeltaViewZoneDecoration[];
 	getSelections(): ICellRange[];
 	getCellIndex(cell: ICellViewModel): number;
-	getMostRecentlyExecutedCell(): ICellViewModel | undefined;
 	deltaCellStatusBarItems(oldItems: string[], newItems: INotebookDeltaCellStatusBarItems[]): string[];
 	getFoldedLength(index: number): number;
 	getFoldingStartIndex(index: number): number;
@@ -706,16 +703,6 @@ export interface INotebookEditor {
 	 * Reveal a line in notebook cell into viewport with minimal scrolling.
 	 */
 	revealLineInViewAsync(cell: ICellViewModel, line: number): Promise<void>;
-
-	/**
-	 * Reveal a line in notebook cell into viewport center.
-	 */
-	revealLineInCenterAsync(cell: ICellViewModel, line: number): Promise<void>;
-
-	/**
-	 * Reveal a line in notebook cell into viewport center.
-	 */
-	revealLineInCenterIfOutsideViewportAsync(cell: ICellViewModel, line: number): Promise<void>;
 
 	/**
 	 * Reveal a range in notebook cell into viewport with minimal scrolling.

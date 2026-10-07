@@ -2349,11 +2349,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 			}
 		}
 
-		public async updateMarkupContent(id: string, newContent: string, metadata: NotebookCellMetadata): Promise<void> {
-			const cell = this.getExpectedMarkupCell(id);
-			await cell?.updateContentAndRender(newContent, metadata);
-		}
-
 		public showMarkupCell(id: string, top: number, newContent: string | undefined, metadata: NotebookCellMetadata | undefined): void {
 			const cell = this.getExpectedMarkupCell(id);
 			cell?.show(top, newContent, metadata);

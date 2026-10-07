@@ -77,10 +77,6 @@ export function* join<TLeft, TRight>(
 	}
 }
 
-export function elementAtOrUndefined<T>(arr: T[], index: number): T | undefined {
-	return arr[index];
-}
-
 export function setFields<T extends {}>(obj: T, fields: Partial<T>): T {
 	return Object.assign(obj, fields);
 }

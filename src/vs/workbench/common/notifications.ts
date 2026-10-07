@@ -448,14 +448,6 @@ export class NotificationViewItemProgress extends Disposable implements INotific
 	}
 }
 
-export interface IMessageLink {
-	href: string;
-	name: string;
-	title: string;
-	offset: number;
-	length: number;
-}
-
 export interface INotificationMessage {
 	raw: string;
 	original: NotificationMessage;

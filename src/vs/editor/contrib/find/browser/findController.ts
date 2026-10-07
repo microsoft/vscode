@@ -224,14 +224,6 @@ export class CommonFindController extends Disposable implements IEditorContribut
 	}
 
 	/**
-	 * Returns whether the Replace input was the last focused input in the find widget.
-	 * Returns false by default; overridden in FindController.
-	 */
-	public wasReplaceInputLastFocused(): boolean {
-		return false;
-	}
-
-	/**
 	 * Focuses the last focused element in the find widget.
 	 * Implemented by FindController; base implementation does nothing.
 	 */
@@ -536,13 +528,6 @@ export class FindController extends CommonFindController implements IFindControl
 	private _createFindWidget() {
 		this._widget = this._register(new FindWidget(this._editor, this, this._state, this._contextViewService, this._keybindingService, this._contextKeyService, this._hoverService, this._findWidgetSearchHistory, this._replaceWidgetHistory, this._configurationService, this._accessibilityService));
 		this._findOptionsWidget = this._register(new FindOptionsWidget(this._editor, this._state, this._keybindingService));
-	}
-
-	/**
-	 * Returns whether the Replace input was the last focused input in the find widget.
-	 */
-	public override wasReplaceInputLastFocused(): boolean {
-		return this._widget?.lastFocusedInputWasReplace ?? false;
 	}
 
 	/**

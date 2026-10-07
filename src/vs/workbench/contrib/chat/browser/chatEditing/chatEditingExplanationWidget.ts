@@ -427,13 +427,6 @@ export class ChatEditingExplanationWidget extends Disposable implements IOverlay
 		return false;
 	}
 
-	/**
-	 * Gets the number of explanations in this widget.
-	 */
-	get explanationCount(): number {
-		return this._explanations.length;
-	}
-
 	private _updateExplanationText(index: number): void {
 		const itemData = this._explanationItems.get(index);
 		const exp = this._explanations[index];

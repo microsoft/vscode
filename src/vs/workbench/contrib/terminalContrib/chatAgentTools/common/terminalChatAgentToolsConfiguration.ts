@@ -74,12 +74,6 @@ export const enum TerminalChatAgentToolsSettingId {
 	DeprecatedAutoApprove4 = 'github.copilot.chat.agent.terminal.denyList',
 }
 
-export interface ITerminalChatAgentToolsConfiguration {
-	autoApprove: { [key: string]: boolean };
-	commandReportingAllowList: { [key: string]: boolean };
-	shellIntegrationTimeout: number;
-}
-
 const autoApproveBoolean: IJSONSchema = {
 	type: 'boolean',
 	enum: [

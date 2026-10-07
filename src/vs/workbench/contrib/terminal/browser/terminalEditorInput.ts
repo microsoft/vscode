@@ -22,7 +22,6 @@ import { IContextKey, IContextKeyService } from '../../../../platform/contextkey
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { TerminalContextKeys } from '../common/terminalContextKey.js';
 import { ConfirmResult, IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { Emitter } from '../../../../base/common/event.js';
 
 export class TerminalEditorInput extends EditorInput implements IEditorCloseHandler {
 
@@ -36,9 +35,6 @@ export class TerminalEditorInput extends EditorInput implements IEditorCloseHand
 	private _copyLaunchConfig?: IShellLaunchConfig;
 	private _terminalEditorFocusContextKey: IContextKey<boolean>;
 	private _group: IEditorGroup | undefined;
-
-	protected readonly _onDidRequestAttach = this._register(new Emitter<ITerminalInstance>());
-	readonly onDidRequestAttach = this._onDidRequestAttach.event;
 
 	setGroup(group: IEditorGroup | undefined) {
 		this._group = group;
@@ -61,14 +57,6 @@ export class TerminalEditorInput extends EditorInput implements IEditorCloseHand
 
 	override get capabilities(): EditorInputCapabilities {
 		return EditorInputCapabilities.Readonly | EditorInputCapabilities.ForceReveal | EditorInputCapabilities.CanDropIntoEditor | EditorInputCapabilities.ForceDescription;
-	}
-
-	setTerminalInstance(instance: ITerminalInstance): void {
-		if (this._terminalInstance) {
-			throw new Error('cannot set instance that has already been set');
-		}
-		this._terminalInstance = instance;
-		this._setupInstanceListeners();
 	}
 
 	override copy(): EditorInput {

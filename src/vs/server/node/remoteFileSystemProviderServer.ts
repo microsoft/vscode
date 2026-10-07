@@ -11,10 +11,9 @@ import { ILogService } from '../../platform/log/common/log.js';
 import { createURITransformer } from '../../base/common/uriTransformer.js';
 import { RemoteAgentConnectionContext } from '../../platform/remote/common/remoteAgentEnvironment.js';
 import { DiskFileSystemProvider } from '../../platform/files/node/diskFileSystemProvider.js';
-import { posix, delimiter } from '../../base/common/path.js';
+import { posix } from '../../base/common/path.js';
 import { IServerEnvironmentService } from './serverEnvironmentService.js';
 import { AbstractDiskFileSystemProviderChannel, AbstractSessionFileWatcher, ISessionFileWatcher } from '../../platform/files/node/diskFileSystemProviderServer.js';
-import { IRecursiveWatcherOptions } from '../../platform/files/common/watcher.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 
 export class RemoteAgentFileSystemProviderChannel extends AbstractDiskFileSystemProviderChannel<RemoteAgentConnectionContext> {
@@ -70,20 +69,6 @@ class SessionFileWatcher extends AbstractSessionFileWatcher {
 		configurationService: IConfigurationService
 	) {
 		super(uriTransformer, sessionEmitter, logService, environmentService);
-	}
-
-	protected override getRecursiveWatcherOptions(environmentService: IServerEnvironmentService): IRecursiveWatcherOptions | undefined {
-		const fileWatcherPolling = environmentService.args['file-watcher-polling'];
-		if (fileWatcherPolling) {
-			const segments = fileWatcherPolling.split(delimiter);
-			const pollingInterval = Number(segments[0]);
-			if (pollingInterval > 0) {
-				const usePolling = segments.length > 1 ? segments.slice(1) : true;
-				return { usePolling, pollingInterval };
-			}
-		}
-
-		return undefined;
 	}
 
 	protected override getExtraExcludes(environmentService: IServerEnvironmentService): string[] | undefined {

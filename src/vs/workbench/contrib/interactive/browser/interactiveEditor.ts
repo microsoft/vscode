@@ -705,10 +705,6 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 		this._codeEditorWidget.focus();
 	}
 
-	focusHistory() {
-		this._notebookWidget.value!.focus();
-	}
-
 	protected override setEditorVisible(visible: boolean): void {
 		super.setEditorVisible(visible);
 		this._groupListener.value = this.group.onWillCloseEditor(e => this._saveEditorViewState(e.editor));

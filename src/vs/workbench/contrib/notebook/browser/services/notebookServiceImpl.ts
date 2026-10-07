@@ -34,7 +34,7 @@ import { INotebookEditorModelResolverService } from '../../common/notebookEditor
 import { NotebookOutputRendererInfo, NotebookStaticPreloadInfo } from '../../common/notebookOutputRenderer.js';
 import { NotebookEditorDescriptor, NotebookProviderInfo } from '../../common/notebookProvider.js';
 import { INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from '../../common/notebookService.js';
-import { DiffEditorInputFactoryFunction, EditorInputFactoryFunction, EditorInputFactoryObject, IEditorResolverService, IEditorType, RegisteredEditorPriority, RegisteredEditorRegistrationInfo, UntitledEditorInputFactoryFunction, type MergeEditorInputFactoryFunction } from '../../../../services/editor/common/editorResolverService.js';
+import { DiffEditorInputFactoryFunction, EditorInputFactoryFunction, EditorInputFactoryObject, IEditorResolverService, RegisteredEditorPriority, RegisteredEditorRegistrationInfo, UntitledEditorInputFactoryFunction, type MergeEditorInputFactoryFunction } from '../../../../services/editor/common/editorResolverService.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../../services/extensions/common/extensions.js';
 import { IExtensionPointUser } from '../../../../services/extensions/common/extensionsRegistry.js';
 import { InstallRecommendedExtensionAction } from '../../../extensions/browser/extensionsActions.js';
@@ -696,15 +696,6 @@ export class NotebookService extends Disposable implements INotebookService {
 		this._viewTypeCache = this._memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
-
-	getEditorTypes(): IEditorType[] {
-		return [...this.notebookProviderInfoStore].map(info => ({
-			id: info.id,
-			displayName: info.displayName,
-			providerDisplayName: info.providerDisplayName
-		}));
-	}
-
 	clearEditorCache(): void {
 		this.notebookProviderInfoStore.clearEditorCache();
 	}
@@ -890,28 +881,6 @@ export class NotebookService extends Disposable implements INotebookService {
 			throw new CancellationError();
 		}
 		return bufferToStream(bytes);
-	}
-
-	async restoreNotebookTextModelFromSnapshot(uri: URI, viewType: string, snapshot: VSBufferReadableStream): Promise<NotebookTextModel> {
-		const model = this.getNotebookTextModel(uri);
-
-		if (!model) {
-			throw new Error(`notebook for ${uri} doesn't exist`);
-		}
-
-		const info = await this.withNotebookDataProvider(model.viewType);
-
-		if (!(info instanceof SimpleNotebookProviderInfo)) {
-			throw new Error('CANNOT open file notebook with this provider');
-		}
-
-		const serializer = info.serializer;
-
-		const bytes = await streamToBuffer(snapshot);
-		const data = await info.serializer.dataToNotebook(bytes);
-		model.restoreSnapshot(data, serializer.options);
-
-		return model;
 	}
 
 	getNotebookTextModel(uri: URI): NotebookTextModel | undefined {

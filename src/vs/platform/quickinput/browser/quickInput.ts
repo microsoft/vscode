@@ -844,25 +844,12 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 		return this.visible ? this.ui.inputBox.hasFocus() : false;
 	}
 
-	focusOnInput() {
-		this.ui.inputBox.setFocus();
-	}
-
 	get hideInput() {
 		return !!this._hideInput;
 	}
 
 	set hideInput(hideInput: boolean) {
 		this._hideInput = hideInput;
-		this.update();
-	}
-
-	get hideCountBadge() {
-		return !!this._hideCountBadge;
-	}
-
-	set hideCountBadge(hideCountBadge: boolean) {
-		this._hideCountBadge = hideCountBadge;
 		this.update();
 	}
 

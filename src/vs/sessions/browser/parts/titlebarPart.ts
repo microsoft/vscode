@@ -90,10 +90,6 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	private readonly overflowManagedToolBarElements: HTMLElement[] = [];
 	private titleBarToolBarOverflowScheduler!: AnimationFrameScheduler;
 
-	get leftContainer(): HTMLElement { return this.leftContent; }
-	get rightContainer(): HTMLElement { return this.rightContent; }
-	get rightWindowControlsContainer(): HTMLElement | undefined { return this.windowControlsContainer; }
-
 	private leftSpacerWidth: number = 0;
 
 	private readonly titleBarStyle: TitlebarStyle;

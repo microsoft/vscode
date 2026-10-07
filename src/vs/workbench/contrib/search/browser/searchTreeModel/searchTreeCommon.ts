@@ -273,13 +273,6 @@ export interface ISearchTreeMatch {
 	isReadonly: boolean;
 }
 
-export function isSearchModel(obj: any): obj is ISearchModel {
-	return typeof obj === 'object' &&
-		obj !== null &&
-		typeof obj.id === 'function' &&
-		obj.id().startsWith(SEARCH_MODEL_PREFIX);
-}
-
 export function isSearchResult(obj: any): obj is ISearchResult {
 	return typeof obj === 'object' &&
 		obj !== null &&

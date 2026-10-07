@@ -676,19 +676,6 @@ export function mergeClientAgentMergeFolders(values: Record<string, unknown> | u
 	return Object.fromEntries(merged);
 }
 
-/** Returns `values` with the per-folder Agent Merge maps keyed by `toKey` of each key. */
-export function rekeyAgentMergeFolders(values: Record<string, unknown> | undefined, toKey: (key: string) => string): Record<string, unknown> | undefined {
-	if (!values) {
-		return values;
-	}
-	const rekey = (value: unknown) => Object.fromEntries([...readRecordMap(value)].map(([key, entry]) => [toKey(key), entry]));
-	return {
-		...values,
-		[SessionConfigKey.AgentMergeFolders]: rekey(values[SessionConfigKey.AgentMergeFolders]),
-		[SessionConfigKey.AgentMergeControllerFolders]: rekey(values[SessionConfigKey.AgentMergeControllerFolders]),
-	};
-}
-
 /** Whether a folder has host-owned lifecycle state, such as a captured target or repair counters. */
 export function hasAgentMergeFolderControllerState(state: AgentMergeFolderState): boolean {
 	return Object.keys(toAgentMergeFolderControllerState(state)).length > 0;

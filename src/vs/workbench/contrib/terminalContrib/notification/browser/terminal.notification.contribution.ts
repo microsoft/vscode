@@ -9,7 +9,7 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ITerminalLogService } from '../../../../../platform/terminal/common/terminal.js';
-import type { ITerminalContribution, ITerminalInstance, IXtermTerminal } from '../../../terminal/browser/terminal.js';
+import type { ITerminalContribution, IXtermTerminal } from '../../../terminal/browser/terminal.js';
 import { registerTerminalContribution, type ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
 import { TerminalOscNotificationsSettingId } from '../common/terminalNotificationConfiguration.js';
 import { TerminalNotificationHandler } from './terminalNotificationHandler.js';
@@ -45,7 +45,3 @@ class TerminalOscNotificationsContribution extends Disposable implements ITermin
 }
 
 registerTerminalContribution(TerminalOscNotificationsContribution.ID, TerminalOscNotificationsContribution);
-
-export function getTerminalOscNotifications(instance: ITerminalInstance): TerminalOscNotificationsContribution | null {
-	return instance.getContribution<TerminalOscNotificationsContribution>(TerminalOscNotificationsContribution.ID);
-}

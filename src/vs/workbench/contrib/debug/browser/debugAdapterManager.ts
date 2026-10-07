@@ -25,7 +25,7 @@ import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickin
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { Breakpoints } from '../common/breakpoints.js';
-import { CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_EXTENSION_AVAILABLE, IAdapterDescriptor, IAdapterManager, IConfig, IConfigurationManager, IDebugAdapter, IDebugAdapterDescriptorFactory, IDebugAdapterFactory, IDebugConfiguration, IDebugSession, IGuessedDebugger, INTERNAL_CONSOLE_OPTIONS_SCHEMA } from '../common/debug.js';
+import { CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_EXTENSION_AVAILABLE, IAdapterManager, IConfig, IConfigurationManager, IDebugAdapter, IDebugAdapterDescriptorFactory, IDebugAdapterFactory, IDebugConfiguration, IDebugSession, IGuessedDebugger, INTERNAL_CONSOLE_OPTIONS_SCHEMA } from '../common/debug.js';
 import { Debugger } from '../common/debugger.js';
 import { breakpointsExtPoint, debuggersExtPoint, launchSchema, presentationSchema } from '../common/debugSchemas.js';
 import { TaskDefinitionRegistry } from '../../tasks/common/taskDefinitionRegistry.js';
@@ -283,17 +283,6 @@ export class AdapterManager extends Disposable implements IAdapterManager {
 		if (ix >= 0) {
 			this.adapterDescriptorFactories.splice(ix, 1);
 		}
-	}
-
-	getDebugAdapterDescriptor(session: IDebugSession): Promise<IAdapterDescriptor | undefined> {
-		const config = session.configuration;
-		const providers = this.adapterDescriptorFactories.filter(p => p.type === config.type && p.createDebugAdapterDescriptor);
-		if (providers.length === 1) {
-			return providers[0].createDebugAdapterDescriptor(session);
-		} else {
-			// TODO@AW handle n > 1 case
-		}
-		return Promise.resolve(undefined);
 	}
 
 	getDebuggerLabel(type: string): string | undefined {

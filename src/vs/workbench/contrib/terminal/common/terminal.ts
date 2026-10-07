@@ -23,8 +23,6 @@ import type { SingleOrMany } from '../../../../base/common/types.js';
 
 export const TERMINAL_VIEW_ID = 'terminal';
 
-export const TERMINAL_CREATION_COMMANDS = ['workbench.action.terminal.toggleTerminal', 'workbench.action.terminal.new', 'workbench.action.togglePanel', 'workbench.action.terminal.focus'];
-
 export const TERMINAL_CONFIG_SECTION = 'terminal.integrated';
 
 export const DEFAULT_LETTER_SPACING = 0;
@@ -76,7 +74,6 @@ export interface ITerminalProfileService {
 	getDefaultProfile(os?: OperatingSystem): ITerminalProfile | undefined;
 	readonly onDidChangeAvailableProfiles: Event<ITerminalProfile[]>;
 	getContributedDefaultProfile(shellLaunchConfig: IShellLaunchConfig): Promise<IExtensionTerminalProfile | undefined>;
-	registerContributedProfile(args: IRegisterContributedProfileArgs): Promise<void>;
 	registerInternalContributedProfile(profile: IExtensionTerminalProfile): IDisposable;
 	getContributedProfileProvider(extensionIdentifier: string, id: string): ITerminalProfileProvider | undefined;
 	registerTerminalProfileProvider(extensionIdentifier: string, id: string, profileProvider: ITerminalProfileProvider): IDisposable;
@@ -256,11 +253,6 @@ export interface IBeforeProcessDataEvent {
 	data: string;
 }
 
-export interface IDefaultShellAndArgsRequest {
-	useAutomationShell: boolean;
-	callback: (shell: string, args: string[] | string | undefined) => void;
-}
-
 /** Read-only process information that can apply to detached terminals. */
 export interface ITerminalProcessInfo {
 	readonly processState: ProcessState;
@@ -350,7 +342,6 @@ export interface ITerminalProcessExtHostProxy extends IDisposable {
 	readonly onInput: Event<string>;
 	readonly onBinary: Event<string>;
 	readonly onResize: Event<{ cols: number; rows: number }>;
-	readonly onAcknowledgeDataEvent: Event<number>;
 	readonly onShutdown: Event<boolean>;
 	readonly onRequestInitialCwd: Event<void>;
 	readonly onRequestCwd: Event<void>;
@@ -403,8 +394,6 @@ export interface ISerializedTerminalInstanceContext {
 	$mid: MarshalledId.TerminalContext;
 	instanceId: number;
 }
-
-export const QUICK_LAUNCH_PROFILE_CHOICE = 'workbench.action.terminal.profile.choice';
 
 export const enum TerminalCommandId {
 	Toggle = 'workbench.action.terminal.toggleTerminal',

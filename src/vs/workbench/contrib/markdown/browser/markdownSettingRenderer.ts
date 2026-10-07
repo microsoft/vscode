@@ -22,7 +22,6 @@ export class SimpleSettingRenderer {
 
 	private _updatedSettings = new Map<string, unknown>(); // setting ID to user's original setting value
 	private _encounteredSettings = new Map<string, ISetting>(); // setting ID to setting
-	private _featuredSettings = new Map<string, unknown>(); // setting ID to feature value
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -33,14 +32,6 @@ export class SimpleSettingRenderer {
 	) {
 		this.codeSettingAnchorRegex = new RegExp(`^<a (href)=".*code.*://settings/([^\\s"]+)"(?:\\s*codesetting="([^"]+)")?>`);
 		this.codeSettingSimpleRegex = new RegExp(`^setting\\(([^\\s:)]+)(?::([^)]+))?\\)$`);
-	}
-
-	get featuredSettingStates(): Map<string, boolean> {
-		const result = new Map<string, boolean>();
-		for (const [settingId, value] of this._featuredSettings) {
-			result.set(settingId, this._configurationService.getValue(settingId) === value);
-		}
-		return result;
 	}
 
 	private replaceAnchor(raw: string): string | undefined {

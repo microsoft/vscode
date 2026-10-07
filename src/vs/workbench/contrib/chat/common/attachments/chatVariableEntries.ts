@@ -855,10 +855,6 @@ export function isTerminalVariableEntry(obj: IChatRequestVariableEntry): obj is 
 	return obj.kind === 'terminalCommand';
 }
 
-export function isDebugVariableEntry(obj: IChatRequestVariableEntry): obj is IDebugVariableEntry {
-	return obj.kind === 'debugVariable';
-}
-
 export function isAgentFeedbackVariableEntry(obj: IChatRequestVariableEntry): obj is IAgentFeedbackVariableEntry {
 	return obj.kind === 'agentFeedback';
 }
@@ -907,10 +903,6 @@ export function isNotebookOutputVariableEntry(obj: IChatRequestVariableEntry): o
 
 export function isElementVariableEntry(obj: IChatRequestVariableEntry): obj is IElementVariableEntry {
 	return obj.kind === 'element';
-}
-
-export function isDiagnosticsVariableEntry(obj: IChatRequestVariableEntry): obj is IDiagnosticVariableEntry {
-	return obj.kind === 'diagnostic';
 }
 
 export function isChatRequestFileEntry(obj: IChatRequestVariableEntry): obj is IChatRequestFileEntry {

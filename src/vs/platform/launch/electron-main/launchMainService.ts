@@ -22,11 +22,6 @@ import { IProtocolUrl } from '../../url/electron-main/url.js';
 export const ID = 'launchMainService';
 export const ILaunchMainService = createDecorator<ILaunchMainService>(ID);
 
-export interface IStartArguments {
-	readonly args: NativeParsedArgs;
-	readonly userEnv: IProcessEnvironment;
-}
-
 export interface ILaunchMainService {
 
 	readonly _serviceBrand: undefined;

@@ -236,8 +236,6 @@ export interface ICurrentPartialCommand {
 	commandRightPromptStartX?: number;
 	commandRightPromptEndX?: number;
 
-	commandLines?: IMarker;
-
 	commandExecutedMarker?: IMarker;
 	commandExecutedX?: number;
 
@@ -272,8 +270,6 @@ export class PartialTerminalCommand implements ICurrentPartialCommand {
 
 	commandRightPromptStartX?: number;
 	commandRightPromptEndX?: number;
-
-	commandLines?: IMarker;
 
 	commandExecutedMarker?: IMarker;
 	commandExecutedX?: number;

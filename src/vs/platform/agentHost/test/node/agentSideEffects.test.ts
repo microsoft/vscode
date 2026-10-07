@@ -270,7 +270,6 @@ function createTestSideEffects(
 	services.set(IAgentHostChatContributions, chatContributions);
 	services.set(IAgentHostSessionPromptService, {
 		_serviceBrand: undefined,
-		startSessionPrompt: async () => URI.parse('agent-host-session://comparison-judge'),
 	});
 	const turnService = new AgentHostTurnService(stateManager, chatContributions, instantiationService);
 	services.set(IAgentHostTurnService, turnService);

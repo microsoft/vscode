@@ -135,13 +135,6 @@ export class TextLength {
 		}
 	}
 
-	public addToRange(range: Range): Range {
-		return Range.fromPositions(
-			this.addToPosition(range.getStartPosition()),
-			this.addToPosition(range.getEndPosition())
-		);
-	}
-
 	toString() {
 		return `${this.lineCount},${this.columnCount}`;
 	}

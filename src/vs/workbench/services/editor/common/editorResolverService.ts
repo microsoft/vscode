@@ -117,12 +117,6 @@ const editorAssociationsConfigurationNode: IConfigurationNode = {
 	}
 };
 
-export interface IEditorType {
-	readonly id: string;
-	readonly displayName: string;
-	readonly providerDisplayName: string;
-}
-
 configurationRegistry.registerConfiguration(editorAssociationsConfigurationNode);
 //#endregion
 

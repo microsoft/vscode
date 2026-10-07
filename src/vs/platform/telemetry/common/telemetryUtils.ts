@@ -67,22 +67,6 @@ export interface ITelemetryAppender {
 
 export const NullAppender: ITelemetryAppender = { log: () => null, flush: () => Promise.resolve(undefined) };
 
-
-/* __GDPR__FRAGMENT__
-	"URIDescriptor" : {
-		"mimeType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"scheme": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"ext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"path": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-	}
-*/
-export interface URIDescriptor {
-	mimeType?: string;
-	scheme?: string;
-	ext?: string;
-	path?: string;
-}
-
 /**
  * Determines whether or not we support logging telemetry.
  * This checks if the product is capable of collecting telemetry but not whether or not it can send it

@@ -677,25 +677,6 @@ export class MainThreadTask extends Disposable implements MainThreadTaskShape {
 		});
 	}
 
-
-	public $customExecutionComplete(id: string, result?: number): Promise<void> {
-		return new Promise<void>((resolve, reject) => {
-			this._taskService.getActiveTasks().then((tasks) => {
-				for (const task of tasks) {
-					if (id === task._id) {
-						this._taskService.extensionCallbackTaskComplete(task, result).then((value) => {
-							resolve(undefined);
-						}, (error) => {
-							reject(error);
-						});
-						return;
-					}
-				}
-				reject(new Error('Task to mark as complete not found'));
-			});
-		});
-	}
-
 	public $terminateTask(id: string): Promise<void> {
 		return new Promise<void>((resolve, reject) => {
 			this._taskService.getActiveTasks().then((tasks) => {

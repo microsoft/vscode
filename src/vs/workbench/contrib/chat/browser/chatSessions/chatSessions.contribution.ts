@@ -1214,23 +1214,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		};
 	}
 
-	registerCustomizationsProvider(chatSessionType: string, provider: IChatSessionCustomizationsProvider): IDisposable {
-		this._customizationsProviders.set(chatSessionType, provider);
-		const onChangeDisposable = provider.onDidChangeCustomizations(() => {
-			this._onDidChangeCustomizations.fire({ chatSessionType });
-		});
-		return toDisposable(() => {
-			onChangeDisposable.dispose();
-			if (this._customizationsProviders.get(chatSessionType) === provider) {
-				this._customizationsProviders.delete(chatSessionType);
-			}
-		});
-	}
-
-	hasCustomizationsProvider(chatSessionType: string): boolean {
-		return this._customizationsProviders.has(chatSessionType);
-	}
-
 	async getCustomizations(chatSessionType: string, token: CancellationToken): Promise<IChatSessionCustomizationItemGroup[] | undefined> {
 		const provider = this._customizationsProviders.get(chatSessionType);
 		if (!provider) {
@@ -1444,11 +1427,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		} finally {
 			session.dispose();
 		}
-	}
-
-	public hasAnySessionOptions(sessionResource: URI): boolean {
-		const session = this._sessions.get(this._resolveResource(sessionResource));
-		return !!session && !!session.options && session.options.size > 0;
 	}
 
 	public getSessionOptions(sessionResource: URI): Map<string, string> | undefined {

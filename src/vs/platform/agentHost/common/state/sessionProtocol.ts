@@ -103,10 +103,7 @@ export const JSON_RPC_PARSE_ERROR = -32700 as const;
 export const JSON_RPC_INTERNAL_ERROR = -32603 as const;
 export const AHP_SESSION_NOT_FOUND = -32001 as const;
 export const AHP_PROVIDER_NOT_FOUND = -32002 as const;
-export const AHP_SESSION_ALREADY_EXISTS = -32003 as const;
-export const AHP_TURN_IN_PROGRESS = -32004 as const;
 export const AHP_UNSUPPORTED_PROTOCOL_VERSION = -32005 as const;
-export const AHP_CONTENT_NOT_FOUND = -32006 as const;
 export const AHP_AUTH_REQUIRED = -32007 as const;
 
 /**
@@ -143,18 +140,4 @@ export class ProtocolError extends Error {
 	}
 }
 
-/**
- * VS Code-specific extension: set the auth token on the server.
- * Not yet part of the official protocol.
- */
-export interface ISetAuthTokenParams {
-	readonly token: string;
-}
-
 // ---- Server → Client notification param aliases (backward compat) -----------
-
-import type { INotification } from './sessionActions.js';
-
-export interface INotificationBroadcastParams {
-	readonly notification: INotification;
-}

@@ -216,16 +216,6 @@ export interface ICustomizationItem {
 	readonly actions?: readonly ICustomizationItemAction[];
 }
 
-export interface ICustomizationAgentRef {
-	readonly id: string;
-
-	readonly uri: URI;
-	/** Agent name (from frontmatter `name`, or file-derived) */
-	readonly name: string;
-	/** Optional short description for UI preview (from frontmatter `description`) */
-	readonly description?: string;
-}
-
 export function isPluginCustomizationItem(item: { readonly type: string }): boolean {
 	return item.type === 'plugin' || item.type === AICustomizationManagementSection.Plugins;
 }
@@ -418,18 +408,6 @@ export interface ICustomizationHarnessService {
 	 * given session type and fall back to an untitled session resource.
 	 */
 	getSessionResourceForHarness(sessionType: string): URI;
-}
-
-/**
- * Minimal slash-command metadata resolved from the active harness.
- */
-export interface ICustomizationSlashCommand {
-	readonly uri: URI;
-	readonly type: PromptsType.prompt | PromptsType.skill;
-	readonly name: string;
-	readonly description?: string;
-	readonly userInvocable: boolean;
-	readonly sessionTypes?: readonly string[];
 }
 
 // #region Shared descriptor constants

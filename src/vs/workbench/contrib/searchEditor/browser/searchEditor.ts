@@ -75,8 +75,6 @@ type SearchEditorViewState = ICodeEditorViewState & { focused: 'input' | 'editor
 export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> {
 	static readonly ID: string = SearchEditorID;
 
-	static readonly SEARCH_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'searchEditorViewState';
-
 	private queryEditorWidget!: SearchWidget;
 	private get searchResultEditor() { return this.editorControl!; }
 	private queryEditorContainer!: HTMLElement;

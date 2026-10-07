@@ -147,27 +147,6 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		});
 	}
 
-	public static canHandleSnapshotContent(initialContent: string | undefined): boolean {
-		if (!initialContent) {
-			return false;
-		}
-
-		try {
-			deserializeSnapshot(initialContent);
-			return true;
-		} catch (ex) {
-			// not a valid snapshot
-			return false;
-		}
-	}
-
-	public static canHandleSnapshot(snapshot: ISnapshotEntry): boolean {
-		if (snapshot.languageId === SnapshotLanguageId && ChatEditingModifiedNotebookEntry.canHandleSnapshotContent(snapshot.current)) {
-			return true;
-		}
-		return false;
-	}
-
 	private readonly initialContentComparer: SnapshotComparer;
 
 	constructor(
@@ -944,15 +923,6 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			state: this.state.get(),
 			telemetryInfo: this.telemetryInfo,
 		};
-	}
-
-	override equalsSnapshot(snapshot: ISnapshotEntry | undefined): boolean {
-		return !!snapshot &&
-			isEqual(this.modifiedURI, snapshot.resource) &&
-			this.state.get() === snapshot.state &&
-			new SnapshotComparer(snapshot.original).isEqual(this.originalModel) &&
-			new SnapshotComparer(snapshot.current).isEqual(this.modifiedModel);
-
 	}
 
 	override async restoreFromSnapshot(snapshot: ISnapshotEntry, restoreToDisk = true): Promise<void> {

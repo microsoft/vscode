@@ -6,15 +6,11 @@
 import { EditorModel } from './editorModel.js';
 import { URI } from '../../../base/common/uri.js';
 import { IFileService } from '../../../platform/files/common/files.js';
-import { Mimes } from '../../../base/common/mime.js';
 
 /**
  * An editor model that just represents a resource that can be loaded.
  */
 export class BinaryEditorModel extends EditorModel {
-
-	private readonly mime = Mimes.binary;
-
 	private size: number | undefined;
 	private etag: string | undefined;
 
@@ -38,13 +34,6 @@ export class BinaryEditorModel extends EditorModel {
 	 */
 	getSize(): number | undefined {
 		return this.size;
-	}
-
-	/**
-	 * The mime of the binary resource if known.
-	 */
-	getMime(): string {
-		return this.mime;
 	}
 
 	/**

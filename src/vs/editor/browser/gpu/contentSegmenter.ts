@@ -16,7 +16,6 @@ export interface IContentSegmenter {
 	 * @param index The index within the line data's content string.
 	 */
 	getSegmentAtIndex(index: number): string | undefined;
-	getSegmentData(index: number): Intl.SegmentData | undefined;
 }
 
 export function createContentSegmenter(lineData: ViewLineRenderingData, options: ViewLineOptions): IContentSegmenter {
@@ -35,10 +34,6 @@ class AsciiContentSegmenter implements IContentSegmenter {
 
 	getSegmentAtIndex(index: number): string {
 		return this._content[index];
-	}
-
-	getSegmentData(index: number): Intl.SegmentData | undefined {
-		return undefined;
 	}
 }
 
@@ -76,9 +71,5 @@ class GraphemeContentSegmenter implements IContentSegmenter {
 
 	getSegmentAtIndex(index: number): string | undefined {
 		return this._segments[index]?.segment;
-	}
-
-	getSegmentData(index: number): Intl.SegmentData | undefined {
-		return this._segments[index];
 	}
 }

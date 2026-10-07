@@ -924,11 +924,6 @@ export interface IDebugAdapterNamedPipeServer {
 	readonly path: string;
 }
 
-export interface IDebugAdapterInlineImpl extends IDisposable {
-	readonly onDidSendMessage: Event<DebugProtocol.Message>;
-	handleMessage(message: DebugProtocol.Message): void;
-}
-
 export interface IDebugAdapterImpl {
 	readonly type: 'implementation';
 }
@@ -1054,7 +1049,6 @@ export interface IAdapterManager {
 	readonly onDidRegisterDebugger: Event<void>;
 
 	hasEnabledDebuggers(): boolean;
-	getDebugAdapterDescriptor(session: IDebugSession): Promise<IAdapterDescriptor | undefined>;
 	getDebuggerLabel(type: string): string | undefined;
 	someDebuggerInterestedInLanguage(language: string): boolean;
 	getDebugger(type: string): IDebuggerMetadata | undefined;

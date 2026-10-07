@@ -119,11 +119,6 @@ export interface IFilesConfiguration extends PlatformIFilesConfiguration, IWorkb
 	editor: IEditorOptions;
 }
 
-export interface IFileResource {
-	resource: URI;
-	isDirectory?: boolean;
-}
-
 export const enum SortOrder {
 	Default = 'default',
 	Mixed = 'mixed',

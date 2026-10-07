@@ -17,12 +17,6 @@ export const AUTH_SCOPE_SEPARATOR = ' ';
 export const GRANT_TYPE_TOKEN_EXCHANGE = 'urn:ietf:params:oauth:grant-type:token-exchange';
 
 /**
- * RFC 8693 token type for an OAuth 2.0 access token used as the `subject_token`
- * during a token exchange.
- */
-export const TOKEN_TYPE_ACCESS_TOKEN = 'urn:ietf:params:oauth:token-type:access_token';
-
-/**
  * Token type for an OpenID Connect ID Token. Used as the `subject_token_type` in
  * the IdP-side token exchange that mints an ID-JAG.
  */
@@ -524,31 +518,6 @@ export interface IAuthorizationAuthorizeResponse {
 }
 
 /**
- * Error response from the authorization endpoint.
- */
-export interface IAuthorizationAuthorizeErrorResponse {
-	/**
-	 * REQUIRED. Error code as specified in OAuth 2.0.
-	 */
-	error: string;
-
-	/**
-	 * OPTIONAL. Human-readable description of the error.
-	 */
-	error_description?: string;
-
-	/**
-	 * OPTIONAL. URI to a human-readable web page with more information about the error.
-	 */
-	error_uri?: string;
-
-	/**
-	 * REQUIRED. The state value that was sent in the authorization request.
-	 */
-	state: string;
-}
-
-/**
  * Response from the token endpoint.
  */
 export interface IAuthorizationTokenResponse {
@@ -581,26 +550,6 @@ export interface IAuthorizationTokenResponse {
 	 * OPTIONAL. ID Token value associated with the authenticated session for OpenID Connect flows.
 	 */
 	id_token?: string;
-}
-
-/**
- * Error response from the token endpoint.
- */
-export interface IAuthorizationTokenErrorResponse {
-	/**
-	 * REQUIRED. Error code as specified in OAuth 2.0.
-	 */
-	error: string;
-
-	/**
-	 * OPTIONAL. Human-readable description of the error.
-	 */
-	error_description?: string;
-
-	/**
-	 * OPTIONAL. URI to a human-readable web page with more information about the error.
-	 */
-	error_uri?: string;
 }
 
 /**

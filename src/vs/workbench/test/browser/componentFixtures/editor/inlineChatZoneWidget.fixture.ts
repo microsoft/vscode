@@ -216,7 +216,6 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme, focus }
 				override readonly isPreparingModel = false;
 			}());
 			reg.defineInstance(IChatSlashCommandService, new class extends mock<IChatSlashCommandService>() {
-				override readonly onDidChangeCommands = Event.None;
 				override getCommands() { return []; }
 			}());
 			reg.defineInstance(IPromptsService, new class extends mock<IPromptsService>() { }());
@@ -269,7 +268,6 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme, focus }
 				override getChatSessionContribution() { return undefined; }
 				override getCapabilitiesForSessionType() { return undefined; }
 				override getSessionOptions() { return undefined; }
-				override hasCustomizationsProvider() { return false; }
 			}());
 			reg.defineInstance(ILanguageModelsService, new class extends mock<ILanguageModelsService>() {
 				override readonly onDidChangeLanguageModels = Event.None;
