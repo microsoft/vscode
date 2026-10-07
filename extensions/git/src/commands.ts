@@ -4305,7 +4305,22 @@ export class CommandCenter {
 			}
 		}
 
-		await repository.sync(HEAD, rebase);
+		try {
+			await repository.sync(HEAD, rebase);
+		} catch (err) {
+			if (err.gitErrorCode !== GitErrorCodes.NoRemoteReference || !HEAD.name) {
+				throw err;
+			}
+
+			// The upstream branch was deleted from the remote (e.g. after a pull request was merged)
+			const message = l10n.t('The upstream branch "{0}/{1}" no longer exists on the remote. Would you like to push the branch "{2}" and set its upstream?', HEAD.upstream.remote, HEAD.upstream.name, HEAD.name);
+			const pushAndSetUpstream = l10n.t('Push and Set Upstream');
+			const pick = await window.showWarningMessage(message, { modal: true }, pushAndSetUpstream);
+
+			if (pick === pushAndSetUpstream) {
+				await repository.pushTo(HEAD.upstream.remote, `${HEAD.name}:${HEAD.upstream.name}`, true);
+			}
+		}
 	}
 
 	@command('git.sync', { repository: true })
