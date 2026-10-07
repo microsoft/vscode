@@ -278,6 +278,79 @@ suite('NonPtyShellTerminalStreams', () => {
 		});
 	});
 
+	suite('shell output chunks', () => {
+		function contentOf(uri: string): string | undefined {
+			return manager.getTerminalState(uri)?.content.map(part => part.type === 'command' ? part.output : part.value).join('');
+		}
+
+		test('appends every chunk without ANSI escapes and ignores snapshots, so a disjoint rolling tail cannot reset it', () => {
+			const logLine = `[main] request served from vscode-file://vscode-app/out/vs/platform/log/common/log.js ${'x'.repeat(80)}\n`;
+			streams.track('chunk-1', 'shell');
+			streams.appendChunk('chunk-1', { text: 'listening\n', sequence: 0 });
+			streams.append('chunk-1', 'listening\n');
+			streams.appendChunk('chunk-1', { text: `\x1b[2m${logLine}\x1b[0m`, sequence: 1, stream: 'stderr' });
+			streams.append('chunk-1', logLine.slice(-128));
+
+			deepStrictEqual({ resets: manager.outputTerminalResets, content: channelContent() }, { resets: [], content: `listening\n${logLine}` });
+		});
+
+		test('breaks a line that another stream interrupts and skips repeated chunks', () => {
+			streams.track('chunk-2', 'shell');
+			streams.appendChunk('chunk-2', { text: 'Compiling', sequence: 0 });
+			streams.appendChunk('chunk-2', { text: 'warning\n', sequence: 1, stream: 'stderr' });
+			streams.appendChunk('chunk-2', { text: 'warning\n', sequence: 1, stream: 'stderr' });
+			streams.appendChunk('chunk-2', { text: ' done\n', sequence: 2 });
+
+			strictEqual(channelContent(), 'Compiling\nwarning\n done\n');
+		});
+
+		test('strips an escape sequence that spans chunks of the same stream', () => {
+			streams.track('chunk-7', 'shell');
+			streams.appendChunk('chunk-7', { text: 'status: \x1b[3', sequence: 0 });
+			streams.appendChunk('chunk-7', { text: 'note\n', sequence: 1, stream: 'stderr' });
+			streams.appendChunk('chunk-7', { text: '2mok\x1b[0', sequence: 2 });
+			streams.appendChunk('chunk-7', { text: 'm\n', sequence: 3 });
+
+			strictEqual(channelContent(), 'status: \nnote\nok\n');
+		});
+
+		test('keeps a line open after a bare carriage return, so another stream starts a new line', () => {
+			streams.track('chunk-8', 'shell');
+			streams.appendChunk('chunk-8', { text: 'progress 50%\r', sequence: 0 });
+			streams.appendChunk('chunk-8', { text: 'warning\n', sequence: 1, stream: 'stderr' });
+
+			strictEqual(channelContent(), 'progress 50%\r\nwarning\n');
+		});
+
+		test('keeps using snapshots when it never saw the call\'s first chunk', () => {
+			streams.track('chunk-3', 'shell');
+			const late = streams.appendChunk('chunk-3', { text: 'late\n', sequence: 3 });
+			streams.append('chunk-3', 'early\nlate\n');
+
+			deepStrictEqual({ late, content: channelContent() }, { late: undefined, content: 'early\nlate\n' });
+		});
+
+		test('keeps a matching or spilled transcript at completion and replaces a mismatched one', () => {
+			const complete = (id: string, preview: string, truncated: boolean) => {
+				streams.track(id, 'shell');
+				const uri = streams.appendChunk(id, { text: 'a\n', sequence: 0 })?.uri ?? '';
+				streams.appendChunk(id, { text: 'b\n', sequence: 1 });
+				streams.completeToolCall(id, undefined, { shellId: id, result: { exitCode: 0, preview, truncated } });
+				return { reset: manager.outputTerminalResets.includes(uri), content: contentOf(uri) };
+			};
+
+			deepStrictEqual({
+				matching: complete('chunk-4', 'a\nb\n', false),
+				mismatched: complete('chunk-5', 'b\na\n', false),
+				spilled: complete('chunk-6', 'a\n', true),
+			}, {
+				matching: { reset: false, content: 'a\nb\n' },
+				mismatched: { reset: true, content: 'b\na\n' },
+				spilled: { reset: false, content: 'a\nb\n' },
+			});
+		});
+	});
+
 	suite('completion and lifecycle', () => {
 		test('parses fallback completion, finalizes once, and ignores later output', () => {
 			streams.track('call-12', 'shell');
