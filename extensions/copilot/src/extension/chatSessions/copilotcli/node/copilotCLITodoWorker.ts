@@ -44,6 +44,7 @@ function handleRequest(fn: string, args: unknown[]): unknown {
 }
 
 function queryTodos(dbPath: string): TodoItem[] {
+	// eslint-disable-next-line local/code-no-sync-fs -- This check runs in a dedicated SQLite worker, not the extension-host event loop.
 	if (!existsSync(dbPath)) {
 		return [];
 	}

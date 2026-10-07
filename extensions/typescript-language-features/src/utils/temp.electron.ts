@@ -25,6 +25,7 @@ const rootTempDir = new Lazy(() => {
 
 export const instanceTempDir = new Lazy(() => {
 	const dir = path.join(rootTempDir.value, makeRandomHexString(20));
+	// eslint-disable-next-line local/code-no-sync-fs -- The temporary directory must exist before its synchronous Lazy getter returns.
 	fs.mkdirSync(dir, { recursive: true });
 	return dir;
 });

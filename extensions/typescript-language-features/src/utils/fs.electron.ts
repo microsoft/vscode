@@ -16,7 +16,9 @@ export const onCaseInsensitiveFileSystem = (() => {
 				value = false;
 			} else {
 				const temp = getTempFile('typescript-case-check');
+				// eslint-disable-next-line local/code-no-sync-fs -- Filesystem case sensitivity is probed once by a synchronous cached getter.
 				fs.writeFileSync(temp, '');
+				// eslint-disable-next-line local/code-no-sync-fs -- Filesystem case sensitivity is probed once by a synchronous cached getter.
 				value = fs.existsSync(temp.toUpperCase());
 			}
 		}

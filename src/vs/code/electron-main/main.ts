@@ -6,7 +6,7 @@
 import '../../platform/update/common/update.config.contribution.js';
 
 import { app, dialog } from 'electron';
-import { unlinkSync, promises } from 'fs';
+import { promises } from 'fs';
 import { URI } from '../../base/common/uri.js';
 import { coalesce, distinct } from '../../base/common/arrays.js';
 import { Promises, retry } from '../../base/common/async.js';
@@ -409,7 +409,7 @@ class CodeMain {
 				// let's delete it, since we can't connect to it and then
 				// retry the whole thing
 				try {
-					unlinkSync(environmentMainService.mainIPCHandle);
+					await promises.unlink(environmentMainService.mainIPCHandle);
 				} catch (error) {
 					logService.warn('Could not delete obsolete instance handle', error);
 

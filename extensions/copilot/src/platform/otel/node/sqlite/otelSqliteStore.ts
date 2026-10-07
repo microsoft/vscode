@@ -308,6 +308,7 @@ export class OTelSqliteStore {
 	private _ensureDb(): DatabaseSync {
 		if (this._db) { return this._db; }
 
+		// eslint-disable-next-line local/code-no-sync-fs -- TODO: the synchronous DatabaseSync store needs an async or worker contract first.
 		mkdirSync(dirname(this._dbPath), { recursive: true });
 
 		const db = new DatabaseSync(this._dbPath);

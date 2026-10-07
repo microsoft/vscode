@@ -113,6 +113,7 @@ class Lock extends Disposable {
 
 	public override dispose(): void {
 		super.dispose();
+		// eslint-disable-next-line local/code-no-sync-fs -- Synchronous disposal releases the storage lock before returning.
 		try { fs.unlinkSync(this.filename); } catch (err) { }
 	}
 

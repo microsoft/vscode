@@ -127,6 +127,7 @@ function parseServerOptions(): IServerOptions {
 			process.exit(1);
 		}
 		try {
+			// eslint-disable-next-line local/code-no-sync-fs -- The startup connection token must be loaded before accepting clients.
 			connectionToken = fs.readFileSync(tokenFilePath).toString().replace(/\r?\n$/, '');
 		} catch {
 			log(`Error: Unable to read connection token file at '${tokenFilePath}'`);

@@ -322,6 +322,7 @@ export class OTelSqliteStore {
 		if (this._db) { return this._db; }
 
 		if (this._dbPath !== ':memory:') {
+			// eslint-disable-next-line local/code-no-sync-fs -- TODO: the synchronous DatabaseSync store needs an async or worker contract first.
 			mkdirSync(dirname(this._dbPath), { recursive: true });
 		}
 

@@ -239,6 +239,7 @@ export class ChatDebugFileLoggerService extends Disposable implements IChatDebug
 			try {
 				// Verify the candidate is an actual directory, not a stray file,
 				// so we never return a path under which `main.jsonl` could never exist.
+				// eslint-disable-next-line local/code-no-sync-fs -- TODO: async session-log lookup and resume need callback ordering review.
 				if (fs.statSync(candidate.fsPath).isDirectory()) {
 					return candidate;
 				}
@@ -674,6 +675,7 @@ export class ChatDebugFileLoggerService extends Disposable implements IChatDebug
 			session.resumeChecked = true;
 			const mainJsonl = URI.joinPath(session.sessionDir, 'main.jsonl');
 			try {
+				// eslint-disable-next-line local/code-no-sync-fs -- TODO: async session-log lookup and resume need callback ordering review.
 				fs.accessSync(mainJsonl.fsPath);
 				// Directory exists from a previous run — this is a resumed session
 				session.hasOwnSpans = true;
@@ -698,6 +700,7 @@ export class ChatDebugFileLoggerService extends Disposable implements IChatDebug
 				// Find the next available indices for companion files to avoid
 				// overwriting ones from the previous run. Single readdir + scan.
 				try {
+					// eslint-disable-next-line local/code-no-sync-fs -- TODO: async session-log lookup and resume need callback ordering review.
 					for (const f of fs.readdirSync(session.sessionDir.fsPath)) {
 						const spIdx = f.startsWith('system_prompt_') ? parseInt(f.slice(14), 10) : -1;
 						if (spIdx >= session.systemPromptIndex) { session.systemPromptIndex = spIdx + 1; }
@@ -1151,14 +1154,18 @@ export class ChatDebugFileLoggerService extends Disposable implements IChatDebug
 	 * Used during session resume to determine the max rIdx without reading the entire file.
 	 */
 	private _readTailBytes(filePath: string, byteCount: number): string {
+		// eslint-disable-next-line local/code-no-sync-fs -- TODO: async session-log lookup and resume need callback ordering review.
 		const fd = fs.openSync(filePath, 'r');
 		try {
+			// eslint-disable-next-line local/code-no-sync-fs -- TODO: async session-log lookup and resume need callback ordering review.
 			const stat = fs.fstatSync(fd);
 			const start = Math.max(0, stat.size - byteCount);
 			const buf = Buffer.alloc(Math.min(byteCount, stat.size));
+			// eslint-disable-next-line local/code-no-sync-fs -- TODO: async session-log lookup and resume need callback ordering review.
 			fs.readSync(fd, buf, 0, buf.length, start);
 			return buf.toString('utf-8');
 		} finally {
+			// eslint-disable-next-line local/code-no-sync-fs -- TODO: async session-log lookup and resume need callback ordering review.
 			fs.closeSync(fd);
 		}
 	}

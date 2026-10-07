@@ -236,8 +236,10 @@ export function configurePortable(product: Partial<IProductConfiguration>): { po
 	}
 
 	const portableDataPath = getPortableDataPath();
+	// eslint-disable-next-line local/code-no-sync-fs -- Portable paths are configured synchronously before application startup.
 	const isPortable = !('target' in product) && fs.existsSync(portableDataPath);
 	const portableTempPath = path.join(portableDataPath, 'tmp');
+	// eslint-disable-next-line local/code-no-sync-fs -- Portable paths are configured synchronously before application startup.
 	const isTempPortable = isPortable && fs.existsSync(portableTempPath);
 
 	if (isPortable) {

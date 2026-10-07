@@ -78,6 +78,7 @@ export function toLineRangeMappings(changes: readonly diffWorker.ILineChange[]):
 
 function firstExistingPath(paths: string[]): string | undefined {
 	for (const p of paths) {
+		// eslint-disable-next-line local/code-no-sync-fs -- TODO: the synchronous Lazy worker initializer needs an async initialization contract.
 		if (existsSync(p)) {
 			return p;
 		}

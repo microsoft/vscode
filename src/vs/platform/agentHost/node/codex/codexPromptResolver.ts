@@ -99,6 +99,7 @@ export function resolveCodexInput(
 						const ext = guessImageExtension(att.contentType);
 						const tmp = join(os.tmpdir(), `codex-img-${crypto.randomBytes(8).toString('hex')}${ext}`);
 						try {
+							// eslint-disable-next-line local/code-no-sync-fs -- TODO: async attachment resolution must preserve synchronous mid-turn steering order.
 							fs.writeFileSync(tmp, Buffer.from(att.data, 'base64'));
 							cleanupPaths.push(tmp);
 							input.push({ type: 'localImage', path: tmp });

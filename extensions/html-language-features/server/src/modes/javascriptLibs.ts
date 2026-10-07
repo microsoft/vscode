@@ -24,6 +24,7 @@ export function loadLibrary(name: string) {
 			libPath = join(TYPESCRIPT_LIB_SOURCE, name); // from source
 		}
 		try {
+			// eslint-disable-next-line local/code-no-sync-fs -- The language-service host requests cached library contents synchronously.
 			content = readFileSync(libPath).toString();
 		} catch (e) {
 			console.log(`Unable to load library ${name} at ${libPath}`);

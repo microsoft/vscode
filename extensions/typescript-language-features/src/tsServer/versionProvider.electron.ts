@@ -161,6 +161,7 @@ export class DiskTypeScriptVersionProvider implements ITypeScriptVersionProvider
 	}
 
 	private static getTypeScriptVersion(serverPath: string): API | undefined {
+		// eslint-disable-next-line local/code-no-sync-fs -- TODO: TypeScript version discovery exposes a synchronous provider contract.
 		if (!fs.existsSync(serverPath)) {
 			return undefined;
 		}
@@ -172,16 +173,19 @@ export class DiskTypeScriptVersionProvider implements ITypeScriptVersionProvider
 		const p2 = p.slice(0, -2);
 		const modulePath = p2.join(path.sep);
 		let fileName = path.join(modulePath, 'package.json');
+		// eslint-disable-next-line local/code-no-sync-fs -- TODO: TypeScript version discovery exposes a synchronous provider contract.
 		if (!fs.existsSync(fileName)) {
 			// Special case for ts dev versions
 			if (path.basename(modulePath) === 'built') {
 				fileName = path.join(modulePath, '..', 'package.json');
 			}
 		}
+		// eslint-disable-next-line local/code-no-sync-fs -- TODO: TypeScript version discovery exposes a synchronous provider contract.
 		if (!fs.existsSync(fileName)) {
 			return undefined;
 		}
 
+		// eslint-disable-next-line local/code-no-sync-fs -- TODO: TypeScript version discovery exposes a synchronous provider contract.
 		const contents = fs.readFileSync(fileName).toString();
 		let desc: any;
 		try {

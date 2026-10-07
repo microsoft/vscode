@@ -126,6 +126,7 @@ export class AgentHostStorageService extends Disposable implements IAgentHostSto
 		}
 
 		try {
+			// eslint-disable-next-line local/code-no-sync-fs -- The constructor restores storage before synchronous get calls.
 			const value: unknown = JSON.parse(fs.readFileSync(this._resource.fsPath, 'utf8'));
 			if (value && typeof value === 'object' && !Array.isArray(value)) {
 				return value as Record<string, unknown>;

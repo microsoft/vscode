@@ -18,6 +18,7 @@ export class NodeLogDirectoryProvider implements ILogDirectoryProvider {
 		const root = this.logDirectory.value;
 		if (root) {
 			try {
+				// eslint-disable-next-line local/code-no-sync-fs -- TODO: log-directory allocation exposes a synchronous provider and Lazy contract.
 				return vscode.Uri.file(fs.mkdtempSync(path.join(root, `tsserver-log-`)));
 			} catch (e) {
 				return undefined;
@@ -29,7 +30,9 @@ export class NodeLogDirectoryProvider implements ILogDirectoryProvider {
 	private readonly logDirectory = new Lazy<string | undefined>(() => {
 		try {
 			const path = this.context.logPath;
+			// eslint-disable-next-line local/code-no-sync-fs -- TODO: log-directory allocation exposes a synchronous provider and Lazy contract.
 			if (!fs.existsSync(path)) {
+				// eslint-disable-next-line local/code-no-sync-fs -- TODO: log-directory allocation exposes a synchronous provider and Lazy contract.
 				fs.mkdirSync(path);
 			}
 			return this.context.logPath;

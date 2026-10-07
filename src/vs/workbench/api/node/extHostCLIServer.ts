@@ -184,7 +184,9 @@ export class CLIServerBase {
 		this._disposed = true;
 		this._server?.close();
 
+		// eslint-disable-next-line local/code-no-sync-fs -- Synchronous disposal removes the Unix socket before returning.
 		if (this._ipcHandlePath && process.platform !== 'win32' && fs.existsSync(this._ipcHandlePath)) {
+			// eslint-disable-next-line local/code-no-sync-fs -- Synchronous disposal removes the Unix socket before returning.
 			fs.unlinkSync(this._ipcHandlePath);
 		}
 	}

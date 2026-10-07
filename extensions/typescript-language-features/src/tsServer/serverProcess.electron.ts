@@ -351,6 +351,7 @@ export class ElectronServiceProcessFactory implements TsServerProcessFactory {
 	): TsServerProcess {
 		let tsServerPath = version.tsServerPath;
 
+		// eslint-disable-next-line local/code-no-sync-fs -- TODO: async server-path probing requires changing the synchronous process factory.
 		if (!fs.existsSync(tsServerPath)) {
 			vscode.window.showWarningMessage(vscode.l10n.t("The path {0} doesn\'t point to a valid tsserver install. Falling back to bundled TypeScript version.", tsServerPath));
 			versionManager.reset();

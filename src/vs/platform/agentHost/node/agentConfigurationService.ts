@@ -472,6 +472,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		}
 
 		try {
+			// eslint-disable-next-line local/code-no-sync-fs -- The constructor restores root configuration before services consume it synchronously.
 			const raw = fs.readFileSync(this._rootConfigResource.fsPath, 'utf8');
 			const parsed = JSON.parse(raw) as Record<string, unknown>;
 			return {

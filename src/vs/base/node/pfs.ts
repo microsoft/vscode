@@ -451,25 +451,30 @@ export function writeFileSync(path: string, data: string | Buffer, options?: IWr
 	const ensuredOptions = ensureWriteOptions(options);
 
 	if (!canFlush) {
+		// eslint-disable-next-line local/code-no-sync-fs -- This helper implements a synchronous API; callers are checked by this rule.
 		return fs.writeFileSync(path, data, { mode: ensuredOptions.mode, flag: ensuredOptions.flag });
 	}
 
 	// Open the file with same flags and mode as fs.writeFile()
+	// eslint-disable-next-line local/code-no-sync-fs -- This helper implements a synchronous API; callers are checked by this rule.
 	const fd = fs.openSync(path, ensuredOptions.flag, ensuredOptions.mode);
 
 	try {
 
 		// It is valid to pass a fd handle to fs.writeFile() and this will keep the handle open!
+		// eslint-disable-next-line local/code-no-sync-fs -- This helper implements a synchronous API; callers are checked by this rule.
 		fs.writeFileSync(fd, data);
 
 		// Flush contents (not metadata) of the file to disk
 		try {
+			// eslint-disable-next-line local/code-no-sync-fs -- This helper implements a synchronous API; callers are checked by this rule.
 			fs.fdatasyncSync(fd); // https://github.com/microsoft/vscode/issues/9589
 		} catch (syncError) {
 			console.warn('[node.js fs] fdatasyncSync is now disabled for this session because it failed: ', syncError);
 			configureFlushOnWrite(false);
 		}
 	} finally {
+		// eslint-disable-next-line local/code-no-sync-fs -- This helper implements a synchronous API; callers are checked by this rule.
 		fs.closeSync(fd);
 	}
 }
@@ -751,6 +756,7 @@ async function realpath(path: string): Promise<string> {
  */
 export function realpathSync(path: string): string {
 	try {
+		// eslint-disable-next-line local/code-no-sync-fs -- This helper implements a synchronous API; callers are checked by this rule.
 		return fs.realpathSync(path);
 	} catch {
 
@@ -761,6 +767,7 @@ export function realpathSync(path: string): string {
 		// to not resolve links but to simply see if the path is read accessible or not.
 		const normalizedPath = normalizePath(path);
 
+		// eslint-disable-next-line local/code-no-sync-fs -- This helper implements a synchronous API; callers are checked by this rule.
 		fs.accessSync(normalizedPath, fs.constants.R_OK); // throws in case of an error
 
 		return normalizedPath;

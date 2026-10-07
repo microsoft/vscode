@@ -686,6 +686,7 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 			const homeDirModulesPath = join(process.env.HOMEDRIVE, 'node_modules');
 			const userDir = dirname(join(process.env.HOMEDRIVE, process.env.HOMEPATH));
 			const userDirModulesPath = join(userDir, 'node_modules');
+			// eslint-disable-next-line local/code-no-sync-fs -- Server startup probes are consumed by synchronous service-bootstrap callbacks.
 			if (fs.existsSync(homeDirModulesPath) || fs.existsSync(userDirModulesPath)) {
 				const message = `
 
@@ -709,6 +710,7 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 
 	const vsdaMod = instantiationService.invokeFunction((accessor) => {
 		const logService = accessor.get(ILogService);
+		// eslint-disable-next-line local/code-no-sync-fs -- Server startup probes are consumed by synchronous service-bootstrap callbacks.
 		const hasVSDA = fs.existsSync(join(FileAccess.asFileUri('').fsPath, '../node_modules/vsda'));
 		if (hasVSDA) {
 			try {
@@ -725,6 +727,7 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 		serverBasePath = `/${serverBasePath}`;
 	}
 
+	// eslint-disable-next-line local/code-no-sync-fs -- Server startup probes are consumed by synchronous service-bootstrap callbacks.
 	const hasWebClient = fs.existsSync(FileAccess.asFileUri(`vs/code/browser/workbench/workbench.html`).fsPath);
 
 	if (hasWebClient && address && typeof address !== 'string') {

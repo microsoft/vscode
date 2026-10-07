@@ -621,6 +621,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		if (this.availableUpdate.updateFilePath) {
 			this.writeRelaunchArgumentsFile(this.cachePathSync, this.state.update.version);
 			try {
+				// eslint-disable-next-line local/code-no-sync-fs -- Relaunch arguments and marker cleanup must finish before installer handoff.
 				unlinkSync(this.availableUpdate.updateFilePath);
 			} catch {
 				// ignore
@@ -657,6 +658,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 
 		if (!relaunchArguments) {
 			try {
+				// eslint-disable-next-line local/code-no-sync-fs -- Relaunch arguments and marker cleanup must finish before installer handoff.
 				unlinkSync(relaunchArgsFilePath); // remove any stale file from a previous relaunch
 			} catch {
 				// ignore
@@ -665,6 +667,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		}
 
 		try {
+			// eslint-disable-next-line local/code-no-sync-fs -- Relaunch arguments and marker cleanup must finish before installer handoff.
 			writeFileSync(relaunchArgsFilePath, relaunchArguments);
 			return relaunchArgsFilePath;
 		} catch (err) {

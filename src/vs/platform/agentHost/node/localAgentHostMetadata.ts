@@ -106,6 +106,7 @@ export async function publishLocalAgentHostEndpointMetadata(userDataPath: string
 export function cleanupLocalAgentHostEndpointMetadataSync(userDataPath: string, owner: ILocalAgentHostEndpointMetadata, logService?: ILogService): void {
 	const entryPath = join(getEntriesDirectory(userDataPath), getAgentHostEndpointEntryFileName(owner));
 	try {
+		// eslint-disable-next-line local/code-no-sync-fs -- Synchronous shutdown cleanup removes the host entry and socket before exit.
 		fs.rmSync(entryPath, { force: true });
 	} catch (error) {
 		logService?.error(`[AgentHost] Failed to remove our local agent host endpoint entry ${entryPath}`, error);
@@ -114,6 +115,7 @@ export function cleanupLocalAgentHostEndpointMetadataSync(userDataPath: string, 
 
 export function cleanupLocalAgentHostEndpointSocketSync(endpointPath: string): void {
 	if (process.platform !== 'win32') {
+		// eslint-disable-next-line local/code-no-sync-fs -- Synchronous shutdown cleanup removes the host entry and socket before exit.
 		fs.rmSync(endpointPath, { force: true });
 	}
 }

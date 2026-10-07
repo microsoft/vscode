@@ -110,5 +110,6 @@ export function activate(
 }
 
 export function deactivate() {
+	// eslint-disable-next-line local/code-no-sync-fs -- Temporary directories are removed during synchronous extension deactivation.
 	fs.rmSync(temp.instanceTempDir.value, { recursive: true, force: true });
 }

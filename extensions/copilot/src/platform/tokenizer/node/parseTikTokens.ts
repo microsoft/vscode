@@ -9,6 +9,7 @@ import { VSBuffer } from '../../../util/vs/base/common/buffer';
 
 /** See `script/build/compressTikToken.ts` */
 export const parseTikTokenBinary = (file: string): Map<Uint8Array, number> => {
+	// eslint-disable-next-line local/code-no-sync-fs -- TODO: tokenizer dictionary loading exposes a synchronous parser contract.
 	const contents = readFileSync(file);
 	const result = new Map<Uint8Array, number>();
 

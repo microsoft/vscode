@@ -120,6 +120,7 @@ export class IPCServer implements IIPCServer, ITerminalEnvironmentProvider, Disp
 		this.server.close();
 
 		if (this._ipcHandlePath && process.platform !== 'win32') {
+			// eslint-disable-next-line local/code-no-sync-fs -- Synchronous disposal removes the Unix socket before returning.
 			fs.unlinkSync(this._ipcHandlePath);
 		}
 	}

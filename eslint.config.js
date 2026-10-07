@@ -151,6 +151,30 @@ export default defineConfig(
 			]
 		},
 	},
+	// Production filesystem operations must not block the event loop.
+	{
+		files: [
+			'src/**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}',
+			'extensions/**/src/**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}',
+		],
+		ignores: [
+			'**/test/**',
+			'**/tests/**',
+			'**/fixtures/**',
+			'**/*.{test,spec,stest,integrationTest}.{ts,tsx,js,jsx,mts,cts,mjs,cjs}',
+			'**/scripts/**',
+			'**/script/**',
+			'**/build/**',
+			'extensions/vscode-test-resolver/**',
+			'extensions/vscode-api-tests/**',
+			// These isolated CLI processes do not share the application's event loop.
+			'src/vs/code/node/cli.ts',
+			'src/vs/server/node/server.cli.ts',
+		],
+		rules: {
+			'local/code-no-sync-fs': 'error',
+		},
+	},
 	// Disallow bracket notation for property names that can use dot notation.
 	{
 		files: [

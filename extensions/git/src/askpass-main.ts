@@ -35,6 +35,7 @@ function main(argv: string[]): void {
 	const ipcClient = new IPCClient('askpass');
 	ipcClient.call({ askpassType, argv })
 		.then(res => {
+			// eslint-disable-next-line local/code-no-sync-fs -- The isolated askpass process writes its response before exiting.
 			fs.writeFileSync(output, res + '\n');
 			setTimeout(() => process.exit(0), 0);
 		}).catch(err => fatal(err));

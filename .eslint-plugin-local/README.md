@@ -117,6 +117,16 @@ In these cases make sure to update the `meta.schema` property on your rule with 
 The rule checks static imports, re-exports, import types, literal dynamic imports, and literal `require` calls, resolving relative paths and `vs/` aliases. Run its tests with `node --test .eslint-plugin-local/tests/code-no-private-agent-host-meta-import.test.ts`.
 
 
+## Asynchronous production filesystem operations
+
+`local/code-no-sync-fs` rejects synchronous Node filesystem calls in core and built-in extension production code, including `original-fs` and the synchronous `pfs` helpers. It follows named and namespace imports, local aliases, destructuring, literal `require`/dynamic imports, and `createRequire` bindings. Tests, development scripts, and the isolated desktop/server CLI entry points are excluded by the ESLint configuration.
+
+Use `fs/promises` or the existing asynchronous filesystem helpers. A synchronous startup, shutdown, worker-isolated operation, or existing synchronous contract may require an exception; keep it at the call site with an explanatory `eslint-disable-next-line local/code-no-sync-fs -- ...` comment. Deferred runtime conversions must explain the contract or ordering that needs review rather than exempting the whole file.
+
+Run the rule and configuration tests with `node --test .eslint-plugin-local/tests/code-no-sync-fs.test.ts`. Custom rule tests also run in CI through `npm run test-build-scripts`.
+
+(Written by Copilot)
+
 ## Adding fixes to custom rules
 Fixes are a useful way to mechanically fix basic linting issues, such as auto inserting semicolons. These fixes typically work at the AST level, so they are a more reliable way to perform bulk fixes compared to find/replaces.
 

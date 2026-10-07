@@ -67,10 +67,13 @@ export class FlushableJSONFile<T> {
 
 		const tempFilePath = this.filePath + '.new';
 		// TODO test what can go wrong here!
+		// eslint-disable-next-line local/code-no-sync-fs -- This synchronous flush is used during recorder disposal.
 		writeFileSync(tempFilePath, json, { encoding: 'utf8' });
 		if (this._exists) {
+			// eslint-disable-next-line local/code-no-sync-fs -- This synchronous flush is used during recorder disposal.
 			unlinkSync(this.filePath);
 		}
+		// eslint-disable-next-line local/code-no-sync-fs -- This synchronous flush is used during recorder disposal.
 		renameSync(tempFilePath, this.filePath);
 		this._exists = true;
 
@@ -118,6 +121,7 @@ export class FlushableSafeJSONLFile<T> {
 
 		const text = this._getTextAndClear();
 		if (text === '') { return; }
+		// eslint-disable-next-line local/code-no-sync-fs -- This synchronous flush is used during recorder disposal.
 		appendFileSync(this.filePath, text, { encoding: 'utf8' });
 	}
 }

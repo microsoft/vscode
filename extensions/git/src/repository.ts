@@ -571,6 +571,7 @@ class ResourceCommandResolver {
 		const relPath = path.relative(this.repository.root, resource.resourceUri.fsPath);
 		const candidateFsPath = path.join(parentRepoRoot, relPath);
 
+		// eslint-disable-next-line local/code-no-sync-fs -- TODO: async workspace probing requires changing synchronous command resolution.
 		const leftUri = fs.existsSync(candidateFsPath) ? Uri.file(candidateFsPath) : undefined;
 
 		return this.resolveChangeCommand(resource, true, leftUri);

@@ -52,6 +52,7 @@ class NodeModuleRequireInterceptor extends RequireInterceptor {
 			}
 			return that._factories.get(request)!.load(
 				request,
+				// eslint-disable-next-line local/code-no-sync-fs -- Node module-load interception must return synchronously.
 				URI.file(realpathSync(parent.filename)),
 				request => originalLoad.apply(this, [request, parent, isMain])
 			);

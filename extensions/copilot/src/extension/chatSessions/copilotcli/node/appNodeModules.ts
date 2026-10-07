@@ -30,6 +30,7 @@ export const APP_NODE_MODULES_ROOTS = ['node_modules.asar.unpacked', 'node_modul
 export function resolveAppModulePathSync(appRoot: string, ...segments: string[]): string {
 	for (const root of APP_NODE_MODULES_ROOTS) {
 		const candidate = path.join(appRoot, root, ...segments);
+		// eslint-disable-next-line local/code-no-sync-fs -- TODO: the synchronous cached SDK-path resolver needs caller initialization review.
 		if (existsSync(candidate)) {
 			return candidate;
 		}
