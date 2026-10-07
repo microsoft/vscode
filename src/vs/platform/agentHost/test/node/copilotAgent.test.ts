@@ -592,6 +592,7 @@ interface ITestCopilotClient extends Pick<CopilotClient, 'start' | 'stop' | 'lis
 		readonly models: { readonly list: CopilotModelsList };
 		readonly managedSettings: Pick<CopilotClient['rpc']['managedSettings'], 'resolve'>;
 		readonly plugins: { readonly uninstall: CopilotPluginsUninstall };
+		readonly mcp: { readonly config: Pick<CopilotClient['rpc']['mcp']['config'], 'list'> };
 	};
 }
 
@@ -632,6 +633,7 @@ function toSdkModelInfo(model: ITestCopilotModelInfo): CopilotModelInfo {
 type ManagedSettingsResolveResult = Awaited<ReturnType<CopilotClient['rpc']['managedSettings']['resolve']>>;
 
 class TestCopilotClient implements ITestCopilotClient {
+	mcpConfigListResult: Awaited<ReturnType<CopilotClient['rpc']['mcp']['config']['list']>> = { servers: {} };
 	managedSettingsResolution: ManagedSettingsResolveResult = {
 		resolved: { source: 'none', serverManaged: false, deviceManaged: false, clientManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: [] },
 		layers: [],
@@ -650,6 +652,7 @@ class TestCopilotClient implements ITestCopilotClient {
 	readonly skillDiscoveryRequests: Parameters<CopilotSkillDiscovery['discover']>[0][] = [];
 
 	readonly rpc: ITestCopilotClient['rpc'] = {
+		mcp: { config: { list: async () => this.mcpConfigListResult } },
 		managedSettings: {
 			resolve: params => {
 				this.managedSettingsRequests.push(params);
@@ -908,6 +911,7 @@ class MockCopilotSession {
 	readonly rpc = {
 		mcp: {
 			list: async () => ({ servers: [] }),
+			listConfigured: async () => ({ servers: [] }),
 			enable: async () => ({ success: true }),
 			disable: async () => ({ success: true }),
 			startServer: async ({ serverName }: { serverName: string }) => {
@@ -1549,17 +1553,19 @@ suite('CopilotAgent', () => {
 		const copilotAgentPrototype = CopilotAgent.prototype as unknown as {
 			_disabledRootMcpServers(this: {
 				readonly id: string;
+				_ensureClient(): Promise<{ rpc: { mcp: { config: { list(): Promise<{ servers: Record<string, unknown> }> } } } }>;
 				_isGitHubMcpServerEnabled(): boolean;
-				_rootMcpCustomizations(sessionId: string, mcpServers: Record<string, unknown>): readonly Customization[];
+				_rootMcpCustomizations(sessionId: string, mcpServers: Record<string, unknown>, additionalServerNames?: Iterable<string>): readonly Customization[];
 				readonly _customizationEnablementService: {
 					initializeSession(session: string): Promise<void>;
 					resolve(session: string, target: { readonly name: string }): { kind: 'resolved'; enablement: readonly [{ kind: CustomizationEnablementKind.Session; enabled: boolean }]; enabled: boolean; workingDirectory: { kind: 'workspaceless' } };
 				};
-			}, session: URI, sessionId: string, snapshot: { readonly mcpServers: Record<string, unknown> }): Promise<readonly string[]>;
-			_rootMcpCustomizations(this: { readonly _isGitHubMcpServerEnabled: () => boolean }, sessionId: string, mcpServers: Record<string, unknown>): readonly Customization[];
+			}, session: URI, snapshot: { readonly mcpServers: Record<string, unknown> }): Promise<readonly string[]>;
+			_rootMcpCustomizations(this: { readonly id: string; readonly _isGitHubMcpServerEnabled: () => boolean }, sessionId: string, mcpServers: Record<string, unknown>, additionalServerNames?: Iterable<string>): readonly Customization[];
 		};
 		const result = await copilotAgentPrototype._disabledRootMcpServers.call({
 			id: 'copilotcli',
+			_ensureClient: async () => ({ rpc: { mcp: { config: { list: async () => ({ servers: {} }) } } } }),
 			_isGitHubMcpServerEnabled: () => true,
 			_rootMcpCustomizations: copilotAgentPrototype._rootMcpCustomizations,
 			_customizationEnablementService: {
@@ -1569,12 +1575,102 @@ suite('CopilotAgent', () => {
 					return { kind: 'resolved', enablement: [{ kind: CustomizationEnablementKind.Session, enabled }], enabled, workingDirectory: { kind: 'workspaceless' } };
 				},
 			},
-		}, AgentSession.uri('copilotcli', 'session'), 'sdk-session', { mcpServers: {} });
+		}, AgentSession.uri('copilotcli', 'session'), { mcpServers: {} });
 
 		assert.deepStrictEqual({ initializedSession, result }, {
 			initializedSession: AgentSession.uri('copilotcli', 'session').toString(),
 			result: [GITHUB_MCP_SERVER_NAME],
 		});
+	});
+
+	for (const pending of [false, true]) {
+		test(`disables user-configured MCP servers absent from the client snapshot at launch with pending resolution ${pending}`, async () => {
+			const client = new TestCopilotClient([]);
+			client.mcpConfigListResult = {
+				servers: {
+					context7: { type: 'http', url: 'https://mcp.example.com/context7' },
+					'enabled-user': { type: 'http', url: 'https://mcp.example.com/enabled' },
+				},
+			};
+			let initializedSession: string | undefined;
+			const { agent } = createTestAgentContext(disposables, {
+				copilotClient: client,
+				rootConfig: { [AgentHostGitHubMcpServerEnabledConfigKey]: false },
+				customizationEnablementService: {
+					...createNoopCustomizationEnablementService(),
+					initializeSession: async session => { initializedSession = session; },
+					resolve: (_session, target) => target.name === 'context7'
+						? pending ? { kind: 'pending', reason: 'session' } : {
+							kind: 'resolved',
+							enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+							enabled: false,
+							workingDirectory: { kind: 'workspaceless' },
+						}
+						: { kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } },
+				},
+			});
+			const session = URI.parse('ahp-session:/context7-launch');
+			try {
+				await agent.authenticate('https://api.github.com', 'github-token');
+				const disabled = await agent['_disabledRootMcpServers'](session, { tools: [], plugins: [], mcpServers: {} });
+				assert.deepStrictEqual({ initializedSession, disabled }, {
+					initializedSession: session.toString(),
+					disabled: ['context7'],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+	}
+
+	test('launch uses the owning AHP customization identity for session-scoped MCP disablement with an independent SDK backing', async () => {
+		const client = new TestCopilotClient([]);
+		client.mcpConfigListResult = { servers: { context7: { type: 'http', url: 'https://mcp.example.com/context7' } } };
+		let launchConfig: SessionConfig | undefined;
+		client.createSession = async config => {
+			launchConfig = config;
+			return new MockCopilotSession() as unknown as CopilotSession;
+		};
+		const { agent, instantiationService, stateManager } = createTestAgentContext(disposables, {
+			copilotClient: client,
+			sessionDataService: disposables.add(new TestSessionDataService()),
+			useRealCustomizationEnablementService: true,
+			rootConfig: { [AgentHostGitHubMcpServerEnabledConfigKey]: false },
+		});
+		const session = URI.parse('ahp-session:/context7-launch');
+		const id = 'mcp-top-level:copilotcli:context7-launch:context7';
+		const now = new Date().toISOString();
+		stateManager.createSession({
+			resource: session.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle,
+			createdAt: now, modifiedAt: now, workingDirectories: ['file:///workspace'],
+		});
+		const enablementService = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostCustomizationEnablementService));
+		try {
+			await agent.authenticate('https://api.github.com', 'github-token');
+			await enablementService.initializeSession(session.toString());
+			enablementService.setEnablement(session.toString(), {
+				id, type: CustomizationType.McpServer, name: 'context7', source: URI.parse(id),
+			}, CustomizationEnablementKind.Session, false);
+			await enablementService.whenIdle();
+			const chat = defaultChatUri(session);
+			const result = await agent.chats.createChat(chat, exactChatContext(session, chat, session), {
+				workingDirectories: [URI.file('/workspace')],
+				deferBacking: false,
+			});
+			assert.ok(result);
+
+			assert.deepStrictEqual({
+				session: session.toString(),
+				separateBacking: result.backingSession !== undefined && AgentSession.id(result.backingSession) !== AgentSession.id(session),
+				disabledMcpServers: launchConfig?.disabledMcpServers,
+			}, {
+				session: 'ahp-session:/context7-launch',
+				separateBacking: true,
+				disabledMcpServers: ['context7'],
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
 	});
 
 	suite('MCP authentication during session initialization', () => {
@@ -4828,6 +4924,150 @@ suite('CopilotAgent', () => {
 				retriedRequests: 5,
 			});
 		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	for (const initialModels of [
+		[{ id: 'gpt-4o', name: 'GPT-4o' }, { id: 'retired', name: 'Retired' }],
+		[{ id: 'auto', name: 'Auto' }],
+	]) {
+		test(`retains the previous model catalog during an empty refresh and recovers on retry (${initialModels[0].id})`, async () => {
+			const client = new TestCopilotClient([], initialModels);
+			const agent = createTestAgent(disposables, { copilotClient: client });
+			let clock: ReturnType<typeof useFakeTimers> | undefined;
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.refreshModels();
+				const previousCatalog = agent.models.get();
+				const catalogs: string[][] = [];
+				disposables.add(autorun(reader => catalogs.push(agent.models.read(reader).map(model => model.id))));
+				clock = useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+				client.modelListResponses.push([], [{ id: 'replacement', name: 'Replacement' }]);
+
+				await agent.refreshModels();
+				const retainedCatalog = agent.models.get();
+				await clock.tickAsync(100);
+
+				assert.deepStrictEqual({ retainedCatalog, catalogs, requestCount: client.modelListRequests.length }, {
+					retainedCatalog: previousCatalog,
+					catalogs: [initialModels.map(model => model.id), ['replacement']],
+					requestCount: 3,
+				});
+			} finally {
+				clock?.restore();
+				await disposeAgent(agent);
+			}
+		});
+	}
+
+	test('retains the previous model catalog after empty refresh retries are exhausted and retries on the next tick', async () => {
+		const client = new TestCopilotClient([], [{ id: 'gpt-4o', name: 'GPT-4o' }]);
+		const logService = new NullLogService();
+		const errorLog = spy(logService, 'error');
+		const agent = createTestAgent(disposables, { copilotClient: client, logService });
+		let clock: ReturnType<typeof useFakeTimers> | undefined;
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			await agent.refreshModels();
+			const previousCatalog = agent.models.get();
+			clock = useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+			for (let i = 0; i < 5; i++) {
+				client.modelListResponses.push([]);
+			}
+
+			await agent.refreshModels();
+			await clock.tickAsync(100);
+			const retainedCatalog = agent.models.get();
+			const requestsAfterRetries = client.modelListRequests.length;
+			await clock.tickAsync(100);
+			const requestsAfterWaiting = client.modelListRequests.length;
+			client.modelListResponses.push([{ id: 'replacement', name: 'Replacement' }]);
+			await agent.refreshModels();
+
+			assert.deepStrictEqual({
+				retainedCatalog,
+				requestsAfterRetries,
+				requestsAfterWaiting,
+				requestsAfterRecovery: client.modelListRequests.length,
+				recoveredModels: agent.models.get().map(model => model.id),
+				errors: errorLog.getCalls().map(call => String(call.args[0])),
+			}, {
+				retainedCatalog: previousCatalog,
+				requestsAfterRetries: 6,
+				requestsAfterWaiting: 6,
+				requestsAfterRecovery: 7,
+				recoveredModels: ['replacement'],
+				errors: ['Error: Model refresh returned an empty catalog; retaining the previous models'],
+			});
+		} finally {
+			clock?.restore();
+			errorLog.restore();
+			await disposeAgent(agent);
+		}
+	});
+
+	test('retains the previous model catalog when a token refresh returns an empty catalog', async () => {
+		const client = new TestCopilotClient([], [{ id: 'gpt-4o', name: 'GPT-4o' }]);
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		let clock: ReturnType<typeof useFakeTimers> | undefined;
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			await agent.refreshModels();
+			const catalogs: string[][] = [];
+			disposables.add(autorun(reader => catalogs.push(agent.models.read(reader).map(model => model.id))));
+			clock = useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+			client.modelListResponses.push([]);
+
+			await agent.authenticate('https://api.github.com', 'replacement-token');
+			await clock.tickAsync(100);
+
+			assert.deepStrictEqual({ catalogs, requests: client.modelListRequests }, {
+				catalogs: [['gpt-4o'], ['gpt-4o']],
+				requests: [
+					{ gitHubToken: 'token' },
+					{ gitHubToken: 'replacement-token' },
+					{ gitHubToken: 'replacement-token' },
+				],
+			});
+		} finally {
+			clock?.restore();
+			await disposeAgent(agent);
+		}
+	});
+
+	test('clears the retained model catalog and cancels empty refresh retries on sign-out', async () => {
+		const client = new TestCopilotClient([], [{ id: 'gpt-4o', name: 'GPT-4o' }]);
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		let clock: ReturnType<typeof useFakeTimers> | undefined;
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			await agent.refreshModels();
+			clock = useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+			client.modelListResponses.push([]);
+			await agent.refreshModels();
+
+			await agent.authenticate('https://api.github.com', '');
+			await clock.tickAsync(100);
+			const signedOutModels = agent.models.get();
+			const requestsAfterSignOut = client.modelListRequests.length;
+			client.modelListResponses.push([]);
+			await agent.authenticate('https://api.github.com', 'replacement-token');
+			await clock.tickAsync(100);
+
+			assert.deepStrictEqual({
+				signedOutModels,
+				requestsAfterSignOut,
+				modelsAfterSignIn: agent.models.get().map(model => model.id),
+				requestsAfterSignIn: client.modelListRequests.length,
+			}, {
+				signedOutModels: [],
+				requestsAfterSignOut: 2,
+				modelsAfterSignIn: ['auto'],
+				requestsAfterSignIn: 3,
+			});
+		} finally {
+			clock?.restore();
 			await disposeAgent(agent);
 		}
 	});
@@ -9727,6 +9967,41 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('does not retry an empty refresh with only fallback Auto and HydraFusion and accepts a later catalog', async () => {
+		const client = new TestCopilotClient([], []);
+		const { agent } = createTestAgentContext(disposables, {
+			copilotClient: client,
+			rootConfig: { [CopilotCliConfigKey.HydraFusion]: true },
+		});
+		let clock: ReturnType<typeof useFakeTimers> | undefined;
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			await agent.refreshModels();
+			clock = useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+			await agent.refreshModels();
+			await clock.tickAsync(100);
+			const emptyCatalogModels = agent.models.get().map(model => model.id);
+			const requestsAfterEmptyRefresh = client.modelListRequests.length;
+			client.modelListResponses.push([{ id: 'gpt-4o', name: 'GPT-4o' }]);
+			await agent.refreshModels();
+
+			assert.deepStrictEqual({
+				emptyCatalogModels,
+				requestsAfterEmptyRefresh,
+				models: agent.models.get().map(model => model.id),
+				requestCount: client.modelListRequests.length,
+			}, {
+				emptyCatalogModels: ['auto', 'hydrafusion'],
+				requestsAfterEmptyRefresh: 2,
+				models: ['gpt-4o', 'hydrafusion'],
+				requestCount: 3,
+			});
+		} finally {
+			clock?.restore();
+			await disposeAgent(agent);
+		}
+	});
+
 	test('a runtime that lists no models accepts unlisted models beside HydraFusion, as an empty catalog does', async () => {
 		const { agent } = createTestAgentContext(disposables, {
 			copilotClient: new TestCopilotClient([], []),
@@ -9758,6 +10033,18 @@ suite('CopilotAgent', () => {
 				tokenPrices: {
 					contextMax: 200_000,
 					longContext: { contextMax: 1_000_000, inputPrice: 2 },
+				},
+			},
+		};
+		const freeLongContextModel: ITestCopilotModelInfo = {
+			id: 'free-long-ctx',
+			name: 'Free Long Ctx',
+			capabilities: { limits: { max_context_window_tokens: 200_000 } },
+			billing: {
+				multiplier: 1,
+				tokenPrices: {
+					contextMax: 200_000,
+					longContext: { contextMax: 1_000_000 },
 				},
 			},
 		};
@@ -9817,21 +10104,49 @@ suite('CopilotAgent', () => {
 		});
 
 		test('defaults to long_context when model has no surcharge and no explicit selection (free long context)', async () => {
-			const freeLongContextModel: ITestCopilotModelInfo = {
-				id: 'free-long-ctx',
-				name: 'Free Long Ctx',
-				capabilities: { limits: { max_context_window_tokens: 200_000 } },
-				billing: {
-					multiplier: 1,
-					tokenPrices: {
-						contextMax: 200_000,
-						longContext: { contextMax: 1_000_000 },
-					},
-				},
-			};
 			const config = await captureSessionConfig({ id: 'free-long-ctx' }, [freeLongContextModel]);
 			assert.ok(config);
 			assert.strictEqual(config.contextTier, 'long_context');
+		});
+
+		test('retains free long context metadata during an empty model refresh', async () => {
+			const client = new TestCopilotClient([], [freeLongContextModel]);
+			let capturedConfig: CopilotCreateSessionOptions | undefined;
+			client.createSession = async config => {
+				capturedConfig = config;
+				return new MockCopilotSession() as unknown as CopilotSession;
+			};
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const agent = createTestAgent(disposables, { copilotClient: client, sessionDataService });
+			let clock: ReturnType<typeof useFakeTimers> | undefined;
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.refreshModels();
+				clock = useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+				for (let i = 0; i < 5; i++) {
+					client.modelListResponses.push([]);
+				}
+				await agent.refreshModels();
+				await clock.tickAsync(100);
+				clock.restore();
+				clock = undefined;
+
+				const { session } = await provisionSession(agent, {
+					session: AgentSession.uri('copilotcli', 'retained-context'),
+					workingDirectories: [URI.file('/workspace')],
+					model: { id: 'free-long-ctx' },
+				});
+				const chat = defaultChatUri(session);
+				await agent.chats.sendMessage(chat, 'hello', undefined, undefined, undefined, undefined, exactChatContext(session, chat, session));
+
+				assert.deepStrictEqual({
+					model: capturedConfig?.model,
+					contextTier: capturedConfig?.contextTier,
+				}, { model: 'free-long-ctx', contextTier: 'long_context' });
+			} finally {
+				clock?.restore();
+				await disposeAgent(agent);
+			}
 		});
 	});
 

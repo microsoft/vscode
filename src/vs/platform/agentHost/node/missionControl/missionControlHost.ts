@@ -218,7 +218,8 @@ export class MissionControlHost extends Disposable {
 				const channel = parseChatUri(envelope.channel)?.session ?? parseAnnotationsUri(envelope.channel)?.sessionUri
 					?? parseChangesetUri(envelope.channel)?.sessionUri ?? envelope.channel;
 				const session = this._stateManager.getSessionSummary(channel);
-				if (!session) {
+				// Mirroring a provisional draft would create a persistent task before its first message.
+				if (!session || this._stateManager.isIdleProvisionalSession(session.resource)) {
 					return;
 				}
 				try {

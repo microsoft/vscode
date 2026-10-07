@@ -1850,11 +1850,12 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 						title: chat.summary ?? '',
 						origin: chat.origin,
 						...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
-						...(chat.isRead !== undefined ? {
+						// Forward the chat's activity bits so clients can present them without subscribing.
+						...(chat.status !== undefined || chat.isRead !== undefined ? {
 							status: withSessionStatusFlag(
-								withSessionStatusFlag(SessionStatus.Idle, SessionStatus.IsArchived, chat.archived === true),
+								withSessionStatusFlag(chat.status ?? SessionStatus.Idle, SessionStatus.IsArchived, chat.archived === true),
 								SessionStatus.IsRead,
-								chat.isRead,
+								chat.isRead ?? (chat.status !== undefined && (chat.status & SessionStatus.IsRead) === SessionStatus.IsRead),
 							),
 						} : {}),
 						...(chat.archived === true ? { archived: true } : {}),

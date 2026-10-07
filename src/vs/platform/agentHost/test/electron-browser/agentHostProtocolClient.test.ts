@@ -664,6 +664,20 @@ suite('AgentHostProtocolClient', () => {
 		assert.deepStrictEqual(findRootConfigValue(transport.sentMessages, AgentHostWorkspaceTrustConfigKey), { enabled: false, trustedUris: [] });
 	});
 
+	test('exposes client-owned connection kind independently of host identity', async () => {
+		const kinds = [undefined, AgentHostClientConnectionKind.WebPubSub, AgentHostClientConnectionKind.MissionControl, AgentHostClientConnectionKind.SSH];
+		const actual = [];
+		for (const kind of kinds) {
+			const transport = disposables.add(new TestProtocolTransport(kind));
+			const { client } = createClient(transport);
+			const beforeConnect = client.clientConnectionKind;
+			await connectClient(client, transport, { 'vscode.clientConnectionKind': 'private-host-name' });
+			transport.fireClose();
+			actual.push([beforeConnect, client.clientConnectionKind]);
+		}
+		assert.deepStrictEqual(actual, kinds.map(kind => [kind, kind]));
+	});
+
 	test('initialize sends the local client telemetry identity only for usage telemetry', async () => {
 		const transport = disposables.add(new TestProtocolTransport(AgentHostClientConnectionKind.RemoteExtensionHost));
 		const { client } = createClientForIdentity('test.example:1234', transport, createPermissionService(), undefined, new NullLogService(), new TestConfigurationService(), undefined, agentsWindowAgentHostClientInfo, new TestClientIdentityTelemetryService());
@@ -814,7 +828,7 @@ suite('AgentHostProtocolClient', () => {
 			workingDirectories: [toAgentHostUri(URI.file('/home/user/.copilot/chats/quick-1'), agentHostAuthority('test.example:1234'))],
 			chats: [
 				{ chat: 'agent-chat://copilotcli/quick-1/default', summary: 'Quick Chat', kind: 'default', origin: undefined },
-				{ chat: 'agent-chat://copilotcli/quick-1/peer', summary: 'Peer Chat', kind: 'peer', origin: undefined, interactivity: ChatInteractivity.Hidden, archived: true, isRead: false },
+				{ chat: 'agent-chat://copilotcli/quick-1/peer', summary: 'Peer Chat', kind: 'peer', origin: undefined, interactivity: ChatInteractivity.Hidden, archived: true, status: SessionStatus.Idle | SessionStatus.IsArchived, isRead: false },
 			],
 		}]);
 	});

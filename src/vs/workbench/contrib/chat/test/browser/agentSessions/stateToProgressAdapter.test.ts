@@ -8,8 +8,10 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { extUri } from '../../../../../../base/common/resources.js';
 import { renderMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { getChatMarkdownRenderOptions } from '../../../browser/widget/chatContentMarkdownRenderer.js';
+import { getToolGroupSummary } from '../../../browser/widget/chatContentParts/chatToolGroupSummary.js';
 import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
@@ -1996,6 +1998,213 @@ suite('stateToProgressAdapter', () => {
 	});
 
 	suite('toolCallStateToInvocation', () => {
+		const nativeToolMeta = { 'vscode.toolInputContract': 'copilot-cli-v1' };
+
+		test('preserves deterministic tool summaries in live and restored host calls', () => {
+			const resourceUris = createAgentHostResourceUriMapper('remote-test');
+			const session = URI.parse('ahp-session:/opaque-session');
+			const input = JSON.stringify({ path: '/workspace/file.ts', view_range: [10, 29] });
+			const running = createToolCallState({ toolName: 'view', toolInput: input, _meta: nativeToolMeta });
+			const completed = createCompletedToolCall({ toolName: 'view', toolInput: input, _meta: nativeToolMeta });
+			const live = rawToolCallStateToInvocation(running, undefined, session, 'remote-test', undefined, undefined, resourceUris);
+			rawFinalizeToolInvocation(live, completed, session, 'remote-test', resourceUris);
+			const restored = completedToolCallToSerialized(completed, undefined, session, 'remote-test', resourceUris);
+			const mcp = completedToolCallToSerialized(createCompletedToolCall({
+				toolName: 'view', toolInput: input,
+				contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'server' },
+			}), undefined, session, 'remote-test', resourceUris);
+			const expected = {
+				kind: 'read',
+				resources: [{ uri: resourceUris.fromAgentHost(URI.file('/workspace/file.ts')) }],
+			};
+			assert.deepStrictEqual({ live: live.summary, serialized: live.toJSON().summary, restored: restored.summary, mcp: mcp.summary }, {
+				live: expected, serialized: expected, restored: expected, mcp: { kind: 'unknown' },
+			});
+		});
+
+		test('requires an explicit native input contract and excludes client and MCP implementations', () => {
+			const resourceUris = createAgentHostResourceUriMapper('remote-test');
+			const session = URI.parse('ahp-session:/unrelated-peer/session-id');
+			const calls = [
+				createCompletedToolCall({ toolName: 'view', toolInput: '{"path":"/workspace/File.ts","view_range":[1,10]}' }),
+				createCompletedToolCall({ toolName: 'edit', toolInput: '{"path":"/workspace/File.ts"}' }),
+				createCompletedToolCall({ toolName: 'grep', toolInput: '{"pattern":"layout"}', _meta: { 'vscode.toolInputContract': 'different-v1' } }),
+				createCompletedToolCall({ toolName: 'view', toolInput: '{"path":"/workspace/File.ts","view_range":[1,10]}', _meta: { 'vscode.toolInputContract': {} } }),
+				createCompletedToolCall({
+					toolName: 'view', toolInput: '{"path":"/workspace/File.ts","view_range":[1,10]}', _meta: nativeToolMeta,
+					contributor: { kind: ToolCallContributorKind.Client, clientId: 'another-client' },
+				}),
+				createCompletedToolCall({
+					toolName: 'edit', toolInput: '{"path":"/workspace/File.ts"}', _meta: nativeToolMeta,
+					contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'server' },
+				}),
+				createCompletedToolCall({
+					toolName: 'bash', toolInput: '{"command":"not a shell","mode":"async"}', _meta: { ...nativeToolMeta, toolKind: 'terminal' },
+					contributor: { kind: ToolCallContributorKind.Client, clientId: 'another-client' },
+				}),
+			];
+			const summaries = calls.map(call => {
+				const live = rawToolCallStateToInvocation(createToolCallState({
+					toolCallId: call.toolCallId, toolName: call.toolName, toolInput: call.toolInput, contributor: call.contributor, _meta: call._meta,
+				}), undefined, session, 'remote-test', undefined, undefined, resourceUris);
+				rawFinalizeToolInvocation(live, call, session, 'remote-test', resourceUris);
+				const restored = completedToolCallToSerialized(call, undefined, session, 'remote-test', resourceUris);
+				return { live: live.summary, serialized: live.toJSON().summary, restored: restored.summary };
+			});
+			assert.deepStrictEqual(summaries, calls.map(() => ({
+				live: { kind: 'unknown' }, serialized: { kind: 'unknown' }, restored: { kind: 'unknown' },
+			})));
+		});
+
+		test('keeps cancelled and disposal-settled host calls out of successful summaries', async () => {
+			const running = createToolCallState({ toolCallId: 'skipped', toolName: 'grep', toolInput: '{"pattern":"skipped"}' });
+			const cancelled: ICompletedToolCall = {
+				status: ToolCallStatus.Cancelled,
+				toolCallId: running.toolCallId, toolName: running.toolName,
+				displayName: running.displayName, invocationMessage: running.invocationMessage,
+				reason: ToolCallCancellationReason.Skipped,
+				toolInput: running.toolInput,
+			};
+			const live = toolCallStateToInvocation(running);
+			finalizeToolInvocation(live, cancelled);
+			const settled = toolCallStateToInvocation(running);
+			await settled.didExecuteTool(undefined);
+			const success = completedToolCallToSerialized(createCompletedToolCall({
+				toolCallId: 'success', toolName: 'grep', toolInput: '{"pattern":"success"}', _meta: nativeToolMeta,
+			}), undefined, URI.file('/'), 'local');
+			const summaries = [live, live.toJSON(), settled, settled.toJSON(), completedToolCallToSerialized(cancelled, undefined, URI.file('/'), 'local')]
+				.map(tool => getToolGroupSummary([success, tool], [], 2, extUri));
+			assert.deepStrictEqual(summaries, [
+				'Searched for 1 phrase, 1 tool call skipped',
+				'Searched for 1 phrase, 1 tool call skipped',
+				'Searched for 1 phrase, 1 unfinished tool call',
+				'Searched for 1 phrase, 1 unfinished tool call',
+				'Searched for 1 phrase, 1 tool call skipped',
+			]);
+		});
+
+		test('distinguishes denied results from skipped calls in live and restored summaries', () => {
+			const summaries = [ToolCallCancellationReason.Skipped, ToolCallCancellationReason.Denied, ToolCallCancellationReason.ResultDenied].map(reason => {
+				const running = createToolCallState({ toolName: 'view', toolInput: '{"path":"/workspace/File.ts"}' });
+				const cancelled: ICompletedToolCall = {
+					status: ToolCallStatus.Cancelled, toolCallId: running.toolCallId, toolName: running.toolName,
+					displayName: running.displayName, invocationMessage: running.invocationMessage, toolInput: running.toolInput, reason,
+				};
+				const live = toolCallStateToInvocation(running);
+				finalizeToolInvocation(live, cancelled);
+				const restored = completedToolCallToSerialized(cancelled, undefined, URI.parse('ahp-session:/opaque-session'), 'remote');
+				return [live, live.toJSON(), restored].map(tool => getToolGroupSummary([tool], [], 1, extUri));
+			});
+			assert.deepStrictEqual(summaries, [
+				['1 tool call skipped', '1 tool call skipped', '1 tool call skipped'],
+				['1 tool call denied', '1 tool call denied', '1 tool call denied'],
+				['1 tool call denied', '1 tool call denied', '1 tool call denied'],
+			]);
+		});
+
+		test('summarizes successful host commands without requiring optional process exit metadata', () => {
+			const calls = ['pwd', 'git --version', 'node --version'].map((command, index) => createCompletedToolCall({
+				toolCallId: `command-${index}`,
+				toolName: 'bash',
+				toolInput: JSON.stringify({ command, mode: 'sync' }),
+				content: [{ type: ToolResultContentType.Terminal, resource: `terminal:/command-${index}`, title: command, isPty: false }],
+			}));
+			const summarizeCalls = (failed: boolean, restored: boolean) => {
+				const tools = calls.map((call, index) => {
+					const completed = { ...call, success: !failed || index === 0 };
+					if (restored) {
+						return completedToolCallToSerialized(completed, undefined, URI.file('/'), 'local');
+					}
+					const live = toolCallStateToInvocation(createToolCallState({ toolCallId: call.toolCallId, toolName: call.toolName, toolInput: call.toolInput }));
+					finalizeToolInvocation(live, completed);
+					return live;
+				});
+				return getToolGroupSummary(tools, [], tools.length, extUri);
+			};
+			assert.deepStrictEqual({
+				live: summarizeCalls(false, false),
+				restored: summarizeCalls(false, true),
+				liveErrors: summarizeCalls(true, false),
+				restoredErrors: summarizeCalls(true, true),
+			}, {
+				live: 'Ran 3 commands',
+				restored: 'Ran 3 commands',
+				liveErrors: 'Ran 1 command, 2 tool calls failed',
+				restoredErrors: 'Ran 1 command, 2 tool calls failed',
+			});
+		});
+
+		test('counts completed asynchronous invocations without tracking the background process', () => {
+			const running = createCompletedToolCall({
+				toolName: 'bash',
+				toolInput: '{"command":"build","mode":"async"}',
+				content: [{ type: ToolResultContentType.Terminal, resource: 'terminal:/background', title: 'build', isPty: false }],
+			});
+			const completed = createCompletedToolCall({
+				...running,
+				status: ToolCallStatus.Completed,
+				content: [{ type: ToolResultContentType.Terminal, resource: 'terminal:/background', title: 'build', isPty: false, result: { exitCode: 0 } }],
+			});
+			const titles = [running, completed].map(call => {
+				const tool = completedToolCallToSerialized(call, undefined, URI.file('/'), 'local');
+				return {
+					title: getToolGroupSummary([tool], [], 1, extUri),
+					inferredBackground: tool.toolSpecificData?.kind === 'terminal' ? tool.toolSpecificData.isBackground : undefined,
+				};
+			});
+			assert.deepStrictEqual(titles, [
+				{ title: 'Ran 1 command', inferredBackground: undefined },
+				{ title: 'Ran 1 command', inferredBackground: undefined },
+			]);
+		});
+
+		test('recognizes raw native shell input alongside failed commands', () => {
+			const calls = ['pwd', 'git --version', 'node --version'].map((command, index) => createCompletedToolCall({
+				toolCallId: `shell-${index}`, toolName: 'shell', toolInput: command, success: index === 0,
+				_meta: { toolKind: 'terminal' },
+				content: [{ type: ToolResultContentType.Terminal, resource: `terminal:/shell-${index}`, title: command, isPty: false }],
+			}));
+			const live = calls.map(call => {
+				const invocation = toolCallStateToInvocation(createToolCallState({
+					toolCallId: call.toolCallId, toolName: call.toolName, toolInput: call.toolInput, _meta: call._meta,
+				}));
+				finalizeToolInvocation(invocation, call);
+				return invocation;
+			});
+			const restored = calls.map(call => completedToolCallToSerialized(call, undefined, URI.file('/'), 'local'));
+			assert.deepStrictEqual([live, live.map(tool => tool.toJSON()), restored].map(tools => getToolGroupSummary(tools, [], 3, extUri)), [
+				'Ran 1 command, 2 tool calls failed', 'Ran 1 command, 2 tool calls failed', 'Ran 1 command, 2 tool calls failed',
+			]);
+		});
+
+		test('uses native terminal metadata rather than requiring a particular tool name', () => {
+			const call = createCompletedToolCall({
+				toolName: 'host-command',
+				toolInput: 'pwd',
+				_meta: { toolKind: 'terminal' },
+				content: [{ type: ToolResultContentType.Terminal, resource: 'terminal:/opaque-command', title: 'pwd', isPty: false }],
+			});
+			const invocation = completedToolCallToSerialized(call, undefined, URI.parse('ahp-session:/opaque-session'), 'local');
+			assert.strictEqual(getToolGroupSummary([invocation], [], 1, extUri), 'Ran 1 command');
+		});
+
+		test('uses reported patch files instead of inferring paths from patch text', () => {
+			const resourceUris = createAgentHostResourceUriMapper('remote-test');
+			const session = URI.parse('ahp-session:/opaque-session');
+			const completed = createCompletedToolCall({
+				toolName: 'apply_patch',
+				toolInput: JSON.stringify({ patch: 'opaque patch content' }),
+				content: ['first.ts', 'second.ts'].map(name => ({
+					type: ToolResultContentType.FileEdit,
+					after: { uri: `file:///workspace/${name}`, content: { uri: `opaque-content:/${name}` } },
+				})),
+			});
+			const live = rawToolCallStateToInvocation(createToolCallState({ toolName: 'apply_patch' }), undefined, session, 'remote-test', undefined, undefined, resourceUris);
+			rawFinalizeToolInvocation(live, completed, session, 'remote-test', resourceUris);
+			const restored = completedToolCallToSerialized(completed, undefined, session, 'remote-test', resourceUris);
+			const expected = { kind: 'edit', resources: ['first.ts', 'second.ts'].map(name => ({ uri: resourceUris.fromAgentHost(URI.file(`/workspace/${name}`)) })) };
+			assert.deepStrictEqual({ live: live.summary, restored: restored.summary }, { live: expected, restored: expected });
+		});
 
 		test('keeps image prompt input and image identity while running and reconnecting', () => {
 			const imageGeneration = { requestedModel: { id: 'provider/image-preview', name: 'Image Preview' } };
