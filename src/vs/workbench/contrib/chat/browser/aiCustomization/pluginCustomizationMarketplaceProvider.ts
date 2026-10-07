@@ -37,6 +37,17 @@ export function getPluginCustomizationMarketplaceSourceId(reference: IMarketplac
 	return `${CustomizationMarketplaceSources.PluginMarketplaces.id}.${reference.canonicalId}`;
 }
 
+export function getPluginCustomizationMarketplaceSourceIdFromIdentifier(identifier: string): string | undefined {
+	try {
+		const value: unknown = JSON.parse(identifier);
+		return Array.isArray(value) && typeof value[0] === 'string'
+			? `${CustomizationMarketplaceSources.PluginMarketplaces.id}.${value[0]}`
+			: undefined;
+	} catch {
+		return undefined;
+	}
+}
+
 export function isPluginMarketplaceReferenceAvailableInDiscover(configurationService: IConfigurationService, reference: IMarketplacePlugin['marketplaceReference']): boolean {
 	return configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled) !== true ||
 		reference.canonicalId !== defaultMarketplaceId;

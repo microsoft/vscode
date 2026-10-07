@@ -47,7 +47,13 @@ export class PlatformCustomizationMarketplaceWorkbenchService implements ICustom
 
 export class CustomizationMarketplaceWorkbenchService implements ICustomizationMarketplaceService {
 	declare readonly _serviceBrand: undefined;
-	readonly allSources: ICustomizationMarketplaceService['sources'];
+	get allSources() {
+		return [
+			...getAllPluginCustomizationMarketplaceSourceInfos(this.pluginMarketplaceService),
+			...(this.platformService.allSources ?? this.platformService.sources),
+			CustomizationMarketplaceSources.CopilotConnectors,
+		];
+	}
 	readonly onDidChangeSources: Event<void>;
 	get sources() {
 		return [
@@ -66,11 +72,6 @@ export class CustomizationMarketplaceWorkbenchService implements ICustomizationM
 		@ICopilotConnectorsService private readonly copilotConnectorsService: ICopilotConnectorsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
-		this.allSources = [
-			...getAllPluginCustomizationMarketplaceSourceInfos(pluginMarketplaceService),
-			...(platformService.allSources ?? platformService.sources),
-			CustomizationMarketplaceSources.CopilotConnectors,
-		];
 		this.onDidChangeSources = Event.any(
 			pluginMarketplaceService.onDidChangeMarketplaces,
 			Event.filter(configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(ChatConfiguration.StrictMarketplaces)),
