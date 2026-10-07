@@ -6992,6 +6992,49 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('additional worktree creation refreshes a cached non-repository after external git init', async () => {
+			const perSession = createPerSessionDataService();
+			const repository = URI.file('/workspace/repository');
+			const worktree = URI.file('/workspace/repository.worktrees/task');
+			const handle = generateUuid();
+			let repositoryInitialized = false;
+			let cachedRoot: URI | undefined;
+			const gitService: IAgentHostGitService = {
+				...createNoopGitService(),
+				getRepositoryRoot: async (_directory, options) => {
+					if (options?.refreshIfNone) {
+						cachedRoot = repositoryInitialized ? repository : undefined;
+					}
+					return cachedRoot;
+				},
+				getWorktreeRoots: async () => [repository],
+				getDefaultBranch: async () => ({ name: 'main', startPoint: 'origin/main' }),
+			};
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, gitService));
+			const agent = disposables.add(new MockAgent('copilot', {
+				multipleWorkingDirectories: { immutablePrimary: true },
+			}));
+			registerTestAgentProvider(svc, agent);
+			const primary = URI.file('/workspace/primary');
+			const session = await svc.createSession({ provider: agent.id, workingDirectories: [primary] });
+			setTestAgentHostWorktreeIsolation(svc, createTestAgentHostWorktreeIsolation({
+				createDetachedWorktree: async () => ({ handle, worktree }),
+				claimDetachedWorktree: async () => { },
+			}));
+			await gitService.getRepositoryRoot(repository);
+			repositoryInitialized = true;
+
+			const added = await svc.addSessionWorkingDirectoryForChat(session, repository, { isolation: 'worktree', prompt: 'task' });
+
+			assert.deepStrictEqual({
+				added: added.toString(),
+				directories: getStateManager(svc).getSessionSummary(session.toString())?.workingDirectories,
+			}, {
+				added: worktree.toString(),
+				directories: [primary.toString(), worktree.toString()],
+			});
+		});
+
 		test('rolls back an additional worktree when it cannot be claimed', async () => {
 			const perSession = createPerSessionDataService();
 			const repository = URI.file('/workspace/repository');

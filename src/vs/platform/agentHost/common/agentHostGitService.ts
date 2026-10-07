@@ -234,7 +234,8 @@ export interface IAgentHostGitService {
 	getRefs(workingDirectory: URI, query?: IRefQuery): Promise<GitRef[]>;
 	getBranches(workingDirectory: URI, query?: IRefQuery): Promise<Branch[]>;
 	getBranch(workingDirectory: URI, name: string): Promise<Branch | undefined>;
-	getRepositoryRoot(workingDirectory: URI): Promise<URI | undefined>;
+	/** Caches roots and confirmed non-repositories; refreshIfNone retries only cached non-repositories. */
+	getRepositoryRoot(workingDirectory: URI, options?: { readonly refreshIfNone?: boolean }): Promise<URI | undefined>;
 	/** Returns worktree roots in Git's porcelain order, with the primary worktree first. */
 	getWorktreeRoots(workingDirectory: URI): Promise<URI[]>;
 	/**

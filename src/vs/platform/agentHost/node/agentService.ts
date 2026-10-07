@@ -7627,7 +7627,7 @@ export class AgentService extends Disposable implements IAgentService {
 				return this._attachSessionWorkingDirectoryForChat(session, directory);
 			}
 
-			const checkoutRoot = await this._gitService.getRepositoryRoot(directory);
+			const checkoutRoot = await this._gitService.getRepositoryRoot(directory, { refreshIfNone: true });
 			if (!checkoutRoot) {
 				throw new Error(`Cannot create an additional worktree because ${directory.toString()} is not in a Git repository.`);
 			}
