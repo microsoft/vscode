@@ -315,6 +315,61 @@ suite('AgentHostChangesetStrategy', () => {
 		assert.deepStrictEqual(publications, [ready([trackedDiff()])]);
 	});
 
+	for (const owner of ['default', 'peer'] as const) {
+		for (const workingDirectories of [['file:///repo'], ['file:///repo', 'file:///other']]) {
+			test(`subscription and background refreshes preserve an active ${owner} chat edit across ${workingDirectories.length} folder(s)`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const peer = buildChatUri(session, 'peer');
+				const peerDb = new TestSessionDatabase();
+				const fixture = createFixture({
+					workingDirectories,
+					peer: owner === 'peer' ? { resource: peer, db: peerDb, turnId: 'peer-turn' } : undefined,
+				});
+				await refresh(fixture);
+				const chat = owner === 'default' ? buildDefaultChatUri(session) : peer;
+				const activeTurnId = 'active-turn';
+				fixture.state.dispatchServerAction(chat, {
+					type: ActionType.ChatTurnStarted,
+					turnId: activeTurnId,
+					startedAt: '2026-09-01T00:00:01.000Z',
+					message: { text: 'Edit another file', origin: { kind: MessageKind.User } },
+				});
+				addEdit(owner === 'default' ? fixture.db : peerDb, '/repo/active.txt', activeTurnId, 'active-edit');
+				const published = nextPublication(fixture.state, sessionChangeset);
+				fixture.service.onToolCallEditsApplied(chat, activeTurnId);
+				await published;
+				const beforeRefresh = snapshot(fixture.state, sessionChangeset);
+
+				// First subscription and background Git-state refreshes both select auto.
+				await refresh(fixture);
+				const afterSubscribe = snapshot(fixture.state, sessionChangeset);
+				const backgroundPublished = nextPublication(fixture.state, sessionChangeset);
+				fixture.service.recomputeSubscribedChangesets(session);
+				await backgroundPublished;
+				const afterBackgroundRefresh = snapshot(fixture.state, sessionChangeset);
+				const activeState = {
+					id: fixture.state.getChatState(chat)?.activeTurn?.id,
+					completed: fixture.state.getChatState(chat)?.turns.map(turn => turn.id),
+				};
+
+				fixture.state.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: activeTurnId, duration: 1 });
+				const completedDiff: ISessionFileDiff = {
+					after: { uri: URI.file('/repo/active.txt').toString(), content: { uri: 'git:/active.txt' } },
+					diff: { added: 1, removed: 0 },
+				};
+				fixture.results.git = [completedDiff, gitOnlyDiff];
+				await refresh(fixture);
+				const expectedActive = ready([trackedDiff('/repo/active.txt', owner === 'default' ? session : peer, 'active-edit')]);
+				assert.deepStrictEqual({ beforeRefresh, afterSubscribe, afterBackgroundRefresh, activeState, afterCompletion: snapshot(fixture.state, sessionChangeset) }, {
+					beforeRefresh: expectedActive,
+					afterSubscribe: expectedActive,
+					afterBackgroundRefresh: expectedActive,
+					activeState: { id: activeTurnId, completed: [owner === 'default' ? turnId : 'peer-turn'] },
+					afterCompletion: ready([completedDiff, gitOnlyDiff]),
+				});
+			}));
+		}
+	}
+
 	for (const strategies of [
 		['git', 'fileEditTracker'],
 		['fileEditTracker', 'git'],
@@ -377,6 +432,33 @@ suite('AgentHostChangesetStrategy', () => {
 			beforeRelease: { publications: [], trackerReads: 0 },
 			publications: [ready([gitOnlyDiff]), ready([trackedDiff()]), ready([gitOnlyDiff])],
 		});
+	});
+
+	test('an auto refresh queued before a turn starts uses the active turn edits', async () => {
+		const fixture = createFixture();
+		const started = new DeferredPromise<void>();
+		const release = new DeferredPromise<void>();
+		const computeGit = fixture.git.computeFileDiffsBetweenRefs;
+		fixture.git.computeFileDiffsBetweenRefs = async (directory, refs) => {
+			void started.complete();
+			await release.p;
+			return computeGit(directory, refs);
+		};
+		const { publications, done } = recordSessionPublications(fixture, 2);
+		fixture.service.refreshSessionChangeset(session, 'git');
+		await started.p;
+		fixture.service.refreshSessionChangeset(session);
+		fixture.state.dispatchServerAction(buildDefaultChatUri(session), {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'active-turn',
+			startedAt: '2026-09-01T00:00:01.000Z',
+			message: { text: 'Edit another file', origin: { kind: MessageKind.User } },
+		});
+		addEdit(fixture.db, '/repo/active.txt', 'active-turn', 'active-edit');
+		await release.complete();
+		await done;
+
+		assert.deepStrictEqual(publications, [ready([gitOnlyDiff]), ready([trackedDiff('/repo/active.txt', session, 'active-edit')])]);
 	});
 
 	test('removing an owner cancels all queued strategies', async () => {

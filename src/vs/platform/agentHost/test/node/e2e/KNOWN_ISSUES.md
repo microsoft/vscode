@@ -125,7 +125,7 @@ Responses are correct, but session notifications intermittently differ from the 
 
 The session's combined changes could lose shell edits when a late Git-state or subscription refresh replaced its checkpoint-backed result with tracked file edits. A deterministic Linux reproduction confirms that both files remain on disk while the changeset becomes empty. See [#338153](https://github.com/microsoft/vscode/issues/338153).
 
-- Session-wide refreshes now use Git checkpoints with tracked-edit fallback. The regression in `session changeset aggregates provider edits from default and peer chats` verifies the actual file contents and resubscribes after both edits have appeared.
+- Idle session-wide refreshes now use Git checkpoints with tracked-edit fallback; automatic refreshes use tracked edits while any chat has an active turn. The regression in `session changeset aggregates provider edits from default and peer chats` verifies the actual file contents and resubscribes after both edits have appeared.
 - Gate: Codex/Windows only in `changesetSuite.ts`. Re-enable after repeated clean Windows runs include both chats' edits after resubscription; keep the issue open until then.
 
 ```bat

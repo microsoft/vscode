@@ -1749,6 +1749,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		const changesetUri = staticChangesetUri(session, kind);
 		const stopWatch = StopWatch.create();
 		const summarySession = containingSessionUri(session);
+		// Completed checkpoints cannot include edits from an active turn. Check
+		// all chats when the queued computation starts so auto keeps live edits.
+		const useActiveTurnEdits = strategy === 'auto' && this._stateManager.hasActiveTurn(summarySession);
 		const summaryKind = getSummaryChangesetKind(this._stateManager.getSessionState(summarySession)?.config?.values);
 		const workingDirectories = kind === 'session' && !isAhpChatChannel(session)
 			? this._getSessionSummaryWorkingDirectories(session)
@@ -1827,7 +1830,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			} else if (kind === 'branch') {
 				branchResult = await this._computeBranchDiffs(session, ref.object, workingDirectories?.[0]);
 				diffs = branchResult.kind === 'ready' ? branchResult.diffs : undefined;
-			} else if (strategy !== 'fileEditTracker') {
+			} else if (strategy !== 'fileEditTracker' && !useActiveTurnEdits) {
 				if (isMultiRootSession(workingDirectories)) {
 					const result = await this._computeMultiFolderSessionDiffs(session, ref.object, workingDirectories!, strategy);
 					diffs = result.diffs;
@@ -1859,7 +1862,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				}
 				usedEditTrackerFallback = strategy === 'auto';
 				const folderScope = this._getTrackedEditFolderScope(session, workingDirectories);
-				const peerSources = isAhpChatChannel(session) ? [] : this._openPeerChatSources(session, strategy === 'fileEditTracker');
+				const peerSources = isAhpChatChannel(session) ? [] : this._openPeerChatSources(session, strategy === 'fileEditTracker' || useActiveTurnEdits);
 				try {
 					if (peerSources.length > 0) {
 						const sources: ISessionDiffSource[] = [
