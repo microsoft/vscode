@@ -324,8 +324,7 @@
     "es5-ext": false,
     "husky": false,
     "@vscode/windows-ca-certs@0.3.4": true,
-    "@vscode/windows-process-tree@0.8.0": true,
-    "node-pty@1.1.0": true
+    "@vscode/windows-process-tree@0.8.0": true
   },
   "copilotRuntimeVersion": "1.0.93-2"
 }
