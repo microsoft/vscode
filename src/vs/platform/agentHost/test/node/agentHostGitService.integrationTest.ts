@@ -206,12 +206,11 @@ suite('AgentHostGitService - getRepositoryRoot (real git)', () => {
 	});
 
 	(hasGit ? test : test.skip)('uncached descendants observe a known ancestor root without another probe', async () => {
-		const descendant = URI.file(join(tmpRoot, 'src', 'nested'));
+		const repositoryRoot = URI.file(initRepository(tmpRoot));
+		const descendant = URI.joinPath(repositoryRoot, 'src', 'nested');
 		const availability = service.hasGitRoot(descendant);
 		const values: (boolean | undefined)[] = [];
 		disposables.add(autorun(reader => { values.push(availability.read(reader)); }));
-		initRepository(tmpRoot);
-
 		await service.getRepositoryRoot(URI.file(tmpRoot));
 
 		assert.deepStrictEqual({ values, lookups: logService.repositoryRootLookups }, { values: [undefined, true], lookups: 1 });
@@ -224,9 +223,9 @@ suite('AgentHostGitService - getRepositoryRoot (real git)', () => {
 	});
 
 	(hasGit ? test : test.skip)('an exact non-worktree result takes precedence over an inferred ancestor root', async () => {
-		initRepository(tmpRoot);
+		const repositoryRoot = URI.file(initRepository(tmpRoot));
 		await service.getRepositoryRoot(URI.file(tmpRoot));
-		const gitDirectory = URI.file(join(tmpRoot, '.git'));
+		const gitDirectory = URI.joinPath(repositoryRoot, '.git');
 		const before = service.hasGitRoot(gitDirectory).get();
 		await service.getRepositoryRoot(gitDirectory);
 
