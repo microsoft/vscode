@@ -570,20 +570,23 @@ export class TabbedModelPicker extends Disposable {
 				},
 			});
 		}
-		actions.push({
-			id: 'search',
-			icon: Codicon.search,
-			tooltip: localize('chat.modelPicker.searchToggle', "Search Models"),
-			alignEnd: true,
-			checked: this._searchVisible,
-			run: () => {
-				this._searchVisible = !this._searchVisible;
-				if (this._searchVisible) {
-					context.onDidSearch();
-				}
-				this._showCurrent();
-			},
-		});
+		// With no models there is nothing to search, only the reason shown in their place.
+		if (context.models.length) {
+			actions.push({
+				id: 'search',
+				icon: Codicon.search,
+				tooltip: localize('chat.modelPicker.searchToggle', "Search Models"),
+				alignEnd: true,
+				checked: this._searchVisible,
+				run: () => {
+					this._searchVisible = !this._searchVisible;
+					if (this._searchVisible) {
+						context.onDidSearch();
+					}
+					this._showCurrent();
+				},
+			});
+		}
 		return actions;
 	}
 

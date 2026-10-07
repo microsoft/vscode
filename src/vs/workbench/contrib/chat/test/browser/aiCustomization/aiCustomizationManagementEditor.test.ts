@@ -223,7 +223,7 @@ suite('aiCustomizationManagementEditor', () => {
 		markdownRendererService: { render(markdown: { value: string }): { element: HTMLElement; dispose(): void } };
 		editorPreviewDisposables: DisposableStore;
 		editorPreviewRenderScheduler: { cancel(): void; schedule(): void };
-		viewMode: 'list' | 'migration' | 'editor' | 'mcpDetail' | 'pluginDetail' | 'toolsDetail';
+		viewMode: 'list' | 'migration' | 'editor' | 'marketplaceDetail' | 'mcpDetail' | 'connectorDetail' | 'pluginDetail';
 		mcpDetailInput: IMcpServerDetailInput | undefined;
 		embeddedMcpDetail: { setMigratable(migratable: boolean): void } | undefined;
 		refreshMcpDetailMigrationState(): void;
@@ -312,6 +312,14 @@ suite('aiCustomizationManagementEditor', () => {
 		rebuildVisibleSections(): void;
 		updateContributedSectionEnablement(): void;
 		setVisible(visible: boolean): void;
+		editorGroupsService: {
+			activeModalEditorPart: {
+				groups: readonly { id: number }[];
+				close(): Promise<boolean>;
+			} | undefined;
+		};
+		group: { id: number };
+		closeCustomizationEditor(): Promise<boolean>;
 	};
 
 	type MutableConfigurationInspection = {
@@ -462,6 +470,31 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.setVisible(false);
 		return editor;
 	}
+
+	test('closes the modal editor part before leaving Customizations', async () => {
+		const calls: string[] = [];
+		const editor = createTestEditor();
+		store.add(editor.editorPreviewDisposables);
+		Object.defineProperty(editor, 'group', {
+			value: { id: 7 },
+		});
+		editor.editorGroupsService = {
+			activeModalEditorPart: {
+				groups: [{ id: 7 }, { id: 8 }],
+				close: async () => {
+					calls.push('modal');
+					return true;
+				},
+			},
+		};
+
+		const modalResult = await editor.closeCustomizationEditor();
+
+		assert.deepStrictEqual({ modalResult, calls }, {
+			modalResult: true,
+			calls: ['modal'],
+		});
+	});
 
 	function createContributedSectionEditor(enablementSettings?: readonly string[]) {
 		const editor = createTestEditor();
@@ -858,7 +891,7 @@ suite('aiCustomizationManagementEditor', () => {
 		const hidden = readVisibility();
 		editor.setVisible(true);
 		const visible = readVisibility();
-		const detailModes = ['editor', 'migration', 'mcpDetail', 'pluginDetail', 'toolsDetail'] as const;
+		const detailModes = ['editor', 'migration', 'mcpDetail', 'pluginDetail'] as const;
 		const hiddenInDetails = detailModes.map(mode => {
 			editor.viewMode = mode;
 			editor.updateContentVisibility();

@@ -1718,6 +1718,48 @@ suite('stateToProgressAdapter', () => {
 		});
 	});
 
+	suite('MCP App results', () => {
+		const textContent = [{ type: ToolResultContentType.Text, text: 'Opened the accent-color editor.' }] satisfies ToolResultContent[];
+		for (const toolInput of ['{}', undefined]) {
+			for (const content of [textContent, []]) {
+				for (const structuredContent of [{ titleId: 'example-title', branding: null }, {}, undefined]) {
+					for (const success of [true, false]) {
+						test(`preserves live and restored results (input=${toolInput}, text=${content.length > 0}, structured=${JSON.stringify(structuredContent)}, success=${success})`, () => {
+							const backendSession = URI.parse('other-host:/opaque-session');
+							const running = createToolCallState({
+								toolInput,
+								contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'remote-server' },
+								_meta: { ui: { resourceUri: 'ui://remote/app', channel: 'mcp://other-host/opaque-channel' } },
+							});
+							const completed = createCompletedToolCall({
+								...running,
+								status: ToolCallStatus.Completed,
+								success,
+								content,
+								structuredContent,
+							});
+							const live = rawToolCallStateToInvocation(running, undefined, backendSession, 'other-host');
+							rawFinalizeToolInvocation(live, completed, backendSession, 'other-host');
+							const restored = completedToolCallToSerialized(completed, undefined, backendSession, 'other-host');
+							const expected = content.length === 0 && structuredContent === undefined && success
+								? undefined
+								: {
+									content: content.map(block => ({ type: 'text', text: block.text })),
+									...(structuredContent !== undefined ? { structuredContent } : {}),
+									isError: success ? undefined : true,
+								};
+							assert.deepStrictEqual([live, restored].map(part => {
+								const details = part.kind === 'toolInvocation' ? IChatToolInvocation.resultDetails(part) : part.resultDetails;
+								assert.ok(isToolResultInputOutputDetails(details));
+								return details.mcpOutput;
+							}), [expected, expected]);
+						});
+					}
+				}
+			}
+		}
+	});
+
 	suite('image generation', () => {
 		test('preserves metadata-only image failure details and classification in live and restored state', () => {
 			const backendSession = URI.parse('other-host:/opaque-image-session');
