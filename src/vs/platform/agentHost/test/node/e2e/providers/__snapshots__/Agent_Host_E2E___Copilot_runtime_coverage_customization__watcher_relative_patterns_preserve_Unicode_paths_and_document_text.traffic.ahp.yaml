@@ -14,7 +14,7 @@ rounds:
           type: chat/turnStarted
           turnId: ${turn_1}
           message:
-            text: 'The workspace is ${workdir}. Call lsp exactly once with these parameters: {"operation":"hover","line":1,"character":1}. Set the file parameter to this exact absolute path: ${workdir}/watched space Ω\café😀.rtlang. Do not call other tools. After the tool finishes, reply exactly RUNTIME_LSP_DONE.'
+            text: 'The workspace is ${workdir}. Call lsp exactly once with these parameters: {"operation":"hover","line":1,"character":1}. Set the file parameter to this exact absolute path: ${workdir}/watched space Ω/café😀.rtlang. Do not call other tools. After the tool finishes, reply exactly RUNTIME_LSP_DONE.'
             origin:
               kind: user
     serverToClient:
@@ -68,7 +68,7 @@ rounds:
           type: chat/turnStarted
           turnId: ${turn_1}
           message:
-            text: 'The workspace is ${workdir}. Call lsp exactly once with these parameters: {"operation":"hover","line":1,"character":1}. Set the file parameter to this exact absolute path: ${workdir}/watched space Ω\café😀.rtlang. Do not call other tools. After the tool finishes, reply exactly RUNTIME_LSP_DONE.'
+            text: 'The workspace is ${workdir}. Call lsp exactly once with these parameters: {"operation":"hover","line":1,"character":1}. Set the file parameter to this exact absolute path: ${workdir}/watched space Ω/café😀.rtlang. Do not call other tools. After the tool finishes, reply exactly RUNTIME_LSP_DONE.'
             origin:
               kind: user
       - channel: ${chat_0}

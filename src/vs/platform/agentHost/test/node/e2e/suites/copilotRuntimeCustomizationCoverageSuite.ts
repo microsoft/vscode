@@ -318,7 +318,7 @@ export function defineCopilotRuntimeCustomizationCoverageTests(context: IAgentHo
 	}
 
 	function fixtureRoot(): { root: string; workspace: string; plugin: string } {
-		const root = realpathSync(mkdtempSync(join(tmpdir(), 'ahp-coverage-runtime-customization-')));
+		const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'ahp-coverage-runtime-customization-')));
 		context.tempDirs.push(root);
 		const workspace = join(root, 'workspace');
 		const plugin = join(root, 'plugin');
@@ -439,6 +439,18 @@ export function defineCopilotRuntimeCustomizationCoverageTests(context: IAgentHo
 		truncateSync(file, Buffer.byteLength(content));
 	}
 
+	function removeWatchedFile(fixture: Awaited<ReturnType<typeof lspFixture>>, file: string): void {
+		if (process.platform === 'darwin') {
+			// Move out of the watched root so FSEvents cannot coalesce unlink with a metadata change.
+			const retired = join(fixture.plugin, `${basename(file)}.removed`);
+			renameSync(file, retired);
+			rmSync(retired);
+		} else {
+			rmSync(file);
+		}
+		assert.strictEqual(existsSync(file), false);
+	}
+
 	async function runLsp(fixture: Awaited<ReturnType<typeof lspFixture>>, input: ILspInput, expected: readonly RegExp[], success = true, turnId = 'runtime-lsp', clientSeq = 2): Promise<void> {
 		const { file, ...parameters } = input;
 		const fileInstruction = file ? `Set the file parameter to this exact absolute path: ${join(fixture.workspace, file)}. ` : '';
@@ -464,7 +476,7 @@ export function defineCopilotRuntimeCustomizationCoverageTests(context: IAgentHo
 			assert.notStrictEqual(parent, ancestor);
 			ancestor = parent;
 		}
-		const canonical = join(realpathSync(ancestor), ...suffix);
+		const canonical = join(realpathSync.native(ancestor), ...suffix);
 		return context.isWindows ? canonical.toLowerCase() : canonical;
 	}
 
@@ -558,14 +570,14 @@ export function defineCopilotRuntimeCustomizationCoverageTests(context: IAgentHo
 		const trace = messages(fixture.trace);
 		const spawned = trace.find(message => message.event === 'spawn')!;
 		assert.deepStrictEqual({
-			cwd: realpathSync(spawned.cwd!),
+			cwd: canonicalFilePath(spawned.cwd!),
 			marker: spawned.environment?.marker,
 			fallback: spawned.environment?.fallback,
-			workspace: realpathSync(spawned.environment!.workspace),
+			workspace: canonicalFilePath(spawned.environment!.workspace),
 			pluginRootHasServer: readFileSync(join(spawned.environment!.pluginRoot, 'server.cjs'), 'utf8') === lspServer,
 			options: trace.find(message => message.method === 'initialize')?.params?.initializationOptions,
 		}, {
-			cwd: realpathSync(fixture.workspace), marker: 'RUNTIME_ENV_OK', fallback: 'RUNTIME_DEFAULT_OK', workspace: realpathSync(fixture.workspace),
+			cwd: canonicalFilePath(fixture.workspace), marker: 'RUNTIME_ENV_OK', fallback: 'RUNTIME_DEFAULT_OK', workspace: canonicalFilePath(fixture.workspace),
 			pluginRootHasServer: true, options: { scenario: 'normal', marker: 'RUNTIME_INITIALIZATION_OK' },
 		});
 	});
@@ -699,7 +711,7 @@ export function defineCopilotRuntimeCustomizationCoverageTests(context: IAgentHo
 		// Separate paths prevent FSEvents from coalescing a short-lived file's create and delete.
 		await mutateWatchedFile(fixture, created, 1, () => writeFileSync(created, 'RUNTIME_WATCH_CREATED\n'));
 		await mutateWatchedFile(fixture, changed, 2, () => overwriteFile(changed, 'RUNTIME_WATCH_CHANGED\n'));
-		await mutateWatchedFile(fixture, deleted, 3, () => rmSync(deleted));
+		await mutateWatchedFile(fixture, deleted, 3, () => removeWatchedFile(fixture, deleted));
 		const trace = messages(fixture.trace);
 		const acknowledgement = trace.findIndex(message => message.id === 'runtime-watch-1' && message.direction === 'clientToServer');
 		const notification = trace.findIndex(message => message.method === 'workspace/didChangeWatchedFiles');
@@ -759,7 +771,7 @@ export function defineCopilotRuntimeCustomizationCoverageTests(context: IAgentHo
 		const deleted = join(fixture.workspace, 'reference.rtlang');
 		await mutateWatchedFile(fixture, created, 1, () => writeFileSync(created, 'RUNTIME_WATCH_MASK_CREATED\n'));
 		await mutateWatchedFile(fixture, changed, 2, () => overwriteFile(changed, 'RUNTIME_WATCH_MASK_CHANGED\n'));
-		await mutateWatchedFile(fixture, deleted, 3, () => rmSync(deleted));
+		await mutateWatchedFile(fixture, deleted, 3, () => removeWatchedFile(fixture, deleted));
 		await runLsp(fixture, { operation: 'hover', file: 'fixture.rtlang', line: 1, character: 4 }, [/RUNTIME_WATCH_READY/], true, 'watch-mask-complete', 300);
 		assert.strictEqual(messages(fixture.trace).filter(message => message.event === 'spawn').length, 1);
 	});

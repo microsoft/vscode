@@ -5,6 +5,7 @@
 
 import { createRequire } from 'module';
 import { readFileSync, realpathSync, writeFileSync } from 'fs';
+import { getErrorCode } from '../../../../../../base/common/errors.js';
 import { FileAccess } from '../../../../../../base/common/network.js';
 import { dirname, win32 } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -637,34 +638,39 @@ function normalizeSnapshotValue(value: unknown, normalization: IAhpSnapshotNorma
 	return value;
 }
 
-function normalizeSnapshotText(value: string, normalization: IAhpSnapshotNormalization): string {
-	const workDirs = new Set([normalization.workingDirectory]);
+function workspaceDirectories(workingDirectory: string): readonly string[] {
+	const workDirs = new Set([workingDirectory]);
 	try {
-		workDirs.add(realpathSync.native(normalization.workingDirectory));
-	} catch {
+		workDirs.add(realpathSync.native(workingDirectory));
+	} catch (error) {
 		// The workspace can be deleted during teardown after the traffic was captured.
+		if (getErrorCode(error) !== 'ENOENT') {
+			throw error;
+		}
 	}
+	return [...workDirs].sort((a, b) => b.length - a.length);
+}
+
+/** Normalizes workspace spelling while retaining relative paths in snapshots and tool-result assertions. */
+export function normalizeWorkspacePaths(value: string, workingDirectory: string): string {
 	let normalized = value;
-	// Line endings first, so every line-anchored pattern below sees LF-only
-	// text. Windows produces CRLF for the same behavior a POSIX host reports
-	// with LF, which would otherwise fail a snapshot recorded on macOS/Linux
-	// for a reason unrelated to the behavior under test. The escaped form is
-	// normalized too because tool inputs are often embedded JSON, where the
-	// carriage return survives as a literal `\r` escape rather than a control
-	// character.
-	normalized = normalized.replaceAll('\r\n', '\n').replaceAll('\\r\\n', '\\n');
-	for (const workDir of [...workDirs].sort((a, b) => b.length - a.length)) {
+	for (const workDir of workspaceDirectories(workingDirectory)) {
 		const paths = new Set([workDir, workDir.replaceAll('\\', '/'), URI.file(workDir).toString()]);
 		for (const path of [...paths]) {
 			paths.add(JSON.stringify(path).slice(1, -1));
 		}
 		for (const path of [...paths].sort((a, b) => b.length - a.length)) {
-			normalized = win32.isAbsolute(workDir)
+			normalized = /^(?:[a-z]:[\\/]|\\\\)/i.test(workDir)
 				? normalized.replace(new RegExp(escapeRegExpCharacters(path), 'gi'), '${workdir}')
 				: normalized.replaceAll(path, '${workdir}');
 		}
 	}
-	normalized = normalized.replace(/\$\{workdir\}(?:[\\/][^\s"'`]*)?/g, path => path.replace(/\\+/g, '/'));
+	return normalized.replace(/\$\{workdir\}(?:[\\/](?:(?![.,;:]\s)[^\r\n"'`])*)?/g, path => path.replace(/\\+/g, '/'));
+}
+
+function normalizeSnapshotText(value: string, normalization: IAhpSnapshotNormalization): string {
+	const workDirs = workspaceDirectories(normalization.workingDirectory);
+	let normalized = normalizeWorkspacePaths(value.replaceAll('\r\n', '\n').replaceAll('\\r\\n', '\\n'), normalization.workingDirectory);
 	normalized = normalized.replaceAll('/private${workdir}', '${workdir}');
 	const tempRoots = new Set([...workDirs].flatMap(workDir => [dirname(workDir), win32.dirname(workDir)]).filter(root => root !== '.'));
 	for (const tempRoot of tempRoots) {

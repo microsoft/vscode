@@ -33,7 +33,6 @@ exchanges:
             </tagged_files>
         - role: assistant
           content:
-            - type: thinking
             - type: tool_use
               name: view
               input:
@@ -59,7 +58,6 @@ exchanges:
             </tagged_files>
         - role: assistant
           content:
-            - type: thinking
             - type: tool_use
               name: view
               input:
@@ -202,49 +200,63 @@ exchanges:
             ---
 
             Please write the summary now, following the structure and guidelines above. Be concise where possible, but don't sacrifice important context for brevity.
+
+            Tools are unavailable in this step, so do not call any tools, even if other instructions say to call one before responding: respond only with the summary text.
     response:
       content: |-
         <overview>
-        The user asked me to read an attached routing note (a read-only snapshot file) that names a workspace text file to be read later during a "verification request," explicitly instructing me not to read the target file yet and not to use shell tools. I read only the routing note as instructed and confirmed readiness without taking further action.
+        The user attached a read-only routing note file and instructed me to read it (without reading any further target file) to learn the name of a workspace text file that would be referenced in a later "verification request." I was explicitly told not to use shell tools and to reply exactly "READY" after reading the note. No broader coding task has been defined yet; this is a staged, multi-step instruction-following exercise.
         </overview>
 
         <history>
-        1. The user attached a file (embedded-routing.txt) and asked me to read it, noting it names a workspace text file to read on a later verification request, with explicit instructions: do not read the target yet, do not use shell tools, and reply exactly "READY".
-           - I used the `view` tool to read the attachment file at `${homedir}/user-data/agentSessionData/${uuid_0}/attachments/${uuid_1}/embedded-routing.txt`.
+        1. The user asked me to read an attached routing note (embedded-routing.txt) that names a target text file to be used in a later verification request, explicitly instructing me NOT to read the target file yet, NOT to use shell tools, and to reply with exactly the word "READY".
+           - I used the `view` tool to read the attached file at `${homedir}/user-data/agentSessionData/${uuid_0}/attachments/${uuid_1}/embedded-routing.txt`.
            - The file content was: "The verification target is embedded-target.txt."
-           - I replied exactly "READY" as instructed, without reading the target file or using any shell tools.
+           - I replied exactly "READY" as instructed, without reading or referencing embedded-target.txt further.
+
+        2. The user then requested a detailed summary of the conversation for compaction purposes (the current request), instructing me not to use any tools in this step.
+           - I am producing this structured summary now.
         </history>
 
         <work_done>
-        No code, file, or repository changes were made. This was a read-only informational task.
+        No code, files, or workspace content were created or modified. This was a read-only, instruction-following task.
 
-        Completed:
-        - [x] Read the routing note attachment (embedded-routing.txt) via the `view` tool.
-        - [x] Identified the named target file: `embedded-target.txt` (not yet located or read — only the filename is known, no path confirmed).
-        - [x] Replied "READY" exactly as instructed.
+        Tasks completed:
+        - [x] Read the attached routing note file via `view`.
+        - [x] Extracted the key fact: the verification target filename is `embedded-target.txt`.
+        - [x] Did NOT read `embedded-target.txt` (per instructions).
+        - [x] Did NOT use any shell/powershell tools.
+        - [x] Replied exactly "READY".
 
-        Not done (intentionally, per instructions):
-        - [ ] Have not read `embedded-target.txt` — waiting for the user's later "verification request" to do so.
+        Nothing is in progress; the task as defined so far is complete. The next action is expected to be a "later verification request" from the user, at which point I should recall that the target file is named `embedded-target.txt` and act accordingly (likely locating and reading it within the workspace, pending further instructions).
         </work_done>
 
         <technical_details>
-        - The attachment `embedded-routing.txt` is a read-only snapshot (per system_reminder) and must not be edited.
-        - The routing note's sole content reveals the name of a target file to read later: `embedded-target.txt`. Its full path/location within the workspace is not yet known — I only have the bare filename at this point.
-        - Explicit constraints given by the user that must be honored going forward: do not read the target file until a later explicit "verification request" is made, and do not use shell tools for this task (use `view`/other appropriate tools instead).
-        - No shell commands were run in this segment, consistent with instructions.
+        - The routing note is an attachment (read-only snapshot), explicitly marked via a system reminder as not to be edited.
+        - Key extracted fact (must be retained for future turns): **the verification target file name is `embedded-target.txt`**.
+        - The exact location of `embedded-target.txt` in the workspace is unknown — it was not searched for, per instructions to not read the target yet. When the "later verification request" arrives, I will likely need to locate this file (e.g., via `glob` or `grep`) before reading it with `view`.
+        - Constraint honored: no shell tools were used for this step; only the `view` tool was used to read the attachment.
+        - Open question: what the "later verification request" will actually ask me to do with `embedded-target.txt` (e.g., read its contents, verify a claim, answer a question based on it). I have no information yet about its content or purpose beyond the filename.
         </technical_details>
 
         <important_files>
         - `${homedir}/user-data/agentSessionData/${uuid_0}/attachments/${uuid_1}/embedded-routing.txt`
-          - The routing note; already read. Contains the single line identifying the verification target filename (`embedded-target.txt`). Read-only, must not be edited.
-        - `embedded-target.txt` (exact path unknown/unconfirmed)
-          - This is the file named by the routing note as the eventual verification target. It must NOT be read until the user issues an explicit later "verification request." Its location within the workspace has not yet been determined — will need to locate it (e.g., via `glob`/`view`) once that request arrives.
+          - This is the routing note I was instructed to read; it is a read-only attachment and must not be edited.
+          - Content: "The verification target is embedded-target.txt."
+          - Already read in full; no further action needed on this file unless re-verification is requested.
+        - `embedded-target.txt` (location in workspace unknown/unresolved)
+          - This is the actual verification target named by the routing note.
+          - Per explicit instruction, I have NOT read this file yet and must wait for a later "verification request" from the user before doing so.
         </important_files>
 
         <next_steps>
-        - Wait for the user's explicit "verification request" before taking any further action.
-        - When that request arrives, locate `embedded-target.txt` within the workspace (not the attachments/temp folder) and read it using the `view` tool (shell tools still should be avoided unless newly instructed otherwise).
-        - Do not proactively read or search for the target file before the verification request is made.
+        Remaining work:
+        - Await the user's "later verification request."
+        - When it arrives, locate `embedded-target.txt` in the workspace (likely via `glob` since exact path is unknown) and read its contents with `view` as needed to fulfill whatever the verification request asks.
+        - Do not re-read or act on `embedded-routing.txt` further unless explicitly asked again.
+
+        Immediate next steps:
+        - No action needed until the user issues the verification request referencing `embedded-target.txt`.
         </next_steps>
 
         <checkpoint_title>Reading routing note, awaiting verification</checkpoint_title>
@@ -257,7 +269,7 @@ exchanges:
           content:
             - type: text
               text: |-
-                Some of the conversation history has been summarized to free up context.
+                The conversation history has been summarized to free up context.
 
                 You were originally given instructions from a user over one or more turns. Here were the user messages:
                 <user_message>
@@ -267,46 +279,58 @@ exchanges:
                 Here is a summary of the prior context:
                 <summary>
                 <overview>
-                The user asked me to read an attached routing note (a read-only snapshot file) that names a workspace text file to be read later during a "verification request," explicitly instructing me not to read the target file yet and not to use shell tools. I read only the routing note as instructed and confirmed readiness without taking further action.
+                The user attached a read-only routing note file and instructed me to read it (without reading any further target file) to learn the name of a workspace text file that would be referenced in a later "verification request." I was explicitly told not to use shell tools and to reply exactly "READY" after reading the note. No broader coding task has been defined yet; this is a staged, multi-step instruction-following exercise.
                 </overview>
 
                 <history>
-                1. The user attached a file (embedded-routing.txt) and asked me to read it, noting it names a workspace text file to read on a later verification request, with explicit instructions: do not read the target yet, do not use shell tools, and reply exactly "READY".
-                   - I used the `view` tool to read the attachment file at `${homedir}/user-data/agentSessionData/${uuid_0}/attachments/${uuid_1}/embedded-routing.txt`.
+                1. The user asked me to read an attached routing note (embedded-routing.txt) that names a target text file to be used in a later verification request, explicitly instructing me NOT to read the target file yet, NOT to use shell tools, and to reply with exactly the word "READY".
+                   - I used the `view` tool to read the attached file at `${homedir}/user-data/agentSessionData/${uuid_0}/attachments/${uuid_1}/embedded-routing.txt`.
                    - The file content was: "The verification target is embedded-target.txt."
-                   - I replied exactly "READY" as instructed, without reading the target file or using any shell tools.
+                   - I replied exactly "READY" as instructed, without reading or referencing embedded-target.txt further.
+
+                2. The user then requested a detailed summary of the conversation for compaction purposes (the current request), instructing me not to use any tools in this step.
+                   - I am producing this structured summary now.
                 </history>
 
                 <work_done>
-                No code, file, or repository changes were made. This was a read-only informational task.
+                No code, files, or workspace content were created or modified. This was a read-only, instruction-following task.
 
-                Completed:
-                - [x] Read the routing note attachment (embedded-routing.txt) via the `view` tool.
-                - [x] Identified the named target file: `embedded-target.txt` (not yet located or read — only the filename is known, no path confirmed).
-                - [x] Replied "READY" exactly as instructed.
+                Tasks completed:
+                - [x] Read the attached routing note file via `view`.
+                - [x] Extracted the key fact: the verification target filename is `embedded-target.txt`.
+                - [x] Did NOT read `embedded-target.txt` (per instructions).
+                - [x] Did NOT use any shell/powershell tools.
+                - [x] Replied exactly "READY".
 
-                Not done (intentionally, per instructions):
-                - [ ] Have not read `embedded-target.txt` — waiting for the user's later "verification request" to do so.
+                Nothing is in progress; the task as defined so far is complete. The next action is expected to be a "later verification request" from the user, at which point I should recall that the target file is named `embedded-target.txt` and act accordingly (likely locating and reading it within the workspace, pending further instructions).
                 </work_done>
 
                 <technical_details>
-                - The attachment `embedded-routing.txt` is a read-only snapshot (per system_reminder) and must not be edited.
-                - The routing note's sole content reveals the name of a target file to read later: `embedded-target.txt`. Its full path/location within the workspace is not yet known — I only have the bare filename at this point.
-                - Explicit constraints given by the user that must be honored going forward: do not read the target file until a later explicit "verification request" is made, and do not use shell tools for this task (use `view`/other appropriate tools instead).
-                - No shell commands were run in this segment, consistent with instructions.
+                - The routing note is an attachment (read-only snapshot), explicitly marked via a system reminder as not to be edited.
+                - Key extracted fact (must be retained for future turns): **the verification target file name is `embedded-target.txt`**.
+                - The exact location of `embedded-target.txt` in the workspace is unknown — it was not searched for, per instructions to not read the target yet. When the "later verification request" arrives, I will likely need to locate this file (e.g., via `glob` or `grep`) before reading it with `view`.
+                - Constraint honored: no shell tools were used for this step; only the `view` tool was used to read the attachment.
+                - Open question: what the "later verification request" will actually ask me to do with `embedded-target.txt` (e.g., read its contents, verify a claim, answer a question based on it). I have no information yet about its content or purpose beyond the filename.
                 </technical_details>
 
                 <important_files>
                 - `${homedir}/user-data/agentSessionData/${uuid_0}/attachments/${uuid_1}/embedded-routing.txt`
-                  - The routing note; already read. Contains the single line identifying the verification target filename (`embedded-target.txt`). Read-only, must not be edited.
-                - `embedded-target.txt` (exact path unknown/unconfirmed)
-                  - This is the file named by the routing note as the eventual verification target. It must NOT be read until the user issues an explicit later "verification request." Its location within the workspace has not yet been determined — will need to locate it (e.g., via `glob`/`view`) once that request arrives.
+                  - This is the routing note I was instructed to read; it is a read-only attachment and must not be edited.
+                  - Content: "The verification target is embedded-target.txt."
+                  - Already read in full; no further action needed on this file unless re-verification is requested.
+                - `embedded-target.txt` (location in workspace unknown/unresolved)
+                  - This is the actual verification target named by the routing note.
+                  - Per explicit instruction, I have NOT read this file yet and must wait for a later "verification request" from the user before doing so.
                 </important_files>
 
                 <next_steps>
-                - Wait for the user's explicit "verification request" before taking any further action.
-                - When that request arrives, locate `embedded-target.txt` within the workspace (not the attachments/temp folder) and read it using the `view` tool (shell tools still should be avoided unless newly instructed otherwise).
-                - Do not proactively read or search for the target file before the verification request is made.
+                Remaining work:
+                - Await the user's "later verification request."
+                - When it arrives, locate `embedded-target.txt` in the workspace (likely via `glob` since exact path is unknown) and read its contents with `view` as needed to fulfill whatever the verification request asks.
+                - Do not re-read or act on `embedded-routing.txt` further unless explicitly asked again.
+
+                Immediate next steps:
+                - No action needed until the user issues the verification request referencing `embedded-target.txt`.
                 </next_steps>
 
                 <checkpoint_title>Reading routing note, awaiting verification</checkpoint_title>
@@ -329,7 +353,7 @@ exchanges:
           content:
             - type: text
               text: |-
-                Some of the conversation history has been summarized to free up context.
+                The conversation history has been summarized to free up context.
 
                 You were originally given instructions from a user over one or more turns. Here were the user messages:
                 <user_message>
@@ -339,46 +363,58 @@ exchanges:
                 Here is a summary of the prior context:
                 <summary>
                 <overview>
-                The user asked me to read an attached routing note (a read-only snapshot file) that names a workspace text file to be read later during a "verification request," explicitly instructing me not to read the target file yet and not to use shell tools. I read only the routing note as instructed and confirmed readiness without taking further action.
+                The user attached a read-only routing note file and instructed me to read it (without reading any further target file) to learn the name of a workspace text file that would be referenced in a later "verification request." I was explicitly told not to use shell tools and to reply exactly "READY" after reading the note. No broader coding task has been defined yet; this is a staged, multi-step instruction-following exercise.
                 </overview>
 
                 <history>
-                1. The user attached a file (embedded-routing.txt) and asked me to read it, noting it names a workspace text file to read on a later verification request, with explicit instructions: do not read the target yet, do not use shell tools, and reply exactly "READY".
-                   - I used the `view` tool to read the attachment file at `${homedir}/user-data/agentSessionData/${uuid_0}/attachments/${uuid_1}/embedded-routing.txt`.
+                1. The user asked me to read an attached routing note (embedded-routing.txt) that names a target text file to be used in a later verification request, explicitly instructing me NOT to read the target file yet, NOT to use shell tools, and to reply with exactly the word "READY".
+                   - I used the `view` tool to read the attached file at `${homedir}/user-data/agentSessionData/${uuid_0}/attachments/${uuid_1}/embedded-routing.txt`.
                    - The file content was: "The verification target is embedded-target.txt."
-                   - I replied exactly "READY" as instructed, without reading the target file or using any shell tools.
+                   - I replied exactly "READY" as instructed, without reading or referencing embedded-target.txt further.
+
+                2. The user then requested a detailed summary of the conversation for compaction purposes (the current request), instructing me not to use any tools in this step.
+                   - I am producing this structured summary now.
                 </history>
 
                 <work_done>
-                No code, file, or repository changes were made. This was a read-only informational task.
+                No code, files, or workspace content were created or modified. This was a read-only, instruction-following task.
 
-                Completed:
-                - [x] Read the routing note attachment (embedded-routing.txt) via the `view` tool.
-                - [x] Identified the named target file: `embedded-target.txt` (not yet located or read — only the filename is known, no path confirmed).
-                - [x] Replied "READY" exactly as instructed.
+                Tasks completed:
+                - [x] Read the attached routing note file via `view`.
+                - [x] Extracted the key fact: the verification target filename is `embedded-target.txt`.
+                - [x] Did NOT read `embedded-target.txt` (per instructions).
+                - [x] Did NOT use any shell/powershell tools.
+                - [x] Replied exactly "READY".
 
-                Not done (intentionally, per instructions):
-                - [ ] Have not read `embedded-target.txt` — waiting for the user's later "verification request" to do so.
+                Nothing is in progress; the task as defined so far is complete. The next action is expected to be a "later verification request" from the user, at which point I should recall that the target file is named `embedded-target.txt` and act accordingly (likely locating and reading it within the workspace, pending further instructions).
                 </work_done>
 
                 <technical_details>
-                - The attachment `embedded-routing.txt` is a read-only snapshot (per system_reminder) and must not be edited.
-                - The routing note's sole content reveals the name of a target file to read later: `embedded-target.txt`. Its full path/location within the workspace is not yet known — I only have the bare filename at this point.
-                - Explicit constraints given by the user that must be honored going forward: do not read the target file until a later explicit "verification request" is made, and do not use shell tools for this task (use `view`/other appropriate tools instead).
-                - No shell commands were run in this segment, consistent with instructions.
+                - The routing note is an attachment (read-only snapshot), explicitly marked via a system reminder as not to be edited.
+                - Key extracted fact (must be retained for future turns): **the verification target file name is `embedded-target.txt`**.
+                - The exact location of `embedded-target.txt` in the workspace is unknown — it was not searched for, per instructions to not read the target yet. When the "later verification request" arrives, I will likely need to locate this file (e.g., via `glob` or `grep`) before reading it with `view`.
+                - Constraint honored: no shell tools were used for this step; only the `view` tool was used to read the attachment.
+                - Open question: what the "later verification request" will actually ask me to do with `embedded-target.txt` (e.g., read its contents, verify a claim, answer a question based on it). I have no information yet about its content or purpose beyond the filename.
                 </technical_details>
 
                 <important_files>
                 - `${homedir}/user-data/agentSessionData/${uuid_0}/attachments/${uuid_1}/embedded-routing.txt`
-                  - The routing note; already read. Contains the single line identifying the verification target filename (`embedded-target.txt`). Read-only, must not be edited.
-                - `embedded-target.txt` (exact path unknown/unconfirmed)
-                  - This is the file named by the routing note as the eventual verification target. It must NOT be read until the user issues an explicit later "verification request." Its location within the workspace has not yet been determined — will need to locate it (e.g., via `glob`/`view`) once that request arrives.
+                  - This is the routing note I was instructed to read; it is a read-only attachment and must not be edited.
+                  - Content: "The verification target is embedded-target.txt."
+                  - Already read in full; no further action needed on this file unless re-verification is requested.
+                - `embedded-target.txt` (location in workspace unknown/unresolved)
+                  - This is the actual verification target named by the routing note.
+                  - Per explicit instruction, I have NOT read this file yet and must wait for a later "verification request" from the user before doing so.
                 </important_files>
 
                 <next_steps>
-                - Wait for the user's explicit "verification request" before taking any further action.
-                - When that request arrives, locate `embedded-target.txt` within the workspace (not the attachments/temp folder) and read it using the `view` tool (shell tools still should be avoided unless newly instructed otherwise).
-                - Do not proactively read or search for the target file before the verification request is made.
+                Remaining work:
+                - Await the user's "later verification request."
+                - When it arrives, locate `embedded-target.txt` in the workspace (likely via `glob` since exact path is unknown) and read its contents with `view` as needed to fulfill whatever the verification request asks.
+                - Do not re-read or act on `embedded-routing.txt` further unless explicitly asked again.
+
+                Immediate next steps:
+                - No action needed until the user issues the verification request referencing `embedded-target.txt`.
                 </next_steps>
 
                 <checkpoint_title>Reading routing note, awaiting verification</checkpoint_title>
@@ -413,7 +449,7 @@ exchanges:
           content:
             - type: text
               text: |-
-                Some of the conversation history has been summarized to free up context.
+                The conversation history has been summarized to free up context.
 
                 You were originally given instructions from a user over one or more turns. Here were the user messages:
                 <user_message>
@@ -423,46 +459,58 @@ exchanges:
                 Here is a summary of the prior context:
                 <summary>
                 <overview>
-                The user asked me to read an attached routing note (a read-only snapshot file) that names a workspace text file to be read later during a "verification request," explicitly instructing me not to read the target file yet and not to use shell tools. I read only the routing note as instructed and confirmed readiness without taking further action.
+                The user attached a read-only routing note file and instructed me to read it (without reading any further target file) to learn the name of a workspace text file that would be referenced in a later "verification request." I was explicitly told not to use shell tools and to reply exactly "READY" after reading the note. No broader coding task has been defined yet; this is a staged, multi-step instruction-following exercise.
                 </overview>
 
                 <history>
-                1. The user attached a file (embedded-routing.txt) and asked me to read it, noting it names a workspace text file to read on a later verification request, with explicit instructions: do not read the target yet, do not use shell tools, and reply exactly "READY".
-                   - I used the `view` tool to read the attachment file at `${homedir}/user-data/agentSessionData/${uuid_0}/attachments/${uuid_1}/embedded-routing.txt`.
+                1. The user asked me to read an attached routing note (embedded-routing.txt) that names a target text file to be used in a later verification request, explicitly instructing me NOT to read the target file yet, NOT to use shell tools, and to reply with exactly the word "READY".
+                   - I used the `view` tool to read the attached file at `${homedir}/user-data/agentSessionData/${uuid_0}/attachments/${uuid_1}/embedded-routing.txt`.
                    - The file content was: "The verification target is embedded-target.txt."
-                   - I replied exactly "READY" as instructed, without reading the target file or using any shell tools.
+                   - I replied exactly "READY" as instructed, without reading or referencing embedded-target.txt further.
+
+                2. The user then requested a detailed summary of the conversation for compaction purposes (the current request), instructing me not to use any tools in this step.
+                   - I am producing this structured summary now.
                 </history>
 
                 <work_done>
-                No code, file, or repository changes were made. This was a read-only informational task.
+                No code, files, or workspace content were created or modified. This was a read-only, instruction-following task.
 
-                Completed:
-                - [x] Read the routing note attachment (embedded-routing.txt) via the `view` tool.
-                - [x] Identified the named target file: `embedded-target.txt` (not yet located or read — only the filename is known, no path confirmed).
-                - [x] Replied "READY" exactly as instructed.
+                Tasks completed:
+                - [x] Read the attached routing note file via `view`.
+                - [x] Extracted the key fact: the verification target filename is `embedded-target.txt`.
+                - [x] Did NOT read `embedded-target.txt` (per instructions).
+                - [x] Did NOT use any shell/powershell tools.
+                - [x] Replied exactly "READY".
 
-                Not done (intentionally, per instructions):
-                - [ ] Have not read `embedded-target.txt` — waiting for the user's later "verification request" to do so.
+                Nothing is in progress; the task as defined so far is complete. The next action is expected to be a "later verification request" from the user, at which point I should recall that the target file is named `embedded-target.txt` and act accordingly (likely locating and reading it within the workspace, pending further instructions).
                 </work_done>
 
                 <technical_details>
-                - The attachment `embedded-routing.txt` is a read-only snapshot (per system_reminder) and must not be edited.
-                - The routing note's sole content reveals the name of a target file to read later: `embedded-target.txt`. Its full path/location within the workspace is not yet known — I only have the bare filename at this point.
-                - Explicit constraints given by the user that must be honored going forward: do not read the target file until a later explicit "verification request" is made, and do not use shell tools for this task (use `view`/other appropriate tools instead).
-                - No shell commands were run in this segment, consistent with instructions.
+                - The routing note is an attachment (read-only snapshot), explicitly marked via a system reminder as not to be edited.
+                - Key extracted fact (must be retained for future turns): **the verification target file name is `embedded-target.txt`**.
+                - The exact location of `embedded-target.txt` in the workspace is unknown — it was not searched for, per instructions to not read the target yet. When the "later verification request" arrives, I will likely need to locate this file (e.g., via `glob` or `grep`) before reading it with `view`.
+                - Constraint honored: no shell tools were used for this step; only the `view` tool was used to read the attachment.
+                - Open question: what the "later verification request" will actually ask me to do with `embedded-target.txt` (e.g., read its contents, verify a claim, answer a question based on it). I have no information yet about its content or purpose beyond the filename.
                 </technical_details>
 
                 <important_files>
                 - `${homedir}/user-data/agentSessionData/${uuid_0}/attachments/${uuid_1}/embedded-routing.txt`
-                  - The routing note; already read. Contains the single line identifying the verification target filename (`embedded-target.txt`). Read-only, must not be edited.
-                - `embedded-target.txt` (exact path unknown/unconfirmed)
-                  - This is the file named by the routing note as the eventual verification target. It must NOT be read until the user issues an explicit later "verification request." Its location within the workspace has not yet been determined — will need to locate it (e.g., via `glob`/`view`) once that request arrives.
+                  - This is the routing note I was instructed to read; it is a read-only attachment and must not be edited.
+                  - Content: "The verification target is embedded-target.txt."
+                  - Already read in full; no further action needed on this file unless re-verification is requested.
+                - `embedded-target.txt` (location in workspace unknown/unresolved)
+                  - This is the actual verification target named by the routing note.
+                  - Per explicit instruction, I have NOT read this file yet and must wait for a later "verification request" from the user before doing so.
                 </important_files>
 
                 <next_steps>
-                - Wait for the user's explicit "verification request" before taking any further action.
-                - When that request arrives, locate `embedded-target.txt` within the workspace (not the attachments/temp folder) and read it using the `view` tool (shell tools still should be avoided unless newly instructed otherwise).
-                - Do not proactively read or search for the target file before the verification request is made.
+                Remaining work:
+                - Await the user's "later verification request."
+                - When it arrives, locate `embedded-target.txt` in the workspace (likely via `glob` since exact path is unknown) and read its contents with `view` as needed to fulfill whatever the verification request asks.
+                - Do not re-read or act on `embedded-routing.txt` further unless explicitly asked again.
+
+                Immediate next steps:
+                - No action needed until the user issues the verification request referencing `embedded-target.txt`.
                 </next_steps>
 
                 <checkpoint_title>Reading routing note, awaiting verification</checkpoint_title>

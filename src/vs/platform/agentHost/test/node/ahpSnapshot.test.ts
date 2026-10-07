@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { ActionType } from '../../common/state/sessionActions.js';
 import type { AhpNotification } from '../../common/state/sessionProtocol.js';
 import { ResponsePartKind } from '../../common/state/sessionState.js';
-import { AhpSnapshotRecorder, waitForChatUnreadAfterTurn, waitForFinalServerMessage } from './e2e/harness/ahpSnapshot.js';
+import { AhpSnapshotRecorder, normalizeWorkspacePaths, waitForChatUnreadAfterTurn, waitForFinalServerMessage } from './e2e/harness/ahpSnapshot.js';
 
 suite('AhpSnapshotRecorder', () => {
 
@@ -41,12 +41,29 @@ suite('AhpSnapshotRecorder', () => {
 			id: 1,
 			error: { code: -32602, message: 'Wrong resource http://127.0.0.1:43123/protected; unrelated http://127.0.0.1:43234 stays unchanged' },
 		});
+
 		const snapshot = recorder.serialize();
 		assert.deepStrictEqual({
 			placeholder: snapshot.includes('${url_auth}/protected'),
 			stalePort: snapshot.includes('43123'),
 			unregistered: snapshot.includes('http://127.0.0.1:43234'),
 		}, { placeholder: true, stalePort: false, unregistered: true });
+	});
+
+	test('normalizes mixed separators and Unicode paths with spaces without changing following prose or POSIX casing', () => {
+		const relative = 'watched space \u03a9/caf\u00e9\u{1f600}.rtlang';
+		const suffix = '. Do not match \\d+ outside the path.';
+		assert.deepStrictEqual({
+			windows: normalizeWorkspacePaths(`File C:/Temp/workspace/${relative.replaceAll('/', '\\')}${suffix}`, 'c:\\Temp\\workspace'),
+			posix: normalizeWorkspacePaths(`File /tmp/workspace/${relative}${suffix}`, '/tmp/workspace'),
+			distinctPosix: normalizeWorkspacePaths('/tmp/Workspace/file.rtlang', '/tmp/workspace'),
+			json: normalizeWorkspacePaths(JSON.stringify({ path: `C:\\Temp\\workspace\\${relative.replaceAll('/', '\\')}` }), 'c:\\Temp\\workspace'),
+		}, {
+			windows: `File \${workdir}/${relative}${suffix}`,
+			posix: `File \${workdir}/${relative}${suffix}`,
+			distinctPosix: '/tmp/Workspace/file.rtlang',
+			json: JSON.stringify({ path: `\${workdir}/${relative}` }),
+		});
 	});
 
 	test('omits tool success by provider name before snapshot normalization', () => {

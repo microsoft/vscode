@@ -1094,19 +1094,19 @@ export class CapiReplayProxy {
 		} catch {
 			// The platform temp directory can disappear during teardown.
 		}
-		for (const directory of tempDirectories) {
+		for (const directory of [...tempDirectories].sort((a, b) => b.length - a.length)) {
 			const prefixes = new Set([directory, this._options.userName ? scrubUserName(directory, this._options.userName) : directory]);
 			for (const prefix of prefixes) {
 				const prefixPattern = prefix.split(isWindows ? /[\\/]+/ : '/').map(escapeRegExpCharacters).join(isWindows ? String.raw`[\\/]+` : '/');
-				const pattern = new RegExp(prefixPattern + String.raw`[\\/]+(?<name>(?:\d+-copilot-tool-output-[A-Za-z0-9_-]+|copilot-tool-output(?:-original)?-[A-Za-z0-9_-]+)\.txt)(?=$|[^\w.])`, isWindows ? 'gi' : 'g');
-				result = result.replace(pattern, (_match: string, name: string) => {
+				const pattern = new RegExp(prefixPattern + String.raw`[\\/]+(?:(?<scope>copilot-${UUID_PATTERN})[\\/]+)?(?<name>(?:\d+-copilot-tool-output-[A-Za-z0-9_-]+|copilot-tool-output(?:-original)?-[A-Za-z0-9_-]+)\.txt)(?=$|[^\w.])`, isWindows ? 'gi' : 'g');
+				result = result.replace(pattern, (_match: string, scope: string | undefined, name: string) => {
 					let placeholder = this._savedOutputPlaceholders.get(name);
 					if (!placeholder) {
 						placeholder = `\${saved_output_${this._savedOutputPlaceholders.size}}`;
 						this._savedOutputPlaceholders.set(name, placeholder);
 					}
 					if (this._isReplaying) {
-						this._replayPlaceholderValues.set(placeholder, join(directory, name).replaceAll('\\', '/'));
+						this._replayPlaceholderValues.set(placeholder, join(directory, ...(scope ? [scope] : []), name).replaceAll('\\', '/'));
 					}
 					return placeholder;
 				});

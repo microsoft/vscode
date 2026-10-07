@@ -130,6 +130,8 @@ The Codex-specific entry point also checks that invalid workspace skills remain 
 
 Native Copilot shell coverage verifies that lossy output compaction preserves a complete original readable through AHP, using output below the generic spill threshold. Codex persistence coverage restores image attachments after a host restart and reads their original bytes through AHP.
 
+LSP watcher scenarios compare canonical filesystem identity, including Windows short names, and wait for each exact mutation to reach the server. On macOS, file removal moves the file out of the watched root before unlinking it so FSEvents reports a stable workspace deletion; the test still requires the precise deletion event and verifies filesystem absence. Resource-snapshot compaction scenarios prove that the native file tool actually read the attachment before asserting that its contents survive summarization.
+
 Copilot's native `run_dynamic_workflow` and `dynamic_workflows_manage` tools are excluded from Agent Host sessions until their execution and approval behavior is validated. Prompt snapshots pin their absence from the model's tool inventory.
 
 Workspace lifecycle tests enable each provider's multi-root capability only for their scenario and restore the previous root configuration afterward. They distinguish the session's aggregate folders, a peer's selected subset, and the actual directory used by its tools. Delegation tests verify that the invoking provider finishes its response, the child finishes its local command, and session disposal removes owned additional worktrees.
@@ -203,7 +205,7 @@ exchanges:
 
 Local fixture servers can register an ephemeral base URL through `context.registerFixtureUrl(name, url)`. Captures use `${url_name}` and replay binds it to the current server address, including model-generated tool arguments. Register the returned disposable immediately, keep it alive until the turn drains, and dispose it with the fixture server. Bindings reset between tests; an unbound URL placeholder fails replay rather than reaching a stale address.
 
-Provider-managed spill files under the OS temporary directory use `${saved_output_N}` references. The proxy recognizes their generated filenames, normalizes the whole path rather than just its UUID, and rebinds it from the live tool result before replaying a model request to read that file. This preserves saved-output recovery without freezing a timestamp, process ID, or temporary path. References reset between fixtures and fail explicitly if no live output has supplied the binding.
+Provider-managed spill files under the OS temporary directory, including runtime-owned `copilot-<UUID>` subdirectories, use `${saved_output_N}` references. The proxy recognizes their generated filenames, normalizes the whole path rather than just its UUID, and rebinds it from the live tool result before replaying a model request to read that file. This preserves saved-output recovery without freezing a timestamp, process ID, or temporary path. References reset between fixtures and fail explicitly if no live output has supplied the binding.
 
 Tests that require a provider environment override register it by exact title with `context.registerTestEnvironment(title, environment)`. The lease recycles the shared server when overrides change and restores the default environment for the next ordinary test. Do not mutate the test process's environment to configure a shared provider.
 

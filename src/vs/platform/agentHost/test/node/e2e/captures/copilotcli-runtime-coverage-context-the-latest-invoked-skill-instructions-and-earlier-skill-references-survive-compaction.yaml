@@ -330,64 +330,63 @@ exchanges:
             ---
 
             Please write the summary now, following the structure and guidelines above. Be concise where possible, but don't sacrifice important context for brevity.
+
+            Tools are unavailable in this step, so do not call any tools, even if other instructions say to call one before responding: respond only with the summary text.
     response:
       content: |-
         <overview>
-        This session tested skill invocation behavior using two synthetic skills (`context-first` and `context-latest`) designed for context retention testing. The user instructed invoking each skill exactly once without reading their reference files, and the assistant complied, replying "READY" after each invocation as instructed.
+        This session tested invocation of two project-defined skills (context-first and context-latest) via the skill tool, each intended to supply a synthetic routing rule referencing a reference file that should not be read until explicit verification is requested. No actual code changes, builds, or file edits were made; the work was limited to invoking skills and responding with the exact required acknowledgments.
         </overview>
 
         <history>
-        1. The user asked to invoke `context-first` with the skill tool exactly once, without reading reference files yet, and reply exactly "READY".
-           - Invoked the `context-first` skill via the skill tool.
-           - Received skill context specifying base directory `${workdir}/.github/skills/context-first` and a reference file `first-skill-target.txt`.
-           - Noted rule: CONTEXT_FIRST_SKILL_RULE states the first reference file is `first-skill-target.txt`, not to be read until verification is requested.
-           - Replied "READY" as instructed, without reading the file.
+        1. The user asked to invoke context-first with the skill tool exactly once, without reading reference files yet, and reply exactly "READY".
+           - Invoked the `skill` tool with skill name "context-first".
+           - Received skill-context output identifying base directory `${workdir}/.github/skills/context-first`, a related file `first-skill-target.txt`, and a rule (CONTEXT_FIRST_SKILL_RULE) stating not to read it until verification is requested.
+           - Replied exactly "READY" per instructions.
 
-        2. The user asked to invoke `context-latest` with the skill tool exactly once, without reading reference files yet, and reply exactly "READY".
-           - Invoked the `context-latest` skill via the skill tool.
-           - Received skill context specifying base directory `${workdir}/.github/skills/context-latest` and a reference file `latest-skill-target.txt`.
-           - Noted rule: CONTEXT_LATEST_SKILL_RULE states the latest verification target is `latest-skill-target.txt`, not to be read until verification is requested.
-           - Replied "READY" as instructed, without reading the file.
+        2. The user asked to invoke context-latest with the skill tool exactly once, without reading reference files yet, and reply exactly "READY".
+           - Invoked the `skill` tool with skill name "context-latest".
+           - Received skill-context output identifying base directory `${workdir}/.github/skills/context-latest`, a related file `latest-skill-target.txt`, and a rule (CONTEXT_LATEST_SKILL_RULE) stating not to read it until verification is requested.
+           - Replied exactly "READY" per instructions.
 
-        3. The user then requested this conversation summary ahead of compaction.
+        3. The user then requested this conversation summary in preparation for context compaction.
         </history>
 
         <work_done>
-        No file edits, builds, or code changes were made in this session — all actions were skill invocations only.
+        No files were created, modified, or deleted. No builds, tests, or commands were run.
 
-        Work completed:
-        - [x] Invoked `context-first` skill exactly once; received and noted its rule/reference file without reading it.
-        - [x] Invoked `context-latest` skill exactly once; received and noted its rule/reference file without reading it.
-        - [ ] Reading of `first-skill-target.txt` and `latest-skill-target.txt` is pending — explicitly deferred until "verification is requested" by the user.
+        Tasks completed:
+        - [x] Invoked `context-first` skill exactly once, did not read reference files, replied "READY".
+        - [x] Invoked `context-latest` skill exactly once, did not read reference files, replied "READY".
+        - [ ] Pending: reading of `first-skill-target.txt` and `latest-skill-target.txt` reference files, which should only occur when verification is explicitly requested by the user.
         </work_done>
 
         <technical_details>
-        - Both skills are synthetic/testing skills whose purpose is to supply routing rules for context retention tests (per their descriptions in the skill list).
-        - `context-first` skill rule (CONTEXT_FIRST_SKILL_RULE): the first reference file is `first-skill-target.txt`; must not be read until verification is explicitly requested.
-        - `context-latest` skill rule (CONTEXT_LATEST_SKILL_RULE): the latest verification target is `latest-skill-target.txt`; must not be read until verification is explicitly requested.
-        - Both skill contexts explicitly instruct NOT to read the reference files yet — this constraint must be remembered and honored in future turns until the user explicitly asks for "verification."
-        - Skill base directories:
-          - `${workdir}/.github/skills/context-first`
-          - `${workdir}/.github/skills/context-latest`
+        - Two custom skills are defined at the project level under `.github/skills/`: `context-first` and `context-latest`, each described as supplying "a synthetic routing rule for context retention tests."
+        - Each skill, when invoked, returns a skill-context block naming a single reference text file (not yet read) and an explicit rule name:
+          - CONTEXT_FIRST_SKILL_RULE: "first-skill-target.txt" is the first reference file; must not be read until verification is requested.
+          - CONTEXT_LATEST_SKILL_RULE: "latest-skill-target.txt" is the latest verification target; must not be read until verification is requested.
+        - The user's instructions were strict about exact reply text ("READY") and about not prematurely reading files — this appears to be a test of instruction-following and context retention across compaction, likely to verify that the rules/file paths are remembered correctly after summarization.
+        - No file contents of the two target .txt files have been read or revealed yet.
         </technical_details>
 
         <important_files>
-        - `${workdir}/.github/skills/context-first/first-skill-target.txt`
-          - Reference file for the `context-first` skill; contains content to be read only when verification is explicitly requested. Not yet read.
-        - `${workdir}/.github/skills/context-latest/latest-skill-target.txt`
-          - Reference file for the `context-latest` skill; contains content to be read only when verification is explicitly requested. Not yet read.
+        - ${workdir}/.github/skills/context-first/first-skill-target.txt
+          - Reference file tied to the context-first skill; per CONTEXT_FIRST_SKILL_RULE, must remain unread until the user explicitly requests verification.
+        - ${workdir}/.github/skills/context-latest/latest-skill-target.txt
+          - Reference file tied to the context-latest skill; per CONTEXT_LATEST_SKILL_RULE, must remain unread until the user explicitly requests verification.
         </important_files>
 
         <next_steps>
         Remaining work:
-        - Wait for the user to explicitly request "verification" before reading either `first-skill-target.txt` or `latest-skill-target.txt`.
-        - When verification is requested, use the `view` tool to read the appropriate reference file(s) and report their contents/compliance with the stated rules.
+        - Await an explicit user request for "verification" before reading either `first-skill-target.txt` or `latest-skill-target.txt`.
+        - When verification is requested, read the appropriate file(s) using the `view` tool and report their contents/compliance with the stated rules (CONTEXT_FIRST_SKILL_RULE / CONTEXT_LATEST_SKILL_RULE).
 
         Immediate next steps:
-        - No action needed until the user's next instruction; remain ready to read the reference files only upon explicit verification request, honoring both CONTEXT_FIRST_SKILL_RULE and CONTEXT_LATEST_SKILL_RULE.
+        - No action needed until the user's next instruction; do not proactively read the reference files.
         </next_steps>
 
-        <checkpoint_title>Invoking context test skills</checkpoint_title>
+        <checkpoint_title>Invoking context retention test skills</checkpoint_title>
       stopReason: end_turn
   - request:
       model: claude-sonnet-5
@@ -397,7 +396,7 @@ exchanges:
           content:
             - type: text
               text: |-
-                Some of the conversation history has been summarized to free up context.
+                The conversation history has been summarized to free up context.
 
                 You were originally given instructions from a user over one or more turns. Here were the user messages:
                 <user_message>
@@ -410,61 +409,58 @@ exchanges:
                 Here is a summary of the prior context:
                 <summary>
                 <overview>
-                This session tested skill invocation behavior using two synthetic skills (`context-first` and `context-latest`) designed for context retention testing. The user instructed invoking each skill exactly once without reading their reference files, and the assistant complied, replying "READY" after each invocation as instructed.
+                This session tested invocation of two project-defined skills (context-first and context-latest) via the skill tool, each intended to supply a synthetic routing rule referencing a reference file that should not be read until explicit verification is requested. No actual code changes, builds, or file edits were made; the work was limited to invoking skills and responding with the exact required acknowledgments.
                 </overview>
 
                 <history>
-                1. The user asked to invoke `context-first` with the skill tool exactly once, without reading reference files yet, and reply exactly "READY".
-                   - Invoked the `context-first` skill via the skill tool.
-                   - Received skill context specifying base directory `${workdir}/.github/skills/context-first` and a reference file `first-skill-target.txt`.
-                   - Noted rule: CONTEXT_FIRST_SKILL_RULE states the first reference file is `first-skill-target.txt`, not to be read until verification is requested.
-                   - Replied "READY" as instructed, without reading the file.
+                1. The user asked to invoke context-first with the skill tool exactly once, without reading reference files yet, and reply exactly "READY".
+                   - Invoked the `skill` tool with skill name "context-first".
+                   - Received skill-context output identifying base directory `${workdir}/.github/skills/context-first`, a related file `first-skill-target.txt`, and a rule (CONTEXT_FIRST_SKILL_RULE) stating not to read it until verification is requested.
+                   - Replied exactly "READY" per instructions.
 
-                2. The user asked to invoke `context-latest` with the skill tool exactly once, without reading reference files yet, and reply exactly "READY".
-                   - Invoked the `context-latest` skill via the skill tool.
-                   - Received skill context specifying base directory `${workdir}/.github/skills/context-latest` and a reference file `latest-skill-target.txt`.
-                   - Noted rule: CONTEXT_LATEST_SKILL_RULE states the latest verification target is `latest-skill-target.txt`, not to be read until verification is requested.
-                   - Replied "READY" as instructed, without reading the file.
+                2. The user asked to invoke context-latest with the skill tool exactly once, without reading reference files yet, and reply exactly "READY".
+                   - Invoked the `skill` tool with skill name "context-latest".
+                   - Received skill-context output identifying base directory `${workdir}/.github/skills/context-latest`, a related file `latest-skill-target.txt`, and a rule (CONTEXT_LATEST_SKILL_RULE) stating not to read it until verification is requested.
+                   - Replied exactly "READY" per instructions.
 
-                3. The user then requested this conversation summary ahead of compaction.
+                3. The user then requested this conversation summary in preparation for context compaction.
                 </history>
 
                 <work_done>
-                No file edits, builds, or code changes were made in this session — all actions were skill invocations only.
+                No files were created, modified, or deleted. No builds, tests, or commands were run.
 
-                Work completed:
-                - [x] Invoked `context-first` skill exactly once; received and noted its rule/reference file without reading it.
-                - [x] Invoked `context-latest` skill exactly once; received and noted its rule/reference file without reading it.
-                - [ ] Reading of `first-skill-target.txt` and `latest-skill-target.txt` is pending — explicitly deferred until "verification is requested" by the user.
+                Tasks completed:
+                - [x] Invoked `context-first` skill exactly once, did not read reference files, replied "READY".
+                - [x] Invoked `context-latest` skill exactly once, did not read reference files, replied "READY".
+                - [ ] Pending: reading of `first-skill-target.txt` and `latest-skill-target.txt` reference files, which should only occur when verification is explicitly requested by the user.
                 </work_done>
 
                 <technical_details>
-                - Both skills are synthetic/testing skills whose purpose is to supply routing rules for context retention tests (per their descriptions in the skill list).
-                - `context-first` skill rule (CONTEXT_FIRST_SKILL_RULE): the first reference file is `first-skill-target.txt`; must not be read until verification is explicitly requested.
-                - `context-latest` skill rule (CONTEXT_LATEST_SKILL_RULE): the latest verification target is `latest-skill-target.txt`; must not be read until verification is explicitly requested.
-                - Both skill contexts explicitly instruct NOT to read the reference files yet — this constraint must be remembered and honored in future turns until the user explicitly asks for "verification."
-                - Skill base directories:
-                  - `${workdir}/.github/skills/context-first`
-                  - `${workdir}/.github/skills/context-latest`
+                - Two custom skills are defined at the project level under `.github/skills/`: `context-first` and `context-latest`, each described as supplying "a synthetic routing rule for context retention tests."
+                - Each skill, when invoked, returns a skill-context block naming a single reference text file (not yet read) and an explicit rule name:
+                  - CONTEXT_FIRST_SKILL_RULE: "first-skill-target.txt" is the first reference file; must not be read until verification is requested.
+                  - CONTEXT_LATEST_SKILL_RULE: "latest-skill-target.txt" is the latest verification target; must not be read until verification is requested.
+                - The user's instructions were strict about exact reply text ("READY") and about not prematurely reading files — this appears to be a test of instruction-following and context retention across compaction, likely to verify that the rules/file paths are remembered correctly after summarization.
+                - No file contents of the two target .txt files have been read or revealed yet.
                 </technical_details>
 
                 <important_files>
-                - `${workdir}/.github/skills/context-first/first-skill-target.txt`
-                  - Reference file for the `context-first` skill; contains content to be read only when verification is explicitly requested. Not yet read.
-                - `${workdir}/.github/skills/context-latest/latest-skill-target.txt`
-                  - Reference file for the `context-latest` skill; contains content to be read only when verification is explicitly requested. Not yet read.
+                - ${workdir}/.github/skills/context-first/first-skill-target.txt
+                  - Reference file tied to the context-first skill; per CONTEXT_FIRST_SKILL_RULE, must remain unread until the user explicitly requests verification.
+                - ${workdir}/.github/skills/context-latest/latest-skill-target.txt
+                  - Reference file tied to the context-latest skill; per CONTEXT_LATEST_SKILL_RULE, must remain unread until the user explicitly requests verification.
                 </important_files>
 
                 <next_steps>
                 Remaining work:
-                - Wait for the user to explicitly request "verification" before reading either `first-skill-target.txt` or `latest-skill-target.txt`.
-                - When verification is requested, use the `view` tool to read the appropriate reference file(s) and report their contents/compliance with the stated rules.
+                - Await an explicit user request for "verification" before reading either `first-skill-target.txt` or `latest-skill-target.txt`.
+                - When verification is requested, read the appropriate file(s) using the `view` tool and report their contents/compliance with the stated rules (CONTEXT_FIRST_SKILL_RULE / CONTEXT_LATEST_SKILL_RULE).
 
                 Immediate next steps:
-                - No action needed until the user's next instruction; remain ready to read the reference files only upon explicit verification request, honoring both CONTEXT_FIRST_SKILL_RULE and CONTEXT_LATEST_SKILL_RULE.
+                - No action needed until the user's next instruction; do not proactively read the reference files.
                 </next_steps>
 
-                <checkpoint_title>Invoking context test skills</checkpoint_title>
+                <checkpoint_title>Invoking context retention test skills</checkpoint_title>
                 </summary>
 
                 <invoked_skills>
@@ -497,7 +493,7 @@ exchanges:
           content:
             - type: text
               text: |-
-                Some of the conversation history has been summarized to free up context.
+                The conversation history has been summarized to free up context.
 
                 You were originally given instructions from a user over one or more turns. Here were the user messages:
                 <user_message>
@@ -510,61 +506,58 @@ exchanges:
                 Here is a summary of the prior context:
                 <summary>
                 <overview>
-                This session tested skill invocation behavior using two synthetic skills (`context-first` and `context-latest`) designed for context retention testing. The user instructed invoking each skill exactly once without reading their reference files, and the assistant complied, replying "READY" after each invocation as instructed.
+                This session tested invocation of two project-defined skills (context-first and context-latest) via the skill tool, each intended to supply a synthetic routing rule referencing a reference file that should not be read until explicit verification is requested. No actual code changes, builds, or file edits were made; the work was limited to invoking skills and responding with the exact required acknowledgments.
                 </overview>
 
                 <history>
-                1. The user asked to invoke `context-first` with the skill tool exactly once, without reading reference files yet, and reply exactly "READY".
-                   - Invoked the `context-first` skill via the skill tool.
-                   - Received skill context specifying base directory `${workdir}/.github/skills/context-first` and a reference file `first-skill-target.txt`.
-                   - Noted rule: CONTEXT_FIRST_SKILL_RULE states the first reference file is `first-skill-target.txt`, not to be read until verification is requested.
-                   - Replied "READY" as instructed, without reading the file.
+                1. The user asked to invoke context-first with the skill tool exactly once, without reading reference files yet, and reply exactly "READY".
+                   - Invoked the `skill` tool with skill name "context-first".
+                   - Received skill-context output identifying base directory `${workdir}/.github/skills/context-first`, a related file `first-skill-target.txt`, and a rule (CONTEXT_FIRST_SKILL_RULE) stating not to read it until verification is requested.
+                   - Replied exactly "READY" per instructions.
 
-                2. The user asked to invoke `context-latest` with the skill tool exactly once, without reading reference files yet, and reply exactly "READY".
-                   - Invoked the `context-latest` skill via the skill tool.
-                   - Received skill context specifying base directory `${workdir}/.github/skills/context-latest` and a reference file `latest-skill-target.txt`.
-                   - Noted rule: CONTEXT_LATEST_SKILL_RULE states the latest verification target is `latest-skill-target.txt`, not to be read until verification is requested.
-                   - Replied "READY" as instructed, without reading the file.
+                2. The user asked to invoke context-latest with the skill tool exactly once, without reading reference files yet, and reply exactly "READY".
+                   - Invoked the `skill` tool with skill name "context-latest".
+                   - Received skill-context output identifying base directory `${workdir}/.github/skills/context-latest`, a related file `latest-skill-target.txt`, and a rule (CONTEXT_LATEST_SKILL_RULE) stating not to read it until verification is requested.
+                   - Replied exactly "READY" per instructions.
 
-                3. The user then requested this conversation summary ahead of compaction.
+                3. The user then requested this conversation summary in preparation for context compaction.
                 </history>
 
                 <work_done>
-                No file edits, builds, or code changes were made in this session — all actions were skill invocations only.
+                No files were created, modified, or deleted. No builds, tests, or commands were run.
 
-                Work completed:
-                - [x] Invoked `context-first` skill exactly once; received and noted its rule/reference file without reading it.
-                - [x] Invoked `context-latest` skill exactly once; received and noted its rule/reference file without reading it.
-                - [ ] Reading of `first-skill-target.txt` and `latest-skill-target.txt` is pending — explicitly deferred until "verification is requested" by the user.
+                Tasks completed:
+                - [x] Invoked `context-first` skill exactly once, did not read reference files, replied "READY".
+                - [x] Invoked `context-latest` skill exactly once, did not read reference files, replied "READY".
+                - [ ] Pending: reading of `first-skill-target.txt` and `latest-skill-target.txt` reference files, which should only occur when verification is explicitly requested by the user.
                 </work_done>
 
                 <technical_details>
-                - Both skills are synthetic/testing skills whose purpose is to supply routing rules for context retention tests (per their descriptions in the skill list).
-                - `context-first` skill rule (CONTEXT_FIRST_SKILL_RULE): the first reference file is `first-skill-target.txt`; must not be read until verification is explicitly requested.
-                - `context-latest` skill rule (CONTEXT_LATEST_SKILL_RULE): the latest verification target is `latest-skill-target.txt`; must not be read until verification is explicitly requested.
-                - Both skill contexts explicitly instruct NOT to read the reference files yet — this constraint must be remembered and honored in future turns until the user explicitly asks for "verification."
-                - Skill base directories:
-                  - `${workdir}/.github/skills/context-first`
-                  - `${workdir}/.github/skills/context-latest`
+                - Two custom skills are defined at the project level under `.github/skills/`: `context-first` and `context-latest`, each described as supplying "a synthetic routing rule for context retention tests."
+                - Each skill, when invoked, returns a skill-context block naming a single reference text file (not yet read) and an explicit rule name:
+                  - CONTEXT_FIRST_SKILL_RULE: "first-skill-target.txt" is the first reference file; must not be read until verification is requested.
+                  - CONTEXT_LATEST_SKILL_RULE: "latest-skill-target.txt" is the latest verification target; must not be read until verification is requested.
+                - The user's instructions were strict about exact reply text ("READY") and about not prematurely reading files — this appears to be a test of instruction-following and context retention across compaction, likely to verify that the rules/file paths are remembered correctly after summarization.
+                - No file contents of the two target .txt files have been read or revealed yet.
                 </technical_details>
 
                 <important_files>
-                - `${workdir}/.github/skills/context-first/first-skill-target.txt`
-                  - Reference file for the `context-first` skill; contains content to be read only when verification is explicitly requested. Not yet read.
-                - `${workdir}/.github/skills/context-latest/latest-skill-target.txt`
-                  - Reference file for the `context-latest` skill; contains content to be read only when verification is explicitly requested. Not yet read.
+                - ${workdir}/.github/skills/context-first/first-skill-target.txt
+                  - Reference file tied to the context-first skill; per CONTEXT_FIRST_SKILL_RULE, must remain unread until the user explicitly requests verification.
+                - ${workdir}/.github/skills/context-latest/latest-skill-target.txt
+                  - Reference file tied to the context-latest skill; per CONTEXT_LATEST_SKILL_RULE, must remain unread until the user explicitly requests verification.
                 </important_files>
 
                 <next_steps>
                 Remaining work:
-                - Wait for the user to explicitly request "verification" before reading either `first-skill-target.txt` or `latest-skill-target.txt`.
-                - When verification is requested, use the `view` tool to read the appropriate reference file(s) and report their contents/compliance with the stated rules.
+                - Await an explicit user request for "verification" before reading either `first-skill-target.txt` or `latest-skill-target.txt`.
+                - When verification is requested, read the appropriate file(s) using the `view` tool and report their contents/compliance with the stated rules (CONTEXT_FIRST_SKILL_RULE / CONTEXT_LATEST_SKILL_RULE).
 
                 Immediate next steps:
-                - No action needed until the user's next instruction; remain ready to read the reference files only upon explicit verification request, honoring both CONTEXT_FIRST_SKILL_RULE and CONTEXT_LATEST_SKILL_RULE.
+                - No action needed until the user's next instruction; do not proactively read the reference files.
                 </next_steps>
 
-                <checkpoint_title>Invoking context test skills</checkpoint_title>
+                <checkpoint_title>Invoking context retention test skills</checkpoint_title>
                 </summary>
 
                 <invoked_skills>
@@ -583,7 +576,6 @@ exchanges:
               text: Perform the verification specified by the most recent skill without invoking any skill again. Use view, not shell tools. Read exactly one file. Then reply exactly VERIFIED.
         - role: assistant
           content:
-            - type: thinking
             - type: tool_use
               name: view
               input:

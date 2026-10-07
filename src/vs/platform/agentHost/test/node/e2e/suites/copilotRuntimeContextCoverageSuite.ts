@@ -131,11 +131,11 @@ export function defineCopilotRuntimeContextCoverageTests(context: IAgentHostE2ET
 		return context.observedModelRequestBodies.slice(start);
 	}
 
-	async function attachmentTurn(session: IContextSession, turnId: string, attachment: MessageAttachment): Promise<void> {
+	async function attachmentTurn(session: IContextSession, turnId: string, attachment: MessageAttachment, prompt = 'Read the attached routing note. It names the workspace text file to read on my later verification request. Do not read the target yet. Do not use shell tools. Reply exactly READY.'): Promise<void> {
 		const clientSeq = session.clientSeq;
 		session.clientSeq += 100;
 		await driveTurnWithAttachmentsToCompletion(context.client, session.sessionUri, turnId,
-			'Read the attached routing note. It names the workspace text file to read on my later verification request. Do not read the target yet. Do not use shell tools. Reply exactly READY.',
+			prompt,
 			[attachment], clientSeq);
 	}
 
@@ -307,7 +307,9 @@ export function defineCopilotRuntimeContextCoverageTests(context: IAgentHostE2ET
 			uri: URI.file(join(session.workspace, 'shared-snapshot.txt')).toString(),
 			_meta: toHostSnapshotAttachmentMeta('text/plain'),
 		};
-		await attachmentTurn(session, 'context-snapshot-seed', attachment);
+		await attachmentTurn(session, 'context-snapshot-seed', attachment,
+			'Use view to read the attached read-only snapshot file listed in the attachment reminder. It names the workspace file for my later verification request. Do not read that target yet, edit any file, or use shell tools. Reply exactly READY.');
+		assertNativeResult(session, 'context-snapshot-seed', 'view', /snapshot-target\.txt/);
 		const summaryRequest = await compact(session, 'context-snapshot-compact');
 		const summaryInput = rawMessages(summaryRequest).map(message => contentText(message.content)).join('\n');
 		assert.ok(summaryInput.includes('read-only snapshots of content the user shared'));

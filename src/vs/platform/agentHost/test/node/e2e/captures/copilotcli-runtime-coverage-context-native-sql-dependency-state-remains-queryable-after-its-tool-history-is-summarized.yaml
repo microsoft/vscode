@@ -1,412 +1,109 @@
 version: 1
-dialect: anthropic
+dialect: "anthropic"
 exchanges:
   - request:
-      model: claude-sonnet-5
-      system: ${system}
+      model: "claude-sonnet-5"
+      system: "${system}"
       messages:
-        - role: user
-          content: Call sql exactly once with description "Create context tasks" and query "INSERT INTO todos (id, title, status) VALUES ('context-first', 'CONTEXT_COMPLETED_TASK', 'done'), ('context-next', 'CONTEXT_READY_TASK', 'pending'); INSERT INTO todo_deps (todo_id, depends_on) VALUES ('context-next', 'context-first'); SELECT title, status FROM todos ORDER BY id;". Do not call other tools. Reply exactly READY.
+        - role: "user"
+          content: "Call sql exactly once with description \"Create context tasks\" and query \"INSERT INTO todos (id, title, status) VALUES ('context-first', 'CONTEXT_COMPLETED_TASK', 'done'), ('context-next', 'CONTEXT_READY_TASK', 'pending'); INSERT INTO todo_deps (todo_id, depends_on) VALUES ('context-next', 'context-first'); SELECT title, status FROM todos ORDER BY id;\". Do not call other tools. Reply exactly READY."
     response:
       content:
-        - type: tool_use
-          id: toolcall_0
-          name: sql
+        - type: "tool_use"
+          id: "toolcall_0"
+          name: "sql"
           input:
-            description: Create context tasks
-            query: INSERT INTO todos (id, title, status) VALUES ('context-first', 'CONTEXT_COMPLETED_TASK', 'done'), ('context-next', 'CONTEXT_READY_TASK', 'pending'); INSERT INTO todo_deps (todo_id, depends_on) VALUES ('context-next', 'context-first'); SELECT title, status FROM todos ORDER BY id;
-      stopReason: tool_use
+            description: "Create context tasks"
+            query: "INSERT INTO todos (id, title, status) VALUES ('context-first', 'CONTEXT_COMPLETED_TASK', 'done'), ('context-next', 'CONTEXT_READY_TASK', 'pending'); INSERT INTO todo_deps (todo_id, depends_on) VALUES ('context-next', 'context-first'); SELECT title, status FROM todos ORDER BY id;"
+      stopReason: "tool_use"
   - request:
-      model: claude-sonnet-5
-      system: ${system}
+      model: "claude-sonnet-5"
+      system: "${system}"
       messages:
-        - role: user
-          content: Call sql exactly once with description "Create context tasks" and query "INSERT INTO todos (id, title, status) VALUES ('context-first', 'CONTEXT_COMPLETED_TASK', 'done'), ('context-next', 'CONTEXT_READY_TASK', 'pending'); INSERT INTO todo_deps (todo_id, depends_on) VALUES ('context-next', 'context-first'); SELECT title, status FROM todos ORDER BY id;". Do not call other tools. Reply exactly READY.
-        - role: assistant
+        - role: "user"
+          content: "Call sql exactly once with description \"Create context tasks\" and query \"INSERT INTO todos (id, title, status) VALUES ('context-first', 'CONTEXT_COMPLETED_TASK', 'done'), ('context-next', 'CONTEXT_READY_TASK', 'pending'); INSERT INTO todo_deps (todo_id, depends_on) VALUES ('context-next', 'context-first'); SELECT title, status FROM todos ORDER BY id;\". Do not call other tools. Reply exactly READY."
+        - role: "assistant"
           content:
-            - type: tool_use
-              name: sql
+            - type: "tool_use"
+              name: "sql"
               input:
-                description: Create context tasks
-                query: INSERT INTO todos (id, title, status) VALUES ('context-first', 'CONTEXT_COMPLETED_TASK', 'done'), ('context-next', 'CONTEXT_READY_TASK', 'pending'); INSERT INTO todo_deps (todo_id, depends_on) VALUES ('context-next', 'context-first'); SELECT title, status FROM todos ORDER BY id;
-        - role: user
+                description: "Create context tasks"
+                query: "INSERT INTO todos (id, title, status) VALUES ('context-first', 'CONTEXT_COMPLETED_TASK', 'done'), ('context-next', 'CONTEXT_READY_TASK', 'pending'); INSERT INTO todo_deps (todo_id, depends_on) VALUES ('context-next', 'context-first'); SELECT title, status FROM todos ORDER BY id;"
+        - role: "user"
           content:
-            - type: tool_result
-              tool_use_id: toolcall_0
-              content: |-
-                Executed 3 statement(s):
-
-                1. INSERT
-                   2 row(s) inserted. Last inserted row ID: 2.
-
-                2. INSERT
-                   1 row(s) inserted. Last inserted row ID: 1.
-
-                3. SELECT
-                   2 row(s) returned:
-                   
-                   | title | status |
-                   | --- | --- |
-                   | CONTEXT_COMPLETED_TASK | done |
-                   | CONTEXT_READY_TASK | pending |
+            - type: "tool_result"
+              tool_use_id: "toolcall_0"
+              content: "Executed 3 statement(s):\n\n1. INSERT\n   2 row(s) inserted. Last inserted row ID: 2.\n\n2. INSERT\n   1 row(s) inserted. Last inserted row ID: 1.\n\n3. SELECT\n   2 row(s) returned:\n   \n   | title | status |\n   | --- | --- |\n   | CONTEXT_COMPLETED_TASK | done |\n   | CONTEXT_READY_TASK | pending |"
     response:
-      content: READY
-      stopReason: end_turn
+      content: "READY"
+      stopReason: "end_turn"
   - request:
-      model: claude-sonnet-5
-      system: ${system}
+      model: "claude-sonnet-5"
+      system: "${system}"
       messages:
-        - role: user
-          content: Call sql exactly once with description "Create context tasks" and query "INSERT INTO todos (id, title, status) VALUES ('context-first', 'CONTEXT_COMPLETED_TASK', 'done'), ('context-next', 'CONTEXT_READY_TASK', 'pending'); INSERT INTO todo_deps (todo_id, depends_on) VALUES ('context-next', 'context-first'); SELECT title, status FROM todos ORDER BY id;". Do not call other tools. Reply exactly READY.
-        - role: assistant
+        - role: "user"
+          content: "Call sql exactly once with description \"Create context tasks\" and query \"INSERT INTO todos (id, title, status) VALUES ('context-first', 'CONTEXT_COMPLETED_TASK', 'done'), ('context-next', 'CONTEXT_READY_TASK', 'pending'); INSERT INTO todo_deps (todo_id, depends_on) VALUES ('context-next', 'context-first'); SELECT title, status FROM todos ORDER BY id;\". Do not call other tools. Reply exactly READY."
+        - role: "assistant"
           content:
-            - type: tool_use
-              name: sql
+            - type: "tool_use"
+              name: "sql"
               input:
-                description: Create context tasks
-                query: INSERT INTO todos (id, title, status) VALUES ('context-first', 'CONTEXT_COMPLETED_TASK', 'done'), ('context-next', 'CONTEXT_READY_TASK', 'pending'); INSERT INTO todo_deps (todo_id, depends_on) VALUES ('context-next', 'context-first'); SELECT title, status FROM todos ORDER BY id;
-        - role: user
+                description: "Create context tasks"
+                query: "INSERT INTO todos (id, title, status) VALUES ('context-first', 'CONTEXT_COMPLETED_TASK', 'done'), ('context-next', 'CONTEXT_READY_TASK', 'pending'); INSERT INTO todo_deps (todo_id, depends_on) VALUES ('context-next', 'context-first'); SELECT title, status FROM todos ORDER BY id;"
+        - role: "user"
           content:
-            - type: tool_result
-              tool_use_id: toolcall_0
-              content: |-
-                Executed 3 statement(s):
-
-                1. INSERT
-                   2 row(s) inserted. Last inserted row ID: 2.
-
-                2. INSERT
-                   1 row(s) inserted. Last inserted row ID: 1.
-
-                3. SELECT
-                   2 row(s) returned:
-                   
-                   | title | status |
-                   | --- | --- |
-                   | CONTEXT_COMPLETED_TASK | done |
-                   | CONTEXT_READY_TASK | pending |
-        - role: assistant
-          content: READY
-        - role: user
-          content: |-
-            Please create a detailed summary of the conversation so far. The history is being compacted so moving forward, all conversation history will be removed and you'll only have this summary to work from. Be sure to make note of the user's explicit requests, your actions, and any key technical details.
-
-            The summary should include the following parts:
-            1. <overview> - high-level summary of goals and approach
-            2. <history> - chronological analysis of the conversation
-            3. <work_done> - changes made, current state, and any issues encountered
-            4. <technical_details> - key concepts, decisions, and quirks discovered
-            5. <important_files> - files central to the work and why they matter
-            6. <next_steps> - pending tasks and planned actions
-            7. <checkpoint_title> - 2-6 word description of the main work done
-
-            ---
-
-            ## Section Guidelines
-
-            ### Overview
-
-            Provide a concise summary (2-3 sentences) capturing the user's goals, intent, and expectations. Describe your overall approach and strategy for addressing their needs, and note any constraints or requirements that were established.
-            This section should give a reader immediate clarity on what this conversation is about and how you're tackling it.
-
-            ### History
-
-            Capture the narrative arc of the conversation—what was asked for, what was done, and how the work evolved. Structure this around the user's requests: each request becomes an entry with the actions you took nested underneath, in chronological order.
-            Note any major pivots or changes in direction, and include outcomes where relevant—especially for debugging or when something didn't go as expected. Focus on meaningful actions, not granular details of every exchange.
-
-            ### Work Done
-
-            Document the concrete work completed during this conversation. This section should enable someone to pick up exactly where you left off. Include:
-
-            - Files created, modified, or deleted
-            - Tasks completed and their outcomes
-            - What you were most recently working on
-            - Current state: what works, what doesn't, what's untested
-
-            ### Technical Details
-
-            Capture the technical knowledge that would be painful to rediscover. Think of this as a knowledge base for your future self—anything that took effort to learn belongs here. This includes:
-
-            - Key concepts and architectural decisions (with rationale)
-            - Issues encountered and how they were resolved
-            - Quirks, gotchas, or non-obvious behaviors
-            - Dependencies, versions, or environment details that matter
-            - Workarounds or constraints you discovered
-
-            Also make note of any questions that remain unanswered or assumptions that you aren't fully confident about.
-
-            ### Important Files
-
-            List the files most central to the task, prioritizing those you've actively worked on over files you merely viewed. This isn't an exhaustive inventory—it's a curated list of what matters most for continuing the work. For each file, include:
-
-            - The file name
-            - Why it's important to the project
-            - Summary of changes made (if any)
-            - Key line numbers or sections to reference
-
-            ### Next Steps
-
-            If there's pending work, describe what you were actively working on when compaction occurred. List remaining tasks, outline your planned approach, and flag any blockers or open questions.
-            If you've finished all requested work, you can simply note that no next steps are needed.
-
-            ### Checkpoint Title
-
-            Provide a concise 2-6 word title capturing the essence of what was accomplished in this work segment. This title will be used to identify this checkpoint when reviewing session history. Examples:
-            - "Implementing user authentication"
-            - "Fixing database connection bugs"
-            - "Refactoring payment module"
-            - "Adding unit tests for API"
-
-            ---
-
-            ## Example
-
-            Here is an example of the structure you should follow:
-            <example>
-            <overview>
-            [2-3 sentences describing the user's goals and your approach]
-            </overview>
-            <history>
-            1. The user asked to [request]
-               - [action taken]
-               - [action taken]
-               - [outcome/result]
-
-            2. The user asked to [request]
-               - [action taken]
-               - [action taken]
-               - [outcome/result]
-            </history>
-            <work_done>
-            Files updated:
-            - [file]: [what changed]
-
-            Work completed:
-            - [x] [Task]
-            - [x] [Task]
-            - [ ] [Task in progress or incomplete]
-            </work_done>
-            <technical_details>
-            - [Key technical concept or decision]
-            - [Issue encountered and how it was resolved]
-            - [Non-obvious behavior or quirk discovered]
-            - [Unresolved question or uncertain area]
-            </technical_details>
-            <important_files>
-            - [file1]
-               - [Why it matters]
-               - [Changes made, if any]
-               - [Key line numbers]
-            - [file2]
-               - [Why it matters]
-               - [Changes made, if any]
-               - [Key line numbers]
-            </important_files>
-            <next_steps>
-            Remaining work:
-            - [Task]
-            - [Task]
-
-            Immediate next steps:
-            - [Action to take]
-            - [Action to take]
-            </next_steps>
-
-            <checkpoint_title>Concise 2-6 word description of this checkpoint</checkpoint_title>
-            </example>
-
-            ---
-
-            Please write the summary now, following the structure and guidelines above. Be concise where possible, but don't sacrifice important context for brevity.
+            - type: "tool_result"
+              tool_use_id: "toolcall_0"
+              content: "Executed 3 statement(s):\n\n1. INSERT\n   2 row(s) inserted. Last inserted row ID: 2.\n\n2. INSERT\n   1 row(s) inserted. Last inserted row ID: 1.\n\n3. SELECT\n   2 row(s) returned:\n   \n   | title | status |\n   | --- | --- |\n   | CONTEXT_COMPLETED_TASK | done |\n   | CONTEXT_READY_TASK | pending |"
+        - role: "assistant"
+          content: "READY"
+        - role: "user"
+          content: "Please create a detailed summary of the conversation so far. The history is being compacted so moving forward, all conversation history will be removed and you'll only have this summary to work from. Be sure to make note of the user's explicit requests, your actions, and any key technical details.\n\nThe summary should include the following parts:\n1. <overview> - high-level summary of goals and approach\n2. <history> - chronological analysis of the conversation\n3. <work_done> - changes made, current state, and any issues encountered\n4. <technical_details> - key concepts, decisions, and quirks discovered\n5. <important_files> - files central to the work and why they matter\n6. <next_steps> - pending tasks and planned actions\n7. <checkpoint_title> - 2-6 word description of the main work done\n\n---\n\n## Section Guidelines\n\n### Overview\n\nProvide a concise summary (2-3 sentences) capturing the user's goals, intent, and expectations. Describe your overall approach and strategy for addressing their needs, and note any constraints or requirements that were established.\nThis section should give a reader immediate clarity on what this conversation is about and how you're tackling it.\n\n### History\n\nCapture the narrative arc of the conversation—what was asked for, what was done, and how the work evolved. Structure this around the user's requests: each request becomes an entry with the actions you took nested underneath, in chronological order.\nNote any major pivots or changes in direction, and include outcomes where relevant—especially for debugging or when something didn't go as expected. Focus on meaningful actions, not granular details of every exchange.\n\n### Work Done\n\nDocument the concrete work completed during this conversation. This section should enable someone to pick up exactly where you left off. Include:\n\n- Files created, modified, or deleted\n- Tasks completed and their outcomes\n- What you were most recently working on\n- Current state: what works, what doesn't, what's untested\n\n### Technical Details\n\nCapture the technical knowledge that would be painful to rediscover. Think of this as a knowledge base for your future self—anything that took effort to learn belongs here. This includes:\n\n- Key concepts and architectural decisions (with rationale)\n- Issues encountered and how they were resolved\n- Quirks, gotchas, or non-obvious behaviors\n- Dependencies, versions, or environment details that matter\n- Workarounds or constraints you discovered\n\nAlso make note of any questions that remain unanswered or assumptions that you aren't fully confident about.\n\n### Important Files\n\nList the files most central to the task, prioritizing those you've actively worked on over files you merely viewed. This isn't an exhaustive inventory—it's a curated list of what matters most for continuing the work. For each file, include:\n\n- The file name\n- Why it's important to the project\n- Summary of changes made (if any)\n- Key line numbers or sections to reference\n\n### Next Steps\n\nIf there's pending work, describe what you were actively working on when compaction occurred. List remaining tasks, outline your planned approach, and flag any blockers or open questions.\nIf you've finished all requested work, you can simply note that no next steps are needed.\n\n### Checkpoint Title\n\nProvide a concise 2-6 word title capturing the essence of what was accomplished in this work segment. This title will be used to identify this checkpoint when reviewing session history. Examples:\n- \"Implementing user authentication\"\n- \"Fixing database connection bugs\"\n- \"Refactoring payment module\"\n- \"Adding unit tests for API\"\n\n---\n\n## Example\n\nHere is an example of the structure you should follow:\n<example>\n<overview>\n[2-3 sentences describing the user's goals and your approach]\n</overview>\n<history>\n1. The user asked to [request]\n   - [action taken]\n   - [action taken]\n   - [outcome/result]\n\n2. The user asked to [request]\n   - [action taken]\n   - [action taken]\n   - [outcome/result]\n</history>\n<work_done>\nFiles updated:\n- [file]: [what changed]\n\nWork completed:\n- [x] [Task]\n- [x] [Task]\n- [ ] [Task in progress or incomplete]\n</work_done>\n<technical_details>\n- [Key technical concept or decision]\n- [Issue encountered and how it was resolved]\n- [Non-obvious behavior or quirk discovered]\n- [Unresolved question or uncertain area]\n</technical_details>\n<important_files>\n- [file1]\n   - [Why it matters]\n   - [Changes made, if any]\n   - [Key line numbers]\n- [file2]\n   - [Why it matters]\n   - [Changes made, if any]\n   - [Key line numbers]\n</important_files>\n<next_steps>\nRemaining work:\n- [Task]\n- [Task]\n\nImmediate next steps:\n- [Action to take]\n- [Action to take]\n</next_steps>\n\n<checkpoint_title>Concise 2-6 word description of this checkpoint</checkpoint_title>\n</example>\n\n---\n\nPlease write the summary now, following the structure and guidelines above. Be concise where possible, but don't sacrifice important context for brevity.\n\nTools are unavailable in this step, so do not call any tools, even if other instructions say to call one before responding: respond only with the summary text."
     response:
-      content: |-
-        <overview>
-        The user issued a single, narrowly-scoped instruction: call the `sql` tool exactly once to create two todo records (a completed context task and a pending, dependent context-ready task), link them via `todo_deps`, and reply with the literal text "READY". No broader software engineering task was given.
-        </overview>
-
-        <history>
-        1. The user asked to call `sql` exactly once with a specific description ("Create context tasks") and query that inserts two todos (`context-first` as done, `context-next` as pending), creates a dependency linking `context-next` to `context-first`, and selects all todos ordered by id. The user explicitly instructed not to call any other tools and to reply exactly "READY".
-           - Executed the `sql` tool exactly once with the exact description and query specified.
-           - The tool ran three statements successfully: 2 rows inserted into `todos`, 1 row inserted into `todo_deps`, and a SELECT returning both rows (`CONTEXT_COMPLETED_TASK`/done, `CONTEXT_READY_TASK`/pending).
-           - Replied with the exact literal text "READY" as instructed.
-
-        2. The user then requested this detailed conversation summary for compaction purposes (the current request being fulfilled).
-        </history>
-
-        <work_done>
-        Actions completed:
-        - [x] Called `sql` tool exactly once with description "Create context tasks" and the exact query provided by the user.
-        - [x] Verified successful execution: 2 todos inserted (`context-first` done, `context-next` pending), 1 todo_dep inserted linking them, and SELECT confirmed both rows exist with correct titles/statuses.
-        - [x] Replied with exactly "READY" as the only output, per instructions.
-
-        No files were created, modified, or deleted in this session — the only action was a database/sql tool call against the session's todos/todo_deps tables.
-
-        Current state: Task fully complete. No errors encountered. No pending work from the original request.
-        </work_done>
-
-        <technical_details>
-        - This appears to be a context/harness verification step (likely testing that the agent correctly handles compaction/checkpoint behavior) rather than a typical software engineering task.
-        - The session's `todos` and `todo_deps` tables (built-in SQL tables for this session) now contain two rows: `context-first` (status: done) and `context-next` (status: pending, depends on `context-first`).
-        - Per tool instructions, `todos`/`todo_deps` tables already exist and should never be re-created — only inserted into, which was correctly followed here.
-        - No ambiguity or open questions remain regarding this specific instruction.
-        </technical_details>
-
-        <important_files>
-        No source code files were involved in this task. The only artifact touched is the session-local SQL database (`todos` and `todo_deps` tables), which now contains the `context-first` and `context-next` rows as described above.
-        </important_files>
-
-        <next_steps>
-        No next steps are needed — the user's explicit request (single sql call + exact "READY" reply) has been fully completed. Awaiting further instructions from the user.
-        </next_steps>
-
-        <checkpoint_title>Creating context verification tasks</checkpoint_title>
-      stopReason: end_turn
+      content: "<overview>\nThe user issued a single explicit instruction: call the `sql` tool exactly once with a specific description and query to create two todo records (one marked \"done\" representing a completed context task, one \"pending\" depending on it), then reply exactly \"READY\". No other tools were to be used.\n</overview>\n\n<history>\n1. The user asked to call `sql` exactly once with description \"Create context tasks\" and a specific query inserting two todos (`context-first` done, `context-next` pending) plus a dependency linking them, then select and display all todos, and finally reply exactly \"READY\" with no other tool calls.\n   - Executed the `sql` tool call exactly as specified.\n   - The query ran 3 statements successfully: inserted 2 rows into `todos`, inserted 1 row into `todo_deps`, and selected 2 rows showing `CONTEXT_COMPLETED_TASK` (done) and `CONTEXT_READY_TASK` (pending).\n   - Replied exactly \"READY\" as instructed, with no additional tool calls.\n</history>\n\n<work_done>\nDatabase changes made via the session SQL database:\n- Inserted todo `context-first` (title: \"CONTEXT_COMPLETED_TASK\", status: \"done\")\n- Inserted todo `context-next` (title: \"CONTEXT_READY_TASK\", status: \"pending\")\n- Inserted dependency row: `context-next` depends on `context-first`\n- Verified via SELECT: both rows present with correct titles/statuses\n\nTask completed fully and exactly as requested. No files were created or modified; this was purely a database/tool-call exercise. No issues encountered.\n</work_done>\n\n<technical_details>\n- This appears to be a context-management/testing exercise verifying the SQL todo-tracking tool works correctly within the session database (todos and todo_deps tables), rather than a real software engineering task.\n- The `todos` and `todo_deps` tables are pre-existing built-in tables in the session database; rows were inserted, not table-created.\n- No ambiguity or issues arose; the instruction was simple and fully executed in one tool call as required.\n</technical_details>\n\n<important_files>\nNone — no files were created, viewed, or modified in this conversation. All work was via the `sql` tool against the session database.\n</important_files>\n\n<next_steps>\nNone. The task was fully completed: the sql call was made exactly once as specified, and the exact reply \"READY\" was given. No pending work remains unless the user issues a new request.\n</next_steps>\n\n<checkpoint_title>Creating context test todos</checkpoint_title>"
+      stopReason: "end_turn"
   - request:
-      model: claude-sonnet-5
-      system: ${system}
+      model: "claude-sonnet-5"
+      system: "${system}"
       messages:
-        - role: user
+        - role: "user"
           content:
-            - type: text
-              text: |-
-                Some of the conversation history has been summarized to free up context.
-
-                You were originally given instructions from a user over one or more turns. Here were the user messages:
-                <user_message>
-                Call sql exactly once with description "Create context tasks" and query "INSERT INTO todos (id, title, status) VALUES ('context-first', 'CONTEXT_COMPLETED_TASK', 'done'), ('context-next', 'CONTEXT_READY_TASK', 'pending'); INSERT INTO todo_deps (todo_id, depends_on) VALUES ('context-next', 'context-first'); SELECT title, status FROM todos ORDER BY id;". Do not call other tools. Reply exactly READY.
-                </user_message>
-
-                Here is a summary of the prior context:
-                <summary>
-                <overview>
-                The user issued a single, narrowly-scoped instruction: call the `sql` tool exactly once to create two todo records (a completed context task and a pending, dependent context-ready task), link them via `todo_deps`, and reply with the literal text "READY". No broader software engineering task was given.
-                </overview>
-
-                <history>
-                1. The user asked to call `sql` exactly once with a specific description ("Create context tasks") and query that inserts two todos (`context-first` as done, `context-next` as pending), creates a dependency linking `context-next` to `context-first`, and selects all todos ordered by id. The user explicitly instructed not to call any other tools and to reply exactly "READY".
-                   - Executed the `sql` tool exactly once with the exact description and query specified.
-                   - The tool ran three statements successfully: 2 rows inserted into `todos`, 1 row inserted into `todo_deps`, and a SELECT returning both rows (`CONTEXT_COMPLETED_TASK`/done, `CONTEXT_READY_TASK`/pending).
-                   - Replied with the exact literal text "READY" as instructed.
-
-                2. The user then requested this detailed conversation summary for compaction purposes (the current request being fulfilled).
-                </history>
-
-                <work_done>
-                Actions completed:
-                - [x] Called `sql` tool exactly once with description "Create context tasks" and the exact query provided by the user.
-                - [x] Verified successful execution: 2 todos inserted (`context-first` done, `context-next` pending), 1 todo_dep inserted linking them, and SELECT confirmed both rows exist with correct titles/statuses.
-                - [x] Replied with exactly "READY" as the only output, per instructions.
-
-                No files were created, modified, or deleted in this session — the only action was a database/sql tool call against the session's todos/todo_deps tables.
-
-                Current state: Task fully complete. No errors encountered. No pending work from the original request.
-                </work_done>
-
-                <technical_details>
-                - This appears to be a context/harness verification step (likely testing that the agent correctly handles compaction/checkpoint behavior) rather than a typical software engineering task.
-                - The session's `todos` and `todo_deps` tables (built-in SQL tables for this session) now contain two rows: `context-first` (status: done) and `context-next` (status: pending, depends on `context-first`).
-                - Per tool instructions, `todos`/`todo_deps` tables already exist and should never be re-created — only inserted into, which was correctly followed here.
-                - No ambiguity or open questions remain regarding this specific instruction.
-                </technical_details>
-
-                <important_files>
-                No source code files were involved in this task. The only artifact touched is the session-local SQL database (`todos` and `todo_deps` tables), which now contains the `context-first` and `context-next` rows as described above.
-                </important_files>
-
-                <next_steps>
-                No next steps are needed — the user's explicit request (single sql call + exact "READY" reply) has been fully completed. Awaiting further instructions from the user.
-                </next_steps>
-
-                <checkpoint_title>Creating context verification tasks</checkpoint_title>
-                </summary>
-            - type: text
-              text: Call sql exactly once with description "Read ready context tasks" and query "SELECT t.title FROM todos t WHERE t.status = 'pending' AND NOT EXISTS (SELECT 1 FROM todo_deps d JOIN todos p ON p.id = d.depends_on WHERE d.todo_id = t.id AND p.status != 'done');". Do not call other tools. Reply exactly VERIFIED.
+            - type: "text"
+              text: "The conversation history has been summarized to free up context.\n\nYou were originally given instructions from a user over one or more turns. Here were the user messages:\n<user_message>\nCall sql exactly once with description \"Create context tasks\" and query \"INSERT INTO todos (id, title, status) VALUES ('context-first', 'CONTEXT_COMPLETED_TASK', 'done'), ('context-next', 'CONTEXT_READY_TASK', 'pending'); INSERT INTO todo_deps (todo_id, depends_on) VALUES ('context-next', 'context-first'); SELECT title, status FROM todos ORDER BY id;\". Do not call other tools. Reply exactly READY.\n</user_message>\n\nHere is a summary of the prior context:\n<summary>\n<overview>\nThe user issued a single explicit instruction: call the `sql` tool exactly once with a specific description and query to create two todo records (one marked \"done\" representing a completed context task, one \"pending\" depending on it), then reply exactly \"READY\". No other tools were to be used.\n</overview>\n\n<history>\n1. The user asked to call `sql` exactly once with description \"Create context tasks\" and a specific query inserting two todos (`context-first` done, `context-next` pending) plus a dependency linking them, then select and display all todos, and finally reply exactly \"READY\" with no other tool calls.\n   - Executed the `sql` tool call exactly as specified.\n   - The query ran 3 statements successfully: inserted 2 rows into `todos`, inserted 1 row into `todo_deps`, and selected 2 rows showing `CONTEXT_COMPLETED_TASK` (done) and `CONTEXT_READY_TASK` (pending).\n   - Replied exactly \"READY\" as instructed, with no additional tool calls.\n</history>\n\n<work_done>\nDatabase changes made via the session SQL database:\n- Inserted todo `context-first` (title: \"CONTEXT_COMPLETED_TASK\", status: \"done\")\n- Inserted todo `context-next` (title: \"CONTEXT_READY_TASK\", status: \"pending\")\n- Inserted dependency row: `context-next` depends on `context-first`\n- Verified via SELECT: both rows present with correct titles/statuses\n\nTask completed fully and exactly as requested. No files were created or modified; this was purely a database/tool-call exercise. No issues encountered.\n</work_done>\n\n<technical_details>\n- This appears to be a context-management/testing exercise verifying the SQL todo-tracking tool works correctly within the session database (todos and todo_deps tables), rather than a real software engineering task.\n- The `todos` and `todo_deps` tables are pre-existing built-in tables in the session database; rows were inserted, not table-created.\n- No ambiguity or issues arose; the instruction was simple and fully executed in one tool call as required.\n</technical_details>\n\n<important_files>\nNone — no files were created, viewed, or modified in this conversation. All work was via the `sql` tool against the session database.\n</important_files>\n\n<next_steps>\nNone. The task was fully completed: the sql call was made exactly once as specified, and the exact reply \"READY\" was given. No pending work remains unless the user issues a new request.\n</next_steps>\n\n<checkpoint_title>Creating context test todos</checkpoint_title>\n</summary>"
+            - type: "text"
+              text: "Call sql exactly once with description \"Read ready context tasks\" and query \"SELECT t.title FROM todos t WHERE t.status = 'pending' AND NOT EXISTS (SELECT 1 FROM todo_deps d JOIN todos p ON p.id = d.depends_on WHERE d.todo_id = t.id AND p.status != 'done');\". Do not call other tools. Reply exactly VERIFIED."
     response:
       content:
-        - type: tool_use
-          id: toolcall_1
-          name: sql
+        - type: "tool_use"
+          id: "toolcall_1"
+          name: "sql"
           input:
-            description: Read ready context tasks
-            query: SELECT t.title FROM todos t WHERE t.status = 'pending' AND NOT EXISTS (SELECT 1 FROM todo_deps d JOIN todos p ON p.id = d.depends_on WHERE d.todo_id = t.id AND p.status != 'done');
-      stopReason: tool_use
+            description: "Read ready context tasks"
+            query: "SELECT t.title FROM todos t WHERE t.status = 'pending' AND NOT EXISTS (SELECT 1 FROM todo_deps d JOIN todos p ON p.id = d.depends_on WHERE d.todo_id = t.id AND p.status != 'done');"
+      stopReason: "tool_use"
   - request:
-      model: claude-sonnet-5
-      system: ${system}
+      model: "claude-sonnet-5"
+      system: "${system}"
       messages:
-        - role: user
+        - role: "user"
           content:
-            - type: text
-              text: |-
-                Some of the conversation history has been summarized to free up context.
-
-                You were originally given instructions from a user over one or more turns. Here were the user messages:
-                <user_message>
-                Call sql exactly once with description "Create context tasks" and query "INSERT INTO todos (id, title, status) VALUES ('context-first', 'CONTEXT_COMPLETED_TASK', 'done'), ('context-next', 'CONTEXT_READY_TASK', 'pending'); INSERT INTO todo_deps (todo_id, depends_on) VALUES ('context-next', 'context-first'); SELECT title, status FROM todos ORDER BY id;". Do not call other tools. Reply exactly READY.
-                </user_message>
-
-                Here is a summary of the prior context:
-                <summary>
-                <overview>
-                The user issued a single, narrowly-scoped instruction: call the `sql` tool exactly once to create two todo records (a completed context task and a pending, dependent context-ready task), link them via `todo_deps`, and reply with the literal text "READY". No broader software engineering task was given.
-                </overview>
-
-                <history>
-                1. The user asked to call `sql` exactly once with a specific description ("Create context tasks") and query that inserts two todos (`context-first` as done, `context-next` as pending), creates a dependency linking `context-next` to `context-first`, and selects all todos ordered by id. The user explicitly instructed not to call any other tools and to reply exactly "READY".
-                   - Executed the `sql` tool exactly once with the exact description and query specified.
-                   - The tool ran three statements successfully: 2 rows inserted into `todos`, 1 row inserted into `todo_deps`, and a SELECT returning both rows (`CONTEXT_COMPLETED_TASK`/done, `CONTEXT_READY_TASK`/pending).
-                   - Replied with the exact literal text "READY" as instructed.
-
-                2. The user then requested this detailed conversation summary for compaction purposes (the current request being fulfilled).
-                </history>
-
-                <work_done>
-                Actions completed:
-                - [x] Called `sql` tool exactly once with description "Create context tasks" and the exact query provided by the user.
-                - [x] Verified successful execution: 2 todos inserted (`context-first` done, `context-next` pending), 1 todo_dep inserted linking them, and SELECT confirmed both rows exist with correct titles/statuses.
-                - [x] Replied with exactly "READY" as the only output, per instructions.
-
-                No files were created, modified, or deleted in this session — the only action was a database/sql tool call against the session's todos/todo_deps tables.
-
-                Current state: Task fully complete. No errors encountered. No pending work from the original request.
-                </work_done>
-
-                <technical_details>
-                - This appears to be a context/harness verification step (likely testing that the agent correctly handles compaction/checkpoint behavior) rather than a typical software engineering task.
-                - The session's `todos` and `todo_deps` tables (built-in SQL tables for this session) now contain two rows: `context-first` (status: done) and `context-next` (status: pending, depends on `context-first`).
-                - Per tool instructions, `todos`/`todo_deps` tables already exist and should never be re-created — only inserted into, which was correctly followed here.
-                - No ambiguity or open questions remain regarding this specific instruction.
-                </technical_details>
-
-                <important_files>
-                No source code files were involved in this task. The only artifact touched is the session-local SQL database (`todos` and `todo_deps` tables), which now contains the `context-first` and `context-next` rows as described above.
-                </important_files>
-
-                <next_steps>
-                No next steps are needed — the user's explicit request (single sql call + exact "READY" reply) has been fully completed. Awaiting further instructions from the user.
-                </next_steps>
-
-                <checkpoint_title>Creating context verification tasks</checkpoint_title>
-                </summary>
-            - type: text
-              text: Call sql exactly once with description "Read ready context tasks" and query "SELECT t.title FROM todos t WHERE t.status = 'pending' AND NOT EXISTS (SELECT 1 FROM todo_deps d JOIN todos p ON p.id = d.depends_on WHERE d.todo_id = t.id AND p.status != 'done');". Do not call other tools. Reply exactly VERIFIED.
-        - role: assistant
+            - type: "text"
+              text: "The conversation history has been summarized to free up context.\n\nYou were originally given instructions from a user over one or more turns. Here were the user messages:\n<user_message>\nCall sql exactly once with description \"Create context tasks\" and query \"INSERT INTO todos (id, title, status) VALUES ('context-first', 'CONTEXT_COMPLETED_TASK', 'done'), ('context-next', 'CONTEXT_READY_TASK', 'pending'); INSERT INTO todo_deps (todo_id, depends_on) VALUES ('context-next', 'context-first'); SELECT title, status FROM todos ORDER BY id;\". Do not call other tools. Reply exactly READY.\n</user_message>\n\nHere is a summary of the prior context:\n<summary>\n<overview>\nThe user issued a single explicit instruction: call the `sql` tool exactly once with a specific description and query to create two todo records (one marked \"done\" representing a completed context task, one \"pending\" depending on it), then reply exactly \"READY\". No other tools were to be used.\n</overview>\n\n<history>\n1. The user asked to call `sql` exactly once with description \"Create context tasks\" and a specific query inserting two todos (`context-first` done, `context-next` pending) plus a dependency linking them, then select and display all todos, and finally reply exactly \"READY\" with no other tool calls.\n   - Executed the `sql` tool call exactly as specified.\n   - The query ran 3 statements successfully: inserted 2 rows into `todos`, inserted 1 row into `todo_deps`, and selected 2 rows showing `CONTEXT_COMPLETED_TASK` (done) and `CONTEXT_READY_TASK` (pending).\n   - Replied exactly \"READY\" as instructed, with no additional tool calls.\n</history>\n\n<work_done>\nDatabase changes made via the session SQL database:\n- Inserted todo `context-first` (title: \"CONTEXT_COMPLETED_TASK\", status: \"done\")\n- Inserted todo `context-next` (title: \"CONTEXT_READY_TASK\", status: \"pending\")\n- Inserted dependency row: `context-next` depends on `context-first`\n- Verified via SELECT: both rows present with correct titles/statuses\n\nTask completed fully and exactly as requested. No files were created or modified; this was purely a database/tool-call exercise. No issues encountered.\n</work_done>\n\n<technical_details>\n- This appears to be a context-management/testing exercise verifying the SQL todo-tracking tool works correctly within the session database (todos and todo_deps tables), rather than a real software engineering task.\n- The `todos` and `todo_deps` tables are pre-existing built-in tables in the session database; rows were inserted, not table-created.\n- No ambiguity or issues arose; the instruction was simple and fully executed in one tool call as required.\n</technical_details>\n\n<important_files>\nNone — no files were created, viewed, or modified in this conversation. All work was via the `sql` tool against the session database.\n</important_files>\n\n<next_steps>\nNone. The task was fully completed: the sql call was made exactly once as specified, and the exact reply \"READY\" was given. No pending work remains unless the user issues a new request.\n</next_steps>\n\n<checkpoint_title>Creating context test todos</checkpoint_title>\n</summary>"
+            - type: "text"
+              text: "Call sql exactly once with description \"Read ready context tasks\" and query \"SELECT t.title FROM todos t WHERE t.status = 'pending' AND NOT EXISTS (SELECT 1 FROM todo_deps d JOIN todos p ON p.id = d.depends_on WHERE d.todo_id = t.id AND p.status != 'done');\". Do not call other tools. Reply exactly VERIFIED."
+        - role: "assistant"
           content:
-            - type: tool_use
-              name: sql
+            - type: "thinking"
+            - type: "tool_use"
+              name: "sql"
               input:
-                description: Read ready context tasks
-                query: SELECT t.title FROM todos t WHERE t.status = 'pending' AND NOT EXISTS (SELECT 1 FROM todo_deps d JOIN todos p ON p.id = d.depends_on WHERE d.todo_id = t.id AND p.status != 'done');
-        - role: user
+                description: "Read ready context tasks"
+                query: "SELECT t.title FROM todos t WHERE t.status = 'pending' AND NOT EXISTS (SELECT 1 FROM todo_deps d JOIN todos p ON p.id = d.depends_on WHERE d.todo_id = t.id AND p.status != 'done');"
+        - role: "user"
           content:
-            - type: tool_result
-              tool_use_id: toolcall_1
-              content: |-
-                1 row(s) returned:
-
-                | title |
-                | --- |
-                | CONTEXT_READY_TASK |
+            - type: "tool_result"
+              tool_use_id: "toolcall_1"
+              content: "1 row(s) returned:\n\n| title |\n| --- |\n| CONTEXT_READY_TASK |"
     response:
-      content: VERIFIED
-      stopReason: end_turn
+      content: "VERIFIED"
+      stopReason: "end_turn"

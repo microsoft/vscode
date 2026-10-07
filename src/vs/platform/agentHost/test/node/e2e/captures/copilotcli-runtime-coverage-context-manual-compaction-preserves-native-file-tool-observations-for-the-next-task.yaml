@@ -61,6 +61,7 @@ exchanges:
               content: .\routing.txt
         - role: assistant
           content:
+            - type: thinking
             - type: tool_use
               name: view
               input:
@@ -93,6 +94,7 @@ exchanges:
               content: .\routing.txt
         - role: assistant
           content:
+            - type: thinking
             - type: tool_use
               name: view
               input:
@@ -235,52 +237,58 @@ exchanges:
             ---
 
             Please write the summary now, following the structure and guidelines above. Be concise where possible, but don't sacrifice important context for brevity.
+
+            Tools are unavailable in this step, so do not call any tools, even if other instructions say to call one before responding: respond only with the summary text.
     response:
       content: |-
         <overview>
-        The user asked me to read a file called routing.txt, retain a verification rule contained within it for later use, but not yet read the verification target file it references. No code changes were requested; this was a simple file-reading and instruction-following task.
+        The user asked me to read a file called routing.txt, retain a verification rule found within it for a later request without acting on it yet, read exactly one file using the view tool (not shell tools), and then reply with exactly "VERIFIED". This was a simple instruction-following task with strict constraints on tool usage and scope.
         </overview>
 
         <history>
-        1. The user asked me to read routing.txt, retain its verification rule for a later request (without reading the verification target yet), use the `view` tool (not shell tools), read exactly one file, and reply exactly "VERIFIED".
-           - Used `glob` to locate routing.txt, found it at `.\routing.txt` in the working directory.
-           - Used `view` to read `${workdir}/routing.txt`.
-           - Content read: "The verification target is retained-target.txt. Read that file when verification is requested."
-           - Did not read retained-target.txt, per instructions.
-           - Replied exactly: VERIFIED
+        1. The user asked me to read routing.txt, retain its verification rule for later, not read the verification target yet, use only the view tool, read exactly one file, and reply exactly "VERIFIED".
+           - I used the `glob` tool to locate routing.txt, which found it at `.\routing.txt` (relative to the working directory).
+           - I used the `view` tool to read the full path `${workdir}/routing.txt`.
+           - The file content was: "The verification target is retained-target.txt. Read that file when verification is requested."
+           - I did not read retained-target.txt, per instructions.
+           - I replied exactly: VERIFIED
         </history>
 
         <work_done>
-        No files were created, modified, or deleted. This was a read-only task.
+        No files were created, modified, or deleted. This was a read-only instruction-following task.
 
         Tasks completed:
-        - [x] Located and read routing.txt using the `view` tool (exactly one file read).
-        - [x] Extracted and retained the verification rule: the verification target file is `retained-target.txt`, and it should be read "when verification is requested."
-        - [x] Did not read retained-target.txt, as instructed.
-        - [x] Replied with exactly "VERIFIED".
+        - [x] Located routing.txt via glob
+        - [x] Read routing.txt via view (exactly one file read, as instructed)
+        - [x] Did not read the verification target (retained-target.txt)
+        - [x] Replied exactly "VERIFIED"
+
+        Current state: Task fully complete. The verification rule has been retained in context: when verification is requested in a future turn, I should read retained-target.txt.
         </work_done>
 
         <technical_details>
-        - Routing.txt is located at the root of the git repository / working directory: `${workdir}/routing.txt`.
-        - Its content specifies a deferred verification rule: when "verification is requested" (presumably in a future user turn), I should read `retained-target.txt` located in the same directory (presumed, not yet confirmed — its exact path was not verified since I was instructed not to read it).
-        - No tool errors or issues encountered.
+        - The verification rule to retain: "The verification target is retained-target.txt. Read that file when verification is requested." This file (retained-target.txt) has NOT been read yet and should only be read when verification is explicitly requested in a subsequent turn.
+        - The `glob` tool returned a relative path (`.\routing.txt`), but the `view` tool required (or I used) the full absolute path for the actual read.
+        - Working directory: `${workdir}`
+        - No ambiguity or issues encountered; instructions were followed precisely.
         </technical_details>
 
         <important_files>
-        - `${workdir}/routing.txt`
-          - Contains the retained verification rule: "The verification target is retained-target.txt. Read that file when verification is requested."
-          - Not modified, only read.
-        - `retained-target.txt` (location presumed to be same directory as routing.txt, not yet confirmed)
-          - This is the verification target referenced by routing.txt. Must be read with `view` only when the user explicitly requests "verification" in a future turn.
-          - Not yet read — this is intentional per the user's instructions.
+        - routing.txt (full path: ${workdir}/routing.txt)
+          - Contains the routing/verification rule pointing to retained-target.txt as the file to read when verification is requested later.
+          - Only file read so far; not modified.
+        - retained-target.txt (not yet read; located presumably in the same directory)
+          - This is the verification target referenced by routing.txt. Must be read with the `view` tool (not shell tools) only when a future request explicitly asks for "verification."
         </important_files>
 
         <next_steps>
-        - Await a future user request that asks for "verification." When that request comes, use `glob`/`view` to locate and read `retained-target.txt` (likely in the same directory as routing.txt) as the retained rule specifies.
-        - No other pending work.
+        No immediate action required. When the user later requests verification, I should:
+        1. Locate retained-target.txt (likely in the same directory as routing.txt, i.e., `${workdir}`), using glob if needed.
+        2. Read it using the `view` tool (not shell tools), per the retained rule.
+        3. Respond according to whatever instructions accompany that future verification request.
         </next_steps>
 
-        <checkpoint_title>Reading routing.txt verification rule</checkpoint_title>
+        <checkpoint_title>Retained verification rule from routing.txt</checkpoint_title>
       stopReason: end_turn
   - request:
       model: claude-sonnet-5
@@ -290,7 +298,7 @@ exchanges:
           content:
             - type: text
               text: |-
-                Some of the conversation history has been summarized to free up context.
+                The conversation history has been summarized to free up context.
 
                 You were originally given instructions from a user over one or more turns. Here were the user messages:
                 <user_message>
@@ -300,49 +308,53 @@ exchanges:
                 Here is a summary of the prior context:
                 <summary>
                 <overview>
-                The user asked me to read a file called routing.txt, retain a verification rule contained within it for later use, but not yet read the verification target file it references. No code changes were requested; this was a simple file-reading and instruction-following task.
+                The user asked me to read a file called routing.txt, retain a verification rule found within it for a later request without acting on it yet, read exactly one file using the view tool (not shell tools), and then reply with exactly "VERIFIED". This was a simple instruction-following task with strict constraints on tool usage and scope.
                 </overview>
 
                 <history>
-                1. The user asked me to read routing.txt, retain its verification rule for a later request (without reading the verification target yet), use the `view` tool (not shell tools), read exactly one file, and reply exactly "VERIFIED".
-                   - Used `glob` to locate routing.txt, found it at `.\routing.txt` in the working directory.
-                   - Used `view` to read `${workdir}/routing.txt`.
-                   - Content read: "The verification target is retained-target.txt. Read that file when verification is requested."
-                   - Did not read retained-target.txt, per instructions.
-                   - Replied exactly: VERIFIED
+                1. The user asked me to read routing.txt, retain its verification rule for later, not read the verification target yet, use only the view tool, read exactly one file, and reply exactly "VERIFIED".
+                   - I used the `glob` tool to locate routing.txt, which found it at `.\routing.txt` (relative to the working directory).
+                   - I used the `view` tool to read the full path `${workdir}/routing.txt`.
+                   - The file content was: "The verification target is retained-target.txt. Read that file when verification is requested."
+                   - I did not read retained-target.txt, per instructions.
+                   - I replied exactly: VERIFIED
                 </history>
 
                 <work_done>
-                No files were created, modified, or deleted. This was a read-only task.
+                No files were created, modified, or deleted. This was a read-only instruction-following task.
 
                 Tasks completed:
-                - [x] Located and read routing.txt using the `view` tool (exactly one file read).
-                - [x] Extracted and retained the verification rule: the verification target file is `retained-target.txt`, and it should be read "when verification is requested."
-                - [x] Did not read retained-target.txt, as instructed.
-                - [x] Replied with exactly "VERIFIED".
+                - [x] Located routing.txt via glob
+                - [x] Read routing.txt via view (exactly one file read, as instructed)
+                - [x] Did not read the verification target (retained-target.txt)
+                - [x] Replied exactly "VERIFIED"
+
+                Current state: Task fully complete. The verification rule has been retained in context: when verification is requested in a future turn, I should read retained-target.txt.
                 </work_done>
 
                 <technical_details>
-                - Routing.txt is located at the root of the git repository / working directory: `${workdir}/routing.txt`.
-                - Its content specifies a deferred verification rule: when "verification is requested" (presumably in a future user turn), I should read `retained-target.txt` located in the same directory (presumed, not yet confirmed — its exact path was not verified since I was instructed not to read it).
-                - No tool errors or issues encountered.
+                - The verification rule to retain: "The verification target is retained-target.txt. Read that file when verification is requested." This file (retained-target.txt) has NOT been read yet and should only be read when verification is explicitly requested in a subsequent turn.
+                - The `glob` tool returned a relative path (`.\routing.txt`), but the `view` tool required (or I used) the full absolute path for the actual read.
+                - Working directory: `${workdir}`
+                - No ambiguity or issues encountered; instructions were followed precisely.
                 </technical_details>
 
                 <important_files>
-                - `${workdir}/routing.txt`
-                  - Contains the retained verification rule: "The verification target is retained-target.txt. Read that file when verification is requested."
-                  - Not modified, only read.
-                - `retained-target.txt` (location presumed to be same directory as routing.txt, not yet confirmed)
-                  - This is the verification target referenced by routing.txt. Must be read with `view` only when the user explicitly requests "verification" in a future turn.
-                  - Not yet read — this is intentional per the user's instructions.
+                - routing.txt (full path: ${workdir}/routing.txt)
+                  - Contains the routing/verification rule pointing to retained-target.txt as the file to read when verification is requested later.
+                  - Only file read so far; not modified.
+                - retained-target.txt (not yet read; located presumably in the same directory)
+                  - This is the verification target referenced by routing.txt. Must be read with the `view` tool (not shell tools) only when a future request explicitly asks for "verification."
                 </important_files>
 
                 <next_steps>
-                - Await a future user request that asks for "verification." When that request comes, use `glob`/`view` to locate and read `retained-target.txt` (likely in the same directory as routing.txt) as the retained rule specifies.
-                - No other pending work.
+                No immediate action required. When the user later requests verification, I should:
+                1. Locate retained-target.txt (likely in the same directory as routing.txt, i.e., `${workdir}`), using glob if needed.
+                2. Read it using the `view` tool (not shell tools), per the retained rule.
+                3. Respond according to whatever instructions accompany that future verification request.
                 </next_steps>
 
-                <checkpoint_title>Reading routing.txt verification rule</checkpoint_title>
+                <checkpoint_title>Retained verification rule from routing.txt</checkpoint_title>
                 </summary>
             - type: text
               text: Perform the verification from the routing note you read earlier. Use view, not shell tools. Read exactly one file. Then reply exactly VERIFIED.
@@ -362,7 +374,7 @@ exchanges:
           content:
             - type: text
               text: |-
-                Some of the conversation history has been summarized to free up context.
+                The conversation history has been summarized to free up context.
 
                 You were originally given instructions from a user over one or more turns. Here were the user messages:
                 <user_message>
@@ -372,49 +384,53 @@ exchanges:
                 Here is a summary of the prior context:
                 <summary>
                 <overview>
-                The user asked me to read a file called routing.txt, retain a verification rule contained within it for later use, but not yet read the verification target file it references. No code changes were requested; this was a simple file-reading and instruction-following task.
+                The user asked me to read a file called routing.txt, retain a verification rule found within it for a later request without acting on it yet, read exactly one file using the view tool (not shell tools), and then reply with exactly "VERIFIED". This was a simple instruction-following task with strict constraints on tool usage and scope.
                 </overview>
 
                 <history>
-                1. The user asked me to read routing.txt, retain its verification rule for a later request (without reading the verification target yet), use the `view` tool (not shell tools), read exactly one file, and reply exactly "VERIFIED".
-                   - Used `glob` to locate routing.txt, found it at `.\routing.txt` in the working directory.
-                   - Used `view` to read `${workdir}/routing.txt`.
-                   - Content read: "The verification target is retained-target.txt. Read that file when verification is requested."
-                   - Did not read retained-target.txt, per instructions.
-                   - Replied exactly: VERIFIED
+                1. The user asked me to read routing.txt, retain its verification rule for later, not read the verification target yet, use only the view tool, read exactly one file, and reply exactly "VERIFIED".
+                   - I used the `glob` tool to locate routing.txt, which found it at `.\routing.txt` (relative to the working directory).
+                   - I used the `view` tool to read the full path `${workdir}/routing.txt`.
+                   - The file content was: "The verification target is retained-target.txt. Read that file when verification is requested."
+                   - I did not read retained-target.txt, per instructions.
+                   - I replied exactly: VERIFIED
                 </history>
 
                 <work_done>
-                No files were created, modified, or deleted. This was a read-only task.
+                No files were created, modified, or deleted. This was a read-only instruction-following task.
 
                 Tasks completed:
-                - [x] Located and read routing.txt using the `view` tool (exactly one file read).
-                - [x] Extracted and retained the verification rule: the verification target file is `retained-target.txt`, and it should be read "when verification is requested."
-                - [x] Did not read retained-target.txt, as instructed.
-                - [x] Replied with exactly "VERIFIED".
+                - [x] Located routing.txt via glob
+                - [x] Read routing.txt via view (exactly one file read, as instructed)
+                - [x] Did not read the verification target (retained-target.txt)
+                - [x] Replied exactly "VERIFIED"
+
+                Current state: Task fully complete. The verification rule has been retained in context: when verification is requested in a future turn, I should read retained-target.txt.
                 </work_done>
 
                 <technical_details>
-                - Routing.txt is located at the root of the git repository / working directory: `${workdir}/routing.txt`.
-                - Its content specifies a deferred verification rule: when "verification is requested" (presumably in a future user turn), I should read `retained-target.txt` located in the same directory (presumed, not yet confirmed — its exact path was not verified since I was instructed not to read it).
-                - No tool errors or issues encountered.
+                - The verification rule to retain: "The verification target is retained-target.txt. Read that file when verification is requested." This file (retained-target.txt) has NOT been read yet and should only be read when verification is explicitly requested in a subsequent turn.
+                - The `glob` tool returned a relative path (`.\routing.txt`), but the `view` tool required (or I used) the full absolute path for the actual read.
+                - Working directory: `${workdir}`
+                - No ambiguity or issues encountered; instructions were followed precisely.
                 </technical_details>
 
                 <important_files>
-                - `${workdir}/routing.txt`
-                  - Contains the retained verification rule: "The verification target is retained-target.txt. Read that file when verification is requested."
-                  - Not modified, only read.
-                - `retained-target.txt` (location presumed to be same directory as routing.txt, not yet confirmed)
-                  - This is the verification target referenced by routing.txt. Must be read with `view` only when the user explicitly requests "verification" in a future turn.
-                  - Not yet read — this is intentional per the user's instructions.
+                - routing.txt (full path: ${workdir}/routing.txt)
+                  - Contains the routing/verification rule pointing to retained-target.txt as the file to read when verification is requested later.
+                  - Only file read so far; not modified.
+                - retained-target.txt (not yet read; located presumably in the same directory)
+                  - This is the verification target referenced by routing.txt. Must be read with the `view` tool (not shell tools) only when a future request explicitly asks for "verification."
                 </important_files>
 
                 <next_steps>
-                - Await a future user request that asks for "verification." When that request comes, use `glob`/`view` to locate and read `retained-target.txt` (likely in the same directory as routing.txt) as the retained rule specifies.
-                - No other pending work.
+                No immediate action required. When the user later requests verification, I should:
+                1. Locate retained-target.txt (likely in the same directory as routing.txt, i.e., `${workdir}`), using glob if needed.
+                2. Read it using the `view` tool (not shell tools), per the retained rule.
+                3. Respond according to whatever instructions accompany that future verification request.
                 </next_steps>
 
-                <checkpoint_title>Reading routing.txt verification rule</checkpoint_title>
+                <checkpoint_title>Retained verification rule from routing.txt</checkpoint_title>
                 </summary>
             - type: text
               text: Perform the verification from the routing note you read earlier. Use view, not shell tools. Read exactly one file. Then reply exactly VERIFIED.

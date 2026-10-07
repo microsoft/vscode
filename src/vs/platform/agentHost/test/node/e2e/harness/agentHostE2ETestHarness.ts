@@ -9,7 +9,7 @@
 
 import assert from 'assert';
 import { execSync } from 'child_process';
-import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from 'fs';
+import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'fs';
 import { homedir, tmpdir, userInfo } from 'os';
 import { fileURLToPath } from 'url';
 import { timeout } from '../../../../../../base/common/async.js';
@@ -40,7 +40,7 @@ import {
 } from '../../serverIntegrationTestHelpers.js';
 import { defaultAgentHostTarget, type IAgentHostTarget } from './agentHostTarget.js';
 import { createProviderSession, dispatchTurn, dispatchTurnWithAttachments } from '../../providerIntegrationTestHelpers.js';
-import { AgentHostUpdateSnapshotsEnvVar, AhpSnapshotScenario, waitForChatUnreadAfterTurn, type IAhpSnapshotOptions } from './ahpSnapshot.js';
+import { AgentHostUpdateSnapshotsEnvVar, AhpSnapshotScenario, normalizeWorkspacePaths, waitForChatUnreadAfterTurn, type IAhpSnapshotOptions } from './ahpSnapshot.js';
 import { normalizeShellToolNameForCapture } from './shellToolNames.js';
 import type { IStubResponse } from './capiStubs.js';
 import { preserveAgentHostE2ELogs } from './agentHostE2EDiagnostics.js';
@@ -710,9 +710,7 @@ function normalizeToolResultText(value: string, workspace?: string): string {
 	const withoutAnsi = removeAnsiEscapeCodes(value).replaceAll('\r\n', '\n').replaceAll('\r', '\n');
 	let normalizedWorkspace = withoutAnsi;
 	if (workspace) {
-		normalizedWorkspace = normalizedWorkspace
-			.replaceAll(realpathSync(workspace), '${workdir}')
-			.replaceAll(workspace, '${workdir}');
+		normalizedWorkspace = normalizeWorkspacePaths(normalizedWorkspace, workspace);
 	}
 	return normalizedWorkspace.replaceAll('\\', '/').trim();
 }

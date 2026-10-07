@@ -213,7 +213,10 @@ suite('CapiReplayProxy path normalization', () => {
 		const directory = mkdtempSync(join(tmpdir(), 'capi-replay-saved-output-'));
 		const fixturePath = join(directory, 'capture.yaml');
 		const recordedPath = join(tmpdir(), '1790000000000-copilot-tool-output-10000-11111111-1111-4111-8111-111111111111.txt');
-		const observedPath = join(tmpdir(), '1790000009999-copilot-tool-output-20000-22222222-2222-4222-8222-222222222222.txt');
+		const observedPaths = [
+			join(tmpdir(), '1790000009999-copilot-tool-output-20000-22222222-2222-4222-8222-222222222222.txt'),
+			join(tmpdir(), 'copilot-33333333-3333-4333-8333-333333333333', '1790000009999-copilot-tool-output-20000-22222222-2222-4222-8222-222222222222.txt'),
+		];
 		const request = (path: string, toolCallId = 'toolu_output') => JSON.stringify({
 			model: 'claude-opus-5', system: 'system',
 			messages: [{
@@ -244,19 +247,21 @@ suite('CapiReplayProxy path normalization', () => {
 				timestamp: contents.includes('1790000000000'),
 				tempDirectory: contents.includes(tmpdir()),
 			}, { placeholder: true, timestamp: false, tempDirectory: false });
-			const replay = new CapiReplayProxy({ fixturePath, mode: 'replay', userName: userInfo().username });
-			try {
-				const response = await fetch(`${await replay.start()}/v1/messages`, { method: 'POST', body: request(observedPath, 'toolcall_1') });
-				const message = aggregateAnthropicSse(await response.text());
-				const block = message?.content[0];
-				assert.ok(block?.type === 'tool_use' && typeof block.input === 'object' && block.input !== null);
-				const path: unknown = Reflect.get(block.input, 'path');
-				assert.deepStrictEqual({ status: response.status, path }, {
-					status: 200, path: observedPath.replaceAll('\\', '/'),
-				});
-				replay.assertNoReplayMismatches();
-			} finally {
-				await replay.stop();
+			for (const observedPath of observedPaths) {
+				const replay = new CapiReplayProxy({ fixturePath, mode: 'replay', userName: userInfo().username });
+				try {
+					const response = await fetch(`${await replay.start()}/v1/messages`, { method: 'POST', body: request(observedPath, 'toolcall_1') });
+					const message = aggregateAnthropicSse(await response.text());
+					const block = message?.content[0];
+					assert.ok(block?.type === 'tool_use' && typeof block.input === 'object' && block.input !== null);
+					const path: unknown = Reflect.get(block.input, 'path');
+					assert.deepStrictEqual({ status: response.status, path }, {
+						status: 200, path: observedPath.replaceAll('\\', '/'),
+					});
+					replay.assertNoReplayMismatches();
+				} finally {
+					await replay.stop();
+				}
 			}
 		} finally {
 			await recorder.stop();
