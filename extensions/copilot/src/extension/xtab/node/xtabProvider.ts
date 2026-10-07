@@ -897,7 +897,8 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		const requestOptions: OptionalChatRequestParams = { temperature: 0, stream: true, prediction };
 		if (!this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderUsePrediction, this.expService)
 			&& !this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderUseMaxTokens, this.expService)) {
-			// An explicit undefined overrides the shared fetcher's default and is omitted from JSON.
+			// ChatMLFetcher adds { max_tokens: endpoint.maxOutputTokens, ...requestOptions } when not using prediction.
+			// Explicit undefined overrides that default. JSON serialization then omits max_tokens
 			requestOptions.max_tokens = undefined;
 		}
 
