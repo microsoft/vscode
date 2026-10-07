@@ -94,7 +94,7 @@ import { setChatInputStackInputWorking } from './input/chatInputStack.js';
 import { IChatListItemTemplate } from './chatListRenderer.js';
 import { ChatListWidget } from './chatListWidget.js';
 import { ChatFindWidget, IChatFindHost } from './chatFind/chatFindWidget.js';
-import { ChatEditorOptions } from './chatOptions.js';
+import { ChatEditorOptions, SESSIONS_CHAT_CONTENT_HORIZONTAL_PADDING } from './chatOptions.js';
 import { ChatViewWelcomePart, IChatViewWelcomeContent } from '../viewsWelcome/chatViewWelcomeController.js';
 import { ChatCustomizationMigrationNotice, IChatCustomizationMigrationNoticeContext } from '../aiCustomization/chatCustomizationMigrationNotice.js';
 import { hasImmutablePrimaryWorkingDirectory, resolveFolderPickerDecisionUpdate, IAgentHostNewSessionFolderService } from '../agentSessions/agentHost/agentHostNewSessionFolderService.js';
@@ -117,13 +117,6 @@ import { ChatUserInteraction } from '../chatUserInteractionTelemetry.js';
 import { ChatContentMarkdownRenderer } from './chatContentMarkdownRenderer.js';
 
 const $ = dom.$;
-
-/**
- * Baseline total horizontal padding of a chat item in the Agents window (`.interactive-item-container`,
- * `padding: 0 24px` in Sessions `chatView.css`). Reserved when laying out embedded editors so code
- * blocks match the rendered content width. See {@link IChatListItemRendererOptions.contentHorizontalPadding}.
- */
-export const SESSIONS_CHAT_ITEM_HORIZONTAL_PADDING = 48;
 
 export interface IChatWidgetStyles extends IChatInputStyles {
 	readonly inputEditorBackground: string;
@@ -1205,7 +1198,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.renderWelcomeViewContentIfNeeded();
 		this.createList(this.listContainer, {
 			editable: !isInlineChat(this) && !isQuickChat(this),
-			contentHorizontalPadding: this.viewOptions.isSessionsWindow ? SESSIONS_CHAT_ITEM_HORIZONTAL_PADDING : undefined,
+			contentHorizontalPadding: this.viewOptions.isSessionsWindow ? SESSIONS_CHAT_CONTENT_HORIZONTAL_PADDING : undefined,
 			...this.viewOptions.rendererOptions,
 			renderStyle
 		});
