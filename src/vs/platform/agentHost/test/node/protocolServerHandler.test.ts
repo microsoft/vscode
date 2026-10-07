@@ -72,6 +72,7 @@ class MockProtocolTransport implements IProtocolTransport {
 	get relayClientId(): string | undefined { return this.clientId; }
 	get relayPassive(): boolean | undefined { return this.passive; }
 	relayAuthenticated: boolean | undefined;
+	relayAuthenticate?: IProtocolTransport['relayAuthenticate'];
 
 	isDisposed = false;
 	private readonly _onMessage = new Emitter<ProtocolMessage>();
@@ -2345,6 +2346,35 @@ suite('ProtocolServerHandler', () => {
 		transport.simulateMessage(request(10, 'dispatchAction', { channel: sessionUri, clientSeq: 3, action: { type: ActionType.SessionTitleChanged, title: 'Authorized' } }));
 		await handler.whenIdle();
 		assert.strictEqual(stateManager.getSessionState(sessionUri)?.title, 'Authorized');
+	});
+
+	test('relay authentication forwards a delegated credential internally without publishing it to clients', async () => {
+		const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'relay-client', false));
+		transport.relayAuthenticated = false;
+		transport.relayAuthenticate = async params => {
+			transport.relayAuthenticated = true;
+			return { resource: params.resource, token: 'desktop-credential' };
+		};
+		const installed: AuthenticateParams[] = [];
+		agentService.authenticate = async params => {
+			installed.push(params);
+			return { authenticated: true };
+		};
+		server.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', { clientId: 'relay-client', protocolVersions: [PROTOCOL_VERSION] }));
+		transport.simulateMessage(request(2, 'authenticate', {
+			resource: 'https://api.github.com', token: 'copilot-sealed.v1.test.mobile-credential', scopes: ['mobile-only'], expiresIn: 1,
+		}));
+		await handler.whenIdle();
+		assert.deepStrictEqual({
+			installed,
+			response: findResponse(transport.sent, 2),
+			credentialPublished: JSON.stringify(transport.sent).includes('desktop-credential'),
+		}, {
+			installed: [{ resource: 'https://api.github.com', token: 'desktop-credential' }],
+			response: { jsonrpc: '2.0', id: 2, result: {} },
+			credentialPublished: false,
+		});
 	});
 
 	test('relay root-config and managed-permission changes cannot affect local host state', async () => {

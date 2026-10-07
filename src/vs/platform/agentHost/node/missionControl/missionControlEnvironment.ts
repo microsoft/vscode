@@ -264,7 +264,8 @@ export class MissionControlEnvironment extends Disposable {
 				throw new Error('Mission Control is already configured; disable it before changing its scope');
 			}
 			this._roots = [...new Set([...this._roots, ...roots])];
-			if (this._options.credential !== options.credential || this._credentialRejected) {
+			if (this._options.credential !== options.credential || this._credentialRejected
+				|| (this._options.useLocalCredentials === true) !== (options.useLocalCredentials === true)) {
 				this._generation++;
 				this._handler.clear();
 				this._mirrorAttachment.clear();
@@ -623,7 +624,11 @@ export class MissionControlEnvironment extends Disposable {
 			verifier,
 			this._host.socketFactory,
 			error => this._host.onError(error),
-			sealing && identityApiBase ? () => new MissionControlAuthentication(sealing, response.user_id, identityApiBase, this._host.fetch, options.requireConnectionBinding === true, () => identityApiBase === this._getIdentityApiBase() && generation === this._generation) : undefined,
+			sealing && identityApiBase ? () => new MissionControlAuthentication(
+				sealing, response.user_id, identityApiBase, this._host.fetch, options.requireConnectionBinding === true,
+				() => identityApiBase === this._getIdentityApiBase() && generation === this._generation,
+				options.useLocalCredentials === true ? () => this._options?.credential : undefined,
+			) : undefined,
 			sealing?.rootMeta,
 			this._mirror.value,
 		);
