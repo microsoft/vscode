@@ -21,8 +21,6 @@ import { BidirectionalMap, ResourceMap } from '../../../base/common/map.js';
 import { diffSets } from '../../../base/common/collections.js';
 import { Iterable } from '../../../base/common/iterator.js';
 
-const maxMarkerDecorations = 500;
-
 export class MarkerDecorationsService extends Disposable implements IMarkerDecorationsService {
 
 	declare readonly _serviceBrand: undefined;
@@ -30,8 +28,8 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 	private readonly _onDidChangeMarker = this._register(new Emitter<ITextModel>());
 	readonly onDidChangeMarker: Event<ITextModel> = this._onDidChangeMarker.event;
 
-	private readonly _onDidChangeDecorationLimit = this._register(new Emitter<ITextModel>());
-	readonly onDidChangeDecorationLimit: Event<ITextModel> = this._onDidChangeDecorationLimit.event;
+	private readonly _onDidChangeDecorationLimitExceeded = this._register(new Emitter<ITextModel>());
+	readonly onDidChangeDecorationLimitExceeded: Event<ITextModel> = this._onDidChangeDecorationLimitExceeded.event;
 
 	private readonly _suppressedRanges = new ResourceMap<Set<Range>>();
 
@@ -64,8 +62,8 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 		return markerDecorations ? markerDecorations.getMarkers() : [];
 	}
 
-	getDecorationLimit(uri: URI): number | false {
-		return this._markerDecorations.get(uri)?.limited ?? false;
+	getExceededDecorationLimit(uri: URI): number | undefined {
+		return this._markerDecorations.get(uri)?.markerLimitExceeded ?? undefined;
 	}
 
 	addMarkerSuppression(uri: URI, range: Range): IDisposable {
@@ -121,10 +119,10 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 	}
 
 	private _updateDecorations(markerDecorations: MarkerDecorations): void {
-		let markers = this._markerService.read({ resource: markerDecorations.model.uri, take: maxMarkerDecorations + 1 });
-		const limited = markers.length > maxMarkerDecorations ? maxMarkerDecorations : false;
-		if (limited !== false) {
-			markers = markers.slice(0, maxMarkerDecorations);
+		let markers = this._markerService.read({ resource: markerDecorations.model.uri, take: MarkerDecorations.MAX_MARKER_DECORATIONS_LIMIT + 1 });
+		const limitExceeded = markers.length > MarkerDecorations.MAX_MARKER_DECORATIONS_LIMIT;
+		if (limitExceeded) {
+			markers = markers.slice(0, MarkerDecorations.MAX_MARKER_DECORATIONS_LIMIT);
 		}
 
 		// filter markers from suppressed ranges
@@ -138,20 +136,25 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 		if (markerDecorations.update(markers)) {
 			this._onDidChangeMarker.fire(markerDecorations.model);
 		}
-		if (markerDecorations.updateLimit(limited)) {
-			this._onDidChangeDecorationLimit.fire(markerDecorations.model);
+		if (markerDecorations.updateExceededLimit(limitExceeded)) {
+			this._onDidChangeDecorationLimitExceeded.fire(markerDecorations.model);
 		}
 	}
 }
 
 class MarkerDecorations extends Disposable {
 
+	public static readonly MAX_MARKER_DECORATIONS_LIMIT = 500;
+
 	private readonly _map = new BidirectionalMap<IMarker, /*decoration id*/string>();
 
-	private _limited: number | false = false;
+	private _limitExceeded: boolean = false;
 
-	public get limited(): number | false {
-		return this._limited;
+	/**
+	 * Return the maximum number of marker decorations allowed if the limit has been exceeded, otherwise undefined.
+	 */
+	public get markerLimitExceeded(): number | undefined {
+		return this._limitExceeded ? MarkerDecorations.MAX_MARKER_DECORATIONS_LIMIT : undefined;
 	}
 
 	constructor(
@@ -193,11 +196,11 @@ class MarkerDecorations extends Disposable {
 		return true;
 	}
 
-	public updateLimit(limited: number | false): boolean {
-		if (this._limited === limited) {
+	public updateExceededLimit(exceededLimit: boolean): boolean {
+		if (this._limitExceeded === exceededLimit) {
 			return false;
 		}
-		this._limited = limited;
+		this._limitExceeded = exceededLimit;
 		return true;
 	}
 

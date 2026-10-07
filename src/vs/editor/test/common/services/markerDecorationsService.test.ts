@@ -60,7 +60,7 @@ suite('MarkerDecorationsService', () => {
 			states.push({
 				diagnostics: markerService.read({ resource: model.uri }).length,
 				decorations: decorationService.getLiveMarkers(model.uri).length,
-				limited: decorationService.getDecorationLimit(model.uri)
+				limited: decorationService.getExceededDecorationLimit(model.uri)
 			});
 		}
 
@@ -82,9 +82,9 @@ suite('MarkerDecorationsService', () => {
 		disposables.add(decorationService.onDidChangeMarker(model => {
 			markerChanges.push(model.uri);
 		}));
-		const limitChanges: { resource: URI; limited: number | false }[] = [];
-		disposables.add(decorationService.onDidChangeDecorationLimit(model => {
-			limitChanges.push({ resource: model.uri, limited: decorationService.getDecorationLimit(model.uri) });
+		const exceededLimitChanges: { resource: URI; limited: number | undefined }[] = [];
+		disposables.add(decorationService.onDidChangeDecorationLimitExceeded(model => {
+			exceededLimitChanges.push({ resource: model.uri, limited: decorationService.getExceededDecorationLimit(model.uri) });
 		}));
 
 		await changeMarkers(model, 1, 'overflow');
@@ -93,11 +93,11 @@ suite('MarkerDecorationsService', () => {
 
 		assert.deepStrictEqual({
 			markerChanges,
-			limitChanges,
+			exceededLimitChanges,
 			decorationIds: model.getAllDecorations().map(decoration => decoration.id)
 		}, {
 			markerChanges: [],
-			limitChanges: [{ resource: model.uri, limited: 500 }, { resource: model.uri, limited: false }],
+			exceededLimitChanges: [{ resource: model.uri, limited: 500 }, { resource: model.uri, limited: undefined }],
 			decorationIds
 		});
 	});
@@ -110,7 +110,7 @@ suite('MarkerDecorationsService', () => {
 		const filter = disposables.add(markerService.installResourceFilter(model.uri, 'test'));
 		await filtered;
 		const filteredState = {
-			limited: decorationService.getDecorationLimit(model.uri),
+			limited: decorationService.getExceededDecorationLimit(model.uri),
 			decorations: decorationService.getLiveMarkers(model.uri).length,
 			diagnostics: markerService.read({ resource: model.uri, ignoreResourceFilters: true }).length
 		};
@@ -122,11 +122,11 @@ suite('MarkerDecorationsService', () => {
 		assert.deepStrictEqual({
 			filtered: filteredState,
 			restored: {
-				limited: decorationService.getDecorationLimit(model.uri),
+				limited: decorationService.getExceededDecorationLimit(model.uri),
 				decorations: decorationService.getLiveMarkers(model.uri).length
 			}
 		}, {
-			filtered: { limited: false, decorations: 1, diagnostics: 600 },
+			filtered: { limited: undefined, decorations: 1, diagnostics: 600 },
 			restored: { limited: 500, decorations: 500 }
 		});
 	});
@@ -136,7 +136,7 @@ suite('MarkerDecorationsService', () => {
 		await changeMarkers(model, 501);
 		const suppression = disposables.add(decorationService.addMarkerSuppression(model.uri, new Range(1, 1, 100, 2)));
 		const suppressedState = {
-			limited: decorationService.getDecorationLimit(model.uri),
+			limited: decorationService.getExceededDecorationLimit(model.uri),
 			lines: decorationService.getLiveMarkers(model.uri).map(([range]) => range.startLineNumber)
 		};
 
@@ -145,7 +145,7 @@ suite('MarkerDecorationsService', () => {
 		assert.deepStrictEqual({
 			suppressed: suppressedState,
 			restored: {
-				limited: decorationService.getDecorationLimit(model.uri),
+				limited: decorationService.getExceededDecorationLimit(model.uri),
 				decorations: decorationService.getLiveMarkers(model.uri).length
 			}
 		}, {
@@ -163,8 +163,8 @@ suite('MarkerDecorationsService', () => {
 		await changeMarkers(otherRemote, 600);
 
 		assert.deepStrictEqual(
-			[local, remote, otherRemote].map(model => decorationService.getDecorationLimit(model.uri)),
-			[500, false, 500]
+			[local, remote, otherRemote].map(model => decorationService.getExceededDecorationLimit(model.uri)),
+			[500, undefined, 500]
 		);
 	});
 
@@ -172,15 +172,15 @@ suite('MarkerDecorationsService', () => {
 		const model = createModel();
 		await changeMarkers(model, 501);
 		model.dispose();
-		const afterDisposal = decorationService.getDecorationLimit(model.uri);
+		const afterDisposal = decorationService.getExceededDecorationLimit(model.uri);
 		const reopened = createModel(model.uri);
 
 		assert.deepStrictEqual({
 			afterDisposal,
-			afterReopening: decorationService.getDecorationLimit(reopened.uri),
+			afterReopening: decorationService.getExceededDecorationLimit(reopened.uri),
 			decorations: decorationService.getLiveMarkers(reopened.uri).length
 		}, {
-			afterDisposal: false,
+			afterDisposal: undefined,
 			afterReopening: 500,
 			decorations: 500
 		});
@@ -194,7 +194,7 @@ suite('MarkerDecorationsService', () => {
 		const restoredService = serviceDisposables.add(new MarkerDecorationsService(modelService, markerService));
 
 		assert.deepStrictEqual({
-			limited: restoredService.getDecorationLimit(model.uri),
+			limited: restoredService.getExceededDecorationLimit(model.uri),
 			decorations: restoredService.getLiveMarkers(model.uri).length
 		}, {
 			limited: 500,

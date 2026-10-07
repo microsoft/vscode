@@ -121,6 +121,7 @@ export class DiagnosticDecorationLimitReporter extends Disposable implements IEd
 	readonly onDidChange = this._onDidChange.event;
 
 	private _limited: number | false = false;
+
 	get limited(): number | false {
 		return this._limited;
 	}
@@ -131,24 +132,24 @@ export class DiagnosticDecorationLimitReporter extends Disposable implements IEd
 	) {
 		super();
 
-		this._register(editor.onDidChangeModel(() => this.update()));
+		this._register(editor.onDidChangeModel(() => this._update()));
 		this._register(editor.onDidChangeConfiguration(e => {
-			if (e.hasChanged(EditorOption.renderValidationDecorations) || e.hasChanged(EditorOption.readOnly)) {
-				this.update();
+			if (e.hasChanged(EditorOption.renderValidationDecorations)) {
+				this._update();
 			}
 		}));
-		this._register(markerDecorationsService.onDidChangeDecorationLimit(model => {
+		this._register(markerDecorationsService.onDidChangeDecorationLimitExceeded(model => {
 			if (model === editor.getModel()) {
-				this.update();
+				this._update();
 			}
 		}));
-		this.update();
+		this._update();
 	}
 
-	private update(): void {
+	private _update(): void {
 		const model = this.editor.getModel();
 		const limited = model && !filterValidationDecorations(this.editor.getOptions())
-			? this.markerDecorationsService.getDecorationLimit(model.uri)
+			? this.markerDecorationsService.getExceededDecorationLimit(model.uri) ?? false
 			: false;
 		if (limited !== this._limited) {
 			this._limited = limited;
