@@ -199,6 +199,7 @@ class MockAgentService implements IAgentService {
 	readonly subscribeBarriers = new Map<string, DeferredPromise<void>>();
 	readonly subscribeCalls: { resource: string; clientId: string }[] = [];
 	readonly unsubscribeCalls: { resource: string; clientId: string }[] = [];
+	readonly clientChatSubscriptions: { chat: string; clientId: string; subscribed: boolean }[] = [];
 	afterListSessionsSnapshot: (() => void) | undefined;
 	readonly automationRunRequests: RunAutomationParams[] = [];
 	automationRunResult: RunAutomationResult | undefined;
@@ -292,6 +293,9 @@ class MockAgentService implements IAgentService {
 		return snapshot;
 	}
 	addSubscriber(_resource: URI, _clientId: string): void { }
+	setClientChatSubscription(chat: URI, clientId: string, subscribed: boolean): void {
+		this.clientChatSubscriptions.push({ chat: chat.toString(), clientId, subscribed });
+	}
 	unsubscribe(resource: URI, clientId: string): void {
 		this.unsubscribeCalls.push({ resource: resource.toString(), clientId });
 	}
@@ -5350,7 +5354,7 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
-	test('client reconnect with session subscription clears tool call disconnect timeout for that session', () => {
+	test('client reconnect with session and chat subscriptions clears tool call disconnect timeout for that chat', () => {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
 			stateManager.createSession(makeSessionSummary());
 			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
@@ -5392,7 +5396,7 @@ suite('ProtocolServerHandler', () => {
 			reconnectTransport.simulateMessage(request(1, 'reconnect', {
 				clientId: 'client-tools',
 				lastSeenServerSeq: stateManager.serverSeq,
-				subscriptions: [sessionUri],
+				subscriptions: [sessionUri, defaultChatUri],
 			}));
 
 			await new Promise(r => setTimeout(r, 30_001));
@@ -5650,7 +5654,7 @@ suite('ProtocolServerHandler', () => {
 
 		for (const overlappingConnection of [false, true]) {
 			for (const { name, removed, retained, statuses } of [
-				{ name: 'peer chat with session retained', removed: peerChatUri, retained: sessionUri, statuses: [ToolCallStatus.Streaming, ToolCallStatus.Streaming] },
+				{ name: 'peer chat with session retained', removed: peerChatUri, retained: sessionUri, statuses: [ToolCallStatus.Streaming, ToolCallStatus.Completed] },
 				{ name: 'peer chat with main chat retained', removed: peerChatUri, retained: defaultChatUri, statuses: [ToolCallStatus.Streaming, ToolCallStatus.Completed] },
 				{ name: 'main chat with peer chat retained', removed: defaultChatUri, retained: peerChatUri, statuses: [ToolCallStatus.Completed, ToolCallStatus.Streaming] },
 				{ name: 'session with main chat retained', removed: sessionUri, retained: defaultChatUri, statuses: [ToolCallStatus.Streaming, ToolCallStatus.Completed] },
@@ -5669,10 +5673,12 @@ suite('ProtocolServerHandler', () => {
 						clients: stateManager.getSessionState(sessionUri)?.activeClients.map(client => client.clientId),
 						statuses: toolStatuses(),
 						unsubscribed: agentService.unsubscribeCalls.map(call => call.resource),
+						releasedChatRouting: agentService.clientChatSubscriptions.filter(subscription => !subscription.subscribed).map(subscription => subscription.chat),
 					}, {
 						clients: [clientId],
 						statuses,
 						unsubscribed: [removed],
+						releasedChatRouting: [removed === sessionUri ? (retained === defaultChatUri ? peerChatUri : defaultChatUri) : removed],
 					});
 				});
 			}
@@ -5705,15 +5711,15 @@ suite('ProtocolServerHandler', () => {
 					statuses: toolStatuses(),
 				},
 			}, {
-				afterChurn: { clients: [clientId], statuses: [ToolCallStatus.Streaming, ToolCallStatus.Streaming] },
+				afterChurn: { clients: [clientId], statuses: [ToolCallStatus.Streaming, ToolCallStatus.Completed] },
 				afterSessionUnsubscribe: { clients: [clientId], statuses: [ToolCallStatus.Streaming, ToolCallStatus.Completed] },
 				afterLastUnsubscribe: { clients: [], statuses: [ToolCallStatus.Completed, ToolCallStatus.Completed] },
 			});
 		});
 
-		for (const retainedChat of [defaultChatUri, peerChatUri]) {
+		for (const retainedChat of [defaultChatUri, peerChatUri, sessionUri]) {
 			for (const overlappingConnection of [false, true]) {
-				test(`reconnect retaining only ${retainedChat === defaultChatUri ? 'main' : 'peer'} chat${overlappingConnection ? ' on another connection' : ''} preserves its client tools`, async () => {
+				test(`reconnect retaining only ${retainedChat === sessionUri ? 'session' : retainedChat === defaultChatUri ? 'main chat' : 'peer chat'}${overlappingConnection ? ' on another connection' : ''} preserves membership and scopes tool routing`, async () => {
 					return runWithFakedTimers({ useFakeTimers: true }, async () => {
 						createSessionWithClientTools();
 						const transport = connectClient(clientId, [sessionUri]);
@@ -5740,7 +5746,9 @@ suite('ProtocolServerHandler', () => {
 							clients: [clientId],
 							statuses: retainedChat === defaultChatUri
 								? [ToolCallStatus.Streaming, ToolCallStatus.Completed]
-								: [ToolCallStatus.Completed, ToolCallStatus.Streaming],
+								: retainedChat === peerChatUri
+									? [ToolCallStatus.Completed, ToolCallStatus.Streaming]
+									: [ToolCallStatus.Completed, ToolCallStatus.Completed],
 						});
 					});
 				});
@@ -5917,7 +5925,7 @@ suite('ProtocolServerHandler', () => {
 		transport2.simulateMessage(request(1, 'reconnect', {
 			clientId: 'client-tools',
 			lastSeenServerSeq: initSeq,
-			subscriptions: [sessionUri],
+			subscriptions: [sessionUri, defaultChatUri],
 		}));
 		await reconnectRespPromise;
 

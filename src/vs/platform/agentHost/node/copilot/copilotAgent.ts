@@ -8073,7 +8073,6 @@ class ActiveClient extends Disposable {
 		if (chats.size === 0) {
 			this._chatsByClient.delete(clientId);
 		}
-		this._reindexKnownChats();
 		return !this._chatsByClient.has(clientId);
 	}
 
@@ -8084,6 +8083,7 @@ class ActiveClient extends Disposable {
 				this.removeClient(clientId);
 			}
 		}
+		this._knownChats.delete(chat.toString());
 	}
 
 	/** The exact chats `clientId` contributes to, as last published by the host. */
@@ -8114,15 +8114,6 @@ class ActiveClient extends Disposable {
 		return result;
 	}
 
-	private _reindexKnownChats(): void {
-		this._knownChats.clear();
-		for (const chats of this._chatsByClient.values()) {
-			for (const chatKey of chats) {
-				this._knownChats.add(chatKey);
-			}
-		}
-	}
-
 	/** Get (or lazily create) the stable handle for `clientId`. */
 	getOrCreateHandle(clientId: string, displayName: string | undefined): CopilotActiveClientHandle {
 		let handle = this._handles.get(clientId);
@@ -8138,7 +8129,6 @@ class ActiveClient extends Disposable {
 		this._handles.delete(clientId);
 		this.toolSet.delete(clientId);
 		this._chatsByClient.delete(clientId);
-		this._reindexKnownChats();
 		this.pluginController.removeClient(clientId);
 	}
 

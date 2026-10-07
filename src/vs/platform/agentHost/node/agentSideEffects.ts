@@ -258,6 +258,7 @@ export class AgentSideEffects extends Disposable {
 	/** Tool entries created for a real permission request before the provider publishes its start. */
 	private readonly _permissionToolStarts = new Map<string, string>();
 	private readonly _resumedTurnExecutions = new Map<string, IResumedTurnExecution>();
+	private readonly _releasedClientChats = new NKeyMap<boolean, [ProtocolURI, ProtocolURI, string]>();
 	private _lastAgentInfos: readonly AgentInfo[] = [];
 
 	private readonly _permissionManager: SessionPermissionManager;
@@ -320,6 +321,7 @@ export class AgentSideEffects extends Disposable {
 		);
 		this._permissionManager = this._register(this._instantiationService.createInstance(SessionPermissionManager, this._stateManager, {}));
 		this._register(this._stateManager.onDidSnapshotDefaultChatTitle(event => this._persistDefaultChatTitleSnapshot(event.session, event.chat, event.title)));
+		this._register(this._stateManager.onDidRemoveSession(session => this._releasedClientChats.deleteAll(session)));
 		this._register(this._chatContributions.registerHost({
 			hostLaunchKind: this._options.hostLaunchKind ?? AgentHostLaunchKind.Unknown,
 			sendTurnMessage: options => void this._sendTurnMessage(options),
@@ -460,6 +462,9 @@ export class AgentSideEffects extends Disposable {
 					this._fanOutActiveClient(envelope.channel, activeClient);
 				}
 			}
+			if (envelope.action.type === ActionType.SessionChatRemoved) {
+				this._releasedClientChats.deleteAll(envelope.channel, envelope.action.chat);
+			}
 			this._chatContributions.didDispatchAction({
 				channel: envelope.channel,
 				session: isAhpChatChannel(envelope.channel) ? parseRequiredSessionUriFromChatUri(envelope.channel) : envelope.channel,
@@ -498,6 +503,9 @@ export class AgentSideEffects extends Disposable {
 		}
 		const hostCustomizations = this._hostCustomizations(session);
 		for (const chat of chats) {
+			if (this._releasedClientChats.get(session, chat.toString(), activeClient.clientId)) {
+				continue;
+			}
 			const handle = agent.getOrCreateActiveClient(chat, this._chatContext(session, chat.toString()), {
 				clientId: activeClient.clientId,
 				displayName: activeClient.displayName,
@@ -510,8 +518,36 @@ export class AgentSideEffects extends Disposable {
 	private _removeActiveClient(session: ProtocolURI, clientId: string): void {
 		const agent = this._options.getAgent(session);
 		for (const chat of getSessionChatsForFanOut(this._stateManager, session) ?? []) {
+			this._releasedClientChats.delete(session, chat.toString(), clientId);
 			agent?.removeActiveClient(chat, this._chatContext(session, chat.toString()), clientId);
 		}
+	}
+
+	/** Narrows or restores one client's exact-chat contribution without changing its session membership. */
+	setClientChatSubscription(chat: ProtocolURI, clientId: string, subscribed: boolean): void {
+		const session = parseRequiredSessionUriFromChatUri(chat);
+		const activeClient = this._stateManager.getSessionState(session)?.activeClients.find(client => client.clientId === clientId);
+		if (subscribed) {
+			if (!this._releasedClientChats.delete(session, chat, clientId)) {
+				return;
+			}
+		} else if (activeClient) {
+			this._releasedClientChats.set(true, session, chat, clientId);
+		}
+		const agent = this._options.getAgent(session);
+		if (!agent || !activeClient) {
+			return;
+		}
+		if (!subscribed) {
+			agent.removeActiveClient(URI.parse(chat), this._chatContext(session, chat), clientId);
+			return;
+		}
+		const handle = agent.getOrCreateActiveClient(URI.parse(chat), this._chatContext(session, chat), {
+			clientId,
+			displayName: activeClient.displayName,
+		}, this._hostCustomizations(session));
+		handle.tools = activeClient.tools;
+		handle.customizations = activeClient.customizations ?? [];
 	}
 
 	/**

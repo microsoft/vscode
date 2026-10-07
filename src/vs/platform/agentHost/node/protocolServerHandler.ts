@@ -838,6 +838,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		const snapshot = this._getSnapshot(channel);
 		client.subscriptions.set(sub.uri, sub);
 		this._agentService.addSubscriber(URI.parse(sub.uri), client.clientId);
+		if (isAhpChatChannel(sub.uri)) {
+			this._agentService.setClientChatSubscription(URI.parse(sub.uri), client.clientId, true);
+		}
 		this._clearClientToolCallDisconnectTimeout(client.clientId, sub.uri);
 		if (snapshot) {
 			this._clearBaselineDebt(client.clientId, sub.uri);
@@ -1134,6 +1137,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		for (const { pending, active } of pendingSubscriptions) {
 			if (client.subscriptions.get(pending.uri) === pending) {
 				client.subscriptions.set(active.uri, active);
+				if (isAhpChatChannel(active.uri)) {
+					this._agentService.setClientChatSubscription(URI.parse(active.uri), client.clientId, true);
+				}
 			}
 		}
 		this._reconcileActiveClientsAfterReconnect(client);
@@ -1189,7 +1195,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			const state = this._stateManager.getSessionState(session);
 			if (state && this._isActiveClient(state, client.clientId)) {
 				for (const chat of state.chats) {
-					if (!resubscribed.has(session) && !resubscribed.has(chat.resource)) {
+					if (!resubscribed.has(chat.resource)) {
 						this._releaseActiveClientForSession(session, client.clientId, chat.resource);
 					}
 				}
@@ -1245,12 +1251,13 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	/** Releases a chat's pending client tools, retaining the session contribution while any chat remains subscribed. */
 	private _releaseActiveClientForSession(session: string, clientId: string, chatChannel: string): void {
 		this._clearClientToolCallDisconnectTimeout(clientId, chatChannel);
-		if (this._hasClientSubscription(clientId, session) || this._hasClientSubscription(clientId, chatChannel)) {
+		if (this._hasClientSubscription(clientId, chatChannel)) {
 			return;
 		}
+		this._agentService.setClientChatSubscription(URI.parse(chatChannel), clientId, false);
 		this._completeDisconnectedClientToolCalls(clientId, session, chatChannel);
 		const state = this._stateManager.getSessionState(session);
-		if (!state?.chats.some(chat => this._hasClientSubscription(clientId, chat.resource))) {
+		if (!this._hasClientSubscription(clientId, session) && !state?.chats.some(chat => this._hasClientSubscription(clientId, chat.resource))) {
 			this._removeActiveClient(session, clientId);
 		}
 	}
@@ -1707,6 +1714,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					throw new Error(`Subscription cancelled: ${params.channel}`);
 				}
 				client.subscriptions.set(classified.uri, classified);
+				if (isAhpChatChannel(classified.uri)) {
+					this._agentService.setClientChatSubscription(URI.parse(classified.uri), client.clientId, true);
+				}
 				this._clearClientToolCallDisconnectTimeout(client.clientId, classified.uri);
 				this._clearBaselineDebt(client.clientId, classified.uri);
 				// `IStateSnapshot` is widened with `ChatState` (see sessionProtocol.ts);

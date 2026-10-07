@@ -1035,6 +1035,9 @@ export interface IAgentService {
 	 */
 	addSubscriber(resource: URI, clientId: string): void;
 
+	/** Updates provider tool routing when an exact chat subscription is established or released. */
+	setClientChatSubscription(chat: URI, clientId: string, subscribed: boolean): void;
+
 	/**
 	 * Fires when the server applies an action to subscribable state.
 	 * Clients use this alongside {@link subscribe} to keep their local

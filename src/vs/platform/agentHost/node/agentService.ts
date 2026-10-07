@@ -7086,6 +7086,10 @@ export class AgentService extends Disposable implements IAgentService {
 		this._sessionResidency.touch(resource);
 	}
 
+	setClientChatSubscription(chat: URI, clientId: string, subscribed: boolean): void {
+		this._sideEffects.setClientChatSubscription(chat.toString(), clientId, subscribed);
+	}
+
 	unsubscribe(resource: URI, clientId: string): void {
 		if (this._store.isDisposed) {
 			return;

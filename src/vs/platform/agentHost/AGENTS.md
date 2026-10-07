@@ -634,7 +634,7 @@ The contract for provider-internal work that has no host call of its own (a plug
 
 Membership changes re-enter the same seam: a `session/chatAdded` envelope fans every current active client into the new exact chat. Client removal is likewise fanned out as `removeActiveClient(chat, context, clientId)`.
 
-The protocol server retains a session's active-client contribution while any live connection for that client subscribes to the session or one of its chats. Unsubscribing or reconnecting without a particular chat fails its pending client tools only when neither that chat nor its session remains subscribed; the session-wide contribution is removed only after its last session/chat subscription is gone. Subscriptions to other sessions or non-chat resources do not retain the contribution.
+The protocol server retains a session's active-client contribution while any live connection for that client subscribes to the session or one of its chats. Releasing an exact chat subscription narrows the provider's contribution for that chat and fails its pending client tools; resubscribing restores its tools and customizations. Session-only subscriptions retain session membership but do not receive chat actions or execute tools in released chats. Active-client refreshes and catalog fan-out preserve this narrowing, and the session-wide contribution is removed only after its last session/chat subscription is gone.
 
 ### 8d. Prompt-cache metadata
 
