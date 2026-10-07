@@ -148,6 +148,8 @@ The `regression coverage:` history cases inspect actual provider-bound continued
 
 Historical checkpoint comparisons use completed provider turns rather than bang commands. Per-turn subscriptions currently select the file-edit tracker, which cannot see shell edits; compare-turn subscriptions use Git checkpoints. Checkpoint capture is asynchronous after turn completion, so these historical scenarios finish a subsequent no-tool turn before comparing earlier turns. Seed staged user changes before the baseline turn, and use an ignored execution witness when an edit-and-restore scenario intentionally has no final diff.
 
+Session-wide changeset subscriptions and background refreshes use Git checkpoints with tracked-edit fallback while the session is idle, preserving shell edits after the end-of-turn checkpoint has been published. While any chat has an active turn, automatic refreshes use tracked edits so an older completed checkpoint cannot overwrite live edits. The provider aggregation scenario verifies both chats' files on disk and resubscribes after observing their combined changes. Chat-scoped Session Changes continue to use only that chat's tracked edits.
+
 Detached-worktree include-file tests cover wholly ignored and partially selected directories, overlapping globs, binary contents, and collisions with files or directories tracked on another branch. They use unstarted sessions and explicitly delete their handles, avoiding the background Git work associated with model-backed worktree disposal.
 
 Fault-injection tests scope the injected response to the provider's model endpoint so asynchronous utility requests cannot consume it. The expected retry and error classification differs by provider; strict replay still verifies the recorded failure, every retry, and the recovery request.
@@ -229,9 +231,14 @@ A mismatch fails the test as `[capi-replay] N model request mismatch(es)` and pr
 
 ## Running the tests
 
+Runner, coverage, Windows launch support, and the Linux mount wrapper live under `test/integration/agentHost/`; package commands and the general integration entrypoints invoke them. The mount wrapper is test infrastructure, not a registered VS Code filesystem provider.
+
 Replay is the default — no setup, no token:
 
 ```bash
+# Refresh client output when running from local sources without an existing build task.
+npm run build-fast -- --client-only
+
 # Run conformance and all provider suites in parallel.
 npm run test-agent-host-e2e
 
@@ -241,6 +248,8 @@ npm run test-agent-host-e2e -- --jobs 2
 # Run one provider.
 ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts
 ```
+
+The complete-suite runner reuses Electron when its installed version matches the repository configuration and the platform's executable is present (and executable on POSIX). Missing or incompatible installations are refreshed. `VSCODE_FORCE_PRELAUNCH=1` forces a refresh; `VSCODE_SKIP_PRELAUNCH=1` explicitly bypasses preparation and takes precedence over the force flag. Output refresh and Electron preparation do not type-check the sources.
 
 The complete-suite runner starts one test process per entrypoint and runs up to five concurrently, including the separate Copilot OTel suite. `AGENT_HOST_E2E_JOBS` or `--jobs` can lower the worker count. Each process's output is printed as one block when it completes, and any Mocha failure details are repeated after the final suite summary so failures remain easy to find. Recording and snapshot-update modes remain per-provider commands so they never make concurrent writes or real CAPI requests.
 
@@ -293,6 +302,10 @@ option is per release; normal tests still require complete replay consumption.
 Each test needs an agent host server (a forked subprocess) fronted by a `CapiReplayProxy`. `AgentHostE2EServerLease` (in `harness/agentHostE2ETestHarness.ts`) owns that lifecycle and picks one of two strategies:
 
 The lease also owns isolated data directories. Servers normally share one directory as their home and VS Code user-data directory, with provider-specific config overrides prevented from escaping it, so both shared and provider-specific scenarios are isolated from developer-machine configuration.
+
+The parallel runner defaults to `--storage split` on Linux CI: the selected replay suite uses an executable, private 4 GiB tmpfs mount, followed by required disk-backed persistence and lifecycle tests. SQLite remains file-backed in both passes, including migrations, transactions, connection close/reopen, idle eviction, deletion, and host restart. The disk pass covers session history and provider context across restart, archived-session restoration, automation definition and failed-run persistence, cancelled-request deduplication, ordered/duplicate-turn cold resume, and detached-worktree archive/restart/deletion recovery. A failure in either pass fails the run. Host-process restarts preserve tmpfs files; machine restart and physical-storage durability are not covered by tmpfs.
+
+`--storage disk` runs the selected suite with normal temporary storage; `--storage tmpfs` runs only the RAM-backed pass. Local runs and other platforms retain disk-backed storage by default. Linux tmpfs requires noninteractive `sudo mount`/`umount`; allocation, capacity, and cleanup errors fail explicitly rather than falling back to disk. Each mount uses a uniquely allocated directory under `/tmp`, outside the checkout so providers cannot discover repository instructions through parent directories. Only that directory is removed after unmounting and child cleanup; diagnostics remain in the workspace logs artifact. Temporary-directory overrides apply only to E2E children, not other integration suites.
 
 On Windows, test-server cleanup records descendants before requesting graceful shutdown and terminates any survivors after the server exits, before temporary directories are removed. Recording descendants and waiting for graceful exit share the existing shutdown deadline.
 
@@ -611,6 +624,16 @@ Keep asserting the real tool result: the replayed assistant text can report the 
 
 When a test times out waiting for a notification and it is **not** platform-specific local execution (above), the failure is usually inside the bundled provider SDK/CLI. Every failed test tails the Agent Host process log into the test output before its temporary user-data directory is removed; look for the `[agent-host-e2e] # …` lines, including provider stderr and pipeline errors. For the **Copilot** provider, the harness additionally tails the most recent Copilot runtime (`@github/copilot` CLI) `process-*.log`, which records startup, auth, model requests, and the turn lifecycle. A turn that started but never produced a model response, a panic, or an out-of-order / protocol error points at the SDK/CLI. Re-record after an SDK bump if the fixture is stale; otherwise treat it as a genuine regression. The Copilot runtime runs at `--log trace` in this harness, and its full logs live under the server's temp home (`${homeDir}/.copilot/logs`) until the suite tears down.
 
+The parallel runner samples Linux CPU, I/O, and memory pressure plus CPU, memory, and disk counters every five seconds from outside the host processes. Samples are published under `.build/logs/integration-tests/agent-host-resources-<pid>.jsonl`; timestamps correlate with host phase logs. Resource pressure supports a contention hypothesis but does not establish which operation stalled.
+
+### Session disposal times out
+
+Correlate the protocol request with `[AgentService] disposeSession` trace records. Each cleanup operation has an `operationId`, a `stage` logged before its await, and cumulative `elapsedMs`. The last stage without a following stage identifies the pending cleanup boundary; `complete` is emitted only after successful cleanup. A request with no stage record may still be waiting for an in-flight residency release.
+
+Follow the pending boundary into its owning service or provider runtime before classifying the failure. A completed turn or failed automation run does not establish that session cleanup is finished, and a delayed disposal response alone does not distinguish a product race from worker resource contention.
+
+For a catalog drain, correlate `catalogStateWrite` iteration records with `[AgentHostCatalogSync]` records for the same session. Catalog queue records separate `queueWaitMs` from `executionMs`; synchronization stages identify whether local receipt access, central catalog access, or acknowledgement is pending. These timings include nested queues and native I/O, so a slow database stage alone does not prove filesystem or worker-pool contention.
+
 ### Replayed text is doubled (`VALUEVALUE`)
 
 The Responses (`/responses`) regenerator announces each output item before streaming it. If `response.output_item.added` carries the item's final content, a consumer that accumulates that content *and* the following deltas counts the same text twice, so a recorded `SHELL_VALUE_73` replays as `SHELL_VALUE_73SHELL_VALUE_73`.
@@ -620,6 +643,12 @@ The Responses (`/responses`) regenerator announces each output item before strea
 ### A test passes on macOS/Linux but fails on Windows
 
 Same as above — it's platform-specific real execution, not the proxy. See the worktree and provider-specific file-operation gates for established patterns.
+
+### Codex passes its tests but cannot remove its temporary home
+
+Codex's native plugin marketplace starts a background Git fetch of `openai/plugins` outside the replay proxy. If shutdown interrupts that work, Windows can keep a `.codex/.tmp/plugins-clone-*` directory locked: synchronous removal reports `EPERM`, while asynchronous removal identifies the clone directory with `EBUSY`. This caused the intermittent suite-cleanup failure tracked in [#339760](https://github.com/microsoft/vscode/issues/339760).
+
+Codex record/replay servers disable `features.plugins` to keep this unrelated marketplace bootstrap out of the tests. Client-provided plugin skills, agents, and MCP servers are configured by the host independently and remain covered by the same tests. Keep cleanup strict and retain its underlying filesystem errors so other teardown failures remain diagnosable.
 
 ### Fixture leaks a username / absolute path / token
 

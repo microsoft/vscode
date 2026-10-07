@@ -1091,7 +1091,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		}));
 	}
 
-	public getChatSessionItems(providersToResolve: readonly string[] | undefined, token: CancellationToken): AsyncIterable<{ readonly chatSessionType: string; readonly items: readonly IChatSessionItem[] }> {
+	public getChatSessionItems(providersToResolve: readonly string[] | undefined, token: CancellationToken, onError?: (error: unknown) => void): AsyncIterable<{ readonly chatSessionType: string; readonly items: readonly IChatSessionItem[] }> {
 		return new AsyncIterableProducer(async writer => {
 			// First, make sure contributed controller are active
 			await raceCancellationError(this.tryActivateControllers(providersToResolve), token);
@@ -1123,12 +1123,13 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 						// Log error but continue with other providers
 						this._logService.error(`[ChatSessionsService] Failed to resolve sessions for provider ${resolvedType}`, err);
 					}
+					onError?.(err);
 				}
 			}));
 		});
 	}
 
-	public async refreshChatSessionItems(providersToResolve: readonly string[] | undefined, token: CancellationToken): Promise<void> {
+	public async refreshChatSessionItems(providersToResolve: readonly string[] | undefined, token: CancellationToken, onError?: (error: unknown) => void): Promise<void> {
 		await this.tryActivateControllers(providersToResolve);
 
 		await Promise.all(Array.from(this._itemControllers).map(async ([chatSessionType, controllerEntry]) => {
@@ -1144,6 +1145,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 					// Log error but continue with other providers
 					this._logService.error(`[ChatSessionsService] Failed to resolve sessions for provider ${resolvedType}`, err);
 				}
+				onError?.(err);
 			}
 		}));
 	}

@@ -16,6 +16,7 @@
 .chat-group-view {
 	position: relative;
 	overflow: hidden;
+	contain: paint;
 	background-color: var(--session-view-background);
 	color: var(--session-view-foreground);
 }
@@ -40,7 +41,7 @@
 }
 
 .agent-sessions-workbench .part.sessionspart .chat-groups-view:not(.single-group) .interactive-session .chat-scroll-down {
-	right: var(--session-view-content-horizontal-padding, var(--vscode-spacing-size320));
+	right: var(--session-view-content-horizontal-padding, var(--vscode-spacing-size240));
 }
 
 .agent-sessions-workbench .part.sessionspart .chat-groups-view:not(.single-group) .interactive-session > .interactive-list > .chat-transcript-context {

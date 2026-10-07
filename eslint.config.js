@@ -1599,6 +1599,7 @@ export default defineConfig(
 						'zod',
 						'@microsoft/dev-tunnels-contracts',
 						'@microsoft/dev-tunnels-management',
+						'@microsoft/mxc-sdk/v1',
 						'@parcel/watcher',
 						'@vscode/sqlite3',
 						'@vscode/vscode-languagedetection',
@@ -1751,6 +1752,7 @@ export default defineConfig(
 						'@github/copilot-sdk',
 						'zod', // used by agentHost for Claude client-tool MCP input schemas
 						{ 'when': 'hasNode', 'pattern': 'libsodium-wrappers' },
+						{ 'when': 'hasNode', 'pattern': '@hpke/core' },
 						{
 							'when': 'test',
 							'pattern': 'events'

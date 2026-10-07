@@ -11,7 +11,7 @@ import { IRange } from '../../../../common/range.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
 
 suite('ListView', function () {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('all rows get disposed', function () {
 		const element = document.createElement('div');
@@ -310,6 +310,88 @@ suite('ListView', function () {
 			templatesAfterMoreRows: warmedTemplatesCount,
 			templatesAfterDisposal: 0,
 		});
+	});
+
+	test('updates data-index when reusing dynamic height measurement rows', function () {
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+
+		type TestElement = { id: string; height: number };
+		type Template = { row: HTMLElement; content: HTMLElement };
+		const delegate: IListVirtualDelegate<TestElement> = {
+			getHeight() { return 25; },
+			getTemplateId() { return 'template'; },
+			hasDynamicHeight() { return true; }
+		};
+
+		const cachedRows = new Set<HTMLElement>();
+		let phase: 'single' | 'batched' | undefined;
+		const renderedIndices: { phase: string; index: number; dataIndex: string | undefined; reused: boolean }[] = [];
+		const contextMenuTargets: { index: number | undefined; element: string | undefined }[] = [];
+		const renderer: IListRenderer<TestElement, Template> = {
+			templateId: 'template',
+			renderTemplate(row) {
+				const content = document.createElement('div');
+				row.appendChild(content);
+				return { row, content };
+			},
+			renderElement(element, index, { row, content }) {
+				content.style.height = `${element.height}px`;
+				if (phase) {
+					renderedIndices.push({ phase, index, dataIndex: row.dataset.index, reused: cachedRows.has(row) });
+					content.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
+				}
+			},
+			disposeTemplate() { }
+		};
+
+		const elements: TestElement[] = range(10).map(index => ({ id: String(index), height: 25 }));
+		const listView = new ListView<TestElement>(container, delegate, [renderer], { supportDynamicHeights: true });
+		store.add(listView.onContextMenu(event => {
+			contextMenuTargets.push({ index: event.index, element: event.element?.id });
+		}));
+		try {
+			listView.layout(250, 200);
+			listView.splice(0, 0, elements);
+			for (let index = 1; index < listView.length; index++) {
+				cachedRows.add(listView.domElement(index)!);
+			}
+
+			listView.layout(25, 200);
+			listView.splice(3, 7);
+			assert.strictEqual(listView.domElement(2), null);
+
+			phase = 'single';
+			listView.updateElementHeight(2, undefined, null);
+
+			phase = 'batched';
+			for (const element of elements) {
+				element.height = 5;
+			}
+			listView.domElement(0)!.querySelector<HTMLElement>('div')!.style.height = '5px';
+			listView.rerender();
+
+			assert.deepStrictEqual({
+				renderedIndices,
+				contextMenuTargets,
+				finalIndices: range(listView.length).map(index => listView.domElement(index)?.dataset.index)
+			}, {
+				renderedIndices: [
+					{ phase: 'single', index: 2, dataIndex: '2', reused: true },
+					{ phase: 'batched', index: 1, dataIndex: '1', reused: true },
+					{ phase: 'batched', index: 2, dataIndex: '2', reused: true }
+				],
+				contextMenuTargets: [
+					{ index: 2, element: '2' },
+					{ index: 1, element: '1' },
+					{ index: 2, element: '2' }
+				],
+				finalIndices: ['0', '1', '2']
+			});
+		} finally {
+			listView.dispose();
+			container.remove();
+		}
 	});
 
 	test('cleans up retained dynamic height rows after a render error', function () {

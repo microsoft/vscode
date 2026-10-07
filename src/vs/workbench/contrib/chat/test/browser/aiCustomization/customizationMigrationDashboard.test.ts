@@ -32,7 +32,6 @@ suite('CustomizationMigrationDashboard', () => {
 		const dashboard = store.add(instantiationService.createInstance(CustomizationMigrationDashboard, parent, {
 			actionClicked: (action, categoryId) => telemetryActions.push(categoryId ? `${action}:${categoryId}` : action),
 			configureLocations: () => { },
-			dismissResult: () => { },
 			migrateWithAgent: () => { },
 			migrateCategory: () => { },
 			setItemSelected: () => { },
@@ -40,7 +39,6 @@ suite('CustomizationMigrationDashboard', () => {
 			ignoreCategory: () => { },
 			restoreIgnoredCategories: () => { },
 			openCustomization: () => { },
-			dismissActivity: () => { },
 			...callbacks,
 		}));
 		dashboard.layout(1000);
@@ -57,7 +55,7 @@ suite('CustomizationMigrationDashboard', () => {
 		return {
 			scopes: [
 				{
-					storage: PromptsStorage.user, label: 'Your profile', count: 5, skipped: false, hasConfigurableDestinations: true,
+					storage: PromptsStorage.user, label: 'Your profile', count: 5, hasConfigurableDestinations: true,
 					categories: [
 						{
 							id: CustomizationMigrationCategoryId.UserData, label: 'User Data', description: 'Move personal customizations.', count: 2, selectedCount: 2, countLabel: '1 agent · 1 instruction',
@@ -78,7 +76,7 @@ suite('CustomizationMigrationDashboard', () => {
 					],
 				},
 				{
-					storage: PromptsStorage.local, label: 'vscode', count: 3, skipped: false, hasConfigurableDestinations: true,
+					storage: PromptsStorage.local, label: 'vscode', count: 3, hasConfigurableDestinations: true,
 					categories: [
 						{
 							id: CustomizationMigrationCategoryId.PromptFiles, label: 'Convert Prompt to Skills', description: 'Convert prompts to skills.', count: 1, selectedCount: 1, countLabel: '1 prompt', highRisk: true,
@@ -100,7 +98,6 @@ suite('CustomizationMigrationDashboard', () => {
 			],
 			manualReviewItems: [],
 			hasIgnoredGroups: false,
-			activity: [],
 		};
 	}
 
@@ -283,7 +280,7 @@ suite('CustomizationMigrationDashboard', () => {
 		const { parent, dashboard } = createDashboard();
 		dashboard.showLoading('Migrations', 'Loading migrations');
 		dashboard.focus();
-		dashboard.showOverview({ scopes: [], activity: [] });
+		dashboard.showOverview({ scopes: [] });
 		assert.deepStrictEqual({
 			focus: document.activeElement?.tagName,
 			dashboardContainsFocus: parent.contains(document.activeElement),
@@ -295,7 +292,7 @@ suite('CustomizationMigrationDashboard', () => {
 
 	test('renders an empty completed state without review controls', () => {
 		const { parent, dashboard } = createDashboard();
-		dashboard.showOverview({ scopes: [], activity: [] });
+		dashboard.showOverview({ scopes: [] });
 		dashboard.focus();
 		assert.deepStrictEqual({
 			description: parent.querySelector('.migration-intro')?.textContent,
@@ -307,70 +304,6 @@ suite('CustomizationMigrationDashboard', () => {
 			empty: 'No migrations are needed.',
 			buttons: 0,
 			focus: 'BODY',
-		});
-	});
-
-	test('View Changes expands newest activity and dismissals restore meaningful focus', () => {
-		let model: ICustomizationMigrationDashboardOverview = {
-			...overview(),
-			result: { migratedCount: 1 },
-			activity: ['latest', 'previous'].map(id => ({
-				id, categoryLabel: 'Prompt to Skills', scopeLabel: id, storage: PromptsStorage.user,
-				items: [{ label: 'release', sourceLabel: 'profile/release.prompt.md', targetLabel: '~/.agents/skills/release/SKILL.md', operation: 'converted' }],
-			})),
-		};
-		let contentChanges = 0;
-		const { parent, dashboard, telemetryActions } = createDashboard({
-			dismissActivity: id => {
-				model = { ...model, activity: model.activity.filter(entry => entry.id !== id) };
-				dashboard.showOverview(model);
-			},
-			dismissResult: () => {
-				model = { ...model, result: undefined };
-				dashboard.showOverview(model);
-			},
-			onDidChangeContent: () => contentChanges++,
-		});
-		dashboard.showOverview(model);
-		const viewChanges = button(parent, 'View migration changes');
-		viewChanges.focus();
-		viewChanges.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
-		const expanded = {
-			open: [...parent.querySelectorAll('details')].map(element => element.open),
-			focus: document.activeElement?.tagName,
-			disclosureAriaHidden: parent.querySelector('.migration-activity-disclosure')?.getAttribute('aria-hidden'),
-			disclosureLabels: [...parent.querySelectorAll('.migration-activity-disclosure')].map(element => element.textContent),
-			operation: parent.querySelector('.migration-operation')?.textContent,
-			paths: [...parent.querySelectorAll('.migration-paths dd')].slice(0, 2).map(element => element.textContent),
-		};
-		dashboard.showOverview(model);
-		const remainedOpen = parent.querySelector('details')?.open;
-		button(parent, 'Dismiss Prompt to Skills activity from latest').click();
-		const nextFocus = document.activeElement?.textContent;
-		button(parent, 'Dismiss Prompt to Skills activity from previous').click();
-		const lastDismissFocus = document.activeElement?.textContent;
-		button(parent, 'Dismiss migration result').click();
-		assert.deepStrictEqual({
-			expanded, remainedOpen,
-			nextFocused: nextFocus?.includes('previous'),
-			lastDismissFocus,
-			result: !!parent.querySelector('.migration-result'),
-			activity: !!parent.querySelector('.migration-activity'),
-			focus: document.activeElement?.textContent,
-			notified: contentChanges > 0,
-			telemetryActions,
-		}, {
-			expanded: {
-				open: [true, false],
-				focus: 'SUMMARY',
-				disclosureAriaHidden: 'true',
-				disclosureLabels: ['', ''],
-				operation: 'Converted to skill',
-				paths: ['profile/release.prompt.md', '~/.agents/skills/release/SKILL.md'],
-			},
-			remainedOpen: true, nextFocused: true, lastDismissFocus: 'Migrate',
-			result: false, activity: false, focus: 'Migrate', notified: true,
-			telemetryActions: ['viewChangesClicked', 'activityDismissed', 'activityDismissed', 'resultDismissed'],
 		});
 	});
 

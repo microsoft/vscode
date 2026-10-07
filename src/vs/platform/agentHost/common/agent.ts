@@ -196,6 +196,16 @@ export interface IAgentSessionChatMetadata {
 	/** Exact chat read state when known; absence means the provider did not supply it. */
 	readonly isRead?: boolean;
 	readonly changes?: ChangesSummary;
+	/**
+	 * The chat's live status from the session catalog, including activity bits.
+	 * Absence means the host did not supply it. Clients must not persist the
+	 * activity bits, which are only valid while connected.
+	 */
+	readonly status?: SessionStatus;
+	/** Last known modification time of the chat (ms since epoch); client-cache only. */
+	readonly modifiedTime?: number;
+	/** Last known host-side working directories of the chat (protocol URI strings); client-cache only. */
+	readonly workingDirectories?: readonly string[];
 }
 
 export interface IAgentSessionMetadata extends Omit<IAgentChatMetadata, 'chat'> {
@@ -1262,6 +1272,14 @@ export interface IAgentChatAdoptionResult {
 	readonly worktree?: IAgentAdoptedWorktree;
 	/** Diagnostic reason behind {@link adopted}. */
 	readonly reason?: AgentChatAdoptionReason;
+	/** Bounded provenance evidence; a missing marker alone does not prove an external session. */
+	readonly diagnostics?: {
+		readonly markerStatus: 'valid' | 'missing' | 'invalid' | 'readError';
+		readonly provenance: 'legacy' | 'external' | 'unknown';
+		readonly markerFromCache: boolean;
+		readonly errorCode?: string;
+		readonly errorMessage?: string;
+	};
 }
 
 /** Identifies the client that submitted a pending message. */

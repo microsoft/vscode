@@ -157,6 +157,15 @@ suite('ChatPetWidget', () => {
 		assert.ok(condition(), message);
 	}
 
+	/**
+	 * Settles once the image's `load` event, which reveals a pending sprite, has been
+	 * handled. `decode()` alone can resolve before it in WebKit. Call this right after
+	 * the image's source changes, before yielding, since the event comes in a later task.
+	 */
+	function whenSpriteLoaded(image: HTMLImageElement): Promise<void> {
+		return new Promise(resolve => image.addEventListener('load', () => resolve(), { once: true }));
+	}
+
 	function getPetFallKeyframes(button: HTMLElement) {
 		return button.getAnimations().flatMap(animation => animation.effect instanceof mainWindow.KeyframeEffect
 			? animation.effect.getKeyframes().filter(frame => frame.top !== undefined).map(frame => frame.top)
@@ -169,8 +178,9 @@ suite('ChatPetWidget', () => {
 			try {
 				const { button, service } = createHostTransitionHarness(reducedMotion, 'teleport', '#ff8800');
 				const firstImage = button.querySelector<HTMLImageElement>('.chat-pet-sprite img[src]')!;
+				const firstLoaded = whenSpriteLoaded(firstImage);
 				await firstImage.decode();
-				await Promise.resolve();
+				await firstLoaded;
 				clock.tick(800);
 				const activeCanvas = button.querySelector<HTMLCanvasElement>('.chat-pet-sprite:not(.hidden) canvas')!;
 				const expected = mainWindow.document.createElement('canvas');
@@ -183,8 +193,9 @@ suite('ChatPetWidget', () => {
 				service.setColor('insiders');
 				assert.strictEqual(activeCanvas.toDataURL(), previousFrame, 'Keep the previous composite until the new variant loads');
 				const insiders = button.querySelector<HTMLImageElement>('.chat-pet-sprite.hidden img[src*="insiders"]')!;
+				const insidersLoaded = whenSpriteLoaded(insiders);
 				await insiders.decode();
-				await Promise.resolve();
+				await insidersLoaded;
 				assert.ok(insiders.parentElement?.classList.contains('hidden') === false);
 				service.setColor('#12abcd');
 				const immediateCanvas = insiders.parentElement!.querySelector<HTMLCanvasElement>('canvas')!;

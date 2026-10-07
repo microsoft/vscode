@@ -17,9 +17,10 @@ import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileEditKind, type ISessionFileDiff, type ISessionGitState } from '../common/state/sessionState.js';
 import { buildGitBlobUri } from './gitDiffContent.js';
-import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, IAddWorktreeOptions, IAgentHostGitService, IBranch, IBranchDiffSafetyInfo, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress } from '../common/agentHostGitService.js';
+import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, IAddWorktreeOptions, IAgentHostGitService, IBranch, IBranchDiffSafetyInfo, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IGitRemote, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress } from '../common/agentHostGitService.js';
 import { LRUCache } from '../../../base/common/map.js';
 import { firstParallel, Limiter, SequencerByKey, timeout } from '../../../base/common/async.js';
+import { derived, observableValueOpts, type IObservable } from '../../../base/common/observable.js';
 import { createWorktreeSymlink } from './worktreeSymlink.js';
 
 /**
@@ -46,9 +47,9 @@ export class AgentHostGitService implements IAgentHostGitService {
 	declare readonly _serviceBrand: undefined;
 
 	/**
-	 * A cache of repository roots that have already been discovered.
+	 * A cache of repository roots and confirmed non-repositories.
 	 */
-	private readonly _repositoryRoots = new LRUCache<string, URI>(100);
+	private readonly _repositoryRoots = observableValueOpts({ owner: this, equalsFn: () => false }, new LRUCache<string, URI | undefined>(100));
 	private readonly _repositoryRootSequencer = new SequencerByKey<string>();
 	private readonly _indexPaths = new LRUCache<string, string>(100);
 
@@ -137,24 +138,67 @@ export class AgentHostGitService implements IAgentHostGitService {
 		return remote ? { ...branch, remote } : branch;
 	}
 
-	async getRepositoryRoot(workingDirectory: URI): Promise<URI | undefined> {
-		const workingDirectoryKey = workingDirectory.toString();
+	hasGitRoot(workingDirectory: URI): IObservable<boolean | undefined> {
+		const key = extUriBiasedIgnorePathCase.getComparisonKey(workingDirectory);
+		return derived(this, reader => {
+			const roots = this._repositoryRoots.read(reader);
+			if (roots.has(key)) {
+				return roots.peek(key) !== undefined;
+			}
+			for (const root of roots.values()) {
+				if (root && extUriBiasedIgnorePathCase.isEqualOrParent(workingDirectory, root)) {
+					return true;
+				}
+			}
+			return undefined;
+		});
+	}
+
+	private _cacheRepositoryRoot(key: string, root: URI | undefined): void {
+		const roots = this._repositoryRoots.get();
+		if (roots.has(key) && roots.peek(key) === root) {
+			return;
+		}
+		roots.set(key, root);
+		if (root) {
+			roots.set(extUriBiasedIgnorePathCase.getComparisonKey(root), root);
+		}
+		this._repositoryRoots.set(roots, undefined);
+	}
+
+	async getRepositoryRoot(workingDirectory: URI, options?: { readonly refreshIfNone?: boolean }): Promise<URI | undefined> {
+		const workingDirectoryKey = extUriBiasedIgnorePathCase.getComparisonKey(workingDirectory);
 
 		return this._repositoryRootSequencer.queue(workingDirectoryKey, async () => {
-			let repositoryRoot = this._repositoryRoots.get(workingDirectoryKey);
-			if (repositoryRoot) {
-				return repositoryRoot;
+			const roots = this._repositoryRoots.get();
+			if (roots.has(workingDirectoryKey)) {
+				const repositoryRoot = roots.get(workingDirectoryKey);
+				if (repositoryRoot || !options?.refreshIfNone) {
+					return repositoryRoot;
+				}
 			}
 
 			try {
-				const repositoryRootPath = (await this._runGit(workingDirectory, ['rev-parse', '--show-toplevel']))?.trim();
+				const repositoryRootPath = (await this._runGit(workingDirectory, ['rev-parse', '--show-toplevel'], { throwOnError: true, env: { LC_ALL: 'C' } }))?.trim();
 				if (repositoryRootPath) {
-					repositoryRoot = URI.file(repositoryRootPath);
-					this._repositoryRoots.set(workingDirectoryKey, repositoryRoot);
+					const repositoryRoot = URI.file(repositoryRootPath);
+					this._cacheRepositoryRoot(workingDirectoryKey, repositoryRoot);
+					return repositoryRoot;
 				}
-
-				return repositoryRoot;
-			} catch (error) { }
+				throw new Error('Git repository root lookup returned no path');
+			} catch (error) {
+				if (error instanceof GitCommandError && /^fatal: (?:not a git repository\b|this operation must be run in a work tree\b)/m.test(error.stderr)) {
+					if (!roots.peek(workingDirectoryKey)) {
+						this._cacheRepositoryRoot(workingDirectoryKey, undefined);
+					}
+				} else {
+					if (roots.has(workingDirectoryKey) && !roots.peek(workingDirectoryKey)) {
+						roots.delete(workingDirectoryKey);
+						this._repositoryRoots.set(roots, undefined);
+					}
+					this._logService.warn(`[agentHostGitService] Failed to resolve repository root for ${workingDirectory.fsPath}`, error);
+				}
+			}
 
 			return undefined;
 		});
@@ -532,10 +576,10 @@ export class AgentHostGitService implements IAgentHostGitService {
 		return output !== undefined && output.trim().length > 0;
 	}
 
-	async fetch(workingDirectory: URI, branch: IRemoteBranch): Promise<void> {
+	async fetch(workingDirectory: URI, branch: IRemoteBranch, options?: { readonly timeout?: number }): Promise<void> {
 		const branchName = branch.name.substring(branch.remote.length + 1);
 		const refspec = `+refs/heads/${branchName}:${branch.ref}`;
-		await this._runGit(workingDirectory, ['fetch', branch.remote, refspec], { throwOnError: true });
+		await this._runGit(workingDirectory, ['fetch', branch.remote, refspec], { timeout: options?.timeout, throwOnError: true });
 	}
 
 	async pull(workingDirectory: URI, options?: IPullOptions): Promise<void> {
@@ -902,6 +946,14 @@ export class AgentHostGitService implements IAgentHostGitService {
 			return undefined;
 		}
 		return parseFetchRemoteUrls(await this._runGit(repositoryRoot, ['remote', '-v']), preferredRemote);
+	}
+
+	async getFetchRemotes(workingDirectory: URI): Promise<readonly IGitRemote[] | undefined> {
+		const repositoryRoot = await this.getRepositoryRoot(workingDirectory);
+		if (!repositoryRoot) {
+			return undefined;
+		}
+		return parseFetchRemotes(await this._runGit(repositoryRoot, ['remote', '-v']));
 	}
 
 	async getUntrackedPaths(workingDirectory: URI): Promise<readonly string[] | undefined> {

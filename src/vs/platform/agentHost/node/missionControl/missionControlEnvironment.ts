@@ -10,6 +10,9 @@ import { join } from '../../../../base/common/path.js';
 import { disposableLongTimeout, raceTimeout, Sequencer } from '../../../../base/common/async.js';
 import { combinedDisposable, Disposable, MutableDisposable, toDisposable, type IDisposable } from '../../../../base/common/lifecycle.js';
 import type { Event } from '../../../../base/common/event.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
+import { CloudSandboxRequestError } from '../../common/cloudSandboxAgentHost.js';
+import { emitConnectionDiagnostic, getGitHubRequestId, sanitizeConnectionDiagnosticText, traceConnectionOperation, type ConnectionDiagnosticObserver } from '../../common/connectionDiagnostics.js';
 import type { IMissionControlOptions } from '../../common/agentService.js';
 import { parseGroupName } from '../../common/webPubSub/groups.js';
 import { RELIABLE_JSON_SUBPROTOCOL } from '../../common/webPubSub/framing.js';
@@ -43,6 +46,7 @@ export interface IMissionControlEnvironmentHost {
 	readonly fetch: typeof fetch;
 	readonly attach: (server: MissionControlProtocolServer, initialRoots: readonly string[], getRoots: () => readonly string[]) => IDisposable;
 	readonly onError: (error: unknown) => void;
+	readonly onDiagnostic?: ConnectionDiagnosticObserver;
 	readonly socketFactory?: (url: string, protocol: string) => IMissionControlSocket;
 	readonly getSessionCount?: () => Promise<number>;
 	readonly getRemoteControlPolicy?: () => Promise<Record<string, unknown> | undefined>;
@@ -169,7 +173,7 @@ export class MissionControlEnvironment extends Disposable {
 			});
 		}
 		const epoch = this._configurationEpoch;
-		return this._configuration.queue(() => this._configure(options, epoch));
+		return this._configuration.queue(() => traceConnectionOperation(this._host.onDiagnostic, 'configure', () => this._configure(options, epoch)));
 	}
 
 	get environmentId(): string | undefined { return this._environment?.id; }
@@ -362,6 +366,11 @@ export class MissionControlEnvironment extends Disposable {
 	}
 
 	private async _request(path: string, body?: object, options = this._options): Promise<unknown> {
+		const operation = path.endsWith('/register') ? 'register' : path.endsWith('/heartbeat') ? 'heartbeat' : path.endsWith('/token') ? 'token' : 'signingKeys';
+		return traceConnectionOperation(this._host.onDiagnostic, operation, () => this._doRequest(path, body, options));
+	}
+
+	private async _doRequest(path: string, body: object | undefined, options: IMissionControlOptions | undefined): Promise<unknown> {
 		if (!options) {
 			throw new Error('Mission Control is disabled');
 		}
@@ -393,7 +402,22 @@ export class MissionControlEnvironment extends Disposable {
 				this._mirrorAttachment.clear();
 				this._server.clear();
 			}
-			throw new Error(`Mission Control request failed (${response.status})`);
+			const requestId = getGitHubRequestId(response.headers.get('x-github-request-id'));
+			const text = await response.text();
+			let message: string | undefined;
+			try {
+				const data: { message?: string } | null = JSON.parse(text);
+				if (typeof data === 'object' && data !== null && typeof data.message === 'string') {
+					message = data.message;
+				}
+			} catch (error) {
+				if (!(error instanceof SyntaxError)) {
+					throw error;
+				}
+				message = text;
+			}
+			message = message ? sanitizeConnectionDiagnosticText(message) : undefined;
+			throw new CloudSandboxRequestError(response.status, `Mission Control request failed (${response.status})${requestId ? ` (requestId=${requestId})` : ''}${message ? `: ${message}` : ''}`);
 		}
 		try {
 			return await response.json();
@@ -414,7 +438,7 @@ export class MissionControlEnvironment extends Disposable {
 			}
 			return;
 		}
-		const operation = this._doCheckIn();
+		const operation = traceConnectionOperation(this._host.onDiagnostic, 'checkIn', () => this._doCheckIn());
 		const current = { generation, operation };
 		this._currentCheckIn = current;
 		try {
@@ -604,14 +628,21 @@ export class MissionControlEnvironment extends Disposable {
 			this._mirror.value,
 		);
 		this._server.value = server;
+		const connectionWatch = StopWatch.create(false);
+		let relayReady = false;
 		this._handler.value = combinedDisposable(this._host.attach(server, this._initialRoots ?? [], () => this._roots), server.onClose(() => {
 			if (generation === this._generation && !this._store.isDisposed && this._server.value === server && this._options && !this._credentialRejected) {
+				if (relayReady) {
+					emitConnectionDiagnostic(this._host.onDiagnostic, { operationId: '', phase: 'relayDisconnected', timestamp: Date.now(), outcome: 'info', durationMs: connectionWatch.elapsed() });
+				}
 				this._heartbeat.value = disposableLongTimeout(() => {
 					this._checkIn().catch(this._host.onError);
 				}, this._retryDelay);
 			}
 		}));
-		await server.connect();
+		await traceConnectionOperation(this._host.onDiagnostic, 'relay', () => server.connect());
+		connectionWatch.reset();
+		relayReady = true;
 		if (generation !== this._generation) {
 			if (this._server.value === server) {
 				this._handler.clear();
