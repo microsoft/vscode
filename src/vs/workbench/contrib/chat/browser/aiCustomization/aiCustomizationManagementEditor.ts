@@ -1211,7 +1211,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.toolsContentContainer = DOM.append(contentInner, $('.tools-content-container'));
 			// Tools customizations only target the agent host (Copilot CLI), in both windows.
 			this.toolsListWidget = this.editorDisposables.add(this.instantiationService.createInstance(ToolsListWidget, AGENT_HOST_COPILOT_CLI_SESSION_TYPE));
-			this.toolsListWidget.setCloseCustomizationEditor(async () => this.input ? this.group.closeEditor(this.input) : true);
+			this.toolsListWidget.setCloseCustomizationEditor(() => this.closeCustomizationEditor());
 			this.toolsContentContainer.appendChild(this.toolsListWidget.element);
 
 			this.editorDisposables.add(this.toolsListWidget.onDidSelectServer(server => {
@@ -1625,7 +1625,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			await this.fileService.createFolder(recoveryBundleFolder);
 
 			const prompt = createCustomizationMigrationAgentPrompt(harness, migrationFlowId, recoveryBundleFolder, customizations, new Map(targetFolderEntries));
-			if (!await this.closeForAgentMigration()) {
+			if (!await this.closeCustomizationEditor()) {
 				return;
 			}
 			const migrationSessionResource = await this.commandService.executeCommand<URI | undefined>(`workbench.action.chat.openNewSessionSidebar.${harness.id}`, { prompt });
@@ -1653,7 +1653,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 	}
 
-	private async closeForAgentMigration(): Promise<boolean> {
+	private async closeCustomizationEditor(): Promise<boolean> {
 		const modalEditorPart = this.editorGroupsService.activeModalEditorPart;
 		if (modalEditorPart?.groups.some(group => group.id === this.group.id)) {
 			return modalEditorPart.close();

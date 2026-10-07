@@ -517,7 +517,7 @@ class ToolsConnectedRowRenderer implements IListRenderer<IToolsConnectedRowEntry
 
 //#endregion
 
-const TOOLS_MARKETPLACE_QUERY = '@tag:tools';
+const TOOLS_MARKETPLACE_QUERY = '@tag:language-model-tools';
 
 /** A searchable tree of agent tool sets and session-published plugins and MCP servers. */
 export class ToolsListWidget extends Disposable {
