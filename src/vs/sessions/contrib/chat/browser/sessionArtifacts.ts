@@ -568,7 +568,7 @@ export class SessionArtifacts extends Disposable {
 			}
 			observableSignalFromEvent(this, model.onDidChange).read(reader);
 			const images: ISessionArtifactPresentation[] = [];
-			for (const request of model.getRequests()) {
+			for (const request of model.getRequests().slice().reverse()) {
 				const response = request.response;
 				if (!response) {
 					continue;
@@ -586,7 +586,7 @@ export class SessionArtifacts extends Disposable {
 					});
 				}
 			}
-			return images.reverse();
+			return images;
 		});
 		// Rebuild after formatter/folder changes because the session folder mounts after activation.
 		const locationFormatting = observableSignalFromEvent(this, Event.any<unknown>(this._labelService.onDidChangeFormatters, workspaceContextService.onDidChangeWorkspaceFolders));

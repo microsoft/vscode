@@ -136,22 +136,23 @@ suite('Session Artifacts', () => {
 		return { presentation, session, chat, chatModels, openedImages, openedResources, configurationService, artifacts, workspace, gitHubInfo, removed, errors, telemetryEvents, setRemovalError: (error: Error | undefined) => { removalError = error; } };
 	}
 
-	function createImageModel(resource: URI) {
+	function createImageModel(resource: URI, toolCallId = 'image-call') {
 		const invocation = new ChatToolInvocation({
 			invocationMessage: 'Generating images',
 			toolSpecificData: { kind: 'input', rawInput: 'Draw two images', imageGeneration: {} },
-		}, { id: 'image_generation', displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal }, 'image-call', undefined, {});
+		}, { id: 'image_generation', displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal }, toolCallId, undefined, {});
 		const content: IChatProgressResponseContent[] = [invocation];
 		const response = upcastPartial<IChatResponseModel>({
 			response: upcastPartial<IResponse>({ value: content }),
 			onDidChange: Event.None,
 		});
+		const requests = [upcastPartial<IChatRequestModel>({ response })];
 		const model = upcastPartial<IChatModel>({
 			sessionResource: resource,
 			onDidChange: Event.None,
-			getRequests: () => [upcastPartial<IChatRequestModel>({ response })],
+			getRequests: () => requests,
 		});
-		return { model, content, invocation };
+		return { model, content, invocation, requests };
 	}
 
 	function visibleEntries(presentation: SessionArtifacts, reader?: IReader) {
@@ -229,6 +230,62 @@ suite('Session Artifacts', () => {
 			returned: restored.map(entry => entry.id),
 		});
 	});
+
+	for (const restored of [false, true]) {
+		test(`shows newest response groups first without reversing generated image outputs (${restored ? 'restored' : 'live'})`, async () => {
+			const { presentation, chat, chatModels, openedImages } = createPresentation([]);
+			const resource = chat.get()!.resource;
+			const older = createImageModel(resource, 'older');
+			const newer = createImageModel(resource, 'newer');
+			for (const generation of [older, newer]) {
+				await generation.invocation.didExecuteTool({
+					content: [],
+					toolSpecificData: { kind: 'generatedImage' },
+					toolResultDetails: {
+						input: 'Draw two images',
+						output: [
+							{ type: 'embed', value: 'AQID', mimeType: 'image/png' },
+							{ type: 'embed', value: 'BAUG', mimeType: 'image/png' },
+						],
+					},
+				});
+				if (restored) {
+					generation.content.splice(0, 1, generation.invocation.toJSON());
+				}
+			}
+			older.requests.push(...newer.requests);
+			const chronologicalRequests = older.requests.slice();
+			chatModels.set([older.model], undefined);
+			const entries = presentation.sections.get()[0].entries;
+			entries[0].open();
+
+			assert.deepStrictEqual({
+				images: entries.map(entry => entry.resource?.path),
+				requestOrderPreserved: older.requests.every((request, index) => request === chronologicalRequests[index]),
+				opened: openedImages.map(image => ({
+					path: image.resource.path,
+					collection: image.options?.additionalImages?.map(image => image.uri.path),
+				})),
+			}, {
+				images: [
+					'/tool/newer/0/generated-image.png',
+					'/tool/newer/1/generated-image.png',
+					'/tool/older/0/generated-image.png',
+					'/tool/older/1/generated-image.png',
+				],
+				requestOrderPreserved: true,
+				opened: [{
+					path: '/tool/newer/0/generated-image.png',
+					collection: [
+						'/tool/newer/0/generated-image.png',
+						'/tool/newer/1/generated-image.png',
+						'/tool/older/0/generated-image.png',
+						'/tool/older/1/generated-image.png',
+					],
+				}],
+			});
+		});
+	}
 
 	test('opens generated images normally when the chat carousel is disabled', async () => {
 		const { presentation, chat, chatModels, configurationService, openedImages, openedResources } = createPresentation([]);
