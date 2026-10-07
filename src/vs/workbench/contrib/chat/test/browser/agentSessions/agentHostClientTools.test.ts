@@ -296,10 +296,10 @@ suite('AgentHostClientTools', () => {
 				bundled: customizations.customizations.get().map(ref => Object.keys(ref.childEnablement ?? {})),
 			}, {
 				deliveries: [
-					['copilot.null', remoteAuthority ? AgentHostMcpServerDelivery.ClientForwarded : AgentHostMcpServerDelivery.RuntimeDiscovered],
-					['copilot.ssh-remote+devbox', remoteAuthority ? AgentHostMcpServerDelivery.RuntimeDiscovered : AgentHostMcpServerDelivery.ClientForwarded],
+					['copilot.null', remoteAuthority ? AgentHostMcpServerDelivery.NotDelivered : AgentHostMcpServerDelivery.RuntimeDiscovered],
+					['copilot.ssh-remote+devbox', remoteAuthority ? AgentHostMcpServerDelivery.RuntimeDiscovered : AgentHostMcpServerDelivery.NotDelivered],
 				],
-				bundled: [[remoteAuthority ? 'copilot.null' : 'copilot.ssh-remote+devbox']],
+				bundled: [],
 			});
 		});
 	}
