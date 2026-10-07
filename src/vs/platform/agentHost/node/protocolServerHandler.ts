@@ -89,6 +89,7 @@ import { isAgentHostTelemetryService } from './agentHostTelemetryService.js';
 import { IDevContainerAgentHostMainService } from '../common/devContainerAgentHost.js';
 import { DevContainerAgentHostProtocol } from './devContainerAgentHostProtocol.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
+import type { MissionControlProjects } from './missionControl/missionControlProjects.js';
 
 /** Default capacity of the server-side action replay buffer. */
 const REPLAY_BUFFER_CAPACITY = 1000;
@@ -366,6 +367,9 @@ export interface IProtocolServerConfig {
 	readonly relayRootMeta?: Record<string, unknown>;
 	/** Locally known workspace/content roots exposed by the Mission Control host. */
 	readonly relayResourceRoots?: (readOnly: boolean) => readonly string[];
+	/** Copilot-compatible data-plane extensions on the native Mission Control listener. */
+	readonly copilotProjects?: MissionControlProjects;
+	readonly copilotSessionRequest?: (method: string, params: Record<string, unknown>) => Promise<unknown> | undefined;
 	/**
 	 * Characters that, when typed in a {@link UserMessage} input, SHOULD
 	 * cause the client to issue a `completions` request. Announced to
@@ -1165,7 +1169,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			}
 			return refreshed;
 		});
-		return { type: 'snapshot', snapshots: refreshedSnapshots.filter((s): s is IStateSnapshot => s !== undefined) };
+		return { type: 'snapshot', snapshots: refreshedSnapshots.filter((s): s is IStateSnapshot => s !== undefined).map(snapshot => this._projectRelayRootSnapshot(client, snapshot)) };
 	}
 
 	/**
@@ -1948,12 +1952,14 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				throw new ProtocolError(AHP_AUTH_REQUIRED, 'Relay connection ended during authentication');
 			}
 			if (_client.transport.relayPassive) {
+				await this._config.copilotProjects?.initialize();
 				return {};
 			}
 			const result = await this._agentService.authenticate(authentication);
 			if (!result.authenticated) {
 				throw new ProtocolError(AHP_AUTH_REQUIRED, `Authentication failed for resource: ${params.resource}`);
 			}
+			await this._config.copilotProjects?.initialize();
 			return {};
 		},
 		createTerminal: async (client, params) => {
@@ -2054,6 +2060,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			'authenticate', 'subscribe', 'listSessions', 'listChats', 'listModels', 'listAgents',
 			'resolveSessionConfig', 'sessionConfigCompletions', 'completions', 'fetchTurns',
 			'resourceList', 'resourceRead', 'resourceResolve',
+			'extensions/listProjects', 'extensions/getPlan',
 		]).has(method)) {
 			client.transport.send(jsonRpcError(id, JsonRpcErrorCodes.InvalidRequest, 'Passive relay connections cannot mutate state'));
 			return;
@@ -2339,7 +2346,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		if (client.transport.relayAuthenticated !== false) {
 			// Host-wide configuration may contain credentials; it is not a relay-owned surface.
 			const { config: _config, ...state } = snapshot.state;
-			return { ...snapshot, state };
+			return { ...snapshot, state: { ...state, ...(this._config.copilotProjects ? { config: this._config.copilotProjects.config } : {}) } };
 		}
 		return {
 			...snapshot,
@@ -2352,15 +2359,25 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					protectedResources: agent.protectedResources,
 					capabilities: agent.capabilities,
 				})),
-				_meta: this._config.relayRootMeta,
+				_meta: {
+					...this._config.relayRootMeta,
+					...(this._config.copilotProjects ? { 'copilot.projectManagement': { available: true } } : {}),
+				},
 			},
 		};
 	}
 
 	private _getSnapshot(channel: string): IStateSnapshot | undefined {
 		const snapshot = this._stateManager.getSnapshot(channel);
-		if (snapshot && this._config.relayRootMeta && isAhpRootChannel(channel) && hasKey(snapshot.state, { agents: true })) {
-			return { ...snapshot, state: { ...snapshot.state, _meta: { ...snapshot.state._meta, ...this._config.relayRootMeta } } };
+		if (snapshot && (this._config.relayRootMeta || this._config.copilotProjects) && isAhpRootChannel(channel) && hasKey(snapshot.state, { agents: true })) {
+			return {
+				...snapshot, state: {
+					...snapshot.state, _meta: {
+						...snapshot.state._meta, ...this._config.relayRootMeta,
+						...(this._config.copilotProjects ? { 'copilot.projectManagement': { available: true } } : {}),
+					}
+				}
+			};
 		}
 		return snapshot;
 	}
@@ -2461,6 +2478,21 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	 * otherwise.
 	 */
 	private _handleExtensionRequest(client: IConnectedClient, method: string, params: unknown): Promise<unknown> | undefined {
+		if (client.transport.relayClientId !== undefined && this._config.copilotProjects) {
+			const projects = this._config.copilotProjects.handleRequest(method, params);
+			if (projects) {
+				return projects;
+			}
+			if (['extensions/setSessionApproveAll', 'extensions/getPlan'].includes(method)) {
+				if (!isParamsObject(params) || typeof params.channel !== 'string') {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'channel must be a session URI'));
+				}
+				if (!this._isChannelVisible(client, params.channel)) {
+					return Promise.reject(new ProtocolError(AhpErrorCodes.PermissionDenied, 'Session is outside the host workspace grants'));
+				}
+				return this._config.copilotSessionRequest?.(method, params);
+			}
+		}
 		if (method === ReportChatUserInteractionExtensionMethod) {
 			if (!this._otelService?.diagnosticsEnabled) {
 				return Promise.resolve();
@@ -2882,7 +2914,8 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			return false;
 		}
 		if (client.transport.relayClientId !== undefined && envelope.action.type === ActionType.RootConfigChanged
-			&& (!envelope.rejectionReason || envelope.origin?.clientId !== client.clientId)) {
+			&& (!envelope.rejectionReason || envelope.origin?.clientId !== client.clientId)
+			&& !(envelope.rejectionReason === undefined && this._config.copilotProjects?.ownsConfigChange(envelope.action))) {
 			return false;
 		}
 		const sub = client.subscriptions.get(envelope.channel);

@@ -25,6 +25,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { mock } from '../../../../base/test/common/mock.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { FileType } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
@@ -45,6 +46,7 @@ import type { SessionAddedParams, SessionSummaryChangedParams } from '../../comm
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
 import { MissionControlEnvironment } from '../../node/missionControl/missionControlEnvironment.js';
+import { MissionControlProjects } from '../../node/missionControl/missionControlProjects.js';
 import type { IMissionControlSocket } from '../../node/missionControl/missionControlProtocolServer.js';
 import { CompositeProtocolServer } from '../../node/compositeProtocolServer.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -2389,6 +2391,83 @@ suite('ProtocolServerHandler', () => {
 			initialContainsSecret: false, initialConfig: false, guestMcp: false, authorizedMcp: true, authorizedRootContainsSecret: false,
 			relayReceivesHostSecretUpdate: false, localReceivesHostSecretUpdate: true,
 			relayReceivesOtherClientRejection: false,
+		});
+	});
+
+	test('MC Copilot extensions expose only owned project configuration and enforce authentication and passive access', async () => {
+		const calls: string[] = [];
+		const project = { id: 'opaque-project-id', name: 'repo', path: '/home/testuser/owner/repo', origin: 'cloned', git: true, status: 'cloning' };
+		const action: IRootConfigChangedAction = { type: ActionType.RootConfigChanged, config: { copilot: { projects: [project] } } };
+		const projects = new class extends mock<MissionControlProjects>() {
+			override get config() { return { schema: { type: 'object' as const, properties: {} }, values: action.config }; }
+			override ownsConfigChange(value: IRootConfigChangedAction): boolean { return value === action; }
+			override handleRequest(method: string): Promise<unknown> | undefined {
+				if (method.endsWith('Project') || method === 'extensions/listProjects') {
+					calls.push(method);
+					return Promise.resolve(method === 'extensions/listProjects' ? { projects: [project] } : { project });
+				}
+				return undefined;
+			}
+		}();
+		stateManager.createSession(makeSessionSummary());
+		const relay = disposables.add(new MockProtocolServer());
+		const scopedHandler = disposables.add(new ProtocolServerHandler(
+			agentService, stateManager, relay,
+			{
+				allowExtensionMethods: false, copilotProjects: projects,
+				copilotSessionRequest: async method => { calls.push(method); return { plan: { exists: false, content: null, path: null }, todos: [], dependencies: [] }; },
+			},
+			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+		));
+		const active = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'mc-active', false));
+		active.relayAuthenticated = false;
+		relay.simulateConnection(active);
+		active.simulateMessage(request(1, 'initialize', { clientId: 'mc-active', protocolVersions: [PROTOCOL_VERSION], initialSubscriptions: [ROOT_STATE_URI] }));
+		active.simulateMessage(request(2, 'extensions/cloneProject', { url: 'https://github.com/owner/repo' }));
+		await scopedHandler.whenIdle();
+		const preauth = findResponse(active.sent, 1);
+		const denied = findResponse(active.sent, 2);
+		active.relayAuthenticated = true;
+		active.simulateMessage(request(3, 'subscribe', { channel: ROOT_STATE_URI }));
+		active.simulateMessage(request(4, 'extensions/cloneProject', { url: 'https://github.com/owner/repo' }));
+		const passive = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'mc-passive', true));
+		passive.relayAuthenticated = true;
+		relay.simulateConnection(passive);
+		passive.simulateMessage(request(1, 'initialize', { clientId: 'mc-passive', protocolVersions: [PROTOCOL_VERSION], initialSubscriptions: [ROOT_STATE_URI] }));
+		for (const [index, method] of ['extensions/cloneProject', 'extensions/addProject', 'extensions/removeProject', 'extensions/setSessionApproveAll', 'shutdown'].entries()) {
+			passive.simulateMessage(request(index + 2, method, { channel: sessionUri }));
+		}
+		passive.simulateMessage(request(8, 'extensions/listProjects', {}));
+		passive.simulateMessage(request(9, 'extensions/getPlan', { channel: sessionUri }));
+		await scopedHandler.whenIdle();
+		const baseline = findResponse(active.sent, 3);
+		active.sent.length = 0;
+		stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { copilot: { token: 'host-secret' }, private: 'host-secret' } });
+		stateManager.dispatchServerAction(ROOT_STATE_URI, action);
+		active.simulateClose();
+		const reconnected = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'mc-active', false));
+		reconnected.relayAuthenticated = true;
+		relay.simulateConnection(reconnected);
+		reconnected.simulateMessage(request(10, 'reconnect', { clientId: 'mc-active', lastSeenServerSeq: -1, subscriptions: [ROOT_STATE_URI] }));
+		await scopedHandler.whenIdle();
+		assert.deepStrictEqual({
+			preauthCatalogue: JSON.stringify(preauth).includes('opaque-project-id'),
+			preauthCapability: JSON.stringify(preauth).includes('"copilot.projectManagement":{"available":true}'),
+			denied: denied && hasKey(denied, { error: true }) ? denied.error.code : undefined,
+			authenticatedCatalogue: JSON.stringify(baseline).includes('opaque-project-id'),
+			calls,
+			passiveDenied: passive.sent.filter(isJsonRpcResponse).filter(message => typeof message.id === 'number' && message.id >= 2 && message.id <= 6)
+				.map(message => hasKey(message, { error: true }) ? message.error.code : undefined),
+			actions: findNotifications(active.sent, 'action').map(message => (message.params as ActionEnvelope).action),
+			secret: JSON.stringify(active.sent).includes('host-secret'),
+			reconnectedCatalogue: JSON.stringify(findResponse(reconnected.sent, 10)).includes('opaque-project-id'),
+			reconnectedSecret: JSON.stringify(reconnected.sent).includes('host-secret'),
+		}, {
+			preauthCatalogue: false, preauthCapability: true, denied: AHP_AUTH_REQUIRED, authenticatedCatalogue: true,
+			calls: ['extensions/cloneProject', 'extensions/listProjects', 'extensions/getPlan'],
+			passiveDenied: Array(5).fill(JsonRpcErrorCodes.InvalidRequest), actions: [action], secret: false,
+			reconnectedCatalogue: true, reconnectedSecret: false,
 		});
 	});
 

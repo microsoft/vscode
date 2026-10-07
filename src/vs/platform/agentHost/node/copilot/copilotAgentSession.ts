@@ -3528,6 +3528,39 @@ export class CopilotAgentSession extends Disposable {
 
 	// ---- session operations -------------------------------------------------
 
+	setSessionApproveAll(enabled: boolean): Promise<void> {
+		return this._permissionModeSequencer.queue(async () => {
+			if (!this._wrapper || this._store.isDisposed) {
+				throw new Error('Cannot set approval mode without an initialized session');
+			}
+			const mode = enabled ? 'allow-all' : 'manual';
+			if (!await this._trySetSdkPermissionMode(mode)) {
+				throw new Error(`Copilot SDK rejected permission mode '${mode}'`);
+			}
+			this._lastAppliedPermissionMode = mode;
+			this._configurationService.updateSessionConfig(this._ownerSessionUri.toString(), {
+				[SessionConfigKey.AutoApprove]: enabled ? 'autoApprove' : 'default',
+			});
+		});
+	}
+
+	async getSessionPlan() {
+		if (!this._wrapper) {
+			throw new Error('Cannot read the plan before the session is initialized');
+		}
+		const [plan, todos] = await Promise.all([
+			this._awaitControlPlaneRpc('rpc.plan.read', this._wrapper.session.rpc.plan.read()),
+			this._awaitControlPlaneRpc('rpc.plan.readSqlTodosWithDependencies', this._wrapper.session.rpc.plan.readSqlTodosWithDependencies()),
+		]);
+		return {
+			plan,
+			todos: todos.rows.map(row => ({
+				id: row.id ?? null, title: row.title ?? null, status: row.status ?? null, description: row.description ?? null,
+			})),
+			dependencies: todos.dependencies,
+		};
+	}
+
 	async setWorkingDirectory(workingDirectory: URI, transaction: ICopilotWorkingDirectoryChangeTransaction): Promise<void> {
 		if (!this._wrapper) {
 			throw new Error('Cannot change the working directory before the session is initialized');

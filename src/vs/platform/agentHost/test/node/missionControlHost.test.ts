@@ -6,7 +6,7 @@
 import assert from 'assert';
 import sinon from 'sinon';
 import { hostname } from 'os';
-import { Event } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -18,6 +18,7 @@ import { ITelemetryService, type ITelemetryData } from '../../../telemetry/commo
 import { AgentHostClientFileSystemProvider } from '../../common/agentHostClientFileSystemProvider.js';
 import { AgentHostLaunchKind } from '../../common/agentHostTelemetry.js';
 import { IAgentService } from '../../common/agentService.js';
+import { IAgent, IAgentChatSessionEvent } from '../../common/agent.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
@@ -26,6 +27,13 @@ import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentH
 import { MissionControlEnvironment, type IMissionControlEnvironmentHost } from '../../node/missionControl/missionControlEnvironment.js';
 import { getMissionControlEnvironmentName, MissionControlHost, type MissionControlOperationClassification } from '../../node/missionControl/missionControlHost.js';
 import { MissionControlProtocolServer } from '../../node/missionControl/missionControlProtocolServer.js';
+import { MissionControlProjects } from '../../node/missionControl/missionControlProjects.js';
+import { MissionControlSdkEventSource } from '../../node/missionControl/missionControlSdkEventSource.js';
+import { MissionControlSessionMirror } from '../../node/missionControl/missionControlSessionMirror.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ActionType } from '../../common/state/sessionActions.js';
+import { SessionStatus } from '../../common/state/sessionState.js';
+import { ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ProtocolServerHandler, type IProtocolServerConfig } from '../../node/protocolServerHandler.js';
 
 suite('Mission Control host integration', () => {
@@ -62,7 +70,7 @@ suite('Mission Control host integration', () => {
 		assert.strictEqual(getMissionControlEnvironmentName(product), `${hostname().replace(/\.local$/i, '')} (VS Code Insiders)`);
 	});
 
-	function createHost(instantiation = store.add(new TestInstantiationService())) {
+	function createHost(instantiation = store.add(new TestInstantiationService()), stateManager?: AgentHostStateManager, providers?: IAgentHostProviderService) {
 		const counts = { requests: 0, handlers: 0 };
 		const events: { eventName: string; data: ITelemetryData | undefined }[] = [];
 		instantiation.stub(INativeEnvironmentService, new class extends mock<INativeEnvironmentService>() {
@@ -84,9 +92,13 @@ suite('Mission Control host integration', () => {
 			override getApiBaseUri(): string { return 'https://api.github.com'; }
 		}());
 		instantiation.stub(IAgentService, new class extends mock<IAgentService>() { }());
-		instantiation.stub(IAgentHostStateManager, new class extends mock<AgentHostStateManager>() { }());
+		instantiation.stub(IAgentHostStateManager, stateManager ?? new class extends mock<AgentHostStateManager>() { }());
 		instantiation.stub(ISessionDataService, new class extends mock<ISessionDataService>() { }());
-		instantiation.stub(IAgentHostProviderService, new class extends mock<IAgentHostProviderService>() { }());
+		instantiation.stub(IAgentHostProviderService, providers ?? new class extends mock<IAgentHostProviderService>() { }());
+		instantiation.stubInstance(MissionControlProjects, new class extends mock<MissionControlProjects>() {
+			override get roots() { return []; }
+			override dispose(): void { }
+		}());
 		instantiation.stub(ILogService, new NullLogService());
 		instantiation.stub(ITelemetryService, new class extends mock<ITelemetryService>() {
 			override publicLog2(eventName: string, data?: ITelemetryData): void {
@@ -165,5 +177,72 @@ suite('Mission Control host integration', () => {
 			{ eventName: 'agentHost.missionControlOperation', data: { ...sample, operation: 'relay', outcome: 'succeeded', statusCode: undefined } },
 			{ eventName: 'agentHost.missionControlOperation', data: { ...sample, operation: 'relayDisconnected', outcome: 'info', statusCode: undefined } },
 		]);
+	});
+
+	test('routes Copilot compatibility requests by advertised session ownership and publishes plan refresh hints', async () => {
+		const instantiation = store.add(new TestInstantiationService());
+		const creations = sinon.spy(instantiation, 'createInstance');
+		store.add(toDisposable(() => creations.restore()));
+		const state = store.add(new AgentHostStateManager(new NullLogService()));
+		const session = URI.parse('ahp-session:/opaque-native-conversation');
+		const now = new Date().toISOString();
+		state.createSession({ resource: session.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle, createdAt: now, modifiedAt: now });
+		const defaultChat = state.getSessionSummary(session.toString())?.defaultChat;
+		assert.ok(defaultChat);
+		const chat = URI.parse(defaultChat);
+		state.dispatchServerAction(session.toString(), { type: ActionType.SessionMetaChanged, _meta: { existing: 'keep' } });
+		const events = store.add(new Emitter<IAgentChatSessionEvent>());
+		const calls: { session: string; enabled?: boolean }[] = [];
+		const plan = { plan: { exists: false, content: null, path: null }, todos: [], dependencies: [] };
+		const provider = new class extends mock<IAgent>() {
+			override readonly onDidChatSessionEvent = events.event;
+			override async getSessionPlan(resource: URI) { calls.push({ session: resource.toString() }); return plan; }
+			override async setSessionApproveAll(resource: URI, enabled: boolean) { calls.push({ session: resource.toString(), enabled }); }
+		}();
+		const providers = new class extends mock<IAgentHostProviderService>() {
+			override readonly onDidRegisterProvider = Event.None;
+			override getProviders() { return [provider]; }
+			override getProviderForSession() { return provider; }
+		}();
+		instantiation.stubInstance(ProtocolServerHandler, new class extends mock<ProtocolServerHandler>() { override dispose(): void { } }());
+		instantiation.stubInstance(MissionControlSdkEventSource, new class extends mock<MissionControlSdkEventSource>() {
+			override observeSession(): void { }
+			override dispose(): void { }
+		}());
+		instantiation.stubInstance(MissionControlSessionMirror, new class extends mock<MissionControlSessionMirror>() {
+			override registerSession(): void { }
+			override setLifecycle(): void { }
+			override enqueue(): boolean { return true; }
+			override dispose(): void { }
+		}());
+		const { host } = createHost(instantiation, state, providers);
+		const enabled = sinon.stub(host.environment, 'isEnabled').get(() => true);
+		store.add(toDisposable(() => enabled.restore()));
+		const environment = creations.getCalls().find(call => call.args[0] === MissionControlEnvironment)!.args[1] as IMissionControlEnvironmentHost;
+		store.add(environment.attach(new class extends mock<MissionControlProtocolServer>() { override readonly rootMeta = {}; }(), [], () => []));
+		const config = creations.getCalls().find(call => call.args[0] === ProtocolServerHandler)!.args[4] as IProtocolServerConfig;
+		const result = await config.copilotSessionRequest!('extensions/getPlan', { channel: session.toString() });
+		await config.copilotSessionRequest!('extensions/setSessionApproveAll', { channel: session.toString(), enabled: true });
+		await assert.rejects(config.copilotSessionRequest!('extensions/setSessionApproveAll', { channel: session.toString(), enabled: 'true' })!, ProtocolError);
+		await assert.rejects(config.copilotSessionRequest!('extensions/getPlan', { channel: 'ahp-session:/missing' })!, ProtocolError);
+		const mirror = environment.createMirror!('environment');
+		store.add(mirror.source);
+		store.add(mirror.mirror);
+		for (const [type, id, data] of [
+			['session.plan_changed', 'plan-1', { operation: 'update' }],
+			['session.todos_changed', 'todos-1', {}],
+		] as const) {
+			events.fire({ chat, id, type, data, timestamp: now, persisted: true });
+		}
+		assert.deepStrictEqual({
+			result, calls,
+			meta: state.getSessionState(session.toString())?._meta,
+			projects: config.copilotProjects !== undefined,
+		}, {
+			result: plan,
+			calls: [{ session: session.toString() }, { session: session.toString(), enabled: true }],
+			meta: { existing: 'keep', 'copilot.planHint': { operation: 'update', eventId: 'plan-1' }, 'copilot.todosHint': { eventId: 'todos-1' } },
+			projects: true,
+		});
 	});
 });
