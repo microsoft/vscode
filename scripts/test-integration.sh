@@ -183,7 +183,7 @@ if [[ -z "$SUITE_FILTER" ]]; then
 		if [[ "$VSCODE_SKIP_AGENT_HOST_E2E" == "1" ]]; then
 			echo "Skipping Agent Host E2E tests because no relevant files changed."
 		else
-			node ./scripts/test-agent-host-e2e.ts "${EXTRA_ARGS[@]}"
+			node ./test/integration/agentHost/runner.ts "${EXTRA_ARGS[@]}"
 		fi
 		VSCODE_SKIP_PRELAUNCH=1 ./scripts/test.sh --runGlob "**/*.integrationTest.js" --excludeRunGlob "$AGENT_HOST_E2E_GLOB" "${EXTRA_ARGS[@]}"
 	else
@@ -277,7 +277,7 @@ if should_run_suite git; then
 echo
 echo "### Git tests"
 echo
-"$INTEGRATION_TEST_ELECTRON_PATH" $(mktemp -d 2>/dev/null) --extensionDevelopmentPath=$ROOT/extensions/git --extensionTestsPath=$ROOT/extensions/git/out/test $API_TESTS_EXTRA_ARGS
+bash "$ROOT/test/integration/electron/git.sh" "$INTEGRATION_TEST_ELECTRON_PATH" --extensionDevelopmentPath=$ROOT/extensions/git --extensionTestsPath=$ROOT/extensions/git/out/test $API_TESTS_EXTRA_ARGS
 kill_app
 fi
 

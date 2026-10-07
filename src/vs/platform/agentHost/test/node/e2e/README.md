@@ -229,6 +229,8 @@ A mismatch fails the test as `[capi-replay] N model request mismatch(es)` and pr
 
 ## Running the tests
 
+Runner and coverage tooling live under `test/integration/agentHost/`; package commands and the general integration entrypoints invoke them. The Linux mount wrapper is shared test infrastructure at `test/integration/run-with-tmpfs.sh`, not a registered VS Code filesystem provider.
+
 Replay is the default — no setup, no token:
 
 ```bash

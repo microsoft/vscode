@@ -120,6 +120,12 @@ All other options (e.g. `--timeout`, `--coverage`, `--reporter`) are forwarded t
 ./scripts/test-integration.sh --run src/vs/workbench/services/search/test/browser/search.integrationTest.ts --grep "should search"
 ```
 
+## Linux Git test storage
+
+The built-in Git extension suite defaults to split storage on Linux CI. `test/integration/electron/git.sh` runs the selected tests with their real repositories and user profile on a private tmpfs mount, then requires disk-backed `git smoke test`, `worktreeSymlink`, and `worktreeInclude` coverage. This retains real Git commits, status transitions, filesystem updates, and symlink semantics without making every behavioral test depend on physical-device latency. Either pass failing fails the suite. Test reports identify the storage backing separately.
+
+Set `VSCODE_GIT_TEST_STORAGE=disk`, `tmpfs`, or `split` when invoking `scripts/test-integration.sh --suite git` to choose an explicit mode. Local and non-Linux runs retain normal disk-backed storage by default. Temporary-directory overrides affect only Git test children; unrelated integration suites and build artifacts stay on their existing storage. The shared `test/integration/run-with-tmpfs.sh` wrapper requires noninteractive Linux mount privileges and fails rather than silently falling back.
+
 ## Compilation requirement
 
 Tests run against compiled JavaScript output. Ensure the `VS Code - Build` watch task is running or that compilation has completed before running tests.

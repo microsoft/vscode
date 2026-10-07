@@ -12,9 +12,9 @@ const { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSy
 const { availableParallelism, cpus, tmpdir } = os;
 const { basename, dirname, extname, join, resolve } = path;
 
-const repoRoot = resolve(__dirname, '..');
+const repoRoot = resolve(__dirname, '../../..');
 const testScript = join(repoRoot, 'scripts', process.platform === 'win32' ? 'test-integration.bat' : 'test-integration.sh');
-const windowsTestWrapper = join(repoRoot, 'scripts', 'test-agent-host-e2e-child.ps1');
+const windowsTestWrapper = join(__dirname, 'child.ps1');
 const incompatibleFlags = [
 	'AGENT_HOST_REPLAY_RECORD',
 	'AGENT_HOST_UPDATE_AHP_SNAPSHOTS',
@@ -92,7 +92,7 @@ async function main(): Promise<void> {
 		runStoragePasses(storage, jobs, forwardedArgs);
 		return;
 	}
-	const storageBacking = process.env['AGENT_HOST_E2E_STORAGE_BACKING'] ?? 'disk';
+	const storageBacking = process.env['TEST_TMPFS_BACKING'] ?? 'disk';
 	if (process.platform === 'linux') {
 		const filesystem = fs.statfsSync(tmpdir());
 		if (storageBacking === 'tmpfs' && filesystem.type !== 0x01021994) {
@@ -144,7 +144,7 @@ function runStoragePasses(storage: 'tmpfs' | 'split', jobs: number, args: readon
 	delete environment.ELECTRON_RUN_AS_NODE;
 	const runnerArgs = [__filename, '--storage', 'disk', '--jobs', String(jobs)];
 	const tmpfs = spawnSync('bash', [
-		join(repoRoot, 'scripts', 'test-agent-host-e2e-tmpfs.sh'),
+		join(repoRoot, 'test', 'integration', 'run-with-tmpfs.sh'),
 		process.execPath, ...runnerArgs, ...args,
 	], { cwd: repoRoot, env: { ...environment, TMPDIR: '/tmp' }, stdio: 'inherit' });
 	if (tmpfs.error) {
@@ -163,7 +163,7 @@ function runStoragePasses(storage: 'tmpfs' | 'split', jobs: number, args: readon
 			cwd: repoRoot,
 			env: {
 				...environment,
-				AGENT_HOST_E2E_STORAGE_BACKING: 'disk',
+				TEST_TMPFS_BACKING: 'disk',
 				AGENT_HOST_RECORD_PROTOCOL_SURFACE: '0',
 				AGENT_HOST_E2E_COVERAGE: '0',
 			},
@@ -192,7 +192,7 @@ function startResourceDiagnostics(jobs: number): () => void {
 			appendFileSync(output, JSON.stringify({
 				timestamp: new Date().toISOString(),
 				jobs,
-				storage: process.env['AGENT_HOST_E2E_STORAGE_BACKING'] ?? 'disk',
+				storage: process.env['TEST_TMPFS_BACKING'] ?? 'disk',
 				tmpdir: tmpdir(),
 				resources,
 			}) + '\n');
@@ -315,10 +315,10 @@ async function runSuite(suite: ISuite, forwardedArgs: readonly string[], surface
 				stdio: ['ignore', 'pipe', 'pipe'],
 			})
 			: spawn(testScript, testArguments, {
-			cwd: repoRoot,
-			env: environment,
-			stdio: ['ignore', 'pipe', 'pipe'],
-		});
+				cwd: repoRoot,
+				env: environment,
+				stdio: ['ignore', 'pipe', 'pipe'],
+			});
 		let output = '';
 		child.stdout.setEncoding('utf8');
 		child.stderr.setEncoding('utf8');
@@ -380,7 +380,7 @@ function suiteArguments(args: readonly string[], suite: ISuite): readonly string
 	const result = [...args];
 	const tfsIndex = result.indexOf('--tfs');
 	if (tfsIndex >= 0 && result[tfsIndex + 1]) {
-		const storage = process.env['AGENT_HOST_E2E_STORAGE_BACKING'];
+		const storage = process.env['TEST_TMPFS_BACKING'];
 		result[tfsIndex + 1] = `${result[tfsIndex + 1]} ${suite.label}${storage ? ` ${storage}` : ''}`;
 	}
 	return result;
