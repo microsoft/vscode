@@ -108,17 +108,16 @@ Starting two Codex chats in the same empty workspace can fail before the first p
     --grep "server tool: list_sessions.*archived"
   ```
 
-### Codex context and model-selection flakes
+### Codex context snapshot flake
 
-Responses are correct, but session notifications intermittently differ from the snapshot and the observed model is `gpt-5.3-codex` instead of `gpt-5.6-terra`. Both tests pass on unchanged retries; see [#338152](https://github.com/microsoft/vscode/issues/338152).
+Responses are correct, but session notifications intermittently differ from the snapshot. The test passes on unchanged retries; see [#338152](https://github.com/microsoft/vscode/issues/338152).
 
 - `retains context across consecutive turns`: skipped for Codex on Linux/macOS.
-- `client-selected model is used for the turn`: skipped for Codex on Linux.
-- Gates: `coreSuite.ts`. Remove only these gates to reproduce in strict replay; re-enable after repeated clean runs on affected platforms.
+- Gate: `coreSuite.ts`. Remove only this gate to reproduce in strict replay; re-enable after diagnosing the failure and repeated clean runs on affected platforms.
 
 ```bash
 ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
-  --grep "retains context across consecutive turns|client-selected model is used for the turn"
+  --grep "retains context across consecutive turns"
 ```
 
 ### Binary writes to client-hosted files are corrupted
