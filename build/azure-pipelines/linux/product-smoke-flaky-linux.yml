@@ -15,6 +15,9 @@ parameters:
   - name: VSCODE_AGENT_HOST_E2E_JOBS
     type: string
     default: ""
+  - name: VSCODE_AGENT_HOST_E2E_STORAGE
+    type: string
+    default: split
 
 jobs:
   - template: ../common/product-smoke-flaky-build.yml@self
@@ -175,6 +178,14 @@ jobs:
                 APP_NAME=$(node -p "require(\"$APP_ROOT/resources/app/product.json\").applicationName")
                 export INTEGRATION_TEST_APP_NAME="$APP_NAME"
                 export INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME"
+                if [ "$AGENT_HOST_E2E_STORAGE" = alternating ]; then
+                  if (( ${{ i }} % 2 == 1 )); then
+                    export AGENT_HOST_E2E_STORAGE=disk
+                  else
+                    export AGENT_HOST_E2E_STORAGE=tmpfs
+                  fi
+                fi
+                echo "Agent Host storage iteration ${{ i }}: $AGENT_HOST_E2E_STORAGE"
                 if [ -n "$AGENT_HOST_E2E_GREP" ]; then
                   E2E_ARGS=(--build --tfs "Integration Tests" --grep "$AGENT_HOST_E2E_GREP")
                   if [ -n "$E2E_JOBS" ]; then
@@ -189,6 +200,7 @@ jobs:
                 VSCODE_SKIP_PRELAUNCH: '1'
                 AGENT_HOST_E2E_GREP: ${{ parameters.VSCODE_AGENT_HOST_E2E_GREP }}
                 E2E_JOBS: ${{ parameters.VSCODE_AGENT_HOST_E2E_JOBS }}
+                AGENT_HOST_E2E_STORAGE: ${{ parameters.VSCODE_AGENT_HOST_E2E_STORAGE }}
               displayName: "🧪 Integration test iteration ${{ i }}/${{ length(parameters.iterations) }} (Electron)"
               continueOnError: true
               timeoutInMinutes: 20

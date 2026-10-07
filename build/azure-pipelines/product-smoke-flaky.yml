@@ -89,6 +89,15 @@ parameters:
     displayName: "Linux Agent Host E2E workers (empty uses the runner default)"
     type: string
     default: ""
+  - name: VSCODE_LINUX_AGENT_HOST_E2E_STORAGE
+    displayName: "Linux Agent Host E2E storage"
+    type: string
+    default: split
+    values:
+      - split
+      - disk
+      - tmpfs
+      - alternating
 
 variables:
   - name: VSCODE_QUALITY
@@ -221,6 +230,7 @@ extends:
                 VSCODE_TEST_SMOKE: ${{ parameters.VSCODE_TEST_SMOKE }}
                 VSCODE_AGENT_HOST_E2E_GREP: ${{ parameters.VSCODE_LINUX_AGENT_HOST_E2E_GREP }}
                 VSCODE_AGENT_HOST_E2E_JOBS: ${{ parameters.VSCODE_LINUX_AGENT_HOST_E2E_JOBS }}
+                VSCODE_AGENT_HOST_E2E_STORAGE: ${{ parameters.VSCODE_LINUX_AGENT_HOST_E2E_STORAGE }}
                 iterations: ${{ parameters.iterations }}
 
       - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:

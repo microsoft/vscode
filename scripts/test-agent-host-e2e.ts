@@ -9,7 +9,7 @@ const os: typeof import('os') = require('os');
 const path: typeof import('path') = require('path');
 const { spawn, spawnSync } = childProcess;
 const { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } = fs;
-const { availableParallelism, cpus } = os;
+const { availableParallelism, cpus, tmpdir } = os;
 const { basename, dirname, extname, join, resolve } = path;
 
 const repoRoot = resolve(__dirname, '..');
@@ -20,6 +20,16 @@ const incompatibleFlags = [
 	'AGENT_HOST_UPDATE_AHP_SNAPSHOTS',
 	'AGENT_HOST_UPDATE_SNAPSHOTS',
 ];
+type StorageMode = 'disk' | 'tmpfs' | 'split';
+const diskLifecyclePattern = [
+	'session metadata history and provider context survive a host restart',
+	'archiving a never-restored session survives a host restart',
+	'a created automation survives an agent host restart',
+	'automation lifecycle: cancelled request deduplication survives a restart',
+	'automation lifecycle: an unavailable model produces a durable failed run',
+	'regression coverage: cold resume retains ordered user and assistant context',
+	'regression coverage: identical prompts remain separate completed turns after resume',
+].join('|');
 
 interface ISuite {
 	readonly id: string;
@@ -76,8 +86,23 @@ const suites: readonly ISuite[] = [
 
 async function main(): Promise<void> {
 	validateEnvironment();
-	const { jobs, forwardedArgs } = parseArguments(process.argv.slice(2));
+	const { jobs, storage, forwardedArgs } = parseArguments(process.argv.slice(2));
 	prepareTestRuntime();
+	if (storage !== 'disk') {
+		runStoragePasses(storage, jobs, forwardedArgs);
+		return;
+	}
+	const storageBacking = process.env['AGENT_HOST_E2E_STORAGE_BACKING'] ?? 'disk';
+	if (process.platform === 'linux') {
+		const filesystem = fs.statfsSync(tmpdir());
+		if (storageBacking === 'tmpfs' && filesystem.type !== 0x01021994) {
+			throw new Error(`RAM-backed E2E tests require tmpfs temporary storage: ${tmpdir()}`);
+		}
+		if (storageBacking === 'disk' && (filesystem.type === 0x01021994 || filesystem.type === 0x858458f6)) {
+			throw new Error(`Disk-backed E2E tests require non-tmpfs temporary storage: ${tmpdir()}`);
+		}
+		console.log(`Agent Host E2E storage: ${storageBacking}, temporary directory=${tmpdir()}, filesystemType=${filesystem.type}`);
+	}
 
 	const startedAt = process.hrtime.bigint();
 	const surfaceOutputs = prepareSurfaceOutputs();
@@ -114,6 +139,45 @@ async function main(): Promise<void> {
 	}
 }
 
+function runStoragePasses(storage: 'tmpfs' | 'split', jobs: number, args: readonly string[]): void {
+	const environment = { ...process.env, VSCODE_SKIP_PRELAUNCH: '1' };
+	delete environment.ELECTRON_RUN_AS_NODE;
+	const runnerArgs = [__filename, '--storage', 'disk', '--jobs', String(jobs)];
+	const tmpfs = spawnSync('bash', [
+		join(repoRoot, 'scripts', 'test-agent-host-e2e-tmpfs.sh'),
+		process.execPath, ...runnerArgs, ...args,
+	], { cwd: repoRoot, env: environment, stdio: 'inherit' });
+	if (tmpfs.error) {
+		throw tmpfs.error;
+	}
+	if (tmpfs.status !== 0) {
+		process.exitCode = 1;
+	}
+	if (storage === 'split') {
+		const diskArgs = args.filter((argument, index) =>
+			!['--grep', '-g', '-f', '--invert'].includes(argument)
+			&& !['--grep', '-g', '-f'].includes(args[index - 1])
+			&& !argument.startsWith('--grep='));
+		console.log('\nRunning required disk-backed Agent Host persistence and lifecycle coverage.');
+		const disk = spawnSync(process.execPath, [...runnerArgs, ...diskArgs, '--grep', diskLifecyclePattern], {
+			cwd: repoRoot,
+			env: {
+				...environment,
+				AGENT_HOST_E2E_STORAGE_BACKING: 'disk',
+				AGENT_HOST_RECORD_PROTOCOL_SURFACE: '0',
+				AGENT_HOST_E2E_COVERAGE: '0',
+			},
+			stdio: 'inherit',
+		});
+		if (disk.error) {
+			throw disk.error;
+		}
+		if (disk.status !== 0) {
+			process.exitCode = 1;
+		}
+	}
+}
+
 function startResourceDiagnostics(jobs: number): () => void {
 	if (process.platform !== 'linux') {
 		return () => { };
@@ -121,11 +185,17 @@ function startResourceDiagnostics(jobs: number): () => void {
 	const directory = join(repoRoot, '.build', 'logs', 'integration-tests');
 	mkdirSync(directory, { recursive: true });
 	const output = join(directory, `agent-host-resources-${process.pid}.jsonl`);
-	const files = ['/proc/pressure/cpu', '/proc/pressure/io', '/proc/pressure/memory', '/proc/stat', '/proc/meminfo', '/proc/diskstats'];
+	const files = ['/proc/pressure/cpu', '/proc/pressure/io', '/proc/pressure/memory', '/proc/stat', '/proc/meminfo', '/proc/diskstats', '/proc/self/mountinfo'];
 	const sample = () => {
 		try {
 			const resources = Object.fromEntries(files.map(file => [file, existsSync(file) ? readFileSync(file, 'utf8') : 'unavailable']));
-			appendFileSync(output, JSON.stringify({ timestamp: new Date().toISOString(), jobs, resources }) + '\n');
+			appendFileSync(output, JSON.stringify({
+				timestamp: new Date().toISOString(),
+				jobs,
+				storage: process.env['AGENT_HOST_E2E_STORAGE_BACKING'] ?? 'disk',
+				tmpdir: tmpdir(),
+				resources,
+			}) + '\n');
 		} catch (error) {
 			console.warn(`[agent-host-e2e] Failed to collect worker resource diagnostics: ${error instanceof Error ? error.message : String(error)}`);
 		}
@@ -146,13 +216,19 @@ function validateEnvironment(): void {
 	}
 }
 
-function parseArguments(args: readonly string[]): { jobs: number; forwardedArgs: readonly string[] } {
+function parseArguments(args: readonly string[]): { jobs: number; storage: StorageMode; forwardedArgs: readonly string[] } {
 	const forwardedArgs: string[] = [];
 	let requestedJobs: string | undefined = process.env['AGENT_HOST_E2E_JOBS'];
+	const linuxCI = process.platform === 'linux' && (process.env['CI'] === 'true' || process.env['TF_BUILD']?.toLowerCase() === 'true');
+	let requestedStorage = process.env['AGENT_HOST_E2E_STORAGE'] ?? (linuxCI ? 'split' : 'disk');
 
 	for (let index = 0; index < args.length; index++) {
 		const argument = args[index];
-		if (argument === '--jobs') {
+		if (argument === '--storage') {
+			requestedStorage = args[++index];
+		} else if (argument.startsWith('--storage=')) {
+			requestedStorage = argument.slice('--storage='.length);
+		} else if (argument === '--jobs') {
 			requestedJobs = args[++index];
 			if (!requestedJobs) {
 				throw new Error('--jobs requires a value');
@@ -175,7 +251,13 @@ function parseArguments(args: readonly string[]): { jobs: number; forwardedArgs:
 	if (!Number.isInteger(jobs) || jobs < 1) {
 		throw new Error(`Invalid Agent Host E2E worker count: ${requestedJobs}`);
 	}
-	return { jobs: Math.min(jobs, suites.length), forwardedArgs };
+	if (requestedStorage !== 'disk' && requestedStorage !== 'tmpfs' && requestedStorage !== 'split') {
+		throw new Error(`Invalid Agent Host E2E storage mode: ${requestedStorage}`);
+	}
+	if (requestedStorage !== 'disk' && process.platform !== 'linux') {
+		throw new Error('Agent Host tmpfs storage requires Linux');
+	}
+	return { jobs: Math.min(jobs, suites.length), storage: requestedStorage, forwardedArgs };
 }
 
 function prepareTestRuntime(): void {
@@ -298,7 +380,8 @@ function suiteArguments(args: readonly string[], suite: ISuite): readonly string
 	const result = [...args];
 	const tfsIndex = result.indexOf('--tfs');
 	if (tfsIndex >= 0 && result[tfsIndex + 1]) {
-		result[tfsIndex + 1] = `${result[tfsIndex + 1]} ${suite.label}`;
+		const storage = process.env['AGENT_HOST_E2E_STORAGE_BACKING'];
+		result[tfsIndex + 1] = `${result[tfsIndex + 1]} ${suite.label}${storage ? ` ${storage}` : ''}`;
 	}
 	return result;
 }

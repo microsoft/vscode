@@ -294,6 +294,10 @@ Each test needs an agent host server (a forked subprocess) fronted by a `CapiRep
 
 The lease also owns isolated data directories. Servers normally share one directory as their home and VS Code user-data directory, with provider-specific config overrides prevented from escaping it, so both shared and provider-specific scenarios are isolated from developer-machine configuration.
 
+The parallel runner defaults to `--storage split` on Linux CI: the selected replay suite uses an executable, private 4 GiB tmpfs mount, followed by required disk-backed persistence and lifecycle tests. SQLite remains file-backed in both passes, including migrations, transactions, connection close/reopen, idle eviction, deletion, and host restart. The disk pass covers session history and provider context across restart, archived-session restoration, automation definition and failed-run persistence, cancelled-request deduplication, and ordered/duplicate-turn cold resume. A failure in either pass fails the run. Host-process restarts preserve tmpfs files; machine restart and physical-storage durability are not covered by tmpfs.
+
+`--storage disk` runs the selected suite with normal temporary storage; `--storage tmpfs` runs only the RAM-backed pass. Local runs and other platforms retain disk-backed storage by default. Linux tmpfs requires noninteractive `sudo mount`/`umount`; allocation, capacity, and cleanup errors fail explicitly rather than falling back to disk. The mount is scoped to one runner invocation and removed after child cleanup; diagnostics remain in the workspace logs artifact. Temporary-directory overrides apply only to E2E children, not other integration suites.
+
 On Windows, test-server cleanup records descendants before requesting graceful shutdown and terminates any survivors after the server exits, before temporary directories are removed. Recording descendants and waiting for graceful exit share the existing shutdown deadline.
 
 - **Per-test** (always while recording) — fork a fresh server + proxy for every test and kill it in teardown. Full isolation: nothing carries over between tests. The cost is that every test re-pays the server fork **and** the provider SDK/CLI cold start (`_ensureClient` spawns and caches the CLI subprocess per server).
@@ -617,7 +621,9 @@ All provider test hosts run at trace level. Suite cleanup retains only the phase
 
 The parallel runner samples Linux CPU, I/O, and memory pressure plus CPU, memory, and disk counters every five seconds from outside the host processes. Samples are published under `.build/logs/integration-tests/agent-host-resources-<pid>.jsonl`; timestamps correlate with host phase logs. Resource pressure supports a contention hypothesis but does not establish which operation stalled.
 
-For focused repeated Linux runs in pipeline definition `700`, set `VSCODE_LINUX_AGENT_HOST_E2E_GREP` to a test-title expression and enable only Linux integration tests. The nonempty filter runs the six E2E entrypoints instead of unrelated extension suites. `VSCODE_LINUX_AGENT_HOST_E2E_JOBS` controls concurrency for that focused run; leave it empty to retain the default. Keep the same test selection when comparing worker counts, and preserve normal disk-backed storage, fixtures, assertions, and deadlines.
+For focused repeated Linux runs in pipeline definition `700`, set `VSCODE_LINUX_AGENT_HOST_E2E_GREP` to a test-title expression and enable only Linux integration tests. The nonempty filter runs the six E2E entrypoints instead of unrelated extension suites. `VSCODE_LINUX_AGENT_HOST_E2E_JOBS` controls concurrency for that focused run; leave it empty to retain the default. Keep the same test selection and storage mode when comparing worker counts, and preserve fixtures, assertions, and deadlines.
+
+`VSCODE_LINUX_AGENT_HOST_E2E_STORAGE=alternating` runs odd iteration numbers on disk and even numbers on tmpfs on the same worker. Use an even iteration count and an unchanged filter/concurrency to compare phase distributions rather than pass counts. Resource samples include storage mode, temporary root, and mount mappings. The normal `split` mode retains the required disk-backed lifecycle pass; `disk` and `tmpfs` are explicit experimental controls.
 
 ### Replayed text is doubled (`VALUEVALUE`)
 
