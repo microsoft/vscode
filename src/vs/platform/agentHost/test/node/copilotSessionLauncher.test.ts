@@ -40,7 +40,7 @@ import { resolveCopilotMcpServerInfo, type ICopilotPluginInfo } from '../../node
 import { CopilotGitHubSessionCredentials } from '../../node/copilot/copilotGitHubCredentials.js';
 import { CopilotExtensionsReloadToolName } from '../../node/copilot/copilotExtensionTools.js';
 import type { ShellManager } from '../../node/copilot/copilotShellTools.js';
-import type { SandboxConfig } from '../../node/copilot/sandboxConfigForSdk.js';
+import type { SandboxConfig, SandboxNetworkPolicy } from '../../node/copilot/sandboxConfigForSdk.js';
 import { CopilotSessionLauncher, filterClientToolNames, getCopilotAutoTier, getCopilotReasoningEffort, isCopilotReasoningEffort, mergeByokSessionConfig, synthesizeByokSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import { buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
 import type { IAgentHostSessionOpenTelemetry } from '../../node/agentHostSessionOpenTelemetry.js';
@@ -151,7 +151,7 @@ function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettin
 suite('CopilotSessionLauncher sandbox policy', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(kind: 'create' | 'resume', reportPolicy = true, enforced = false, allowBypass = false, allowOutbound?: boolean, sandboxUpdateError?: Error, sandboxToggles?: Pick<SandboxConfig, 'sandboxMcpServers' | 'sandboxLspServers' | 'allowDevToolAccess' | 'auth'>, allowLocalNetwork?: boolean) {
+	function setup(kind: 'create' | 'resume', reportPolicy = true, enforced = false, allowBypass = false, allowOutbound?: boolean, sandboxUpdateError?: Error, sandboxToggles?: Pick<SandboxConfig, 'sandboxMcpServers' | 'sandboxLspServers' | 'allowDevToolAccess' | 'addCurrentWorkingDirectory' | 'auth'>, allowLocalNetwork?: boolean, networkHosts?: Pick<SandboxNetworkPolicy, 'allowedHosts' | 'blockedHosts'>) {
 		const manager = store.add(new AgentHostStateManager(new NullLogService()));
 		const configuration = store.add(new AgentConfigurationService(manager, new NullLogService()));
 		const owner = 'copilot:/sess-1';
@@ -200,7 +200,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 				config?.onEvent?.({
 					id: 'resolved', parentId: null, timestamp: '2026-01-01T00:00:00Z',
 					type: 'session.managed_settings_resolved', ephemeral: true,
-					data: { source: 'server', serverManaged: true, deviceManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: enforced ? ['sandbox'] : [], settings: enforced ? { sandbox: { enabled: true, allowBypass, ...sandboxOptions, ...(auth ? { auth: { ...auth } } : {}), userPolicy: { network: { ...(allowOutbound !== undefined ? { allowOutbound } : {}), ...(allowLocalNetwork !== undefined ? { allowLocalNetwork } : {}) } } } } : {} },
+					data: { source: 'server', serverManaged: true, deviceManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: enforced ? ['sandbox'] : [], settings: enforced ? { sandbox: { enabled: true, allowBypass, ...sandboxOptions, ...(auth ? { auth: { ...auth } } : {}), userPolicy: { network: { ...(allowOutbound !== undefined ? { allowOutbound } : {}), ...(allowLocalNetwork !== undefined ? { allowLocalNetwork } : {}), ...networkHosts } } } } : {} },
 				});
 			}
 			return raw;
@@ -235,6 +235,82 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 				events,
 				applied: fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.enabled),
 			}, { events: ['session.managed_settings_resolved', 'session.title_changed'], applied: [false] });
+		});
+
+		test(`${kind} applies managed denial of current working directory access`, async () => {
+			const fixture = setup(kind, true, true, false, undefined, undefined, { addCurrentWorkingDirectory: false });
+			fixture.configuration.updateRootConfig({ sandbox: { enabled: 'on', addCurrentWorkingDirectory: true } });
+			store.add(await fixture.launcher.launch(fixture.plan, testRuntime));
+			assert.deepStrictEqual(fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.addCurrentWorkingDirectory), [false]);
+		});
+
+		test(`${kind} sends managed host lists when local lists are omitted or empty`, async () => {
+			for (const localHosts of [undefined, []]) {
+				const fixture = setup(kind, true, true, false, undefined, undefined, undefined, undefined, {
+					allowedHosts: ['example.com', 'api.example.com'],
+					blockedHosts: ['malicious.com', 'phishing.com'],
+				});
+				fixture.configuration.updateRootConfig({
+					sandbox: {
+						enabled: 'on', allowNetwork: true, allowLocalNetwork: true,
+						...(localHosts ? { allowedNetworkDomains: localHosts, deniedNetworkDomains: localHosts } : {}),
+					}
+				});
+				store.add(await fixture.launcher.launch(fixture.plan, testRuntime));
+				assert.deepStrictEqual(fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.userPolicy?.network), [{
+					allowOutbound: true,
+					allowLocalNetwork: true,
+					allowedHosts: ['example.com', 'api.example.com'],
+					blockedHosts: ['malicious.com', 'phishing.com'],
+				}]);
+			}
+		});
+
+		test(`${kind} sends the managed allowlist and combined blocklists in the SDK update`, async () => {
+			const fixture = setup(kind, true, true, false, undefined, undefined, undefined, undefined, {
+				allowedHosts: ['api.example.com'],
+				blockedHosts: ['managed.blocked'],
+			});
+			fixture.configuration.updateRootConfig({
+				sandbox: {
+					enabled: 'on',
+					allowedNetworkDomains: ['*.example.com'],
+					deniedNetworkDomains: ['local.blocked'],
+				}
+			});
+			store.add(await fixture.launcher.launch(fixture.plan, testRuntime));
+			assert.deepStrictEqual(fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.userPolicy?.network), [{
+				allowedHosts: ['api.example.com'],
+				blockedHosts: ['local.blocked', 'managed.blocked'],
+			}]);
+		});
+
+		test(`${kind} ignores a disjoint local allowlist without adding a wildcard block`, async () => {
+			const fixture = setup(kind, true, true, false, undefined, undefined, undefined, undefined, {
+				allowedHosts: ['managed.example'],
+			});
+			fixture.configuration.updateRootConfig({
+				sandbox: {
+					enabled: 'on', allowedNetworkDomains: ['local.example'],
+				}
+			});
+			store.add(await fixture.launcher.launch(fixture.plan, testRuntime));
+			assert.deepStrictEqual(fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.userPolicy?.network), [{
+				allowedHosts: ['managed.example'], blockedHosts: [],
+			}]);
+		});
+
+		test(`${kind} ignores local allowed hosts when the managed allowlist is empty`, async () => {
+			const fixture = setup(kind, true, true, false, undefined, undefined, undefined, undefined, { allowedHosts: [] });
+			fixture.configuration.updateRootConfig({
+				sandbox: {
+					enabled: 'on', allowNetwork: true, allowedNetworkDomains: ['local.example'],
+				}
+			});
+			store.add(await fixture.launcher.launch(fixture.plan, testRuntime));
+			assert.deepStrictEqual(fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.userPolicy?.network), [{
+				allowOutbound: true,
+			}]);
 		});
 
 		for (const [key, field] of [
@@ -2023,6 +2099,8 @@ suite('CopilotSessionLauncher resume config', () => {
 	test('enables experimental mode only with HydraFusion opt-in', async () => {
 		const store = disposables.add(new DisposableStore());
 		const enabled = await buildResumeConfig(createLauncher(store, { hydraFusion: true }), { id: 'hydrafusion' });
+		const v2 = await buildResumeConfig(createLauncher(store, { hydraFusion: true, hydraFusionV2: true }), { id: 'hydrafusion' });
+		const v2WithoutHydraFusion = await buildResumeConfig(createLauncher(store, { hydraFusionV2: true }), { id: 'gpt-5' });
 		const disabled = await buildResumeConfig(createLauncher(store, { hydraFusion: false }), { id: 'gpt-5' });
 		const notOptedIn = await buildResumeConfig(createLauncher(store, {}), { id: 'gpt-5' });
 		const connectors = await buildResumeConfig(createLauncher(store, { [AgentHostMcpConnectorsEnabledConfigKey]: true }), { id: 'gpt-5' });
@@ -2031,6 +2109,8 @@ suite('CopilotSessionLauncher resume config', () => {
 			model: enabled.model,
 			enabledExperimentalMode: enabled.enableExperimentalMode,
 			enabledFeatureFlags: enabled.featureFlags,
+			v2FeatureFlags: v2.featureFlags,
+			v2WithoutHydraFusionFeatureFlags: v2WithoutHydraFusion.featureFlags,
 			disabledExperimentalMode: disabled.enableExperimentalMode,
 			disabledFeatureFlags: disabled.featureFlags,
 			defaultExperimentalMode: notOptedIn.enableExperimentalMode,
@@ -2047,6 +2127,16 @@ suite('CopilotSessionLauncher resume config', () => {
 				HYDRAFUSION: true,
 				HYDRAFUSION_ROLLOUT: true,
 			},
+			v2FeatureFlags: {
+				CONNECTORS: false,
+				TGREP: false,
+				CONTENT_EXCLUSION: true,
+				copilot_swe_agent_memory_in_repo_store: false,
+				HYDRAFUSION: true,
+				HYDRAFUSION_ROLLOUT: true,
+				HYDRAFUSION_PLAN_V2: true,
+			},
+			v2WithoutHydraFusionFeatureFlags: { CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true, copilot_swe_agent_memory_in_repo_store: false },
 			disabledExperimentalMode: undefined,
 			disabledFeatureFlags: { CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true, copilot_swe_agent_memory_in_repo_store: false },
 			defaultExperimentalMode: undefined,
@@ -2088,6 +2178,20 @@ suite('CopilotSessionLauncher resume config', () => {
 			localWithoutMemory: { memory: { enabled: false }, localStore: false },
 			disabled: { memory: { enabled: false }, localStore: false },
 			notOptedIn: { memory: { enabled: false }, localStore: false },
+		});
+	});
+
+	test('configures the stability-ordered system prompt feature flag', async () => {
+		const store = disposables.add(new DisposableStore());
+		const disabled = await buildResumeConfig(createLauncher(store, {}), { id: 'gpt-5' });
+		const enabled = await buildResumeConfig(createLauncher(store, { [CopilotCliConfigKey.StabilityOrderedPrompt]: true }), { id: 'gpt-5' });
+
+		assert.deepStrictEqual({
+			disabled: disabled.featureFlags,
+			enabled: enabled.featureFlags,
+		}, {
+			disabled: { CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true, copilot_swe_agent_memory_in_repo_store: false },
+			enabled: { CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true, copilot_swe_agent_memory_in_repo_store: false, STABILITY_ORDERED_SYSTEM_PROMPT_V2: true },
 		});
 	});
 

@@ -169,6 +169,7 @@ export interface IChatWidgetFixtureOptions {
 	readonly collapseCompletedResponses?: boolean;
 	readonly terminalToolsInThinking?: boolean;
 	readonly simpleTerminalCollapsible?: boolean;
+	readonly realTerminalOutput?: boolean;
 	readonly thinkingPhrases?: readonly string[];
 	readonly editingSession?: IChatEditingSession;
 }
@@ -205,7 +206,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 
 	const widgetHolder: { current: IChatWidget | undefined } = { current: undefined };
 	const hasSubagents = options.messages.some(message => message.assistant?.some(part => part.kind === 'subagent'));
-	const hasTerminalOutput = options.messages.some(message => message.assistant?.some(part => part.kind === 'terminal' && part.output));
+	const hasTerminalOutput = options.realTerminalOutput ?? options.messages.some(message => message.assistant?.some(part => part.kind === 'terminal' && part.output));
 
 	const fixtureToolData: IToolData = {
 		id: 'fixture.terminalTool',
@@ -1378,8 +1379,20 @@ async function renderPersistentProgressScenario(context: ComponentFixtureContext
 		throw new Error('Persistent progress indicator was not rendered in the active response');
 	}
 	const visibleParts = [...value.children].filter(part => part.getBoundingClientRect().height > 0);
-	if (visibleParts.slice(1).some((part, index) => Math.abs(part.getBoundingClientRect().top - visibleParts[index].getBoundingClientRect().bottom - 16) > 0.1)) {
-		throw new Error('Visible response parts must use the shared item gap');
+	// Check in-flow spacing independently of the footer's applied subpixel alignment.
+	const footerTranslation = footer ? targetWindow.getComputedStyle(footer).translate : 'none';
+	const footerRounding = Number.parseFloat(footerTranslation.split(' ')[1] ?? '0');
+	if (!Number.isFinite(footerRounding) || footerRounding < 0 || footerRounding >= 1) {
+		throw new Error(`Unexpected progress footer alignment: ${footerTranslation}`);
+	}
+	const getItemGap = (previous: Element, next: Element) => {
+		const previousOffset = footer?.contains(previous) ? footerRounding : 0;
+		const nextOffset = footer?.contains(next) ? footerRounding : 0;
+		return next.getBoundingClientRect().top - previous.getBoundingClientRect().bottom + previousOffset - nextOffset;
+	};
+	const partGaps = visibleParts.slice(1).map((part, index) => getItemGap(visibleParts[index], part));
+	if (partGaps.some(gap => Math.abs(gap - 16) > 0.1)) {
+		throw new Error(`Visible response parts must use the shared item gap; measured ${partGaps.join(', ')}`);
 	}
 	if (options.progressVerbosity === ChatProgressVerbosity.Verbose && response.querySelector('.chat-tool-chain > .chat-used-context-label, .chat-tool-chain.chat-used-context-collapsed, .chat-tool-chain > .monaco-scrollable-element, .chat-tool-chain .chat-persistent-reasoning')) {
 		throw new Error('Tool chains must be expanded, headerless, unbounded, and separate from reasoning');
@@ -1461,8 +1474,9 @@ async function renderPersistentProgressScenario(context: ComponentFixtureContext
 		const activityLabelSelector = '.chat-tool-chain:not(.chat-used-context-collapsed) .progress-container p, .chat-tool-chain.chat-used-context-collapsed > .chat-used-context-label .monaco-button-mdlabel, .chat-persistent-reasoning > .chat-used-context-label .monaco-button-mdlabel, :scope > .chat-tool-call-with-icon .progress-container p, .chat-working-progress p';
 		if (options.activityRowSpacing) {
 			const labels = [...value.querySelectorAll<HTMLElement>(`${activityLabelSelector}, :scope > .chat-markdown-part > p`)];
-			if (labels.slice(1).some((label, index) => Math.abs(label.getBoundingClientRect().top - labels[index].getBoundingClientRect().bottom - 16) > 0.1)) {
-				throw new Error('Visible tool summaries, tools, reasoning, markdown, and working rows must share the same item gap');
+			const labelGaps = labels.slice(1).map((label, index) => getItemGap(labels[index], label));
+			if (labelGaps.some(gap => Math.abs(gap - 16) > 0.1)) {
+				throw new Error(`Visible tool summaries, tools, reasoning, markdown, and working rows must share the same item gap; measured ${labelGaps.join(', ')}`);
 			}
 		}
 		const labels = value.querySelectorAll<HTMLElement>(activityLabelSelector);

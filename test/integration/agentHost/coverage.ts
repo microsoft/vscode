@@ -10,7 +10,7 @@ const { spawnSync } = childProcess;
 const { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } = fs;
 const { dirname, isAbsolute, join, relative, resolve, sep } = path;
 
-const repoRoot = resolve(__dirname, '..');
+const repoRoot = resolve(__dirname, '../../..');
 const coverageRoot = join(repoRoot, '.build', 'agent-host-e2e-coverage');
 const rawCoveragePath = join(coverageRoot, 'raw');
 const reportPath = join(coverageRoot, 'report');
@@ -63,7 +63,7 @@ function main(): void {
 		AGENT_HOST_RECORD_PROTOCOL_SURFACE: '1',
 		AGENT_HOST_PROTOCOL_SURFACE_OUT: observedSurfacePath,
 	};
-	run(process.execPath, [join(repoRoot, 'scripts', 'test-agent-host-e2e.ts')], testEnvironment);
+	run(process.execPath, [join(__dirname, 'runner.ts')], testEnvironment);
 
 	const rawFiles = readdirSync(rawCoveragePath).filter(file => file.endsWith('.json'));
 	if (rawFiles.length === 0) {

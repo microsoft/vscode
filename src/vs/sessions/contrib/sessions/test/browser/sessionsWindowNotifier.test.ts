@@ -175,7 +175,7 @@ suite('SessionsWindowNotifier', () => {
 		}, {
 			toasts: [{
 				title: 'Session: Fix needs-input',
-				body: 'Input needed in vscode.',
+				body: 'Attention needed in vscode.',
 				actions: ['Open Session'],
 				dedupeKey: 'chat-session:test:/needs-input:needsInput',
 			}],

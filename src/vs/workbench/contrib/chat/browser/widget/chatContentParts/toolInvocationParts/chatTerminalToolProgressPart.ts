@@ -49,6 +49,7 @@ import { IHoverService } from '../../../../../../../platform/hover/browser/hover
 import { URI } from '../../../../../../../base/common/uri.js';
 import { stripIcons } from '../../../../../../../base/common/iconLabels.js';
 import { IAccessibleViewService } from '../../../../../../../platform/accessibility/browser/accessibleView.js';
+import { AGENT_HOST_TERMINAL_MAX_CONTENT_LENGTH } from '../../../../../../../platform/agentHost/common/terminalConstants.js';
 import { IContextKey, IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { AccessibilityVerbositySettingId } from '../../../../../accessibility/browser/accessibilityConfiguration.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
@@ -434,6 +435,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			() => this._getTerminalCommandOutput(),
 			() => this._commandText,
 			() => this._terminalData.terminalTheme,
+			// Agent Host output-only terminals keep all the output the host retains scrollable.
+			() => this._terminalData.isPty === false ? AGENT_HOST_TERMINAL_MAX_CONTENT_LENGTH : undefined,
 			() => this._isInvocationRunning(),
 			() => this.fullOutputAction,
 			!!this._terminalData.terminalToolSessionId,
@@ -1423,6 +1426,8 @@ export class ChatTerminalToolOutputSection extends Disposable {
 		private readonly _getTerminalCommandOutput: () => IChatTerminalToolInvocationData['terminalCommandOutput'] | undefined,
 		private readonly _getCommandText: () => string,
 		private readonly _getStoredTheme: () => IChatTerminalToolInvocationData['terminalTheme'] | undefined,
+		/** The rows of scrollback for snapshot and streamed output, or `undefined` for the terminal setting. */
+		private readonly _getSnapshotScrollback: () => number | undefined,
 		private readonly _isInvocationRunning: () => boolean,
 		private readonly _getFullOutputAction: () => IAction | undefined,
 		private readonly _hasTerminalSession: boolean,
@@ -1456,7 +1461,8 @@ export class ChatTerminalToolOutputSection extends Disposable {
 		this._register(dom.addDisposableListener(this.domNode, dom.EventType.FOCUS_IN, () => this._onDidFocusEmitter.fire()));
 		this._register(dom.addDisposableListener(this.domNode, dom.EventType.FOCUS_OUT, event => this._onDidBlurEmitter.fire(event)));
 
-		const resizeObserver = this._register(new dom.DisposableResizeObserver('ChatTerminalToolProgressPart.handleResize', () => this._handleResize()));
+		// Reflow can change the observed height; defer it out of ResizeObserver delivery.
+		const resizeObserver = this._register(new dom.DisposableResizeObserver('ChatTerminalToolProgressPart.handleResize', () => this._scheduleOutputRelayout()));
 		this._register(resizeObserver.observe(this.domNode));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ChatConfiguration.TerminalOutputReflow)) {
@@ -1791,7 +1797,7 @@ export class ChatTerminalToolOutputSection extends Disposable {
 			return;
 		}
 		dom.clearNode(this._terminalContainer);
-		this._snapshotMirror = this._register(this._instantiationService.createInstance(DetachedTerminalSnapshotMirror, snapshot, this._getStoredTheme));
+		this._snapshotMirror = this._register(this._instantiationService.createInstance(DetachedTerminalSnapshotMirror, snapshot, this._getStoredTheme, this._getSnapshotScrollback()));
 		this._register(this._snapshotMirror.onDidChangeRowHeight(() => this._handleMirrorRowHeightChange()));
 		await this._snapshotMirror.attach(this._terminalContainer);
 		this._snapshotMirror.setOutput(snapshot);
@@ -1866,8 +1872,7 @@ export class ChatTerminalToolOutputSection extends Disposable {
 		}
 		this._outputRelayout.value = dom.scheduleAtNextAnimationFrame(dom.getWindow(this.domNode), () => {
 			this._outputRelayout.clear();
-			this._layoutOutput();
-			this._scrollOutputToBottom();
+			void this._handleResize().catch(onUnexpectedError);
 		});
 	}
 

@@ -34,10 +34,14 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, capabilities: 
 		override readonly onDidChangeReducedMotion = Event.None;
 		override isScreenReaderOptimized(): boolean { return false; }
 	}());
+	const statusIconReads: boolean[] = [];
 	instantiationService.stub(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
 		override readonly onDidChange = Event.None;
 		override isSessionPinned(): boolean { return false; }
-		override getStatusIcon(): ThemeIcon { return ThemeIcon.fromId('circle'); }
+		override getStatusIcon(_status: SessionStatus, isRead: boolean): ThemeIcon {
+			statusIconReads.push(isRead);
+			return ThemeIcon.fromId('circle');
+		}
 	}());
 	instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 		override readonly onDidChangeSessions = Event.None;
@@ -48,12 +52,14 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, capabilities: 
 		override readonly resource = URI.parse('test-chat://main');
 		override readonly title = observableValue(this, 'Main Chat');
 		override readonly status = constObservable(mainChatStatus);
+		override readonly isRead = observableValue(this, true);
 		override readonly capabilities = constObservable({ canRename: capabilities.supportsRename ?? false, canArchive: false, canDelete: false });
 	}();
 	const secondChat = new class extends mock<IChat>() {
 		override readonly resource = URI.parse('test-chat://second');
 		override readonly title = observableValue(this, 'Second Chat');
 		override readonly status = constObservable(SessionStatus.Completed);
+		override readonly isRead = observableValue(this, true);
 		override readonly capabilities = constObservable({ canRename: capabilities.supportsRename ?? false, canArchive: true, canDelete: true });
 	}();
 	const activeChat = observableValue<IChat>('activeChat', mainChat);
@@ -63,7 +69,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, capabilities: 
 		override readonly providerId = 'test';
 		override readonly title: IObservable<string> = constObservable('My Session');
 		override readonly status: IObservable<SessionStatus> = constObservable(SessionStatus.Completed);
-		override readonly isRead: IObservable<boolean> = constObservable(true);
+		override readonly isRead = observableValue(this, true);
 		override readonly isArchived: IObservable<boolean> = constObservable(false);
 		override readonly isCreated: IObservable<boolean> = constObservable(true);
 		override readonly sticky: IObservable<boolean> = constObservable(false);
@@ -82,7 +88,7 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, capabilities: 
 	const container = mainWindow.document.createElement('div');
 	container.appendChild(header.element);
 
-	return { store, instantiationService, header, session, activeChat, mainChat, secondChat };
+	return { store, instantiationService, header, session, activeChat, mainChat, secondChat, statusIconReads };
 }
 
 suite('Sessions - Headers', () => {
@@ -274,6 +280,25 @@ suite('Sessions - Headers', () => {
 		});
 	});
 
+	test('shows the read state of the active chat instead of the session aggregate', () => {
+		const { session, activeChat, mainChat, secondChat, statusIconReads } = createHarness(disposables);
+		session.isRead.set(false, undefined);
+		secondChat.isRead.set(false, undefined);
+
+		activeChat.set(secondChat, undefined);
+		const secondActive = statusIconReads.at(-1);
+		secondChat.isRead.set(true, undefined);
+		const secondRead = statusIconReads.at(-1);
+		activeChat.set(mainChat, undefined);
+		const mainActive = statusIconReads.at(-1);
+
+		assert.deepStrictEqual({ secondActive, secondRead, mainActive }, {
+			secondActive: false,
+			secondRead: true,
+			mainActive: true,
+		});
+	});
+
 	test('shows New Session for an untitled nested session', () => {
 		const { store, instantiationService, session, activeChat, secondChat } = createHarness(disposables);
 		secondChat.title.set('', undefined);
@@ -295,7 +320,7 @@ suite('Sessions - Headers', () => {
 		container.style.setProperty('--vscode-spacing-size280', '28px');
 		container.style.setProperty('--vscode-spacing-size320', '32px');
 		container.style.setProperty('--session-view-centered-content-max-width', '950px');
-		container.style.setProperty('--session-view-content-horizontal-padding', '32px');
+		container.style.setProperty('--session-view-content-horizontal-padding', '24px');
 		container.style.width = '1200px';
 		mainWindow.document.body.appendChild(container);
 
@@ -332,7 +357,7 @@ suite('Sessions - Headers', () => {
 					headerHeight: '32px',
 					headerInset: 125,
 					barPaddingInline: '0px',
-					headerPaddingInline: '32px',
+					headerPaddingInline: '24px',
 					hasCompactClass: false,
 				},
 				compactGeometry: {
@@ -342,7 +367,7 @@ suite('Sessions - Headers', () => {
 					headerHeight: '28px',
 					headerInset: 125,
 					barPaddingInline: '0px',
-					headerPaddingInline: '32px',
+					headerPaddingInline: '24px',
 					hasCompactClass: true,
 				},
 				restoredGeometry: {
@@ -352,7 +377,7 @@ suite('Sessions - Headers', () => {
 					headerHeight: '32px',
 					headerInset: 125,
 					barPaddingInline: '0px',
-					headerPaddingInline: '32px',
+					headerPaddingInline: '24px',
 					hasCompactClass: false,
 				},
 				highContrastSeparatorStyle: 'none',

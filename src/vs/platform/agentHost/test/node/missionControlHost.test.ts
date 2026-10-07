@@ -14,6 +14,7 @@ import { INativeEnvironmentService } from '../../../environment/common/environme
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
+import { ITelemetryService, type ITelemetryData } from '../../../telemetry/common/telemetry.js';
 import { AgentHostClientFileSystemProvider } from '../../common/agentHostClientFileSystemProvider.js';
 import { AgentHostLaunchKind } from '../../common/agentHostTelemetry.js';
 import { IAgentService } from '../../common/agentService.js';
@@ -23,7 +24,7 @@ import { IAgentHostProviderService } from '../../node/agentHostProviderService.j
 import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { MissionControlEnvironment, type IMissionControlEnvironmentHost } from '../../node/missionControl/missionControlEnvironment.js';
-import { getMissionControlEnvironmentName, MissionControlHost } from '../../node/missionControl/missionControlHost.js';
+import { getMissionControlEnvironmentName, MissionControlHost, type MissionControlOperationClassification } from '../../node/missionControl/missionControlHost.js';
 import { MissionControlProtocolServer } from '../../node/missionControl/missionControlProtocolServer.js';
 import { ProtocolServerHandler, type IProtocolServerConfig } from '../../node/protocolServerHandler.js';
 
@@ -63,6 +64,7 @@ suite('Mission Control host integration', () => {
 
 	function createHost(instantiation = store.add(new TestInstantiationService())) {
 		const counts = { requests: 0, handlers: 0 };
+		const events: { eventName: string; data: ITelemetryData | undefined }[] = [];
 		instantiation.stub(INativeEnvironmentService, new class extends mock<INativeEnvironmentService>() {
 			override readonly isBuilt = true;
 			override readonly userDataPath = '/unused-mission-control-test-profile';
@@ -86,6 +88,11 @@ suite('Mission Control host integration', () => {
 		instantiation.stub(ISessionDataService, new class extends mock<ISessionDataService>() { }());
 		instantiation.stub(IAgentHostProviderService, new class extends mock<IAgentHostProviderService>() { }());
 		instantiation.stub(ILogService, new NullLogService());
+		instantiation.stub(ITelemetryService, new class extends mock<ITelemetryService>() {
+			override publicLog2(eventName: string, data?: ITelemetryData): void {
+				events.push({ eventName, data });
+			}
+		}());
 		const host = store.add(instantiation.createInstance(MissionControlHost, {
 			hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
 			clientFileSystemProvider: store.add(instantiation.createInstance(AgentHostClientFileSystemProvider)),
@@ -94,7 +101,7 @@ suite('Mission Control host integration', () => {
 				return toDisposable(() => handler.dispose());
 			},
 		}));
-		return { host, counts };
+		return { host, counts, events };
 	}
 
 	test('constructs in a built product without starting registration before opt-in', async () => {
@@ -128,5 +135,35 @@ suite('Mission Control host integration', () => {
 			hostManagement: config.allowExtensionMethods,
 			diagnosticLogs: config.otlpLogEmitter,
 		}, { hostManagement: false, diagnosticLogs: undefined });
+	});
+
+	test('reports bounded host lifecycle metadata without exporting errors or successful heartbeat traffic', () => {
+		const instantiation = store.add(new TestInstantiationService());
+		const creations = sinon.spy(instantiation, 'createInstance');
+		store.add(toDisposable(() => creations.restore()));
+		const { events } = createHost(instantiation);
+		const creation = creations.getCalls().find(call => call.args[0] === MissionControlEnvironment);
+		assert.ok(creation);
+		const options = creation.args[1] as IMissionControlEnvironmentHost;
+		for (const [phase, outcome] of [
+			['register', 'started'], ['register', 'succeeded'], ['heartbeat', 'succeeded'], ['checkIn', 'succeeded'],
+			['heartbeat', 'failed'], ['relay', 'succeeded'], ['relayDisconnected', 'info'], ['private-phase', 'failed'],
+		] as const) {
+			options.onDiagnostic?.({
+				operationId: 'private-id', phase, outcome, timestamp: 0, durationMs: 42,
+				detail: 'private response',
+				error: outcome === 'failed' ? { name: 'Error', message: 'private server response (requestId=ABCD:1234:5678:90AB:CDEF)', status: 503, requestId: 'ABCD:1234:5678:90AB:CDEF' } : undefined,
+			});
+		}
+		type ClassifiedSample<T> = { [K in Exclude<keyof T, 'owner' | 'comment'>]: T[K] extends { isMeasurement: true } ? number : string };
+		const sample: ClassifiedSample<MissionControlOperationClassification> = {
+			operation: 'heartbeat', outcome: 'failed', durationMs: 42, statusCode: 503, hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+		};
+		assert.deepStrictEqual(events, [
+			{ eventName: 'agentHost.missionControlOperation', data: { ...sample, operation: 'register', outcome: 'succeeded', statusCode: undefined } },
+			{ eventName: 'agentHost.missionControlOperation', data: sample },
+			{ eventName: 'agentHost.missionControlOperation', data: { ...sample, operation: 'relay', outcome: 'succeeded', statusCode: undefined } },
+			{ eventName: 'agentHost.missionControlOperation', data: { ...sample, operation: 'relayDisconnected', outcome: 'info', statusCode: undefined } },
+		]);
 	});
 });

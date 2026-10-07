@@ -2005,6 +2005,7 @@ suite('AgentSideEffects', () => {
 				eventName: 'agentHost.userMessageSent',
 				data: {
 					provider: 'mock',
+					isOtelEnabled: false,
 					hostLaunchKind: 'vscode_main_process',
 					initiatorClientId: 'client-agents',
 					initiatorClientType: 'agents_window',
@@ -4619,6 +4620,7 @@ suite('AgentSideEffects', () => {
 				eventName: 'agentHost.userMessageSent',
 				data: {
 					provider: 'mock',
+					isOtelEnabled: false,
 					hostLaunchKind: 'vscode_main_process',
 					initiatorClientId: undefined,
 					initiatorClientType: 'unknown',

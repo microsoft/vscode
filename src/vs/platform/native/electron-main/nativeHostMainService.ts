@@ -379,7 +379,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			cli: this.environmentMainService.args,
 		}, options?.folderUri ? URI.revive(options.folderUri) : undefined, options?.sessionResource ? URI.revive(options.sessionResource) : undefined, options?.source, options?.folderUriIsDefault, options?.draft, options?.onboardingSessionResource ? URI.revive(options.onboardingSessionResource) : undefined);
 		if (windows.length > 0) {
-			windows[0].focus();
+			// Transfer focus is a no-op on macOS while VS Code is hidden, e.g. when run from a system-wide keybinding
+			windows[0].focus({ mode: FocusMode.Force });
 		}
 	}
 
