@@ -19,6 +19,7 @@ import { hasKey, isObject } from '../../../base/common/types.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
+import { formatConnectionDiagnosticError, getConnectionDiagnosticError } from '../common/connectionDiagnostics.js';
 import { AhpJsonlLogger, getAhpLogByteLength } from '../common/ahpJsonlLogger.js';
 import { isJsonRpcResponse, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../common/state/sessionProtocol.js';
 import type { IClientTransport } from '../common/state/sessionTransport.js';
@@ -74,6 +75,7 @@ function frameDataToString(data: unknown): string {
 }
 
 export interface IWebPubSubRelayTransportOptions {
+	readonly clientConnectionKind?: AgentHostClientConnectionKind.MissionControl | AgentHostClientConnectionKind.WebPubSub;
 	/** Mission Control's logical client ID, shared with the AHP initialize request. */
 	readonly clientId: string;
 	/** Full WebSocket URL (including the `access_token` and `clientId` query params). */
@@ -111,7 +113,9 @@ export interface IWebPubSubRelayTransportOptions {
  * 3. {@link dispose} (or a socket close/error) fires {@link onClose} once.
  */
 export class WebPubSubRelayTransport extends Disposable implements IClientTransport {
-	readonly clientConnectionKind = AgentHostClientConnectionKind.WebPubSub;
+	get clientConnectionKind(): AgentHostClientConnectionKind {
+		return this._options.clientConnectionKind ?? AgentHostClientConnectionKind.WebPubSub;
+	}
 
 	private readonly _onMessage = this._register(new Emitter<ProtocolMessage>());
 	readonly onMessage = this._onMessage.event;
@@ -188,7 +192,7 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 			const handshakeStore = new DisposableStore();
 
 			const settleReject = (err: Error) => {
-				this._logService.warn(`${this._logContext()} handshake failed`);
+				this._logService.warn(`${this._logContext()} handshake failed: ${formatConnectionDiagnosticError(getConnectionDiagnosticError(err))}`);
 				handshakeStore.dispose();
 				this._closeSocket();
 				reject(err);
@@ -267,7 +271,7 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 			const group = this._pendingJoinAcks.get(ackId);
 			this._pendingJoinAcks.delete(ackId);
 			if (frame['success'] === false) {
-				onFail(new Error(`WPS joinGroup failed for group '${group}'`));
+				onFail(new Error(`WPS joinGroup failed for group '${group}': ${getConnectionDiagnosticError(frame['error']).message}`));
 				return;
 			}
 			if (this._pendingJoinAcks.size === 0) {
@@ -330,7 +334,8 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 			}
 			this._schedulePublishAckTimeout();
 			const error = frame['error'];
-			const errorName = isObject(error) ? (error as { readonly name?: unknown }).name : undefined;
+			const responseError = isObject(error) ? error as { readonly name?: unknown; readonly message?: unknown } : undefined;
+			const errorName = responseError?.name;
 			// Duplicate means the relay already accepted this publish, not that the host executed it.
 			if (frame['success'] === true || (frame['success'] === false && errorName === 'Duplicate')) {
 				if (!this._publishAcknowledged) {
@@ -339,7 +344,7 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 				}
 				return;
 			}
-			const failure = new Error('WPS publish failed');
+			const failure = new Error(`WPS publish failed${typeof responseError?.message === 'string' ? `: ${getConnectionDiagnosticError(responseError).message}` : ''}`);
 			this._reportProtocolError('publish rejected', failure, true);
 			onFail(failure);
 			return;
@@ -530,7 +535,7 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 
 	private _reportProtocolError(kind: string, error: unknown, fatal = false): void {
 		if (++this._protocolErrors === 1 || fatal) {
-			this._logService.warn(`${this._logContext()} protocol error; kind=${kind}`);
+			this._logService.warn(`${this._logContext()} protocol error; kind=${kind}${kind === 'invalid JSON' ? '' : `: ${formatConnectionDiagnosticError(getConnectionDiagnosticError(error))}`}`);
 		}
 		this._options.onProtocolError?.(error);
 	}

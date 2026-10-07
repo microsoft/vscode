@@ -441,6 +441,8 @@ export interface IDetachedXTermOptions {
 	readonly?: boolean;
 	processInfo: ITerminalProcessInfo;
 	disableOverviewRuler?: boolean;
+	/** The rows of scrollback to keep, overriding the `terminal.integrated.scrollback` setting. */
+	scrollback?: number;
 }
 
 /**

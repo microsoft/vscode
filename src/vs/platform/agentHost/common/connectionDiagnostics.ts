@@ -49,6 +49,10 @@ export function sanitizeConnectionDiagnosticText(value: string, limit = 1024): s
 		.slice(0, limit);
 }
 
+export function getGitHubRequestId(header: string | readonly string[] | null | undefined): string | undefined {
+	return typeof header === 'string' && header.length <= 128 && /^[0-9A-Fa-f]{1,16}(?::[0-9A-Fa-f]{1,16}){4}$/.test(header) ? header : undefined;
+}
+
 interface IErrorFields {
 	readonly name?: unknown;
 	readonly message?: unknown;

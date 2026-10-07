@@ -22,6 +22,7 @@ import { ILinkPresentationService } from '../../../../../platform/dataChannel/co
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IUpdateService, StateType } from '../../../../../platform/update/common/update.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { extUri } from '../../../../../base/common/resources.js';
 import { ISharedWebContentExtractorService } from '../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { IAccessibleViewService } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
@@ -223,7 +224,9 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	reg.defineInstance(IFileDialogService, new class extends mock<IFileDialogService>() { }());
 	reg.defineInstance(IProductService, new class extends mock<IProductService>() { }());
 	reg.defineInstance(IUpdateService, new class extends mock<IUpdateService>() { override onStateChange = Event.None; override get state() { return { type: StateType.Uninitialized as const }; } }());
-	reg.defineInstance(IUriIdentityService, new class extends mock<IUriIdentityService>() { }());
+	reg.defineInstance(IUriIdentityService, new class extends mock<IUriIdentityService>() {
+		override readonly extUri = extUri;
+	}());
 	reg.defineInstance(IActionWidgetService, new class extends mock<IActionWidgetService>() { override show() { } override hide() { } override get isVisible() { return false; } }());
 	reg.defineInstance(ISharedWebContentExtractorService, new class extends mock<ISharedWebContentExtractorService>() { }());
 	reg.defineInstance(IAccessibleViewService, new class extends mock<IAccessibleViewService>() { override getOpenAriaHint() { return null; } }());

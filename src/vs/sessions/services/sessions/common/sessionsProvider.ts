@@ -132,10 +132,6 @@ export interface ISessionWorktreeConfiguration {
  * the provider or session type.
  */
 export interface ISessionModelPickerOptions {
-	/** Whether to group models by vendor/family in the picker. */
-	readonly useGroupedModelPicker: boolean;
-	/** Whether to surface featured models. */
-	readonly showFeatured: boolean;
 	/** Whether to surface featured models that are currently unavailable. */
 	readonly showUnavailableFeatured: boolean;
 	/** Whether to offer the "Manage Models" action in the picker. */

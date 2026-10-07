@@ -88,10 +88,10 @@ export interface ISessionWorkspaceConversionService {
 	/** Provider support for tool registration, independent of session creation and execution readiness. */
 	supportsChatIsolation(session: URI): boolean;
 	canIsolateChat(chat: URI): boolean;
-	requestChatIsolation(chat: URI, turnId: string, initiatingClientId: string): void;
+	requestChatIsolation(chat: URI, turnId: string, initiatingClientId?: string): void;
 	restoreChatIsolation(chat: ProtocolURI): Promise<void>;
 	/** Returns false when the chat already uses the requested folder without needing a workspace change. */
-	requestSessionWorkspaceUpdate(chat: URI, turnId: string, workspaceFolder: URI, isolation: boolean, initiatingClientId: string): boolean;
+	requestSessionWorkspaceUpdate(chat: URI, turnId: string, workspaceFolder: URI, isolation: boolean, initiatingClientId?: string): boolean;
 	isPending(chat: ProtocolURI, sessionWide?: boolean): boolean;
 	/** Whether the turn is host-owned and needed to finish an in-flight conversion, so a client must not cancel it. */
 	isConversionTurn(chat: ProtocolURI, turnId: string): boolean;
@@ -199,10 +199,12 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			&& !this.isPending(chat.toString());
 	}
 
-	requestChatIsolation(chat: URI, turnId: string, initiatingClientId: string): void {
-		if (!initiatingClientId || this._stateManager.getActiveTurnId(chat.toString()) !== turnId) {
-			throw new Error(localize('agentHost.chatIsolationRequiresTurn', "Changing a chat's workspace with this tool requires an active turn initiated by a connected client."));
+	requestChatIsolation(chat: URI, turnId: string, initiatingClientId?: string): void {
+		const clientRequiredMessage = localize('agentHost.chatIsolationRequiresTurn', "Changing a chat's workspace with this tool requires an active turn initiated by a connected client.");
+		if (this._stateManager.getActiveTurnId(chat.toString()) !== turnId) {
+			throw new Error(clientRequiredMessage);
 		}
+		initiatingClientId = this._resolveInitiatingClientId(chat, initiatingClientId, clientRequiredMessage);
 		if (!this.canIsolateChat(chat)) {
 			throw new Error(localize('agentHost.chatIsolationRequirements', "This chat's workspace cannot be changed to a new worktree. It must work in one local folder and must not already use a worktree or be changing workspace."));
 		}
@@ -251,10 +253,8 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		}
 	}
 
-	requestSessionWorkspaceUpdate(chat: URI, turnId: string, workspaceFolder: URI, isolation: boolean, initiatingClientId: string): boolean {
-		if (!initiatingClientId) {
-			throw new Error('Session workspace conversion requires an initiating client.');
-		}
+	requestSessionWorkspaceUpdate(chat: URI, turnId: string, workspaceFolder: URI, isolation: boolean, initiatingClientId?: string): boolean {
+		initiatingClientId = this._resolveInitiatingClientId(chat, initiatingClientId);
 		const session = parseChatUri(chat)?.session;
 		const state = session ? this._stateManager.getSessionState(session) : undefined;
 		const chatOnly = !!state && !readSessionWorkspaceless(state._meta);
@@ -294,6 +294,18 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			} : {}),
 		});
 		return true;
+	}
+
+	private _resolveInitiatingClientId(chat: URI, initiatingClientId: string | undefined, errorMessage = 'Session workspace conversion requires a turn initiated by a connected VS Code client.'): string {
+		if (initiatingClientId) {
+			return initiatingClientId;
+		}
+		const connectedClients = this._stateManager.getSessionState(chat.toString())?.activeClients
+			.filter(client => this._clientConnections.isClientConnected(client.clientId)) ?? [];
+		if (connectedClients.length === 1) {
+			return connectedClients[0].clientId;
+		}
+		throw new Error(errorMessage);
 	}
 
 	isPending(chat: ProtocolURI, sessionWide = false): boolean {

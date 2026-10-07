@@ -6,12 +6,10 @@
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ILogService } from '../../../../log/common/log.js';
-import { ISessionDataService } from '../../../common/sessionDataService.js';
 import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IDispatchedAction } from '../../../common/agentHostChatContributionsService.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
-import { AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, isAhpChatChannel, isDefaultChatUri, parseRequiredSessionUriFromChatUri } from '../../../common/state/sessionState.js';
+import { isAhpChatChannel, parseRequiredSessionUriFromChatUri } from '../../../common/state/sessionState.js';
 import { IAgentHostPeerChatPersistenceService } from '../../agentHostPeerChatStore.js';
-import { persistSessionMetadata } from '../../shared/persistSessionMetadata.js';
 
 /** Persists accepted chat read-state changes. */
 export class ChatReadContribution extends Disposable implements IAgentHostChatContribution {
@@ -22,7 +20,6 @@ export class ChatReadContribution extends Disposable implements IAgentHostChatCo
 	constructor(
 		protected readonly _context: IAgentHostChatContributionContext,
 		@IAgentHostPeerChatPersistenceService private readonly _peerChatPersistenceService: IAgentHostPeerChatPersistenceService,
-		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
@@ -35,10 +32,6 @@ export class ChatReadContribution extends Disposable implements IAgentHostChatCo
 			return;
 		}
 		const sessionResource = parseRequiredSessionUriFromChatUri(dispatched.channel);
-		if (isDefaultChatUri(dispatched.channel)) {
-			persistSessionMetadata(this._sessionDataService, this._logService, sessionResource, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, dispatched.action.isRead ? 'true' : '');
-			return;
-		}
 		const session = URI.parse(sessionResource);
 		const chat = URI.parse(dispatched.channel);
 		void this._peerChatPersistenceService.setRead(session, chat, dispatched.action.isRead).catch(error => {

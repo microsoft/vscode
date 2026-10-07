@@ -38,7 +38,6 @@ import { AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from './agentHostClientConnectionService.js';
 import { AgentHostSessionTitleController, IAgentHostSessionTitleController } from './agentHostSessionTitleController.js';
 import { AgentHostLocalTurns, IAgentHostLocalTurns } from './agentHostLocalTurns.js';
-import { AgentHostLocalCommands, IAgentHostLocalCommands } from './localCommands/localChatCommand.js';
 import { IAgentHostGitHubService } from './agentHostGitHubService.js';
 import { ICopilotApiService } from './shared/copilotApiService.js';
 import { AgentHostStartupMarks, IAgentHostStartupPerformance } from './agentHostStartupPerformance.js';
@@ -176,6 +175,8 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 		services.set(IAgentHostSessionTitleController, infrastructure.add(instantiationService.createInstance(AgentHostSessionTitleController, foundation.stateManager, {
 			sessionDataService,
 			queueCatalogSync: (session, metadataOverrides) => foundation.callbackAdapter.value.queueCatalogSync(session, metadataOverrides),
+			persistMetadata: (resource, values) => foundation.callbackAdapter.value.persistMetadata(resource, values),
+			readNormalizedChat: (session, chat) => foundation.callbackAdapter.value.readNormalizedChat(session, chat),
 			persistSurfacedSessionTitle: (session, title) => foundation.callbackAdapter.value.persistSurfacedSessionTitle(session, title),
 			getGitHubCopilotToken: () => {
 				const resource = foundation.gitHubEndpointService.getCopilotResource();
@@ -194,7 +195,6 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 		})));
 		const localTurns = new AgentHostLocalTurns(sessionDataService, logService);
 		services.set(IAgentHostLocalTurns, localTurns);
-		services.set(IAgentHostLocalCommands, infrastructure.add(instantiationService.createInstance(AgentHostLocalCommands)));
 		const agentServiceComposition = instantiationService.invokeFunction(accessor => createAgentServiceComposition(
 			agentServiceOptions,
 			accessor,

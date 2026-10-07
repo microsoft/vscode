@@ -10,7 +10,7 @@ import { hasVSCodeToolCallMeta, readToolCallMeta as readVSCodeToolCallMeta, type
 import { readCopilotToolOutputDelta, withCopilotToolPreferences } from './copilotd/copilotdMetadataReader.js';
 import { readCopilotToolPresentation, readCopilotWritePermissionPresentation } from './copilotd/toolPresentation.js';
 
-export { isPresentationOnlyToolCall, toToolCallMeta } from './vscode/agentToolCallMeta.js';
+export { copilotCliToolInputContract, isPresentationOnlyToolCall, toToolCallMeta } from './vscode/agentToolCallMeta.js';
 export type { AgentFusionPhaseStatus, IFusionPhaseMeta, IToolCallMeta, IToolCallUiMeta, IToolSearchCandidate, ToolKind } from './vscode/agentToolCallMeta.js';
 
 export interface IAgentToolOutputChunk {
