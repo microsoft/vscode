@@ -24,6 +24,8 @@ On web, the contribution also registers a sandbox-only instance (`cloud-sandbox-
 
 Cloud drafts implement the `ISession` contract and expose provider-declared option groups and remote workspace metadata. A local folder can host a Cloud draft only for the GitHub repository it tracks; the draft targets that remote repository. Shared new-session UI consumes the observable loading, workspace, model, and capability contracts and does not branch on draft classes.
 
+For new Cloud sessions, enabling `chat.agentHost.cloudSandbox.enabled` selects GitHub Cloud when remote agent hosts are also enabled; otherwise the provider uses the legacy Copilot coding agent on GitHub Actions. Draft models, configuration controls, and first-send routing follow this setting rather than a saved per-chat choice. Existing conversations keep their original backend.
+
 ## Existing sessions
 
 `AgentSessionAdapter` projects an existing Copilot Cloud `IAgentSession` into a stable `ISession` facade. Agent sessions of any other provider type are ignored. It updates observable state in a transaction and preserves resource identity while metadata changes.

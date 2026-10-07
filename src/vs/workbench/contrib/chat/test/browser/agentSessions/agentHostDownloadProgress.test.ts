@@ -10,9 +10,11 @@ import { type ProgressParams } from '../../../../../../platform/agentHost/common
 import { IProgress, IProgressNotificationOptions, IProgressService, IProgressStep } from '../../../../../../platform/progress/common/progress.js';
 import { ChatAIDisabledSettingId } from '../../../common/constants.js';
 import { AgentHostDownloadProgress } from '../../../browser/agentSessions/agentHost/agentHostDownloadProgress.js';
+import { getNotificationTelemetrySource } from '../../../../../../platform/notification/common/notificationTelemetry.js';
 
 interface IRecordedProgress {
 	title: IProgressNotificationOptions['title'];
+	telemetry: IProgressNotificationOptions['telemetry'];
 	readonly steps: IProgressStep[];
 	dismissed: boolean;
 	/** Resolves once the backing notification promise settles (i.e. is dismissed). */
@@ -24,7 +26,7 @@ class RecordingProgressService {
 	readonly opened: IRecordedProgress[] = [];
 
 	withProgress(options: IProgressNotificationOptions, task: (progress: IProgress<IProgressStep>) => Promise<unknown>): Promise<unknown> {
-		const record: IRecordedProgress = { title: options.title, steps: [], dismissed: false, settled: Promise.resolve() };
+		const record: IRecordedProgress = { title: options.title, telemetry: options.telemetry, steps: [], dismissed: false, settled: Promise.resolve() };
 		this.opened.push(record);
 		const result = task({ report: step => { record.steps.push(step); } });
 		record.settled = result.then(() => { record.dismissed = true; }, () => { record.dismissed = true; });
@@ -90,5 +92,14 @@ suite('AgentHostDownloadProgress', () => {
 		controller.handleProgress(frame({ progressToken: 'claude', progress: 0, total: 1000, message: 'Downloading Claude Agent' }));
 
 		assert.strictEqual(progressService.opened.length, 0);
+	});
+
+	test('host messages, tokens and non-VS Code channel URIs never determine telemetry identity', () => {
+		const { controller, progressService } = create();
+		controller.handleProgress({ channel: 'custom-host:/root', progressToken: '/private/download', progress: 0, message: 'private title' });
+		controller.handleProgress({ channel: 'custom-host:/root', progressToken: '/private/download', progress: 1, message: 'changed private title' });
+		assert.deepStrictEqual(progressService.opened.map(record => getNotificationTelemetrySource(record.telemetry)), [
+			{ origin: 'core', notificationId: 'agentHost.progress', extensionId: 'none' }
+		]);
 	});
 });

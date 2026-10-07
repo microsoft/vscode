@@ -1072,7 +1072,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		}));
 
 		// Register Commands
-		registerNotificationCommands(notificationsCenter, notificationsToasts, notificationService.model);
+		this._register(registerNotificationCommands(notificationsCenter, notificationsToasts, notificationService.model));
 
 		// Register notification accessible view
 		AccessibleViewRegistry.register(new NotificationAccessibleView());
@@ -1519,7 +1519,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 
 	//#endregion
 
-	private registerLayoutListeners(): void {
+	private registerLayoutListeners(isIOSWindow = isIOS): void {
 		// Fullscreen changes
 		this._register(onDidChangeFullscreen(windowId => {
 			if (windowId === getWindowId(mainWindow)) {
@@ -1529,12 +1529,13 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 			}
 		}));
 
-		// Window resize — needed for device emulation and mobile viewport changes
-		const onWindowResize = () => this.layout();
-		this._register(addDisposableListener(mainWindow, 'resize', onWindowResize));
+		// NativeWindow / BrowserWindow owns resize, except on iOS where it observes the visual viewport.
+		if (isIOSWindow) {
+			this._register(addDisposableListener(mainWindow, 'resize', () => this.layout()));
+		}
 
 		const visualViewport = getWindow(this.parent).visualViewport;
-		if (visualViewport && !isIOS) {
+		if (visualViewport && !isIOSWindow) {
 			this._register(addDisposableListener(visualViewport, 'resize', () => {
 				if (this.layoutPolicy.viewportClass.get() === 'phone') {
 					this.layout();

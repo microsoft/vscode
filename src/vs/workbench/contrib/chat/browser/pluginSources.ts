@@ -19,6 +19,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { NotificationTelemetryId } from '../../../../platform/notification/common/notificationTelemetry.js';
 import { TerminalCapability, type ITerminalCommand } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalInstance, ITerminalService } from '../../terminal/browser/terminal.js';
 import { IEnsureRepositoryOptions, IPullRepositoryOptions } from '../common/plugins/agentPluginRepositoryService.js';
@@ -138,6 +139,7 @@ abstract class AbstractGitPluginSource implements IPluginSource {
 				return await this._progressService.withProgress(
 					{
 						location: ProgressLocation.Notification,
+						telemetry: NotificationTelemetryId.PluginRepositoryUpdate,
 						title: localize('updatingPluginSource', "Updating plugin '{0}'...", updateLabel),
 						cancellable: true,
 					},
@@ -167,6 +169,7 @@ abstract class AbstractGitPluginSource implements IPluginSource {
 			await this._progressService.withProgress(
 				{
 					location: ProgressLocation.Notification,
+					telemetry: NotificationTelemetryId.PluginRepositoryClone,
 					title: progressTitle,
 					cancellable: true,
 				},
@@ -452,6 +455,7 @@ export abstract class AbstractPackagePluginSource implements IPluginSource {
 			await this._progressService.withProgress(
 				{
 					location: ProgressLocation.Notification,
+					telemetry: NotificationTelemetryId.PluginPackageOperation,
 					title: progressTitle,
 					cancellable: false,
 				},

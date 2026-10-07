@@ -126,7 +126,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		{ name: 'AI master setting disabled', built: true, extensionDevelopment: false, hostsEnabled: true, aiDisabled: true, hidden: false, enabled: false },
 		{ name: 'AI hidden', built: true, extensionDevelopment: false, hostsEnabled: true, aiDisabled: false, hidden: true, enabled: false },
 	]) {
-		test(`Mission Control accessibility help matches discovery availability: ${name}`, () => {
+		test(`Environments accessibility help matches discovery availability: ${name}`, () => {
 			const instantiation = store.add(new TestInstantiationService());
 			const configuration = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: hostsEnabled, 'chat.disableAIFeatures': aiDisabled });
 			store.add(configuration.onDidChangeConfigurationEmitter);
@@ -139,7 +139,12 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instantiation.stub(IAgentHostFilterService, { selectedHost: undefined });
 			instantiation.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
 			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiation)).provideContent();
-			assert.strictEqual(content.includes('choose Mission Control to discover your user-local hosts'), enabled);
+			assert.deepStrictEqual({
+				discoveryHelp: content.includes('choose Environments to discover your environments'),
+				refreshHelp: content.includes('Tab reaches Refresh Environments.'),
+				hiddenHelp: content.includes('Hide in This Profile') || content.includes('Restore Host'),
+				missionControl: content.includes('Mission Control'),
+			}, { discoveryHelp: enabled, refreshHelp: enabled, hiddenHelp: false, missionControl: false });
 		});
 	}
 

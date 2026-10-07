@@ -2035,6 +2035,98 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	// ---- Startup session cache (persistence) -------
 
+	test('skips cached local native sessions with the URI scheme as their provider while retaining healthy entries', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const storageService: IStorageService = disposables.add(new InMemoryStorageService());
+		const cacheKey = 'localAgentHost.cachedSessions.v4';
+		const entries = [
+			{ session: 'ahp-session:/poisoned', provider: 'ahp-session', startTime: 1000, modifiedTime: 2000 },
+			{ session: 'copilotcli:/legacy', startTime: 1000, modifiedTime: 2000 },
+			{ session: 'ahp-session:/healthy', provider: 'copilotcli', startTime: 1000, modifiedTime: 2000 },
+			{ session: 'ahp-session://tenant/opaque/session', provider: 'claude', startTime: 1000, modifiedTime: 2000 },
+		];
+		storageService.store(cacheKey, JSON.stringify(entries), StorageScope.APPLICATION, StorageTarget.USER);
+		agentHost.setAuthenticationPending(true);
+		const provider = createProvider(disposables, agentHost, undefined, { storageService });
+		const restored = provider.getSessions().map(session => [session.resource.toString(), session.sessionType]).sort();
+		await storageService.flush();
+		const persisted = storageService.getObject<Array<{ session: string; provider?: string }>>(cacheKey, StorageScope.APPLICATION);
+
+		assert.deepStrictEqual({ restored, persisted: persisted?.map(entry => entry.session).sort() }, {
+			restored: [
+				['agent-host-claude://tenant/opaque/session', 'claude'],
+				['agent-host-copilotcli:/healthy', 'copilotcli'],
+				['agent-host-copilotcli:/legacy', 'copilotcli'],
+			],
+			persisted: entries.slice(1).map(entry => entry.session).sort(),
+		});
+	}));
+
+	test('removes a cache containing only poisoned local sessions without waiting for the host', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const cacheKey = 'localAgentHost.cachedSessions.v4';
+		storageService.store(cacheKey, JSON.stringify([{
+			session: 'ahp-session:/poisoned', provider: 'ahp-session', startTime: 1000, modifiedTime: 2000,
+		}]), StorageScope.APPLICATION, StorageTarget.USER);
+		agentHost.setAuthenticationPending(true);
+		const provider = createProvider(disposables, agentHost, undefined, { storageService });
+		await storageService.flush();
+
+		assert.deepStrictEqual({
+			sessions: provider.getSessions(),
+			persisted: storageService.getObject(cacheKey, StorageScope.APPLICATION),
+		}, { sessions: [], persisted: undefined });
+	}));
+
+	for (const advertisedProvider of ['copilotcli', 'claude', 'codex']) {
+		test(`rebuilds a poisoned local cache from ${advertisedProvider} host metadata and retains it after restart`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const storageService: IStorageService = disposables.add(new InMemoryStorageService());
+			const cacheKey = 'localAgentHost.cachedSessions.v4';
+			const backend = URI.parse('ahp-session:/poisoned');
+			const defaultChat = URI.parse('conversation://tenant/main');
+			storageService.store(cacheKey, JSON.stringify([{
+				session: backend.toString(), provider: 'ahp-session', startTime: 1000, modifiedTime: 2000,
+			}]), StorageScope.APPLICATION, StorageTarget.USER);
+			const configurationService = new TestConfigurationService({ 'chat.agentHost.codexAgent.enabled': true });
+			const currentRun = disposables.add(new DisposableStore());
+			const host = new MockAgentHostService();
+			currentRun.add(toDisposable(() => host.dispose()));
+			host.setAuthenticationPending(true);
+			const provider = createProvider(currentRun, host, undefined, { storageService, configurationService });
+			const beforeHostReady = provider.getSessions().map(session => session.resource.toString());
+			host.addSession({
+				...createSession('poisoned'), session: backend, provider: advertisedProvider,
+				chats: [{ chat: defaultChat, kind: 'default' }],
+			});
+			host.setAuthenticationPending(false);
+			await timeout(0);
+			const restored = provider.getSessions().map(session => ({
+				resource: session.resource.toString(),
+				provider: session.sessionType,
+				chat: provider.getBackendChatResource(session.mainChat.get().resource)?.toString(),
+			}));
+			await storageService.flush();
+			const persisted = storageService.getObject<Array<{ session: string; provider?: string }>>(cacheKey, StorageScope.APPLICATION);
+			currentRun.dispose();
+
+			const nextHost = new MockAgentHostService();
+			disposables.add(toDisposable(() => nextHost.dispose()));
+			nextHost.setAuthenticationPending(true);
+			const nextProvider = createProvider(disposables, nextHost, undefined, { storageService, configurationService });
+			const afterRestart = nextProvider.getSessions().map(session => ({
+				resource: session.resource.toString(),
+				provider: session.sessionType,
+				chat: nextProvider.getBackendChatResource(session.mainChat.get().resource)?.toString(),
+			}));
+
+			assert.deepStrictEqual({ beforeHostReady, restored, persisted: persisted?.map(entry => [entry.session, entry.provider]), afterRestart }, {
+				beforeHostReady: [],
+				restored: [{ resource: `agent-host-${advertisedProvider}:/poisoned`, provider: advertisedProvider, chat: defaultChat.toString() }],
+				persisted: [[backend.toString(), advertisedProvider]],
+				afterRestart: [{ resource: `agent-host-${advertisedProvider}:/poisoned`, provider: advertisedProvider, chat: defaultChat.toString() }],
+			});
+		}));
+	}
+
 	test('opaque advertised chats work from cached metadata without optional host metadata or live subscriptions', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const hostResource = URI.parse('ahp-session://tenant/opaque/session');
 		const defaultChat = URI.parse('conversation://tenant/main');
@@ -7029,6 +7121,45 @@ suite('LocalAgentHostSessionsProvider', () => {
 			agentUri: sessionTemplate.agent.uri,
 		});
 	});
+
+	for (const selection of ['on', 'off', 'default']) {
+		test(`Automation templates restore and capture sandbox selection ${selection}`, async () => {
+			const editedSelection = selection === 'off' ? 'on' : 'off';
+			agentHost.resolveSessionConfigResult = {
+				schema: createVSCodeSessionConfigSchema(),
+				values: { sandboxEnabled: editedSelection },
+			};
+			agentHost.resolveSessionConfigHandler = request => ({
+				schema: agentHost.resolveSessionConfigResult.schema,
+				values: { ...agentHost.resolveSessionConfigResult.values, ...request.config },
+			});
+			const provider = createProvider(disposables, agentHost);
+			const folder = URI.file('/home/user/project');
+			const session = provider.createNewSession(folder, provider.sessionTypes[0].id, {
+				automationConfiguration: { sessionTemplate: { config: { sandboxEnabled: selection } } },
+			});
+			const restored = await provider.getAutomationSessionConfiguration(session.sessionId);
+			const initialSelection = agentHost.resolveSessionConfigRequests.at(-1)?.config?.sandboxEnabled;
+			await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.SandboxEnabled, editedSelection);
+			const captured = await provider.getAutomationSessionConfiguration(session.sessionId);
+			const reopenedSession = provider.createNewSession(folder, provider.sessionTypes[0].id, {
+				automationConfiguration: captured,
+			});
+			const reopened = await provider.getAutomationSessionConfiguration(reopenedSession.sessionId);
+
+			assert.deepStrictEqual({
+				initialSelection,
+				restored: restored?.sessionTemplate?.config?.sandboxEnabled,
+				captured: captured?.sessionTemplate?.config?.sandboxEnabled,
+				reopened: reopened?.sessionTemplate?.config?.sandboxEnabled,
+			}, {
+				initialSelection: selection,
+				restored: selection,
+				captured: editedSelection,
+				reopened: editedSelection,
+			});
+		});
+	}
 
 	test('rejects Automation model configuration without a model before acquiring a draft', async () => {
 		const provider = createProvider(disposables, agentHost);

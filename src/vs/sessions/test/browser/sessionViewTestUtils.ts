@@ -45,6 +45,8 @@ export class TestChatView extends AbstractChatView {
 	visible = true;
 	chat: IChat | undefined;
 	readonly input = document.createElement('textarea');
+	readonly layouts: { width: number; height: number }[] = [];
+	onLayout: (() => void) | undefined;
 
 	constructor(
 		readonly kind: ChatViewKind,
@@ -56,7 +58,11 @@ export class TestChatView extends AbstractChatView {
 
 	override setChat(chat: IChat): void { this.chat = chat; }
 	override setVisible(visible: boolean): void { this.visible = visible; }
-	protected override doLayout(): void { }
+	protected override doLayout(width: number, height: number): void {
+		assert(!this.disposed, 'A disposed chat view must not receive layout');
+		this.layouts.push({ width, height });
+		this.onLayout?.();
+	}
 	override toJSON(): object { return {}; }
 	override focus(): void { this.input.focus(); }
 	override dispose(): void {
