@@ -513,7 +513,7 @@ export class SessionChatInputToolbar extends Disposable {
 		});
 		const agentMergeApplies = (ref: IGitHubPullRequestRef, reader: IReader) => {
 			const session = this._session.read(reader);
-			const workspace = this._chat.read(reader)?.workspace.read(reader) ?? session?.workspace.read(reader);
+			const workspace = this._chat.read(reader)?.workspace?.read(reader) ?? session?.workspace.read(reader);
 			return workspace?.folders.some(folder => {
 				const gitHubInfo = folder.gitRepository?.gitHubInfo.read(reader);
 				return gitHubInfo?.owner.toLowerCase() === ref.owner.toLowerCase() && gitHubInfo.repo.toLowerCase() === ref.repo.toLowerCase();
