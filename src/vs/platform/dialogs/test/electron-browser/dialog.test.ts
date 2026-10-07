@@ -104,6 +104,27 @@ suite('Dialog', () => {
 			sdk: '1.0.15-unstable+35663726336.gcb2a8cc',
 			expectedRuntime: '1.0.87+r35651157977.g1aacd25',
 			expectedSdk: '1.0.15+35663726336.gcb2a8cc'
+		},
+		{
+			name: 'preserves marker-like build metadata',
+			runtime: '1.0.87+build-unstable.foo',
+			sdk: '1.0.15+build-canary.foo',
+			expectedRuntime: '1.0.87+build-unstable.foo',
+			expectedSdk: '1.0.15+build-canary.foo'
+		},
+		{
+			name: 'removes only the leading prerelease marker',
+			runtime: '1.0.87-unstable+build-unstable.foo',
+			sdk: '1.0.15-canary+build-canary.foo',
+			expectedRuntime: '1.0.87+build-unstable.foo',
+			expectedSdk: '1.0.15+build-canary.foo'
+		},
+		{
+			name: 'preserves marker-like text inside prerelease identifiers',
+			runtime: '1.0.87-preview-unstable.foo',
+			sdk: '1.0.15-preview-canary.foo',
+			expectedRuntime: '1.0.87-preview-unstable.foo',
+			expectedSdk: '1.0.15-preview-canary.foo'
 		}
 	]) {
 		test(`formats Copilot unstable versions: ${name}`, () => {
