@@ -592,6 +592,7 @@ interface ITestCopilotClient extends Pick<CopilotClient, 'start' | 'stop' | 'lis
 		readonly models: { readonly list: CopilotModelsList };
 		readonly managedSettings: Pick<CopilotClient['rpc']['managedSettings'], 'resolve'>;
 		readonly plugins: { readonly uninstall: CopilotPluginsUninstall };
+		readonly mcp: { readonly config: Pick<CopilotClient['rpc']['mcp']['config'], 'list'> };
 	};
 }
 
@@ -632,6 +633,7 @@ function toSdkModelInfo(model: ITestCopilotModelInfo): CopilotModelInfo {
 type ManagedSettingsResolveResult = Awaited<ReturnType<CopilotClient['rpc']['managedSettings']['resolve']>>;
 
 class TestCopilotClient implements ITestCopilotClient {
+	mcpConfigListResult: Awaited<ReturnType<CopilotClient['rpc']['mcp']['config']['list']>> = { servers: {} };
 	managedSettingsResolution: ManagedSettingsResolveResult = {
 		resolved: { source: 'none', serverManaged: false, deviceManaged: false, clientManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: [] },
 		layers: [],
@@ -650,6 +652,7 @@ class TestCopilotClient implements ITestCopilotClient {
 	readonly skillDiscoveryRequests: Parameters<CopilotSkillDiscovery['discover']>[0][] = [];
 
 	readonly rpc: ITestCopilotClient['rpc'] = {
+		mcp: { config: { list: async () => this.mcpConfigListResult } },
 		managedSettings: {
 			resolve: params => {
 				this.managedSettingsRequests.push(params);
@@ -908,6 +911,7 @@ class MockCopilotSession {
 	readonly rpc = {
 		mcp: {
 			list: async () => ({ servers: [] }),
+			listConfigured: async () => ({ servers: [] }),
 			enable: async () => ({ success: true }),
 			disable: async () => ({ success: true }),
 			startServer: async ({ serverName }: { serverName: string }) => {
@@ -1545,17 +1549,19 @@ suite('CopilotAgent', () => {
 		const copilotAgentPrototype = CopilotAgent.prototype as unknown as {
 			_disabledRootMcpServers(this: {
 				readonly id: string;
+				_ensureClient(): Promise<{ rpc: { mcp: { config: { list(): Promise<{ servers: Record<string, unknown> }> } } } }>;
 				_isGitHubMcpServerEnabled(): boolean;
-				_rootMcpCustomizations(sessionId: string, mcpServers: Record<string, unknown>): readonly Customization[];
+				_rootMcpCustomizations(sessionId: string, mcpServers: Record<string, unknown>, additionalServerNames?: Iterable<string>): readonly Customization[];
 				readonly _customizationEnablementService: {
 					initializeSession(session: string): Promise<void>;
 					resolve(session: string, target: { readonly name: string }): { kind: 'resolved'; enablement: readonly [{ kind: CustomizationEnablementKind.Session; enabled: boolean }]; enabled: boolean; workingDirectory: { kind: 'workspaceless' } };
 				};
-			}, session: URI, sessionId: string, snapshot: { readonly mcpServers: Record<string, unknown> }): Promise<readonly string[]>;
-			_rootMcpCustomizations(this: { readonly _isGitHubMcpServerEnabled: () => boolean }, sessionId: string, mcpServers: Record<string, unknown>): readonly Customization[];
+			}, session: URI, snapshot: { readonly mcpServers: Record<string, unknown> }): Promise<readonly string[]>;
+			_rootMcpCustomizations(this: { readonly id: string; readonly _isGitHubMcpServerEnabled: () => boolean }, sessionId: string, mcpServers: Record<string, unknown>, additionalServerNames?: Iterable<string>): readonly Customization[];
 		};
 		const result = await copilotAgentPrototype._disabledRootMcpServers.call({
 			id: 'copilotcli',
+			_ensureClient: async () => ({ rpc: { mcp: { config: { list: async () => ({ servers: {} }) } } } }),
 			_isGitHubMcpServerEnabled: () => true,
 			_rootMcpCustomizations: copilotAgentPrototype._rootMcpCustomizations,
 			_customizationEnablementService: {
@@ -1565,12 +1571,102 @@ suite('CopilotAgent', () => {
 					return { kind: 'resolved', enablement: [{ kind: CustomizationEnablementKind.Session, enabled }], enabled, workingDirectory: { kind: 'workspaceless' } };
 				},
 			},
-		}, AgentSession.uri('copilotcli', 'session'), 'sdk-session', { mcpServers: {} });
+		}, AgentSession.uri('copilotcli', 'session'), { mcpServers: {} });
 
 		assert.deepStrictEqual({ initializedSession, result }, {
 			initializedSession: AgentSession.uri('copilotcli', 'session').toString(),
 			result: [GITHUB_MCP_SERVER_NAME],
 		});
+	});
+
+	for (const pending of [false, true]) {
+		test(`disables user-configured MCP servers absent from the client snapshot at launch with pending resolution ${pending}`, async () => {
+			const client = new TestCopilotClient([]);
+			client.mcpConfigListResult = {
+				servers: {
+					context7: { type: 'http', url: 'https://mcp.example.com/context7' },
+					'enabled-user': { type: 'http', url: 'https://mcp.example.com/enabled' },
+				},
+			};
+			let initializedSession: string | undefined;
+			const { agent } = createTestAgentContext(disposables, {
+				copilotClient: client,
+				rootConfig: { [AgentHostGitHubMcpServerEnabledConfigKey]: false },
+				customizationEnablementService: {
+					...createNoopCustomizationEnablementService(),
+					initializeSession: async session => { initializedSession = session; },
+					resolve: (_session, target) => target.name === 'context7'
+						? pending ? { kind: 'pending', reason: 'session' } : {
+							kind: 'resolved',
+							enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+							enabled: false,
+							workingDirectory: { kind: 'workspaceless' },
+						}
+						: { kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } },
+				},
+			});
+			const session = URI.parse('ahp-session:/context7-launch');
+			try {
+				await agent.authenticate('https://api.github.com', 'github-token');
+				const disabled = await agent['_disabledRootMcpServers'](session, { tools: [], plugins: [], mcpServers: {} });
+				assert.deepStrictEqual({ initializedSession, disabled }, {
+					initializedSession: session.toString(),
+					disabled: ['context7'],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+	}
+
+	test('launch uses the owning AHP customization identity for session-scoped MCP disablement with an independent SDK backing', async () => {
+		const client = new TestCopilotClient([]);
+		client.mcpConfigListResult = { servers: { context7: { type: 'http', url: 'https://mcp.example.com/context7' } } };
+		let launchConfig: SessionConfig | undefined;
+		client.createSession = async config => {
+			launchConfig = config;
+			return new MockCopilotSession() as unknown as CopilotSession;
+		};
+		const { agent, instantiationService, stateManager } = createTestAgentContext(disposables, {
+			copilotClient: client,
+			sessionDataService: disposables.add(new TestSessionDataService()),
+			useRealCustomizationEnablementService: true,
+			rootConfig: { [AgentHostGitHubMcpServerEnabledConfigKey]: false },
+		});
+		const session = URI.parse('ahp-session:/context7-launch');
+		const id = 'mcp-top-level:copilotcli:context7-launch:context7';
+		const now = new Date().toISOString();
+		stateManager.createSession({
+			resource: session.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle,
+			createdAt: now, modifiedAt: now, workingDirectories: ['file:///workspace'],
+		});
+		const enablementService = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostCustomizationEnablementService));
+		try {
+			await agent.authenticate('https://api.github.com', 'github-token');
+			await enablementService.initializeSession(session.toString());
+			enablementService.setEnablement(session.toString(), {
+				id, type: CustomizationType.McpServer, name: 'context7', source: URI.parse(id),
+			}, CustomizationEnablementKind.Session, false);
+			await enablementService.whenIdle();
+			const chat = defaultChatUri(session);
+			const result = await agent.chats.createChat(chat, exactChatContext(session, chat, session), {
+				workingDirectories: [URI.file('/workspace')],
+				deferBacking: false,
+			});
+			assert.ok(result);
+
+			assert.deepStrictEqual({
+				session: session.toString(),
+				separateBacking: result.backingSession !== undefined && AgentSession.id(result.backingSession) !== AgentSession.id(session),
+				disabledMcpServers: launchConfig?.disabledMcpServers,
+			}, {
+				session: 'ahp-session:/context7-launch',
+				separateBacking: true,
+				disabledMcpServers: ['context7'],
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
 	});
 
 	suite('MCP authentication during session initialization', () => {
