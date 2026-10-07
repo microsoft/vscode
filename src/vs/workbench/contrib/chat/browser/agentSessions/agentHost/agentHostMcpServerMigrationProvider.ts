@@ -14,7 +14,6 @@ import { localize } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
-import { MAX_ENV_VAR_RESOLVE_LENGTH } from '../../../../../../platform/mcp/common/envVarResolution.js';
 import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
@@ -258,7 +257,7 @@ export class AgentHostMcpServerMigrationProvider extends Disposable implements I
 			case McpServerCustomizationMigrationFailureReason.InvalidEnvironmentVariableName:
 				return [localize('mcpMigrationServerInvalidEnvironmentVariableName', "The destination MCP configuration only supports environment variable names made of letters, digits and underscores that do not start with a digit. Rename the variable to migrate this server.")];
 			case McpServerCustomizationMigrationFailureReason.EnvironmentVariableValueTooLong:
-				return [localize('mcpMigrationServerEnvironmentVariableValueTooLong', "A value that references an environment variable is longer than {0} characters, so the destination would not expand it. Shorten the value to migrate this server.", MAX_ENV_VAR_RESOLVE_LENGTH)];
+				return [localize('mcpMigrationServerEnvironmentVariableValueTooLong', "A value that references an environment variable is too long for the destination to expand it. Shorten the value to migrate this server.")];
 			case McpServerCustomizationMigrationFailureReason.UnsupportedEnvironmentVariableInUrl:
 				return [localize('mcpMigrationServerUnsupportedEnvironmentVariableInUrl', "The destination MCP configuration does not support environment variables in the scheme or port of a URL, or as the whole URL. Use a fixed value there to migrate this server.")];
 		}

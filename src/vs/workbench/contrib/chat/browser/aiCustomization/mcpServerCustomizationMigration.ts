@@ -16,7 +16,7 @@ import { equals } from '../../../../../base/common/objects.js';
 import { basename, dirname, getComparisonKey, isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { normalizeMcpServerConfiguration } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
-import { parseConfigurationVariable } from '../../../../../platform/configuration/common/configurationVariables.js';
+import { hasConfigurationVariable, parseConfigurationVariable } from '../../../../../platform/configuration/common/configurationVariables.js';
 import { FileOperationError, FileOperationResult, IFileService, IFileStatWithMetadata, toFileOperationResult } from '../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { MAX_ENV_VAR_RESOLVE_LENGTH } from '../../../../../platform/mcp/common/envVarResolution.js';
@@ -824,6 +824,9 @@ async function analyzeSourceConfiguration(
 	if (typeof migration === 'string') {
 		return migration;
 	}
+	if (await hasVariablesInEnvironmentValues(configuration, folder, configurationResolverService)) {
+		return McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration;
+	}
 	// The client resolves the variables of `.vscode/mcp.json` servers before forwarding them, but forwards user servers as written.
 	const projection = storage === PromptsStorage.user
 		? withEnvironmentVariables
@@ -853,6 +856,26 @@ async function resolveVariables(
 		return undefined;
 	}
 	return Iterable.isEmpty(expression.unresolved()) ? expression.toObject() : undefined;
+}
+
+/**
+ * Whether the value of a referenced environment variable contains a variable. VS Code resolves those
+ * nested variables, while the destination substitutes `${NAME}` once and keeps its value verbatim.
+ */
+async function hasVariablesInEnvironmentValues(
+	configuration: IMcpServerConfiguration,
+	folder: IWorkspaceFolderData | undefined,
+	configurationResolverService: IConfigurationResolverService,
+): Promise<boolean> {
+	const expression = ConfigurationResolverExpression.parse(configuration);
+	try {
+		await configurationResolverService.resolveAsync(folder, expression);
+	} catch {
+		return true;
+	}
+	return Iterable.some(expression.resolved(), ([replacement, resolved]) => replacement.name === 'env'
+		&& resolved.value !== undefined
+		&& hasConfigurationVariable(resolved.value));
 }
 
 /**

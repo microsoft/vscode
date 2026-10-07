@@ -805,12 +805,15 @@ suite('McpServerCustomizationMigration', () => {
 			configuration: { command: 'node', env: { TOKEN: '${env:TOKEN}', MODE: '${config:mcp.mode}' } },
 			userHome: { command: '${userHome}/server', env: { TOKEN: '${env:TOKEN}' } },
 			cwd: { command: 'node', cwd: '${env:HOME}', env: { TOKEN: '${env:TOKEN}' } },
+			// VS Code resolves variables in an environment value, but the destination keeps the value verbatim.
+			nestedEnvironment: { command: 'node', env: { TOKEN: '${env:ALIAS}' } },
+			nestedWorkspace: { command: '${env:TOOLS}/server' },
 		};
 		const source = JSON.stringify({ servers });
 		const fileService = createFileService();
 		await fileService.writeFile(sourceUri, VSBuffer.fromString(source));
 		const names = Object.keys(servers);
-		const migrator = createMigrator(fileService, [], { TOKEN: 'secret' });
+		const migrator = createMigrator(fileService, [{ uri: root, name: 'environment-excluded', index: 0 }], { TOKEN: 'secret', ALIAS: '${env:TOKEN}', TOOLS: '${workspaceFolder}/tools' });
 
 		const plan = await migrator.createPlan({
 			servers: names.map(name => support(root, name)),
@@ -834,6 +837,8 @@ suite('McpServerCustomizationMigration', () => {
 			['configuration', McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration],
 			['userHome', McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration],
 			['cwd', McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration],
+			['nestedEnvironment', McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration],
+			['nestedWorkspace', McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration],
 		];
 		assert.deepStrictEqual({
 			candidates: plan.candidates,
