@@ -486,7 +486,9 @@ mod tests {
 			include_bytes!("../tests/fixtures/legacy/posix-launcher.sh"),
 		);
 		fs::copy(&current, root.child("copilot")).expect("shim in current directory");
-		let native = root.directory(PathBuf::from(OsString::from_vec(b"native-\xff".to_vec())));
+		// Not created: macOS file systems reject names that aren't valid UTF-8. PATH entries are kept byte-for-byte
+		// whether or not they exist.
+		let native = root.child(PathBuf::from(OsString::from_vec(b"native-\xff".to_vec())));
 		let tools = root.directory("tools");
 		let real = root.directory("npm");
 		write_executable(
