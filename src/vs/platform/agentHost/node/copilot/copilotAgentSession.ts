@@ -462,6 +462,8 @@ const CONTROL_PLANE_RPC_TIMEOUT_MS = 30_000;
 const SUBAGENT_TASK_COMPLETION_DELAY_MS = 250;
 /** Type of the `session.info` and `session.warning` events about preparing plugins required by the organization. */
 const MANAGED_PLUGINS_EVENT_TYPE = 'managed_plugins';
+/** Type of the `session.info` event sent when plugins required by the organization are ready. */
+const MANAGED_PLUGINS_COMPLETE_EVENT_TYPE = 'managed_plugins_complete';
 
 function hasParentPathSegment(filePath: string): boolean {
 	return filePath.split(/[\\/]/).includes('..');
@@ -1379,6 +1381,8 @@ export class CopilotAgentSession extends Disposable {
 	private _publishedActivity: string | undefined;
 	/** Plugin preparation message shown while the current turn waits for its message to be admitted. */
 	private _managedPluginActivity: string | undefined;
+	/** Plugin preparation failure reported while no turn was waiting; shown in the next sent turn. */
+	private _unshownManagedPluginFailure: string | undefined;
 	/**
 	 * Provisional Fusion tool starts held back from the transcript until a
 	 * phase chat, a permission request, or a client tool handler surfaces the tool, keyed by tool call id.
@@ -3653,6 +3657,7 @@ export class CopilotAgentSession extends Disposable {
 		if (currentTurn) {
 			currentTurn.messageCharLen = prompt.length;
 		}
+		this._showUnshownManagedPluginFailure();
 		const turn = this._currentTurn.value;
 		this._hostInstructions = hostInstructions;
 		this._pendingSnapshotReminder = this._snapshotReadonlyReminder(attachments);
@@ -8436,14 +8441,32 @@ export class CopilotAgentSession extends Disposable {
 	/**
 	 * Ends the plugin preparation activity and adds the failure to the
 	 * waiting turn. The turn continues without the plugins that could not be
-	 * prepared.
+	 * prepared. A failure reported while no turn is waiting, for example
+	 * after a background policy refresh, is shown in the next sent turn.
 	 */
 	private _reportManagedPluginFailure(message: string): void {
 		this._setManagedPluginActivity(undefined);
 		const turn = this._getManagedPluginAdmissionTurn();
 		if (!turn) {
+			this._unshownManagedPluginFailure = message;
 			return;
 		}
+		this._unshownManagedPluginFailure = undefined;
+		this._emitManagedPluginFailure(turn, message);
+	}
+
+	/** Shows a plugin preparation failure that was reported while no turn was waiting. */
+	private _showUnshownManagedPluginFailure(): void {
+		const message = this._unshownManagedPluginFailure;
+		const turn = this._getManagedPluginAdmissionTurn();
+		if (message === undefined || !turn) {
+			return;
+		}
+		this._unshownManagedPluginFailure = undefined;
+		this._emitManagedPluginFailure(turn, message);
+	}
+
+	private _emitManagedPluginFailure(turn: CopilotTurn, message: string): void {
 		this._emitAction({
 			type: ActionType.ChatResponsePart,
 			turnId: turn.id,
@@ -8889,6 +8912,9 @@ export class CopilotAgentSession extends Disposable {
 			}
 			if (e.data.infoType === MANAGED_PLUGINS_EVENT_TYPE && !e.agentId) {
 				this._reportManagedPluginProgress(e.data.message);
+			}
+			if (e.data.infoType === MANAGED_PLUGINS_COMPLETE_EVENT_TYPE && !e.agentId) {
+				this._unshownManagedPluginFailure = undefined;
 			}
 		}));
 
