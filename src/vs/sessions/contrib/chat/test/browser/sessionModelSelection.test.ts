@@ -1252,6 +1252,32 @@ suite('SessionModelSelection', () => {
 		});
 	});
 
+	test('moves a chat whose model is gone for good to the configured default instead of a stand-in', () => {
+		// The chat's model, also the last explicit pick, has been dropped from a settled catalog.
+		const gone = 'test/gone';
+		const testSession = createSession('provider', SessionStatus.Completed, gone);
+		const provider = disposables.add(createProvider('provider', (identifier, source) => testSession.modelId.set(identifier, undefined, source)));
+		provider.models = [auto, first, second];
+		const storage = disposables.add(new InMemoryStorageService());
+		storeSelectedModel(storage, ChatAgentLocation.Chat, modelTarget, gone);
+		const selection = disposables.add(new SessionModelSelection(
+			observableValue<IActiveSession | undefined>('session', testSession.session),
+			{},
+			createProvidersService([provider]),
+			storage,
+			createConfigurationService(second.metadata.id),
+			disposables.add(new NullLogService()),
+		));
+
+		assert.deepStrictEqual({
+			current: selection.state.get().currentModel?.identifier,
+			writes: provider.writes,
+		}, {
+			current: second.identifier,
+			writes: [second.identifier],
+		});
+	});
+
 	test('re-picking the model already shown still settles the chat against the configured default', () => {
 		// Nothing about the chat's model changes, so the explicit pick is the only evidence that
 		// the conversation has chosen. Without it a later refresh would seed it all over again.

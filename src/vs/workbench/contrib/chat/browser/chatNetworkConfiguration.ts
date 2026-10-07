@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { PolicyCategory } from '../../../../base/common/policy.js';
+import { isStringArray } from '../../../../base/common/types.js';
 import * as nls from '../../../../nls.js';
 import { ConfigurationScope, IConfigurationPropertySchema } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { AgentNetworkDomainSettingId } from '../../../../platform/networkFilter/common/settings.js';
+import { COPILOT_SANDBOX_ALLOWED_HOSTS_KEY } from '../../../../platform/policy/common/copilotManagedSettings.js';
 import { AgentSandboxSettingId } from '../../../../platform/sandbox/common/settings.js';
 import { ConfigurationKeyValuePairs, ConfigurationMigration } from '../../../common/configuration.js';
 
@@ -20,6 +22,26 @@ export const chatNetworkDomainConfigurationProperties: Record<string, IConfigura
 		default: [],
 		scope: ConfigurationScope.APPLICATION,
 		restricted: true,
+		managedSettingsPresentation: read => {
+			const value = read(COPILOT_SANDBOX_ALLOWED_HOSTS_KEY);
+			if (value === undefined) {
+				return undefined;
+			}
+			let hosts: unknown = value;
+			if (typeof value === 'string') {
+				try {
+					hosts = JSON.parse(value);
+				} catch {
+					console.warn('Failed to parse managed sandbox allowed hosts; ignoring the presentation override.');
+					return undefined;
+				}
+			}
+			if (!isStringArray(hosts)) {
+				console.warn('Managed sandbox allowed hosts must be a string array; ignoring the presentation override.');
+				return undefined;
+			}
+			return hosts;
+		},
 		policy: {
 			name: 'ChatAgentAllowedNetworkDomains',
 			category: PolicyCategory.InteractiveSession,

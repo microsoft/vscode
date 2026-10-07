@@ -651,8 +651,12 @@ export interface IChatThinkingPart {
  */
 export interface IChatAutoModeResolutionPart {
 	kind: 'autoModeResolution';
-	/** The model the router picked, or `undefined` while routing is in flight. */
-	resolved?: { readonly id: string; readonly name: string };
+	/**
+	 * The model the router picked, or `undefined` while routing is in flight.
+	 * `reason` is the routing service's display-only, unlocalized explanation
+	 * of the pick; it already names the model.
+	 */
+	resolved?: { readonly id: string; readonly name: string; readonly reason?: string };
 }
 
 /**

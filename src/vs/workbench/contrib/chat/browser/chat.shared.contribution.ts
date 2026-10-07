@@ -1746,7 +1746,13 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', 'advanced'],
 		},
 		[AgentHostHydraFusionEnabledSettingId]: {
-			type: 'boolean',
+			type: ['boolean', 'string'],
+			enum: [true, false, 'v2'],
+			enumDescriptions: [
+				nls.localize('chat.copilot.hydraFusion.enabled.true', "Make HydraFusion available."),
+				nls.localize('chat.copilot.hydraFusion.enabled.false', "Do not make HydraFusion available."),
+				nls.localize('chat.copilot.hydraFusion.enabled.v2', "Make HydraFusion v2 available, which plans with per-step reasoning effort and a wider set of models."),
+			],
 			markdownDescription: nls.localize('chat.copilot.hydraFusion.enabled', "When enabled, makes the experimental HydraFusion model available to local Copilot Agent Host sessions. Changing this setting restarts the local Copilot runtime."),
 			default: true,
 			experiment: { mode: 'startup' },
