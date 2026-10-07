@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposableTimeout, raceCancellationError, raceTimeout } from '../../../base/common/async.js';
+import { disposableTimeout, raceCancellationError, raceTimeout, SequencerByKey } from '../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { lstat, realpath, stat } from 'fs/promises';
 import { parseSessionDbUri } from '../common/sessionDbUri.js';
@@ -403,6 +403,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	 * {@link IClientRecord}.
 	 */
 	private readonly _clients = new Map<string, IClientRecord>();
+	private readonly _relayClientDispatchSequencer = new SequencerByKey<string>();
 	/**
 	 * State channels a client is subscribed to but has never been given a
 	 * baseline snapshot for by THIS server process, keyed by clientId.
@@ -2014,7 +2015,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			client.transport.send(jsonRpcError(id, AHP_AUTH_REQUIRED, 'Relay identity authentication is required'));
 			return;
 		}
-		if (client.transport.relayClientId !== undefined && this._config.relayResourceRoots) {
+		if (client.transport.relayClientId !== undefined && this._config.relayResourceRoots && method !== 'dispatchAction') {
 			this._trackRequest(this._requireRelayResourceAccess(client, method, params)).then(() => {
 				if (!client.disposables.isDisposed) {
 					this._handleAuthorizedRequest(client, method, params, id);
@@ -2119,7 +2120,14 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		client.transport.send(jsonRpcError(id, JsonRpcErrorCodes.MethodNotFound, `Method not found: ${method}`));
 	}
 
-	private async _dispatchClientAction(client: IConnectedClient, params: DispatchActionParams): Promise<void> {
+	private _dispatchClientAction(client: IConnectedClient, params: DispatchActionParams): Promise<void> {
+		if (client.transport.relayClientId !== undefined && this._config.relayResourceRoots) {
+			return this._relayClientDispatchSequencer.queue(client.clientId, () => this._dispatchClientActionNow(client, params));
+		}
+		return this._dispatchClientActionNow(client, params);
+	}
+
+	private async _dispatchClientActionNow(client: IConnectedClient, params: DispatchActionParams): Promise<void> {
 		this._logService.trace(`[ProtocolServer] dispatchAction: ${JSON.stringify(params.action.type)}`);
 		const action = params.action;
 		const origin = { clientId: client.clientId, clientSeq: params.clientSeq };

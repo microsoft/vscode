@@ -2932,6 +2932,101 @@ suite('ProtocolServerHandler', () => {
 		assert.deepStrictEqual(agentService.createTerminalClientTypes, [AgentHostClientType.EditorWindow, AgentHostClientType.Unknown]);
 	});
 
+	for (const firstKind of ['notification', 'request'] as const) {
+		for (const secondKind of ['notification', 'request'] as const) {
+			test(`relay working-directory ${firstKind} stays ahead of a following ${secondKind}`, async () => {
+				stateManager.createSession({ ...makeSessionSummary(), workingDirectories: [] });
+				const relay = disposables.add(new MockProtocolServer());
+				const scopedHandler = disposables.add(new ProtocolServerHandler(
+					agentService, stateManager, relay,
+					{ relayResourceRoots: () => [process.cwd()] },
+					disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+					managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+				));
+				const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'ordered-relay', false));
+				transport.relayAuthenticated = true;
+				relay.simulateConnection(transport);
+				transport.simulateMessage(request(1, 'initialize', { clientId: 'ordered-relay', protocolVersions: [PROTOCOL_VERSION] }));
+				const actions = [
+					{ type: ActionType.SessionWorkingDirectorySet, directory: URI.file(process.cwd()).toString() },
+					{ type: ActionType.SessionWorkingDirectoryRemoved, directory: URI.file(process.cwd()).toString() },
+				];
+				for (const [index, kind] of [firstKind, secondKind].entries()) {
+					const params = { channel: sessionUri, clientSeq: index + 1, action: actions[index] };
+					transport.simulateMessage(kind === 'notification'
+						? notification('dispatchAction', params)
+						: request(index + 2, 'dispatchAction', params));
+				}
+				await scopedHandler.whenIdle();
+				assert.deepStrictEqual({
+					actions: agentService.handledActions,
+					workingDirectories: stateManager.getSessionState(sessionUri)?.workingDirectories,
+				}, {
+					actions,
+					workingDirectories: [],
+				});
+			});
+		}
+	}
+
+	test('relay dispatch queues are independent per client and release after dispatch completes', async () => {
+		stateManager.createSession(makeSessionSummary());
+		const relay = disposables.add(new MockProtocolServer());
+		const scopedHandler = disposables.add(new ProtocolServerHandler(
+			agentService, stateManager, relay,
+			{ relayResourceRoots: () => [process.cwd()] },
+			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+		));
+		const connect = (clientId: string) => {
+			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, clientId, false));
+			transport.relayAuthenticated = true;
+			relay.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', { clientId, protocolVersions: [PROTOCOL_VERSION] }));
+			return transport;
+		};
+		const first = connect('first-relay');
+		const second = connect('second-relay');
+		const started = new DeferredPromise<void>();
+		const barrier = new DeferredPromise<void>();
+		const secondDispatched = new DeferredPromise<void>();
+		agentService.dispatchAction = async (_channel, action) => {
+			if (action.type === ActionType.SessionWorkingDirectorySet) {
+				await started.complete();
+				await barrier.p;
+			}
+			agentService.handledActions.push(action);
+			if (action.type === ActionType.SessionTitleChanged && action.title === 'Second client') {
+				await secondDispatched.complete();
+			}
+		};
+		const actions = [
+			{ type: ActionType.SessionWorkingDirectorySet, directory: URI.file(process.cwd()).toString() },
+			{ type: ActionType.SessionTitleChanged, title: 'First client' },
+			{ type: ActionType.SessionTitleChanged, title: 'Second client' },
+		];
+		let beforeCompletion: typeof agentService.handledActions;
+		try {
+			for (const [index, action] of actions.slice(0, 2).entries()) {
+				first.simulateMessage(notification('dispatchAction', { channel: sessionUri, clientSeq: index + 1, action }));
+			}
+			await started.p;
+			second.simulateMessage(notification('dispatchAction', { channel: sessionUri, clientSeq: 1, action: actions[2] }));
+			await secondDispatched.p;
+			beforeCompletion = [...agentService.handledActions];
+		} finally {
+			await barrier.complete();
+			await scopedHandler.whenIdle();
+		}
+		assert.deepStrictEqual({
+			beforeCompletion,
+			afterCompletion: agentService.handledActions,
+		}, {
+			beforeCompletion: [actions[2]],
+			afterCompletion: [actions[2], actions[0], actions[1]],
+		});
+	});
+
 	test('session working-directory actions reach the agent service', () => {
 		stateManager.createSession(makeSessionSummary());
 		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady });
