@@ -69,12 +69,12 @@ export const sessionOpenerRegistry = new SessionOpenerRegistry();
  * the caller would fall back to opening the legacy session it just migrated away
  * from. Refresh that one provider and look again.
  */
-async function resolveMigratedSession(agentSessionsService: IAgentSessionsService, migrated: URI): Promise<IAgentSession | undefined> {
+async function resolveMigratedSession(agentSessionsService: IAgentSessionsService, migrated: URI, onError?: (error: unknown) => void): Promise<IAgentSession | undefined> {
 	const existing = agentSessionsService.getSession(migrated);
 	if (existing) {
 		return existing;
 	}
-	await agentSessionsService.model.resolve(getChatSessionType(migrated));
+	await agentSessionsService.model.resolve(getChatSessionType(migrated), onError);
 	return agentSessionsService.getSession(migrated);
 }
 
@@ -132,8 +132,15 @@ async function resolveMigratedSessionForOpen(accessor: ServicesAccessor, resourc
 				const fallback = await resolveMigratedSession(agentSessionsService, twin);
 				return fallback && !fallback.metadata?.[SESSION_META_EHCLI_ADOPTABLE_KEY] ? fallback : undefined;
 			}
-			const surfaced = await resolveMigratedSession(agentSessionsService, migrated);
-			reportLegacyMigrationOpen(telemetryService, 'open', !!surfaced);
+			let surfaced: IAgentSession | undefined;
+			let resolveError: unknown;
+			try {
+				surfaced = await resolveMigratedSession(agentSessionsService, migrated, error => resolveError ??= error);
+			} catch (error) {
+				reportLegacyMigrationOpen(telemetryService, 'open', migrated, false, error);
+				throw error;
+			}
+			reportLegacyMigrationOpen(telemetryService, 'open', migrated, !!surfaced, resolveError);
 			if (!surfaced) {
 				logService.warn(`[AgentHost] migrated ${resource.toString()} to ${migrated.toString()} but it is not in this window's list after refreshing provider '${getChatSessionType(migrated)}'; opening the legacy session instead.`);
 			}

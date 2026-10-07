@@ -96,9 +96,9 @@ function renderTranscript(context: ComponentFixtureContext, width: number, progr
 }
 
 async function renderWrappedToolSummary(context: ComponentFixtureContext): Promise<void> {
-	const title = 'Searched for order_header_update and regex patterns';
+	const title = 'Finished with 2 steps';
 	await renderChatWidget(context, {
-		width: 280, height: 360, listHeight: 360, inputVisible: false,
+		width: 170, height: 360, listHeight: 360, inputVisible: false,
 		persistentProgress: ChatProgressAnimation.Draw,
 		persistentProgressVerbosity: ChatProgressVerbosity.Compact,
 		collapseCompletedResponses: false,
@@ -112,11 +112,6 @@ async function renderWrappedToolSummary(context: ComponentFixtureContext): Promi
 		}],
 		onRendered: ({ model }) => {
 			const request = model.getRequests()[0];
-			for (const part of request.response?.response.value ?? []) {
-				if (part.kind === 'toolInvocation') {
-					part.generatedTitle = title;
-				}
-			}
 			model.acceptResponseProgress(request, {
 				kind: 'thinking', id: 'reasoning',
 				value: '**Confirmed order_header_update endpoint accepted invoice_print_address**\nThe endpoint accepts the updated address.',

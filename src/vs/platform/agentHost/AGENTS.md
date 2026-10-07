@@ -543,6 +543,30 @@ Agents expose exact-chat lifecycle and metadata methods for SDK backing data; th
 - **Active client.** `AgentSideEffects` calls `getOrCreateActiveClient` once per exact chat and client. Providers receive no sibling list (§8c).
 - **Enumerate.** `AgentService.listSessions` enumerates `AgentSessionRegistry`, asks the registered provider for that exact session's metadata via `getChatMetadata`, and applies persisted and live state overlays. Provider-owned code activates additive external-chat discovery; `listChatsToMigrate` remains the one-time registry migration seam.
 
+### Legacy Copilot CLI migration diagnostics
+
+Migration remains adopt-on-open/restore, gated by the startup-frozen setting; unsuccessful probes are not cached. The `agentHost.legacyCopilotCliMigrationProbe` event records a bounded `reason`, the startup/current setting values, and the original subscription/exception `errorCode` and `errorMessage` when available. A timeout is not an eligibility rejection.
+
+The host's `agentHost.legacyCopilotCliMigration` event records the provider's adoption `reason` separately from the `stage` reached. `declined` records an unregistered, non-adoptable session; `skipped` still means an eligible session was not adopted. `failed` covers adoption, registration, and restoration exceptions, including eligible sessions that were not adopted. A `reason` of `adopted` can therefore accompany a later failure. Early failures before adoption may only be visible in the client probe's error.
+
+Host diagnostics also record `markerStatus` (`valid`, `missing`, `invalid`, or `readError`), bounded `provenance` (`legacy`, `external`, or `unknown`), `markerFromCache`, and separate `eligibilityErrorCode`/`eligibilityErrorMessage`. No marker contents or raw origin strings are collected. `eligible` is the provider decision, or absent when the provider did not return a decision. `advertisedAsAdoptable` captures whether the host's surfaced session summary identified a legacy candidate before adoption.
+
+Use `diagnosticCategory` for conservative triage, not as a code-bug verdict:
+
+| Category | Evidence |
+|---|---|
+| `expectedExclusion` | A valid marker explicitly identifies an external session, with no conflicting adoptable advertisement. |
+| `configurationDisabled` | The host's frozen migration setting is disabled. Compare the client setting fields to investigate startup/configuration disagreement. |
+| `needsInvestigation` | An exception, invalid/unreadable marker, an eligible session that did not migrate, or a rejection contradicting an adoptable advertisement. Causes may include environmental/data problems, not only code defects. |
+| `unknown` | Insufficient evidence: for example, a missing marker, ambiguous provenance, or an older provider with no diagnostic details. A missing marker is not proof that the session is external. |
+| `notApplicable` | Migration completed. |
+
+The reader retains successful marker caching and retries missing, unreadable, and malformed markers. The archive-state check still reads fresh data and reports that evidence separately from an earlier cached eligibility decision.
+
+The `agentHost.legacyCopilotCliMigrationOpen` event records `surfaced`, `sessionNotSurfaced`, or `resolveFailed` for explicit opens and editor restores. Explicit opens observe provider refresh/list errors through the model's diagnostic callback without changing its failure isolation or legacy fallback. Error-bearing events use error telemetry and its consent level and data cleaning. All migration error messages, including eligibility errors, first redact the migrating session's raw/encoded identifier and session URIs with a shared session-aware sanitizer. Non-error outcomes retain usage telemetry.
+
+All three events carry `migrationSessionId`, a SHA-1 of the exact backend session URI, never the raw URI. Correlate it with device and time; it identifies a session, not a unique retry, so concurrent/repeated attempts must not be joined one-to-one by this field alone. Older builds lack these diagnostic fields. The existing outcomes and client fallback/retry behavior remain unchanged except for the new host `declined` outcome.
+
 ### No provider-side default-chat derivation
 
 AH supplies the exact chat plus opaque persistence/configuration scopes. Claude and Copilot record only `chat → SDK conversation`; Codex records only `chat → thread runtime`. Session-versus-peer decisions remain in Agent Host.

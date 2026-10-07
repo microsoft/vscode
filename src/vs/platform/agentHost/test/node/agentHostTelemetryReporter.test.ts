@@ -103,7 +103,7 @@ suite('AgentHostTelemetryReporter', () => {
 			const completion: IAgentHostTurnCompletedReport = {
 				provider, session, turnId: 'turn',
 				parentTurnId: undefined, parentToolCallId: undefined, subagentTaskModelSource: undefined,
-				timeToFirstProgress: undefined, timeToFirstSubstantiveProgress: undefined, timeToFirstEditMs: undefined, timeToFirstEditClassifierVersion: undefined,
+				timeToFirstProgress: undefined, timeToFirstSubstantiveProgress: undefined, timeToFirstEditMs: undefined,
 				startedWithSteering: false, receivedSteering: false,
 				totalTime: 100, result: 'success', model: undefined, modelTelemetryKind: undefined, modelSelectionKind: 'default',
 				permissionLevel: undefined, interactionMode: undefined, messageOriginKind: undefined, failure: undefined,
@@ -145,7 +145,7 @@ suite('AgentHostTelemetryReporter', () => {
 			reporter.turnCompleted({
 				provider: 'copilot', session, turnId: 'turn',
 				parentTurnId: undefined, parentToolCallId: undefined, subagentTaskModelSource: undefined,
-				timeToFirstProgress: undefined, timeToFirstSubstantiveProgress: undefined, timeToFirstEditMs: undefined, timeToFirstEditClassifierVersion: undefined,
+				timeToFirstProgress: undefined, timeToFirstSubstantiveProgress: undefined, timeToFirstEditMs: undefined,
 				startedWithSteering: false, receivedSteering: false,
 				totalTime: 100, result: 'success', model: undefined, modelTelemetryKind: undefined, modelSelectionKind: 'default',
 				permissionLevel: undefined, interactionMode: undefined, messageOriginKind: undefined, failure: undefined,

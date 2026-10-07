@@ -7556,16 +7556,15 @@ suite('ChatListRenderer', () => {
 				configurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, false);
 				configurePersistentProgressTypography(container, fontSize);
 				container.classList.toggle('monaco-reduce-motion', reducedMotion);
-				container.style.width = '260px';
-				renderer.layout(260);
-				const title = 'Searched for order_header_update and regex patterns';
+				container.style.width = '170px';
+				renderer.layout(170);
+				const title = 'Finished with 2 steps';
 				for (const pattern of ['order_header_update', 'invoice_print_address']) {
 					const tool = new ChatToolInvocation(
 						{ invocationMessage: `Searching for ${pattern}`, pastTenseMessage: `Searched for ${pattern}` },
 						{ id: 'search', displayName: 'Search', modelDescription: 'Search', source: ToolDataSource.Internal },
 						pattern, undefined, {},
 					);
-					tool.generatedTitle = title;
 					await tool.didExecuteTool(undefined);
 					model.acceptResponseProgress(request, tool);
 				}
@@ -7596,7 +7595,7 @@ suite('ChatListRenderer', () => {
 					noHorizontalOverflow: label.scrollWidth <= label.clientWidth,
 					nextItemGap: Math.round(reasoning.getBoundingClientRect().top - label.getBoundingClientRect().bottom),
 				});
-				const widths = [260, 720, 200, 260];
+				const widths = [170, 720, 130, 170];
 				const resized = widths.map(width => {
 					container.style.width = `${width}px`;
 					renderer.layout(width);

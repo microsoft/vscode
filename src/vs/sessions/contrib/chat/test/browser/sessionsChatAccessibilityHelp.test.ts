@@ -40,6 +40,25 @@ import { DevContainerAgentHostEnabledSettingId, DevContainerSamplesEnabledSettin
 suite('SessionsChatAccessibilityHelp', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('documents navigation through sessions and singleton views', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
+		stubContextKeyService(instantiationService, configuration);
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
+
+		assert.deepStrictEqual({
+			back: content.includes('Go back through visited sessions, the New Session view, and custom views such as Automations<keybinding:sessions.goBack>'),
+			forward: content.includes('Go forward through visited sessions and views<keybinding:sessions.goForward>'),
+			singletonViews: content.includes('moves its single history entry to the most recent position'),
+		}, { back: true, forward: true, singletonViews: true });
+	});
+
 	test('documents layout density only on desktop', () => {
 		const densityHelp = [false, true].map(phone => {
 			const instantiationService = store.add(new TestInstantiationService());
@@ -99,24 +118,33 @@ suite('SessionsChatAccessibilityHelp', () => {
 		instantiationService.stub(IContextKeyService, contextKeyService);
 	}
 
-	for (const { name, built, extensionDevelopment, enabled } of [
-		{ name: 'source', built: false, extensionDevelopment: false, enabled: true },
-		{ name: 'extension development', built: true, extensionDevelopment: true, enabled: true },
-		{ name: 'normal built product', built: true, extensionDevelopment: false, enabled: false },
+	for (const { name, built, extensionDevelopment, hostsEnabled, aiDisabled, hidden, enabled } of [
+		{ name: 'source', built: false, extensionDevelopment: false, hostsEnabled: true, aiDisabled: false, hidden: false, enabled: true },
+		{ name: 'extension development', built: true, extensionDevelopment: true, hostsEnabled: true, aiDisabled: false, hidden: false, enabled: true },
+		{ name: 'normal built product', built: true, extensionDevelopment: false, hostsEnabled: true, aiDisabled: false, hidden: false, enabled: true },
+		{ name: 'remote hosts disabled', built: true, extensionDevelopment: false, hostsEnabled: false, aiDisabled: false, hidden: false, enabled: false },
+		{ name: 'AI master setting disabled', built: true, extensionDevelopment: false, hostsEnabled: true, aiDisabled: true, hidden: false, enabled: false },
+		{ name: 'AI hidden', built: true, extensionDevelopment: false, hostsEnabled: true, aiDisabled: false, hidden: true, enabled: false },
 	]) {
-		test(`Mission Control accessibility help uses the discovery development gate: ${name}`, () => {
+		test(`Environments accessibility help matches discovery availability: ${name}`, () => {
 			const instantiation = store.add(new TestInstantiationService());
-			const configuration = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true });
+			const configuration = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: hostsEnabled, 'chat.disableAIFeatures': aiDisabled });
 			store.add(configuration.onDidChangeConfigurationEmitter);
 			instantiation.stub(IConfigurationService, configuration);
 			stubContextKeyService(instantiation, configuration);
 			instantiation.stub(IEnvironmentService, { isBuilt: built, isExtensionDevelopment: extensionDevelopment });
+			instantiation.stub(IChatEntitlementService, { sentiment: { hidden } });
 			instantiation.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
 			instantiation.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
 			instantiation.stub(IAgentHostFilterService, { selectedHost: undefined });
 			instantiation.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
 			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiation)).provideContent();
-			assert.strictEqual(content.includes('choose Mission Control to discover your user-local hosts'), enabled);
+			assert.deepStrictEqual({
+				discoveryHelp: content.includes('choose Environments to discover your environments'),
+				refreshHelp: content.includes('Tab reaches Refresh Environments.'),
+				hiddenHelp: content.includes('Hide in This Profile') || content.includes('Restore Host'),
+				missionControl: content.includes('Mission Control'),
+			}, { discoveryHelp: enabled, refreshHelp: enabled, hiddenHelp: false, missionControl: false });
 		});
 	}
 

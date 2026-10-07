@@ -9,7 +9,7 @@ import { decodeBase64, encodeBase64, VSBuffer } from '../../../base/common/buffe
 import { Barrier, DeferredPromise, disposableTimeout, Limiter, raceTimeout, ResourceQueue, SequencerByKey, ThrottlerByKey } from '../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
-import { isCancellationError } from '../../../base/common/errors.js';
+import { getErrorCode, isCancellationError } from '../../../base/common/errors.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { getExtensionForMimeType, getMediaMime, getMediaOrTextMime } from '../../../base/common/mime.js';
@@ -19,6 +19,7 @@ import { dirname as resourcesDirname, extname as resourcesExtname, extUriBiasedI
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
+import { getTelemetryMigrationErrorMessage, getTelemetryMigrationSessionId } from '../common/agentTelemetryCorrelation.js';
 import { hasKey } from '../../../base/common/types.js';
 import { localize } from '../../../nls.js';
 import { FileChangeType, FileOperationResult, IFileChange, IFileService, toFileOperationResult, type FileChangesEvent } from '../../files/common/files.js';
@@ -187,7 +188,18 @@ interface IDiscoveryRegistrationObservation {
 
 type AgentHostLegacyMigrationEvent = IAgentHostCopilotSkuTelemetry & {
 	provider: string;
-	outcome: 'migrated' | 'skipped' | 'failed';
+	outcome: 'migrated' | 'skipped' | 'failed' | 'declined';
+	migrationSessionId: string;
+	stage: 'adoption' | 'eligibility' | 'registration' | 'restore' | 'annotations' | 'complete';
+	diagnosticCategory: 'notApplicable' | 'expectedExclusion' | 'configurationDisabled' | 'needsInvestigation' | 'unknown';
+	advertisedAsAdoptable: boolean;
+	eligible: boolean | undefined;
+	markerStatus: NonNullable<IAgentChatAdoptionResult['diagnostics']>['markerStatus'] | undefined;
+	provenance: NonNullable<IAgentChatAdoptionResult['diagnostics']>['provenance'] | undefined;
+	markerFromCache: boolean | undefined;
+	eligibilityErrorCode: string | undefined;
+	eligibilityErrorMessage: string | undefined;
+	errorCode: string | undefined;
 	success: boolean;
 	turnCount: number;
 	durationMs: number;
@@ -200,7 +212,18 @@ type AgentHostLegacyMigrationEvent = IAgentHostCopilotSkuTelemetry & {
 
 type AgentHostLegacyMigrationClassification = IAgentHostCopilotSkuClassification & {
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent provider id whose legacy session was migrated (e.g. copilotcli).' };
-	outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Migration outcome: migrated (adoption + restore completed), skipped (eligible legacy session not adopted this pass, e.g. migrate flag not yet applied), or failed (adoption or restore threw).' };
+	outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Migration outcome: migrated, skipped (eligible but not adopted), declined (unregistered and not adoptable), or failed (adoption or restore threw).' };
+	migrationSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'SHA-1 of the backend session URI, shared with client probe/open diagnostics; identifies a session, not an individual retry.' };
+	stage: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The migration stage reached: adoption, eligibility, registration, restore, annotations, or complete.' };
+	diagnosticCategory: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Conservative triage: expectedExclusion requires positive external provenance with no conflicting adoptable advertisement; needsInvestigation does not assert a code defect; missing evidence remains unknown.' };
+	advertisedAsAdoptable: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the host advertised this session as adoptable before attempting adoption.' };
+	eligible: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Provider eligibility decision; absent if adoption was not attempted or threw before returning.' };
+	markerStatus: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the eligibility marker was valid, missing, invalid, or could not be read.' };
+	provenance: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Bounded marker evidence: legacy, explicitly external, or unknown. No raw origin value is collected.' };
+	markerFromCache: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the marker evidence came from the in-memory cache rather than a fresh disk read.' };
+	eligibilityErrorCode: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'Error code from reading the eligibility marker, separate from any later restore failure.' };
+	eligibilityErrorMessage: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'Error reading the eligibility marker, cleaned by the telemetry service. Marker contents are never collected.' };
+	errorCode: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'Exception or protocol error code when migration failed.' };
 	success: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the migration completed with at least one restored turn.' };
 	turnCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of turns restored from the migrated session.' };
 	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds to adopt and restore the legacy session.' };
@@ -208,7 +231,7 @@ type AgentHostLegacyMigrationClassification = IAgentHostCopilotSkuClassification
 	hasWorktree: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the migrated session ran in a pre-existing git worktree that was bridged during adoption.' };
 	workingDirectoryCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of working directories associated with the migrated session.' };
 	errorMessage: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'Error message when the migration failed; absent for migrated/skipped outcomes.' };
-	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Why adoption ended as it did: adopted, alreadyNative, notLegacyChat, workingDirectoryMissing, or unknown. Separates a skipped session that was never ours from one whose working directory vanished, which need different fixes.' };
+	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Provider adoption reason (including markerUnavailable), settingDisabled for a frozen-off host, or unknown. This is separate from the stage and exception that may fail after adoption.' };
 	owner: 'vijayupadya';
 	comment: 'Tracks one-time adopt-on-open migration of legacy extension-host Copilot CLI sessions into the agent host to measure attempt, success, failure, and skipped rates.';
 };
@@ -5839,8 +5862,10 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private async _createChat(provider: IAgent, chat: URI, session: URI, options: IAgentCreateChatOptions | undefined): Promise<IAgentCreateChatResult | void> {
 		const placement = this._buildChatPlacement(session);
-		const convOptions: IAgentCreateChatOptions | undefined = (options?.title !== undefined || options?.model !== undefined || options?.workingDirectories !== undefined || placement)
+		const isEphemeral = this._stateManager.isEphemeralSession(session.toString());
+		const convOptions: IAgentCreateChatOptions | undefined = (options?.title !== undefined || options?.model !== undefined || options?.workingDirectories !== undefined || placement || isEphemeral)
 			? {
+				...(isEphemeral ? { isEphemeral: true } : {}),
 				...(options?.title !== undefined ? { title: options.title } : {}),
 				...(options?.model !== undefined ? { model: options.model } : {}),
 				...(options?.workingDirectories !== undefined
@@ -7346,14 +7371,13 @@ export class AgentService extends Disposable implements IAgentService {
 		const sessionChannel = changesetChannel?.sessionUri ?? (chatChannel ? parseRequiredSessionUriFromChatUri(chatChannel) : channel);
 		const requiresSessionRestore = (chatChannel !== undefined || isSessionAction(action)) && !this._stateManager.getSessionState(sessionChannel);
 		const requiresPeerResolution = chatChannel !== undefined && !this._stateManager.getChatState(chatChannel);
-		const requiresTurnOwnerResolution = action.type === ActionType.ChatTurnStarted && (requiresSessionRestore || (this._getUnresolvedPeerChats(sessionChannel)?.length ?? 0) > 0);
 		const requiresAttachmentRewrite = this._needsAsyncRewrite(sessionChannel, action);
 		const requiresReviewStateUpdate = action.type === ActionType.ChangesetFilesReviewChanged;
 		const requiresAnnotationsRestore = isAnnotationsAction(action);
 		const requiresWorkspacePin = action.type === ActionType.SessionWorkingDirectorySet;
 
 		const pending = this._clientDispatchQueues.get(clientId);
-		if (!pending && !requiresSessionRestore && !requiresPeerResolution && !requiresTurnOwnerResolution && !requiresAttachmentRewrite && !requiresReviewStateUpdate && !requiresAnnotationsRestore && !requiresWorkspacePin) {
+		if (!pending && !requiresSessionRestore && !requiresPeerResolution && !requiresAttachmentRewrite && !requiresReviewStateUpdate && !requiresAnnotationsRestore && !requiresWorkspacePin) {
 			this._dispatchActionNow(channel, sessionChannel, action, clientId, clientSeq, clientContext);
 			return;
 		}
@@ -7394,9 +7418,6 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			if (chatChannel && requiresPeerResolution) {
 				await this._stateManager.resolveChatState(chatChannel);
-			}
-			if (action.type === ActionType.ChatTurnStarted && requiresTurnOwnerResolution) {
-				await this._resolvePeerChatsForTurnValidation(sessionChannel);
 			}
 			let rewritten: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction = requiresAttachmentRewrite
 				? await this._rewriteUserMessageAttachments(sessionChannel, action, clientId)
@@ -7786,22 +7807,24 @@ export class AgentService extends Disposable implements IAgentService {
 				await this._peerChatStore.updateWorkingDirectories(session, URI.parse(chat.summary.resource), workingDirectories);
 			}
 		}
-		for (const chat of resolvedChats) {
-			if (chat.state?.workingDirectories !== undefined) {
-				continue;
-			}
-			for (const workingDirectory of workingDirectories) {
-				this._stateManager.dispatchServerAction(chat.summary.resource, {
-					type: ActionType.ChatWorkingDirectorySet,
-					directory: workingDirectory,
+		this._stateManager.runWithBatchedWorkingDirectoryChanges(() => {
+			for (const chat of resolvedChats) {
+				if (chat.state?.workingDirectories !== undefined) {
+					continue;
+				}
+				for (const workingDirectory of workingDirectories) {
+					this._stateManager.dispatchServerAction(chat.summary.resource, {
+						type: ActionType.ChatWorkingDirectorySet,
+						directory: workingDirectory,
+					});
+				}
+				this._stateManager.dispatchServerAction(sessionKey, {
+					type: ActionType.SessionChatUpdated,
+					chat: chat.summary.resource,
+					changes: { workingDirectories: [...workingDirectories] },
 				});
 			}
-			this._stateManager.dispatchServerAction(sessionKey, {
-				type: ActionType.SessionChatUpdated,
-				chat: chat.summary.resource,
-				changes: { workingDirectories: [...workingDirectories] },
-			});
-		}
+		});
 	}
 
 	/**
@@ -7960,10 +7983,6 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			resumedTurn = turn;
 		}
-		if (action.type === ActionType.ChatTurnStarted && this._isTurnIdUsedByAnotherChat(sessionChannel, channel, action.turnId)) {
-			this._stateManager.rejectClientAction(channel, action, origin, 'Turn id is already used by another chat in this session.');
-			return;
-		}
 		// Host-owned session config carries merge authorization (bound pull request,
 		// watermark, attempt budgets), so a client must never be able to write it, and
 		// a wholesale replacement must not drop it either.
@@ -8038,41 +8057,6 @@ export class AgentService extends Disposable implements IAgentService {
 			this._stateManager.setSessionMeta(sessionChannel, nextMeta);
 		}
 	}
-	private _getUnresolvedPeerChats(sessionChannel: string): readonly string[] | undefined {
-		return this._stateManager.getSessionState(sessionChannel)?.chats.filter(chat => !isDefaultChatUri(chat.resource) && !this._stateManager.getChatState(chat.resource)).map(chat => chat.resource);
-	}
-
-	private async _resolvePeerChatsForTurnValidation(sessionChannel: string): Promise<void> {
-		const unavailableSubagentTranscripts = new Set<string>();
-		while (true) {
-			const unresolvedChats = this._getUnresolvedPeerChats(sessionChannel)?.filter(chat => !unavailableSubagentTranscripts.has(chat));
-			if (!unresolvedChats) { throw new Error('Cannot validate turn id for unknown session'); }
-			if (unresolvedChats.length === 0) { return; }
-			await Promise.all(unresolvedChats.map(async chat => {
-				try {
-					if (!await this._stateManager.resolveChatState(chat)) { throw new Error('Cannot resolve peer chat for turn id validation'); }
-				} catch (error) {
-					if (!(error instanceof SubagentTranscriptUnavailableError)) {
-						throw error;
-					}
-					unavailableSubagentTranscripts.add(chat);
-					this._logService.warn(`[AgentService] Cannot validate turn ids against unavailable subagent transcript: ${chat}`);
-				}
-			}));
-		}
-	}
-	private _isTurnIdUsedByAnotherChat(sessionChannel: string, chatChannel: string, turnId: string): boolean {
-		const sessionState = this._stateManager.getSessionState(sessionChannel);
-		if (!sessionState) { return false; }
-		if (sessionState.defaultChat !== chatChannel && (sessionState.activeTurn?.id === turnId || (sessionState.turns ?? []).some(turn => turn.id === turnId))) { return true; }
-		for (const chat of sessionState.chats ?? []) {
-			if (chat.resource === chatChannel || isDefaultChatUri(chat.resource)) { continue; }
-			const chatState = this._stateManager.getChatState(chat.resource);
-			if (chatState?.activeTurn?.id === turnId || chatState?.turns.some(turn => turn.id === turnId)) { return true; }
-		}
-		return false;
-	}
-
 	private _needsAsyncRewrite(sessionURI: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): action is ChatTurnStartedAction | ChatPendingMessageSetAction {
 		if (action.type !== ActionType.ChatTurnStarted && action.type !== ActionType.ChatPendingMessageSet) {
 			return false;
@@ -8331,23 +8315,52 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/** Emits one {@link AgentHostLegacyMigrationEvent} for a legacy-session adoption attempt. */
 	private _reportLegacyMigration(
+		session: URI,
 		provider: string,
 		outcome: AgentHostLegacyMigrationEvent['outcome'],
 		startTime: number,
-		extra: { turnCount?: number; hasProject?: boolean; hasWorktree?: boolean; workingDirectoryCount?: number; errorMessage?: string; reason?: AgentChatAdoptionReason },
+		stage: AgentHostLegacyMigrationEvent['stage'],
+		extra: { advertisedAsAdoptable: boolean; adoption?: IAgentChatAdoptionResult; turnCount?: number; hasProject?: boolean; hasWorktree?: boolean; workingDirectoryCount?: number; error?: unknown; reason?: AgentChatAdoptionReason | 'settingDisabled' },
 	): void {
-		this._telemetryService.publicLog2<AgentHostLegacyMigrationEvent, AgentHostLegacyMigrationClassification>('agentHost.legacyCopilotCliMigration', {
+		const diagnostics = extra.adoption?.diagnostics;
+		let diagnosticCategory: AgentHostLegacyMigrationEvent['diagnosticCategory'] = 'unknown';
+		if (outcome === 'migrated') {
+			diagnosticCategory = 'notApplicable';
+		} else if (extra.reason === 'settingDisabled') {
+			diagnosticCategory = 'configurationDisabled';
+		} else if (outcome === 'failed' || extra.advertisedAsAdoptable || extra.adoption?.eligible || diagnostics?.markerStatus === 'invalid' || diagnostics?.markerStatus === 'readError') {
+			diagnosticCategory = 'needsInvestigation';
+		} else if (diagnostics?.markerStatus === 'valid' && diagnostics.provenance === 'external') {
+			diagnosticCategory = 'expectedExclusion';
+		}
+		const data: AgentHostLegacyMigrationEvent = {
 			provider,
 			outcome,
+			migrationSessionId: getTelemetryMigrationSessionId(session),
+			stage,
+			diagnosticCategory,
+			advertisedAsAdoptable: extra.advertisedAsAdoptable,
+			eligible: extra.adoption?.eligible,
+			markerStatus: diagnostics?.markerStatus,
+			provenance: diagnostics?.provenance,
+			markerFromCache: diagnostics?.markerFromCache,
+			eligibilityErrorCode: diagnostics?.errorCode,
+			eligibilityErrorMessage: getTelemetryMigrationErrorMessage(diagnostics?.errorMessage, session),
 			success: outcome === 'migrated' && (extra.turnCount ?? 0) > 0,
 			turnCount: extra.turnCount ?? 0,
 			durationMs: Date.now() - startTime,
 			hasProject: extra.hasProject ?? false,
 			hasWorktree: extra.hasWorktree ?? false,
 			workingDirectoryCount: extra.workingDirectoryCount ?? 0,
-			errorMessage: extra.errorMessage,
+			errorCode: getErrorCode(extra.error),
+			errorMessage: getTelemetryMigrationErrorMessage(extra.error, session),
 			reason: extra.reason ?? 'unknown',
-		});
+		};
+		if (extra.error !== undefined || diagnostics?.errorMessage !== undefined) {
+			this._telemetryService.publicLogError2<AgentHostLegacyMigrationEvent, AgentHostLegacyMigrationClassification>('agentHost.legacyCopilotCliMigration', data);
+		} else {
+			this._telemetryService.publicLog2<AgentHostLegacyMigrationEvent, AgentHostLegacyMigrationClassification>('agentHost.legacyCopilotCliMigration', data);
+		}
 	}
 
 	private async _doRestoreSession(session: URI, sessionStr: string): Promise<void> {
@@ -8408,6 +8421,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// Adopt-on-open for a surfaced un-adopted legacy Copilot CLI session, strictly gated on the startup-frozen migrate setting (a no-op for native / already-adopted sessions).
 		const migrateLegacyEnabled = this._isMigrateLegacyEnabled();
 		const migrationStartTime = Date.now();
+		const advertisedAsAdoptable = readSessionEhcliAdoptable(this._stateManager.getSurfacedSessionSummary(sessionStr)?._meta);
 		let adoption: IAgentChatAdoptionResult = { adopted: false, eligible: false };
 		if (!external && migrateLegacyEnabled && agent.ensureChatAdopted) {
 			try {
@@ -8415,7 +8429,7 @@ export class AgentService extends Disposable implements IAgentService {
 				adoption = await agent.ensureChatAdopted(defaultChat, this._chatContext(session, defaultChat));
 			} catch (err) {
 				// Adoption itself threw — a genuine migration failure worth surfacing.
-				this._reportLegacyMigration(agent.id, 'failed', migrationStartTime, { errorMessage: toErrorMessage(err) });
+				this._reportLegacyMigration(session, agent.id, 'failed', migrationStartTime, 'adoption', { advertisedAsAdoptable, error: err });
 				throw err;
 			}
 		}
@@ -8440,7 +8454,9 @@ export class AgentService extends Disposable implements IAgentService {
 			external = registeredSession?.external ?? external;
 			if (!registeredSession) {
 				this._logService.info(`[AgentService] restore refused for unregistered ${sessionStr}: not an adoptable legacy chat (reason=${adoption.reason ?? 'unknown'})`);
-				throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session is not an adoptable legacy chat: ${sessionStr}`);
+				const reason = migrateLegacyEnabled ? adoption.reason : 'settingDisabled';
+				this._reportLegacyMigration(session, agent.id, 'declined', migrationStartTime, 'eligibility', { advertisedAsAdoptable, adoption: migrateLegacyEnabled ? adoption : undefined, reason });
+				throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session is not an adoptable legacy chat (reason=${reason ?? 'unknown'}): ${sessionStr}`);
 			}
 		}
 
@@ -8448,6 +8464,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// after every required step succeeds, and any failure after a successful
 		// adoption is surfaced as a migration failure.
 		let registeredAfterAdoption = !!registeredSession;
+		let migrationStage: AgentHostLegacyMigrationEvent['stage'] = 'registration';
 		try {
 			// Adoption has already claimed the chat on disk, which is what stops the
 			// extension host listing it. Register it before restoring so a later restore
@@ -8476,26 +8493,30 @@ export class AgentService extends Disposable implements IAgentService {
 					this._logService.warn(`[AgentService] Failed to surface adopted session ${sessionStr} before restore`, err);
 				}
 			}
+			migrationStage = 'restore';
 			const facts = await this._restoreSessionState(agent, session, sessionStr, adopted, external, registeredSession?.source ?? 'restore', awaitCatalogReadable, !!registeredSession, adoption.worktree, adoption.listVisible);
+			migrationStage = 'annotations';
 			await this._restoreAnnotations(session);
 			if (adopted) {
 				// Discovery never surfaced this chat when migration was enabled after
 				// startup, so clients have no entry for it and a restore alone stays
 				// silent. Publishing announces it with the adopted summary.
 				this._stateManager.setSessionSummaryPublished(sessionStr, true);
-				this._reportLegacyMigration(agent.id, 'migrated', migrationStartTime, { ...facts, reason: adoption.reason });
+				this._reportLegacyMigration(session, agent.id, 'migrated', migrationStartTime, 'complete', { ...facts, advertisedAsAdoptable, adoption, reason: adoption.reason });
 			} else if (adoption.eligible) {
 				// Migrate setting on and a genuine legacy candidate, but not adopted
 				// this pass (e.g. its on-disk working directory could not be resolved).
 				this._logService.info(`[AgentService] legacy session ${sessionStr} was a migration candidate but was not adopted (reason=${adoption.reason ?? 'unknown'})`);
-				this._reportLegacyMigration(agent.id, 'skipped', migrationStartTime, { hasProject: facts.hasProject, workingDirectoryCount: facts.workingDirectoryCount, reason: adoption.reason });
+				this._reportLegacyMigration(session, agent.id, 'skipped', migrationStartTime, 'complete', { advertisedAsAdoptable, adoption, hasProject: facts.hasProject, workingDirectoryCount: facts.workingDirectoryCount, reason: adoption.reason });
 			}
 		} catch (err) {
 			if (adopted) {
 				this._logService.error(registeredAfterAdoption
 					? `[AgentService] legacy session ${sessionStr} was adopted but its restore failed; it is registered so it surfaces with an error rather than disappearing`
 					: `[AgentService] legacy session ${sessionStr} was adopted but could not be registered; the extension host no longer lists it, so it will not appear until the next successful restore`, err);
-				this._reportLegacyMigration(agent.id, 'failed', migrationStartTime, { errorMessage: toErrorMessage(err), reason: adoption.reason });
+			}
+			if (adopted || adoption.eligible) {
+				this._reportLegacyMigration(session, agent.id, 'failed', migrationStartTime, migrationStage, { advertisedAsAdoptable, adoption, error: err, reason: adoption.reason });
 			}
 			throw err;
 		}

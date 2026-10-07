@@ -1262,6 +1262,14 @@ export interface IAgentChatAdoptionResult {
 	readonly worktree?: IAgentAdoptedWorktree;
 	/** Diagnostic reason behind {@link adopted}. */
 	readonly reason?: AgentChatAdoptionReason;
+	/** Bounded provenance evidence; a missing marker alone does not prove an external session. */
+	readonly diagnostics?: {
+		readonly markerStatus: 'valid' | 'missing' | 'invalid' | 'readError';
+		readonly provenance: 'legacy' | 'external' | 'unknown';
+		readonly markerFromCache: boolean;
+		readonly errorCode?: string;
+		readonly errorMessage?: string;
+	};
 }
 
 /** Identifies the client that submitted a pending message. */
