@@ -19974,29 +19974,19 @@ suite('AgentService (node dispatcher)', () => {
 				};
 				getStateManager(localService).announceSurfacedSession(summary);
 				getStateManager(localService).prepareSessionSummariesForListing([summary]);
-				const notifications: INotification[] = [];
-				const listener = localService.onDidNotification(notification => notifications.push(notification));
+				const summaryChanged = Event.toPromise(Event.filter(localService.onDidNotification, notification => notification.type === 'root/sessionSummaryChanged'), disposables);
 
 				localService.dispatchAction(sessionStr, { type: ActionType.SessionIsReadChanged, isRead: true }, 'test-client', 1, AgentHostClientType.EditorWindow);
-				for (let attempt = 0; attempt < 20 && !notifications.some(notification => notification.type === 'root/sessionSummaryChanged'); attempt++) {
-					await timeout(0);
-				}
-				listener.dispose();
-				for (let attempt = 0; id === 'single' && attempt < 20 && await db.getMetadata(AH_META_DEFAULT_CHAT_IS_READ_DB_KEY) !== 'true'; attempt++) {
-					await timeout(0);
-				}
+				const changed = await summaryChanged;
+				// Summary publication precedes the queued default-chat and catalog writes.
+				await localService.whenCatalogReconciliationIdle();
 
-				const changed = notifications.find(notification => notification.type === 'root/sessionSummaryChanged');
 				assert.deepStrictEqual({
 					id,
 					persistedSession: await db.getMetadata(AH_META_IS_READ_DB_KEY),
 					persistedDefault: await db.getMetadata(AH_META_DEFAULT_CHAT_IS_READ_DB_KEY),
-					publishedSessionRead: changed?.type === 'root/sessionSummaryChanged'
-						? !!(changed.changes.status! & SessionStatus.IsRead)
-						: undefined,
-					publishedChats: changed?.type === 'root/sessionSummaryChanged'
-						? changed.changes.chats?.map(chat => chat.status === undefined ? undefined : isSessionStatusRead(chat.status))
-						: undefined,
+					publishedSessionRead: !!(changed.changes.status! & SessionStatus.IsRead),
+					publishedChats: changed.changes.chats?.map(chat => chat.status === undefined ? undefined : isSessionStatusRead(chat.status)),
 				}, {
 					id,
 					persistedSession: expectedSessionRead ? 'true' : '',
