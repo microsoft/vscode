@@ -11,7 +11,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IExtensionGalleryManifestService, IExtensionGalleryManifest, ExtensionGalleryServiceUrlConfigKey, ExtensionGalleryAuthProviderConfigKey, ExtensionGalleryManifestStatus } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { ExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifestService.js';
-import { resolveMarketplaceHeaders } from '../../../../platform/externalServices/common/marketplace.js';
+import { resolveMarketplaceAuthorizationHeaders, resolveMarketplaceHeaders } from '../../../../platform/externalServices/common/marketplace.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ISharedProcessService } from '../../../../platform/ipc/electron-browser/services.js';
@@ -24,6 +24,12 @@ import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IHostService } from '../../host/browser/host.js';
 import { ExtensionGalleryAccountStatus, IExtensionGalleryAccountService } from '../common/extensionGalleryAccount.js';
+
+class MarketplaceAuthRequiredError extends Error {
+	constructor(readonly wwwAuthenticate: string | undefined) {
+		super('Marketplace requires authentication.');
+	}
+}
 
 export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryManifestService implements IExtensionGalleryManifestService {
 
@@ -120,20 +126,13 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 
 	private async handleMarketplaceAccountAccess(configuredServiceUrl: string): Promise<void> {
 		try {
-			const account = await this.galleryAccountService.getAccount();
-			if (!account) {
-				// A transient failure to resolve the account is not a sign-out - Unknown means we could
-				// not tell - so it must not retract a marketplace the user already has.
-				if (this.galleryAccountService.accountStatus === ExtensionGalleryAccountStatus.Unknown
-					&& this.currentStatus === ExtensionGalleryManifestStatus.Available) {
-					return;
-				}
-				this.logService.debug('[Marketplace] Enterprise marketplace configured but user not signed in');
-				this.update(null, ExtensionGalleryManifestStatus.RequiresSignIn);
+			const access = await this.galleryAccountService.resolveMarketplaceAccess(configuredServiceUrl);
+			if (access.status === ExtensionGalleryAccountStatus.Unknown
+				&& this.currentStatus === ExtensionGalleryManifestStatus.Available) {
 				return;
 			}
 
-			switch (this.galleryAccountService.accountStatus) {
+			switch (access.status) {
 				case ExtensionGalleryAccountStatus.Unknown:
 					this.logService.debug('[Marketplace] User signed in but account status is unknown');
 					this.update(null, ExtensionGalleryManifestStatus.RequiresSignIn);
@@ -148,8 +147,7 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 					return;
 				case ExtensionGalleryAccountStatus.Eligible:
 					try {
-
-						const manifest = await this.getExtensionGalleryManifestFromServiceUrl(configuredServiceUrl);
+						const manifest = await this.fetchManifestWithAccess(configuredServiceUrl, access.authorizationRevision);
 						this.update(manifest);
 						this.telemetryService.publicLog2<
 							{},
@@ -158,6 +156,15 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 								comment: 'Reports when a user successfully accesses a custom marketplace';
 							}>('galleryservice:custom:marketplace');
 					} catch (error) {
+						// A marketplace still asking to authenticate is not a verdict about the
+						// account. Send the user back to sign-in, where consent for the marketplace's
+						// resource can be granted, rather than telling them to contact an
+						// administrator about a state they can resolve themselves.
+						if (error instanceof MarketplaceAuthRequiredError) {
+							this.logService.debug('[Marketplace] Marketplace still requires authentication after negotiation');
+							this.update(null, ExtensionGalleryManifestStatus.RequiresSignIn);
+							return;
+						}
 						this.logService.error('[Marketplace] Error fetching manifest from custom marketplace', error);
 						this.update(null, ExtensionGalleryManifestStatus.AccessDenied);
 					}
@@ -166,6 +173,32 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		} catch (error) {
 			this.logService.error('[Marketplace] Error handling marketplace account access', error);
 			this.update(null, ExtensionGalleryManifestStatus.RequiresSignIn);
+		}
+	}
+
+	private async fetchManifestWithAccess(configuredServiceUrl: string, initialAuthorizationRevision: number | undefined): Promise<IExtensionGalleryManifest> {
+		let authorizationRevision = initialAuthorizationRevision;
+		try {
+			try {
+				return await this.getExtensionGalleryManifestFromServiceUrl(configuredServiceUrl);
+			} catch (error) {
+				if (!(error instanceof MarketplaceAuthRequiredError)) {
+					throw error;
+				}
+				this.logService.trace('[Marketplace] Service index requires authentication, negotiating a resource-scoped token');
+
+				const replacementRevision = await this.galleryAccountService.negotiateMarketplaceAccess(configuredServiceUrl, error.wwwAuthenticate);
+				if (replacementRevision === undefined) {
+					throw error;
+				}
+				authorizationRevision = replacementRevision;
+				return await this.getExtensionGalleryManifestFromServiceUrl(configuredServiceUrl);
+			}
+		} catch (error) {
+			if (authorizationRevision !== undefined) {
+				await this.galleryAccountService.clearMarketplaceAuthorization(configuredServiceUrl, authorizationRevision);
+			}
+			throw error;
 		}
 	}
 
@@ -197,8 +230,10 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 
 	private async getExtensionGalleryManifestFromServiceUrl(url: string): Promise<IExtensionGalleryManifest> {
 		const commonHeaders = await this.commonHeadersPromise;
-		const headers = {
+		const authorizationHeaders = await resolveMarketplaceAuthorizationHeaders(url, this.galleryAccountService);
+		const headers: IHeaders = {
 			...commonHeaders,
+			...authorizationHeaders,
 			'Content-Type': 'application/json',
 			'Accept-Encoding': 'gzip',
 		};
@@ -211,6 +246,13 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 				callSite: 'extensionGalleryManifestService.fetchManifest'
 			}, CancellationToken.None);
 
+			// The expected first exchange with a gated marketplace, not a failure.
+			const statusCode = context.res.statusCode;
+			if (statusCode === 401 || statusCode === 403) {
+				const challenge = context.res.headers?.['www-authenticate'];
+				throw new MarketplaceAuthRequiredError(Array.isArray(challenge) ? challenge[0] : challenge);
+			}
+
 			const extensionGalleryManifest = await asJson<IExtensionGalleryManifest>(context);
 
 			if (!extensionGalleryManifest) {
@@ -219,6 +261,9 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 
 			return extensionGalleryManifest;
 		} catch (error) {
+			if (error instanceof MarketplaceAuthRequiredError) {
+				throw error;
+			}
 			this.logService.error('[Marketplace] Error retrieving extension gallery manifest', error);
 			throw error;
 		}

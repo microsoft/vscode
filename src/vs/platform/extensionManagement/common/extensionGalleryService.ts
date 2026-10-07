@@ -24,12 +24,13 @@ import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { asJson, asTextOrError, IRequestService, isClientError, isServerError, isSuccess } from '../../request/common/request.js';
-import { resolveMarketplaceHeaders } from '../../externalServices/common/marketplace.js';
+import { resolveMarketplaceAuthorizationHeaders, resolveMarketplaceHeaders } from '../../externalServices/common/marketplace.js';
 import { IStorageService } from '../../storage/common/storage.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { format2 } from '../../../base/common/strings.js';
 import { ExtensionGalleryResourceType, Flag, getExtensionGalleryManifestResourceUri, IExtensionGalleryManifest, IExtensionGalleryManifestService, ExtensionGalleryManifestStatus } from './extensionGalleryManifest.js';
+import { IExtensionGalleryAuthorizationService } from './extensionGalleryAuthorization.js';
 import { TelemetryTrustedValue } from '../../telemetry/common/telemetryUtils.js';
 
 const CURRENT_TARGET_PLATFORM = isWeb ? TargetPlatform.WEB : getTargetPlatform(platform, arch);
@@ -621,6 +622,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAllowedExtensionsService private readonly allowedExtensionsService: IAllowedExtensionsService,
 		@IExtensionGalleryManifestService private readonly extensionGalleryManifestService: IExtensionGalleryManifestService,
+		@IExtensionGalleryAuthorizationService private readonly extensionGalleryAuthorizationService: IExtensionGalleryAuthorizationService,
 	) {
 		this.extensionsControlUrl = productService.extensionsGallery?.controlUrl;
 		this.unpkgResourceApi = productService.extensionsGallery?.extensionUrlTemplate;
@@ -1420,9 +1422,8 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 			}, 0)
 		});
 
-		const commonHeaders = await this.commonHeadersPromise;
 		const headers = {
-			...commonHeaders,
+			...await this.getRequestHeaders(extensionsQueryApi),
 			'Content-Type': 'application/json',
 			'Accept': 'application/json;api-version=3.0-preview.1',
 			'Accept-Encoding': 'gzip',
@@ -1559,9 +1560,8 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		const stopWatch = new StopWatch();
 
 		try {
-			const commonHeaders = await this.commonHeadersPromise;
 			const headers = {
-				...commonHeaders,
+				...await this.getRequestHeaders(uri.toString(true)),
 				'Content-Type': 'application/json',
 				'Accept': 'application/json;api-version=7.2-preview',
 				'Accept-Encoding': 'gzip',
@@ -1664,8 +1664,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		const url = format2(resource, { publisher, name, version, statTypeName: type });
 
 		const Accept = '*/*;api-version=4.0-preview.1';
-		const commonHeaders = await this.commonHeadersPromise;
-		const headers = { ...commonHeaders, Accept };
+		const headers = { ...await this.getRequestHeaders(url), Accept };
 		try {
 			await this.requestService.request({
 				type: 'POST',
@@ -1854,15 +1853,17 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		return result;
 	}
 
-	private async getAsset(extension: string, asset: IGalleryExtensionAsset, assetType: string, extensionVersion: string, callSite: string, options: Omit<IRequestOptions, 'callSite'> = {}, token: CancellationToken = CancellationToken.None): Promise<IRequestContext> {
+	private async getRequestHeaders(url: string, headers?: IHeaders): Promise<IHeaders> {
 		const commonHeaders = await this.commonHeadersPromise;
-		const baseOptions = { type: 'GET' };
-		const headers = { ...commonHeaders, ...(options.headers || {}) };
-		options = { ...options, ...baseOptions, headers };
+		const authorizationHeaders = await resolveMarketplaceAuthorizationHeaders(url, this.extensionGalleryAuthorizationService);
+		return { ...commonHeaders, ...headers, ...authorizationHeaders };
+	}
 
+	private async getAsset(extension: string, asset: IGalleryExtensionAsset, assetType: string, extensionVersion: string, callSite: string, options: Omit<IRequestOptions, 'callSite'> = {}, token: CancellationToken = CancellationToken.None): Promise<IRequestContext> {
+		options = { ...options, type: 'GET' };
 		const url = asset.uri;
 		const fallbackUrl = asset.fallbackUri;
-		const firstOptions = { ...options, url, timeout: this.getRequestTimeout(), callSite };
+		const firstOptions = { ...options, headers: await this.getRequestHeaders(url, options.headers), url, timeout: this.getRequestTimeout(), callSite };
 
 		let context;
 		try {
@@ -1908,7 +1909,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 				endToEndId: this.getHeaderValue(context?.res.headers, END_END_ID_HEADER_NAME),
 			});
 
-			const fallbackOptions = { ...options, url: fallbackUrl, timeout: this.getRequestTimeout(), callSite: `${callSite}.fallback` };
+			const fallbackOptions = { ...options, headers: await this.getRequestHeaders(fallbackUrl, options.headers), url: fallbackUrl, timeout: this.getRequestTimeout(), callSite: `${callSite}.fallback` };
 			return this.requestService.request(fallbackOptions, token);
 		}
 	}
@@ -1924,9 +1925,11 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 			return { malicious: [], deprecated: {}, search: [], autoUpdate: {} };
 		}
 
+		const authHeader = await resolveMarketplaceAuthorizationHeaders(this.extensionsControlUrl, this.extensionGalleryAuthorizationService);
 		const context = await this.requestService.request({
 			type: 'GET',
 			url: this.extensionsControlUrl,
+			headers: authHeader,
 			timeout: this.getRequestTimeout(),
 			callSite: 'extensionGalleryService.getExtensionsControlManifest'
 		}, CancellationToken.None);
@@ -2010,8 +2013,9 @@ export class ExtensionGalleryService extends AbstractExtensionGalleryService {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IAllowedExtensionsService allowedExtensionsService: IAllowedExtensionsService,
 		@IExtensionGalleryManifestService extensionGalleryManifestService: IExtensionGalleryManifestService,
+		@IExtensionGalleryAuthorizationService extensionGalleryAuthorizationService: IExtensionGalleryAuthorizationService,
 	) {
-		super(storageService, requestService, logService, environmentService, telemetryService, fileService, productService, configurationService, allowedExtensionsService, extensionGalleryManifestService);
+		super(storageService, requestService, logService, environmentService, telemetryService, fileService, productService, configurationService, allowedExtensionsService, extensionGalleryManifestService, extensionGalleryAuthorizationService);
 	}
 }
 
@@ -2027,7 +2031,8 @@ export class ExtensionGalleryServiceWithNoStorageService extends AbstractExtensi
 		@IConfigurationService configurationService: IConfigurationService,
 		@IAllowedExtensionsService allowedExtensionsService: IAllowedExtensionsService,
 		@IExtensionGalleryManifestService extensionGalleryManifestService: IExtensionGalleryManifestService,
+		@IExtensionGalleryAuthorizationService extensionGalleryAuthorizationService: IExtensionGalleryAuthorizationService,
 	) {
-		super(undefined, requestService, logService, environmentService, telemetryService, fileService, productService, configurationService, allowedExtensionsService, extensionGalleryManifestService);
+		super(undefined, requestService, logService, environmentService, telemetryService, fileService, productService, configurationService, allowedExtensionsService, extensionGalleryManifestService, extensionGalleryAuthorizationService);
 	}
 }
