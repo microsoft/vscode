@@ -1805,7 +1805,7 @@ per-word capitalization does not survive translation. */
 .ai-customization-management-editor .marketplace-detail-query-list {
 	display: grid;
 	grid-template-columns: repeat(3, minmax(0, 1fr));
-	gap: var(--vscode-spacing-size40);
+	gap: var(--vscode-spacing-size80);
 	margin: 0;
 	padding: var(--vscode-spacing-size60);
 	border-radius: var(--vscode-cornerRadius-medium);
