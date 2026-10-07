@@ -6773,7 +6773,8 @@ export class CodexAgent extends Disposable implements IAgent {
 	private async _refreshChatHistory(chat: URI, watch: CodexChatHistory): Promise<void> {
 		const sessionUri = this._resolveConversationSession(chat);
 		const session = sessionUri && this._sessions.get(AgentSession.id(sessionUri));
-		if (!session || session.currentTurnId || session.disposed || this._chatHistoryWatches.get(chat.toString()) !== watch || this._isShuttingDown) {
+		// Reading an unused draft would start the app-server and could download the SDK.
+		if (!session || session.threadId === undefined || session.currentTurnId || session.disposed || this._chatHistoryWatches.get(chat.toString()) !== watch || this._isShuttingDown) {
 			return;
 		}
 		const connectionGeneration = this._connectionGeneration;
