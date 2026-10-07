@@ -139,3 +139,16 @@ Consequently, third-party paste providers, provider selection/yielding, and
 the code editor's "Paste As..." flow are not exercised. Full paste-provider
 parity requires a workbench bridge to that pipeline; there is currently no
 public execute-paste-provider API.
+
+### Rich editor rendering modes
+
+The lock/pencil toggle controls both editing permission and presentation:
+
+- **Editing:** uses editing presentation, preserving source line breaks, blank
+  lines, repeated spaces, and tabs while keeping rich formatting.
+- **Locked:** uses reading presentation with conventional Markdown whitespace.
+
+The remembered locked/editable state determines presentation when opening an
+editor. Presentation is not selected independently by the experimental
+source-editing preference. Switching modes does not modify the document or
+change the Markdown-syntax reveal policy.

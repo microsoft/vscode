@@ -312,6 +312,7 @@ class Editor extends Disposable {
 
 		const view = this._register(new EditorView(model, {
 			classNames: ['md-theme-vscode-default'],
+			presentation: model.readonlyMode.get() ? 'reading' : 'editing',
 			syntaxHighlighter: this.#syntaxHighlighter,
 			linkPresentationProvider: this.#linkPresentationProvider,
 			embeddedCodeEditorFactory,
@@ -486,6 +487,7 @@ class Editor extends Disposable {
 		let firstReadonly = true;
 		this._register(autorun((reader) => {
 			const isReadonly = reader.readObservable(this.model.readonlyMode);
+			this.model.presentation.set(isReadonly ? 'reading' : 'editing', undefined);
 			if (!firstReadonly) {
 				this.#send('setReadonly', this.#host.setReadonly({ readonly: isReadonly }));
 			}
