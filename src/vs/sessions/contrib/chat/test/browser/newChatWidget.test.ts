@@ -2245,7 +2245,9 @@ suite('NewChatWidget', () => {
 			const selection = disposables.add(new SessionComparisonModelSelection(derived(reader => !resolving.read(reader)), resolving));
 			selection.start();
 			selection.select('model');
-			selection.setCount(runs);
+			for (let i = 1; i < runs; i++) {
+				selection.addVariant('model', { testAttempt: i }, `Attempt ${i + 1}`);
+			}
 			selection.next();
 			selection.select('judge');
 			selection.next();

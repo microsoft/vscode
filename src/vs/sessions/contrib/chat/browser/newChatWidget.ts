@@ -63,6 +63,7 @@ import { IChatPetService } from '../../../../workbench/contrib/chat/browser/chat
 import { IChatTipService } from '../../../../workbench/contrib/chat/browser/chatTipService.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
+import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -226,6 +227,7 @@ export class NewChatWidget extends Disposable {
 		@ISessionComparisonService private readonly sessionComparisonService: ISessionComparisonService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 	) {
 		super();
 		this._newSessionAttachContextMenu = this._register(menuService.createMenu(Menus.NewSessionAttachContext, this.contextKeyService));
@@ -364,7 +366,7 @@ export class NewChatWidget extends Disposable {
 			session?.workspace.read(reader);
 			session?.loading.read(reader);
 			return pickerSetting.read(reader) && !this._isQuickChatComposer.read(reader) && this._shouldShowComparisonAction();
-		}), comparisonConfigResolving));
+		}), comparisonConfigResolving, modelId => this.languageModelsService.lookupLanguageModel(modelId)?.name));
 		const canSendRequest = derived(reader => {
 			const session = this._session.read(reader);
 			if (!session) {
@@ -1685,15 +1687,21 @@ export class NewChatWidget extends Disposable {
 			if (!permission || permission.locked) {
 				throw new Error(localize('comparisonPicker.permissionsUnavailable', "The current permissions are unavailable for comparison. Update the draft permissions and try again."));
 			}
-			const resolveHarness = (modelId: string): ISessionComparisonHarness => {
+			const resolveHarness = (modelId: string, configurationOverride?: Readonly<Record<string, string | number | boolean | null>>): ISessionComparisonHarness => {
 				const resolution = provider.getModelsSnapshotForCreation?.(workspace, session.sessionType, modelId).desiredModelResolution;
 				if (resolution?.kind !== 'available') {
 					throw new Error(localize('comparisonPicker.modelUnavailable', "A selected comparison model is no longer available. Update the model picker selection."));
 				}
-				const modelConfiguration: Record<string, string | number | boolean | null> = {};
-				for (const [key, value] of Object.entries(provider.getAutomationModelConfiguration?.(session.sessionId)?.getModelConfiguration(resolution.model.identifier) ?? {})) {
-					if (value === null || typeof value === 'string' || typeof value === 'boolean' || typeof value === 'number' && Number.isFinite(value)) {
-						modelConfiguration[key] = value;
+				let modelConfiguration: Record<string, string | number | boolean | null> = {};
+				if (configurationOverride) {
+					// A variant attempt (e.g. this model again at another thinking effort): run at
+					// exactly the configuration chosen for it, not the model's current global default.
+					modelConfiguration = { ...configurationOverride };
+				} else {
+					for (const [key, value] of Object.entries(provider.getAutomationModelConfiguration?.(session.sessionId)?.getModelConfiguration(resolution.model.identifier) ?? {})) {
+						if (value === null || typeof value === 'string' || typeof value === 'boolean' || typeof value === 'number' && Number.isFinite(value)) {
+							modelConfiguration[key] = value;
+						}
 					}
 				}
 				return {
@@ -1714,7 +1722,7 @@ export class NewChatWidget extends Disposable {
 				workspace,
 				prompt: request,
 				attachedContext: requestContext.size ? [...requestContext.values()] : undefined,
-				attempts: this._comparisonSelection.attemptModelIds.get().map(modelId => ({ id: generateUuid(), harness: resolveHarness(modelId) })),
+				attempts: this._comparisonSelection.attempts.get().map(attempt => ({ id: generateUuid(), harness: resolveHarness(attempt.modelId, attempt.configuration) })),
 				judgeHarness: judgeModelId ? resolveHarness(judgeModelId) : undefined,
 				synthesisHarness: synthesisModelId ? resolveHarness(synthesisModelId) : undefined,
 				branch,

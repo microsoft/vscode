@@ -6,23 +6,106 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
-import { IModelPickerWorkflow, IModelPickerWorkflowState } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerWorkflow.js';
-import { SESSION_COMPARISON_MAX_ATTEMPTS } from '../../../services/sessions/common/sessionComparison.js';
+import { IModelPickerWorkflow, IModelPickerWorkflowState, IModelPickerWorkflowVariant } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerWorkflow.js';
+import { SESSION_COMPARISON_MAX_ATTEMPTS, SESSION_COMPARISON_MIN_ATTEMPTS } from '../../../services/sessions/common/sessionComparison.js';
 
 type ComparisonStep = 'attempts' | 'judge' | 'synthesizer';
 
 interface IComparisonModelSelection {
 	readonly models: readonly string[];
 	readonly repeatCount: number;
+	/** Extra attempts of an already-selected model at another configuration, keyed by model id. */
+	readonly variants: Readonly<Record<string, readonly IModelPickerWorkflowVariant[]>>;
+	/** The selected model's effective base configuration when its variants were last reconciled. */
+	readonly baseConfigurations?: Readonly<Record<string, IModelPickerWorkflowVariant['configuration']>>;
 	readonly judge?: string;
 	readonly synthesizer?: string;
 }
 
-function getAttemptModelIds(selection: IComparisonModelSelection | undefined): readonly string[] {
+/** One resolved attempt: a selected model, and its configuration override when it is a variant. */
+export interface IComparisonAttempt {
+	readonly modelId: string;
+	readonly configuration?: Readonly<Record<string, string | number | boolean | null>>;
+	/** The variant's display label, e.g. "Max", when this attempt is a variant of its model. */
+	readonly variantLabel?: string;
+}
+
+function configurationsEqual(
+	left: IModelPickerWorkflowVariant['configuration'],
+	right: IModelPickerWorkflowVariant['configuration'],
+): boolean {
+	const leftKeys = Object.keys(left);
+	return leftKeys.length === Object.keys(right).length && leftKeys.every(key => left[key] === right[key]);
+}
+
+function getDistinctVariants(selection: IComparisonModelSelection, modelId: string): readonly IModelPickerWorkflowVariant[] {
+	const baseConfiguration = selection.baseConfigurations?.[modelId];
+	const variants = selection.variants[modelId] ?? [];
+	return variants.filter((variant, index) =>
+		(!baseConfiguration || !configurationsEqual(variant.configuration, baseConfiguration))
+		&& variants.findIndex(candidate => configurationsEqual(candidate.configuration, variant.configuration)) === index
+	);
+}
+
+function normalizeSelectionVariants(selection: IComparisonModelSelection): IComparisonModelSelection {
+	const variants: Record<string, readonly IModelPickerWorkflowVariant[]> = {};
+	for (const modelId of selection.models) {
+		const distinct = getDistinctVariants(selection, modelId);
+		if (distinct.length > 0) {
+			variants[modelId] = distinct;
+		}
+	}
+	return { ...selection, variants };
+}
+
+/**
+ * How many real, distinct attempts are configured: one per selected model, plus one per
+ * variant. Unlike {@link getAttempts}, this never applies the legacy single-model
+ * repeat-count fallback, so checking exactly one model (with no variants) counts as one
+ * attempt, not the default repeat count, for Done/Next gating and the footer status.
+ */
+function getAttemptCount(selection: IComparisonModelSelection | undefined): number {
+	if (!selection) {
+		return 0;
+	}
+	return selection.models.reduce((sum, modelId) => sum + 1 + getDistinctVariants(selection, modelId).length, 0);
+}
+
+function getAttempts(selection: IComparisonModelSelection | undefined): readonly IComparisonAttempt[] {
 	if (!selection) {
 		return [];
 	}
-	return selection.models.length === 1 ? Array<string>(selection.repeatCount).fill(selection.models[0]) : selection.models;
+	// Legacy path, preserved for existing single-model repeat-count callers: a lone selected
+	// model with no variants runs repeatCount times at its one configuration.
+	if (selection.models.length === 1 && getDistinctVariants(selection, selection.models[0]).length === 0) {
+		return Array.from({ length: selection.repeatCount }, () => ({ modelId: selection.models[0] }));
+	}
+	return selection.models.flatMap(modelId => [
+		{ modelId },
+		...getDistinctVariants(selection, modelId).map(variant => ({ modelId, configuration: variant.configuration, variantLabel: variant.label })),
+	]);
+}
+
+/** The composer pill text: the attempt models by name, or a count when names are not resolvable. */
+function getAttemptsSummaryText(attempts: readonly IComparisonAttempt[], getModelLabel?: (modelId: string) => string | undefined): string {
+	const labels = getModelLabel && attempts.map(attempt => {
+		const label = getModelLabel(attempt.modelId);
+		return label && (attempt.variantLabel ? `${label} ${attempt.variantLabel}` : label);
+	});
+	return labels?.every((label): label is string => !!label)
+		? labels.join(', ')
+		: localize('comparisonPicker.summary', "{0} Attempts", attempts.length);
+}
+
+/** How many models are selected, flagged when there are more than a comparison can run. */
+function getAttemptsStatus(count: number): { readonly text: string; readonly warning?: boolean } | undefined {
+	if (count === 0) {
+		return undefined;
+	}
+	if (count > SESSION_COMPARISON_MAX_ATTEMPTS) {
+		return { text: localize('comparisonPicker.selectedOverLimit', "{0} selected · {1} max", count, SESSION_COMPARISON_MAX_ATTEMPTS), warning: true };
+	}
+	return { text: localize('comparisonPicker.selectedCount', "{0} selected", count) };
 }
 
 export class SessionComparisonModelSelection extends Disposable implements IModelPickerWorkflow {
@@ -33,12 +116,15 @@ export class SessionComparisonModelSelection extends Disposable implements IMode
 	readonly label = localize('comparisonPicker.compare', "Compare Models");
 	readonly enabled = derived(this, reader => !!this._committed.read(reader));
 	readonly configured = this.enabled;
-	readonly attemptModelIds = derived(this, reader => getAttemptModelIds(this._committed.read(reader)));
+	readonly attempts = derived(this, reader => getAttempts(this._committed.read(reader)));
+	readonly attemptModelIds = derived(this, reader => this.attempts.read(reader).map(attempt => attempt.modelId));
 	readonly judgeModelId = derived(this, reader => this._committed.read(reader)?.judge);
 	readonly synthesizerModelId = derived(this, reader => this._committed.read(reader)?.synthesizer);
 	readonly summary = derived(this, reader => this.enabled.read(reader)
-		? localize('comparisonPicker.summary', "{0} Attempts", this.attemptModelIds.read(reader).length)
+		? getAttemptsSummaryText(this.attempts.read(reader), this._getModelLabel)
 		: undefined);
+	/** The composer shows each attempt's own icon instead of the joined name list. */
+	readonly summaryModelIds = derived(this, reader => this.enabled.read(reader) ? this.attemptModelIds.read(reader) : undefined);
 	readonly state = derived<IModelPickerWorkflowState | undefined>(this, reader => {
 		const draft = this._draft.read(reader);
 		if (!draft || !this.available.read(reader)) {
@@ -46,31 +132,34 @@ export class SessionComparisonModelSelection extends Disposable implements IMode
 		}
 		const step = this._step.read(reader);
 		const { models, judge, synthesizer } = draft;
-		const valid = models.length > 0;
+		// Any number of models can be checked, but every step can only be continued or finished
+		// with 2 to 10 total attempts (a model with variants contributes more than one).
+		const attemptCount = getAttemptCount(draft);
+		const valid = attemptCount >= SESSION_COMPARISON_MIN_ATTEMPTS && attemptCount <= SESSION_COMPARISON_MAX_ATTEMPTS;
 		return {
 			title: step === 'attempts' ? localize('comparisonPicker.attempts', "Attempts")
 				: step === 'judge' ? localize('comparisonPicker.judge', "Judge")
 					: localize('comparisonPicker.synthesizer', "Synthesizer"),
-			description: step === 'attempts' ? localize('comparisonPicker.attemptsDescription', "Choose 2 to 10 models, or run one model 2 to 10 times.")
-				: step === 'judge' ? localize('comparisonPicker.judgeDescription', "Optionally choose a model to review the attempts and recommend a winner. Leave unselected to run attempts only.")
-					: localize('comparisonPicker.synthesizerDescription', "Optionally choose a model to combine the best parts after review. Synthesis starts only when you request it."),
-			summary: localize('comparisonPicker.summary', "{0} Attempts", getAttemptModelIds(draft).length),
+			description: step === 'attempts' ? localize('comparisonPicker.attemptsDescription', "Select two or more models to run one prompt in parallel. Compare results or have them judged and combined.")
+				: step === 'judge' ? localize('comparisonPicker.judgeDescription', "Select a model to review the attempts and pick a winner. Skip this step to compare them yourself.")
+					: localize('comparisonPicker.synthesizerDescription', "Select a model to combine the best parts of each attempt. Synthesis starts only when you ask."),
+			summary: getAttemptsSummaryText(getAttempts(draft), this._getModelLabel),
 			selectedModelIds: step === 'attempts' ? models : step === 'judge' ? judge ? [judge] : [] : synthesizer ? [synthesizer] : [],
 			multiple: step === 'attempts',
-			maxSelections: step === 'attempts' ? SESSION_COMPARISON_MAX_ATTEMPTS : 1,
+			maxSelections: step === 'attempts' ? Number.POSITIVE_INFINITY : 1,
 			canGoBack: step !== 'attempts',
 			canGoNext: valid && (step === 'attempts' || step === 'judge' && judge !== undefined),
-			canFinish: valid && (step === 'synthesizer' || step === 'judge' && judge === undefined),
-			count: step === 'attempts' && models.length === 1 ? {
-				label: localize('comparisonPicker.runs', "Number of Runs"),
-				value: draft.repeatCount,
-				min: 2,
-				max: SESSION_COMPARISON_MAX_ATTEMPTS,
-			} : undefined,
+			canFinish: valid,
+			hasNextStep: step !== 'synthesizer',
+			status: step === 'attempts' ? getAttemptsStatus(attemptCount) : undefined,
 		};
 	});
 
-	constructor(readonly available: IObservable<boolean>, configurationResolving: IObservable<boolean> = constObservable(false)) {
+	constructor(
+		readonly available: IObservable<boolean>,
+		configurationResolving: IObservable<boolean> = constObservable(false),
+		private readonly _getModelLabel?: (modelId: string) => string | undefined,
+	) {
 		super();
 		this._register(autorun(reader => {
 			if (!available.read(reader) && !configurationResolving.read(reader)) {
@@ -84,7 +173,7 @@ export class SessionComparisonModelSelection extends Disposable implements IMode
 			throw new Error('Model comparison is not available.');
 		}
 		transaction(tx => {
-			this._draft.set(this._committed.get() ?? { models: [], repeatCount: 2 }, tx);
+			this._draft.set(normalizeSelectionVariants(this._committed.get() ?? { models: [], repeatCount: 2, variants: {}, baseConfigurations: {} }), tx);
 			this._step.set('attempts', tx);
 		});
 	}
@@ -118,8 +207,11 @@ export class SessionComparisonModelSelection extends Disposable implements IMode
 			case 'attempts': {
 				const models = draft.models;
 				if (models.includes(modelId)) {
-					this._draft.set({ ...draft, models: models.filter(id => id !== modelId) }, undefined);
-				} else if (models.length < SESSION_COMPARISON_MAX_ATTEMPTS) {
+					// Deselecting a model discards its queued variants with it.
+					const { [modelId]: _removed, ...variants } = draft.variants;
+					const { [modelId]: _removedBase, ...baseConfigurations } = draft.baseConfigurations ?? {};
+					this._draft.set({ ...draft, models: models.filter(id => id !== modelId), variants, baseConfigurations }, undefined);
+				} else {
 					this._draft.set({ ...draft, models: [...models, modelId] }, undefined);
 				}
 				break;
@@ -133,6 +225,48 @@ export class SessionComparisonModelSelection extends Disposable implements IMode
 				this._draft.set({ ...draft, synthesizer: draft.synthesizer === modelId ? undefined : modelId }, undefined);
 				break;
 		}
+	}
+
+	getVariants(modelId: string): readonly IModelPickerWorkflowVariant[] {
+		const draft = this._draft.get();
+		return draft?.models.includes(modelId) ? getDistinctVariants(draft, modelId) : [];
+	}
+
+	addVariant(
+		modelId: string,
+		configuration: Readonly<Record<string, string | number | boolean | null>>,
+		label: string,
+		baseConfiguration?: Readonly<Record<string, string | number | boolean | null>>,
+	): void {
+		const draft = this._getDraft();
+		if (!draft.models.includes(modelId)) {
+			throw new Error('Select the model before adding another attempt of it.');
+		}
+		const updated = {
+			...draft,
+			variants: { ...draft.variants, [modelId]: [...(draft.variants[modelId] ?? []), { configuration, label }] },
+			baseConfigurations: baseConfiguration
+				? { ...draft.baseConfigurations, [modelId]: baseConfiguration }
+				: draft.baseConfigurations,
+		};
+		this._draft.set(normalizeSelectionVariants(updated), undefined);
+	}
+
+	removeVariant(modelId: string, index: number): void {
+		const draft = this._getDraft();
+		const variants = (draft.variants[modelId] ?? []).filter((_, candidate) => candidate !== index);
+		this._draft.set({ ...draft, variants: { ...draft.variants, [modelId]: variants } }, undefined);
+	}
+
+	reconcileVariants(modelId: string, baseConfiguration: Readonly<Record<string, string | number | boolean | null>>): void {
+		const draft = this._getDraft();
+		if (!draft.models.includes(modelId)) {
+			return;
+		}
+		this._draft.set(normalizeSelectionVariants({
+			...draft,
+			baseConfigurations: { ...draft.baseConfigurations, [modelId]: baseConfiguration },
+		}), undefined);
 	}
 
 	setCount(count: number): void {
@@ -158,7 +292,7 @@ export class SessionComparisonModelSelection extends Disposable implements IMode
 			throw new Error('The comparison is not ready.');
 		}
 		transaction(tx => {
-			this._committed.set(this._getDraft(), tx);
+			this._committed.set(normalizeSelectionVariants(this._getDraft()), tx);
 			this._draft.set(undefined, tx);
 			this._step.set('attempts', tx);
 		});
@@ -177,8 +311,14 @@ export class SessionComparisonModelSelection extends Disposable implements IMode
 			const models = draft.models.filter(id => availableIds.has(id));
 			const judge = draft.judge && availableIds.has(draft.judge) ? draft.judge : undefined;
 			const synthesizer = judge && draft.synthesizer && availableIds.has(draft.synthesizer) ? draft.synthesizer : undefined;
+			const variants = models.length !== draft.models.length
+				? Object.fromEntries(Object.entries(draft.variants).filter(([modelId]) => models.includes(modelId)))
+				: draft.variants;
+			const baseConfigurations = models.length !== draft.models.length
+				? Object.fromEntries(Object.entries(draft.baseConfigurations ?? {}).filter(([modelId]) => models.includes(modelId)))
+				: draft.baseConfigurations;
 			if (models.length !== draft.models.length || judge !== draft.judge || synthesizer !== draft.synthesizer) {
-				this._draft.set({ ...draft, models, judge, synthesizer }, tx);
+				this._draft.set({ ...draft, models, judge, synthesizer, variants, baseConfigurations }, tx);
 				if (models.length !== draft.models.length) {
 					this._step.set('attempts', tx);
 				} else if (judge !== draft.judge) {

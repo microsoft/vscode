@@ -3,14 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* The verdict is docked beside the Judge chat input, so it shares the input's surface tier. */
 .session-comparison-result {
 	box-sizing: border-box;
-	margin: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
-	padding: var(--vscode-spacing-size120);
-	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
-	border-radius: var(--vscode-cornerRadius-medium);
-	background: var(--vscode-editorWidget-background);
-	color: var(--vscode-editorWidget-foreground);
+	container-type: inline-size;
+	/* Horizontal margin is 0 so this stays flush with the chat input beside it;
+		both are inset only by their shared parent's own padding. */
+	margin: var(--vscode-spacing-size80) 0;
+	overflow: hidden;
+	border: var(--vscode-strokeThickness) solid var(--vscode-agentsChatInput-border);
+	border-radius: var(--vscode-cornerRadius-large);
+	background-color: var(--vscode-agentsChatInput-background);
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-fontSize-body1);
+	line-height: 18px;
 }
 
 .session-comparison-result:focus-visible {
@@ -18,77 +24,384 @@
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
-.session-comparison-result-title {
+.session-comparison-result h2,
+.session-comparison-result h3,
+.session-comparison-result p,
+.session-comparison-result ul,
+.session-comparison-result dl,
+.session-comparison-result dd {
 	margin: 0;
-	font-size: var(--vscode-fontSize-heading3);
-	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
-.session-comparison-result-attempt-link {
-	color: var(--vscode-textLink-foreground);
-	text-decoration: none;
-}
-
-.session-comparison-result-attempt-link:hover,
-.session-comparison-result-attempt-link:focus-visible {
-	color: var(--vscode-textLink-activeForeground);
-	text-decoration: underline;
-}
-
-.session-comparison-result-attempt-link:focus-visible {
-	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: var(--vscode-spacing-size20);
-	border-radius: var(--vscode-cornerRadius-small);
-}
-
-.session-comparison-result-explanation {
-	margin: var(--vscode-spacing-size80) 0 0;
-}
-
-.session-comparison-result-rationale {
+/* Header: the winner and the Judge's one-line explanation, with the next actions. */
+.session-comparison-result-header {
 	display: flex;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size160);
+	padding: var(--vscode-spacing-size120) var(--vscode-spacing-size120) var(--vscode-spacing-size120) var(--vscode-spacing-size160);
+}
+
+.session-comparison-result-heading {
+	display: flex;
+	flex: 1 1 auto;
 	flex-direction: column;
-	gap: var(--vscode-spacing-size120);
+	gap: var(--vscode-spacing-size20);
+	min-width: 0;
 }
 
-.session-comparison-result-rationale-section {
-	display: grid;
-	grid-template-columns: max-content minmax(0, 1fr);
-	gap: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
-	margin: 0;
-	text-align: left;
+.session-comparison-result-title {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-regular);
+	line-height: 22px;
 }
 
-.session-comparison-result-rationale-section.primary {
-	padding: var(--vscode-spacing-size120);
-	border-radius: var(--vscode-cornerRadius-medium);
-	background-color: var(--vscode-textBlockQuote-background);
+.session-comparison-result-title-text {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
-.session-comparison-result-rationale-section.primary .session-comparison-result-rationale-point {
+.session-comparison-result-title-model {
 	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
-.session-comparison-result-rationale-section.supporting {
+/* The title has no leading chip anymore, so the summary lines up with its text directly. */
+.session-comparison-result-summary {
 	color: var(--vscode-descriptionForeground);
 }
 
-.session-comparison-result-rationale-category {
-	font-weight: var(--vscode-fontWeight-semiBold);
+.session-comparison-result-actions {
+	display: flex;
+	flex: 0 0 auto;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	padding-top: var(--vscode-spacing-size20);
 }
 
-.session-comparison-result-rationale-section dd {
+.session-comparison-result-actions > .monaco-button,
+.session-comparison-result-actions > .monaco-button-dropdown {
+	flex: 0 0 auto;
+	width: auto;
+}
+
+.session-comparison-result-actions > .monaco-button-dropdown > .monaco-button.monaco-text-button,
+.session-comparison-result-actions > .monaco-button {
+	width: auto;
+	white-space: nowrap;
+}
+
+.session-comparison-result-tag {
+	display: inline-flex;
+	flex: 0 0 auto;
+	align-items: center;
+	height: 18px;
+	padding: 0 var(--vscode-spacing-size60);
+	border-radius: var(--vscode-cornerRadius-small);
+	background-color: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label2);
+	line-height: 18px;
+	white-space: nowrap;
+}
+
+.session-comparison-result-tag.recommended {
+	background-color: color-mix(in srgb, var(--vscode-textLink-foreground) 12%, transparent);
+	color: var(--vscode-textLink-foreground);
+}
+
+/* Scorecard: one grid template keeps every column aligned across the header and the rows. */
+.session-comparison-scorecard-columns,
+.session-comparison-scorecard-line {
+	display: grid;
+	grid-template-columns: 16px minmax(0, 1fr) 84px 116px 116px 24px;
+	column-gap: var(--vscode-spacing-size120);
+	align-items: center;
+	padding: 0 var(--vscode-spacing-size80) 0 var(--vscode-spacing-size120);
+}
+
+.session-comparison-scorecard-columns {
+	height: 28px;
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-agentsChatInput-border);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label2);
+}
+
+.session-comparison-scorecard-checks-header:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-strokeThickness);
+}
+
+.session-comparison-scorecard-rows {
+	padding: 0;
+	list-style: none;
+}
+
+/* Rows read as a clean list: no line between them, just a tint while hovered or expanded. */
+.session-comparison-scorecard-row.expanded {
+	background-color: color-mix(in srgb, var(--vscode-list-hoverBackground) 50%, transparent);
+}
+
+.session-comparison-scorecard-line:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.session-comparison-scorecard-toggle {
+	display: grid;
+	grid-column: 1 / 6;
+	grid-template-columns: subgrid;
+	align-items: center;
 	min-width: 0;
+	height: 36px;
 	margin: 0;
+	padding: 0;
+	border: none;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
 }
 
-.session-comparison-result-rationale-section ul {
-	margin: 0;
-	padding-left: var(--vscode-spacing-size200);
+.session-comparison-scorecard-toggle:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
-.session-comparison-result-rationale-point {
+.session-comparison-result .session-comparison-scorecard-chevron {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-codiconFontSize-compact);
+	transition: transform 120ms ease-out;
+}
+
+.session-comparison-scorecard-row.expanded .session-comparison-scorecard-chevron {
+	transform: rotate(90deg);
+}
+
+.session-comparison-scorecard-identity {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
 	min-width: 0;
+}
+
+.session-comparison-scorecard-model {
+	flex: 0 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.session-comparison-scorecard-configuration {
+	flex: 0 0 auto;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+	white-space: nowrap;
+}
+
+.session-comparison-scorecard-checks {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+}
+
+.session-comparison-result .codicon.session-comparison-check {
+	font-size: var(--vscode-codiconFontSize-compact);
+	line-height: 1;
+}
+
+.session-comparison-result .session-comparison-check.passed {
+	color: var(--vscode-charts-green);
+}
+
+.session-comparison-result .session-comparison-check.failed {
+	color: var(--vscode-errorForeground);
+}
+
+.session-comparison-result .session-comparison-check.not-run,
+.session-comparison-result .session-comparison-check.unknown {
+	color: var(--vscode-descriptionForeground);
+}
+
+.session-comparison-result .session-comparison-check.not-applicable {
+	color: var(--vscode-disabledForeground);
+}
+
+/* Shown in place of the four check icons when every attempt is uninformatively the same. */
+.session-comparison-check-summary {
+	color: var(--vscode-disabledForeground);
+}
+
+.session-comparison-scorecard-metric {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+	font-variant-numeric: tabular-nums;
+}
+
+.session-comparison-scorecard-metric-value {
+	flex: 0 0 auto;
+	min-width: 48px;
+}
+
+.session-comparison-scorecard-metric.unavailable {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+/* A thin neutral meter compares time or tokens without implying good or bad. */
+.session-comparison-meter {
+	position: relative;
+	flex: 0 0 40px;
+	height: 4px;
+	overflow: hidden;
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
+}
+
+.session-comparison-meter-fill {
+	position: absolute;
+	inset: 0 auto 0 0;
+	border-radius: inherit;
+	background-color: color-mix(in srgb, var(--vscode-foreground) 40%, transparent);
+}
+
+/* Opening an attempt is a secondary path, revealed with the row. */
+.session-comparison-scorecard-open {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	margin: 0;
+	padding: 0;
+	border: none;
+	border-radius: var(--vscode-cornerRadius-small);
+	background: transparent;
+	color: var(--vscode-icon-foreground);
+	cursor: pointer;
+	opacity: 0;
+}
+
+.session-comparison-scorecard-line:hover .session-comparison-scorecard-open,
+.session-comparison-scorecard-open:focus-visible {
+	opacity: 1;
+}
+
+.session-comparison-scorecard-open:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.session-comparison-scorecard-open:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+/* Rings are for keyboard focus only; the workbench's generic focus rule also rings mouse focus. */
+.monaco-workbench .session-comparison-result:focus:not(:focus-visible),
+.monaco-workbench .session-comparison-result .session-comparison-scorecard-toggle:focus:not(:focus-visible),
+.monaco-workbench .session-comparison-result .session-comparison-scorecard-open:focus:not(:focus-visible) {
+	outline: none;
+}
+
+/* Expanded details form one simple column: the narrative, then the checks. */
+.session-comparison-scorecard-detail {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size120);
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size160) var(--vscode-spacing-size160) calc(16px + 2 * var(--vscode-spacing-size120));
+}
+
+.session-comparison-scorecard-detail[hidden] {
+	display: none;
+}
+
+.session-comparison-scorecard-story {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size60);
+	min-width: 0;
+}
+
+.session-comparison-result-eyebrow {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-regular);
+	line-height: 16px;
+}
+
+.session-comparison-scorecard-story > .session-comparison-result-eyebrow:not(:first-child) {
+	margin-top: var(--vscode-spacing-size80);
+}
+
+/* The winner's "Why it won" title is the detail's own direct heading, not nested in the story. */
+.session-comparison-scorecard-detail > .session-comparison-result-eyebrow {
+	margin-bottom: var(--vscode-spacing-size80);
+}
+
+.session-comparison-result-bullets {
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size40);
+	padding: 0;
+	list-style: none;
+}
+
+.session-comparison-result-bullets > li {
+	position: relative;
+	padding-left: var(--vscode-spacing-size120);
+}
+
+.session-comparison-result-bullets > li::before {
+	content: '';
+	position: absolute;
+	top: 7px;
+	left: var(--vscode-spacing-size20);
+	width: 4px;
+	height: 4px;
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: var(--vscode-descriptionForeground);
+}
+
+.session-comparison-scorecard-note {
+	color: var(--vscode-descriptionForeground);
+}
+
+.session-comparison-result-rationale {
+	display: grid;
+	grid-template-columns: max-content minmax(0, 1fr);
+	gap: var(--vscode-spacing-size80) var(--vscode-spacing-size160);
+}
+
+.session-comparison-result-rationale dt {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+	line-height: 18px;
+}
+
+.session-comparison-result-rationale dd {
+	min-width: 0;
+}
+
+/* The four checks as one compact wrapping row, shared by every expanded attempt. */
+.session-comparison-scorecard-checks-strip {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size60) var(--vscode-spacing-size160);
+}
+
+.session-comparison-scorecard-check-item {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+	line-height: 16px;
 }
 
 .session-comparison-result-markdown p {
@@ -103,127 +416,61 @@
 	font-size: var(--vscode-fontSize-label1);
 }
 
-.session-comparison-result-subtitle {
-	margin: var(--vscode-spacing-size120) 0 var(--vscode-spacing-size60);
-	font-size: var(--vscode-fontSize-body1);
-	font-weight: var(--vscode-fontWeight-semiBold);
-}
-
-.session-comparison-result-strengths {
-	width: 100%;
-	border-collapse: collapse;
-}
-
-.session-comparison-result-strengths th,
-.session-comparison-result-strengths td {
-	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
-	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
-	text-align: left;
-	vertical-align: top;
-}
-
-.session-comparison-result-strengths th:first-child {
-	width: 30%;
-}
-
-.session-comparison-result-metrics {
-	margin-top: var(--vscode-spacing-size120);
-}
-
-.session-comparison-result-metrics-summary {
-	cursor: pointer;
-	color: var(--vscode-descriptionForeground);
-	font-weight: var(--vscode-fontWeight-semiBold);
-}
-
-.session-comparison-result-metrics-summary:focus-visible {
-	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: var(--vscode-spacing-size20);
-	border-radius: var(--vscode-cornerRadius-small);
-}
-
-.session-comparison-result-metrics-description {
-	margin: var(--vscode-spacing-size80) 0;
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-fontSize-body2);
-}
-
-.session-comparison-result-metrics-scroll {
-	overflow: auto;
-	overscroll-behavior: contain;
-}
-
-.session-comparison-result-metrics-table {
-	width: 100%;
-	border-collapse: collapse;
-}
-
-.session-comparison-result-metrics-table th,
-.session-comparison-result-metrics-table td {
-	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
-	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
-	text-align: left;
-	white-space: nowrap;
-}
-
-.session-comparison-result-metric-winner {
-	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size40);
-	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
-	border-radius: var(--vscode-cornerRadius-circle);
-	background-color: var(--vscode-agentsBadge-background);
-	color: var(--vscode-agentsBadge-foreground);
-	font-size: var(--vscode-fontSize-label3);
-	font-weight: var(--vscode-fontWeight-semiBold);
-}
-
-.session-comparison-result-actions {
-	display: flex;
-	flex-wrap: wrap;
-	justify-content: flex-end;
-	gap: var(--vscode-spacing-size80);
-	margin-top: var(--vscode-spacing-size120);
-	padding-top: var(--vscode-spacing-size120);
-	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
-}
-
-.session-comparison-result-actions > .monaco-button,
-.session-comparison-result-actions > .monaco-button-dropdown {
-	flex: 0 0 auto;
-	width: auto;
-	min-width: max-content;
-}
-
-.session-comparison-result-actions > .monaco-button-dropdown > .monaco-button.monaco-text-button {
-	flex: 0 0 auto;
-	width: max-content;
-}
-
-.session-comparison-result-actions > .monaco-button-dropdown > .monaco-button {
-	flex: 0 0 auto;
-	width: auto;
-}
-
+/* Additional synthesis instructions open under the header, beside the Synthesize action. */
 .session-comparison-synthesis-instructions {
-	margin-top: var(--vscode-spacing-size120);
-	padding-top: var(--vscode-spacing-size120);
-	border-top: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size60);
+	padding: 0 var(--vscode-spacing-size120) var(--vscode-spacing-size120) var(--vscode-spacing-size160);
+}
+
+.session-comparison-synthesis-instructions[hidden] {
+	display: none;
 }
 
 .session-comparison-synthesis-instructions-description {
-	margin: var(--vscode-spacing-size80) 0 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
 }
 
 .session-comparison-synthesis-instructions-input {
-	margin-top: var(--vscode-spacing-size80);
+	min-width: 0;
 }
 
 .session-comparison-synthesis-instructions-actions {
 	display: flex;
 	justify-content: flex-end;
-	margin-top: var(--vscode-spacing-size80);
 }
 
 .session-comparison-synthesis-instructions-actions > .monaco-button {
-	flex: 0 0 auto;
 	width: auto;
+}
+
+/* Narrow layouts keep the values and drop the meters before anything wraps. */
+@container (max-width: 560px) {
+	.session-comparison-scorecard-columns,
+	.session-comparison-scorecard-line {
+		grid-template-columns: 16px minmax(0, 1fr) 72px 56px 48px 24px;
+		column-gap: var(--vscode-spacing-size80);
+	}
+
+	.session-comparison-meter,
+	.session-comparison-scorecard-configuration,
+	.session-comparison-scorecard-identity .session-comparison-result-tag {
+		display: none;
+	}
+
+	.session-comparison-result-header {
+		flex-wrap: wrap;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.session-comparison-result .session-comparison-scorecard-chevron {
+		transition: none;
+	}
+}
+
+.monaco-workbench.monaco-reduce-motion .session-comparison-result .session-comparison-scorecard-chevron {
+	transition: none;
 }

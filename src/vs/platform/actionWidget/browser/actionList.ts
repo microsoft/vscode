@@ -1690,10 +1690,12 @@ export class ActionListWidget<T> extends Disposable {
 		} else if (this._hasLaidOut) {
 			// Restore focus to the previously focused item
 			if (focusedItem || focusItemId) {
-				restoreItemFocus();
+				const restored = restoreItemFocus();
 				if (listHasFocus) {
-					// The focused row or its toolbar may have been removed by the update.
-					this._focusCheckedOrFirst();
+					if (!restored) {
+						// The focused row or its toolbar may have been removed by the update.
+						this._focusCheckedOrFirst();
+					}
 					this._list.domFocus();
 				}
 			}
@@ -1864,7 +1866,10 @@ export class ActionListWidget<T> extends Disposable {
 		this._suppressHover ||= preservePanel || (!this._currentSubmenuElement && !this._options?.persistentHover);
 		try {
 			// Restoring focus after a passive refresh must not open an unrequested hover.
-			this._applyFilter(false, false, preservePanel ? focusItemId ?? expandedItemId : undefined);
+			// An explicitly requested focusItemId (e.g. refocusing a row a caller just
+			// toggled) is honored unconditionally; only the fallback to the previously
+			// expanded hover/submenu's item is gated on actually preserving that panel.
+			this._applyFilter(false, false, focusItemId ?? (preservePanel ? expandedItemId : undefined));
 		} finally {
 			this._suppressHover = suppressHover;
 		}

@@ -16,6 +16,7 @@ import { Emitter } from '../../../../../../../base/common/event.js';
 import { AnchorPosition } from '../../../../../../../base/common/layout.js';
 import { onUnexpectedError } from '../../../../../../../base/common/errors.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../../nls.js';
 import { ActionListItemKind, IActionListHeaderLink, IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
@@ -53,6 +54,10 @@ const PICKER_WIDTH = 320;
 const PRICING_EXPANDED_STORAGE_KEY = 'chat.modelPicker.pricingExpanded';
 const MODEL_DETAILS_ACTION_ID = 'chat.modelPicker.details';
 const AUTO_TIER_ACTION_PREFIX = 'autoTier:';
+
+function isWorkflowConfigurationValue(value: unknown): value is string | number | boolean | null {
+	return value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean';
+}
 
 /** Everything the picker needs for one showing, gathered by the owning widget. */
 export interface ITabbedModelPickerContext {
@@ -93,10 +98,16 @@ export interface ITabbedModelPickerContext {
 	readonly configurationCacheBreakHint?: ITabbedModelPickerContext['cacheBreakHint'];
 }
 
+/** Why the picker closed, so its owner can choose where focus goes next. */
+export interface ITabbedModelPickerHideEvent {
+	/** The picker closed because a guided selection was completed, so the user is ready to write the prompt. */
+	readonly finishedWorkflow: boolean;
+}
+
 /** A provider-tabbed picker with Copilot routing modes and a drill-in configuration page. */
 export class TabbedModelPicker extends Disposable {
 
-	private readonly _onDidHide = this._register(new Emitter<void>());
+	private readonly _onDidHide = this._register(new Emitter<ITabbedModelPickerHideEvent>());
 	readonly onDidHide = this._onDidHide.event;
 
 	private readonly _widget: TabbedActionListWidget;
@@ -121,6 +132,8 @@ export class TabbedModelPicker extends Disposable {
 	private _activeDestination: string | undefined;
 	private _searchVisible = false;
 	private _filterValue = '';
+	/** Set while Done closes the picker, so the hide is reported as a completed guided selection. */
+	private _finishingWorkflow = false;
 	private readonly _speedVariants = new Map<string, IModelSpeedVariants>();
 	private readonly _preferredSpeedVariants = new Map<string, string>();
 	private _selectionVersion = 0;
@@ -166,6 +179,8 @@ export class TabbedModelPicker extends Disposable {
 			this.refresh();
 		}));
 		this._register(this._widget.onDidHide(() => {
+			const finishedWorkflow = this._finishingWorkflow;
+			this._finishingWorkflow = false;
 			this._context?.workflow?.cancel();
 			// Search is a transient view. Left on, it would also size the next popup from
 			// its flattened cross-provider list.
@@ -176,7 +191,7 @@ export class TabbedModelPicker extends Disposable {
 			this._detailsCard = undefined;
 			this._configurationListener.clear();
 			this._cards.clearAndDisposeAll();
-			this._onDidHide.fire();
+			this._onDidHide.fire({ finishedWorkflow });
 		}));
 	}
 
@@ -356,7 +371,7 @@ export class TabbedModelPicker extends Disposable {
 					: showAuto
 						? this._buildAutoModeItems(destination, sections, current)
 						: this._buildItems(destination, sections, current);
-				const hint = step ? { text: `${step.title}\n${step.description}`, link: undefined, dismiss: undefined } : current.cacheBreakHint ?? current.configurationCacheBreakHint;
+				const hint = step ? { text: step.description, link: undefined, dismiss: undefined } : current.cacheBreakHint ?? current.configurationCacheBreakHint;
 				const baseListOptions = withChatInputPickerMotion({
 					className: 'chat-model-picker-dropdown chat-model-picker-tabbed',
 					stopToolbarPointerPropagation: true,
@@ -543,10 +558,12 @@ export class TabbedModelPicker extends Disposable {
 		const actions: ITabBarAction[] = [];
 		const workflow = context.workflow;
 		if (workflow?.available.get()) {
+			// Grouped with Search at the end of the tab bar, away from the provider tabs.
 			actions.push({
 				id: 'workflow',
 				icon: Codicon.layers,
 				tooltip: workflow.label,
+				alignEnd: true,
 				checked: !!workflow.state.get(),
 				run: () => {
 					if (workflow.state.get()) {
@@ -554,7 +571,7 @@ export class TabbedModelPicker extends Disposable {
 					} else {
 						workflow.start();
 					}
-					this._showCurrent();
+					this._showCurrent(this._filterValue);
 				},
 			});
 		}
@@ -581,7 +598,7 @@ export class TabbedModelPicker extends Disposable {
 				if (this._searchVisible) {
 					context.onDidSearch();
 				}
-				this._showCurrent();
+				this._showCurrent(this._filterValue);
 			},
 		});
 		return actions;
@@ -604,31 +621,53 @@ export class TabbedModelPicker extends Disposable {
 			store.add(select.onDidSelect(event => workflow.setCount(event.index + count.min)));
 		}
 		const actions = dom.append(container, dom.$('.model-picker-workflow-actions'));
-		const cancel = store.add(new Button(actions, { ...defaultButtonStyles, secondary: true }));
-		cancel.label = localize('modelPicker.workflow.cancel', "Cancel");
-		store.add(cancel.onDidClick(() => this._widget.hide()));
+		const showStep = (move: () => void) => {
+			move();
+			this._searchVisible = false;
+			this._showCurrent();
+			status(workflow.state.get()!.title);
+		};
+		const leading = dom.append(actions, dom.$('.model-picker-workflow-leading'));
+		let stepStatus: HTMLElement | undefined;
 		if (step.canGoBack) {
-			const back = store.add(new Button(actions, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
-			back.label = localize('modelPicker.workflow.back', "{0} Back", '$(arrow-left)');
-			store.add(back.onDidClick(() => {
-				workflow.back();
-				this._searchVisible = false;
-				this._showCurrent();
-				status(workflow.state.get()!.title);
+			const backLabel = localize('modelPicker.workflow.back', "Back");
+			// Unthemed, so the quiet text style from CSS applies instead of the secondary button fill.
+			const back = store.add(new Button(leading, {
+				...defaultButtonStyles, secondary: true, supportIcons: true, ariaLabel: backLabel,
+				buttonSecondaryBackground: undefined, buttonSecondaryHoverBackground: undefined, buttonSecondaryForeground: undefined, buttonSecondaryBorder: undefined,
 			}));
+			back.label = `$(${Codicon.chevronLeft.id}) ${backLabel}`;
+			back.element.classList.add('model-picker-workflow-back');
+			store.add(back.onDidClick(() => showStep(() => workflow.back())));
+		} else {
+			stepStatus = dom.append(leading, dom.$('span.model-picker-workflow-status'));
 		}
-		const next = store.add(new Button(actions, { ...defaultButtonStyles, supportIcons: true }));
-		next.label = step.canFinish ? localize('modelPicker.workflow.done', "Done") : localize('modelPicker.workflow.next', "Next {0}", '$(arrow-right)');
-		next.enabled = step.canFinish || step.canGoNext;
-		store.add(next.onDidClick(() => {
-			if (step.canFinish) {
-				workflow.finish();
-				this._widget.hide();
-			} else {
-				workflow.next();
-				this._searchVisible = false;
-				this._showCurrent();
-				status(workflow.state.get()!.title);
+		// Done and Next keep their places and are disabled until the selection can be used.
+		const trailing = dom.append(actions, dom.$('.model-picker-workflow-trailing'));
+		const done = store.add(new Button(trailing, { ...defaultButtonStyles }));
+		done.label = localize('modelPicker.workflow.done', "Done");
+		done.element.classList.add('model-picker-workflow-done');
+		store.add(done.onDidClick(() => {
+			workflow.finish();
+			this._finishingWorkflow = true;
+			this._widget.hide();
+		}));
+		const next = store.add(new Button(trailing, { ...defaultButtonStyles, secondary: true }));
+		next.label = localize('modelPicker.workflow.next', "Next");
+		next.element.classList.add('model-picker-workflow-next');
+		store.add(next.onDidClick(() => showStep(() => workflow.next())));
+		// Checking a model updates the rows in place, so the footer follows the workflow state.
+		store.add(autorun(reader => {
+			const current = workflow.state.read(reader);
+			if (!current) {
+				return;
+			}
+			done.enabled = current.canFinish;
+			next.enabled = current.canGoNext;
+			dom.setVisibility(current.hasNextStep ?? current.canGoNext, next.element);
+			if (stepStatus) {
+				stepStatus.textContent = current.status?.text ?? '';
+				stepStatus.classList.toggle('warning', !!current.status?.warning);
 			}
 		}));
 		return store;
@@ -835,16 +874,30 @@ export class TabbedModelPicker extends Disposable {
 				workflow.select(model.identifier);
 				this._showCurrent(this._filterValue, model.identifier);
 			}, section, true);
+			const variants = checked && step.multiple ? workflow.getVariants(model.identifier) : [];
+			const baseSummary = getModelConfigSummary(model, context.configurationAccess);
+			// A row with variants also names how many extra attempts of it are queued, e.g.
+			// "High · 1M +1", so the list reflects the comparison's real attempt count at a glance.
+			const workflowSummary = variants.length && baseSummary ? localize('chat.modelPicker.workflowSummaryWithVariants', "{0} +{1}", baseSummary, variants.length) : baseSummary;
+			const routingModel = isAutoModel(model) || isHydraFusionModel(model);
 			return {
 				item: { ...action, checked, enabled: !disabled },
 				kind: ActionListItemKind.Action,
 				label: action.label,
-				ariaDescription,
+				ariaDescription: [ariaDescription, getModelConfigDescription(model, context.configurationAccess)].filter(Boolean).join(', '),
 				group: { title: '', icon: checked ? Codicon.check : Codicon.blank },
+				// Choosing several models reads as checkboxes; a single role keeps the plain check mark.
+				iconClasses: step.multiple ? ['chat-model-picker-checkbox', ...(checked ? ['checked', ...ThemeIcon.asClassNameArray(Codicon.check)] : [])] : undefined,
 				hideIcon: false,
 				section,
 				disabled,
-				className: 'chat-model-picker-model',
+				className: ['chat-model-picker-model', ...(step.multiple && checked ? ['chat-model-picker-workflow-checked'] : [])].join(' '),
+				toolbarLabels: true,
+				// Reuses the same Details/Thinking-Level flyout as the single-model picker, for
+				// models that support configurable reasoning effort or context size, so a
+				// comparison attempt can run at a specific effort rather than whatever the
+				// model's last global default happened to be.
+				toolbarActions: routingModel ? undefined : [this._createDetailsAction(model, workflowSummary)],
 			};
 		}
 		const { action, ariaDescription } = createModelAction(model, context.selectedModelId, next => {
@@ -894,6 +947,8 @@ export class TabbedModelPicker extends Disposable {
 	private _getModelCard(model: ILanguageModelChatMetadataAndIdentifier, context: ITabbedModelPickerContext): ModelCard {
 		let selectionVersion = this._selectionVersion;
 		const routingModel = isAutoModel(model) || isHydraFusionModel(model);
+		const workflowStep = context.workflow?.state.get();
+		const isCheckedAttempt = !!(context.workflow && workflowStep?.multiple && workflowStep.selectedModelIds.includes(model.identifier));
 		const cardOptions: IModelCardOptions = {
 			model,
 			configurationAccess: context.configurationAccess,
@@ -904,8 +959,27 @@ export class TabbedModelPicker extends Disposable {
 			externalHeader: true,
 			pricingDisclosure: this._pricingDisclosure,
 			speedVariants: this._speedVariants.get(model.identifier),
+			workflowVariants: isCheckedAttempt ? {
+				list: context.workflow!.getVariants(model.identifier),
+				onAdd: (configuration, label, baseConfiguration) => {
+					context.workflow!.addVariant(model.identifier, configuration, label, baseConfiguration);
+					this.refresh();
+				},
+				onRemove: index => {
+					context.workflow!.removeVariant(model.identifier, index);
+					this.refresh();
+				},
+			} : undefined,
 			onWillSelect: () => { selectionVersion = ++this._selectionVersion; },
 			onSelect: next => {
+				if (context.workflow) {
+					// There is no single "selected" model to swap while a workflow is active;
+					// a configuration change here (e.g. reasoning effort) applies to the model
+					// itself and is picked up when the comparison starts. Refresh in place so
+					// the row stays put and the popup keeps its size, matching a checkbox toggle.
+					this._widget.refreshActiveList({ focusItemId: next.identifier, preserveScrollPosition: true, preserveSize: true });
+					return;
+				}
 				if (selectionVersion === this._selectionVersion && this._widget.isVisible && next.identifier !== (this._context ?? context).selectedModelId) {
 					this._rememberSpeedVariant(next.identifier);
 					this._detailsModelId = next.identifier;
@@ -919,6 +993,10 @@ export class TabbedModelPicker extends Disposable {
 				? pinned => this._togglePin(model.identifier, pinned)
 				: undefined,
 			onDidChangeConfiguration: (...change) => {
+				const [group, key, , toValue] = change;
+				if (group === MODEL_CONFIG_GROUP_EFFORT && isWorkflowConfigurationValue(toValue)) {
+					context.workflow?.reconcileVariants?.(model.identifier, { [key]: toValue });
+				}
 				context.onConfigurationChanged(model, ...change);
 			},
 		};

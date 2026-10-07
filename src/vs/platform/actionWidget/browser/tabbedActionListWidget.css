@@ -83,6 +83,11 @@
 	margin-left: auto;
 }
 
+/* Consecutive end-aligned actions stay grouped at the end of the tab bar. */
+.action-widget .tabbed-action-list-tabbar .tabbed-action-list-tabbar-action.align-end ~ .tabbed-action-list-tabbar-action.align-end {
+	margin-left: var(--vscode-spacing-size40);
+}
+
 .action-widget .tabbed-action-list-tabbar .tabbed-action-list-tabbar-action:hover,
 .action-widget .tabbed-action-list-tabbar .tabbed-action-list-tabbar-action.checked {
 	background-color: var(--vscode-toolbar-hoverBackground);

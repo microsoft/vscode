@@ -36,6 +36,12 @@ export interface IModelPickerDelegate {
 	readonly currentModel: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined>;
 	setModel(model: ILanguageModelChatMetadataAndIdentifier): void;
 	/**
+	 * Moves focus to the prompt input that owns the picker. Called after a guided
+	 * {@link workflow} selection is completed, so the user can write the prompt next.
+	 * When omitted, focus returns to where it was before the picker opened.
+	 */
+	focusInput?(): void;
+	/**
 	 * Persists a model change without treating it as a user selection.
 	 * Delegates whose {@link setModel} has no user-selection side effects may omit this; {@link setModel} is used instead.
 	 */

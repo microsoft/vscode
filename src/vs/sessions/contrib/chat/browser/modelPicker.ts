@@ -63,6 +63,7 @@ export class ModelPicker extends Disposable {
 			workflow: this._selectionModel.workflow,
 			currentModel,
 			modelConfiguration: this._selectionModel.modelConfiguration,
+			focusInput: () => this._newChatModelPickerService.focusInput(),
 			setModel: model => {
 				const previousModel = this._selectionModel.state.get().currentModel;
 				if (this._selectionModel.selectModel(model.identifier)) {

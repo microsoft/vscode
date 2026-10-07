@@ -9,32 +9,63 @@ import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js
 import { IRenderedMarkdown, renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Button, ButtonWithDropdown, IButton } from '../../../../base/browser/ui/button/button.js';
+import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { Action, toAction } from '../../../../base/common/actions.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { safeIntl } from '../../../../base/common/date.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../base/common/observable.js';
+import { language } from '../../../../base/common/platform.js';
 import { isEqual } from '../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IMarkdownRenderer } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { AccessibilityCommandId } from '../../../../workbench/contrib/accessibility/common/accessibilityCommands.js';
-import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../common/layoutConstants.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
-import { getSessionComparisonAttemptLabel, ISessionComparison, ISessionComparisonParticipant, ISessionComparisonService, ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, SESSION_COMPARISON_SYNTHESIS_INSTRUCTIONS_MAX_LENGTH, SessionComparisonParticipantRole } from '../../../services/sessions/common/sessionComparison.js';
+import { getSessionComparisonAttemptLabel, getSessionComparisonHarnessConfigurationLabel, ISessionComparison, ISessionComparisonAttemptVerdict, ISessionComparisonParticipant, ISessionComparisonRationale, ISessionComparisonService, ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, SESSION_COMPARISON_SYNTHESIS_INSTRUCTIONS_MAX_LENGTH, SessionComparisonParticipantRole, SessionComparisonValidationEvidence, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../../services/sessions/common/sessionComparison.js';
 
 export const SessionComparisonResultFocused = new RawContextKey<boolean>('sessionComparisonResultFocused', false);
 
+type ValidationKey = keyof ISessionComparisonAttemptVerdict['validation'];
+
+interface IScorecardContext {
+	readonly comparison: ISessionComparison;
+	readonly verdict: ISessionComparisonVerdict;
+	readonly attempts: readonly ISessionComparisonParticipant[];
+	readonly maxElapsedMs: number;
+	readonly maxTokenCount: number;
+	/** Whether attempts ran in more than one agent, so each row also names its agent. */
+	readonly showAgent: boolean;
+	/** Set when every attempt shares the same non-pass/fail check state, so repeating it row by row would add nothing. */
+	readonly uniformValidationNote: string | undefined;
+}
+
+interface IScorecardRow {
+	readonly attempt: ISessionComparisonParticipant;
+	readonly element: HTMLElement;
+	readonly toggle: HTMLButtonElement;
+	readonly detail: HTMLElement;
+}
+
+/**
+ * The Judge's verdict, docked above the Judge chat input as a scorecard: the winner with the
+ * Judge's explanation and the next actions, then every attempt with its validation checks,
+ * time, and tokens, recommended first. A row expands to the Judge's reasoning for that attempt.
+ */
 export class SessionComparisonResult extends Disposable {
 
 	readonly domNode = dom.$('.session-comparison-result');
@@ -45,6 +76,7 @@ export class SessionComparisonResult extends Disposable {
 	private renderedVerdict: ISessionComparison['verdict'];
 	private renderedParticipants: ISessionComparison['participants'] | undefined;
 	private winnerTitle: string | undefined;
+	private expandedAttemptId: string | undefined;
 
 	constructor(
 		currentSession: IObservable<ISession | undefined>,
@@ -56,6 +88,7 @@ export class SessionComparisonResult extends Disposable {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IHoverService private readonly hoverService: IHoverService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
@@ -89,13 +122,19 @@ export class SessionComparisonResult extends Disposable {
 	}
 
 	layout(availableWidth: number): void {
-		const centeredContentWidth = Math.min(availableWidth, AGENTS_CENTERED_CONTENT_MAX_WIDTH);
-		this.domNode.style.width = `calc(${availableWidth}px - var(--session-view-content-horizontal-padding, var(--vscode-spacing-size320)) - var(--session-view-content-horizontal-padding, var(--vscode-spacing-size320)))`;
-		this.domNode.style.marginLeft = `${(centeredContentWidth - availableWidth) / 2}px`;
-		this.domNode.style.marginRight = '0';
+		// Intentionally a no-op: this node renders as a direct sibling of the chat
+		// input inside `.interactive-input-part`, which already centers and caps
+		// itself at `AGENTS_CENTERED_CONTENT_MAX_WIDTH` via CSS. Re-centering here
+		// against the uncapped pane width double-applied that inset, bleeding the
+		// card past the input's edges on both sides. The stylesheet's own margin
+		// keeps this flush with the input, and `container-type: inline-size`
+		// drives the `@container` breakpoint below without any manual sizing.
 	}
 
 	private render(comparison: ISessionComparison | undefined): void {
+		if (comparison?.id !== this.renderedComparisonId) {
+			this.expandedAttemptId = undefined;
+		}
 		this.renderedComparisonId = comparison?.id;
 		this.renderedVerdict = comparison?.verdict;
 		this.renderedParticipants = comparison?.participants;
@@ -103,8 +142,11 @@ export class SessionComparisonResult extends Disposable {
 		dom.clearNode(this.domNode);
 		this.winnerTitle = undefined;
 		const wasHidden = this.domNode.hidden;
-		this.domNode.hidden = !comparison;
-		if (!comparison?.verdict) {
+		const verdict = comparison?.verdict;
+		const attempts = comparison?.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt) ?? [];
+		const winner = verdict && attempts.find(participant => participant.id === verdict.recommendedParticipantId);
+		this.domNode.hidden = !comparison || !verdict || !winner;
+		if (!comparison || !verdict || !winner) {
 			this.updateAriaLabel();
 			if (!wasHidden) {
 				this.onDidChangeLayout();
@@ -112,141 +154,26 @@ export class SessionComparisonResult extends Disposable {
 			return;
 		}
 
-		const attempts = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt);
-		const winner = attempts.find(participant => participant.id === comparison.verdict?.recommendedParticipantId);
-		if (!winner) {
-			this.domNode.hidden = true;
-			return;
-		}
-		const winnerLabel = getSessionComparisonAttemptLabel(winner, attempts.indexOf(winner) + 1);
-		const title = dom.append(this.domNode, dom.$('h2.session-comparison-result-title'));
-		title.id = this.titleId;
-		const winnerTitle = localize('sessionComparisonResult.winner', "{0} won", winnerLabel);
-		this.winnerTitle = winnerTitle;
+		const winnerNumber = attempts.indexOf(winner) + 1;
+		const winnerLabel = getSessionComparisonAttemptLabel(winner, winnerNumber);
+		this.winnerTitle = localize('sessionComparisonResult.winner', "{0} won", winnerLabel);
 		this.updateAriaLabel();
-		const winnerLabelOffset = winnerTitle.indexOf(winnerLabel);
-		if (winner.sessionResource && winnerLabelOffset >= 0) {
-			title.append(winnerTitle.slice(0, winnerLabelOffset));
-			this.renderAttemptLink(title, comparison, winner, winnerLabel);
-			title.append(winnerTitle.slice(winnerLabelOffset + winnerLabel.length));
-		} else {
-			title.textContent = winnerTitle;
-		}
-		dom.append(this.domNode, dom.$('h3.session-comparison-result-subtitle')).textContent =
-			localize('sessionComparisonResult.whyWinner', "Why it won");
-		this.renderRationale(comparison.verdict);
-
-		const otherAttempts = attempts.filter(attempt => attempt.id !== winner.id);
-		if (otherAttempts.length > 0) {
-			const strengthsTitle = dom.append(this.domNode, dom.$('h3.session-comparison-result-subtitle'));
-			strengthsTitle.id = `session-comparison-strengths-${generateUuid()}`;
-			strengthsTitle.textContent =
-				localize('sessionComparisonResult.otherStrengths', "Strong points from other attempts");
-			const table = dom.append(this.domNode, dom.$('table.session-comparison-result-strengths'));
-			table.setAttribute('aria-labelledby', strengthsTitle.id);
-			const head = dom.append(table, dom.$('thead'));
-			const headerRow = dom.append(head, dom.$('tr'));
-			const attemptHeader = dom.append(headerRow, dom.$('th'));
-			attemptHeader.setAttribute('scope', 'col');
-			attemptHeader.textContent = localize('sessionComparisonResult.attempt', "Attempt");
-			const strengthsHeader = dom.append(headerRow, dom.$('th'));
-			strengthsHeader.setAttribute('scope', 'col');
-			strengthsHeader.textContent = localize('sessionComparisonResult.strongPoints', "Strong points");
-			const body = dom.append(table, dom.$('tbody'));
-			for (const attempt of otherAttempts) {
-				const verdict = comparison.verdict.attempts.find(candidate => candidate.participantId === attempt.id);
-				const strengths = verdict?.notableDifferences.length ? verdict.notableDifferences : verdict?.summary ? [verdict.summary] : [];
-				const row = dom.append(body, dom.$('tr'));
-				const label = getSessionComparisonAttemptLabel(attempt, attempts.indexOf(attempt) + 1);
-				const attemptHeader = dom.append(row, dom.$('th'));
-				attemptHeader.setAttribute('scope', 'row');
-				if (attempt.sessionResource) {
-					this.renderAttemptLink(attemptHeader, comparison, attempt, label);
-				} else {
-					attemptHeader.textContent = label;
-				}
-				const strengthsCell = dom.append(row, dom.$('td'));
-				if (strengths.length > 0) {
-					this.renderMarkdown(strengthsCell, strengths.join('; '));
-				} else {
-					strengthsCell.textContent = localize('sessionComparisonResult.noStrengths', "No distinct strong points reported");
-				}
-			}
-		}
-
-		this.renderAttemptMetrics(attempts);
-
-		const actions = dom.append(this.domNode, dom.$('.session-comparison-result-actions'));
-		actions.setAttribute('role', 'group');
-		actions.setAttribute('aria-label', localize('sessionComparisonResult.actionsAriaLabel', "Comparison result actions"));
-		if (winner.sessionResource) {
-			const focusableOtherAttempts = otherAttempts.filter(attempt => !!attempt.sessionResource);
-			let focusWinner: IButton;
-			if (focusableOtherAttempts.length > 0) {
-				const focusOtherActions = focusableOtherAttempts.map(attempt => toAction({
-					id: `sessionComparisonResult.focusAttempt.${attempt.id}`,
-					label: localize('sessionComparisonResult.focusAttempt', "Focus {0}", getSessionComparisonAttemptLabel(attempt, attempts.indexOf(attempt) + 1)),
-					run: () => this.focusAttempt(comparison, attempt),
-				}));
-				const focusDropdown = this.renderStore.add(new ButtonWithDropdown(actions, {
-					...defaultButtonStyles,
-					secondary: true,
-					ariaLabel: localize('sessionComparisonResult.focusWinnerAriaLabel', "Focus winning session, {0}", winnerLabel),
-					contextMenuProvider: this.contextMenuService,
-					actions: focusOtherActions,
-					addPrimaryActionToDropdown: false,
-				}));
-				const focusOtherLabel = localize('sessionComparisonResult.focusOtherAttempts', "Focus another attempt");
-				focusDropdown.dropdownButton.setAriaLabel(focusOtherLabel);
-				focusDropdown.dropdownButton.setTitle(focusOtherLabel);
-				focusWinner = focusDropdown;
-			} else {
-				focusWinner = this.renderStore.add(new Button(actions, {
-					...defaultButtonStyles,
-					secondary: true,
-					ariaLabel: localize('sessionComparisonResult.focusWinnerAriaLabel', "Focus winning session, {0}", winnerLabel),
-				}));
-			}
-			focusWinner.label = localize('sessionComparisonResult.focusWinner', "Focus Winning Session");
-			this.renderStore.add(focusWinner.onDidClick(() => this.focusAttempt(comparison, winner, focusWinner)));
-		}
-		const synthesis = comparison.participants.find(participant => participant.role === SessionComparisonParticipantRole.Synthesis);
-		if (synthesis) {
-			const synthesize = this.renderStore.add(new Button(actions, {
-				...defaultButtonStyles,
-				ariaLabel: localize('sessionComparisonResult.synthesisStartedAriaLabel', "Synthesis has started"),
-			}));
-			synthesize.label = localize('sessionComparisonResult.synthesisStarted', "Synthesis Started");
-			synthesize.enabled = false;
-		} else if (comparison.synthesisHarness) {
-			const instructions = this.renderSynthesisInstructions(comparison);
-			const customizeInstructions = this.renderStore.add(new Action(
-				'sessionComparison.additionalSynthesisInstructions',
-				localize('sessionComparisonResult.additionalInstructionsAction', "Additional Synthesis Instructions..."),
-				undefined,
-				true,
-				() => instructions.toggle(),
-			));
-			const synthesize = this.renderStore.add(new ButtonWithDropdown(actions, {
-				...defaultButtonStyles,
-				ariaLabel: localize('sessionComparisonResult.synthesizeAriaLabel', "Synthesize using the Judge recommendation"),
-				contextMenuProvider: this.contextMenuService,
-				actions: [customizeInstructions],
-				addPrimaryActionToDropdown: false,
-				dropdownLayer: 1,
-			}));
-			synthesize.label = localize('sessionComparisonResult.synthesize', "Synthesize Attempts");
-			synthesize.dropdownButton.setAriaLabel(localize('sessionComparisonResult.synthesisOptionsAriaLabel', "More synthesis options"));
-			this.renderStore.add(synthesize.onDidClick(() => this.synthesize(comparison, synthesize, createRecommendedSynthesisPlan(instructions.getValue()))));
-		}
+		this.renderHeader(comparison, verdict, attempts, winner, winnerNumber);
+		this.renderScorecard({
+			comparison,
+			verdict,
+			attempts,
+			maxElapsedMs: Math.max(0, ...attempts.map(attempt => attempt.completion?.elapsedMs ?? 0)),
+			maxTokenCount: Math.max(0, ...attempts.map(attempt => attempt.completion?.tokenCount ?? 0)),
+			showAgent: new Set(attempts.map(attempt => attempt.harness.label)).size > 1,
+			uniformValidationNote: getUniformValidationNote(verdict),
+		}, winner);
 
 		if (this.announcedComparisonId !== comparison.id) {
 			this.announcedComparisonId = comparison.id;
 			status(localize('sessionComparisonResult.ready', "{0} won. Comparison result ready.", winnerLabel));
 		}
-		if (wasHidden) {
-			this.onDidChangeLayout();
-		}
+		this.onDidChangeLayout();
 	}
 
 	private updateAriaLabel(): void {
@@ -264,88 +191,307 @@ export class SessionComparisonResult extends Disposable {
 			: this.winnerTitle);
 	}
 
-	private renderAttemptMetrics(attempts: readonly ISessionComparisonParticipant[]): void {
-		const timeWinners = getMetricWinnerIds(attempts, attempt => attempt.completion?.elapsedMs);
-		const tokenWinners = getMetricWinnerIds(attempts, attempt => attempt.completion?.tokenCountIsComplete === false ? undefined : attempt.completion?.tokenCount);
-		const details = dom.append(this.domNode, dom.$('details.session-comparison-result-metrics'));
-		const summary = dom.append(details, dom.$('summary.session-comparison-result-metrics-summary'));
-		summary.id = `session-comparison-metrics-${generateUuid()}`;
-		summary.textContent = localize('sessionComparisonResult.attemptMetrics', "Attempt time and token usage");
-		this.renderStore.add(dom.addDisposableListener(details, 'toggle', () => this.onDidChangeLayout()));
-
-		const description = dom.append(details, dom.$('p.session-comparison-result-metrics-description'));
-		description.textContent = localize('sessionComparisonResult.attemptMetricsDescription', "Time is the provider-reported duration of the terminal first turn. Token counts marked 'at least' are partial and are not considered for the token usage winner.");
-
-		const scrollContainer = dom.append(details, dom.$('.session-comparison-result-metrics-scroll'));
-		const table = dom.append(scrollContainer, dom.$('table.session-comparison-result-metrics-table'));
-		table.setAttribute('aria-labelledby', summary.id);
-		const head = dom.append(table, dom.$('thead'));
-		const headerRow = dom.append(head, dom.$('tr'));
-		for (const label of [
-			localize('sessionComparisonResult.attempt', "Attempt"),
-			localize('sessionComparisonResult.totalTime', "Total time"),
-			localize('sessionComparisonResult.tokensUsed', "Tokens used"),
-		]) {
-			const header = dom.append(headerRow, dom.$('th'));
-			header.setAttribute('scope', 'col');
-			header.textContent = label;
+	private renderHeader(comparison: ISessionComparison, verdict: ISessionComparisonVerdict, attempts: readonly ISessionComparisonParticipant[], winner: ISessionComparisonParticipant, winnerNumber: number): void {
+		const header = dom.append(this.domNode, dom.$('.session-comparison-result-header'));
+		const heading = dom.append(header, dom.$('.session-comparison-result-heading'));
+		const title = dom.append(heading, dom.$('h2.session-comparison-result-title'));
+		title.id = this.titleId;
+		const modelLabel = getAttemptModelLabel(winner);
+		const titleText = localize('sessionComparisonResult.winnerModel', "{0} won", modelLabel);
+		const text = dom.append(title, dom.$('span.session-comparison-result-title-text'));
+		const modelOffset = titleText.indexOf(modelLabel);
+		if (modelOffset >= 0) {
+			text.append(titleText.slice(0, modelOffset));
+			dom.append(text, dom.$('span.session-comparison-result-title-model')).textContent = modelLabel;
+			text.append(titleText.slice(modelOffset + modelLabel.length));
+		} else {
+			text.textContent = titleText;
 		}
+		this.renderMarkdown(dom.append(heading, dom.$('.session-comparison-result-summary')), verdict.explanation);
 
-		const body = dom.append(table, dom.$('tbody'));
-		for (const attempt of attempts) {
-			const row = dom.append(body, dom.$('tr'));
-			const attemptHeader = dom.append(row, dom.$('th'));
-			attemptHeader.setAttribute('scope', 'row');
-			attemptHeader.textContent = getSessionComparisonAttemptLabel(attempt, attempts.indexOf(attempt) + 1);
-			const timeCell = dom.append(row, dom.$('td'));
-			timeCell.append(attempt.completion?.elapsedMs === undefined
-				? localize('sessionComparisonResult.unavailable', "Unavailable")
-				: formatElapsedTime(attempt.completion.elapsedMs));
-			if (timeWinners.has(attempt.id)) {
-				this.renderMetricWinnerBadge(timeCell, localize('sessionComparisonResult.timeWinner', "Time winner"));
-			}
-			const tokenCell = dom.append(row, dom.$('td'));
-			tokenCell.append(attempt.completion?.tokenCount === undefined
-				? localize('sessionComparisonResult.unavailable', "Unavailable")
-				: formatTokenCount(attempt.completion.tokenCount, attempt.completion.tokenCountIsComplete));
-			if (tokenWinners.has(attempt.id)) {
-				this.renderMetricWinnerBadge(tokenCell, localize('sessionComparisonResult.tokenWinner', "Token usage winner"));
-			}
-		}
+		const actions = dom.append(header, dom.$('.session-comparison-result-actions'));
+		actions.setAttribute('role', 'group');
+		actions.setAttribute('aria-label', localize('sessionComparisonResult.actionsAriaLabel', "Comparison result actions"));
+		this.renderOpenAction(actions, comparison, attempts, winner, winnerNumber);
+		this.renderSynthesizeAction(actions, comparison);
 	}
 
-	private renderMetricWinnerBadge(cell: HTMLElement, ariaLabel: string): void {
-		cell.append(' ');
-		const badge = dom.append(cell, dom.$('span.session-comparison-result-metric-winner'));
-		badge.textContent = localize('sessionComparisonResult.metricWinner', "Winner");
-		badge.setAttribute('aria-label', ariaLabel);
-	}
-
-	private renderRationale(verdict: ISessionComparisonVerdict): void {
-		if (!verdict.rationale) {
-			this.renderMarkdown(dom.append(this.domNode, dom.$('.session-comparison-result-explanation')), verdict.explanation);
+	private renderOpenAction(container: HTMLElement, comparison: ISessionComparison, attempts: readonly ISessionComparisonParticipant[], winner: ISessionComparisonParticipant, winnerNumber: number): void {
+		if (!winner.sessionResource) {
 			return;
 		}
-		const primaryEntries = [
-			{ label: localize('sessionComparisonResult.rationale.comparison', "Comparison"), point: verdict.rationale.comparison },
-			{ label: localize('sessionComparisonResult.rationale.validation', "Validation"), point: verdict.rationale.validation },
-		];
-		const supportingEntries = [
-			{ label: localize('sessionComparisonResult.rationale.codeQuality', "Code quality"), point: verdict.rationale.codeQuality },
-			{ label: localize('sessionComparisonResult.rationale.solution', "Solution"), point: verdict.rationale.solution },
-		];
-		const rationale = dom.append(this.domNode, dom.$('.session-comparison-result-rationale'));
-		this.renderRationaleEntries(rationale, primaryEntries, true);
-		this.renderRationaleEntries(rationale, supportingEntries, false);
+		const ariaLabel = localize('sessionComparisonResult.openWinnerAriaLabel', "Open the winning attempt, {0}", getSessionComparisonAttemptLabel(winner, winnerNumber));
+		const otherAttempts = attempts.filter(attempt => attempt !== winner && !!attempt.sessionResource);
+		let open: IButton;
+		if (otherAttempts.length > 0) {
+			const dropdown = this.renderStore.add(new ButtonWithDropdown(container, {
+				...defaultButtonStyles,
+				secondary: true,
+				small: true,
+				ariaLabel,
+				contextMenuProvider: this.contextMenuService,
+				actions: otherAttempts.map(attempt => toAction({
+					id: `sessionComparisonResult.openAttempt.${attempt.id}`,
+					label: localize('sessionComparisonResult.openAttempt', "Open {0}", getSessionComparisonAttemptLabel(attempt, attempts.indexOf(attempt) + 1)),
+					run: () => this.focusAttempt(comparison, attempt),
+				})),
+				addPrimaryActionToDropdown: false,
+			}));
+			const openAnotherLabel = localize('sessionComparisonResult.openAnotherAttempt', "Open another attempt");
+			dropdown.dropdownButton.setAriaLabel(openAnotherLabel);
+			dropdown.dropdownButton.setTitle(openAnotherLabel);
+			open = dropdown;
+		} else {
+			open = this.renderStore.add(new Button(container, { ...defaultButtonStyles, secondary: true, small: true, ariaLabel }));
+		}
+		open.label = localize('sessionComparisonResult.openWinner', "Open Attempt {0}", winnerNumber);
+		this.renderStore.add(open.onDidClick(() => this.focusAttempt(comparison, winner, open)));
 	}
 
-	private renderRationaleEntries(container: HTMLElement, entries: readonly { label: string; point: string }[], primary: boolean): void {
-		const list = dom.append(container, dom.$(`dl.session-comparison-result-rationale-section.${primary ? 'primary' : 'supporting'}`));
-		for (const entry of entries) {
-			dom.append(list, dom.$('dt.session-comparison-result-rationale-category')).textContent = entry.label;
-			const value = dom.append(list, dom.$('dd'));
-			const points = dom.append(value, dom.$('ul'));
-			this.renderMarkdown(dom.append(points, dom.$('li.session-comparison-result-rationale-point')), entry.point);
+	private renderSynthesizeAction(container: HTMLElement, comparison: ISessionComparison): void {
+		if (comparison.participants.some(participant => participant.role === SessionComparisonParticipantRole.Synthesis)) {
+			const started = this.renderStore.add(new Button(container, {
+				...defaultButtonStyles,
+				small: true,
+				ariaLabel: localize('sessionComparisonResult.synthesisStartedAriaLabel', "Synthesis has started"),
+			}));
+			started.label = localize('sessionComparisonResult.synthesisStarted', "Synthesis Started");
+			started.enabled = false;
+			return;
+		}
+		if (!comparison.synthesisHarness) {
+			return;
+		}
+		const instructions = this.renderSynthesisInstructions(comparison);
+		const customizeInstructions = this.renderStore.add(new Action(
+			'sessionComparison.additionalSynthesisInstructions',
+			localize('sessionComparisonResult.additionalInstructionsAction', "Additional Synthesis Instructions..."),
+			undefined,
+			true,
+			() => instructions.toggle(),
+		));
+		const synthesize = this.renderStore.add(new ButtonWithDropdown(container, {
+			...defaultButtonStyles,
+			small: true,
+			ariaLabel: localize('sessionComparisonResult.synthesizeAriaLabel', "Synthesize using the Judge recommendation"),
+			contextMenuProvider: this.contextMenuService,
+			actions: [customizeInstructions],
+			addPrimaryActionToDropdown: false,
+			dropdownLayer: 1,
+		}));
+		synthesize.label = localize('sessionComparisonResult.synthesize', "Synthesize");
+		synthesize.dropdownButton.setAriaLabel(localize('sessionComparisonResult.synthesisOptionsAriaLabel', "More synthesis options"));
+		this.renderStore.add(synthesize.onDidClick(() => this.synthesize(comparison, synthesize, createRecommendedSynthesisPlan(instructions.getValue()))));
+	}
+
+	private renderScorecard(context: IScorecardContext, winner: ISessionComparisonParticipant): void {
+		const scorecard = dom.append(this.domNode, dom.$('.session-comparison-scorecard'));
+		const columns = dom.append(scorecard, dom.$('.session-comparison-scorecard-columns'));
+		dom.append(columns, dom.$('span'));
+		dom.append(columns, dom.$('span')).textContent = localize('sessionComparisonResult.attempt', "Attempt");
+		const checksHeader = dom.append(columns, dom.$('span'));
+		checksHeader.textContent = localize('sessionComparisonResult.checks', "Checks");
+		dom.append(columns, dom.$('span')).textContent = localize('sessionComparisonResult.time', "Time");
+		dom.append(columns, dom.$('span')).textContent = localize('sessionComparisonResult.tokens', "Tokens");
+		if (context.uniformValidationNote) {
+			// Keep the explanation compact, but make it discoverable from the keyboard as well
+			// as the pointer instead of attaching it to a non-focusable visual label.
+			checksHeader.classList.add('session-comparison-scorecard-checks-header');
+			checksHeader.tabIndex = 0;
+			checksHeader.setAttribute('role', 'note');
+			checksHeader.setAttribute('aria-label', context.uniformValidationNote);
+			this.renderStore.add(this.hoverService.setupDelayedHover(checksHeader, { content: context.uniformValidationNote }, { setupKeyboardEvents: true }));
+		}
+
+		const list = dom.append(scorecard, dom.$('ul.session-comparison-scorecard-rows'));
+		list.setAttribute('aria-label', localize('sessionComparisonResult.attemptsAriaLabel', "Attempts, recommended first"));
+		const rows = [winner, ...context.attempts.filter(attempt => attempt !== winner)].map(attempt => this.renderScorecardRow(list, context, attempt));
+		const setExpanded = (attemptId: string | undefined) => {
+			this.expandedAttemptId = attemptId;
+			for (const row of rows) {
+				const expanded = row.attempt.id === attemptId;
+				row.element.classList.toggle('expanded', expanded);
+				row.toggle.setAttribute('aria-expanded', String(expanded));
+				row.detail.hidden = !expanded;
+			}
+		};
+		for (const row of rows) {
+			this.renderStore.add(dom.addDisposableListener(row.toggle, dom.EventType.CLICK, () => {
+				setExpanded(this.expandedAttemptId === row.attempt.id ? undefined : row.attempt.id);
+				this.onDidChangeLayout();
+			}));
+		}
+		this.renderStore.add(dom.addDisposableListener(list, dom.EventType.KEY_DOWN, event => {
+			const toggles = rows.map(row => row.toggle);
+			const current = toggles.findIndex(toggle => toggle === dom.getActiveElement());
+			if (current < 0) {
+				return;
+			}
+			const keyboardEvent = new StandardKeyboardEvent(event);
+			let next: number | undefined;
+			if (keyboardEvent.equals(KeyCode.DownArrow)) {
+				next = Math.min(toggles.length - 1, current + 1);
+			} else if (keyboardEvent.equals(KeyCode.UpArrow)) {
+				next = Math.max(0, current - 1);
+			} else if (keyboardEvent.equals(KeyCode.Home)) {
+				next = 0;
+			} else if (keyboardEvent.equals(KeyCode.End)) {
+				next = toggles.length - 1;
+			}
+			if (next !== undefined) {
+				dom.EventHelper.stop(event, true);
+				toggles[next].focus();
+			}
+		}));
+		setExpanded(rows.some(row => row.attempt.id === this.expandedAttemptId) ? this.expandedAttemptId : undefined);
+	}
+
+	private renderScorecardRow(list: HTMLElement, context: IScorecardContext, attempt: ISessionComparisonParticipant): IScorecardRow {
+		const { comparison, verdict, attempts } = context;
+		const attemptNumber = attempts.indexOf(attempt) + 1;
+		const attemptLabel = getSessionComparisonAttemptLabel(attempt, attemptNumber);
+		const isWinner = attempt.id === verdict.recommendedParticipantId;
+		const attemptVerdict = verdict.attempts.find(candidate => candidate.participantId === attempt.id);
+		const element = dom.append(list, dom.$('li.session-comparison-scorecard-row'));
+		element.classList.toggle('recommended', isWinner);
+		const line = dom.append(element, dom.$('.session-comparison-scorecard-line'));
+		const toggle = dom.append(line, dom.$<HTMLButtonElement>('button.session-comparison-scorecard-toggle'));
+		toggle.type = 'button';
+		dom.append(toggle, renderIcon(Codicon.chevronRight)).classList.add('session-comparison-scorecard-chevron');
+
+		const identity = dom.append(toggle, dom.$('span.session-comparison-scorecard-identity'));
+		dom.append(identity, dom.$('span.session-comparison-scorecard-model')).textContent = getAttemptModelLabel(attempt);
+		const configurationLabel = getAttemptConfigurationLabel(attempt, context.showAgent);
+		if (configurationLabel) {
+			dom.append(identity, dom.$('span.session-comparison-scorecard-configuration')).textContent = configurationLabel;
+		}
+		const tag = getAttemptTag(attempt, isWinner);
+		if (tag) {
+			const tagElement = dom.append(identity, dom.$('span.session-comparison-result-tag'));
+			tagElement.classList.toggle('recommended', isWinner);
+			tagElement.textContent = tag;
+		}
+
+		const checks = dom.append(toggle, dom.$('span.session-comparison-scorecard-checks'));
+		const checkDescriptions: string[] = [];
+		if (attemptVerdict) {
+			if (context.uniformValidationNote) {
+				const summary = dom.append(checks, dom.$('span.session-comparison-check-summary'));
+				summary.textContent = '\u2014';
+				summary.setAttribute('aria-hidden', 'true');
+				checkDescriptions.push(context.uniformValidationNote);
+				this.renderStore.add(this.hoverService.setupDelayedHover(summary, { content: context.uniformValidationNote }));
+			} else {
+				for (const check of getValidationChecks()) {
+					const evidence = attemptVerdict.validation[check.key];
+					const description = describeValidation(check.label, evidence, getValidationCheckPurpose(check.key));
+					checkDescriptions.push(description);
+					const glyph = dom.append(checks, renderValidationGlyph(evidence));
+					this.renderStore.add(this.hoverService.setupDelayedHover(glyph, { content: description }));
+				}
+			}
+		}
+		const elapsedMs = attempt.completion?.elapsedMs;
+		const tokenCount = attempt.completion?.tokenCount;
+		renderMetric(toggle, elapsedMs, context.maxElapsedMs, formatElapsedTime);
+		renderMetric(toggle, tokenCount, context.maxTokenCount, value => formatCompactTokenCount(value, attempt.completion?.tokenCountIsComplete));
+		toggle.setAttribute('aria-label', [
+			isWinner ? localize('sessionComparisonResult.recommendedAttempt', "{0}, recommended by the Judge", attemptLabel) : attemptLabel,
+			...checkDescriptions,
+			localize('sessionComparisonResult.timeAriaLabel', "Time {0}", elapsedMs === undefined ? localize('sessionComparisonResult.unavailable', "Unavailable") : formatElapsedTime(elapsedMs)),
+			localize('sessionComparisonResult.tokensAriaLabel', "Tokens {0}", tokenCount === undefined ? localize('sessionComparisonResult.unavailable', "Unavailable") : formatTokenCount(tokenCount, attempt.completion?.tokenCountIsComplete)),
+		].join(', '));
+		if (checkDescriptions.length > 0) {
+			this.renderStore.add(this.hoverService.setupDelayedHover(toggle, { content: checkDescriptions.join('\n') }, { setupKeyboardEvents: true }));
+		}
+
+		if (attempt.sessionResource) {
+			const openLabel = localize('sessionComparisonResult.openAttempt', "Open {0}", attemptLabel);
+			const open = dom.append(line, dom.$<HTMLButtonElement>('button.session-comparison-scorecard-open'));
+			open.type = 'button';
+			open.setAttribute('aria-label', openLabel);
+			open.append(renderIcon(Codicon.arrowRight));
+			this.renderStore.add(this.hoverService.setupDelayedHover(open, { content: openLabel }));
+			this.renderStore.add(dom.addDisposableListener(open, dom.EventType.CLICK, () => this.focusAttempt(comparison, attempt)));
+		}
+
+		const detail = dom.append(element, dom.$('.session-comparison-scorecard-detail'));
+		detail.id = `session-comparison-scorecard-detail-${generateUuid()}`;
+		toggle.setAttribute('aria-controls', detail.id);
+		if (isWinner && verdict.rationale) {
+			renderDetailTitle(detail, localize('sessionComparisonResult.whyWinner', "Why it won"));
+			this.renderRationale(detail, verdict.rationale);
+			this.renderChecksStrip(detail, attemptVerdict, context.uniformValidationNote);
+		} else {
+			this.renderAttemptDetail(detail, attempt, attemptVerdict, isWinner, context.uniformValidationNote);
+		}
+		return { attempt, element, toggle, detail };
+	}
+
+	private renderAttemptDetail(detail: HTMLElement, attempt: ISessionComparisonParticipant, attemptVerdict: ISessionComparisonAttemptVerdict | undefined, isWinner: boolean, uniformValidationNote: string | undefined): void {
+		const story = dom.append(detail, dom.$('.session-comparison-scorecard-story'));
+		if (attempt.launchError) {
+			renderDetailTitle(story, localize('sessionComparisonResult.launchFailed', "Failed to start"));
+			dom.append(story, dom.$('p.session-comparison-scorecard-note')).textContent = attempt.launchError;
+		}
+		const strengths = attemptVerdict?.notableDifferences.length ? attemptVerdict.notableDifferences : attemptVerdict?.summary ? [attemptVerdict.summary] : [];
+		if (strengths.length > 0) {
+			renderDetailTitle(story, isWinner
+				? localize('sessionComparisonResult.summary', "Summary")
+				: localize('sessionComparisonResult.worthKeeping', "Worth keeping"));
+			this.renderBullets(story, strengths);
+		}
+		const gaps = attemptVerdict?.unresolvedIssues ?? [];
+		if (gaps.length > 0) {
+			renderDetailTitle(story, localize('sessionComparisonResult.gaps', "Gaps"));
+			this.renderBullets(story, gaps);
+		}
+		if (!attempt.launchError && strengths.length === 0 && gaps.length === 0) {
+			dom.append(story, dom.$('p.session-comparison-scorecard-note')).textContent = localize('sessionComparisonResult.noStrengths', "No distinct strong points reported");
+		}
+		this.renderChecksStrip(detail, attemptVerdict, uniformValidationNote);
+	}
+
+	/**
+	 * The four validation checks as one compact row, shared by every expanded attempt
+	 * (including the winner) so the detail is consistent from row to row. Suppressed
+	 * in favor of the scorecard's shared note when every attempt is uninformatively
+	 * the same (e.g. nothing ran for any of them).
+	 */
+	private renderChecksStrip(detail: HTMLElement, attemptVerdict: ISessionComparisonAttemptVerdict | undefined, uniformValidationNote: string | undefined): void {
+		if (!attemptVerdict || uniformValidationNote) {
+			return;
+		}
+		const checks = dom.append(detail, dom.$('.session-comparison-scorecard-checks-strip'));
+		checks.setAttribute('role', 'list');
+		for (const check of getValidationChecks()) {
+			const evidence = attemptVerdict.validation[check.key];
+			const item = dom.append(checks, dom.$('span.session-comparison-scorecard-check-item'));
+			item.setAttribute('role', 'listitem');
+			item.append(renderValidationGlyph(evidence));
+			dom.append(item, dom.$('span.session-comparison-scorecard-check-item-label')).textContent = check.label;
+			const description = describeValidation(check.label, evidence, getValidationCheckPurpose(check.key));
+			this.renderStore.add(this.hoverService.setupDelayedHover(item, { content: description }));
+		}
+	}
+
+	private renderRationale(container: HTMLElement, rationale: ISessionComparisonRationale): void {
+		const list = dom.append(container, dom.$('dl.session-comparison-result-rationale'));
+		for (const entry of [
+			{ label: localize('sessionComparisonResult.rationale.comparison', "Comparison"), point: rationale.comparison },
+			{ label: localize('sessionComparisonResult.rationale.validation', "Validation"), point: rationale.validation },
+			{ label: localize('sessionComparisonResult.rationale.codeQuality', "Code quality"), point: rationale.codeQuality },
+			{ label: localize('sessionComparisonResult.rationale.solution', "Solution"), point: rationale.solution },
+		]) {
+			dom.append(list, dom.$('dt')).textContent = entry.label;
+			this.renderMarkdown(dom.append(list, dom.$('dd')), entry.point);
+		}
+	}
+
+	private renderBullets(container: HTMLElement, items: readonly string[]): void {
+		const list = dom.append(container, dom.$('ul.session-comparison-result-bullets'));
+		for (const item of items) {
+			this.renderMarkdown(dom.append(list, dom.$('li')), item);
 		}
 	}
 
@@ -358,7 +504,7 @@ export class SessionComparisonResult extends Disposable {
 		const panel = dom.append(this.domNode, dom.$('section.session-comparison-synthesis-instructions'));
 		panel.hidden = true;
 		panel.id = `session-comparison-synthesis-instructions-${generateUuid()}`;
-		const title = dom.append(panel, dom.$('h3.session-comparison-result-subtitle'));
+		const title = dom.append(panel, dom.$('h3.session-comparison-result-eyebrow'));
 		title.id = `${panel.id}-title`;
 		title.textContent = localize('sessionComparisonResult.additionalInstructions', "Additional synthesis instructions");
 		panel.setAttribute('aria-labelledby', title.id);
@@ -381,6 +527,7 @@ export class SessionComparisonResult extends Disposable {
 		const actions = dom.append(panel, dom.$('.session-comparison-synthesis-instructions-actions'));
 		const start = this.renderStore.add(new Button(actions, {
 			...defaultButtonStyles,
+			small: true,
 			ariaLabel: localize('sessionComparisonResult.startWithInstructionsAriaLabel', "Start recommended synthesis with the additional instructions"),
 		}));
 		start.label = localize('sessionComparisonResult.startWithInstructions', "Start Synthesis with Instructions");
@@ -443,16 +590,6 @@ export class SessionComparisonResult extends Disposable {
 		};
 	}
 
-	private renderAttemptLink(container: HTMLElement, comparison: ISessionComparison, attempt: ISessionComparisonParticipant, label: string): void {
-		const link = dom.append(container, dom.$('a.session-comparison-result-attempt-link'));
-		link.setAttribute('href', '#');
-		link.textContent = label;
-		this.renderStore.add(dom.addDisposableListener(link, dom.EventType.CLICK, event => {
-			event.preventDefault();
-			void this.focusAttempt(comparison, attempt);
-		}));
-	}
-
 	private async focusAttempt(comparison: ISessionComparison, attempt: ISessionComparisonParticipant, button?: IButton): Promise<void> {
 		if (!attempt.sessionResource) {
 			return;
@@ -465,6 +602,7 @@ export class SessionComparisonResult extends Disposable {
 			await this.sessionsService.openSession(attempt.sessionResource, { source: 'chat' });
 		} catch (error) {
 			this.notificationService.error(error);
+		} finally {
 			if (button) {
 				button.enabled = true;
 			}
@@ -482,6 +620,130 @@ export class SessionComparisonResult extends Disposable {
 		}
 	}
 
+}
+
+function renderDetailTitle(container: HTMLElement, text: string): void {
+	dom.append(container, dom.$('h3.session-comparison-result-eyebrow')).textContent = text;
+}
+
+function renderMetric(container: HTMLElement, value: number | undefined, max: number, format: (value: number) => string): void {
+	const cell = dom.append(container, dom.$('span.session-comparison-scorecard-metric'));
+	const text = dom.append(cell, dom.$('span.session-comparison-scorecard-metric-value'));
+	if (value === undefined) {
+		cell.classList.add('unavailable');
+		text.textContent = localize('sessionComparisonResult.unavailable', "Unavailable");
+		return;
+	}
+	text.textContent = format(value);
+	const meter = dom.append(cell, dom.$('span.session-comparison-meter'));
+	const fill = dom.append(meter, dom.$('span.session-comparison-meter-fill'));
+	fill.style.width = `${max <= 0 ? 0 : Math.max(4, Math.round(value / max * 100))}%`;
+}
+
+function getValidationChecks(): readonly { readonly key: ValidationKey; readonly label: string }[] {
+	return [
+		{ key: 'tests', label: localize('sessionComparisonResult.check.tests', "Tests") },
+		{ key: 'build', label: localize('sessionComparisonResult.check.build', "Build") },
+		{ key: 'lint', label: localize('sessionComparisonResult.check.lint', "Lint") },
+		{ key: 'diagnostics', label: localize('sessionComparisonResult.check.diagnostics', "Diagnostics") },
+	];
+}
+
+function renderValidationGlyph(evidence: SessionComparisonValidationEvidence): HTMLElement {
+	const { icon, className } = getValidationIcon(evidence);
+	const glyph = renderIcon(icon);
+	glyph.classList.add('session-comparison-check', className);
+	glyph.setAttribute('aria-hidden', 'true');
+	return glyph;
+}
+
+function getValidationIcon(evidence: SessionComparisonValidationEvidence): { readonly icon: ThemeIcon; readonly className: string } {
+	switch (evidence.state) {
+		case SessionComparisonValidationState.Passed: return { icon: Codicon.checkCompact, className: 'passed' };
+		case SessionComparisonValidationState.Failed: return { icon: Codicon.closeCompact, className: 'failed' };
+		case SessionComparisonValidationState.NotRun: return { icon: Codicon.circleSlash, className: 'not-run' };
+		case SessionComparisonValidationState.NotApplicable: return { icon: Codicon.dash, className: 'not-applicable' };
+		default: return { icon: Codicon.question, className: 'unknown' };
+	}
+}
+
+function describeValidationState(evidence: SessionComparisonValidationEvidence): string {
+	switch (evidence.state) {
+		case SessionComparisonValidationState.Passed: return localize('sessionComparisonResult.validation.passed', "Passed");
+		case SessionComparisonValidationState.Failed: return localize('sessionComparisonResult.validation.failed', "Failed");
+		case SessionComparisonValidationState.NotRun: return localize('sessionComparisonResult.validation.notRun', "Not run");
+		case SessionComparisonValidationState.NotApplicable: return localize('sessionComparisonResult.validation.notApplicable', "Not applicable");
+		default: return localize('sessionComparisonResult.validation.unknown', "No evidence");
+	}
+}
+
+function describeValidationSource(evidence: SessionComparisonValidationEvidence): string | undefined {
+	switch (evidence.source) {
+		case SessionComparisonValidationSource.JudgeRun: return localize('sessionComparisonResult.validation.judgeRun', "Judge run");
+		case SessionComparisonValidationSource.AttemptReport: return localize('sessionComparisonResult.validation.attemptReport', "Attempt report");
+		default: return undefined;
+	}
+}
+
+function describeValidation(label: string, evidence: SessionComparisonValidationEvidence, purpose: string): string {
+	const source = describeValidationSource(evidence);
+	const state = source
+		? localize('sessionComparisonResult.validation.withSource', "{0}: {1} ({2})", label, describeValidationState(evidence), source)
+		: localize('sessionComparisonResult.validation.withoutSource', "{0}: {1}", label, describeValidationState(evidence));
+	return localize('sessionComparisonResult.validation.withPurpose', "{0}. {1}", state, purpose);
+}
+
+/** What each check actually verifies, shown on hover alongside its state. */
+function getValidationCheckPurpose(key: ValidationKey): string {
+	switch (key) {
+		case 'tests': return localize('sessionComparisonResult.check.tests.purpose', "Whether the attempt's automated tests were run and passed.");
+		case 'build': return localize('sessionComparisonResult.check.build.purpose', "Whether the project built or compiled successfully.");
+		case 'lint': return localize('sessionComparisonResult.check.lint.purpose', "Whether static analysis or linting ran cleanly.");
+		case 'diagnostics': return localize('sessionComparisonResult.check.diagnostics.purpose', "Whether the changed files are free of editor errors and warnings.");
+	}
+}
+
+/**
+ * True when every attempt reports that every validation category was not run, so
+ * the checks column would repeat the same uninformative icons for each attempt.
+ */
+function wereAllValidationChecksNotRun(verdict: ISessionComparisonVerdict): boolean {
+	if (verdict.attempts.length < 2) {
+		return false;
+	}
+	return getValidationChecks().every(check => verdict.attempts.every(attempt => attempt.validation[check.key].state === SessionComparisonValidationState.NotRun));
+}
+
+/** A single shared explanation to show once instead of repeating all-not-run checks on every row. */
+function getUniformValidationNote(verdict: ISessionComparisonVerdict): string | undefined {
+	return wereAllValidationChecksNotRun(verdict)
+		? localize('sessionComparisonResult.noChecksRan', "Tests, build, lint, and diagnostics did not run for this comparison; the Judge reviewed the code changes only.")
+		: undefined;
+}
+
+function getAttemptModelLabel(attempt: ISessionComparisonParticipant): string {
+	return attempt.harness.modelLabel ?? attempt.harness.label;
+}
+
+function getAttemptConfigurationLabel(attempt: ISessionComparisonParticipant, showAgent: boolean): string | undefined {
+	const configuration = getSessionComparisonHarnessConfigurationLabel(attempt.harness);
+	const agent = showAgent && attempt.harness.modelLabel ? attempt.harness.label : undefined;
+	return configuration && agent
+		? localize('sessionComparisonResult.configurationAndAgent', "{0} · {1}", configuration, agent)
+		: configuration ?? agent;
+}
+
+function getAttemptTag(attempt: ISessionComparisonParticipant, isWinner: boolean): string | undefined {
+	if (isWinner) {
+		return localize('sessionComparisonResult.recommended', "Recommended");
+	}
+	if (attempt.launchError) {
+		return localize('sessionComparisonResult.failedToStartTag', "Failed to start");
+	}
+	if (attempt.missingSession) {
+		return localize('sessionComparisonResult.sessionUnavailable', "Session unavailable");
+	}
+	return undefined;
 }
 
 export function buildSessionComparisonAccessibleContent(comparison: ISessionComparison): string {
@@ -591,6 +853,15 @@ function formatTokenCount(tokenCount: number, isComplete: boolean | undefined): 
 	const formatted = tokenCount.toLocaleString();
 	return isComplete === false
 		? localize('sessionComparisonResult.partialTokenCount', "At least {0}", formatted)
+		: formatted;
+}
+
+const compactTokenFormat = safeIntl.NumberFormat(language, { notation: 'compact', maximumSignificantDigits: 3 });
+
+function formatCompactTokenCount(tokenCount: number, isComplete: boolean | undefined): string {
+	const formatted = compactTokenFormat.value.format(tokenCount);
+	return isComplete === false
+		? localize('sessionComparisonResult.partialCompactTokenCount', "{0}+", formatted)
 		: formatted;
 }
 

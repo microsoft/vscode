@@ -65,6 +65,15 @@
 	text-overflow: ellipsis;
 }
 
+/* One icon per compare-mode attempt, replacing the generic layers icon and joined
+ * name list; a tight row reads as "a small set of models" at a glance. */
+.chat-input-picker-item .action-label.model-picker-split .model-picker-name .chat-input-picker-attempt-icons {
+	display: flex;
+	align-items: center;
+	flex: 0 0 auto;
+	gap: var(--vscode-spacing-size20);
+}
+
 .chat-input-picker-item .action-label.model-picker-split.compact .model-picker-name {
 	flex: 0 0 auto;
 	width: 22px;
@@ -1020,6 +1029,54 @@
 	color: var(--vscode-descriptionForeground);
 }
 
+.chat-model-card-variant-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size60);
+}
+
+.chat-model-card-variant-chip {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	padding: var(--vscode-spacing-sizeNone) var(--vscode-spacing-size80);
+	border-radius: var(--vscode-cornerRadius-circle);
+	font-size: var(--vscode-fontSize-label2);
+	line-height: var(--vscode-spacing-size160);
+	white-space: nowrap;
+}
+
+.chat-model-card-variant-chip.added {
+	color: var(--vscode-foreground);
+	background: color-mix(in srgb, var(--vscode-focusBorder) 16%, transparent);
+}
+
+.chat-model-card-variant-remove {
+	display: flex;
+	padding: 0;
+	border: none;
+	background: transparent;
+	cursor: pointer;
+	color: var(--vscode-descriptionForeground);
+	font: inherit;
+}
+
+.chat-model-card-variant-remove:hover {
+	color: var(--vscode-foreground);
+}
+
+.chat-model-card-variant-chip.addable {
+	border: 1px solid var(--vscode-widget-border, var(--vscode-contrastBorder));
+	background: transparent;
+	color: var(--vscode-descriptionForeground);
+	cursor: pointer;
+}
+
+.chat-model-card-variant-chip.addable:hover {
+	color: var(--vscode-foreground);
+	background: color-mix(in srgb, var(--vscode-foreground) 6%, transparent);
+}
+
 .chat-model-card-options {
 	display: flex;
 	flex-direction: column;
@@ -1189,7 +1246,8 @@
 }
 
 .model-picker-workflow-footer {
-	padding: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size80) var(--vscode-spacing-size80) var(--vscode-spacing-size120);
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-editorHoverWidget-border);
 }
 
 .model-picker-workflow-count,
@@ -1207,6 +1265,81 @@
 	flex-shrink: 0;
 }
 
-.model-picker-workflow .action-list-header-text {
-	white-space: pre-line;
+/* The status or Back sits on the leading edge; Done and Next keep their places on the trailing edge. */
+.model-picker-workflow-leading {
+	display: flex;
+	flex: 1 1 auto;
+	align-items: center;
+	min-width: 0;
+}
+
+.model-picker-workflow-status {
+	overflow: hidden;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+	font-variant-numeric: tabular-nums;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.model-picker-workflow-status.warning {
+	color: var(--vscode-editorWarning-foreground);
+}
+
+.model-picker-workflow-trailing {
+	display: flex;
+	flex: 0 0 auto;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+}
+
+.model-picker-workflow-actions .monaco-button {
+	width: auto;
+	min-width: 64px;
+	padding-left: var(--vscode-spacing-size120);
+	padding-right: var(--vscode-spacing-size120);
+	white-space: nowrap;
+}
+
+/* Back is a quiet text action, so the trailing buttons stay the only filled controls. */
+.model-picker-workflow-actions .monaco-button.model-picker-workflow-back {
+	min-width: 0;
+	margin-left: calc(-1 * var(--vscode-spacing-size60));
+	padding-left: var(--vscode-spacing-size40);
+	padding-right: var(--vscode-spacing-size80);
+	border: var(--vscode-strokeThickness) solid transparent;
+	background-color: transparent;
+	color: var(--vscode-foreground);
+}
+
+.model-picker-workflow-actions .monaco-button.model-picker-workflow-back:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+/* Choosing several models reads as checkboxes, with the chosen rows tinted. */
+.action-widget.chat-model-picker-widget .monaco-list-row.action .icon.chat-model-picker-checkbox {
+	box-sizing: border-box;
+	flex: 0 0 14px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 14px;
+	height: 14px;
+	/* Fills the 20px icon column so labels align with the other rows. */
+	margin: 0 var(--vscode-spacing-size40) 0 var(--vscode-spacing-size20);
+	border: 1px solid var(--vscode-checkbox-border);
+	border-radius: var(--vscode-cornerRadius-small);
+	background-color: var(--vscode-checkbox-background);
+	color: var(--vscode-checkbox-foreground);
+	font-size: var(--vscode-fontSize-label3);
+}
+
+.action-widget.chat-model-picker-widget .monaco-list-row.action .icon.chat-model-picker-checkbox.checked {
+	border-color: var(--vscode-button-background);
+	background-color: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+}
+
+.action-widget.chat-model-picker-widget .monaco-list .monaco-list-row.action.chat-model-picker-workflow-checked:not(.option-disabled) {
+	background-color: var(--vscode-list-hoverBackground);
 }

@@ -20,12 +20,16 @@ export interface INewChatModelPickerService {
 	registerModelPicker(modelPicker: INewChatModelPicker): IDisposable;
 	openModelPicker(): void;
 	switchToModel(modelIdentifier: string): boolean;
+	/** Moves focus to the prompt input that hosts the model pickers. */
+	focusInput(): void;
 }
 
 export class NewChatModelPickerService implements INewChatModelPickerService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _modelPickers = new Set<INewChatModelPicker>();
+
+	constructor(private readonly _focusInput: () => void = () => { }) { }
 
 	registerModelPicker(modelPicker: INewChatModelPicker): IDisposable {
 		this._modelPickers.add(modelPicker);
@@ -38,6 +42,10 @@ export class NewChatModelPickerService implements INewChatModelPickerService {
 
 	switchToModel(modelIdentifier: string): boolean {
 		return this.activePicker?.switchToModel(modelIdentifier) ?? false;
+	}
+
+	focusInput(): void {
+		this._focusInput();
 	}
 
 	get activePicker(): INewChatModelPicker | undefined {
