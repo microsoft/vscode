@@ -6,7 +6,7 @@
 import '../../../workbench/browser/parts/panel/media/panelpart.css';
 import './media/panelPart.css';
 import { localize } from '../../../nls.js';
-import { IAction, Separator, SubmenuAction } from '../../../base/common/actions.js';
+import { IAction, SubmenuAction } from '../../../base/common/actions.js';
 import { ActionsOrientation } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { ActivePanelContext, PanelFocusContext } from '../../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService, Parts, Position } from '../../../workbench/services/layout/browser/layoutService.js';
@@ -160,7 +160,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 			activityHoverOptions: {
 				position: () => this.layoutService.getPanelPosition() === Position.BOTTOM && !this.layoutService.isPanelMaximized() ? HoverPosition.ABOVE : HoverPosition.BELOW,
 			},
-			getContextMenuActionsForComposite: () => this.getContextMenuActionsForComposite(),
+			transformContextMenuActionsForComposite: actions => this.transformContextMenuActionsForComposite(actions),
 			fillExtraContextMenuActions: actions => this.fillExtraContextMenuActions(actions),
 			compositeSize: 0,
 			iconSize: 16,
@@ -179,19 +179,18 @@ export class PanelPart extends AbstractPaneCompositePart {
 		};
 	}
 
-	private getContextMenuActionsForComposite(): IAction[] {
+	private transformContextMenuActionsForComposite(actions: IAction[]): IAction[] {
 		if (isPhoneLayout(this.layoutService)) {
-			return [];
+			return actions;
 		}
 
 		const alignmentActions = getContextMenuActions(
 			this.menuService.getMenuActions(MenuId.PanelAlignmentMenu, this.contextKeyService, { shouldForwardArgs: true })
 		).secondary.filter(action => action.id === 'workbench.action.alignPanelCenter' || action.id === 'workbench.action.alignPanelJustify');
 
-		return [
-			new Separator(),
-			new SubmenuAction('workbench.action.panel.align', localize('alignPanel', "Align Panel"), alignmentActions),
-		];
+		return actions.map(action => action.id === 'moveToMenu'
+			? new SubmenuAction('workbench.action.panel.align', localize('alignPanel', "Align Panel"), alignmentActions)
+			: action);
 	}
 
 	private fillExtraContextMenuActions(_actions: IAction[]): void { }

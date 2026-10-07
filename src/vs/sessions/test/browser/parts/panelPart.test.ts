@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { IAction, Separator, SubmenuAction } from '../../../../base/common/actions.js';
+import { IAction, Separator, SubmenuAction, toAction } from '../../../../base/common/actions.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { MenuItemAction, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
@@ -29,11 +29,11 @@ interface IPanelPartTestHarness {
 	};
 	readonly contextKeyService: IContextKeyService;
 	fillExtraContextMenuActions(actions: IAction[]): void;
-	getContextMenuActionsForComposite(): IAction[];
+	transformContextMenuActionsForComposite(actions: IAction[]): IAction[];
 }
 
 const getCompositeBarOptions = Reflect.get(PanelPart.prototype, 'getCompositeBarOptions') as (this: IPanelPartTestHarness) => IPaneCompositeBarOptions;
-const getContextMenuActionsForComposite = Reflect.get(PanelPart.prototype, 'getContextMenuActionsForComposite') as (this: Pick<IPanelPartTestHarness, 'layoutService' | 'menuService' | 'contextKeyService'>) => IAction[];
+const transformContextMenuActionsForComposite = Reflect.get(PanelPart.prototype, 'transformContextMenuActionsForComposite') as (this: Pick<IPanelPartTestHarness, 'layoutService' | 'menuService' | 'contextKeyService'>, actions: IAction[]) => IAction[];
 
 function getAlignmentSubmenu(actions: readonly IAction[]): SubmenuAction {
 	const submenu = actions.find(action => action instanceof SubmenuAction);
@@ -48,7 +48,7 @@ suite('Sessions - Panel Part', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('replaces view container movement with panel alignment actions', async () => {
+	test('replaces only view container movement with panel alignment actions', async () => {
 		let alignment: 'center' | 'justify' = 'justify';
 		const commands: string[] = [];
 		const mainContainer = mainWindow.document.createElement('div');
@@ -96,22 +96,29 @@ suite('Sessions - Panel Part', () => {
 			},
 			contextKeyService,
 			fillExtraContextMenuActions: () => { },
-			getContextMenuActionsForComposite: () => getContextMenuActionsForComposite.call(host),
+			transformContextMenuActionsForComposite: actions => transformContextMenuActionsForComposite.call(host, actions),
 		};
 
+		const separator = new Separator();
+		const moveToAction = new SubmenuAction('moveToMenu', 'Move To', []);
+		const resetLocationAction = toAction({ id: 'resetLocationAction', label: 'Reset Location', run: () => { } });
+		const defaultActions = [separator, moveToAction, resetLocationAction];
 		const options = getCompositeBarOptions.call(host);
-		const initialActions = options.getContextMenuActionsForComposite?.('workbench.panel.terminal') ?? [];
+		const initialActions = options.transformContextMenuActionsForComposite?.(defaultActions, 'workbench.panel.terminal') ?? [];
 		const initialSubmenu = getAlignmentSubmenu(initialActions);
 		await initialSubmenu.actions[0].run();
 
-		const centeredSubmenu = getAlignmentSubmenu(options.getContextMenuActionsForComposite?.('workbench.panel.terminal') ?? []);
+		const centeredSubmenu = getAlignmentSubmenu(options.transformContextMenuActionsForComposite?.(defaultActions, 'workbench.panel.terminal') ?? []);
 		await centeredSubmenu.actions[1].run();
 
 		mainContainer.classList.add('phone-layout');
-		const phoneActions = options.getContextMenuActionsForComposite?.('workbench.panel.terminal') ?? [];
+		const phoneActions = options.transformContextMenuActionsForComposite?.(defaultActions, 'workbench.panel.terminal') ?? [];
 
 		assert.deepStrictEqual({
-			startsWithSeparator: initialActions[0] instanceof Separator,
+			defaultActionsPreserved: {
+				separator: initialActions[0] === separator,
+				resetLocation: initialActions[2] === resetLocationAction,
+			},
 			submenu: {
 				id: initialSubmenu.id,
 				label: initialSubmenu.label,
@@ -120,9 +127,12 @@ suite('Sessions - Panel Part', () => {
 			centeredActions: centeredSubmenu.actions.map(action => ({ id: action.id, checked: action.checked })),
 			commands,
 			finalAlignment: alignment,
-			phoneActionCount: phoneActions.length,
+			phoneActionsPreserved: phoneActions === defaultActions,
 		}, {
-			startsWithSeparator: true,
+			defaultActionsPreserved: {
+				separator: true,
+				resetLocation: true,
+			},
 			submenu: {
 				id: 'workbench.action.panel.align',
 				label: 'Align Panel',
@@ -137,7 +147,7 @@ suite('Sessions - Panel Part', () => {
 			],
 			commands: ['workbench.action.alignPanelCenter', 'workbench.action.alignPanelJustify'],
 			finalAlignment: 'justify',
-			phoneActionCount: 0,
+			phoneActionsPreserved: true,
 		});
 	});
 });
