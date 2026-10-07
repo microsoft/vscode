@@ -42,9 +42,9 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 	/** Sandboxes are per-session environments, not persistent Automation hosts. */
 	override get automations(): undefined { return undefined; }
 
-	protected override _adoptCachedSessionMeta(meta: IAgentSessionMetadata): IAgentSessionMetadata {
+	protected override _adoptCachedSessionMeta(meta: IAgentSessionMetadata): IAgentSessionMetadata | undefined {
 		const adopted = super._adoptCachedSessionMeta(meta);
-		return adopted.session.scheme === CLOUD_SANDBOX_AGENT_PROVIDER && adopted.provider === CLOUD_SANDBOX_AGENT_PROVIDER
+		return adopted?.session.scheme === CLOUD_SANDBOX_AGENT_PROVIDER && adopted.provider === CLOUD_SANDBOX_AGENT_PROVIDER
 			? { ...adopted, session: adopted.session.with({ scheme: CLOUD_SANDBOX_SESSION_SCHEME }) }
 			: adopted;
 	}

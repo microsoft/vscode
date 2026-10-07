@@ -18,6 +18,7 @@ import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { WebPubSubRelayTransport, type IWebPubSubRelayTransportOptions } from '../../../../../../platform/agentHost/browser/webPubSubRelayTransport.js';
 import { AgentHostTransportFailureReason, NonReconnectableTransportError, type IProtocolTransport } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { IAgentConnection, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostClientConnectionKind } from '../../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import {
 	CloudSandboxEnabledSettingId,
 	CloudSandboxRequestError,
@@ -74,6 +75,7 @@ type ScriptedConnectResult = CloudSandboxConnectResult | Error | (() => Promise<
 const connectionDetails = {
 	environmentOperation: 'resume', provisioningMs: 0, readinessMs: 0,
 	preparationMs: 0, connectionMs: 0,
+	environmentKind: 'cloud',
 	surface: isWeb ? 'editorWeb' : 'editorDesktop', source: 'existing', credentialRequests: 0, wakingResponses: 0, transportAttempts: 0,
 	credentialsMs: 0, relayMs: 0, protocolMs: 0, authenticationMs: 0, restorationMs: 0,
 	firstFailurePhase: undefined, firstFailureCode: undefined,
@@ -288,6 +290,7 @@ suite('CloudSandboxAgentHostService', () => {
 		const transportCall = spy.getCalls().find(call => call.args[0] === WebPubSubRelayTransport);
 		assert.ok(transportCall);
 		const transportOptions = transportCall.args[1] as IWebPubSubRelayTransportOptions;
+		assert.strictEqual(transport.clientConnectionKind, AgentHostClientConnectionKind.MissionControl);
 		assert.strictEqual(new URL(transportOptions.url).searchParams.get('access_token'), 'fresh-ticket');
 		assert.deepStrictEqual(await options.resolveInitialAuthentication(), { resource: 'https://api.github.com', token: initial.encrypted_github_token });
 		await timeout(30_000);
@@ -970,7 +973,7 @@ suite('CloudSandboxAgentHostService', () => {
 			assert.deepStrictEqual(fixture.events, [
 				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'connect', outcome: 'success', stage: 'connection', durationMs: 0, credentialRequests: 1 } },
 				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'recover', environmentOperation: 'recover', outcome: 'success', stage: 'credentials', durationMs: 3000, readinessMs: 3000, preparationMs: 2000, connectionMs: 1000, credentialRequests: 1, firstFailurePhase: 'credentials', credentialFailures: 1 } },
-				{ eventName: 'cloudSandboxConnectionHealth', data: { connectedMs: 2000, unexpectedDisconnects: 1, receivedFrames: 0 } },
+				{ eventName: 'cloudSandboxConnectionHealth', data: { environmentKind: 'cloud', connectedMs: 2000, unexpectedDisconnects: 1, receivedFrames: 0 } },
 			]);
 		}));
 
@@ -992,7 +995,7 @@ suite('CloudSandboxAgentHostService', () => {
 			assert.deepStrictEqual(fixture.events, [
 				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'connect', outcome: 'success', stage: 'connection', durationMs: 0, credentialRequests: 1 } },
 				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'recover', environmentOperation: 'recover', outcome: 'failure', stage: 'connection', durationMs: 2000, readinessMs: 2000, connectionMs: 2000, credentialRequests: 1 } },
-				{ eventName: 'cloudSandboxConnectionHealth', data: { connectedMs: 1000, unexpectedDisconnects: 1, receivedFrames: 0 } },
+				{ eventName: 'cloudSandboxConnectionHealth', data: { environmentKind: 'cloud', connectedMs: 1000, unexpectedDisconnects: 1, receivedFrames: 0 } },
 			]);
 		}));
 

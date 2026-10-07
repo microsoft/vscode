@@ -12,6 +12,7 @@ import { isObject } from '../../../../../base/common/types.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
+import { getGitHubRequestId, sanitizeConnectionDiagnosticText } from '../../../../../platform/agentHost/common/connectionDiagnostics.js';
 import {
 	CLOUD_SANDBOX_AGENT_SLUG,
 	CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID,
@@ -743,11 +744,12 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			return { kind: 'waking', waking: { retryAfterSeconds } };
 		}
 		if (!isSuccess(context)) {
-			const header = context.res.headers['x-github-request-id'];
-			const requestId = typeof header === 'string' && header.length <= 128 && /^[0-9A-Fa-f]{1,16}(?::[0-9A-Fa-f]{1,16}){4}$/.test(header) ? header : undefined;
+			const requestId = getGitHubRequestId(context.res.headers['x-github-request-id']);
 			const retryAfter = retryAfterSeconds(context.res.headers['retry-after']);
 			const status = context.res.statusCode;
-			this._logService.error(`${LOG_PREFIX} ${action} failed: method=GET host=${new URL(GITHUB_DOT_COM_COPILOT_API_BASE_URI).host} environmentId=${environmentId} sessionId=${searchParams.session_id ?? 'none'} clientId=${searchParams.client_id ?? 'none'} status=${status ?? 'unknown'} requestId=${requestId ?? 'unavailable'} durationMs=${watch.elapsed()} retryAfterSeconds=${retryAfter ?? 'none'}`);
+			const responseError = await this._readJson<{ message?: string }>(context);
+			const detail = typeof responseError?.message === 'string' ? sanitizeConnectionDiagnosticText(responseError.message) : undefined;
+			this._logService.error(`${LOG_PREFIX} ${action} failed: method=GET host=${new URL(GITHUB_DOT_COM_COPILOT_API_BASE_URI).host} environmentId=${environmentId} sessionId=${searchParams.session_id ?? 'none'} clientId=${searchParams.client_id ?? 'none'} status=${status ?? 'unknown'} requestId=${requestId ?? 'unavailable'} durationMs=${watch.elapsed()} retryAfterSeconds=${retryAfter ?? 'none'}${detail ? ` message=${detail}` : ''}`);
 			throw new CloudSandboxRequestError(status, `Mission Control ${action} failed: HTTP ${status ?? 'unknown'}${requestId ? ` (requestId=${requestId})` : ''}`, retryAfter);
 		}
 		const clientToken = await this._readJson<ICloudSandboxClientToken>(context);

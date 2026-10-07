@@ -94,6 +94,34 @@ suite('AgentHostStateManager', () => {
 		assert.deepStrictEqual(fired, [sessionChatUri, sessionChatUri]);
 	});
 
+	test('batches chat working-directory invalidation by effective scope', () => {
+		manager.createSession({ ...makeSessionSummary(), workingDirectories: ['file:///a', 'file:///b'] });
+		const peer = buildChatUri(sessionUri, 'peer');
+		manager.addChat(sessionUri, peer);
+		const fired: string[] = [];
+		const actions: string[] = [];
+		disposables.add(manager.onDidChangeSessionWorkingDirectories(({ session }) => fired.push(session)));
+		disposables.add(manager.onDidEmitEnvelope(envelope => {
+			if (envelope.channel === peer && envelope.action.type === ActionType.ChatWorkingDirectorySet) {
+				actions.push(envelope.action.directory);
+			}
+		}));
+
+		manager.runWithBatchedWorkingDirectoryChanges(() => {
+			manager.dispatchServerAction(peer, { type: ActionType.ChatWorkingDirectorySet, directory: 'file:///a' });
+			manager.dispatchServerAction(peer, { type: ActionType.ChatWorkingDirectorySet, directory: 'file:///b' });
+		});
+		manager.runWithBatchedWorkingDirectoryChanges(() => {
+			manager.dispatchServerAction(peer, { type: ActionType.ChatWorkingDirectoryRemoved, directory: 'file:///b' });
+			manager.dispatchServerAction(peer, { type: ActionType.ChatWorkingDirectorySet, directory: 'file:///c' });
+		});
+
+		assert.deepStrictEqual({ fired, actions }, {
+			fired: [peer],
+			actions: ['file:///a', 'file:///b', 'file:///c'],
+		});
+	});
+
 	test('getSnapshot returns undefined for unknown session', () => {
 		const unknown = URI.from({ scheme: 'copilot', path: '/unknown' }).toString();
 		const snapshot = manager.getSnapshot(unknown);
@@ -570,6 +598,33 @@ suite('AgentHostStateManager', () => {
 		assert.strictEqual(notifications.length, 1);
 		assert.strictEqual(notifications[0].type, NotificationType.SessionRemoved);
 	});
+
+	for (const cleanup of ['delete', 'retract', 'unpublish', 'restore'] as const) {
+		test(`eviction retains the physical default independently of routing until ${cleanup}`, () => {
+			const physical = buildChatUri(sessionUri, 'advertised-default');
+			const peer = buildDefaultChatUri(sessionUri);
+			manager.createSession({ ...makeSessionSummary(), defaultChat: physical });
+			manager.addChat(sessionUri, peer);
+			manager.dispatchServerAction(sessionUri, { type: ActionType.SessionDefaultChatChanged, defaultChat: peer });
+			manager.removeSession(sessionUri);
+			const evicted = {
+				physical: manager.getDefaultChatUri(sessionUri),
+				routing: manager.getSurfacedSessionSummary(sessionUri)?.defaultChat,
+			};
+			if (cleanup === 'delete') {
+				manager.deleteSession(sessionUri);
+			} else if (cleanup === 'retract') {
+				manager.retractSurfacedSession(sessionUri);
+			} else if (cleanup === 'unpublish') {
+				manager.setSessionSummaryPublished(sessionUri, false);
+			} else {
+				manager.restoreSession({ ...makeSessionSummary(), defaultChat: peer }, []);
+			}
+			assert.deepStrictEqual({ evicted, after: manager.getDefaultChatUri(sessionUri) }, {
+				evicted: { physical, routing: peer }, after: peer,
+			});
+		});
+	}
 
 	test('deleteSession clears parent and subagent annotations', () => {
 		const subagent = buildSubagentSessionUri(sessionUri, 'tool-call');
@@ -1599,6 +1654,29 @@ suite('AgentHostStateManager', () => {
 			});
 		});
 
+		test('restores the explicit default role instead of inferring it from a chat URI', () => {
+			const oldDefault = buildDefaultChatUri(sessionUri);
+			manager.restoreSession({
+				...makeSessionSummary(),
+				defaultChat: peerChat,
+				chats: [
+					{ resource: peerChat, title: 'Default', changes: { files: 0 } },
+					{ resource: oldDefault, title: 'Peer' },
+				],
+			}, [], { defaultChatTitle: 'Default' });
+			assert.deepStrictEqual({
+				defaultChat: manager.getSessionState(sessionUri)?.defaultChat,
+				chats: manager.getSessionState(sessionUri)?.chats.map(chat => ({ resource: chat.resource, title: chat.title })),
+				state: manager.getSessionState(sessionUri)?.turns,
+				changes: manager.getChatState(peerChat)?.changes,
+			}, {
+				defaultChat: peerChat,
+				chats: [{ resource: peerChat, title: 'Default' }, { resource: oldDefault, title: 'Peer' }],
+				state: [],
+				changes: { files: 0 },
+			});
+		});
+
 		test('catalog-only SessionChatAdded does not create chat state', () => {
 			manager.createSession(makeSessionSummary());
 			manager.dispatchServerAction(sessionUri, {
@@ -1737,6 +1815,25 @@ suite('AgentHostStateManager', () => {
 			}, {
 				canonicalDefaultTitle: 'Test',
 				routingDefaultTitle: '',
+			});
+		});
+
+		test('a recreated catalog default stays stable when the routing default changes', () => {
+			const defaultChat = `${buildDefaultChatUri(sessionUri)}?generation=recreated`;
+			manager.createSession({ ...makeSessionSummary(), defaultChat });
+			manager.addChat(sessionUri, peerChat, { title: 'Peer' });
+			manager.updateChatTitle(sessionUri, defaultChat, '');
+			manager.updateChatTitle(sessionUri, peerChat, '');
+			manager.dispatchServerAction(sessionUri, { type: ActionType.SessionDefaultChatChanged, defaultChat: peerChat });
+			manager.addChat(sessionUri, buildChatUri(sessionUri, 'peer-2'), { title: 'Peer 2' });
+
+			assert.deepStrictEqual({
+				catalogDefault: manager.getDefaultChatUri(sessionUri),
+				routingDefault: manager.getSessionState(sessionUri)?.defaultChat,
+				defaultTitle: manager.getSessionState(sessionUri)?.chats.find(chat => chat.resource === defaultChat)?.title,
+				peerTitle: manager.getSessionState(sessionUri)?.chats.find(chat => chat.resource === peerChat)?.title,
+			}, {
+				catalogDefault: defaultChat, routingDefault: peerChat, defaultTitle: 'Test', peerTitle: '',
 			});
 		});
 
@@ -2900,6 +2997,29 @@ suite('Subagent URI helpers', () => {
 			parentSession: 'copilot:/session-1/subagent/tc-1',
 			toolCallId: 'tc-2',
 		});
+	});
+
+	test('parses legacy Copilot subagent selections without treating opaque fragments as subagents', () => {
+		const addresses = [
+			'copilotcli:/parent#subagent%2Fcall-1',
+			URI.from({ scheme: 'copilotcli', path: '/parent', fragment: 'subagent/call-2' }),
+			'copilotcli:/parent/subagent/call-path#subagent/call-fragment',
+			'copilotcli:/parent#peer-chat',
+			'copilotcli:/parent#subagent/',
+			'copilotcli://tenant/parent#subagent/call-1',
+			'copilotcli:/parent?revision=1#subagent/call-1',
+			'ahp-session:/parent#subagent/call-1',
+			'conversation:/parent#subagent/call-1',
+		];
+		assert.deepStrictEqual(addresses.map(address => {
+			const parsed = parseSubagentSessionUri(address);
+			return parsed && { parent: parsed.parentSession.toString(), toolCallId: parsed.toolCallId };
+		}), [
+			{ parent: 'copilotcli:/parent', toolCallId: 'call-1' },
+			{ parent: 'copilotcli:/parent', toolCallId: 'call-2' },
+			{ parent: 'copilotcli:/parent#subagent%2Fcall-fragment', toolCallId: 'call-path' },
+			undefined, undefined, undefined, undefined, undefined, undefined,
+		]);
 	});
 
 	test('parseSubagentSessionUri returns undefined for non-subagent URIs', () => {
