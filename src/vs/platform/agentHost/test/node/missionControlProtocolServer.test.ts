@@ -633,7 +633,7 @@ suite('Mission Control WPS', () => {
 				changeIdentityAuthority: (base: string) => void;
 				tokens: number[];
 				directory: string;
-				attachments: { initialRoots: readonly string[]; getRoots: () => readonly string[] }[];
+				attachments: { initialRoots: readonly string[]; getRoots: () => readonly string[]; rootMeta?: Record<string, unknown> }[];
 				requests: { path: string; credential: string | null; body?: Record<string, unknown> }[];
 				delayHeartbeat: () => { started: Promise<void>; complete: (response?: Response) => Promise<void> };
 				delayIdentity: () => { started: Promise<void>; complete: (response: Response) => Promise<void> };
@@ -652,7 +652,7 @@ suite('Mission Control WPS', () => {
 				const sockets: FakeWpsSocket[] = [];
 				const tokens: number[] = [];
 				const requests: { path: string; credential: string | null; body?: Record<string, unknown> }[] = [];
-				const attachments: { initialRoots: readonly string[]; getRoots: () => readonly string[] }[] = [];
+				const attachments: { initialRoots: readonly string[]; getRoots: () => readonly string[]; rootMeta?: Record<string, unknown> }[] = [];
 				let delayedHeartbeat: { started: DeferredPromise<void>; response: DeferredPromise<Response> } | undefined;
 				let delayedIdentity: { started: DeferredPromise<void>; response: DeferredPromise<Response> } | undefined;
 				let policy: Record<string, unknown> | undefined;
@@ -698,8 +698,8 @@ suite('Mission Control WPS', () => {
 						}
 						return Response.json(url.pathname === '/user' ? { id: 123, type: 'User' } : url.pathname.endsWith('/jwks.json') ? { keys: [key] } : environment);
 					},
-					attach: (_server, initialRoots, getRoots) => {
-						attachments.push({ initialRoots, getRoots });
+					attach: (server, initialRoots, getRoots) => {
+						attachments.push({ initialRoots, getRoots, rootMeta: server.rootMeta });
 						return { dispose() { } };
 					},
 					onError: error => errors.push(error instanceof Error ? error.message : String(error)),
@@ -759,6 +759,31 @@ suite('Mission Control WPS', () => {
 					tokens: [90_000], heartbeats: [{ time: 0, status: 'online' }], sockets: 1, errors: [],
 				});
 			}, 120_000);
+		});
+
+		test('registers and heartbeats the same four purpose-specific keys advertised to AHP clients', async () => {
+			await withEnvironment([], async ({ clock, requests, attachments }) => {
+				await clock.tickAsync(60_000);
+				const registration = requests.find(request => request.path.endsWith('/register'))?.body?.encryption_keys;
+				assert.ok(Array.isArray(registration));
+				const keys = registration.map(key => {
+					assert.ok(hasKey(key, { key_id: true, use: true, algorithm: true, public_key: true }));
+					return { keyId: key.key_id, use: key.use, algorithm: key.algorithm, publicKey: key.public_key };
+				});
+				assert.deepStrictEqual({
+					purposesAndAlgorithms: keys.map(key => [key.use, key.algorithm]),
+					rootKeys: attachments[0].rootMeta?.['copilot.encryptionKeys'],
+					heartbeats: requests.filter(request => request.path.endsWith('/heartbeat')).map(request => request.body?.encryption_keys),
+				}, {
+					purposesAndAlgorithms: [
+						['auth-token', 'x25519-sealedbox'],
+						['auth-token', 'hpke-x25519-hkdf-sha256-aes256gcm'],
+						['mcp-auth-token', 'x25519-sealedbox'],
+						['mcp-auth-token', 'hpke-x25519-hkdf-sha256-aes256gcm'],
+					],
+					rootKeys: keys, heartbeats: [registration, registration],
+				});
+			});
 		});
 
 		test('refreshes the host-owned name on startup, periodic, recovery, and withdrawal heartbeats', async () => {

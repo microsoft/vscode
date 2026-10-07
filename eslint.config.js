@@ -1751,6 +1751,7 @@ export default defineConfig(
 						'@github/copilot-sdk',
 						'zod', // used by agentHost for Claude client-tool MCP input schemas
 						{ 'when': 'hasNode', 'pattern': 'libsodium-wrappers' },
+						{ 'when': 'hasNode', 'pattern': '@hpke/core' },
 						{
 							'when': 'test',
 							'pattern': 'events'
