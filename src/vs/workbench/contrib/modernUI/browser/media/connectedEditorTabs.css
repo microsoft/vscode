@@ -233,12 +233,8 @@
 	--modern-ui-editor-tab-unfocused-active-border-top: var(--modern-ui-connected-tab-border);
 	--modern-ui-editor-tab-active-border: transparent;
 	--modern-ui-editor-tab-unfocused-active-border: transparent;
-	top: 0;
-	inset-inline: 0;
-	bottom: calc(-2 * var(--vscode-strokeThickness));
 	z-index: 1;
 	background-color: var(--modern-ui-connected-tab-current-background);
-	background-clip: padding-box;
 	border: var(--vscode-strokeThickness) solid var(--modern-ui-connected-tab-border);
 	border-bottom-color: transparent;
 	border-radius: var(--modern-ui-connected-tab-cap-radius) var(--modern-ui-connected-tab-cap-radius) 0 0;
@@ -247,7 +243,7 @@
 
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels .monaco-grid-view .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active:not(.connected-tab-upper-row) > .tab-fill,
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels .monaco-grid-view .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active:not(.connected-tab-upper-row) > .tab-connected-edge {
-	bottom: calc(-3 * var(--vscode-strokeThickness));
+	bottom: calc(-2 * var(--vscode-strokeThickness));
 }
 
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels .monaco-grid-view .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active:not(.connected-tab-upper-row) > .tab-fill,
@@ -308,7 +304,7 @@
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .modern-ui-editor-tab.active > .modern-ui-editor-tab-fill::after {
 	content: '';
 	position: absolute;
-	bottom: 0;
+	bottom: calc(-1 * var(--vscode-strokeThickness));
 	width: var(--modern-ui-connected-tab-shoulder-radius);
 	height: var(--modern-ui-connected-tab-shoulder-radius);
 	box-sizing: border-box;
@@ -341,7 +337,7 @@
 	position: absolute;
 	top: 0;
 	inset-inline: 0;
-	bottom: calc(-2 * var(--vscode-strokeThickness));
+	bottom: calc(-1 * var(--vscode-strokeThickness));
 	z-index: 8;
 	pointer-events: none;
 }
@@ -353,7 +349,7 @@
 	position: absolute;
 	bottom: 0;
 	width: var(--vscode-strokeThickness);
-	height: calc(var(--modern-ui-connected-tab-shoulder-radius) - var(--vscode-strokeThickness));
+	height: calc(var(--modern-ui-connected-tab-shoulder-radius) - var(--vscode-strokeThickness) * 2);
 	box-sizing: border-box;
 	background: linear-gradient(to bottom, transparent var(--vscode-strokeThickness), var(--modern-ui-connected-tab-current-background) var(--vscode-strokeThickness));
 }
@@ -596,8 +592,7 @@
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .connected-tab-right-clipped > .tab-connected-overflow-right,
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .modern-ui-editor-tab-strip .connected-tab-right-clipped > .tab-connected-overflow-right {
 	position: absolute;
-	/* Match the ordinary fill's inner border edge, not its reserved bottom stroke. */
-	inset: 0 0 var(--vscode-strokeThickness);
+	inset: 0 0;
 	z-index: 1;
 }
 
