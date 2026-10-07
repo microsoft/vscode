@@ -355,7 +355,7 @@ suite('Sessions - ChatGroupsView', () => {
 			scrollDownRight: mainWindow.getComputedStyle(scrollDown).right,
 			transcriptContextMaxWidth: mainWindow.getComputedStyle(transcriptContext).maxWidth,
 		}, {
-			scrollDownRight: '32px',
+			scrollDownRight: '24px',
 			transcriptContextMaxWidth: 'none',
 		});
 	});

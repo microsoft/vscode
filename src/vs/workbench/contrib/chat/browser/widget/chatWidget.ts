@@ -120,10 +120,10 @@ const $ = dom.$;
 
 /**
  * Baseline total horizontal padding of a chat item in the Agents window (`.interactive-item-container`,
- * `padding: 0 32px` in Sessions `chatView.css`). Reserved when laying out embedded editors so code
+ * `padding: 0 24px` in Sessions `chatView.css`). Reserved when laying out embedded editors so code
  * blocks match the rendered content width. See {@link IChatListItemRendererOptions.contentHorizontalPadding}.
  */
-export const SESSIONS_CHAT_ITEM_HORIZONTAL_PADDING = 64;
+export const SESSIONS_CHAT_ITEM_HORIZONTAL_PADDING = 48;
 
 export interface IChatWidgetStyles extends IChatInputStyles {
 	readonly inputEditorBackground: string;

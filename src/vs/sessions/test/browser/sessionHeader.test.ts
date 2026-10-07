@@ -332,7 +332,7 @@ suite('Sessions - Headers', () => {
 					headerHeight: '32px',
 					headerInset: 125,
 					barPaddingInline: '0px',
-					headerPaddingInline: '32px',
+					headerPaddingInline: '24px',
 					hasCompactClass: false,
 				},
 				compactGeometry: {
@@ -342,7 +342,7 @@ suite('Sessions - Headers', () => {
 					headerHeight: '28px',
 					headerInset: 125,
 					barPaddingInline: '0px',
-					headerPaddingInline: '32px',
+					headerPaddingInline: '24px',
 					hasCompactClass: true,
 				},
 				restoredGeometry: {
@@ -352,7 +352,7 @@ suite('Sessions - Headers', () => {
 					headerHeight: '32px',
 					headerInset: 125,
 					barPaddingInline: '0px',
-					headerPaddingInline: '32px',
+					headerPaddingInline: '24px',
 					hasCompactClass: false,
 				},
 				highContrastSeparatorStyle: 'none',
