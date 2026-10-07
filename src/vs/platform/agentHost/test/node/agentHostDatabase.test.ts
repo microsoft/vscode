@@ -2296,11 +2296,18 @@ suite('AgentHostDatabase sessions_v2', () => {
 			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Test-only access retains the private method's type.
 			const raw = await instance['_ensureDatabase']();
 			const statements: string[] = [];
-			const trace = (sql: string) => statements.push(sql);
+			const traced = new DeferredPromise<void>();
+			const trace = (sql: string) => {
+				statements.push(sql);
+				if (/^\s*SELECT s\.session_uri, s\.provider\b/.test(sql)) {
+					void traced.complete();
+				}
+			};
 			raw.on('trace', trace);
 			let listed;
 			try {
 				listed = await instance.readSessionListCatalogs([session, legacy]);
+				await traced.p;
 			} finally {
 				raw.removeListener('trace', trace);
 			}
@@ -2393,10 +2400,17 @@ suite('AgentHostDatabase sessions_v2', () => {
 			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Test-only access retains the private method's type.
 			const raw = await instance['_ensureDatabase']();
 			const statements: string[] = [];
-			const trace = (sql: string) => statements.push(sql);
+			const committed = new DeferredPromise<void>();
+			const trace = (sql: string) => {
+				statements.push(sql);
+				if (sql === 'COMMIT') {
+					void committed.complete();
+				}
+			};
 			raw.on('trace', trace);
 			try {
 				const [snapshot] = await instance.readCatalogSnapshot([session]);
+				await committed.p;
 				const selects = statements.filter(sql => /^\s*SELECT\b/i.test(sql));
 				assert.deepStrictEqual({
 					selects: selects.length,
