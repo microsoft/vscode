@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { execFileSync } from 'child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { createRequire } from 'module';
 import { tmpdir } from 'os';
@@ -17,7 +16,7 @@ import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/regi
 import { ActionType } from '../../../../common/state/sessionActions.js';
 import { buildDefaultChatUri, customizationId, CustomizationType, ROOT_STATE_URI, type ClientPluginCustomization, type McpServerCustomization, type PluginCustomization, type SessionState } from '../../../../common/state/sessionState.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
-import { createRealSession, driveTurnToCompletion, resolveGitHubToken, textFromContent } from '../harness/agentHostE2ETestHarness.js';
+import { createRealSession, driveTurnToCompletion, initTestGitRepo, resolveGitHubToken, textFromContent } from '../harness/agentHostE2ETestHarness.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
 
@@ -38,7 +37,7 @@ export function defineCopilotRuntimeMcpTests(context: IAgentHostE2ETestContext):
 		context.tempDirs.push(root);
 		mkdirSync(workspace);
 		mkdirSync(plugin);
-		execFileSync('git', ['init', '--quiet', workspace]);
+		initTestGitRepo(workspace);
 		mkdirSync(join(plugin, '.plugin'));
 		mkdirSync(join(plugin, 'skills', 'runtime-reference'), { recursive: true });
 		writeFileSync(join(plugin, '.plugin', 'plugin.json'), JSON.stringify({ name: 'runtime-mcp' }));

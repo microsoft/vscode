@@ -107,12 +107,18 @@ function clearReadOnlyAttributes(dir: string): void {
 }
 
 /** Initializes a test repository without background Git maintenance that can retain filesystem handles during teardown. */
-export function initTestGitRepo(cwd: string): void {
-	execSync('git init', { cwd });
-	execSync('git config user.name "Agent Host Test"', { cwd });
-	execSync('git config user.email "agent-host-test@example.com"', { cwd });
-	execSync('git config gc.auto 0', { cwd });
-	execSync('git config maintenance.auto false', { cwd });
+export function initTestGitRepo(cwd: string, options?: { readonly bare: boolean }): void {
+	execSync(options?.bare ? 'git init --bare -q' : 'git init', { cwd });
+	const git = options?.bare ? 'git --git-dir=.' : 'git';
+	execSync(`${git} config user.name "Agent Host Test"`, { cwd });
+	execSync(`${git} config user.email "agent-host-test@example.com"`, { cwd });
+	disableTestGitMaintenance(cwd, options);
+}
+
+export function disableTestGitMaintenance(cwd: string, options?: { readonly bare: boolean }): void {
+	const git = options?.bare ? 'git --git-dir=.' : 'git';
+	execSync(`${git} config gc.auto 0`, { cwd });
+	execSync(`${git} config maintenance.auto false`, { cwd });
 }
 
 export async function removeTempDirs(tempDirs: string[]): Promise<void> {

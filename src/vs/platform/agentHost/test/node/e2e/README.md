@@ -64,7 +64,7 @@ Key properties:
 - **Ancillary bootstrap endpoints are stubbed, not recorded** (see [What's stubbed](#whats-stubbed-vs-recorded)) — keeps identity, tokens, and the model catalog out of fixtures.
 - **Isolated persistent state**: each provider suite uses a temporary home and VS Code user-data directory. Provider config roots resolve under that home, with ambient overrides such as `CLAUDE_CONFIG_DIR` and `CODEX_HOME` cleared, so local config, MCP servers, and session state cannot affect the run. Teardown removes the directory after the agent host exits.
 - **Canonical temporary paths**: `createTestDirectory(...)` resolves each allocated directory with native `realpath` before it is used in AHP, prompts, or provider configuration. Windows short/long names and macOS symlink aliases therefore share one filesystem identity. Callers still track the returned directory for cleanup.
-- **No background Git maintenance**: use `initTestGitRepo(...)` for test repositories. It sets a local test identity and disables both automatic garbage collection and auto-maintenance, preventing unrelated background Git processes from retaining Windows handles during teardown.
+- **No background Git maintenance**: use `initTestGitRepo(...)` for test repositories, including `{ bare: true }` for remotes. It sets a local test identity and disables both automatic garbage collection and auto-maintenance, preventing unrelated background Git processes from retaining Windows handles during teardown. Clones disable both settings on the clone command itself and persist them with `disableTestGitMaintenance(...)` before further Git operations.
 
 ---
 

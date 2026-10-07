@@ -50,7 +50,7 @@ import {
 	buildUncommittedChangesetUri,
 	buildFolderChangesetOwnerUri,
 } from '../../../../common/changesetUri.js';
-import { createRealSession, dispatchTurn, driveChatTurnToCompletion, driveTurnToCompletion, initTestGitRepo, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
+import { createRealSession, disableTestGitMaintenance, dispatchTurn, driveChatTurnToCompletion, driveTurnToCompletion, initTestGitRepo, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
 import { getActionEnvelope, getAgentHostE2ETestTimeout, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { assertExpectedFailure } from '../harness/expectedFailure.js';
 import { vscodeAgentHostTarget } from '../harness/agentHostTarget.js';
@@ -136,7 +136,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		const workspace = createGitWorkspace(`${prefix}-workspace-`);
 		const remote = createTestDirectory(join(tmpdir(), `${prefix}-remote-`));
 		tempDirs.push(remote);
-		execFileSync('git', ['init', '--bare', '-q'], { cwd: remote });
+		initTestGitRepo(remote, { bare: true });
 		execFileSync('git', ['remote', 'add', 'origin', remote], { cwd: workspace });
 		execFileSync('git', ['push', '-q', '-u', 'origin', 'HEAD'], { cwd: workspace });
 		execFileSync('git', ['config', 'pull.rebase', 'false'], { cwd: workspace });
@@ -152,7 +152,8 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	function pushRemoteCommit(remote: string, prefix: string, file: string, contents: string): void {
 		const clone = createTestDirectory(join(tmpdir(), `${prefix}-clone-`));
 		tempDirs.push(clone);
-		execFileSync('git', ['clone', '-q', remote, '.'], { cwd: clone });
+		execFileSync('git', ['-c', 'gc.auto=0', '-c', 'maintenance.auto=false', 'clone', '-q', remote, '.'], { cwd: clone });
+		disableTestGitMaintenance(clone);
 		execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: clone });
 		execFileSync('git', ['config', 'user.name', 'Agent Host E2E'], { cwd: clone });
 		commitFile(clone, file, contents, `add ${file}`);

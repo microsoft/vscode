@@ -771,7 +771,7 @@ export function defineHostFeaturesTests(context: IAgentHostE2ETestContext): void
 		initTestGitRepo(workspace);
 		execSync('git commit --allow-empty -m "initial"', { cwd: workspace });
 		execSync('git branch -M main', { cwd: workspace });
-		execSync('git init --bare -q', { cwd: remote });
+		initTestGitRepo(remote, { bare: true });
 		execSync(`git remote add origin ${JSON.stringify(remote)}`, { cwd: workspace });
 		execSync('git push -q -u origin main', { cwd: workspace });
 		execSync('git symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main', { cwd: workspace });

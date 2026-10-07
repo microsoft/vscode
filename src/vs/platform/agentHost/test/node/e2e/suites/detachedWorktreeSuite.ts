@@ -427,7 +427,7 @@ export function defineDetachedWorktreeTests(context: IAgentHostE2ETestContext): 
 		const workspace = createGitWorkspace('ahp-detached-archive-');
 		const remote = createTestDirectory(join(tmpdir(), 'ahp-detached-archive-remote-'));
 		tempDirs.push(remote);
-		execFileSync('git', ['init', '--bare', '-q'], { cwd: remote });
+		initTestGitRepo(remote, { bare: true });
 		git(workspace, 'remote', 'add', 'origin', remote);
 		const sessionUri = await createUnstartedWorktreeSession(workspace, 'detached-archive');
 

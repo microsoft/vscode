@@ -12,10 +12,10 @@ const nativeRealpathSync = process.versions.electron
 	: realpathSync.native;
 
 /** Returns the canonical directory identity shared with provider subprocesses; the caller owns cleanup. */
-export function createTestDirectory(prefix: string): string {
+export function createTestDirectory(prefix: string, canonicalize: (directory: string) => string = nativeRealpathSync): string {
 	const directory = mkdtempSync(prefix);
 	try {
-		return nativeRealpathSync(directory);
+		return canonicalize(directory);
 	} catch (error) {
 		try {
 			rmdirSync(directory);
