@@ -31,12 +31,9 @@ import { IMissionControlEnvironmentService } from '../../../../../platform/agent
 import { MissionControlEnvironmentService } from './missionControlEnvironmentService.js';
 import { IRemoteAgentHostConnectionCustomizationService, RemoteAgentHostConnectionCustomizationService } from './remoteAgentHostConnectionCustomization.js';
 
-const missionControlFakeEndpoint = 'chat.agentHost.experimentalMissionControlFakeEndpoint';
 const missionControlEnabled = 'chat.agentHost.experimentalMissionControl.enabled';
-const missionControlEndpoint = 'chat.agentHost.experimentalMissionControl.endpoint';
-const missionControlRequireBinding = 'chat.agentHost.experimentalMissionControl.requireConnectionBinding';
 
-class MissionControlContribution extends Disposable {
+export class MissionControlContribution extends Disposable {
 	static readonly ID = 'workbench.contrib.missionControl';
 	private _configured = false;
 	private _generation = 0;
@@ -62,7 +59,7 @@ class MissionControlContribution extends Disposable {
 			return;
 		}
 		this._register(this._configuration.onDidChangeConfiguration(e => {
-			if ([missionControlFakeEndpoint, missionControlEnabled, missionControlEndpoint, missionControlRequireBinding].some(setting => e.affectsConfiguration(setting))) {
+			if (e.affectsConfiguration(missionControlEnabled)) {
 				this._withdraw();
 				this._update.schedule();
 			}
@@ -121,25 +118,13 @@ class MissionControlContribution extends Disposable {
 
 	private async _configure(): Promise<void> {
 		const generation = this._generation;
-		const live = this._configuration.getValue<boolean>(missionControlEnabled);
-		const endpoint = this._configuration.getValue<string>(live ? missionControlEndpoint : missionControlFakeEndpoint);
-		if (live && this._configuration.getValue<string>(missionControlFakeEndpoint)) {
-			this._withdraw();
-			throw new Error('Disable the fake endpoint before enabling live Mission Control');
-		}
-		if (!endpoint || this._entitlement.sentiment.hidden) {
+		if (!this._configuration.getValue<boolean>(missionControlEnabled) || this._entitlement.sentiment.hidden) {
 			if (this._configured) {
 				this._withdraw();
 			}
 			return;
 		}
 		const roots = this._workspace.getWorkspace().folders.filter(folder => folder.uri.scheme === Schemas.file).map(folder => folder.uri.fsPath);
-		if (!roots.length && !live) {
-			if (this._configured) {
-				this._withdraw();
-			}
-			throw new Error('Local Mission Control testing requires an open workspace');
-		}
 		const providerId = this._product.defaultChatAgent?.provider?.default?.id ?? 'github';
 		const scopes = this._getScopes();
 		const sessions = await this._authentication.getSessions(providerId, [...scopes], undefined, true);
@@ -160,12 +145,11 @@ class MissionControlContribution extends Disposable {
 		this._accountSessionIds = new Set(sessions.map(session => session.id));
 		this._configured = true;
 		await this._agentHost.configureMissionControl?.({
-			baseUrl: endpoint,
+			baseUrl: 'https://api.github.com',
 			accountId: sessions[0].account.id,
 			credential: sessions[0].accessToken,
 			roots,
-			live,
-			requireConnectionBinding: this._configuration.getValue<boolean>(missionControlRequireBinding),
+			live: true,
 		});
 	}
 }
@@ -191,29 +175,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			restricted: true,
 			tags: ['experimental', 'advanced'],
 		},
-		[missionControlEndpoint]: {
-			type: 'string',
-			description: localize('missionControlEndpoint', "HTTPS Mission Control API origin. The local GitHub credential is sent to this origin; only configure an endpoint you trust."),
-			default: 'https://api.github.com',
-			scope: ConfigurationScope.APPLICATION,
-			restricted: true,
-			tags: ['experimental', 'advanced'],
-		},
-		[missionControlRequireBinding]: {
-			type: 'boolean',
-			description: localize('missionControlRequireBinding', "Require remote relay clients to bind sealed authentication tokens to the current handshake challenge. Clients using Mission Control's pre-sealed tokens may not support this. Supplied bindings are always verified."),
-			default: false,
-			scope: ConfigurationScope.APPLICATION,
-			restricted: true,
-			tags: ['experimental', 'advanced'],
-		},
-		[missionControlFakeEndpoint]: {
-			type: 'string',
-			description: localize('missionControlFakeEndpoint', "Register this Agent Host with a local Mission Control test server. Only loopback HTTP URLs are accepted. The local GitHub credential is sent to this endpoint; only use a test server you trust. Leave empty when using the real Mission Control service."),
-			default: '',
-			scope: ConfigurationScope.APPLICATION,
-			tags: ['experimental', 'advanced'],
-		},
 		[RemoteAgentHostsEnabledSettingId]: {
 			type: 'boolean',
 			description: localize('chat.remoteAgentHosts.enabled', "Enable connecting to remote agent hosts."),
@@ -224,7 +185,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		[CloudSandboxEnabledSettingId]: {
 			type: 'boolean',
-			description: localize('chat.agentHost.cloudSandbox.enabled', "Enable discovering and opening Copilot cloud sandbox sessions in the Editor Window and Agents Window over a live Agent Host Protocol relay. Also adds a Sandbox option when starting a cloud session in the Agents Window."),
+			description: localize('chat.agentHost.cloudSandbox.enabled', "Use GitHub Cloud for new Cloud sessions in the Agents Window instead of Copilot coding agent on GitHub Actions. Also enables discovering and opening GitHub Cloud sessions."),
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],

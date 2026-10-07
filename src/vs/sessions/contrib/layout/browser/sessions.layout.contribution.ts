@@ -50,6 +50,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			default: 'session-shared',
 			scope: ConfigurationScope.WINDOW,
 			tags: ['experimental'],
+			experiment: { mode: 'startup' },
 			description: localize('sessionsLayoutScope.description', "Choose whether layout state belongs to each session or each chat in non-phone Agents windows. Pane sizes remain shared. Terminal behavior is unchanged in all modes. Changes take effect after manually reloading the window."),
 		},
 	},

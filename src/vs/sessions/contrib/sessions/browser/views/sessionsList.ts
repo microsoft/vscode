@@ -3870,12 +3870,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 				sessionRenderer,
 				chatRenderer,
 				sectionRenderer,
+				shortcutSectionRenderer,
 				groupRenderer,
 				showMoreRenderer,
 				placeholderRenderer,
 			],
 			{
-				accessibilityProvider: new SessionsAccessibilityProvider(undefined, {
+				accessibilityProvider: new SessionsAccessibilityProvider(sectionRenderer.automationStatus, {
 					grouping: this.options.grouping,
 					isPinned: session => this.isSessionPinned(session),
 					isRenderedInCustomGroup: session => this.isRenderedInCustomGroup(session),
@@ -4048,6 +4049,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this._register(this.tree.onDidOpen(async e => {
 			const element = e.element;
 			if (!element) {
+				return;
+			}
+			if (isSessionSection(element) && element.id === AUTOMATIONS_SECTION_ID) {
+				await this.commandService.executeCommand('sessionsView.manageAutomations');
 				return;
 			}
 			if (isSessionShowMore(element)) {
@@ -4597,7 +4602,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 			navigationSections.push({ id: NEW_SESSION_SECTION_ID, label: localize('newSession', "New Session"), sessions: [] });
 		}
 		if (this.contextKeyService.getContextKeyValue<boolean>(ChatAutomationsEnabledContext.key)) {
-			navigationSections.push({ id: AUTOMATIONS_SECTION_ID, label: localize('automations', "Automations"), sessions: [] });
+			const automationsSection: ISessionSection = { id: AUTOMATIONS_SECTION_ID, label: localize('automations', "Automations"), sessions: [] };
+			if (showNavigationShortcuts) {
+				navigationSections.push(automationsSection);
+			} else {
+				children.push(renderSection(automationsSection));
+			}
 		}
 		if (showNavigationShortcuts) {
 			navigationSections.push({ id: CUSTOMIZATIONS_SECTION_ID, label: localize('customizations', "Customizations"), sessions: [] });
@@ -4992,11 +5002,24 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	isAutomationsFocused(): boolean {
-		return this.isNavigationSectionFocused(AUTOMATIONS_SECTION_ID);
+		return this.isNavigationSectionFocused(AUTOMATIONS_SECTION_ID)
+			|| (DOM.isAncestorOfActiveElement(this.listContainer)
+				&& this.tree.getFocus().some(element => !!element && isSessionSection(element) && element.id === AUTOMATIONS_SECTION_ID));
 	}
 
 	focusAutomations(): void {
-		this.focusNavigationSection(AUTOMATIONS_SECTION_ID);
+		if (this.navigationSections.some(section => section.id === AUTOMATIONS_SECTION_ID)) {
+			this.focusNavigationSection(AUTOMATIONS_SECTION_ID);
+		} else {
+			this.closeFind();
+			const section = this.tree.getNode().children.find(node => node.element && isSessionSection(node.element) && node.element.id === AUTOMATIONS_SECTION_ID)?.element;
+			if (section) {
+				this.tree.setFocus([section]);
+				this.tree.setSelection([]);
+				this.tree.reveal(section);
+				this.tree.domFocus();
+			}
+		}
 	}
 
 	isCustomizationsFocused(): boolean {
