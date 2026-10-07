@@ -6,7 +6,7 @@
 import * as nls from '../../../nls.js';
 import { ConfigurationScope, IConfigurationPropertySchema } from '../../configuration/common/configurationRegistry.js';
 import product from '../../product/common/product.js';
-import { AgentHostTitleGenerationConfigKey, AgentHostTitleGenerationStrategies, type AgentHostSelectableTitleGenerationStrategy, type AgentHostTitleGenerationStrategy } from './agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostDeferredTitleGenerationConfigKey, AgentHostTitleGenerationConfigKey, AgentHostTitleGenerationStrategies, type AgentHostSelectableTitleGenerationStrategy, type AgentHostTitleGenerationStrategy } from './agentHostSchema.js';
 import { AgentHostTitleGenerationSettingId } from './agentService.js';
 
 export const titleGenerationConfigurationProperties = {
@@ -23,7 +23,14 @@ export const titleGenerationConfigurationProperties = {
 		scope: ConfigurationScope.APPLICATION,
 		tags: ['experimental', 'advanced'],
 		experiment: { mode: 'auto' },
-		agentHost: { key: AgentHostTitleGenerationConfigKey },
+		agentHost: {
+			key: AgentHostTitleGenerationConfigKey,
+			// Older hosts persist and still read the legacy boolean keys, so keep them in step with the strategy.
+			derivedKeys: {
+				[AgentHostActiveAgentTitleGenerationConfigKey]: value => value === 'activeAgent',
+				[AgentHostDeferredTitleGenerationConfigKey]: value => value === 'agentReview',
+			},
+		},
 	},
 } satisfies Record<string, IConfigurationPropertySchema>;
 

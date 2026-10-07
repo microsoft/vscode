@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ConfigurationScope } from '../../../configuration/common/configurationRegistry.js';
-import { AgentHostTitleGenerationConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostDeferredTitleGenerationConfigKey, AgentHostTitleGenerationConfigKey, AgentHostTitleGenerationStrategies } from '../../common/agentHostSchema.js';
 import { AgentHostTitleGenerationSettingId } from '../../common/agentService.js';
 import { migrateLegacyTitleGenerationSettings, resolveTitleGenerationStrategy, titleGenerationConfigurationProperties } from '../../common/titleGenerationConfiguration.js';
 
@@ -23,7 +23,8 @@ suite('TitleGenerationConfiguration', () => {
 			enumDescriptions: property.enumDescriptions.length,
 			scope: property.scope,
 			experiment: property.experiment,
-			agentHost: property.agentHost,
+			agentHost: { key: property.agentHost.key, derivedKeys: Object.keys(property.agentHost.derivedKeys) },
+			legacyKeysByStrategy: AgentHostTitleGenerationStrategies.map(strategy => Object.fromEntries(Object.entries(property.agentHost.derivedKeys).map(([key, derive]) => [key, derive(strategy)]))),
 		}, {
 			settingIds: ['chat.agentHost.experimental.titleGeneration'],
 			type: 'string',
@@ -31,7 +32,12 @@ suite('TitleGenerationConfiguration', () => {
 			enumDescriptions: 3,
 			scope: ConfigurationScope.APPLICATION,
 			experiment: { mode: 'auto' },
-			agentHost: { key: AgentHostTitleGenerationConfigKey },
+			agentHost: { key: AgentHostTitleGenerationConfigKey, derivedKeys: [AgentHostActiveAgentTitleGenerationConfigKey, AgentHostDeferredTitleGenerationConfigKey] },
+			legacyKeysByStrategy: [
+				{ [AgentHostActiveAgentTitleGenerationConfigKey]: false, [AgentHostDeferredTitleGenerationConfigKey]: false },
+				{ [AgentHostActiveAgentTitleGenerationConfigKey]: true, [AgentHostDeferredTitleGenerationConfigKey]: false },
+				{ [AgentHostActiveAgentTitleGenerationConfigKey]: false, [AgentHostDeferredTitleGenerationConfigKey]: true },
+			],
 		});
 	});
 

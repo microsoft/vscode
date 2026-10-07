@@ -606,16 +606,22 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 
 	/**
 	 * Whether review mode may invite a rename for `key`: only after the first
-	 * response since the seed has completed, never while a host refinement is
-	 * still in flight, and for at most {@link MAX_TITLE_REVIEW_REMINDERS} turns.
+	 * response since the seed has finished (successfully or not), never while a
+	 * host refinement is still in flight, and for at most
+	 * {@link MAX_TITLE_REVIEW_REMINDERS} turns.
 	 */
 	private _canOfferTitleReview(channel: ProtocolURI, independentChat: ProtocolURI | undefined, key: ProtocolURI): boolean {
 		if ((this._titleReviewReminderCounts.get(key) ?? 0) >= MAX_TITLE_REVIEW_REMINDERS || this._titleGenerationCancellationSources.has(key)) {
 			return false;
 		}
+		// A refinement started before a peer made the default chat independent is still keyed by the session.
+		if (independentChat && isDefaultChatUri(independentChat) && this._titleGenerationCancellationSources.has(channel)) {
+			return false;
+		}
 		const state = independentChat ? this._stateManager.getChatState(independentChat) : this._stateManager.getSessionState(channel);
+		// Any finished response settles first-response refinement: a cancelled or failed one consumes it without refining.
 		const seedTurnIndex = this._deferredFirstTurnIndices.get(key) ?? 0;
-		return !!state && state.turns.some((turn, index) => index >= seedTurnIndex && turn.state === TurnState.Complete);
+		return !!state && state.turns.length > seedTurnIndex;
 	}
 
 	/**

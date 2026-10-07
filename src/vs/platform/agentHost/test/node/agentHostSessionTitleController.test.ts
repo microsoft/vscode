@@ -314,6 +314,24 @@ suite('AgentHostSessionTitleController', () => {
 		}, { whilePending: undefined, afterRefinement: true });
 	});
 
+	test('agent review withholds the reminder while a session-keyed refinement is in flight after a peer is added', async () => {
+		const { controller, stateManager, session, copilotApiService } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, 'agentReview');
+		const defaultChat = buildDefaultChatUri(session);
+		const pendingTitle = new DeferredPromise<string>();
+		copilotApiService.responsePromise = pendingTitle.p;
+		controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode');
+		stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Add dark mode', [textPart('Done')])]);
+		controller.refineTitleFromFirstTurn(session.toString());
+		await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'refinement should start');
+		stateManager.addChat(session.toString(), buildChatUri(session.toString(), 'peer'), {});
+		controller.markTitleAuto(session.toString(), defaultChat, 'Add dark mode');
+		const whilePending = await controller.prepareInstructionForAgent(session.toString(), defaultChat);
+		await pendingTitle.complete('Dark mode setting');
+		await timeout(0);
+
+		assert.strictEqual(whilePending, undefined);
+	});
+
 	test('agent review offers the reminder when first-response refinement never starts', async () => {
 		const { controller, stateManager, session, copilotApiService } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, 'agentReview');
 		controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode');
@@ -369,21 +387,19 @@ suite('AgentHostSessionTitleController', () => {
 		assert.deepStrictEqual(offered, [true, true, true, false]);
 	});
 
-	test('agent review withholds the reminder until a response after the seed completes', async () => {
-		const { controller, stateManager, session } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, 'agentReview');
+	test('agent review offers the reminder after a cancelled first response, which settles refinement without refining', async () => {
+		const { controller, stateManager, session, copilotApiService } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, 'agentReview');
 		const defaultChat = buildDefaultChatUri(session);
 		controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode');
+		const beforeResponse = await controller.prepareInstructionForAgent(session.toString(), defaultChat);
 		stateManager.seedDefaultChatTurns(session.toString(), [{ ...firstTurn('Add dark mode', []), state: TurnState.Cancelled }]);
-		const afterCancelled = await controller.prepareInstructionForAgent(session.toString(), defaultChat);
-		stateManager.seedDefaultChatTurns(session.toString(), [
-			{ ...firstTurn('Add dark mode', []), state: TurnState.Cancelled },
-			{ ...firstTurn('Try again', [textPart('Done')]), id: 'turn-2' },
-		]);
+		controller.refineTitleFromFirstTurn(session.toString(), undefined, false);
 
 		assert.deepStrictEqual({
-			afterCancelled,
-			afterCompleted: (await controller.prepareInstructionForAgent(session.toString(), defaultChat))?.includes('"Add dark mode"'),
-		}, { afterCancelled: undefined, afterCompleted: true });
+			beforeResponse,
+			calls: copilotApiService.utilityCalls.length,
+			afterCancelled: (await controller.prepareInstructionForAgent(session.toString(), defaultChat))?.includes('"Add dark mode"'),
+		}, { beforeResponse: undefined, calls: 0, afterCancelled: true });
 	});
 
 	for (const { rename, generated } of [
