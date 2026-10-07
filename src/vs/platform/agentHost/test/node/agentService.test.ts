@@ -16368,6 +16368,43 @@ suite('AgentService (node dispatcher)', () => {
 			);
 		});
 
+		for (const catalogEnabled of [false, true]) {
+			test(`registered subagents do not collide with their parent or block new sessions (catalog: ${catalogEnabled})`, async () => {
+				const database = disposables.add(new AgentHostDatabase(':memory:'));
+				const svc = disposables.add(createTestAgentService(
+					new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+					undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database,
+				));
+				getConfigurationService(svc).updateRootConfig({ [AgentHostSessionCatalogEnabledConfigKey]: catalogEnabled });
+				const agent = disposables.add(new MockAgent('copilotcli'));
+				registerTestAgentProvider(svc, agent);
+				const parent = await svc.createSession({ provider: agent.id, session: AgentSession.uri(agent.id, generateUuid()) });
+				for (const child of [
+					parent.with({ fragment: 'subagent/call-legacy' }),
+					URI.parse(buildSubagentSessionUri(parent, 'call-path')),
+				]) {
+					await database.registerRuntimeSession(child.toString(), {
+						provider: agent.id, startTime: 1, source: 'restore',
+					}, { checkTombstone: false });
+					getStateManager(svc).restoreSession({
+						resource: child.toString(), provider: agent.id, title: 'Internal worker',
+						status: SessionStatus.Idle, createdAt: new Date(1).toISOString(), modifiedAt: new Date(1).toISOString(),
+					}, []);
+				}
+				const beforeCreation = await svc.listSessions();
+				const created = await svc.createSession({ provider: agent.id });
+				const afterCreation = await svc.listSessions();
+
+				assert.deepStrictEqual({
+					beforeCreation: beforeCreation.map(entry => entry.session.toString()),
+					afterCreation: afterCreation.map(entry => entry.session.toString()).sort(),
+				}, {
+					beforeCreation: [parent.toString()],
+					afterCreation: [parent.toString(), created.toString()].sort(),
+				});
+			});
+		}
+
 		test('listSessions overlay excludes idle provisional sessions but keeps ones with an active turn (#321269)', async () => {
 			// A provisional agent whose `listSessions` never returns the
 			// provisional session (mirroring CLI/Claude, which don't persist a
