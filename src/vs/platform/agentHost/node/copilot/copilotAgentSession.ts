@@ -2342,6 +2342,7 @@ export class CopilotAgentSession extends Disposable {
 		// Labels outlive a closed chat within the turn so a resumed workflow reopens it rather than routing to the root.
 		this._fusionPhaseLabels.clear();
 		this._clearActivity();
+		this._setManagedPluginActivity(undefined);
 		this._detectInterruptedTurnOnRestore = false;
 		this._streamingToolCalls.clear();
 		this._streamingToolDisplaySchedulers.clearAndDisposeAll();
@@ -2472,6 +2473,7 @@ export class CopilotAgentSession extends Disposable {
 		this._fusionProgress.reset();
 		this._clearProvisionalFusionState();
 		this._clearActivity();
+		this._setManagedPluginActivity(undefined);
 		if (turn) {
 			this._cacheTokenUsage(turn.id, turn.observedTokenUsage.snapshot());
 		}
@@ -7165,6 +7167,9 @@ export class CopilotAgentSession extends Disposable {
 			//  - any other pending turn is a queued message started after the
 			//    abort; leave it open for its own non-abort idle.
 			if (e.data.aborted && (!abortingTurn || turn === abortingTurn)) {
+				if (!e.agentId) {
+					this._setManagedPluginActivity(undefined);
+				}
 				this._cancelActiveRepoInfoTelemetry();
 				if (turn.isRunning || turn === this._resumingTurnAwaitingProviderStart) {
 					this._logService.trace(`[Copilot:${sessionId}] Idle from abort; tearing down cancelled turn ${turn.id}`);
@@ -8407,13 +8412,14 @@ export class CopilotAgentSession extends Disposable {
 		this._activities.intent = undefined;
 		this._activities.command = undefined;
 		this._publishActivity('fusion', undefined);
-		this._setManagedPluginActivity(undefined);
 	}
 
 	/**
 	 * Publishes plugin preparation as chat activity, like worktree creation
 	 * progress. The progress row of a waiting request reads chat activity;
-	 * session activity does not reach it.
+	 * session activity does not reach it. The activity belongs to the waiting
+	 * turn: a new turn, admission, a failure, or the end or abort of that turn
+	 * clears it, but a late abort or idle from an earlier turn does not.
 	 */
 	private _setManagedPluginActivity(activity: string | undefined): void {
 		if (activity !== this._managedPluginActivity) {
@@ -8470,6 +8476,8 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _emitManagedPluginFailure(turn: CopilotTurn, message: string): void {
+		// The failure belongs to the turn waiting for admission, not to a late
+		// event of an aborted turn, so it must not be dropped after an abort.
 		this._emitAction({
 			type: ActionType.ChatResponsePart,
 			turnId: turn.id,
@@ -8481,7 +8489,7 @@ export class CopilotAgentSession extends Disposable {
 					severity: AgentSystemNotificationSeverity.Warning,
 				}),
 			},
-		});
+		}, undefined, true);
 	}
 
 	private _emitFusionProgress(update: ICopilotFusionProgressUpdate, trustedRootTurn = false): void {
@@ -9082,6 +9090,9 @@ export class CopilotAgentSession extends Disposable {
 				this._cancelFusionEvents();
 				const update = this._fusionProgress.interrupt(e.timestamp);
 				this._clearActivity();
+				if (!this._abortingTurn || this._abortingTurn === this._currentTurn.value) {
+					this._setManagedPluginActivity(undefined);
+				}
 				if (update) {
 					this._emitFusionProgress(update, true);
 				}
