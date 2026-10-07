@@ -50,6 +50,8 @@ class TestRemoteTunnelService extends mock<IRemoteTunnelService>() {
 
 	override async stopTunnel(): Promise<void> {
 		this.stops++;
+		this.fireMode(INACTIVE_TUNNEL_MODE);
+		this.fireStatus({ type: 'disconnected' });
 	}
 
 	deferInitialState(): void {
@@ -367,6 +369,102 @@ suite('ToggleRemoteConnectionsActionViewItem', () => {
 		snapshots.push(context.getContextKeyValue(TUNNEL_HOST_SHARING_KEY));
 		assert.deepStrictEqual({ snapshots, stops: remoteTunnel.stops }, { snapshots: [true, false, false, true], stops: 1 });
 	});
+
+	test('stops a pending Dev Tunnel activation that completes after switching to Mission Control', async () => {
+		const remoteTunnel = store.add(new TestRemoteTunnelService());
+		const configuration = backendConfiguration();
+		const context = new MockContextKeyService();
+		store.add(new TunnelHostContribution(
+			context, remoteTunnel, new NullActionViewItemService(), configuration, new TestMissionControlSharingService(),
+			store.add(new NullLogService()), new TestNotificationService(),
+		));
+		await timeout(0);
+		await configuration.setUserConfiguration(AgentHostRemoteConnectionsSettingId, 'missionControl');
+		configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+			override affectsConfiguration(section: string) { return section === AgentHostRemoteConnectionsSettingId; }
+		}());
+		await timeout(0);
+		remoteTunnel.fireMode({
+			active: true,
+			asService: false,
+			session: { providerId: 'github', sessionId: 'session', accountLabel: 'Account' },
+		});
+		await timeout(0);
+		assert.deepStrictEqual({
+			mode: remoteTunnel.mode, stops: remoteTunnel.stops, sharing: context.getContextKeyValue(TUNNEL_HOST_SHARING_KEY),
+		}, { mode: INACTIVE_TUNNEL_MODE, stops: 2, sharing: false });
+	});
+
+	for (const backend of ['devTunnel', 'missionControl'] as const) {
+		for (const deferred of [false, true]) {
+			test(`enforces ${backend} for ${deferred ? 'delayed' : 'immediate'} startup tunnel restoration`, async () => {
+				const remoteTunnel = store.add(new TestRemoteTunnelService());
+				const activeMode: ActiveTunnelMode = {
+					active: true,
+					asService: false,
+					session: { providerId: 'github', sessionId: 'session', accountLabel: 'Account' },
+				};
+				const status: TunnelStatus = { type: 'connecting' };
+				remoteTunnel.mode = activeMode;
+				remoteTunnel.status = status;
+				if (deferred) {
+					remoteTunnel.deferInitialState();
+				}
+				store.add(new TunnelHostContribution(
+					new MockContextKeyService(), remoteTunnel, new NullActionViewItemService(), backendConfiguration(backend),
+					new TestMissionControlSharingService(), store.add(new NullLogService()), new TestNotificationService(),
+				));
+				if (deferred) {
+					remoteTunnel.completeInitialState(activeMode, status);
+				}
+				await timeout(0);
+				assert.deepStrictEqual({ mode: remoteTunnel.mode, stops: remoteTunnel.stops }, {
+					mode: backend === 'missionControl' ? INACTIVE_TUNNEL_MODE : activeMode,
+					stops: backend === 'missionControl' ? 1 : 0,
+				});
+			});
+		}
+	}
+
+	test('does not stop Dev Tunnel sharing when an active mode is observed with Dev Tunnel selected', async () => {
+		const remoteTunnel = store.add(new TestRemoteTunnelService());
+		store.add(new TunnelHostContribution(
+			new MockContextKeyService(), remoteTunnel, new NullActionViewItemService(), backendConfiguration(),
+			new TestMissionControlSharingService(), store.add(new NullLogService()), new TestNotificationService(),
+		));
+		await timeout(0);
+		const activeMode: ActiveTunnelMode = {
+			active: true,
+			asService: false,
+			session: { providerId: 'github', sessionId: 'session', accountLabel: 'Account' },
+		};
+		remoteTunnel.fireMode(activeMode);
+		await timeout(0);
+		assert.deepStrictEqual({ mode: remoteTunnel.mode, stops: remoteTunnel.stops }, { mode: activeMode, stops: 0 });
+	});
+
+	for (const disposed of [false, true]) {
+		test(`ignores stale active initial tunnel state after ${disposed ? 'disposal' : 'a newer inactive mode'}`, async () => {
+			const remoteTunnel = store.add(new TestRemoteTunnelService());
+			remoteTunnel.deferInitialState();
+			const contribution = store.add(new TunnelHostContribution(
+				new MockContextKeyService(), remoteTunnel, new NullActionViewItemService(), backendConfiguration('missionControl'),
+				new TestMissionControlSharingService(), store.add(new NullLogService()), new TestNotificationService(),
+			));
+			if (disposed) {
+				contribution.dispose();
+			} else {
+				remoteTunnel.fireMode(INACTIVE_TUNNEL_MODE);
+			}
+			remoteTunnel.completeInitialState({
+				active: true,
+				asService: false,
+				session: { providerId: 'github', sessionId: 'session', accountLabel: 'Account' },
+			}, { type: 'connecting' });
+			await timeout(0);
+			assert.deepStrictEqual({ mode: remoteTunnel.mode, stops: remoteTunnel.stops }, { mode: INACTIVE_TUNNEL_MODE, stops: 0 });
+		});
+	}
 
 	test('renames a tunnel through quick input and persists the hostname override', async () => {
 		const quickInputService = new TestQuickInputService();

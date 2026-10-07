@@ -29,6 +29,7 @@ import '../../../browser/remoteAgentHost/remoteAgentHost.contribution.js';
 import { MissionControlSharingService } from '../../../browser/remoteAgentHost/missionControlSharingService.js';
 
 const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
+const remoteConnectionsSetting = configurationProperties[AgentHostRemoteConnectionsSettingId];
 const registeredMissionControlSettings = Object.keys(configurationProperties)
 	.filter(key => key.startsWith('chat.agentHost.experimentalMissionControl'))
 	.map(key => ({ key, default: configurationProperties[key].default }));
@@ -107,8 +108,8 @@ suite('Mission Control sharing service', () => {
 		assert.deepStrictEqual({
 			removed: registeredMissionControlSettings,
 			backend: {
-				default: configurationProperties[AgentHostRemoteConnectionsSettingId].default,
-				enum: configurationProperties[AgentHostRemoteConnectionsSettingId].enum,
+				default: remoteConnectionsSetting.default,
+				enum: remoteConnectionsSetting.enum,
 			},
 		}, { removed: [], backend: { default: 'devTunnel', enum: ['devTunnel', 'missionControl'] } });
 	});

@@ -83,10 +83,7 @@ export class TunnelHostContribution extends Disposable implements IWorkbenchCont
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AgentHostRemoteConnectionsSettingId)) {
-				void this.remoteTunnelService.stopTunnel().catch(error => {
-					this.logService.error('Failed to stop Dev Tunnel sharing', error);
-					this.notificationService.error(error);
-				});
+				this._stopDevTunnelSharing();
 				this._updateSharingContext();
 			}
 		}));
@@ -98,6 +95,7 @@ export class TunnelHostContribution extends Disposable implements IWorkbenchCont
 		this._register(this.remoteTunnelService.onDidChangeMode(mode => {
 			this._hasReceivedMode = true;
 			this._mode = mode;
+			this._enforceSharingBackend();
 			this._updateSharingContext();
 		}));
 
@@ -113,13 +111,30 @@ export class TunnelHostContribution extends Disposable implements IWorkbenchCont
 			this.remoteTunnelService.getMode(),
 			this.remoteTunnelService.getTunnelStatus(),
 		]);
+		if (this._store.isDisposed) {
+			return;
+		}
 		if (!this._hasReceivedMode) {
 			this._mode = mode;
 		}
 		if (!this._hasReceivedStatus) {
 			this._status = status;
 		}
+		this._enforceSharingBackend();
 		this._updateSharingContext();
+	}
+
+	private _enforceSharingBackend(): void {
+		if (this._mode.active && this.configurationService.getValue<AgentHostRemoteConnectionsBackend>(AgentHostRemoteConnectionsSettingId) === 'missionControl') {
+			this._stopDevTunnelSharing();
+		}
+	}
+
+	private _stopDevTunnelSharing(): void {
+		void this.remoteTunnelService.stopTunnel().catch(error => {
+			this.logService.error('Failed to stop Dev Tunnel sharing', error);
+			this.notificationService.error(error);
+		});
 	}
 
 	private _updateSharingContext(): void {
