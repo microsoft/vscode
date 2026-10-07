@@ -12949,6 +12949,37 @@ Use the attached image as context.
 			});
 		});
 
+		test('tool completion preserves MCP structured content without parsing text output', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-mcp-structured');
+			const structuredContent = { titleId: 'example-title', branding: null };
+			const content = 'Opened the accent-color editor.\n\n{"titleId":"different-title","branding":null}';
+			for (const [index, value] of [structuredContent, {}, undefined].entries()) {
+				const toolCallId = `tc-mcp-structured-${index}`;
+				mockSession.fire('tool.execution_start', {
+					toolCallId,
+					toolName: 'docs-open_accent_color',
+					mcpServerName: 'docs',
+					mcpToolName: 'open_accent_color',
+					arguments: {},
+				});
+				mockSession.fire('tool.execution_complete', {
+					toolCallId,
+					success: true,
+					result: { content, structuredContent: value },
+				});
+			}
+
+			assert.deepStrictEqual(getActions(signals).flatMap(action =>
+				action.type === ActionType.ChatToolCallComplete
+					? [{ content: action.result.content, structuredContent: action.result.structuredContent }]
+					: []),
+				[structuredContent, {}, undefined].map(value => ({
+					content: [{ type: ToolResultContentType.Text, text: content }],
+					structuredContent: value,
+				})));
+		});
+
 		test('tool_start carries MCP App UI metadata from the SDK', async () => {
 			const { mockSession, signals } = await createAgentSession(disposables);
 			mockSession.fire('tool.execution_start', {

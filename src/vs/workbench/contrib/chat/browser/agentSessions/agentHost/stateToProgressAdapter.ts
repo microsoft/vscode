@@ -1916,7 +1916,7 @@ function getToolInputOutputDetails(tc: ToolCallState, isError: boolean, errorStr
 		output.push({ type: 'embed', value: errorString, isText: true, mimeType: 'text/plain' });
 	}
 
-	if (!toolInput && (!isImageGeneration || output.length === 0)) {
+	if (!toolInput && !includeMcpOutput && (!isImageGeneration || output.length === 0)) {
 		return undefined;
 	}
 
@@ -1930,18 +1930,8 @@ function getToolInputOutputDetails(tc: ToolCallState, isError: boolean, errorStr
 }
 
 /**
- * Builds a minimal {@link MCP.CallToolResult} from an agent-host tool call's
- * content blocks so the chat MCP App webview can receive a
- * `ui/notifications/tool-result` notification with the real tool output
- * (see {@link chatMcpAppModel}). Agent-host tool completions only carry our
- * own abstracted content shape (the raw MCP result is consumed by the
- * Copilot CLI's MCP host and never surfaces back over the AHP), so we
- * translate each AHP content block into the closest MCP content block:
- *  - `Text` → `MCP.TextContent`
- *  - `EmbeddedResource` with an image/audio MIME → `ImageContent`/`AudioContent`
- *  - `EmbeddedResource` (other) → `EmbeddedResource` wrapping a synthetic
- *    `data:` URI so MCP's resource shape is honored
- *  - `Resource` (content ref) → `ResourceLink` to the referenced URI
+ * Reconstructs an {@link MCP.CallToolResult} for the MCP App's `ui/notifications/tool-result`.
+ * Translates AHP content blocks into MCP content blocks and preserves the structured result object.
  */
 function toMcpCallToolResult(tc: ToolCallState, isError: boolean, connectionAuthority: string): MCP.CallToolResult | undefined {
 	if (tc.status !== ToolCallStatus.Completed && tc.status !== ToolCallStatus.Running) {
@@ -1954,10 +1944,11 @@ function toMcpCallToolResult(tc: ToolCallState, isError: boolean, connectionAuth
 			content.push(mcpBlock);
 		}
 	}
-	if (content.length === 0 && !isError) {
+	const structuredContent = tc.status === ToolCallStatus.Completed ? tc.structuredContent : undefined;
+	if (content.length === 0 && structuredContent === undefined && !isError) {
 		return undefined;
 	}
-	return { content, isError: isError || undefined };
+	return { content, ...(structuredContent !== undefined ? { structuredContent } : {}), isError: isError || undefined };
 }
 
 function toMcpContentBlock(block: ToolResultContent, connectionAuthority: string): MCP.ContentBlock | undefined {
