@@ -1232,7 +1232,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 
 	private getMarketplaceResourceLabel(resource: ICustomizationMarketplaceResource): string {
 		const source = this.getMarketplaceSourceLabel(resource.sourceId);
-		return resource.originLabel ? localize('customizationDiscovery.marketplaceOrigin', "{0} · {1}", source, resource.originLabel) : source;
+		return resource.originLabel && resource.originLabel !== source
+			? localize('customizationDiscovery.marketplaceOrigin', "{0} · {1}", source, resource.originLabel)
+			: resource.originLabel ?? source;
 	}
 
 	private cancelCatalogRequest(): void {

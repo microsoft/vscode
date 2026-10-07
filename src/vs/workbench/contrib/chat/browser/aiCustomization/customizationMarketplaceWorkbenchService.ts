@@ -15,6 +15,7 @@ import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources,
 import { createMcpGalleryMarketplaceProviders, getAllMcpGalleryMarketplaceSourceInfos, getCustomizationMarketplaceSourceInfos } from '../../../../../platform/customizationMarketplace/common/mcpGalleryMarketplaceProvider.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { ChatConfiguration } from '../../common/constants.js';
 import { IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 import { createPluginCustomizationMarketplaceProviders, getAllPluginCustomizationMarketplaceSourceInfos, getPluginCustomizationMarketplaceSourceInfos } from './pluginCustomizationMarketplaceProvider.js';
 import { CopilotConnectorsMarketplaceProvider, ICopilotConnectorsService } from './copilotConnectorsService.js';
@@ -55,25 +56,31 @@ export class CustomizationMarketplaceWorkbenchService implements ICustomizationM
 			CustomizationMarketplaceSources.CopilotConnectors,
 		];
 	}
-	private readonly service: Lazy<CustomizationMarketplaceService>;
+	private service: CustomizationMarketplaceService | undefined;
+	private serviceSignature: string | undefined;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IPlatformCustomizationMarketplaceService private readonly platformService: ICustomizationMarketplaceService,
 		@IPluginMarketplaceService private readonly pluginMarketplaceService: IPluginMarketplaceService,
 		@ICopilotConnectorsService private readonly copilotConnectorsService: ICopilotConnectorsService,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		this.allSources = [
-			...getAllPluginCustomizationMarketplaceSourceInfos(),
+			...getAllPluginCustomizationMarketplaceSourceInfos(pluginMarketplaceService),
 			...(platformService.allSources ?? platformService.sources),
 			CustomizationMarketplaceSources.CopilotConnectors,
 		];
 		this.onDidChangeSources = Event.any(
 			pluginMarketplaceService.onDidChangeMarketplaces,
+			Event.filter(configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(ChatConfiguration.StrictMarketplaces)),
 			platformService.onDidChangeSources ?? Event.None,
 		);
-		const platformProviders = (platformService.allSources ?? platformService.sources).map(source => {
+	}
+
+	private getService(): CustomizationMarketplaceService {
+		const pluginProviders = createPluginCustomizationMarketplaceProviders(this.instantiationService, this.configurationService, this.pluginMarketplaceService);
+		const platformProviders = (this.platformService.allSources ?? this.platformService.sources).map(source => {
 			const providerId = `platform.${source.id}`;
 			return createLazyCustomizationMarketplaceProvider(providerId, () => ({
 				id: providerId,
@@ -91,11 +98,19 @@ export class CustomizationMarketplaceWorkbenchService implements ICustomizationM
 				},
 			}), source.id);
 		});
-		this.service = new Lazy(() => new CustomizationMarketplaceService([
-			...createPluginCustomizationMarketplaceProviders(instantiationService),
+		const signature = JSON.stringify([
+			...pluginProviders.map(provider => provider.id),
+			...platformProviders.map(provider => provider.id),
+		]);
+		if (!this.service || this.serviceSignature !== signature) {
+			this.serviceSignature = signature;
+			this.service = new CustomizationMarketplaceService([
+			...pluginProviders,
 			...platformProviders,
-			createLazyCustomizationMarketplaceProvider(CustomizationMarketplaceSources.CopilotConnectors.id, () => new CopilotConnectorsMarketplaceProvider(copilotConnectorsService, configurationService)),
-		]));
+			createLazyCustomizationMarketplaceProvider(CustomizationMarketplaceSources.CopilotConnectors.id, () => new CopilotConnectorsMarketplaceProvider(this.copilotConnectorsService, this.configurationService)),
+			]);
+		}
+		return this.service;
 	}
 
 	getSourceRecoveryAction(sourceId: string): ICustomizationMarketplaceSourceRecoveryAction | undefined {
@@ -118,7 +133,7 @@ export class CustomizationMarketplaceWorkbenchService implements ICustomizationM
 	query(options: ICustomizationMarketplaceQuery, token: CancellationToken): Promise<ICustomizationMarketplacePage> {
 		return queryEnabledCustomizationMarketplaceSources(
 			this.configurationService, this.sources, options, token,
-			(request, token) => this.service.value.query(request, token),
+			(request, token) => this.getService().query(request, token),
 		);
 	}
 }

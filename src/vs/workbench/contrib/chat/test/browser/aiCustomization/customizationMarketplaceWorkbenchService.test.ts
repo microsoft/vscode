@@ -27,6 +27,7 @@ import { IProductService } from '../../../../../../platform/product/common/produ
 import { IRequestService } from '../../../../../../platform/request/common/request.js';
 import { ICopilotConnector, ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
 import { CustomizationMarketplaceWorkbenchService, PlatformCustomizationMarketplaceWorkbenchService } from '../../../browser/aiCustomization/customizationMarketplaceWorkbenchService.js';
+import { getPluginCustomizationMarketplaceSourceId } from '../../../browser/aiCustomization/pluginCustomizationMarketplaceProvider.js';
 
 suite('CustomizationMarketplaceWorkbenchService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -234,13 +235,15 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		registerConnectorService(instantiationService);
 		const service = instantiationService.createInstance(CustomizationMarketplaceWorkbenchService);
 		const page = await service.query({}, CancellationToken.None);
+		const customSourceId = getPluginCustomizationMarketplaceSourceId(customReference);
+		const defaultSourceId = getPluginCustomizationMarketplaceSourceId(defaultReference);
 		assert.deepStrictEqual({
 			sources: service.sources.map(source => source.id),
 			items: page.items.map(item => [item.sourceId, item.displayName]),
 			publicCalls, pluginCalls,
 		}, {
-			sources: [CustomizationMarketplaceSources.PluginMarketplaces.id, CustomizationMarketplaceSources.AgentFinderPublicFeed.id, CustomizationMarketplaceSources.CopilotConnectors.id],
-			items: [['pluginMarketplaces', 'Review'], ['pluginMarketplaces', 'Built-in']],
+			sources: [customSourceId, defaultSourceId, CustomizationMarketplaceSources.AgentFinderPublicFeed.id, CustomizationMarketplaceSources.CopilotConnectors.id],
+			items: [[customSourceId, 'Review'], [defaultSourceId, 'Built-in']],
 			publicCalls: 0,
 			pluginCalls: [customReference.canonicalId, defaultReference.canonicalId],
 		});
@@ -294,15 +297,16 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			errors: [],
 		});
 		const page = await pending;
-		const selected = await service.query({ sourceIds: [CustomizationMarketplaceSources.PluginMarketplaces.id] }, CancellationToken.None);
+		const pluginSourceId = getPluginCustomizationMarketplaceSourceId(reference);
+		const selected = await service.query({ sourceIds: [pluginSourceId] }, CancellationToken.None);
 		const search = await service.query({ query: 'plugin', pageSize: 2 }, CancellationToken.None);
 		assert.deepStrictEqual({
 			started, page: page.items.map(item => item.sourceId),
 			selected: selected.items.map(item => item.sourceId),
 			search: search.items.map(item => item.sourceId), calls,
 		}, {
-			started: ['plugin', 'public'], page: ['pluginMarketplaces', 'agentFinder'],
-			selected: ['pluginMarketplaces'], search: ['pluginMarketplaces', 'agentFinder'],
+			started: ['plugin', 'public'], page: [pluginSourceId, 'agentFinder'],
+			selected: [pluginSourceId], search: [pluginSourceId, 'agentFinder'],
 			calls: ['plugin', 'public', 'plugin', 'plugin', 'public'],
 		});
 	});
