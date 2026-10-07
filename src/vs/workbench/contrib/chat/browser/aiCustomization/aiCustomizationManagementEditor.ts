@@ -1697,8 +1697,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const candidates = homepageMigrationCategories.flatMap(id => this.getMigrationCandidates(getCustomizationMigrationCategory(id))
 			.filter(candidate => !this.isMigrationCategoryIgnored(id, candidate.storage)));
 		const count = candidates.length;
+		const hasPendingMigrations = homepageMigrationCategories.some(id => this.getMigrationCandidates(getCustomizationMigrationCategory(id)).length > 0);
 		const enabled = isAgentHostTarget(this.harnessService.activeHarness.get())
-			&& homepageMigrationCategories.some(id => this.isMigrationCategoryEnabled(getCustomizationMigrationCategory(id)));
+			&& homepageMigrationCategories.some(id => this.isMigrationCategoryEnabled(getCustomizationMigrationCategory(id)))
+			&& hasPendingMigrations;
 		this.migrationShortcutContainer.style.display = enabled ? '' : 'none';
 		this.migrationShortcutCount.textContent = count > 0 ? String(count) : '';
 		this.migrationShortcutButton.setAttribute(
