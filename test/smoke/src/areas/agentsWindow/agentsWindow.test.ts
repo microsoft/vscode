@@ -804,6 +804,7 @@ function setupAgentHostSuite(logger: Logger, config: {
 				'chat.agentHost.copilotSdk.logLevel': 'trace',
 				// These suites exercise Agent Host and sandbox behavior, not Auto routing.
 				'chat.defaultModel': AGENT_HOST_MODEL,
+				...(process.env.VSCODE_SMOKE_TEST_SESSIONS_USE_WORKTREE === '1' ? { 'sessions.useWorktree': true } : {}),
 				...config.settings,
 				...remoteFixture?.settings,
 			}, null, 2);
