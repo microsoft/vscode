@@ -4050,33 +4050,38 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		const traceContext = this._otelService.getSessionTraceContext(this.sessionId, this.resourceUri.toString());
-		const execution = await this._executeSdkOperation(() => this._otelService.withTraceContext(traceContext, async () => {
+		const execution = await this._executeSdkOperation(() => this._otelService.withTraceContext(traceContext, () => {
 			stageRecorder?.mark('modelResponse');
-			if (sendingTurn) {
-				sendingTurn.sdkSendInvoked = true;
-			}
-			stageRecorder?.markMilestone?.('sdkSend');
-			try {
-				await measureAgentProviderOperation(stageRecorder, 'sdkSend', async () => {
-					if (!this._environmentService.isBuilt && prompt === '$error') {
-						await this._wrapper.session.rpc.sendMessages({
-							messages: [{ prompt }],
-							requestHeaders: { Authorization: '******' },
-						});
-					} else {
-						await this._wrapper.session.send({ prompt, attachments: sdkAttachments?.length ? sdkAttachments : undefined, ...(displayPrompt ? { displayPrompt } : {}) });
-					}
-				});
-				stageRecorder?.markMilestone?.('sdkSendReturned');
-			} catch (error) {
-				stageRecorder?.markMilestone?.('sdkSendRejected');
-				throw error;
-			}
+			return this._measureSdkSend(sendingTurn, stageRecorder, async () => {
+				if (!this._environmentService.isBuilt && prompt === '$error') {
+					await this._wrapper.session.rpc.sendMessages({
+						messages: [{ prompt }],
+						requestHeaders: { Authorization: '******' },
+					});
+				} else {
+					await this._wrapper.session.send({ prompt, attachments: sdkAttachments?.length ? sdkAttachments : undefined, ...(displayPrompt ? { displayPrompt } : {}) });
+				}
+			});
 		}), sendingTurn, abortToken, sendingTurn);
 		if (execution.kind === 'skipped') {
 			return;
 		}
 		this._logService.info(`[Copilot:${this.sessionId}] session.send() returned`);
+	}
+
+	private async _measureSdkSend<T>(turn: CopilotTurn | undefined, recorder: IAgentProviderSendStageRecorder | undefined, operation: () => Promise<T>): Promise<T> {
+		if (turn) {
+			turn.sdkSendInvoked = true;
+		}
+		recorder?.markMilestone?.('sdkSend');
+		try {
+			const result = await measureAgentProviderOperation(recorder, 'sdkSend', operation);
+			recorder?.markMilestone?.('sdkSendReturned');
+			return result;
+		} catch (error) {
+			recorder?.markMilestone?.('sdkSendRejected');
+			throw error;
+		}
 	}
 
 	private _syncObservedMcpServerEnablement(serverName: string, previousEnabled: boolean | undefined, enabled: boolean): void {
@@ -4130,25 +4135,28 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	async resume(turnId: string, mode?: CopilotSdkMode, senderClientId?: string, clientType = AgentHostClientType.Unknown, clientContext = createUnknownAgentHostClientTelemetryContext(clientType), agentMergeTurn = false): Promise<void> {
+	async resume(turnId: string, mode?: CopilotSdkMode, senderClientId?: string, clientType = AgentHostClientType.Unknown, clientContext = createUnknownAgentHostClientTelemetryContext(clientType), agentMergeTurn = false, stageRecorder?: IAgentProviderSendStageRecorder): Promise<void> {
 		this._resetAbortToken();
 		const abortToken = this._abortToken;
 		this.resetTurnState(turnId, senderClientId, clientType, clientContext);
 		this._agentMergeTurn = agentMergeTurn;
+		const turn = this._currentTurn.value;
+		if (turn) {
+			turn.timingRecorder = stageRecorder;
+		}
 		if (this._tryContinueDevelopmentRecoverableError(turnId)) {
 			return;
 		}
-		const turn = this._currentTurn.value;
 		this._resumingTurnAwaitingProviderStart = turn;
 		turn?.markProviderCallPending();
 		try {
-			await this._prepareSdkTurn(mode);
+			await this._prepareSdkTurn(mode, stageRecorder);
 			if (!this._canSendTurn(turn, abortToken)) {
 				return;
 			}
 			const traceContext = this._otelService.getSessionTraceContext(this.sessionId, this.resourceUri.toString());
 			const execution = await this._executeSdkOperation(
-				() => this._otelService.withTraceContext(traceContext, () => this._wrapper.session.rpc.sendMessages({ messages: [] })),
+				() => this._otelService.withTraceContext(traceContext, () => this._measureSdkSend(turn, stageRecorder, () => this._wrapper.session.rpc.sendMessages({ messages: [] }))),
 				turn, abortToken,
 			);
 			if (execution.kind === 'skipped') {
@@ -4299,18 +4307,7 @@ export class CopilotAgentSession extends Disposable {
 		let result: { started: boolean };
 		try {
 			const execution = await this._executeSdkOperation(
-				() => this._otelService.withTraceContext(traceContext, async () => {
-					startingTurn.sdkSendInvoked = true;
-					recorder?.markMilestone?.('sdkSend');
-					try {
-						const result = await measureAgentProviderOperation(recorder, 'sdkSend', () => this._wrapper.session.rpc.fleet.start(rest ? { prompt: rest } : {}));
-						recorder?.markMilestone?.('sdkSendReturned');
-						return result;
-					} catch (error) {
-						recorder?.markMilestone?.('sdkSendRejected');
-						throw error;
-					}
-				}),
+				() => this._otelService.withTraceContext(traceContext, () => this._measureSdkSend(startingTurn, recorder, () => this._wrapper.session.rpc.fleet.start(rest ? { prompt: rest } : {}))),
 				startingTurn, abortToken, startingTurn,
 			);
 			if (execution.kind === 'skipped') {

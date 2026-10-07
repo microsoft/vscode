@@ -236,6 +236,10 @@ send invocation and exclude subagent envelopes and cancelled-root events.
 Permission/input hooks are session callbacks during the active turn, not proof
 that a human saw or answered a prompt. Milestones remain first-only even if SDK
 events repeat. A resumed/replaced turn does not inherit an earlier recorder.
+Zero-message continuations receive a fresh execution recorder through the resume
+context, covering preparation, execution admission and SDK send/return/rejection
+milestones just like new sends. The protocol turn ID can remain unchanged across
+these separately timed executions.
 
 The SDK send promise is an API acknowledgement, **not model-request dispatch or
 first token**. An assistant-turn-start callback is likewise not a network

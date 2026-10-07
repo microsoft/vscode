@@ -546,7 +546,7 @@ export interface IAgentChatContext {
 	readonly customizations?: readonly Customization[];
 	/** Per-operation host instructions that providers add to model context without persisting as user content. */
 	readonly hostInstructions?: readonly string[];
-	/** Records provider stage timing for the turn being sent; supplied only for a send. */
+	/** Records provider timing for the current send or resumed execution. */
 	readonly sendStageRecorder?: IAgentProviderSendStageRecorder;
 	/** Whether the current turn is an automated Agent Merge repair turn. */
 	readonly agentMergeTurn?: boolean;

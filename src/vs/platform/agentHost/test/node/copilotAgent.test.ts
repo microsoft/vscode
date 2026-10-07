@@ -4917,13 +4917,16 @@ suite('CopilotAgent', () => {
 		let active = true;
 		let resumeCalls = 0;
 		let failureCalls = 0;
+		const recorder = { mark() { } };
+		let recorderForwarded = false;
 		setDefaultSessionStub(agent, 'resume-failure', {
 			sessionId: 'resume-failure',
 			sessionUri: session,
 			chatUri: chat,
 			get hasActiveTurn() { return active; },
 			currentTurnClientContext: undefined,
-			resume: async () => {
+			resume: async (...args: Parameters<CopilotAgentSession['resume']>) => {
+				recorderForwarded = args[6] === recorder;
 				resumeCalls++;
 				throw new Error('Connection is closed.');
 			},
@@ -4939,15 +4942,17 @@ suite('CopilotAgent', () => {
 		}, chat);
 		try {
 			await agent.listChatsToMigrate();
-			await agent.chats.resumeTurn!(chat, 'turn-1', exactChatContext(session, chat));
+			await agent.chats.resumeTurn!(chat, 'turn-1', { ...exactChatContext(session, chat), sendStageRecorder: recorder });
 
 			assert.deepStrictEqual({
 				resumeCalls,
+				recorderForwarded,
 				failureCalls,
 				remainingSessions: chatEntriesBySdkId(agent).size,
 				operation: (telemetryService.errorEvents.find(event => event.eventName === 'agentHost.copilotClientFailure')?.data as Record<string, unknown> | undefined)?.operation,
 			}, {
 				resumeCalls: 1,
+				recorderForwarded: true,
 				failureCalls: 1,
 				remainingSessions: 0,
 				operation: 'resumeTurn',

@@ -11554,24 +11554,42 @@ Use the attached image as context.
 		});
 
 		test('resumes the same turn with zero SDK messages', async () => {
-			const { session, mockSession } = await createAgentSession(disposables);
+			const captureRuntime: { current?: ICopilotSessionRuntime } = {};
+			const { session, mockSession } = await createAgentSession(disposables, { captureRuntime });
+			const timing = new AgentHostProviderTiming(() => 0);
 
-			await session.resume('turn-1', 'plan', 'client-1');
+			await session.resume('turn-1', 'plan', 'client-1', AgentHostClientType.Unknown, undefined, false, {
+				mark() { },
+				startOperation: name => timing.startOperation(name),
+				markMilestone: name => timing.markMilestone(name),
+			});
+			for (const event of toSessionEvents([
+				{ type: 'assistant.turn_start', data: { turnId: 'sdk-resume' } },
+				{ type: 'assistant.message_delta', data: { messageId: 'resume-message', deltaContent: 'continued' } },
+			])) {
+				captureRuntime.current?.onSessionEvent?.(event);
+			}
+			const rows = timing.finish(0);
 
 			assert.deepStrictEqual({
 				sendRequests: mockSession.sendRequests,
 				sendMessagesRequests: mockSession.sendMessagesRequests,
 				modeSetCalls: mockSession.modeSetCalls,
+				operations: rows.filter(row => row.kind === 'operation').map(row => row.name).sort(),
+				milestones: rows.filter(row => row.kind === 'milestone').map(row => row.name).sort(),
 			}, {
 				sendRequests: [],
 				sendMessagesRequests: [{ messages: [] }],
 				modeSetCalls: [{ mode: 'plan' }],
+				operations: ['execution', 'executionMarker', 'mcp', 'mcpList', 'mode', 'permission', 'permissionRpc', 'sandbox', 'sandboxDiagnostics', 'sandboxRpc', 'sdkSend', 'shell'],
+				milestones: ['sdkAssistantTurnStart', 'sdkFirstEvent', 'sdkSend', 'sdkSendReturned', 'sdkText'],
 			});
 		});
 
 		for (const abortedIdle of [false, true]) {
 			test(`cancelling a resumed turn during preparation prevents SDK dispatch (aborted idle: ${abortedIdle})`, async () => {
 				const { session, mockSession, signals } = await createAgentSession(disposables);
+				const timing = new AgentHostProviderTiming(() => 0);
 				mockSession.onModeSet = () => {
 					void session.abort();
 					if (abortedIdle) {
@@ -11579,8 +11597,13 @@ Use the attached image as context.
 					}
 				};
 
-				await session.resume('turn-cancelled', 'plan');
+				await session.resume('turn-cancelled', 'plan', undefined, AgentHostClientType.Unknown, undefined, false, {
+					mark() { },
+					startOperation: name => timing.startOperation(name),
+					markMilestone: name => timing.markMilestone(name),
+				});
 				const cancelledState = {
+					sdkSendObserved: timing.finish(0).some(row => row.name === 'sdkSend'),
 					sends: [...mockSession.sendMessagesRequests],
 					hasActiveTurn: session.hasActiveTurn,
 					terminalActions: getActions(signals).filter(action => action.type === ActionType.ChatTurnComplete || action.type === ActionType.ChatError),
@@ -11592,7 +11615,7 @@ Use the attached image as context.
 					cancelledState,
 					sends: mockSession.sendMessagesRequests,
 				}, {
-					cancelledState: { sends: [], hasActiveTurn: false, terminalActions: [] },
+					cancelledState: { sdkSendObserved: false, sends: [], hasActiveTurn: false, terminalActions: [] },
 					sends: [{ messages: [] }],
 				});
 			});
@@ -11600,16 +11623,26 @@ Use the attached image as context.
 
 		test('clears the active turn when the continuation connection closes', async () => {
 			const { session, mockSession } = await createAgentSession(disposables);
+			const timing = new AgentHostProviderTiming(() => 0);
 			mockSession.sendMessagesError = new Error('Connection closed during continuation');
 
-			await assert.rejects(() => session.resume('turn-1'), /Connection closed/);
+			await assert.rejects(() => session.resume('turn-1', undefined, undefined, AgentHostClientType.Unknown, undefined, false, {
+				mark() { },
+				startOperation: name => timing.startOperation(name),
+				markMilestone: name => timing.markMilestone(name),
+			}), error => error === mockSession.sendMessagesError);
+			const rows = timing.finish(0);
 
 			assert.deepStrictEqual({
 				active: session.hasActiveTurn,
 				sendMessagesRequests: mockSession.sendMessagesRequests,
+				errorCount: rows.find(row => row.kind === 'operation' && row.name === 'sdkSend')?.errorCount,
+				milestones: rows.filter(row => row.kind === 'milestone').map(row => row.name).sort(),
 			}, {
 				active: false,
 				sendMessagesRequests: [{ messages: [] }],
+				errorCount: 1,
+				milestones: ['sdkSend', 'sdkSendRejected'],
 			});
 		});
 

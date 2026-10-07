@@ -575,19 +575,38 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 	test('does not record resuming the same failed turn as a new send', () => {
 		setupSession();
 		startTurn('resumed');
+		const previousRecorder = turnTracker.createProviderStageRecorder(defaultChatUri, 'resumed');
 		fire({ type: ActionType.ChatError, turnId: 'resumed', duration: 100, part: createErrorResponsePart({ errorType: 'requestFailed', message: 'failed' }, true) });
 		const turn = stateManager.getChatState(defaultChatUri)?.turns.at(-1);
 		assert.ok(turn);
 		const action: ChatAction = { type: ActionType.ChatTurnResume, turnId: turn.id };
 		stateManager.dispatchServerAction(defaultChatUri, action);
-		agent.chats.resumeTurn = async () => { };
+		agent.chats.resumeTurn = async (_chat, _turnId, context) => {
+			if (!URI.isUri(context)) {
+				const operation = context.sendStageRecorder?.startOperation?.('permission');
+				operation?.start();
+				operation?.end(false);
+				context.sendStageRecorder?.markMilestone?.('sdkSend');
+			}
+			previousRecorder.markMilestone?.('sdkText');
+		};
 		sideEffects.handleAction(defaultChatUri, action, 'test', AgentHostClientType.EditorWindow, turn);
 		fire({ type: ActionType.ChatTurnComplete, turnId: turn.id, duration: 1000 });
 
 		assert.deepStrictEqual({
 			sends: sentEvents().map(event => event.data?.turnId),
 			completions: completedEvents().length,
-		}, { sends: ['resumed'], completions: 2 });
+			timings: telemetry.events.filter(event => event.eventName === 'agentHost.providerTiming').map(event => ({
+				group: event.data?.group, result: event.data?.result,
+				permissionCount: event.data?.['permission.count'], staleText: event.data?.['milestone.sdkText'],
+			})),
+		}, {
+			sends: ['resumed'], completions: 2,
+			timings: [
+				{ group: 'permissions', result: 'success', permissionCount: 1, staleText: undefined },
+				{ group: 'milestones', result: 'success', permissionCount: undefined, staleText: undefined },
+			],
+		});
 	});
 
 	test('does not record provider-promoted turns as admitted sends', () => {
