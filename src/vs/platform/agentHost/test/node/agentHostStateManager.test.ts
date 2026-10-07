@@ -2999,6 +2999,29 @@ suite('Subagent URI helpers', () => {
 		});
 	});
 
+	test('parses legacy Copilot subagent selections without treating opaque fragments as subagents', () => {
+		const addresses = [
+			'copilotcli:/parent#subagent%2Fcall-1',
+			URI.from({ scheme: 'copilotcli', path: '/parent', fragment: 'subagent/call-2' }),
+			'copilotcli:/parent/subagent/call-path#subagent/call-fragment',
+			'copilotcli:/parent#peer-chat',
+			'copilotcli:/parent#subagent/',
+			'copilotcli://tenant/parent#subagent/call-1',
+			'copilotcli:/parent?revision=1#subagent/call-1',
+			'ahp-session:/parent#subagent/call-1',
+			'conversation:/parent#subagent/call-1',
+		];
+		assert.deepStrictEqual(addresses.map(address => {
+			const parsed = parseSubagentSessionUri(address);
+			return parsed && { parent: parsed.parentSession.toString(), toolCallId: parsed.toolCallId };
+		}), [
+			{ parent: 'copilotcli:/parent', toolCallId: 'call-1' },
+			{ parent: 'copilotcli:/parent', toolCallId: 'call-2' },
+			{ parent: 'copilotcli:/parent#subagent%2Fcall-fragment', toolCallId: 'call-path' },
+			undefined, undefined, undefined, undefined, undefined, undefined,
+		]);
+	});
+
 	test('parseSubagentSessionUri returns undefined for non-subagent URIs', () => {
 		assert.strictEqual(parseSubagentSessionUri('copilot:/session-1'), undefined);
 	});
