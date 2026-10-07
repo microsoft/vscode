@@ -9,16 +9,12 @@ rounds:
             text: Call coverage_probe exactly once with {"tag":"before-stop"}. Do not retry it, call other tools, run commands, or change the arguments. Afterwards reply exactly MCP_TURN_DONE.
             origin:
               kind: user
-      - method: subscribe
       - channel: ${session_0}
         action:
           type: session/mcpServerStopRequested
-      - method: subscribe
       - channel: ${session_0}
         action:
           type: session/mcpServerStartRequested
-      - method: subscribe
-      - method: subscribe
       - channel: ${chat_0}
         action:
           type: chat/turnStarted
@@ -60,29 +56,15 @@ rounds:
         action:
           type: chat/turnComplete
           turnId: ${turn_0}
-      - responseTo: subscribe
-        result: success
+      - channel: ${chat_0}
+        action:
+          type: chat/isReadChanged
       - channel: ${session_0}
         action:
           type: session/mcpServerStopRequested
-      - responseTo: subscribe
-        result: success
       - channel: ${session_0}
         action:
           type: session/mcpServerStartRequested
-      - responseTo: subscribe
-        result: success
-      - channel: ${session_0}
-        action:
-          type: session/mcpServerStateChanged
-      - channel: ${session_0}
-        action:
-          type: session/mcpServerStateChanged
-      - channel: ${session_0}
-        action:
-          type: session/mcpServerStateChanged
-      - responseTo: subscribe
-        result: success
       - channel: ${chat_0}
         action:
           type: chat/turnStarted
@@ -115,3 +97,6 @@ rounds:
         action:
           type: chat/turnComplete
           turnId: ${turn_1}
+      - channel: ${chat_0}
+        action:
+          type: chat/isReadChanged

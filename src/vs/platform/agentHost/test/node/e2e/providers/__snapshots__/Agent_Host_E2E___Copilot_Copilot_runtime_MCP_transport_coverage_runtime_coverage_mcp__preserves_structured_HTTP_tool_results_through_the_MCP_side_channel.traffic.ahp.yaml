@@ -9,7 +9,6 @@ rounds:
             text: Call coverage_probe exactly once with {"tag":"bootstrap"}. Do not retry it, call other tools, run commands, or change the arguments. Afterwards reply exactly MCP_TURN_DONE.
             origin:
               kind: user
-      - method: subscribe
       - method: tools/call
     serverToClient:
       - channel: ${chat_0}
@@ -44,7 +43,8 @@ rounds:
         action:
           type: chat/turnComplete
           turnId: ${turn_0}
-      - responseTo: subscribe
-        result: success
+      - channel: ${chat_0}
+        action:
+          type: chat/isReadChanged
       - responseTo: tools/call
         result: success

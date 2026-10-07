@@ -28,7 +28,7 @@ const model = 'claude-sonnet-5';
 const RECORD = process.env.AGENT_HOST_REPLAY_RECORD === '1' || process.env.AGENT_HOST_UPDATE_SNAPSHOTS === '1';
 const fileContent = 'SYNTHETIC_TELEMETRY_FILE\n';
 const caseAttribute = 'runtime.telemetry.case';
-const contentAttributes = ['gen_ai.input.messages', 'gen_ai.output.messages', 'gen_ai.system_instructions', 'gen_ai.tool.call.arguments', 'gen_ai.tool.call.result'] as const;
+const contentAttributes = ['gen_ai.input.messages', 'gen_ai.output.messages', 'gen_ai.system_instructions', 'gen_ai.tool.definitions', 'gen_ai.tool.call.arguments', 'gen_ai.tool.call.result'] as const;
 
 type AttributeValue = string | number | boolean | readonly AttributeValue[];
 type Attributes = Readonly<Record<string, AttributeValue>>;
@@ -115,13 +115,6 @@ interface IFileSpan {
 	readonly instrumentationScope: { readonly name: string };
 	readonly status: { readonly code: number };
 	readonly events: readonly { readonly name: string; readonly attributes: Attributes }[];
-}
-
-interface IToolDefinition {
-	readonly type: string;
-	readonly name: string;
-	readonly description?: string;
-	readonly parameters?: object;
 }
 
 interface ITelemetryCase {
@@ -361,12 +354,6 @@ function defineTelemetryTests(context: IAgentHostE2ETestContext): void {
 				{ name: 'view', parent: true, failed: false });
 			assert.ok(spans.some(span => operation(span) === 'chat' && isDescendant(span, root, spans)));
 			assert.deepStrictEqual(spans.flatMap(span => contentAttributes.filter(attribute => span.attributes[attribute] !== undefined)), []);
-			const definitions = spans.flatMap(span => {
-				const value = span.attributes['gen_ai.tool.definitions'];
-				return typeof value === 'string' ? JSON.parse(value) as IToolDefinition[] : [];
-			});
-			assert.ok(definitions.some(definition => definition.name === 'view'), 'Expected the native names-only tool catalog');
-			assert.deepStrictEqual(definitions.filter(definition => definition.description !== undefined || definition.parameters !== undefined), []);
 			assertToolCounter(session.testCase.id, true, 1);
 			assert.ok(getCollector().caseRequests(session.testCase.id, 'metrics').every(request => request.routingHeader === 'synthetic route'));
 			assert.ok(getCollector().caseRequests(session.testCase.id, 'traces').some(request => request.routingHeader === 'synthetic route'));

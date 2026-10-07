@@ -109,6 +109,23 @@ suite('AhpSnapshotRecorder', () => {
 		});
 	});
 
+	test('omits only selected helper methods and their responses without hiding other RPC errors', () => {
+		const recorder = new AhpSnapshotRecorder();
+		for (const [id, method] of [[1, 'subscribe'], [2, 'resourceRead'], [3, 'authenticate']] as const) {
+			recorder.record('c2s', { id, method, params: {} });
+			recorder.record('s2c', id === 3
+				? { id, error: { code: -32602, message: 'Expected authentication rejection' } }
+				: { id, result: {} });
+		}
+		const snapshot = recorder.serialize({ ignoredMethods: ['subscribe', 'resourceRead'] });
+		assert.deepStrictEqual({
+			subscribe: snapshot.includes('subscribe'),
+			resourceRead: snapshot.includes('resourceRead'),
+			authenticate: snapshot.includes('method: authenticate') && snapshot.includes('responseTo: authenticate'),
+			error: snapshot.includes('Expected authentication rejection'),
+		}, { subscribe: false, resourceRead: false, authenticate: true, error: true });
+	});
+
 	test('waits for an unread action on the completed chat after the turn outcome', async () => {
 		const unread = new DeferredPromise<AhpNotification>();
 		const chat = 'ahp-chat://session/chat';

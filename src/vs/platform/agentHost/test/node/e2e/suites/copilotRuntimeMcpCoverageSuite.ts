@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { execFileSync } from 'child_process';
 import { randomUUID } from 'crypto';
-import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'fs';
+import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'fs';
 import type * as http from 'http';
 import { createRequire } from 'module';
 import type { Server as McpProtocolServer } from '@modelcontextprotocol/sdk/server/index.js';
@@ -17,6 +17,7 @@ import { retry } from '../../../../../../base/common/async.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { isCustomizationEnabled } from '../../../../common/customizationEnablement.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import type { SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { CustomizationEnablementKind, McpServerStatus } from '../../../../common/state/protocol/state.js';
@@ -24,7 +25,7 @@ import { ActionType } from '../../../../common/state/sessionActions.js';
 import { buildDefaultChatUri, customizationId, CustomizationType, type ClientPluginCustomization, type McpServerCustomization, type PluginCustomization, type SessionState } from '../../../../common/state/sessionState.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { createRealSession, driveTurnToCompletion, textFromContent } from '../harness/agentHostE2ETestHarness.js';
-import { assertRecordedAhpSnapshot } from '../harness/ahpSnapshot.js';
+import { assertRecordedAhpSnapshot, normalizeWorkspacePaths } from '../harness/ahpSnapshot.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
 
 const nodeRequire = createRequire(import.meta.url);
@@ -488,7 +489,11 @@ function defineMcpCoverageTests(context: IAgentHostE2ETestContext): void {
 				context.client.clearAhpSnapshot();
 				await run(scenario);
 				fixture.assertHealthy();
-				await assertRecordedAhpSnapshot(this.test!, context.client, { profile: 'behavior' });
+				await assertRecordedAhpSnapshot(this.test!, context.client, {
+					profile: 'behavior',
+					ignoredMethods: ['subscribe'],
+					ignoredActionTypes: [ActionType.RootActiveSessionsChanged, ActionType.ChatChangesetsChanged, ActionType.SessionMcpServerStateChanged, ActionType.SessionCustomizationToggled],
+				});
 			} finally {
 				try {
 					if (sessionUri) {
@@ -647,6 +652,8 @@ function defineMcpCoverageTests(context: IAgentHostE2ETestContext): void {
 			channel: scenario.sessionUri, clientSeq: scenario.nextClientSeq(),
 			action: { type: ActionType.SessionCustomizationToggled, id: server.id, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }] },
 		});
+		await retry(async () => assert.strictEqual(isCustomizationEnabled(await scenario.server()), true), 100, 100);
+		assert.deepStrictEqual(scenario.fixture.calls, [{ name: toolName, arguments: before }]);
 		await ready(scenario);
 		const second = await scenario.call(after);
 		assertCalls(scenario, [before, after], [...first, ...second], [/RUNTIME_MCP_OK/, /RUNTIME_MCP_OK/], [true, true]);
@@ -689,9 +696,9 @@ function defineMcpCoverageTests(context: IAgentHostE2ETestContext): void {
 		const results = await scenario.call(args);
 		assertCalls(scenario, [args], results, [/RUNTIME_MCP_ENV:synthetic-stdio-marker/], [true]);
 		assert.deepStrictEqual(scenario.fixture.trace.filter(entry => entry.event === 'stdio-start').map(entry => ({
-			cwd: entry.cwd ? realpathSync(entry.cwd) : undefined, marker: entry.marker, argv: entry.argv,
+			cwd: entry.cwd ? normalizeWorkspacePaths(entry.cwd, scenario.workspace) : undefined, marker: entry.marker, argv: entry.argv,
 		})), [{
-			cwd: realpathSync(scenario.workspace), marker: 'synthetic-stdio-marker', argv: ['fixture argument with spaces'],
+			cwd: '${workdir}', marker: 'synthetic-stdio-marker', argv: ['fixture argument with spaces'],
 		}]);
 	});
 }

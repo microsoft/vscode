@@ -9,10 +9,8 @@ rounds:
             text: Call coverage_probe exactly once with {"tag":"bootstrap"}. Do not retry it, call other tools, run commands, or change the arguments. Afterwards reply exactly MCP_TURN_DONE.
             origin:
               kind: user
-      - method: subscribe
       - method: resources/read
       - method: resources/read
-      - method: subscribe
     serverToClient:
       - channel: ${chat_0}
         action:
@@ -46,8 +44,9 @@ rounds:
         action:
           type: chat/turnComplete
           turnId: ${turn_0}
-      - responseTo: subscribe
-        result: success
+      - channel: ${chat_0}
+        action:
+          type: chat/isReadChanged
       - responseTo: resources/read
         error:
           code: -32603
@@ -55,10 +54,9 @@ rounds:
             Error: Request session.mcp.apps.readResource failed with message: MCP resources/read failed for runtime-transport (coverage://fixture/missing): MCP error -32602: MCP error -32602: RUNTIME_MCP_RESOURCE_NOT_FOUND
                 at handleResponse (${homedir}\code\vscode.worktrees\end-to-end-tests-code-coverage\node_modules\vscode-jsonrpc\lib\common\connection.js:565:48)
                 at handleMessage (${homedir}\code\vscode.worktrees\end-to-end-tests-code-coverage\node_modules\vscode-jsonrpc\lib\common\connection.js:345:13)
-                at processMessageQueue (${homedir}\code\vscode.worktrees\end-to-end-tests-code-coverage\node_modules\vscode-jsonrpc\lib\common\connection.js:362:17)
+                at Object.handleMessage (file:///C:/Users/${user}/code/vscode.worktrees/end-to-end-tests-code-coverage/node_modules/@github/copilot-sdk/dist/client.js:61:13)
+                at processMessageQueue (${homedir}\code\vscode.worktrees\end-to-end-tests-code-coverage\node_modules\vscode-jsonrpc\lib\common\connection.js:359:33)
                 at Immediate.<anonymous> (${homedir}\code\vscode.worktrees\end-to-end-tests-code-coverage\node_modules\vscode-jsonrpc\lib\common\connection.js:334:13)
                 at process.processImmediate (node:internal/timers:574:21)
       - responseTo: resources/read
-        result: success
-      - responseTo: subscribe
         result: success

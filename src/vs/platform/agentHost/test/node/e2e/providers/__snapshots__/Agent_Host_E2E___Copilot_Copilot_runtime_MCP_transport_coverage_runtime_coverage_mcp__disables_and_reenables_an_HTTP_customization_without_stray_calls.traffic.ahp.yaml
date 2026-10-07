@@ -9,12 +9,6 @@ rounds:
             text: Call coverage_probe exactly once with {"tag":"enabled-before"}. Do not retry it, call other tools, run commands, or change the arguments. Afterwards reply exactly MCP_TURN_DONE.
             origin:
               kind: user
-      - method: subscribe
-      - channel: ${session_0}
-        action:
-          type: session/customizationToggled
-      - method: subscribe
-      - method: subscribe
       - channel: ${chat_0}
         action:
           type: chat/turnStarted
@@ -23,11 +17,6 @@ rounds:
             text: Reply exactly MCP_DISABLED_IDLE. Do not call tools or run commands.
             origin:
               kind: user
-      - channel: ${session_0}
-        action:
-          type: session/customizationToggled
-      - method: subscribe
-      - method: subscribe
       - channel: ${chat_0}
         action:
           type: chat/turnStarted
@@ -69,18 +58,9 @@ rounds:
         action:
           type: chat/turnComplete
           turnId: ${turn_0}
-      - responseTo: subscribe
-        result: success
-      - channel: ${session_0}
+      - channel: ${chat_0}
         action:
-          type: session/customizationToggled
-      - responseTo: subscribe
-        result: success
-      - channel: ${session_0}
-        action:
-          type: session/mcpServerStateChanged
-      - responseTo: subscribe
-        result: success
+          type: chat/isReadChanged
       - channel: ${chat_0}
         action:
           type: chat/turnStarted
@@ -100,19 +80,9 @@ rounds:
         action:
           type: chat/turnComplete
           turnId: ${turn_1}
-      - channel: ${session_0}
+      - channel: ${chat_0}
         action:
-          type: session/customizationToggled
-      - responseTo: subscribe
-        result: success
-      - channel: ${session_0}
-        action:
-          type: session/mcpServerStateChanged
-      - channel: ${session_0}
-        action:
-          type: session/mcpServerStateChanged
-      - responseTo: subscribe
-        result: success
+          type: chat/isReadChanged
       - channel: ${chat_0}
         action:
           type: chat/turnStarted
@@ -145,3 +115,6 @@ rounds:
         action:
           type: chat/turnComplete
           turnId: ${turn_2}
+      - channel: ${chat_0}
+        action:
+          type: chat/isReadChanged

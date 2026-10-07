@@ -26,6 +26,9 @@ interface ILegacyModelCatalog {
 	readonly data: readonly {
 		readonly id: string;
 		readonly supported_endpoints: readonly string[];
+		readonly capabilities: {
+			readonly supports: object;
+		};
 	}[];
 }
 
@@ -132,7 +135,11 @@ export function defineCopilotRuntimeLegacyModelCoverageTests(context: IAgentHost
 				body: JSON.stringify({
 					...catalog,
 					data: catalog.data.map(entry => entry.id === model || entry.id === alternateModel
-						? { ...entry, supported_endpoints: ['/chat/completions'] }
+						? {
+							...entry,
+							supported_endpoints: ['/chat/completions'],
+							capabilities: { ...entry.capabilities, supports: { ...entry.capabilities.supports, reasoning_effort: ['none'] } },
+						}
 						: entry),
 				}),
 			}));

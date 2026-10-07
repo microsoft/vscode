@@ -40,6 +40,7 @@ exchanges:
           content: Call coverage_probe exactly once with {"tag":"enabled-before"}. Do not retry it, call other tools, run commands, or change the arguments. Afterwards reply exactly MCP_TURN_DONE.
         - role: assistant
           content:
+            - type: thinking
             - type: tool_use
               name: runtime-transport-coverage_probe
               input:
@@ -64,6 +65,7 @@ exchanges:
           content: Call coverage_probe exactly once with {"tag":"enabled-before"}. Do not retry it, call other tools, run commands, or change the arguments. Afterwards reply exactly MCP_TURN_DONE.
         - role: assistant
           content:
+            - type: thinking
             - type: tool_use
               name: runtime-transport-coverage_probe
               input:
@@ -99,6 +101,7 @@ exchanges:
           content: Call coverage_probe exactly once with {"tag":"enabled-before"}. Do not retry it, call other tools, run commands, or change the arguments. Afterwards reply exactly MCP_TURN_DONE.
         - role: assistant
           content:
+            - type: thinking
             - type: tool_use
               name: runtime-transport-coverage_probe
               input:
@@ -148,6 +151,7 @@ exchanges:
           content: Call coverage_probe exactly once with {"tag":"enabled-before"}. Do not retry it, call other tools, run commands, or change the arguments. Afterwards reply exactly MCP_TURN_DONE.
         - role: assistant
           content:
+            - type: thinking
             - type: tool_use
               name: runtime-transport-coverage_probe
               input:

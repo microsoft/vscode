@@ -627,6 +627,10 @@ interface IMcpLifecycleLogInfo {
 
 type McpServer = Awaited<ReturnType<CopilotSession['rpc']['mcp']['list']>>['servers'][number] & { enabled?: boolean };
 
+function isSdkMcpServerEnabled(enabled: boolean | undefined, status: SdkMcpServerStatus | undefined): boolean {
+	return (enabled ?? (status !== 'not_configured')) && status !== 'disabled';
+}
+
 class DirectUsageAccumulator {
 	private readonly _tokenTotalsByModel = new Map<string, Mutable<ITurnTokenTotal>>();
 	private _copilotNanoAiu: number | undefined;
@@ -4824,7 +4828,8 @@ export class CopilotAgentSession extends Disposable {
 		if (desiredEnablement.size === 0) {
 			return;
 		}
-		const observedEnablement = new Map(servers.map(server => [server.name, server.enabled] as const));
+		// Configured eligibility can remain true after the running SDK instance was explicitly disabled.
+		const observedEnablement = new Map(servers.map(server => [server.name, isSdkMcpServerEnabled(server.enabled, server.live?.status)] as const));
 		let changed = false;
 		for (const [serverName, desired] of desiredEnablement) {
 			const enabled = observedEnablement.get(serverName);
@@ -8056,7 +8061,7 @@ export class CopilotAgentSession extends Disposable {
 			displayName: this._mcpServerDisplayNames.get(server.name),
 			state: this._translateSdkMcpStatus(server.name, server.status, server.error, hasPendingAuthentication),
 			...(server.status === 'pending' && !hasPendingAuthentication ? { allowAuthRequiredToStarting: true } : {}),
-			enabled: server.enabled ?? (server.status !== 'disabled' && server.status !== 'not_configured'),
+			enabled: isSdkMcpServerEnabled(server.enabled, server.status),
 		};
 	}
 

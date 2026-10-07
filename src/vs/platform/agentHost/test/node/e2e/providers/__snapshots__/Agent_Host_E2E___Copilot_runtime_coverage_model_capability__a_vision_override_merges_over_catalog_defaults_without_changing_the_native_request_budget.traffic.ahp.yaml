@@ -1,7 +1,6 @@
 version: 1
 rounds:
   - clientToServer:
-      - method: subscribe
       - channel: ${chat_0}
         action:
           type: chat/turnStarted
@@ -12,18 +11,10 @@ rounds:
               kind: user
             model:
               id: claude-sonnet-5
-      - method: subscribe
-      - method: subscribe
-      - method: subscribe
-      - channel: ${session_0}
+      - channel: ${session_1}
         action:
           type: root/configChanged
     serverToClient:
-      - responseTo: subscribe
-        result: success
-      - channel: ${session_0}
-        action:
-          type: root/activeSessionsChanged
       - channel: ${chat_0}
         action:
           type: chat/turnStarted
@@ -34,11 +25,11 @@ rounds:
               kind: user
             model:
               id: claude-sonnet-5
-      - channel: ${session_1}
+      - channel: ${session_0}
         action:
           type: session/titleChanged
       - method: root/sessionAdded
-      - channel: ${session_1}
+      - channel: ${session_0}
         action:
           type: session/ready
       - channel: ${chat_0}
@@ -48,19 +39,13 @@ rounds:
           part:
             kind: markdown
             content: CAPABILITY_IMAGE_ACCEPTED
-      - channel: ${session_0}
-        action:
-          type: root/activeSessionsChanged
       - channel: ${chat_0}
         action:
           type: chat/turnComplete
           turnId: ${turn_0}
-      - responseTo: subscribe
-        result: success
-      - responseTo: subscribe
-        result: success
-      - responseTo: subscribe
-        result: success
-      - channel: ${session_0}
+      - channel: ${chat_0}
+        action:
+          type: chat/isReadChanged
+      - channel: ${session_1}
         action:
           type: root/configChanged

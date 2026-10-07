@@ -77,6 +77,8 @@ interface IAhpSnapshotClient {
 export interface IAhpSnapshotOptions {
 	readonly profile?: 'protocol' | 'behavior';
 	readonly ignoredActionTypes?: readonly ActionType[];
+	/** Helper RPC methods omitted together with their responses from a code-driven snapshot. */
+	readonly ignoredMethods?: readonly string[];
 	/** Server action types whose cross-channel interleaving is canonicalized while preserving per-channel order. */
 	readonly orderIndependentActionTypes?: readonly ActionType[];
 	/** Provider tool names whose completion success is omitted before snapshot name normalization. */
@@ -142,6 +144,9 @@ export class AhpSnapshotRecorder {
 				if (message.id !== undefined) {
 					(direction === 'c2s' ? clientRequests : serverRequests).set(message.id, message.method);
 				}
+				if (options.ignoredMethods?.includes(message.method)) {
+					continue;
+				}
 				// notifications/tools/list_changed is legitimate behavior (Copilot >= 1.0.72
 				// emits session.tools_updated), but it is only forwarded for MCP servers
 				// in the Ready state. The harness runs against the real homedir, so the
@@ -181,8 +186,12 @@ export class AhpSnapshotRecorder {
 				}
 			} else if (isResponseMessage(message)) {
 				const requests = direction === 'c2s' ? serverRequests : clientRequests;
+				const method = requests.get(message.id);
+				if (method && options.ignoredMethods?.includes(method)) {
+					continue;
+				}
 				projected = {
-					responseTo: requests.get(message.id) ?? `request-${message.id}`,
+					responseTo: method ?? `request-${message.id}`,
 					...(message.error ? { error: { code: message.error.code, message: message.error.message } } : { result: 'success' }),
 				};
 			} else {

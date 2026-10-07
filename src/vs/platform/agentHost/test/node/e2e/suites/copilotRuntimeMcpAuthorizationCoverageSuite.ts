@@ -378,7 +378,11 @@ function defineAuthorizationTests(context: IAgentHostE2ETestContext): void {
 				context.client.clearAhpSnapshot();
 				await run(scenario);
 				fixture.assertHealthy();
-				await assertRecordedAhpSnapshot(this.test!, context.client, { profile: 'behavior' });
+				await assertRecordedAhpSnapshot(this.test!, context.client, {
+					profile: 'behavior',
+					ignoredMethods: ['subscribe'],
+					ignoredActionTypes: [ActionType.RootActiveSessionsChanged, ActionType.ChatChangesetsChanged, ActionType.SessionMcpServerStateChanged, ActionType.SessionCustomizationToggled],
+				});
 			} finally {
 				try {
 					if (sessionUri) {

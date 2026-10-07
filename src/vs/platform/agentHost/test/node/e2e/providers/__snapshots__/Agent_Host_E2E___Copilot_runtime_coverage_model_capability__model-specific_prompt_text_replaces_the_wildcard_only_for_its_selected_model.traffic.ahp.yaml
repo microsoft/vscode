@@ -11,11 +11,7 @@ rounds:
               kind: user
             model:
               id: claude-sonnet-5
-      - method: subscribe
-      - method: subscribe
       - method: createSession
-      - method: subscribe
-      - method: subscribe
       - channel: ${chat_1}
         action:
           type: chat/turnStarted
@@ -26,16 +22,10 @@ rounds:
               kind: user
             model:
               id: claude-opus-4.6
-      - method: subscribe
-      - method: subscribe
-      - method: subscribe
-      - channel: ${session_0}
+      - channel: ${session_2}
         action:
           type: root/configChanged
     serverToClient:
-      - channel: ${session_0}
-        action:
-          type: root/activeSessionsChanged
       - channel: ${chat_0}
         action:
           type: chat/turnStarted
@@ -46,11 +36,11 @@ rounds:
               kind: user
             model:
               id: claude-sonnet-5
-      - channel: ${session_1}
+      - channel: ${session_0}
         action:
           type: session/titleChanged
       - method: root/sessionAdded
-      - channel: ${session_1}
+      - channel: ${session_0}
         action:
           type: session/ready
       - channel: ${chat_0}
@@ -60,26 +50,15 @@ rounds:
           part:
             kind: markdown
             content: CAPABILITY_COMPLETE
-      - channel: ${session_0}
-        action:
-          type: root/activeSessionsChanged
       - channel: ${chat_0}
         action:
           type: chat/turnComplete
           turnId: ${turn_0}
-      - responseTo: subscribe
-        result: success
-      - responseTo: subscribe
-        result: success
+      - channel: ${chat_0}
+        action:
+          type: chat/isReadChanged
       - responseTo: createSession
         result: success
-      - responseTo: subscribe
-        result: success
-      - responseTo: subscribe
-        result: success
-      - channel: ${session_0}
-        action:
-          type: root/activeSessionsChanged
       - channel: ${chat_1}
         action:
           type: chat/turnStarted
@@ -90,11 +69,11 @@ rounds:
               kind: user
             model:
               id: claude-opus-4.6
-      - channel: ${session_2}
+      - channel: ${session_1}
         action:
           type: session/titleChanged
       - method: root/sessionAdded
-      - channel: ${session_2}
+      - channel: ${session_1}
         action:
           type: session/ready
       - channel: ${chat_1}
@@ -104,19 +83,13 @@ rounds:
           part:
             kind: markdown
             content: CAPABILITY_COMPLETE
-      - channel: ${session_0}
-        action:
-          type: root/activeSessionsChanged
       - channel: ${chat_1}
         action:
           type: chat/turnComplete
           turnId: ${turn_0}
-      - responseTo: subscribe
-        result: success
-      - responseTo: subscribe
-        result: success
-      - responseTo: subscribe
-        result: success
-      - channel: ${session_0}
+      - channel: ${chat_1}
+        action:
+          type: chat/isReadChanged
+      - channel: ${session_2}
         action:
           type: root/configChanged

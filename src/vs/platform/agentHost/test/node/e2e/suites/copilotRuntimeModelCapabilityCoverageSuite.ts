@@ -243,7 +243,7 @@ export function defineCopilotRuntimeModelCapabilityCoverageTests(context: IAgent
 							capabilities: {
 								type: 'chat', family: sonnet, tokenizer: 'o200k_base',
 								limits: { max_context_window_tokens: 1000000, max_output_tokens: 64000, max_prompt_tokens: 936000 },
-								supports: { streaming: true, tool_calls: true, parallel_tool_calls: true, vision: false },
+								supports: { streaming: true, tool_calls: true, parallel_tool_calls: true, vision: false, reasoning_effort: ['none'] },
 							},
 						}]
 					}),
@@ -458,7 +458,11 @@ export function defineCopilotRuntimeModelCapabilityCoverageTests(context: IAgent
 		test(`runtime coverage model capability: ${title}`, async function () {
 			this.timeout(180_000);
 			await withSession(options, run);
-			await assertRecordedAhpSnapshot(this.test!, context.client, { profile: 'behavior' });
+			await assertRecordedAhpSnapshot(this.test!, context.client, {
+				profile: 'behavior',
+				ignoredMethods: ['subscribe', 'resourceRead'],
+				ignoredActionTypes: [ActionType.RootActiveSessionsChanged, ActionType.ChatChangesetsChanged, ActionType.SessionMcpServerStateChanged, ActionType.SessionCustomizationToggled],
+			});
 		});
 	}
 
@@ -684,10 +688,14 @@ export function defineCopilotRuntimeModelCapabilityCoverageTests(context: IAgent
 	const unsupportedTitle = 'runtime coverage model capability: a non-reasoning model rejects an effort override before contacting the model';
 	providerHostOnlyTest(context, unsupportedTitle, async function () {
 		await withSession({ overrides: { 'claude-haiku-4.5': { availableTools: [], reasoningEffort: 'high' } } }, async session => {
-			const result = await turn(session, noToolsPrompt, { model: 'claude-haiku-4.5', expectError: /Model 'claude-haiku-4.5' does not support reasoning effort configuration/ });
+			const result = await turn(session, noToolsPrompt, { model: 'claude-haiku-4.5', expectError: /Reasoning effort 'high' is not supported for model 'claude-haiku-4.5'/ });
 			assert.deepStrictEqual(result, { requests: [], tools: [] });
 		});
-		await assertRecordedAhpSnapshot(this.test!, context.client, { profile: 'behavior' });
+		await assertRecordedAhpSnapshot(this.test!, context.client, {
+			profile: 'behavior',
+			ignoredMethods: ['subscribe', 'resourceRead'],
+			ignoredActionTypes: [ActionType.RootActiveSessionsChanged, ActionType.ChatChangesetsChanged, ActionType.SessionMcpServerStateChanged, ActionType.SessionCustomizationToggled],
+		});
 	});
 
 	const visionTitle = 'a vision override merges over catalog defaults without changing the native request budget';

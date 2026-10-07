@@ -213,6 +213,12 @@ Cross-platform prompts refer to native shell tools by role, such as "the shell t
 
 Managed bypass restrictions reject Allow All, while advisory assisted approval retains normal permission prompts. Managed asks must still require human, one-time approval under assisted mode, including repeated requests for the same file.
 
+Scenarios that require an otherwise unsupported reasoning effort advertise it in their scoped model catalog. Legacy transport probes advertise `none` while constraining the selected models to `/chat/completions`. Native telemetry privacy coverage requires tool definitions, as well as message and tool content, to be absent when content capture is disabled.
+
+MCP enablement scenarios distinguish configured eligibility from a live SDK disable: re-enabling a live-disabled server must restart it, while passive refreshes must not start merely stopped servers. Tests wait for the real `Ready` state before calling tools. Tool-focused capability and MCP snapshots omit incidental residency, changeset, and customization-state notifications; direct assertions still verify tool inventories, server states, authentication transitions, and external effects.
+
+Code-driven tool snapshots can omit helper `subscribe` and `resourceRead` RPCs using `ignoredMethods`, including their responses. Those helpers may run concurrently or poll until a real prerequisite is met; their scheduling and poll count are not the contract. Tool and authentication actions remain ordered and asserted, and the helpers' returned state/content is checked directly.
+
 An ancillary routing scenario can use `context.setAncillaryResponse(method, path, response)` to replace an already recognized bootstrap response for that test. Own the returned disposable and inspect `observedAncillaryRequests` to assert selection or caching behavior. Model endpoints cannot be overridden this way: their turns retain normal recording and strict replay. Overrides and observations reset between fixtures.
 
 Auto-routing responses that mint a synthetic session token pass that exact token as the fourth argument. The proxy validates it against the response body, and excludes only that marked `Copilot-Session-Token` from live model forwarding during recording. Primary authentication and genuine session tokens are preserved; the runtime still receives and caches the synthetic token during both record and replay. Marked tokens remain recognized until the fixture ends so cached follow-up turns can be recorded.

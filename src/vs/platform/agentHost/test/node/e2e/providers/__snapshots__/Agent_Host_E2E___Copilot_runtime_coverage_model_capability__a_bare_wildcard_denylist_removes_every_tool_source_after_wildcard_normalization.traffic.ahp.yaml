@@ -34,7 +34,6 @@ rounds:
                   required:
                     - tag
                     - options
-      - method: subscribe
       - responseTo: resourceResolve
         result: success
       - responseTo: resourceList
@@ -43,13 +42,6 @@ rounds:
         result: success
       - responseTo: resourceList
         result: success
-      - responseTo: resourceRead
-        result: success
-      - responseTo: resourceRead
-        result: success
-      - responseTo: resourceRead
-        result: success
-      - method: subscribe
       - channel: ${chat_0}
         action:
           type: chat/turnStarted
@@ -60,9 +52,6 @@ rounds:
               kind: user
             model:
               id: claude-sonnet-5
-      - method: subscribe
-      - method: subscribe
-      - method: subscribe
       - channel: ${session_1}
         action:
           type: root/configChanged
@@ -100,20 +89,10 @@ rounds:
                   required:
                     - tag
                     - options
-      - responseTo: subscribe
-        result: success
       - method: resourceResolve
       - method: resourceList
       - method: resourceResolve
       - method: resourceList
-      - method: resourceRead
-      - method: resourceRead
-      - method: resourceRead
-      - responseTo: subscribe
-        result: success
-      - channel: ${session_1}
-        action:
-          type: root/activeSessionsChanged
       - channel: ${chat_0}
         action:
           type: chat/turnStarted
@@ -131,12 +110,6 @@ rounds:
       - channel: ${session_0}
         action:
           type: session/ready
-      - channel: ${session_0}
-        action:
-          type: session/mcpServerStateChanged
-      - channel: ${session_0}
-        action:
-          type: session/mcpServerStateChanged
       - channel: ${chat_0}
         action:
           type: chat/responsePart
@@ -144,19 +117,13 @@ rounds:
           part:
             kind: markdown
             content: CAPABILITY_COMPLETE
-      - channel: ${session_1}
-        action:
-          type: root/activeSessionsChanged
       - channel: ${chat_0}
         action:
           type: chat/turnComplete
           turnId: ${turn_0}
-      - responseTo: subscribe
-        result: success
-      - responseTo: subscribe
-        result: success
-      - responseTo: subscribe
-        result: success
+      - channel: ${chat_0}
+        action:
+          type: chat/isReadChanged
       - channel: ${session_1}
         action:
           type: root/configChanged

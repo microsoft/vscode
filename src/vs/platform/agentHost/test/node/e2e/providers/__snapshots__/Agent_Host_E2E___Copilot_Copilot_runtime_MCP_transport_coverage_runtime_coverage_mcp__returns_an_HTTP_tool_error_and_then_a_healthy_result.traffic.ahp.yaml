@@ -17,7 +17,6 @@ rounds:
             text: Call coverage_probe exactly once with {"tag":"healthy"}. Do not retry it, call other tools, run commands, or change the arguments. Afterwards reply exactly MCP_TURN_DONE.
             origin:
               kind: user
-      - method: subscribe
     serverToClient:
       - channel: ${chat_0}
         action:
@@ -53,6 +52,9 @@ rounds:
           turnId: ${turn_0}
       - channel: ${chat_0}
         action:
+          type: chat/isReadChanged
+      - channel: ${chat_0}
+        action:
           type: chat/turnStarted
           turnId: ${turn_1}
           message:
@@ -83,5 +85,6 @@ rounds:
         action:
           type: chat/turnComplete
           turnId: ${turn_1}
-      - responseTo: subscribe
-        result: success
+      - channel: ${chat_0}
+        action:
+          type: chat/isReadChanged

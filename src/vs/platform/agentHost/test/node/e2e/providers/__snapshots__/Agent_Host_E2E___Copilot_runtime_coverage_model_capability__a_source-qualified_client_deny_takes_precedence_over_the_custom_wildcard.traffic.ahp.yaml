@@ -78,9 +78,6 @@ rounds:
           toolCallId: ${toolCall_0}
           result:
             success: true
-      - method: subscribe
-      - method: subscribe
-      - method: subscribe
       - channel: ${session_1}
         action:
           type: root/configChanged
@@ -145,9 +142,6 @@ rounds:
                   required:
                     - tag
                     - options
-      - channel: ${session_1}
-        action:
-          type: root/activeSessionsChanged
       - channel: ${chat_0}
         action:
           type: chat/turnStarted
@@ -192,19 +186,13 @@ rounds:
           part:
             kind: markdown
             content: CAPABILITY_COMPLETE
-      - channel: ${session_1}
-        action:
-          type: root/activeSessionsChanged
       - channel: ${chat_0}
         action:
           type: chat/turnComplete
           turnId: ${turn_0}
-      - responseTo: subscribe
-        result: success
-      - responseTo: subscribe
-        result: success
-      - responseTo: subscribe
-        result: success
+      - channel: ${chat_0}
+        action:
+          type: chat/isReadChanged
       - channel: ${session_1}
         action:
           type: root/configChanged
