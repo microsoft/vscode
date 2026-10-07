@@ -156,10 +156,16 @@ interface IRecentLocalSessionUpdate {
 	readonly modifiedTime: number;
 }
 
+interface IListVisibleCatalogSource {
+	readonly summary: SessionSummary;
+	readonly state: ISessionWithDefaultChat;
+}
+
 interface IBackgroundCatalogStateWrite {
 	promise: Promise<void>;
 	trailing: boolean;
 	trailingOverrides: Record<string, string>;
+	trailingSource: IListVisibleCatalogSource | undefined;
 }
 
 interface IPassiveSessionMetadataUpdate {
@@ -2314,37 +2320,40 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			return;
 		}
-		if (this._stateManager.getSurfacedSessionSummary(sessionKey)
-			|| !this._stateManager.getSessionState(sessionKey)) {
+		const source = this._captureListVisibleCatalogSource(sessionKey);
+		if (this._stateManager.getSurfacedSessionSummary(sessionKey) || !source) {
 			return;
 		}
 		const pending = this._backgroundCatalogStateWrites.get(sessionKey);
 		if (pending) {
 			pending.trailing = true;
 			Object.assign(pending.trailingOverrides, metadataOverrides);
+			pending.trailingSource = source;
 			return;
 		}
 		const write: IBackgroundCatalogStateWrite = {
 			promise: Promise.resolve(),
 			trailing: false,
 			trailingOverrides: {},
+			trailingSource: undefined,
 		};
 		this._backgroundCatalogStateWrites.set(sessionKey, write);
-		write.promise = this._drainBackgroundCatalogStateWrites(session, metadataOverrides, write);
+		write.promise = this._drainBackgroundCatalogStateWrites(session, metadataOverrides, source, write);
 	}
 
-	private async _drainBackgroundCatalogStateWrites(session: URI, initialOverrides: Readonly<Record<string, string>>, write: IBackgroundCatalogStateWrite): Promise<void> {
+	private async _drainBackgroundCatalogStateWrites(session: URI, initialOverrides: Readonly<Record<string, string>>, initialSource: IListVisibleCatalogSource, write: IBackgroundCatalogStateWrite): Promise<void> {
 		const sessionKey = session.toString();
 		const operationId = generateUuid();
 		const stopWatch = StopWatch.create();
 		let iteration = 0;
 		let metadataOverrides = initialOverrides;
+		let source = initialSource;
 		try {
 			while (true) {
 				iteration++;
 				this._logService.trace(`[AgentService] catalogStateWrite: ${sessionKey}, operationId=${operationId}, iteration=${iteration}, stage=started, elapsedMs=${Math.round(stopWatch.elapsed())}`);
 				try {
-					await this._persistListVisibleSessionStateNow(session, metadataOverrides);
+					await this._persistListVisibleSessionStateNow(session, metadataOverrides, undefined, source);
 				} catch (error) {
 					this._logService.warn(`[AgentService] Failed to persist list-visible session state for ${sessionKey}`, error);
 				}
@@ -2353,7 +2362,9 @@ export class AgentService extends Disposable implements IAgentService {
 					return;
 				}
 				metadataOverrides = write.trailingOverrides;
+				source = write.trailingSource!;
 				write.trailingOverrides = {};
+				write.trailingSource = undefined;
 				write.trailing = false;
 			}
 		} finally {
@@ -2387,10 +2398,14 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private async _persistOrderedListVisibleSessionState(session: URI, metadataOverrides: Readonly<Record<string, string>>, chatsOverride?: readonly ICatalogChat[]): Promise<void> {
 		const sessionKey = session.toString();
+		const source = this._captureListVisibleCatalogSource(sessionKey);
+		if (!source) {
+			throw new Error(`Cannot persist list-visible state for unknown session ${sessionKey}`);
+		}
 		const deferredOverrides = this._deferredCatalogMetadataOverrides.get(sessionKey);
 		this._deferredCatalogMetadataOverrides.delete(sessionKey);
 		await this._whenBackgroundCatalogStateWritesIdle(sessionKey);
-		await this._persistListVisibleSessionStateNow(session, { ...deferredOverrides, ...metadataOverrides }, chatsOverride);
+		await this._persistListVisibleSessionStateNow(session, { ...deferredOverrides, ...metadataOverrides }, chatsOverride, source);
 	}
 
 	private _flushDeferredCatalogMetadataOverrides(session: URI): void {
@@ -2403,13 +2418,19 @@ export class AgentService extends Disposable implements IAgentService {
 		this._queueCatalogSync(session, deferredOverrides);
 	}
 
-	private async _persistListVisibleSessionStateNow(session: URI, metadataOverrides: Readonly<Record<string, string>>, chatsOverride?: readonly ICatalogChat[]): Promise<void> {
-		const sessionKey = session.toString();
+	private _captureListVisibleCatalogSource(sessionKey: string): IListVisibleCatalogSource | undefined {
 		const summary = this._stateManager.getSessionSummary(sessionKey);
 		const state = this._stateManager.getSessionState(sessionKey);
-		if (!summary || !state) {
+		return summary && state ? { summary, state } : undefined;
+	}
+
+	private async _persistListVisibleSessionStateNow(session: URI, metadataOverrides: Readonly<Record<string, string>>, chatsOverride?: readonly ICatalogChat[], source?: IListVisibleCatalogSource): Promise<void> {
+		const sessionKey = session.toString();
+		source ??= this._captureListVisibleCatalogSource(sessionKey);
+		if (!source) {
 			throw new Error(`Cannot persist list-visible state for unknown session ${sessionKey}`);
 		}
+		const { summary, state } = source;
 		const readValue = metadataOverrides[AH_META_IS_READ_DB_KEY];
 		if (readValue !== undefined) {
 			const readable = state.chats.filter(chat => isChatInSessionReadAggregate(chat.resource, chat.origin, chat.interactivity));
@@ -2440,7 +2461,7 @@ export class AgentService extends Disposable implements IAgentService {
 		database: AgentHostCatalogDatabaseReference | undefined,
 		normalized?: IAgentHostDatabaseCatalogSnapshotEntry,
 		metadataFallbacks: Readonly<Record<string, string>> = {},
-		source?: { readonly summary: SessionSummary; readonly state: ISessionWithDefaultChat },
+		source?: IListVisibleCatalogSource,
 	): Promise<IAgentHostCatalogSyncRequest> {
 		const sessionKey = session.toString();
 		const summary = source?.summary ?? this._stateManager.getSessionSummary(sessionKey);
