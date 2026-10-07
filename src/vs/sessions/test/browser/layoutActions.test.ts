@@ -8,7 +8,6 @@ import { Codicon } from '../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { hasKey } from '../../../base/common/types.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
-import { isICommandActionToggleInfo } from '../../../platform/action/common/action.js';
 import { isIMenuItem, isISubmenuItem, MenuId, MenuRegistry } from '../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
@@ -24,7 +23,7 @@ import { Menus } from '../../browser/menus.js';
 import '../../browser/layoutActions.js';
 
 const TOGGLE_PANEL_ACTION_ID = 'workbench.action.togglePanel';
-const TOGGLE_PANEL_ALIGNMENT_ACTION_ID = 'workbench.action.agentSessions.togglePanelAlignment';
+const LEGACY_TOGGLE_PANEL_ALIGNMENT_ACTION_ID = 'workbench.action.agentSessions.togglePanelAlignment';
 
 suite('Sessions - Layout Actions', () => {
 
@@ -129,60 +128,22 @@ suite('Sessions - Layout Actions', () => {
 		});
 	});
 
-	test('bottom panel exposes a single chat-alignment toggle in the overflow menu', async () => {
+	test('bottom panel does not expose the legacy alignment toggle in the overflow menu', () => {
 		const alignmentItems = MenuRegistry.getMenuItems(MenuId.ViewTitle)
 			.filter(isIMenuItem)
-			.filter(item => item.command.id === TOGGLE_PANEL_ALIGNMENT_ACTION_ID)
-			.map(item => {
-				const toggled = item.command.toggled;
-				return {
-					id: item.command.id,
-					title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
-					icon: item.command.icon,
-					group: item.group,
-					order: item.order,
-					when: item.when?.serialize(),
-					toggled: toggled ? (isICommandActionToggleInfo(toggled) ? toggled.condition : toggled).serialize() : undefined,
-				};
-			});
+			.filter(item => item.command.id === LEGACY_TOGGLE_PANEL_ALIGNMENT_ACTION_ID);
 		const panelTitleAlignmentItems = MenuRegistry.getMenuItems(Menus.PanelTitle)
 			.filter(isIMenuItem)
-			.filter(item => item.command.id === TOGGLE_PANEL_ALIGNMENT_ACTION_ID);
-		const alignments: string[] = [];
-		let alignment = 'justify';
-		const command = CommandsRegistry.getCommand(TOGGLE_PANEL_ALIGNMENT_ACTION_ID);
-		assert.ok(command);
-		const accessor = {
-			get: () => ({
-				getPanelAlignment: () => alignment,
-				setPanelAlignment: (value: string) => {
-					alignment = value;
-					alignments.push(value);
-				},
-			}),
-		} as ServicesAccessor;
-
-		await command.handler(accessor);
-		await command.handler(accessor);
+			.filter(item => item.command.id === LEGACY_TOGGLE_PANEL_ALIGNMENT_ACTION_ID);
 
 		assert.deepStrictEqual({
-			alignmentItems,
+			commandRegistered: Boolean(CommandsRegistry.getCommand(LEGACY_TOGGLE_PANEL_ALIGNMENT_ACTION_ID)),
+			viewTitleAlignmentItemCount: alignmentItems.length,
 			panelTitleAlignmentItemCount: panelTitleAlignmentItems.length,
-			alignments,
 		}, {
-			alignmentItems: [
-				{
-					id: TOGGLE_PANEL_ALIGNMENT_ACTION_ID,
-					title: 'Align Panel with Chat',
-					icon: undefined,
-					group: '1_layout',
-					order: 1,
-					when: `!sessionsIsPhoneLayout && viewLocation == 'panel'`,
-					toggled: 'panelAlignment == \'center\'',
-				},
-			],
+			commandRegistered: false,
+			viewTitleAlignmentItemCount: 0,
 			panelTitleAlignmentItemCount: 0,
-			alignments: ['center', 'justify'],
 		});
 	});
 

@@ -14,7 +14,8 @@ import { localize } from '../../../../../nls.js';
 import { AgentHostTransportFailureReason, NonReconnectableTransportError, IProtocolTransport } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { AgentHostProtocolClient } from '../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from '../../../../../platform/agentHost/common/agentHostClientInfo.js';
-import { traceConnectionOperation, type IConnectionDiagnosticEvent } from '../../../../../platform/agentHost/common/connectionDiagnostics.js';
+import { AgentHostClientConnectionKind } from '../../../../../platform/agentHost/common/agentHostTelemetry.js';
+import { formatConnectionDiagnosticError, getConnectionDiagnosticError, traceConnectionOperation, type IConnectionDiagnosticEvent } from '../../../../../platform/agentHost/common/connectionDiagnostics.js';
 import { WebPubSubRelayTransport } from '../../../../../platform/agentHost/browser/webPubSubRelayTransport.js';
 import { AhpJsonlLogger } from '../../../../../platform/agentHost/common/ahpJsonlLogger.js';
 import { GITHUB_COPILOT_PROTECTED_RESOURCE, AgentHostAhpJsonlLoggingSettingId, IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
@@ -98,11 +99,11 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 		// are terminal.
 	}
 
-	beginConnect(address: string, source: ICloudSandboxConnectOptions['connectionSource']): ICloudSandboxConnectionTelemetry | undefined {
+	beginConnect(address: string, options: ICloudSandboxConnectOptions): ICloudSandboxConnectionTelemetry | undefined {
 		if (this._store.isDisposed || this._connectionTelemetry.has(address)) {
 			return undefined;
 		}
-		const telemetry = this._telemetryService.trackConnection('credentials', this._surface, source);
+		const telemetry = this._telemetryService.trackConnection('credentials', this._surface, options.connectionSource, options);
 		this._connectionTelemetry.set(address, telemetry);
 		return telemetry;
 	}
@@ -128,7 +129,8 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 		const staged = this._stagedConnections.get(address);
 		let telemetry = this._connectionTelemetry.get(address);
 		if (!telemetry) {
-			telemetry = this._telemetryService.trackConnection('connection', this._surface, staged?.options.connectionSource);
+			// A new tracker for retained credentials is a new attachment, not the original provisioning flow.
+			telemetry = this._telemetryService.trackConnection('connection', this._surface, 'existing', { environmentKind: staged?.options.environmentKind });
 			this._connectionTelemetry.set(address, telemetry);
 		}
 		const connectionTelemetry = telemetry;
@@ -226,6 +228,7 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 			}));
 			const ahpLoggingEnabled = !!this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId);
 			const transportFactory = (): IProtocolTransport => this._instantiationService.createInstance(WebPubSubRelayTransport, {
+				clientConnectionKind: staged.options.environmentKind === 'user-local' ? AgentHostClientConnectionKind.MissionControl : AgentHostClientConnectionKind.WebPubSub,
 				clientId: staged.clientId,
 				url: buildWpsUrl(staged.creds.token),
 				toHostGroup: staged.creds.token.groups.to_host,
@@ -393,7 +396,7 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 		const watch = StopWatch.create(false);
 		this._logService.info(`${LOG_PREFIX} Connecting to sandbox environment ${options.environmentId}; sessionId=${options.sessionId ?? 'none'}`);
 
-		const telemetry = this._connectionFactory.beginConnect(address, options.connectionSource);
+		const telemetry = this._connectionFactory.beginConnect(address, options);
 		const operation = new DisposableStore();
 		const source = operation.add(new CancellationTokenSource(token));
 		let timedOut = false;
@@ -441,7 +444,7 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 			if (outcome === 'cancelled') {
 				this._logService.debug(message);
 			} else {
-				this._logService.warn(message);
+				this._logService.warn(timedOut ? message : `${message}: ${formatConnectionDiagnosticError(getConnectionDiagnosticError(error))}`);
 			}
 			telemetry?.completeConnect(!timedOut && (isCancellationError(error) || token.isCancellationRequested) ? 'cancelled' : 'failure');
 			if (!establishing) {

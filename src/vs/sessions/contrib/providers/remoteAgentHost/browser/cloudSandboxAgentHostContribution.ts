@@ -180,6 +180,7 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 		this._restoreAccount(accountKey);
 		const enabledToken = this._enabledCts.token;
 		progress?.report(localize('sandbox.provisioningContainer', "Setting up cloud container"));
+		const provisioningStartedAt = Date.now();
 		const created = await this._apiService.createSession(request, token);
 		const name = request.repoNwo ?? created.taskId;
 		const address = cloudSandboxAddress(created.environmentId);
@@ -208,7 +209,7 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 			seededProvider = provider;
 			this._persistInventory();
 			progress?.report(localize('sandbox.connectingContainer', "Connecting to cloud container"));
-			connectionAttempt = this.connect({ environmentId: created.environmentId, sessionId: created.sessionId, name, connectionSource: 'created' });
+			connectionAttempt = this.connect({ environmentId: created.environmentId, sessionId: created.sessionId, name, connectionSource: 'created', provisioningStartedAt });
 			await raceCancellationError(connectionAttempt, token);
 			if (token.isCancellationRequested || !this._isEnabled() || this._providerInstances.get(address) !== provider) {
 				throw new CancellationError();

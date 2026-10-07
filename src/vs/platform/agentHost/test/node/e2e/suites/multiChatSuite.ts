@@ -355,25 +355,22 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		assert.ok(!peers.includes(first) && peers.includes(second));
 	}, config.supportsMultipleChats);
 
-	conformanceTest(context, 'a new peer chat starts empty after disposing a populated peer', async function () {
-		const { sessionUri } = await createSession('recreate');
-		const peer = await createCompletedPeer(sessionUri, 'peer', 'Disposed Peer');
-		const previousTurns = (await chatState(peer)).turns;
+	conformanceTest(context, 'a replacement peer chat starts empty after disposing a populated peer', async function () {
+		const { sessionUri, defaultChatUri } = await createSession('replace');
+		const peer = await createCompletedPeer(sessionUri, 'peer', 'Original Peer');
+		const originalTurnCount = (await chatState(peer)).turns.length;
 		await context.client.call('disposeChat', { channel: peer }, 30_000);
 
 		const replacement = await createPeer(sessionUri, 'replacement');
-		const catalog = (await sessionState(sessionUri)).chats;
 
 		assert.deepStrictEqual({
-			previousHadHistory: previousTurns.length > 0,
-			disposedPresent: catalog.some(chat => chat.resource === peer),
-			replacementPresent: catalog.some(chat => chat.resource === replacement),
-			replacementTurns: (await chatState(replacement)).turns,
+			originalTurnCount,
+			chats: (await sessionState(sessionUri)).chats.map(chat => chat.resource),
+			turns: (await chatState(replacement)).turns,
 		}, {
-			previousHadHistory: true,
-			disposedPresent: false,
-			replacementPresent: true,
-			replacementTurns: [],
+			originalTurnCount: 1,
+			chats: [defaultChatUri, replacement],
+			turns: [],
 		});
 	}, config.supportsMultipleChats);
 

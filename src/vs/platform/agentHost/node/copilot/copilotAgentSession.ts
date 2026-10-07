@@ -36,7 +36,8 @@ import { ILogService, LogLevel } from '../../../log/common/log.js';
 import product from '../../../product/common/product.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { getCopilotHomePath, getCopilotMcpConfigurationPath } from '../../../environment/common/copilotHome.js';
-import { CopilotCliConfigKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
+import { AgentHostHydraFusionEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
+import { logSettingExperimentTrigger } from '../../../telemetry/common/experimentTrigger.js';
 import { withCustomizationEnablement } from '../../common/customizationEnablement.js';
 import type { AutoModeTier } from '../../common/autoModeTiers.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReviewAction } from '../../common/agentHostPlanReview.js';
@@ -91,7 +92,7 @@ import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION, getAgentMergeGitHubToolRestriction, isAgentMergeRestrictedMcpServer, isCopilotMcpToolName } from '../shared/agentMergeToolRestrictions.js';
 import { GITHUB_MCP_SERVER_NAME } from '../shared/githubMcpServer.js';
 import { AgentHostGitHubMcpServerEnabledSettingId } from '../../common/agentService.js';
-import { CopilotToolName, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getSdkImageGenerationMetadata, getShellIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isAgentCoordinationTool, isCopilotSdkToolOutputFile, isEditTool, isHiddenTool, isShellHelperTool, isShellTool, isTaskCompleteTool, parseCopilotStreamingToolInput, synthesizeSkillToolCall, tryStringify } from './copilotToolDisplay.js';
+import { CopilotToolName, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getSdkImageGenerationMetadata, getShellIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolSummaryInputContract, isAgentCoordinationTool, isCopilotSdkToolOutputFile, isEditTool, isHiddenTool, isShellHelperTool, isShellTool, isTaskCompleteTool, parseCopilotStreamingToolInput, synthesizeSkillToolCall, tryStringify } from './copilotToolDisplay.js';
 import { imageGenerationToolMetaKey } from '../../common/meta/agentImageGenerationMeta.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
 import { ICopilotApiService, type IRestrictedTelemetryContext } from '../shared/copilotApiService.js';
@@ -1370,6 +1371,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _pendingFusionEvents: CopilotFusionEvent[] = [];
 	private _requiresFusionEventOwnership = false;
 	private _fusionTurnCancelled = false;
+	private _hydraFusionV2ExperimentTriggerPending = false;
 	private _hasFusionRootTurnBoundary = false;
 	private readonly _activities: Record<'intent' | 'command' | 'fusion', string | undefined> = { intent: undefined, command: undefined, fusion: undefined };
 	private _publishedActivity: string | undefined;
@@ -1484,7 +1486,10 @@ export class CopilotAgentSession extends Disposable {
 		}
 		this._agentMergeRestrictedMcpServerNames = getAgentMergeRestrictedMcpServerNames(this._launchPlan);
 		this._appliedPluginSources = new Set(this._appliedSnapshot.plugins.flatMap(plugin => plugin.sourceUri ? [plugin.sourceUri.toString()] : []));
-		this._appliedPluginDirectories = this._appliedSnapshot.plugins.flatMap(plugin => plugin.pluginDir?.scheme === Schemas.file ? [plugin.pluginDir] : []);
+		this._appliedPluginDirectories = this._appliedSnapshot.plugins.flatMap(plugin => {
+			const directory = plugin.pluginDir ?? plugin.resourceDir;
+			return directory?.scheme === Schemas.file ? [directory] : [];
+		});
 		const disabledMcpServers = new Set([
 			...this._appliedSnapshot.plugins.flatMap(plugin => plugin.disabledMcpServers ?? []),
 			...(this._launchPlan.disabledRootMcpServers ?? []),
@@ -4504,6 +4509,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 		const result = await mapSessionEvents(this._storageUri, db, events, this._chatChannelUri, {
 			workingDirectory: this._workingDirectory,
+			clientToolNames: this._clientToolNames,
 			model: this._launchPlan.kind === 'create'
 				? this._launchPlan.model
 				: this._launchPlan.fallback.model,
@@ -5454,8 +5460,10 @@ export class CopilotAgentSession extends Disposable {
 
 	/** The effective SDK sandbox policy, or `undefined` when sandboxing is disabled. */
 	private _computeSdkSandboxConfig(): SandboxConfig | undefined {
-		const sandbox = getSessionSandboxConfig(this._configurationService, this._ownerSessionUri.toString(), this._platform);
-		return buildSandboxConfigForSdk(this._platform, sandbox, this._sandboxExtraReadonlyPaths());
+		const owner = this._ownerSessionUri.toString();
+		const sandbox = getSessionSandboxConfig(this._configurationService, owner, this._platform);
+		const policy = this._configurationService.getSessionSandboxPolicy(owner);
+		return buildSandboxConfigForSdk(this._platform, sandbox, this._sandboxExtraReadonlyPaths(), policy);
 	}
 
 	/** Keeps the generated script readable until disposal, even after its configuration is cleared. */
@@ -5524,11 +5532,31 @@ export class CopilotAgentSession extends Disposable {
 		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusion) === true;
 	}
 
+	/**
+	 * Marks where HydraFusion starts routing as v1 or v2, in every arm of a HydraFusion version
+	 * experiment. Held until the workbench forwards its assignment context, because
+	 * agent host telemetry cannot be attributed to an experiment before then.
+	 */
+	private _reportHydraFusionV2ExperimentTrigger(): void {
+		this._hydraFusionV2ExperimentTriggerPending = typeof this._configurationService.getRootConfigValues?.()[CopilotCliVSCodeAssignmentContextKey] !== 'string';
+		if (!this._hydraFusionV2ExperimentTriggerPending) {
+			logSettingExperimentTrigger(this._telemetryService, AgentHostHydraFusionEnabledSettingId);
+		}
+	}
+
 	private _subscribeToPermissionConfigChanges(): void {
 		this._register(this._configurationService.onDidRootConfigChange(() => {
 			void this._syncPermissionModeAfterConfigChange();
 			// The forwarded shell init setting lives in root config.
 			void this._syncShellInitScript();
+			if (this._hydraFusionV2ExperimentTriggerPending) {
+				// Deferred so that the listener installing the forwarded assignment context on telemetry runs first.
+				queueMicrotask(() => {
+					if (this._hydraFusionV2ExperimentTriggerPending && !this._store.isDisposed) {
+						this._reportHydraFusionV2ExperimentTrigger();
+					}
+				});
+			}
 		}));
 		this._register(this._configurationService.onDidSessionConfigChange(event => {
 			if (event.session !== this._ownerSessionUri.toString()) {
@@ -6744,6 +6772,9 @@ export class CopilotAgentSession extends Disposable {
 			}
 
 			const meta = this._createToolCallMeta(e.data.toolName, parameters);
+			if (!isClientTool && !mcpServerName && !e.data.mcpToolName) {
+				meta['vscode.toolInputContract'] = getToolSummaryInputContract(e.data.toolName);
+			}
 			if (mcpServerName) {
 				meta.mcpServerName = mcpServerName;
 			}
@@ -8594,6 +8625,9 @@ export class CopilotAgentSession extends Disposable {
 		if (this._shouldDropLateRootTurnEvent(event.type, true)) {
 			return;
 		}
+		if (event.type === 'session.fusion_route_started') {
+			this._reportHydraFusionV2ExperimentTrigger();
+		}
 		const update = this._fusionProgress.accept(event);
 		if (update) {
 			this._emitFusionProgress(update);
@@ -8965,24 +8999,23 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.trace(`[Copilot:${sessionId}] Tool user-requested: ${e.data.toolName} (${e.data.toolCallId})`);
 		}));
 
-		this._register(wrapper.onToolPartialResult(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Tool partial result: ${e.data.toolCallId} (${e.data.partialOutput.length} chars)`);
-			const tracked = this._activeToolCalls.get(e.data.toolCallId);
+		const appendShellOutput = (toolCallId: string, append: () => { uri: string; created: boolean } | undefined) => {
+			const tracked = this._activeToolCalls.get(toolCallId);
 			if (!tracked) {
 				// A command that keeps running after its tool call returned still streams into that call's terminal.
-				if (this._nonPtyShellTerminals.isStreamingInBackground(e.data.toolCallId)) {
-					this._nonPtyShellTerminals.append(e.data.toolCallId, e.data.partialOutput);
+				if (this._nonPtyShellTerminals.isStreamingInBackground(toolCallId)) {
+					append();
 				}
 				return;
 			}
 			if (!isShellTool(tracked.toolName)) {
 				return;
 			}
-			if (this._shellManager?.getTerminalUriForToolCall(e.data.toolCallId)) {
+			if (this._shellManager?.getTerminalUriForToolCall(toolCallId)) {
 				// Client-hosted pty shell — its terminal channel streams live output itself.
 				return;
 			}
-			const appended = this._nonPtyShellTerminals.append(e.data.toolCallId, e.data.partialOutput);
+			const appended = append();
 			if (appended?.created) {
 				const { uri } = appended;
 				tracked.content.push({
@@ -8994,10 +9027,20 @@ export class CopilotAgentSession extends Disposable {
 				this._emitAction({
 					type: ActionType.ChatToolCallContentChanged,
 					turnId: this._turnId,
-					toolCallId: e.data.toolCallId,
+					toolCallId,
 					content: tracked.content,
 				}, tracked.parentToolCallId);
 			}
+		};
+
+		this._register(wrapper.onToolPartialResult(e => {
+			this._logService.trace(`[Copilot:${sessionId}] Tool partial result: ${e.data.toolCallId} (${e.data.partialOutput.length} chars)`);
+			appendShellOutput(e.data.toolCallId, () => this._nonPtyShellTerminals.append(e.data.toolCallId, e.data.partialOutput));
+		}));
+
+		this._register(wrapper.onToolShellOutput(e => {
+			this._logService.trace(`[Copilot:${sessionId}] Tool shell output: ${e.data.toolCallId} #${e.data.sequence} (${e.data.text.length} chars)`);
+			appendShellOutput(e.data.toolCallId, () => this._nonPtyShellTerminals.appendChunk(e.data.toolCallId, e.data));
 		}));
 
 		this._register(wrapper.onToolProgress(e => {

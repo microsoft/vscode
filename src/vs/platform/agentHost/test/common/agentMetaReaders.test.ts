@@ -41,6 +41,14 @@ suite('Agent host _meta readers', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('validates the explicit native tool input contract', () => {
+		const key = 'vscode.toolInputContract';
+		assert.deepStrictEqual([
+			readToolCallMeta(toolCall(toToolCallMeta({ [key]: 'copilot-cli-v1' })))[key],
+			...[undefined, null, {}, true, 'copilot', 'future-v2'].map(value => readToolCallMeta(toolCall({ [key]: value }))[key]),
+		], ['copilot-cli-v1', undefined, undefined, undefined, undefined, undefined, undefined]);
+	});
+
 	test('Copilot network restrictions round trip and reject malformed or absent metadata', () => {
 		const restrictions = { sandboxEnabled: true, allowNetwork: false, allowedDomains: ['example.com'], deniedDomains: [] };
 		const key = 'vscode.copilotSandboxNetworkRestrictions';
@@ -559,6 +567,27 @@ suite('Agent host _meta readers', () => {
 			assert.strictEqual(readAgentModelSourceId(model(undefined)), undefined);
 			assert.strictEqual(readAgentModelSourceId(model({ modelSourceId: 42 })), undefined);
 			assert.strictEqual(readAgentModelSourceId(model({ modelSourceId: '' })), undefined);
+		});
+	});
+
+	suite('usage info Auto mode resolution', () => {
+		function usage(autoModeResolved: unknown): UsageInfo {
+			return { _meta: { autoModeResolved } };
+		}
+
+		test('reads the selection reason only when it is a non-empty string', () => {
+			const selectionReason = 'Auto selected gpt-5.4-mini to prioritize cost efficiency, alongside model fit for this task.';
+			assert.deepStrictEqual([
+				readUsageInfoMeta(usage({ chosenModel: 'gpt-5.4-mini', selectionReason })).autoModeResolved,
+				readUsageInfoMeta(usage({ chosenModel: 'gpt-5.4-mini' })).autoModeResolved,
+				readUsageInfoMeta(usage({ chosenModel: 'gpt-5.4-mini', selectionReason: '  ' })).autoModeResolved,
+				readUsageInfoMeta(usage({ chosenModel: 'gpt-5.4-mini', selectionReason: 42 })).autoModeResolved,
+			], [
+				{ chosenModel: 'gpt-5.4-mini', selectionReason },
+				{ chosenModel: 'gpt-5.4-mini' },
+				{ chosenModel: 'gpt-5.4-mini' },
+				{ chosenModel: 'gpt-5.4-mini' },
+			]);
 		});
 	});
 

@@ -195,6 +195,11 @@ function isCodexWriterLockError(error: unknown, threadId: string | undefined): e
 		&& threadId !== undefined && error.message === `thread ${threadId} already has an active writer`;
 }
 
+function isCodexArchivedThreadError(error: unknown, threadId: string): error is JsonRpcError {
+	return error instanceof JsonRpcError && error.code === JsonRpcErrorCode.InvalidRequest
+		&& error.message.startsWith(`session ${threadId} is archived.`);
+}
+
 function isCodexDesktopGeneratedWorkspace(cwd: string, userHome: URI): boolean {
 	const relativePath = extUriBiasedIgnorePathCase.relativePath(userHome, URI.file(cwd));
 	const segments = relativePath?.split('/');
@@ -4632,7 +4637,22 @@ export class CodexAgent extends Disposable implements IAgent {
 					return {};
 				}
 			}
-			await this._ensureThreadConnection(session);
+			try {
+				await this._ensureThreadConnection(session);
+			} catch (error) {
+				const threadId = session.threadId;
+				if (!isCodexArchivedThreadError(error, threadId)) {
+					throw error;
+				}
+				// The host only prepares interactive, unarchived chats. Another Codex
+				// client may have archived their backing thread independently.
+				const connection = await this._ensureConnection();
+				if (session.disposed) {
+					throw new CancellationError();
+				}
+				await connection.client.request<'thread/unarchive'>('thread/unarchive', { threadId });
+				await this._ensureThreadConnection(session, connection);
+			}
 			return {};
 		} catch (error) {
 			if (isCodexWriterLockError(error, session.threadId)) {
@@ -6753,7 +6773,8 @@ export class CodexAgent extends Disposable implements IAgent {
 	private async _refreshChatHistory(chat: URI, watch: CodexChatHistory): Promise<void> {
 		const sessionUri = this._resolveConversationSession(chat);
 		const session = sessionUri && this._sessions.get(AgentSession.id(sessionUri));
-		if (!session || session.currentTurnId || session.disposed || this._chatHistoryWatches.get(chat.toString()) !== watch || this._isShuttingDown) {
+		// Reading an unused draft would start the app-server and could download the SDK.
+		if (!session || session.threadId === undefined || session.currentTurnId || session.disposed || this._chatHistoryWatches.get(chat.toString()) !== watch || this._isShuttingDown) {
 			return;
 		}
 		const connectionGeneration = this._connectionGeneration;

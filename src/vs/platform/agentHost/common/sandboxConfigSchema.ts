@@ -35,6 +35,7 @@ export const enum AgentHostSandboxKey {
 	AuthenticateGit = 'authenticateGit',
 	AuthenticateGh = 'authenticateGh',
 	AllowDevToolAccess = 'allowDevToolAccess',
+	AddCurrentWorkingDirectory = 'addCurrentWorkingDirectory',
 	UserConfiguredPaths = 'fileSystem.userConfiguredPaths',
 	LinuxFileSystem = 'fileSystem.linux',
 	MacFileSystem = 'fileSystem.mac',
@@ -55,6 +56,7 @@ export type ISandboxConfigValue = Partial<{
 	[AgentHostSandboxKey.AuthenticateGit]: boolean;
 	[AgentHostSandboxKey.AuthenticateGh]: boolean;
 	[AgentHostSandboxKey.AllowDevToolAccess]: boolean;
+	[AgentHostSandboxKey.AddCurrentWorkingDirectory]: boolean;
 	[AgentHostSandboxKey.UserConfiguredPaths]: IAgentSandboxUserConfiguredPaths;
 	[AgentHostSandboxKey.LinuxFileSystem]: IAgentSandboxFileSystemSetting;
 	[AgentHostSandboxKey.MacFileSystem]: IAgentSandboxFileSystemSetting;
@@ -112,6 +114,10 @@ export const sandboxConfigSchema = createSchema({
 			[AgentHostSandboxKey.AllowDevToolAccess]: {
 				type: 'boolean',
 				title: localize('agentHost.config.sandbox.allowDevToolAccess.title', "Allow Dev Tool Access"),
+			},
+			[AgentHostSandboxKey.AddCurrentWorkingDirectory]: {
+				type: 'boolean',
+				title: localize('agentHost.config.sandbox.addCurrentWorkingDirectory.title', "Add Current Working Directory"),
 			},
 			[AgentHostSandboxKey.LinuxFileSystem]: {
 				type: 'object',
