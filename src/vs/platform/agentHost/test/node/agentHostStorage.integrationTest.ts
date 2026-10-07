@@ -38,7 +38,7 @@ if [ "$1" = umount ] && [ "$FAILURE" = umount ]; then exit 18; fi`,
 			'/bin/sh', '-c',
 			`printf 'CHILD:%s:%s:%s:%s\\n' "$TMPDIR" "$TMP" "$TEMP" "$AGENT_HOST_E2E_STORAGE_BACKING"; exit ${exitCode}`,
 		], {
-			env: { ...process.env, PATH: `${directory}:${process.env.PATH}`, FAILURE: failure, COMMANDS: commands },
+			env: { ...process.env, PATH: `${directory}:${process.env.PATH}`, TMPDIR: directory, FAILURE: failure, COMMANDS: commands },
 			encoding: 'utf8',
 		});
 		if (result.error) {
@@ -46,7 +46,7 @@ if [ "$1" = umount ] && [ "$FAILURE" = umount ]; then exit 18; fi`,
 		}
 		const calls = existsSync(commands) ? readFileSync(commands, 'utf8').trim().split('\n') : [];
 		const mountDirectory = calls[0]?.split(' ').at(-1);
-		assert.ok(typeof mountDirectory === 'string' && mountDirectory.startsWith(join(buildDirectory, 'agent-host-e2e-tmpfs.')), JSON.stringify({ status: result.status, stderr: result.stderr, stdout: result.stdout, calls }));
+		assert.ok(typeof mountDirectory === 'string' && mountDirectory.startsWith(join(directory, 'agent-host-e2e-tmpfs.')), JSON.stringify({ status: result.status, stderr: result.stderr, stdout: result.stdout, calls }));
 		store.add(toDisposable(() => rmSync(mountDirectory, { recursive: true, force: true })));
 		return { ...result, calls, mountDirectory };
 	}

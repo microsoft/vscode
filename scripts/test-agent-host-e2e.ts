@@ -146,7 +146,7 @@ function runStoragePasses(storage: 'tmpfs' | 'split', jobs: number, args: readon
 	const tmpfs = spawnSync('bash', [
 		join(repoRoot, 'scripts', 'test-agent-host-e2e-tmpfs.sh'),
 		process.execPath, ...runnerArgs, ...args,
-	], { cwd: repoRoot, env: environment, stdio: 'inherit' });
+	], { cwd: repoRoot, env: { ...environment, TMPDIR: '/tmp' }, stdio: 'inherit' });
 	if (tmpfs.error) {
 		throw tmpfs.error;
 	}

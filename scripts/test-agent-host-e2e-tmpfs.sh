@@ -9,9 +9,7 @@ if [[ "$(uname -s)" != Linux || "$#" -eq 0 ]]; then
 	exit 2
 fi
 
-ROOT=$(cd "$(dirname "$0")/.." && pwd -P)
-mkdir -p "$ROOT/.build"
-TEST_TMPDIR=$(mktemp -d "$ROOT/.build/agent-host-e2e-tmpfs.XXXXXX")
+TEST_TMPDIR=$(mktemp -d "${TMPDIR:-/tmp}/agent-host-e2e-tmpfs.XXXXXX")
 MOUNTED=false
 
 cleanup() {
