@@ -159,7 +159,7 @@ suite('Agent host _meta readers', () => {
 
 		assert.deepStrictEqual({
 			sources: [
-				...(['user', 'workspace', 'plugin', 'builtin', 'managed'] as const).map(source => readMcpServerSource(server(withMcpServerSourceMeta(undefined, source)))),
+				...(['user', 'workspace', 'plugin', 'builtin', 'managed', 'account'] as const).map(source => readMcpServerSource(server(withMcpServerSourceMeta(undefined, source)))),
 				...[undefined, 'unknown', 1, {}, ['user']].map(source => readMcpServerSource(server({ 'agentHost.mcpServerSource': source }))),
 				readMcpServerSource(server(undefined)),
 			],
@@ -168,7 +168,7 @@ suite('Agent host _meta readers', () => {
 			unchanged: withMcpServerSourceMeta(opaque, undefined) === opaque,
 			cleared: withMcpServerSourceMeta(merged, undefined),
 		}, {
-			sources: ['user', 'workspace', 'plugin', 'builtin', 'managed', undefined, undefined, undefined, undefined, undefined, undefined],
+			sources: ['user', 'workspace', 'plugin', 'builtin', 'managed', 'account', undefined, undefined, undefined, undefined, undefined, undefined],
 			displayNames: ['Mail', undefined, undefined, undefined],
 			merged: { 'test.opaque': 'kept', 'agentHost.mcpServerSource': 'user', 'vscode.mcpServerDisplayName': 'Mail' },
 			unchanged: true,

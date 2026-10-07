@@ -1299,8 +1299,9 @@ export function getActiveSessionServerProvenance(server: AgentHostMcpServer, age
 					: localize('mcpSourceBuiltin', "Built-in: {0}", agentLabel),
 			};
 		case 'managed':
-		case 'account':
 			return { label: localize('mcpSourceManaged', "Managed by {0}", agentLabel) };
+		case 'account':
+			return { label: localize('mcpSourceAccount', "Signed-in account") };
 		case 'plugin':
 			return server.sourcePluginName ? { label: localize('fromPlugin', "Plugin: {0}", server.sourcePluginName) } : undefined;
 		case 'workspace':
@@ -1326,9 +1327,13 @@ export function getActiveSessionServerDefinitionUnavailable(server: AgentHostMcp
 				...(settingId ? { settingId } : {}),
 			};
 		case 'managed':
-		case 'account':
 			return {
 				message: localize('mcpDefinitionManaged', "{0} manages this server, so its definition can't be viewed or edited.", agentLabel),
+				...(settingId ? { settingId } : {}),
+			};
+		case 'account':
+			return {
+				message: localize('mcpDefinitionAccount', "Your signed-in account provides this server, so its definition can't be viewed or edited."),
 				...(settingId ? { settingId } : {}),
 			};
 		default:
