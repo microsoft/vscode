@@ -21,9 +21,9 @@ Capability skips are tracked separately from suspected bugs. A provider that doe
 With native OpenTelemetry enabled, users can experience repeated 30-second stalls while the agent starts shell tools. Concurrent session-event delivery and permission lookup can time out, eventually failing the chat with `session event delivery failed: session lock unavailable`. This also occurs with content capture disabled.
 
 - Test: `shell tools and concurrent session events complete with OTel enabled` in `../providerIntegration/copilotOtel.integrationTest.ts`.
-- Scope: real bundled Copilot SDK `1.0.17-preview.10` / runtime `1.0.93-4`; tokenless synthetic BYOK model, native file exporter, and concurrent session events. The disabled control remains unconditionally enabled.
+- Scope: real bundled Copilot SDK `1.0.17-preview.9` / runtime `1.0.93-3`; tokenless synthetic BYOK model, native file exporter, and concurrent session events. The disabled control remains unconditionally enabled.
 - Expected: all 288 real shell-tool calls succeed and each concurrent session-event RPC completes within 15 seconds, before the runtime's 30-second lock timeout; native tool spans are exported.
-- Observed: with SDK `1.0.17-preview.10`, the disabled control completes on macOS; the enabled variant still stalls at the 15-second event-delivery assertion. The strict expected failure remains necessary.
+- Observed: with SDK `1.0.17-preview.9`, the disabled control completes on macOS; the enabled variant still stalls at the 15-second event-delivery assertion. The strict expected failure remains necessary.
 - Tracking: [github/copilot-agent-runtime#25128](https://github.com/github/copilot-agent-runtime/issues/25128).
 - Gate: a strict expected-failure marker accepts only `session event delivery stalled while starting shell tools`. Setup, other runtime failures, tool-output mismatches, and cleanup failures remain test failures. An unexpected pass fails and requires removing the marker while retaining the desired-behavior assertions. This is a stress scenario, not a deterministic thread-scheduling test.
 - Reproduce:
@@ -37,10 +37,10 @@ With native OpenTelemetry enabled, users can experience repeated 30-second stall
 An administrator can disable identity capture while the runtime inherits an explicit `user.name` resource attribute. The native runtime removes `process.user.name` and `host.name`, but the inherited `user.name` still reaches the managed collector. This scenario concerns native Copilot export, not the separate Agent Host metadata pipeline.
 
 - Test: `managed identity denial removes inherited identity from native spans`.
-- Scope: Copilot runtime `1.0.93-4`; reproduced in local strict replay on macOS. The expected-failure marker remains enabled on all platforms.
+- Scope: Copilot runtime `1.0.93-3`; reproduced in local strict replay on macOS. The expected-failure marker remains enabled on all platforms.
 - Expected: managed `telemetry.capture.identity=false` removes all three identity attributes from native spans and events despite local opt-in and inherited resource attributes.
-- Observed: native spans still retain `user.name=synthetic-account` with SDK `1.0.17-preview.10` / runtime `1.0.93-4`. The runtime's identity-resource predicate still includes only `process.user.name` and `host.name`.
-- Tracking: the [bundled runtime's identity-resource predicate](https://github.com/github/copilot-agent-runtime/blob/0e56b9a0033f48e4358ee027a4077cd6ebd61f32/src/runtime/src/otel/sdk.rs#L2003) includes only `process.user.name` and `host.name`. Stephen Toub introduced this predicate on September 14, 2026, in [github/copilot-agent-runtime#19723](https://github.com/github/copilot-agent-runtime/pull/19723). No upstream issue was filed by this task.
+- Observed: native spans still retain `user.name=synthetic-account` with SDK `1.0.17-preview.9` / runtime `1.0.93-3`. The runtime's identity-resource predicate still includes only `process.user.name` and `host.name`.
+- Tracking: the [bundled runtime's identity-resource predicate](https://github.com/github/copilot-agent-runtime/blob/f66028ab790e3fb4189bfca9b28d93919132b4cc/src/runtime/src/otel/sdk.rs#L2003) includes only `process.user.name` and `host.name`. Stephen Toub introduced this predicate on September 14, 2026, in [github/copilot-agent-runtime#19723](https://github.com/github/copilot-agent-runtime/pull/19723). No upstream issue was filed by this task.
 - Gate: a strict expected-failure marker accepts only the identity-redaction assertion. An unexpected pass fails and requires removing the marker. Recording skips the case to preserve its complete existing fixture.
 - Reproduce:
 
