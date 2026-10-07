@@ -34,10 +34,7 @@ type CustomizationMigrationAction =
 	| 'destinationsClicked'
 	| 'workspaceSkipped'
 	| 'workspaceIncluded'
-	| 'retryClicked'
-	| 'viewChangesClicked'
-	| 'resultDismissed'
-	| 'activityDismissed';
+	| 'retryClicked';
 
 type CustomizationMigrationEvent = {
 	action: CustomizationMigrationAction;
@@ -88,7 +85,7 @@ export interface ICustomizationMigrationTelemetryService {
 	hintShown(hint: ICustomizationMigrationHint): void;
 	hintClicked(hint: ICustomizationMigrationHint, action: 'review' | 'dismiss'): void;
 	pageShown(category?: CustomizationMigrationType): void;
-	actionClicked(action: 'migrationOverviewClicked' | 'migrationCategoryClicked' | 'agentMigrationClicked' | 'backClicked' | 'destinationsClicked' | 'workspaceSkipped' | 'workspaceIncluded' | 'retryClicked' | 'viewChangesClicked' | 'resultDismissed' | 'activityDismissed', category?: CustomizationMigrationType): void;
+	actionClicked(action: 'migrationOverviewClicked' | 'migrationCategoryClicked' | 'agentMigrationClicked' | 'backClicked' | 'destinationsClicked' | 'workspaceSkipped' | 'workspaceIncluded' | 'retryClicked', category?: CustomizationMigrationType): void;
 	migrationClicked(category: CustomizationMigrationType, requestedCount: number, migrationFlowId?: string): void;
 	migrationCompleted(category: CustomizationMigrationType, requestedCount: number, migratedCount: number, failedCount: number, failureReasons: readonly CustomizationMigrationFailureReason[], migrationFlowId?: string, cancelled?: boolean, timedOut?: boolean): void;
 	watchAgentMigrationResult(resultResource: URI, migrationFlowId: string, inventoryCounts: ReadonlyMap<CustomizationMigrationType, number>, sessionResource: URI, lifecycle: ICustomizationMigrationSessionLifecycle): void;
@@ -158,7 +155,7 @@ export class CustomizationMigrationTelemetryService extends Disposable implement
 		this.send({ action: category ? 'migrationCategoryShown' : 'migrationOverviewShown', category });
 	}
 
-	actionClicked(action: 'migrationOverviewClicked' | 'migrationCategoryClicked' | 'agentMigrationClicked' | 'backClicked' | 'destinationsClicked' | 'workspaceSkipped' | 'workspaceIncluded' | 'retryClicked' | 'viewChangesClicked' | 'resultDismissed' | 'activityDismissed', category?: CustomizationMigrationType): void {
+	actionClicked(action: 'migrationOverviewClicked' | 'migrationCategoryClicked' | 'agentMigrationClicked' | 'backClicked' | 'destinationsClicked' | 'workspaceSkipped' | 'workspaceIncluded' | 'retryClicked', category?: CustomizationMigrationType): void {
 		this.send({ action, category });
 	}
 

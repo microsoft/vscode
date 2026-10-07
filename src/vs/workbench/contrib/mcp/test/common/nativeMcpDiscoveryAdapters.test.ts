@@ -17,7 +17,7 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { INativeMcpDiscoveryData } from '../../../../../platform/mcp/common/nativeMcpDiscoveryHelper.js';
 import { IMcpRegistry } from '../../common/mcpRegistryTypes.js';
 import { NativeFilesystemMcpDiscovery } from '../../common/discovery/nativeMcpDiscoveryAbstract.js';
-import { claudeConfigToServerDefinition } from '../../common/discovery/nativeMcpDiscoveryAdapters.js';
+import { claudeConfigToServerDefinition, ClaudeDesktopMpcDiscoveryAdapter, CopilotMpcDiscoveryAdapter, CursorDesktopMpcDiscoveryAdapter, WindsurfDesktopMpcDiscoveryAdapter } from '../../common/discovery/nativeMcpDiscoveryAdapters.js';
 import { ExternalDiscoverySource, mcpDiscoverySection } from '../../common/mcpConfiguration.js';
 import { McpServerTransportType } from '../../common/mcpTypes.js';
 
@@ -215,5 +215,23 @@ suite('MCP Discovery - nativeMcpDiscoveryAdapters', () => {
 			cwd: cwd.fsPath,
 			defaultCwd: undefined,
 		});
+	});
+
+	test('does not expand environment variables from native discovery sources', async () => {
+		const contents = VSBuffer.fromString(JSON.stringify({
+			mcpServers: {
+				local: { command: '${TOOLS}/server', env: { API_KEY: '${API_KEY}' } },
+				remote: { url: 'https://${HOST}/mcp', headers: { Authorization: 'Bearer ${TOKEN}' } },
+			},
+		}));
+		const details: INativeMcpDiscoveryData = { platform: Platform.Linux, homedir: URI.file('/home/test') };
+		const adapters = [
+			new ClaudeDesktopMpcDiscoveryAdapter(null),
+			new CopilotMpcDiscoveryAdapter(null),
+			new CursorDesktopMpcDiscoveryAdapter(null),
+			new WindsurfDesktopMpcDiscoveryAdapter(null),
+		];
+		const flags = await Promise.all(adapters.map(async adapter => (await adapter.adaptFile(contents, details))?.map(definition => definition.environmentVariableExpansion)));
+		assert.deepStrictEqual(flags, adapters.map(() => [undefined, undefined]));
 	});
 });
