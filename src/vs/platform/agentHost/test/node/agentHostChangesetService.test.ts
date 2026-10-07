@@ -35,9 +35,10 @@ import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentConfigurationService, getEffectiveWorkingDirectories } from '../../node/agentConfigurationService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, encodeString, TestDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { createLegacyChatMetadataPersistence } from './chatMetadataTestHelpers.js';
 
 type WithoutLast<T extends readonly unknown[]> = T extends [...infer Head, unknown] ? Head : never;
-type WithoutLastTwo<T extends readonly unknown[]> = WithoutLast<WithoutLast<T>>;
+type WithoutLastThree<T extends readonly unknown[]> = WithoutLast<WithoutLast<WithoutLast<T>>>;
 
 const testGitStates = new Map<string, ISessionGitState>();
 const TEST_GIT_STATE_SERVICE: IAgentHostGitStateService = {
@@ -55,8 +56,11 @@ const TEST_GIT_STATE_SERVICE: IAgentHostGitStateService = {
 };
 
 class TestAgentHostChangesetService extends AgentHostChangesetService {
-	constructor(...args: WithoutLastTwo<ConstructorParameters<typeof AgentHostChangesetService>>) {
-		super(...args, TEST_GIT_STATE_SERVICE, new NullAgentHostWorktreeIsolation());
+	constructor(...args: WithoutLastThree<ConstructorParameters<typeof AgentHostChangesetService>>) {
+		super(...args, TEST_GIT_STATE_SERVICE, new NullAgentHostWorktreeIsolation(), {
+			_serviceBrand: undefined, setRead: async () => { }, setArchived: async () => { },
+			...createLegacyChatMetadataPersistence(args[2]),
+		});
 	}
 }
 

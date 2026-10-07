@@ -30,6 +30,7 @@ import { AgentHostChangesetService } from '../../node/agentHostChangesetService.
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { createNoopGitService, createSessionDataService, encodeString, TestDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { createLegacyChatMetadataPersistence } from './chatMetadataTestHelpers.js';
 
 suite('AgentHostChangesetStrategy', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -173,6 +174,7 @@ suite('AgentHostChangesetStrategy', () => {
 			recordSessionMerge: async () => { },
 			attachSessionGitHubPullRequest: async () => { },
 		}, new NullAgentHostWorktreeIsolation(),
+			{ _serviceBrand: undefined, setRead: async () => { }, setArchived: async () => { }, ...createLegacyChatMetadataPersistence(data) },
 		));
 		state.createSession({
 			resource: session,

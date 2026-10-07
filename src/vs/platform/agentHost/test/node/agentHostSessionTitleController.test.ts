@@ -18,6 +18,8 @@ import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.j
 import { IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostGitHubService } from '../../node/agentHostGitHubService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
+import { AgentHostPeerChatStore } from '../../node/agentHostPeerChatStore.js';
 import { AgentHostSessionTitleController, type AutomaticTitleGenerationStrategy } from '../../node/agentHostSessionTitleController.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { ActionType, NotificationType } from '../../common/state/sessionActions.js';
@@ -476,6 +478,58 @@ suite('AgentHostSessionTitleController', () => {
 			calls: copilotApiService.utilityCalls.length,
 			pendingSeed: await db.getMetadata('deferredTitleSeed'),
 		}, { calls: 1, pendingSeed: '' });
+	});
+
+	test('normalized deferred peer fork restores its inherited-turn boundary without legacy title mirrors', async () => {
+		const { stateManager, session, db, copilotApiService } = setupDeferred();
+		const chat = buildChatUri(session, 'deferred-peer');
+		const inherited = firstTurn('Inherited request', [textPart('Inherited answer')]);
+		stateManager.addChat(session.toString(), chat, { title: 'Fork seed', turns: [inherited] });
+		const database = disposables.add(new AgentHostDatabase(':memory:'));
+		await database.registerRuntimeSession(session.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		await database.registerChatCatalogV2(session.toString(), {
+			defaultChat: { chat: buildDefaultChatUri(session), order: 0 },
+			peers: [{ chat, order: 1 }],
+			privateDescendants: [],
+		});
+		const store = new AgentHostPeerChatStore(database, createSessionDataService(db), new NullLogService());
+		const options = {
+			sessionDataService: createSessionDataService(db),
+			getInitialTitleGenerationStrategy: () => 'deferred' as const,
+			getGitHubCopilotToken: () => 'gh-token',
+			copilotApiService,
+			persistMetadata: (resource: string, values: Readonly<Record<string, string>>) => store.persistMetadata(session, URI.parse(resource), values),
+			readNormalizedChat: (owner: URI, resource: URI) => store.readNormalizedChat(owner, resource),
+		};
+		const original = disposables.add(new AgentHostSessionTitleController(stateManager, options, new NullLogService()));
+		original.generateForkedTitle(session.toString(), chat, [inherited], 'Fork seed');
+		await store.whenIdle();
+		await db.setMetadata(customChatTitleMetadataKey(chat), 'Stale legacy title');
+		await db.setMetadata(customChatTitleSourceMetadataKey(chat), 'user');
+
+		const freshState = disposables.add(new AgentHostStateManager(new NullLogService()));
+		freshState.createSession(createSummary(session, 'Owner header'));
+		freshState.addChat(session.toString(), chat, { title: 'Fork seed', turns: [inherited] });
+		const restored = disposables.add(new AgentHostSessionTitleController(freshState, options, new NullLogService()));
+		await restored.restoreTitleGenerationStrategy(session.toString(), chat);
+		restored.refineTitleFromFirstTurn(session.toString(), chat);
+		assert.strictEqual(copilotApiService.utilityCalls.length, 0);
+		freshState.dispatchServerAction(chat, {
+			type: ActionType.ChatTurnStarted, turnId: 'new-turn', startedAt: '2026-01-01T00:00:00Z',
+			message: { text: 'Continue the fork', origin: { kind: MessageKind.User } },
+		});
+		freshState.dispatchServerAction(chat, {
+			type: ActionType.ChatResponsePart, turnId: 'new-turn', part: textPart('New answer'),
+		});
+		freshState.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: 'new-turn', duration: 10 });
+		restored.refineTitleFromFirstTurn(session.toString(), chat);
+		await waitForCondition(async () => (await store.readNormalizedChat(session, URI.parse(chat))).chat?.metadata?.summary === 'Generated title', 'restored normalized fork should refine');
+		assert.deepStrictEqual({
+			calls: copilotApiService.utilityCalls.length,
+			title: freshState.getChatState(chat)?.title,
+			seed: await db.getMetadata(`deferredTitleSeed:${chat}`),
+			legacyTitle: await db.getMetadata(customChatTitleMetadataKey(chat)),
+		}, { calls: 1, title: 'Generated title', seed: '', legacyTitle: 'Stale legacy title' });
 	});
 
 	for (const rawSeed of ['', 'null', 'true', '42', '"seed"', '[]', '{}', '{"title":42,"turnIndex":0}', '{"title":"Add dark mode","turnIndex":"0"}', '{"title":"Add dark mode","turnIndex":-1}', '{"title":"Add dark mode","turnIndex":0.5}']) {
