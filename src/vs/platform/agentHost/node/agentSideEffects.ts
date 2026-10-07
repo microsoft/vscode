@@ -39,7 +39,7 @@ import { AgentHostOverlapProviderPreparationConfigKey, platformRootSchema } from
 import { AgentHostOverlapProviderPreparationSettingId } from '../common/agentService.js';
 import { CopilotCliVSCodeAssignmentContextKey } from '../common/copilotCliConfig.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
-import { SessionConfigKey } from '../common/sessionConfigKeys.js';
+import { getSessionPullRequestUrl, SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { resolveChatAttachment } from '../common/state/chatAttachmentContext.js';
 import { buildOpenSessionLinkForChatResource } from '../common/openSessionLink.js';
 import { McpServerStatus, ToolCallContributorKind, type AgentInfo, type SessionActiveClient } from '../common/state/protocol/state.js';
@@ -97,7 +97,7 @@ import type { IAgentHostCustomizationEnablementService } from './agentHostCustom
 import './localCommands/localChatCommands.contribution.js';
 import { SessionPermissionManager } from './sessionPermissions.js';
 import { stripProxyErrorMarker, toChatErrorMeta, tryParseForwardedChatError } from './shared/proxyChatError.js';
-import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
+import { IAgentHostPeerChatPersistenceService } from './agentHostPeerChatStore.js';
 import { targetForMcpServer, targetForPlugin } from './shared/customizationEnablementGate.js';
 import { IAgentHostWorktreeIsolation } from './shared/worktreeIsolation.js';
 
@@ -307,6 +307,7 @@ export class AgentSideEffects extends Disposable {
 		@IAgentHostToolCallTracker private readonly _toolCallTracker: AgentHostToolCallTracker,
 		@IAgentHostWorktreeIsolation private readonly _worktree: IAgentHostWorktreeIsolation,
 		@IAgentHostTurnService private readonly _turnService: IAgentHostTurnService,
+		@IAgentHostPeerChatPersistenceService private readonly _chatPersistence: IAgentHostPeerChatPersistenceService,
 	) {
 		super();
 		this.onDidStartTurn = this._turnTracker.onDidStartTurn;
@@ -1077,7 +1078,7 @@ export class AgentSideEffects extends Disposable {
 			this._logService.trace(`[AgentSideEffects] Dropping stale model_call_finished for ${sessionKey}: producerTurnId=${signal.turnId}, activeTurnId=${turnId}`);
 			return;
 		}
-		this._turnTracker.modelCallFinished(sessionKey, turnId, signal.modelCallId, signal.dispatchDurationMs, signal.outcome, signal.containsBuiltInFileEditRequest, signal.editClassifierVersion);
+		this._turnTracker.modelCallFinished(sessionKey, turnId, signal.modelCallId, signal.dispatchDurationMs, signal.outcome, signal.containsBuiltInFileEditRequest);
 	}
 
 	/**
@@ -1926,7 +1927,8 @@ export class AgentSideEffects extends Disposable {
 				if (sessionState?.lifecycle === SessionLifecycle.Creating) {
 					const sessionId = AgentSession.id(channel);
 					const isolation = values?.[SessionConfigKey.Isolation];
-					if (isolation === 'worktree') {
+					// A pull request session always defers to its first-send worktree checkout.
+					if (isolation === 'worktree' || getSessionPullRequestUrl(values) !== undefined) {
 						this._worktree.notePending(sessionId);
 					} else if (isolation === 'folder') {
 						this._worktree.clearPending(sessionId);
@@ -1983,31 +1985,15 @@ export class AgentSideEffects extends Disposable {
 	}
 
 	private _persistDefaultChatTitleSnapshot(session: ProtocolURI, chat: ProtocolURI, title: string): void {
-		const ref = (() => {
-			try {
-				return this._options.sessionDataService.openDatabase(URI.parse(session));
-			} catch (error) {
-				this._logService.warn('[AgentSideEffects] Failed to open session database for default chat title snapshot', error);
-				return undefined;
-			}
-		})();
-		if (!ref) {
-			return;
-		}
 		const persist = async () => {
 			if (this._stateManager.getChatState(chat)?.title !== title) {
 				return;
 			}
-			const titleKey = customChatTitleMetadataKey(chat);
-			await ref.object.setMetadataValuesIfAbsent(
-				titleKey,
-				{ [titleKey]: title },
-				{ [customChatTitleSourceMetadataKey(chat)]: SESSION_CUSTOM_TITLE_SOURCE_KEY },
-			);
+			await this._chatPersistence.persistDefaultChatTitleSnapshot(URI.parse(session), URI.parse(chat), title);
 		};
 		void persist().catch(error => {
 			this._logService.warn('[AgentSideEffects] Failed to persist default chat title snapshot', error);
-		}).finally(() => ref.dispose());
+		});
 	}
 
 	/**

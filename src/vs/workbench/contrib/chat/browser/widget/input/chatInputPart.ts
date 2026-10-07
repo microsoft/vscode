@@ -108,7 +108,7 @@ import { AgentHostAutoTierScope } from '../../agentSessions/agentHost/agentHostA
 import { ChatModelSelectionDiagnostics } from './chatModelSelectionDiagnostics.js';
 import { deserializeUntitledInputAttachments, deserializeUntitledInputState, serializeUntitledInputAttachments, serializeUntitledInputState } from './chatInputStatePersistence.js';
 import { ChatInputStateOrigin, IChatModel, IChatModelInputState, IChatRequestModeInfo, IChatRequestModel, IInputModel, IIntendedModelHolder, IntendedModelSlot, logChangesToStateModel } from '../../../common/model/chatModel.js';
-import { isInConversationModelChoice, ModelSelectionReason, resolveConfiguredModel, RestoredModelReason } from '../../../common/modelSelection.js';
+import { getRegisteredLanguageModels, isInConversationModelChoice, ModelSelectionReason, resolveConfiguredModel, resolveModelIdentifierFromLanguageModels, RestoredModelReason } from '../../../common/modelSelection.js';
 import { filterModelsForSession, hasModelsTargetingSession, isModelHiddenInPicker, isModelSupportedForInlineChat, isModelSupportedForMode, isNewConversation, isSessionStarted, mergeModelsWithCache, shouldDropAgnosticDraftModel, shouldResetOnModelListChange, shouldRestorePerTypeModelOnSessionSwitch } from './chatInputModelUtils.js';
 import { getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { IChatResponseViewModel, isResponseVM } from '../../../common/model/chatViewModel.js';
@@ -181,6 +181,7 @@ import { Target } from '../../../common/promptSyntax/promptTypes.js';
 import { ConfigureToolsAction } from '../../actions/chatToolActions.js';
 import { InlineCompletionsController } from '../../../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
 import { PlaceholderTextContribution } from '../../../../../../editor/contrib/placeholderText/browser/placeholderTextContribution.js';
+import { SESSIONS_CHAT_CONTENT_HORIZONTAL_PADDING } from '../chatOptions.js';
 
 const $ = dom.$;
 
@@ -435,6 +436,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private _onDidLoadInputState: Emitter<void> = this._register(new Emitter());
 	readonly onDidLoadInputState: Event<void> = this._onDidLoadInputState.event;
+	private readonly _onDidChangeDraft = this._register(new Emitter<void>());
+	readonly onDidChangeDraft = this._onDidChangeDraft.event;
 	private readonly _toolbarRelayoutScheduler = this._register(new RunOnceScheduler(() => {
 		this.layoutForToolbarChange();
 	}, 0));
@@ -730,6 +733,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	// Flag to prevent circular updates between view and model
 	private _isSyncingToOrFromInputModel = false;
+	private _isRestoringAttachments = false;
 
 	// Debounced scheduler for syncing text changes
 	private readonly _syncTextDebounced: RunOnceScheduler;
@@ -1035,6 +1039,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// loading, or the pick lands on the general catalog instead.
 			isAwaitingSessionModels: sessionType => this.chatSessionsService.requiresCustomModelsForSessionType(sessionType)
 				&& !hasModelsTargetingSession(this.getAllMergedModels(), sessionType),
+			// Judged on live models only: the cache would make a retired model look published.
+			isModelAbsenceConclusive: modelId => {
+				const liveModels = getRegisteredLanguageModels(this.languageModelsService);
+				return resolveModelIdentifierFromLanguageModels(liveModels, modelId, this.languageModelsService, liveModels).kind === 'unavailable';
+			},
 			getConfiguredModelValue: () => this.getConfiguredModelValue(),
 			// Workbench chat runs a mode, and can be shown inline, so both bear on what it can run.
 			isModelSupportedHere: model => isModelSupportedForMode(model, this.currentModeKind) && isModelSupportedForInlineChat(model, this.location),
@@ -2200,6 +2209,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._modelSelectionController.resetToDefault(this.getCurrentSessionType());
 	}
 
+	private _createDraftChangeListeners(): DisposableStore {
+		const store = new DisposableStore();
+		store.add(this._inputEditor.onDidType(() => this._onDidChangeDraft.fire()));
+		store.add(this._inputEditor.onDidPaste(() => this._onDidChangeDraft.fire()));
+		store.add(this._inputEditor.onDidCompositionEnd(() => this._onDidChangeDraft.fire()));
+		store.add(this._attachmentModel.onDidChange(event => {
+			if (event.added.length > 0 && !this._isSyncingToOrFromInputModel && !this._isRestoringAttachments) {
+				this._onDidChangeDraft.fire();
+			}
+		}));
+		return store;
+	}
+
 	/**
 	 * Get the current input state for history
 	 */
@@ -2411,7 +2433,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}))).filter(isDefined);
 		}
 
-		this._attachmentModel.clearAndSetContext(...restored);
+		this._isRestoringAttachments = true;
+		try {
+			this._attachmentModel.clearAndSetContext(...restored);
+		} finally {
+			this._isRestoringAttachments = false;
+		}
 	}
 
 	private async navigateHistory(previous: boolean): Promise<void> {
@@ -3586,6 +3613,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// Debounced sync to model for text changes
 			this._syncTextDebounced.schedule();
 		}));
+		this._register(this._createDraftChangeListeners());
 		this._register(this._inputEditor.onDidContentSizeChange(e => {
 			if (e.contentHeightChanged && !this.ignoreInputEditorContentSizeChanges) {
 				this.inputEditorHeight = !this.inline ? e.contentHeight : this.inputEditorHeight;
@@ -5350,12 +5378,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		return {
 			editorBorder: 2,
-			// The sessions window pads `.interactive-input-part` by 32px on each side
+			// The sessions window pads `.interactive-input-part` by 24px on each side
 			// (vs the default 12px margin) so the input box aligns with the chat
 			// content cards. The editor width is computed here, so it must account
-			// for the same 64px total horizontal gutter or the editor overflows its
+			// for the same 48px total horizontal gutter or the editor overflows its
 			// container and renders wider than the message content above it.
-			inputPartHorizontalPadding: this.options.inputPartHorizontalPadding ?? (this.options.renderStyle === 'compact' ? 16 : (this.options.isSessionsWindow ? 64 : 24)),
+			inputPartHorizontalPadding: this.options.inputPartHorizontalPadding ?? (this.options.renderStyle === 'compact' ? 16 : (this.options.isSessionsWindow ? SESSIONS_CHAT_CONTENT_HORIZONTAL_PADDING : 24)),
 			inputPartHorizontalPaddingInside: this.options.renderStyle === 'compact' ? 12 : 10,
 			toolbarsWidth: this.options.renderStyle === 'compact' ? getToolbarsWidthCompact() : 0,
 			sideToolbarWidth: inputSideToolbarWidth > 0 ? inputSideToolbarWidth + 4 /*gap*/ : 0,

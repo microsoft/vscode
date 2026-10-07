@@ -350,14 +350,14 @@ suite('Session Artifacts', () => {
 		}))), links.map(link => ({ label: link.toString(true), description: undefined })));
 	});
 
-	test('lists recorded pull requests from other repositories as artifacts when resolving for a chat', () => {
+	test('promotes recorded pull requests from other repositories when resolving for a chat', () => {
 		const { presentation } = createPresentation([
 			{ id: 'own-repo-pr', kind: SessionArtifactKind.PullRequest, label: 'Own repo', isArtifact: true, isGitHub: true, link: URI.parse('https://github.com/owner/repo/pull/1') },
 			{ id: 'other-repo-pr', kind: SessionArtifactKind.PullRequest, label: 'Other repo', isArtifact: true, isGitHub: true, link: URI.parse('https://github.com/other/project/pull/9') },
 		], { owner: 'owner', repo: 'repo' }, undefined, undefined, true);
 
 		assert.deepStrictEqual(visibleEntries(presentation), {
-			artifacts: ['other-repo-pr'],
+			artifacts: [],
 			references: [],
 		});
 	});

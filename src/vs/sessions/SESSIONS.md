@@ -62,9 +62,13 @@ The view service:
 - owns the active session and visible-session arrangement;
 - opens sessions and chats;
 - presents new-session and peer-chat composers;
-- owns session navigation, focus, and visible-session restoration.
+- owns Back/Forward navigation across session chats, the new-session composer, and custom views, along with focus and visible-session restoration.
 
 It delegates model lifecycle operations to `ISessionsManagementService`.
+
+Navigation and the recent-sessions picker share MRU ordering. Singleton composer and custom-view entries participate only in the current window's navigation, not persisted session recency or the picker. Back/Forward moves through that order without promoting entries.
+
+Explicit opens carry navigation intent even when the destination is already visible. Async session/chat opens commit only their final destination and honor cancellation; intermediate selections and history traversal do not promote entries. Custom-view opening state distinguishes explicit opens, history traversal, and restoration while the rendered descriptor remains a derived projection.
 
 Visible-session slots have stable identities independent of list position. The view service coordinates membership, activation, directional placement, cancellation, and persisted leaf bindings; the Sessions Part owns rendering and split geometry. Explicit batch opening resolves and prepares its sessions before committing a visibility change. Geometry and layout operations remain independent of providers and comparison membership. See [LAYOUT.md](LAYOUT.md#sessions-part) for the grid and restoration contract.
 
@@ -104,6 +108,8 @@ publication.
 A session groups one or more chats and exposes a main chat. Providers advertise multi-chat, fork, side-chat, and other operations through observable capabilities. Shared code gates affordances on those capabilities rather than provider identifiers.
 
 Chat origin and interactivity describe whether a chat is user-created, tool-created, interactive, read-only, or hidden. Presentation code uses those contracts instead of inferring behavior from resource shape.
+
+Draft-only interactivity allows local composition without permitting sends or transcript mutations. Providers may use it for recoverable offline sessions. User composition can request a connection through the owning chat group's connection controller; restored drafts and focus changes do not request a connection.
 
 When an unread chat in a multi-chat session becomes active, the view service asks the owning provider to mark that exact chat read. Activating the main chat does not directly mark the stored session aggregate read. The aggregate may remain unread after every chat becomes read, but it must be unread whenever any normal user-visible chat is unread. Tool-created subagent chats retain exact per-chat read state but do not participate in this aggregate. The main row always presents the main chat's exact read state, whether the chat hierarchy is expanded or collapsed; peer read state appears only on the corresponding peer row. Mark as Read and Mark as Unread on a session row target the main chat represented by that row; providers without independent chat read state may implement that operation through their session state.
 
@@ -166,6 +172,8 @@ A provider that must establish backend state for an existing session may impleme
 
 An editor-window draft handoff fills the existing New Session composer only when its input and attachments are empty. The handoff preserves occupied live or restored drafts, including their workspace, and yields to newer input or navigation while awaiting setup or workspace creation. It never sends a request or clears the source editor's draft.
 
+A contextual Agents Window invitation identifies an existing chat in the source editor. The handoff either opens that chat or navigates to the new-session composer without activating the invited session. This navigation is independent of onboarding enablement and takes precedence over startup restoration while preserving pending drafts. A dedicated, repeatable tour targets the invited session's list row and, when the handoff opened the chat, the new-session action. The tour is independent of new-session setup onboarding, respects disabled onboarding, and yields to cancellation or subsequent session navigation.
+
 The product protocol link `<product-protocol>://agents/new?prompt=<encoded text>&workspace=<optional encoded URI>` opens the Agents Window and applies its prompt and optional workspace through the same draft handoff. When `workspace` is omitted, the handoff explicitly selects No Workspace. Opening the link never submits the prompt, and an occupied composer remains unchanged.
 
 Automation editing uses an independent draft so it cannot replace the ordinary New Session composer. Providers advertise `supportsAutomationSessionConfiguration` when they restore `ISessionsProviderCreateSessionOptions.automationConfiguration` before the draft's first configuration resolution and implement `getAutomationSessionConfiguration` to capture the current template. The management service rejects canonical templates for providers without this capability, while deprecated flat aliases continue through ordinary model, mode, and permission operations. It distinguishes unsupported capture from a valid empty template, a replaced draft, and capture failure.
@@ -175,6 +183,10 @@ Provider-specific configuration remains opaque to shared Sessions code. Scoped A
 ### Operations
 
 Providers implement only operations advertised by their contracts, including request sending, model selection, rename, archive, read state, deletion, chat creation, and optional worktree disk-usage measurement. Shared cleanup UI consumes the optional measurement through the management service and remains independent of provider transport or filesystem details. Capability checks happen before invocation. Once invoked, an operation returns a defined result or rejects; unsupported behavior must not be reported as a success-shaped fallback.
+
+`onDidDeleteChat` reports `{ session, sessionResource, chatResource }` only after the provider confirms success. The immutable resource pair is captured before the asynchronous provider operation. Consumers remove that exact chat's state rather than infer deletion from a potentially incomplete chat catalogue.
+
+Chat-owned presentation consumers use the immutable `{ sessionResource, chatResource }` identity derived from `activeSession.activeChat`. The workbench exposes one reload-fixed `ChatLayoutPresentation`; its runtime phone suspension invalidates queued presentation snapshots without changing ownership. `ChatLayoutContext` projects the existing active observables and invalidates foreground snapshots on owner changes, including A/B/A transitions. Request-origin ownership remains separately available in the captured snapshot. Replacement maps the supplied source main-chat resource to the destination main-chat resource and retains opaque peer resources, including when the session resource does not change.
 
 ### Provider ownership
 
@@ -218,6 +230,8 @@ Providers may expose an `ISessionConfigurationSnapshot` of resolved draft config
 ### Existing session
 
 Requests route through `ISessionsManagementService` to the provider identified by the session. Providers update chat and session observables. Foreground sends may update view state through lifecycle notifications; background sends do not implicitly steal focus.
+
+A chat view binds its transcript to the content provider serving the chat's session type at load time. When that provider is unregistered and another registers for the same type — a sandbox opened from persisted history whose environment was then woken, or a host that reconnected with a new client — the view reloads the chat so the replacement serves it. A provider that merely goes away leaves the transcript on screen.
 
 ### Multiple chats
 

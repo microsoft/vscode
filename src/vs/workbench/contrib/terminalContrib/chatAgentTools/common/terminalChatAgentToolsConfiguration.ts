@@ -819,12 +819,6 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		tags: ['preview'],
 		restricted: true,
 	},
-	[AgentSandboxSettingId.AgentSandboxWindowsSchemaVersion]: {
-		// Intentionally available only to callers that explicitly set it in settings.json.
-		included: false,
-		restricted: true,
-		type: 'string',
-	},
 	[TerminalChatAgentToolsSettingId.AgentSandboxAdvancedRuntime]: {
 		markdownDescription: localize('agentSandbox.runtimeSetting', "Note: this setting is applicable only when {0} is enabled. Key/value pairs are passed through to the root of the sandbox runtime configuration.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
 		markdownDeprecationMessage: localize('agentSandbox.runtimeSetting.deprecated', "This setting will be deprecated soon. It does not apply to the Copilot Agent Host sandbox."),

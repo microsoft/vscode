@@ -8,9 +8,11 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
+import { isObject } from '../../../../../base/common/types.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
+import { getGitHubRequestId, sanitizeConnectionDiagnosticText } from '../../../../../platform/agentHost/common/connectionDiagnostics.js';
 import {
 	CLOUD_SANDBOX_AGENT_SLUG,
 	CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID,
@@ -25,6 +27,7 @@ import {
 	ICloudSandboxDiscoveredSession,
 	ICloudSandboxDiscoveryResult,
 	ICloudSandboxEnvironment,
+	IMissionControlEnvironment,
 	ICloudSandboxModelCatalog,
 } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IReplayedTaskHistory, parseTaskEventsResponse, replayTaskAhpEvents, TaskEventReplayError } from '../../../../../platform/agentHost/common/taskEventReplay.js';
@@ -212,6 +215,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	private readonly _discoveredTasks = new Map<string, ICachedSandboxTask>();
 	private _discoverySince: string | undefined;
 	private _discoveryGeneration = 0;
+	private _environments: { readonly generation: number; readonly fetchedAt: number; readonly values: readonly IMissionControlEnvironment[] } | undefined;
 	private readonly _onDidChangeAccount = this._register(new Emitter<string | undefined>());
 	readonly onDidChangeAccount = this._onDidChangeAccount.event;
 
@@ -300,6 +304,49 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		// can block for its whole budget.
 		this._logService.trace(`${LOG_PREFIX} Environment ${environmentId}: status=${environment.status}, ahp=${environment.capabilities?.ahp_version ?? 'unknown'}`);
 		return environment;
+	}
+
+	getCachedEnvironments(): readonly IMissionControlEnvironment[] | undefined {
+		return this._environments?.generation === this._discoveryGeneration && Date.now() - this._environments.fetchedAt < 60_000
+			? this._environments.values : undefined;
+	}
+
+	async listEnvironments(token: CancellationToken, options?: { readonly refresh?: boolean }): Promise<readonly IMissionControlEnvironment[]> {
+		const generation = this._discoveryGeneration;
+		const cached = this.getCachedEnvironments();
+		if (!options?.refresh && cached) {
+			return cached;
+		}
+		const context = await this._request(`${GITHUB_DOT_COM_COPILOT_API_BASE_URI}/agents/environments`, 'mc.environmentClient.list', 'listEnvironments', {
+			'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
+		}, token);
+		if (!isSuccess(context)) {
+			await this._throwForStatus('list environments', context);
+		}
+		const response = await this._readJson<unknown>(context);
+		if (!Array.isArray(response)) {
+			throw new Error('Mission Control returned invalid environment discovery metadata');
+		}
+		const values: IMissionControlEnvironment[] = [];
+		for (const value of response as readonly unknown[]) {
+			if (!isObject(value)) {
+				this._logService.warn('Ignoring malformed Mission Control environment metadata');
+				continue;
+			}
+			const environment = value as Partial<IMissionControlEnvironment>;
+			if (typeof environment.id !== 'string' || !/^[A-Za-z0-9_-]+$/.test(environment.id)
+				|| typeof environment.name !== 'string' || !environment.name.trim() || typeof environment.kind !== 'string'
+				|| typeof environment.status !== 'string' || !environment.status) {
+				this._logService.warn('Ignoring incomplete Mission Control environment metadata');
+				continue;
+			}
+			values.push({ id: environment.id, name: environment.name, kind: environment.kind, status: environment.status });
+		}
+		if (generation !== this._discoveryGeneration) {
+			throw new CancellationError();
+		}
+		this._environments = { generation, fetchedAt: Date.now(), values };
+		return values;
 	}
 
 	/** Incremental scans preserve absent tasks; full scans also find tasks without environment-kind metadata. */
@@ -500,6 +547,18 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	 * The environment on the returned session is the real VM, not the sentinel.
 	 */
 	async createSession(request: ICloudSandboxCreateSessionRequest, token: CancellationToken): Promise<ICloudSandboxCreatedSession> {
+		const startedAt = Date.now();
+		try {
+			const created = await this._createSession(request, token);
+			this._telemetry.reportProvisioningOutcome(token.isCancellationRequested ? 'cancelled' : 'success', Math.max(0, Date.now() - startedAt));
+			return created;
+		} catch (error) {
+			this._telemetry.reportProvisioningOutcome(isCancellationError(error) || token.isCancellationRequested ? 'cancelled' : 'failure', Math.max(0, Date.now() - startedAt));
+			throw error;
+		}
+	}
+
+	private async _createSession(request: ICloudSandboxCreateSessionRequest, token: CancellationToken): Promise<ICloudSandboxCreatedSession> {
 		const repository = parseNwo(request.repoNwo);
 		const context = await this._request(`${this._tasksBaseUrl()}/tasks`, 'mc.taskClient.create', 'createTask', {
 			'Accept': 'application/json',
@@ -685,11 +744,12 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			return { kind: 'waking', waking: { retryAfterSeconds } };
 		}
 		if (!isSuccess(context)) {
-			const header = context.res.headers['x-github-request-id'];
-			const requestId = typeof header === 'string' && header.length <= 128 && /^[0-9A-Fa-f]{1,16}(?::[0-9A-Fa-f]{1,16}){4}$/.test(header) ? header : undefined;
+			const requestId = getGitHubRequestId(context.res.headers['x-github-request-id']);
 			const retryAfter = retryAfterSeconds(context.res.headers['retry-after']);
 			const status = context.res.statusCode;
-			this._logService.error(`${LOG_PREFIX} ${action} failed: method=GET host=${new URL(GITHUB_DOT_COM_COPILOT_API_BASE_URI).host} environmentId=${environmentId} sessionId=${searchParams.session_id ?? 'none'} clientId=${searchParams.client_id ?? 'none'} status=${status ?? 'unknown'} requestId=${requestId ?? 'unavailable'} durationMs=${watch.elapsed()} retryAfterSeconds=${retryAfter ?? 'none'}`);
+			const responseError = await this._readJson<{ message?: string }>(context);
+			const detail = typeof responseError?.message === 'string' ? sanitizeConnectionDiagnosticText(responseError.message) : undefined;
+			this._logService.error(`${LOG_PREFIX} ${action} failed: method=GET host=${new URL(GITHUB_DOT_COM_COPILOT_API_BASE_URI).host} environmentId=${environmentId} sessionId=${searchParams.session_id ?? 'none'} clientId=${searchParams.client_id ?? 'none'} status=${status ?? 'unknown'} requestId=${requestId ?? 'unavailable'} durationMs=${watch.elapsed()} retryAfterSeconds=${retryAfter ?? 'none'}${detail ? ` message=${detail}` : ''}`);
 			throw new CloudSandboxRequestError(status, `Mission Control ${action} failed: HTTP ${status ?? 'unknown'}${requestId ? ` (requestId=${requestId})` : ''}`, retryAfter);
 		}
 		const clientToken = await this._readJson<ICloudSandboxClientToken>(context);

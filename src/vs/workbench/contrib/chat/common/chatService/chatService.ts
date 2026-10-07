@@ -651,8 +651,12 @@ export interface IChatThinkingPart {
  */
 export interface IChatAutoModeResolutionPart {
 	kind: 'autoModeResolution';
-	/** The model the router picked, or `undefined` while routing is in flight. */
-	resolved?: { readonly id: string; readonly name: string };
+	/**
+	 * The model the router picked, or `undefined` while routing is in flight.
+	 * `reason` is the routing service's display-only, unlocalized explanation
+	 * of the pick; it already names the model.
+	 */
+	resolved?: { readonly id: string; readonly name: string; readonly reason?: string };
 }
 
 /**
@@ -848,6 +852,8 @@ export interface IChatToolInputInvocationData {
 	kind: 'input';
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	rawInput: any;
+	/** Image-generation input and its independently selected image model. */
+	imageGeneration?: { readonly requestedModel?: { readonly id: string; readonly name?: string } };
 	/** Optional MCP App UI metadata for rendering during and after tool execution */
 	mcpAppData?: ChatMcpAppData;
 	/**
@@ -996,6 +1002,7 @@ export namespace IChatToolInvocation {
 		source?: ToolConfirmationSource;
 		/** Optional message explaining why the tool was cancelled (e.g., from hook denial) */
 		reasonMessage?: string | IMarkdownString;
+		resultDetails?: IToolResult['toolResultDetails'];
 	}
 
 	export type State =
@@ -1105,7 +1112,7 @@ export namespace IChatToolInvocation {
 		}
 
 		const state = invocation.state.read(reader);
-		if (state.type === StateKind.Completed || state.type === StateKind.WaitingForPostApproval) {
+		if (state.type === StateKind.Completed || state.type === StateKind.WaitingForPostApproval || state.type === StateKind.Cancelled) {
 			return state.resultDetails;
 		}
 

@@ -265,6 +265,12 @@ export interface IAutoModeResolvedInfo {
 	readonly predictedLabel?: string;
 	readonly confidence?: number;
 	readonly candidateModels?: readonly string[];
+	/**
+	 * Display-only sentence from the routing service explaining why
+	 * {@link chosenModel} was picked; it already names the model. Absent for
+	 * on-device selections and when the service supplied no explanation.
+	 */
+	readonly selectionReason?: string;
 }
 
 /**
@@ -573,20 +579,25 @@ export function buildSubagentSessionUri(parentSession: ProtocolURI | ResourceURI
 	return parent.with({ path: `${path}${toolCallId}` }).toString();
 }
 
-/**
- * Parses a subagent session URI into its parent session URI and tool call ID.
- * Returns `undefined` if the URI does not follow the subagent convention.
- */
+/** Parses path-based subagent URIs and legacy Copilot fragment selections into their parent and tool call ID. */
 export function parseSubagentSessionUri(uri: ProtocolURI | ResourceURI): { parentSession: ResourceURI; toolCallId: string } | undefined {
 	const resource = asResourceUri(uri);
 	const match = SUBAGENT_URI_PATH_REGEX.exec(resource.path);
-	if (!match?.groups) {
-		return undefined;
+	if (match?.groups) {
+		return {
+			parentSession: resource.with({ path: match.groups.parentPath }),
+			toolCallId: match.groups.toolCallId,
+		};
 	}
-	return {
-		parentSession: resource.with({ path: match.groups.parentPath }),
-		toolCallId: match.groups.toolCallId,
-	};
+	const legacyPrefix = `${SUBAGENT_URI_SEGMENT}/`;
+	if (resource.scheme === 'copilotcli' && !resource.authority && !resource.query
+		&& resource.fragment.startsWith(legacyPrefix) && resource.fragment.length > legacyPrefix.length) {
+		return {
+			parentSession: resource.with({ fragment: '' }),
+			toolCallId: resource.fragment.slice(legacyPrefix.length),
+		};
+	}
+	return undefined;
 }
 
 /**
@@ -940,7 +951,7 @@ export function isDefaultChatUri(uri: ProtocolURI | ResourceURI): boolean {
 export function getSessionChatResource(state: Pick<SessionState, 'defaultChat'> & { readonly chats: readonly Pick<ChatSummary, 'resource'>[] }, chatId: string): ProtocolURI | undefined {
 	return chatId === DEFAULT_CHAT_ID
 		? state.defaultChat ?? state.chats.find(chat => isDefaultChatUri(chat.resource))?.resource
-		: state.chats.find(chat => parseChatUri(chat.resource)?.chatId === chatId)?.resource;
+		: state.chats.find(chat => (parseChatUri(chat.resource)?.chatId ?? chat.resource.toString()) === chatId)?.resource;
 }
 
 /**

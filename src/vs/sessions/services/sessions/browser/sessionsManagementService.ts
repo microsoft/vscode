@@ -24,7 +24,7 @@ import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/co
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { getSessionReferenceResource } from './sessionReference.js';
-import { ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IDeferredNewSessionRequestOptions, IMarkSessionReadOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
+import { IChatDeletedEvent, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IDeferredNewSessionRequestOptions, IMarkSessionReadOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
 import { IDeleteChatOptions, IPreparedNewSession, ISessionChangeEvent, ISessionsProvider, type ISessionsProviderCreateSessionOptions, type SessionResourceResolveReason } from '../common/sessionsProvider.js';
 import { ChatModelSource, IChat, ISession, ISessionWorkspace, ISideChatSelection, isActiveSessionStatus, SessionStatus, ISessionType } from '../common/session.js';
@@ -56,8 +56,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	readonly onDidUnarchiveSession: Event<ISession> = this._onDidUnarchiveSession.event;
 	private readonly _onDidDeleteSession = this._register(new Emitter<ISession>());
 	readonly onDidDeleteSession: Event<ISession> = this._onDidDeleteSession.event;
-	private readonly _onDidDeleteChat = this._register(new Emitter<ISession>());
-	readonly onDidDeleteChat: Event<ISession> = this._onDidDeleteChat.event;
+	private readonly _onDidDeleteChat = this._register(new Emitter<IChatDeletedEvent>());
+	readonly onDidDeleteChat = this._onDidDeleteChat.event;
 	private readonly _onDidRenameChat = this._register(new Emitter<ISession>());
 	readonly onDidRenameChat: Event<ISession> = this._onDidRenameChat.event;
 	private readonly _onDidRenameSession = this._register(new Emitter<ISession>());
@@ -473,9 +473,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		let workspace: ISessionWorkspace | undefined;
 		let sessionTypeId: string | undefined;
 		const requiresWorktreeConfiguration = options?.isolationMode === 'worktree'
-			|| options?.worktreeBranchTrack !== undefined
-			|| options?.worktreeCreateNewBranch !== undefined
-			|| options?.branch !== undefined;
+			|| options?.branch !== undefined
+			|| options?.pullRequestUrl !== undefined;
 		const resolveSessionTypeId = (candidate: ISessionsProvider): string | undefined => {
 			const sessionTypes = candidate.getSessionTypes(folderUri);
 			if (options?.sessionTypeId) {
@@ -682,6 +681,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			} : {}),
 			...(options?.permissionId ? { permissionId: options.permissionId } : {}),
 			...(options?.modeId ? { modeId: options.modeId } : {}),
+			...(options?.pullRequestUrl ? { pullRequestUrl: options.pullRequestUrl } : {}),
 			...(automationConfiguration ? { automationConfiguration } : {}),
 		};
 	}
@@ -766,7 +766,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			}
 		}
 
-		const isTroubleshoot = /^\s*\/troubleshoot\b/.test(options.query);
+		const isTroubleshoot = /^\s*\/troubleshoot(?=\s|$)/.test(options.query);
 		if (!isTroubleshoot && referencedResources.length === 0) {
 			return options;
 		}
@@ -1041,23 +1041,15 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (createOptions?.permissionLevel) {
 			provider.setPermissionLevel?.(session.sessionId, createOptions.permissionLevel);
 		}
-		if (supportsWorktreeConfiguration && (createOptions?.isolationMode || createOptions?.worktreeBranchTrack !== undefined || createOptions?.worktreeCreateNewBranch !== undefined || createOptions?.branch)) {
+		if (supportsWorktreeConfiguration && (createOptions?.isolationMode || createOptions?.branch)) {
 			if (provider.setWorktreeConfiguration) {
 				await raceCancellationError(provider.setWorktreeConfiguration(session.sessionId, {
 					isolationMode: createOptions.isolationMode,
-					worktreeBranchTrack: createOptions.worktreeBranchTrack,
-					worktreeCreateNewBranch: createOptions.worktreeCreateNewBranch,
 					branch: createOptions.branch,
 				}), token);
 			} else {
 				if (createOptions.isolationMode && provider.setIsolationMode) {
 					await raceCancellationError(provider.setIsolationMode(session.sessionId, createOptions.isolationMode), token);
-				}
-				if (createOptions.worktreeBranchTrack !== undefined && provider.setWorktreeBranchTrack) {
-					await raceCancellationError(provider.setWorktreeBranchTrack(session.sessionId, createOptions.worktreeBranchTrack), token);
-				}
-				if (createOptions.worktreeCreateNewBranch !== undefined && provider.setWorktreeCreateNewBranch) {
-					await raceCancellationError(provider.setWorktreeCreateNewBranch(session.sessionId, createOptions.worktreeCreateNewBranch), token);
 				}
 				if (createOptions.branch && provider.setBranch) {
 					await raceCancellationError(provider.setBranch(session.sessionId, createOptions.branch), token);
@@ -1426,9 +1418,10 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	async deleteChat(session: ISession, chatUri: URI, options?: IDeleteChatOptions): Promise<boolean> {
+		const deletedChat = Object.freeze({ session, sessionResource: session.resource, chatResource: chatUri });
 		const deleted = await this._getProvider(session)?.deleteChat(session.sessionId, chatUri, options) ?? false;
 		if (deleted) {
-			this._onDidDeleteChat.fire(session);
+			this._onDidDeleteChat.fire(deletedChat);
 		}
 		return deleted;
 	}

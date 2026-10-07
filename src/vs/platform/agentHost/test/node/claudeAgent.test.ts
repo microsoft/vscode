@@ -1073,6 +1073,7 @@ const ALL_MODELS: readonly CCAModel[] = [
  */
 class RecordingOTelService implements IAgentHostOTelService {
 	readonly _serviceBrand: undefined;
+	readonly enabled = false;
 	readonly diagnosticsEnabled = false;
 	emitTurnTiming(): void { }
 	emitFirstResponse(): void { }
@@ -2605,6 +2606,19 @@ suite('ClaudeAgent', () => {
 			session: expected.toString(),
 			provisional: true,
 		});
+	});
+
+	test('standard host sessions retain their address and an independent Claude backing ID', async () => {
+		const { agent } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const session = URI.parse('ahp-session:/new-claude');
+		const result = await createSession(agent, { session, workingDirectories: [URI.file('/work')] });
+		assert.deepStrictEqual({
+			session: result.session.toString(),
+			provisional: result.provisional,
+			backingProvider: result.chat?.backingSession?.scheme,
+			separateBacking: result.sdkSessionId !== AgentSession.id(session),
+		}, { session: session.toString(), provisional: true, backingProvider: 'claude', separateBacking: true });
 	});
 
 	test('createChat({ fork }) forks at the anchor uuid, then materializes lazily on first sendMessage', async () => {

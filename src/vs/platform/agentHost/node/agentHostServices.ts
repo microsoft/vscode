@@ -67,6 +67,7 @@ import { AgentEditAttributionService } from './shared/agentEditAttributionServic
 import { EditArcReporterService, IEditArcReporterService } from './shared/editArcReporter.js';
 import { EditSurvivalReporterFactory, IEditSurvivalReporterFactory } from './shared/editSurvivalReporter.js';
 import { IAgentHostWorktreeIsolation, WorktreeIsolation } from './shared/worktreeIsolation.js';
+import { AgentHostPullRequestResolver, IAgentHostPullRequestResolver } from './shared/pullRequestResolver.js';
 import { AgentBranchNameGenerator, IAgentBranchNameGenerator } from './shared/agentBranchNameGenerator.js';
 import { AgentHostTurnService, IAgentHostTurnService } from './agentHostTurnService.js';
 import { IDevContainerAgentHostMainService } from '../common/devContainerAgentHost.js';
@@ -124,6 +125,7 @@ export function registerAgentHostCoreServices(services: ServiceCollection, input
 	services.set(IAgentHostProviderService, new SyncDescriptor(AgentHostProviderService));
 	services.set(IAgentHostChatInputService, new SyncDescriptor(AgentHostChatInputService));
 	services.set(IAgentBranchNameGenerator, new SyncDescriptor(AgentBranchNameGenerator));
+	services.set(IAgentHostPullRequestResolver, new SyncDescriptor(AgentHostPullRequestResolver));
 	services.set(IAgentHostWorktreeIsolation, new SyncDescriptor(WorktreeIsolation));
 	services.set(IAdditionalWorktreeLifecycleService, new SyncDescriptor(AdditionalWorktreeLifecycleService));
 }

@@ -28,6 +28,7 @@ import { IAgentHostCustomizationEnablementService } from './agentHostCustomizati
 import { AgentHostDebugLogsCollector } from './agentHostDebugLogs.js';
 import { IAgentHostDatabase } from './agentHostDatabase.js';
 import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
+import { AgentHostLocalCommands, IAgentHostLocalCommands } from './localCommands/localChatCommand.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { AgentService, type IAgentServiceCollaborators, type IAgentServiceCore, type IAgentServiceOptions } from './agentService.js';
@@ -92,6 +93,7 @@ export function createAgentServiceComposition(
 		const orchestratorDatabase = accessor.get(IAgentHostDatabase);
 		const peerChatStore = new AgentHostPeerChatStore(orchestratorDatabase, sessionDataService, logService);
 		services.set(IAgentHostPeerChatPersistenceService, peerChatStore);
+		services.set(IAgentHostLocalCommands, owned.add(instantiationService.createInstance(AgentHostLocalCommands)));
 		const debugLogsCollector = options.debugLogsEnvironment
 			? owned.add(new AgentHostDebugLogsCollector(options.debugLogsEnvironment, logService))
 			: undefined;
@@ -157,9 +159,6 @@ export function createAgentServiceComposition(
 			...callbackAdapter.sessionServerToolAccessor,
 			requestSessionWorkspaceUpdate: (chat, turnId, workspaceFolder, isolation) => {
 				const initiatingClientId = turnTracker.getInitiatorClientId(chat.toString(), turnId);
-				if (!initiatingClientId) {
-					throw new Error('Session workspace conversion requires a turn initiated by a connected VS Code client.');
-				}
 				if (!workspaceConversionService.value) {
 					throw new Error('Session workspace conversion is unavailable.');
 				}
@@ -177,7 +176,7 @@ export function createAgentServiceComposition(
 					supportsChatIsolation: session => workspaceConversionService.value?.supportsChatIsolation(session) === true,
 					requestChatIsolation: (chat, turnId) => {
 						const initiatingClientId = turnTracker.getInitiatorClientId(chat.toString(), turnId);
-						if (!initiatingClientId || !workspaceConversionService.value) {
+						if (!workspaceConversionService.value) {
 							throw new Error(localize('agentHost.chatIsolationClientRequired', "Moving a chat to a worktree with this tool requires a turn initiated by a connected client."));
 						}
 						workspaceConversionService.value.requestChatIsolation(chat, turnId, initiatingClientId);

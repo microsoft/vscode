@@ -497,3 +497,39 @@ their existing enumeration and processed-result boundaries; the orchestrator
 reports at its existing listing, migration and discovery registration boundaries.
 Startup telemetry does not use chat lifecycle
 contributions, since no turn or hydration hook owns these operations.
+
+## Canvas rollout and load telemetry
+
+Canvas product telemetry uses existing usage consent, independently of OTel.
+
+| Event | Boundary and dashboard use |
+| --- | --- |
+| `agentHost.canvasOpened` | Live `session.canvas.recorded` events identify first opens, excluding repeated opens, updates, and recovery. History reads do not dispatch these callbacks. Count opens or distinct `agentSessionId` values; group by discovery-derived `extensionSource` (`project`, `user`, `plugin`, `session`, `unknown`). |
+| `agentCanvas.loadCompleted` | Browser creation through initial navigation. Outcomes: `loaded`, `error`, `cancelled`, `interrupted`. Input, owner, and editor lifetime changes share the `interrupted` outcome. |
+| `agentHost.canvasExtensionsReady` | Extension listing, bounded readiness wait, and canvas listing. `launchKind`: `create` or `resume`. Outcomes: `alreadySettled`, `settled`, `timeout`, `error`, `cancelled`. `extensionCount` and `failedExtensionCount` use the latest observed snapshot; missing counts are not zero. |
+| `integratedBrowser.open` with `source=canvas` | Backing-view creation, not a logical open. Exclude these rows from ordinary browser-tab usage. |
+
+New events use numeric `schemaVersion: 1`; `durationMs` uses a producer-local
+monotonic clock. Settled may include failed providers. Readiness measures host
+overhead, not total extension startup or model TTFT.
+
+Load failure rate is `error / (loaded + error)`; compute latency percentiles from
+successful loads. Navigation completion is not first paint or application
+readiness. Crashes or lost delivery may leave no completion.
+
+Reuse `copilotSdk/tool_call_executed` (`tool_name`, `invoke_outcome`, `duration_ms`)
+for `list_canvas_capabilities`, `open_canvas`, `invoke_canvas_action`, and
+`extensions_reload`. The reload override marks only its fixed name as safe.
+Use standard (`restricted=false`) SDK rows, deduplicated by `sdk_session_id` and
+`event_id`, to avoid counting restricted copies.
+
+For `/create-canvas`, filter `copilotSdk/skill_invoked.skill_name_hash` to the
+lowercase SHA-256 of the UTF-8 name without the slash:
+`33b7d9f0b8715b9f10e8185fb3fd5405e7ca6ac4e5e005885982b019378097f1`.
+A custom skill with the same name matches too. Invocation does not prove
+successful authoring or a canvas open; plaintext skill metadata is unnecessary.
+
+Opens, browser creations, loads, and tool calls have different denominators;
+these events do not establish a conversion funnel or feature-availability rate.
+New canvas events omit URLs, titles, instance names, extension identities,
+arguments, and raw errors.
