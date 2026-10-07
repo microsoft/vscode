@@ -36,7 +36,7 @@ class SessionDatabaseCollection extends ReferenceCollection<ISessionDatabase> {
 		const dbPath = this._getDbPath(key);
 		this._logService.trace(`[SessionDataService] Opening database: ${dbPath}`);
 		this.opens++;
-		const db = new SessionDatabase(dbPath, undefined, this._logService);
+		const db = new SessionDatabase(dbPath);
 		this.liveDatabases.add(db);
 		return db;
 	}

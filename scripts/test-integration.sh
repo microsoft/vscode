@@ -277,7 +277,7 @@ if should_run_suite git; then
 echo
 echo "### Git tests"
 echo
-bash "$ROOT/test/integration/electron/git.sh" "$INTEGRATION_TEST_ELECTRON_PATH" --extensionDevelopmentPath=$ROOT/extensions/git --extensionTestsPath=$ROOT/extensions/git/out/test $API_TESTS_EXTRA_ARGS
+"$INTEGRATION_TEST_ELECTRON_PATH" $(mktemp -d 2>/dev/null) --extensionDevelopmentPath=$ROOT/extensions/git --extensionTestsPath=$ROOT/extensions/git/out/test $API_TESTS_EXTRA_ARGS
 kill_app
 fi
 

@@ -23,7 +23,6 @@ import { equals, safeStringify } from '../../../../base/common/objects.js';
 import { isAbsolute, join } from '../../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase, normalizePath } from '../../../../base/common/resources.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
-import { traceAgentHostOperation } from '../agentHostOperationDiagnostics.js';
 import { splitLinesIncludeSeparators } from '../../../../base/common/strings.js';
 import { hasKey, isDefined, isObject, isString, type Mutable } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -3077,9 +3076,8 @@ export class CopilotAgentSession extends Disposable {
 	 * construction before using the session.
 	 */
 	async initializeSession(): Promise<void> {
-		const trace = <T>(phase: string, operation: () => Promise<T>) => traceAgentHostOperation(this._logService, `Copilot:${this.sessionId}:${this._launchPlan.kind}`, phase, operation);
-		await trace('customizationEnablement', () => this._customizationEnablementService.initializeSession(this._ownerSessionUri.toString()));
-		const wrapper = await trace('launch', () => this._sessionLauncher.launch(this._launchPlan, this._createRuntimeAdapter()));
+		await this._customizationEnablementService.initializeSession(this._ownerSessionUri.toString());
+		const wrapper = await this._sessionLauncher.launch(this._launchPlan, this._createRuntimeAdapter());
 		// The session may have been disposed while we were awaiting the
 		// launcher. If so, dispose the freshly-created wrapper and
 		// skip subscribing — registering on a disposed store would leak.
@@ -3098,7 +3096,7 @@ export class CopilotAgentSession extends Disposable {
 			}
 		}
 		this._canvasProjectionReady = false;
-		const samplingInterest = await trace('eventLog.registerInterest', () => wrapper.session.rpc.eventLog.registerInterest({ eventType: 'sampling.requested' }));
+		const samplingInterest = await wrapper.session.rpc.eventLog.registerInterest({ eventType: 'sampling.requested' });
 		if (this._store.isDisposed) {
 			throw new CancellationError();
 		}
@@ -3122,12 +3120,12 @@ export class CopilotAgentSession extends Disposable {
 		this._subscribeForMemoInvalidation();
 		this._subscribeForInstructionsCollectedTelemetry();
 		this._subscribeToPermissionConfigChanges();
-		await trace('sandboxDiagnostics', () => this._sandboxDiagnostics.update(this._isCustomTerminalToolEnabled() ? { enabled: false } : this._computeSdkSandboxConfig() ?? { enabled: false }));
-		await trace('canvasExtensions', () => this._waitForCanvasExtensions(wrapper));
-		await trace('shellInitScript', () => this._syncShellInitScript());
+		await this._sandboxDiagnostics.update(this._isCustomTerminalToolEnabled() ? { enabled: false } : this._computeSdkSandboxConfig() ?? { enabled: false });
+		await this._waitForCanvasExtensions(wrapper);
+		await this._syncShellInitScript();
 		this._promptCacheState = this._promptCache.read(this.resourceUri);
 		if (this._launchPlan.kind === 'resume') {
-			await trace('usageMetrics', () => this._refreshSessionUsageMetrics());
+			await this._refreshSessionUsageMetrics();
 			if (this._store.isDisposed) {
 				throw new CancellationError();
 			}

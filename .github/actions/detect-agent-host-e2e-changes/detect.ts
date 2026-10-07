@@ -55,7 +55,6 @@ const pathPrefixes = [
 	'src/vs/platform/',
 	'test/unit/electron/',
 	'test/integration/agentHost/',
-	'test/integration/run-with-tmpfs.sh',
 ];
 
 function affectsAgentHostE2E(path: string): boolean {

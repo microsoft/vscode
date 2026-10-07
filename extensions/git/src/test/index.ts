@@ -23,9 +23,6 @@ if (process.env.VSCODE_BROWSER) {
 } else {
 	suite = 'Integration Git Tests';
 }
-if (process.env.TEST_TMPFS_BACKING) {
-	suite += ` ${process.env.TEST_TMPFS_BACKING}`;
-}
 
 if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || process.env.GITHUB_WORKSPACE) {
 	options.reporter = 'mocha-multi-reporters';

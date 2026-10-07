@@ -29,6 +29,9 @@ const diskLifecyclePattern = [
 	'automation lifecycle: an unavailable model produces a durable failed run',
 	'regression coverage: cold resume retains ordered user and assistant context',
 	'regression coverage: identical prompts remain separate completed turns after resume',
+	'detached worktree safety: archive commits local edits and restores them on unarchive',
+	'detached worktree safety: archived handles remain restorable after a host restart',
+	'detached worktree safety: deletion recovers when the checkout was already removed externally',
 ].join('|');
 
 interface ISuite {
@@ -92,7 +95,7 @@ async function main(): Promise<void> {
 		runStoragePasses(storage, jobs, forwardedArgs);
 		return;
 	}
-	const storageBacking = process.env['TEST_TMPFS_BACKING'] ?? 'disk';
+	const storageBacking = process.env['AGENT_HOST_E2E_STORAGE_BACKING'] ?? 'disk';
 	if (process.platform === 'linux') {
 		const filesystem = fs.statfsSync(tmpdir());
 		if (storageBacking === 'tmpfs' && filesystem.type !== 0x01021994) {
@@ -144,7 +147,7 @@ function runStoragePasses(storage: 'tmpfs' | 'split', jobs: number, args: readon
 	delete environment.ELECTRON_RUN_AS_NODE;
 	const runnerArgs = [__filename, '--storage', 'disk', '--jobs', String(jobs)];
 	const tmpfs = spawnSync('bash', [
-		join(repoRoot, 'test', 'integration', 'run-with-tmpfs.sh'),
+		join(__dirname, 'tmpfs.sh'),
 		process.execPath, ...runnerArgs, ...args,
 	], { cwd: repoRoot, env: { ...environment, TMPDIR: '/tmp' }, stdio: 'inherit' });
 	if (tmpfs.error) {
@@ -163,7 +166,7 @@ function runStoragePasses(storage: 'tmpfs' | 'split', jobs: number, args: readon
 			cwd: repoRoot,
 			env: {
 				...environment,
-				TEST_TMPFS_BACKING: 'disk',
+				AGENT_HOST_E2E_STORAGE_BACKING: 'disk',
 				AGENT_HOST_RECORD_PROTOCOL_SURFACE: '0',
 				AGENT_HOST_E2E_COVERAGE: '0',
 			},
@@ -192,7 +195,7 @@ function startResourceDiagnostics(jobs: number): () => void {
 			appendFileSync(output, JSON.stringify({
 				timestamp: new Date().toISOString(),
 				jobs,
-				storage: process.env['TEST_TMPFS_BACKING'] ?? 'disk',
+				storage: process.env['AGENT_HOST_E2E_STORAGE_BACKING'] ?? 'disk',
 				tmpdir: tmpdir(),
 				resources,
 			}) + '\n');
@@ -380,7 +383,7 @@ function suiteArguments(args: readonly string[], suite: ISuite): readonly string
 	const result = [...args];
 	const tfsIndex = result.indexOf('--tfs');
 	if (tfsIndex >= 0 && result[tfsIndex + 1]) {
-		const storage = process.env['TEST_TMPFS_BACKING'];
+		const storage = process.env['AGENT_HOST_E2E_STORAGE_BACKING'];
 		result[tfsIndex + 1] = `${result[tfsIndex + 1]} ${suite.label}${storage ? ` ${storage}` : ''}`;
 	}
 	return result;

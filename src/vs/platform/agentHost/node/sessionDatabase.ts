@@ -10,8 +10,6 @@ import { MAX_TERMINAL_OUTPUT_BYTES, type IFileEditContent, type IFileEditRecord,
 import { dirname } from '../../../base/common/path.js';
 import { URI } from '../../../base/common/uri.js';
 import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, type Message } from '../common/state/sessionState.js';
-import type { ILogger } from '../../log/common/log.js';
-import { traceAgentHostOperation } from './agentHostOperationDiagnostics.js';
 
 /**
  * A single numbered migration. Migrations are applied in order of
@@ -395,21 +393,7 @@ export class SessionDatabase implements ISessionDatabase {
 	private readonly _turnUsageSequencer = new Sequencer();
 
 	private _queueOperation<T>(operation: (db: Database) => Promise<T>): Promise<T> {
-		return this._queueMutationOperation(async () => operation(await this._ensureDb()));
-	}
-
-	private _queueMutationOperation<T>(operation: () => Promise<T>): Promise<T> {
-		return this._trace('mutationQueue', () => this._mutationSequencer.queue(() =>
-			this._trace('mutation', operation)
-		));
-	}
-
-	private _queueMetadata<T>(operation: () => Promise<T>): Promise<T> {
-		return this._trace('metadataQueue', () => this._metadataSequencer.queue(() => this._trace('metadata', operation)));
-	}
-
-	private _trace<T>(phase: string, operation: () => Promise<T>): Promise<T> {
-		return traceAgentHostOperation(this._logService, `SessionDatabase:${this._path}`, phase, operation);
+		return this._mutationSequencer.queue(async () => operation(await this._ensureDb()));
 	}
 
 	/**
@@ -456,7 +440,7 @@ export class SessionDatabase implements ISessionDatabase {
 	 * Always acquire sequencers in metadata, turn-data, mutation order.
 	 */
 	protected _mutateMetadataAndTurnUsage(operation: (db: Database) => Promise<void>): Promise<void> {
-		return this._track(() => this._queueMetadata(() =>
+		return this._track(() => this._metadataSequencer.queue(() =>
 			this._turnUsageSequencer.queue(() =>
 				this._queueTransaction(operation)
 			)
@@ -487,7 +471,6 @@ export class SessionDatabase implements ISessionDatabase {
 	constructor(
 		private readonly _path: string,
 		private readonly _migrations: readonly ISessionDatabaseMigration[] = sessionDatabaseMigrations,
-		private readonly _logService?: ILogger,
 	) { }
 
 	/**
@@ -509,10 +492,10 @@ export class SessionDatabase implements ISessionDatabase {
 			this._dbPromise = (async () => {
 				// Ensure the parent directory exists before SQLite tries to
 				// create the database file.
-				await this._trace('mkdir', () => fs.promises.mkdir(dirname(this._path), { recursive: true }));
-				const db = await this._trace('open', () => dbOpen(this._path));
+				await fs.promises.mkdir(dirname(this._path), { recursive: true });
+				const db = await dbOpen(this._path);
 				try {
-					await this._trace('migrate', () => runMigrations(db, this._migrations));
+					await runMigrations(db, this._migrations);
 				} catch (err) {
 					await dbClose(db);
 					this._dbPromise = undefined;
@@ -814,7 +797,7 @@ export class SessionDatabase implements ISessionDatabase {
 
 	async getPersistedTurns(): Promise<Array<IPersistedTurnRecord & { seq: number }>> {
 		const db = await this._ensureDb();
-		const rows = await this._trace('persistedTurnsRead', () => dbAll(db, 'SELECT turn_id, chat_uri, anchor_turn_id, seq, payload, kind FROM local_turns ORDER BY seq', []));
+		const rows = await dbAll(db, 'SELECT turn_id, chat_uri, anchor_turn_id, seq, payload, kind FROM local_turns ORDER BY seq', []);
 		return rows.map(r => ({
 			kind: r.kind as IPersistedTurnRecord['kind'],
 			turnId: r.turn_id as string,
@@ -1008,7 +991,7 @@ export class SessionDatabase implements ISessionDatabase {
 
 	async getMetadata(key: string): Promise<string | undefined> {
 		const db = await this._ensureDb();
-		const row = await this._trace('metadataRead', () => dbGet(db, 'SELECT value FROM session_metadata WHERE key = ?', [key]));
+		const row = await dbGet(db, 'SELECT value FROM session_metadata WHERE key = ?', [key]);
 		return row?.value as string | undefined;
 	}
 
@@ -1021,7 +1004,7 @@ export class SessionDatabase implements ISessionDatabase {
 		}
 		const db = await this._ensureDb();
 		const placeholders = keys.map(() => '?').join(',');
-		const rows = await this._trace('metadataRead', () => dbAll(db, `SELECT key, value FROM session_metadata WHERE key IN (${placeholders})`, keys));
+		const rows = await dbAll(db, `SELECT key, value FROM session_metadata WHERE key IN (${placeholders})`, keys);
 		for (const key of keys) {
 			result[key] = undefined;
 		}
@@ -1032,13 +1015,13 @@ export class SessionDatabase implements ISessionDatabase {
 	}
 
 	setMetadata(key: string, value: string): Promise<void> {
-		return this._track(() => this._queueMetadata(() => this._queueMutation(async db => {
+		return this._track(() => this._metadataSequencer.queue(() => this._queueMutation(async db => {
 			await dbRun(db, 'INSERT OR REPLACE INTO session_metadata (key, value) VALUES (?, ?)', [key, value]);
 		})));
 	}
 
 	setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
-		return this._track(() => this._queueMetadata(() =>
+		return this._track(() => this._metadataSequencer.queue(() =>
 			this._queueTransaction(async db => {
 				for (const [key, value] of Object.entries(values)) {
 					await dbRun(db, 'INSERT OR REPLACE INTO session_metadata (key, value) VALUES (?, ?)', [key, value]);
@@ -1048,7 +1031,7 @@ export class SessionDatabase implements ISessionDatabase {
 	}
 
 	deleteMetadata(keys: readonly string[]): Promise<void> {
-		return this._track(() => this._queueMetadata(() => {
+		return this._track(() => this._metadataSequencer.queue(() => {
 			if (keys.length === 0) {
 				return Promise.resolve();
 			}
@@ -1061,9 +1044,9 @@ export class SessionDatabase implements ISessionDatabase {
 
 	async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<SessionCatalogSyncWriteResult> {
 		validateCatalogSyncSnapshot(snapshot);
-		return this._track(() => this._queueMetadata(async () => {
+		return this._track(() => this._metadataSequencer.queue(async () => {
 			const db = await this._ensureDb();
-			return this._queueMutationOperation(async () => {
+			return this._mutationSequencer.queue(async () => {
 				await dbExec(db, 'BEGIN TRANSACTION');
 				try {
 					const existingRow = await dbGet(db, 'SELECT session_generation, source_revision, projection_version, acknowledged_hash, pending_hash, pending_payload FROM catalog_sync_snapshot WHERE singleton_id = 1', []);
@@ -1109,9 +1092,9 @@ export class SessionDatabase implements ISessionDatabase {
 		if (snapshot.sessionGeneration === expectedSessionGeneration) {
 			throw new Error(`Catalog sync generation transition must change the session generation`);
 		}
-		return this._track(() => this._queueMetadata(async () => {
+		return this._track(() => this._metadataSequencer.queue(async () => {
 			const db = await this._ensureDb();
-			return this._queueMutationOperation(async () => {
+			return this._mutationSequencer.queue(async () => {
 				await dbExec(db, 'BEGIN TRANSACTION');
 				try {
 					const existingRow = await dbGet(db, 'SELECT session_generation, source_revision, projection_version, acknowledged_hash, pending_hash, pending_payload FROM catalog_sync_snapshot WHERE singleton_id = 1', []);
@@ -1135,7 +1118,7 @@ export class SessionDatabase implements ISessionDatabase {
 	}
 
 	setMetadataValuesIfAbsent(key: string, values: Readonly<Record<string, string>>, copies: Readonly<Record<string, string>> = {}): Promise<boolean> {
-		return this._track(() => this._queueMetadata(() =>
+		return this._track(() => this._metadataSequencer.queue(() =>
 			this._queueTransaction(async db => {
 				const existing = await dbGet(db, 'SELECT 1 FROM session_metadata WHERE key = ?', [key]);
 				if (existing) {
@@ -1153,7 +1136,7 @@ export class SessionDatabase implements ISessionDatabase {
 	}
 
 	getCatalogSyncSnapshot(): Promise<ISessionCatalogSyncSnapshot | undefined> {
-		return this._queueMetadata(async () => {
+		return this._metadataSequencer.queue(async () => {
 			const db = await this._ensureDb();
 			const row = await dbGet(db, 'SELECT session_generation, source_revision, projection_version, acknowledged_hash, pending_hash, pending_payload FROM catalog_sync_snapshot WHERE singleton_id = 1', []);
 			return row ? toCatalogSyncSnapshot(row) : undefined;
@@ -1162,9 +1145,9 @@ export class SessionDatabase implements ISessionDatabase {
 
 	async acknowledgeCatalogSyncSnapshot(acknowledgement: ISessionCatalogSyncAcknowledgement): Promise<boolean> {
 		validateCatalogSyncAcknowledgement(acknowledgement);
-		return this._track(() => this._queueMetadata(async () => {
+		return this._track(() => this._metadataSequencer.queue(async () => {
 			const db = await this._ensureDb();
-			return this._queueMutationOperation(async () => {
+			return this._mutationSequencer.queue(async () => {
 				const result = await dbRun(db, `UPDATE catalog_sync_snapshot
 					SET acknowledged_hash = pending_hash,
 						pending_hash = NULL,
@@ -1367,7 +1350,7 @@ export class SessionDatabase implements ISessionDatabase {
 	}
 
 	async close() {
-		await (this._closed ??= this._dbPromise?.then(db => this._trace('close', () => dbClose(db))).catch(() => { }) || true);
+		await (this._closed ??= this._dbPromise?.then(db => dbClose(db)).catch(() => { }) || true);
 	}
 
 	dispose(): void {
