@@ -223,7 +223,7 @@ suite('aiCustomizationManagementEditor', () => {
 		markdownRendererService: { render(markdown: { value: string }): { element: HTMLElement; dispose(): void } };
 		editorPreviewDisposables: DisposableStore;
 		editorPreviewRenderScheduler: { cancel(): void; schedule(): void };
-		viewMode: 'list' | 'migration' | 'editor' | 'mcpDetail' | 'pluginDetail' | 'toolsDetail';
+		viewMode: 'list' | 'migration' | 'editor' | 'marketplaceDetail' | 'mcpDetail' | 'connectorDetail' | 'pluginDetail';
 		mcpDetailInput: IMcpServerDetailInput | undefined;
 		embeddedMcpDetail: { setMigratable(migratable: boolean): void } | undefined;
 		refreshMcpDetailMigrationState(): void;
@@ -858,7 +858,7 @@ suite('aiCustomizationManagementEditor', () => {
 		const hidden = readVisibility();
 		editor.setVisible(true);
 		const visible = readVisibility();
-		const detailModes = ['editor', 'migration', 'mcpDetail', 'pluginDetail', 'toolsDetail'] as const;
+		const detailModes = ['editor', 'migration', 'mcpDetail', 'pluginDetail'] as const;
 		const hiddenInDetails = detailModes.map(mode => {
 			editor.viewMode = mode;
 			editor.updateContentVisibility();
