@@ -26,6 +26,27 @@ suite('mapSessionEvents — history replay', () => {
 
 	const session = AgentSession.uri('copilot', 'test-session');
 
+	test('declares native input contracts only when replay knows the client tool set', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', data: { interactionId: 'message', content: 'Read files' } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'native', toolName: 'view', arguments: { path: '/workspace/File.ts', view_range: [1, 10] } } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'native', success: true } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'client', toolName: 'edit', arguments: { path: '/workspace/File.ts' } } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'client', success: true } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'mcp', toolName: 'grep', arguments: { pattern: 'query' }, mcpServerName: 'server', mcpToolName: 'grep' } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'mcp', success: true } },
+		];
+		const summaries = await Promise.all([undefined, new Set(['edit'])].map(async clientToolNames => {
+			const result = await mapSessionEvents(session, undefined, toSessionEvents(events), { clientToolNames });
+			return result.turns.flatMap(turn => turn.responseParts.flatMap(part =>
+				part.kind === ResponsePartKind.ToolCall ? [readToolCallMeta(part.toolCall)['vscode.toolInputContract']] : []));
+		}));
+		assert.deepStrictEqual(summaries, [
+			[undefined, undefined, undefined],
+			['copilot-cli-v1', undefined, undefined],
+		]);
+	});
+
 	function partKinds(parts: readonly ResponsePart[]): Array<{ kind: ResponsePartKind; content?: StringOrMarkdown }> {
 		return parts.map(p => p.kind === ResponsePartKind.Markdown || p.kind === ResponsePartKind.SystemNotification ? { kind: p.kind, content: p.content } : { kind: p.kind });
 	}

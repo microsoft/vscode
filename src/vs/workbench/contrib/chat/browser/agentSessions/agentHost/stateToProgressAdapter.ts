@@ -20,7 +20,7 @@ import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { buildSubagentChatUri, getTurnError, MessageKind, ToolCallCancellationReason, ToolCallContributorKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ResponsePartKind, getInlineToolInput, getToolFileEdits, getToolOutputText, getToolSubagentContent, hasReportedUsage, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ActiveTurn, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ICompletedToolCall, type InputRequestResponsePart, type Message, type TerminalCommandResult, type ToolCallPendingConfirmationState, type ToolCallState, type ToolResultSubagentContent, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { getToolKind as getProtocolToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
-import { readToolCallMeta, readToolCallPresentation, type IAgentToolOutputChunk } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
+import { copilotCliToolInputContract, readToolCallMeta, readToolCallPresentation, type IAgentToolOutputChunk } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
 import { readImageGenerationToolMetadata } from '../../../../../../platform/agentHost/common/meta/agentImageGenerationMeta.js';
 import { readAttachmentDetail } from '../../../../../../platform/agentHost/common/meta/attachmentMeta.js';
 import { COPILOT_HYDRA_FUSION_MODEL_ID } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
@@ -54,6 +54,7 @@ import { type ChatRequestSource, type IChatRequestVariableData } from '../../../
 import { ChatRequestOriginKind, type IChatRequestOrigin } from '../../../common/chatRequestOrigin.js';
 import { AgentHostCompletionReferenceKind, restoreChatTranscriptContextVariableEntry, restorePasteVariableEntryFromAttachment, toAgentHostCompletionVariableEntryFromMetadata, type IAgentFeedbackVariableEntry, type IChatRequestVariableEntry, type IElementVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { type IToolConfirmationMessages, type IToolData, type IPreparedToolInvocation, type IToolResult, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
+import { ChatToolInvocationSummary, getToolInvocationSummaryFromInput } from '../../../common/tools/toolInvocationSummary.js';
 import { MCP } from '../../../../mcp/common/modelContextProtocol.js';
 import { basename, isEqual } from '../../../../../../base/common/resources.js';
 import { hasKey, type Mutable } from '../../../../../../base/common/types.js';
@@ -538,6 +539,32 @@ function getToolRawInput(tc: ToolCallState): unknown {
 	} catch {
 		return { input: toolInput };
 	}
+}
+
+function getToolSummary(tc: ToolCallState, resourceUris: IAgentHostResourceUriMapper): ChatToolInvocationSummary {
+	if (tc.status === ToolCallStatus.Cancelled) {
+		return { kind: tc.reason === ToolCallCancellationReason.Skipped ? 'skipped' : 'denied' };
+	}
+	if (tc.status !== ToolCallStatus.Completed) {
+		return { kind: 'incomplete' };
+	}
+	if (!tc.success) {
+		return { kind: 'failed' };
+	}
+	const edits = getToolFileEdits(tc).map(normalizeFileEdit);
+	if (edits.length > 0) {
+		return edits.every(edit => edit !== undefined)
+			? { kind: 'edit', resources: edits.map(edit => ({ uri: resourceUris.fromAgentHost(edit.resource) })) } : { kind: 'unknown' };
+	}
+	const meta = readToolCallMeta(tc);
+	if (getTerminalContent(tc.content) || !tc.contributor && meta.toolKind === 'terminal') {
+		const exitCode = getTerminalCommandResult(tc)?.exitCode;
+		return { kind: exitCode !== undefined && exitCode !== 0 ? 'failed' : 'command' };
+	}
+	if (tc.contributor || meta['vscode.toolInputContract'] !== copilotCliToolInputContract) {
+		return { kind: 'unknown' };
+	}
+	return getToolInvocationSummaryFromInput(tc.toolName, getToolRawInput(tc), uri => resourceUris.fromAgentHost(uri)) ?? { kind: 'unknown' };
 }
 
 function buildMcpAppToolInputData(tc: ToolCallState, connectionAuthority: string, existingRawInput?: unknown): IChatToolInputInvocationData | undefined {
@@ -2194,6 +2221,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 		&& (tc.status !== ToolCallStatus.Completed || getToolFileEdits(tc).length === 0)
 		? getToolInputOutputDetails(tc, !isSuccess, getToolErrorString(tc), !!(toolSpecificData?.kind === 'input' && toolSpecificData.mcpAppData), connectionAuthority)
 		: undefined;
+	const summary = getToolSummary(tc, resourceUris);
 
 	return {
 		kind: 'toolInvocationSerialized',
@@ -2209,6 +2237,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 			? ToolInvocationPresentation.Hidden
 			: shouldHideCompletedAgentHostAskUserTool(tc) ? ToolInvocationPresentation.HiddenAfterComplete : undefined,
 		subAgentInvocationId: subAgentInvocationId,
+		summary,
 		toolSpecificData,
 		resultDetails,
 		resultError: tc.status === ToolCallStatus.Completed && !tc.success ? getToolErrorString(tc) || true : undefined,
@@ -2705,6 +2734,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 	}
 
 	const invocation = new ChatToolInvocation({ originMessage: toolCallOriginMessage(tc) }, toolData, tc.toolCallId, subAgentInvocationId, undefined);
+	invocation.summary = getToolSummary(tc, resourceUris);
 	invocation.invocationMessage = stringOrMarkdownToString(readToolCallPresentation(tc).invocationMessage, connectionAuthority) ?? tc.displayName;
 	if (isAgentHostAskUserTool(tc.toolName)) {
 		invocation.invocationMessage = localize('agentHost.askUser.waiting', "Waiting for answer...");
@@ -3025,6 +3055,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 	const isCompleted = tc.status === ToolCallStatus.Completed;
 	const isCancelled = tc.status === ToolCallStatus.Cancelled;
 	const isTerminal = isTerminalToolCall(tc, invocation.toolSpecificData?.kind);
+	invocation.summary = getToolSummary(tc, resourceUris);
 
 	if (!isTerminal && invocation.toolSpecificData?.kind === 'search' && getToolKind(tc) !== 'search') {
 		invocation.toolSpecificData = buildMcpAppToolInputData(tc, connectionAuthority);

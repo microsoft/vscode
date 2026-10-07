@@ -55,7 +55,7 @@ import { toAgentMessageDelegationMeta } from '../../../../../../platform/agentHo
 import { toRemoteSessionMessageMetadata } from '../../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { ActionType, AuthRequiredReason, isSessionAction, isChatAction, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction as AgentHostChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, AHP_NOT_FOUND, ProtocolError, type DispatchActionParams, type IStateSnapshot, type JsonRpcRequest, type ProtocolMessage } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { ChatInteractivity, ConfirmationOptionKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type AgentCustomization, type ClientPluginCustomization, type ProtectedResourceMetadata, type SessionActiveClient, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { BackgroundWorkKind, ChatInteractivity, ConfirmationOptionKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type AgentCustomization, type ClientPluginCustomization, type ProtectedResourceMetadata, type SessionActiveClient, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, createErrorResponsePart, buildChatUri, buildDefaultChatUri, parseChatUri, parseDefaultChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, ToolResultContentType, MessageAttachmentKind, MessageKind, PendingMessageKind, withMessageRequestHiddenFromTranscript, withSessionMultiRootMetadata, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo, type MessageAttachment, type MessageChatAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, type CompletionsResult, type InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { sessionReducer, chatReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
@@ -9596,6 +9596,37 @@ suite('AgentHostChatContribution', () => {
 	// ---- History loading ---------------------------------------------------
 
 	suite('history loading', () => {
+
+		for (const restored of [false, true]) {
+			test(`reports live background shells from the advertised chat without provider metadata (restored=${restored})`, async () => {
+				const { sessionHandler, agentHostService } = createContribution(disposables);
+				const sessionUri = AgentSession.uri('copilot', 'background-shells');
+				const chatUri = agentHostService.defaultChatUri = 'ahp-chat:/host-selected/background-shells';
+				const summary = {
+					resource: sessionUri.toString(), provider: 'copilot', title: 'Background shells', status: SessionStatus.Idle,
+					createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
+				};
+				const shell = { kind: BackgroundWorkKind.Shell, id: 'opaque-work-a', label: 'Build', command: 'build', startedAt: summary.createdAt } as const;
+				agentHostService.sessionStates.set(sessionUri.toString(), { ...createSessionState(summary), lifecycle: SessionLifecycle.Ready });
+				agentHostService.chatStates.set(chatUri, {
+					...createChatState(createDefaultChatSummary(summary, chatUri)),
+					backgroundWork: restored ? [shell] : undefined,
+				});
+				const session = disposables.add(await sessionHandler.provideChatSessionContent(URI.from({ scheme: 'agent-host-copilot', path: '/background-shells' }), CancellationToken.None));
+				assert.ok(session.backgroundShellCount);
+				const states: (number | undefined)[] = [];
+				disposables.add(autorun(reader => states.push(session.backgroundShellCount!.read(reader))));
+				let serverSeq = 0;
+				const fire = (action: AgentHostChatAction) => agentHostService.fireAction({ channel: chatUri, action, serverSeq: ++serverSeq, origin: undefined });
+				fire({ type: ActionType.ChatBackgroundWorkSet, work: shell });
+				fire({ type: ActionType.ChatBackgroundWorkSet, work: { ...shell, terminal: 'remote-terminal:/build-output' } });
+				fire({ type: ActionType.ChatBackgroundWorkSet, work: { kind: BackgroundWorkKind.Subagent, id: 'opaque-agent', label: 'Review', startedAt: summary.createdAt, chat: 'ahp-chat:/worker' } });
+				fire({ type: ActionType.ChatBackgroundWorkSet, work: { ...shell, id: 'opaque-work-b' } });
+				fire({ type: ActionType.ChatBackgroundWorkRemoved, id: shell.id });
+				fire({ type: ActionType.ChatBackgroundWorkRemoved, id: 'opaque-work-b' });
+				assert.deepStrictEqual(states, restored ? [1, 2, 1, 0] : [undefined, 1, 2, 1, 0]);
+			});
+		}
 
 		test('archived session read-only state follows session status', async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
