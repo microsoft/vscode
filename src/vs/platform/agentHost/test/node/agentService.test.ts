@@ -6642,6 +6642,57 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		}
 
+		test('set_workspace uses the sole connected active client for a provider-started turn', async () => {
+			const original = URI.file('/workspace/original');
+			const destination = URI.file('/workspace/destination');
+			class WorkspaceAgent extends MockAgent {
+				serverToolHost: IAgentServerToolHost | undefined;
+
+				setServerToolHost(host: IAgentServerToolHost): void {
+					this.serverToolHost = host;
+				}
+
+				async setChatWorkingDirectory(): Promise<void> { }
+			}
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new WorkspaceAgent('copilot', undefined, { workspaceConversion: true }));
+			registerTestAgentProvider(svc, agent);
+			const clientConnections = Reflect.get(svc, '_clientConnections') as IAgentHostClientConnectionService;
+			disposables.add(clientConnections.registerSource({
+				hasSeenClient: clientId => clientId === 'client',
+				isClientConnected: clientId => clientId === 'client',
+				isLocalClient: () => true,
+				getConnectedClientTransportCounts: () => new Map([['client', 1]]),
+				requestWorkspaceTrust: async () => true,
+				requestMcpAuthentication: async () => false,
+			}));
+			const session = await svc.createSession({
+				provider: agent.id,
+				workingDirectories: [original],
+				activeClient: { clientId: 'client', tools: [] },
+			});
+			const state = getStateManager(svc);
+			state.dispatchServerAction(session.toString(), { type: ActionType.SessionConfigChanged, config: { autoApprove: 'autoApprove' } });
+			const chat = URI.parse(buildDefaultChatUri(session));
+			agent.fireProgress({
+				kind: 'action',
+				resource: chat,
+				action: {
+					type: ActionType.ChatTurnStarted,
+					turnId: 'provider-turn',
+					startedAt: new Date().toISOString(),
+					message: { text: 'Work in the destination', origin: { kind: MessageKind.User } },
+				},
+			});
+			await waitForCondition(() => state.getActiveTurnId(chat.toString()) === 'provider-turn', 'Expected the provider-started turn to become active');
+			const result = await agent.serverToolHost!.executeTool(chat.toString(), SessionServerToolName.SetWorkspace, {
+				workspaceFolder: destination.toString(),
+				isolation: false,
+			});
+
+			assert.strictEqual(result.split('.')[0], `Workspace will be set to ${destination.toString()} after this turn ends`);
+		});
+
 		test('workspace finalization serializes peer disposal across metadata persistence', async () => {
 			const started = new DeferredPromise<void>();
 			const release = new DeferredPromise<void>();
