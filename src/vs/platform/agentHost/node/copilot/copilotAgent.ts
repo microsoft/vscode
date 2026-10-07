@@ -789,12 +789,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _freeLongContextModels = new Set<string>();
 
 	/**
-	 * Bounded exponential-backoff retry for {@link _refreshModels}. The SDK's
-	 * `models.list` RPC can fail transiently (e.g. a `429 "too many requests"`
-	 * right after startup). Without a retry the model picker would stay empty
-	 * until the next external refresh trigger (a GitHub token change, a CLI
-	 * client restart, or the host's periodic scheduler), so we retry a few
-	 * times before giving up. Overridable in tests to avoid real delays.
+	 * Bounded exponential-backoff retry for failed or unexpectedly empty model refreshes.
+	 * Overridable in tests to avoid real delays.
 	 */
 	protected readonly _modelRefreshMaxAttempts: number = MODEL_REFRESH_MAX_ATTEMPTS;
 	protected readonly _modelRefreshBaseDelayMs: number = MODEL_REFRESH_BASE_DELAY_MS;
@@ -3552,6 +3548,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._logService.info('[Copilot] Listing models...');
 		const client = await this._ensureClient();
 		const { models } = await client.rpc.models.list(this._getEnterpriseHost() ? {} : { gitHubToken });
+		// Empty SDK results can also mean discovery failed, so do not replace an already loaded catalog.
+		if (!models.length && this._capiModels.some(model => model !== this._fallbackAutoModel)) {
+			throw new Error('Model refresh returned an empty catalog; retaining the previous models');
+		}
 		this._freeLongContextModels.clear();
 		const result = models.map((m): IAgentModelInfo => {
 			const billing = normalizeCAPIBilling(m.billing);
