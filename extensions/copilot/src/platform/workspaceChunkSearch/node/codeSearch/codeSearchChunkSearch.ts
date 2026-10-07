@@ -191,7 +191,7 @@ export class CodeSearchChunkSearch extends Disposable {
 			}));
 		}
 
-		// Always refresh on a real ADO index state change; never dedup this by session identity.
+		// AdoCodeSearchRepo handles auth changes; index notifications always refresh all ADO repositories.
 		this._register(this._adoCodeSearchService.onDidChangeIndexState(() => {
 			this.updateRepoStatuses('ado', new TelemetryCorrelationId('CodeSearchChunkSearch::onDidAdoIndexStateChange'));
 		}));

@@ -245,7 +245,7 @@ describe('CodeSearchChunkSearch ado authentication identity', () => {
 	}
 
 	test.each(['issuer', 'account', 'session', 'sign-out'] as const)(`anyAdoSession %s changes invalidate repository authorization`, async change => {
-		const { authentication, ado, search } = await create();
+		const { authentication, ado, snapshot } = await create();
 		const previous = authentication.anyAdoSession!;
 		switch (change) {
 			case 'issuer':
@@ -263,35 +263,32 @@ describe('CodeSearchChunkSearch ado authentication identity', () => {
 		}
 		ado.getRemoteIndexState.mockResolvedValue(Result.error({ type: 'not-authorized' }));
 		authentication.adoChanges.fire();
-		await vi.waitFor(() => expect(search.getRemoteIndexState(false).repos.map(repo => repo.status)).toEqual([CodeSearchRepoStatus.NotAuthorized]));
+		await vi.waitFor(() => expect(snapshot()).toEqual({ requests: 2, statuses: [CodeSearchRepoStatus.NotAuthorized] }));
 		// A second no-op event (nothing changed since the previous one) must not trigger another refetch.
 		authentication.adoChanges.fire();
 		expect(ado.getRemoteIndexState).toHaveBeenCalledTimes(2);
 	});
 
 	test('token refreshes and equivalent session objects do not recheck repository authorization', async () => {
-		const { authentication, ado, search } = await create();
+		const { authentication, snapshot } = await create();
 		const previous = authentication.anyAdoSession!;
 		authentication.anyAdoSession = { ...previous, accessToken: 'refreshed-token', account: { ...previous.account }, authorizationServer: URI.parse(previous.authorizationServer!.toString()) };
 		// Simulate repeated silent token refreshes (e.g. window focus changes) firing the no-op auth-change event.
 		authentication.adoChanges.fire();
 		authentication.adoChanges.fire();
 		authentication.adoChanges.fire();
-		expect({
-			requests: ado.getRemoteIndexState.mock.calls.length,
-			statuses: search.getRemoteIndexState(false).repos.map(repo => repo.status),
-		}).toEqual({ requests: 1, statuses: [CodeSearchRepoStatus.Ready] });
+		expect(snapshot()).toEqual({ requests: 1, statuses: [CodeSearchRepoStatus.Ready] });
 	});
 
 	test('a same-identity token renewal recovers an unauthorized ado repo', async () => {
-		const { authentication, ado, search, snapshot } = await create();
+		const { authentication, ado, snapshot } = await create();
 		const previous = authentication.anyAdoSession!;
 
 		// First, make the repo unauthorized via a real identity change (401 from a stale account).
 		authentication.anyAdoSession = { ...previous, account: { ...previous.account, id: 'other-account' } };
 		ado.getRemoteIndexState.mockResolvedValue(Result.error({ type: 'not-authorized' }));
 		authentication.adoChanges.fire();
-		await vi.waitFor(() => expect(search.getRemoteIndexState(false).repos.map(repo => repo.status)).toEqual([CodeSearchRepoStatus.NotAuthorized]));
+		await vi.waitFor(() => expect(snapshot()).toEqual({ requests: 2, statuses: [CodeSearchRepoStatus.NotAuthorized] }));
 
 		// A same-identity token swap (e.g. a fresh token for the same account after re-auth) must still retry.
 		const unauthorizedSession = authentication.anyAdoSession;
@@ -603,6 +600,7 @@ describe('CodeSearchChunkSearch ado authentication identity', () => {
 	test.each(['auth', 'index'] as const)('initialization waits for an %s refresh started before status publication', async trigger => {
 		const observations = [];
 		let reachedPublication = false;
+		// Visit each promise boundary until the first status publication, rather than relying on one microtask count.
 		for (let microtasks = 0; microtasks < 10; microtasks++) {
 			const previous = new DeferredPromise<StatusResult>();
 			const latest = new DeferredPromise<StatusResult>();
@@ -750,10 +748,37 @@ describe('CodeSearchChunkSearch ado authentication identity', () => {
 		expect(ado.getRemoteIndexState).toHaveBeenCalledTimes(1);
 	});
 
+	test('an already-cancelled refresh does not supersede initialization', async () => {
+		const pending = new DeferredPromise<StatusResult>();
+		const { snapshot, repos: [repo] } = await create({ getRemoteIndexState: () => pending.p, initialize: false });
+		try {
+			await expect(repo.refreshStatusFromEndpoint(true, new TelemetryCorrelationId('test'), CancellationToken.Cancelled)).rejects.toThrow(CancellationError);
+		} finally {
+			await pending.complete(ready());
+		}
+		await vi.waitFor(() => expect(snapshot()).toEqual({ requests: 1, statuses: [CodeSearchRepoStatus.Ready] }));
+	});
+
+	test('disposing before initialization prevents the first status request', async () => {
+		const authentication = new TestAuthenticationService();
+		disposables.add(authentication.changes);
+		disposables.add(authentication.adoChanges);
+		const ado = new class extends mock<IAdoCodeSearchService>() {
+			override getRemoteIndexState = vi.fn<IAdoCodeSearchService['getRemoteIndexState']>().mockResolvedValue(ready());
+		}();
+		const repoId = new AdoRepoId('org', 'project', 'repo');
+		const repo = disposables.add(new AdoCodeSearchRepo(
+			{ rootUri: URI.parse('file:///workspace') }, repoId, { repoId, fetchUrl: undefined },
+			disposables.add(new LogServiceImpl([])), ado, authentication, new NullTelemetryService(),
+		));
+		repo.dispose();
+		await repo.initialize();
+		expect(ado.getRemoteIndexState).not.toHaveBeenCalled();
+	});
+
 	test('a real index state change always rechecks repository authorization, even without a session change', async () => {
-		const { ado, search, indexStateChanges } = await create();
+		const { indexStateChanges, snapshot } = await create();
 		indexStateChanges.fire();
-		await vi.waitFor(() => expect(ado.getRemoteIndexState).toHaveBeenCalledTimes(2));
-		expect(search.getRemoteIndexState(false).repos.map(repo => repo.status)).toEqual([CodeSearchRepoStatus.Ready]);
+		await vi.waitFor(() => expect(snapshot()).toEqual({ requests: 2, statuses: [CodeSearchRepoStatus.Ready] }));
 	});
 });
