@@ -8,6 +8,8 @@ import { hasAgentMetadata } from '../metadata.js';
 import { imageGenerationToolMetaKey, readImageGenerationToolMetadata, type IImageGenerationToolMetadata } from './agentImageGenerationMeta.js';
 import { ISandboxNetworkRestrictions, isSandboxNetworkRestrictions } from '../../../../sandbox/common/sandboxSettingsResolutionHelper.js';
 
+export const copilotCliToolInputContract = 'copilot-cli-v1';
+
 /** Anything carrying a tool call's `_meta` bag (persisted state or wire actions). */
 interface IHasToolCallMeta {
 	readonly _meta?: Record<string, unknown>;
@@ -22,7 +24,7 @@ interface IHasToolCallMeta {
 export interface IToolCallMeta {
 	readonly [imageGenerationToolMetaKey]?: IImageGenerationToolMetadata;
 	/** Declares the input schema of a native tool, never a client- or MCP-contributed implementation. */
-	readonly 'vscode.toolInputContract'?: 'copilot-cli-v1';
+	readonly 'vscode.toolInputContract'?: typeof copilotCliToolInputContract;
 	/** Trusted Copilot host snapshot for integrated-browser client tools. Absent for other tools and harnesses. */
 	readonly 'vscode.copilotSandboxNetworkRestrictions'?: ISandboxNetworkRestrictions;
 	readonly 'agentHost.sandboxBypass'?: boolean;
@@ -177,8 +179,8 @@ export function readToolCallMeta(source: IHasToolCallMeta): IToolCallMeta {
 		return {};
 	}
 	const result: Mutable<IToolCallMeta> = {};
-	if (meta['vscode.toolInputContract'] === 'copilot-cli-v1') {
-		result['vscode.toolInputContract'] = 'copilot-cli-v1';
+	if (meta['vscode.toolInputContract'] === copilotCliToolInputContract) {
+		result['vscode.toolInputContract'] = copilotCliToolInputContract;
 	}
 	const networkRestrictions = meta['vscode.copilotSandboxNetworkRestrictions'];
 	if (isSandboxNetworkRestrictions(networkRestrictions)) {
