@@ -2538,6 +2538,25 @@ suite('Sessions - SessionsList', () => {
 			]);
 		});
 
+		test('cloud quick chats appear in Chats rather than the Unknown workspace group', () => {
+			const quickChat = { ...createSession('cloud-chat', {}), environment: 'cloud', isQuickChat: constObservable(true) };
+			const unknown = { ...createSession('unclassified-cloud-session', {}), environment: 'cloud', isQuickChat: undefined };
+			const sections = groupSessionsForList(
+				[quickChat, unknown],
+				SessionsGrouping.Workspace,
+				SessionsSorting.Created,
+				() => false,
+				undefined,
+				undefined,
+				true,
+			);
+
+			assert.deepStrictEqual(sections.map(section => ({ id: section.id, label: section.label, sessions: section.sessions.map(session => session.sessionId) })), [
+				{ id: 'quickchats', label: 'Chats', sessions: ['cloud-chat'] },
+				{ id: 'workspace:Unknown', label: 'Unknown', sessions: ['unclassified-cloud-session'] },
+			]);
+		});
+
 		test('pinned quick chat stays in Pinned, not Quick Chats', () => {
 			const quick = createSession('quick', { createdAt: new Date('2024-06-01') });
 			const sections = groupSessionsForList(
