@@ -1799,7 +1799,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		return this._defaultModel();
 	}
 
-	private async _resolveRestoredModel(model: ModelSelection | undefined): Promise<ModelSelection | undefined> {
+	private async _waitForModelRefresh(): Promise<void> {
 		// Ensure the catalog is populated before resolving the selection so a
 		// model picked before models finished loading isn't dropped. Authentication
 		// can queue a newer refresh while the current one is finishing, so follow
@@ -1809,6 +1809,14 @@ export class CodexAgent extends Disposable implements IAgent {
 			await refresh;
 			refresh = this._modelsRefreshPromise;
 		}
+	}
+
+	private async _resolveRestoredModel(model: ModelSelection | undefined): Promise<ModelSelection | undefined> {
+		await this._waitForModelRefresh();
+		return this._resolveModelFromCatalog(model);
+	}
+
+	private _resolveModelFromCatalog(model: ModelSelection | undefined): ModelSelection | undefined {
 		if (!model) {
 			return this._defaultModel();
 		}
@@ -1826,7 +1834,10 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	private async _resolveModel(session: ICodexSession): Promise<ModelSelection> {
-		const selected = await this._resolveRestoredModel(session.model);
+		await this._waitForModelRefresh();
+		// Read and resolve the current selection without yielding so prewarm
+		// cannot overwrite a model or configuration changed during discovery.
+		const selected = this._resolveModelFromCatalog(session.model);
 		if (selected) {
 			session.model = selected;
 			return selected;
