@@ -1620,7 +1620,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 					template.comparisonAttemptStatusLabel.textContent = '';
 					break;
 				case SessionStatus.NeedsInput:
-					template.comparisonAttemptStatusLabel.textContent = localize('comparisonAttemptNeedsInput', "Input needed");
+					template.comparisonAttemptStatusLabel.textContent = localize('comparisonAttemptNeedsInput', "Attention needed");
 					break;
 				case SessionStatus.Completed:
 					template.comparisonAttemptStatusLabel.textContent = '';
@@ -2833,7 +2833,7 @@ class SessionsAccessibilityProvider {
 					let label = element.label;
 					switch (this.automationStatus?.read(reader)) {
 						case SessionStatus.NeedsInput:
-							label = localize('automationsNeedsInputAria', "{0}, run needs input", element.label);
+							label = localize('automationsNeedsInputAria', "{0}, run needs attention", element.label);
 							break;
 						case SessionStatus.InProgress:
 							label = localize('automationsActiveAria', "{0}, run in progress", element.label);
@@ -2935,7 +2935,7 @@ class SessionsAccessibilityProvider {
 			const status = this.options?.showUnreadInCollapsedSections?.read(reader) ? getSessionHeaderStatus(sessions, reader, this.options.sessionsWithFailingCI?.read(reader)) : undefined;
 			switch (status) {
 				case SessionHeaderStatus.NeedsInput:
-					return localize('sessionSectionNeedsInputAria', "{0}, {1}, session needs input", label, sessions.length);
+					return localize('sessionSectionNeedsInputAria', "{0}, {1}, session needs attention", label, sessions.length);
 				case SessionHeaderStatus.FailingCI:
 					return localize('sessionSectionFailingCIAria', "{0}, {1}, session has failing CI checks", label, sessions.length);
 				case SessionHeaderStatus.Unread:
@@ -6137,8 +6137,8 @@ function getComparisonGroupSummary(comparison: ISessionComparison, sessions: rea
 	const finished = statuses.filter(status => status === SessionStatus.Completed || status === SessionStatus.Error).length;
 	if (needsInput > 0) {
 		return needsInput === 1
-			? localize('comparisonGroup.oneAttemptNeedsInput', "Comparison · 1 attempt needs input")
-			: localize('comparisonGroup.attemptsNeedInput', "Comparison · {0} attempts need input", needsInput);
+			? localize('comparisonGroup.oneAttemptNeedsInput', "Comparison · 1 attempt needs attention")
+			: localize('comparisonGroup.attemptsNeedInput', "Comparison · {0} attempts need attention", needsInput);
 	}
 	if (working > 0) {
 		return working === 1
@@ -6153,7 +6153,7 @@ function getComparisonGroupSummary(comparison: ISessionComparison, sessions: rea
 			? sessions.find(session => isEqual(session.resource, judge.sessionResource))?.status.read(reader)
 			: sessions.find(session => isEqual(session.resource, judge.sessionResource))?.status.get();
 		if (judgeStatus === SessionStatus.NeedsInput) {
-			return localize('comparisonGroup.judgeNeedsInput', "Comparison · Judge needs input");
+			return localize('comparisonGroup.judgeNeedsInput', "Comparison · Judge needs attention");
 		}
 		if (judgeStatus === SessionStatus.Untitled || judgeStatus === SessionStatus.InProgress) {
 			return localize('comparisonGroup.reviewing', "Comparison · Reviewing attempts");

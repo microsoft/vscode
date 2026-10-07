@@ -722,7 +722,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('chat.notifyWindowOnConfirmation.windowNotFocused', "Show OS notifications for confirmations when the window is not focused."),
 				nls.localize('chat.notifyWindowOnConfirmation.always', "Always show OS notifications for confirmations, even when the window is focused."),
 			],
-			description: nls.localize('chat.notifyWindowOnConfirmation', "Controls whether a chat session should present the user with an OS notification when a confirmation or question needs input. This includes a window badge as well as notification toast."),
+			description: nls.localize('chat.notifyWindowOnConfirmation', "Controls whether a chat session should present the user with an OS notification when a confirmation or question needs attention. This includes a window badge as well as notification toast."),
 			default: 'windowNotFocused',
 		},
 		[ChatConfiguration.AutoReply]: {
@@ -1092,7 +1092,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.SessionStateIndicatorEnabled]: {
 			type: 'boolean',
 			default: false,
-			markdownDescription: nls.localize('chat.experimental.sessionStateIndicator.enabled', "Enable state indicators around chat editor sessions that are in progress, need input, or have an unvisited completion. Customize the borders with `chat.sessionStateIndicator.inProgressBorder`, `chat.sessionStateIndicator.needsInputBorder`, and `chat.sessionStateIndicator.unvisitedBorder` in `#workbench.colorCustomizations#`."),
+			markdownDescription: nls.localize('chat.experimental.sessionStateIndicator.enabled', "Enable state indicators around chat editor sessions that are in progress, need attention, or have an unvisited completion. Customize the borders with `chat.sessionStateIndicator.inProgressBorder`, `chat.sessionStateIndicator.needsInputBorder`, and `chat.sessionStateIndicator.unvisitedBorder` in `#workbench.colorCustomizations#`."),
 			tags: ['experimental'],
 		},
 		[ChatConfiguration.NotifyWindowOnResponseReceived]: {

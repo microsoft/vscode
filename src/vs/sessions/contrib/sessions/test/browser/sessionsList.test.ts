@@ -1089,7 +1089,7 @@ suite('Sessions - SessionsList', () => {
 
 		function needsInputSections(container: HTMLElement): string[] {
 			return [...container.querySelectorAll('.session-section')]
-				.filter(header => header.querySelector('.session-section-icon .monaco-pixel-spinner-ring'))
+				.filter(header => header.querySelector('.session-section-icon .codicon-report'))
 				.map(header => header.querySelector('.session-section-label')!.textContent!);
 		}
 
@@ -1180,7 +1180,7 @@ suite('Sessions - SessionsList', () => {
 				return {
 					ariaLabel: header.closest('.monaco-list-row')?.getAttribute('aria-label'),
 					icon: header.querySelector('.session-section-icon')?.className,
-					indicator: !!header.querySelector('.codicon-circle-filled, .monaco-pixel-spinner'),
+					indicator: !!header.querySelector('.codicon-circle-filled, .codicon-report, .monaco-pixel-spinner'),
 				};
 			}), [
 				{ ariaLabel: 'Group A, 1', icon: 'session-section-icon codicon codicon-folder-library', indicator: false },
@@ -1289,7 +1289,7 @@ suite('Sessions - SessionsList', () => {
 				const label = grouped ? group.name : 'Workspace';
 				const header = getHeader(container, label);
 				const getStatus = () => {
-					if (header.querySelector('.monaco-pixel-spinner-ring')) {
+					if (header.querySelector('.codicon-report')) {
 						return 'needsInput';
 					}
 					const dot = header.querySelector<HTMLElement>('.codicon-circle-filled');
@@ -1339,17 +1339,17 @@ suite('Sessions - SessionsList', () => {
 				} : {});
 				const label = grouped ? group.name : 'Workspace';
 				const header = getHeader(container, label);
-				const getStatus = () => header.querySelector('.monaco-pixel-spinner-ring') ? 'needsInput' : header.querySelector('.codicon-circle-filled') ? 'unread' : 'none';
+				const getStatus = () => header.querySelector('.codicon-report') ? 'needsInput' : header.querySelector('.codicon-circle-filled') ? 'unread' : 'none';
 				const states = [getStatus()];
 				const hiddenNeedsInput = !list.getVisibleSessions().some(session => session.sessionId === needsInput.session.sessionId);
 
 				list.collapseAllSections();
 				states.push(getStatus());
-				const spinner = header.querySelector<HTMLElement>('.monaco-pixel-spinner-ring');
+				const reportIcon = header.querySelector<HTMLElement>('.codicon-report');
 				const needsInputAria = header.closest('.monaco-list-row')?.getAttribute('aria-label');
 				unread.isRead.set(true, undefined);
 				unread.isRead.set(false, undefined);
-				const preservesSpinner = !!spinner && spinner === header.querySelector('.monaco-pixel-spinner-ring');
+				const preservesReportIcon = !!reportIcon && reportIcon === header.querySelector('.codicon-report');
 				needsInput.status.set(SessionStatus.Completed, undefined);
 				states.push(getStatus());
 				const unreadAria = header.closest('.monaco-list-row')?.getAttribute('aria-label');
@@ -1372,8 +1372,8 @@ suite('Sessions - SessionsList', () => {
 				assert.deepStrictEqual({
 					hiddenNeedsInput,
 					states,
-					preservesSpinner,
-					color: spinner?.style.color,
+					preservesReportIcon,
+					color: reportIcon?.style.color,
 					needsInputAria,
 					unreadAria,
 					expandedPulse,
@@ -1381,9 +1381,9 @@ suite('Sessions - SessionsList', () => {
 				}, {
 					hiddenNeedsInput: true,
 					states: ['none', 'needsInput', 'unread', 'needsInput', 'unread', 'needsInput', 'none', 'needsInput', 'unread', 'none'],
-					preservesSpinner: true,
+					preservesReportIcon: true,
 					color: 'var(--vscode-list-warningForeground)',
-					needsInputAria: `${label}, 6, session needs input`,
+					needsInputAria: `${label}, 6, session needs attention`,
 					unreadAria: `${label}, 6, contains unread sessions`,
 					expandedPulse: false,
 					clearedPulse: false,
@@ -1515,7 +1515,7 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('uses the existing orange needs-input fallback with reduced motion', () => {
+		test('uses the report icon for needs-attention with reduced motion', () => {
 			const { session } = createTestSession('Needs input', { status: SessionStatus.NeedsInput });
 			const { list, container } = renderList([session], {}, true);
 			list.collapseAllSections();
@@ -1523,12 +1523,14 @@ suite('Sessions - SessionsList', () => {
 
 			assert.deepStrictEqual({
 				hasSpinner: !!header.querySelector('.monaco-pixel-spinner'),
-				color: header.querySelector<HTMLElement>('.codicon-circle-filled')?.style.color,
+				hasReportIcon: !!header.querySelector('.codicon-report'),
+				color: header.querySelector<HTMLElement>('.codicon-report')?.style.color,
 				ariaLabel: header.closest('.monaco-list-row')?.getAttribute('aria-label'),
 			}, {
 				hasSpinner: false,
+				hasReportIcon: true,
 				color: 'var(--vscode-list-warningForeground)',
-				ariaLabel: 'Workspace, 1, session needs input',
+				ariaLabel: 'Workspace, 1, session needs attention',
 			});
 		});
 
@@ -1549,7 +1551,7 @@ suite('Sessions - SessionsList', () => {
 				const header = getHeader(container, label);
 				return {
 					ariaLabel: header.closest('.monaco-list-row')?.getAttribute('aria-label'),
-					indicator: !!header.querySelector('.codicon-circle-filled, .monaco-pixel-spinner'),
+					indicator: !!header.querySelector('.codicon-circle-filled, .codicon-report, .monaco-pixel-spinner'),
 				};
 			}), [
 				{ ariaLabel: 'Group A, 0', indicator: false },
@@ -1604,7 +1606,7 @@ suite('Sessions - SessionsList', () => {
 
 			assert.deepStrictEqual(states, [
 				{ needsInputSections: [], workspaceIcon: true, ariaLabel: 'Workspace, 1' },
-				{ needsInputSections: ['Workspace'], workspaceIcon: false, ariaLabel: 'Workspace, 1, session needs input' },
+				{ needsInputSections: ['Workspace'], workspaceIcon: false, ariaLabel: 'Workspace, 1, session needs attention' },
 			]);
 		});
 
@@ -3132,6 +3134,39 @@ suite('Sessions - SessionsList', () => {
 			list.layout(400, 400);
 			return { attempt1, attempt2, judge, synthesis, container, harness, list };
 		}
+
+		test('uses attention wording for blocked comparison participants', () => {
+			const { attempt1, attempt2, judge, container } = renderComparison();
+			const readPresentation = () => ({
+				summary: container.querySelector('.session-comparison-group .session-group-description')?.textContent,
+				attempts: [...container.querySelectorAll('.session-comparison-attempt')]
+					.map(attempt => attempt.querySelector('.session-comparison-attempt-status.visible')?.textContent),
+			});
+
+			attempt1.status.set(SessionStatus.NeedsInput, undefined);
+			const oneAttempt = readPresentation();
+			attempt2.status.set(SessionStatus.NeedsInput, undefined);
+			const bothAttempts = readPresentation();
+			attempt1.status.set(SessionStatus.Completed, undefined);
+			attempt2.status.set(SessionStatus.Completed, undefined);
+			judge.status.set(SessionStatus.NeedsInput, undefined);
+			const judgeWaiting = readPresentation();
+
+			assert.deepStrictEqual({ oneAttempt, bothAttempts, judgeWaiting }, {
+				oneAttempt: {
+					summary: 'Comparison · 1 attempt needs attention',
+					attempts: ['Attention needed', ''],
+				},
+				bothAttempts: {
+					summary: 'Comparison · 2 attempts need attention',
+					attempts: [undefined, undefined],
+				},
+				judgeWaiting: {
+					summary: 'Comparison · Judge needs attention',
+					attempts: [undefined, undefined],
+				},
+			});
+		});
 
 		test('renders synthesis and Judge before connected compact attempts', () => {
 			const { attempt1, attempt2, container } = renderComparison();
@@ -5733,7 +5768,7 @@ suite('Sessions - SessionsList', () => {
 				aggregateStatus: session.status.get(),
 			}, {
 				session: { inProgress: false, needsInput: false, ariaLabel: 'Session, updated now, State: Completed, in Workspace' },
-				peerChatNeedsInput: 'Peer chat, chat, updated now, State: Input Needed',
+				peerChatNeedsInput: 'Peer chat, chat, updated now, State: Attention Needed',
 				aggregateStatus: SessionStatus.NeedsInput,
 			});
 		});
@@ -5802,9 +5837,9 @@ suite('Sessions - SessionsList', () => {
 
 				const completed = { inProgress: false, needsInput: false, ariaLabel: 'Session, updated now, State: Completed, in Workspace' };
 				const working = { inProgress: true, needsInput: false, ariaLabel: 'Session, updated now, State: In Progress' };
-				const waiting = { inProgress: false, needsInput: true, ariaLabel: 'Session, updated now, State: Input Needed' };
+				const waiting = { inProgress: false, needsInput: true, ariaLabel: 'Session, updated now, State: Attention Needed' };
 				const workingWithoutTime = { inProgress: true, needsInput: false, ariaLabel: 'Session, State: In Progress' };
-				const waitingWithoutTime = { inProgress: false, needsInput: true, ariaLabel: 'Session, State: Input Needed' };
+				const waitingWithoutTime = { inProgress: false, needsInput: true, ariaLabel: 'Session, State: Attention Needed' };
 				assert.deepStrictEqual({ snapshots, chats: chatRowTitles(container) }, {
 					snapshots: [completed, working, waiting, waitingWithoutTime, workingWithoutTime, completed, completed, working, completed, working, completed, waiting, completed, completed],
 					chats: expanded && withPeer ? ['Peer chat'] : [],
@@ -5865,7 +5900,7 @@ suite('Sessions - SessionsList', () => {
 			assert.deepStrictEqual(sessionRowSnapshot(container), {
 				inProgress: false,
 				needsInput: true,
-				ariaLabel: 'Session, updated now, State: Input Needed',
+				ariaLabel: 'Session, updated now, State: Attention Needed',
 			});
 		});
 
@@ -5901,7 +5936,7 @@ suite('Sessions - SessionsList', () => {
 
 			assert.deepStrictEqual({ before, after: sessionRowSnapshot(container) }, {
 				before: { inProgress: false, needsInput: false, ariaLabel: 'Session, updated now, State: Completed, in Workspace' },
-				after: { inProgress: false, needsInput: true, ariaLabel: 'Session, updated now, State: Input Needed' },
+				after: { inProgress: false, needsInput: true, ariaLabel: 'Session, updated now, State: Attention Needed' },
 			});
 		});
 
@@ -5945,7 +5980,7 @@ suite('Sessions - SessionsList', () => {
 			const peerRow = [...container.querySelectorAll<HTMLElement>('.session-chat-item')]
 				.find(element => element.textContent?.includes('Needs input chat'));
 			assert.ok(peerRow);
-			assert.strictEqual(peerRow.closest('.monaco-list-row')?.getAttribute('aria-label'), 'Needs input chat, chat, updated now, State: Input Needed');
+			assert.strictEqual(peerRow.closest('.monaco-list-row')?.getAttribute('aria-label'), 'Needs input chat, chat, updated now, State: Attention Needed');
 		});
 
 		test('updates rendered chat row heights across phone layout changes', () => {
@@ -7342,7 +7377,7 @@ suite('Sessions - SessionsList', () => {
 
 			assert.deepStrictEqual({ completed, needsInput, completedAgain }, {
 				completed: { height: '30px', visible: false, label: '', ariaHidden: 'true', ariaLabel: 'Answer required, updated now, State: Completed, in vscode' },
-				needsInput: { height: '62px', visible: true, label: 'Which strategy should I use?', ariaHidden: 'true', ariaLabel: 'Answer required, updated now, State: Input Needed, Which strategy should I use?' },
+				needsInput: { height: '62px', visible: true, label: 'Which strategy should I use?', ariaHidden: 'true', ariaLabel: 'Answer required, updated now, State: Attention Needed, Which strategy should I use?' },
 				completedAgain: { height: '30px', visible: false, label: '', ariaHidden: 'true', ariaLabel: 'Answer required, updated now, State: Completed, in vscode' },
 			});
 		});
