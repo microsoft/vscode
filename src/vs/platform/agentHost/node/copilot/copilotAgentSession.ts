@@ -42,6 +42,7 @@ import type { AutoModeTier } from '../../common/autoModeTiers.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReviewAction } from '../../common/agentHostPlanReview.js';
 import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
+import { AgentManagedPluginPreparationState, toAgentManagedPluginPreparationMeta } from '../../common/meta/agentManagedPluginPreparationMeta.js';
 import { readCopilotShellAttachment, toCopilotBackgroundShellMeta } from '../../common/meta/copilotBackgroundWorkMeta.js';
 import { getSessionSandboxConfig } from '../sessionSandbox.js';
 import { getCopilotBrowserSandboxNetworkRestrictions } from './copilotSandboxPolicy.js';
@@ -2655,7 +2656,7 @@ export class CopilotAgentSession extends Disposable {
 			part: {
 				kind: ResponsePartKind.SystemNotification,
 				content: '',
-				_meta: toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.ManagedPluginProgress }),
+				_meta: toAgentManagedPluginPreparationMeta(AgentManagedPluginPreparationState.Progress),
 			},
 		});
 	}
@@ -2672,7 +2673,7 @@ export class CopilotAgentSession extends Disposable {
 			part: {
 				kind: ResponsePartKind.SystemNotification,
 				content: '',
-				_meta: toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.ManagedPluginProgressComplete }),
+				_meta: toAgentManagedPluginPreparationMeta(AgentManagedPluginPreparationState.Complete),
 			},
 		});
 	}
@@ -4063,6 +4064,7 @@ export class CopilotAgentSession extends Disposable {
 		const abortToken = this._abortToken;
 		this.resetTurnState(turnId, senderClientId, clientType, clientContext);
 		this._agentMergeTurn = agentMergeTurn;
+		this._markManagedPluginProgressForPendingTurn();
 		if (this._tryContinueDevelopmentRecoverableError(turnId)) {
 			return;
 		}
@@ -8858,10 +8860,7 @@ export class CopilotAgentSession extends Disposable {
 						part: {
 							kind: ResponsePartKind.SystemNotification,
 							content: e.data.message,
-							_meta: toAgentSystemNotificationMeta({
-								kind: AgentSystemNotificationKind.ManagedPluginFailure,
-								severity: AgentSystemNotificationSeverity.Warning,
-							}),
+							_meta: toAgentManagedPluginPreparationMeta(AgentManagedPluginPreparationState.Failure),
 						},
 					});
 				} else {

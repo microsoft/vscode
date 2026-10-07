@@ -35,6 +35,7 @@ import { getBrowserViewAttachmentMetadata, isBrowserViewAttachment } from '../..
 import { readAgentMessageDelegationMeta } from '../../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
 import { isAgentMergeMessage } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, readAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
+import { AgentManagedPluginPreparationState, readAgentManagedPluginPreparationState } from '../../../../../../platform/agentHost/common/meta/agentManagedPluginPreparationMeta.js';
 import { isViewUnreviewedCommentsTool, isAddCommentTool } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import { AGENT_HOST_SESSION_LINK_SCHEME, buildOpenSessionLinkUri, isCreateChatTool, isCreateSessionTool, isSendMessageTool, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { getAgentHostChatId } from '../../../../../../platform/agentHost/common/agentHostChatIdentity.js';
@@ -578,6 +579,7 @@ export function isSubagentToolName(toolName: string): boolean {
 
 export function systemNotificationToChatPart(content: StringOrMarkdown | undefined, connectionAuthority: string, _meta?: Record<string, unknown>): IChatProgress | undefined {
 	const meta = readAgentSystemNotificationMeta({ _meta });
+	const managedPluginPreparation = readAgentManagedPluginPreparationState({ _meta });
 	if (meta.kind === AgentSystemNotificationKind.ResponseRoundEnded) {
 		// The chat model already treats an empty thinking chunk as the end of a thinking section.
 		return { kind: 'thinking', value: '' };
@@ -597,6 +599,9 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 	}
 	const value = stringOrMarkdownToString(content, connectionAuthority);
 	const markdown = typeof value === 'string' ? new MarkdownString(value) : value;
+	if (managedPluginPreparation === AgentManagedPluginPreparationState.Failure) {
+		return { kind: 'warning', content: markdown, keepVisibleWhenCollapsed: true };
+	}
 	switch (meta.kind) {
 		case AgentSystemNotificationKind.FusionProgress: {
 			if (meta.fusionStatus === 'selected') {
@@ -620,8 +625,6 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 		}
 		case AgentSystemNotificationKind.ByokToolLimitExceeded:
 			return { kind: 'warning', content: withConfigureToolsLink(markdown.value), keepVisibleWhenCollapsed: true };
-		case AgentSystemNotificationKind.ManagedPluginFailure:
-			return { kind: 'warning', content: markdown, keepVisibleWhenCollapsed: true };
 		case AgentSystemNotificationKind.WorktreeCreationFailure:
 			return meta.severity === AgentSystemNotificationSeverity.Warning
 				? { kind: 'warning', content: markdown }
@@ -682,13 +685,16 @@ export function getAgentHostActivityProgressId(parts: readonly ResponsePart[]): 
 	for (let index = parts.length - 1; index >= 0; index--) {
 		const part = parts[index];
 		if (part.kind !== ResponsePartKind.SystemNotification) {
-			continue;
+			if (part.kind === ResponsePartKind.Reasoning) {
+				continue;
+			}
+			return undefined;
 		}
-		const kind = readAgentSystemNotificationMeta(part).kind;
-		if (kind === AgentSystemNotificationKind.ManagedPluginProgress) {
+		const state = readAgentManagedPluginPreparationState(part);
+		if (state === AgentManagedPluginPreparationState.Progress) {
 			return `agentHost.chatActivity:managedPlugins:${index}`;
 		}
-		if (kind === AgentSystemNotificationKind.ManagedPluginProgressComplete) {
+		if (state === AgentManagedPluginPreparationState.Complete) {
 			break;
 		}
 	}

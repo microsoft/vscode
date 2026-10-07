@@ -45,6 +45,7 @@ import { readMcpServerControllingSetting, readMcpServerDisplayName, readMcpServe
 import { agentModelCallMetaKey, readAgentModelCallDiagnostics } from '../../common/meta/agentModelCallMeta.js';
 import { readAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
+import { AgentManagedPluginPreparationState } from '../../common/meta/agentManagedPluginPreparationMeta.js';
 import { readAgentSandboxDiagnostics } from '../../common/meta/agentSandboxDiagnostics.js';
 import { toSlashCommandResourceMeta } from '../../common/meta/agentSlashCommandOutputMeta.js';
 import { toSessionEvents } from './copilotTestEvents.js';
@@ -3440,6 +3441,43 @@ suite('CopilotAgentSession', () => {
 		);
 	});
 
+	test('projects pre-existing managed plugin progress into a resumed pending turn', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		mockSession.fire('session.info', {
+			infoType: 'managed_plugins',
+			message: 'Installing plugins required by your organization admin…',
+		});
+		await session.resume('turn-managed-plugins-resume');
+		mockSession.fire('session.info', {
+			infoType: 'managed_plugins_complete',
+			message: 'Plugins required by your organization admin are ready.',
+		});
+
+		assert.deepStrictEqual(
+			getActions(signals)
+				.flatMap(action => action.type === ActionType.ChatResponsePart
+					&& action.turnId === 'turn-managed-plugins-resume'
+					&& action.part.kind === ResponsePartKind.SystemNotification
+					? [action.part._meta]
+					: []),
+			[
+				{
+					'vscode.managedPluginPreparation': {
+						schemaVersion: 1,
+						state: AgentManagedPluginPreparationState.Progress,
+					},
+				},
+				{
+					'vscode.managedPluginPreparation': {
+						schemaVersion: 1,
+						state: AgentManagedPluginPreparationState.Complete,
+					},
+				},
+			],
+		);
+	});
+
 	test('projects a managed plugin failure as an inline warning for the pending turn', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
 		session.resetTurnState('turn-managed-plugins');
@@ -3478,7 +3516,10 @@ suite('CopilotAgentSession', () => {
 					turnId: 'turn-managed-plugins',
 					content: '',
 					meta: {
-						kind: AgentSystemNotificationKind.ManagedPluginProgress,
+						'vscode.managedPluginPreparation': {
+							schemaVersion: 1,
+							state: AgentManagedPluginPreparationState.Progress,
+						},
 					},
 				},
 				{
@@ -3486,7 +3527,10 @@ suite('CopilotAgentSession', () => {
 					turnId: 'turn-managed-plugins',
 					content: '',
 					meta: {
-						kind: AgentSystemNotificationKind.ManagedPluginProgressComplete,
+						'vscode.managedPluginPreparation': {
+							schemaVersion: 1,
+							state: AgentManagedPluginPreparationState.Complete,
+						},
 					},
 				},
 				{
@@ -3498,8 +3542,10 @@ suite('CopilotAgentSession', () => {
 					turnId: 'turn-managed-plugins',
 					content: 'Some managed plugins could not be prepared.',
 					meta: {
-						kind: AgentSystemNotificationKind.ManagedPluginFailure,
-						severity: AgentSystemNotificationSeverity.Warning,
+						'vscode.managedPluginPreparation': {
+							schemaVersion: 1,
+							state: AgentManagedPluginPreparationState.Failure,
+						},
 					},
 				},
 			],

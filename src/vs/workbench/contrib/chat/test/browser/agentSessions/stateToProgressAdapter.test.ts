@@ -17,6 +17,7 @@ import { toAgentMessageDelegationMeta } from '../../../../../../platform/agentHo
 import { buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
+import { AgentManagedPluginPreparationState, toAgentManagedPluginPreparationMeta } from '../../../../../../platform/agentHost/common/meta/agentManagedPluginPreparationMeta.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentWorkspaceContinuationMeta.js';
 import { McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { createAgentHostResourceUriMapper, fromAgentHostUri, toAgentHostContentUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
@@ -337,23 +338,26 @@ suite('stateToProgressAdapter', () => {
 		const started = {
 			kind: ResponsePartKind.SystemNotification,
 			content: '',
-			_meta: toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.ManagedPluginProgress }),
+			_meta: toAgentManagedPluginPreparationMeta(AgentManagedPluginPreparationState.Progress),
 		} as const;
 		const completed = {
 			kind: ResponsePartKind.SystemNotification,
 			content: '',
-			_meta: toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.ManagedPluginProgressComplete }),
+			_meta: toAgentManagedPluginPreparationMeta(AgentManagedPluginPreparationState.Complete),
 		} as const;
 		const routing = { kind: ResponsePartKind.Reasoning, id: 'routing', content: 'Auto routing task' } as const;
+		const answer = { kind: ResponsePartKind.Markdown, id: 'answer', content: 'Actual response content' } as const;
 
 		assert.deepStrictEqual([
 			getAgentHostActivityProgressId([started]),
 			getAgentHostActivityProgressId([started, routing]),
+			getAgentHostActivityProgressId([started, routing, answer]),
 			getAgentHostActivityProgressId([started, routing, completed]),
 			getAgentHostActivityProgressId([started, completed, started]),
 		], [
 			'agentHost.chatActivity:managedPlugins:0',
 			'agentHost.chatActivity:managedPlugins:0',
+			undefined,
 			undefined,
 			'agentHost.chatActivity:managedPlugins:2',
 		]);
@@ -3632,10 +3636,7 @@ suite('stateToProgressAdapter', () => {
 			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState([{
 				kind: ResponsePartKind.SystemNotification,
 				content: 'Some managed plugins could not be prepared.',
-				_meta: toAgentSystemNotificationMeta({
-					kind: AgentSystemNotificationKind.ManagedPluginFailure,
-					severity: AgentSystemNotificationSeverity.Warning,
-				}),
+				_meta: toAgentManagedPluginPreparationMeta(AgentManagedPluginPreparationState.Failure),
 			}]), undefined);
 
 			assert.deepStrictEqual(result[0], {
