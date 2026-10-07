@@ -379,6 +379,8 @@ export interface ICloudSandboxConnectOptions {
 	readonly accountKey?: string;
 	/** Caller provenance, not a claim about warm or cold compute. */
 	readonly connectionSource?: 'created' | 'existing';
+	/** Local task-creation start time for end-to-end provisioning telemetry; never persisted or sent to MC. */
+	readonly provisioningStartedAt?: number;
 }
 
 /**
