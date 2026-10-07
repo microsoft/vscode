@@ -578,6 +578,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		if (this._renamedTitles.has(key)) {
 			return undefined;
 		}
+		this._migrateTitleReviewReminderCount(channel, independentChat);
 		// Review mode leaves a fresh seed to the host's first-response refinement before inviting a rename.
 		if (strategy === 'agentReview' && !this._canOfferTitleReview(channel, independentChat, key)) {
 			return undefined;
@@ -613,7 +614,23 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			return false;
 		}
 		const state = independentChat ? this._stateManager.getChatState(independentChat) : this._stateManager.getSessionState(channel);
-		return !!state && state.turns.length > (this._deferredFirstTurnIndices.get(key) ?? 0);
+		const seedTurnIndex = this._deferredFirstTurnIndices.get(key) ?? 0;
+		return !!state && state.turns.some((turn, index) => index >= seedTurnIndex && turn.state === TurnState.Complete);
+	}
+
+	/**
+	 * Carries the session-keyed review reminder count over to the default chat
+	 * once a peer makes it independently titled, so the per-chat cap survives
+	 * the key transition.
+	 */
+	private _migrateTitleReviewReminderCount(channel: ProtocolURI, independentChat: ProtocolURI | undefined): void {
+		if (!independentChat || !isDefaultChatUri(independentChat) || this._titleReviewReminderCounts.has(independentChat)) {
+			return;
+		}
+		const count = this._titleReviewReminderCounts.get(channel);
+		if (count !== undefined) {
+			this._titleReviewReminderCounts.set(independentChat, count);
+		}
 	}
 
 	private _generateTitleSoon(

@@ -354,6 +354,38 @@ suite('AgentHostSessionTitleController', () => {
 		assert.deepStrictEqual(offered, [true, true, true, false]);
 	});
 
+	test('agent review keeps the reminder cap when a peer makes the default chat independent', async () => {
+		const { controller, stateManager, session } = setup(undefined, 'Given title', undefined, undefined, undefined, undefined, undefined, 'agentReview');
+		const defaultChat = buildDefaultChatUri(session);
+		controller.markTitleAuto(session.toString(), undefined, 'Given title');
+		stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Investigate flaky test', [textPart('Done')])]);
+		const offered: boolean[] = [];
+		for (let i = 0; i < 3; i++) {
+			offered.push(await controller.prepareInstructionForAgent(session.toString(), defaultChat) !== undefined);
+		}
+		stateManager.addChat(session.toString(), buildChatUri(session.toString(), 'peer'), {});
+		controller.markTitleAuto(session.toString(), defaultChat, 'Given title');
+		offered.push(await controller.prepareInstructionForAgent(session.toString(), defaultChat) !== undefined);
+		assert.deepStrictEqual(offered, [true, true, true, false]);
+	});
+
+	test('agent review withholds the reminder until a response after the seed completes', async () => {
+		const { controller, stateManager, session } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, 'agentReview');
+		const defaultChat = buildDefaultChatUri(session);
+		controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode');
+		stateManager.seedDefaultChatTurns(session.toString(), [{ ...firstTurn('Add dark mode', []), state: TurnState.Cancelled }]);
+		const afterCancelled = await controller.prepareInstructionForAgent(session.toString(), defaultChat);
+		stateManager.seedDefaultChatTurns(session.toString(), [
+			{ ...firstTurn('Add dark mode', []), state: TurnState.Cancelled },
+			{ ...firstTurn('Try again', [textPart('Done')]), id: 'turn-2' },
+		]);
+
+		assert.deepStrictEqual({
+			afterCancelled,
+			afterCompleted: (await controller.prepareInstructionForAgent(session.toString(), defaultChat))?.includes('"Add dark mode"'),
+		}, { afterCancelled: undefined, afterCompleted: true });
+	});
+
 	for (const { rename, generated } of [
 		{ rename: undefined, generated: 'Dark mode setting' },
 		{ rename: undefined, generated: 'Add dark mode' },
