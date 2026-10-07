@@ -126,5 +126,16 @@ support use the async Clipboard API instead; unsupported formats are reported.
 Unsaved documents, stale edits, denied clipboard access, and
 workspace-edit failures display an error rather than silently dropping images.
 The provider's default alt text is inserted without starting a snippet session.
-This integration reuses the built-in Markdown media provider, not arbitrary
-third-party paste providers; there is no public execute-paste-provider API.
+
+**Architecture limitation:** image paste bypasses VS Code's registered
+`DocumentPasteEditProvider` pipeline. It directly calls the built-in Markdown
+extension's `ResourcePasteOrDropProvider.createEditForMediaFiles` helper, which
+is also used by the code editor's Markdown paste provider. This is local
+extension implementation code, **not a Markdown LSP request**. The resulting
+file creation and text insertion still use the extension API's
+`workspace.applyEdit`.
+
+Consequently, third-party paste providers, provider selection/yielding, and
+the code editor's "Paste As..." flow are not exercised. Full paste-provider
+parity requires a workbench bridge to that pipeline; there is currently no
+public execute-paste-provider API.
