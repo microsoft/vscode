@@ -171,7 +171,6 @@ export const PERMISSION_CATEGORY_DESCRIPTORS: Readonly<Record<PermissionCategory
 	 *   - Storage Access (`storage-access`, `top-level-storage-access`)
 	 *
 	 * Not currently implemented (in approximate order of 'might want')
-	 *   - Local Network Access (`local-network-access`, `local-network`, `loopback-network`)
 	 *   - Screen Capture, Captured Surface Control (`display-capture`, `captured-surface-control`)
 	 *   - File Writing (`fileSystem`)
 	 *   - Open External (`openExternal`)
@@ -188,10 +187,18 @@ export const PERMISSION_CATEGORY_DESCRIPTORS: Readonly<Record<PermissionCategory
 
 /**
  * Raw Electron permission strings that are granted unconditionally, with no
- * recorded state and no management control. These are low-risk capabilities
- * that Chrome itself also always grants automatically.
+ * recorded state and no management control.
  */
 export const ALWAYS_ALLOWED_PERMISSIONS: ReadonlySet<string> = new Set([
+	// Electron disables LocalNetworkAccessChecks, so local and loopback network
+	// access is already allowed. Report that effective state to permissions.query()
+	// too: a false denial breaks sites that check first, such as Okta FastPass.
+	// https://github.com/electron/electron/issues/48655
+	'local-network-access',
+	'local-network',
+	'loopback-network',
+
+	// These are low-risk capabilities that Chrome itself also always grants automatically.
 	'pointerLock',
 	'keyboardLock',
 	'fullscreen',
