@@ -10,6 +10,7 @@ import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/action
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -81,6 +82,7 @@ export class ModelPicker extends Disposable {
 	private _lastSessionKey: string | undefined;
 	private _lastPushedSessionId: string | undefined;
 	private _settingModelInternally = false;
+	private _userPickedModel = false;
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -88,6 +90,7 @@ export class ModelPicker extends Disposable {
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@INewChatModelPickerService private readonly _newChatModelPickerService: INewChatModelPickerService,
 	) {
@@ -96,6 +99,11 @@ export class ModelPicker extends Disposable {
 		this._delegate = {
 			currentModel: this._currentModel,
 			setModel: (model: ILanguageModelChatMetadataAndIdentifier) => {
+				// Read before calling the provider: it can re-enter `_initModel`, which resets this flag.
+				const isInternalChange = this._settingModelInternally;
+				if (!isInternalChange) {
+					this._userPickedModel = true;
+				}
 				const previousModel = this._currentModel.get();
 				this._currentModel.set(model, undefined);
 				const session = this._sessionsManagementService.activeSession.get();
@@ -103,7 +111,7 @@ export class ModelPicker extends Disposable {
 					this._storageService.store(modelPickerStorageKey(session.providerId, session.sessionType), model.identifier, StorageScope.PROFILE, StorageTarget.MACHINE);
 					this._sessionsProvidersService.getProvider(session.providerId)?.setModel(session.sessionId, model.identifier);
 				}
-				if (!this._settingModelInternally) {
+				if (!isInternalChange) {
 					reportNewChatPickerClosed(this._telemetryService, {
 						id: 'NewChatModelPicker',
 						optionIdBefore: previousModel?.identifier,
@@ -158,6 +166,7 @@ export class ModelPicker extends Disposable {
 		// load the remembered model for the new key instead of carrying over.
 		if (sessionKey !== this._lastSessionKey) {
 			this._currentModel.set(undefined, undefined);
+			this._userPickedModel = false;
 			this._lastSessionKey = sessionKey;
 		}
 
@@ -175,6 +184,8 @@ export class ModelPicker extends Disposable {
 		const sessionModelId = session?.modelId.get();
 		const sessionModel = sessionModelId ? models.find(m => m.identifier === sessionModelId) : undefined;
 		const isNewSession = session?.status.get() === SessionStatus.Untitled;
+		const configuredModelId = this._configurationService.getValue<string>('sessions.chat.defaultModel');
+		const configuredModel = configuredModelId ? models.find(m => m.metadata.id === configuredModelId) : undefined;
 		this._settingModelInternally = true;
 		try {
 			if (session && !isNewSession) {
@@ -194,7 +205,11 @@ export class ModelPicker extends Disposable {
 			}
 
 			if (!current) {
-				this._delegate.setModel(sessionModel ?? this._getFallbackModel(session, models));
+				this._delegate.setModel(sessionModel ?? configuredModel ?? this._getFallbackModel(session, models));
+				this._lastPushedSessionId = session?.sessionId;
+			} else if (configuredModel && !this._userPickedModel && current.identifier !== configuredModel.identifier) {
+				// The configured model can arrive after an automatic pick (models load incrementally).
+				this._delegate.setModel(configuredModel);
 				this._lastPushedSessionId = session?.sessionId;
 			} else if (session && isNewSession && session.sessionId !== this._lastPushedSessionId && models.some(m => m.identifier === current.identifier)) {
 				// Active session changed (e.g. user switched repository) but the

@@ -111,5 +111,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('chat.agentSessions.scopedInputHistory', "Controls whether chat input history in the Agents Window is scoped to the current session. Disable this to use shared input history across sessions."),
 		},
+		'sessions.chat.defaultModel': {
+			type: 'string',
+			default: '',
+			scope: ConfigurationScope.APPLICATION,
+			description: localize('sessions.chat.defaultModel', "The ID of the model (as used by the Copilot API, for example `claude-opus-4.5`) to preselect for new sessions in the Agents Window. If no available model has this ID, the last used model is selected."),
+		},
 	},
 });
