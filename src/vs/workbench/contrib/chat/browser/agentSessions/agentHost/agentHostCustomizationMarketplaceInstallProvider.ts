@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { raceTimeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -26,6 +27,7 @@ import { IAgentHostCustomizationService } from './agentHostCustomizationService.
 
 const maxCachedReceiptSessions = 50;
 const maxCatalogAssociations = 1000;
+const pluginInventoryUpdateTimeoutMs = 30_000;
 const githubLoginPattern = /^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}$/;
 
 export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable implements ICustomizationMarketplaceInstallProvider, ICustomizationMarketplaceSearchProvider {
@@ -197,6 +199,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 				throw new Error(localize('agentHost.customizationInstall.pluginUnavailable', "The selected agent does not support SDK plugin installation."));
 			}
 			await this.agentHostService.installPlugin(this.providerId, { source: `${installation.name}@${installation.marketplace}` });
+			await this.waitForPluginInventory({ name: installation.name, marketplace: installation.marketplace }, true, token);
 			this.throwIfCancelled(token);
 			this._onDidChange.fire();
 			return;
@@ -206,6 +209,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 				throw new Error(localize('agentHost.customizationInstall.pluginUnavailable', "The selected agent does not support SDK plugin installation."));
 			}
 			await this.agentHostService.installPlugin(this.providerId, { source: `${installation.name}@${installation.marketplace}` });
+			await this.waitForPluginInventory({ name: installation.name, marketplace: installation.marketplace }, true, token);
 			this.throwIfCancelled(token);
 			this._onDidChange.fire();
 			return;
@@ -262,6 +266,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 				marketplace: identity.marketplace,
 				directSourceId: identity.directSourceId,
 			});
+			await this.waitForPluginInventory(identity, false, token);
 			this.throwIfCancelled(token);
 			this._onDidChange.fire();
 			return;
@@ -426,6 +431,37 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		}
 		return identity.backendSession;
 	}
+
+	private async waitForPluginInventory(identity: NonNullable<IAgentPlugin['copilotCliInstallation']>, present: boolean, token: CancellationToken): Promise<void> {
+		const operation = new DisposableStore();
+		try {
+			const inventoryUpdated = new Promise<boolean>((resolve, reject) => {
+				const checkInventory = () => {
+					if (this.agentPluginService.plugins.get().some(plugin => isPluginInstallation(plugin.copilotCliInstallation, identity)) === present) {
+						resolve(true);
+					}
+				};
+				operation.add(Event.fromObservableLight(this.agentPluginService.plugins)(checkInventory));
+				operation.add(token.onCancellationRequested(() => reject(new CancellationError())));
+				checkInventory();
+			});
+			if (await raceTimeout(inventoryUpdated, pluginInventoryUpdateTimeoutMs) !== true) {
+				throw new Error(localize('agentHost.customizationInstall.pluginInventoryTimeout', "The SDK completed the plugin operation, but its installation inventory did not update."));
+			}
+			this.throwIfCancelled(token);
+		} finally {
+			operation.dispose();
+		}
+	}
+}
+
+function isPluginInstallation(
+	candidate: IAgentPlugin['copilotCliInstallation'],
+	expected: NonNullable<IAgentPlugin['copilotCliInstallation']>,
+): boolean {
+	return candidate?.name === expected.name
+		&& candidate.marketplace === expected.marketplace
+		&& candidate.directSourceId === expected.directSourceId;
 }
 
 function toPluginMarketplaceResource(plugin: IAgentPlugin): ICustomizationMarketplaceResource {

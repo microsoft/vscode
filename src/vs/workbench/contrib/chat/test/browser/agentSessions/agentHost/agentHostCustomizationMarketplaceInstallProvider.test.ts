@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { timeout } from '../../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../../../base/common/event.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
@@ -343,6 +344,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 	test('installs a featured SDK marketplace plugin without local marketplace identity', async () => {
 		const session = URI.parse('agent-host-copilotcli:/frontend-session');
 		const calls: unknown[] = [];
+		const plugins = observableValue<readonly IAgentPlugin[]>('plugins', []);
 		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
 			'copilotcli',
 			async () => true,
@@ -351,6 +353,11 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				override readonly onAgentHostExit = Event.None;
 				override async installPlugin(provider: string, request: { readonly source: string }): Promise<void> {
 					calls.push({ provider, request });
+					plugins.set([new class extends mock<IAgentPlugin>() {
+						override readonly uri = URI.file('/plugins/azure');
+						override readonly label = 'Azure';
+						override readonly copilotCliInstallation = { name: 'azure', marketplace: 'awesome-copilot' };
+					}()], undefined);
 				}
 			}(),
 			new class extends mock<IAgentHostConnectionsService>() { }(),
@@ -358,7 +365,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				override readonly onDidChangeCustomizations = Event.None;
 			}(),
 			new class extends mock<IAgentPluginService>() {
-				override readonly plugins = observableValue<readonly IAgentPlugin[]>('plugins', []);
+				override readonly plugins = plugins;
 			}(),
 			new class extends mock<IDialogService>() { }(),
 			new NullLogService(),
@@ -382,6 +389,67 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			provider: 'copilotcli',
 			request: { source: 'azure@awesome-copilot' },
 		}]);
+	});
+
+	test('keeps featured plugin mutations pending until SDK inventory publishes them', async () => {
+		const plugins = observableValue<readonly IAgentPlugin[]>('plugins', []);
+		const installedPlugin = new class extends mock<IAgentPlugin>() {
+			override readonly uri = URI.file('/plugins/azure');
+			override readonly label = 'Azure';
+			override readonly copilotCliInstallation = { name: 'azure', marketplace: 'awesome-copilot' };
+		}();
+		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+			'copilotcli',
+			async () => true,
+			new class extends mock<IAgentHostService>() {
+				override readonly onAgentHostStart = Event.None;
+				override readonly onAgentHostExit = Event.None;
+				override async installPlugin(): Promise<void> { }
+				override async uninstallPlugin(): Promise<void> { }
+			}(),
+			new class extends mock<IAgentHostConnectionsService>() { }(),
+			new class extends mock<IAgentHostCustomizationService>() {
+				override readonly onDidChangeCustomizations = Event.None;
+			}(),
+			new class extends mock<IAgentPluginService>() {
+				override readonly plugins = plugins;
+			}(),
+			new class extends mock<IDialogService>() { }(),
+			new NullLogService(),
+		));
+		const resource = {
+			sourceId: 'agentFinder',
+			identifier: '["awesome-copilot","azure"]',
+			displayName: 'Azure',
+			description: 'Azure tools',
+			mediaType: 'application/vnd.github.copilot-plugin',
+			tags: [],
+			capabilities: [],
+			representativeQueries: [],
+			installation: { kind: 'providerPlugin' as const, name: 'azure', marketplace: 'awesome-copilot' },
+		};
+		let settled = false;
+		const install = provider.install(URI.parse('agent-host-copilotcli:/frontend-session'), resource, CancellationToken.None)
+			.then(() => settled = true);
+
+		await timeout(0);
+		const installSettledBeforeInventory = settled;
+		plugins.set([installedPlugin], undefined);
+		await install;
+		const installation = (await provider.getInstallations(URI.parse('agent-host-copilotcli:/frontend-session'), CancellationToken.None))[0];
+		settled = false;
+		const uninstall = provider.uninstall(URI.parse('agent-host-copilotcli:/frontend-session'), installation, CancellationToken.None)
+			.then(() => settled = true);
+		await timeout(0);
+		const uninstallSettledBeforeInventory = settled;
+		plugins.set([], undefined);
+		await uninstall;
+
+		assert.deepStrictEqual({ installSettledBeforeInventory, uninstallSettledBeforeInventory, settled }, {
+			installSettledBeforeInventory: false,
+			uninstallSettledBeforeInventory: false,
+			settled: true,
+		});
 	});
 
 	test('preserves SDK plugin inventory when session-bound receipt inventory is unavailable', async () => {
