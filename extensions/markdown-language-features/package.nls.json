@@ -6,6 +6,7 @@
 	"configuration.preview": "Preview",
 	"configuration.editor": "Language Features",
 	"configuration.markdown.experimental.richLinks.enabled": "Controls whether supported links in the Markdown editor are rendered as rich links with live metadata. Enabling this may make authenticated requests to services such as GitHub.",
+	"configuration.markdown.editor.quickSuggestions": "Controls whether typing automatically requests suggestions in the rich Markdown editor. Also requires `#editor.quickSuggestions#` to be enabled for Markdown. Does not affect manually invoking Trigger Suggest or suggestions in the Markdown code editor.",
 	"configuration.validation": "Validation",
 	"configuration.advanced": "Advanced",
 	"markdown.copyImage.title": "Copy Image",

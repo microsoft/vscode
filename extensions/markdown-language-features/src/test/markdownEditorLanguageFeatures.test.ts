@@ -67,21 +67,36 @@ suite('Markdown editor diagnostics and completion', () => {
 		}
 	});
 
-	test('honors language-specific quick suggestions without disabling manual completion', async () => {
+	test('defaults automatic completion to off and honors live rich-editor and language settings without disabling manual completion', async () => {
 		const test = await setup();
 		const config = vscode.workspace.getConfiguration('editor', test.document);
 		const previous = config.inspect('quickSuggestions')?.globalLanguageValue;
+		const richConfig = vscode.workspace.getConfiguration('markdown.editor', test.document);
+		const previousRich = richConfig.inspect('quickSuggestions')?.globalValue;
 		try {
-			await config.update('quickSuggestions', { other: 'off' }, vscode.ConfigurationTarget.Global, true);
+			assert.strictEqual(richConfig.inspect('quickSuggestions')?.defaultValue, false);
+			await richConfig.update('quickSuggestions', undefined, vscode.ConfigurationTarget.Global);
+			await config.update('quickSuggestions', { other: 'on' }, vscode.ConfigurationTarget.Global, true);
 			assert.deepStrictEqual(await test.features.completions({ ...request, automatic: true }), { items: [], incomplete: false });
 			assert.deepStrictEqual(test.counts, []);
 			assert.strictEqual((await test.features.completions({ ...request, requestId: 2 })).items[0].label, 'Target');
-			await config.update('quickSuggestions', { other: 'on' }, vscode.ConfigurationTarget.Global, true);
+			await richConfig.update('quickSuggestions', true, vscode.ConfigurationTarget.Global);
 			const result = await test.features.completions({ ...request, requestId: 3, automatic: true });
 			assert.strictEqual(result.items[0].label, 'Target');
 			assert.strictEqual(result.items[0].highlightLength, 2);
+			await config.update('quickSuggestions', { other: 'off' }, vscode.ConfigurationTarget.Global, true);
+			assert.deepStrictEqual(await test.features.completions({ ...request, requestId: 4, automatic: true }), { items: [], incomplete: false });
+			assert.strictEqual((await test.features.completions({ ...request, requestId: 5 })).items[0].label, 'Target');
+			await config.update('quickSuggestions', { other: 'on' }, vscode.ConfigurationTarget.Global, true);
+			await richConfig.update('quickSuggestions', false, vscode.ConfigurationTarget.Global);
+			assert.deepStrictEqual(await test.features.completions({ ...request, requestId: 6, automatic: true }), { items: [], incomplete: false });
+			assert.deepStrictEqual(test.counts, [0, 0, 0]);
 		} finally {
-			await config.update('quickSuggestions', previous, vscode.ConfigurationTarget.Global, true);
+			try {
+				await richConfig.update('quickSuggestions', previousRich, vscode.ConfigurationTarget.Global);
+			} finally {
+				await config.update('quickSuggestions', previous, vscode.ConfigurationTarget.Global, true);
+			}
 		}
 	});
 

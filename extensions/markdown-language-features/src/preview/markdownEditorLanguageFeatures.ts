@@ -40,6 +40,9 @@ export class MarkdownEditorLanguageFeatures {
 			throw new Error(vscode.l10n.t('The document changed. Request suggestions again.'));
 		}
 		if (request.automatic) {
+			if (!vscode.workspace.getConfiguration('markdown.editor', this.#document).get<boolean>('quickSuggestions', false)) {
+				return { items: [], incomplete: false };
+			}
 			const quick = vscode.workspace.getConfiguration('editor', this.#document).get<boolean | { other?: boolean | string }>('quickSuggestions');
 			if (quick === false || typeof quick === 'object' && (quick.other === false || quick.other === 'off' || quick.other === 'inline')) {
 				return { items: [], incomplete: false };

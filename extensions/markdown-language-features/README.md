@@ -82,8 +82,12 @@ published diagnostic collections but does not add a separate Markdown-only
 pull loop or duplicate the validator.
 
 Press **Ctrl+Space**, or run **Markdown Editor: Trigger Suggest**, to query the
-existing completion providers. Typing also requests suggestions when
-`editor.quickSuggestions.other` is enabled. The isolated observable widget uses
+existing completion providers, regardless of the automatic-suggestions setting.
+Automatic suggestions in the rich editor are disabled by default. To enable them,
+set `markdown.editor.quickSuggestions` to `true` and enable
+`editor.quickSuggestions.other` for Markdown. Changes take effect on the next
+request without reopening the editor. The rich-editor setting does not change
+completion behavior in the Markdown code editor. The isolated observable widget uses
 VS Code's symbol icons, selected-row details, matched-prefix highlighting,
 editor font, and suggestion theme colors. Arrow keys navigate, Enter/Tab accept,
 and Escape cancels; focus stays in the editor. The popup flips above the caret

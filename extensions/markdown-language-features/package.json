@@ -1470,6 +1470,12 @@
               "onExP"
             ]
           },
+          "markdown.editor.quickSuggestions": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%configuration.markdown.editor.quickSuggestions%",
+            "scope": "resource"
+          },
           "markdown.links.openLocation": {
             "type": "string",
             "default": "currentGroup",
