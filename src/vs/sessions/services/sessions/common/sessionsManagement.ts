@@ -119,15 +119,12 @@ export interface ICreateNewSessionOptions {
 	 */
 	readonly branch?: string;
 	/**
-	 * Optional branch tracking preference to apply via
-	 * {@link ISessionsProvider.setWorktreeBranchTrack}. This is intended for
-	 * programmatic session creation and is not surfaced in the new-session UI.
+	 * Optional URL of a pull request in the workspace's repository. The session
+	 * is created from it, so it is associated with the pull request from the
+	 * start; the agent host checks the pull request out into an isolated
+	 * worktree, so it supersedes {@link isolationMode} and {@link branch}.
 	 */
-	readonly worktreeBranchTrack?: boolean;
-	/**
-	 * Whether to create a generated worktree branch from {@link branch}.
-	 */
-	readonly worktreeCreateNewBranch?: boolean;
+	readonly pullRequestUrl?: string;
 	/**
 	 * Invoked after the provider creates the provisional session, before its
 	 * configuration and first request are applied. Asynchronous preparation is awaited.
@@ -180,6 +177,12 @@ export interface IToggleSessionStickinessEvent {
 	readonly session: ISession;
 	/** The session's stickiness state after the toggle. */
 	readonly sticky: boolean;
+}
+
+export interface IChatDeletedEvent {
+	readonly session: ISession;
+	readonly sessionResource: URI;
+	readonly chatResource: URI;
 }
 
 /**
@@ -365,7 +368,7 @@ export interface ISessionsManagementService {
 	/** Fires after a session was successfully deleted via {@link deleteSession}. */
 	readonly onDidDeleteSession: Event<ISession>;
 	/** Fires after a chat was successfully deleted via {@link deleteChat}. */
-	readonly onDidDeleteChat: Event<ISession>;
+	readonly onDidDeleteChat: Event<IChatDeletedEvent>;
 	/** Fires after a chat was successfully renamed via {@link renameChat}. */
 	readonly onDidRenameChat: Event<ISession>;
 	/** Fires after a session was successfully renamed via {@link renameSession}. */

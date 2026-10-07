@@ -13,7 +13,7 @@ import { readSlashCommandResource, toSlashCommandResourceMeta } from '../../comm
 import { readChatInputState, withChatInputState } from '../../common/meta/agentHostChatInputState.js';
 import { createEditorInlineChatInstruction, createTerminalChatInstruction, readChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { readAgentCustomizationMeta, toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
-import { readMcpServerDisplayName, readMcpServerSource, withMcpServerDisplayNameMeta, withMcpServerSourceMeta } from '../../common/meta/mcpCustomizationMeta.js';
+import { readMcpServerControllingSetting, readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin, withMcpServerControllingSettingMeta, withMcpServerDisplayNameMeta, withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from '../../common/meta/mcpCustomizationMeta.js';
 import { getCommandArgumentHint, getCompletionAction, readCompletionAttachmentMeta, toCommandCompletionAttachmentMeta, toSkillCompletionAttachmentMeta } from '../../common/meta/agentCompletionAttachmentMeta.js';
 import { CustomizationType, MessageAttachmentKind, ToolCallStatus, hasReportedUsage, readSessionComparisonMetadata, readUsageInfoMeta, withSessionComparisonMetadata, type AgentCustomization, type ClientPluginCustomization, type ToolCallState, type UsageInfo } from '../../common/state/sessionState.js';
 import { McpServerStatus, type McpServerCustomization, type SessionModelInfo, type SimpleMessageAttachment } from '../../common/state/protocol/state.js';
@@ -158,10 +158,43 @@ suite('Agent host _meta readers', () => {
 			displayNames: [' Mail ', '', 'x'.repeat(513), 1].map(displayName => readMcpServerDisplayName(server({ 'vscode.mcpServerDisplayName': displayName }))),
 			merged,
 			unchanged: withMcpServerSourceMeta(opaque, undefined) === opaque,
+			cleared: withMcpServerSourceMeta(merged, undefined),
 		}, {
 			sources: ['user', 'workspace', 'plugin', 'builtin', 'managed', undefined, undefined, undefined, undefined, undefined, undefined],
 			displayNames: ['Mail', undefined, undefined, undefined],
 			merged: { 'test.opaque': 'kept', 'agentHost.mcpServerSource': 'user', 'vscode.mcpServerDisplayName': 'Mail' },
+			unchanged: true,
+			cleared: { 'test.opaque': 'kept', 'vscode.mcpServerDisplayName': 'Mail' },
+		});
+	});
+
+	test('validates MCP source plugins and controlling settings and removes them once they no longer apply', () => {
+		const customization = (meta: Record<string, unknown> | undefined): McpServerCustomization => ({
+			type: CustomizationType.McpServer,
+			id: 'server',
+			uri: 'mcp-top-level:server',
+			name: 'computer-use',
+			state: { kind: McpServerStatus.Ready },
+			_meta: meta,
+		});
+		const opaque = { 'test.opaque': 'kept' };
+		const recorded = withMcpServerControllingSettingMeta(withMcpServerSourcePluginMeta(opaque, 'computer-use'), 'chat.example.enabled');
+
+		assert.deepStrictEqual({
+			read: [readMcpServerSourcePlugin(customization(recorded)), readMcpServerControllingSetting(customization(recorded))],
+			invalidPlugins: [undefined, '', ' ', 1, {}].map(value => readMcpServerSourcePlugin(customization({ 'agentHost.mcpServerSourcePlugin': value }))),
+			invalidSettings: [undefined, '', 1, {}].map(value => readMcpServerControllingSetting(customization({ 'vscode.mcpServerControllingSetting': value }))),
+			recorded,
+			cleared: withMcpServerControllingSettingMeta(withMcpServerSourcePluginMeta(recorded, undefined), undefined),
+			emptied: withMcpServerSourcePluginMeta({ 'agentHost.mcpServerSourcePlugin': 'computer-use' }, undefined),
+			unchanged: withMcpServerSourcePluginMeta(opaque, undefined) === opaque && withMcpServerSourcePluginMeta(recorded, 'computer-use') === recorded,
+		}, {
+			read: ['computer-use', 'chat.example.enabled'],
+			invalidPlugins: [undefined, undefined, undefined, undefined, undefined],
+			invalidSettings: [undefined, undefined, undefined, undefined],
+			recorded: { 'test.opaque': 'kept', 'agentHost.mcpServerSourcePlugin': 'computer-use', 'vscode.mcpServerControllingSetting': 'chat.example.enabled' },
+			cleared: { 'test.opaque': 'kept' },
+			emptied: undefined,
 			unchanged: true,
 		});
 	});

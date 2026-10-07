@@ -654,7 +654,7 @@ suite('CloudSandboxAgentHostContribution', () => {
 		const harness = await createContribution(store, [discoveredSession()], { storageService: storage });
 		const address = cloudSandboxAddress('env-1');
 		const provider = harness.contribution.stubProviders.get(address)!;
-		await provider.config.deleteSessionsOnDemand!.deleteSessions(['sess-1']);
+		await provider.config.deleteSessionsOnDemand!.deleteSessions([URI.parse('ahp-session:/sess-1')]);
 		harness.contribution.dispose();
 		const restored = await createContribution(store, [], {
 			storageService: storage,
@@ -679,7 +679,7 @@ suite('CloudSandboxAgentHostContribution', () => {
 			storageService: storage, deleteTask: async () => { throw new Error('delete rejected'); },
 		});
 		const provider = harness.contribution.stubProviders.get(cloudSandboxAddress('env-1'))!;
-		await assert.rejects(provider.config.deleteSessionsOnDemand!.deleteSessions(['sess-1']), /delete rejected/);
+		await assert.rejects(provider.config.deleteSessionsOnDemand!.deleteSessions([URI.parse('ahp-session:/sess-1')]), /delete rejected/);
 		const beforeReload = { sessions: provider.seeded.length, disposed: provider.disposed, disconnected: [...harness.disconnectedFrom] };
 		harness.contribution.dispose();
 		const restored = await createContribution(store, [], {
@@ -693,7 +693,7 @@ suite('CloudSandboxAgentHostContribution', () => {
 	test('stale discovery cannot recreate a deleted task', async () => {
 		const harness = await createContribution(store, [discoveredSession()]);
 		const provider = harness.contribution.stubProviders.get(cloudSandboxAddress('env-1'))!;
-		await provider.config.deleteSessionsOnDemand!.deleteSessions(['sess-1']);
+		await provider.config.deleteSessionsOnDemand!.deleteSessions([URI.parse('ahp-session:/sess-1')]);
 		await harness.runDiscovery();
 		assert.deepStrictEqual({
 			sameProvider: harness.contribution.stubProviders.get(cloudSandboxAddress('env-1')) === provider,
@@ -705,11 +705,13 @@ suite('CloudSandboxAgentHostContribution', () => {
 		const harness = await createContribution(store, [discoveredSession()]);
 		const provider = harness.contribution.stubProviders.get(cloudSandboxAddress('env-1'))!;
 		assert.deepStrictEqual({
-			ownsInventorySession: provider.config.deleteSessionsOnDemand!.ownsSession('sess-1'),
-			ownsOtherSession: provider.config.deleteSessionsOnDemand!.ownsSession('not-the-discovered-session'),
+			ownsInventorySession: provider.config.deleteSessionsOnDemand!.ownsSession(URI.parse('ahp-session:/sess-1')),
+			ownsOtherSession: provider.config.deleteSessionsOnDemand!.ownsSession(URI.parse('ahp-session:/not-the-discovered-session')),
+			ownsCodexWithSameId: provider.config.deleteSessionsOnDemand!.ownsSession(URI.parse('codex:/sess-1')),
+			ownsDifferentAuthority: provider.config.deleteSessionsOnDemand!.ownsSession(URI.parse('ahp-session://other/sess-1')),
 			deletedTasks: harness.deletedTasks,
 			disposed: provider.disposed,
-		}, { ownsInventorySession: true, ownsOtherSession: false, deletedTasks: [], disposed: false });
+		}, { ownsInventorySession: true, ownsOtherSession: false, ownsCodexWithSameId: false, ownsDifferentAuthority: false, deletedTasks: [], disposed: false });
 	});
 
 	test('seeds the discovered repository so a never-opened session is not workspace-less', async () => {
@@ -723,7 +725,7 @@ suite('CloudSandboxAgentHostContribution', () => {
 			summary: m.summary,
 			project: m.project && { uri: m.project.uri.toString(), displayName: m.project.displayName },
 		})), [{
-			session: 'copilot:/sess-1',
+			session: 'ahp-session:/sess-1',
 			summary: 'Change port to 5555',
 			project: { uri: 'https://github.com/osortega/simple-server', displayName: 'osortega/simple-server' },
 		}]);
@@ -1839,6 +1841,32 @@ suite('CloudSandboxAgentHostContribution provisioning', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('passes task creation start to the first connection but not to subsequent resumes', () => runWithFakedTimers({}, async () => {
+		const harness = await createContribution(store, [], {
+			createSession: async () => {
+				await timeout(200);
+				return { taskId: 'task-new', sessionId: 'sess-new', environmentId: 'env-new' };
+			},
+		});
+		const connectionTimings: { source: ICloudSandboxConnectOptions['connectionSource']; provisioningElapsed: number | undefined }[] = [];
+		harness.onConnect = async options => {
+			connectionTimings.push({
+				source: options.connectionSource,
+				provisioningElapsed: options.provisioningStartedAt === undefined ? undefined : Date.now() - options.provisioningStartedAt,
+			});
+			await timeout(50);
+		};
+		await timeout(1000);
+		await harness.contribution.provisionSession({ prompt: 'hello' }, CancellationToken.None);
+		await timeout(1000);
+		await harness.contribution.connect({ environmentId: 'env-new', name: 'Sandbox' });
+		harness.contribution.dispose();
+		assert.deepStrictEqual(connectionTimings, [
+			{ source: 'created', provisioningElapsed: 200 },
+			{ source: undefined, provisioningElapsed: undefined },
+		]);
+	}));
+
 	test('creates the task, seeds it like a discovered one, and connects to the bound environment', async () => {
 		const harness = await createContribution(store, []);
 		let connectionSource: ICloudSandboxConnectOptions['connectionSource'];
@@ -1859,7 +1887,7 @@ suite('CloudSandboxAgentHostContribution provisioning', () => {
 			progress,
 		}, {
 			ids: { taskId: 'task-new', sessionId: 'sess-new', environmentId: 'env-new' },
-			seeded: [{ session: 'copilot:/sess-new', summary: 'osortega/simple-server', project: 'osortega/simple-server' }],
+			seeded: [{ session: 'ahp-session:/sess-new', summary: 'osortega/simple-server', project: 'osortega/simple-server' }],
 			connectedTo: ['env-new'],
 			connectionSource: 'created',
 			resolvedSession: '/sess-new',
@@ -2122,6 +2150,6 @@ suite('CloudSandboxAgentHostContribution provisioning', () => {
 		await harness.runDiscovery();
 
 		const provider = harness.contribution.stubProviders.get(cloudSandboxAddress('env-new'));
-		assert.deepStrictEqual(provider?.seeded.map(m => m.session.toString()), ['copilot:/sess-new']);
+		assert.deepStrictEqual(provider?.seeded.map(m => m.session.toString()), ['ahp-session:/sess-new']);
 	});
 });

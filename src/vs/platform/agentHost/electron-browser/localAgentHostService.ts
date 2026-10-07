@@ -35,7 +35,38 @@ import type { IAgentHostMcpAuthenticationRequest } from '../common/agentHostExte
 import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
 import type { IAgentHostFirstResponseDiagnostic } from '../common/otel/agentHostTiming.js';
 import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
-import { AgentHostAhpJsonlLoggingSettingId, type AgentHostDebugLogsArtifactKind, AgentHostIpcChannels, AgentHostOTelPolicyIpcChannel, AgentHostRestartIpcChannel, AgentHostWillRestartIpcChannel, AgentSession, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, IAgentHostInspectInfo, type IAgentHostDebugLogsArtifact, IAgentHostManagementService, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, type IAgentHostOTelSettings, type IAgentHostOTelPolicyReadiness, IAgentHostService, IAgentHostSocketInfo, IAgentPluginUninstallRequest, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification, readAgentHostOTelPolicySettings, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
+import {
+	AgentHostAhpJsonlLoggingSettingId,
+	type AgentHostDebugLogsArtifactKind,
+	AgentHostIpcChannels,
+	AgentHostOTelPolicyIpcChannel,
+	AgentHostRestartIpcChannel,
+	AgentHostWillRestartIpcChannel,
+	AgentSession,
+	IAgentCreateChatRequestOptions,
+	IAgentCreateSessionConfig,
+	IAgentHostInspectInfo,
+	type IAgentHostDebugLogsArtifact,
+	IAgentHostManagementService,
+	IAgentHostManagedSettingsDiagnostics,
+	IAgentHostNetworkDiagnosticsInfo,
+	IAgentHostNetworkFetchResult,
+	IAgentHostService,
+	IAgentHostSocketInfo,
+	type IAgentHostOTelSettings,
+	type IAgentHostOTelPolicyReadiness,
+	IAgentPluginUninstallRequest,
+	type IMissionControlOptions,
+	type IMissionControlCredentialSealingRequest,
+	IAgentResolveSessionConfigParams,
+	IAgentSessionConfigCompletionsParams,
+	IAgentSessionMetadata,
+	AuthenticateParams,
+	AuthenticateResult,
+	IMcpNotification,
+	readAgentHostOTelPolicySettings,
+	type IAgentHostDebugLogsChunk,
+} from '../common/agentService.js';
 import type { IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from '../common/state/agentSubscription.js';
 import type { CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
@@ -616,6 +647,19 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 			getDelayedChannel(this._managementConnection.client().then(client => client.getChannel(AgentHostIpcChannels.Management)))
 		);
 	}
+
+	configureMissionControl(options: IMissionControlOptions | undefined, withdrawingAccountId?: string): Promise<void> {
+		return this._getManagementService().configureMissionControl(options, withdrawingAccountId);
+	}
+
+	sealMissionControlCredential(request: IMissionControlCredentialSealingRequest): Promise<string> {
+		return this._getManagementService().sealMissionControlCredential(request);
+	}
+
+	getMissionControlEnvironmentId(): Promise<string | undefined> {
+		return this._getManagementService().getMissionControlEnvironmentId();
+	}
+
 }
 
 function hasSessionExtensions(config: IAgentCreateSessionConfig): boolean {

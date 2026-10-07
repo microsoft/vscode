@@ -12,6 +12,7 @@ import { onUnexpectedExternalError } from '../../../base/common/errors.js';
 import { toAction } from '../../../base/common/actions.js';
 import { NotificationPriority } from '../../../platform/notification/common/notification.js';
 import { legacyExtensionLinkParsing } from '../../../platform/notification/common/notificationLegacy.js';
+import { extensionNotificationTelemetry, NotificationActionTelemetryId, withNotificationActionTelemetry } from '../../../platform/notification/common/notificationTelemetry.js';
 
 @extHostNamedCustomer(MainContext.MainThreadProgress)
 export class MainThreadProgress implements MainThreadProgressShape {
@@ -41,7 +42,7 @@ export class MainThreadProgress implements MainThreadProgressShape {
 
 	async $startProgress(handle: number, options: IProgressOptionsDto, extensionId?: string): Promise<void> {
 		const task = this._createTask(handle);
-		let progressOptions: IProgressOptions = { ...options, legacyExtensionLinkParsing };
+		let progressOptions: IProgressOptions = { ...options, legacyExtensionLinkParsing, telemetry: options.telemetryId ?? extensionNotificationTelemetry(extensionId, 'progress') };
 
 		if (options.location === ProgressLocation.Notification && extensionId) {
 			const sourceIsUrgent = MainThreadProgress.URGENT_PROGRESS_SOURCES.includes(extensionId);
@@ -49,11 +50,11 @@ export class MainThreadProgress implements MainThreadProgressShape {
 				...progressOptions,
 				priority: sourceIsUrgent ? NotificationPriority.URGENT : NotificationPriority.DEFAULT,
 				location: ProgressLocation.Notification,
-				secondaryActions: [toAction({
+				secondaryActions: [withNotificationActionTelemetry(toAction({
 					id: extensionId,
 					label: localize('manageExtension', "Manage Extension"),
 					run: () => this._commandService.executeCommand('_extensions.manage', extensionId)
-				})]
+				}), NotificationActionTelemetryId.ManageExtension)]
 			};
 
 			progressOptions = notificationOptions;

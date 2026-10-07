@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
-import { timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
@@ -31,6 +31,7 @@ import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSetting
 import { Separator, SubmenuAction } from '../../../../../base/common/actions.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -86,7 +87,6 @@ import { SessionsArchiveActionsContribution } from '../../browser/views/sessions
 import { renderSessionsHeader } from '../../browser/views/sessionsView.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../../github/common/types.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../browser/automationsConstants.js';
-import { AUTOMATIONS_NEW_BADGE_STYLE_SETTING, type AutomationsNewBadgeStyle } from '../../browser/automationsNewBadge.js';
 import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../../sessionComparison/common/sessionComparison.js';
 import { BlockedSessionReason, BlockedSessions } from '../../../blockedSessions/browser/blockedSessions.js';
 import { NEW_SESSION_ACTION_ID } from '../../../chat/common/constants.js';
@@ -176,7 +176,6 @@ suite('Sessions - SessionsList', () => {
 				contextKeyService,
 				automationService,
 				constObservable([]),
-				constObservable(undefined),
 				new class extends mock<IUriIdentityService>() {
 					override readonly extUri = new ExtUri(() => true);
 				},
@@ -233,7 +232,6 @@ suite('Sessions - SessionsList', () => {
 				contextKeyService,
 				automationService,
 				constObservable([]),
-				constObservable(undefined),
 				new class extends mock<IUriIdentityService>() {
 					override readonly extUri = new ExtUri(() => true);
 				},
@@ -258,189 +256,13 @@ suite('Sessions - SessionsList', () => {
 			assert.deepStrictEqual({
 				watchIcon: !!container.querySelector('.session-section-icon.codicon-watch'),
 				spinnerParent: spinner?.parentElement?.className,
+				newBadge: !!container.querySelector('.session-section-new-badge'),
 				trailingStatusIndicator: !!container.querySelector('.session-section-status-indicator'),
 			}, {
 				watchIcon: false,
 				spinnerParent: 'session-section-icon',
+				newBadge: false,
 				trailingStatusIndicator: false,
-			});
-		});
-
-		test('renders new badge presentations only on the Automations section when templates are recycled', () => {
-			const instantiationService = disposables.add(new TestInstantiationService());
-			instantiationService.stubInstance(MenuWorkbenchToolBar, new class extends mock<MenuWorkbenchToolBar>() {
-				override set context(_context: unknown) { }
-				override dispose(): void { }
-			});
-			instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
-				override isMotionReduced(): boolean { return false; }
-			}());
-			instantiationService.stub(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
-				override getStatusIcon(_status: SessionStatus, isRead: boolean) {
-					return isRead ? Codicon.circleSmallFilled : Codicon.circleFilled;
-				}
-			});
-			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
-			const runs = observableValue<readonly IAutomationRun[]>(disposables, []);
-			const badgePresentation = observableValue<AutomationsNewBadgeStyle | undefined>(disposables, 'outline');
-			const automationService = new class extends mock<IAutomationService>() {
-				override readonly runs = runs;
-			};
-			const renderer = new SessionSectionRenderer(
-				true,
-				() => { },
-				constObservable(true),
-				constObservable(new Set<string>()),
-				noHeaderStatusTrigger,
-				instantiationService,
-				contextKeyService,
-				automationService,
-				constObservable([]),
-				badgePresentation,
-				new class extends mock<IUriIdentityService>() {
-					override readonly extUri = new ExtUri(() => true);
-				},
-				new class extends mock<ICustomViewService>() {
-					override readonly activeCustomView = constObservable(undefined);
-				},
-				new class extends mock<IMenuService>() { },
-				noKeybindingService,
-				constObservable(false),
-			);
-			const container = document.createElement('div');
-			const template = renderer.renderTemplate(container);
-			disposables.add(template.disposables);
-
-			renderer.renderElement(upcastPartial<Parameters<SessionSectionRenderer['renderElement']>[0]>({
-				element: { id: 'automations', label: 'Automations', sessions: [] },
-				collapsible: false,
-				collapsed: false,
-			}), 0, template);
-			const getPresentationSnapshot = () => ({
-				badgeText: template.newBadge.textContent,
-				badgeDisplay: template.newBadge.style.display,
-				badgeAriaHidden: template.newBadge.getAttribute('aria-hidden'),
-				hasOutlineBadge: template.newBadge.classList.contains('session-section-new-badge-outline'),
-				hasUnreadDot: !!container.querySelector('.session-section-icon > .codicon-circle-filled:not([data-icon-fading-out="1"])'),
-				hasSpinner: !!container.querySelector('.session-section-icon > .monaco-pixel-spinner:not([data-icon-fading-out="1"])'),
-				hasCalendar: template.icon.classList.contains('codicon-calendar'),
-			});
-			const outline = getPresentationSnapshot();
-
-			badgePresentation.set('unread', undefined);
-			const unread = getPresentationSnapshot();
-
-			runs.set([upcastPartial<IAutomationRun>({ status: 'running' })], undefined);
-			const running = getPresentationSnapshot();
-
-			runs.set([], undefined);
-			const unreadRestored = getPresentationSnapshot();
-
-			badgePresentation.set(undefined, undefined);
-			const dismissed = getPresentationSnapshot();
-
-			renderer.renderElement(upcastPartial<Parameters<SessionSectionRenderer['renderElement']>[0]>({
-				element: { id: 'workspace:test', label: 'Test', sessions: [] },
-				collapsible: true,
-				collapsed: false,
-			}), 0, template);
-
-			assert.deepStrictEqual({
-				outline,
-				unread,
-				running,
-				unreadRestored,
-				dismissed,
-				recycledDisplay: template.newBadge.style.display,
-				recycledShortcutClass: template.container.classList.contains('session-section-shortcut'),
-			}, {
-				outline: {
-					badgeText: 'New',
-					badgeDisplay: 'inline-flex',
-					badgeAriaHidden: 'true',
-					hasOutlineBadge: true,
-					hasUnreadDot: false,
-					hasSpinner: false,
-					hasCalendar: true,
-				},
-				unread: {
-					badgeText: 'New',
-					badgeDisplay: 'none',
-					badgeAriaHidden: 'true',
-					hasOutlineBadge: false,
-					hasUnreadDot: true,
-					hasSpinner: false,
-					hasCalendar: false,
-				},
-				running: {
-					badgeText: 'New',
-					badgeDisplay: 'none',
-					badgeAriaHidden: 'true',
-					hasOutlineBadge: false,
-					hasUnreadDot: false,
-					hasSpinner: true,
-					hasCalendar: false,
-				},
-				unreadRestored: {
-					badgeText: 'New',
-					badgeDisplay: 'none',
-					badgeAriaHidden: 'true',
-					hasOutlineBadge: false,
-					hasUnreadDot: true,
-					hasSpinner: false,
-					hasCalendar: false,
-				},
-				dismissed: {
-					badgeText: 'New',
-					badgeDisplay: 'none',
-					badgeAriaHidden: 'true',
-					hasOutlineBadge: false,
-					hasUnreadDot: false,
-					hasSpinner: false,
-					hasCalendar: true,
-				},
-				recycledDisplay: 'none',
-				recycledShortcutClass: false,
-			});
-		});
-
-		test('updates the Automations row accessible label when the new badge is dismissed', async () => {
-			const activeCustomView = observableValue<ICustomViewDescriptor | undefined>(disposables, undefined);
-			const harness = createListHarness(disposables, [], instantiationService => {
-				ChatAutomationsEnabledContext.bindTo(instantiationService.get(IContextKeyService)).set(true);
-				void (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(AUTOMATIONS_NEW_BADGE_STYLE_SETTING, 'unread');
-				instantiationService.stub(IAutomationService, new class extends mock<IAutomationService>() {
-					override readonly automations = constObservable([]);
-					override readonly runs = constObservable([]);
-					override readonly catalogueState = constObservable('ready' as const);
-				});
-				instantiationService.stub(ICustomViewService, new class extends mock<ICustomViewService>() {
-					override readonly activeCustomView = activeCustomView;
-				});
-			});
-			const container = harness.createContainer();
-			const navigationContainer = mainWindow.document.createElement('div');
-			const listContainer = mainWindow.document.createElement('div');
-			container.append(navigationContainer, listContainer);
-			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, listContainer, {
-				grouping: () => SessionsGrouping.Date,
-				sorting: () => SessionsSorting.Created,
-				navigationContainer,
-				onSessionOpen: () => { },
-			}));
-			list.layout(300, 400);
-			await list.resetAutomationsNewBadge();
-			const row = navigationContainer.querySelector<HTMLElement>('.monaco-list-row');
-			const before = row?.getAttribute('aria-label');
-
-			activeCustomView.set(upcastPartial<ICustomViewDescriptor>({ id: AUTOMATIONS_CUSTOM_VIEW_ID }), undefined);
-
-			assert.deepStrictEqual({
-				before,
-				after: row?.getAttribute('aria-label'),
-			}, {
-				before: 'Automations, new feature',
-				after: 'Automations',
 			});
 		});
 
@@ -513,6 +335,7 @@ suite('Sessions - SessionsList', () => {
 		});
 
 		test('switches the navigation treatment without disturbing Find focus', async () => {
+			const commands: string[] = [];
 			const activeEditorChanged = disposables.add(new Emitter<void>());
 			const keybindingsChanged = disposables.add(new Emitter<void>());
 			const editorState: { activeEditor?: AICustomizationManagementEditorInput } = {};
@@ -527,6 +350,12 @@ suite('Sessions - SessionsList', () => {
 			};
 			let newSessionKeybinding = createNewSessionKeybinding(KeyMod.CtrlCmd | KeyCode.KeyN);
 			const harness = createListHarness(disposables, [], instantiationService => {
+				instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+					override async executeCommand<R>(commandId: string): Promise<R | undefined> {
+						commands.push(commandId);
+						return undefined;
+					}
+				});
 				ChatAutomationsEnabledContext.bindTo(instantiationService.get(IContextKeyService)).set(true);
 				instantiationService.stub(IAutomationService, new class extends mock<IAutomationService>() {
 					override readonly automations = constObservable([]);
@@ -632,7 +461,12 @@ suite('Sessions - SessionsList', () => {
 			list.focusAutomations();
 			await timeout(350);
 			const controlNavigationLabels = Array.from(navigationContainer.querySelectorAll('.session-section-shortcut .session-section-label'), element => element.textContent);
+			const controlTreeShortcuts = Array.from(listContainer.querySelectorAll('.session-section-shortcut .session-section-label'), element => element.textContent);
 			const controlAutomationsFocused = list.isAutomationsFocused();
+			const controlAutomationsRow = listContainer.querySelector<HTMLElement>('.session-section-shortcut');
+			assert.ok(controlAutomationsRow);
+			controlAutomationsRow.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+			await Promise.resolve();
 
 			assert.deepStrictEqual({
 				findInput,
@@ -654,7 +488,9 @@ suite('Sessions - SessionsList', () => {
 				navigationUsesList: navigationContainer.querySelector('.monaco-list') !== null && navigationContainer.querySelector('[role="tree"]') === null,
 				sessionsUseTree: listContainer.querySelector('[role="tree"]') !== null,
 				controlNavigationLabels,
+				controlTreeShortcuts,
 				controlAutomationsFocused,
+				commands,
 				newSessionKeybindingLookupUsesViewContext: keybindingLookupContexts.length >= 2
 					&& keybindingLookupContexts.every(context => context === harness.instantiationService.get(IContextKeyService)),
 			}, {
@@ -689,8 +525,10 @@ suite('Sessions - SessionsList', () => {
 				stableFindHeaderUnmoved: true,
 				navigationUsesList: true,
 				sessionsUseTree: true,
-				controlNavigationLabels: ['Automations'],
+				controlNavigationLabels: [],
+				controlTreeShortcuts: ['Automations'],
 				controlAutomationsFocused: true,
+				commands: ['sessionsView.manageAutomations'],
 				newSessionKeybindingLookupUsesViewContext: true,
 			});
 		});
@@ -923,7 +761,6 @@ suite('Sessions - SessionsList', () => {
 				new class extends mock<IContextKeyService>() { },
 				automationService,
 				automationSessions,
-				constObservable(undefined),
 				uriIdentityService,
 				new class extends mock<ICustomViewService>() { },
 				new class extends mock<IMenuService>() { },
@@ -995,7 +832,6 @@ suite('Sessions - SessionsList', () => {
 				new class extends mock<IContextKeyService>() { },
 				automationService,
 				constObservable([runningSession, needsInputSession]),
-				constObservable(undefined),
 				uriIdentityService,
 				new class extends mock<ICustomViewService>() { },
 				new class extends mock<IMenuService>() { },
@@ -1724,7 +1560,7 @@ suite('Sessions - SessionsList', () => {
 				const container = harness.createContainer();
 				harness.instantiationService.stub(IMenuService, harness.store.add(harness.instantiationService.createInstance(MenuService)));
 				renderSessionsHeader(container, false, harness.instantiationService, harness.store.add(new ContextKeyService(harness.instantiationService.get(IConfigurationService))), harness.store, () => list.reportArchivedFilterShown());
-				const filter = container.querySelector<HTMLElement>('a.action-label.codicon-settings[aria-haspopup="true"]');
+				const filter = container.querySelector<HTMLElement>('a.action-label[aria-label="Filter Sessions"][aria-haspopup="true"]');
 				const beforeShow = [...triggers];
 				filter?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
 				return { found: !!filter, beforeShow, afterShow: triggers };
@@ -4168,6 +4004,7 @@ suite('Sessions - SessionsList', () => {
 		function createChat(title: string, origin?: ChatOriginKind, interactivity = ChatInteractivity.Full, status = SessionStatus.Completed, updatedAt: IObservable<Date | undefined> = constObservable(new Date())): IChat {
 			return upcastPartial<IChat>({
 				resource: URI.parse(`test-chat://${title.replaceAll(' ', '-')}`),
+				createdAt: updatedAt.get() ?? new Date(0),
 				workspace: constObservable(undefined),
 				title: constObservable(title),
 				updatedAt,
@@ -4204,6 +4041,7 @@ suite('Sessions - SessionsList', () => {
 			expandChats = true,
 			compact = false,
 			configure?: (instantiationService: TestInstantiationService) => void,
+			sorting = SessionsSorting.Created,
 		): { readonly container: HTMLElement; readonly list: SessionsList; readonly managementService: TestSessionsManagementService } {
 			const harness = createListHarness(disposables, [session], instantiationService => {
 				if (enableMotion) {
@@ -4216,7 +4054,7 @@ suite('Sessions - SessionsList', () => {
 			const container = harness.createContainer();
 			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
 				grouping: () => SessionsGrouping.Date,
-				sorting: () => SessionsSorting.Created,
+				sorting: () => sorting,
 				compact: () => compact,
 				onSessionOpen: () => { },
 				onChatOpen,
@@ -4233,6 +4071,81 @@ suite('Sessions - SessionsList', () => {
 		function chatRowTitles(container: HTMLElement): string[] {
 			return [...container.querySelectorAll<HTMLElement>('.session-chat-title')].map(element => element.textContent ?? '');
 		}
+
+		test('orders nested sessions by updated time when updated ordering is selected', async () => {
+			const main = createChat('Main chat');
+			const firstUpdatedAt = observableValue<Date | undefined>('first-updated-at', new Date('2024-01-01'));
+			const first = { ...createChat('First chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.Completed, firstUpdatedAt), createdAt: new Date('2024-01-03') };
+			const second = { ...createChat('Second chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.Completed, constObservable(new Date('2024-01-02'))), createdAt: new Date('2024-01-02') };
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, first, second]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const { container } = renderSessionChatsList(session, undefined, false, true, false, undefined, SessionsSorting.Updated);
+			const snapshot = () => [...container.querySelectorAll<HTMLElement>('.session-chat-item')].map(item => ({
+				title: item.querySelector('.session-chat-title')?.textContent,
+				last: item.classList.contains('last-chat'),
+			}));
+			const initial = snapshot();
+
+			firstUpdatedAt.set(new Date('2024-01-04'), undefined);
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+
+			assert.deepStrictEqual({
+				initial,
+				updated: snapshot(),
+			}, {
+				initial: [
+					{ title: 'Second chat', last: false },
+					{ title: 'First chat', last: true },
+				],
+				updated: [
+					{ title: 'First chat', last: false },
+					{ title: 'Second chat', last: true },
+				],
+			});
+		});
+
+		test('observes updated ordering after archived nested sessions are shown', async () => {
+			const main = createChat('Main chat');
+			const archivedUpdatedAt = observableValue<Date | undefined>('archived-updated-at', new Date('2024-01-01'));
+			const archived = {
+				...createChat('Archived chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.Completed, archivedUpdatedAt),
+				createdAt: new Date('2024-01-01'),
+				isArchived: constObservable(true),
+			};
+			const visible = {
+				...createChat('Visible chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.Completed, constObservable(new Date('2024-01-02'))),
+				createdAt: new Date('2024-01-02'),
+			};
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, archived, visible]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const { container, list } = renderSessionChatsList(session, undefined, false, true, false, undefined, SessionsSorting.Updated);
+			const initiallyVisible = chatRowTitles(container);
+
+			list.setExcludeArchived(false);
+			const archivedShown = chatRowTitles(container);
+			archivedUpdatedAt.set(new Date('2024-01-03'), undefined);
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+
+			assert.deepStrictEqual({
+				initiallyVisible,
+				archivedShown,
+				updated: chatRowTitles(container),
+			}, {
+				initiallyVisible: ['Visible chat'],
+				archivedShown: ['Visible chat', 'Archived chat'],
+				updated: ['Archived chat', 'Visible chat'],
+			});
+		});
 
 		test('renders the exact main chat read state whether collapsed or expanded', () => {
 			const built = buildTestSession({
@@ -4660,7 +4573,7 @@ suite('Sessions - SessionsList', () => {
 			const container = harness.createContainer();
 			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
 				grouping: () => SessionsGrouping.Date,
-				sorting: () => SessionsSorting.Created,
+				sorting: () => SessionsSorting.Updated,
 				onSessionOpen: () => { },
 			}));
 			list.layout(120, 400);
@@ -7548,6 +7461,31 @@ suite('Sessions - SessionsList', () => {
 			for (let i = 0; i < 50; i++) {
 				await Promise.resolve();
 			}
+		}
+
+		for (const isExternal of [false, true]) {
+			test(`reports the exact session only after a revealed row finishes opening (external: ${isExternal})`, async () => {
+				const session = createTestSession('Guided session', { isExternal }).session;
+				const harness = createListHarness(disposables, [session]);
+				harness.instantiationService.stub(ICustomViewService, { hideCustomView: () => { }, activeCustomView: constObservable(undefined) });
+				const completion = new DeferredPromise<void>();
+				const container = harness.createContainer();
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+					grouping: () => SessionsGrouping.Date, sorting: () => SessionsSorting.Created,
+					onSessionOpen: () => completion.p,
+				}));
+				const opened: string[] = [];
+				harness.store.add(list.onDidOpenSession(resource => opened.push(resource.toString())));
+				list.layout(300, 400);
+				list.collapseAllSections();
+				harness.store.add(list.revealSessionForOnboarding(session));
+				clickRow(findSessionRow(container, 'Guided session'));
+				await settle();
+				assert.deepStrictEqual(opened, []);
+				await completion.complete();
+				await settle();
+				assert.deepStrictEqual(opened, [session.resource.toString()]);
+			});
 		}
 
 		function renderGatedList(title: string, canOpenSession?: (session: ISession) => Promise<boolean>) {

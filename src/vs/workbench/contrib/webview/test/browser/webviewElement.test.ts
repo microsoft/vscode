@@ -43,9 +43,11 @@ suite('WebviewElement', () => {
 
 	teardown(() => sinon.restore());
 
-	async function createWebview(extensionId?: string, platform = 'browser') {
-		const initialized = new DeferredPromise<string>();
+	async function createWebview(extensionId?: string, platform = 'browser', connect = true) {
+		let initialized = new DeferredPromise<string>();
 		class TestWebviewElement extends WebviewElement {
+			public override get element(): HTMLIFrameElement | undefined { return super.element; }
+
 			protected override get platform(): string { return platform; }
 
 			protected override webviewContentEndpoint(encodedWebviewOrigin: string): string {
@@ -83,6 +85,12 @@ suite('WebviewElement', () => {
 			getWebviewThemeData: () => ({ styles: {}, activeTheme: 'vscode-dark', themeLabel: 'Dark', themeId: 'test' }),
 		})));
 		const container = document.createElement('div');
+		document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		assert.ok(webview.element);
+		const frame = webview.element;
+		// Capture the shell URL without navigating away from the test document.
+		const setSource = sinon.stub(frame, 'setAttribute').withArgs('src', sinon.match.string);
 		webview.mountTo(container, mainWindow);
 		const origin = await initialized.p;
 
@@ -91,14 +99,152 @@ suite('WebviewElement', () => {
 			channel.port1.close();
 			channel.port2.close();
 		}));
-		mainWindow.dispatchEvent(new MessageEvent('message', {
+		const createReadyEvent = (port = channel.port1, keyEventToken = 'shell-key-token') => ({
 			origin,
-			data: { target: container.id, channel: 'webview-ready' },
-			ports: [channel.port1],
-		}));
+			source: frame.contentWindow,
+			data: {
+				target: container.id,
+				channel: 'webview-ready',
+				data: { mountId: new URL(setSource.lastCall.args[1]).searchParams.get('mountId'), keyEventToken },
+			},
+			ports: [port],
+		});
+		if (connect) {
+			mainWindow.dispatchEvent(new MessageEvent('message', createReadyEvent()));
+		}
 		channel.port2.start();
-		return { webview, instantiationService, port: channel.port2, errorNotification };
+		return {
+			webview, instantiationService, port: channel.port2, errorNotification, frame, createReadyEvent,
+			remount: async () => {
+				initialized = new DeferredPromise<string>();
+				webview.reinitializeAfterDismount();
+				await initialized.p;
+			},
+		};
 	}
+
+	for (const invalid of [
+		{ name: 'wrong target', envelope: { target: 'another-webview' } },
+		{ name: 'wrong origin', event: { origin: 'https://another.invalid' } },
+		{ name: 'wrong source', event: { source: mainWindow } },
+		{ name: 'missing source', event: { source: null } },
+		{ name: 'missing port', event: { ports: [] } },
+		{ name: 'stale mount', data: { mountId: 'old-mount' } },
+		{ name: 'missing mount', data: { mountId: undefined } },
+		{ name: 'empty token', data: { keyEventToken: '' } },
+		{ name: 'missing token', data: { keyEventToken: undefined } },
+		{ name: 'non-string token', data: { keyEventToken: 42 } },
+	]) {
+		test(`rejects ready handshake with ${invalid.name}`, async () => {
+			const { frame, createReadyEvent } = await createWebview(undefined, 'browser', false);
+			const ready = createReadyEvent();
+			const originMismatchLog = invalid.name === 'wrong origin' ? sinon.stub(console, 'log') : undefined;
+			mainWindow.dispatchEvent(new MessageEvent('message', {
+				...ready,
+				...invalid.event,
+				data: { ...ready.data, ...invalid.envelope, data: { ...ready.data.data, ...invalid.data } },
+			}));
+			const acceptedInvalid = frame.classList.contains('ready');
+			if (originMismatchLog) {
+				assert.ok(originMismatchLog.calledOnceWith(sinon.match('Skipped renderer receiving message due to mismatched origins:')));
+				originMismatchLog.restore();
+			}
+			mainWindow.dispatchEvent(new MessageEvent('message', ready));
+
+			assert.deepStrictEqual({ acceptedInvalid, acceptedValid: frame.classList.contains('ready') }, {
+				acceptedInvalid: false,
+				acceptedValid: true,
+			});
+		});
+	}
+
+	test('does not replace an accepted channel and clears it on disposal', async () => {
+		const { webview, createReadyEvent } = await createWebview();
+		const originalPort = createReadyEvent().ports[0];
+		const channel = new MessageChannel();
+		store.add(toDisposable(() => {
+			channel.port1.close();
+			channel.port2.close();
+		}));
+		mainWindow.dispatchEvent(new MessageEvent('message', createReadyEvent(channel.port1, 'replacement-token')));
+		const keptOriginal = originalPort.onmessage !== null && channel.port1.onmessage === null;
+		webview.dispose();
+		mainWindow.dispatchEvent(new MessageEvent('message', createReadyEvent(channel.port1)));
+
+		assert.deepStrictEqual({ keptOriginal, originalHandler: originalPort.onmessage, replacementHandler: channel.port1.onmessage }, {
+			keptOriginal: true,
+			originalHandler: null,
+			replacementHandler: null,
+		});
+	});
+
+	for (const forwardUntrustedKeypressEvents of [false, true]) {
+		for (const type of ['keydown', 'keyup'] as const) {
+			test(`${type} authenticates the shell before applying untrusted forwarding (${forwardUntrustedKeypressEvents})`, async () => {
+				const { webview, port, frame, createReadyEvent } = await createWebview();
+				webview.contentOptions = { forwardUntrustedKeypressEvents };
+				frame.contentWindow!.focus();
+				assert.strictEqual(document.activeElement, frame);
+				const forwarded: string[] = [];
+				store.add(addDisposableListener(mainWindow, type, (event: KeyboardEvent) => {
+					if (event.target === frame) {
+						forwarded.push(event.key);
+					}
+				}));
+				const keyEventToken = createReadyEvent().data.data.keyEventToken;
+				for (const event of [
+					{ key: 'trusted', keyEventToken, isTrusted: true },
+					{ key: 'untrusted', keyEventToken, isTrusted: false },
+					{ key: 'forged', keyEventToken: 'forged', isTrusted: true },
+					{ key: 'missing-token', isTrusted: true },
+					{ key: 'empty-token', keyEventToken: '', isTrusted: true },
+				]) {
+					port.postMessage({ channel: `did-${type}`, data: event });
+				}
+				const drained = Event.toPromise(webview.onMessage, store.add(new DisposableStore()));
+				port.postMessage({ channel: 'onmessage', data: { message: 'done' } });
+				await drained;
+
+				assert.deepStrictEqual(forwarded, forwardUntrustedKeypressEvents ? ['trusted', 'untrusted'] : ['trusted']);
+			});
+		}
+	}
+
+	test('remount rejects the old handshake and key token', async () => {
+		const { webview, frame, createReadyEvent, remount } = await createWebview();
+		const oldReady = createReadyEvent();
+		await remount();
+		const channel = new MessageChannel();
+		store.add(toDisposable(() => {
+			channel.port1.close();
+			channel.port2.close();
+		}));
+		const ready = createReadyEvent(channel.port1, 'new-shell-token');
+		// Keep the current source window so rejection specifically tests the stale mount id.
+		mainWindow.dispatchEvent(new MessageEvent('message', { ...ready, data: oldReady.data }));
+		const rejectedStaleMount = channel.port1.onmessage === null;
+		mainWindow.dispatchEvent(new MessageEvent('message', ready));
+		const acceptedNewMount = channel.port1.onmessage !== null;
+		frame.contentWindow!.focus();
+		const forwarded: string[] = [];
+		store.add(addDisposableListener(mainWindow, 'keydown', (event: KeyboardEvent) => {
+			if (event.target === frame) {
+				forwarded.push(event.key);
+			}
+		}));
+		for (const keyEventToken of [oldReady.data.data.keyEventToken, ready.data.data.keyEventToken]) {
+			channel.port2.postMessage({ channel: 'did-keydown', data: { key: keyEventToken, keyEventToken, isTrusted: true } });
+		}
+		const drained = Event.toPromise(webview.onMessage, store.add(new DisposableStore()));
+		channel.port2.postMessage({ channel: 'onmessage', data: { message: 'done' } });
+		await drained;
+
+		assert.deepStrictEqual({ rejectedStaleMount, acceptedNewMount, forwarded }, {
+			rejectedStaleMount: true,
+			acceptedNewMount: true,
+			forwarded: ['new-shell-token'],
+		});
+	});
 
 	for (const extensionId of [undefined, 'publisher.extension']) {
 		test(`reports errors ${extensionId ? 'with the owning extension' : 'without an extension owner'}`, async () => {

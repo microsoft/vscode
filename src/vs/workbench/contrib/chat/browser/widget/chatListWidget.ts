@@ -1082,6 +1082,10 @@ export class ChatListWidget extends Disposable {
 	 */
 	private _updateElementHeight(element: ChatTreeItem, height?: number): void {
 		if (this._tree.hasElement(element) && this._visible) {
+			// A refresh must reuse the resized height, not the measurement taken before image loading.
+			if (height !== undefined) {
+				this._delegate.setDynamicHeight(element, height);
+			}
 			const userToggleResizeTracker = this._userToggleResizeTrackers.get(element);
 			if (userToggleResizeTracker) {
 				const scrollTop = this._tree.scrollTop;
