@@ -1,7 +1,7 @@
-38fa5acc4e4f17cb7e3f599b5226a511b22cbdceeb38277d224b45f7280f518f  aarch64-linux-gnu-glibc-2.28-gcc-10.5.0.tar.gz
-bcff71257397f76a4f7a76bbcfc425b4b60b16449e10b01a2cfce574c21d60da  aarch64-linux-gnu-glibc-2.28-gcc-8.5.0.tar.gz
-58cd59ee4038291fe8a7f4adccac0ecbe8d23cbad1cb650b381e45e7e1e22424  aarch64-linux-musl-gcc-10.3.0.tar.gz
-a0a1573e93191ae5e3735eb6107f4daeb4be7f99c5af229114d990ac77db33eb  arm-rpi-linux-gnueabihf-glibc-2.28-gcc-10.5.0.tar.gz
-375ecbb95c7eed95d6c7918af3c4418f2907e92e2f8d1b827a65bf46a8bbfc74  arm-rpi-linux-gnueabihf-glibc-2.28-gcc-8.5.0.tar.gz
-ac4b6b14b4cec027a22a51bbbb049b3504958a78106c8a8d5cec144206b767d1  x86_64-linux-gnu-glibc-2.28-gcc-10.5.0.tar.gz
-1ebb6ef1fe2983269fd0855a88f9c9a37f9b515d16524a9146198e4cabdf34f7  x86_64-linux-gnu-glibc-2.28-gcc-8.5.0.tar.gz
+101468da438ec4cdbc77cfc03f9c97a1b397a7eefa7a4ab15aaaa17607b7462e  aarch64-linux-gnu-glibc-2.28-gcc-10.5.0.tar.gz
+31e0d57ea86232f577295a57987cfc1d3c96e295094be4e93f8322a413be1a7f  aarch64-linux-gnu-glibc-2.28-gcc-8.5.0.tar.gz
+03cbb3f523d6dcff9d5eaafb12e86389b8f712ce4e324a357d9ec09be921603d  aarch64-linux-musl-gcc-10.3.0.tar.gz
+eadc69f945fc71c9455c15b57a47b84b7e8a7b592ef03c9805a7c482ea9e4570  arm-rpi-linux-gnueabihf-glibc-2.28-gcc-10.5.0.tar.gz
+3314fe2f81f0b849647ec111c776c80bc33ca199444714871c1d44ac95010c3d  arm-rpi-linux-gnueabihf-glibc-2.28-gcc-8.5.0.tar.gz
+c4719c3944276de3051e3200d92c162e95cab79665f11d023b1f393263cf2e49  x86_64-linux-gnu-glibc-2.28-gcc-10.5.0.tar.gz
+6546ca42b458b8655957e701e2d02a8536bc11544efe61da3bc5f82fc09e0e7d  x86_64-linux-gnu-glibc-2.28-gcc-8.5.0.tar.gz

@@ -1605,6 +1605,7 @@ export default defineConfig(
 						'@vscode/vscode-languagedetection',
 						'@vscode/ripgrep-universal',
 						'@vscode/iconv-lite-umd',
+						'@vscode/metered',
 						'@vscode/native-watchdog',
 						'@vscode/policy-watcher',
 						'@vscode/proxy-agent',

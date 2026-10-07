@@ -65,6 +65,12 @@ flakySuite('Native Modules (all platforms)', () => {
 		assert.ok(typeof watcher.createWatcher === 'function', testErrorMessage('@vscode/policy-watcher'));
 	});
 
+	test('@vscode/metered', async () => {
+		const metered = await import('@vscode/metered');
+		assert.ok(typeof metered.createMonitor === 'function', testErrorMessage('@vscode/metered'));
+		metered.createMonitor().dispose();
+	});
+
 	test('node-pty', async () => {
 		const nodePty = await import('node-pty');
 		assert.ok(typeof nodePty.spawn === 'function', testErrorMessage('node-pty'));

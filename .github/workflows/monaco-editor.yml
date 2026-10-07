@@ -53,7 +53,7 @@ jobs:
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         run: |
           sudo apt update
-          sudo apt install -y libxkbfile-dev pkg-config libkrb5-dev libxss1
+          sudo apt install -y libglib2.0-dev libxkbfile-dev pkg-config libkrb5-dev libxss1
       - name: Execute npm
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:

@@ -1274,7 +1274,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	async updateAutoUpdateForAllExtensions(isAutoUpdateEnabled: boolean): Promise<void> {
-		const wasAutoUpdateEnabled = this.isAutoUpdateEnabled();
+		const wasAutoUpdateEnabled = this.getAutoUpdateValue() !== 'off';
 		if (wasAutoUpdateEnabled === isAutoUpdateEnabled) {
 			return;
 		}

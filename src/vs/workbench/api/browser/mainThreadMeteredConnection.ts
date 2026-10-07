@@ -21,12 +21,18 @@ export class MainThreadMeteredConnection extends Disposable implements MainThrea
 
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostMeteredConnection);
 
-		// Send initial value
-		this._proxy.$initializeIsConnectionMetered(this.meteredConnectionService.isConnectionMetered);
-
 		// Listen for changes and forward to extension host
 		this._register(this.meteredConnectionService.onDidChangeIsConnectionMetered(isMetered => {
 			this._proxy.$onDidChangeIsConnectionMetered(isMetered);
 		}));
+
+		void this.initialize();
+	}
+
+	private async initialize(): Promise<void> {
+		await this.meteredConnectionService.whenInitialized;
+		if (!this._store.isDisposed) {
+			this._proxy.$initializeIsConnectionMetered(this.meteredConnectionService.isConnectionMetered);
+		}
 	}
 }
