@@ -167,6 +167,90 @@ locally, or use file/HTTP JSON. Console export remains a summary, not a
 structured measurement sink. Export destination/resource configuration is
 user-owned; the diagnostics add no workspace paths, content or credentials.
 
+### VS Code provider preparation and progress diagnostics
+
+Copilot sends also export `vscode.agent_host.provider_timing` metadata spans
+and `agentHost.providerTiming` product events. They use the existing independent
+OTel and product-telemetry consent paths, with no new setting or protocol change.
+`[AgentHostProviderTiming]` logs contain the same bounded measurements at Debug
+level. The log-level check precedes JSON serialization; normal Info logging does
+not construct or write this payload.
+Filter product events by `initiatorConnectionKind == 'local'` for local-host
+analysis; do not infer the host OS from a remote client's OS.
+
+Each terminal turn emits at most one OTel span per observed `kind`/`name` pair.
+The existing turn span and provider spans are queued and exported as one batch,
+with one shared resource envelope for OTLP JSON. Individual spans and SQLite
+rows remain available; `flush()` drains the batch through the existing queue.
+Disabled OTel diagnostics return before inspecting provider rows.
+Names are allowlisted in `common/agentHostProviderTiming.ts`; no prompts,
+commands, paths, tool names, MCP server names or credentials are recorded.
+An absent operation did not run with this recorder; an observed zero is retained.
+The additional records are correlated by provider/session/chat/turn, not by
+their export timestamps. The OTel spans have zero duration: read measurements,
+not span durations. Existing coarse `providerStage*Ms` semantics are unchanged.
+
+Product events use **schema version 2**, with at most seven events per turn.
+The `group` property is `input`, `permissions`, `sandboxShell`, `mcp`,
+`execution`, `interactions`, or `milestones`; empty groups are omitted.
+Operations retain all nine measurements below as numeric
+`<operation>.<field>` keys, for example `permission.queueMs`.
+Milestones use `milestone.<name>` for their first-observation offset; their
+other row fields are redundant (end equals start, count is one, and duration,
+error and incomplete counts are zero). The largest group has 54 timing
+measurements. Shared turn/model/client metadata is computed once per turn.
+The schema remains explicitly classified, and no numeric payload is packed
+into a JSON string. Kusto keys are lowercased, for example
+`Measures["permission.queuems"]` and `Measures["milestone.sdktext"]`.
+OTel spans and Debug logs retain the following row-based version-1 contract:
+
+| Field | Meaning |
+|---|---|
+| `schemaVersion` | Numeric `1` |
+| `kind`, `name` | `operation` aggregate or first-observation `milestone`, and an allowlisted name |
+| `startMs`, `endMs` | First admission and last settlement offsets on the host turn clock; equal for a milestone |
+| `queueMs`, `executionMs` | Cumulative wait for the VS Code sequencer and admitted execution time |
+| `queueBeforeProgressMs`, `executionBeforeProgressMs` | The same intervals clipped at first host progress, or terminal observation when no progress occurs |
+| `count`, `errorCount` | Invocation count and observed thrown/rejected operation count; an RPC returning an unsuccessful value is not necessarily a rejection |
+| `incompleteCount` | Invocations still queued/executing at terminal observation; their durations are partial, not successful completion |
+| `result` | Terminal **turn** outcome, independent of operation rejections |
+
+Preparation includes attachment conversion; command resolution/invocation;
+agent-mode RPC; permission queue, options RPC, mode RPC and managed-settings
+retry wait; sandbox queue, RPC and diagnostics; shell queue, file materialization
+and RPC; MCP queue, listing and enable/disable work; execution admission and
+the persistence marker; SDK send; and permission, input, elicitation, MCP-auth,
+exit-plan and unsandboxed-confirmation callbacks. Callback durations include
+VS Code handling and user waiting, not just CPU execution. Repeated operations aggregate,
+including retries. Parent operations include their children: **never sum nested
+operation rows**. No-op queue callbacks can have zero execution time; individual
+RPC rows distinguish them from actual SDK calls.
+
+Milestones include SDK send invocation/return/rejection, first root SDK callback,
+user-message acknowledgement, assistant-turn start, nonempty text/reasoning,
+tool start, error and idle, prompt-hook invocation, permission/input/elicitation/
+MCP-auth callbacks, first mapped root model-call completion, and existing host
+progress/substantive-progress observations. SDK callbacks are observed after
+send invocation and exclude subagent envelopes and cancelled-root events.
+Permission/input hooks are session callbacks during the active turn, not proof
+that a human saw or answered a prompt. Milestones remain first-only even if SDK
+events repeat. A resumed/replaced turn does not inherit an earlier recorder.
+
+The SDK send promise is an API acknowledgement, **not model-request dispatch or
+first token**. An assistant-turn-start callback is likewise not a network
+dispatch timestamp. SDK text/reasoning observations precede VS Code processing
+and can differ from host progress (for example, provisional output). Host
+progress is not renderer receipt or paint. Join the existing renderer/UI events
+for those separately defined measurements; never subtract independent clocks.
+Native model-call telemetry retains its own model-call-to-turn correlation.
+Exact transport dispatch, response headers, first protocol chunk and runtime
+internal preparation remain unknown when the SDK does not expose them.
+
+Records are emitted at terminal observation, including errors/cancellation.
+Pending work is clipped there and late settlements cannot modify exported rows.
+Crashes, permanent hangs and turns dropped by session disposal can still have
+no terminal record. These events do not establish an uncensored latency sample.
+
 ### Existing product telemetry and logs
 
 The renderer reports `agentHost.firstResponse` and writes a content-free

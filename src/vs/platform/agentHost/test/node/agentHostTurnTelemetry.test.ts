@@ -16,7 +16,7 @@ import { InstantiationService } from '../../../instantiation/common/instantiatio
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { IFileService } from '../../../files/common/files.js';
-import { ILogService, NullLogService } from '../../../log/common/log.js';
+import { ILogService, LogLevel, NullLogService } from '../../../log/common/log.js';
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../../telemetry/common/telemetryUtils.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
@@ -1962,6 +1962,44 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
 
 		assert.strictEqual((completedEvents()[0].data as Record<string, unknown>).billedNanoAiu, 2_000_000_000);
+	});
+
+	test('provider timing survives cancellation and late recorders cannot affect a reused turn ID', () => {
+		setupSession();
+		turnTracker.turnStarted(agent, defaultChatUri, 'turn-timing', undefined, undefined, 'default', undefined, undefined);
+		const recorder = turnTracker.createProviderStageRecorder(defaultChatUri, 'turn-timing');
+		const pending = recorder.startOperation!('permission')!;
+		pending.start();
+		recorder.markMilestone!('sdkSend');
+		turnTracker.turnCompleted(defaultChatUri, 'turn-timing', 'cancelled');
+		turnTracker.turnStarted(agent, defaultChatUri, 'turn-timing', undefined, undefined, 'default', undefined, undefined);
+		recorder.markMilestone!('sdkText');
+		pending.end(false);
+		turnTracker.turnCompleted(defaultChatUri, 'turn-timing', 'success');
+		assert.deepStrictEqual(telemetry.events.filter(event => event.eventName === 'agentHost.providerTiming').map(event => ({
+			group: event.data?.group, result: event.data?.result, count: event.data?.['permission.count'], incompleteCount: event.data?.['permission.incompleteCount'],
+		})), [
+			{ group: 'permissions', result: 'cancelled', count: 1, incompleteCount: 1 },
+			{ group: 'milestones', result: 'cancelled', count: undefined, incompleteCount: undefined },
+		]);
+	});
+
+	test('detailed provider timing logs require Debug level', () => {
+		setupSession();
+		const level = sinon.stub(logService, 'getLevel');
+		const debug = sinon.spy(logService, 'debug');
+		const info = sinon.spy(logService, 'info');
+		for (const verbosity of [LogLevel.Info, LogLevel.Debug]) {
+			level.returns(verbosity);
+			const turnId = `timing-log-${verbosity}`;
+			turnTracker.turnStarted(agent, defaultChatUri, turnId, undefined, undefined, 'default', undefined, undefined);
+			turnTracker.createProviderStageRecorder(defaultChatUri, turnId).markMilestone!('sdkSend');
+			turnTracker.turnCompleted(defaultChatUri, turnId, 'success');
+		}
+		assert.deepStrictEqual({
+			debug: debug.getCalls().filter(call => String(call.args[0]).startsWith('[AgentHostProviderTiming]')).length,
+			info: info.getCalls().filter(call => String(call.args[0]).startsWith('[AgentHostProviderTiming]')).length,
+		}, { debug: 1, info: 0 });
 	});
 
 	test('does not report billed nano-AIU when the provider does not supply it', () => {

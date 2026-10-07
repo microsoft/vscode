@@ -35,7 +35,8 @@ import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUt
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { AgentSession, SubagentChatSignal, type AgentSignal, type IAgentActionSignal, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
-import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
+import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, createUnknownAgentHostClientTelemetryContext, type IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
+import { AgentHostProviderTiming } from '../../common/agentHostProviderTiming.js';
 import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanReview.js';
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
@@ -1979,6 +1980,51 @@ suite('CopilotAgentSession', () => {
 			firstHook: { additionalContext: 'Rename before working' },
 			secondHook: undefined,
 		});
+	});
+
+	test('records preparation operations and only nonempty root SDK progress for the admitted send', async () => {
+		const captureRuntime: { current?: ICopilotSessionRuntime } = {};
+		const { session } = await createAgentSession(disposables, { captureRuntime });
+		const timing = new AgentHostProviderTiming(() => 0);
+		const recorder: IAgentProviderSendStageRecorder = {
+			mark() { },
+			startOperation: name => timing.startOperation(name),
+			markMilestone: name => timing.markMilestone(name),
+		};
+		await session.send('hello', undefined, 'turn-timing', 'interactive', undefined, AgentHostClientType.Unknown, undefined, undefined, false, recorder);
+		for (const event of toSessionEvents([
+			{ type: 'assistant.message_delta', data: { messageId: 'empty', deltaContent: '' } },
+			{ type: 'assistant.reasoning_delta', agentId: 'subagent', data: { reasoningId: 'reasoning', deltaContent: 'subagent reasoning' } },
+			{ type: 'assistant.message_delta', data: { messageId: 'root', deltaContent: 'hello' } },
+		])) {
+			captureRuntime.current?.onSessionEvent?.(event);
+		}
+		const rows = timing.finish(0);
+		assert.deepStrictEqual({
+			operations: rows.filter(row => row.kind === 'operation').map(row => row.name).sort(),
+			milestones: rows.filter(row => row.kind === 'milestone').map(row => row.name).sort(),
+		}, {
+			operations: ['attachments', 'execution', 'executionMarker', 'mcp', 'mode', 'permission', 'permissionRpc', 'sandbox', 'sandboxDiagnostics', 'sandboxRpc', 'sdkSend', 'shell'],
+			milestones: ['sdkFirstEvent', 'sdkSend', 'sdkSendReturned', 'sdkText'],
+		});
+	});
+
+	test('records rejected SDK sends without changing their rejection or leaving an active turn', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		const timing = new AgentHostProviderTiming(() => 0);
+		const error = new Error('send failed');
+		mockSession.send = async () => { throw error; };
+		await assert.rejects(session.send('hello', undefined, 'turn-timing', undefined, undefined, AgentHostClientType.Unknown, undefined, undefined, false, {
+			mark() { },
+			startOperation: name => timing.startOperation(name),
+			markMilestone: name => timing.markMilestone(name),
+		}), e => e === error);
+		const rows = timing.finish(0);
+		assert.deepStrictEqual({
+			active: session.hasActiveTurn,
+			errorCount: rows.find(row => row.kind === 'operation' && row.name === 'sdkSend')?.errorCount,
+			milestones: rows.filter(row => row.kind === 'milestone').map(row => row.name),
+		}, { active: false, errorCount: 1, milestones: ['sdkSend', 'sdkSendRejected'] });
 	});
 
 	test('forwards Auto routing preferences and explicit resets with the model configuration', async () => {
@@ -16866,6 +16912,38 @@ Use the attached image as context.
 	// ---- user input handling ----
 
 	suite('user input handling', () => {
+
+		test('records callback waiting separately and clips it at first progress', async () => {
+			const { session, runtime, signals } = await createAgentSession(disposables);
+			let now = 0;
+			const timing = new AgentHostProviderTiming(() => now);
+			await session.send('hello', undefined, 'turn-input-timing', undefined, undefined, AgentHostClientType.Unknown, undefined, undefined, false, {
+				mark() { },
+				startOperation: name => timing.startOperation(name),
+				markMilestone: name => timing.markMilestone(name),
+			});
+			now = 10;
+			const pending = runtime.handleUserInputRequest({ question: 'Proceed?' }, { sessionId: 'test-session-1' });
+			const request = getInputRequest(signals[signals.length - 1]);
+			timing.markFirstProgress(35);
+			now = 60;
+			session.respondToUserInputRequest(request.id, ChatInputResponseKind.Accept, {
+				[request.questions![0].id]: {
+					state: ChatInputAnswerState.Submitted,
+					value: { kind: ChatInputAnswerValueKind.Text, value: 'ok' },
+				},
+			});
+			const result = await pending;
+			const row = timing.finish(now).find(row => row.kind === 'operation' && row.name === 'userInputRequest');
+			assert.deepStrictEqual({
+				result,
+				start: row?.startMs, end: row?.endMs, execution: row?.executionMs, beforeProgress: row?.executionBeforeProgressMs,
+				count: row?.count, incomplete: row?.incompleteCount,
+			}, {
+				result: { answer: 'ok', wasFreeform: true },
+				start: 10, end: 60, execution: 50, beforeProgress: 25, count: 1, incomplete: 0,
+			});
+		});
 
 		test('handleUserInputRequest fires user_input_request progress event', async () => {
 			const { session, runtime, signals } = await createAgentSession(disposables);
