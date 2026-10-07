@@ -7052,6 +7052,7 @@ export class CopilotAgentSession extends Disposable {
 						success: e.data.success,
 						pastTenseMessage: getPastTenseMessage(tracked.toolName, displayName, tracked.parameters, e.data.success, e.data.success ? toolOutput : undefined, path => this._resolveEditFilePath(path), this._resolveAgentName, tracked.meta?.[imageGenerationToolMetaKey]),
 						content: content.length > 0 ? content : undefined,
+						structuredContent: e.data.result?.structuredContent as Record<string, unknown> | undefined,
 						error: e.data.error,
 					},
 					_meta: tracked.meta ? toToolCallMeta(tracked.meta) : undefined,

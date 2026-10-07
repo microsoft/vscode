@@ -1160,6 +1160,7 @@ function makeCompletedToolCallPart(
 		success: d.success,
 		pastTenseMessage: getPastTenseMessage(info.toolName, info.displayName, info.parameters, d.success, d.success ? toolOutput : undefined, path => resolveToolDisplayPath(path, workingDirectory), resolveAgentName, imageGeneration),
 		content: content.length > 0 ? content : undefined,
+		structuredContent: d.result?.structuredContent as Record<string, unknown> | undefined,
 		error: d.error,
 		confirmed: ToolCallConfirmationReason.NotNeeded,
 		_meta: toToolCallMeta({
