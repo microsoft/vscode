@@ -18,7 +18,7 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostEditAutoApprove
 import { ISessionDataService, SESSION_ATTACHMENTS_DIRNAME } from '../../common/sessionDataService.js';
 import { DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, mergeChatEditAutoApprovePatterns } from '../../../chat/common/chatSettings.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { buildChatUri, SessionStatus, ToolCallConfirmationReason, type SessionSummary } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, SessionStatus, ToolCallConfirmationReason, type SessionSummary } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { SessionPermissionManager, type IToolApprovalEvent } from '../../node/sessionPermissions.js';
@@ -672,6 +672,89 @@ suite('SessionPermissionManager', () => {
 		assert.strictEqual(permissions.isGlobalAutoApproveEnabled(), true);
 		assert.strictEqual(permissions.isSessionAutoApproveEnabled(sessionUri), false);
 	});
+
+	test('Copilot tool approvals follow reported effective permissions without overwriting intent', () => {
+		const resource = URI.from({ scheme: 'copilotcli', path: '/runtime-mode' }).toString();
+		manager.createSession({ ...makeSummary(resource), provider: 'copilotcli' });
+		const schema = platformSessionSchema.toProtocol();
+		manager.setSessionConfig(resource, {
+			schema: { ...schema, properties: { ...schema.properties, effectiveApprovalMode: { type: 'string', title: 'Effective permissions', readOnly: true } } },
+			values: { autoApprove: 'autoApprove', effectiveApprovalMode: 'default' },
+		});
+		const restricted = permissions.isSessionAutoApproveEnabled(resource);
+		configService.updateSessionConfig(resource, { effectiveApprovalMode: 'autoApprove' });
+		const spoofed = permissions.isSessionAutoApproveEnabled(resource);
+		const registration = disposables.add(configService.registerChatPermissionState(buildDefaultChatUri(resource)));
+		registration.update({ effective: 'autoApprove' });
+		assert.deepStrictEqual({
+			restricted, spoofed,
+			allowed: permissions.isSessionAutoApproveEnabled(resource),
+			requested: configService.getSessionConfigValues(resource)?.autoApprove,
+		}, { restricted: false, spoofed: false, allowed: true, requested: 'autoApprove' });
+	});
+
+	test('peer runtime reports cannot approve parent tools or replace restored parent presentation', () => {
+		const resource = URI.from({ scheme: 'copilotcli', path: '/peers' }).toString();
+		const parentChat = buildDefaultChatUri(resource);
+		const peerChat = buildChatUri(resource, 'peer');
+		manager.createSession({ ...makeSummary(resource), provider: 'copilotcli' });
+		manager.setSessionConfig(resource, { schema: platformSessionSchema.toProtocol(), values: {} });
+		const parent = disposables.add(configService.registerChatPermissionState(parentChat));
+		parent.update({ effective: 'default', available: ['default', 'assisted'] });
+		const peer = disposables.add(configService.registerChatPermissionState(peerChat));
+		peer.update({ effective: 'autoApprove', available: ['default', 'autoApprove'] });
+		const beforeRestore = [permissions.isSessionAutoApproveEnabled(parentChat), permissions.isSessionAutoApproveEnabled(peerChat)];
+		configService.restoreSessionConfig(resource, { schema: platformSessionSchema.toProtocol(), values: { effectiveApprovalMode: 'autoApprove' } });
+		const restored = configService.getSessionConfigValues(resource);
+		const replacement = disposables.add(configService.registerChatPermissionState(parentChat));
+		replacement.update({ effective: 'assisted' });
+		parent.dispose();
+		peer.dispose();
+		assert.deepStrictEqual({
+			beforeRestore, restored,
+			replaced: permissions.getEffectiveApprovalLevel(parentChat),
+			disposed: permissions.isSessionAutoApproveEnabled(peerChat),
+		}, {
+			beforeRestore: [false, true],
+			restored: { effectiveApprovalMode: 'default', availableApprovalModes: ['default', 'assisted'] },
+			replaced: 'assisted', disposed: false,
+		});
+	});
+
+	test('subagent blanket approval requires its own report even when its spawning backing allows all', () => {
+		const resource = URI.from({ scheme: 'copilotcli', path: '/subagent-modes' }).toString();
+		const parentChat = buildDefaultChatUri(resource);
+		const child = buildSubagentChatUri(resource, 'task');
+		manager.createSession({ ...makeSummary(resource), provider: 'copilotcli' });
+		manager.addChat(resource, child);
+		disposables.add(configService.registerChatPermissionState(parentChat)).update({ effective: 'autoApprove' });
+		const absent = permissions.isSessionAutoApproveEnabled(child);
+		const registration = disposables.add(configService.registerChatPermissionState(child));
+		registration.update({ effective: 'default' });
+		const manual = permissions.isSessionAutoApproveEnabled(child);
+		registration.update({ effective: 'autoApprove' });
+		const allowAll = permissions.isSessionAutoApproveEnabled(child);
+		registration.dispose();
+		assert.deepStrictEqual({ absent, manual, allowAll, disposed: permissions.isSessionAutoApproveEnabled(child) }, {
+			absent: false, manual: false, allowAll: true, disposed: false,
+		});
+	});
+
+	for (const effective of ['default', 'assisted', 'autoApprove'] as const) {
+		test(`global approval respects Copilot runtime-only bypass restriction (${effective}) without disabling per-tool rules`, async () => {
+			const resource = URI.from({ scheme: 'copilotcli', path: '/global-policy' }).toString();
+			manager.createSession({ ...makeSummary(resource, URI.file(workDir).toString()), provider: 'copilotcli' });
+			const registration = disposables.add(configService.registerChatPermissionState(buildDefaultChatUri(resource)));
+			registration.update({ effective, available: effective === 'autoApprove' ? ['default', 'assisted', 'autoApprove'] : ['default', 'assisted'] });
+			configService.updateRootConfig({ [AgentHostGlobalAutoApproveEnabledConfigKey]: true });
+			const blanket = await permissions.getAutoApproval(writeEvent(join(outsideDir, 'anything.txt')), resource);
+			const ordinaryRule = await permissions.getAutoApproval(readEvent(workDir, resource), resource);
+			assert.deepStrictEqual({ blanket, ordinaryRule }, {
+				blanket: effective === 'autoApprove' ? ToolCallConfirmationReason.Setting : undefined,
+				ordinaryRule: effective === 'autoApprove' ? ToolCallConfirmationReason.Setting : ToolCallConfirmationReason.NotNeeded,
+			});
+		});
+	}
 
 	test('managed policy disables a persisted session auto-approve level', () => {
 		manager.setSessionConfig(sessionUri, {

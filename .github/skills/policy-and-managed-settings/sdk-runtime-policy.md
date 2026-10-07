@@ -31,11 +31,62 @@ Do not add a VS Code `policy:` merely to mirror runtime policy. Do not add a Git
 - Permission authorization never widens sandbox access.
 - Validate rule grammar through the real SDK/runtime boundary.
 
+### Permission modes
+
+`permissions.disableAssistedPermissionsMode` and `permissions.disableBypassPermissionsMode`
+independently restrict Assisted and Allow All. The former is sticky true across
+managed sources. The latter must not be projected into a blanket Manual-only
+restriction for Copilot Agent Host. An explicit legacy `ChatToolsAutoApprove=false`
+device policy still forces Manual; preserve its provenance when bridging it.
+If several policy services contribute the same false value, retain all effective
+sources: a managed source must not hide a simultaneous legacy device restriction.
+Forward only these mode bans to remote Copilot hosts, not unrelated local
+tool/path bridge rules. Web PubSub and Mission Control relay connections do not
+forward client policy; their client controls retain the legacy Manual clamp.
+Only connections that explicitly forward managed restrictions may relax it.
+
+`permissions.defaultMode` is a new-session default, not a restriction. The runtime
+composes defaults restrictively and owns startup, fallback, and resume behavior.
+Do not materialize the displayed Manual fallback as an explicit host selection.
+Only explicit `chat.defaultConfiguration.approvals` values and remembered user
+choices override the runtime default; the setting's schema default does not.
+Keep requested session configuration separate from read-only effective and
+available approval modes, and never replace saved intent with a policy downgrade.
+Authoritative reports belong to each live backing/chat. Session-level presentation
+describes the default chat, never a sibling's most recent report. Restore preserves
+the saved or hydrated runtime report instead of applying today's new-session
+default. Persist pre-global mode provenance before setting global Allow All so
+removal also restores the underlying choice after a cold host/runtime restart.
+Keep the uncapped startup selection separately from effective reports, and retain
+override provenance through overlapping policy caps. If restoration is prohibited,
+use Manual without discarding the saved intention. Pre-adoption resumed sessions
+without host provenance cannot recover an already-capped requested mode from the
+SDK's effective-only `permissions.getMode`; removing a subsequent host override
+falls back to Manual rather than inventing or elevating prior intent.
+Global approval cannot bypass a backing's authoritative effective mode. Subagent
+reports come from their own runtime permission events, never a sibling's grant.
+Client-tool preapproval, tool-search approval metadata, and Assisted recommendations
+use that requesting agent's report, not its parent's mode or UI grouping.
+Unknown child modes cannot inherit approval; deferred decisions recheck authority.
+The current runtime does not forward child `session.permissions_changed` events,
+and Allow All may omit permission requests entirely. A child client tool with no
+report becomes ready only when the SDK invokes its authorized handler, without
+inventing an Allow All mode or duplicating an existing confirmation. Permission
+callbacks precede synchronous event listeners; correlate the current tool's
+request event before deciding Assisted approval, and fall back to confirmation
+when its event or recommendation is absent.
+Repeated SDK handler notifications for the same tool call share its execution
+and readiness rather than replacing a pending client response.
+Both the separate and `chat.experimentalModePermissionsPicker` combined picker,
+as well as Agents Window permission controls, consume those same reports.
+The independent `chat.experimentalModelPicker` setting does not select permission
+modes.
+
 ## Host-Injection Lifecycle
 
 Host-injected managed settings are startup configuration:
 
-- supply them on local create and resume;
+- supply applicable contributions on create and resume;
 - re-supply them because they are not persisted;
 - omission clears the previous injected layer;
 - refresh default and peer sessions before the next turn when policy changes;

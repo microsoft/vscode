@@ -6301,7 +6301,7 @@ export class AgentService extends Disposable implements IAgentService {
 			: { session, key: ANNOTATIONS_METADATA_KEY };
 	}
 
-	private async _resolveCreatedSessionConfig(provider: IAgent, config: IAgentCreateSessionConfig | undefined): Promise<SessionConfigState | undefined> {
+	private async _resolveCreatedSessionConfig(provider: IAgent, config: IAgentCreateSessionConfig | undefined, isNewSession = true): Promise<SessionConfigState | undefined> {
 		if (!config?.config && config?.workingDirectories === undefined) {
 			return undefined;
 		}
@@ -6311,6 +6311,7 @@ export class AgentService extends Disposable implements IAgentService {
 			// resolve against the session's primary (index 0).
 			workingDirectory: config.workingDirectories?.[0],
 			config: config.config,
+			...(!isNewSession ? { isNewSession: false } : {}),
 		};
 		try {
 			const resolved = await this._withHostSessionConfigContributions(await provider.resolveChatConfig(this._toProviderConfig(params)), params);
@@ -9139,7 +9140,7 @@ export class AgentService extends Disposable implements IAgentService {
 			this._resolveCreatedSessionConfig(agent, {
 				workingDirectories: meta.workingDirectories,
 				config: restoredConfigValues,
-			}),
+			}, false),
 			agent.getChatCustomizations(defaultChatUri, chatContext, this._hostCustomizations(session)).catch(err => {
 				this._logService.error('[AgentService] restoreSession: failed to resolve chat customizations', err);
 				return undefined;

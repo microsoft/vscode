@@ -11,7 +11,8 @@ import { IAgentHostConnectionsService } from '../../../../../../platform/agentHo
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { ChatConfiguration, ChatPermissionLevel } from '../../../common/constants.js';
+import { IPolicyService } from '../../../../../../platform/policy/common/policy.js';
+import { isAutoApprovePolicyRestricted, normalizeSessionConfigValue } from '../../../common/agentHostConfigPolicy.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { getLocalAgentHostSessionProvider, toAgentHostBackendSessionUri } from './agentHostSessionUri.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
@@ -28,6 +29,7 @@ export interface IApplyAgentHostSessionConfigServices {
 	readonly workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver;
 	readonly workspaceContextService: IWorkspaceContextService;
 	readonly configurationService: IConfigurationService;
+	readonly policyService?: IPolicyService;
 }
 
 /**
@@ -55,11 +57,11 @@ export async function applyAgentHostSessionConfigChange(
 	}
 
 	const { agentHostService, connectionsService, provisionalService, workingDirectoryResolver, workspaceContextService, configurationService } = services;
-	const policyRestricted = configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
+	const policyRestricted = isAutoApprovePolicyRestricted(configurationService, services.policyService, agentHostService.forwardsClientManagedSettings);
 	const partial: Record<string, string> = { ...config };
 	const autoApprove = partial[SessionConfigKey.AutoApprove];
-	if (policyRestricted && autoApprove !== undefined && autoApprove !== ChatPermissionLevel.Default) {
-		partial[SessionConfigKey.AutoApprove] = ChatPermissionLevel.Default;
+	if (autoApprove !== undefined) {
+		partial[SessionConfigKey.AutoApprove] = normalizeSessionConfigValue(SessionConfigKey.AutoApprove, autoApprove, policyRestricted);
 	}
 
 	const workingDirectory = workingDirectoryResolver.resolve(sessionResource)

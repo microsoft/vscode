@@ -28,6 +28,8 @@ import { chatVariableLeader } from '../../../../workbench/contrib/chat/common/re
 import { AgentHostInputCompletionsBase } from '../../../../workbench/contrib/chat/browser/widget/input/editor/agentHostInputCompletionsBase.js';
 import { getInputPlaceholderColor, getRangeForPlaceholder } from '../../../../workbench/contrib/chat/browser/widget/input/editor/chatInputPlaceholderDecoration.js';
 import { applyAgentHostCompletionAction, isPolicyBlockedCompletionAction } from '../../../../workbench/contrib/chat/browser/agentHostCompletionAction.js';
+import { IPolicyService } from '../../../../platform/policy/common/policy.js';
+import { IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
@@ -208,6 +210,8 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IPolicyService private readonly _policyService: IPolicyService,
+		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
 	) {
 		super(languageFeaturesService, chatSessionsService);
 
@@ -306,7 +310,9 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 					// Omit an elevated auto-approve toggle (Allow all / Assisted)
 					// when enterprise policy disables global auto-approval, rather
 					// than offering an item that would warn then clamp to Default.
-					if (isPolicyBlockedCompletionAction(action, this._configurationService)) {
+					const sessionResource = this._sessionContext.session.get()?.resource;
+					const connection = sessionResource ? this._connectionsService.resolveSessionResource(sessionResource)?.connection : undefined;
+					if (isPolicyBlockedCompletionAction(action, this._configurationService, this._policyService, connection?.forwardsClientManagedSettings)) {
 						return undefined;
 					}
 					// Config-action completion (permission/mode toggle). Keep-text

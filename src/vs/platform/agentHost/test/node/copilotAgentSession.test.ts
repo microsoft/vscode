@@ -11,7 +11,7 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { PluginFormat } from '../../../agentPlugins/common/pluginParsers.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
-import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, raceTimeout, timeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
@@ -85,9 +85,9 @@ import { AgentHostStorageService, IAgentHostStorageService } from '../../node/ag
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
 import { buildCopilotSystemNotification, getCopilotSubagentDisplayNames } from '../../node/copilot/copilotSystemNotification.js';
-import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { IAgentConfigurationService, type IAgentChatPermissionState } from '../../node/agentConfigurationService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpToolRoutingEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyIsManagedConfigKey, AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpToolRoutingEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { CopilotCliConfigKey } from '../../common/copilotCliConfig.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
@@ -140,6 +140,7 @@ class MockCopilotSession {
 	sendGate: Promise<void> | undefined;
 	readonly modeSetCalls: Array<{ mode: 'interactive' | 'plan' | 'autopilot' }> = [];
 	readonly permissionModeSetCalls: PermissionMode[] = [];
+	permissionMode: PermissionMode = 'manual';
 	permissionModeSetSuccess = true;
 	/** Per-call `setMode` success results, consumed in order before falling back to {@link permissionModeSetSuccess}. */
 	readonly permissionModeSetResults: boolean[] = [];
@@ -465,6 +466,7 @@ class MockCopilotSession {
 			},
 		},
 		permissions: {
+			getMode: async () => ({ mode: this.permissionMode }),
 			setMode: async (params: { mode?: PermissionMode }) => {
 				const mode = params.mode ?? 'manual';
 				this.operationLog.push('permissions.setMode');
@@ -472,7 +474,11 @@ class MockCopilotSession {
 				if (this.permissionModeSetError) {
 					throw this.permissionModeSetError;
 				}
-				return { success: this.permissionModeSetResults.shift() ?? this.permissionModeSetSuccess, enabled: mode === 'allow-all', mode };
+				const success = this.permissionModeSetResults.shift() ?? this.permissionModeSetSuccess;
+				if (success) {
+					this.permissionMode = mode;
+				}
+				return { success, enabled: this.permissionMode === 'allow-all', mode: this.permissionMode };
 			},
 		},
 		eventLog: {
@@ -916,7 +922,7 @@ type ISessionInternalsForTest = {
 	_agentMergeTurn: boolean;
 	_editTracker: Pick<FileEditTracker, 'trackEditStart' | 'completeEdit' | 'takeCompletedEdit'>;
 	_pendingClientToolCalls: {
-		register(toolCallId: string): Promise<ToolResultObject>;
+		registerAndFire(toolCallId: string, fire: () => void): Promise<ToolResultObject>;
 		respondOrBuffer(toolCallId: string, value: ToolResultObject): void;
 	};
 };
@@ -1123,6 +1129,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	fileWriteOptions: ReadonlyMap<string, IWriteFileOptions | undefined>;
 	dispatchedActions: readonly StateAction[];
 	sessionConfigUpdates: ReadonlyArray<{ session: string; patch: Record<string, unknown> }>;
+	permissionStates: ReadonlyMap<string, IAgentChatPermissionState>;
 	sandboxResults: Array<boolean | string>;
 	setConfigValue: (key: string, value: unknown) => void;
 	setRootValue: (key: string, value: unknown) => void;
@@ -1277,13 +1284,25 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	const sessionConfigUpdates: Array<{ session: string; patch: Record<string, unknown> }> = [];
 	const sandboxResults: Array<boolean | string> = [];
 	let sandboxEnabled: boolean | undefined;
-	const configValues = options?.configValues ?? {};
+	const configValues: Record<string, unknown> = options?.configValues ?? { [SessionConfigKey.AutoApprove]: 'default' };
 	const rootValues: Record<string, unknown> = { ...(options?.rootValues ?? {}) };
 	const rootConfigEmitter = disposables.add(new Emitter<void>());
 	const sessionConfigEmitter = disposables.add(new Emitter<{ session: string; config: Record<string, unknown>; origin: { clientId: string; clientSeq: number } | undefined }>());
 	const customizationEnablementEmitter = disposables.add(new Emitter<{ sessions: readonly string[] }>());
+	const permissionStates = new Map<string, IAgentChatPermissionState>();
 	const fakeConfigurationService: IAgentConfigurationService = {
 		_serviceBrand: undefined,
+		registerChatPermissionState: chat => ({
+			get value() { return permissionStates.get(chat) ?? {}; },
+			update: state => {
+				permissionStates.set(chat, { ...permissionStates.get(chat), ...state });
+				if (chat === chatChannelUri.toString() && state.effective !== undefined) {
+					sessionConfigUpdates.push({ session: sessionUri.toString(), patch: { effectiveApprovalMode: state.effective } });
+				}
+			},
+			dispose: () => { permissionStates.delete(chat); },
+		}),
+		getChatPermissionState: chat => permissionStates.get(chat),
 		onDidRootConfigChange: rootConfigEmitter.event,
 		onDidSessionConfigChange: sessionConfigEmitter.event,
 		// Simple per-key map suffices for tests; the real service walks
@@ -1449,6 +1468,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		fileWriteOptions,
 		dispatchedActions: stateManager.dispatchedActions,
 		sessionConfigUpdates,
+		permissionStates,
 		sandboxResults,
 		setConfigValue: (key, value) => { configValues[key] = value; },
 		setRootValue: (key, value) => { rootValues[key] = value; },
@@ -9347,6 +9367,226 @@ suite('CopilotAgentSession', () => {
 			});
 		});
 
+		test('untouched sessions retain the runtime-selected default instead of sending Manual', async () => {
+			const { session, mockSession, sessionConfigUpdates } = await createAgentSession(disposables, { configValues: {} });
+			mockSession.permissionMode = 'assisted';
+			await session.syncPermissionMode('turn-start');
+			assert.deepStrictEqual({
+				requests: mockSession.permissionModeSetCalls,
+				effective: sessionConfigUpdates.at(-1)?.patch,
+			}, { requests: [], effective: { effectiveApprovalMode: 'assisted' } });
+		});
+
+		test('removing a global override restores untouched session intent', async () => {
+			const { session, mockSession, setRootValue } = await createAgentSession(disposables, { configValues: {} });
+			setRootValue(AgentHostGlobalAutoApproveEnabledConfigKey, true);
+			await session.syncPermissionMode('config-change');
+			setRootValue(AgentHostGlobalAutoApproveEnabledConfigKey, false);
+			await session.syncPermissionMode('config-change');
+			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['allow-all', 'manual']);
+		});
+
+		for (const effective of ['manual', 'assisted', 'allow-all'] as const) {
+			test(`pre-adoption resume does not infer missing startup intent from effective ${effective}`, async () => {
+				const { session, mockSession, setRootValue } = await createAgentSession(disposables, {
+					resume: true, configValues: {},
+					configureMockSession: sdk => { sdk.permissionMode = effective; },
+				});
+				setRootValue(AgentHostGlobalAutoApproveEnabledConfigKey, true);
+				await session.syncPermissionMode('config-change');
+				setRootValue(AgentHostGlobalAutoApproveEnabledConfigKey, false);
+				await session.syncPermissionMode('config-change');
+				assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['allow-all', 'manual']);
+			});
+		}
+
+		test('subagent permission requests publish their own authoritative modes, not their backing sibling mode', async () => {
+			const { session, mockSession, permissionStates } = await createAgentSession(disposables, { configValues: {} });
+			session.resetTurnState('parent-turn');
+			mockSession.fire('subagent.started', {
+				toolCallId: 'task-child', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Test',
+			}, { agentId: 'child' });
+			const child = buildSubagentChatUri(session.ownerSessionUri.toString(), 'task-child');
+			const reports: Array<IAgentChatPermissionState | undefined> = [];
+			for (const permissionMode of ['allow-all', 'manual', undefined] as const) {
+				mockSession.fire('permission.requested', {
+					requestId: `request-${permissionMode}`,
+					permissionRequest: { kind: 'read', path: '/outside/file', toolCallId: `tool-${permissionMode}`, intention: 'Read test file' },
+					permissionMode,
+				}, { agentId: 'child' });
+				reports.push(permissionStates.get(child));
+			}
+			assert.deepStrictEqual({
+				reports, parent: permissionStates.get(buildDefaultChatUri(session.ownerSessionUri)),
+			}, {
+				reports: [{ effective: 'autoApprove' }, { effective: 'default' }, { effective: 'default' }],
+				parent: { effective: 'default' },
+			});
+		});
+
+		test('removing global override cannot leave a prohibited explicit Assisted choice in Allow All', async () => {
+			const configValues = { autoApprove: 'assisted' };
+			const { session, mockSession, setRootValue } = await createAgentSession(disposables, {
+				configValues, rootValues: { [AgentHostGlobalAutoApproveEnabledConfigKey]: true },
+			});
+			await session.syncPermissionMode('config-change');
+			mockSession.fire('session.managed_settings_resolved', {
+				source: 'server', serverManaged: true, deviceManaged: false, failClosed: false,
+				bypassPermissionsDisabled: false, managedKeys: ['permissions.disableAssistedPermissionsMode'],
+				settings: { permissions: { disableAssistedPermissionsMode: true } },
+			});
+			mockSession.permissionModeSetResults.push(false, true);
+			setRootValue(AgentHostGlobalAutoApproveEnabledConfigKey, false);
+			await session.syncPermissionMode('config-change');
+			const capped = mockSession.permissionMode;
+			mockSession.fire('session.managed_settings_resolved', {
+				source: 'server', serverManaged: true, deviceManaged: false, failClosed: false,
+				bypassPermissionsDisabled: false, managedKeys: [],
+			});
+			await session.syncPermissionMode('config-change');
+			assert.deepStrictEqual({ capped, restored: mockSession.permissionMode, requested: configValues.autoApprove }, {
+				capped: 'manual', restored: 'assisted', requested: 'assisted',
+			});
+		});
+
+		for (const capBeforeGlobal of [true, false]) {
+			test(`cold resume preserves untouched Assisted through ${capBeforeGlobal ? 'runtime cap before' : 'legacy cap during'} global override`, async () => {
+				const database = new TestSessionDatabase();
+				const firstScope = disposables.add(new DisposableStore());
+				const first = await createAgentSession(firstScope, {
+					configValues: {}, sessionDatabase: database,
+					configureMockSession: sdk => { sdk.permissionMode = 'assisted'; },
+				});
+				if (capBeforeGlobal) {
+					first.mockSession.permissionMode = 'manual';
+					first.mockSession.fire('session.permissions_changed', { mode: 'manual' });
+				}
+				first.setRootValue(AgentHostGlobalAutoApproveEnabledConfigKey, true);
+				await first.session.syncPermissionMode('config-change');
+				if (!capBeforeGlobal) {
+					first.setRootValue(AgentHostGlobalAutoApproveEnabledConfigKey, false);
+					first.setRootValue(AgentHostAutoApprovePolicyRestrictedConfigKey, true);
+					await first.session.syncPermissionMode('config-change');
+				}
+				const persistedMode = first.mockSession.permissionMode;
+				const captured = await database.getMetadata('copilot.permissionModeBeforeGlobalOverride');
+				firstScope.clear();
+				const resumed = await createAgentSession(disposables, {
+					resume: true, configValues: {}, sessionDatabase: database,
+					rootValues: {
+						[AgentHostGlobalAutoApproveEnabledConfigKey]: capBeforeGlobal,
+						[AgentHostAutoApprovePolicyRestrictedConfigKey]: !capBeforeGlobal,
+					},
+					configureMockSession: sdk => { sdk.permissionMode = persistedMode; },
+				});
+				if (capBeforeGlobal) {
+					resumed.mockSession.fire('session.managed_settings_resolved', {
+						source: 'server', serverManaged: true, deviceManaged: false, failClosed: false,
+						bypassPermissionsDisabled: false, managedKeys: ['permissions.disableAssistedPermissionsMode'],
+						settings: { permissions: { disableAssistedPermissionsMode: true } },
+					});
+					resumed.mockSession.permissionModeSetResults.push(false, true);
+				}
+				resumed.setRootValue(AgentHostGlobalAutoApproveEnabledConfigKey, false);
+				await resumed.session.syncPermissionMode('config-change');
+				const capped = resumed.mockSession.permissionMode;
+				const retained = await database.getMetadata('copilot.permissionModeBeforeGlobalOverride');
+				resumed.setRootValue(AgentHostAutoApprovePolicyRestrictedConfigKey, false);
+				if (capBeforeGlobal) {
+					resumed.mockSession.fire('session.managed_settings_resolved', {
+						source: 'server', serverManaged: true, deviceManaged: false, failClosed: false,
+						bypassPermissionsDisabled: false, managedKeys: [],
+					});
+				}
+				await resumed.session.syncPermissionMode('config-change');
+				assert.deepStrictEqual({
+					captured, capped, retained, restored: resumed.mockSession.permissionMode,
+					marker: await database.getMetadata('copilot.permissionModeBeforeGlobalOverride'),
+				}, { captured: 'assisted', capped: 'manual', retained: 'assisted', restored: 'assisted', marker: undefined });
+			});
+		}
+
+		test('managed bypass policy does not prevent explicit Assisted', async () => {
+			const { session, mockSession } = await createAgentSession(disposables, {
+				configValues: { autoApprove: 'assisted' },
+				rootValues: { [AgentHostAutoApprovePolicyRestrictedConfigKey]: true, [AgentHostAutoApprovePolicyIsManagedConfigKey]: true },
+			});
+			await session.syncPermissionMode('turn-start');
+			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['assisted']);
+		});
+
+		test('runtime policy downgrades preserve requested intent and clear without failing the turn', async () => {
+			const configValues = { autoApprove: 'assisted', availableApprovalModes: ['default', 'autoApprove'] };
+			const { session, mockSession, sessionConfigUpdates } = await createAgentSession(disposables, { configValues });
+			mockSession.fire('session.managed_settings_resolved', {
+				source: 'server', serverManaged: true, deviceManaged: false, failClosed: false, bypassPermissionsDisabled: false,
+				managedKeys: ['permissions.disableAssistedPermissionsMode'], settings: { permissions: { disableAssistedPermissionsMode: true } },
+			});
+			mockSession.permissionModeSetSuccess = false;
+			await session.syncPermissionMode('turn-start');
+			const restricted = sessionConfigUpdates.at(-1)?.patch;
+			configValues.availableApprovalModes = ['default', 'assisted', 'autoApprove'];
+			mockSession.permissionModeSetSuccess = true;
+			mockSession.fire('session.managed_settings_resolved', { source: 'server', serverManaged: true, deviceManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: [] });
+			mockSession.fire('session.managed_settings_resolved', { source: 'server', serverManaged: true, deviceManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: [] });
+			await session.syncPermissionMode('config-change');
+			assert.deepStrictEqual({ restricted, effective: sessionConfigUpdates.at(-1)?.patch, requested: configValues.autoApprove }, {
+				restricted: { effectiveApprovalMode: 'default' }, effective: { effectiveApprovalMode: 'assisted' }, requested: 'assisted',
+			});
+		});
+
+		for (const underlying of ['manual', 'assisted'] as const) {
+			for (const enabledAtResume of [true, false]) {
+				test(`cold host reconstruction restores ${underlying} after global override (enabled at resume: ${enabledAtResume})`, async () => {
+					const database = new TestSessionDatabase();
+					const firstScope = disposables.add(new DisposableStore());
+					const first = await createAgentSession(firstScope, {
+						configValues: {}, sessionDatabase: database,
+						configureMockSession: sdk => { sdk.permissionMode = underlying; },
+					});
+					first.setRootValue(AgentHostGlobalAutoApproveEnabledConfigKey, true);
+					await first.session.send('first turn', undefined, 'turn-before-restart');
+					const persistedMode = first.mockSession.permissionMode;
+					firstScope.clear();
+					const resumed = await createAgentSession(disposables, {
+						resume: true, configValues: {}, sessionDatabase: database,
+						rootValues: { [AgentHostGlobalAutoApproveEnabledConfigKey]: enabledAtResume },
+						configureMockSession: sdk => { sdk.permissionMode = persistedMode; },
+					});
+					resumed.setRootValue(AgentHostGlobalAutoApproveEnabledConfigKey, false);
+					await resumed.session.syncPermissionMode('config-change');
+					assert.deepStrictEqual({
+						persistedMode, restored: resumed.mockSession.permissionMode,
+						override: await database.getMetadata('copilot.permissionModeBeforeGlobalOverride'),
+					}, { persistedMode: 'allow-all', restored: underlying, override: undefined });
+				});
+			}
+		}
+
+		for (const requested of ['assisted', 'allow-all'] as const) {
+			test(`rejected ${requested} preserves the other available elevated mode and requested intent`, async () => {
+				const current = requested === 'assisted' ? 'allow-all' : 'assisted';
+				const configValues = { autoApprove: requested === 'assisted' ? 'assisted' : 'autoApprove' };
+				const { session, mockSession, sessionConfigUpdates } = await createAgentSession(disposables, {
+					configValues, configureMockSession: sdk => { sdk.permissionMode = current; },
+				});
+				mockSession.fire('session.managed_settings_resolved', {
+					source: 'server', serverManaged: true, deviceManaged: false, failClosed: false,
+					bypassPermissionsDisabled: requested === 'allow-all', managedKeys: [],
+					settings: { permissions: { disableAssistedPermissionsMode: requested === 'assisted' } },
+				});
+				mockSession.permissionModeSetSuccess = false;
+				await session.syncPermissionMode('turn-start');
+				assert.deepStrictEqual({
+					requested: configValues.autoApprove, current: mockSession.permissionMode,
+					effective: sessionConfigUpdates.at(-1)?.patch,
+				}, {
+					requested: requested === 'assisted' ? 'assisted' : 'autoApprove', current,
+					effective: { effectiveApprovalMode: current === 'assisted' ? 'assisted' : 'autoApprove' },
+				});
+			});
+		}
+
 		test('does not send when the SDK rejects experimental mode for Approve When Safe', async () => {
 			const { session, mockSession } = await createAgentSession(disposables, {
 				configValues: { [SessionConfigKey.AutoApprove]: 'assisted' },
@@ -9894,7 +10134,7 @@ suite('CopilotAgentSession', () => {
 			});
 		});
 
-		test('defers an idle session approval change until the next turn', async () => {
+		test('applies an idle session approval change before the next turn', async () => {
 			const { session, mockSession, setConfigValue, fireSessionConfigChange } = await createAgentSession(disposables, {
 				configValues: { [SessionConfigKey.AutoApprove]: 'assisted' },
 			});
@@ -9910,7 +10150,7 @@ suite('CopilotAgentSession', () => {
 				beforeTurn,
 				afterTurn: mockSession.permissionModeSetCalls,
 			}, {
-				beforeTurn: ['assisted'],
+				beforeTurn: ['assisted', 'manual'],
 				afterTurn: ['assisted', 'manual'],
 			});
 		});
@@ -17686,6 +17926,288 @@ Use the attached image as context.
 			assert.strictEqual((await handlerPromise).textResultForLlm, 'result text');
 		});
 
+		suite('requesting-chat permission authority', () => {
+			async function createChildToolSession(parent: 'default' | 'assisted' | 'autoApprove', childMode: PermissionMode | undefined) {
+				const created = await createAgentSession(disposables, {
+					clientSnapshot: snapshot,
+					activeClientToolSet: activeClientToolSetWith('test-client'),
+					configValues: { [SessionConfigKey.AutoApprove]: parent },
+				});
+				await created.session.syncPermissionMode('turn-start');
+				created.session.resetTurnState('parent-turn');
+				created.mockSession.fire('subagent.started', {
+					toolCallId: 'task-child', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Test',
+				}, { agentId: 'child' });
+				if (childMode !== undefined) {
+					created.mockSession.fire('session.permissions_changed', { mode: childMode }, { agentId: 'child' });
+				}
+				created.mockSession.fire('tool.execution_start', {
+					toolCallId: 'tc-child-client', toolName: 'my_tool', arguments: { file: 'test.ts' },
+				}, { agentId: 'child' });
+				return created;
+			}
+
+			for (const parent of ['default', 'autoApprove'] as const) {
+				test(`SDK-authorized unknown child becomes ready under ${parent} without a permission event`, async () => {
+					const { session, runtime, signals, waitForSignal, permissionStates } = await createChildToolSession(parent, undefined);
+					assert.deepStrictEqual(signals.filter(signal => isAction(signal, ActionType.ChatToolCallReady)), []);
+					const execution = invokeClientToolHandler(runtime.createClientSdkTools()[0], 'tc-child-client');
+					try {
+						const ready = await raceTimeout(waitForSignal(signal => isAction(signal, ActionType.ChatToolCallReady)), 1000);
+						assert.ok(ready?.kind === 'action' && ready.action.type === ActionType.ChatToolCallReady);
+						assert.deepStrictEqual({
+							parent: ready.parentToolCallId,
+							confirmed: ready.action.confirmed,
+							autoApproveBySetting: readToolCallMeta(ready.action).autoApproveBySetting,
+							report: permissionStates.get(buildSubagentChatUri(session.ownerSessionUri.toString(), 'task-child')),
+							confirmations: signals.filter(signal => signal.kind === 'pending_confirmation').length,
+						}, {
+							parent: 'task-child', confirmed: ToolCallConfirmationReason.NotNeeded,
+							autoApproveBySetting: undefined, report: undefined, confirmations: 0,
+						});
+						session.handleClientToolCallComplete('tc-child-client', { success: true, pastTenseMessage: 'Completed after readiness' });
+						assert.deepStrictEqual({
+							result: (await execution).resultType,
+							readyCount: signals.filter(signal => isAction(signal, ActionType.ChatToolCallReady)).length,
+						}, { result: 'success', readyCount: 1 });
+					} finally {
+						session.dispose();
+						await execution.catch(() => undefined);
+					}
+				});
+
+				test(`repeated SDK handler invocation shares the unknown child's execution under ${parent}`, async () => {
+					const { session, runtime, signals, waitForSignal } = await createChildToolSession(parent, undefined);
+					const [tool] = runtime.createClientSdkTools();
+					const first = invokeClientToolHandler(tool, 'tc-child-client');
+					const repeated = invokeClientToolHandler(tool, 'tc-child-client');
+					try {
+						assert.ok(await raceTimeout(waitForSignal(signal => isAction(signal, ActionType.ChatToolCallReady)), 1000));
+						session.handleClientToolCallComplete('tc-child-client', { success: true, pastTenseMessage: 'Completed once after readiness' });
+						const completed = await raceTimeout(Promise.all([first, repeated]), 1000);
+						assert.deepStrictEqual({
+							results: completed?.map(result => result.resultType),
+							readyCount: signals.filter(signal => isAction(signal, ActionType.ChatToolCallReady)).length,
+						}, { results: ['success', 'success'], readyCount: 1 });
+					} finally {
+						session.dispose();
+						await Promise.allSettled([first, repeated]);
+					}
+				});
+			}
+
+			for (const parent of ['default', 'assisted', 'autoApprove'] as const) {
+				test(`SDK callback-first Assisted child under ${parent} correlates its first permission event`, async () => {
+					const { session, runtime, mockSession, signals } = await createChildToolSession(parent, undefined);
+					const request = { kind: 'custom-tool', toolCallId: 'tc-child-client', toolName: 'my_tool', toolDescription: 'Test client tool' } as const;
+					const permission = runtime.handleAttributedPermissionRequest(request);
+					mockSession.fire('permission.requested', {
+						requestId: 'first-child-request', permissionRequest: request, permissionMode: 'assisted',
+						promptRequest: { ...request, assistedApproval: { recommendation: 'approve', reason: 'Low risk' } },
+					}, { agentId: 'child' });
+					try {
+						assert.deepStrictEqual(await raceTimeout(permission, 1000), {
+							kind: 'attributed', result: { kind: 'approve-once' },
+							decisionContext: { source: 'assisted_approval', surface: 'sdk', outcome: 'auto_approved' },
+						});
+						const confirmation = signals.find(signal => signal.kind === 'pending_confirmation');
+						assert.ok(confirmation?.kind === 'pending_confirmation');
+						assert.strictEqual(confirmation.state.riskAssessment?.kind, ToolCallRiskAssessmentKind.Judge);
+						const execution = invokeClientToolHandler(runtime.createClientSdkTools()[0], 'tc-child-client');
+						assert.deepStrictEqual(signals.filter(signal => isAction(signal, ActionType.ChatToolCallReady)), []);
+						session.handleClientToolCallComplete('tc-child-client', { success: true, pastTenseMessage: 'Completed after Assisted approval' });
+						await execution;
+					} finally {
+						session.dispose();
+						await permission;
+					}
+				});
+			}
+
+			for (const event of ['no recommendation', 'no event', 'managed approval'] as const) {
+				test(`SDK callback-first child falls back to confirmation with ${event}`, async () => {
+					const { session, runtime, mockSession, signals, waitForSignal } = await createChildToolSession('assisted', undefined);
+					const request = {
+						kind: 'custom-tool', toolCallId: 'tc-child-client', toolName: 'my_tool', toolDescription: 'Test client tool',
+						...(event === 'managed approval' ? { managedApprovalRequired: true } : {}),
+					} as const;
+					const permission = runtime.handlePermissionRequest(request);
+					if (event !== 'no event') {
+						mockSession.fire('permission.requested', {
+							requestId: 'first-child-request', permissionRequest: request, permissionMode: 'assisted',
+							...(event === 'managed approval' ? { promptRequest: { ...request, assistedApproval: { recommendation: 'approve', reason: 'Low risk' } as const } } : {}),
+						}, { agentId: 'child' });
+					}
+					try {
+						const confirmation = await raceTimeout(waitForSignal(signal => signal.kind === 'pending_confirmation'), 1000);
+						assert.ok(confirmation?.kind === 'pending_confirmation');
+						assert.deepStrictEqual({
+							parent: confirmation.parentToolCallId, judge: confirmation.state.riskAssessment,
+							preapproved: signals.some(signal => isAction(signal, ActionType.ChatToolCallReady)),
+						}, { parent: 'task-child', judge: undefined, preapproved: false });
+						session.respondToPermissionRequest('tc-child-client', false);
+						assert.strictEqual((await permission).kind, 'reject');
+					} finally {
+						session.dispose();
+						await permission;
+					}
+				});
+			}
+
+			for (const parent of ['default', 'autoApprove'] as const) {
+				for (const childMode of ['manual', 'assisted', 'allow-all', undefined] as const) {
+					test(`${parent} parent never substitutes for ${childMode ?? 'unknown'} child client-tool authority`, async () => {
+						const { session, runtime, mockSession, signals, waitForSignal } = await createChildToolSession(parent, childMode);
+						const ready = signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallReady
+							? [{
+								parent: signal.parentToolCallId,
+								confirmed: signal.action.confirmed,
+								autoApproveBySetting: readToolCallMeta(signal.action).autoApproveBySetting,
+							}] : []);
+						assert.deepStrictEqual(ready, childMode === 'allow-all' ? [{
+							parent: 'task-child', confirmed: ToolCallConfirmationReason.NotNeeded, autoApproveBySetting: true,
+						}] : []);
+
+						if (childMode !== 'allow-all') {
+							const request = { kind: 'custom-tool', toolCallId: 'tc-child-client', toolName: 'my_tool', toolDescription: 'Test client tool' } as const;
+							mockSession.fire('permission.requested', {
+								requestId: 'child-permission', permissionRequest: request, permissionMode: childMode,
+							}, { agentId: 'child' });
+							const permission = runtime.handlePermissionRequest(request);
+							const confirmation = await waitForSignal(signal => signal.kind === 'pending_confirmation');
+							assert.deepStrictEqual({
+								parent: confirmation.kind === 'pending_confirmation' ? confirmation.parentToolCallId : undefined,
+								preapproved: signals.some(signal => isAction(signal, ActionType.ChatToolCallReady)),
+							}, { parent: 'task-child', preapproved: false });
+							session.respondToPermissionRequest('tc-child-client', true);
+							assert.strictEqual((await permission).kind, 'approve-once');
+						}
+
+						const execution = invokeClientToolHandler(runtime.createClientSdkTools()[0], 'tc-child-client');
+						session.handleClientToolCallComplete('tc-child-client', { success: true, pastTenseMessage: 'Completed' });
+						assert.strictEqual((await execution).resultType, 'success');
+					});
+				}
+			}
+
+			for (const { parent, childMode } of [
+				{ parent: 'default', childMode: 'assisted' },
+				{ parent: 'autoApprove', childMode: 'assisted' },
+				{ parent: 'assisted', childMode: 'manual' },
+				{ parent: 'assisted', childMode: undefined },
+			] as const) {
+				test(`${parent} parent cannot decide ${childMode ?? 'unknown'} child's Assisted recommendation`, async () => {
+					const { session, runtime, mockSession, signals, waitForSignal } = await createChildToolSession(parent, childMode);
+					const request = { kind: 'custom-tool', toolCallId: 'tc-child-client', toolName: 'my_tool', toolDescription: 'Test client tool' } as const;
+					mockSession.fire('permission.requested', {
+						requestId: 'child-permission', permissionRequest: request, permissionMode: childMode,
+						promptRequest: { ...request, assistedApproval: { recommendation: 'approve', reason: 'Low risk' } },
+					}, { agentId: 'child' });
+					const permission = runtime.handleAttributedPermissionRequest(request);
+					const confirmation = await waitForSignal(signal => signal.kind === 'pending_confirmation');
+					assert.deepStrictEqual({
+						parent: confirmation.kind === 'pending_confirmation' ? confirmation.parentToolCallId : undefined,
+						judge: confirmation.kind === 'pending_confirmation' ? confirmation.state.riskAssessment?.kind : undefined,
+						preapproved: signals.some(signal => isAction(signal, ActionType.ChatToolCallReady)),
+					}, {
+						parent: 'task-child',
+						judge: childMode === 'assisted' ? ToolCallRiskAssessmentKind.Judge : undefined,
+						preapproved: false,
+					});
+					if (childMode !== 'assisted') {
+						session.respondToPermissionRequest('tc-child-client', false);
+					}
+					const result = await permission;
+					assert.deepStrictEqual(result.kind === 'attributed' ? {
+						result: result.result.kind, source: result.decisionContext.source,
+					} : result, childMode === 'assisted' ? {
+						result: 'approve-once', source: 'assisted_approval',
+					} : { kind: 'reject', feedback: 'The user denied permission.' });
+				});
+			}
+
+			test('a late Manual child report revokes a pending Assisted recommendation', async () => {
+				const { session, runtime, mockSession, waitForSignal } = await createChildToolSession('assisted', 'assisted');
+				const request = { kind: 'custom-tool', toolCallId: 'tc-child-client', toolName: 'my_tool', toolDescription: 'Test client tool' } as const;
+				const permission = runtime.handleAttributedPermissionRequest(request);
+				mockSession.fire('permission.requested', {
+					requestId: 'child-permission', permissionRequest: request, permissionMode: 'manual',
+					promptRequest: { ...request, assistedApproval: { recommendation: 'approve', reason: 'Stale recommendation' } },
+				}, { agentId: 'child' });
+				const confirmation = await waitForSignal(signal => signal.kind === 'pending_confirmation');
+				assert.deepStrictEqual(confirmation.kind === 'pending_confirmation' ? {
+					parent: confirmation.parentToolCallId, judge: confirmation.state.riskAssessment,
+				} : confirmation, { parent: 'task-child', judge: undefined });
+				session.respondToPermissionRequest('tc-child-client', false);
+				const result = await permission;
+				assert.strictEqual(result.kind === 'attributed' ? result.result.kind : result.kind, 'reject');
+			});
+
+			test('repeated SDK tool-search handler shares readiness and completion', async () => {
+				const { session, runtime, mockSession, signals, waitForSignal } = await createToolSearchSession(true);
+				const [tool] = runtime.createClientSdkTools(true);
+				session.resetTurnState('parent-turn');
+				mockSession.fire('subagent.started', {
+					toolCallId: 'task-child', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Test',
+				}, { agentId: 'child' });
+				mockSession.fire('tool.execution_start', {
+					toolCallId: 'tc-child-search', toolName: 'tool_search_tool', arguments: { query: 'test' },
+				}, { agentId: 'child' });
+				const first = invokeClientToolHandler(tool, 'tc-child-search', { query: 'test' }, []);
+				const repeated = invokeClientToolHandler(tool, 'tc-child-search', { query: 'test' }, []);
+				try {
+					assert.ok(await raceTimeout(waitForSignal(signal => isAction(signal, ActionType.ChatToolCallReady)), 1000));
+					session.handleClientToolCallComplete('tc-child-search', { success: true, pastTenseMessage: 'Searched once', content: [] });
+					const completed = await raceTimeout(Promise.all([first, repeated]), 1000);
+					assert.deepStrictEqual({
+						results: completed?.map(result => result.resultType),
+						readyCount: signals.filter(signal => isAction(signal, ActionType.ChatToolCallReady)).length,
+					}, { results: ['success', 'success'], readyCount: 1 });
+				} finally {
+					session.dispose();
+					await Promise.allSettled([first, repeated]);
+				}
+			});
+
+			for (const { parentAutoApprove, childMode, modeAtExecution } of [
+				{ parentAutoApprove: true, childMode: 'manual', modeAtExecution: undefined },
+				{ parentAutoApprove: true, childMode: undefined, modeAtExecution: undefined },
+				{ parentAutoApprove: false, childMode: 'allow-all', modeAtExecution: undefined },
+				{ parentAutoApprove: true, childMode: 'allow-all', modeAtExecution: 'manual' },
+			] as const) {
+				test(`tool search uses ${childMode ?? 'unknown'} child authority${modeAtExecution ? ` changed to ${modeAtExecution}` : ''}, not parent Allow All=${parentAutoApprove}`, async () => {
+					const { session, runtime, mockSession, signals, waitForSignal } = await createToolSearchSession(parentAutoApprove);
+					const [tool] = runtime.createClientSdkTools(true);
+					session.resetTurnState('parent-turn');
+					mockSession.fire('subagent.started', {
+						toolCallId: 'task-child', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Test',
+					}, { agentId: 'child' });
+					if (childMode !== undefined) {
+						mockSession.fire('session.permissions_changed', { mode: childMode }, { agentId: 'child' });
+					}
+					mockSession.fire('tool.execution_start', {
+						toolCallId: 'tc-child-search', toolName: 'tool_search_tool', arguments: { query: 'test' },
+					}, { agentId: 'child' });
+					const beforeExecution = signals.filter(signal => isAction(signal, ActionType.ChatToolCallReady)).length;
+					if (modeAtExecution !== undefined) {
+						mockSession.fire('session.permissions_changed', { mode: modeAtExecution }, { agentId: 'child' });
+					}
+					const execution = invokeClientToolHandler(tool, 'tc-child-search', { query: 'test' }, []);
+					const ready = await waitForSignal(signal => isAction(signal, ActionType.ChatToolCallReady));
+					assert.ok(ready.kind === 'action' && ready.action.type === ActionType.ChatToolCallReady);
+					assert.deepStrictEqual({
+						beforeExecution, parent: ready.parentToolCallId,
+						autoApproveBySetting: readToolCallMeta(ready.action).autoApproveBySetting,
+					}, {
+						beforeExecution: 0, parent: 'task-child',
+						autoApproveBySetting: (modeAtExecution ?? childMode) === 'allow-all' ? true : undefined,
+					});
+					session.handleClientToolCallComplete('tc-child-search', { success: true, pastTenseMessage: 'Searched', content: [] });
+					await execution;
+				});
+			}
+		});
+
 		suite('during a Fusion phase', () => {
 			const fusion = { fusionId: 'fusion-1', phaseId: 'phase-1', syntheticModel: 'hydrafusion', policy: 'max', pattern: 'cascade' };
 			const toolLifecycle = (signals: readonly AgentSignal[], toolCallId: string) => getActions(signals).flatMap(action =>
@@ -17776,6 +18298,7 @@ Use the attached image as context.
 				const { session, runtime, mockSession, signals } = await createFusionSession();
 				mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
 				mockSession.fire('subagent.started', { toolCallId: 'tc-task', agentName: 'general-purpose', agentDisplayName: 'General purpose', agentDescription: 'Runs tasks' } as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-1' });
+				mockSession.fire('session.permissions_changed', { mode: 'allow-all' }, { agentId: 'agent-1' });
 				mockSession.fire('tool.execution_start', { toolCallId: 'tc-sub-client', toolName: 'my_tool', arguments: { file: 'a.ts' } }, { agentId: 'agent-1' });
 				const handlerPromise = invokeClientToolHandler(runtime.createClientSdkTools()[0], 'tc-sub-client', { file: 'a.ts' });
 				session.handleClientToolCallComplete('tc-sub-client', { success: true, pastTenseMessage: 'did it' });
@@ -18596,7 +19119,7 @@ Use the attached image as context.
 			const { session, runtime } = await createAgentSession(disposables, { clientSnapshot: snapshot, logService });
 			const tools = runtime.createClientSdkTools();
 			const sessionInternals = session as unknown as ISessionInternalsForTest;
-			sessionInternals._pendingClientToolCalls.register = () => {
+			sessionInternals._pendingClientToolCalls.registerAndFire = () => {
 				throw new Error('client tool boom');
 			};
 

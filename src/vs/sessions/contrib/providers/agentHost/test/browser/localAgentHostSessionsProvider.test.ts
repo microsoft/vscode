@@ -46,6 +46,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { IDialogService, IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { NullPolicyService, PolicyValueSource } from '../../../../../../platform/policy/common/policy.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
@@ -6551,6 +6552,24 @@ suite('LocalAgentHostSessionsProvider', () => {
 		]);
 	});
 
+	for (const forwarded of [true, false]) {
+		test(`managed policy relaxation in Agents requires a forwarding connection (${forwarded})`, async () => {
+			class ManagedPolicyProvider extends LocalAgentHostSessionsProvider {
+				protected override readonly _policyService = new class extends NullPolicyService {
+					override getPolicyValueSource() { return PolicyValueSource.NativeMdm; }
+				}();
+			}
+			Object.assign(agentHost, { forwardsClientManagedSettings: forwarded });
+			const provider = createProvider(disposables, agentHost, undefined, {
+				configurationService: createPolicyRestrictedConfigurationService(), providerCtor: ManagedPolicyProvider,
+			});
+			const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+			await provider.whenSessionConfigResolved(session.sessionId, CancellationToken.None);
+			await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.AutoApprove, 'assisted');
+			assert.strictEqual(agentHost.resolveSessionConfigRequests.at(-1)?.config?.autoApprove, forwarded ? 'assisted' : 'default');
+		});
+	}
+
 	for (const level of ['assisted', 'autoApprove', 'autopilot']) {
 		test(`setSessionConfigValue clamps ${level} to default when policy disables global auto-approve`, async () => {
 			const storageService = disposables.add(new InMemoryStorageService());
@@ -7505,6 +7524,13 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await timeout(0);
 
 		assert.strictEqual(agentHost.resolveSessionConfigRequests.at(-1)?.config?.mode, undefined);
+	});
+
+	test('createNewSession does not turn schema Manual into explicit startup intent', async () => {
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService: createSchemaDefaultConfigurationService() });
+		provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await timeout(0);
+		assert.deepStrictEqual(agentHost.resolveSessionConfigRequests.at(-1)?.config, { mode: 'interactive', isolation: 'worktree' });
 	});
 
 	test('createNewSession seeds remembered mode/approvals when chat.defaultConfiguration is at its schema default', async () => {

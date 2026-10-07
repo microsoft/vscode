@@ -15,6 +15,7 @@ import { SessionConfigPropertySchema, SessionState } from '../../../../../../pla
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { isAutoApprovePolicyRestricted, normalizeSessionConfigValue } from '../../../common/agentHostConfigPolicy.js';
+import { IPolicyService } from '../../../../../../platform/policy/common/policy.js';
 import {
 	AbstractAgentHostConfigFileSystemProvider,
 	AbstractAgentHostConfigSchemaRegistrar,
@@ -125,6 +126,7 @@ export class AgentSessionSettingsFileSystemProvider extends AbstractAgentHostCon
 		private readonly _schemaRegistrar: AgentSessionSettingsSchemaRegistrar,
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IPolicyService private readonly _policyService: IPolicyService,
 		@ILogService logService: ILogService,
 	) {
 		super(logService);
@@ -173,7 +175,7 @@ export class AgentSessionSettingsFileSystemProvider extends AbstractAgentHostCon
 			return;
 		}
 
-		const policyRestricted = isAutoApprovePolicyRestricted(this._configurationService);
+		const policyRestricted = isAutoApprovePolicyRestricted(this._configurationService, this._policyService, this._agentHostService.forwardsClientManagedSettings);
 		const nextValues: Record<string, unknown> = {};
 		for (const [key, schema] of Object.entries(current.schema.properties)) {
 			if (sessionSettingsPropertyFilter(key, schema)) {

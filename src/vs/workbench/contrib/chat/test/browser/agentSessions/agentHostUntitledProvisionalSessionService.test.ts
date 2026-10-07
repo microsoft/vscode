@@ -17,6 +17,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IPolicyService, NullPolicyService } from '../../../../../../platform/policy/common/policy.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IAgentCreateSessionConfig, IAgentHostService, IAgentResolveSessionConfigParams } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
@@ -216,6 +218,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 	let customizations: ReturnType<typeof observableValue<readonly ClientPluginCustomization[]>>;
 	let onDidChangeWorkspaceFolders: Emitter<IWorkspaceFoldersChangeEvent>;
 	let acquiredScopeRoots: string[][];
+	let configurationService: TestConfigurationService;
 
 	setup(async () => {
 		agentHost = ds.add(new MockAgentHostService());
@@ -248,7 +251,9 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 			override warn(message: string): void { warnings.push(message); }
 		}());
 		insta.stub(IChatService, new MockChatService());
-		insta.stub(IConfigurationService, new TestConfigurationService());
+		configurationService = new TestConfigurationService();
+		insta.stub(IConfigurationService, configurationService);
+		insta.stub(IPolicyService, new NullPolicyService());
 		insta.stub(IWorkbenchEnvironmentService, { get isSessionsWindow() { return isSessionsWindow; } } as Partial<IWorkbenchEnvironmentService>);
 		insta.stub(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
 			override readonly onDidChangeWorkspaceFolders = onDidChangeWorkspaceFolders.event;
@@ -290,6 +295,13 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		} as Partial<IAgentHostActiveClientService> as IAgentHostActiveClientService);
 		provisional = ds.add(insta.createInstance(AgentHostUntitledProvisionalSessionService));
 		cleanup = ds.add(new DisposableStore());
+	});
+
+	test('distinguishes absent startup intent from explicitly configured Manual', async () => {
+		await provisional.getOrCreate(untitledChatUri('untouched'), 'copilotcli', undefined);
+		await configurationService.setUserConfiguration(ChatConfiguration.DefaultConfiguration, { approvals: 'manual' });
+		await provisional.getOrCreate(untitledChatUri('explicit'), 'copilotcli', undefined);
+		assert.deepStrictEqual(agentHost.createCalls.map(call => call.config?.autoApprove), [undefined, 'default']);
 	});
 
 	test('getOrCreate creates one backend provisional and returns the same URI on repeat calls', async () => {

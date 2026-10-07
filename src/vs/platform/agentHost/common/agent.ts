@@ -895,6 +895,8 @@ export interface IAgentResolveChatConfigParams {
 	readonly provider?: AgentProvider;
 	readonly workingDirectory?: URI;
 	readonly config?: Record<string, unknown>;
+	/** False during restore: new-session defaults must not replace persisted intent. */
+	readonly isNewSession?: boolean;
 }
 
 export interface IAgentChatConfigCompletionsParams extends IAgentResolveChatConfigParams {

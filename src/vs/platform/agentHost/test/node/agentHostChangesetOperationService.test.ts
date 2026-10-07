@@ -124,6 +124,8 @@ class TestGitStateService implements IAgentHostGitStateService {
  */
 class TestConfigurationService implements IAgentConfigurationService {
 	declare readonly _serviceBrand: undefined;
+	registerChatPermissionState(): never { throw new Error('Unexpected permission registration'); }
+	getChatPermissionState() { return undefined; }
 
 	readonly onDidRootConfigChange = Event.None;
 	readonly onDidSessionConfigChange = Event.None;

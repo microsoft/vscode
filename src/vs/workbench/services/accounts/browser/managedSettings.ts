@@ -40,6 +40,8 @@ export type IManagedMcpServerMatcher =
 export interface IManagedSettingsResponse {
 	readonly permissions?: {
 		readonly disableBypassPermissionsMode?: string;
+		readonly disableAssistedPermissionsMode?: boolean;
+		readonly defaultMode?: 'manual' | 'assisted' | 'allow-all';
 		readonly allow?: readonly string[];
 		readonly ask?: readonly string[];
 		readonly deny?: readonly string[];

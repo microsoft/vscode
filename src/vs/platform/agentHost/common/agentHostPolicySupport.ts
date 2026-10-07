@@ -43,7 +43,7 @@ export interface IAgentHostPolicySupport {
 export const agentHostPolicySupport: Readonly<Record<string, IAgentHostPolicySupport>> = {
 	// #region Tool approval, sandbox, and network
 
-	// Forwarded to every host as `autoApprovePolicyRestricted`; Copilot, Claude, and Codex honor it.
+	// Legacy false forces Manual. A runtime-managed bypass restriction disables Allow All, not Assisted.
 	ChatToolsAutoApprove: { status: 'enforced' },
 	// The bridge disables bypass session-wide but does not force per-tool confirmation in other
 	// approval modes. #337540

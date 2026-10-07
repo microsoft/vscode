@@ -52,6 +52,9 @@ export class AgentHostManagedSettingsService extends Disposable implements IAgen
 		const deny = new Set<string>();
 		const ask = new Set<string>();
 		for (const contribution of this._permissionsByClient.values()) {
+			if (contribution.disableAssistedPermissionsMode === true) {
+				permissions.disableAssistedPermissionsMode = true;
+			}
 			if (contribution.disableBypassPermissionsMode === 'disable') {
 				permissions.disableBypassPermissionsMode = 'disable';
 			}

@@ -41,10 +41,10 @@
  *   eligible (all `true`, or empty) expresses no restriction and contributes
  *   nothing. Replace this with a per-tool translation once the grammar gains a
  *   tool-name family.
- * - **Copilot sessions on a local host.** The renderer sends an empty
- *   contribution to remote hosts, and other agents do not consume managed
- *   settings, so restrictions bridged here do not reach them. Those agents
- *   remain governed by the root-config path (see
+ * - **Local rules, cross-host mode bans.** Tool/path rules remain local.
+ *   Remote Copilot hosts receive only the independent permission-mode bans
+ *   from the client's auto-approval policy. Other agents do not consume
+ *   managed settings and remain governed by the root-config path (see
  *   `AgentHostAutoApprovePolicyRestrictedConfigKey`).
  *
  * New enterprise controls belong directly in the SDK's managed-settings
@@ -52,6 +52,7 @@
  */
 
 import type { IConfigurationService } from '../../configuration/common/configuration.js';
+import { IPolicyService, PolicyValueSource } from '../../policy/common/policy.js';
 import { AgentNetworkDomainSettingId } from '../../networkFilter/common/settings.js';
 import { normalizeDomainPattern } from '../../networkFilter/common/domainMatcher.js';
 import { buildManagedFamilyRule, buildManagedRule, ManagedRuleFamily } from './agentHostManagedRules.js';
@@ -64,8 +65,23 @@ import { ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, 
  */
 export interface IAgentHostManagedSettingsPermissions {
 	disableBypassPermissionsMode?: 'disable';
+	disableAssistedPermissionsMode?: boolean;
 	deny?: string[];
 	ask?: string[];
+}
+
+export function isManagedAutoApprovePolicy(policyService: IPolicyService | undefined): boolean {
+	const sources = policyService?.getPolicyValueSources('ChatToolsAutoApprove') ?? [];
+	return sources.length > 0 && sources.every(source => source === PolicyValueSource.NativeMdm || source === PolicyValueSource.FileManagedSettings
+		|| source === PolicyValueSource.ServerManagedSettings || source === PolicyValueSource.MixedManagedSettings);
+}
+
+/** Mode bans apply to every connected host; local tool/path rules do not. */
+export function resolveManagedPermissionModeRestrictions(configurationService: IConfigurationService, policyService?: IPolicyService): IAgentHostManagedSettingsPermissions {
+	return configurationService.inspect<boolean>(GLOBAL_AUTO_APPROVE_SETTING_ID).policyValue === false ? {
+		disableBypassPermissionsMode: 'disable',
+		...(!isManagedAutoApprovePolicy(policyService) ? { disableAssistedPermissionsMode: true } : {}),
+	} : {};
 }
 
 interface IManagedPermissionsSettingMapping {
@@ -267,10 +283,11 @@ export function isManagedSettingsPermissions(value: unknown): value is IAgentHos
 		return false;
 	}
 	const permissions = value as Record<string, unknown>;
-	if (Object.keys(permissions).some(key => key !== 'disableBypassPermissionsMode' && key !== 'deny' && key !== 'ask')) {
+	if (Object.keys(permissions).some(key => key !== 'disableBypassPermissionsMode' && key !== 'disableAssistedPermissionsMode' && key !== 'deny' && key !== 'ask')) {
 		return false;
 	}
 	return (permissions.disableBypassPermissionsMode === undefined || permissions.disableBypassPermissionsMode === 'disable')
+		&& (permissions.disableAssistedPermissionsMode === undefined || typeof permissions.disableAssistedPermissionsMode === 'boolean')
 		&& isStringArrayOrUndefined(permissions.deny)
 		&& isStringArrayOrUndefined(permissions.ask);
 }
@@ -286,7 +303,7 @@ function isStringArrayOrUndefined(value: unknown): boolean {
  * Client-injected managed permissions are non-activating, so these rules bind
  * without forcing unmatched requests to prompt. See the module comment.
  */
-export function resolveManagedSettingsPermissions(configurationService: IConfigurationService): IAgentHostManagedSettingsPermissions {
+export function resolveManagedSettingsPermissions(configurationService: IConfigurationService, policyService?: IPolicyService): IAgentHostManagedSettingsPermissions {
 	const deny = new Set<string>();
 	const ask = new Set<string>();
 	let disableBypassPermissionsMode: 'disable' | undefined;
@@ -302,7 +319,7 @@ export function resolveManagedSettingsPermissions(configurationService: IConfigu
 		contribution.ask?.forEach(rule => ask.add(rule));
 	}
 
-	const permissions: IAgentHostManagedSettingsPermissions = {};
+	const permissions = resolveManagedPermissionModeRestrictions(configurationService, policyService);
 	if (disableBypassPermissionsMode) {
 		permissions.disableBypassPermissionsMode = disableBypassPermissionsMode;
 	}

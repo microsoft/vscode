@@ -262,7 +262,8 @@ export class SessionPermissionManager extends Disposable {
 		}
 
 		// 1. Global auto-approve setting
-		if (this.isGlobalAutoApproveEnabled()) {
+		if (this.isGlobalAutoApproveEnabled()
+			&& (this._stateManager.getSessionState(sessionKey)?.provider !== 'copilotcli' || this.isSessionAutoApproveEnabled(sessionKey))) {
 			return ToolCallConfirmationReason.Setting;
 		}
 
@@ -412,8 +413,7 @@ export class SessionPermissionManager extends Disposable {
 	}
 
 	/**
-	 * Returns whether VS Code's global auto-approve setting (`chat.tools.global.autoApprove`) is enabled.
-	 * When enabled, every tool call is auto-approved without changing the session's approval level in the permissions picker.
+	 * Returns the requested global setting; Copilot blanket approvals additionally require the backing's effective Allow All mode.
 	 */
 	isGlobalAutoApproveEnabled(): boolean {
 		return this._configService.getRootValue(platformRootSchema, AgentHostGlobalAutoApproveEnabledConfigKey) === true;
@@ -422,6 +422,10 @@ export class SessionPermissionManager extends Disposable {
 	getEffectiveApprovalLevel(sessionKey: ProtocolURI): string {
 		if (this._configService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true) {
 			return 'default';
+		}
+		const state = this._stateManager.getSessionState(sessionKey);
+		if (state?.provider === 'copilotcli') {
+			return this._configService.getChatPermissionState(sessionKey)?.effective ?? 'default';
 		}
 		return this._configService.getEffectiveValue(sessionKey, platformSessionSchema, SessionConfigKey.AutoApprove) ?? 'default';
 	}

@@ -6,6 +6,7 @@
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IPolicyService } from '../../../../platform/policy/common/policy.js';
 import { SessionConfigKey } from '../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { IAgentHostCompletionAction } from '../../../../platform/agentHost/common/meta/agentCompletionAttachmentMeta.js';
 import { isAutoApprovePolicyRestricted } from '../common/agentHostConfigPolicy.js';
@@ -76,7 +77,9 @@ function getElevatedAutoApproveLevel(value: string | undefined): ChatPermissionL
  * The node producer cannot see the (client-side) policy, so this gating lives on
  * the client, mirroring how the permission pickers disable elevated levels.
  */
-export function isPolicyBlockedCompletionAction(action: IAgentHostCompletionAction, configurationService: IConfigurationService): boolean {
+export function isPolicyBlockedCompletionAction(action: IAgentHostCompletionAction, configurationService: IConfigurationService, policyService?: IPolicyService, forwardsClientManagedSettings = false): boolean {
 	return getElevatedAutoApproveLevel(action.applyConfig?.[SessionConfigKey.AutoApprove]) !== undefined
-		&& isAutoApprovePolicyRestricted(configurationService);
+		&& (action.applyConfig?.[SessionConfigKey.AutoApprove] === 'autoApprove'
+			? isAutoApprovePolicyRestricted(configurationService)
+			: isAutoApprovePolicyRestricted(configurationService, policyService, forwardsClientManagedSettings));
 }

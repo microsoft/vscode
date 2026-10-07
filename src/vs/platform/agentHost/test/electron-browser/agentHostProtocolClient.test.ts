@@ -96,6 +96,8 @@ import { AgentHostSessionUrisCapabilityMetaKey } from '../../common/meta/agentHo
 import { AgentHostClientConnectionKind } from '../../common/agentHostTelemetry.js';
 import type { IRemoteAgentHostReconnectPolicy } from '../../common/reconnectPolicy.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, type ResourceTrustRequestOptions } from '../../../workspace/common/workspaceTrust.js';
+import { AbstractPolicyService, IPolicyService, NullPolicyService, PolicyValueSource } from '../../../policy/common/policy.js';
+import { MultiplexPolicyService } from '../../../policy/common/multiplexPolicyService.js';
 
 type ProtocolTransportMessage = ProtocolMessage | AhpServerNotification | JsonRpcNotification | JsonRpcResponse | JsonRpcRequest;
 type RootConfigValue = boolean | string | AgentHostTerminalAutoApproveRules | undefined;
@@ -408,7 +410,7 @@ suite('AgentHostProtocolClient', () => {
 		const options = loadEstimator !== undefined || clientId !== undefined || clientInfo !== undefined || reconnectPolicy !== undefined
 			? { loadEstimator, clientId, clientInfo, reconnectPolicy }
 			: undefined;
-		const client = disposables.add(new AgentHostProtocolClient(identity, transport, options, logService, permissionService, configurationService, telemetryService, workspaceTrustEnablementService, workspaceTrust.management, workspaceTrust.request));
+		const client = disposables.add(new AgentHostProtocolClient(identity, transport, options, logService, permissionService, configurationService, telemetryService, workspaceTrustEnablementService, workspaceTrust.management, workspaceTrust.request, new NullPolicyService()));
 		return { client, transport, configurationService };
 	}
 
@@ -629,7 +631,7 @@ suite('AgentHostProtocolClient', () => {
 				URI.parse('vscode-remote://ssh-remote+test/ssh/trusted'),
 				URI.parse('vscode-remote://ssh-remote+other/other/trusted'),
 			];
-			const client = disposables.add(new AgentHostProtocolClient(identity, transport, undefined, new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService, workspaceTrustEnablementService, trustService, createWorkspaceTrustServices().request));
+			const client = disposables.add(new AgentHostProtocolClient(identity, transport, undefined, new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService, workspaceTrustEnablementService, trustService, createWorkspaceTrustServices().request, new NullPolicyService()));
 			await connectClient(client, transport);
 			const path = identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY ? '/local/trusted' : identity === 'test.example:1234' ? '/remote/trusted' : '/ssh/trusted';
 			assert.deepStrictEqual(findRootConfigValue(transport.sentMessages, AgentHostWorkspaceTrustConfigKey), { enabled: true, trustedUris: [URI.file(path).toString()] });
@@ -641,7 +643,7 @@ suite('AgentHostProtocolClient', () => {
 		const trustService = new TestWorkspaceTrustManagementService();
 		const changed = disposables.add(new Emitter<void>());
 		trustService.onDidChangeTrustedFolders = changed.event;
-		const client = disposables.add(new AgentHostProtocolClient(LOCAL_AGENT_HOST_RESOURCE_IDENTITY, transport, undefined, new NullLogService(), createPermissionService(), new TestConfigurationService({ 'security.workspace.trust.enabled': false }), NullTelemetryService, workspaceTrustEnablementService, trustService, createWorkspaceTrustServices().request));
+		const client = disposables.add(new AgentHostProtocolClient(LOCAL_AGENT_HOST_RESOURCE_IDENTITY, transport, undefined, new NullLogService(), createPermissionService(), new TestConfigurationService({ 'security.workspace.trust.enabled': false }), NullTelemetryService, workspaceTrustEnablementService, trustService, createWorkspaceTrustServices().request, new NullPolicyService()));
 		await connectClient(client, transport);
 		const states = [findRootConfigValue(transport.sentMessages, AgentHostWorkspaceTrustConfigKey)];
 		for (const trustedUris of [[URI.file('/repo')], []]) {
@@ -659,7 +661,7 @@ suite('AgentHostProtocolClient', () => {
 
 	test('workspace trust forwards explicit disablement from the enablement service', async () => {
 		const transport = disposables.add(new TestProtocolTransport());
-		const client = disposables.add(new AgentHostProtocolClient(LOCAL_AGENT_HOST_RESOURCE_IDENTITY, transport, undefined, new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService, { _serviceBrand: undefined, isWorkspaceTrustEnabled: () => false }, new TestWorkspaceTrustManagementService(), createWorkspaceTrustServices().request));
+		const client = disposables.add(new AgentHostProtocolClient(LOCAL_AGENT_HOST_RESOURCE_IDENTITY, transport, undefined, new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService, { _serviceBrand: undefined, isWorkspaceTrustEnabled: () => false }, new TestWorkspaceTrustManagementService(), createWorkspaceTrustServices().request, new NullPolicyService()));
 		await connectClient(client, transport);
 		assert.deepStrictEqual(findRootConfigValue(transport.sentMessages, AgentHostWorkspaceTrustConfigKey), { enabled: false, trustedUris: [] });
 	});
@@ -1401,7 +1403,7 @@ suite('AgentHostProtocolClient', () => {
 			'test.example:1234', transport,
 			{ onDispose: () => { callbackCount++; throw new Error('release failed'); } },
 			logService, createPermissionService(), new TestConfigurationService(), NullTelemetryService,
-			workspaceTrustEnablementService, trust.management, trust.request,
+			workspaceTrustEnablementService, trust.management, trust.request, new NullPolicyService(),
 		));
 		let closeCount = 0;
 		disposables.add(client.onDidClose(() => closeCount++));
@@ -1783,6 +1785,7 @@ suite('AgentHostProtocolClient', () => {
 			workspaceTrustEnablementService,
 			workspaceTrust.management,
 			workspaceTrust.request,
+			new NullPolicyService(),
 		));
 
 		const connectPromise = client.connect();
@@ -1916,6 +1919,108 @@ suite('AgentHostProtocolClient', () => {
 		assert.deepStrictEqual(getRootConfig(enabled), { [AgentHostDisableRepoInfoTelemetryConfigKey]: false });
 	});
 
+	for (const kind of [AgentHostClientConnectionKind.WebPubSub, AgentHostClientConnectionKind.MissionControl]) {
+		test(`relay ${kind} does not advertise managed permission forwarding or send client policy`, async () => {
+			const transport = disposables.add(new TestProtocolTransport(kind));
+			const trust = createWorkspaceTrustServices();
+			const policyService = new NullPolicyService();
+			policyService.getPolicyValueSource = () => PolicyValueSource.NativeMdm;
+			const client = disposables.add(new AgentHostProtocolClient(
+				'relay.example', transport, undefined, new NullLogService(), createPermissionService(),
+				new ManagedPermissionsConfigurationService({}), NullTelemetryService,
+				workspaceTrustEnablementService, trust.management, trust.request, policyService,
+			));
+			await connectClient(client, transport);
+			assert.deepStrictEqual({
+				forwards: client.forwardsClientManagedSettings,
+				policyMessages: transport.sentMessages.filter(message => hasKey(message, { method: true }) && (
+					message.method === 'setClientManagedSettingsPermissions'
+					|| message.method === 'dispatchAction'
+					&& (message.params as ITestRootConfigNotificationParams | undefined)?.action?.config?.['autoApprovePolicyIsManaged'] !== undefined
+				)),
+			}, { forwards: false, policyMessages: [] });
+		});
+	}
+
+	test('refreshes permission provenance when a false policy changes source without changing value', async () => {
+		const changes = disposables.add(new Emitter<string[]>());
+		let source = PolicyValueSource.Device;
+		const policyService: IPolicyService = Object.assign(new NullPolicyService(), { onDidChange: changes.event });
+		policyService.getPolicyValueSource = () => source;
+		const configuration = new ManagedPermissionsConfigurationService({});
+		const transport = disposables.add(new TestProtocolTransport());
+		const trust = createWorkspaceTrustServices();
+		const client = disposables.add(new AgentHostProtocolClient(
+			LOCAL_AGENT_HOST_RESOURCE_IDENTITY, transport, undefined, new NullLogService(), createPermissionService(),
+			configuration, NullTelemetryService, workspaceTrustEnablementService, trust.management, trust.request, policyService,
+		));
+		await connectClient(client, transport);
+		const legacy = findLastManagedSettingsNotification(transport.sentMessages);
+		transport.sentMessages.length = 0;
+		source = PolicyValueSource.ServerManagedSettings;
+		changes.fire(['ChatToolsAutoApprove']);
+		await Promise.resolve();
+		assert.deepStrictEqual({
+			legacy,
+			managed: findLastManagedSettingsNotification(transport.sentMessages),
+			provenance: findRootConfigValue(transport.sentMessages, 'autoApprovePolicyIsManaged'),
+		}, {
+			legacy: { jsonrpc: '2.0', method: 'setClientManagedSettingsPermissions', params: { permissions: { disableBypassPermissionsMode: 'disable', disableAssistedPermissionsMode: true } } },
+			managed: { jsonrpc: '2.0', method: 'setClientManagedSettingsPermissions', params: { permissions: { disableBypassPermissionsMode: 'disable' } } },
+			provenance: true,
+		});
+	});
+
+	for (const identity of [LOCAL_AGENT_HOST_RESOURCE_IDENTITY, 'remote.example:1234'] as const) {
+		for (const source of [PolicyValueSource.NativeMdm, PolicyValueSource.FileManagedSettings, PolicyValueSource.ServerManagedSettings]) {
+			test(`preserves legacy false alongside ${source} and forwards only mode bans remotely (${String(identity)})`, async () => {
+				class SourcePolicyService extends AbstractPolicyService {
+					constructor(source: PolicyValueSource) {
+						super();
+						this.policyDefinitions = { ChatToolsAutoApprove: { type: 'boolean' } };
+						this.updatePolicyValue('ChatToolsAutoApprove', false, source);
+					}
+					clear(): void {
+						this.updatePolicyValue('ChatToolsAutoApprove', undefined);
+						this._onDidChange.fire(['ChatToolsAutoApprove']);
+					}
+					protected async _updatePolicyDefinitions(): Promise<void> { }
+				}
+				const device = disposables.add(new SourcePolicyService(PolicyValueSource.Device));
+				const managed = disposables.add(new SourcePolicyService(source));
+				const policy = disposables.add(new MultiplexPolicyService([device, managed], new NullLogService()));
+				const configuration = new ManagedPermissionsConfigurationService({});
+				configuration.setEligibleForAutoApprovalPolicy({ fetch: false });
+				const transport = disposables.add(new TestProtocolTransport());
+				const trust = createWorkspaceTrustServices();
+				const client = disposables.add(new AgentHostProtocolClient(
+					identity, transport, undefined, new NullLogService(), createPermissionService(),
+					configuration, NullTelemetryService, workspaceTrustEnablementService, trust.management, trust.request, policy,
+				));
+				await connectClient(client, transport);
+				const notification = (permissions: object) => ({ jsonrpc: '2.0', method: 'setClientManagedSettingsPermissions', params: { permissions } });
+				const both = {
+					provenance: findRootConfigValue(transport.sentMessages, 'autoApprovePolicyIsManaged'),
+					restrictions: findLastManagedSettingsNotification(transport.sentMessages),
+				};
+				transport.sentMessages.length = 0;
+				device.clear();
+				const managedOnly = {
+					provenance: findRootConfigValue(transport.sentMessages, 'autoApprovePolicyIsManaged'),
+					restrictions: findLastManagedSettingsNotification(transport.sentMessages),
+				};
+				configuration.clearGlobalAutoApprovePolicy();
+				managed.clear();
+				fireConfigurationChange(configuration, GLOBAL_AUTO_APPROVE_SETTING_ID);
+				assert.deepStrictEqual({ both, managedOnly, removed: findLastManagedSettingsNotification(transport.sentMessages) }, {
+					both: { provenance: false, restrictions: notification({ disableBypassPermissionsMode: 'disable', disableAssistedPermissionsMode: true }) },
+					managedOnly: { provenance: true, restrictions: notification({ disableBypassPermissionsMode: 'disable' }) },
+					removed: notification(identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY ? { disableBypassPermissionsMode: 'disable' } : {}),
+				});
+			});
+		}
+	}
+
 	test('forwards and clears legacy managed permissions for the local host', async () => {
 		const configurationService = new ManagedPermissionsConfigurationService({
 			[TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID]: false,
@@ -1937,6 +2042,7 @@ suite('AgentHostProtocolClient', () => {
 			params: {
 				permissions: {
 					disableBypassPermissionsMode: 'disable',
+					disableAssistedPermissionsMode: true,
 				},
 			},
 		});
@@ -3273,7 +3379,7 @@ suite('AgentHostProtocolClient', () => {
 					'test.example:1234', transport,
 					{ resolveInitialAuthentication: async () => ({ resource: 'https://api.github.com', token: 'copilot-sealed.v1.test.ciphertext' }) },
 					new NullLogService(), createPermissionService(), configurationService, NullTelemetryService,
-					workspaceTrustEnablementService, workspaceTrust.management, workspaceTrust.request,
+					workspaceTrustEnablementService, workspaceTrust.management, workspaceTrust.request, new NullPolicyService(),
 				));
 				const connecting = client.connect();
 				const initialize = await waitForRequest(transport, 'initialize');
@@ -3459,7 +3565,7 @@ suite('AgentHostProtocolClient', () => {
 			const workspaceTrust = createWorkspaceTrustServices();
 			const configurationService = new TestConfigurationService();
 			const client = disposables.add(new AgentHostProtocolClient(
-				'test.example:1234', factory, clientInfo !== undefined || reconnectPolicy !== undefined || loadEstimator !== undefined || prepareReconnect !== undefined || authentication !== undefined ? { clientInfo, reconnectPolicy, loadEstimator, prepareReconnect, ...authentication } : undefined, new NullLogService(), permissionService, configurationService, telemetryService, workspaceTrustEnablementService, workspaceTrust.management, workspaceTrust.request,
+				'test.example:1234', factory, clientInfo !== undefined || reconnectPolicy !== undefined || loadEstimator !== undefined || prepareReconnect !== undefined || authentication !== undefined ? { clientInfo, reconnectPolicy, loadEstimator, prepareReconnect, ...authentication } : undefined, new NullLogService(), permissionService, configurationService, telemetryService, workspaceTrustEnablementService, workspaceTrust.management, workspaceTrust.request, new NullPolicyService(),
 			));
 			return { client, transports, configurationService };
 		}

@@ -151,6 +151,7 @@ export class LocalAgentHostManagementConnection extends Disposable {
  * management remains on the narrow Management IPC channel.
  */
 export class LocalAgentHostServiceClient extends Disposable implements IAgentHostService {
+	readonly forwardsClientManagedSettings = true;
 	declare readonly _serviceBrand: undefined;
 
 	readonly clientId = generateUuid();

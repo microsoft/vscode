@@ -38,7 +38,11 @@ export function getAgentHostSessionPermissionOptions(agentProvider: string, poli
 		return getAgentHostSessionPermissionOptions(COPILOT_CLI_AGENT_PROVIDER_ID, policyRestricted, assistedPermissionsEnabled)
 			.filter(option => {
 				const value = writeSessionApprovalLevel(approval, option.id);
-				return value !== undefined && available.includes(value);
+				return value !== undefined && (approval.key === SessionConfigKey.AutoApprove || available.includes(value));
+			})
+			.map(option => {
+				const locked = option.locked || !available.includes(writeSessionApprovalLevel(approval, option.id) ?? '');
+				return { ...option, locked, lockedReason: locked ? policyLockedReason() : undefined };
 			});
 	}
 	switch (agentProvider) {

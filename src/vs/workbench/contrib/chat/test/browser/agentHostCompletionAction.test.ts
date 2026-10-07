@@ -14,6 +14,7 @@ import { applyAgentHostCompletionAction, isPolicyBlockedCompletionAction } from 
 import { autoApprovePolicyValue } from '../../common/agentHostConfigPolicy.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { resetShownWarnings } from '../../common/chatPermissionWarnings.js';
+import { NullPolicyService, PolicyValueSource } from '../../../../../platform/policy/common/policy.js';
 
 /** Test configuration service whose `inspect` reports a fixed `policyValue` for the global auto-approve setting. */
 class PolicyTestConfigurationService extends TestConfigurationService {
@@ -90,6 +91,15 @@ suite('applyAgentHostCompletionAction', () => {
 	});
 
 	suite('isPolicyBlockedCompletionAction', () => {
+		test('managed Assisted relaxation requires policy forwarding, unlike relay connections', () => {
+			const configuration = new PolicyTestConfigurationService(false);
+			const policy = new NullPolicyService();
+			policy.getPolicyValueSource = () => PolicyValueSource.NativeMdm;
+			assert.deepStrictEqual([true, false, undefined].map(forwarded =>
+				['assisted', 'autoApprove'].map(autoApprove => isPolicyBlockedCompletionAction({ applyConfig: { autoApprove } }, configuration, policy, forwarded))
+			), [[false, true], [true, true], [true, true]]);
+		});
+
 		test('elevated autoApprove is blocked only when policy restricts auto-approval', () => {
 			const restricted = new PolicyTestConfigurationService(false);
 			const unrestricted = new PolicyTestConfigurationService(undefined);

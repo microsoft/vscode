@@ -136,6 +136,8 @@ suite('CopilotShellTools', () => {
 		const policies = new Map<string, ISessionSandboxPolicy>();
 		const service: IAgentConfigurationService = {
 			_serviceBrand: undefined,
+			registerChatPermissionState: () => { throw new Error('Unexpected permission registration'); },
+			getChatPermissionState: () => undefined,
 			onDidRootConfigChange: emitter.event,
 			onDidSessionConfigChange: sessionEmitter.event,
 			getEffectiveValue: () => undefined,

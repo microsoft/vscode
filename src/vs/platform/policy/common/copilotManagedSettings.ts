@@ -32,6 +32,8 @@ export const GITHUB_COPILOT_MACOS_BUNDLE_ID = 'com.github.copilot';
 
 /** MDM key for the V0 managed setting. */
 export const COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY = 'permissions.disableBypassPermissionsMode';
+export const COPILOT_DISABLE_ASSISTED_PERMISSIONS_MODE_KEY = 'permissions.disableAssistedPermissionsMode';
+export const COPILOT_DEFAULT_PERMISSIONS_MODE_KEY = 'permissions.defaultMode';
 
 /** Managed-settings key for enterprise plugin enablement (carried as a JSON-encoded `{ [pluginId]: boolean }`). */
 export const COPILOT_ENABLED_PLUGINS_KEY = 'enabledPlugins';
@@ -101,6 +103,8 @@ export const COPILOT_AUTO_TIER_KEY = 'autoTier';
  * configuration policy. Native MDM must watch these even though no setting declares them.
  */
 export const MANAGED_SETTINGS_CONTROL_DEFINITIONS: IManagedSettingsPolicyDefinitions = {
+	[COPILOT_DISABLE_ASSISTED_PERMISSIONS_MODE_KEY]: { type: 'boolean' },
+	[COPILOT_DEFAULT_PERMISSIONS_MODE_KEY]: { type: 'string' },
 	[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: { type: 'boolean' },
 	[COPILOT_SANDBOX_ENABLED_KEY]: { type: 'boolean' },
 	[COPILOT_SANDBOX_MCP_SERVERS_KEY]: { type: 'boolean' },

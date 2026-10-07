@@ -19,6 +19,7 @@ import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWor
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { applyAgentHostSubmitConfig } from './applyAgentHostSubmitConfig.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { IPolicyService } from '../../../../../../platform/policy/common/policy.js';
 
 export interface ICopilotConfigSlashSubmitResolution {
 	readonly applyConfig: Readonly<Record<string, string>>;
@@ -45,6 +46,7 @@ export class CopilotConfigSlashSubmitHandlerContribution extends Disposable impl
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@IPolicyService private readonly _policyService: IPolicyService,
 	) {
 		super();
 		this._register(submitRequestHandlerService.register({
@@ -68,6 +70,7 @@ export class CopilotConfigSlashSubmitHandlerContribution extends Disposable impl
 			workingDirectoryResolver: this._workingDirectoryResolver,
 			workspaceContextService: this._workspaceContextService,
 			configurationService: this._configurationService,
+			policyService: this._policyService,
 			dialogService: this._dialogService,
 			storageService: this._storageService,
 		});

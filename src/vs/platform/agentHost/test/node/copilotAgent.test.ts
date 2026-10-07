@@ -941,6 +941,7 @@ class MockCopilotSession {
 			},
 		},
 		permissions: {
+			getMode: async () => ({ mode: 'manual' as const }),
 			setMode: async ({ mode }: { mode: PermissionMode }) => ({ success: true, mode }),
 		},
 		provider: {
@@ -1492,8 +1493,27 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('managed defaults are previewed without replacing explicit startup intent', async () => {
+		const client = new TestCopilotClient([]);
+		client.managedSettingsResolution.resolved.settings = { permissions: { defaultMode: 'assisted' } };
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		try {
+			const fresh = await agent.resolveChatConfig({});
+			const explicit = await agent.resolveChatConfig({ config: { autoApprove: 'default' } });
+			client.managedSettingsResolution.resolved.settings = { permissions: { defaultMode: 'allow-all' } };
+			const restored = await agent.resolveChatConfig({ isNewSession: false, config: { effectiveApprovalMode: 'default' } });
+			assert.deepStrictEqual({
+				fresh: [fresh.values.autoApprove, fresh.values.effectiveApprovalMode],
+				explicit: [explicit.values.autoApprove, explicit.values.effectiveApprovalMode],
+				restored: [restored.values.autoApprove, restored.values.effectiveApprovalMode],
+			}, { fresh: [undefined, 'assisted'], explicit: ['default', 'default'], restored: [undefined, 'default'] });
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
 	test('sandbox override survives config resolution but is not inherited by forks', async () => {
-		const agent = createTestAgent(disposables);
+		const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]) });
 		try {
 			const fresh = await agent.resolveChatConfig({});
 			const restored = await agent.resolveChatConfig({ config: { sandboxEnabled: 'off', autoApprove: 'default' } });
@@ -14286,7 +14306,7 @@ suite('CopilotAgent', () => {
 					clientToken: 'connector-session-token',
 					configToken: undefined,
 					hasTokenProvider: false,
-					connectorFlags: { CONNECTORS: true, TGREP: false, CONTENT_EXCLUSION: true, copilot_swe_agent_memory_in_repo_store: false, MANAGED_MCP_SERVERS: true },
+					connectorFlags: { AUTO_APPROVAL: true, CONNECTORS: true, TGREP: false, CONTENT_EXCLUSION: true, copilot_swe_agent_memory_in_repo_store: false, MANAGED_MCP_SERVERS: true },
 				});
 			} finally {
 				await disposeAgent(agent);

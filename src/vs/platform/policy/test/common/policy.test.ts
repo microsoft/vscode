@@ -8,10 +8,16 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { PolicyName } from '../../../../base/common/policy.js';
 import { AbstractPolicyService, PolicyDefinition, PolicyValue, PolicyValueSource } from '../../common/policy.js';
+import { MultiplexPolicyService } from '../../common/multiplexPolicyService.js';
+import { NullLogService } from '../../../log/common/log.js';
 
 class TestPolicyService extends AbstractPolicyService {
 	update(name: PolicyName, value: PolicyValue | undefined, source: PolicyValueSource | undefined): boolean {
-		return this.updatePolicyValue(name, value, source);
+		const changed = this.updatePolicyValue(name, value, source);
+		if (changed) {
+			this._onDidChange.fire([name]);
+		}
+		return changed;
 	}
 
 	protected async _updatePolicyDefinitions(_policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<void> {
@@ -51,6 +57,36 @@ suite('AbstractPolicyService', () => {
 		assert.doesNotThrow(() => structuredClone(serialized));
 
 		service.dispose();
+	});
+
+	test('multiplex preserves all effective-value sources without changing last-wins precedence', async () => {
+		const device = new TestPolicyService();
+		const managed = new TestPolicyService();
+		await device.updatePolicyDefinitions({ Policy: { type: 'boolean' } });
+		await managed.updatePolicyDefinitions({ Policy: { type: 'boolean' } });
+		device.update('Policy', false, PolicyValueSource.Device);
+		managed.update('Policy', false, PolicyValueSource.NativeMdm);
+		const multiplex = new MultiplexPolicyService([device, managed], new NullLogService());
+		try {
+			const read = () => ({ value: multiplex.getPolicyValue('Policy'), sources: multiplex.getPolicyValueSources('Policy') });
+			const both = read();
+			device.update('Policy', undefined, undefined);
+			const removed = read();
+			device.update('Policy', false, PolicyValueSource.Device);
+			managed.update('Policy', true, PolicyValueSource.NativeMdm);
+			const precedence = read();
+			managed.update('Policy', undefined, undefined);
+			assert.deepStrictEqual([both, removed, precedence, read()], [
+				{ value: false, sources: [PolicyValueSource.Device, PolicyValueSource.NativeMdm] },
+				{ value: false, sources: [PolicyValueSource.NativeMdm] },
+				{ value: true, sources: [PolicyValueSource.NativeMdm] },
+				{ value: false, sources: [PolicyValueSource.Device] },
+			]);
+		} finally {
+			multiplex.dispose();
+			managed.dispose();
+			device.dispose();
+		}
 	});
 
 	test('tracks value and source changes together', () => {

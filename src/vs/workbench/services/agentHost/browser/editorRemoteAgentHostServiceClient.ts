@@ -50,6 +50,7 @@ const LOG_PREFIX = '[AgentHost:remote]';
  * the agent host is owned by whoever spawned it on the remote.
  */
 export class EditorRemoteAgentHostServiceClient extends Disposable implements IAgentHostService {
+	readonly forwardsClientManagedSettings = true;
 	declare readonly _serviceBrand: undefined;
 
 	async reportUserInteraction(timing: IChatUserInteractionTiming): Promise<void> {

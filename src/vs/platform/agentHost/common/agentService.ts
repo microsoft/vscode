@@ -1135,6 +1135,9 @@ export interface IAgentService {
  */
 export interface IAgentConnection {
 
+	/** Whether this client forwards its managed permission restrictions to the host. */
+	readonly forwardsClientManagedSettings?: boolean;
+
 	/** Available for capable hosts, including while reconnecting; absent after permanent disconnection. */
 	readonly devContainerService?: IDevContainerAgentHostMainService;
 	readonly clientId: string;

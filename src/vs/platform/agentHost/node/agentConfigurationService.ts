@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
 import { dirname } from '../../../base/common/path.js';
 import { hasKey } from '../../../base/common/types.js';
@@ -20,10 +20,10 @@ import { copilotCliConfigSchema } from '../common/copilotCliConfig.js';
 import { agentMergeRootConfigSchema } from '../common/agentMerge.js';
 import { automationRootConfigSchema } from '../common/automationConfig.js';
 import { sandboxConfigSchema } from '../common/sandboxConfigSchema.js';
-import { agentHostProxyConfigSchema, clientOwnedApprovalRootConfigKeys, platformRootSchema, type ISchema, type SchemaDefinition, type SchemaValue } from '../common/agentHostSchema.js';
+import { agentHostProxyConfigSchema, clientOwnedApprovalRootConfigKeys, platformRootSchema, type AutoApproveLevel, type ISchema, type SchemaDefinition, type SchemaValue } from '../common/agentHostSchema.js';
 import { ProtocolError } from '../common/state/sessionProtocol.js';
 import { ActionType, type ActionOrigin } from '../common/state/sessionActions.js';
-import { isAhpChatChannel, parseSubagentSessionUri, ROOT_STATE_URI, type SessionConfigState, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { buildDefaultChatUri, isAhpChatChannel, parseSubagentSessionUri, ROOT_STATE_URI, type SessionConfigState, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { type ISessionSandboxPolicy, readSessionSandboxPolicy, withSessionSandboxPolicy } from '../common/meta/agentSandboxPolicyMeta.js';
@@ -65,6 +65,16 @@ export interface IAgentSessionConfigurationChangeEvent {
 	readonly origin: ActionOrigin | undefined;
 }
 
+export interface IAgentChatPermissionState {
+	readonly effective?: AutoApproveLevel;
+	readonly available?: readonly AutoApproveLevel[];
+}
+
+export interface IAgentChatPermissionRegistration extends IDisposable {
+	readonly value: IAgentChatPermissionState;
+	update(state: IAgentChatPermissionState): void;
+}
+
 /**
  * Cohesive read/write surface for agent-host configuration.
  *
@@ -81,6 +91,10 @@ export interface IAgentSessionConfigurationChangeEvent {
  */
 export interface IAgentConfigurationService {
 	readonly _serviceBrand: undefined;
+
+	/** Authoritative reports belong to a live backing, not the shared requested configuration. */
+	registerChatPermissionState(chat: ProtocolURI): IAgentChatPermissionRegistration;
+	getChatPermissionState(chatOrSession: ProtocolURI): IAgentChatPermissionState | undefined;
 
 	/**
 	 * Fires whenever a {@link ActionType.RootConfigChanged} action is
@@ -172,6 +186,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 	private readonly _rootTransientValueKeys = new Set<string>();
 	private readonly _sessionSandboxPolicies = new Map<ProtocolURI, ISessionSandboxPolicy>();
 	private readonly _sessionSandboxChanges = new Map<ProtocolURI, Record<string, unknown> | undefined>();
+	private readonly _chatPermissions = new Map<ProtocolURI, IAgentChatPermissionRegistration>();
 
 	private readonly _onDidRootConfigChange = this._register(new Emitter<void>());
 	readonly onDidRootConfigChange: Event<void> = this._onDidRootConfigChange.event;
@@ -207,6 +222,11 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		this._register(this._stateManager.onDidRemoveSession(session => {
 			this._sessionSandboxPolicies.delete(session);
 			this._sessionSandboxChanges.delete(session);
+			for (const chat of this._chatPermissions.keys()) {
+				if (resolveAgentHostSession(URI.parse(chat)).toString() === session) {
+					this._chatPermissions.delete(chat);
+				}
+			}
 		}));
 
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
@@ -264,12 +284,58 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 	/** Reconciles restored selections with current policy before notifying live provider runtimes. */
 	restoreSessionConfig(session: ProtocolURI, config: SessionConfigState): void {
 		this._stateManager.setSessionConfig(session, config);
+		this._publishChatPermissionState(this._stateManager.getSessionState(session)?.defaultChat ?? buildDefaultChatUri(session));
 		if (!this._publishSessionSandboxPolicy(session)) {
 			this._onDidSessionConfigChange.fire({
 				session,
 				config: { ...config.values, [SessionConfigKey.SandboxEnabled]: config.values[SessionConfigKey.SandboxEnabled] },
 				origin: undefined,
 			});
+		}
+
+	}
+
+	registerChatPermissionState(chat: ProtocolURI): IAgentChatPermissionRegistration {
+		let value: IAgentChatPermissionState = {};
+		const registration: IAgentChatPermissionRegistration = {
+			get value() { return value; },
+			update: state => {
+				value = { ...value, ...state };
+				if (this._chatPermissions.get(chat) === registration) {
+					this._publishChatPermissionState(chat);
+				}
+			},
+			dispose: () => {
+				if (this._chatPermissions.get(chat) === registration) {
+					this._chatPermissions.delete(chat);
+				}
+			},
+		};
+		this._chatPermissions.set(chat, registration);
+		return registration;
+	}
+
+	getChatPermissionState(chatOrSession: ProtocolURI): IAgentChatPermissionState | undefined {
+		const chat = isAhpChatChannel(chatOrSession) ? chatOrSession
+			: this._stateManager.getSessionState(chatOrSession)?.defaultChat ?? buildDefaultChatUri(chatOrSession);
+		return this._chatPermissions.get(chat)?.value;
+	}
+
+	private _publishChatPermissionState(chat: ProtocolURI): void {
+		const owner = resolveAgentHostSession(URI.parse(chat)).toString();
+		const state = this._stateManager.getSessionState(owner);
+		// Session-level presentation describes the default chat. A peer's report
+		// must never change its sibling's displayed or authoritative mode.
+		if (!state?.config || chat !== (state.defaultChat ?? buildDefaultChatUri(owner))) {
+			return;
+		}
+		const report = this._chatPermissions.get(chat)?.value;
+		const patch = {
+			...(report?.effective === undefined ? {} : { effectiveApprovalMode: report.effective }),
+			...(report?.available === undefined ? {} : { availableApprovalModes: report.available }),
+		};
+		if (Object.entries(patch).some(([key, value]) => !equals(state.config?.values[key], value))) {
+			this.updateSessionConfig(owner, patch);
 		}
 	}
 

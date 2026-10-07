@@ -49,6 +49,19 @@ suite('Session config properties', () => {
 		});
 	});
 
+	test('retains saved VS Code intent while policy limits effective availability', () => {
+		const schema: SessionConfigSchema = {
+			...vscode, properties: { ...vscode.properties, effectiveApprovalMode: copilot.properties.effectiveApprovalMode, availableApprovalModes: copilot.properties.availableApprovalModes },
+		};
+		const values = { autoApprove: 'assisted', effectiveApprovalMode: 'default', availableApprovalModes: ['default', 'autoApprove'] };
+		assert.deepStrictEqual({
+			requested: filterSessionConfigValues(schema, values).autoApprove,
+			effective: getEffectiveSessionApprovalValue(getSessionApprovalProperty(schema)!, schema, values),
+			available: getAvailableSessionApprovalValues(getSessionApprovalProperty(schema)!, schema, values),
+		}, { requested: 'assisted', effective: 'default', available: ['default', 'autoApprove'] });
+		assert.throws(() => validateSessionConfigWrite(schema, values, 'autoApprove', 'assisted', false), /does not offer/);
+	});
+
 	for (const [name, schema, values, runtime] of [
 		['VS Code', vscode, { autoApprove: 'assisted', isolation: 'worktree', branch: 'release', mode: 'plan' }, { autoApprove: 'assisted', mode: 'plan' }],
 		['Copilot D', copilot, { approvalMode: 'assisted', target: 'worktree', baseBranch: 'release', mode: 'plan' }, { approvalMode: 'assisted', mode: 'plan' }],

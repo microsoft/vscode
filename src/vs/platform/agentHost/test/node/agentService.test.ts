@@ -27895,6 +27895,24 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(state!.config?.values, { autoApprove: 'autoApprove' });
 		});
 
+		test('restoreSession distinguishes persisted permission reports from new-session defaults', async () => {
+			const sessionDb = disposables.add(await SessionDatabase.open(':memory:'));
+			const sessionDataService = createSessionDataService(sessionDb);
+			const localAgent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => localAgent.dispose()));
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			registerTestAgentProvider(localService, localAgent);
+			await createAgentSession(localAgent);
+			const sessionResource = (await localAgent.listSessions())[0].session;
+			await sessionDb.setMetadata('configValues', JSON.stringify({ effectiveApprovalMode: 'default' }));
+			localAgent.resolveChatConfig = async params => ({
+				schema: { type: 'object', properties: { effectiveApprovalMode: { type: 'string', title: 'Effective permissions', readOnly: true } } },
+				values: { effectiveApprovalMode: params.isNewSession === false ? params.config?.effectiveApprovalMode : 'autoApprove' },
+			});
+			await localService.restoreSession(sessionResource);
+			assert.deepStrictEqual(getStateManager(localService).getSessionState(sessionResource.toString())?.config?.values, { effectiveApprovalMode: 'default' });
+		});
+
 		test.skip('restoreSession seeds the session changeset from persisted diffs', async () => {
 			const sessionDb = disposables.add(await SessionDatabase.open(':memory:'));
 			const sessionDataService = createSessionDataService(sessionDb);

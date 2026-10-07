@@ -6,7 +6,8 @@
 import { IStringDictionary } from '../../../base/common/collections.js';
 import { Event } from '../../../base/common/event.js';
 import { ILogService } from '../../log/common/log.js';
-import { AbstractPolicyService, IPolicyService, PolicyDefinition, PolicyValue } from './policy.js';
+import { AbstractPolicyService, IPolicyService, PolicyDefinition, PolicyValue, PolicyValueSource } from './policy.js';
+import { PolicyName } from '../../../base/common/policy.js';
 
 export class MultiplexPolicyService extends AbstractPolicyService implements IPolicyService {
 
@@ -31,6 +32,12 @@ export class MultiplexPolicyService extends AbstractPolicyService implements IPo
 	protected async _updatePolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<void> {
 		await Promise.all(this.policyServices.map(service => service.updatePolicyDefinitions(policyDefinitions)));
 		this.updatePolicies();
+	}
+
+	override getPolicyValueSources(name: PolicyName): readonly PolicyValueSource[] {
+		const value = this.getPolicyValue(name);
+		return value === undefined ? [] : [...new Set(this.policyServices.flatMap(service =>
+			service.getPolicyValue(name) === value ? service.getPolicyValueSources(name) : []))];
 	}
 
 	private updatePolicies(): void {

@@ -494,6 +494,7 @@ export const ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID = 'chat.tools.eligibleForAuto
 export const AgentHostGlobalAutoApproveEnabledConfigKey = 'globalAutoApproveEnabled';
 /** Whether managed policy forbids elevated session auto-approval modes. */
 export const AgentHostAutoApprovePolicyRestrictedConfigKey = 'autoApprovePolicyRestricted';
+export const AgentHostAutoApprovePolicyIsManagedConfigKey = 'autoApprovePolicyIsManaged';
 
 /**
  * Root config key forwarded from the renderer when VS Code's `chat.autoReply`
@@ -867,6 +868,12 @@ export const platformRootSchema = createSchema({
 		default: false,
 		readOnly: true,
 	}),
+	[AgentHostAutoApprovePolicyIsManagedConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.autoApprovePolicyIsManaged.title', "Managed Approval Policy"),
+		default: false,
+		description: localize('agentHost.config.autoApprovePolicyIsManaged', "Whether the auto-approve restriction is projected from runtime-owned managed settings rather than a legacy forced Manual policy."),
+	}),
 	[AgentHostWorkspaceTrustConfigKey]: schemaProperty<IAgentHostWorkspaceTrust>({
 		type: 'object',
 		title: localize('agentHost.config.workspaceTrust', "Workspace Trust"),
@@ -1061,6 +1068,7 @@ export const clientOwnedApprovalRootConfigKeys: ReadonlySet<string> = new Set([
 	SessionConfigKey.Permissions,
 	AgentHostGlobalAutoApproveEnabledConfigKey,
 	AgentHostAutoApprovePolicyRestrictedConfigKey,
+	AgentHostAutoApprovePolicyIsManagedConfigKey,
 	AgentHostTerminalAutoApproveEnabledConfigKey,
 	AgentHostTerminalAutoApproveRulesConfigKey,
 	AgentHostEditAutoApprovePatternsConfigKey,

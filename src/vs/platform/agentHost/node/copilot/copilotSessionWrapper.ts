@@ -251,6 +251,11 @@ export class CopilotSessionWrapper extends Disposable {
 	}
 
 	private _onManagedSettingsResolved: Event<SessionEventPayload<'session.managed_settings_resolved'>> | undefined;
+	private _onPermissionsChanged: Event<SessionEventPayload<'session.permissions_changed'>> | undefined;
+	get onPermissionsChanged(): Event<SessionEventPayload<'session.permissions_changed'>> {
+		return this._onPermissionsChanged ??= this._sdkEvent('session.permissions_changed');
+	}
+
 	get onManagedSettingsResolved(): Event<SessionEventPayload<'session.managed_settings_resolved'>> {
 		return this._onManagedSettingsResolved ??= this._sdkEvent('session.managed_settings_resolved');
 	}

@@ -74,7 +74,9 @@ import { IUriIdentityService } from '../../../../../../platform/uriIdentity/comm
 import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
-import { ChatConfiguration, getChatPermissionLevelFromDefaultConfiguration, type IChatDefaultConfiguration } from '../../../common/constants.js';
+import { ChatConfiguration, type IChatDefaultConfiguration } from '../../../common/constants.js';
+import { getExplicitAgentHostPermissionDefault, isAutoApprovePolicyRestricted } from '../../../common/agentHostConfigPolicy.js';
+import { IPolicyService } from '../../../../../../platform/policy/common/policy.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IAgentHostNewSessionFolderService, computeDesiredWorkingDirectories, computeWorkingDirectories, hasImmutablePrimaryWorkingDirectory, supportsMultipleWorkingDirectories } from './agentHostNewSessionFolderService.js';
@@ -296,6 +298,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		@IAgentHostImportConversationStore private readonly _importConversationStore: IAgentHostImportConversationStore,
 		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
+		@IPolicyService private readonly _policyService: IPolicyService,
 	) {
 		super();
 
@@ -1112,11 +1115,9 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		const config: Record<string, unknown> = { [SessionConfigKey.Isolation]: 'folder' };
 
 		const configuredDefaults = this._configurationService.getValue<IChatDefaultConfiguration>(ChatConfiguration.DefaultConfiguration);
-		const policyValue = this._configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue;
-
-		const configuredApprovals = getChatPermissionLevelFromDefaultConfiguration(configuredDefaults?.approvals);
+		const configuredApprovals = getExplicitAgentHostPermissionDefault(this._configurationService);
 		if (configuredApprovals) {
-			const policyRestricted = policyValue === false;
+			const policyRestricted = isAutoApprovePolicyRestricted(this._configurationService, this._policyService, this._agentHostService.forwardsClientManagedSettings);
 			// Bypass and (legacy) Autopilot auto-approve at least some tool
 			// calls, so clamp anything but Default under policy.
 			config[SessionConfigKey.AutoApprove] = policyRestricted && configuredApprovals !== 'default' ? 'default' : configuredApprovals;

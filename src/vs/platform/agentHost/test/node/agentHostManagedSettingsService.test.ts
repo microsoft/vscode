@@ -11,6 +11,21 @@ suite('AgentHostManagedSettingsService', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('Assisted restriction is sticky true independently of bypass and clears with its owner', () => {
+		const service = store.add(new AgentHostManagedSettingsService());
+		service.setClientPermissions('restrictive', { disableAssistedPermissionsMode: true });
+		service.setClientPermissions('permissive', { disableAssistedPermissionsMode: false, disableBypassPermissionsMode: 'disable' });
+		const combined = service.permissions;
+		service.removeClient('restrictive');
+		const removed = service.permissions;
+		service.setClientPermissions('permissive', {});
+		assert.deepStrictEqual([combined, removed, service.permissions], [
+			{ disableAssistedPermissionsMode: true, disableBypassPermissionsMode: 'disable' },
+			{ disableBypassPermissionsMode: 'disable' },
+			{},
+		]);
+	});
+
 	test('aggregates restrictive client contributions and removes them by owner', () => {
 		const service = store.add(new AgentHostManagedSettingsService());
 

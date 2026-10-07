@@ -14,6 +14,7 @@ import { applyAgentHostCompletionAction } from '../../agentHostCompletionAction.
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { applyAgentHostSessionConfigChange } from './applyAgentHostSessionConfig.js';
+import { IPolicyService } from '../../../../../../platform/policy/common/policy.js';
 
 export interface IApplyAgentHostSubmitConfigServices {
 	readonly agentHostService: IAgentHostService;
@@ -22,6 +23,7 @@ export interface IApplyAgentHostSubmitConfigServices {
 	readonly workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver;
 	readonly workspaceContextService: IWorkspaceContextService;
 	readonly configurationService: IConfigurationService;
+	readonly policyService?: IPolicyService;
 	readonly dialogService: IDialogService;
 	readonly storageService: IStorageService;
 }

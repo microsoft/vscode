@@ -61,6 +61,8 @@ export interface IPolicyService {
 	getPolicyValue(name: PolicyName): PolicyValue | undefined;
 	/** Returns the source of the effective value, or `undefined` when no value is set. */
 	getPolicyValueSource(name: PolicyName): PolicyValueSource | undefined;
+	/** All contributing sources with the effective value, without changing value precedence. */
+	getPolicyValueSources(name: PolicyName): readonly PolicyValueSource[];
 	serialize(): IStringDictionary<{ definition: PolicyDefinition; value: PolicyValue }> | undefined;
 	readonly policyDefinitions: IStringDictionary<PolicyDefinition>;
 }
@@ -98,6 +100,11 @@ export abstract class AbstractPolicyService extends Disposable implements IPolic
 
 	getPolicyValueSource(name: PolicyName): PolicyValueSource | undefined {
 		return this.getStoredPolicyValueSource(name);
+	}
+
+	getPolicyValueSources(name: PolicyName): readonly PolicyValueSource[] {
+		const source = this.getPolicyValueSource(name);
+		return source === undefined ? [] : [source];
 	}
 
 	private getStoredPolicyValueSource(name: PolicyName): PolicyValueSource | undefined {
@@ -146,7 +153,11 @@ export class NullPolicyService implements IPolicyService {
 	readonly onDidChange = Event.None;
 	async updatePolicyDefinitions() { return {}; }
 	getPolicyValue() { return undefined; }
-	getPolicyValueSource() { return undefined; }
+	getPolicyValueSource(_name: PolicyName): PolicyValueSource | undefined { return undefined; }
+	getPolicyValueSources(name: PolicyName): readonly PolicyValueSource[] {
+		const source = this.getPolicyValueSource(name);
+		return source === undefined ? [] : [source];
+	}
 	serialize() { return undefined; }
 	policyDefinitions: IStringDictionary<PolicyDefinition> = {};
 }

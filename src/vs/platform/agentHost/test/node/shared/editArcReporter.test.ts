@@ -493,6 +493,8 @@ function createConfigurationService(enabled: boolean, disposables: DisposableSto
 	const rootConfigChange = disposables.add(new Emitter<void>());
 	return {
 		_serviceBrand: undefined,
+		registerChatPermissionState: () => { throw new Error('Unexpected permission registration'); },
+		getChatPermissionState: () => undefined,
 		onDidRootConfigChange: rootConfigChange.event,
 		onDidSessionConfigChange: Event.None,
 		getEffectiveValue: () => undefined,

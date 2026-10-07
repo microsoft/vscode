@@ -20,6 +20,7 @@ import { ServiceCollection } from '../../../../../../platform/instantiation/comm
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IPolicyService, NullPolicyService, PolicyValueSource } from '../../../../../../platform/policy/common/policy.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
@@ -187,7 +188,7 @@ suite('AgentSessionSettingsFileSystemProvider (editor-window per-session adapter
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createHarness(initialState?: SessionState | Error, configurationService: IConfigurationService = new TestConfigurationService()) {
+	function createHarness(initialState?: SessionState | Error, configurationService: IConfigurationService = new TestConfigurationService(), policyService: IPolicyService = new NullPolicyService()) {
 		const agentHostService = new MockAgentHostService();
 		store.add({ dispose: () => agentHostService.dispose() });
 		if (initialState) {
@@ -197,6 +198,7 @@ suite('AgentSessionSettingsFileSystemProvider (editor-window per-session adapter
 		const instantiationService = store.add(new TestInstantiationService(new ServiceCollection(
 			[IAgentHostService, agentHostService],
 			[IConfigurationService, configurationService],
+			[IPolicyService, policyService],
 			[ILogService, new NullLogService()],
 		)));
 
@@ -283,6 +285,22 @@ suite('AgentSessionSettingsFileSystemProvider (editor-window per-session adapter
 		// the unrestricted `mode` property passes through unchanged.
 		assert.deepStrictEqual(action.config, { autoApprove: 'default', mode: 'b' });
 	});
+
+	for (const forwarded of [true, false]) {
+		test(`managed policy config edits require a forwarding connection (${forwarded})`, async () => {
+			const policyService = new NullPolicyService();
+			policyService.getPolicyValueSource = () => PolicyValueSource.NativeMdm;
+			const { fs, uri, agentHostService } = createHarness(makeSessionState({
+				autoApprove: { type: 'string', title: 'Permissions', sessionMutable: true, enum: ['default', 'assisted'] },
+				mode: { type: 'string', title: 'Mode', sessionMutable: true, enum: ['interactive', 'plan'] },
+			}, { autoApprove: 'default', mode: 'interactive' }), createPolicyRestrictedConfigurationService(), policyService);
+			Object.assign(agentHostService, { forwardsClientManagedSettings: forwarded });
+			await fs.writeFile(uri, VSBuffer.fromString('{ "autoApprove": "assisted", "mode": "plan" }').buffer, { create: false, overwrite: true, unlock: false, atomic: false });
+			assert.deepStrictEqual(agentHostService.dispatchedActions.map(entry => entry.action), [
+				{ type: ActionType.SessionConfigChanged, config: { autoApprove: forwarded ? 'assisted' : 'default', mode: 'plan' }, replace: true },
+			]);
+		});
+	}
 
 	test('writeFile passes autoApprove through unchanged when org policy does not restrict auto-approve', async () => {
 		const { fs, uri, agentHostService } = createHarness(makeSessionState({

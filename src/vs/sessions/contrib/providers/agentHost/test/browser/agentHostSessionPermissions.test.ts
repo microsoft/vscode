@@ -11,6 +11,30 @@ import { getAgentHostSessionPermissionConfig, getAgentHostSessionPermissionId, g
 suite('AgentHostSessionPermissions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const unavailable of ['assisted', 'autoApprove'] as const) {
+		test(`shows independently disabled ${unavailable} with its reason without manufacturing startup intent`, () => {
+			const available = ['default', unavailable === 'assisted' ? 'autoApprove' : 'assisted'];
+			const config: ResolveSessionConfigResult = {
+				schema: { type: 'object', properties: {
+					autoApprove: { type: 'string', title: 'Permissions', enum: ['default', 'assisted', 'autoApprove'], default: 'default' },
+					effectiveApprovalMode: { type: 'string', title: 'Effective permissions', readOnly: true },
+					availableApprovalModes: { type: 'array', title: 'Available permissions', readOnly: true },
+				} },
+				values: { effectiveApprovalMode: available[1], availableApprovalModes: available },
+			};
+			assert.deepStrictEqual({
+				current: getAgentHostSessionPermissionId('copilotcli', config),
+				choices: getAgentHostSessionPermissionOptions('copilotcli', false, true, config).map(option => ({ id: option.id, locked: option.locked, reason: option.lockedReason })),
+				blocked: getAgentHostSessionPermissionConfig('copilotcli', unavailable, false, true, config),
+				requested: config.values.autoApprove,
+			}, {
+				current: available[1],
+				choices: ['default', 'assisted', 'autoApprove'].map(id => ({ id, locked: id === unavailable, reason: id === unavailable ? 'Disabled by your organization' : undefined })),
+				blocked: undefined, requested: undefined,
+			});
+		});
+	}
+
 	test('captures exact native permissions without silently changing unknown values', () => {
 		assert.deepStrictEqual({
 			claude: getAgentHostSessionPermissionId('claude', { schema: { type: 'object', properties: {} }, values: { permissionMode: 'acceptEdits' } }),

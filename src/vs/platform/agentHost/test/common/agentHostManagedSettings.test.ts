@@ -8,6 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import type { IConfigurationService, IConfigurationValue } from '../../../configuration/common/configuration.js';
 import { resolveManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
 import { AgentNetworkDomainSettingId } from '../../../networkFilter/common/settings.js';
+import { IPolicyService, NullPolicyService, PolicyValueSource } from '../../../policy/common/policy.js';
 import { ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID } from '../../common/agentHostSchema.js';
 
 function createConfigurationService(values: Record<string, IConfigurationValue<unknown>>): IConfigurationService {
@@ -20,6 +21,23 @@ suite('AgentHostManagedSettings', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('does not translate a managed bypass restriction into an Assisted restriction', () => {
+		const configuration = createConfigurationService({
+			[GLOBAL_AUTO_APPROVE_SETTING_ID]: { policyValue: false },
+		});
+		const results = [PolicyValueSource.Device, PolicyValueSource.AccountGate, PolicyValueSource.NativeMdm, PolicyValueSource.ServerManagedSettings, PolicyValueSource.FileManagedSettings, PolicyValueSource.MixedManagedSettings]
+			.map(source => {
+				const policyService: IPolicyService = new NullPolicyService();
+				policyService.getPolicyValueSource = () => source;
+				return resolveManagedSettingsPermissions(configuration, policyService);
+			});
+		assert.deepStrictEqual(results, [
+			{ disableBypassPermissionsMode: 'disable', disableAssistedPermissionsMode: true },
+			{ disableBypassPermissionsMode: 'disable', disableAssistedPermissionsMode: true },
+			...Array.from({ length: 4 }, () => ({ disableBypassPermissionsMode: 'disable' })),
+		]);
+	});
+
 	test('combines restrictive contributions from enterprise approval policies', () => {
 		const configurationService = createConfigurationService({
 			[GLOBAL_AUTO_APPROVE_SETTING_ID]: { defaultValue: false, policyValue: false },
@@ -28,6 +46,7 @@ suite('AgentHostManagedSettings', () => {
 
 		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {
 			disableBypassPermissionsMode: 'disable',
+			disableAssistedPermissionsMode: true,
 			ask: ['Shell'],
 		});
 	});
@@ -397,6 +416,7 @@ suite('AgentHostManagedSettings', () => {
 
 		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {
 			disableBypassPermissionsMode: 'disable',
+			disableAssistedPermissionsMode: true,
 		});
 	});
 });
