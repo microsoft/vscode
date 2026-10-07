@@ -12,6 +12,7 @@ import { removeAnsiEscapeCodes } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { IAccessibleViewService } from '../../../../platform/accessibility/browser/accessibleView.js';
+import { AGENT_HOST_TERMINAL_MAX_CONTENT_LENGTH } from '../../../../platform/agentHost/common/terminalConstants.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { asCssVariable, menuBackground } from '../../../../platform/theme/common/colorRegistry.js';
@@ -142,6 +143,8 @@ export class BackgroundShellOutputView extends Disposable {
 		void terminalService.createDetachedTerminal({
 			cols: BackgroundShellOutputViewConstants.FallbackCols,
 			rows: BackgroundShellOutputViewConstants.Rows,
+			// Every row holds at least one character, so all the output the Agent Host keeps stays scrollable.
+			scrollback: AGENT_HOST_TERMINAL_MAX_CONTENT_LENGTH,
 			readonly: true,
 			processInfo,
 			disableOverviewRuler: true,
