@@ -206,6 +206,7 @@ export function mapMarkdownDiagnostics(document: vscode.TextDocument, text: stri
 			message: diagnostic.message, severity: severities[diagnostic.severity],
 			source: diagnostic.source,
 			code: diagnostic.code === undefined ? undefined : String(typeof diagnostic.code === 'object' ? diagnostic.code.value : diagnostic.code),
+			codeTarget: typeof diagnostic.code === 'object' ? diagnostic.code.target.toString() : undefined,
 		};
 	});
 }

@@ -49,7 +49,7 @@ suite('Markdown editor diagnostics and completion', () => {
 		});
 		assert.deepStrictEqual(mapMarkdownDiagnostics(test.document, test.state.text, diagnostics),
 			['error', 'warning', 'info', 'hint'].map((severity, index) => ({
-				start: 9, endExclusive: 11, message: `Message ${index}`, severity, source: 'third-party', code: 'rule',
+				start: 9, endExclusive: 11, message: `Message ${index}`, severity, source: 'third-party', code: 'rule', codeTarget: 'https://example.com/rule',
 			})));
 	});
 

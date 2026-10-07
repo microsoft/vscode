@@ -60,7 +60,11 @@ an edit already being applied is undone through the normal undo command.
 Diagnostics from all registered collections are rendered using the code editor's
 squiggle geometry and severity theme colors. Hints use its three-dot marker.
 Document and diagnostic changes refresh the overlays; hovering a marked range
-shows the message, source, and code. Other extensions can publish diagnostics
+shows a themed, selectable hover with the message, source, and code. Diagnostic
+code links open through the host. The hover stays open while the pointer is
+inside it and dismisses on Escape, scrolling, or document changes. It does not
+yet include related-information navigation, quick fixes, or general language
+provider hovers. Other extensions can publish diagnostics
 without any rich-editor-specific API.
 
 **Pull-diagnostics follow-up:** the currently installed `vscode-languageclient`
@@ -101,3 +105,22 @@ resolve a retained completion item: accepting re-queries and resolves the list
 through the chosen index, then verifies the effective item identity before
 applying it. Providers with unstable lists may require requesting suggestions
 again.
+
+### Rich editor image paste
+
+Paste clipboard images into an editable, saved Markdown document with
+**Ctrl+V** (**Cmd+V** on macOS) or a native paste action.
+**Ctrl+Shift+V** (**Cmd+Shift+V** on macOS) pastes plain text instead.
+Image creation and Markdown insertion share one workspace edit and undo/redo.
+The existing Markdown media-paste implementation supplies filenames, relative
+links, collision handling, and the `markdown.copyFiles.destination` and
+`markdown.copyFiles.overwriteBehavior` settings. `editor.pasteAs.enabled`
+controls image paste; disabling it does not disable ordinary text paste.
+
+Clipboard image bytes cross the typed editor bridge; the host chooses the
+destination and applies edits to the authoritative document. Multiple images
+are supported. Unsaved documents, stale edits, denied clipboard access, and
+workspace-edit failures display an error rather than silently dropping images.
+The provider's default alt text is inserted without starting a snippet session.
+This integration reuses the built-in Markdown media provider, not arbitrary
+third-party paste providers; there is no public execute-paste-provider API.

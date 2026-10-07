@@ -13,6 +13,7 @@ const diagnostic = z.extend(range, {
 	severity: z.enum(['error', 'warning', 'info', 'hint']),
 	source: z.optional(z.string()),
 	code: z.optional(z.string()),
+	codeTarget: z.optional(z.string()),
 });
 const completion = z.object({
 	id: z.string(),
@@ -98,6 +99,10 @@ export const markdownEditorHost = defineInterface({ id: 'markdown.editor.host' }
 	completions: requestType(z.object({ requestId: offset, offset, editEpoch: offset, automatic: z.boolean() }), z.object({ items: z.array(completion), incomplete: z.boolean() })),
 	acceptCompletion: requestType(z.object({ requestId: offset, id: z.string() }), z.object({ offset: z.optional(offset), editEpoch: offset, retrigger: z.boolean(), warning: z.optional(z.string()) })),
 	cancelCompletions: requestType(z.object({ requestId: offset }), z.void()),
+	pasteImages: requestType(z.extend(range, {
+		editEpoch: offset,
+		images: z.array(z.object({ name: z.string(), mime: z.string(), base64: z.string() })),
+	}), z.object({ offset: z.optional(offset), editEpoch: offset })),
 });
 
 export const markdownEditorRenderer = defineInterface({ id: 'markdown.editor.renderer' }, {

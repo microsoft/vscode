@@ -25,6 +25,7 @@ import { markdownEditorHost, markdownEditorRenderer, type CodeBlockEditorProvide
 import { MarkdownEditorRpcTransport } from './markdownEditorRpc';
 import { MarkdownEditorRename } from './markdownEditorRename';
 import { MarkdownEditorLanguageFeatures } from './markdownEditorLanguageFeatures';
+import { MarkdownEditorImagePaste } from './markdownEditorImagePaste';
 
 export interface MarkdownCodeBlockEditorApiV1 {
 	getProvider(providerId: string): MarkdownCodeBlockEditorProviderApi | undefined;
@@ -330,6 +331,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		let expectedWebviewContent: { readonly content: string; readonly epoch: number } | undefined;
 		let webviewText = document.getText();
 		let webviewReady = false;
+		let readonly = this.#globalState.get(MarkdownEditorProvider.#readonlyStateKey, true);
 		let codeBlockEditorProviders: readonly CodeBlockEditorProviderDefinition[] | undefined;
 		let contributionUpdate = 0;
 		const resolveCancellation = new vscode.CancellationTokenSource();
@@ -424,6 +426,9 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		const languageFeatures = new MarkdownEditorLanguageFeatures(document, () => editQueue.drain(),
 			() => ({ text: webviewText, editEpoch: editQueue.epoch }),
 			() => webviewPanel.active && !resolveCancellation.token.isCancellationRequested);
+		const imagePaste = new MarkdownEditorImagePaste(document, () => editQueue.drain(),
+			() => ({ text: webviewText, editEpoch: editQueue.epoch }),
+			() => !readonly && webviewPanel.active && !resolveCancellation.token.isCancellationRequested);
 		const diagnosticsChanged = (): void => {
 			if (webviewReady && !resolveCancellation.token.isCancellationRequested) {
 				void editorWebview.renderer.diagnosticsChanged({}).catch(error =>
@@ -438,6 +443,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			completions: message => languageFeatures.completions(message),
 			acceptCompletion: message => languageFeatures.accept(message),
 			cancelCompletions: message => languageFeatures.cancel(message.requestId),
+			pasteImages: message => imagePaste.paste(message),
 			prepareRename: message => rename.prepare(message),
 			rename: message => rename.rename(message),
 			cancelRename: message => rename.cancel(message.requestId),
@@ -493,6 +499,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 
 
 			setReadonly: async message => {
+				readonly = message.readonly;
 				await this.#globalState.update(MarkdownEditorProvider.#readonlyStateKey, message.readonly);
 			},
 			history: async (message, _context, { signal }) => {
@@ -591,6 +598,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			? this.#wireDocumentDiff(originalDocument, document, editorWebview)
 			: this.#wireQuickDiff(document, editorWebview);
 		const reloadWebview = (): void => {
+			imagePaste.dispose();
 			rename.cancel();
 			languageFeatures.cancel();
 			webviewReady = false;
@@ -659,6 +667,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		this.#configureWebview(document, editorWebview, editQueue.epoch);
 
 		webviewPanel.onDidDispose(() => {
+			imagePaste.dispose();
 			rename.cancel();
 			languageFeatures.cancel();
 			diagnosticListener.dispose();

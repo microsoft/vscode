@@ -48,6 +48,7 @@ suite('Markdown editor RPC', () => {
 			completions: () => ({ items: [], incomplete: false }),
 			acceptCompletion: () => ({ offset: 0, editEpoch: 0, retrigger: false }),
 			cancelCompletions: () => { },
+			pasteImages: () => ({ offset: 0, editEpoch: 0 }),
 			...hostOverrides,
 		});
 		host.get(markdownEditorRenderer);

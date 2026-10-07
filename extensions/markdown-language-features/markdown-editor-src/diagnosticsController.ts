@@ -6,6 +6,7 @@
 import { EditorModel, EditorView, OffsetRange } from '@vscode/markdown-editor';
 import { Disposable, autorun, observableValue } from '@vscode/observables';
 import type { MarkdownDiagnostic, MarkdownEditorHost } from '../src/preview/markdownEditorProtocol';
+import { DiagnosticHover } from './diagnosticHover';
 import './languageFeatures.css';
 
 export class DiagnosticsController extends Disposable {
@@ -25,6 +26,8 @@ export class DiagnosticsController extends Disposable {
 		status.setAttribute('role', 'status');
 		status.hidden = true;
 		this._register(view.mountOverlay(status, 'above-decorations'));
+		const hover = this._register(new DiagnosticHover(href => host.openLink({ href })));
+		this._register(view.mountOverlay(hover.element, 'top-chrome'));
 		this.#refresh = async () => {
 			const request = ++this.#request;
 			const source = editor.sourceText.get().value;
@@ -45,9 +48,10 @@ export class DiagnosticsController extends Disposable {
 			this.#items.set([], undefined);
 			void this.refresh();
 		}));
-		const originalTitle = view.element.title;
+		const markedItems = new Map<HTMLElement, MarkdownDiagnostic>();
 		this._register(autorun(reader => {
-			view.element.title = originalTitle;
+			hover.hide();
+			markedItems.clear();
 			const marks: HTMLElement[] = [];
 			const map = view.measuredLayout.visualLineMap.read(reader);
 			for (const item of this.#items.read(reader)) {
@@ -59,6 +63,7 @@ export class DiagnosticsController extends Disposable {
 					const mark = document.createElement('div');
 					mark.className = `md-diagnostic md-diagnostic-${item.severity}`;
 					mark.dataset.message = `${item.source ? `${item.source}: ` : ''}${item.message}${item.code ? ` (${item.code})` : ''}`;
+					markedItems.set(mark, item);
 					mark.dataset.lineHeight = String(rect.height);
 					mark.style.left = `${rect.x}px`;
 					mark.style.top = `${rect.y + rect.height - 3}px`;
@@ -69,21 +74,28 @@ export class DiagnosticsController extends Disposable {
 			layer.replaceChildren(...marks);
 		}));
 		const mousemove = (event: MouseEvent): void => {
-			const messages = [...layer.children].flatMap(child => {
+			if (event.target instanceof Node && hover.element.contains(event.target)) { return; }
+			const hits = [...markedItems].filter(([child]) => {
 				const rect = child.getBoundingClientRect();
-				return child instanceof HTMLElement && event.clientX >= rect.left && event.clientX <= rect.right
-					&& event.clientY >= rect.bottom - Number(child.dataset.lineHeight) && event.clientY <= rect.bottom + 3 ? [child.dataset.message] : [];
+				return event.clientX >= rect.left && event.clientX <= rect.right
+					&& event.clientY >= rect.bottom - Number(child.dataset.lineHeight) && event.clientY <= rect.bottom + 3;
 			});
-			view.element.title = messages.length ? [...new Set(messages)].join('\n') : originalTitle;
+			if (hits.length) {
+				const rect = hits[0][0].getBoundingClientRect();
+				const height = Number(hits[0][0].dataset.lineHeight);
+				hover.show([...new Set(hits.map(([, item]) => item))], new DOMRect(rect.x, rect.bottom - height, rect.width, height));
+			} else { hover.scheduleHide(); }
 		};
-		const mouseleave = (): void => { view.element.title = originalTitle; };
+		const mouseleave = (): void => hover.scheduleHide();
+		const dismiss = (): void => hover.hide();
 		view.element.addEventListener('mousemove', mousemove);
 		view.element.addEventListener('mouseleave', mouseleave);
+		view.element.addEventListener('input', dismiss);
 		this._register({
 			dispose: () => {
 				view.element.removeEventListener('mousemove', mousemove);
 				view.element.removeEventListener('mouseleave', mouseleave);
-				view.element.title = originalTitle;
+				view.element.removeEventListener('input', dismiss);
 			}
 		});
 	}

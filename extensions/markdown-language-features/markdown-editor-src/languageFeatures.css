@@ -38,3 +38,48 @@
 	z-index: 100;
 	max-width: 100%;
 }
+
+.md-diagnostic-hover {
+	position: fixed;
+	z-index: 110;
+	box-sizing: border-box;
+	max-width: min(750px, calc(100vw - 8px));
+	max-height: calc(100vh - 8px);
+	overflow: auto;
+	border: 1px solid var(--vscode-editorHoverWidget-border);
+	border-radius: var(--vscode-cornerRadius-large, 8px);
+	color: var(--vscode-editorHoverWidget-foreground);
+	background: var(--vscode-editorHoverWidget-background);
+	box-shadow: var(--vscode-shadow-lg, 0 2px 8px var(--vscode-widget-shadow));
+	font: var(--vscode-editor-font-size, 14px)/19px var(--vscode-editor-font-family, monospace);
+	user-select: text;
+	cursor: text;
+}
+
+.md-diagnostic-hover[hidden] {
+	display: none;
+}
+
+.md-diagnostic-hover-row {
+	padding: 4px 8px;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+
+.md-diagnostic-hover-row + .md-diagnostic-hover-row {
+	border-top: 1px solid var(--vscode-editorHoverWidget-border);
+}
+
+.md-diagnostic-hover-details {
+	opacity: 0.6;
+	padding-left: 6px;
+}
+
+.md-diagnostic-hover a {
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+}
+
+.md-diagnostic-hover a:hover {
+	color: var(--vscode-textLink-activeForeground);
+}

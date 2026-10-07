@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AsyncClipboardStrategy, CommentModeController, CommentsModel, CommentsView, EditorController, EditorModel, EditorView, GutterMarker, OffsetRange, Selection, StringEdit, StringReplacement, StringValue, commands, findNodeOffsetById, vscodeHostKeyboardProfile, vscodeLocalKeyboardProfile, type CodeBlockAstNode, type LinkPresentationKind } from '@vscode/markdown-editor';
+import { CommentModeController, CommentsModel, CommentsView, EditorController, EditorModel, EditorView, GutterMarker, OffsetRange, Selection, StringEdit, StringReplacement, StringValue, commands, findNodeOffsetById, vscodeHostKeyboardProfile, vscodeLocalKeyboardProfile, type CodeBlockAstNode, type LinkPresentationKind } from '@vscode/markdown-editor';
 import type { IframeEmbeddedEditorHostTransport, IframeEmbeddedEditorProvider, ResolvedIframeEmbeddedEditor } from '@vscode/markdown-editor/web-editors';
 import { Disposable, autorun, observableValue, transaction } from '@vscode/observables';
 import { HubRpcConnection } from '@vscode/hubrpc';
@@ -21,6 +21,7 @@ import { LazyCodeBlockEditorFactory } from '../src/preview/lazyCodeBlockEditorFa
 import { RenameController } from './renameController';
 import { CompletionController } from './completionController';
 import { DiagnosticsController } from './diagnosticsController';
+import { ImagePasteController } from './imagePasteController';
 
 interface VsCodeApi {
 	postMessage(message: unknown): void;
@@ -367,7 +368,7 @@ class Editor extends Disposable {
 		// the TextDocument owns the history, and a second local stack would drift
 		// from the Edit menu, dirty state and hot exit.
 		this.#controller = this._register(new EditorController(model, view, {
-			clipboardStrategy: new AsyncClipboardStrategy(),
+			clipboardStrategy: this._register(new ImagePasteController(model, view, this.#host, () => this.#editEpoch)),
 			keyboardProfile: vscodeLocalKeyboardProfile,
 			forwardedKeyboardProfile: vscodeHostKeyboardProfile,
 			historyStrategy: {
