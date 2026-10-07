@@ -8,6 +8,7 @@ import * as fs from 'fs/promises';
 import { tmpdir } from 'os';
 import type { ExtensionLaunchProviderResolveRequest } from '@github/copilot-sdk';
 import { join } from '../../../../base/common/path.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { CopilotSessionExtensionLaunchAdmission } from '../../node/copilot/copilotSessionExtensionLaunchAdmission.js';
@@ -73,6 +74,17 @@ suite('CopilotSessionExtensionLaunchAdmission', () => {
 		assert.strictEqual(await admission.resolve(request()), canonicalModulePath);
 	});
 
+	(process.platform === 'win32' ? test : test.skip)('accepts both Windows drive-letter spellings from the runtime', async () => {
+		const canonicalModulePath = await writeExtension();
+		const uriAdmission = disposables.add(new CopilotSessionExtensionLaunchAdmission(URI.file(home).fsPath, new NullLogService()));
+		disposables.add(uriAdmission.acquire('owner'));
+		const upperDriveModulePath = request().modulePath.replace(/^[a-z]:/i, drive => drive.toUpperCase());
+		const lowerDriveModulePath = request().modulePath.replace(/^[a-z]:/i, drive => drive.toLowerCase());
+		assert.deepStrictEqual(await Promise.all([upperDriveModulePath, lowerDriveModulePath].map(modulePath =>
+			uriAdmission.resolve({ ...request(), modulePath })
+		)), [canonicalModulePath, canonicalModulePath]);
+	});
+
 	test('rejects unsafe identities, traversal, aliases, and unsupported entrypoints', async () => {
 		await writeExtension();
 		disposables.add(admission.acquire('owner'));
@@ -116,6 +128,7 @@ suite('CopilotSessionExtensionLaunchAdmission', () => {
 			const ownerExtensions = join(ownerDirectory, 'extensions');
 			const ownerExtension = join(ownerExtensions, 'preview');
 			if (boundary === 'state') {
+				await writeExtension();
 				const relocated = join(home, 'relocated-state');
 				await fs.rename(stateDirectory, relocated);
 				await fs.symlink(relocated, stateDirectory, 'junction');
@@ -128,9 +141,23 @@ suite('CopilotSessionExtensionLaunchAdmission', () => {
 				await fs.mkdir(ownerExtensions, { recursive: true });
 				await fs.symlink(join(stateDirectory, 'peer', 'extensions', 'preview'), ownerExtension, 'junction');
 			}
-			disposables.add(admission.acquire('owner'));
-			disposables.add(admission.acquire('peer'));
-			assert.strictEqual(await admission.resolve(request()), undefined);
+			const diagnostics: string[] = [];
+			const boundaryAdmission = disposables.add(new CopilotSessionExtensionLaunchAdmission(home, new class extends NullLogService {
+				override trace(message: string): void {
+					diagnostics.push(message);
+				}
+			}));
+			disposables.add(boundaryAdmission.acquire('owner'));
+			disposables.add(boundaryAdmission.acquire('peer'));
+			assert.deepStrictEqual({
+				entrypointIsFile: (await fs.stat(request().modulePath)).isFile(),
+				resolved: await boundaryAdmission.resolve(request()),
+				diagnostics,
+			}, {
+				entrypointIsFile: true,
+				resolved: undefined,
+				diagnostics: [`[Copilot] Denied session extension launch 'session:owner:preview': canonical entrypoint escapes its session scope`],
+			});
 		});
 	}
 

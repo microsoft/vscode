@@ -73,7 +73,7 @@ export class CopilotSessionExtensionLaunchAdmission extends Disposable {
 		const sessionDirectory = join(stateDirectory, sessionId);
 		const extensionsDirectory = join(sessionDirectory, 'extensions');
 		const expectedModulePath = join(extensionsDirectory, request.name, 'extension.mjs');
-		if (request.modulePath !== expectedModulePath) {
+		if (!isEqual(URI.file(request.modulePath), URI.file(expectedModulePath))) {
 			return deny('entrypoint does not belong to the owning SDK session');
 		}
 		try {
