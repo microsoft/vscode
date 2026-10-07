@@ -210,8 +210,8 @@ export interface McpServerDefinition {
 	readonly variableReplacement?: McpServerDefinitionVariableReplacement;
 	/**
 	 * If set, `${VAR}` environment variable references in the {@link launch}, as written when
-	 * servers are migrated to `.mcp.json`, are expanded with the environment of the extension
-	 * host that runs or connects to the server.
+	 * servers are migrated to `.mcp.json` or the Copilot user configuration, are expanded with
+	 * the environment of the extension host that runs or connects to the server.
 	 */
 	readonly environmentVariableExpansion?: McpServerEnvironmentVariableExpansion;
 	/** Nonce used for caching the server. Changing the nonce will indicate that tools need to be refreshed. */
@@ -353,8 +353,8 @@ export namespace McpServerDefinition {
 
 /**
  * Expands `${VAR}` and `${VAR:-default}` references with the Copilot CLI's rules, for
- * servers from a workspace `.mcp.json`. VS Code variables with an argument, such as
- * `${input:x}` or `${env:X}`, are not interpreted.
+ * servers from a workspace `.mcp.json` or the Copilot user configuration. VS Code variables
+ * with an argument, such as `${input:x}` or `${env:X}`, are not interpreted.
  */
 export interface McpServerEnvironmentVariableExpansion {
 	/**

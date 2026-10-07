@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Event } from '../../../../../base/common/event.js';
+import { equals } from '../../../../../base/common/objects.js';
 import { Platform } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -217,7 +218,7 @@ suite('MCP Discovery - nativeMcpDiscoveryAdapters', () => {
 		});
 	});
 
-	test('does not expand environment variables from native discovery sources', async () => {
+	test('expands environment variables only from the Copilot user configuration', async () => {
 		const contents = VSBuffer.fromString(JSON.stringify({
 			mcpServers: {
 				local: { command: '${TOOLS}/server', env: { API_KEY: '${API_KEY}' } },
@@ -231,7 +232,14 @@ suite('MCP Discovery - nativeMcpDiscoveryAdapters', () => {
 			new CursorDesktopMpcDiscoveryAdapter(null),
 			new WindsurfDesktopMpcDiscoveryAdapter(null),
 		];
-		const flags = await Promise.all(adapters.map(async adapter => (await adapter.adaptFile(contents, details))?.map(definition => definition.environmentVariableExpansion)));
-		assert.deepStrictEqual(flags, adapters.map(() => [undefined, undefined]));
+		const definitions = await Promise.all(adapters.map(adapter => adapter.adaptFile(contents, details)));
+		assert.deepStrictEqual({
+			expansions: definitions.map(defs => defs?.map(definition => definition.environmentVariableExpansion)),
+			// Trust decisions stay keyed to the unexpanded launch.
+			copilotNoncesMatchClaude: equals(definitions[1]?.map(definition => definition.cacheNonce), definitions[0]?.map(definition => definition.cacheNonce)),
+		}, {
+			expansions: adapters.map(adapter => adapter instanceof CopilotMpcDiscoveryAdapter ? [{}, { url: 'https://${HOST}/mcp' }] : [undefined, undefined]),
+			copilotNoncesMatchClaude: true,
+		});
 	});
 });
