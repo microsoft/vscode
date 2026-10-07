@@ -10,7 +10,7 @@ import { setARIAContainer } from '../../../../../../base/browser/ui/aria/aria.js
 import { encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { isCancellationError } from '../../../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
@@ -123,7 +123,7 @@ import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agen
 import { IAgentHostSessionWorkingDirectorySynchronizer } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectorySynchronizer.js';
 import { IAgentHostShellInitSynchronizer } from '../../../browser/agentSessions/agentHost/agentHostShellInitSynchronizer.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
-import { IAgentHostImportConversationStore } from '../../../browser/agentSessions/agentHost/agentHostImportConversationStore.js';
+import { AgentHostImportConversationStore, IAgentHostImportConversationStore } from '../../../browser/agentSessions/agentHost/agentHostImportConversationStore.js';
 import { AgentHostNewSessionFolderService, IAgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { OpenAgentHostFolderPickerAction } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
 import { MenuId, MenuRegistry, isIMenuItem, type IMenuItem } from '../../../../../../platform/actions/common/actions.js';
@@ -5442,6 +5442,43 @@ suite('AgentHostChatContribution', () => {
 			});
 		}));
 
+		test('newChatSessionItem carries the retained backend identity, folder, and pending marker forward', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { instantiationService, agentHostService, newSessionFolderService } = createTestServices(disposables);
+			const retainedBackend = URI.parse('ahp-session:/retained-provisional');
+			const directory = URI.file('/workspace/selected');
+			const untitledResource = URI.parse('agent-host-copilot:/untitled-retained');
+			newSessionFolderService.setFolder(untitledResource, directory);
+			let allocatedResource: URI | undefined;
+			instantiationService.stub(IAgentHostUntitledProvisionalSessionService, {
+				tryRebind: async (_oldResource: URI, newResource: URI) => {
+					allocatedResource = newResource;
+					return retainedBackend;
+				},
+				getProvisionalWorkingDirectories: () => [directory],
+			} as Partial<IAgentHostUntitledProvisionalSessionService> as IAgentHostUntitledProvisionalSessionService);
+			const listController = createSessionListController(disposables, instantiationService, agentHostService);
+
+			const item = await listController.newChatSessionItem({ prompt: 'Hello', untitledResource }, CancellationToken.None);
+			assert.ok(item);
+			assert.ok(allocatedResource);
+
+			assert.deepStrictEqual({
+				resource: item.resource.toString(),
+				folder: newSessionFolderService.getFolder(item.resource)?.toString(),
+				pending: listController.isNewSession(item.resource),
+				oldAllocationPending: listController.isNewSession(allocatedResource),
+				oldAllocationFolder: newSessionFolderService.getFolder(allocatedResource),
+				createCount: agentHostService.createSessionCalls.length,
+			}, {
+				resource: 'agent-host-copilot:/retained-provisional',
+				folder: directory.toString(),
+				pending: true,
+				oldAllocationPending: false,
+				oldAllocationFolder: undefined,
+				createCount: 0,
+			});
+		}));
+
 		test('newChatSessionItem skips rebind when no untitled provisional resource is provided', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { instantiationService, agentHostService } = createTestServices(disposables);
 
@@ -5495,6 +5532,43 @@ suite('AgentHostChatContribution', () => {
 				});
 			});
 		}
+
+		test('newChatSessionItem forwards cancellation and retires only the unpublished allocation on failure', async () => {
+			const { instantiationService, agentHostService, newSessionFolderService } = createTestServices(disposables);
+			const untitled = URI.parse('agent-host-copilot:/untitled-cancelled-graduation');
+			const directory = URI.file('/selected-draft-folder');
+			newSessionFolderService.setFolder(untitled, directory);
+			const importStore = new AgentHostImportConversationStore();
+			instantiationService.stub(IAgentHostImportConversationStore, importStore);
+			const conversation = {
+				turns: [{ id: 'imported', message: { text: 'Imported message', origin: { kind: MessageKind.User } }, responseParts: [], usage: undefined, state: TurnState.Complete }],
+			};
+			importStore.set(untitled, conversation);
+			const cancellation = disposables.add(new CancellationTokenSource());
+			let candidate: URI | undefined;
+			const provisional = instantiationService.get(IAgentHostUntitledProvisionalSessionService);
+			instantiationService.stub(IAgentHostUntitledProvisionalSessionService, {
+				...provisional,
+				tryRebind: async (_old: URI, requested: URI, _provider: string, token?: CancellationToken) => {
+					candidate = requested;
+					assert.strictEqual(token, cancellation.token);
+					cancellation.cancel();
+					throw new CancellationError();
+				},
+			});
+			const controller = createSessionListController(disposables, instantiationService, agentHostService);
+			await assert.rejects(controller.newChatSessionItem({
+				prompt: 'Hello', untitledResource: untitled, _meta: { 'test.creation': true },
+			}, cancellation.token), isCancellationError);
+			assert.ok(candidate);
+			assert.deepStrictEqual({
+				pending: controller.isNewSession(candidate),
+				allocatedFolder: newSessionFolderService.getFolder(candidate),
+				draftFolder: newSessionFolderService.getFolder(untitled),
+				metadata: provisional.getInitialSessionMetadata(candidate),
+				conversation: importStore.take(untitled),
+			}, { pending: false, allocatedFolder: undefined, draftFolder: directory, metadata: undefined, conversation });
+		});
 
 		test('newChatSessionItem routes the store-selected folder as the working directory in multi-root windows', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { instantiationService, agentHostService, newSessionFolderService } = createTestServices(disposables);

@@ -20,7 +20,7 @@ import { Disposable, DisposableStore, toDisposable, type IDisposable, type IRefe
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isEqualOrParent } from '../../../../base/common/resources.js';
-import { autorun, observableValue, waitForState } from '../../../../base/common/observable.js';
+import { autorun, constObservable, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { PluginFormat } from '../../../agentPlugins/common/pluginParsers.js';
@@ -62,7 +62,7 @@ import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
-import { buildDefaultChatUri, buildChatUri, buildSubagentChatUri, buildSubagentSessionUri, parseRequiredSessionUriFromChatUri, CustomizationLoadStatus, MessageKind, readSessionEhcliAdoptable, readSessionWorkspaceless, ResponsePartKind, ROOT_STATE_URI, ToolResultContentType, TurnState, customizationId, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, type ClientPluginCustomization, type Customization, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, buildChatUri, buildSubagentChatUri, buildSubagentSessionUri, parseRequiredSessionUriFromChatUri, CustomizationLoadStatus, MessageKind, readSessionEhcliAdoptable, readSessionWorkspaceless, ResponsePartKind, ROOT_STATE_URI, ToolResultContentType, TurnState, customizationId, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, type ClientPluginCustomization, type Customization, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
 import { ChatOriginKind, CustomizationEnablementKind, CustomizationType, McpServerStatus, SessionStatus, ToolCallContributorKind, type AgentSelection, type ModelSelection, type ProtectedResourceMetadata, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, AuthRequiredReason, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
 
@@ -314,6 +314,7 @@ class TestAgentHostGitService implements IAgentHostGitService {
 	async getBranch(): Promise<IBranch | undefined> { return undefined; }
 	async getRefs(): Promise<IBranch[]> { return []; }
 	async getBranches(): Promise<IBranch[]> { return []; }
+	hasGitRoot() { return constObservable(undefined); }
 	async getRepositoryRoot(): Promise<URI | undefined> { return this.repositoryRoot; }
 	async getWorktreeRoots(): Promise<URI[]> { return []; }
 	async addWorktree(repositoryRoot: URI, options: IAddWorktreeOptions): Promise<void> {
@@ -546,7 +547,9 @@ class TestSessionDataService extends Disposable implements ISessionDataService {
 	deleteSessionData(): Promise<void> { return Promise.resolve(); }
 	readonly onWillDeleteSessionData = Event.None;
 	cleanupOrphanedData(): Promise<void> { return Promise.resolve(); }
-	whenIdle(): Promise<void> { return Promise.resolve(); }
+	async whenIdle(): Promise<void> {
+		await Promise.all([...this._databases.values()].map(db => db.whenIdle()));
+	}
 }
 type CopilotModelsList = CopilotClient['rpc']['models']['list'];
 type CopilotPluginsUninstall = CopilotClient['rpc']['plugins']['uninstall'];
@@ -1267,6 +1270,8 @@ function getCreatedClientOptions(agent: CopilotAgent): readonly CopilotClientOpt
 	return agent.createdClientOptions;
 }
 
+const sessionDataServicesByAgent = new WeakMap<CopilotAgent, ISessionDataService>();
+
 function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; fileService?: FileService; copilotApiService?: ICopilotApiService; gitHubEndpointService?: IAgentHostGitHubEndpointService; telemetryService?: ITelemetryService; userHome?: URI; logService?: ILogService; proxyResolver?: IAgentHostProxyResolver; byokBridgeRegistry?: IByokLmBridgeRegistry; byokProxyService?: IByokLmProxyService; otelService?: IAgentHostOTelService; customizationEnablementService?: ICustomizationEnablementService; useRealCustomizationEnablementService?: boolean; worktreeIsolation?: IAgentHostWorktreeIsolation; rootConfig?: Record<string, unknown>; now?: () => number; startupPerformance?: IAgentHostStartupPerformance }): { agent: CopilotAgent; instantiationService: IInstantiationService; authenticationService: AgentHostAuthenticationService; configurationService: IAgentConfigurationService; worktreeIsolation: IAgentHostWorktreeIsolation; managedSettingsService: IAgentHostManagedSettingsService; fileService: FileService; stateManager: AgentHostStateManager } {
 	const services = new ServiceCollection();
 	const logService = options?.logService ?? new NullLogService();
@@ -1345,6 +1350,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 			? instantiationService.createInstance(ResumePathCopilotAgent, options.copilotClient)
 			: instantiationService.createInstance(TestableCopilotAgent, options.copilotClient, options.now ?? Date.now)
 		: instantiationService.createInstance(CopilotAgent);
+	sessionDataServicesByAgent.set(agent, sessionDataService);
 	return { agent, instantiationService, authenticationService, configurationService: configService, worktreeIsolation, managedSettingsService, fileService, stateManager };
 }
 
@@ -1450,6 +1456,8 @@ async function collectDiscoveredChats(agent: CopilotAgent): Promise<Array<{ id: 
 
 async function disposeAgent(agent: CopilotAgent): Promise<void> {
 	await agent.shutdown();
+	await sessionDataServicesByAgent.get(agent)?.whenIdle();
+	sessionDataServicesByAgent.delete(agent);
 	agent.dispose();
 	// CopilotAgent.dispose calls super.dispose() from a promise continuation so
 	// async shutdown can stop SDK sessions before child disposables are released.
@@ -1479,6 +1487,156 @@ suite('CopilotAgent', () => {
 	teardown(() => {
 		clearProxyEnvironment();
 		Object.assign(process.env, savedProxyEnvironment);
+	});
+
+	suite('session metadata persistence', () => {
+		test('persists all supplied fields in one metadata transaction', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const agent = createTestAgent(disposables, { sessionDataService });
+			const session = AgentSession.uri('copilotcli', 'batched-metadata');
+			const ref = sessionDataService.openDatabase(session);
+			const individualWrites = spy(ref.object, 'setMetadata');
+			const batchedWrites = spy(ref.object, 'setMetadataValues');
+			const model: ModelSelection = { id: 'test-model', config: { temperature: 0.2 } };
+			const primary = URI.file('/workspace/primary');
+			const secondary = URI.file('/workspace/secondary');
+			const customizationDirectory = URI.file('/workspace/customizations');
+			const project = { uri: URI.file('/workspace/project'), displayName: 'Project' };
+			const config = { isolation: 'folder' };
+			const expected = {
+				'copilot.model': JSON.stringify(model),
+				[AH_META_IS_ARCHIVED_DB_KEY]: 'true',
+				[AH_META_EHCLI_ADOPTED_DB_KEY]: 'true',
+				[AH_META_EHCLI_LAST_TURN_DB_KEY]: 'last-migrated-turn',
+				'copilot.workingDirectory': primary.toString(),
+				'copilot.workingDirectories': JSON.stringify([primary.toString(), secondary.toString()]),
+				'copilot.customizationDirectory': customizationDirectory.toString(),
+				'copilot.project.resolved': 'true',
+				'copilot.project.uri': project.uri.toString(),
+				'copilot.project.displayName': project.displayName,
+				configValues: JSON.stringify(config),
+			};
+			try {
+				await agent['_storeSessionMetadata'](session, model, primary, [primary, secondary], customizationDirectory, project, true, config, true, true, 'last-migrated-turn');
+
+				assert.deepStrictEqual({
+					individualWrites: individualWrites.callCount,
+					batchedWrites: batchedWrites.callCount,
+					values: batchedWrites.firstCall?.args[0],
+					stored: await ref.object.getMetadataObject(expected),
+				}, {
+					individualWrites: 0,
+					batchedWrites: 1,
+					values: expected,
+					stored: expected,
+				});
+			} finally {
+				individualWrites.restore();
+				batchedWrites.restore();
+				ref.dispose();
+				await disposeAgent(agent);
+			}
+		});
+
+		test('preserves omitted fields and false flags while persisting empty supplied collections', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const agent = createTestAgent(disposables, { sessionDataService });
+			const session = AgentSession.uri('copilotcli', 'partial-metadata');
+			const ref = sessionDataService.openDatabase(session);
+			const existing = {
+				'copilot.model': JSON.stringify({ id: 'existing-model' }),
+				'copilot.workingDirectory': URI.file('/workspace/existing').toString(),
+				'copilot.workingDirectories': JSON.stringify([URI.file('/workspace/existing').toString()]),
+				'copilot.customizationDirectory': URI.file('/workspace/customizations').toString(),
+				'copilot.project.resolved': 'true',
+				'copilot.project.uri': URI.file('/workspace/project').toString(),
+				'copilot.project.displayName': 'Existing project',
+				[AH_META_IS_ARCHIVED_DB_KEY]: 'true',
+				[AH_META_EHCLI_ADOPTED_DB_KEY]: 'true',
+				[AH_META_EHCLI_LAST_TURN_DB_KEY]: 'existing-turn',
+				configValues: JSON.stringify({ isolation: 'folder' }),
+			};
+			await ref.object.setMetadataValues(existing);
+			const batchedWrites = spy(ref.object, 'setMetadataValues');
+			const expected = { 'copilot.workingDirectories': '[]', configValues: '{}' };
+			try {
+				await agent['_storeSessionMetadata'](session, undefined, undefined, [], undefined, undefined, false, {}, false, false, '');
+
+				assert.deepStrictEqual({
+					batchedWrites: batchedWrites.callCount,
+					values: batchedWrites.firstCall?.args[0],
+					stored: await ref.object.getMetadataObject(existing),
+				}, {
+					batchedWrites: 1,
+					values: expected,
+					stored: { ...existing, ...expected },
+				});
+			} finally {
+				batchedWrites.restore();
+				ref.dispose();
+				await disposeAgent(agent);
+			}
+		});
+
+		test('skips an empty transaction and releases the database reference', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const agent = createTestAgent(disposables, { sessionDataService });
+			const session = AgentSession.uri('copilotcli', 'empty-metadata');
+			const ref = sessionDataService.openDatabase(session);
+			const openDatabase = stub(sessionDataService, 'openDatabase').returns(ref);
+			const release = spy(ref, 'dispose');
+			const individualWrites = spy(ref.object, 'setMetadata');
+			const batchedWrites = spy(ref.object, 'setMetadataValues');
+			try {
+				await agent['_storeSessionMetadata'](session, undefined, undefined, undefined, undefined, undefined);
+
+				assert.deepStrictEqual({
+					individualWrites: individualWrites.callCount,
+					batchedWrites: batchedWrites.callCount,
+					releases: release.callCount,
+				}, { individualWrites: 0, batchedWrites: 0, releases: 1 });
+			} finally {
+				openDatabase.restore();
+				release.restore();
+				individualWrites.restore();
+				batchedWrites.restore();
+				ref.dispose();
+				await disposeAgent(agent);
+			}
+		});
+
+		test('surfaces a failed batch without partial writes and releases the database reference', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const agent = createTestAgent(disposables, { sessionDataService });
+			const session = AgentSession.uri('copilotcli', 'failed-metadata');
+			const ref = sessionDataService.openDatabase(session);
+			const existing = {
+				'copilot.workingDirectory': URI.file('/workspace/existing').toString(),
+				configValues: JSON.stringify({ isolation: 'folder' }),
+			};
+			await ref.object.setMetadataValues(existing);
+			const failure = new Error('metadata write failed');
+			sessionDataService.failNextMetadataWrite(session, 'configValues', failure);
+			const openDatabase = stub(sessionDataService, 'openDatabase').returns(ref);
+			const release = spy(ref, 'dispose');
+			try {
+				await assert.rejects(
+					agent['_storeSessionMetadata'](session, undefined, URI.file('/workspace/next'), undefined, undefined, undefined, false, { isolation: 'worktree' }),
+					error => error === failure,
+				);
+				await ref.object.whenIdle();
+
+				assert.deepStrictEqual({
+					stored: await ref.object.getMetadataObject(existing),
+					releases: release.callCount,
+				}, { stored: existing, releases: 1 });
+			} finally {
+				openDatabase.restore();
+				release.restore();
+				ref.dispose();
+				await disposeAgent(agent);
+			}
+		});
 	});
 
 	test('uninstalls plugins through the SDK server API', async () => {
