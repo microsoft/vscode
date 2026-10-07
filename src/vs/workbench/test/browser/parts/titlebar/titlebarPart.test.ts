@@ -127,6 +127,31 @@ suite('TitlebarPart colors', () => {
 			workbench.remove();
 		}
 	});
+
+	test('keeps the focused menubar opaque in an inactive title bar', () => {
+		const workbench = mainWindow.document.createElement('div');
+		workbench.className = 'monaco-workbench';
+		const titlebar = mainWindow.document.createElement('div');
+		titlebar.className = 'part titlebar inactive';
+		const titlebarContainer = mainWindow.document.createElement('div');
+		titlebarContainer.className = 'titlebar-container';
+		titlebar.appendChild(titlebarContainer);
+		workbench.appendChild(titlebar);
+		mainWindow.document.body.appendChild(workbench);
+
+		try {
+			const inactiveOpacity = mainWindow.getComputedStyle(titlebarContainer).opacity;
+			titlebar.classList.add('menubar-focused');
+			const focusedOpacity = mainWindow.getComputedStyle(titlebarContainer).opacity;
+
+			assert.deepStrictEqual({ inactiveOpacity, focusedOpacity }, {
+				inactiveOpacity: '0.6',
+				focusedOpacity: '1',
+			});
+		} finally {
+			workbench.remove();
+		}
+	});
 });
 
 suite('Workbench - Titlebar Part', () => {
