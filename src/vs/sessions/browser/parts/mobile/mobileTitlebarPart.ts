@@ -105,8 +105,8 @@ export class MobileTitlebarPart extends Disposable {
 	constructor(
 		parent: HTMLElement,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ISessionsService private readonly sessionsService: ISessionsService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@ISessionsService protected readonly sessionsService: ISessionsService,
+		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
@@ -207,12 +207,7 @@ export class MobileTitlebarPart extends Disposable {
 		}));
 		this.refreshAccount();
 
-		// Keep the title in sync with the active session
-		this._register(autorun(reader => {
-			const session = this.sessionsService.activeSession.read(reader);
-			const title = session?.title.read(reader);
-			this.sessionTitleElement.textContent = title || localize('mobileTopBar.newSession', "New Session");
-		}));
+		this.registerTitleListener();
 
 		// Keep the changes pill in sync with the active chat's changes.
 		// Hidden when there are no changes (counts are zero and list is empty).
@@ -305,6 +300,14 @@ export class MobileTitlebarPart extends Disposable {
 	 */
 	setTitle(title: string): void {
 		this.sessionTitleElement.textContent = title;
+	}
+
+	protected registerTitleListener(): void {
+		this._register(autorun(reader => {
+			const session = this.sessionsService.activeSession.read(reader);
+			const title = session?.title.read(reader);
+			this.sessionTitleElement.textContent = title || localize('mobileTopBar.newSession', "New Session");
+		}));
 	}
 
 	// --- Changes Pill --- //
@@ -472,19 +475,7 @@ export class MobileTitlebarPart extends Disposable {
 
 		const closeSheet = () => this.accountPanelDisposable.clear();
 
-		// Full-screen sheet inside the workbench container
-		const workbenchContainer = this.element.parentElement!;
-		const sheet = append(workbenchContainer, $('div.mobile-account-sheet'));
-		panelStore.add(toDisposable(() => sheet.remove()));
-
-		// Header: title + close button
-		const header = append(sheet, $('div.mobile-account-sheet-header'));
-		const headerTitle = append(header, $('h2.mobile-account-sheet-title'));
-		headerTitle.textContent = localize('mobileAccount.title', "Account");
-		const closeButton = append(header, $('button.mobile-account-sheet-close', { type: 'button' })) as HTMLButtonElement;
-		closeButton.setAttribute('aria-label', localize('mobileAccount.close', "Close"));
-		append(closeButton, $('span')).classList.add(...ThemeIcon.asClassNameArray(Codicon.close));
-		panelStore.add(addDisposableListener(closeButton, EventType.CLICK, closeSheet));
+		const { sheet, registerAction } = this.createAccountSheet(panelStore, closeSheet);
 
 		// Scrollable content
 		const content = append(sheet, $('div.mobile-account-sheet-content'));
@@ -541,6 +532,7 @@ export class MobileTitlebarPart extends Disposable {
 			}
 			const row = append(actionsSection, $('button.mobile-account-sheet-action', { type: 'button' })) as HTMLButtonElement;
 			row.disabled = !action.enabled;
+			registerAction?.(row);
 			row.setAttribute('aria-label', action.tooltip || action.label);
 			const icon = this.getActionIcon(action);
 			if (icon) {
@@ -554,6 +546,24 @@ export class MobileTitlebarPart extends Disposable {
 				await Promise.resolve(action.run());
 			}));
 		}
+	}
+
+	protected createAccountSheet(panelStore: DisposableStore, closeSheet: () => void): { sheet: HTMLElement; closeButton: HTMLButtonElement; registerAction?: (button: HTMLButtonElement) => void } {
+		// Full-screen sheet inside the workbench container
+		const workbenchContainer = this.element.parentElement!;
+		const sheet = append(workbenchContainer, $('div.mobile-account-sheet'));
+		panelStore.add(toDisposable(() => sheet.remove()));
+
+		// Header: title + close button
+		const header = append(sheet, $('div.mobile-account-sheet-header'));
+		const headerTitle = append(header, $('h2.mobile-account-sheet-title'));
+		headerTitle.textContent = localize('mobileAccount.title', "Account");
+		const closeButton = append(header, $('button.mobile-account-sheet-close', { type: 'button' })) as HTMLButtonElement;
+		closeButton.setAttribute('aria-label', localize('mobileAccount.close', "Close"));
+		append(closeButton, $('span')).classList.add(...ThemeIcon.asClassNameArray(Codicon.close));
+		panelStore.add(addDisposableListener(closeButton, EventType.CLICK, closeSheet));
+
+		return { sheet, closeButton };
 	}
 
 	private getSheetActions(): IAction[] {

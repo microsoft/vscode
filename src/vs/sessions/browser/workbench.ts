@@ -68,12 +68,12 @@ import { TitleService } from './parts/titlebarPart.js';
 import { EDITOR_PART_DEFAULT_WIDTH, EDITOR_PART_MINIMUM_WIDTH } from './parts/editorPartSizing.js';
 import { IContextKey, IContextKeyService } from '../../platform/contextkey/common/contextkey.js';
 import { CustomViewVisibleContext, EditorMaximizedContext, IsPhoneLayoutContext, DesktopLayoutContext } from '../common/contextkeys.js';
-import { SessionsLayoutPolicy } from './layoutPolicy.js';
+import { SessionsLayoutPolicy, ViewportClass } from './layoutPolicy.js';
 import { AGENTS_PART_CARD_CLASS } from './parts/agentsPartCard.js';
 import { MobileNavigationStack } from './mobileNavigationStack.js';
 import { MobileTitlebarPart } from './parts/mobile/mobileTitlebarPart.js';
 import { getMobileViewportDimension, IMobileVisualViewport } from './parts/mobile/mobileVisualViewport.js';
-import { autorun } from '../../base/common/observable.js';
+import { autorun, IObservable } from '../../base/common/observable.js';
 import { ISessionsService } from '../services/sessions/browser/sessionsService.js';
 import { ISessionsPartService } from '../services/sessions/browser/sessionsPartService.js';
 import { ICustomViewService } from '../services/customView/browser/customViewService.js';
@@ -203,6 +203,15 @@ export interface IAgentWorkbenchLayoutService extends IWorkbenchLayoutService, I
 
 	/** The concrete Agents workbench presentation selected at startup. */
 	readonly agentWorkbenchLayout: AgentWorkbenchLayout;
+
+	/**
+	 * The current viewport class. The single source of truth for phone vs.
+	 * desktop composition: part factories, layout controllers, and pickers
+	 * consult this instead of measuring the window or sniffing the user agent.
+	 * The mobile workbench fixes it to `phone` for the lifetime of the window.
+	 */
+	readonly viewportClass: IObservable<ViewportClass>;
+	readonly initialViewportClass?: ViewportClass;
 
 	/**
 	 * Suppresses the automatic editor part show/hide that normally fires from
@@ -436,11 +445,14 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 
 	private mainWindowFullscreen = false;
 	private readonly maximized = new Set<number>();
-	protected readonly layoutPolicy = this._register(new SessionsLayoutPolicy());
-	private readonly mobileNavStack = this._register(new MobileNavigationStack());
-	private mobileTopBarElement: HTMLElement | undefined;
+	protected readonly layoutPolicy = this._register(this.createLayoutPolicy());
+	get viewportClass(): IObservable<ViewportClass> {
+		return this.layoutPolicy.viewportClass;
+	}
+	protected readonly mobileNavStack = this._register(new MobileNavigationStack());
+	protected mobileTopBarElement: HTMLElement | undefined;
 	private focusMobileTopBar: (() => void) | undefined;
-	private readonly mobileTopBarDisposables = this._register(new DisposableStore());
+	protected readonly mobileTopBarDisposables = this._register(new DisposableStore());
 
 	private _editorMaximized = false;
 	private _panelAlignment: AgentPanelAlignment = 'justify';
@@ -520,6 +532,15 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		mark('code/willStartWorkbench');
 
 		this.registerErrorHandler(logService);
+	}
+
+	/**
+	 * Creates the layout policy that classifies the viewport. Called once from
+	 * the field initializer; subclasses override it to fix the viewport class
+	 * for their presentation (see the mobile workbench).
+	 */
+	protected createLayoutPolicy(): SessionsLayoutPolicy {
+		return new SessionsLayoutPolicy();
 	}
 
 	//#region Error Handling
@@ -984,7 +1005,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 
 	private createMobileTitlebar(): void {
 		this.mobileTopBarDisposables.clear();
-		const mobileTitlebar = this.mobileTopBarDisposables.add(this.instantiationService.createInstance(MobileTitlebarPart, this.mainContainer));
+		const mobileTitlebar = this.mobileTopBarDisposables.add(this.createMobileTitlebarPart(this.instantiationService));
 		this.mobileTopBarElement = mobileTitlebar.element;
 		this.focusMobileTopBar = () => mobileTitlebar.focus();
 		this.mobileTopBarDisposables.add(toDisposable(() => this.focusMobileTopBar = undefined));
@@ -1002,6 +1023,10 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 			this.closeMobileSidebarDrawer();
 			this.sessionsPartService.focusSession(this.sessionsService.activeSession.get());
 		}));
+	}
+
+	protected createMobileTitlebarPart(instantiationService: IInstantiationService): MobileTitlebarPart {
+		return instantiationService.createInstance(MobileTitlebarPart, this.mainContainer);
 	}
 
 	private toggleMobileSidebarDrawer(): void {

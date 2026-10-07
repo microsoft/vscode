@@ -35,7 +35,7 @@ export function equalsAgentHostSandboxTogglePresentation(previous: IActionListIt
 		&& previous?.title === current?.title;
 }
 
-export function createAgentHostSandboxToggle(readState: () => IAgentHostSandboxToggleState, onChange: (enabled: boolean) => void): IActionListItemInlineToggle | undefined {
+export function createAgentHostSandboxToggle(readState: () => IAgentHostSandboxToggleState, onChange: (enabled: boolean) => void | Promise<void>): IActionListItemInlineToggle | undefined {
 	const state = readState();
 	const toggleState = getAgentHostSandboxToggleState(state);
 	if (!toggleState) {
@@ -57,7 +57,7 @@ export function createAgentHostSandboxToggle(readState: () => IAgentHostSandboxT
 			const currentState = getAgentHostSandboxToggleState(latest);
 			if (currentState && !currentState.disabled && !(latest.managedEnabled && displayedChecked) && displayedChecked !== enabled) {
 				displayedChecked = enabled;
-				onChange(enabled);
+				return onChange(enabled);
 			}
 		},
 	};

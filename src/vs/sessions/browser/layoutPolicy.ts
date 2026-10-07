@@ -44,7 +44,7 @@ const isMobilePlatform = isMobile;
  * Phone and tablet classifications are gated on a mobile OS; desktop
  * browsers and Electron always report `desktop` regardless of width.
  */
-function classifyViewport(width: number): ViewportClass {
+export function classifyViewport(width: number): ViewportClass {
 	if (!isMobilePlatform) {
 		return 'desktop';
 	}
@@ -104,12 +104,22 @@ export class SessionsLayoutPolicy extends Disposable {
 		return this._viewportClass.read(reader) === 'phone';
 	});
 
-	constructor() {
+	/**
+	 * @param fixedViewportClass When set, the viewport class is declared by
+	 * the entry point (e.g. the mobile workbench bundle) and never changes
+	 * with the container size or user agent. When omitted, the class is
+	 * derived from the container width on every {@link update}.
+	 */
+	constructor(private readonly fixedViewportClass?: ViewportClass) {
 		super();
 
 		this.isIOS = isIOS;
 		this.isAndroid = isAndroid;
 		this.isTouchDevice = Gesture.isTouchDevice();
+
+		if (fixedViewportClass) {
+			this._viewportClass.set(fixedViewportClass, undefined);
+		}
 	}
 
 	/**
@@ -120,7 +130,7 @@ export class SessionsLayoutPolicy extends Disposable {
 	 * @param height Container height in pixels (reserved for future use).
 	 */
 	update(width: number, _height: number): void {
-		const next = classifyViewport(width);
+		const next = this.fixedViewportClass ?? classifyViewport(width);
 		if (this._viewportClass.get() !== next) {
 			this._viewportClass.set(next, undefined);
 		}

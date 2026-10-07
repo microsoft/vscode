@@ -931,6 +931,8 @@ export function registerWorkbenchServices(registration: ServiceRegistration): vo
 	registration.defineInstance(IChatPhoneInputPresenter, {
 		_serviceBrand: undefined,
 		enabled: constObservable(false),
+		registerSessionModelPicker: () => ({ dispose: () => { } }),
+		getSessionModelPicker: () => undefined,
 		showCombinedModeAndModelSheet: () => Promise.resolve(),
 		setImpl: () => ({ dispose: () => { } }),
 	});

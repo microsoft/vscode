@@ -1,0 +1,214 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * Phone grammar for the sessions drawer: a plain grouped list, the way a native
+ * inbox reads. Rows sit directly on one surface and are separated by a hairline
+ * that starts at the text edge; nothing is boxed per row. Section rows are
+ * uppercase labels, shortcut rows are navigation rows with a trailing chevron,
+ * and the tree reveals nothing on hover because there is no hover. Row heights
+ * are owned by `SessionsTreeDelegate` (phone constants); this file only styles
+ * what is inside them. The list root is `.sessions-list-control`; rows carry
+ * `session-list-{shortcut,section,inset}-row`.
+ *
+ * Selectors carry `.agent-sessions-workbench` so they outrank the shared
+ * `.agent-sessions-workbench.phone-layout` rules regardless of load order.
+ */
+
+.monaco-workbench.agent-sessions-workbench.mobile-workbench {
+	/* Left padding + status glyph + gap: where row text starts and separators begin. */
+	--mobile-list-text-inset: 46px;
+}
+
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .part.sidebar.mobile-overlay-sidebar {
+	background: var(--mobile-surface-card) !important;
+}
+
+.monaco-workbench.mobile-workbench .agent-sessions-control-container {
+	position: relative;
+}
+
+/* Filter chips: 44px pills on the quiet control fill. */
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .mobile-session-filter-chips {
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size160) var(--vscode-spacing-size120);
+	gap: var(--vscode-spacing-size80);
+}
+
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .mobile-session-filter-chip {
+	border-radius: var(--vscode-cornerRadius-circle);
+	font-size: var(--vscode-fontSize-body2);
+	padding: 0 var(--vscode-spacing-size160);
+	background-color: var(--mobile-control-fill);
+	border: none;
+}
+
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .mobile-session-filter-chip.icon-only {
+	padding: 0;
+}
+
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .mobile-session-filter-chip.active {
+	background-color: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+}
+
+/* ---- Rows: one surface, full width, no per-row card ---------------------- */
+
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-list-control .monaco-list,
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-list-control .monaco-list-row {
+	background-color: transparent !important;
+	outline: none !important;
+}
+
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-list-control.session-list-row-spacing .monaco-list-row:not(.sessions-list-header-row) {
+	left: 0;
+	right: 0;
+	width: 100%;
+	border-radius: 0;
+}
+
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-list-control.session-list-row-spacing .monaco-list-row:is(.session-list-inset-row, .session-list-show-more-row, .session-list-show-more-folders-row) {
+	padding-bottom: 0;
+	background-clip: border-box;
+}
+
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-list-control .monaco-list-row > .monaco-tl-row {
+	outline: none !important;
+	border-radius: 0;
+}
+
+/* The hairline between session rows starts at the text edge, like a native inbox. */
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-list-control .monaco-list-row.session-list-inset-row:has(> .monaco-tl-row > .session-item) > .monaco-tl-row,
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-list-control .monaco-list-row.session-list-inset-row:has(> .monaco-tl-row > .session-chat-item) > .monaco-tl-row {
+	background-image: linear-gradient(var(--mobile-separator), var(--mobile-separator));
+	background-size: calc(100% - var(--mobile-list-text-inset)) var(--vscode-strokeThickness);
+	background-position: right bottom;
+	background-repeat: no-repeat;
+}
+
+/* Press and selection tint the whole row; there is no focus ring on touch. */
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-list-control .monaco-list-row:is(.selected, .focused) {
+	background-color: var(--vscode-list-inactiveSelectionBackground, var(--mobile-surface-pressed)) !important;
+}
+
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-list-control .monaco-list-row:active {
+	background-color: var(--mobile-surface-pressed) !important;
+}
+
+/* Sticky headers scroll over the list on the same surface, with a hairline edge. */
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-list-control .monaco-tree-sticky-container {
+	background-color: var(--mobile-surface-card);
+	box-shadow: 0 var(--vscode-strokeThickness) 0 var(--mobile-separator);
+}
+
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-list-control .monaco-list .monaco-tree-sticky-row.monaco-list-row {
+	background-color: var(--mobile-surface-card) !important;
+	background-image: none !important;
+}
+
+/* The tree's own twistie and indent are not part of the phone grammar. */
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-list-control .monaco-list-row .monaco-tl-twistie {
+	display: none !important;
+}
+
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-list-control .monaco-list-row .monaco-tl-indent {
+	display: none;
+}
+
+/* ---- Section rows: labels, not tree nodes ------------------------------- */
+
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-list-control .monaco-list-row .session-section {
+	padding: 0 var(--vscode-spacing-size160);
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: var(--vscode-descriptionForeground);
+	border-radius: 0;
+}
+
+/* Collapsible groups disclose from the trailing edge. */
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-list-control .monaco-list-row .session-section .session-section-chevron.collapsible {
+	display: flex;
+	align-items: center;
+	order: 1;
+	margin-left: auto;
+	color: var(--vscode-descriptionForeground);
+}
+
+/* Shortcut rows (Automations, …) navigate: sentence case, body size, trailing chevron. */
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-list-control .monaco-list-row .session-section.session-section-shortcut {
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-regular);
+	text-transform: none;
+	letter-spacing: normal;
+	color: var(--vscode-foreground);
+	background-color: transparent;
+}
+
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-list-control .monaco-list-row .session-section.session-section-shortcut .session-section-icon {
+	margin-right: var(--vscode-spacing-size100);
+	color: var(--vscode-descriptionForeground);
+}
+
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-list-control .monaco-list-row .session-section.session-section-shortcut::after {
+	/* codicon-chevron-right */
+	content: '\eab6';
+	font-family: codicon;
+	font-size: var(--vscode-codiconFontSize);
+	margin-left: auto;
+	color: var(--vscode-descriptionForeground);
+}
+
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-list-control .monaco-list-row .session-section .session-section-toolbar {
+	display: none !important;
+}
+
+/* ---- Session rows ------------------------------------------------------- */
+
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-list-control .session-item {
+	margin: 0;
+	padding: 0 var(--vscode-spacing-size160);
+	background: transparent;
+	border-radius: 0;
+	box-shadow: none;
+}
+
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-list-control .session-item .session-icon {
+	width: 20px;
+	justify-content: center;
+}
+
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-list-control .session-item .session-main {
+	padding-left: var(--vscode-spacing-size100);
+	/* Row actions live in the long-press sheet, so the text owns the full width. */
+	padding-right: 0;
+}
+
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-list-control .session-item .session-title {
+	font-size: var(--vscode-fontSize-body1);
+	line-height: 20px;
+}
+
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-list-control .session-item .session-details-row {
+	font-size: var(--vscode-fontSize-label1);
+	line-height: 16px;
+	max-height: 16px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-list-control .monaco-list-row .session-title-toolbar {
+	display: none !important;
+}
+
+/* "+N more" is a quiet link-colored row, no rule lines. */
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-list-control .monaco-list-row .session-show-more {
+	font-size: var(--vscode-fontSize-body2);
+	color: var(--vscode-textLink-foreground);
+}
+
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-list-control .monaco-list-row .session-show-more::before,
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-list-control .monaco-list-row .session-show-more::after {
+	display: none;
+}

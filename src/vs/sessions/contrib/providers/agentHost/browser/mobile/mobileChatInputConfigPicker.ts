@@ -36,7 +36,7 @@ import { getAgentHostModeIcon } from '../agentHostModeIcon.js';
 import { INewChatModelPickerService } from '../../../../chat/browser/newChatModelPicker.js';
 import { ISessionModelSelection } from '../../../../chat/browser/sessionModelSelection.js';
 import { reportNewChatPickerClosed } from '../../../../chat/browser/newChatPickerTelemetry.js';
-import { createChatPhoneInputSessionContext, createChatPhoneInputTarget, matchesChatPhoneInputTarget } from './mobileChatPhoneInputTarget.js';
+import { createChatPhoneInputSessionContext, createChatPhoneInputTarget, matchesChatPhoneInputTarget } from '../../../../../services/presentation/browser/chatPhoneInputContext.js';
 
 const MOBILE_CHAT_INPUT_CONFIG_PICKER_ID = 'sessions.agentHost.mobileChatInputConfigPicker';
 
@@ -91,6 +91,15 @@ class MobileChatInputConfigPicker extends Disposable {
 			getDomNode: () => this._triggerElement,
 			open: () => { void this._showSheet(); },
 			switchToModel: modelIdentifier => this._switchToModel(modelIdentifier),
+		}));
+		this._register(autorun(reader => {
+			this._phonePresenter.enabled.read(reader);
+			if (this._phonePresenter.supportsUnifiedConfiguration) {
+				reader.store.add(this._phonePresenter.registerSessionModelPicker({
+					getSessionContext: () => createChatPhoneInputSessionContext(this._session.read(undefined)),
+					selectModel: identifier => this._switchToModel(identifier),
+				}));
+			}
 		}));
 
 		// Re-render the trigger whenever the active session, its config,

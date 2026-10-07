@@ -16,7 +16,7 @@
 | Label | Copilot Chat |
 | Cloud session type | The only session type advertised |
 
-The provider may expose local-folder and remote-repository browse actions. Repository selection UI is owned by the shared workbench picker, used by both the extension's repository command and browser session creation; each caller supplies repository data and owns any session-option updates. Workspace resolution is shared by the default and sandbox creation modes.
+The provider may expose local-folder and remote-repository browse actions. Repository selection uses the shared workbench picker unless the entry supplies `ISessionsPresentation.pickRepository`. The provider retains authentication, host validation and repository search; presentation returns the selected repository or cancellation without session-option updates. The extension's repository command keeps the shared picker. Workspace resolution is shared by the default and sandbox creation modes.
 
 On web, the contribution also registers a sandbox-only instance (`cloud-sandbox-creation`) while cloud sandboxes and remote agent hosts are enabled and AI features are visible. This instance owns repository-backed drafts, not existing Cloud or CLI history. It advertises the Copilot sandbox creation type.
 

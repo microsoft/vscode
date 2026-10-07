@@ -151,6 +151,7 @@ export class MobileDiffView extends Disposable {
 		data: IMobileDiffViewData,
 		private readonly textFileService: ITextFileService,
 		private readonly languageService: ILanguageService,
+		private readonly readDiffText?: (uri: URI) => Promise<string>,
 	) {
 		super();
 
@@ -345,7 +346,25 @@ export class MobileDiffView extends Disposable {
 		const generation = this.renderGeneration;
 		const languageId = this.resolveLanguageId(diff);
 
-		void this.loadAndRender(container, diff, languageId, generation);
+		void this.loadAndRender(container, diff, languageId, generation).catch(error => {
+			if (!this.disposed && generation === this.renderGeneration) {
+				DOM.clearNode(container);
+				const message = DOM.append(container, $('div.mobile-diff-empty-state'));
+				message.setAttribute('role', 'alert');
+				message.textContent = localize('diffView.readError', "Unable to load changes: {0}", error instanceof Error ? error.message : String(error));
+			}
+		});
+	}
+
+	private async readText(uri: URI): Promise<string> {
+		if (this.readDiffText) {
+			return this.readDiffText(uri);
+		}
+		try {
+			return (await this.textFileService.read(uri, { acceptTextOnly: true })).value;
+		} catch {
+			return '';
+		}
 	}
 
 	private async loadAndRender(
@@ -355,12 +374,8 @@ export class MobileDiffView extends Disposable {
 		generation: number,
 	): Promise<void> {
 		const [originalText, modifiedText] = await Promise.all([
-			diff.originalURI
-				? this.textFileService.read(diff.originalURI, { acceptTextOnly: true }).then(m => m.value).catch(() => '')
-				: Promise.resolve(''),
-			diff.modifiedURI
-				? this.textFileService.read(diff.modifiedURI, { acceptTextOnly: true }).then(m => m.value).catch(() => '')
-				: Promise.resolve(''),
+			diff.originalURI ? this.readText(diff.originalURI) : Promise.resolve(''),
+			diff.modifiedURI ? this.readText(diff.modifiedURI) : Promise.resolve(''),
 		]);
 
 		if (this.disposed || generation !== this.renderGeneration) {
@@ -834,6 +849,7 @@ export function openMobileDiffView(
 	data: IMobileDiffViewData,
 	textFileService: ITextFileService,
 	languageService: ILanguageService,
+	readDiffText?: (uri: URI) => Promise<string>,
 ): MobileDiffView {
-	return new MobileDiffView(workbenchContainer, data, textFileService, languageService);
+	return new MobileDiffView(workbenchContainer, data, textFileService, languageService, readDiffText);
 }

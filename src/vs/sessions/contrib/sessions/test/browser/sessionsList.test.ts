@@ -72,6 +72,7 @@ import { ISessionsProvider } from '../../../../services/sessions/common/sessions
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { DefaultSessionsPresentation, ISessionsPresentation, SessionNameKind } from '../../../../services/presentation/browser/sessionsPresentation.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IChatService, IChatToolInvocation } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -3258,6 +3259,60 @@ suite('Sessions - SessionsList', () => {
 				ariaLabel: 'Improve the picker, Comparison · Review ready',
 			});
 		});
+	});
+
+	suite('presentation isolation', () => {
+		test('the default presentation adds no headers, gestures or prompts', () => {
+			const presentation: ISessionsPresentation = new DefaultSessionsPresentation();
+			const container = mainWindow.document.createElement('div');
+			const before = container.appendChild(mainWindow.document.createElement('span'));
+			disposables.add(presentation.renderNewSessionHeader(container, before));
+			disposables.add(presentation.renderSessionsHeader(container));
+			disposables.add(presentation.decorateSessionsList(container, () => assert.fail('Default must not refresh'), () => assert.fail('Default must not observe gestures')));
+			assert.deepStrictEqual({
+				children: Array.from(container.children), prompt: presentation.promptForName,
+				height: presentation.sectionRowHeight, omitIcon: presentation.omitEmptyStateIcon, readDiff: presentation.readDiffText,
+			}, { children: [before], prompt: undefined, height: undefined, omitIcon: undefined, readDiff: undefined });
+		});
+
+		for (const custom of [false, true]) {
+			test(`${custom ? 'custom' : 'default'} section height and rename stay independent from phone viewport`, async () => {
+				const group: ISessionGroup = { id: 'group', name: 'My Group', createdAt: 1 };
+				const harness = createListHarness(disposables, [], { groups: [group] });
+				const requests: { kind: SessionNameKind; value: string }[] = [];
+				const renamed: { id: string; name: string }[] = [];
+				if (custom) {
+					harness.instantiationService.stub(ISessionsPresentation, new class extends DefaultSessionsPresentation {
+						readonly sectionRowHeight = 44;
+						async promptForName(kind: SessionNameKind, value: string) {
+							requests.push({ kind, value });
+							return 'Renamed Group';
+						}
+					}());
+				}
+				harness.instantiationService.stub(ISessionGroupsService, 'renameGroup', (id: string, name: string) => renamed.push({ id, name }));
+				const configuration = new TestConfigurationService();
+				harness.store.add(configuration.onDidChangeConfigurationEmitter);
+				const context = harness.store.add(new ContextKeyService(configuration));
+				harness.instantiationService.stub(IContextKeyService, context);
+				IsPhoneLayoutContext.bindTo(context).set(true);
+				const container = harness.createContainer();
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+					grouping: () => SessionsGrouping.Workspace, sorting: () => SessionsSorting.Created, onSessionOpen: () => { },
+				}));
+				list.layout(300, 400);
+				const height = container.querySelector('.session-group')?.closest<HTMLElement>('.monaco-list-row')?.style.height;
+				list.beginRenameGroup(group.id);
+				await timeout(0);
+				const inlineInput = container.querySelector<HTMLInputElement>('.session-group-input input');
+				inlineInput?.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
+				assert.deepStrictEqual({ height, inline: !!inlineInput, requests, renamed }, custom ? {
+					height: '44px', inline: false, requests: [{ kind: 'group', value: 'My Group' }], renamed: [{ id: 'group', name: 'Renamed Group' }],
+				} : {
+					height: '26px', inline: true, requests: [], renamed: [],
+				});
+			});
+		}
 	});
 
 	suite('dragging a grouped session out of its group', () => {

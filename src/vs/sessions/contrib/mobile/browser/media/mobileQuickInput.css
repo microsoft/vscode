@@ -1,0 +1,63 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Phone input sheet: a prompt, a 48px field, and one filled action. */
+
+.mobile-content-sheet-body .mobile-quick-input-prompt {
+	margin: 0 0 var(--vscode-spacing-size120);
+	padding: 0 var(--vscode-spacing-size160);
+	font-size: var(--vscode-fontSize-body2);
+	color: var(--vscode-descriptionForeground);
+}
+
+.mobile-content-sheet-body .mobile-quick-input-field {
+	display: block;
+	width: calc(100% - 2 * var(--vscode-spacing-size160));
+	margin: 0 var(--vscode-spacing-size160);
+	min-height: 48px;
+	padding: 0 var(--vscode-spacing-size160);
+	box-sizing: border-box;
+	border-radius: var(--vscode-cornerRadius-small);
+	border: 1px solid var(--vscode-input-border, transparent);
+	background: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	font: inherit;
+	font-size: var(--vscode-fontSize-body1);
+}
+
+.mobile-content-sheet-body .mobile-quick-input-field:focus {
+	outline: none;
+	border-color: var(--vscode-focusBorder);
+}
+
+.mobile-content-sheet-body .mobile-quick-input-validation {
+	display: none;
+	margin: var(--vscode-spacing-size80) var(--vscode-spacing-size160) 0;
+	font-size: var(--vscode-fontSize-label1);
+	color: var(--vscode-inputValidation-errorForeground, var(--vscode-errorForeground));
+}
+
+.mobile-content-sheet-body .mobile-quick-input-validation.visible {
+	display: block;
+}
+
+.mobile-content-sheet-body .mobile-quick-input-submit {
+	display: block;
+	width: calc(100% - 2 * var(--vscode-spacing-size160));
+	margin: var(--vscode-spacing-size160) var(--vscode-spacing-size160) calc(var(--vscode-spacing-size160) + env(safe-area-inset-bottom));
+	min-height: 48px;
+	border: none;
+	border-radius: var(--vscode-cornerRadius-small);
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	font: inherit;
+	font-size: var(--vscode-fontSize-body1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	cursor: pointer;
+}
+
+.mobile-content-sheet-body .mobile-quick-input-submit:active {
+	background: var(--vscode-button-hoverBackground);
+}

@@ -107,10 +107,14 @@ This is the **most permissive** contrib layer — providers can reach into non-p
 
 | File | Layer | Notes |
 |------|-------|-------|
-| `sessions.common.main.ts` | `browser` | Shared contributions for all platforms |
+| `sessions.core.main.ts` | `browser` | Experimental mobile's allow-list of existing shared services, parts, and extension points |
+| `sessions.core.web.main.ts` | `browser` | Experimental mobile's browser service bindings, imports `sessions.core.main.js` |
+| `sessions.common.main.ts` | `browser` | Full desktop and desktop-web services and contributions, preserving their registration order |
 | `sessions.desktop.main.ts` | `electron-browser` | Desktop-specific, imports `sessions.common.main.js` |
-| `sessions.web.main.ts` | `browser` | Web-specific, imports `sessions.common.main.js` |
+| `sessions.web.main.ts` | `browser` | Full web-specific bindings and contributions, imports `sessions.common.main.js` |
 | `sessions.web.main.internal.ts` | `browser` | Internal web variant, imports `sessions.web.main.js` |
+| `sessions.web.mobile.main.ts` | `browser` | Phone allow-list, imports the two core entry points and only the contributions the phone needs |
+| `sessions.web.mobile.main.internal.ts` | `browser` | Embedder entry for the phone, creates `MobileWorkbench` |
 
 Entry points can import from all sessions layers: `sessions/~`, `services/*/~`, `contrib/*/~`, and `contrib/providers/*/~`.
 

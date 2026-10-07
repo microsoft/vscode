@@ -104,7 +104,7 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 	}
 
 	constructor(
-		private readonly _session: IObservable<IActiveSession | undefined>,
+		private readonly _session: IObservable<Pick<IActiveSession, 'providerId' | 'sessionId' | 'sessionType'> | undefined>,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IChatPhoneInputPresenter phoneInputPresenter: IChatPhoneInputPresenter,
@@ -221,7 +221,7 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 		}, enabled => this.setSandboxEnabled(enabled));
 	}
 
-	setSandboxEnabled(enabled: boolean): void {
+	setSandboxEnabled(enabled: boolean): Promise<void> {
 		const session = this._session.get();
 		const provider = session && this._getProvider(session.providerId);
 		if (!session || !provider || !this.isSandboxToggleApplicable()) {
@@ -229,7 +229,7 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 		}
 		const operation = provider.setSessionConfigValue(session.sessionId, SessionConfigKey.SandboxEnabled, enabled ? 'on' : 'off');
 		provider.trackSessionConfigOperation?.(session.sessionId, operation);
-		void operation.catch(onUnexpectedError);
+		return operation.catch(onUnexpectedError);
 	}
 
 	async setPermissionLevel(level: ChatPermissionLevel): Promise<void> {

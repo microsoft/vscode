@@ -55,6 +55,7 @@ import { IMobileSortGroupSheetItem, showMobileSortGroupSheet } from '../../../..
 import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
 import { IsPhoneLayoutContext, SessionsListRearrangeContext } from '../../../../common/contextkeys.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { ISessionsPresentation } from '../../../../services/presentation/browser/sessionsPresentation.js';
 import { logSessionsListCompactViewState } from '../../../../common/sessionsTelemetry.js';
 import { SessionsListRearrangeExperimentState } from '../sessionsListRearrangeExperiment.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -195,6 +196,7 @@ export class SessionsView extends ViewPane {
 		@IStorageService private readonly storageService: IStorageService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
+		@ISessionsPresentation private readonly presentation: ISessionsPresentation,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this.sessionsListRearrangeExperimentState = this._register(instantiationService.createInstance(SessionsListRearrangeExperimentState));
@@ -286,12 +288,18 @@ export class SessionsView extends ViewPane {
 
 		// Reserve DOM slot for mobile filter chips (phone layout only).
 		// The actual widget is created after sessionsControl is available.
+		this._register(this.presentation.renderSessionsHeader(sessionsContent));
 		const filterChipsContainer = isPhoneLayout(this.layoutService)
 			? DOM.append(sessionsContent, $('.mobile-session-filter-chips-slot'))
 			: undefined;
 
 		// Sessions List Control
 		this.sessionsControlContainer = DOM.append(sessionsContent, $('.agent-sessions-control-container'));
+		this._register(this.presentation.decorateSessionsList(
+			this.sessionsControlContainer,
+			() => this.sessionsControl?.refresh(),
+			() => !this.sessionsControl || this.sessionsControl.scrollTop === 0,
+		));
 		const sessionsControl = this.sessionsControl = this._register(this.instantiationService.createInstance(SessionsList, this.sessionsControlContainer, {
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 			grouping: () => this.currentGrouping,

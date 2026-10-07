@@ -26,6 +26,7 @@ import { copyResources } from './resources.ts';
 import { optimizeSvgFiles } from './svg.ts';
 import { getBundleOptions } from './bundle.ts';
 import { compileStandaloneFiles } from './standalone.ts';
+import { copyMobilePreviewLibraries, mobilePreviewDirectory, mobilePreviewEntryPoint, mobilePreviewPlugin, mobilePreviewQuality, packageMobilePreviewExtensions, prepareMobilePreview, writeMobilePreviewManifest } from './mobilePreview.ts';
 
 const globAsync = promisify(glob);
 
@@ -168,6 +169,12 @@ function getEntryPointsForTarget(target: BuildTarget): string[] {
 				'vs/workbench/workbench.web.main.internal', // web workbench only (no browser shell)
 				...keyboardMapEntryPoints,
 			];
+		case 'mobile-preview':
+			return [
+				...workerEntryPoints,
+				mobilePreviewEntryPoint,
+				...keyboardMapEntryPoints,
+			];
 		default:
 			throw new Error(`Unknown target: ${target}`);
 	}
@@ -196,6 +203,8 @@ function getCssBundleEntryPointsForTarget(target: BuildTarget): Set<string> {
 				'vs/workbench/workbench.web.main.internal',
 				'vs/sessions/sessions.web.main.internal',
 			]);
+		case 'mobile-preview':
+			return new Set([mobilePreviewEntryPoint]);
 		default:
 			throw new Error(`Unknown target: ${target}`);
 	}
@@ -216,11 +225,14 @@ async function cleanDir(dir: string): Promise<void> {
  * Scan for built-in extensions in the given directory.
  * Returns an array of extension entries for the builtinExtensionsScannerService.
  */
-function scanBuiltinExtensions(extensionsRoot: string): Array<IScannedBuiltinExtension> {
+function scanBuiltinExtensions(extensionsRoot: string, required = false): Array<IScannedBuiltinExtension> {
 	const scannedExtensions: Array<IScannedBuiltinExtension> = [];
 	const extensionsPath = path.join(REPO_ROOT, extensionsRoot);
 
 	if (!fs.existsSync(extensionsPath)) {
+		if (required) {
+			throw new Error(`Missing local extension sources: ${extensionsPath}`);
+		}
 		return scannedExtensions;
 	}
 
@@ -248,6 +260,9 @@ function scanBuiltinExtensions(extensionsRoot: string): Array<IScannedBuiltinExt
 				changelogPath: changelog ? path.join(extensionFolder, changelog) : undefined,
 			});
 		} catch (e) {
+			if (required) {
+				throw new Error(`Unable to scan local extension ${extensionFolder}`, { cause: e });
+			}
 			// Skip invalid extensions
 		}
 	}
@@ -395,11 +410,10 @@ function fileContentMapperPlugin(outDir: string, target: BuildTarget): esbuild.P
 				// Inject built-in extensions list
 				if (contents.includes('/*BUILD->INSERT_BUILTIN_EXTENSIONS*/')) {
 					if (builtinExtensionsReplacement === undefined) {
-						if (target === 'web' || target === 'server-web') {
-							// Web target uses .build/web/extensions (from compileWebExtensionsBuildTask)
-							// while server-web uses .build/extensions.
-							const extensionsRoot = target === 'web' ? '.build/web/extensions' : '.build/extensions';
-							const builtinExtensions = JSON.stringify(scanBuiltinExtensions(extensionsRoot));
+						if (target === 'web' || target === 'server-web' || target === 'mobile-preview') {
+							const extensionsRoot = target === 'mobile-preview' ? `${mobilePreviewDirectory}/extensions`
+								: target === 'server-web' ? '.build/extensions' : '.build/web/extensions';
+							const builtinExtensions = JSON.stringify(scanBuiltinExtensions(extensionsRoot, target === 'mobile-preview'));
 							// Remove the outer brackets since the placeholder is inside an array literal
 							builtinExtensionsReplacement = builtinExtensions.substring(1, builtinExtensions.length - 1);
 						} else {
@@ -452,6 +466,24 @@ async function transpile(outDir: string, excludeTests: boolean): Promise<void> {
 // ============================================================================
 
 async function bundle(outDir: string, doMinify: boolean, doNls: boolean, doManglePrivates: boolean, target: BuildTarget, sourceMapBaseUrl?: string): Promise<void> {
+	if (target !== 'mobile-preview') {
+		return bundleToOutput(outDir, doMinify, doNls, doManglePrivates, target, sourceMapBaseUrl);
+	}
+	if (!doMinify || !doNls || sourceMapBaseUrl) {
+		throw new Error('Mobile preview requires minification and isolated NLS, with local source maps. Use npm run bundle-mobile-preview.');
+	}
+	const release = await prepareMobilePreview(REPO_ROOT, outDir);
+	try {
+		mobilePreviewQuality(quality, process.env['VSCODE_QUALITY']);
+		await packageMobilePreviewExtensions(REPO_ROOT);
+		await bundleToOutput(outDir, doMinify, doNls, doManglePrivates, target);
+	} finally {
+		await release();
+	}
+}
+
+async function bundleToOutput(outDir: string, doMinify: boolean, doNls: boolean, doManglePrivates: boolean, target: BuildTarget, sourceMapBaseUrl?: string): Promise<void> {
+	const mobilePreview = target === 'mobile-preview';
 	await cleanDir(outDir);
 
 	// Write build date file (used by packaging to embed in product.json).
@@ -487,12 +519,15 @@ async function bundle(outDir: string, doMinify: boolean, doNls: boolean, doMangl
 	const contentMapperPlugin = fileContentMapperPlugin(outDir, target);
 
 	// Bundle each entry point directly from TypeScript source
-	await Promise.all(allEntryPoints.map(async (entryPoint) => {
+	const bundleEntryPoint = async (entryPoint: string) => {
 		const entryPath = path.join(REPO_ROOT, SRC_DIR, `${entryPoint}.ts`);
 		const outPath = path.join(REPO_ROOT, outDir, `${entryPoint}.js`);
 
 		// Use CSS external plugin for entry points that don't need bundled CSS
 		const plugins: esbuild.Plugin[] = bundleCssEntryPoints.has(entryPoint) ? [] : [cssExternalPlugin()];
+		if (mobilePreview) {
+			plugins.push(mobilePreviewPlugin(REPO_ROOT));
+		}
 		// Add content mapper plugin to inject product config and builtin extensions
 		plugins.push(contentMapperPlugin);
 		if (doNls) {
@@ -508,6 +543,7 @@ async function bundle(outDir: string, doMinify: boolean, doNls: boolean, doMangl
 
 		const buildOptions: esbuild.BuildOptions = {
 			...getBundleOptions(doMinify, 'neutral'),
+			...(mobilePreview ? { absWorkingDir: REPO_ROOT, metafile: true } : {}),
 			entryPoints: needsCssBundling
 				? [{ in: entryPath, out: entryPoint }]
 				: [entryPath],
@@ -527,7 +563,14 @@ async function bundle(outDir: string, doMinify: boolean, doNls: boolean, doMangl
 		const result = await esbuild.build(buildOptions);
 
 		buildResults.push({ outPath, result });
-	}));
+	};
+	if (mobilePreview) {
+		for (const entryPoint of allEntryPoints) {
+			await bundleEntryPoint(entryPoint);
+		}
+	} else {
+		await Promise.all(allEntryPoints.map(bundleEntryPoint));
+	}
 
 	// Bundle bootstrap files (with minimist inlined) directly from TypeScript source
 	for (const entry of bootstrapEntryPoints) {
@@ -562,7 +605,7 @@ async function bundle(outDir: string, doMinify: boolean, doNls: boolean, doMangl
 		const nlsResult = await finalizeNLS(
 			nlsCollector,
 			path.join(REPO_ROOT, outDir),
-			[path.join(REPO_ROOT, 'out-build')]
+			mobilePreview ? undefined : [path.join(REPO_ROOT, 'out-build')]
 		);
 		indexMap = nlsResult.indexMap;
 	}
@@ -693,7 +736,7 @@ async function bundle(outDir: string, doMinify: boolean, doNls: boolean, doMangl
 	// Compile standalone TypeScript files (like Electron preload scripts) that cannot be bundled
 	await compileStandaloneFiles(path.join(REPO_ROOT, SRC_DIR), outDirPath, target, doMinify, sourceMapBaseUrl);
 
-	if (allEntryPoints.includes(sessionsWebEntryPoint)) {
+	if (allEntryPoints.includes(sessionsWebEntryPoint) || mobilePreview) {
 		await bundleDevTunnelsWeb({
 			minify: doMinify,
 			outDir: path.join(outDir, devTunnelsWebOutDir),
@@ -703,6 +746,15 @@ async function bundle(outDir: string, doMinify: boolean, doNls: boolean, doMangl
 
 	// Finish emitted assets and copied resources before packaging computes integrity data.
 	await optimizeSvgFiles(outDirPath, doMinify);
+
+	if (mobilePreview) {
+		await copyMobilePreviewLibraries(REPO_ROOT);
+		const inputs = new Set(buildResults.flatMap(({ result }) => Object.keys(result.metafile?.inputs ?? {})));
+		if (!commit) {
+			throw new Error('Mobile preview requires a Git revision to identify the build.');
+		}
+		await writeMobilePreviewManifest(REPO_ROOT, { commit, version, date: buildDate, quality: mobilePreviewQuality(quality, process.env['VSCODE_QUALITY']) }, inputs);
+	}
 
 	console.log(`[bundle] Done in ${Date.now() - t1}ms (${bundled} bundles)`);
 }
@@ -822,6 +874,7 @@ Commands:
 	build-fast         Incrementally build changed development outputs
 	transpile          Transpile TypeScript to JavaScript (single-file, fast)
 	bundle             Bundle entry points into optimized bundles
+	bundle-mobile-preview  Build the isolated, minified mobile preview in out-mobile-preview/
 
 Options for 'build-fast':
 	--force            Ignore incremental state and rebuild all lanes
@@ -859,6 +912,12 @@ async function main(): Promise<void> {
 
 	try {
 		switch (command) {
+			case 'bundle-mobile-preview':
+				if (process.argv.length > 3) {
+					throw new Error('bundle-mobile-preview uses fixed build settings and output; command-line options are not supported.');
+				}
+				await bundle(`${mobilePreviewDirectory}/out`, true, true, true, 'mobile-preview');
+				break;
 			case 'build-fast':
 				await runBuildFast(REPO_ROOT, options.force);
 				break;

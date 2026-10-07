@@ -15,10 +15,11 @@ import { IChatPhoneInputPresenter } from '../../../../../../workbench/contrib/ch
 import { ChatPetAchievementIds, didExplicitlySwitchChatPetModel } from '../../../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
 import { IChatPetService } from '../../../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { IObservable } from '../../../../../../base/common/observable.js';
+import { onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { AgentHostModePicker } from '../agentHostModePicker.js';
-import { createChatPhoneInputSessionContext } from './mobileChatPhoneInputTarget.js';
+import { createChatPhoneInputSessionContext } from '../../../../../services/presentation/browser/chatPhoneInputContext.js';
 
 /**
  * Phone-aware variant of {@link AgentHostModePicker}. On phone-layout
@@ -30,6 +31,7 @@ import { createChatPhoneInputSessionContext } from './mobileChatPhoneInputTarget
  * transitions.
  */
 export class MobileAgentHostModePicker extends AgentHostModePicker {
+	private _phoneSheetOpen = false;
 
 	constructor(
 		session: IObservable<IActiveSession | undefined>,
@@ -48,7 +50,7 @@ export class MobileAgentHostModePicker extends AgentHostModePicker {
 	}
 
 	protected override _showPicker(anchor = this._triggerElement, onHide?: () => void, listOptions?: IActionListOptions): boolean {
-		if (!anchor) {
+		if (!anchor || this._phoneSheetOpen) {
 			return false;
 		}
 		// Guard applies to both the phone sheet and the desktop popover —
@@ -57,10 +59,12 @@ export class MobileAgentHostModePicker extends AgentHostModePicker {
 			return false;
 		}
 		if (this._phonePresenter.enabled.get()) {
+			this._phoneSheetOpen = true;
 			this._phonePresenter.showCombinedModeAndModelSheet(anchor, {
 				kind: 'session',
+				initialSection: 'mode',
 				getSessionContext: () => createChatPhoneInputSessionContext(this._session.get()),
-				selectModel: modelIdentifier => {
+				selectModel: this._phonePresenter.supportsUnifiedConfiguration ? undefined : modelIdentifier => {
 					const chatResource = this._session.get()?.activeChat.get().resource;
 					const inputPart = chatResource ? this._chatWidgetService.getWidgetBySessionResource(chatResource)?.inputPart : undefined;
 					const previousModelIdentifier = inputPart?.selectedLanguageModel.get()?.identifier;
@@ -72,9 +76,12 @@ export class MobileAgentHostModePicker extends AgentHostModePicker {
 				},
 			})
 				.finally(() => {
-					anchor.focus();
+					this._phoneSheetOpen = false;
+					if (anchor.isConnected) {
+						anchor.focus();
+					}
 					onHide?.();
-				});
+				}).catch(onUnexpectedError);
 			return true;
 		}
 		return super._showPicker(anchor, onHide, listOptions);

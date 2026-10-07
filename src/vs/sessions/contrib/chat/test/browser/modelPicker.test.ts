@@ -16,6 +16,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { ModelPickerActionItem } from '../../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerActionItem.js';
+import { IChatPhoneInputPresenter } from '../../../../../workbench/contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { MockChatSessionsService } from '../../../../../workbench/contrib/chat/test/common/mockChatSessionsService.js';
@@ -140,6 +141,7 @@ suite('ModelPicker controls', () => {
 
 	test('exposes the rendered picker and its existing operations without a session', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IChatPhoneInputPresenter, { enabled: constObservable(false) });
 		instantiationService.stub(IChatSessionsService, new MockChatSessionsService());
 		const modelPickers = new NewChatModelPickerService();
 		const selectedModels: string[] = [];

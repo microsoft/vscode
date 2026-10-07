@@ -93,6 +93,7 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { ChatInputNotificationWidget } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationWidget.js';
 import { IChatInputNotificationContext, IChatInputNotificationService } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationService.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
+import { IChatPhoneInputPresenter } from '../../../../workbench/contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
 import { ChatInputNoticeHost, ChatInputNoticeLane } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHost.js';
 import { registerChatInputOnboardingHosts } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputOnboardingHosts.js';
 import { IChatInputNoticeHubService } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHub.js';
@@ -675,6 +676,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		@IChatPetWidgetService private readonly chatPetWidgetService: IChatPetWidgetService,
 		@IChatInputNotificationService private readonly chatInputNotificationService: IChatInputNotificationService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
+		@IChatPhoneInputPresenter private readonly phoneInputPresenter: IChatPhoneInputPresenter,
 	) {
 		super();
 		this._modelSelection = this._register(this.instantiationService.createInstance(SessionModelSelection, this.options.session, { workflow: this.options.modelPickerWorkflow }));
@@ -1112,8 +1114,8 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			ariaLabel: this._getAriaLabel(),
 			placeholder: this.options.placeholder ?? getRandomChatInputPlaceholder(),
 			fontFamily: NEW_CHAT_INPUT_FONT_FAMILY,
-			fontSize: 13,
-			lineHeight: 20,
+			fontSize: this.phoneInputPresenter.inputEditorMetrics?.fontSize ?? 13,
+			lineHeight: this.phoneInputPresenter.inputEditorMetrics?.lineHeight ?? 20,
 			cursorWidth: 1,
 			padding: { top: 8, bottom: 2 },
 			wrappingStrategy: 'advanced',

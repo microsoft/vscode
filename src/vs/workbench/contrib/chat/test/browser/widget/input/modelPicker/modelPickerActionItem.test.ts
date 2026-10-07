@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { $, append } from '../../../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../../../base/browser/window.js';
+import { EventType as TouchEventType } from '../../../../../../../../base/browser/touch.js';
 import { IAction } from '../../../../../../../../base/common/actions.js';
 import { Event } from '../../../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../../../base/common/lifecycle.js';
@@ -66,7 +67,7 @@ suite('ModelPickerActionItem', () => {
 	 * name followed by its thinking effort / context size readout. The name has
 	 * no icon, so it keeps its label even when the picker is compact.
 	 */
-	function renderPicker(model: ILanguageModelChatMetadataAndIdentifier, options: { readonly compact?: boolean; readonly itemWidth?: number; readonly tabbed?: boolean; readonly workflow?: IModelPickerWorkflow } = {}) {
+	function renderPicker(model: ILanguageModelChatMetadataAndIdentifier, options: { readonly compact?: boolean; readonly itemWidth?: number; readonly tabbed?: boolean; readonly workflow?: IModelPickerWorkflow; readonly showPicker?: IModelPickerDelegate['showPicker'] } = {}) {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IActionWidgetService, {});
 		instantiationService.stub(ICommandService, {});
@@ -89,6 +90,7 @@ suite('ModelPickerActionItem', () => {
 
 		const action: IAction = { id: 'test.modelPicker', label: '', tooltip: '', class: undefined, enabled: true, run: async () => { } };
 		const delegate: IModelPickerDelegate = {
+			showPicker: options.showPicker,
 			workflow: options.workflow,
 			currentModel: constObservable(model),
 			setModel: () => { },
@@ -191,6 +193,21 @@ suite('ModelPickerActionItem', () => {
 	});
 
 	for (const tabbed of [false, true]) {
+		test(`both model buttons use the host presentation with tabbed picker ${tabbed}`, () => {
+			const calls: boolean[] = [];
+			const { domNode } = renderPicker(createModel('o3'), {
+				tabbed,
+				showPicker: (_anchor, configuration) => { calls.push(configuration); return true; },
+			});
+			const buttons = Array.from(domNode.querySelectorAll<HTMLElement>('.model-picker-section'));
+			for (const button of buttons) {
+				button.dispatchEvent(new mainWindow.MouseEvent('mousedown', { button: 0, bubbles: true }));
+				button.dispatchEvent(new mainWindow.Event(TouchEventType.Tap, { bubbles: true }));
+				button.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+			}
+			assert.deepStrictEqual(calls, [false, false, false, true, true, true]);
+		});
+
 		test(`hovering either half highlights the full model picker with tabbed picker ${tabbed}`, () => {
 			const { domNode } = renderPicker(createModel('o3'), { tabbed });
 			domNode.closest('.interactive-session')!.classList.add('monaco-workbench');

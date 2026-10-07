@@ -425,7 +425,12 @@ export class ModelPickerWidget extends Disposable {
 			if (this.isTabbedPickerEnabled()) {
 				this.show(undefined, true, fromKeyboard, trigger);
 			} else {
-				this._configuration.show(this._configButton, undefined, trigger);
+				const presentation = this._showCustomPicker(this._configButton!, true);
+				if (presentation === 'actionWidget') {
+					this.show(undefined, true, fromKeyboard, trigger);
+				} else if (!presentation) {
+					this._configuration.show(this._configButton, undefined, trigger);
+				}
 			}
 		});
 
@@ -562,6 +567,11 @@ export class ModelPickerWidget extends Disposable {
 		this._show(anchor, showDetails, focusConfiguration, trigger, options);
 	}
 
+	private _showCustomPicker(anchor: HTMLElement, configuration: boolean): boolean | 'actionWidget' {
+		return !this._domNode?.classList.contains('disabled')
+			&& (this._delegate.showPicker?.(anchor, configuration, !this.isRestrictedMode() && !this.isSetupRequired()) ?? false);
+	}
+
 	/**
 	 * @param telemetry How the picker was opened, or the session of a flat picker
 	 * that pinning re-shows in place, so it keeps reporting as one interaction.
@@ -569,6 +579,10 @@ export class ModelPickerWidget extends Disposable {
 	private _show(anchor: HTMLElement | undefined, showDetails: boolean, focusConfiguration: boolean, telemetry: IModelPickerOpenTrigger | ModelPickerTelemetrySession, options?: IModelPickerOpenOptions): void {
 		const anchorElement = anchor ?? this._domNode;
 		if (!anchorElement || this._domNode?.classList.contains('disabled')) {
+			return;
+		}
+		const customPresentation = this._showCustomPicker((showDetails ? this._configButton : this._nameButton) ?? anchorElement, showDetails);
+		if (customPresentation === true) {
 			return;
 		}
 		if (options && this._tabbedPicker.value?.isVisible) {
@@ -644,7 +658,7 @@ export class ModelPickerWidget extends Disposable {
 		};
 
 		const placeholders = this._providerPlaceholders();
-		if (this.isTabbedPickerEnabled() && !this.isRestrictedMode() && (models.length > 0 || placeholders.length > 0)) {
+		if (customPresentation !== 'actionWidget' && this.isTabbedPickerEnabled() && !this.isRestrictedMode() && (models.length > 0 || placeholders.length > 0)) {
 			const showCacheBreakHint = this.shouldShowCacheBreakHint(/* excludeAutoModel */ true);
 			const showConfigurationCacheBreakHint = this.shouldShowCacheBreakHint(/* excludeAutoModel */ false);
 			this._showTabbedPicker(anchorElement, {

@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
-import { InstantiationType, registerSingleton } from '../../../platform/instantiation/common/extensions.js';
 import { getClientArea } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { InstantiationType, registerSingleton } from '../../../platform/instantiation/common/extensions.js';
 import { SessionsPart } from './sessionsPart.js';
 import { MobileSessionsPart } from './mobile/mobileSessionsPart.js';
 import { SessionView } from './sessionView.js';
@@ -16,11 +16,12 @@ import { IProgressIndicator } from '../../../platform/progress/common/progress.j
 import { Emitter, Event } from '../../../base/common/event.js';
 import { ISessionGridSlot, ISessionsPartService, IToggleMaximizeSessionEvent, SessionGridRequest } from '../../services/sessions/browser/sessionsPartService.js';
 import { Direction } from '../../../base/browser/ui/grid/grid.js';
+import { IAgentWorkbenchLayoutService } from '../workbench.js';
 
 /**
  * Owns the lifecycle of the {@link SessionsPart}. Selects the mobile vs. desktop
- * variant based on viewport width at construction time. Registered as an eager
- * singleton so the part registers itself with the workbench layout service
+ * variant from the layout service's viewport class at construction time. Registered
+ * as an eager singleton so the part registers itself with the workbench layout service
  * before the workbench starts laying out parts.
  *
  * The part is a passive renderer: the {@link ISessionsService} drives the
@@ -42,11 +43,13 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IAgentWorkbenchLayoutService layoutService: IAgentWorkbenchLayoutService,
 	) {
 		super();
 
-		const { width } = getClientArea(mainWindow.document.body);
-		const isPhoneLayout = width < 640;
+		const isPhoneLayout = layoutService.initialViewportClass
+			? layoutService.initialViewportClass === 'phone'
+			: getClientArea(mainWindow.document.body).width < 640;
 
 		this._mainPart = this._register(instantiationService.createInstance(isPhoneLayout ? MobileSessionsPart : SessionsPart));
 	}

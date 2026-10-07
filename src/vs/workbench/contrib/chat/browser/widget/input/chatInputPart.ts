@@ -1163,8 +1163,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this.inputEditorMaxHeight = this.options.renderStyle === 'compact' ? INPUT_EDITOR_MAX_HEIGHT / 3 : INPUT_EDITOR_MAX_HEIGHT;
 		const padding = this.options.renderStyle === 'compact' ? INPUT_EDITOR_PADDING.compact : INPUT_EDITOR_PADDING.default;
-		this.singleLineInputEditorHeight = INPUT_EDITOR_LINE_HEIGHT + padding.top + padding.bottom;
-		this.inputEditorMinHeight = this.options.inputEditorMinLines ? this.options.inputEditorMinLines * INPUT_EDITOR_LINE_HEIGHT + padding.top + padding.bottom : undefined;
+		const lineHeight = this.chatPhoneInputPresenter.inputEditorMetrics?.lineHeight ?? INPUT_EDITOR_LINE_HEIGHT;
+		this.singleLineInputEditorHeight = lineHeight + padding.top + padding.bottom;
+		this.inputEditorMinHeight = this.options.inputEditorMinLines ? this.options.inputEditorMinLines * lineHeight + padding.top + padding.bottom : undefined;
 
 		this.inputEditorHasText = ChatContextKeys.inputHasText.bindTo(contextKeyService);
 		this.inputEditorHasSendableContent = ChatContextKeys.inputHasSendableContent.bindTo(contextKeyService);
@@ -3517,8 +3518,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		options.readOnly = false;
 		options.ariaLabel = this._getAriaLabel();
 		options.fontFamily = DEFAULT_FONT_FAMILY;
-		options.fontSize = 13;
-		options.lineHeight = INPUT_EDITOR_LINE_HEIGHT;
+		options.fontSize = this.chatPhoneInputPresenter.inputEditorMetrics?.fontSize ?? 13;
+		options.lineHeight = this.chatPhoneInputPresenter.inputEditorMetrics?.lineHeight ?? INPUT_EDITOR_LINE_HEIGHT;
 		options.padding = this.options.renderStyle === 'compact' ? INPUT_EDITOR_PADDING.compact : INPUT_EDITOR_PADDING.default;
 		options.cursorWidth = 1;
 		options.wrappingStrategy = 'advanced';
@@ -3775,7 +3776,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						}
 						const modelDelegate = this._createModelPickerDelegate();
 						const modeDelegate = this._createModePickerDelegate();
-						return this.instantiationService.createInstance(MobileChatInputCombinedPickerActionItem, action, modeDelegate, modelDelegate);
+						return this.chatPhoneInputPresenter.createActionViewItem?.(action, modeDelegate, modelDelegate)
+							?? this.instantiationService.createInstance(MobileChatInputCombinedPickerActionItem, action, modeDelegate, modelDelegate);
 					} else if (action.id === OpenModePickerAction.ID && action instanceof MenuItemAction) {
 						return new HiddenActionViewItem(action);
 					}

@@ -1,0 +1,113 @@
+# Opt-in, manually queued release lane. This is not included by product pipelines.
+# The artifact is always built and validated; CDN publication requires an explicit parameter.
+trigger: none
+pr: none
+
+parameters:
+  - name: VSCODE_QUALITY
+    type: string
+    default: insider
+    values:
+      - insider
+      - stable
+      - exploration
+  - name: MOBILE_PREVIEW_PUBLISH
+    displayName: Publish the immutable mobile preview to the CDN
+    type: boolean
+    default: false
+
+variables:
+  VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
+
+resources:
+  repositories:
+    - repository: 1esPipelines
+      type: git
+      name: 1ESPipelineTemplates/1ESPipelineTemplates
+      ref: refs/tags/release
+    - repository: distro
+      type: github
+      name: microsoft/vscode-distro
+      endpoint: Monaco
+      ref: main
+
+extends:
+  template: v1/1ES.Official.PipelineTemplate.yml@1esPipelines
+  parameters:
+    sdl:
+      sourceAnalysisPool: 1es-windows-2022-x64
+    stages:
+      - stage: MobilePreview
+        jobs:
+          - job: Package
+            timeoutInMinutes: 45
+            pool:
+              name: 1es-ubuntu-22.04-x64
+              os: linux
+            templateContext:
+              outputs:
+                - output: pipelineArtifact
+                  targetPath: $(Build.SourcesDirectory)/out-mobile-preview
+                  artifactName: sessions-mobile-preview
+                  displayName: Publish validated mobile preview artifact
+                  sbomBuildDropPath: $(Build.SourcesDirectory)/out-mobile-preview
+                  sbomPackageName: VS Code Sessions Mobile Preview
+                  sbomPackageVersion: $(Build.SourceVersion)
+            steps:
+              - template: /build/azure-pipelines/common/checkout.yml@self
+
+              - task: NodeTool@0
+                inputs:
+                  versionSource: fromFile
+                  versionFilePath: .nvmrc
+
+              # Only the product metadata mixin is needed; do not fetch marketplace extensions.
+              - checkout: distro
+                path: s/.build/distro
+                fetchDepth: 0
+                lfs: true
+                persistCredentials: true
+                displayName: Checkout product metadata
+
+              - bash: |
+                  set -euo pipefail
+                  git -C .build/distro checkout "$(node -p "require('./package.json').distro")"
+                  git -C .build/distro lfs pull
+                  node build/azure-pipelines/distro/mixin-quality.ts
+                displayName: Apply pinned product quality metadata
+
+              # This lane needs JS build tools and the one executable web extension, not native
+              # modules, Electron, or the full extensions postinstall. esbuild's platform binary
+              # is an optional dependency in the lockfiles and is installed by npm ci.
+              - bash: |
+                  set -euo pipefail
+                  npm ci --ignore-scripts
+                  npm ci --ignore-scripts --prefix build
+                  npm ci --ignore-scripts --prefix extensions/github-authentication
+                env:
+                  ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+                  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+                displayName: Install packaging dependencies from lockfiles
+
+              - bash: |
+                  set -euo pipefail
+                  npm run test-mobile-preview
+                  npm run bundle-mobile-preview
+                  npm run validate-mobile-preview
+                displayName: Test, build, and validate the self-contained artifact
+
+              - ${{ if eq(parameters.MOBILE_PREVIEW_PUBLISH, true) }}:
+                - task: AzureCLI@2
+                  displayName: Publish immutable mobile preview
+                  inputs:
+                    azureSubscription: vscode
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    addSpnToEnvironment: true
+                    inlineScript: |
+                      set -euo pipefail
+                      export AZURE_STORAGE_ACCOUNT=vscodeweb
+                      export AZURE_TENANT_ID="$tenantId"
+                      export AZURE_CLIENT_ID="$servicePrincipalId"
+                      export AZURE_ID_TOKEN="$idToken"
+                      npm run publish-mobile-preview -- --publish

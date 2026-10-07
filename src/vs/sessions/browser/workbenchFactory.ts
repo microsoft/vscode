@@ -16,6 +16,9 @@ export function getSessionsWorkbenchLayout(viewportWidth: number, platform = { i
 	return platform.isWeb && platform.isMobile && viewportWidth < 640 ? AgentWorkbenchLayout.Mobile : AgentWorkbenchLayout.Desktop;
 }
 
+/** Entry-owned workbench construction, sharing the browser bootstrap. */
+export type SessionsWorkbenchFactory = (parent: HTMLElement, options: IWorkbenchOptions | undefined, serviceCollection: ServiceCollection, logService: ILogService) => Workbench;
+
 /**
  * Creates the Agents window workbench. Non-phone windows always use the
  * desktop variant; phones use the dedicated mobile workbench.

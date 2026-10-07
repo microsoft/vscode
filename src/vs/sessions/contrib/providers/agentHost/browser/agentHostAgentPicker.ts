@@ -14,7 +14,7 @@ import { Action2, MenuId, registerAction2 } from '../../../../../platform/action
 import { agentHostAgentPickerStorageKey, resolveAgentHostAgent } from '../../../../../platform/agentHost/common/customAgents.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { ChatContextKeyExprs, ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -40,6 +40,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { IChatContextPickService } from '../../../../../workbench/contrib/chat/browser/attachments/chatContextPickService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { logSettingExperimentTrigger } from '../../../../../platform/telemetry/common/experimentTrigger.js';
+import { setAgentHostAgent } from './agentHostAgentSelection.js';
 
 const IsActiveSessionAgentHost = ContextKeyExpr.or(
 	ContextKeyExpr.equals(SessionProviderIdContext.key, LOCAL_AGENT_HOST_PROVIDER_ID),
@@ -442,13 +443,7 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 	}
 
 	private _setAgent(session: ISession, provider: IAgentHostSessionsProvider, agent: ISessionAgentRef | undefined): void {
-		const key = agentHostAgentPickerStorageKey(session.resource.scheme);
-		if (agent) {
-			this.storageService.store(key, agent.uri, StorageScope.PROFILE, StorageTarget.MACHINE);
-		} else {
-			this.storageService.remove(key, StorageScope.PROFILE);
-		}
-		provider.setAgent?.(session.sessionId, agent ? { uri: agent.uri, name: agent.name } : undefined);
+		setAgentHostAgent(session, provider, agent, this.storageService);
 	}
 }
 

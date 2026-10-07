@@ -28,6 +28,7 @@ import { IChatListItemRendererOptions } from '../../chat.js';
 import { CodeCompareBlockPart, ICodeCompareBlockData, ICodeCompareBlockDiffData } from './codeBlockPart.js';
 import { IDisposableReference } from './chatCollections.js';
 import { DiffEditorPool } from './chatContentCodePools.js';
+import { IChatEditPhonePresenter } from './chatEditPhonePresenter.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 
 const $ = dom.$;
@@ -49,7 +50,8 @@ export class ChatTextEditContentPart extends Disposable implements IChatContentP
 		rendererOptions: IChatListItemRendererOptions,
 		diffEditorPool: DiffEditorPool,
 		currentWidth: number,
-		@ICodeCompareModelService private readonly codeCompareModelService: ICodeCompareModelService
+		@ICodeCompareModelService private readonly codeCompareModelService: ICodeCompareModelService,
+		@IChatEditPhonePresenter private readonly chatEditPhonePresenter: IChatEditPhonePresenter,
 	) {
 		super();
 		const element = context.element;
@@ -71,7 +73,11 @@ export class ChatTextEditContentPart extends Disposable implements IChatContentP
 			// TODO@roblourens this case is now handled outside this Part in ChatListRenderer, but can it be cleaned up?
 			// return;
 		} else {
-
+			const presentation = this.chatEditPhonePresenter.renderTextEdit(chatTextEdit, element, () => this.codeCompareModelService.createModel(element, chatTextEdit));
+			if (presentation) {
+				this.domNode = this._register(presentation).domNode;
+				return;
+			}
 
 			const cts = new CancellationTokenSource();
 

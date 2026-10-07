@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { autorun, derived, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
 import { localize2 } from '../../../../nls.js';
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
@@ -17,6 +18,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IChatInputPickerOptions } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { IModelPickerDelegate, ModelPickerActionItem } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerActionItem.js';
+import { IChatPhoneInputPresenter } from '../../../../workbench/contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
 import { ChatPetAchievementIds, didExplicitlySwitchChatPetModel } from '../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
 import { IChatPetService } from '../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
@@ -24,6 +26,7 @@ import { getAgentHostProviderForTelemetry, IChatSessionsService } from '../../..
 import { Menus } from '../../../browser/menus.js';
 import { IsPhoneLayoutContext, SessionUsesCombinedConfigPickerContext } from '../../../common/contextkeys.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
+import { createChatPhoneInputSessionContext } from '../../../services/presentation/browser/chatPhoneInputContext.js';
 import { SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionModelSelection } from './sessionModelSelection.js';
 import { INewChatModelPickerService } from './newChatModelPicker.js';
@@ -43,6 +46,7 @@ export class ModelPicker extends Disposable {
 	private readonly _delegate: IModelPickerDelegate;
 	private readonly _modelPicker: ModelPickerActionItem;
 	private _container: HTMLElement | undefined;
+	private _phonePickerOpen = false;
 
 	constructor(
 		compact: IObservable<boolean>,
@@ -55,11 +59,35 @@ export class ModelPicker extends Disposable {
 		@ISessionModelSelection private readonly _selectionModel: ISessionModelSelection,
 		@IChatPetService private readonly _chatPetService: IChatPetService,
 		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
+		@IChatPhoneInputPresenter phonePresenter: IChatPhoneInputPresenter,
 	) {
 		super();
 		const currentModel = derived(this, reader => this._selectionModel.state.read(reader).currentModel);
 
 		this._delegate = {
+			showPicker: (anchor, configuration, available) => {
+				if (!phonePresenter.supportsUnifiedConfiguration) {
+					return false;
+				}
+				if (!available) {
+					return 'actionWidget';
+				}
+				if (this._phonePickerOpen) {
+					return true;
+				}
+				this._phonePickerOpen = true;
+				anchor.setAttribute('aria-expanded', 'true');
+				void phonePresenter.showCombinedModeAndModelSheet(anchor, {
+					kind: 'session',
+					getSessionContext: () => createChatPhoneInputSessionContext(this._sessionContext.session.get()),
+					modelDelegate: this._delegate,
+					initialSection: configuration ? 'modelConfiguration' : 'model',
+				}).finally(() => {
+					this._phonePickerOpen = false;
+					anchor.setAttribute('aria-expanded', 'false');
+				}).catch(onUnexpectedError);
+				return true;
+			},
 			workflow: this._selectionModel.workflow,
 			currentModel,
 			modelConfiguration: this._selectionModel.modelConfiguration,
@@ -111,6 +139,16 @@ export class ModelPicker extends Disposable {
 			getDomNode: () => this._container,
 			open: () => this._modelPicker.openModelPicker(),
 			switchToModel: modelIdentifier => this.switchToModel(modelIdentifier),
+		}));
+		this._register(autorun(reader => {
+			phonePresenter.enabled.read(reader);
+			if (phonePresenter.supportsUnifiedConfiguration) {
+				reader.store.add(phonePresenter.registerSessionModelPicker({
+					getSessionContext: () => createChatPhoneInputSessionContext(this._sessionContext.session.read(undefined)),
+					modelDelegate: this._delegate,
+					selectModel: identifier => this.switchToModel(identifier),
+				}));
+			}
 		}));
 
 		this._register(autorun(reader => {

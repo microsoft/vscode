@@ -31,6 +31,8 @@ import { IWorkbenchLayoutService } from '../../../../../../workbench/services/la
 import { DEFAULT_PERMISSION_LEVELS, getPermissionLevelMeta, IPermissionPickerDelegate, PermissionPicker } from '../../browser/permissionPicker.js';
 import { MobilePermissionPicker } from '../../browser/mobilePermissionPicker.js';
 import { PickerActionViewItem } from '../../../agentHost/browser/agentHostSessionConfigPicker.js';
+import { IChatPhoneInputPresenter } from '../../../../../../workbench/contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
+import { SessionContext } from '../../../../../services/sessions/browser/sessionContext.js';
 
 suite('Copilot PermissionPicker', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -101,6 +103,8 @@ suite('Copilot PermissionPicker', () => {
 					override readonly mainContainer = container;
 				}(),
 				unmanagedEnablementService,
+				new class extends mock<IChatPhoneInputPresenter>() { }(),
+				new SessionContext(constObservable(undefined)),
 			));
 			picker.render(container);
 			picker.showPicker();
@@ -270,7 +274,7 @@ suite('Copilot PermissionPicker', () => {
 				getSandboxToggleProvider: () => 'copilotcli',
 				getSandboxToggleSettingId: () => sandboxSettingId,
 				sandboxEnabled,
-				setSandboxEnabled: enabled => writes.push({ session: 'test-session', enabled }),
+				setSandboxEnabled: enabled => { writes.push({ session: 'test-session', enabled }); },
 				managedSandboxEnforced,
 			},
 			actionWidgetService,
@@ -367,7 +371,7 @@ suite('Copilot PermissionPicker', () => {
 				getSandboxToggleSettingId: () => 'test.sandbox.enabled',
 				sandboxEnabled: constObservable(false),
 				sandboxConfirmedEnabled: confirmedEnabled,
-				setSandboxEnabled: enabled => writes.push(enabled),
+				setSandboxEnabled: enabled => { writes.push(enabled); },
 				managedSandboxEnforced: constObservable(true),
 				managedSandboxAllowsBypass: allowsBypass,
 			},

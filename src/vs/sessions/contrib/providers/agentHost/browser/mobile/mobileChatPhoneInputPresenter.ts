@@ -31,7 +31,7 @@ import { showMobilePickerSheet, IMobilePickerSheetItem } from '../../../../../br
 import { getAgentHostModeIcon } from '../agentHostModeIcon.js';
 import { isWellKnownModeSchema, isWellKnownModeValue } from '../agentHostPermissionPickerDelegate.js';
 import { normalizeModelPickerOptions } from '../../../../chat/browser/sessionModelPickerState.js';
-import { createChatPhoneInputSessionContext, createChatPhoneInputTarget, IChatPhoneInputTarget, matchesChatPhoneInputTarget } from './mobileChatPhoneInputTarget.js';
+import { createChatPhoneInputSessionContext, createChatPhoneInputTarget, IChatPhoneInputTarget, matchesChatPhoneInputTarget } from '../../../../../services/presentation/browser/chatPhoneInputContext.js';
 
 /**
  * Action id passed to the workbench `ToggleAgentModeActionId` command when
@@ -264,7 +264,7 @@ class MobileChatPhoneInputPresenter extends Disposable implements IChatPhonePres
 					if (request.kind === 'delegates') {
 						request.modelDelegate.setModel(action.model);
 					} else {
-						request.selectModel(action.model.identifier);
+						request.selectModel?.(action.model.identifier);
 					}
 				}
 				break;

@@ -8,6 +8,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { registerAction2, Action2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { ISessionsPresentation } from '../../../../services/presentation/browser/sessionsPresentation.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -43,6 +44,7 @@ class MobileOpenDiffViewAction extends Action2 {
 		const layoutService = accessor.get(ILayoutService);
 		const textFileService = accessor.get(ITextFileService);
 		const languageService = accessor.get(ILanguageService);
+		const presentation = accessor.get(ISessionsPresentation);
 
 		// Accept either the legacy single-file payload or the new
 		// payload-with-siblings shape. The new shape's discriminator is
@@ -51,7 +53,7 @@ class MobileOpenDiffViewAction extends Action2 {
 			? arg
 			: { diff: arg };
 
-		activeDiffView.value = openMobileDiffView(layoutService.mainContainer, data, textFileService, languageService);
+		activeDiffView.value = openMobileDiffView(layoutService.mainContainer, data, textFileService, languageService, presentation.readDiffText ? uri => presentation.readDiffText!(uri) : undefined);
 		// Clear the slot when the view tears itself down (back-button)
 		// so the slot value tracks "no overlay open" correctly. The
 		// equality guard ensures a newer view that has already replaced

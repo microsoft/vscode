@@ -1,0 +1,463 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * Phone grammar for the chat transcript and composer. Loaded only by the
+ * mobile web entry point (through `MobileWorkbench`).
+ *
+ * The transcript has one center of attention — the conversation. Everything
+ * else (footer actions, tool cards, edit rows) supports it: quiet at rest,
+ * revealed on intent, sized for a thumb. Type and radii come from the mobile
+ * token ramp in `mobileWorkbench.css`.
+ */
+
+/* ---- Transcript ---------------------------------------------------------- */
+
+.monaco-workbench.mobile-workbench .interactive-session .interactive-list .interactive-item-container {
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size160);
+}
+
+.monaco-workbench.mobile-workbench .interactive-session .interactive-item-container .value,
+.monaco-workbench.mobile-workbench .interactive-session .interactive-item-container .rendered-markdown {
+	font-size: var(--vscode-fontSize-body1);
+	line-height: var(--mobile-line-height-body);
+}
+
+/* Sent message: a pill in the card tint, right-aligned, generous padding. */
+.monaco-workbench.mobile-workbench .interactive-session .interactive-item-container.interactive-request .value .rendered-markdown {
+	background-color: var(--vscode-chat-requestBubbleBackground, var(--mobile-surface-card));
+	border-radius: var(--vscode-cornerRadius-large);
+	border-bottom-right-radius: var(--vscode-cornerRadius-xSmall);
+	padding: var(--vscode-spacing-size120) var(--vscode-spacing-size160);
+	max-width: 85%;
+}
+
+/* Request hover affordances (edit, checkpoint) are desktop-only: reveal on hover. */
+.monaco-workbench.mobile-workbench .interactive-item-container.interactive-request .request-hover,
+.monaco-workbench.mobile-workbench .interactive-item-container.interactive-request .header .monaco-toolbar,
+.monaco-workbench.mobile-workbench .interactive-item-container .chat-request-timestamp-container {
+	display: none !important;
+}
+
+/* Response: full width, no bubble; the agent is the only other party. */
+.monaco-workbench.mobile-workbench .interactive-item-container.interactive-response .header {
+	display: none;
+}
+
+.monaco-workbench.mobile-workbench .interactive-item-container.interactive-response .value {
+	padding: 0;
+}
+
+/* ---- Footer actions ------------------------------------------------------ */
+
+/* Desktop reveals the footer on hover and lets it overlap the next row. On the
+ * phone it is a static, always-visible row of 44px targets under the response. */
+.monaco-workbench.mobile-workbench .interactive-item-container.interactive-response:not(.chat-response-loading) .chat-footer-toolbar {
+	display: flex;
+	opacity: 1;
+	height: auto;
+	min-height: var(--mobile-target);
+	padding-top: var(--vscode-spacing-size40);
+	position: static;
+	align-items: center;
+}
+
+.monaco-workbench.mobile-workbench .interactive-item-container .chat-footer-toolbar .monaco-action-bar .actions-container {
+	gap: var(--vscode-spacing-size80);
+}
+
+.monaco-workbench.mobile-workbench .interactive-item-container .chat-footer-toolbar .action-item > .action-label {
+	color: var(--vscode-descriptionForeground);
+}
+
+.monaco-workbench.mobile-workbench .interactive-item-container .chat-footer-details {
+	display: none !important;
+}
+
+/* ---- Code blocks --------------------------------------------------------- */
+
+/* Code never widens the page: it scrolls inside its block. The block is an
+ * inner surface; its toolbar is a quiet overlay of 44px targets. */
+.monaco-workbench.mobile-workbench .interactive-result-code-block {
+	border-radius: var(--vscode-cornerRadius-medium);
+	background-color: var(--mobile-surface-card);
+	border: none;
+	overflow: hidden;
+	max-width: 100%;
+}
+
+.monaco-workbench.mobile-workbench .interactive-result-code-block .monaco-editor,
+.monaco-workbench.mobile-workbench .interactive-result-code-block .monaco-editor .monaco-editor-background {
+	background-color: var(--mobile-surface-card);
+}
+
+.monaco-workbench.mobile-workbench .interactive-result-code-block .interactive-result-code-block-toolbar {
+	background: transparent;
+	border: none;
+}
+
+.monaco-workbench.mobile-workbench .interactive-result-code-block .interactive-result-code-block-toolbar .action-item > .action-label {
+	min-height: var(--mobile-target);
+	min-width: var(--mobile-target);
+}
+
+/* ---- Tool calls, thinking, confirmations --------------------------------- */
+
+.monaco-workbench.mobile-workbench .chat-tool-invocation-part,
+.monaco-workbench.mobile-workbench .chat-thinking-box,
+.monaco-workbench.mobile-workbench .chat-confirmation-widget {
+	border-radius: var(--vscode-cornerRadius-medium);
+	background-color: var(--mobile-surface-card);
+	border: none;
+}
+
+.monaco-workbench.mobile-workbench .chat-thinking-box .chat-thinking-item,
+.monaco-workbench.mobile-workbench .chat-tool-invocation-part .chat-progress-content {
+	min-height: var(--mobile-target);
+	align-items: center;
+	font-size: var(--vscode-fontSize-body2);
+}
+
+/* A confirmation has one primary action: full-width, 48px, filled. Secondary
+ * actions stack beneath it as text buttons. */
+.monaco-workbench.mobile-workbench .chat-confirmation-widget .chat-buttons-container {
+	flex-direction: column;
+	gap: var(--vscode-spacing-size80);
+	align-items: stretch;
+}
+
+.monaco-workbench.mobile-workbench .chat-confirmation-widget .chat-buttons-container .monaco-button {
+	width: 100%;
+	min-height: 48px;
+	justify-content: center;
+	border-radius: var(--vscode-cornerRadius-small);
+	font-size: var(--vscode-fontSize-body1);
+}
+
+.monaco-workbench.mobile-workbench .chat-confirmation-widget .chat-buttons-container .monaco-button.secondary {
+	background: transparent;
+	border: none;
+	color: var(--vscode-textLink-foreground);
+}
+
+/* ---- Edit rows ----------------------------------------------------------- */
+
+/* An edit is a 56px row: file icon, name, +/- counts, chevron. Tapping it opens
+ * the phone diff overlay. The inline diff editor never renders on the phone. */
+.monaco-workbench.mobile-workbench .chat-codeblock-pill-container {
+	min-height: var(--mobile-row);
+	align-items: center;
+}
+
+.monaco-workbench.mobile-workbench .chat-codeblock-pill-widget {
+	min-height: var(--mobile-row);
+	padding: 0 var(--vscode-spacing-size160);
+	border-radius: var(--vscode-cornerRadius-medium);
+	background-color: var(--mobile-surface-card);
+	border: none;
+	font-size: var(--vscode-fontSize-body2);
+	flex: 1;
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+}
+
+.monaco-workbench.mobile-workbench .chat-codeblock-pill-widget::after {
+	content: '';
+	margin-left: auto;
+	width: 8px;
+	height: 8px;
+	border-right: 2px solid var(--vscode-descriptionForeground);
+	border-bottom: 2px solid var(--vscode-descriptionForeground);
+	transform: rotate(-45deg);
+	flex-shrink: 0;
+}
+
+.monaco-workbench.mobile-workbench .chat-codeblock-pill-widget .label-added,
+.monaco-workbench.mobile-workbench .chat-codeblock-pill-widget .label-removed {
+	font-size: var(--vscode-fontSize-label1);
+	font-variant-numeric: tabular-nums;
+}
+
+.monaco-workbench.mobile-workbench .chat-codeblock-pill-widget:active {
+	background-color: var(--mobile-surface-pressed);
+}
+
+/* ---- Composer ------------------------------------------------------------ */
+
+.monaco-workbench.mobile-workbench .chat-phone-input-chip .chat-phone-input-chip-chevron {
+	font-size: var(--vscode-codiconFontSize-compact);
+	flex-shrink: 0;
+}
+
+/* The composer is one surface with one row of controls, and that row has one
+ * tier: every control is a 36px round visual inside a 44px target, filled with
+ * the quiet control tint so it reads as a button and not as a glyph floating in
+ * the corner. Send is the single accent. The same grammar applies to the
+ * session composer (`.chat-input-container`) and the Home composer
+ * (`.new-chat-input-area`), which are different widgets on the desktop. */
+
+/* Screen inset: 16px on a phone. Desktop centers its content at 32px; Home's
+ * phone shell uses 8px. Both become the one phone inset. */
+.monaco-workbench.mobile-workbench .session-view {
+	--session-view-content-horizontal-padding: var(--vscode-spacing-size160);
+}
+
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .new-chat-widget-container {
+	padding-left: var(--vscode-spacing-size160) !important; /* phone shell sets 8px with !important */
+	padding-right: var(--vscode-spacing-size160) !important;
+}
+
+/* An explicitly enabled greeting replaces the legacy hero instead of overlapping it. */
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .new-chat-widget-content.welcome-phrases-visible .new-session-workspace-picker-container::before {
+	content: none;
+}
+
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .new-chat-widget-content.welcome-phrases-visible .new-session-welcome-message {
+	top: auto;
+	margin-top: auto;
+	margin-bottom: var(--vscode-spacing-size160);
+}
+
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .new-chat-widget-content.welcome-phrases-visible .new-session-workspace-picker-container {
+	max-height: max-content;
+	margin-top: 0;
+	margin-bottom: auto;
+}
+
+/* The composer's color has one owner: `agentsChatInput.background`, which the
+ * shared sessions styles apply to both the input container and the editor's
+ * own background layer (the latter must stay solid for selection corners).
+ * Repainting the container with the card tint produced two surfaces — the
+ * inner editor showed as a rectangle of a different tint — so the phone uses
+ * the same token. It is restated with phone specificity because dev loaders
+ * that prepend `@import` rules invert the cascade, letting the workbench
+ * default (`input.background`) win over the sessions rule at equal
+ * specificity. */
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .interactive-session .chat-input-container,
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .new-chat-input-area {
+	background-color: var(--vscode-agentsChatInput-background);
+	border-radius: var(--vscode-cornerRadius-xLarge) !important; /* phone shell sets 16px with !important */
+}
+
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .interactive-session .chat-input-container {
+	padding: 0 var(--vscode-spacing-size80) var(--vscode-spacing-size80);
+}
+
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .interactive-session .chat-input-toolbars,
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-chat-toolbar {
+	align-items: center;
+	min-height: var(--mobile-target);
+	padding: 0;
+}
+
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-chat-toolbar {
+	padding: 0 var(--vscode-spacing-size80) var(--vscode-spacing-size80);
+	gap: 0;
+}
+
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .interactive-session .chat-input-toolbars .monaco-action-bar .actions-container {
+	gap: 0;
+}
+
+/* Icon controls: Add Context, dictation, Send. */
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .interactive-session .chat-input-toolbars .action-item > .action-label.codicon,
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-chat-attach-button,
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-chat-stt-button:not(.hidden),
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-chat-send-button,
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-chat-send-button .monaco-button {
+	position: relative;
+	box-sizing: border-box;
+	width: var(--mobile-control);
+	height: var(--mobile-control);
+	min-width: var(--mobile-control);
+	min-height: var(--mobile-control);
+	margin: 0;
+	padding: 0;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: var(--mobile-control-fill);
+	color: var(--vscode-foreground);
+	font-size: var(--mobile-control-glyph);
+}
+
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-chat-attach-button .codicon,
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-chat-stt-button .codicon {
+	font-size: var(--mobile-control-glyph);
+}
+
+/* The wrapper around Home's Send is the control; the inner button fills it. */
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-chat-send-button .monaco-button {
+	background-color: transparent;
+	color: inherit;
+}
+
+/* Controls sit 4px apart from one another: a 36px visual inside a 44px target. */
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .interactive-session .chat-input-toolbars .action-item,
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-chat-toolbar > .sessions-chat-attach-button,
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-chat-toolbar > .sessions-chat-stt-button,
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-chat-toolbar > .sessions-chat-send-button {
+	margin: var(--vscode-spacing-size40);
+}
+
+/* The invisible part of the 44px target. */
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .interactive-session .chat-input-toolbars .action-item > .action-label.codicon::after,
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-chat-attach-button::after,
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-chat-stt-button::after,
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-chat-send-button::after {
+	content: '';
+	position: absolute;
+	inset: calc(-1 * var(--vscode-spacing-size40));
+}
+
+/* Send is the one filled primary action on the screen; disabled, it stays in
+ * the row as a quiet control with a muted glyph. */
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .interactive-session .chat-input-toolbars .action-item.chat-submit-button > .action-label:not(.disabled),
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-chat-send-button:has(.monaco-button:not(.disabled)) {
+	background-color: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+}
+
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .interactive-session .chat-input-toolbars .action-item.chat-submit-button > .action-label.disabled,
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-chat-send-button:has(.monaco-button.disabled) {
+	color: var(--vscode-disabledForeground);
+	opacity: 1;
+}
+
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-chat-send-button .monaco-button.disabled {
+	opacity: 1;
+}
+
+/* The picker chip: a 36px pill in the same tint, label plus chevron. */
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .interactive-session .chat-input-toolbars .chat-input-picker-item > .action-label.chat-phone-input-chip,
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-chat-config-toolbar .monaco-action-bar .action-item > .action-label:not(.separator) {
+	box-sizing: border-box;
+	height: var(--mobile-control);
+	min-height: var(--mobile-control);
+	min-width: 0;
+	max-width: 100%;
+	padding: 0 var(--vscode-spacing-size120);
+	gap: var(--vscode-spacing-size40);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: var(--mobile-control-fill);
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-fontSize-label1);
+	line-height: var(--mobile-line-height-label);
+}
+
+/* A chip with nothing to pick (one agent, one mode) says nothing the user can
+ * act on; on the phone it is not shown. The desktop keeps the quiet label. */
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-chat-config-toolbar .monaco-action-bar .action-item:has(> .action-label.disabled) {
+	display: none;
+}
+
+/* Status pills under the composer (mode, approvals, context usage): one quiet
+ * pill style for all of them, label-role text, and an invisible 44px-tall hit
+ * area so they stay compact. */
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .interactive-session .chat-secondary-toolbar {
+	padding: 0;
+	gap: var(--vscode-spacing-size40);
+	min-height: var(--mobile-target);
+	align-items: center;
+}
+
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .interactive-session .chat-secondary-toolbar .sessions-chat-picker-slot > .action-label,
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .interactive-session .chat-secondary-toolbar .agent-host-chat-input-picker-slot > .action-label,
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .interactive-session .chat-secondary-toolbar .chat-pill-item .monaco-button.chat-pill-button {
+	position: relative;
+	box-sizing: border-box;
+	height: 28px;
+	min-height: 28px;
+	min-width: 0;
+	padding: 0 var(--vscode-spacing-size100);
+	gap: var(--vscode-spacing-size40);
+	border-radius: var(--vscode-cornerRadius-circle);
+	border: none;
+	background-color: var(--mobile-control-fill);
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-fontSize-label1);
+	line-height: var(--mobile-line-height-label);
+}
+
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .interactive-session .chat-secondary-toolbar .chat-context-usage-widget {
+	position: relative;
+	height: 28px;
+	box-sizing: border-box;
+	display: inline-flex;
+	align-items: center;
+	padding: 0 var(--vscode-spacing-size60);
+	border-radius: var(--vscode-cornerRadius-circle);
+}
+
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .interactive-session .chat-secondary-toolbar .sessions-chat-picker-slot > .action-label::after,
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .interactive-session .chat-secondary-toolbar .agent-host-chat-input-picker-slot > .action-label::after,
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .interactive-session .chat-secondary-toolbar .chat-pill-item .monaco-button.chat-pill-button::after,
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .interactive-session .chat-secondary-toolbar .chat-context-usage-widget::after {
+	content: '';
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: 50%;
+	height: var(--mobile-target);
+	transform: translateY(-50%);
+}
+
+/* ---- Home: where, then what and who -------------------------------------- */
+
+/* The harness chip is a choice; with one harness there is no choice, so the
+ * chip goes away rather than sitting there disabled. */
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .new-chat-widget-container .sessions-chat-session-type-picker.disabled {
+	display: none;
+}
+
+/* The place chip sits on its own row above the workspace and agent chips. It
+ * keeps the row's compact pill and grows the invisible 44px target that every
+ * phone control has. The pseudo-element lives on the action item, which also
+ * takes the tap (the pill itself clips for its ellipsis); the row reserves the
+ * height so the target is not cut off. */
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-new-session-place-row {
+	min-height: var(--mobile-target);
+	align-items: center;
+}
+
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-new-session-place-row .action-item.sessions-new-session-place {
+	position: relative;
+	cursor: pointer;
+}
+
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-new-session-place-row .action-item.sessions-new-session-place::after {
+	content: '';
+	position: absolute;
+	left: calc(-1 * var(--vscode-spacing-size40));
+	right: calc(-1 * var(--vscode-spacing-size40));
+	top: 50%;
+	height: var(--mobile-target);
+	transform: translateY(-50%);
+}
+
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .sessions-new-session-place-row .action-item > .action-label {
+	min-height: 0;
+	min-width: 0;
+}
+
+/* ---- Overlays that remain desktop widgets stay out of the way ------------ */
+
+.monaco-workbench.mobile-workbench .chat-scroll-down {
+	bottom: calc(var(--vscode-spacing-size160) + env(safe-area-inset-bottom));
+	width: var(--mobile-target);
+	height: var(--mobile-target);
+	border-radius: var(--vscode-cornerRadius-circle);
+}
+
+/* ---- Diff review ---------------------------------------------------------- */
+
+/* Code in the phone diff view reads at the label role (13px): small enough for
+ * a line of code to fit, never below the floor set for the phone. */
+.monaco-workbench.mobile-workbench .mobile-diff-output {
+	font-size: var(--vscode-fontSize-label1);
+	line-height: var(--mobile-line-height-label);
+}

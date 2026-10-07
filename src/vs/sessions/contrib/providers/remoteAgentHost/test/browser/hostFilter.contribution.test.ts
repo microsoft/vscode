@@ -11,8 +11,10 @@ import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
 import { MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
-import { IMenuService, MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
+import { IMenuService, isIMenuItem, MenuId, MenuItemAction, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { ContextMenuHandler } from '../../../../../../platform/contextview/browser/contextMenuHandler.js';
 import { IContextMenuService, IContextViewService } from '../../../../../../platform/contextview/browser/contextView.js';
@@ -24,17 +26,20 @@ import { createServices } from '../../../../../../platform/instantiation/test/co
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { MockContextKeyService, MockKeybindingService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILayoutService } from '../../../../../../platform/layout/browser/layoutService.js';
+import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { Menus } from '../../../../../browser/menus.js';
 import { AgentHostFilterConnectionStatus, IAgentHostFilterEntry, IAgentHostFilterService } from '../../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { AgentHostFilterContribution } from '../../browser/hostFilter.contribution.js';
+import { MobileAgentHostFilterContribution } from '../../browser/mobileHostFilter.contribution.js';
 
 suite('AgentHostFilterContribution', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	async function createPicker(menuId: MenuId) {
+		const experimentalMobile = menuId === Menus.NewSessionPlace || menuId === Menus.MobileSessionsDrawerHeader;
 		const container = document.body.appendChild(document.createElement('div'));
 		container.classList.add('monaco-workbench');
 		disposables.add({ dispose: () => container.remove() });
@@ -58,7 +63,8 @@ suite('AgentHostFilterContribution', () => {
 		const descriptor = getSingletonServiceDescriptors().find(([id]) => id === IActionViewItemService)?.[1];
 		assert.ok(descriptor);
 		const action = upcastPartial<MenuItemAction>({
-			id: 'sessions.agentHostFilter.pick', label: 'Select Agent Host', enabled: true, run: async () => { },
+			id: experimentalMobile ? 'sessions.mobile.agentHostFilter.pick' : 'sessions.agentHostFilter.pick',
+			label: 'Select Agent Host', enabled: true, run: async () => { },
 		});
 		const instantiationService = createServices(disposables.add(new DisposableStore()), [
 			[IActionViewItemService, descriptor.ctor],
@@ -69,6 +75,8 @@ suite('AgentHostFilterContribution', () => {
 			[IHoverService, NullHoverService],
 			[ITelemetryService, NullTelemetryService],
 			[ICommandService, upcastPartial<ICommandService>({})],
+			[IConfigurationService, new TestConfigurationService()],
+			[INotificationService, new TestNotificationService()],
 			[ILayoutService, upcastPartial<ILayoutService>({
 				mainContainer: container, activeContainer: container,
 				getContainer: () => container, onDidLayoutContainer: Event.None,
@@ -90,10 +98,14 @@ suite('AgentHostFilterContribution', () => {
 			},
 		});
 		disposables.add(instantiationService.createInstance(MenuWorkbenchToolBar, container, menuId, undefined));
-		assert.strictEqual(container.querySelector('.agent-host-filter-combo'), null);
-		disposables.add(instantiationService.createInstance(AgentHostFilterContribution));
+		const customSelector = menuId === Menus.NewSessionPlace ? '.sessions-new-session-place'
+			: menuId === Menus.MobileSessionsDrawerHeader ? '.host-drawer-header' : '.agent-host-filter-combo';
+		assert.strictEqual(container.querySelector(customSelector), null);
+		disposables.add(experimentalMobile
+			? instantiationService.createInstance(MobileAgentHostFilterContribution)
+			: instantiationService.createInstance(AgentHostFilterContribution));
 		await Promise.resolve();
-		assert.ok(container.querySelector('.agent-host-filter-combo'), 'cold-start registration replaces the default action view item');
+		assert.ok(container.querySelector(customSelector), 'cold-start registration replaces the default action view item');
 		disposables.add({ dispose: () => contextView.hideContextView() });
 		return {
 			container, contextView, filterService,
@@ -108,6 +120,19 @@ suite('AgentHostFilterContribution', () => {
 			},
 		};
 	}
+
+	test('full and experimental mobile contributions use separate menu placements', () => {
+		const menus = [Menus.SidebarAgentHost, Menus.MobileTitleBarCenter, Menus.MobileSessionsDrawerHeader, Menus.NewSessionPlace];
+		assert.deepStrictEqual(menus.map(menu => MenuRegistry.getMenuItems(menu)
+			.filter(isIMenuItem)
+			.map(item => item.command.id)
+			.filter(id => id === 'sessions.agentHostFilter.pick' || id === 'sessions.mobile.agentHostFilter.pick')), [
+			['sessions.agentHostFilter.pick'],
+			['sessions.agentHostFilter.pick'],
+			['sessions.mobile.agentHostFilter.pick'],
+			['sessions.mobile.agentHostFilter.pick'],
+		]);
+	});
 
 	test('sidebar menu survives host and discovery updates and still selects a host', async () => {
 		const { container, contextView, filterService, updateStatus, setDiscovering } = await createPicker(Menus.SidebarAgentHost);
@@ -137,79 +162,125 @@ suite('AgentHostFilterContribution', () => {
 		assert.strictEqual(filterService.selectedHostId, 'Second');
 	});
 
-	test('mobile sheet survives host and discovery updates with live status', async () => {
-		const { container, updateStatus, setDiscovering } = await createPicker(Menus.MobileTitleBarCenter);
-		const button = container.querySelector<HTMLElement>('.agent-host-filter-dropdown');
-		assert.ok(button);
-		button.click();
-		const sheet = container.querySelector<HTMLElement>('.host-picker-sheet');
-		assert.ok(sheet);
-		assert.strictEqual(document.activeElement, sheet.querySelector('[aria-checked="true"]'));
+	for (const { name, menu, triggerSelector, sheetSelector, refreshSelector, controls } of [
+		{
+			name: 'full web responsive picker',
+			menu: Menus.MobileTitleBarCenter,
+			triggerSelector: '.agent-host-filter-dropdown',
+			sheetSelector: '.host-picker-sheet',
+			refreshSelector: '.host-picker-sheet-action',
+			controls: ['.host-picker-sheet-action', '.host-picker-sheet-information', '.host-picker-sheet-close:not(.host-picker-sheet-information)'],
+		},
+		{
+			name: 'experimental mobile place picker',
+			menu: Menus.NewSessionPlace,
+			triggerSelector: '.sessions-new-session-place-trigger',
+			sheetSelector: '.host-picker-overlay .mobile-picker-sheet',
+			refreshSelector: '.host-picker-section-action',
+			controls: ['.host-picker-section-action', '.mobile-picker-sheet-header-action:not(.mobile-picker-sheet-done)', '.mobile-picker-sheet-done'],
+		},
+		{
+			name: 'experimental mobile drawer picker',
+			menu: Menus.MobileSessionsDrawerHeader,
+			triggerSelector: '.host-drawer-header-row',
+			sheetSelector: '.host-picker-overlay .mobile-picker-sheet',
+			refreshSelector: '.host-picker-section-action',
+			controls: ['.host-picker-section-action', '.mobile-picker-sheet-header-action:not(.mobile-picker-sheet-done)', '.mobile-picker-sheet-done'],
+		},
+	]) {
+		test(`${name} survives host and discovery updates with live status`, async () => {
+			const { container, updateStatus, setDiscovering } = await createPicker(menu);
+			const button = container.querySelector<HTMLElement>(triggerSelector);
+			assert.ok(button);
+			button.click();
+			const sheet = container.querySelector<HTMLElement>(sheetSelector);
+			assert.ok(sheet);
+			assert.strictEqual(document.activeElement, sheet.querySelector('[aria-checked="true"]'));
 
-		updateStatus();
-		setDiscovering(true);
-		assert.deepStrictEqual({
-			sameButton: container.querySelector('.agent-host-filter-dropdown') === button,
-			sameSheet: container.querySelector('.host-picker-sheet') === sheet,
-			connected: sheet.isConnected,
-			discovering: button.classList.contains('discovering'),
-			hasConnectingStatus: sheet.textContent?.includes('Connecting'),
-			selectedHostFocused: document.activeElement === sheet.querySelector('[aria-checked="true"]'),
-		}, { sameButton: true, sameSheet: true, connected: true, discovering: true, hasConnectingStatus: true, selectedHostFocused: true });
-		setDiscovering(false);
-		assert.ok(sheet.isConnected);
-		assert.strictEqual(document.activeElement, sheet.querySelector('[aria-checked="true"]'));
-	});
-
-	test('mobile updates preserve the focused unselected host without stealing focus from other controls', async () => {
-		const { container, updateStatus, setDiscovering } = await createPicker(Menus.MobileTitleBarCenter);
-		const button = container.querySelector<HTMLElement>('.agent-host-filter-dropdown');
-		assert.ok(button);
-		button.click();
-		const sheet = container.querySelector<HTMLElement>('.host-picker-sheet');
-		assert.ok(sheet);
-		const secondHost = () => {
-			const row = sheet.querySelector<HTMLElement>('[aria-checked="false"]');
-			assert.ok(row);
-			return row;
-		};
-		secondHost().focus();
-		updateStatus();
-		assert.strictEqual(document.activeElement, secondHost());
-		setDiscovering(true);
-		assert.strictEqual(document.activeElement, secondHost());
-		setDiscovering(false);
-		assert.strictEqual(document.activeElement, secondHost());
-
-		for (const selector of ['.host-picker-sheet-action', '.host-picker-sheet-information', '.host-picker-sheet-close:not(.host-picker-sheet-information)']) {
-			const control: HTMLElement | null = sheet.querySelector<HTMLElement>(selector);
-			assert.ok(control);
-			control.focus();
 			updateStatus();
 			setDiscovering(true);
+			assert.deepStrictEqual({
+				sameButton: container.querySelector(triggerSelector) === button,
+				sameSheet: container.querySelector(sheetSelector) === sheet,
+				connected: sheet.isConnected,
+				hasConnectingStatus: sheet.textContent?.includes('Connecting'),
+				selectedHostFocused: document.activeElement === sheet.querySelector('[aria-checked="true"]'),
+			}, { sameButton: true, sameSheet: true, connected: true, hasConnectingStatus: true, selectedHostFocused: true });
 			setDiscovering(false);
-			assert.strictEqual(document.activeElement, control);
-		}
+			assert.ok(sheet.isConnected);
+			assert.strictEqual(document.activeElement, sheet.querySelector('[aria-checked="true"]'));
+		});
 
-		const outside = container.appendChild(document.createElement('button'));
-		outside.focus();
+		test(`${name} preserves focus across host and discovery updates`, async () => {
+			const { container, updateStatus, setDiscovering } = await createPicker(menu);
+			const button = container.querySelector<HTMLElement>(triggerSelector);
+			assert.ok(button);
+			button.click();
+			const sheet = container.querySelector<HTMLElement>(sheetSelector);
+			assert.ok(sheet);
+			const secondHost = () => {
+				const row = sheet.querySelector<HTMLElement>('[aria-checked="false"]');
+				assert.ok(row);
+				return row;
+			};
+			secondHost().focus();
+			updateStatus();
+			assert.strictEqual(document.activeElement, secondHost());
+			setDiscovering(true);
+			assert.strictEqual(document.activeElement, secondHost());
+			setDiscovering(false);
+			assert.strictEqual(document.activeElement, secondHost());
+
+			for (const selector of controls) {
+				const control: HTMLElement | null = sheet.querySelector<HTMLElement>(selector);
+				assert.ok(control);
+				control.focus();
+				updateStatus();
+				setDiscovering(true);
+				setDiscovering(false);
+				assert.strictEqual(document.activeElement, control);
+			}
+
+			const outside = container.appendChild(document.createElement('button'));
+			outside.focus();
+			updateStatus();
+			assert.strictEqual(document.activeElement, outside);
+		});
+
+		test(`${name} keeps focus inside when the focused host disappears`, async () => {
+			const { container, removeHost } = await createPicker(menu);
+			const button = container.querySelector<HTMLElement>(triggerSelector);
+			assert.ok(button);
+			button.click();
+			const sheet = container.querySelector<HTMLElement>(sheetSelector);
+			assert.ok(sheet);
+			const secondHost = sheet.querySelector<HTMLElement>('[aria-checked="false"]');
+			assert.ok(secondHost);
+			secondHost.focus();
+			removeHost('Second');
+			assert.strictEqual(document.activeElement, sheet.querySelector('[aria-checked="true"]'));
+			removeHost('First');
+			assert.strictEqual(document.activeElement, sheet.querySelector(refreshSelector));
+		});
+
+		test(`${name} selects the same shared host`, async () => {
+			const { container, filterService } = await createPicker(menu);
+			container.querySelector<HTMLElement>(triggerSelector)!.click();
+			container.querySelector<HTMLElement>(`${sheetSelector} [aria-checked="false"]`)!.click();
+			assert.strictEqual(filterService.selectedHostId, 'Second');
+		});
+	}
+
+	test('experimental place chip keeps its entry icon without a status badge', async () => {
+		const { container, updateStatus } = await createPicker(Menus.NewSessionPlace);
 		updateStatus();
-		assert.strictEqual(document.activeElement, outside);
-	});
-
-	test('mobile focus falls back inside the sheet when the focused host disappears', async () => {
-		const { container, removeHost } = await createPicker(Menus.MobileTitleBarCenter);
-		const button = container.querySelector<HTMLElement>('.agent-host-filter-dropdown');
-		assert.ok(button);
-		button.click();
-		const sheet = container.querySelector<HTMLElement>('.host-picker-sheet');
-		assert.ok(sheet);
-		const secondHost = sheet.querySelector<HTMLElement>('[aria-checked="false"]');
-		assert.ok(secondHost);
-		secondHost.focus();
-		removeHost('Second');
-		assert.strictEqual(document.activeElement, sheet.querySelector('[aria-checked="true"]'));
-		removeHost('First');
-		assert.strictEqual(document.activeElement, sheet.querySelector('.host-picker-sheet-action'));
+		const icon = container.querySelector('.sessions-new-session-place-icon')!;
+		assert.deepStrictEqual({
+			glyphs: Array.from(icon.children, element => element.className),
+			statusBadge: container.querySelector('.sessions-new-session-place-status'),
+		}, {
+			glyphs: ['codicon codicon-vm'],
+			statusBadge: null,
+		});
 	});
 });

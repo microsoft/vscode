@@ -88,6 +88,7 @@ import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/a
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { ISessionsRecentWorkspacesService } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
+import { ISessionsPresentation } from '../../../services/presentation/browser/sessionsPresentation.js';
 
 // #region --- New Chat Widget ---
 
@@ -226,6 +227,7 @@ export class NewChatWidget extends Disposable {
 		@ISessionComparisonService private readonly sessionComparisonService: ISessionComparisonService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ISessionsPresentation private readonly presentation: ISessionsPresentation,
 	) {
 		super();
 		this._newSessionAttachContextMenu = this._register(menuService.createMenu(Menus.NewSessionAttachContext, this.contextKeyService));
@@ -1376,6 +1378,7 @@ export class NewChatWidget extends Disposable {
 		const row = this._workspacePicker.renderCategoryTriggers(container, [
 			workspaceTrigger,
 		]);
+		store.add(this._renderPlaceRow(container, row));
 		const sessionOptions = dom.append(row, dom.$('.new-chat-session-options-details'));
 		sessionOptions.id = `new-chat-session-options-${++sessionOptionsIdPool}`;
 		const repositoryControlsHost = dom.append(sessionOptions, dom.$('.new-chat-repository-controls-host'));
@@ -1527,6 +1530,17 @@ export class NewChatWidget extends Disposable {
 				type.providerId === session.providerId && type.sessionType.id === session.sessionType && type.sessionType.supportsWorktreeConfiguration)
 			&& !resolvingConfig
 			&& this._getComparisonBranch(session) !== undefined;
+	}
+
+	/**
+	 * Where the session runs is decided before what it runs on, on a row of
+	 * its own above the workspace and agent chips. The row is filled from
+	 * {@link Menus.NewSessionPlace} (on the phone, by the host filter) and
+	 * hides itself while nothing is contributed, so the chip row stands alone
+	 * elsewhere.
+	 */
+	private _renderPlaceRow(container: HTMLElement, chipRow: HTMLElement): IDisposable {
+		return this.presentation.renderNewSessionHeader(container, chipRow);
 	}
 
 	private _renderSessionTypePicker(container: HTMLElement, prependBeforeSiblings: boolean): void {

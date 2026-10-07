@@ -9,7 +9,7 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { Gesture, EventType as TouchEventType } from '../../../../../../base/browser/touch.js';
 import { ensureCodeWindow, mainWindow } from '../../../../../../base/browser/window.js';
 import { Action } from '../../../../../../base/common/actions.js';
-import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Event } from '../../../../../../base/common/event.js';
@@ -30,6 +30,7 @@ import { IHoverService } from '../../../../../../platform/hover/browser/hover.js
 import { IManagedHover } from '../../../../../../base/browser/ui/hover/hover.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
+import { ILayoutService } from '../../../../../../platform/layout/browser/layoutService.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -42,12 +43,14 @@ import { IsSessionsWindowContext } from '../../../../../../workbench/common/cont
 import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { AccessibilityVerbositySettingId } from '../../../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { IChatEntitlementService } from '../../../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AgentHostFilterConnectionStatus, IAgentHostFilterService } from '../../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { ConnectionHostManagementAction, IConnectionDiagnosticsService, IConnectionDiagnosticsSnapshot, IConnectionHostManagementEntry, IConnectionHostManagementState, ShowConnectionDiagnosticsCommandId } from '../../browser/connectionDiagnostics.js';
 import { ConnectionDiagnosticsReport, showConnectionDiagnosticsSheet } from '../../browser/connectionDiagnosticsReport.js';
 import { ConnectionDiagnosticsContribution } from '../../browser/connectionDiagnostics.contribution.js';
 import { SessionsChatAccessibilityHelp } from '../../../../chat/browser/sessionsChatAccessibilityHelp.js';
 import { HostFilterActionViewItem } from '../../browser/hostFilterActionViewItem.js';
+import { MobileHostDrawerHeaderViewItem } from '../../browser/mobileHostDrawerHeaderViewItem.js';
 import { MobileHostFilterActionViewItem } from '../../browser/mobileHostFilterActionViewItem.js';
 
 suite('ConnectionDiagnosticsReport', () => {
@@ -725,74 +728,83 @@ suite('ConnectionDiagnosticsReport', () => {
 		assert.deepStrictEqual({ disposeCount, overlays: container.childElementCount }, { disposeCount: 1, overlays: 0 });
 	});
 
-	for (const hostCount of [0, 1]) {
-		test(`mobile picker opens information after removing its sheet with ${hostCount} hosts`, () => {
-			const container = dom.append(mainWindow.document.body, dom.$('div.monaco-workbench'));
-			store.add(toDisposable(() => container.remove()));
-			const trigger = dom.append(container, dom.$('div'));
-			const commands: { id: string; pickerOpen: boolean }[] = [];
-			class TestMobileHostFilter extends MobileHostFilterActionViewItem {
-				open(): void {
-					this._showMenu(new mainWindow.Event('click'));
-				}
-			}
-			const widget = store.add(new TestMobileHostFilter(
-				store.add(new Action('hosts', 'Hosts')),
-				new class extends mock<IAgentHostFilterService>() {
+	for (const experimentalMobile of [false, true]) {
+		for (const hostCount of [0, 1]) {
+			test(`${experimentalMobile ? 'experimental mobile' : 'full web responsive'} picker opens information after removing its sheet with ${hostCount} hosts`, async () => {
+				const container = dom.append(mainWindow.document.body, dom.$('div.monaco-workbench'));
+				store.add(toDisposable(() => container.remove()));
+				const trigger = dom.append(container, dom.$('div.mobile-sessions-drawer-header'));
+				const commands: { id: string; pickerOpen: boolean }[] = [];
+				const instantiationService = store.add(new TestInstantiationService());
+				instantiationService.stub(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {
 					override readonly onDidChange = Event.None;
 					override readonly onDidChangeDiscovering = Event.None;
 					override readonly hosts = hostCount ? [{ id: 'mock', label: 'Mock host', providerIds: ['mock'], grouped: false, address: 'tunnel:mock', icon: Codicon.remote, status: AgentHostFilterConnectionStatus.Connected, connectable: true }] : [];
 					override readonly selectedHost = this.hosts[0];
+					override readonly selectedHostId = this.hosts[0]?.id;
 					override readonly isDiscovering = false;
-				}(),
-				new class extends mock<IContextMenuService>() { }(),
-				new class extends mock<IHoverService>() {
-					override setupManagedHover(): IManagedHover {
-						return {
-							dispose() { },
-							show() { },
-							hide() { },
-							update() { },
-						};
-					}
-				}(),
-				new class extends mock<ICommandService>() {
+				}());
+				instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
 					override async executeCommand<T>(id: string): Promise<T> {
-						commands.push({ id, pickerOpen: !!container.querySelector('[role="dialog"]') });
+						commands.push({ id, pickerOpen: !!container.querySelector('[role="dialog"]:not(.closing)') });
 						return undefined as T;
 					}
-				}(),
-			));
-			widget.render(trigger);
-			widget.open();
-			const diagnostics = container.querySelector<HTMLElement>('.host-picker-sheet-heading .host-picker-sheet-information');
-			assert.deepStrictEqual({
-				empty: container.querySelector('.host-picker-sheet-empty')?.textContent,
-				diagnostics: diagnostics?.getAttribute('aria-label'),
-				inlineInformation: trigger.querySelectorAll('.agent-host-filter-diagnostics').length,
-				statusAnnounced: trigger.querySelector('.agent-host-filter-dropdown')?.getAttribute('aria-label')?.includes('Current host status: Connected.'),
-			}, {
-				empty: hostCount ? undefined : 'No hosts found yet.',
-				diagnostics: 'Open Connection Information',
-				inlineInformation: 0,
-				statusAnnounced: hostCount > 0,
+				}());
+				instantiationService.stub(IConfigurationService, new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true }));
+				instantiationService.stub(INotificationService, new class extends mock<INotificationService>() { }());
+				instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() { }());
+				instantiationService.stub(IHoverService, new class extends mock<IHoverService>() {
+					override setupManagedHover(): IManagedHover {
+						return { dispose() { }, show() { }, hide() { }, update() { } };
+					}
+				}());
+				instantiationService.stub(ILayoutService, new class extends mock<ILayoutService>() {
+					override readonly mainContainer = container;
+				}());
+				const action = store.add(new Action('hosts', 'Hosts'));
+				const widget = store.add(experimentalMobile
+					? instantiationService.createInstance(MobileHostDrawerHeaderViewItem, action)
+					: instantiationService.createInstance(MobileHostFilterActionViewItem, action));
+				widget.render(trigger);
+				const row = trigger.querySelector<HTMLElement>(experimentalMobile ? '.host-drawer-header-row' : '.agent-host-filter-dropdown')!;
+				row.focus();
+				row.click();
+				const information = () => container.querySelector<HTMLElement>(experimentalMobile
+					? '.host-picker-overlay .mobile-picker-sheet:not(.closing) .mobile-picker-sheet-header-action:not(.mobile-picker-sheet-done)'
+					: '.host-picker-sheet-information');
+				assert.deepStrictEqual({
+					hint: !!container.querySelector('.host-picker-hint'),
+					computers: container.querySelectorAll(experimentalMobile ? '.host-picker-computers [role="menuitemradio"]' : '.host-picker-sheet-item').length,
+					information: information()?.getAttribute('aria-label'),
+					title: container.querySelector(experimentalMobile ? '.mobile-picker-sheet-title' : '.host-picker-sheet-title')?.textContent,
+					empty: container.querySelector('.host-picker-sheet-empty')?.textContent,
+				}, {
+					hint: experimentalMobile && hostCount === 0,
+					computers: hostCount,
+					information: experimentalMobile ? 'Connection Information' : 'Open Connection Information',
+					title: experimentalMobile ? 'Where sessions run' : 'Hosts',
+					empty: !experimentalMobile && hostCount === 0 ? 'No hosts found yet.' : undefined,
+				});
+				information()!.click();
+				await Promise.resolve();
+				row.click();
+				information()!.click();
+				// The shell removes a closing sheet after its 180ms slide-down.
+				await timeout(250);
+				assert.deepStrictEqual({
+					commands,
+					focusRestored: dom.getActiveElement() === (experimentalMobile ? row : trigger),
+					sheets: container.querySelectorAll('.host-picker-overlay, .host-picker-sheet-overlay').length,
+				}, {
+					commands: [
+						{ id: ShowConnectionDiagnosticsCommandId, pickerOpen: false },
+						{ id: ShowConnectionDiagnosticsCommandId, pickerOpen: false },
+					],
+					focusRestored: true,
+					sheets: 0,
+				});
 			});
-			diagnostics!.dispatchEvent(new mainWindow.Event(TouchEventType.Tap, { bubbles: true, cancelable: true }));
-			widget.open();
-			container.querySelector<HTMLElement>('.host-picker-sheet-information')!.click();
-			assert.deepStrictEqual({
-				commands,
-				focusRestored: dom.getActiveElement() === trigger,
-				sheets: container.querySelectorAll('.host-picker-sheet-overlay').length,
-			}, {
-				commands: [
-					{ id: ShowConnectionDiagnosticsCommandId, pickerOpen: false },
-					{ id: ShowConnectionDiagnosticsCommandId, pickerOpen: false },
-				],
-				focusRestored: true,
-				sheets: 0,
-			});
-		});
+		}
 	}
 
 	for (const verbosity of [true, false]) {

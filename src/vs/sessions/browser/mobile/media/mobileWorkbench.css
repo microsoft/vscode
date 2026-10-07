@@ -1,0 +1,278 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * Mobile design language — owned by `MobileWorkbench`, loaded only by the
+ * mobile web entry point.
+ *
+ * Section 1 re-ramps the design tokens the whole workbench already reads, so
+ * every shared component (chat transcript, lists, sheets, cards) moves to phone
+ * proportions from one place. Everything below section 1 is the phone *grammar*:
+ * layered surfaces instead of borders, 44px targets, reveal on intent (not hover),
+ * and motion that orients. Rules here are additive and describe the phone
+ * directly; they do not undo desktop rules.
+ *
+ * Palette stays VS Code: every color is a `--vscode-*` theme token.
+ */
+
+/* ---- 1. Token ramp ------------------------------------------------------- */
+
+.monaco-workbench.mobile-workbench {
+	/* Type roles keep their rank; sizes move to the phone scale. body1 never
+	 * drops below 16px: iOS Safari zooms any focused input smaller than that. */
+	--vscode-fontSize-heading1: 28px;
+	--vscode-fontSize-heading2: 20px;
+	--vscode-fontSize-heading3: 17px;
+	--vscode-fontSize-body1: 16px;
+	--vscode-fontSize-body2: 15px;
+	--vscode-fontSize-label1: 13px;
+	--vscode-fontSize-label2: 12px;
+	--vscode-fontSize-label3: 11px;
+
+	/* Elevation tiers step up one notch: phone surfaces float more than desktop
+	 * panes, so controls, inner containers, and sheets round accordingly. */
+	--vscode-cornerRadius-xSmall: 6px;
+	--vscode-cornerRadius-small: 10px;
+	--vscode-cornerRadius-medium: 12px;
+	--vscode-cornerRadius-large: 16px;
+	--vscode-cornerRadius-xLarge: 20px;
+
+	/* Phone-only tokens. Surfaces are layered by tint, not separated by lines. */
+	--mobile-surface-page: var(--vscode-agents-background, var(--vscode-editor-background));
+	--mobile-surface-card: var(--vscode-agentsPanel-background, var(--vscode-sideBar-background));
+	--mobile-surface-raised: var(--vscode-editorWidget-background);
+	--mobile-surface-pressed: var(--vscode-toolbar-hoverBackground);
+	--mobile-separator: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
+	--mobile-target: 44px;
+	--mobile-row: 56px;
+	/* A composer control: a 36px round visual inside the 44px target. */
+	--mobile-control: 36px;
+	--mobile-control-fill: color-mix(in srgb, var(--vscode-foreground) 7%, transparent);
+	--mobile-control-glyph: 18px;
+	--mobile-line-height-body: 24px;
+	--mobile-line-height-label: 18px;
+	--mobile-motion-push: 250ms;
+	--mobile-motion-fade: 150ms;
+	--mobile-ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+	background: var(--mobile-surface-page);
+	overscroll-behavior: none;
+	-webkit-tap-highlight-color: transparent;
+	-webkit-text-size-adjust: 100%;
+	font-size: var(--vscode-fontSize-body1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.monaco-workbench.mobile-workbench {
+		--mobile-motion-push: 0ms;
+		--mobile-motion-fade: 0ms;
+	}
+}
+
+/* ---- 2. Touch targets ---------------------------------------------------- */
+
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .action-item > .action-label.separator {
+	min-height: 0;
+	min-width: 1px;
+}
+
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .quick-input-widget .monaco-list-row {
+	min-height: 0;
+}
+
+/* Every tappable control is at least 44px. Icons stay 16px inside the box. The
+ * chat input toolbars were exempted from the shared phone rule for density
+ * (phoneLayout.css); on the phone they are the most-tapped controls in the app,
+ * so the exemption is outranked here by naming the workbench class as well.
+ * Separators are action-bar items too, but not controls: they keep their
+ * hairline. */
+.monaco-workbench.mobile-workbench .action-item > .action-label:not(.separator),
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .chat-input-toolbars .action-item > .action-label:not(.separator),
+.monaco-workbench.agent-sessions-workbench.mobile-workbench .quick-input-widget .action-item > .action-label:not(.separator),
+.monaco-workbench.mobile-workbench .new-chat-bottom-container .action-item > .action-label:not(.separator),
+.monaco-workbench.mobile-workbench .monaco-button,
+.monaco-workbench.mobile-workbench .mobile-session-filter-chip {
+	min-height: var(--mobile-target);
+	min-width: var(--mobile-target);
+	box-sizing: border-box;
+}
+
+.monaco-workbench.mobile-workbench .action-item > .action-label.codicon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.monaco-workbench.mobile-workbench .action-item > .action-label:active,
+.monaco-workbench.mobile-workbench button:active {
+	background-color: var(--mobile-surface-pressed);
+}
+
+/* Dropdown-style pickers (model, mode, repository) read as pills. */
+.monaco-workbench.mobile-workbench .chat-input-toolbars .action-item > .action-label:not(.codicon),
+.monaco-workbench.mobile-workbench .new-chat-bottom-container .sessions-chat-picker-slot,
+.monaco-workbench.mobile-workbench .chat-input-picker-label {
+	font-size: var(--vscode-fontSize-label1);
+	line-height: var(--mobile-line-height-label);
+}
+
+/* Top bar: the title fills the bar, so tapping anywhere on it opens the session
+ * switcher. */
+.monaco-workbench.mobile-workbench .mobile-top-bar .mobile-session-title {
+	height: 100%;
+	min-height: var(--mobile-target);
+}
+
+/* Pills that must stay visually compact (the changes pill in the top bar, the
+ * desktop-web host selector when it renders in a phone layout) keep their size
+ * and grow an invisible 44px-tall hit area instead. The pseudo-element is out
+ * of flow, so layout does not change; taps on it reach the pill. The status
+ * pills under the composer and the place chip on Home use the same move in
+ * `mobileChat.css`. */
+.monaco-workbench.mobile-workbench .mobile-top-bar .mobile-changes-pill,
+.monaco-workbench.mobile-workbench .agent-host-filter-combo .agent-host-filter-dropdown {
+	position: relative;
+}
+
+.monaco-workbench.mobile-workbench .mobile-top-bar .mobile-changes-pill::after,
+.monaco-workbench.mobile-workbench .agent-host-filter-combo .agent-host-filter-dropdown::after {
+	content: '';
+	position: absolute;
+	left: calc(-1 * var(--vscode-spacing-size40));
+	right: calc(-1 * var(--vscode-spacing-size40));
+	top: 50%;
+	height: var(--mobile-target);
+	transform: translateY(-50%);
+}
+
+/* ---- 3. Focus: keyboard only --------------------------------------------- */
+
+.monaco-workbench.mobile-workbench :focus:not(:focus-visible) {
+	outline: none !important;
+}
+
+/* A sheet's search field is a pill; the focus stroke follows the pill, not the
+ * rectangular input inside it (which the workbench's global input rule outlines). */
+.monaco-workbench.mobile-workbench .mobile-picker-sheet-search-input:focus {
+	outline: none;
+}
+
+.monaco-workbench.mobile-workbench .mobile-picker-sheet-search:focus-within {
+	box-shadow: inset 0 0 0 var(--vscode-strokeThickness) var(--vscode-focusBorder);
+}
+
+.monaco-workbench.mobile-workbench .monaco-list:not(.element-focused):focus::before {
+	display: none;
+}
+
+/* ---- 4. Safe areas ------------------------------------------------------- */
+
+.monaco-workbench.mobile-workbench .mobile-top-bar {
+	padding-top: env(safe-area-inset-top);
+	height: calc(48px + env(safe-area-inset-top));
+	min-height: calc(48px + env(safe-area-inset-top));
+	background: var(--mobile-surface-page);
+}
+
+.monaco-workbench.mobile-workbench .interactive-input-part,
+.monaco-workbench.mobile-workbench .new-chat-widget-container .new-chat-bottom-container {
+	padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* ---- 5. Motion ----------------------------------------------------------- */
+
+/* A session surface entering the main area slides in from the trailing edge,
+ * like a pushed screen. Only the first paint animates; relayouts do not. */
+@keyframes mobile-push-in {
+	from { transform: translateX(24px); opacity: 0; }
+	to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes mobile-fade-in {
+	from { opacity: 0; }
+	to { opacity: 1; }
+}
+
+.monaco-workbench.mobile-workbench .part.sessions-part .session-view,
+.monaco-workbench.mobile-workbench .part.sessions-part .chat-view {
+	animation: mobile-push-in var(--mobile-motion-push) var(--mobile-ease-out) both;
+}
+
+.monaco-workbench.mobile-workbench .interactive-item-container {
+	animation: mobile-fade-in var(--mobile-motion-fade) ease-out both;
+}
+
+/* ---- 6. Scroll edges ----------------------------------------------------- */
+
+.monaco-workbench.mobile-workbench .interactive-list,
+.monaco-workbench.mobile-workbench .part.sidebar .monaco-list {
+	mask-image: linear-gradient(to bottom, transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%);
+}
+
+/* Scroll indicators read like the platform's: a thin rounded bar hugging the
+ * edge. The scrollable element sizes its slider inline, hence the overrides. */
+.monaco-workbench.mobile-workbench .monaco-scrollable-element > .scrollbar.vertical > .slider {
+	width: 3px !important;
+	left: auto !important;
+	right: 2px;
+	border-radius: var(--vscode-cornerRadius-circle);
+}
+
+.monaco-workbench.mobile-workbench .monaco-scrollable-element > .scrollbar.horizontal > .slider {
+	height: 3px !important;
+	top: auto !important;
+	bottom: 2px;
+	border-radius: var(--vscode-cornerRadius-circle);
+}
+
+/* ---- 7. Notifications as snackbars --------------------------------------- */
+
+/* Toasts already sit at the top under the safe area (phoneLayout.css). Here
+ * they become snackbars: one raised card per message, entering from the top
+ * edge they are anchored to, with a message clamped to two lines and actions
+ * that are real touch targets. The notification center keeps the full text. */
+
+.monaco-workbench.mobile-workbench > .notifications-toasts .notification-toast-container > .notification-toast {
+	transform: translate3d(0, -16px, 0);
+	transition: transform var(--mobile-motion-push) var(--mobile-ease-out), opacity var(--mobile-motion-fade) ease-out;
+}
+
+.monaco-workbench.mobile-workbench > .notifications-toasts .notification-toast-container > .notification-toast.notification-fade-in {
+	transform: none;
+}
+
+.monaco-workbench.mobile-workbench > .notifications-toasts .notifications-list-container {
+	background: var(--mobile-surface-raised);
+	box-shadow: var(--vscode-shadow-lg);
+}
+
+.monaco-workbench.mobile-workbench .notifications-list-container .notification-list-item {
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
+}
+
+.monaco-workbench.mobile-workbench .notifications-list-container .notification-list-item .notification-list-item-message {
+	font-size: var(--vscode-fontSize-body2);
+	line-height: 20px;
+	display: -webkit-box;
+	-webkit-line-clamp: 2;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+}
+
+.monaco-workbench.mobile-workbench .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .action-label {
+	min-width: var(--mobile-target);
+	min-height: var(--mobile-target);
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.monaco-workbench.mobile-workbench .notifications-list-container .notification-list-item .notification-list-item-buttons-container .monaco-button {
+	min-height: var(--mobile-target);
+	border-radius: var(--vscode-cornerRadius-circle);
+	padding: 0 var(--vscode-spacing-size160);
+}

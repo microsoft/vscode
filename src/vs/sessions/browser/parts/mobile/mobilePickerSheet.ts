@@ -56,7 +56,11 @@ export interface IMobilePickerSheetItem {
 	readonly sectionTitle?: string;
 }
 
+type MobilePickerSheetSelection = string | typeof MOBILE_PICKER_SHEET_CONFIRM | { readonly items: readonly IMobilePickerSheetItem[]; readonly focusItemId?: string } | void;
+
 export interface IMobilePickerSheetOptions {
+	readonly initialFocusItemId?: string;
+	readonly itemProvider?: { readonly onDidChange: Event<void>; readonly getItems: () => readonly IMobilePickerSheetItem[] };
 	/**
 	 * Optional caption shown beneath the title (single-line, muted). Useful
 	 * for explaining what the picker controls (e.g. "Agents are pre-configured
@@ -111,9 +115,10 @@ export interface IMobilePickerSheetOptions {
 	 * tapped row is treated as confirmed: the sheet resolves with that
 	 * row's id and closes immediately.
 	 *
+	 * May await a write or confirmation and return replacement items reflecting the saved state.
 	 * Ignored when `stayOpenOnSelect` is false.
 	 */
-	readonly onDidSelect?: (id: string) => string | typeof MOBILE_PICKER_SHEET_CONFIRM | void;
+	readonly onDidSelect?: (id: string) => MobilePickerSheetSelection | Promise<MobilePickerSheetSelection>;
 
 	/**
 	 * Optional override for the dismiss button label (defaults to "Done").
@@ -121,6 +126,13 @@ export interface IMobilePickerSheetOptions {
 	 * header button is purely a dismiss affordance.
 	 */
 	readonly doneLabel?: string;
+
+	/**
+	 * Dismisses the sheet (resolving with `undefined`) when cancelled.
+	 * Use this when the owner can go away while the sheet is open, e.g.
+	 * a picker whose session is switched or closed underneath it.
+	 */
+	readonly dismissToken?: CancellationToken;
 }
 
 /**
@@ -157,6 +169,10 @@ export interface IMobilePickerSheetSearchSource {
 	readonly ariaLabel?: string;
 	/** Message rendered inside the result list when zero results are returned. */
 	readonly emptyMessage?: string;
+	/** Search results replace the initial rows, including for an empty query. */
+	readonly replaceStaticItems?: boolean;
+	/** Supplies a query setter for an owner that updates an already-open picker. */
+	readonly onDidCreateFilter?: (setFilter: (query: string, focusItemId?: string) => void) => void;
 	/** Loads the result rows for the given query. */
 	loadItems(query: string, token: CancellationToken): Promise<readonly IMobilePickerSheetItem[]>;
 	/**
@@ -282,6 +298,14 @@ export function showMobilePickerSheet(
 		});
 		const { sheet, disposables } = shell;
 
+		if (options?.dismissToken) {
+			if (options.dismissToken.isCancellationRequested) {
+				finish(undefined);
+			} else {
+				disposables.add(options.dismissToken.onCancellationRequested(() => finish(undefined)));
+			}
+		}
+
 		// -- Optional inline search input ------------------------------
 		// Sits between the title row and the scrollable list. Its value
 		// drives `options.search.loadItems` (debounced + cancellable),
@@ -335,13 +359,6 @@ export function showMobilePickerSheet(
 		const list = DOM.append(sheet, $('div.mobile-picker-sheet-list'));
 		list.setAttribute('role', 'list');
 
-		// When `stayOpenOnSelect` is true, row taps call the caller's
-		// `onDidSelect` callback and leave the sheet open. The visual
-		// state (checkmark + aria) is updated immediately so the user
-		// sees which option is now active. Within each section, only
-		// one row can be checked at a time (radio-select semantics).
-		// When false (default), taps resolve the sheet promise and close.
-
 		// Registry of rendered rows keyed by section index, used to
 		// toggle checkmarks within a section on tap.
 		const rowsBySection = new Map<number, IMobilePickerSheetRowRef[]>();
@@ -350,12 +367,28 @@ export function showMobilePickerSheet(
 		// update when onDidSelect returns a drill-down string. Populated
 		// after the search section is created below.
 		let setSearchQuery: ((query: string) => void) | undefined;
+		let selectionPending = false;
+		let itemsChangedWhileSelecting = false;
 
-		const handleRowTap = options?.stayOpenOnSelect && options.onDidSelect
-			? (id: string, _row: HTMLElement, sectionIndex: number) => {
-				// Update visual: uncheck all rows in the same section,
-				// then check the tapped row. Skipped for navigational
-				// rows (drill-down) — they don't carry a radio checkmark.
+		const applySelection = (result: MobilePickerSheetSelection, id: string, sectionIndex: number) => {
+			if (resolved) {
+				return;
+			}
+			if (result === MOBILE_PICKER_SHEET_CONFIRM) {
+				finish(id);
+			} else if (typeof result === 'string' && searchInput && setSearchQuery) {
+				searchInput.value = result;
+				setSearchQuery(result);
+			} else if (result && typeof result === 'object') {
+				itemsChangedWhileSelecting = false;
+				const scrollTop = list.scrollTop;
+				renderStaticItems(result.items);
+				list.scrollTop = scrollTop;
+				focusItem(result.focusItemId ?? id);
+				if (searchInput) {
+					setSearchQuery?.(searchInput.value);
+				}
+			} else {
 				const sectionRows = rowsBySection.get(sectionIndex);
 				const targetEntry = sectionRows?.find(entry => entry.id === id);
 				if (sectionRows && !targetEntry?.navigates) {
@@ -373,12 +406,36 @@ export function showMobilePickerSheet(
 						}
 					}
 				}
-				const selectResult = options.onDidSelect!(id);
-				if (selectResult === MOBILE_PICKER_SHEET_CONFIRM) {
-					finish(id);
-				} else if (typeof selectResult === 'string' && searchInput && setSearchQuery) {
-					searchInput.value = selectResult;
-					setSearchQuery(selectResult);
+			}
+		};
+		const handleRowTap = options?.stayOpenOnSelect && options.onDidSelect
+			? (id: string, _row: HTMLElement, sectionIndex: number) => {
+				if (selectionPending || resolved) {
+					return;
+				}
+				const result = options.onDidSelect!(id);
+				if (result instanceof Promise) {
+					selectionPending = true;
+					list.setAttribute('aria-busy', 'true');
+					const disabledRows = [...rowsBySection.values()].flat().map(entry => ({ row: entry.row, disabled: entry.row.disabled }));
+					for (const { row } of disabledRows) {
+						row.disabled = true;
+					}
+					void result.then(value => applySelection(value, id, sectionIndex)).catch(onUnexpectedError).finally(() => {
+						selectionPending = false;
+						list.removeAttribute('aria-busy');
+						for (const { row, disabled } of disabledRows) {
+							row.disabled = disabled;
+						}
+						if (!resolved && itemsChangedWhileSelecting) {
+							refreshItems();
+						}
+						if (!resolved && _row.isConnected) {
+							_row.focus();
+						}
+					});
+				} else {
+					applySelection(result, id, sectionIndex);
 				}
 			}
 			: (id: string, _row: HTMLElement, _sectionIndex: number) => { finish(id); };
@@ -387,9 +444,50 @@ export function showMobilePickerSheet(
 		// hide them while the user is browsing/searching (a non-empty
 		// query), keeping recents from cluttering search results.
 		const staticContainer = DOM.append(list, $('div.mobile-picker-sheet-static'));
+		const staticRowsStore = disposables.add(new DisposableStore());
 		const renderState: IRenderState = { firstRow: undefined, firstCheckedRow: undefined, sectionCount: 0 };
-		for (const item of items) {
-			renderRow(staticContainer, item, renderState, handleRowTap, disposables, rowsBySection);
+		let searchSectionBase = 1;
+		const renderStaticItems = (nextItems: readonly IMobilePickerSheetItem[]) => {
+			staticRowsStore.clear();
+			DOM.clearNode(staticContainer);
+			rowsBySection.clear();
+			renderState.firstRow = undefined;
+			renderState.firstCheckedRow = undefined;
+			renderState.sectionCount = 0;
+			for (const item of nextItems) {
+				renderRow(staticContainer, item, renderState, handleRowTap, staticRowsStore, rowsBySection);
+			}
+			searchSectionBase = renderState.sectionCount + 1;
+		};
+		const focusItem = (id: string | undefined) => {
+			const row = id ? [...rowsBySection.values()].flat().find(entry => entry.id === id && !entry.row.disabled)?.row : undefined;
+			(row ?? renderState.firstCheckedRow ?? renderState.firstRow)?.focus();
+		};
+		const refreshItems = () => {
+			itemsChangedWhileSelecting = false;
+			if (resolved || !options?.itemProvider) {
+				return;
+			}
+			const focusedId = [...rowsBySection.values()].flat().find(entry => DOM.isActiveElement(entry.row))?.id;
+			const scrollTop = list.scrollTop;
+			renderStaticItems(options.itemProvider.getItems());
+			list.scrollTop = scrollTop;
+			if (focusedId) {
+				focusItem(focusedId);
+			}
+			if (searchInput) {
+				setSearchQuery?.(searchInput.value);
+			}
+		};
+		renderStaticItems(items);
+		if (options?.itemProvider) {
+			disposables.add(options.itemProvider.onDidChange(() => {
+				if (selectionPending) {
+					itemsChangedWhileSelecting = true;
+				} else {
+					refreshItems();
+				}
+			}));
 		}
 
 		// -- Dynamic search results -----------------------------------
@@ -402,7 +500,6 @@ export function showMobilePickerSheet(
 			const resultsContainer = DOM.append(list, $('div.mobile-picker-sheet-search-results'));
 			let currentQueryTokens: CancellationTokenSource | undefined;
 			let debounceTimer: ReturnType<typeof setTimeout> | undefined;
-			const searchSectionBase = renderState.sectionCount + 1;
 			const pruneSearchRows = () => {
 				for (const key of [...rowsBySection.keys()]) {
 					if (key >= searchSectionBase) {
@@ -426,12 +523,15 @@ export function showMobilePickerSheet(
 			};
 			disposables.add(toDisposable(cancelInflight));
 
-			const renderResults = async (query: string): Promise<void> => {
+			const renderResults = async (query: string, focusItemId?: string): Promise<void> => {
+				if (resolved) {
+					return;
+				}
 				cancelInflight();
 				// Recents (static items) are only relevant at the root.
 				// Once the user types or drills into a path, hide them so
 				// the list shows just the search results.
-				staticContainer.style.display = query ? 'none' : '';
+				staticContainer.style.display = query || search.replaceStaticItems ? 'none' : '';
 				const tokens = new CancellationTokenSource();
 				currentQueryTokens = tokens;
 				DOM.clearNode(resultsContainer);
@@ -468,6 +568,15 @@ export function showMobilePickerSheet(
 				for (const item of results) {
 					renderRow(resultsContainer, item, localState, handleRowTap, searchRowsStore, rowsBySection);
 				}
+				if (focusItemId) {
+					for (const [section, rows] of rowsBySection) {
+						const row = section >= searchSectionBase ? rows.find(row => row.id === focusItemId && !row.row.disabled) : undefined;
+						if (row) {
+							row.row.focus();
+							break;
+						}
+					}
+				}
 			};
 
 			// Debounce input changes to avoid hammering the network on
@@ -492,6 +601,12 @@ export function showMobilePickerSheet(
 			// Expose a programmatic setter so handleRowTap can drive
 			// drill-down navigation when onDidSelect returns a string.
 			setSearchQuery = (query: string) => renderResults(query);
+			search.onDidCreateFilter?.((query, focusItemId) => {
+				if (!resolved) {
+					searchInput!.value = query;
+					void renderResults(query, focusItemId);
+				}
+			});
 		}
 
 		// Focus the search input if present, otherwise focus the first
@@ -499,7 +614,7 @@ export function showMobilePickerSheet(
 		if (searchInput) {
 			searchInput.focus();
 		} else {
-			(renderState.firstCheckedRow ?? renderState.firstRow)?.focus();
+			focusItem(options?.initialFocusItemId);
 		}
 	});
 }

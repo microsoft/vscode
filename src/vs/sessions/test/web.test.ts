@@ -22,20 +22,19 @@ import { URI } from '../../base/common/uri.js';
 import { Disposable } from '../../base/common/lifecycle.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../workbench/common/contributions.js';
 import { IChatProgress } from '../../workbench/contrib/chat/common/chatService/chatService.js';
-import { IChatSessionsService, IChatSessionItem, IChatSessionFileChange, ChatSessionStatus, IChatSessionHistoryItem, IChatSessionItemsDelta } from '../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IChatSessionsService, IChatSessionItem, IChatSessionFileChange, ChatSessionStatus, IChatSessionHistoryItem, IChatSessionItemsDelta, IChatSessionProviderOptionItem } from '../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IGitService, IGitExtensionDelegate, IGitRepository } from '../../workbench/contrib/git/common/gitService.js';
 import { IFileService } from '../../platform/files/common/files.js';
-import { ITerminalService } from '../../workbench/contrib/terminal/browser/terminal.js';
-import { ITerminalBackend, ITerminalBackendRegistry, IProcessReadyEvent, IProcessProperty, ProcessPropertyType, TerminalExtensions, ITerminalProcessOptions, IShellLaunchConfig } from '../../platform/terminal/common/terminal.js';
-import { IProcessEnvironment } from '../../base/common/platform.js';
-import { Registry } from '../../platform/registry/common/platform.js';
 import { InMemoryFileSystemProvider } from '../../platform/files/common/inMemoryFilesystemProvider.js';
 import { VSBuffer } from '../../base/common/buffer.js';
 import { SyncDescriptor } from '../../platform/instantiation/common/descriptors.js';
 import { getSingletonServiceDescriptors } from '../../platform/instantiation/common/extensions.js';
 import { ServiceIdentifier } from '../../platform/instantiation/common/instantiation.js';
-import { IWorkbench } from '../../workbench/browser/web.api.js';
+import { IWorkbench, IWorkbenchConstructionOptions } from '../../workbench/browser/web.api.js';
 import { isEqual } from '../../base/common/resources.js';
+import { SessionsWorkbenchFactory } from '../browser/workbenchFactory.js';
+import { IAgentHostFilterService } from '../services/agentHostFilter/common/agentHostFilter.js';
+import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../workbench/contrib/chat/common/languageModels.js';
 
 /**
  * Mock files pre-seeded in the in-memory file system. These match the
@@ -259,13 +258,11 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 	constructor(
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
-		@ITerminalService private readonly terminalService: ITerminalService,
 	) {
 		super();
 		this._register(this._itemsChangedEmitter);
 		this.registerMockAgents();
 		this.registerMockSessionProvider();
-		this.registerMockTerminalBackend();
 	}
 
 	/**
@@ -433,100 +430,118 @@ class MockChatAgentContribution extends Disposable implements IWorkbenchContribu
 				console.warn(`[Sessions Web Test] Failed to register session provider for ${scheme}:`, err);
 			}
 		}
+
+		// Cloud sessions take their model list from the provider's `models`
+		// option group rather than from registered language models; without it
+		// the composer reports "No models available" and cannot send.
+		const mockModel: IChatSessionProviderOptionItem = { id: 'mock-gpt', name: 'Mock GPT', default: true };
+		this.chatSessionsService.setOptionGroupsForSessionType('copilot-cloud-agent', 0, [{
+			id: 'models',
+			name: 'Models',
+			selected: mockModel,
+			items: [mockModel, { id: 'mock-gpt-mini', name: 'Mock GPT Mini' }],
+		}]);
 	}
-
-	private registerMockTerminalBackend(): void {
-		const terminalService = this.terminalService;
-		const backend = this.createMockTerminalBackend();
-		Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).registerTerminalBackend(backend);
-		terminalService.registerProcessSupport(true);
-		console.log('[Sessions Web Test] Registered mock terminal backend');
-	}
-
-	private createMockTerminalBackend(): ITerminalBackend {
-		return {
-			remoteAuthority: undefined,
-			isVirtualProcess: false,
-			isResponsive: true,
-			whenReady: Promise.resolve(),
-			setReady: () => { },
-			onDidRequestDetach: Event.None,
-			attachToProcess: async () => { throw new Error('Not supported'); },
-			attachToRevivedProcess: async () => { throw new Error('Not supported'); },
-			listProcesses: async () => [],
-			getProfiles: async () => [],
-			getDefaultProfile: async () => undefined,
-			getDefaultSystemShell: async () => '/bin/mock-shell',
-			getShellEnvironment: async () => ({}),
-			setTerminalLayoutInfo: async () => { },
-			getTerminalLayoutInfo: async () => undefined,
-			reduceConnectionGraceTime: () => { },
-			requestDetachInstance: () => { },
-			acceptDetachInstanceReply: () => { },
-			persistTerminalState: () => { },
-			createProcess: async (_shellLaunchConfig: IShellLaunchConfig, _cwd: string | URI, _cols: number, _rows: number, _unicodeVersion: string, _env: IProcessEnvironment, _options: ITerminalProcessOptions, _shouldPersist: boolean) => {
-				const onProcessData = new Emitter<string>();
-				const onProcessReady = new Emitter<IProcessReadyEvent>();
-				const onProcessExit = new Emitter<number | undefined>();
-				const onDidChangeHasChildProcesses = new Emitter<boolean>();
-				const onDidChangeProperty = new Emitter<IProcessProperty<ProcessPropertyType>>();
-
-				// Resolve cwd from createProcess arg or shellLaunchConfig
-				const rawCwd = _cwd || _shellLaunchConfig.cwd;
-				const cwd = !rawCwd ? '/' : typeof rawCwd === 'string' ? rawCwd : rawCwd.path;
-				console.log(`[Sessions Web Test] Mock terminal createProcess cwd: '${cwd}' (raw _cwd: '${_cwd}', slc.cwd: '${_shellLaunchConfig.cwd}')`);
-
-				// Fire ready after a microtask so the terminal service can wire up listeners
-				setTimeout(() => {
-					onProcessReady.fire({ pid: 1, cwd, windowsPty: undefined });
-				}, 0);
-
-				return {
-					id: 0,
-					shouldPersist: false,
-					onProcessData: onProcessData.event,
-					onProcessReady: onProcessReady.event,
-					onDidChangeHasChildProcesses: onDidChangeHasChildProcesses.event,
-					onDidChangeProperty: onDidChangeProperty.event,
-					onProcessExit: onProcessExit.event,
-					start: async () => undefined,
-					shutdown: async () => { },
-					input: async () => { },
-					resize: () => { },
-					clearBuffer: () => { },
-					acknowledgeDataEvent: () => { },
-					setUnicodeVersion: async () => { },
-					getInitialCwd: async () => cwd,
-					getCwd: async () => cwd,
-					getLatency: async () => [],
-					processBinary: async () => { },
-					refreshProperty: async (property: ProcessPropertyType) => { throw new Error(`Not supported: ${property}`); },
-					updateProperty: async () => { },
-					clearUnrespondedRequest: () => { },
-				};
-			},
-			getWslPath: async (original: string, _direction: 'unix-to-win' | 'win-to-unix') => original,
-			getEnvironment: async () => ({}),
-			getLatency: async () => [],
-			getPerformanceMarks: () => [],
-			updateTitle: async () => { },
-			updateIcon: async () => { },
-			setNextCommandId: async () => { },
-			restartPtyHost: () => { },
-			installAutoReply: async () => { },
-			uninstallAllAutoReplies: async () => { },
-			onPtyHostUnresponsive: Event.None,
-			onPtyHostResponsive: Event.None,
-			onPtyHostRestart: Event.None,
-			onPtyHostConnected: Event.None,
-		} as unknown as ITerminalBackend;
-	}
-
-
 }
 
 // Register the contribution so it runs during workbench startup
 registerWorkbenchContribution2(MockChatAgentContribution.ID, MockChatAgentContribution, WorkbenchPhase.BlockStartup);
+
+// ---------------------------------------------------------------------------
+// MockAgentHostGroupContribution — the web composer hides behind a "connect a
+// host" empty state until at least one agent host is known. Declare a mock
+// host that creates sessions through the mock Copilot provider so the E2E
+// harness reaches the composer without a tunnel.
+// ---------------------------------------------------------------------------
+
+class MockAgentHostGroupContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'sessions.test.mockAgentHostGroup';
+
+	constructor(
+		@IAgentHostFilterService agentHostFilterService: IAgentHostFilterService,
+	) {
+		super();
+		this._register(agentHostFilterService.registerHostGroup({
+			id: 'mock-host',
+			label: 'Mock Host',
+			connectable: false,
+			sessionCreationProviderId: 'default-copilot',
+		}));
+		console.log('[Sessions Web Test] Registered mock agent host group');
+	}
+}
+
+registerWorkbenchContribution2(MockAgentHostGroupContribution.ID, MockAgentHostGroupContribution, WorkbenchPhase.BlockStartup);
+
+// ---------------------------------------------------------------------------
+// MockLanguageModelContribution — the composer's Send button stays disabled
+// until a user-selectable model exists. Register a mock vendor and one model
+// that streams a canned reply.
+// ---------------------------------------------------------------------------
+
+class MockLanguageModelContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'sessions.test.mockLanguageModel';
+
+	constructor(
+		@ILanguageModelsService languageModelsService: ILanguageModelsService,
+	) {
+		super();
+
+		const vendor = 'mock-vendor';
+		const metadata: ILanguageModelChatMetadata = {
+			extension: new ExtensionIdentifier('vscode.sessions-e2e-mock'),
+			name: 'Mock GPT',
+			id: 'mock-gpt',
+			vendor,
+			version: '1.0',
+			family: 'mock',
+			maxInputTokens: 128000,
+			maxOutputTokens: 8192,
+			isDefaultForLocation: { [ChatAgentLocation.Chat]: true },
+			isUserSelectable: true,
+			capabilities: { agentMode: true, toolCalling: true, vision: false },
+			// Expose a reasoning-effort setting so the model picker (and the
+			// phone's Configure Session sheet) show a Thinking section.
+			configurationSchema: {
+				type: 'object',
+				properties: {
+					reasoningEffort: {
+						type: 'string',
+						group: 'navigation',
+						enum: ['low', 'medium', 'high'],
+						enumItemLabels: ['Low', 'Medium', 'High'],
+						default: 'medium',
+						description: 'How much reasoning the mock model does before answering.',
+					},
+				},
+			},
+		};
+
+		languageModelsService.deltaLanguageModelChatProviderDescriptors([{ vendor, displayName: 'Mock Vendor', configuration: undefined, managementCommand: undefined, when: undefined }], []);
+		// Models are resolved when the provider reports a change, not when it
+		// registers, so announce once after registering or the picker stays empty.
+		const onDidChange = this._register(new Emitter<void>());
+		this._register(languageModelsService.registerLanguageModelProvider(vendor, {
+			onDidChange: onDidChange.event,
+			provideLanguageModelChatInfo: async () => [{ metadata, identifier: `${vendor}/${metadata.id}` }],
+			sendChatRequest: async () => ({
+				stream: (async function* () {
+					yield { type: 'text', value: 'This is a mock model response.' } as const;
+				})(),
+				result: Promise.resolve(undefined),
+			}),
+			provideTokenCount: async (_modelId, message) => (typeof message === 'string' ? message : JSON.stringify(message)).length / 4,
+		}));
+		onDidChange.fire();
+		void languageModelsService.selectLanguageModels({ vendor }).then(ids => {
+			console.log(`[Sessions Web Test] Registered mock language model; resolved ${ids.length} model(s): ${ids.join(', ')}; known ids: ${languageModelsService.getLanguageModelIds().join(', ')}`);
+		});
+	}
+}
+
+registerWorkbenchContribution2(MockLanguageModelContribution.ID, MockLanguageModelContribution, WorkbenchPhase.BlockStartup);
 
 // ---------------------------------------------------------------------------
 // MockGitService — resolves immediately instead of waiting 10s for delegate
@@ -553,6 +568,19 @@ class MockGitService implements IGitService {
 export class TestSessionsBrowserMain extends SessionsBrowserMain {
 
 	private _savedDescriptors: [ServiceIdentifier<any>, SyncDescriptor<any>][] = [];
+
+	/**
+	 * @param workbenchFactory Creates the workbench under test. Defaults to the
+	 * classic desktop workbench (never the single-pane variant) so existing E2E
+	 * scenarios keep their layout; the mobile test entry passes the mobile factory.
+	 */
+	constructor(
+		domElement: HTMLElement,
+		configuration: IWorkbenchConstructionOptions,
+		workbenchFactory: SessionsWorkbenchFactory = (parent, options, serviceCollection, logService) => new SessionsWorkbench(parent, options, serviceCollection, logService),
+	) {
+		super(domElement, configuration, workbenchFactory);
+	}
 
 	override async open(): Promise<IWorkbench> {
 		// Patch the global singleton registry BEFORE super.open() calls initServices().
@@ -590,10 +618,17 @@ export class TestSessionsBrowserMain extends SessionsBrowserMain {
 
 	private preseedFolder(storageService: IStorageService): void {
 		const mockFolderUri = URI.from({ scheme: 'mock-fs', authority: 'mock-repo', path: '/mock-repo' });
+		// The Copilot provider only resolves `file:` and GitHub workspaces, so also
+		// seed a GitHub-shaped repository the web picker can list and create a
+		// cloud session for.
+		const mockGitHubRepoUri = URI.from({ scheme: 'github-remote-file', authority: 'github', path: '/mock-owner/mock-repo/HEAD' });
 		const providerId = 'default-copilot';
 
 		// Seed recent workspaces so resolveWorkspace() can hydrate the selection
-		const recentWorkspaces = JSON.stringify([{ uri: mockFolderUri.toJSON(), providerId, checked: true }]);
+		const recentWorkspaces = JSON.stringify([
+			{ uri: mockFolderUri.toJSON(), providerId, checked: true },
+			{ uri: mockGitHubRepoUri.toJSON(), providerId, checked: false },
+		]);
 		storageService.store('sessions.recentlyPickedWorkspaces', recentWorkspaces, StorageScope.PROFILE, StorageTarget.MACHINE);
 
 		console.log(`[Sessions Web Test] Pre-seeded folder: ${mockFolderUri.toString()}`);
@@ -605,6 +640,6 @@ export class TestSessionsBrowserMain extends SessionsBrowserMain {
 
 		this.preseedFolder(serviceCollection.get(IStorageService) as IStorageService);
 
-		return new SessionsWorkbench(domElement, undefined, serviceCollection, logService);
+		return super.createWorkbench(domElement, serviceCollection, logService);
 	}
 }

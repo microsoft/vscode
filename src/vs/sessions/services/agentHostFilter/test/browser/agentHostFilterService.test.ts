@@ -621,6 +621,34 @@ suite('AgentHostFilterService', () => {
 		});
 	});
 
+	test('a place that starts its own sessions does not displace the full workbench default', () => {
+		const providers = new StubSessionsProvidersService();
+		store.add(providers.registerProvider(new StubRemoteProvider('localhost:4321', 'Host A') as unknown as ISessionsProvider));
+		const service = createService(providers);
+		assert.strictEqual(service.selectedHostId, isWeb ? pid('localhost:4321') : undefined);
+
+		const registration = store.add(service.registerHostGroup({ ...SANDBOX_GROUP_UNRANKED, sessionCreationProviderId: 'sandbox-creation' }));
+		const automatic = service.selectedHostId;
+
+		store.add(providers.registerProvider(new StubRemoteProvider('localhost:9999', 'Host B') as unknown as ISessionsProvider));
+		const afterHostB = service.selectedHostId;
+
+		registration.dispose();
+		assert.deepStrictEqual({ automatic, afterHostB, afterUndeclared: service.selectedHostId }, isWeb
+			? { automatic: pid('localhost:4321'), afterHostB: pid('localhost:4321'), afterUndeclared: pid('localhost:4321') }
+			: { automatic: undefined, afterHostB: undefined, afterUndeclared: undefined });
+	});
+
+	test('an explicit computer choice is kept when the self-starting place appears', () => {
+		const providers = new StubSessionsProvidersService();
+		store.add(providers.registerProvider(new StubRemoteProvider('localhost:4321', 'Host A') as unknown as ISessionsProvider));
+		const service = createService(providers);
+		service.setSelectedHostId(pid('localhost:4321'));
+
+		store.add(service.registerHostGroup({ ...SANDBOX_GROUP, sessionCreationProviderId: 'sandbox-creation' }));
+		assert.strictEqual(service.selectedHostId, isWeb ? pid('localhost:4321') : undefined);
+	});
+
 	test('an empty declared group is never the automatic selection', () => {
 		const providers = new StubSessionsProvidersService();
 		store.add(providers.registerProvider(new StubRemoteProvider('localhost:4321', 'Host A') as unknown as ISessionsProvider));

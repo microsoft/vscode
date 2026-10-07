@@ -32,6 +32,8 @@ export interface IModelPickerPresentationOptions {
 }
 
 export interface IModelPickerDelegate {
+	/** May handle presentation or request the action widget instead of the tabbed popup. */
+	showPicker?(anchor: HTMLElement, configuration: boolean, available: boolean): boolean | 'actionWidget';
 	readonly workflow?: IModelPickerWorkflow;
 	readonly currentModel: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined>;
 	setModel(model: ILanguageModelChatMetadataAndIdentifier): void;

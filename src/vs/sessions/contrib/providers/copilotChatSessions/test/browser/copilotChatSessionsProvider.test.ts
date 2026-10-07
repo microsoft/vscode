@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as dom from '../../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../../base/browser/window.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
@@ -17,6 +19,7 @@ import { isWeb } from '../../../../../../base/common/platform.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { autorun, constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -25,6 +28,9 @@ import { IFileDialogService } from '../../../../../../platform/dialogs/common/di
 import { FileOperationError, FileOperationResult, IFileContent, IFileService, IFileStatWithPartialMetadata } from '../../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { ILayoutService } from '../../../../../../platform/layout/browser/layoutService.js';
+import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
+import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { TestStorageService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
@@ -66,6 +72,9 @@ import { CloudSandboxModels } from '../../../../../../workbench/contrib/chat/bro
 import { createCloudSandboxSessionConfig } from '../../browser/cloudSandboxSessionConfig.js';
 import { AutomationModelConfiguration } from '../../../../automations/browser/automationModelConfiguration.js';
 import { validateSessionConfigWrite } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
+import { DefaultSessionsPresentation, ISessionsPresentation } from '../../../../../services/presentation/browser/sessionsPresentation.js';
+import { IAgentHostFilterService } from '../../../../../services/agentHostFilter/common/agentHostFilter.js';
+import { MobileSessionsPresentation } from '../../../../mobile/browser/mobileSessionsPresentation.js';
 
 // ---- Helpers ----------------------------------------------------------------
 
@@ -205,6 +214,8 @@ interface ICreateProviderOptions {
 	readonly consolidatedRemoteWorkspaces?: boolean;
 	readonly commandService?: ICommandService;
 	readonly repositoryPicker?: Pick<RepositoryPicker, 'pickRepository' | 'dispose'>;
+	readonly sessionsPresentation?: ISessionsPresentation;
+	readonly quickInputService?: IQuickInputService;
 	readonly notificationErrors?: string[];
 	readonly getOptionGroups?: () => IChatSessionProviderOptionGroup[] | undefined;
 	readonly languageModelsService?: Partial<ILanguageModelsService>;
@@ -327,6 +338,10 @@ function createProviderWithConfig(
 	instantiationService.stub(ILogService, opts?.logService ?? new NullLogService());
 	instantiationService.stub(IContextKeyService, disposables.add(new MockContextKeyService()));
 	instantiationService.stub(IStorageService, opts?.storageService ?? disposables.add(new TestStorageService()));
+	instantiationService.stub(ISessionsPresentation, opts?.sessionsPresentation ?? new DefaultSessionsPresentation());
+	if (opts?.quickInputService) {
+		instantiationService.stub(IQuickInputService, opts.quickInputService);
+	}
 	instantiationService.stub(IFileDialogService, {});
 	instantiationService.stub(ICommandService, opts?.commandService ?? { executeCommand: async () => undefined });
 	instantiationService.stub(IAgentSessionsService, {
@@ -417,6 +432,7 @@ function createProviderForSendTests(
 	instantiationService.stub(ILogService, NullLogService);
 	instantiationService.stub(IConfigurationService, configService);
 	instantiationService.stub(IStorageService, opts?.storageService ?? disposables.add(new TestStorageService()));
+	instantiationService.stub(ISessionsPresentation, new DefaultSessionsPresentation());
 	instantiationService.stub(IFileDialogService, {});
 	instantiationService.stub(ICommandService, { executeCommand: async () => undefined });
 	instantiationService.stub(IAgentSessionsService, {
@@ -681,6 +697,7 @@ suite('CopilotChatSessionsProvider', () => {
 			gitHubService,
 			repositoryPicker: {
 				pickRepository: async (getRepositories, _options, token) => {
+					assert.strictEqual(_options, undefined);
 					steps.push('picker');
 					const repositories = await getRepositories('https://github.com/microsoft/vscode.git', token ?? CancellationToken.None);
 					return { repository: repositories[0] };
@@ -694,6 +711,145 @@ suite('CopilotChatSessionsProvider', () => {
 			steps: ['authenticate', 'picker', 'search:microsoft/vscode', 'dispose'],
 			uri: 'https://github.com/microsoft/vscode',
 		});
+	});
+
+	function createMobileRepositoryPresentation() {
+		const container = dom.append(mainWindow.document.body, dom.$('div'));
+		disposables.add(toDisposable(() => container.remove()));
+		let quickPickCalls = 0;
+		const quickInputService = new class extends mock<IQuickInputService>() {
+			override createQuickPick(): never {
+				quickPickCalls++;
+				throw new Error('The mobile repository picker must not create a desktop quick pick');
+			}
+		}();
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IInstantiationService, instantiationService);
+		instantiationService.stub(ILayoutService, { mainContainer: container });
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IQuickInputService, quickInputService);
+		instantiationService.stub(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() { }());
+		instantiationService.stub(ITextModelService, new class extends mock<ITextModelService>() { }());
+		const sessionsPresentation = disposables.add(instantiationService.createInstance(MobileSessionsPresentation));
+		return { container, sessionsPresentation, quickInputService, getQuickPickCalls: () => quickPickCalls };
+	}
+
+	for (const providerMode of ['default', 'sandbox'] as const) {
+		(isWeb ? test : test.skip)(`uses the entry-owned repository sheet without creating quick input (${providerMode})`, async () => {
+			await runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const mobile = createMobileRepositoryPresentation();
+				const steps: string[] = [];
+				const gitHubService = new class extends TestGitHubService {
+					override async authenticateForRepositoryAccess(): Promise<void> {
+						steps.push('authenticate');
+					}
+					override async getRepositories(query: string): Promise<readonly IGitHubRepository[]> {
+						steps.push(`search:${query}`);
+						return [{ owner: 'Mixed.Owner', name: 'Some-Repo', fullName: 'Mixed.Owner/Some-Repo', defaultBranch: 'main', isPrivate: true, description: '' }];
+					}
+				}();
+				const errors: string[] = [];
+				const provider = createProvider(disposables, model, {
+					providerMode, gitHubService, notificationErrors: errors, ...mobile,
+				});
+				const selected = provider.browseActions[0].run();
+				await timeout(1);
+				const input = mobile.container.querySelector<HTMLInputElement>('.mobile-picker-sheet-search-input')!;
+				input.value = 'https://github.com/Mixed.Owner/Some-Repo.git';
+				input.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+				await timeout(301);
+				const row = mobile.container.querySelector<HTMLButtonElement>('.mobile-picker-sheet-item')!;
+				const label = row.textContent;
+				row.click();
+				const workspace = await selected;
+				assert.deepStrictEqual({
+					steps, label, errors, quickPickCalls: mobile.getQuickPickCalls(),
+					uri: workspace?.uri.toString(), root: workspace?.folders[0].root.toString(),
+				}, {
+					steps: ['authenticate', 'search:', 'search:Mixed.Owner/Some-Repo'],
+					label: 'Mixed.Owner/Some-Repo', errors: [], quickPickCalls: 0,
+					uri: 'https://github.com/Mixed.Owner/Some-Repo',
+					root: 'github-remote-file://github/Mixed.Owner/Some-Repo/HEAD',
+				});
+			});
+		});
+	}
+
+	for (const disposeProvider of [false, true]) {
+		(isWeb ? test : test.skip)(`cancelling the entry-owned repository sheet does not fall back to quick input (dispose provider: ${disposeProvider})`, async () => {
+			await runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const mobile = createMobileRepositoryPresentation();
+				const repository = new DeferredPromise<readonly IGitHubRepository[]>();
+				let requestToken = CancellationToken.None;
+				const gitHubService = new class extends TestGitHubService {
+					override getRepositories(_query: string, token: CancellationToken): Promise<readonly IGitHubRepository[]> {
+						requestToken = token;
+						return repository.p;
+					}
+				}();
+				const provider = createProvider(disposables, model, { gitHubService, ...mobile });
+				const selected = provider.browseActions[0].run();
+				await timeout(1);
+				if (disposeProvider) {
+					provider.dispose();
+				} else {
+					mobile.container.querySelector<HTMLButtonElement>('.mobile-picker-sheet-done')!.click();
+				}
+				const workspace = await selected;
+				await repository.complete([]);
+				assert.deepStrictEqual({
+					workspace, cancelled: requestToken.isCancellationRequested, quickPickCalls: mobile.getQuickPickCalls(),
+					open: !!mobile.container.querySelector('.mobile-picker-sheet'),
+				}, { workspace: undefined, cancelled: true, quickPickCalls: 0, open: false });
+			});
+		});
+	}
+
+	for (const changesWhilePicking of [false, true]) {
+		(isWeb ? test : test.skip)(`keeps enterprise-host validation around the entry-owned repository sheet (changes during picker: ${changesWhilePicking})`, async () => {
+			await runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const mobile = createMobileRepositoryPresentation();
+				const gitHubService = new class extends TestGitHubService {
+					override async getRepositories(): Promise<readonly IGitHubRepository[]> {
+						return [{ owner: 'owner', name: 'repo', fullName: 'owner/repo', defaultBranch: 'main', isPrivate: true, description: '' }];
+					}
+				}();
+				gitHubService.enterpriseHost = changesWhilePicking ? undefined : 'example.ghe.com';
+				const errors: string[] = [];
+				const provider = createProvider(disposables, model, { gitHubService, notificationErrors: errors, ...mobile });
+				const selected = provider.browseActions[0].run();
+				await timeout(1);
+				const opened = !!mobile.container.querySelector('.mobile-picker-sheet');
+				if (changesWhilePicking) {
+					gitHubService.enterpriseHost = 'example.ghe.com';
+					mobile.container.querySelector<HTMLButtonElement>('.mobile-picker-sheet-item')!.click();
+				}
+				assert.deepStrictEqual({
+					workspace: await selected, opened, errors, quickPickCalls: mobile.getQuickPickCalls(),
+				}, {
+					workspace: undefined, opened: changesWhilePicking, quickPickCalls: 0,
+					errors: ['Error: This picker supports github.com repositories only. Switch to a github.com account, then try again.'],
+				});
+			});
+		});
+	}
+
+	(isWeb ? test : test.skip)('provider disposal during authentication never opens the entry-owned repository sheet', async () => {
+		const mobile = createMobileRepositoryPresentation();
+		const authentication = new DeferredPromise<void>();
+		const gitHubService = new class extends TestGitHubService {
+			override authenticateForRepositoryAccess(): Promise<void> {
+				return authentication.p;
+			}
+		}();
+		const provider = createProvider(disposables, model, { gitHubService, ...mobile });
+		const selected = provider.browseActions[0].run();
+		provider.dispose();
+		const workspace = await selected;
+		await authentication.complete();
+		assert.deepStrictEqual({
+			workspace, open: !!mobile.container.querySelector('.mobile-picker-sheet'), quickPickCalls: mobile.getQuickPickCalls(),
+		}, { workspace: undefined, open: false, quickPickCalls: 0 });
 	});
 
 	for (const changesWhilePicking of [false, true]) {
