@@ -33,6 +33,9 @@ new RuleTester({ languageOptions: { parser: tseslint.parser } }).run('code-no-sy
 		`let a = b; let b = a; a();`,
 		`import * as pfs from './other/pfs.js'; pfs.computeSync();`,
 		`import { readFileSync } from 'unrelated/pfs'; readFileSync();`,
+		`import fs from 'fs'; const read = fs.readFileSync.bind(fs);`,
+		`import fs from 'fs'; const read = fs.readFileSync.bind(fs).bind(null);`,
+		`import fs from 'fs'; const read = fs.readFile.bind(fs); read('file', () => {});`,
 	],
 	invalid: [
 		...Object.entries(fs).filter(([name, value]) => name.endsWith('Sync') && typeof value === 'function').map(([name]) => ({
@@ -59,6 +62,22 @@ new RuleTester({ languageOptions: { parser: tseslint.parser } }).run('code-no-sy
 		{ code: `const module = (await import(\`\${'module'}\`)).default; const load = module.createRequire(import.meta.url); const fs = load('fs'); fs.readFileSync('file');`, errors: errors('readFileSync') },
 		{ code: `let fs; fs = require('fs'); fs.statSync('file');`, errors: errors('statSync') },
 		{ code: `import fs from 'fs'; let read; read = fs.readFileSync; read('file');`, errors: errors('readFileSync') },
+		{
+			code: `import fs from 'fs';\nconst read = fs.readFileSync.bind(fs);\nread('file');`,
+			errors: [{ messageId: 'syncFs', data: { name: 'readFileSync' }, line: 3, column: 1 }],
+		},
+		{
+			code: `import fs from 'fs';\nconst read = fs.readFileSync.bind(fs);\nconst alias = read;\nalias('file');`,
+			errors: [{ messageId: 'syncFs', data: { name: 'readFileSync' }, line: 4, column: 1 }],
+		},
+		{
+			code: `import fs from 'fs';\nfs.readFileSync.bind(fs)('file');`,
+			errors: [{ messageId: 'syncFs', data: { name: 'readFileSync' }, line: 2, column: 1 }],
+		},
+		{
+			code: `import fs from 'fs';\nconst read = fs.readFileSync.bind(fs).bind(null);\nread.apply(null, ['file']);`,
+			errors: [{ messageId: 'syncFs', data: { name: 'readFileSync' }, line: 3, column: 1 }],
+		},
 	],
 });
 

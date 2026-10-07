@@ -11,7 +11,7 @@ import { dirname, resolve } from 'path';
 const repositoryRoot = resolve(import.meta.dirname, '..');
 const pfsModule = resolve(repositoryRoot, 'src/vs/base/node/pfs');
 
-type Binding = { kind: 'fs' | 'module' | 'requireFactory' | 'require' } | { kind: 'sync'; name: string };
+type Binding = { kind: 'fs' | 'module' | 'requireFactory' | 'require' } | { kind: 'sync' | 'syncBind'; name: string };
 
 function propertyName(node: TSESTree.Node): string | undefined {
 	return node.type === 'Identifier' ? node.name : node.type === 'Literal' && typeof node.value === 'string' ? node.value : undefined;
@@ -40,7 +40,10 @@ function memberBinding(binding: Binding | undefined, name: string | undefined): 
 	if (binding?.kind === 'fs' && name?.endsWith('Sync')) {
 		return { kind: 'sync', name };
 	}
-	if (name === 'default' || (binding?.kind === 'sync' && ['native', 'call', 'apply', 'bind'].includes(name ?? ''))) {
+	if (binding?.kind === 'sync' && name === 'bind') {
+		return { kind: 'syncBind', name: binding.name };
+	}
+	if (name === 'default' || (binding?.kind === 'sync' && ['native', 'call', 'apply'].includes(name ?? ''))) {
 		return binding;
 	}
 	return binding?.kind === 'module' && name === 'createRequire' ? { kind: 'requireFactory' } : undefined;
@@ -116,6 +119,9 @@ export default new class implements eslint.Rule.RuleModule {
 					return memberBinding(resolveBinding(node.object, visited), node.computed && node.property.type !== 'Literal' ? undefined : propertyName(node.property));
 				case 'CallExpression': {
 					const callee = resolveBinding(node.callee, visited);
+					if (callee?.kind === 'syncBind') {
+						return { kind: 'sync', name: callee.name };
+					}
 					if (callee?.kind === 'requireFactory') {
 						return { kind: 'require' };
 					}

@@ -178,11 +178,11 @@ export function markNodeCompileCacheReady(log?: (message: string) => void): void
 }
 
 export async function waitForNodeCompileCacheReady(): Promise<void> {
+	const { Promises } = await import('./pfs.js');
 	const pendingKinds = new Set(nodeCompileCacheKinds);
 	while (pendingKinds.size > 0) {
 		for (const kind of pendingKinds) {
-			// eslint-disable-next-line local/code-no-sync-fs -- This poll runs only while generating the compile cache and waiting for child readiness, not in interactive product operation.
-			if (fs.existsSync(getNodeCompileCacheReadyMarkerPath(kind))) {
+			if (await Promises.exists(getNodeCompileCacheReadyMarkerPath(kind))) {
 				pendingKinds.delete(kind);
 			}
 		}
