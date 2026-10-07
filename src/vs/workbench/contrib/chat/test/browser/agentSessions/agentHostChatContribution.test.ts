@@ -1678,6 +1678,62 @@ suite('AgentHostChatContribution', () => {
 			});
 		}
 
+		for (const selectedOption of [
+			{ id: 'choice-once', kind: ConfirmationOptionKind.Approve },
+			{ id: 'choice-session', kind: ConfirmationOptionKind.Approve },
+			{ id: 'choice-deny', kind: ConfirmationOptionKind.Deny },
+		]) {
+			test(`native file approval forwards ${selectedOption.id} through the wire`, async () => {
+				const { startRequest, fire, peer, echo, chatUri } = await openWireSession();
+				const { turnId, progress, finish } = await startRequest();
+				const options = [
+					{ id: 'choice-once', label: 'Apply Once', kind: ConfirmationOptionKind.Approve },
+					{ id: 'choice-session', label: 'Apply for This Session', kind: ConfirmationOptionKind.Approve },
+					{ id: 'choice-deny', label: 'Reject Change', kind: ConfirmationOptionKind.Deny },
+				];
+				fire({ type: ActionType.ChatToolCallStart, turnId, toolCallId: 'file-approval', toolName: 'apply_change', displayName: 'Apply Change' });
+				fire({
+					type: ActionType.ChatToolCallReady, turnId, toolCallId: 'file-approval',
+					invocationMessage: 'Edit example.ts', confirmationTitle: 'Edit example.ts', options,
+					edits: {
+						items: [{
+							before: { uri: 'file:///workspace/example.ts', content: { uri: 'preview:/before' } },
+							after: { uri: 'file:///workspace/example.ts', content: { uri: 'preview:/after' } },
+						}],
+					},
+				});
+				const invocation = progress.find((part): part is IChatToolInvocation => part.kind === 'toolInvocation');
+				assert.ok(invocation);
+				const confirmation = peer.nextDispatch(ActionType.ChatToolCallConfirmed);
+				IChatToolInvocation.confirmWith(invocation, {
+					type: ToolConfirmKind.UserAction,
+					selectedButton: selectedOption.id,
+					selectedButtonKind: selectedOption.kind,
+				});
+				const sent = await confirmation;
+				echo(sent);
+				const approved = selectedOption.kind === ConfirmationOptionKind.Approve;
+				if (approved) {
+					fire({ type: ActionType.ChatToolCallComplete, turnId, toolCallId: 'file-approval', result: { success: true, pastTenseMessage: 'Edited example.ts', content: [] } });
+				}
+				await finish();
+				assert.deepStrictEqual({
+					kind: invocation.toolSpecificData?.kind,
+					channel: sent.channel,
+					action: sent.action,
+				}, {
+					kind: 'modifiedFilesConfirmation',
+					channel: chatUri,
+					action: {
+						type: ActionType.ChatToolCallConfirmed, turnId, toolCallId: 'file-approval',
+						approved, selectedOptionId: selectedOption.id,
+						...(approved ? { confirmed: ToolCallConfirmationReason.UserAction } : { reason: 'denied' }),
+						_meta: { 'agentHost.permissionDecisionSource': 'human_response' },
+					},
+				});
+			});
+		}
+
 		const appToolCases = [
 			{ name: 'grep', args: { pattern: 'auth' }, kind: 'search', running: 'Searching `auth`', completed: 'Searched `auth`' },
 			{ name: 'glob', args: { pattern: '*.ts' }, kind: 'search', running: 'Searching `*.ts`', completed: 'Searched `*.ts`' },

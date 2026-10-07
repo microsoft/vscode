@@ -11133,6 +11133,73 @@ suite('ChatListRenderer', () => {
 			});
 		}
 
+		for (const carousel of [true, false]) {
+			for (const selectedOption of ['choice-once', 'choice-session', 'choice-deny']) {
+				test(`native file approvals return ${selectedOption} ${carousel ? 'in the carousel' : 'inline'}`, async () => {
+					const context = createConfirmationRenderer();
+					context.configurationService.setUserConfiguration(ChatConfiguration.ToolConfirmationCarousel, carousel);
+					let menuActions: readonly IAction[] = [];
+					context.instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() {
+						override showContextMenu(delegate: Parameters<IContextMenuService['showContextMenu']>[0]): void {
+							assert.ok(delegate.getActions);
+							menuActions = delegate.getActions();
+						}
+					}());
+					const tool = toolCallStateToInvocation({
+						status: ToolCallStatus.PendingConfirmation,
+						toolCallId: 'file-approval',
+						toolName: 'apply_change',
+						displayName: 'Apply Change',
+						invocationMessage: 'Edit example.ts',
+						confirmationTitle: 'Edit example.ts',
+						edits: {
+							items: [{
+								before: { uri: 'file:///workspace/example.ts', content: { uri: 'preview:/before' } },
+								after: { uri: 'file:///workspace/example.ts', content: { uri: 'preview:/after' } },
+							}],
+						},
+						options: [
+							{ id: 'choice-deny', label: 'Reject Change', kind: ConfirmationOptionKind.Deny, group: 1 },
+							{ id: 'choice-once', label: 'Apply Once', kind: ConfirmationOptionKind.Approve, group: 0 },
+							{ id: 'choice-session', label: 'Apply for This Session', kind: ConfirmationOptionKind.Approve, group: 0 },
+						],
+					}, undefined, context.model.sessionResource, 'local');
+					context.model.acceptResponseProgress(context.request, tool);
+					context.render();
+
+					const container = carousel ? context.confirmationContainer : context.template.value;
+					assert.ok(container.querySelector('.chat-modified-files-confirmation'));
+					const primary = container.querySelector<HTMLElement>('.chat-confirmation-widget-buttons .monaco-button');
+					const dropdown = container.querySelector<HTMLElement>('.monaco-dropdown-button');
+					const deny = container.querySelector<HTMLElement>('.chat-confirmation-widget-buttons .monaco-button.secondary');
+					assert.ok(primary && dropdown && deny);
+					const labels = [primary, deny].map(button => button.textContent?.replaceAll('\u00a0', ' '));
+					dropdown.click();
+					const moreActions = menuActions.filter(action => !(action instanceof Separator));
+					const moreLabels = moreActions.map(action => action.label);
+					if (selectedOption === 'choice-session') {
+						assert.strictEqual(moreActions.length, 1);
+						await moreActions[0].run();
+					} else {
+						(selectedOption === 'choice-deny' ? deny : primary).click();
+					}
+
+					assert.deepStrictEqual({
+						labels, moreLabels,
+						confirmed: IChatToolInvocation.executionConfirmedOrDenied(tool),
+					}, {
+						labels: ['Apply Once', 'Reject Change'],
+						moreLabels: ['Apply for This Session'],
+						confirmed: {
+							type: ToolConfirmKind.UserAction,
+							selectedButton: selectedOption,
+							selectedButtonKind: selectedOption === 'choice-deny' ? ConfirmationOptionKind.Deny : ConfirmationOptionKind.Approve,
+						},
+					});
+				});
+			}
+		}
+
 		test('Accept and Skip commands target the selected historical approval rather than the latest response', () => {
 			const context = createConfirmationRenderer();
 			store.add(registerChatToolActions());
@@ -11204,6 +11271,62 @@ suite('ChatListRenderer', () => {
 				},
 				primaryLabel: 'Apply Changes',
 				reason: { type: ToolConfirmKind.UserAction, selectedButton: 'Apply Changes' },
+			},
+			{
+				name: 'native modified-file approve option',
+				preparation: {
+					confirmationMessages: {
+						title: 'Edit example.ts',
+						message: 'Review the proposed change.',
+						customOptions: [
+							{ id: 'choice-deny', label: 'Reject Change', kind: ConfirmationOptionKind.Deny },
+							{ id: 'choice-once', label: 'Apply Once', kind: ConfirmationOptionKind.Approve },
+						],
+					},
+					toolSpecificData: {
+						kind: 'modifiedFilesConfirmation',
+						options: ['Allow'],
+						modifiedFiles: [{ uri: URI.file('/workspace/example.ts') }],
+					},
+				},
+				primaryLabel: 'Apply Once',
+				reason: { type: ToolConfirmKind.UserAction, selectedButton: 'choice-once', selectedButtonKind: ConfirmationOptionKind.Approve },
+			},
+			{
+				name: 'native modified-file deny-only option',
+				preparation: {
+					confirmationMessages: {
+						title: 'Edit example.ts',
+						message: 'Review the proposed change.',
+						customOptions: [
+							{ id: 'choice-deny', label: 'Reject Change', kind: ConfirmationOptionKind.Deny },
+						],
+					},
+					toolSpecificData: {
+						kind: 'modifiedFilesConfirmation',
+						options: ['Allow'],
+						modifiedFiles: [{ uri: URI.file('/workspace/example.ts') }],
+					},
+				},
+				primaryLabel: 'Reject Change',
+				reason: { type: ToolConfirmKind.UserAction, selectedButton: 'choice-deny', selectedButtonKind: ConfirmationOptionKind.Deny },
+			},
+			{
+				name: 'modified-file option with empty host options',
+				preparation: {
+					confirmationMessages: {
+						title: 'Edit example.ts',
+						message: 'Review the proposed change.',
+						customOptions: [],
+					},
+					toolSpecificData: {
+						kind: 'modifiedFilesConfirmation',
+						options: ['Allow'],
+						modifiedFiles: [{ uri: URI.file('/workspace/example.ts') }],
+					},
+				},
+				primaryLabel: 'Allow',
+				reason: { type: ToolConfirmKind.UserAction, selectedButton: 'Allow' },
 			},
 		];
 
