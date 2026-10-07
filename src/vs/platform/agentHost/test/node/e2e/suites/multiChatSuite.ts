@@ -355,14 +355,26 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		assert.ok(!peers.includes(first) && peers.includes(second));
 	}, config.supportsMultipleChats);
 
-	conformanceTest(context, 'recreating a disposed peer chat starts empty', async function () {
+	conformanceTest(context, 'a new peer chat starts empty after disposing a populated peer', async function () {
 		const { sessionUri } = await createSession('recreate');
-		const peer = await createPeer(sessionUri, 'peer');
+		const peer = await createCompletedPeer(sessionUri, 'peer', 'Disposed Peer');
+		const previousTurns = (await chatState(peer)).turns;
 		await context.client.call('disposeChat', { channel: peer }, 30_000);
 
-		await createPeer(sessionUri, 'peer');
+		const replacement = await createPeer(sessionUri, 'replacement');
+		const catalog = (await sessionState(sessionUri)).chats;
 
-		assert.deepStrictEqual((await chatState(peer)).turns, []);
+		assert.deepStrictEqual({
+			previousHadHistory: previousTurns.length > 0,
+			disposedPresent: catalog.some(chat => chat.resource === peer),
+			replacementPresent: catalog.some(chat => chat.resource === replacement),
+			replacementTurns: (await chatState(replacement)).turns,
+		}, {
+			previousHadHistory: true,
+			disposedPresent: false,
+			replacementPresent: true,
+			replacementTurns: [],
+		});
 	}, config.supportsMultipleChats);
 
 	conformanceTest(context, 'renaming a peer chat updates its catalog title', async function () {

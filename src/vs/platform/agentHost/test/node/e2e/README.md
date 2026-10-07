@@ -154,6 +154,8 @@ Fault-injection tests scope the injected response to the provider's model endpoi
 
 Subagent reopen coverage runs on Windows as well as macOS and Linux for providers that support subagents. It verifies that the parent was reconstructed rather than served from live state, the child transcript contains its sentinel, and the parent transcript does not contain that sentinel.
 
+Peer disposal coverage populates the old chat with a completed host-local turn, disposes it, and creates a fresh client-chosen peer identity. It verifies catalog removal and empty replacement history; normalized-catalog unit tests separately verify that tombstoned identities cannot be reused.
+
 Entries under `KNOWN_ISSUES.md`'s suspected-product-bug section must be understandable without reading the test or knowing Agent Host implementation terminology. Begin with complete sentences that explain the user workflow, the failure, and its likely user impact. Put test titles, protocol actions, provider-specific names, gates, and reproduction commands after that explanation.
 
 ---
