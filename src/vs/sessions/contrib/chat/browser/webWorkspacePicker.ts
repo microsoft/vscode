@@ -99,6 +99,7 @@ export class WebWorkspacePicker extends WorkspacePicker {
 			contextMenuService,
 			fileService,
 			dialogService,
+			_agentHostFilterService,
 		);
 
 		// When the scoped host changes, if the current selection no longer

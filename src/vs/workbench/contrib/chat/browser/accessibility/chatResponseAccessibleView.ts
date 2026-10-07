@@ -401,6 +401,13 @@ export function getChatResponsePlaintextParts(item: IChatResponseViewModel, incl
 				}
 				break;
 			}
+			case 'warning': {
+				const text = renderChatMessageAsPlaintext(part.content).trim();
+				if (text) {
+					contentParts.push({ partIndex, text: localize('warningContent', "Warning: {0}", text) });
+				}
+				break;
+			}
 			case 'inlineReference': {
 				const ref = part.inlineReference;
 				let text: string;

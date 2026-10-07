@@ -1,0 +1,122 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'First use the available user-input tool exactly once to ask which workspace setup to use, with one choice: "file://${workdir} directly without isolation". After I answer, call set_workspace with that workspace and isolation false as the turn''s final tool call. Never run a shell command. When the host automatically continues after attaching the workspace, do not inspect, read, or modify it and do not call another tool; reply exactly "converted".'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: ask_user
+          input:
+            question: Which workspace setup should I use?
+            choices:
+              - file://${workdir} directly without isolation
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'First use the available user-input tool exactly once to ask which workspace setup to use, with one choice: "file://${workdir} directly without isolation". After I answer, call set_workspace with that workspace and isolation false as the turn''s final tool call. Never run a shell command. When the host automatically continues after attaching the workspace, do not inspect, read, or modify it and do not call another tool; reply exactly "converted".'
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: ask_user
+              input:
+                question: Which workspace setup should I use?
+                choices:
+                  - file://${workdir} directly without isolation
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'User selected: file://${workdir} directly without isolation'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: set_workspace
+          input:
+            workspaceFolder: file://${workdir}
+            isolation: false
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'First use the available user-input tool exactly once to ask which workspace setup to use, with one choice: "file://${workdir} directly without isolation". After I answer, call set_workspace with that workspace and isolation false as the turn''s final tool call. Never run a shell command. When the host automatically continues after attaching the workspace, do not inspect, read, or modify it and do not call another tool; reply exactly "converted".'
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: ask_user
+              input:
+                question: Which workspace setup should I use?
+                choices:
+                  - file://${workdir} directly without isolation
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'User selected: file://${workdir} directly without isolation'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: set_workspace
+              input:
+                workspaceFolder: file://${workdir}
+                isolation: false
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: Workspace will be set to file://${workdir} after this turn ends. End this turn now without calling more tools or replying; the host will continue the original task automatically in the selected workspace.
+    response:
+      content: converted
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'First use the available user-input tool exactly once to ask which workspace setup to use, with one choice: "file://${workdir} directly without isolation". After I answer, call set_workspace with that workspace and isolation false as the turn''s final tool call. Never run a shell command. When the host automatically continues after attaching the workspace, do not inspect, read, or modify it and do not call another tool; reply exactly "converted".'
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: ask_user
+              input:
+                question: Which workspace setup should I use?
+                choices:
+                  - file://${workdir} directly without isolation
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'User selected: file://${workdir} directly without isolation'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: set_workspace
+              input:
+                workspaceFolder: file://${workdir}
+                isolation: false
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: Workspace will be set to file://${workdir} after this turn ends. End this turn now without calling more tools or replying; the host will continue the original task automatically in the selected workspace.
+        - role: assistant
+          content: converted
+        - role: user
+          content: The current session is now attached to ${workdir}. Continue the user's original task in this workspace. Do not request another session or workspace conversion.
+    response:
+      content: I've attached the session to the workspace at [ahp-workspace-conversion-bthroQ](${workdir}). However, I don't see an original task described yet beyond the workspace setup itself — could you let me know what you'd like me to work on in this workspace?
+      stopReason: end_turn

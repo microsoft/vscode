@@ -11,7 +11,7 @@ import { localize } from '../../../../../../nls.js';
 import { readAgentModelNoticesMeta } from '../../../../../../platform/agentHost/common/agentModelNotices.js';
 import { COPILOT_HYDRA_FUSION_MODEL_ID } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { ConfigSchema, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { readAgentModelPricingMeta } from '../../../../../../platform/agentHost/common/agentModelPricing.js';
+import { readAgentModelPricingMeta } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { readAgentModelGroupId, readAgentModelSourceId } from '../../../../../../platform/agentHost/common/agentModelSource.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../../../../../platform/agentHost/common/reasoningEffort.js';
@@ -57,6 +57,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 	readonly onDidChange = this._onDidChange.event;
 
 	private _models: readonly SessionModelInfo[] = [];
+	private _additionalModels: readonly SessionModelInfo[] = [];
 
 	constructor(
 		private readonly _sessionType: string,
@@ -89,8 +90,15 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 		this._onDidChange.fire();
 	}
 
+	/** Adds service-discovered models without overriding metadata or policy published by the host. */
+	updateAdditionalModels(models: readonly SessionModelInfo[]): void {
+		this._additionalModels = models;
+		this._onDidChange.fire();
+	}
+
 	async provideLanguageModelChatInfo(_options: unknown, _token: CancellationToken): Promise<ILanguageModelChatMetadataAndIdentifier[]> {
-		return this._models
+		const hostModelIds = new Set(this._models.map(model => model.id));
+		return [...this._models, ...this._additionalModels.filter(model => !hostModelIds.has(model.id))]
 			.filter(m => m.policyState !== 'disabled')
 			.map(m => {
 				const pricing = readAgentModelPricingMeta(m);
@@ -297,6 +305,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 			// The Auto model has no thinking level, so its routing-profile picker takes that slot,
 			// matching how the Copilot Chat extension groups it.
 			case 'tier':
+			case 'autoTier':
 			case 'thinkingLevel':
 			// `reasoningEffort` / `contextTier` are what the Copilot agent host inside a cloud
 			// sandbox names the same two knobs. Without them the picker finds no property in

@@ -14,10 +14,10 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
 import { Action2 } from '../../../../../platform/actions/common/actions.js';
-import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { IAgentHostConnectionsService, LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { isAhpLogFileFor } from '../../../../../platform/agentHost/common/ahpJsonlLogger.js';
-import { IAgentHostService, type AgentHostDebugLogsArtifactKind, type IAgentConnection, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../../../../../platform/agentHost/common/agentService.js';
+import { AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, IAgentHostService, type AgentHostDebugLogsArtifactKind, type IAgentConnection, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostService, remoteAgentHostLogOutputChannelId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { DEFAULT_CHAT_ID, getSessionChatResource, StateComponents, type SessionState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
@@ -35,12 +35,13 @@ import { IWorkbenchEnvironmentService } from '../../../../services/environment/c
 import { IChatWidgetService } from '../chat.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../../common/constants.js';
-import { COPILOT_CLI_LOCAL_AH_SCHEME, getCopilotCliSessionRawId, parseRemoteAuthorityFromScheme } from '../copilotCliEventsUri.js';
-import { getRemoteConnectionForSession } from '../chatDebug/agentHostLogSources.js';
+import { getCopilotCliSessionRawId } from '../copilotCliEventsUri.js';
+import { getRemoteConnectionForSession, isAgentHostSession } from '../chatDebug/agentHostLogSources.js';
 import { buildAgentHostCustomizationsUri, buildAgentHostUsageUri } from '../chatDebug/agentHostUsageSidecar.js';
 
 const SHARED_PROCESS_LOG_FILE_NAME = 'sharedprocess.log';
 const OUTPUT_LOG_FOLDER_PREFIX = 'output_';
+const MAX_AHP_LOG_FILES_PER_HOST = 10;
 
 /**
  * Description of the agent-host session whose logs should be exported. If
@@ -210,7 +211,9 @@ export function createHostArtifactStream(
  * Agent Host's own debug-log bundle (collected and packaged by the host), plus
  * the logs this side owns: the window/shared-process output channels, remote
  * forwarded logs, the AHP transport JSONL logs, and the client-local capture
- * sidecars.
+ * sidecars. ZIP exports are capped at 1,000 combined files; folder exports keep
+ * up to 1,000 client files. Both keep at most the ten most recently modified AHP
+ * files per host.
  *
  * Both the workbench-side action (resolves the active session via
  * `IChatWidgetService`) and the sessions-app-side action (resolves it via
@@ -268,9 +271,10 @@ export async function collectAgentHostDebugLogs(
 			ahpLogId = agentHostService.clientId;
 		} else {
 			const remoteConnection = getRemoteConnectionForSession(activeSession.resource, remoteAgentHostService.connections);
-			if (remoteConnection) {
-				forwardedAgentHostLogFileNames.add(getOutputChannelLogFileName(remoteAgentHostLogOutputChannelId(remoteConnection.address)));
-				ahpLogId = remoteConnection.address;
+			const remoteAddress = agentHostConnectionsService.resolveSessionResourceIdentity(activeSession.resource)?.connectionAddress ?? remoteConnection?.address;
+			if (remoteAddress) {
+				forwardedAgentHostLogFileNames.add(getOutputChannelLogFileName(remoteAgentHostLogOutputChannelId(remoteAddress)));
+				ahpLogId = remoteAddress;
 			}
 		}
 	} else {
@@ -280,8 +284,15 @@ export async function collectAgentHostDebugLogs(
 	}
 
 	const files: IAgentHostDebugLogFile[] = [];
+	const hostArchiveEntries = hostArtifact?.kind === 'archive' ? hostArtifact.entries.length : 0;
+	const availableEntries = Math.max(0, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES - hostArchiveEntries);
+	let omittedFiles = 0;
 	const appendFile = (file: IAgentHostDebugLogFile) => {
-		files.push(file);
+		if (files.length < availableEntries) {
+			files.push(file);
+		} else {
+			omittedFiles++;
+		}
 	};
 	const appendFiles = (collectedFiles: readonly IAgentHostDebugLogFile[]) => {
 		for (const file of collectedFiles) {
@@ -316,30 +327,9 @@ export async function collectAgentHostDebugLogs(
 		logService.warn(`[ExportAgentHostDebugLogs] Failed to collect forwarded Agent Host logs: ${error instanceof Error ? error.message : String(error)}`);
 	}
 
-	// 2. AHP transport JSONL logs (one file per remote connection, written under <logsHome>/ahp/).
-	// These replace the per-connection `agenthost.<clientId>` IPC traffic output channel.
-	try {
-		const ahpDir = joinPath(environmentService.logsHome, 'ahp');
-		const stat = await fileService.resolve(ahpDir, { resolveMetadata: true });
-		for (const child of stat.children ?? []) {
-			if (child.isDirectory || !child.name.endsWith('.jsonl') || activeSession && (!ahpLogId || !isAhpLogFileFor(ahpLogId, child.name))) {
-				continue;
-			}
-			try {
-				appendFile(await createDebugLogFile(`ahp/${child.name}`, child.resource, fileService, child.size));
-			} catch (error) {
-				logService.warn(`[ExportAgentHostDebugLogs] Failed to read AHP log '${child.name}': ${error instanceof Error ? error.message : String(error)}`);
-			}
-		}
-	} catch (error) {
-		if (!(error instanceof Error) || toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
-			logService.warn(`[ExportAgentHostDebugLogs] Failed to enumerate AHP logs: ${error instanceof Error ? error.message : String(error)}`);
-		}
-	}
-
 	const rawSessionId = getCopilotCliSessionRawId(activeSession?.resource);
 
-	// 3. Client-local capture sidecars for the session. These hold data the SDK
+	// 2. Client-local capture sidecars for the session. These hold data the SDK
 	// never persists — per-model-call token/credit usage (`assistant.usage` is
 	// ephemeral) and the loaded customization set (`session.*_loaded` likewise) —
 	// so without them an export cannot explain a usage/cost discrepancy or say
@@ -358,6 +348,37 @@ export async function collectAgentHostDebugLogs(
 				}
 			}
 		}
+	}
+
+	// 3. Keep transport history after process logs and sidecars so reconnect loops cannot crowd them out.
+	try {
+		const ahpDir = joinPath(environmentService.logsHome, 'ahp');
+		const stat = await fileService.resolve(ahpDir, { resolveMetadata: true });
+		const candidates = (stat.children ?? [])
+			.filter(child => child.isFile && !child.isSymbolicLink && child.name.endsWith('.jsonl') && (!activeSession || ahpLogId && isAhpLogFileFor(ahpLogId, child.name)))
+			.sort((a, b) => (b.mtime ?? 0) - (a.mtime ?? 0) || b.name.localeCompare(a.name));
+		const filesPerHost = new Map<string, number>();
+		for (const child of candidates) {
+			const hostId = /^ahp-(?<hostId>[a-f0-9]{40})-/.exec(child.name)?.groups?.hostId ?? child.name;
+			const hostFileCount = filesPerHost.get(hostId) ?? 0;
+			if (hostFileCount >= MAX_AHP_LOG_FILES_PER_HOST) {
+				omittedFiles++;
+				continue;
+			}
+			try {
+				appendFile(await createDebugLogFile(`ahp/${child.name}`, child.resource, fileService, child.size));
+				filesPerHost.set(hostId, hostFileCount + 1);
+			} catch (error) {
+				logService.warn(`[ExportAgentHostDebugLogs] Failed to read AHP log '${child.name}': ${error instanceof Error ? error.message : String(error)}`);
+			}
+		}
+	} catch (error) {
+		if (!(error instanceof Error) || toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+			logService.warn(`[ExportAgentHostDebugLogs] Failed to enumerate AHP logs: ${error instanceof Error ? error.message : String(error)}`);
+		}
+	}
+	if (omittedFiles > 0) {
+		logService.warn(`[ExportAgentHostDebugLogs] Omitted ${omittedFiles} log files to keep the export within ${AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES} entries and ${MAX_AHP_LOG_FILES_PER_HOST} AHP files per host`);
 	}
 
 	return {
@@ -516,18 +537,10 @@ export class ExportAgentHostDebugLogsAction extends Action2 {
 	}
 }
 
-/**
- * Translates a chat session URI scheme into an agent-host session context,
- * or `undefined` if the scheme does not belong to a Copilot CLI agent-host
- * session (i.e. local AH or remote AH; the EH CLI extension's own
- * `copilotcli:` sessions are excluded).
- */
+/** Translates a local or remote agent-host chat resource into a session export context. */
 export function toActiveAgentHostSession(resource: URI, chatTitle: string | undefined, sessionTitle?: string): IActiveAgentHostSessionForExport | undefined {
-	if (resource.scheme === COPILOT_CLI_LOCAL_AH_SCHEME) {
-		return { resource: resource.with({ fragment: null }), sessionTitle, chatTitle, isLocal: true, chatId: resource.fragment || DEFAULT_CHAT_ID, backendChatResource: undefined };
-	}
-	if (parseRemoteAuthorityFromScheme(resource.scheme)) {
-		return { resource: resource.with({ fragment: null }), sessionTitle, chatTitle, isLocal: false, chatId: resource.fragment || DEFAULT_CHAT_ID, backendChatResource: undefined };
+	if (isAgentHostSession(resource)) {
+		return { resource: resource.with({ fragment: null }), sessionTitle, chatTitle, isLocal: resource.scheme.startsWith(LOCAL_AGENT_HOST_SCHEME_PREFIX), chatId: resource.fragment || DEFAULT_CHAT_ID, backendChatResource: undefined };
 	}
 	return undefined;
 }

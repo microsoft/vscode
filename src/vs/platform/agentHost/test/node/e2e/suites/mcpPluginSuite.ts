@@ -78,7 +78,8 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 				'  process.exit(Number(exitCode));',
 				'});',
 			].join('\n'));
-			const command = [process.execPath, hookScript, hookLog, options.hookType, String(options.hookExitCode ?? 0), options.hookStdout ?? '']
+			// Hook commands need Node, not the Electron renderer's executable and Chromium sandbox.
+			const command = [process.env['npm_node_execpath'] ?? 'node', hookScript, hookLog, options.hookType, String(options.hookExitCode ?? 0), options.hookStdout ?? '']
 				.map(value => JSON.stringify(value))
 				.join(' ');
 			writeFileSync(join(hooksDirectory, 'hooks.json'), JSON.stringify({

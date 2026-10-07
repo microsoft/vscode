@@ -941,6 +941,10 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 			ignoredActionTypes: [
 				ActionType.ChatUsage,
 				ActionType.ChatToolCallDelta,
+				// The async shell is published as background work from a separate task-list read,
+				// so its timing against the tool calls isn't part of this scenario.
+				ActionType.ChatBackgroundWorkSet,
+				ActionType.ChatBackgroundWorkRemoved,
 				ActionType.SessionChatUpdated,
 				ActionType.SessionTitleChanged,
 				ActionType.SessionServerToolsChanged,

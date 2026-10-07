@@ -18,3 +18,16 @@ OpenSSL is needed for the key exchange we do when forwarding Basis tunnels. When
 # Debug
 
 1. You can use the Debug tasks already configured to run the launcher.
+
+## Agent host tunnels
+
+Use `code tunnel` to expose both remote editor access and agent hosts. `code agent --tunnel`
+and `code agent host --tunnel` are aliases for this command, not agent-host-only tunnels.
+Tunnel naming, existing-tunnel credentials, server data, and user data options are forwarded
+to the tunnel command. Local-only options such as `--host`, `--port`, connection tokens,
+`--replace`, `--new-instance`, `--foreground`, and `--idle-timeout` cannot be combined
+with `--tunnel`. Use `--accept-server-license-terms` to accept the server license without
+an interactive prompt.
+
+Without `--tunnel`, `code agent` and `code agent host` still start or reuse a local
+agent host supervisor.

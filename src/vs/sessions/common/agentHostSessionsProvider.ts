@@ -15,7 +15,8 @@ import { ResolveSessionConfigResult, SessionConfigValueItem } from '../../platfo
 import { AgentCustomization, Customization, McpServerStatus, RootConfigState, type CustomizationEnablement, type McpServerState, type RootState, type TextRange } from '../../platform/agentHost/common/state/protocol/state.js';
 import { type CustomizationDisabledReason } from '../../platform/agentHost/common/customizationEnablement.js';
 import { type McpServerSource } from '../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
-import { ISessionsProvider } from '../services/sessions/common/sessionsProvider.js';
+import type { IMcpServerConfiguration } from '../../platform/mcp/common/mcpPlatformTypes.js';
+import { ISessionConfigProvider, ISessionsProvider } from '../services/sessions/common/sessionsProvider.js';
 import { ISessionAgentRef } from '../services/sessions/common/session.js';
 import type { AgentMergeSessionOverrides, AgentMergeSessionState } from '../../platform/agentHost/common/agentMerge.js';
 import type { ISessionSandboxPolicy } from '../../platform/agentHost/common/meta/agentSandboxPolicyMeta.js';
@@ -90,6 +91,13 @@ export interface IAgentHostGroup {
 	readonly sessionCreationProviderId?: string;
 }
 
+/** A tool reported by an agent-host MCP server's `tools/list`. */
+export type AgentHostMcpTool = {
+	readonly name: string;
+	readonly title?: string;
+	readonly description?: string;
+};
+
 /**
  * A rich view of a single MCP server exposed by an agent host session.
  * Encapsulates the dispatch plumbing so consumers can present and toggle
@@ -98,14 +106,39 @@ export interface IAgentHostGroup {
 export interface IAgentHostMcpServer {
 	readonly id: string;
 	readonly name: string;
+	/** Optional Connector catalog name for presentation only. */
+	readonly displayName?: string;
 	readonly source?: McpServerSource;
+	/**
+	 * Plugin the host reports as the source of this server's configuration. Unlike
+	 * {@link isPluginProvided}, the plugin may be one the client never published,
+	 * such as a plugin bundled with the agent.
+	 */
+	readonly sourcePluginName?: string;
+	/**
+	 * Definition held by the agent host's own MCP server configuration, for a server configured there
+	 * (for example with MCP: Add Server > Add to Current Agent Session) rather than in a file.
+	 */
+	readonly hostConfiguration?: IMcpServerConfiguration;
+	/**
+	 * VS Code setting the host declares as controlling whether it includes this server. Present only when
+	 * the providing host says so; never inferred from the server's name.
+	 */
+	readonly controllingSettingId?: string;
 	readonly enabled: boolean;
 	readonly enablement?: readonly CustomizationEnablement[];
 	readonly isPluginProvided?: boolean;
+	/** Raw id of the plugin customization that declares this server, when it is published as a plugin child. */
+	readonly pluginId?: string;
 	readonly isClientBundled?: boolean;
 	readonly owningPluginClientId?: string;
 	readonly disabledReason?: CustomizationDisabledReason;
 	readonly status: McpServerStatus;
+	/**
+	 * True while the server is `AuthRequired` but VS Code is silently authenticating it (or has done so
+	 * and is waiting for the host to pick up the token). Clients show progress instead of a sign-in prompt.
+	 */
+	readonly authenticating?: boolean;
 	readonly state: McpServerState;
 	readonly sourceUri?: URI;
 	readonly sourceRange?: TextRange;
@@ -116,6 +149,12 @@ export interface IAgentHostMcpServer {
 	stop(): Promise<void>;
 	/** Continues a blocking startup in the background when the host supports it. */
 	background?(): Promise<void>;
+	/**
+	 * Lists the server's tools with MCP `tools/list` over its AHP `mcp://` channel, following
+	 * `nextCursor` pagination. Present only while the server advertises a channel and the host
+	 * connection can route MCP requests.
+	 */
+	listTools?(): Promise<readonly AgentHostMcpTool[]>;
 	setEnabled(enabled: boolean): void;
 }
 
@@ -167,6 +206,10 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	disconnect?(): Promise<void>;
 	/** Permanently remove this host from the user-visible host inventory. */
 	remove?(): Promise<void>;
+	/** False when the host inventory is owned externally and cannot be removed locally. */
+	readonly canRemove?: boolean;
+	/** Inventory-owned local labels may reject a rename after this provider's lifetime ends. */
+	setDisplayName?(name: string | undefined): void;
 	/**
 	 * Skips a pending reconnect backoff and retries at once. Present on remote
 	 * providers whose transport is restored by a protocol client.
@@ -181,6 +224,9 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 
 	/** Optional labels for providers whose display name does not name the host. */
 	readonly connectionLabels?: IAgentHostConnectionLabels;
+	readonly hostDescription?: IObservable<string>;
+	readonly removeLabel?: string;
+	readonly disconnectLabel?: string;
 
 	/**
 	 * When `true`, the workspace picker keeps this provider's browse
@@ -358,6 +404,9 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 */
 	getFeedbackAnnotationsChannel(sessionId: string): { readonly connection: IAgentConnection; readonly annotationsUri: URI } | undefined;
 
+	/** Sends a request on an `mcp://` AHP side channel of this host's connection. */
+	handleMcpRequest?(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown>;
+
 	/**
 	 * Resolves the sessions-window client chat resource ({@link IChat.resource})
 	 * to the opaque **backend** chat URI the host uses on the wire (the value
@@ -387,6 +436,10 @@ export const ANY_AGENT_HOST_PROVIDER_RE = /^(local-agent-host|agenthost-)/;
  */
 export function isAgentHostProvider(provider: ISessionsProvider): provider is IAgentHostSessionsProvider {
 	return isAgentHostProviderId(provider.id);
+}
+
+export function getSessionConfigProvider(provider: ISessionsProvider): ISessionConfigProvider | undefined {
+	return provider.sessionConfig ?? (isAgentHostProvider(provider) ? provider : undefined);
 }
 
 /**

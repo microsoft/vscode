@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals } from '../../../../../../base/common/arrays.js';
+import { MarkdownString, MarkdownStringTextNewlineStyle } from '../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { LinkComputer } from '../../../../../../editor/common/languages/linkComputer.js';
 import { localize } from '../../../../../../nls.js';
 import { readAgentSandboxDiagnostics } from '../../../../../../platform/agentHost/common/meta/agentSandboxDiagnostics.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -53,11 +55,28 @@ export class AgentHostSandboxNotification extends Disposable {
 			this._notificationService.deleteNotification(this._id);
 			return;
 		}
+		const description = new MarkdownString();
+		for (const [index, line] of reasons.join('\n').split('\n').entries()) {
+			if (index > 0) {
+				description.appendText('\n', MarkdownStringTextNewlineStyle.Break);
+			}
+			let offset = 0;
+			for (const link of LinkComputer.computeLinks({ getLineCount: () => 1, getLineContent: () => line })) {
+				const url = line.slice(link.range.startColumn - 1, link.range.endColumn - 1);
+				if (!/^https?:\/\//i.test(url)) {
+					continue;
+				}
+				description.appendText(line.slice(offset, link.range.startColumn - 1));
+				description.appendLink(url, url);
+				offset = link.range.endColumn - 1;
+			}
+			description.appendText(line.slice(offset));
+		}
 		this._notificationService.setNotification({
 			id: this._id,
 			severity: ChatInputNotificationSeverity.Warning,
 			message: localize('agentHost.sandboxUnsupported', "Sandboxing is unavailable in this environment"),
-			description: reasons.join('\n'),
+			description,
 			actions: [],
 			dismissible: true,
 			onDismiss: () => {

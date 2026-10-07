@@ -60,6 +60,8 @@
 .chat-confirmation-widget .chat-confirmation-widget-title-inner {
 	flex-grow: 1;
 	flex-basis: 0;
+	min-width: 0;
+	overflow-wrap: anywhere;
 }
 
 .chat-confirmation-widget .chat-confirmation-widget-title p,
@@ -80,7 +82,8 @@
 
 	.monaco-button-mdlabel {
 		display: flex;
-		width: 100%;
+		flex: 1;
+		min-width: 0;
 		text-align: left;
 		align-items: center;
 	}
@@ -533,6 +536,8 @@
 
 		&.monaco-button {
 			width: fit-content;
+			max-width: 100%;
+			min-width: 0;
 			outline: none;
 			gap: 4px;
 		}

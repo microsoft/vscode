@@ -15,6 +15,9 @@ import { Range } from '../../../../../../../../editor/common/core/range.js';
 import { CompletionItem, CompletionItemKind, CompletionTriggerKind } from '../../../../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../../../../editor/common/model.js';
 import { LanguageFeaturesService } from '../../../../../../../../editor/common/services/languageFeaturesService.js';
+import { CompletionModel } from '../../../../../../../../editor/contrib/suggest/browser/completionModel.js';
+import { CompletionItem as SuggestCompletionItem } from '../../../../../../../../editor/contrib/suggest/browser/suggest.js';
+import { WordDistance } from '../../../../../../../../editor/contrib/suggest/browser/wordDistance.js';
 import { createTextModel } from '../../../../../../../../editor/test/common/testTextModel.js';
 import { AgentHostInputCompletionsBase } from '../../../../../browser/widget/input/editor/agentHostInputCompletionsBase.js';
 import { AgentHostInputCompletions } from '../../../../../browser/widget/input/editor/agentHostInputCompletions.js';
@@ -276,6 +279,76 @@ suite('AgentHostInputCompletions plain text', () => {
 			},
 			kind: CompletionItemKind.Text,
 		});
+	});
+
+	test('preserves slash command labels that differ only by an acceptance space', () => {
+		const completions = store.add(new TestableAgentHostInputCompletions(
+			new LanguageFeaturesService(),
+			new MockChatWidgetService(),
+			new TestChatSessionsService(),
+			new TestConfigurationService(),
+		));
+		const results = ['/review', '/review '].map(label => {
+			const built = completions.buildItem(new Position(1, 2), {
+				insertText: '/review ',
+				label,
+				attachment: { kind: 'text' },
+			}, upcastPartial<IChatWidget>({}));
+			return {
+				label: built?.label,
+				insertText: built?.insertText,
+				filterText: built?.filterText,
+			};
+		});
+
+		assert.deepStrictEqual(results, [
+			{ label: '/review', insertText: '/review ', filterText: '/review ' },
+			{ label: '/review ', insertText: '/review ', filterText: '/review ' },
+		]);
+	});
+
+	test('keeps plain-text slash commands visible when the host labels them with descriptions', () => {
+		const completions = store.add(new TestableAgentHostInputCompletions(
+			new LanguageFeaturesService(),
+			new MockChatWidgetService(),
+			new TestChatSessionsService(),
+			new TestConfigurationService(),
+		));
+		const results = ['/', '/rev'].map(text => {
+			const position = new Position(1, text.length + 1);
+			const built = completions.buildItem(position, {
+				insertText: '/review ',
+				label: 'Review the workspace',
+				start: { lineNumber: 1, column: 1 },
+				end: position,
+				attachment: { kind: 'text' },
+			}, upcastPartial<IChatWidget>({}))!;
+			const list = { suggestions: [built] };
+			const provider = { _debugDisplayName: 'testPlainTextSlashCommands', provideCompletionItems: () => list };
+			const model = new CompletionModel(
+				[new SuggestCompletionItem(position, built, list, provider)],
+				position.column,
+				{ leadingLineContent: text, characterCountDelta: 0 },
+				WordDistance.None,
+				EditorOptions.suggest.defaultValue,
+				EditorOptions.snippetSuggestions.defaultValue,
+				undefined,
+			);
+			return model.items.map(item => ({
+				label: item.completion.label,
+				insertText: item.completion.insertText,
+				filterText: item.completion.filterText,
+				command: item.completion.command,
+			}));
+		});
+
+		const expected = [{
+			label: { label: '/review', description: 'Review the workspace' },
+			insertText: '/review ',
+			filterText: '/review ',
+			command: undefined,
+		}];
+		assert.deepStrictEqual(results, [expected, expected]);
 	});
 });
 

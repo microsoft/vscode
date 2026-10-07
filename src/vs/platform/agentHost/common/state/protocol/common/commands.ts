@@ -10,7 +10,7 @@ import type { URI, Snapshot } from './state.js';
 import type { ActionEnvelope, StateAction } from './actions.js';
 import type { AutomationRunCancelRequestedAction } from '../channels-automation-run/actions.js';
 import type { AutomationCreateRequestedAction } from '../channels-automation/actions.js';
-import type { AutomationSchedule, AutomationScheduleTrigger, AutomationEntry, AutomationState } from '../channels-automation/state.js';
+import type { AutomationSchedule, AutomationScheduleTrigger, AutomationSessionTemplate, AutomationEntry, AutomationState } from '../channels-automation/state.js';
 import type { TelemetryCapabilities } from '../channels-otlp/state.js';
 
 // ─── BaseParams ──────────────────────────────────────────────────────────────
@@ -318,7 +318,23 @@ export interface AutomationCapabilities {
 	 * implementation-defined.
 	 */
 	runHistoryLimit?: number;
+	/**
+	 * Present when {@link AutomationSessionTemplate.customizations} may contain
+	 * client plugins for the host to capture.
+	 */
+	customizations?: AutomationCustomizationsCapability;
 }
+
+/**
+ * Presence capability for
+ * {@link AutomationSessionTemplate.customizations | automation customizations}.
+ *
+ * The empty object means "supported"; fields are reserved for future
+ * capture options and limits.
+ *
+ * @category Commands
+ */
+export interface AutomationCustomizationsCapability { }
 
 /**
  * Presence capability for {@link AutomationCreateRequestedAction |

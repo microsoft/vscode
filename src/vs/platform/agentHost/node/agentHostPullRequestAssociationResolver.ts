@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals as objectEquals } from '../../../base/common/objects.js';
-import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
+import { GitHubPullRequestLookup } from '../../github/common/githubQueryService.js';
+import { getPullRequestUrlKey } from '../../github/common/githubUrls.js';
 import { parseUpstreamBranchName, type IAgentHostGitService } from '../common/agentHostGitService.js';
 import { readSessionArtifacts, SessionArtifactType } from '../common/sessionArtifacts.js';
-import { getSessionPullRequestUrlKey, readSessionGitHubState, readSessionGitState, withMostRecentSessionPullRequest, type ISessionGitHubState, type ISessionGitState, type ISessionWithDefaultChat, type SessionSummaryMeta } from '../common/state/sessionState.js';
-import type { CreatedPullRequest, IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
+import { readSessionGitHubState, readSessionGitState, withMostRecentSessionPullRequest, type ISessionGitHubState, type ISessionGitState, type ISessionWithDefaultChat, type SessionSummaryMeta } from '../common/state/sessionState.js';
+import { IAgentHostGitHubService } from './agentHostGitHubService.js';
 
 interface IRestrictedPullRequestResolution {
 	readonly checkoutIdentity: string;
@@ -44,7 +46,7 @@ export interface IRestrictedPullRequestReconciliationContext {
 	readonly sessionState: ISessionWithDefaultChat;
 	readonly gitHubState: ISessionGitHubState;
 	readonly gitState: ISessionGitState | undefined;
-	readonly getAuthToken: () => string | undefined;
+	readonly hasGitHubToken: () => boolean;
 	readonly getCurrentSessionState: () => ISessionWithDefaultChat | undefined;
 	readonly isRestrictedMode: () => boolean;
 }
@@ -63,7 +65,7 @@ function distinctPullRequestUrls(...groups: readonly (readonly string[] | undefi
 	const result: string[] = [];
 	for (const group of groups) {
 		for (const url of group ?? []) {
-			const key = getSessionPullRequestUrlKey(url);
+			const key = getPullRequestUrlKey(url);
 			if (!seen.has(key)) {
 				seen.add(key);
 				result.push(url);
@@ -91,7 +93,7 @@ export class AgentHostPullRequestAssociationResolver extends Disposable {
 
 	constructor(
 		private readonly _gitService: IAgentHostGitService,
-		private readonly _octoKitService: IAgentHostOctoKitService,
+		private readonly _gitHubService: IAgentHostGitHubService,
 	) {
 		super();
 		this._register(toDisposable(() => this._abortController.abort()));
@@ -112,30 +114,40 @@ export class AgentHostPullRequestAssociationResolver extends Disposable {
 		repo: string,
 		gitState: ISessionGitState | undefined,
 		branchName: string,
-		authToken: string,
 		allowedPullRequestUrls?: readonly string[],
 		workingDirectory: string | undefined = state.workingDirectories?.[0],
 		requireHeadBranch = false,
-	): Promise<CreatedPullRequest | undefined> {
+	): Promise<GitHubPullRequestLookup | undefined> {
+		if (allowedPullRequestUrls?.length === 0) {
+			return undefined;
+		}
 		const githubHeadOwner = gitState?.githubHeadOwner;
 		const upstreamBranch = githubHeadOwner ? parseUpstreamBranchName(gitState?.upstreamBranchName) : undefined;
 		const headBranch = upstreamBranch?.branch ?? branchName;
 		const headOwner = githubHeadOwner ?? owner;
 		const signal = this._abortController.signal;
+		const store = new DisposableStore();
+		try {
+			const client = store.add(this._gitHubService.acquireRepositoryClient(signal)).object;
+			const { account } = await client.credentials.getCredential(signal);
+			const ref = { ...account, owner, repo };
+			const options = { allowedPullRequestUrls, priority: 'background' } as const;
+			const pullRequestByBranch = await client.query.findPullRequestByHeadBranch(ref, headBranch, headOwner, signal, options);
+			if (pullRequestByBranch || requireHeadBranch) {
+				return pullRequestByBranch;
+			}
 
-		const pullRequestByBranch = await this._octoKitService.findPullRequestByHeadBranch(owner, repo, headBranch, authToken, signal, headOwner, allowedPullRequestUrls);
-		if (pullRequestByBranch || requireHeadBranch) {
-			return pullRequestByBranch;
+			if (!workingDirectory) {
+				return undefined;
+			}
+
+			const headSha = await this._gitService.revParse(URI.parse(workingDirectory), 'HEAD');
+			return headSha
+				? await client.query.findPullRequestByHeadSha(ref, headSha, signal, options)
+				: undefined;
+		} finally {
+			store.dispose();
 		}
-
-		if (!workingDirectory) {
-			return undefined;
-		}
-
-		const headSha = await this._gitService.revParse(URI.parse(workingDirectory), 'HEAD');
-		return headSha
-			? this._octoKitService.findPullRequestByHeadSha(owner, repo, headSha, authToken, signal, allowedPullRequestUrls)
-			: undefined;
 	}
 
 	/**
@@ -144,7 +156,7 @@ export class AgentHostPullRequestAssociationResolver extends Disposable {
 	 */
 	wouldRestrictPullRequests(meta: SessionSummaryMeta | undefined, gitHubState: ISessionGitHubState): boolean {
 		const { candidateKeys } = this._getRestrictedCandidates(meta, gitHubState);
-		return [...gitHubState.pullRequestUrls ?? [], ...gitHubState.initialPullRequestUrls ?? []].some(url => !candidateKeys.has(getSessionPullRequestUrlKey(url)));
+		return [...gitHubState.pullRequestUrls ?? [], ...gitHubState.initialPullRequestUrls ?? []].some(url => !candidateKeys.has(getPullRequestUrlKey(url)));
 	}
 
 	/**
@@ -177,15 +189,14 @@ export class AgentHostPullRequestAssociationResolver extends Disposable {
 			return this._complete(gitHubState, restrictedState);
 		}
 
-		const authToken = context.getAuthToken();
-		if (!authToken) {
+		if (!context.hasGitHubToken()) {
 			return this._complete(gitHubState, restrictedState);
 		}
 
 		const orderedCandidates = this._orderCandidates(candidates, current, previous);
-		let pullRequest: CreatedPullRequest | undefined;
+		let pullRequest: GitHubPullRequestLookup | undefined;
 		try {
-			pullRequest = await this.resolveForCheckout(sessionState, owner, repo, gitState, branchName, authToken, orderedCandidates);
+			pullRequest = await this.resolveForCheckout(sessionState, owner, repo, gitState, branchName, orderedCandidates);
 		} catch (error) {
 			return {
 				kind: 'failed',
@@ -208,7 +219,7 @@ export class AgentHostPullRequestAssociationResolver extends Disposable {
 		const artifactUrls = getPullRequestArtifactUrls(meta);
 		const associatedUrls = gitHubState.associatedPullRequestUrls ?? [];
 		const candidateUrls = distinctPullRequestUrls(artifactUrls, associatedUrls);
-		const candidateKeys = new Set(candidateUrls.map(getSessionPullRequestUrlKey));
+		const candidateKeys = new Set(candidateUrls.map(getPullRequestUrlKey));
 		return {
 			artifactUrls,
 			associatedUrls,
@@ -221,9 +232,9 @@ export class AgentHostPullRequestAssociationResolver extends Disposable {
 	private _getCurrentAssociation(candidates: IRestrictedPullRequestCandidates, branchName: string): ICurrentPullRequestAssociation {
 		const { associatedUrls, candidateKeys, restrictedState } = candidates;
 		const url = restrictedState.pullRequestBranchName === branchName ? restrictedState.pullRequestUrls?.[0] : undefined;
-		const eligible = url !== undefined && candidateKeys.has(getSessionPullRequestUrlKey(url));
-		const explicitlyAssociated = url !== undefined && associatedUrls.some(candidate => getSessionPullRequestUrlKey(candidate) === getSessionPullRequestUrlKey(url));
-		const state = url && restrictedState.pullRequestStateUrl && getSessionPullRequestUrlKey(url) === getSessionPullRequestUrlKey(restrictedState.pullRequestStateUrl)
+		const eligible = url !== undefined && candidateKeys.has(getPullRequestUrlKey(url));
+		const explicitlyAssociated = url !== undefined && associatedUrls.some(candidate => getPullRequestUrlKey(candidate) === getPullRequestUrlKey(url));
+		const state = url && restrictedState.pullRequestStateUrl && getPullRequestUrlKey(url) === getPullRequestUrlKey(restrictedState.pullRequestStateUrl)
 			? pullRequestSelectionState(restrictedState.pullRequestState)
 			: undefined;
 		return { url, eligible, explicitlyAssociated, state };
@@ -255,9 +266,9 @@ export class AgentHostPullRequestAssociationResolver extends Disposable {
 	}
 
 	private _orderCandidates(candidates: IRestrictedPullRequestCandidates, current: ICurrentPullRequestAssociation, previous: IRestrictedPullRequestResolution | undefined): string[] {
-		const previousArtifactKeys = new Set(previous?.artifactUrls.map(getSessionPullRequestUrlKey));
+		const previousArtifactKeys = new Set(previous?.artifactUrls.map(getPullRequestUrlKey));
 		const newlyAddedArtifactUrls = previous
-			? candidates.artifactUrls.filter(url => !previousArtifactKeys.has(getSessionPullRequestUrlKey(url)))
+			? candidates.artifactUrls.filter(url => !previousArtifactKeys.has(getPullRequestUrlKey(url)))
 			: [];
 		const fallbackCandidates = previous
 			? distinctPullRequestUrls(candidates.restrictedState.pullRequestUrls, candidates.artifactUrls, candidates.associatedUrls)
@@ -292,7 +303,7 @@ export class AgentHostPullRequestAssociationResolver extends Disposable {
 			: undefined;
 	}
 
-	private _withResolvedPullRequest(gitHubState: ISessionGitHubState, candidateKeys: ReadonlySet<string>, branchName: string, pullRequest: CreatedPullRequest | undefined): ISessionGitHubState {
+	private _withResolvedPullRequest(gitHubState: ISessionGitHubState, candidateKeys: ReadonlySet<string>, branchName: string, pullRequest: GitHubPullRequestLookup | undefined): ISessionGitHubState {
 		let nextState = this._restrictPullRequestState(gitHubState, candidateKeys);
 		if (!pullRequest) {
 			return !nextState.pullRequestBranchName || nextState.pullRequestBranchName === branchName
@@ -312,11 +323,11 @@ export class AgentHostPullRequestAssociationResolver extends Disposable {
 	}
 
 	private _sameUrls(left: readonly string[], right: readonly string[]): boolean {
-		return objectEquals(left.map(getSessionPullRequestUrlKey), right.map(getSessionPullRequestUrlKey));
+		return objectEquals(left.map(getPullRequestUrlKey), right.map(getPullRequestUrlKey));
 	}
 
 	private _sameUrl(left: string, right: string | undefined): boolean {
-		return right !== undefined && getSessionPullRequestUrlKey(left) === getSessionPullRequestUrlKey(right);
+		return right !== undefined && getPullRequestUrlKey(left) === getPullRequestUrlKey(right);
 	}
 
 	private _recordResolution(
@@ -349,8 +360,8 @@ export class AgentHostPullRequestAssociationResolver extends Disposable {
 
 	private _restrictPullRequestState(gitHubState: ISessionGitHubState, candidateKeys: ReadonlySet<string>): ISessionGitHubState {
 		const currentUrl = gitHubState.pullRequestUrls?.[0];
-		const pullRequestUrls = gitHubState.pullRequestUrls?.filter(url => candidateKeys.has(getSessionPullRequestUrlKey(url))) ?? [];
-		const initialPullRequestUrls = gitHubState.initialPullRequestUrls?.filter(url => candidateKeys.has(getSessionPullRequestUrlKey(url)));
+		const pullRequestUrls = gitHubState.pullRequestUrls?.filter(url => candidateKeys.has(getPullRequestUrlKey(url))) ?? [];
+		const initialPullRequestUrls = gitHubState.initialPullRequestUrls?.filter(url => candidateKeys.has(getPullRequestUrlKey(url)));
 		const next: {
 			owner?: string;
 			repo?: string;
@@ -369,7 +380,7 @@ export class AgentHostPullRequestAssociationResolver extends Disposable {
 		if (initialPullRequestUrls !== undefined) {
 			next.initialPullRequestUrls = initialPullRequestUrls;
 		}
-		if (currentUrl && pullRequestUrls[0] && getSessionPullRequestUrlKey(currentUrl) === getSessionPullRequestUrlKey(pullRequestUrls[0])) {
+		if (currentUrl && pullRequestUrls[0] && getPullRequestUrlKey(currentUrl) === getPullRequestUrlKey(pullRequestUrls[0])) {
 			return next;
 		}
 		return this._withoutSelectedPullRequest(next);

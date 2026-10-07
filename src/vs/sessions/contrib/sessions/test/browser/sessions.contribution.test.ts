@@ -24,14 +24,14 @@ const showArchivedByDefaultProperty = configurationRegistry.getConfigurationProp
 suite('Sessions Contribution', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('enables the External section by default with automatic experiments', () => {
+	test('disables the External section by default with automatic experiments', () => {
 		assert.deepStrictEqual({
 			type: groupExternalSessionsProperty.type,
 			default: groupExternalSessionsProperty.default,
 			experiment: groupExternalSessionsProperty.experiment,
 		}, {
 			type: 'boolean',
-			default: true,
+			default: false,
 			experiment: { mode: 'auto' },
 		});
 	});

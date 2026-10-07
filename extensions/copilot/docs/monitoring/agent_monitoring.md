@@ -196,6 +196,10 @@ the editor's configuration API; it does not enable capture.
 This applies to the legacy Local extension-host harness. The native Copilot runtime
 owns its own managed identity enforcement. The message-content environment bridge
 does not enable identity or forward account/OS/host values.
+The shared policy also governs the separate
+[Agent Host-owned exporter](../../../../src/vs/platform/agentHost/OTEL.md#settings--env-var-translation),
+including its metadata resources and DB-mode trace fan-out. Its policy changes
+take effect through host replacement, not this extension's live denial latch.
 
 ### Activation
 

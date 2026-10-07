@@ -53,7 +53,7 @@ import { IRemoteUserDataProfilesService } from '../../../services/userDataProfil
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IChatWidgetService } from '../../chat/browser/chat.js';
-import { IAgentHostCustomizationService } from '../../chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
+import { getMcpServerDisplayLabel, IAgentHostCustomizationService } from '../../chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { setAgentHostPluginEnablement } from '../../chat/browser/agentPluginActions.js';
 import { IAICustomizationWorkspaceService } from '../../chat/common/aiCustomizationWorkspaceService.js';
 import { IAgentPluginService } from '../../chat/common/plugins/agentPluginService.js';
@@ -238,7 +238,7 @@ export class ListMcpServerCommand extends Action2 {
 				} satisfies ItemType] : servers.map((server): ItemType => ({
 					id: server.id,
 					server,
-					label: server.name,
+					label: getMcpServerDisplayLabel(server),
 					description: server.enabled
 						? mcpServerStatusToLabel(server.status)
 						: localize('mcp.disabled', 'Disabled'),
@@ -373,9 +373,10 @@ async function runAgentHostMcpServerLifecycleAction(server: IAgentHostMcpServer,
 	} catch (error) {
 		services.logService.error(`Failed to ${action} MCP server '${server.name}'`, error);
 		const message = error instanceof Error ? error.message : String(error);
+		const label = getMcpServerDisplayLabel(server);
 		services.notificationService.error(action === 'start'
-			? localize('mcp.agentHost.startError', "Failed to start MCP server '{0}': {1}", server.name, message)
-			: localize('mcp.agentHost.stopError', "Failed to stop MCP server '{0}': {1}", server.name, message));
+			? localize('mcp.agentHost.startError', "Failed to start MCP server '{0}': {1}", label, message)
+			: localize('mcp.agentHost.stopError', "Failed to stop MCP server '{0}': {1}", label, message));
 	}
 }
 
@@ -546,7 +547,7 @@ export class McpAgentHostServerOptionsCommand extends Action2 {
 		});
 
 		const picked = await quickInputService.pick(items, {
-			placeHolder: server.name,
+			placeHolder: getMcpServerDisplayLabel(server),
 		});
 
 		if (!picked || !hasKey(picked, { action: true })) {

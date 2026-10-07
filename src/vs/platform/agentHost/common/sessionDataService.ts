@@ -138,7 +138,13 @@ export interface ISessionCatalogSyncAcknowledgement {
 }
 
 /** Outcome of atomically storing metadata with a catalog synchronization snapshot. */
-export type SessionCatalogSyncWriteResult = 'applied' | 'replayed';
+export type SessionCatalogSyncWriteResult = 'applied' | 'replayed' | 'cancelled';
+
+/** Outcome of atomically transitioning catalog synchronization generations. */
+export type SessionCatalogSyncTransitionResult = 'applied' | 'generationMismatch' | 'cancelled';
+
+/** Synchronous lifetime check evaluated at catalog receipt write boundaries. */
+export type SessionCatalogSyncWriteValidator = () => boolean;
 
 /**
  * A disposable handle to a per-session SQLite database backed by
@@ -402,12 +408,12 @@ export interface ISessionDatabase extends IDisposable {
 	/**
 	 * Atomically stores metadata and advances the durable catalog relay snapshot.
 	 */
-	setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<SessionCatalogSyncWriteResult>;
+	setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot, validate?: SessionCatalogSyncWriteValidator): Promise<SessionCatalogSyncWriteResult>;
 
 	/**
 	 * Atomically transitions to a new session generation when the stored generation matches.
 	 */
-	transitionMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, expectedSessionGeneration: string, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<boolean>;
+	transitionMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, expectedSessionGeneration: string, snapshot: ISessionCatalogSyncPendingSnapshot, validate?: SessionCatalogSyncWriteValidator): Promise<SessionCatalogSyncTransitionResult>;
 
 	/**
 	 * Returns the durable catalog relay snapshot, if one has been stored.

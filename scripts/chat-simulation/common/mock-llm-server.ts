@@ -1122,7 +1122,9 @@ async function handleResponsesApi(body: string, res: import('http').ServerRespon
 				: Array.isArray(item.content)
 					? item.content.map((c: any) => c.text || '').join('')
 					: '';
-			const match = content.match(/\[scenario:([^\]]+)\]/);
+			// Codex reviews can include the earlier conversation and the planned
+			// action in one message. The final tag selects the current review.
+			const match = [...content.matchAll(/\[scenario:([^\]]+)\]/g)].at(-1);
 			if (match && SCENARIOS[match[1]]) {
 				scenarioId = match[1];
 				isScenarioRequest = true;

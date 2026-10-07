@@ -109,7 +109,7 @@ export class SandboxHelperService implements ISandboxHelperService {
 			return undefined;
 		}
 
-		const { getAvailableToolsPolicy, getUserProfilePolicy, getTemporaryFilesPolicy } = await import('@microsoft/mxc-sdk');
+		const { policy: { filesystem: { getAvailableToolsPolicy, getUserProfilePolicy, getTemporaryFilesPolicy } } } = await import('@microsoft/mxc-sdk/v1');
 		const availableToolsPolicy = getAvailableToolsPolicy(process.env, { containerType: 'processcontainer' });
 		const userProfilePolicy = getUserProfilePolicy();
 		const temporaryFilesPolicy = getTemporaryFilesPolicy(process.env);
@@ -157,8 +157,13 @@ export class SandboxHelperService implements ISandboxHelperService {
 			return undefined;
 		}
 
-		const { buildSandboxPayload } = await import('@microsoft/mxc-sdk');
-		return buildSandboxPayload(commandLine, policy, workingDirectory, containerName, containment);
+		return {
+			...policy,
+			command: commandLine,
+			workingDirectory,
+			containerName,
+			containment: { type: containment },
+		};
 	}
 
 	private async _getPSHome(): Promise<string | undefined> {

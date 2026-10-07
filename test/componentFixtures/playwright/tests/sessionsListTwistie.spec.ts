@@ -93,7 +93,7 @@ for (const theme of ['Dark', 'Light']) {
 for (const theme of ['Dark', 'Light', 'DarkHighContrast', 'LightHighContrast']) {
 	for (const { name, fixture, ariaStatus, indicatorClass, color, count } of [
 		{ name: 'unread', fixture: 'SessionsList_CollapsedUnreadSections', ariaStatus: 'contains unread sessions', indicatorClass: '.codicon-circle-filled', color: '--vscode-textLink-foreground', count: 1 },
-		{ name: 'needs-input', fixture: 'SessionsList_CollapsedNeedsInputSections', ariaStatus: 'session needs input', indicatorClass: '.monaco-pixel-spinner-ring', color: '--vscode-list-warningForeground', count: 2 },
+		{ name: 'needs-input', fixture: 'SessionsList_CollapsedNeedsInputSections', ariaStatus: 'session needs attention', indicatorClass: '.codicon-report', color: '--vscode-list-warningForeground', count: 2 },
 		{ name: 'CI-failure', fixture: 'SessionsList_CollapsedCIFailureSections', ariaStatus: 'session has failing CI checks', indicatorClass: '.codicon-circle-filled', color: '--vscode-list-warningForeground', count: 2 },
 	]) {
 		test.describe(`collapsed section ${name} indicators (${theme})`, () => {

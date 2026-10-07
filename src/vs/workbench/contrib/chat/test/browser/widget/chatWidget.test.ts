@@ -29,6 +29,7 @@ import { SaveReason } from '../../../../../common/editor.js';
 import { IEditorService, ISaveAllEditorsOptions, ISaveEditorsResult } from '../../../../../services/editor/common/editorService.js';
 import { TestEditorService } from '../../../../../test/browser/workbenchTestServices.js';
 import { IChatAttachmentResolveService } from '../../../browser/attachments/chatAttachmentResolveService.js';
+import { IChatAttachmentChangeEvent } from '../../../browser/attachments/chatAttachmentModel.js';
 import { IChatSubmitRequestHandlerService } from '../../../browser/chatSubmitRequestHandlerService.js';
 import { IChatTipService } from '../../../browser/chatTipService.js';
 import { ChatUserInteraction, ChatUserInteractionTimingResult, IChatUserInteractionOptions } from '../../../browser/chatUserInteractionTelemetry.js';
@@ -57,6 +58,175 @@ import { createChatUserInteractionTestHarness } from '../chatUserInteractionTest
 suite('ChatWidget', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createRequestToolsWidget() {
+		const sessionA = upcastPartial<ChatViewModel>({ sessionResource: URI.parse('test:/a') });
+		const sessionB = upcastPartial<ChatViewModel>({ sessionResource: URI.parse('test:/b') });
+		const viewModel = observableValue('viewModel', sessionA);
+		const mode = observableValue('mode', upcastPartial<IChatMode>({ id: 'agent' }));
+		const toolsOwner: { widget: ChatWidget | undefined } = { widget: undefined };
+		const tools = observableValue(toolsOwner, { toolA: true });
+		const widgetReference = observableValue<ChatWidget | undefined>('requestToolsWidget', undefined);
+		const widget = Object.assign(Object.create(ChatWidget.prototype), {
+			_store: store.add(new DisposableStore()),
+			_requestToolsWidget: widgetReference,
+			_requestToolsSources: new WeakMap<object, typeof tools>(),
+			_viewModel: sessionA,
+			_viewModelObs: viewModel,
+			inputPartDisposable: { value: {} },
+		}) as ChatWidget;
+		const input = {
+			currentModeObs: mode,
+			currentModeInfo: { kind: ChatModeKind.Agent },
+			selectedToolsModel: { userSelectedTools: tools },
+		};
+		Object.defineProperty(widget, 'input', { value: input, configurable: true });
+		toolsOwner.widget = widget;
+		widgetReference.set(widget, undefined);
+		return { widget, widgetReference, sessionA, sessionB, viewModel, mode, tools, input };
+	}
+
+	function captureReplacedRequestTools(retainRequest: boolean) {
+		const { widget, tools, input } = createRequestToolsWidget();
+		store.add(toDisposable(() => widget.dispose()));
+		const scopedTools = widget.getModeRequestOptions().userSelectedTools!;
+		tools.set({ toolA: false }, undefined);
+		Object.defineProperty(widget, 'input', {
+			value: { ...input, selectedToolsModel: { userSelectedTools: observableValue('replacementTools', { toolA: true }) } },
+		});
+		return {
+			widget,
+			source: new WeakRef(tools),
+			request: new WeakRef(scopedTools),
+			scopedTools: retainRequest ? scopedTools : undefined,
+		};
+	}
+
+	test('request tools preserve their original input source across GC and release it on widget disposal', async function () {
+		if (typeof globalThis.gc !== 'function') {
+			this.skip();
+		}
+		const captured = captureReplacedRequestTools(true);
+		await timeout(0);
+		await globalThis.gc!({ type: 'major', execution: 'async' });
+		const beforeDisposal = {
+			sourceAlive: captured.source.deref() !== undefined,
+			tools: captured.scopedTools!.get(),
+		};
+		captured.widget.dispose();
+		await timeout(0);
+		await globalThis.gc!({ type: 'major', execution: 'async' });
+
+		assert.deepStrictEqual({
+			beforeDisposal,
+			afterDisposal: {
+				source: captured.source.deref(),
+				tools: captured.scopedTools!.get(),
+			},
+		}, {
+			beforeDisposal: { sourceAlive: true, tools: { toolA: false } },
+			afterDisposal: { source: undefined, tools: { toolA: false } },
+		});
+	});
+
+	test('a live widget does not retain the tools source of a collected request', async function () {
+		if (typeof globalThis.gc !== 'function') {
+			this.skip();
+		}
+		const captured = captureReplacedRequestTools(false);
+		await timeout(0);
+		await globalThis.gc!({ type: 'major', execution: 'async' });
+
+		assert.deepStrictEqual({
+			request: captured.request.deref(),
+			source: captured.source.deref(),
+		}, {
+			request: undefined,
+			source: undefined,
+		});
+	});
+
+	for (const observed of [false, true]) {
+		test(`disposal freezes the last tools snapshot (${observed ? 'observed' : 'unobserved'})`, () => {
+			const { widget, tools } = createRequestToolsWidget();
+			const scopedTools = widget.getModeRequestOptions().userSelectedTools!;
+			if (observed) {
+				scopedTools.recomputeInitiallyAndOnChange(store.add(new DisposableStore()));
+			}
+			scopedTools.get();
+			tools.set({ toolA: false }, undefined);
+			widget.dispose();
+			widget.dispose();
+			tools.set({ toolA: true }, undefined);
+
+			assert.deepStrictEqual(scopedTools.get(), { toolA: !observed });
+		});
+
+		test(`request tools release their widget on disposal (${observed ? 'observed' : 'unobserved'})`, () => {
+			const { widget, widgetReference, sessionA, sessionB, viewModel, mode, tools, input } = createRequestToolsWidget();
+			const scopedTools = widget.getModeRequestOptions().userSelectedTools!;
+			if (observed) {
+				scopedTools.recomputeInitiallyAndOnChange(store.add(new DisposableStore()));
+			}
+			const snapshots = [scopedTools.get()];
+			tools.set({ toolA: false }, undefined);
+			snapshots.push(scopedTools.get());
+			viewModel.set(sessionB, undefined);
+			tools.set({ toolA: true }, undefined);
+			snapshots.push(scopedTools.get());
+			mode.set(upcastPartial<IChatMode>({ id: 'ask' }), undefined);
+			viewModel.set(sessionA, undefined);
+			snapshots.push(scopedTools.get());
+			mode.set(upcastPartial<IChatMode>({ id: 'agent' }), undefined);
+			snapshots.push(scopedTools.get());
+			Object.defineProperty(widget, 'input', {
+				value: { ...input, selectedToolsModel: { userSelectedTools: observableValue('otherTools', { toolA: true }) } },
+			});
+			tools.set({ toolA: false }, undefined);
+			snapshots.push(scopedTools.get());
+			widget.dispose();
+			tools.set({ toolA: true }, undefined);
+			snapshots.push(scopedTools.get());
+
+			assert.deepStrictEqual({
+				widgetReleased: widgetReference.get() === undefined,
+				snapshots,
+			}, {
+				widgetReleased: true,
+				snapshots: [
+					{ toolA: true }, { toolA: false }, { toolA: false },
+					{ toolA: false }, { toolA: true }, { toolA: false }, { toolA: false },
+				],
+			});
+		});
+
+		function captureDisposedWidget() {
+			const { widget } = createRequestToolsWidget();
+			const scopedTools = widget.getModeRequestOptions().userSelectedTools!;
+			if (observed) {
+				scopedTools.recomputeInitiallyAndOnChange(store.add(new DisposableStore()));
+			}
+			widget.dispose();
+			return { widget: new WeakRef(widget), scopedTools };
+		}
+
+		test(`request tools allow a disposed widget to be collected (${observed ? 'observed' : 'unobserved'})`, async function () {
+			if (typeof globalThis.gc !== 'function') {
+				this.skip();
+			}
+			const captured = captureDisposedWidget();
+			await timeout(0);
+			await globalThis.gc!({ type: 'major', execution: 'async' });
+
+			assert.deepStrictEqual({
+				widget: captured.widget.deref(),
+				tools: captured.scopedTools.get(),
+			}, {
+				widget: undefined,
+				tools: { toolA: true },
+			});
+		});
+	}
 
 	function createTranscriptProgressWidget() {
 		const container = dom.append(mainWindow.document.body, dom.$('.interactive-session'));
@@ -528,6 +698,7 @@ suite('ChatWidget', () => {
 			currentModeInfo: upcastPartial<ChatInputPart['currentModeInfo']>({}),
 			dnd: upcastPartial<ChatInputPart['dnd']>({ setDisabledOverlay: () => { } }),
 			onDidLoadInputState: Event.None,
+			onDidChangeDraft: Event.None,
 			onDidFocus: onDidFocus.event,
 			onDidAcceptFollowup: Event.None,
 			onDidChangeCurrentChatMode: Event.None,
@@ -988,6 +1159,7 @@ suite('ChatWidget', () => {
 		let rerenders = 0;
 		const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), {
 			_readOnly: false,
+			_draftOnly: observableValue('draftOnly', false),
 			_visible: observableValue('visible', true),
 			_readOnlyContextKey: { set: () => { } },
 			chatSuggestNextWidget: { hide: () => { } },
@@ -1009,6 +1181,65 @@ suite('ChatWidget', () => {
 			rerenders: 3,
 			inputVisibility: [false, true, true],
 		});
+	});
+
+	test('draft input events include IME and exclude focus, restored content, and restored attachments', async () => {
+		const typed = store.add(new Emitter<string>());
+		const pasted = store.add(new Emitter<void>());
+		const compositionEnded = store.add(new Emitter<void>());
+		const focused = store.add(new Emitter<void>());
+		const contentChanged = store.add(new Emitter<void>());
+		const attachments = store.add(new Emitter<IChatAttachmentChangeEvent>());
+		const draftChanged = store.add(new Emitter<void>());
+		let changes = 0;
+		store.add(draftChanged.event(() => changes++));
+		const input: { _isSyncingToOrFromInputModel: boolean; _createDraftChangeListeners(): DisposableStore; restoreAttachments: ChatInputPart['restoreAttachments'] } = Object.assign(Object.create(ChatInputPart.prototype), {
+			_inputEditor: {
+				onDidType: typed.event,
+				onDidPaste: pasted.event,
+				onDidCompositionEnd: compositionEnded.event,
+				onDidFocusEditorText: focused.event,
+				onDidChangeModelContent: contentChanged.event,
+			},
+			_attachmentModel: {
+				onDidChange: attachments.event,
+				clearAndSetContext: (...added: IChatAttachmentChangeEvent['added']) => attachments.fire({ added, deleted: [], updated: [] }),
+			},
+			_onDidChangeDraft: draftChanged,
+			_isSyncingToOrFromInputModel: true,
+		});
+		const listeners = store.add(input._createDraftChangeListeners());
+		const added: IChatAttachmentChangeEvent = {
+			added: [{ kind: 'file', id: 'file', name: 'file', value: URI.file('/file') }], deleted: [], updated: [],
+		};
+		focused.fire();
+		contentChanged.fire();
+		attachments.fire(added);
+		const restored = changes;
+		input._isSyncingToOrFromInputModel = false;
+		await input.restoreAttachments(added.added);
+		const recalled = changes;
+		compositionEnded.fire();
+		const composedWithIme = changes;
+		typed.fire('a');
+		pasted.fire();
+		attachments.fire(added);
+		attachments.fire({ added: [], deleted: ['file'], updated: [] });
+		const composed = changes;
+		listeners.dispose();
+		typed.fire('b');
+		pasted.fire();
+		compositionEnded.fire();
+		attachments.fire(added);
+
+		assert.deepStrictEqual({ restored, recalled, composedWithIme, composed, disposed: changes }, { restored: 0, recalled: 0, composedWithIme: 1, composed: 4, disposed: 4 });
+	});
+
+	test('a visible read-only composer refuses send and queue operations', async () => {
+		const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), { _readOnly: true });
+		const sent = await widget.acceptInput('unsent draft');
+		const queued = await widget.acceptInput('unsent draft', { queue: ChatRequestQueueKind.Queued });
+		assert.deepStrictEqual({ sent, queued }, { sent: undefined, queued: undefined });
 	});
 
 	test('re-lays out embedded editors when chat item padding changes', () => {

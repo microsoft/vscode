@@ -554,6 +554,47 @@ suite('ToolBar', () => {
 		]);
 	});
 
+	test('overflows the minimum actions when their width is not reserved and does not fit', () => {
+		let availableWidth = 300;
+		const toolbar = store.add(new TestToolBar(container, contextMenuProvider, {
+			responsiveBehavior: {
+				enabled: true,
+				kind: 'last',
+				minItems: 2,
+				actionMinWidth: 22,
+				reserveMinWidth: false,
+				getAvailableWidth: () => availableWidth,
+			},
+			actionViewItemProvider: action => new FixedWidthActionViewItem(action, 60),
+		}));
+		toolbar.setActions([
+			store.add(new Action('attach', 'Attach')),
+			store.add(new Action('agent', 'Agent')),
+			store.add(new Action('model', 'Model')),
+			store.add(new Action('settings', 'Settings')),
+		]);
+
+		const states: string[][] = [];
+		for (const width of [100, 40, 100, 300]) {
+			availableWidth = width;
+			toolbar.relayout();
+			states.push(Array.from({ length: toolbar.getItemsLength() }, (_, index) => toolbar.getItemAction(index)?.id ?? ''));
+		}
+
+		assert.deepStrictEqual({
+			states,
+			minWidths: [container.style.minWidth, toolbar.getElement().style.minWidth],
+		}, {
+			states: [
+				['attach', 'agent', ToggleMenuAction.ID],
+				[ToggleMenuAction.ID],
+				['attach', 'agent', ToggleMenuAction.ID],
+				['attach', 'agent', 'model', 'settings'],
+			],
+			minWidths: ['', ''],
+		});
+	});
+
 	test('uses overflow-specific proxy actions', async () => {
 		const runs: string[] = [];
 		let overflowAnchor: HTMLElement | undefined;

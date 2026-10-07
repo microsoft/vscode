@@ -60,6 +60,24 @@ Saved configuration is a preference, not a durable permission grant. Providers r
 
 Compatibility decoding for configuration values in existing AHP definitions is separate from definition ownership. Flat configuration input aliases may be translated at the provider boundary but cannot override an explicit session template.
 
+### Captured customizations
+
+When the host advertises `automations.customizations`, the client sends its enabled plugins for the target's harness and workspace in the AHP session template on creation and when the target changes. Ordinary edits resubmit the saved entries unchanged. The client keeps the customization scope alive until the host accepts or rejects the mutation.
+
+The automation dialog's Advanced section lets the user choose which of those plugins to sync. When editing, it marks saved entries whose local `nonce` changed as outdated. Saving always sends the selection, so outdated entries are refreshed, and saved entries that are no longer available locally keep their copy while selected. The dialog stays open with progress until the host accepts the mutation, and shows a rejection inline.
+
+The host copies each new or changed entry from the dispatching client into an immutable host-owned directory, and reuses the existing copy for entries whose `id`, `uri`, and `nonce` are unchanged. Any capture failure rejects the mutation. The catalogue reports the copies in `AutomationEntry.customizations`.
+
+For a local VS Code window connected through MessagePort, `file:` plugins are parsed and used at their original host paths instead of copied; edits to their contents on disk take effect in later runs. Virtual bundles and plugins from remote clients are still copied, and garbage collection only removes host-owned copies, never these in-place paths.
+
+A run session receives the copies as a static, host-owned active client created with the session, so providers load them through the same path as any other client plugin, without contacting the originating client. That client's plugin URIs use the `vscode-agent-host-file:` scheme, which tells the plugin manager to use the host directory in place; a `file:` URI always names a client resource. That client contributes no tools and is not re-attached when a session is restored. A selected custom agent inside a captured plugin is remapped to the copy.
+
+After each create, update, or removal, the host deletes copies that no automation references, including those of a rejected capture. Copies used by a run session stay until the host restarts, because that session keeps using them in place for follow-up turns.
+
+### MCP authentication in runs
+
+When an MCP server in a run session reports that it requires authentication, the host sends a `vscode/requestMcpAuthentication` extension request to connected clients one at a time until one succeeds. A client never prompts: it supplies a token only if the user already signed in to and allowed that MCP server, pushes it through the regular `authenticate` command, and then reports success. The host asks once per session, server, and challenge. If no client can supply a token, the run continues without that server. Host-owned MCP authentication will replace this.
+
 ### Blueprints and templates
 
 `IAutomationBlueprint` is a versioned portable name, prompt, and schedule. It excludes runtime identity, target provider, workspace, session configuration, enabled state, timestamps, and history.

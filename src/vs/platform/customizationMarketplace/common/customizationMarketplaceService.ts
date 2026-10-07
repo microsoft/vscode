@@ -80,8 +80,10 @@ export interface ICustomizationMarketplaceEntry {
 	/** Validated original URL for external opening, preserving escaped path separators. */
 	readonly externalUrl?: string;
 	readonly repository?: URI;
+	readonly readmeUri?: URI;
 	readonly icon?: CustomizationMarketplaceIcon;
 	readonly publisher?: string;
+	readonly publisherUrl?: URI;
 	/** Source-supplied origin within a feed, distinct from the feed's display name. */
 	readonly originLabel?: string;
 	readonly version?: string;

@@ -66,10 +66,9 @@ export function getGlobalConfigurationValue<T>(configurationService: IConfigurat
 			return value;
 		}
 	}
-	// `inspect` reports the default from the default-configuration model, which is
-	// built only from *visible* properties — a setting hidden with `included: false`
-	// has no entry there. Fall back to the declared default so hidden and visible
-	// settings mirror identically.
+	// Hidden experimental settings participate in the default-configuration model.
+	// Other settings hidden with `included: false` have no entry there, so fall
+	// back to their declared default.
 	return inspected.defaultValue ?? property?.default as T | undefined;
 }
 

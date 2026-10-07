@@ -8,9 +8,9 @@ import type {
 	ILinkPresentationProvider,
 	LinkPresentation,
 	LinkPresentationKind,
-	LinkPresentationStatusKind,
 } from '@vscode/markdown-editor';
 import { Disposable, observableValue, type ISettableObservable } from '@vscode/observables';
+import type { RichLinkPresentationUpdate, MarkdownEditorHost } from '../src/preview/markdownEditorProtocol';
 
 interface LinkPresentationEntry {
 	readonly presentation: ISettableObservable<WebviewLinkPresentation | undefined>;
@@ -22,12 +22,13 @@ type WebviewLinkPresentation = LinkPresentation & { readonly isLoading?: boolean
 export class WebviewLinkPresentationProvider extends Disposable implements ILinkPresentationProvider {
 	readonly #entries = new Map<string, LinkPresentationEntry>();
 	readonly #rules: readonly { id: string; uriPattern: RegExp; kind: LinkPresentationKind }[];
-	readonly #postMessage: (message: unknown) => void;
+	readonly #syncTargets: (hrefs: string[]) => Promise<void>;
 	#syncScheduled = false;
+	#disposed = false;
 
 	constructor(
 		rules: readonly { id: string; source: string; flags: string; kind: LinkPresentationKind }[],
-		postMessage: (message: unknown) => void,
+		host: Pick<MarkdownEditorHost, 'richLinkTargets'>,
 	) {
 		super();
 		this.#rules = rules.map(rule => ({
@@ -35,7 +36,7 @@ export class WebviewLinkPresentationProvider extends Disposable implements ILink
 			uriPattern: new RegExp(rule.source, rule.flags),
 			kind: rule.kind,
 		}));
-		this.#postMessage = postMessage;
+		this.#syncTargets = hrefs => host.richLinkTargets({ hrefs });
 	}
 
 	createLinkPresentation(url: string): ILinkPresentation | undefined {
@@ -71,24 +72,18 @@ export class WebviewLinkPresentationProvider extends Disposable implements ILink
 		};
 	}
 
-	handleMessage(message: unknown): boolean {
-		if (!isRecord(message) || message.type !== 'richLinkPresentations' || !Array.isArray(message.presentations)) {
-			return false;
-		}
-		for (const value of message.presentations) {
-			if (!isRecord(value) || typeof value.href !== 'string') {
-				continue;
-			}
+	updatePresentations(presentations: readonly RichLinkPresentationUpdate[]): void {
+		for (const value of presentations) {
 			const entry = this.#entries.get(value.href);
 			if (!entry) {
 				continue;
 			}
-			entry.presentation.set(readLinkPresentation(value.presentation), undefined);
+			entry.presentation.set(value.presentation, undefined);
 		}
-		return true;
 	}
 
 	override dispose(): void {
+		this.#disposed = true;
 		this.#entries.clear();
 		super.dispose();
 	}
@@ -108,7 +103,14 @@ export class WebviewLinkPresentationProvider extends Disposable implements ILink
 		this.#syncScheduled = true;
 		queueMicrotask(() => {
 			this.#syncScheduled = false;
-			this.#postMessage({ type: 'richLinkTargets', hrefs: [...this.#entries.keys()] });
+			if (this.#disposed) {
+				return;
+			}
+			void this.#syncTargets([...this.#entries.keys()]).catch(error => {
+				if (!this.#disposed) {
+					console.error('Markdown editor rich link target synchronization failed', error);
+				}
+			});
 		});
 	}
 }
@@ -116,64 +118,4 @@ export class WebviewLinkPresentationProvider extends Disposable implements ILink
 function matchesRule(rule: RegExp, value: string): boolean {
 	rule.lastIndex = 0;
 	return rule.test(value);
-}
-
-function readLinkPresentation(value: unknown): WebviewLinkPresentation | undefined {
-	if (!isRecord(value) || !isLinkPresentationKind(value.kind)) {
-		return undefined;
-	}
-	const title = typeof value.title === 'string' ? value.title : undefined;
-	const detail = typeof value.detail === 'string' ? value.detail : undefined;
-	const reference = typeof value.reference === 'string' ? value.reference : undefined;
-	const tooltip = typeof value.tooltip === 'string' ? value.tooltip : undefined;
-	const ariaLabel = typeof value.ariaLabel === 'string' ? value.ariaLabel : undefined;
-	const status = readStatus(value.status);
-	const secondaryStatus = readStatus(value.secondaryStatus);
-	const isLoading = value.isLoading === true;
-	return {
-		kind: value.kind,
-		...(title ? { title } : {}),
-		...(detail ? { detail } : {}),
-		...(reference ? { reference } : {}),
-		...(status ? { status } : {}),
-		...(secondaryStatus ? { secondaryStatus } : {}),
-		...(tooltip ? { tooltip } : {}),
-		...(ariaLabel ? { ariaLabel } : {}),
-		...(isLoading ? { isLoading: true } : {}),
-	};
-}
-
-function readStatus(value: unknown): LinkPresentation['status'] {
-	return isRecord(value) && isStatusKind(value.kind) && typeof value.label === 'string'
-		? { kind: value.kind, label: value.label }
-		: undefined;
-}
-
-function isLinkPresentationKind(value: unknown): value is LinkPresentationKind {
-	return value === 'resource'
-		|| value === 'issue'
-		|| value === 'pullRequest'
-		|| value === 'commit'
-		|| value === 'file'
-		|| value === 'folder'
-		|| value === 'session'
-		|| value === 'repository'
-		|| value === 'branch';
-}
-
-function isStatusKind(value: unknown): value is LinkPresentationStatusKind {
-	return value === 'neutral'
-		|| value === 'pending'
-		|| value === 'success'
-		|| value === 'warning'
-		|| value === 'error'
-		|| value === 'open'
-		|| value === 'closed'
-		|| value === 'merged'
-		|| value === 'draft'
-		|| value === 'notPlanned';
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === 'object' && value !== null;
 }

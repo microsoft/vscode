@@ -135,6 +135,20 @@ suite('Sessions - Sessions Part', () => {
 		});
 	});
 
+	test('all session geometry is current when a hosted chat lays out', () => {
+		const { part, chatViews } = createSessionsPartTestHarness(store);
+		const sessions = [createTestActiveSession('a'), createTestActiveSession('b')];
+		part.updateVisibleSessions(sessions, sessions[0]);
+		part.layout(1202, 802, 0, 0);
+		const observations: string[][] = [];
+		for (const chat of chatViews.filter(view => view.kind === 'chat')) {
+			chat.onLayout = () => observations.push(sessions.map(session => part.getSessionView(session.sessionId)!.element.style.width));
+		}
+		part.layout(1402, 902, 0, 0);
+		part.layout(1402, 902, 0, 0);
+		assert.deepStrictEqual(observations, [['700px', '700px'], ['700px', '700px']]);
+	});
+
 	for (const maximized of [false, true]) {
 		test(`removing and disposing a ${maximized ? 'maximized' : 'phone'} projection detaches its outgoing views`, () => {
 			const { part, container, chatViews } = createSessionsPartTestHarness(store);

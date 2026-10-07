@@ -14,6 +14,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { OpenAgentHostStateFileAction } from '../../agentHost/browser/openAgentHostStateFileAction.js';
 import '../../../../../workbench/contrib/chat/browser/remoteAgentHost/remoteAgentHost.contribution.js';
 import './remoteAgentHostActions.js';
+import './missionControlAgentHostContribution.js';
 import './manageRemoteAgentHosts.js';
 import '../../agentHost/browser/agentHostAgentPicker.js';
 

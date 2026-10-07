@@ -907,7 +907,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 		const { request, location, history } = await this._createRequest(requestDto, context, detector.extension);
 
-		const model = await this.getModelForRequest(request, detector.extension);
+		const model = await this._languageModels.getLanguageModelForRequest(detector.extension, request.userSelectedModelId);
 		const tools = await this.getToolsForRequest(detector.extension, request.userSelectedTools, model.id, token);
 		const extRequest = typeConvert.ChatAgentRequest.to(
 			request,
@@ -951,22 +951,6 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return { request, location, history: convertedHistory };
 	}
 
-	private async getModelForRequest(request: IChatAgentRequest, extension: IExtensionDescription): Promise<vscode.LanguageModelChat> {
-		let model: vscode.LanguageModelChat | undefined;
-		if (request.userSelectedModelId) {
-			model = await this._languageModels.getLanguageModelByIdentifier(extension, request.userSelectedModelId);
-		}
-		if (!model) {
-			model = await this._languageModels.getDefaultLanguageModel(extension);
-			if (!model) {
-				throw new Error('Language model unavailable');
-			}
-		}
-
-		return model;
-	}
-
-
 	async $setRequestTools(requestId: string, tools: UserSelectedTools) {
 		const request = [...this._inFlightRequests].find(r => r.requestId === requestId);
 		if (!request) {
@@ -1009,7 +993,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 			stream = new ChatAgentResponseStream(agent.extension, request, this._proxy, this._commands.converter, sessionDisposables, this._pendingCarouselResolvers, token);
 
-			const model = await this.getModelForRequest(request, agent.extension);
+			const model = await this._languageModels.getLanguageModelForRequest(agent.extension, request.userSelectedModelId);
 			const tools = await this.getToolsForRequest(agent.extension, request.userSelectedTools, model.id, token);
 			const extRequest = typeConvert.ChatAgentRequest.to(
 				request,

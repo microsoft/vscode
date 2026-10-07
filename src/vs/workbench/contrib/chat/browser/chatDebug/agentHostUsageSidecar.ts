@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { readUsageInfoMeta } from '../../../../../platform/agentHost/common/meta/agentUsageMeta.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../../base/common/map.js';
@@ -15,9 +16,9 @@ import { IAgentHostService, type IAgentConnection } from '../../../../../platfor
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ActionType, NotificationType, type ActionEnvelope, type ChatUsageAction, type INotification, type SessionCustomizationsChangedAction } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { isDefaultChatUri, parseChatUri, readUsageInfoMeta, type Customization } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { isDefaultChatUri, parseChatUri, type Customization } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { getCopilotCliSessionRawId } from '../copilotCliEventsUri.js';
-import { agentModelCallMetaKey, readAgentModelCallDiagnostics, type IAgentModelCallDiagnostics } from '../../../../../platform/agentHost/common/meta/agentModelCallMeta.js';
+import { agentModelCallMetaKey, readAgentModelCallDetail, readAgentModelCallDiagnostics, type IAgentModelCallDiagnostics } from '../../../../../platform/agentHost/common/meta/agentModelCallMeta.js';
 
 /**
  * Directory (under the client's user data home) that holds the per-session
@@ -318,6 +319,7 @@ export class AgentHostUsageRecorder extends AgentHostActionRecorder {
 		const usage = (action as ChatUsageAction).usage;
 		const meta = readUsageInfoMeta(usage);
 		const modelCall = readAgentModelCallDiagnostics(usage);
+		const callDetail = readAgentModelCallDetail(usage);
 		// Skip the async re-emit (same tokens, enriched with context attribution).
 		if (meta.contextAttribution) {
 			return;
@@ -341,6 +343,7 @@ export class AgentHostUsageRecorder extends AgentHostActionRecorder {
 			this._seenCalls.set(key, true);
 		}
 		const record: IAgentHostUsageRecord = {
+			...callDetail,
 			turnId: modelCall ? modelCall.turnId : (action as ChatUsageAction).turnId,
 			model: usage.model,
 			inputTokens: usage.inputTokens,

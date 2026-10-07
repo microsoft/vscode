@@ -22,6 +22,9 @@ function createSession(id: string, status: SessionStatus = SessionStatus.Complet
 		resource: URI.parse(`session://${id}`),
 		providerId: 'test',
 		sessionType: 'test',
+		harness: 'copilot',
+		environment: 'local',
+		application: constObservable({ id: 'vscode', label: 'VS Code' }),
 		icon: Codicon.account,
 		createdAt: opts?.createdAt ?? new Date(),
 		workspace: observableValue(`workspace-${id}`, undefined),
@@ -81,6 +84,15 @@ suite('SessionsListModelService', () => {
 			unread: { id: Codicon.circleFilled.id, color: 'textLink.foreground' },
 			read: { id: Codicon.gitPullRequest.id, color: undefined },
 		});
+	});
+
+	test('uses the report icon when a session needs attention', () => {
+		const icon = service.getStatusIcon(SessionStatus.NeedsInput, true, false);
+
+		assert.deepStrictEqual(
+			{ id: icon.id, color: icon.color?.id },
+			{ id: Codicon.report.id, color: 'list.warningForeground' },
+		);
 	});
 
 	// -- Pinning --

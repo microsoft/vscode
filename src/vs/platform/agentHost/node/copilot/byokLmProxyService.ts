@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as http from 'http';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
@@ -16,8 +17,12 @@ import {
 	readProxyRequestBody,
 } from '../shared/loopbackProxyServer.js';
 import {
+	BYOK_MAX_TOOLS,
 	bridgeResultToResponsesBody,
 	bridgeResultToResponsesSseFrames,
+	capBridgeTools,
+	endsWithUserMessage,
+	hasVisibleBridgeOutput,
 	IResponsesRequest,
 	responsesErrorBody,
 	responsesRequestToBridge,
@@ -51,10 +56,26 @@ export interface IByokLmProxyHandle extends ILoopbackProxyHandle {
 	providerBaseUrl(vendor: string): string;
 }
 
+/**
+ * Fired when the proxy dropped tools from a BYOK request to stay within
+ * {@link BYOK_MAX_TOOLS}. The request is still sent with the kept tools.
+ */
+export interface IByokLmToolsCappedEvent {
+	/** Copilot SDK session id from the request's bearer token. */
+	readonly sessionId: string;
+	/** Number of tools the runtime sent to the proxy. */
+	readonly requestedToolCount: number;
+	/** Number of tools forwarded to the model. */
+	readonly sentToolCount: number;
+}
+
 export const IByokLmProxyService = createDecorator<IByokLmProxyService>('byokLmProxyService');
 
 export interface IByokLmProxyService {
 	readonly _serviceBrand: undefined;
+
+	/** Fires when a request's tools were capped at {@link BYOK_MAX_TOOLS}. */
+	readonly onDidCapTools: Event<IByokLmToolsCappedEvent>;
 
 	/** Start the proxy (if not already running) and return a refcounted handle. */
 	start(): Promise<IByokLmProxyHandle>;
@@ -71,6 +92,17 @@ export interface IByokLmProxyService {
 const PROXY_USER_FACING_NAME = 'ByokLmProxyService';
 const VENDOR_PATH_PREFIX = '/v/';
 const RESPONSES_SUFFIX = '/responses';
+
+/**
+ * Status for a model call that answered a user message with no text or tool
+ * calls. The runtime retries 5xx responses but surfaces 4xx messages to the
+ * user directly.
+ */
+const EMPTY_RESPONSE_STATUS = 422;
+
+function emptyResponseMessage(modelId: string): string {
+	return `The model '${modelId}' returned an empty response with no text or tool calls. This can happen when the conversation exceeds the model's context window or output token limit. Try again, start a new session, or choose a different model.`;
+}
 
 /**
  * The BYOK proxy keeps no per-bind mutable state: the active renderer bridge is
@@ -95,6 +127,9 @@ type ByokLmProxyState = undefined;
 export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> implements IByokLmProxyService {
 
 	declare readonly _serviceBrand: undefined;
+
+	private readonly _onDidCapTools = new Emitter<IByokLmToolsCappedEvent>();
+	readonly onDidCapTools = this._onDidCapTools.event;
 
 	constructor(
 		@ILogService logService: ILogService,
@@ -126,6 +161,11 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 		};
 	}
 
+	override dispose(): void {
+		super.dispose();
+		this._onDidCapTools.dispose();
+	}
+
 	/** Emit the base's fallback failure using the OpenAI error envelope. */
 	protected override writeInternalError(res: http.ServerResponse): void {
 		this._writeJsonError(res, 500, 'Internal proxy error');
@@ -152,7 +192,7 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 
 		const vendor = this._parseVendorFromResponsesPath(pathname);
 		if (method === 'POST' && vendor !== undefined) {
-			await this._handleResponses(req, res, runtime, vendor);
+			await this._handleResponses(req, res, runtime, vendor, auth.sessionId);
 			return;
 		}
 
@@ -185,7 +225,7 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 		return vendor;
 	}
 
-	private async _handleResponses(req: http.IncomingMessage, res: http.ServerResponse, runtime: ILoopbackProxyRuntime<ByokLmProxyState>, vendor: string): Promise<void> {
+	private async _handleResponses(req: http.IncomingMessage, res: http.ServerResponse, runtime: ILoopbackProxyRuntime<ByokLmProxyState>, vendor: string, sessionId: string): Promise<void> {
 		let body: IResponsesRequest;
 		try {
 			const raw = await readProxyRequestBody(req);
@@ -202,6 +242,16 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 			const message = err instanceof ResponsesTranslationError ? err.message : String(err);
 			this._writeJsonError(res, 400, message, 'invalid_request_error');
 			return;
+		}
+
+		const capped = capBridgeTools(bridgeRequest);
+		if (capped.droppedToolNames.length > 0) {
+			const requestedToolCount = bridgeRequest.tools?.length ?? 0;
+			const sentToolCount = capped.request.tools?.length ?? 0;
+			this._logService.warn(`[${PROXY_USER_FACING_NAME}] Session ${sessionId}: sending ${sentToolCount} of ${requestedToolCount} tools to ${vendor}/${bridgeRequest.modelId} (limit ${BYOK_MAX_TOOLS}); dropped ${capped.droppedToolNames.length} tool(s)`);
+			this._logService.trace(`[${PROXY_USER_FACING_NAME}] Session ${sessionId}: dropped tools: ${capped.droppedToolNames.join(', ')}`);
+			bridgeRequest = capped.request;
+			this._onDidCapTools.fire({ sessionId, requestedToolCount, sentToolCount });
 		}
 
 		const connection = this._bridgeRegistry.getServingConnection();
@@ -229,6 +279,15 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 			}
 			if (result.error) {
 				this._writeJsonError(res, 502, result.error, 'api_error');
+				return;
+			}
+			if (endsWithUserMessage(bridgeRequest.input) && !hasVisibleBridgeOutput(result.output)) {
+				// The runtime would accept an empty 200 and then fail the turn with a
+				// generic "No response was returned" error. Report why instead, using a
+				// 4xx status so the runtime doesn't retry a deterministic outcome.
+				const outputTypes = result.output.map(item => item.type).join(', ') || 'none';
+				this._logService.warn(`[${PROXY_USER_FACING_NAME}] Session ${sessionId}: ${vendor}/${bridgeRequest.modelId} returned no text or tool calls in reply to a user message (output items: ${outputTypes}; output tokens: ${result.usage?.outputTokens ?? 'unknown'})`);
+				this._writeJsonError(res, EMPTY_RESPONSE_STATUS, emptyResponseMessage(bridgeRequest.modelId), 'api_error');
 				return;
 			}
 			if (body.stream === true) {
@@ -279,6 +338,8 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 export class NullByokLmProxyService implements IByokLmProxyService {
 
 	declare readonly _serviceBrand: undefined;
+
+	readonly onDidCapTools: Event<IByokLmToolsCappedEvent> = Event.None;
 
 	start(): Promise<IByokLmProxyHandle> {
 		return Promise.reject(new Error('BYOK is not supported in this agent host'));

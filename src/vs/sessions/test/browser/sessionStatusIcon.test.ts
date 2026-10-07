@@ -83,4 +83,34 @@ suite('Sessions - SessionStatusIcon', () => {
 			}],
 		});
 	});
+
+	for (const reducedMotion of [false, true]) {
+		test(`renders needs-attention as a pulsing report icon${reducedMotion ? ' with reduced motion' : ''}`, () => {
+			const container = document.createElement('div');
+			const modelService = new class extends mock<ISessionsListModelService>() {
+				override getStatusIcon() {
+					return Codicon.report;
+				}
+			}();
+			const accessibilityService = new class extends TestAccessibilityService {
+				override isMotionReduced(): boolean { return reducedMotion; }
+			}();
+			const icon = store.add(new SessionStatusIcon(container, accessibilityService, modelService));
+
+			icon.setStatus(SessionStatus.NeedsInput, true, false, undefined, URI.parse('session:attention'));
+
+			assert.deepStrictEqual({
+				icons: getRenderedIcons(container),
+				pulses: container.classList.contains('session-icon-pulse'),
+			}, {
+				icons: [{
+					className: 'codicon codicon-report',
+					fadingOut: undefined,
+					opacity: '',
+					transition: '',
+				}],
+				pulses: true,
+			});
+		});
+	}
 });

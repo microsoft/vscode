@@ -31,6 +31,7 @@ import { ConfigureToolsAction } from './actions/chatToolActions.js';
 import { IAgentSessionsService } from './agentSessions/agentSessionsService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { toAgentHostBackendSessionUri } from './agentSessions/agentHost/agentHostSessionUri.js';
+import { IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { CONFIGURE_INSTRUCTIONS_ACTION_ID } from './promptSyntax/attachInstructionsAction.js';
 import { showConfigureHooksQuickPick } from './promptSyntax/hookActions.js';
@@ -42,6 +43,7 @@ import { IWorkbenchEnvironmentService } from '../../../services/environment/comm
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from './aiCustomization/aiCustomizationManagement.js';
 import { IChatPetService } from './chatPetService.js';
+import { CHAT_PET_BLOBBY_COMMAND_ID } from './chatPetColors.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionWording } from '../../../../platform/chat/common/sessionArchiveActions.js';
 
 export class ChatSlashCommandsContribution extends Disposable {
@@ -63,6 +65,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IChatPetService chatPetService: IChatPetService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IAgentHostConnectionsService connectionsService: IAgentHostConnectionsService,
 	) {
 		super();
 
@@ -75,6 +78,18 @@ export class ChatSlashCommandsContribution extends Disposable {
 			locations: [ChatAgentLocation.Chat]
 		}, async () => {
 			chatPetService.toggle();
+		}));
+		this._register(slashCommandService.registerSlashCommand({
+			command: 'blobby',
+			detail: nls.localize('blobby', "Show Blobby or open its color customization"),
+			sortText: 'z3_blobby',
+			executeImmediately: true,
+			executeDuringRequest: true,
+			silent: true,
+			locations: [ChatAgentLocation.Chat],
+			when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.Setup.hidden.negate()),
+		}, async () => {
+			await commandService.executeCommand(CHAT_PET_BLOBBY_COMMAND_ID);
 		}));
 		const clearCommandRegistration = this._register(new MutableDisposable());
 		const registerClearCommand = () => {
@@ -243,7 +258,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 			return state && !(state instanceof Error) ? state.config?.values : undefined;
 		};
 		const setPermissionLevelForSession = async (sessionResource: URI, level: ChatPermissionLevel) => {
-			const backendSession = toAgentHostBackendSessionUri(sessionResource);
+			const backendSession = toAgentHostBackendSessionUri(sessionResource, connectionsService);
 			if (backendSession) {
 				const permittedLevel = configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false
 					? ChatPermissionLevel.Default
@@ -251,7 +266,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 				const partial = { [SessionConfigKey.AutoApprove]: permittedLevel };
 				const workingDirectory = getAgentHostWorkingDirectory(sessionResource);
 				if (isUntitledChatSession(sessionResource)) {
-					await agentHostProvisionalService.applyConfigChange(sessionResource, backendSession.scheme, workingDirectory, partial);
+					await agentHostProvisionalService.applyConfigChange(sessionResource, sessionResource.scheme.substring('agent-host-'.length), workingDirectory, partial);
 					return;
 				}
 

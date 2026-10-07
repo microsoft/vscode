@@ -20,7 +20,7 @@ import { EventType, EventHelper, append, $, addDisposableListener, prepend, getW
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
-import { Parts, IWorkbenchLayoutService } from '../../../workbench/services/layout/browser/layoutService.js';
+import { Parts, IWorkbenchLayoutService, LayoutSettings, ModernUIDensity } from '../../../workbench/services/layout/browser/layoutService.js';
 
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IHostService } from '../../../workbench/services/host/browser/host.js';
@@ -35,6 +35,7 @@ import { Menus } from '../menus.js';
 import { IsNewChatSessionContext } from '../../common/contextkeys.js';
 
 const commandCenterContextKeys = new Set([IsNewChatSessionContext.key]);
+const DEFAULT_SESSIONS_TITLEBAR_HEIGHT = 44;
 
 /**
  * Simplified agent sessions titlebar part.
@@ -55,7 +56,9 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 
 	get minimumHeight(): number {
 		const wcoEnabled = isWeb && isWCOEnabled();
-		let value = DEFAULT_CUSTOM_TITLEBAR_HEIGHT;
+		let value = this.configurationService.getValue<ModernUIDensity>(LayoutSettings.MODERN_UI_DENSITY) === ModernUIDensity.Compact
+			? DEFAULT_CUSTOM_TITLEBAR_HEIGHT
+			: DEFAULT_SESSIONS_TITLEBAR_HEIGHT;
 		if (wcoEnabled) {
 			value = Math.max(value, getWCOTitlebarAreaRect(getWindow(this.element))?.height ?? 0);
 		}
@@ -118,6 +121,11 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	private registerListeners(targetWindowId: number): void {
 		this._register(this.hostService.onDidChangeFocus(focused => focused ? this.onFocus() : this.onBlur()));
 		this._register(this.hostService.onDidChangeActiveWindow(windowId => windowId === targetWindowId ? this.onFocus() : this.onBlur()));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(LayoutSettings.MODERN_UI_DENSITY)) {
+				this._onDidChange.fire(undefined);
+			}
+		}));
 	}
 
 	private onBlur(): void {
@@ -139,7 +147,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	}
 
 	updateOptions(_options: { compact: boolean }): void {
-		// No compact mode support in agent sessions titlebar
+		// Auxiliary-window compact mode does not override the configured layout density.
 	}
 
 	protected override createContentArea(parent: HTMLElement): HTMLElement {
@@ -333,6 +341,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		this.updateLayout();
 		super.layoutContents(width, height);
 		this.titleBarToolBarOverflowScheduler.schedule();
+		this.layoutService.getContainer(getWindow(this.element)).style.setProperty('--modern-ui-notifications-block-start-inset', `${height + 5}px`);
 	}
 
 	private registerOverflowManagedToolBar(element: HTMLElement, toolBar: MenuWorkbenchToolBar): void {

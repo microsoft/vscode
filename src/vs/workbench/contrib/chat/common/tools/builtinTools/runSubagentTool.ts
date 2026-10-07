@@ -397,6 +397,9 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				hooks: collectedHooks,
 				hasHooksEnabled: !!collectedHooks && Object.values(collectedHooks).some(arr => arr && arr.length > 0),
 			};
+			if (invocation.toolSpecificData?.kind === 'subagent') {
+				invocation.toolSpecificData.modelConfiguration = agentRequest.modelConfiguration;
+			}
 
 			// Subscribe to tool invocations to clear markdown parts when a tool is invoked
 			store.add(this.languageModelToolsService.onDidInvokeTool(e => {
@@ -690,6 +693,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		// Resolve the model early and cache it for invoke()
 		const resolved = await this.resolveSubagentModel(subagent, context.modelId, args.model, currentModeInstructions, requestedAgentName ? undefined : callingSubagent?.model);
 		this._resolvedModels.set(context.toolCallId, resolved);
+		const modelConfiguration = resolved.modeModelId ? this.languageModelsService.getModelConfiguration(resolved.modeModelId) : undefined;
 
 		return {
 			invocationMessage: args.description,
@@ -700,6 +704,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				prompt: args.prompt,
 				modelId: resolved.modeModelId,
 				modelName: resolved.resolvedModelName,
+				...(modelConfiguration ? { modelConfiguration } : {}),
 			},
 		};
 	}

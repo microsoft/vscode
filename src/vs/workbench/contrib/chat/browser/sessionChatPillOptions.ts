@@ -100,6 +100,19 @@ export const sessionCustomizationsPillOptions: IChatDropdownPillOptions = {
 	singleEntry: ChatPillSingleEntry.Summary,
 };
 
+/** Shared presentation of the canvases pill. */
+export const sessionCanvasesPillOptions: IChatDropdownPillOptions = {
+	widgetId: 'sessionCanvases',
+	icon: Codicon.preview,
+	title: localize('sessionCanvases.title', "Canvases"),
+	summaryLabel: count => count === 1
+		? localize('sessionCanvases.countSingle', "1 Canvas")
+		: localize('sessionCanvases.count', "{0} Canvases", count),
+	summaryAriaLabel: count => count === 1
+		? localize('sessionCanvases.showSingle', "Show 1 canvas")
+		: localize('sessionCanvases.show', "Show {0} canvases", count),
+};
+
 /** Shared presentation of the subagents pill. */
 export const sessionSubagentsPillOptions: IChatDropdownPillOptions = {
 	widgetId: 'sessionSubagents',
@@ -111,4 +124,19 @@ export const sessionSubagentsPillOptions: IChatDropdownPillOptions = {
 	summaryAriaLabel: count => count === 1
 		? localize('sessionSubagents.showSingle', "Show 1 subagent")
 		: localize('sessionSubagents.show', "Show {0} subagents", count),
+};
+
+/** Background shells always open a list, including when only one is active. */
+export const sessionBackgroundShellsPillOptions: IChatDropdownPillOptions = {
+	widgetId: 'sessionBackgroundShells',
+	icon: Codicon.terminal,
+	title: localize('sessionBackgroundShells.title', "Background Shells"),
+	summaryLabel: count => count === 1
+		? localize('sessionBackgroundShells.countSingle', "1 Background Shell")
+		: localize('sessionBackgroundShells.count', "{0} Background Shells", count),
+	summaryAriaLabel: count => count === 1
+		? localize('sessionBackgroundShells.showSingle', "Show 1 background shell")
+		: localize('sessionBackgroundShells.show', "Show {0} background shells", count),
+	singleEntry: ChatPillSingleEntry.Summary,
+	openHoverOnSelect: true,
 };

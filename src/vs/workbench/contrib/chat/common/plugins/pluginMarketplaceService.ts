@@ -35,7 +35,7 @@ import { FileBackedInstalledPluginsStore, IStoredInstalledPlugin } from './fileB
 import { IWorkspacePluginSettingsService } from './workspacePluginSettingsService.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { readAgentPluginManifest } from '../../../../../platform/agentPlugins/common/agentPluginParser.js';
-import { type IMarketplaceReference, deduplicateMarketplaceReferences, MarketplaceReferenceKind, parseMarketplaceObjectEntry, parseMarketplaceReference, parseMarketplaceReferences, readConfiguredMarketplaces } from './marketplaceReference.js';
+import { type IMarketplaceReference, deduplicateMarketplaceReferences, getGitUrlCacheSegments, gitRevisionCacheSuffix, MarketplaceReferenceKind, parseMarketplaceObjectEntry, parseMarketplaceReference, parseMarketplaceReferences, readConfiguredMarketplaces } from './marketplaceReference.js';
 import { getStrictKnownMarketplaces, isMarketplaceReferenceAllowed } from './strictKnownMarketplaces.js';
 
 // Re-export marketplace reference types for downstream consumers.
@@ -273,7 +273,8 @@ const SINGLE_PLUGIN_MANIFEST_DEFINITIONS: { type: MarketplaceType; path: string 
 ];
 
 const GITHUB_MARKETPLACE_CACHE_TTL_MS = 8 * 60 * 60 * 1000;
-const GITHUB_MARKETPLACE_CACHE_STORAGE_KEY = 'chat.plugins.marketplaces.githubCache.v1';
+// Ignore catalogs persisted before Git source path validation.
+const GITHUB_MARKETPLACE_CACHE_STORAGE_KEY = 'chat.plugins.marketplaces.githubCache.v2';
 
 /** Interval between periodic plugin update checks (24 hours). */
 const PLUGIN_UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
@@ -1273,6 +1274,12 @@ export function parsePluginSource(
 				logContext.logService.warn(`${logContext.logPrefix} Skipping plugin '${logContext.pluginName}': github source 'path' must be a string when provided`);
 				return undefined;
 			}
+			try {
+				gitRevisionCacheSuffix(rawSource.ref, rawSource.sha);
+			} catch (error) {
+				logContext.logService.warn(`${logContext.logPrefix} Skipping plugin '${logContext.pluginName}': github source revision contains invalid path segments`, error);
+				return undefined;
+			}
 			return {
 				kind: PluginSourceKind.GitHub,
 				repo: rawSource.repo,
@@ -1306,6 +1313,13 @@ export function parsePluginSource(
 				}
 			} else if (!isOptionalString(rawSource.path)) {
 				logContext.logService.warn(`${logContext.logPrefix} Skipping plugin '${logContext.pluginName}': url source 'path' must be a string when provided`);
+				return undefined;
+			}
+			try {
+				getGitUrlCacheSegments(rawSource.url);
+				gitRevisionCacheSuffix(rawSource.ref, rawSource.sha);
+			} catch (error) {
+				logContext.logService.warn(`${logContext.logPrefix} Skipping plugin '${logContext.pluginName}': ${rawSource.source} source URL or revision contains invalid path segments`, error);
 				return undefined;
 			}
 			return {
@@ -1363,7 +1377,7 @@ function isOptionalGitSha(value: unknown): value is string | undefined {
 }
 
 function isValidGitHubRepo(repo: string): boolean {
-	return /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo);
+	return /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo) && !!parseMarketplaceReference(repo);
 }
 
 /**

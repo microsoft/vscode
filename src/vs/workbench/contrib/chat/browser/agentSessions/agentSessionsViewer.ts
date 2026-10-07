@@ -13,7 +13,7 @@ import { ITreeCompressionDelegate } from '../../../../../base/browser/ui/tree/as
 import { ICompressedTreeNode } from '../../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
 import { ICompressibleKeyboardNavigationLabelProvider, ICompressibleTreeRenderer } from '../../../../../base/browser/ui/tree/objectTree.js';
 import { ITreeNode, ITreeElementRenderDetails, IAsyncDataSource, ITreeSorter, ITreeDragAndDrop, ITreeDragOverReaction } from '../../../../../base/browser/ui/tree/tree.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { AgentSessionSection, AgentSessionStatus, getAgentChangesSummary, hasValidDiff, IAgentSession, IAgentSessionSection, IAgentSessionShowLess, IAgentSessionShowMore, IAgentSessionsModel, isAgentSession, isAgentSessionChild, isAgentSessionSection, isAgentSessionShowLess, isAgentSessionShowMore, isAgentSessionsModel, isSessionInProgressStatus } from './agentSessionsModel.js';
 import { IconLabel } from '../../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { ThemeIcon, themeColorFromId } from '../../../../../base/common/themables.js';
@@ -106,7 +106,6 @@ interface IAgentSessionApprovalTemplate {
 class AgentSessionStatusIcon extends Disposable {
 
 	private static readonly PIXEL_SPINNER_GRID_KEY = '__pixel_spinner_grid__';
-	private static readonly PIXEL_SPINNER_RING_KEY = '__pixel_spinner_ring__';
 
 	private _currentCacheKey: string | undefined;
 	private _lastSession: IAgentSession | undefined;
@@ -144,10 +143,9 @@ class AgentSessionStatusIcon extends Disposable {
 		this.container.className = `${this.containerClassName}${statusKnown && session.status === AgentSessionStatus.NeedsInput ? ' needs-input' : ''}`;
 		this.container.style.color = '';
 
-		if (statusKnown && (session.status === AgentSessionStatus.InProgress || session.status === AgentSessionStatus.NeedsInput) && !this.accessibilityService.isMotionReduced()) {
-			const isNeedsInput = session.status === AgentSessionStatus.NeedsInput;
-			const cacheKey = isNeedsInput ? AgentSessionStatusIcon.PIXEL_SPINNER_RING_KEY : AgentSessionStatusIcon.PIXEL_SPINNER_GRID_KEY;
-			const color = isNeedsInput ? asCssVariable('list.warningForeground') : asCssVariable('textLink.foreground');
+		if (statusKnown && session.status === AgentSessionStatus.InProgress && !this.accessibilityService.isMotionReduced()) {
+			const cacheKey = AgentSessionStatusIcon.PIXEL_SPINNER_GRID_KEY;
+			const color = asCssVariable('textLink.foreground');
 			if (this._currentCacheKey === cacheKey) {
 				this.updateActiveIconColor(color);
 				return;
@@ -156,7 +154,7 @@ class AgentSessionStatusIcon extends Disposable {
 			this._currentCacheKey = cacheKey;
 			this.spinner.clear();
 			clearNode(this.container);
-			const spinner = createPixelSpinner(undefined, { variant: isNeedsInput ? 'ring' : 'grid' });
+			const spinner = createPixelSpinner(undefined, { variant: 'grid' });
 			this.spinner.value = spinner;
 			spinner.element.style.color = color;
 			this.container.appendChild(spinner.element);
@@ -197,7 +195,7 @@ export function getAgentSessionStatusIcon(session: IAgentSession): ThemeIcon {
 	}
 
 	if (session.status === AgentSessionStatus.NeedsInput) {
-		return { ...Codicon.circleFilled, color: themeColorFromId('list.warningForeground') };
+		return { ...Codicon.report, color: themeColorFromId('list.warningForeground') };
 	}
 
 	if (session.status === AgentSessionStatus.Failed) {
@@ -248,6 +246,12 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 	readonly templateId = AgentSessionRenderer.TEMPLATE_ID;
 
 	private readonly sessionHover = this._register(new MutableDisposable<AgentSessionHoverWidget>());
+	private readonly renderedElements = new Map<string, HTMLElement>();
+
+	/** Returns only a currently rendered row owned by this list renderer. */
+	getSessionElement(resource: URI): HTMLElement | undefined {
+		return this.renderedElements.get(resource.toString());
+	}
 
 	private readonly _onDidChangeItemHeight = this._register(new Emitter<IAgentSession>());
 	readonly onDidChangeItemHeight: Event<IAgentSession> = this._onDidChangeItemHeight.event;
@@ -346,6 +350,13 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 
 		// Clear old state
 		template.elementDisposable.clear();
+		const resource = session.element.resource.toString();
+		this.renderedElements.set(resource, template.element);
+		template.elementDisposable.add(toDisposable(() => {
+			if (this.renderedElements.get(resource) === template.element) {
+				this.renderedElements.delete(resource);
+			}
+		}));
 		template.diffAddedSpan.textContent = '';
 		template.diffRemovedSpan.textContent = '';
 		template.badge.textContent = '';
@@ -580,7 +591,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			template.description.textContent = localize('chat.session.status.inProgress', "Working...");
 			return true;
 		} else if (session.element.status === AgentSessionStatus.NeedsInput) {
-			template.description.textContent = localize('chat.session.status.needsInput', "Input needed.");
+			template.description.textContent = localize('chat.session.status.needsInput', "Attention needed");
 			return true;
 		} else if (session.element.status === AgentSessionStatus.Failed) {
 			template.description.textContent = localize('chat.session.status.failed', "Failed");
@@ -848,7 +859,7 @@ export function toStatusLabel(status: AgentSessionStatus): string {
 	let statusLabel: string;
 	switch (status) {
 		case AgentSessionStatus.NeedsInput:
-			statusLabel = localize('agentSessionNeedsInput', "Needs Input");
+			statusLabel = localize('agentSessionNeedsInput', "Needs Attention");
 			break;
 		case AgentSessionStatus.InProgress:
 			statusLabel = localize('agentSessionInProgress', "In Progress");
@@ -1232,6 +1243,12 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 	readonly onDidExpandRepositoryGroup: Event<void> = this._onDidExpandRepositoryGroup.event;
 
 	private readonly expandedRepositoryGroups = new Set<string>();
+	private revealedSession: URI | undefined;
+
+	/** Temporarily includes an explicitly revealed session without changing saved filters or caps. */
+	setRevealedSession(resource: URI | undefined): void {
+		this.revealedSession = resource;
+	}
 
 	constructor(
 		private readonly filter: IAgentSessionsFilter | undefined,
@@ -1284,7 +1301,8 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 		if (isAgentSessionsModel(element)) {
 
 			// Apply filter if configured
-			let filteredSessions = element.sessions.filter(session => !this.filter?.exclude(session));
+			const revealed = element.sessions.find(session => session.resource.toString() === this.revealedSession?.toString());
+			let filteredSessions = element.sessions.filter(session => session === revealed || !this.filter?.exclude(session));
 
 			// Apply sorter unless we group into sections or we are to limit results
 			const limitResultsCount = this.filter?.limitResults?.();
@@ -1295,6 +1313,9 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 			// Apply limiter if configured (requires sorting)
 			if (typeof limitResultsCount === 'number') {
 				filteredSessions = filteredSessions.slice(0, limitResultsCount);
+				if (revealed && !filteredSessions.includes(revealed)) {
+					filteredSessions.push(revealed);
+				}
 			}
 
 			// Callback results count
@@ -1314,7 +1335,7 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 		else if (isAgentSessionSection(element)) {
 			const isCappingEnabled = this.repositoryGroupLimit && this.filter?.getExcludes().repositoryGroupCapped;
 			if (isCappingEnabled && element.section === AgentSessionSection.Repository && element.sessions.length > this.repositoryGroupLimit) {
-				if (!this.expandedRepositoryGroups.has(element.label)) {
+				if (!this.expandedRepositoryGroups.has(element.label) && !element.sessions.some(session => session.resource.toString() === this.revealedSession?.toString())) {
 					// Collapsed: show limited sessions + "show more"
 					const visible = element.sessions.slice(0, this.repositoryGroupLimit);
 					const remainingCount = element.sessions.length - this.repositoryGroupLimit;

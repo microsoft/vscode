@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { PullRequestFragment, PullRequestPriority } from './githubPullRequestService.js';
-import { GitHubHostCapabilities, GitHubRequestPriority } from './githubTypes.js';
+import { GitHubHostCapabilities } from './githubTypes.js';
+import { RequestPriority } from './types.js';
 
 export type PullRequestRequestStrategy =
 	| 'rest'
@@ -16,7 +17,7 @@ export type PullRequestRequestStrategy =
 export interface PullRequestRequestPlan {
 	readonly fragment: PullRequestFragment;
 	readonly strategy: PullRequestRequestStrategy;
-	readonly priority: GitHubRequestPriority;
+	readonly priority: RequestPriority;
 	readonly completeWhenSuccessful: boolean;
 }
 
@@ -48,7 +49,7 @@ export class PullRequestRequestPlanner {
 	}
 }
 
-function toGitHubRequestPriority(priority: PullRequestPriority): GitHubRequestPriority {
+function toGitHubRequestPriority(priority: PullRequestPriority): RequestPriority {
 	switch (priority) {
 		case 'interactive': return 'interactive';
 		case 'visible': return 'visible';

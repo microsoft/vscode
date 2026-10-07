@@ -36,6 +36,7 @@ export interface IToolBarResponsiveBehaviorOptions {
 	readonly getOverflowAction?: (action: IAction, getAnchor: () => HTMLElement | undefined) => IAction;
 	readonly observedElement?: HTMLElement;
 	readonly getAvailableWidth?: () => number;
+	readonly reserveMinWidth?: boolean;
 }
 
 export interface IToolBarOptions {
@@ -80,6 +81,8 @@ export interface IToolBarOptions {
 	 * - `getActionMinWidth`: Optional per-action minimum width override in pixels.
 	 * - `allowOverflow`: Whether actions may move into the overflow menu, or a callback that decides from current presentation state.
 	 * - `getOverflowAction`: Replaces an action only while it is rendered in the overflow menu.
+	 * - `reserveMinWidth`: Whether the toolbar sets a CSS minimum width on itself and its container so that its `minItems` always fit. Defaults to `true`.
+	 *   When `false`, the surrounding layout may shrink the toolbar below that width, in which case the `minItems` overflow too.
 	 */
 	responsiveBehavior?: IToolBarResponsiveBehaviorOptions;
 }
@@ -101,6 +104,7 @@ export class ToolBar extends Disposable {
 	private originalPrimaryActions: ReadonlyArray<IAction> = [];
 	private originalSecondaryActions: ReadonlyArray<IAction> = [];
 	private hiddenActions: IAction[] = [];
+	private minItemsWidth = 0;
 	private readonly disposables = this._register(new DisposableStore());
 
 	constructor(private readonly container: HTMLElement, contextMenuProvider: IContextMenuProvider, options: IToolBarOptions = { orientation: ActionsOrientation.HORIZONTAL }) {
@@ -347,12 +351,12 @@ export class ToolBar extends Disposable {
 				}
 
 				const separatorWidth = this.options.trailingSeparator && !this.actionBar.isEmpty() ? this.actionBar.getWidth(this.actionBar.length() - 1) + ACTION_PADDING : 0;
-				this.container.style.minWidth = `${primaryActionsMinWidth + overflowWidth + separatorWidth}px`;
-				this.element.style.minWidth = `${primaryActionsMinWidth + overflowWidth + separatorWidth}px`;
+				this.minItemsWidth = primaryActionsMinWidth + overflowWidth + separatorWidth;
+				this.reserveMinWidth(this.minItemsWidth);
 			} else {
 				const minimumActionWidth = this.originalPrimaryActions.length > 0 ? this.getActionMinWidth(this.originalPrimaryActions[0]) : ACTION_MIN_WIDTH + ACTION_PADDING;
-				this.container.style.minWidth = `${minimumActionWidth}px`;
-				this.element.style.minWidth = `${minimumActionWidth}px`;
+				this.minItemsWidth = 0;
+				this.reserveMinWidth(minimumActionWidth);
 			}
 
 			// Update toolbar actions to fit with container width
@@ -393,6 +397,14 @@ export class ToolBar extends Disposable {
 			return this.options.responsiveBehavior.getAvailableWidth();
 		}
 		return this.element.getBoundingClientRect().width;
+	}
+
+	private reserveMinWidth(width: number): void {
+		if (this.options.responsiveBehavior?.reserveMinWidth === false) {
+			return;
+		}
+		this.container.style.minWidth = `${width}px`;
+		this.element.style.minWidth = `${width}px`;
 	}
 
 	private applyResponsiveActionMinWidths(): void {
@@ -445,6 +457,12 @@ export class ToolBar extends Disposable {
 		// element which is set based on the `responsiveBehavior.minItems` option
 		const parsedMinWidth = parseInt(this.element.style.minWidth);
 		containerWidth = Math.max(containerWidth, Number.isNaN(parsedMinWidth) ? 0 : parsedMinWidth);
+
+		// Without a reserved minimum width the toolbar can be narrower than the
+		// width of its minimum items, in which case they overflow too.
+		const minItems = this.options.responsiveBehavior?.reserveMinWidth !== false || containerWidth >= this.minItemsWidth
+			? this.options.responsiveBehavior?.minItems
+			: undefined;
 
 		// Each action is assumed to have a minimum width so that actions with a label
 		// can shrink to the action's minimum width. We do this so that action visibility
@@ -585,10 +603,10 @@ export class ToolBar extends Disposable {
 			}
 
 			// Check for max items limit
-			if (this.options.responsiveBehavior?.minItems !== undefined) {
+			if (minItems !== undefined) {
 				const primaryActionsCount = getVisiblePrimaryActionCount();
 
-				if (primaryActionsCount <= this.options.responsiveBehavior.minItems) {
+				if (primaryActionsCount <= minItems) {
 					return;
 				}
 			}
@@ -596,8 +614,8 @@ export class ToolBar extends Disposable {
 			// Hide actions from the configured end.
 			while (minimumWidth > containerWidth && this.actionBar.length() > 0) {
 				if (
-					this.options.responsiveBehavior?.minItems !== undefined
-					&& getVisiblePrimaryActionCount() <= this.options.responsiveBehavior.minItems
+					minItems !== undefined
+					&& getVisiblePrimaryActionCount() <= minItems
 				) {
 					break;
 				}
@@ -636,7 +654,8 @@ export class ToolBar extends Disposable {
 			while (this.hiddenActions.length > 0) {
 				const actionsToRestore = getActionsToRestore();
 				const keepToggleMenuAction = this.originalSecondaryActions.length > 0 || this.hiddenActions.length > actionsToRestore.length;
-				if (projectedActionBarMinimumWidth(actionsToRestore, keepToggleMenuAction) > containerWidth) {
+				const isBelowMinItems = this.options.responsiveBehavior?.reserveMinWidth === false && minItems !== undefined && getVisiblePrimaryActionCount() < minItems;
+				if (!isBelowMinItems && projectedActionBarMinimumWidth(actionsToRestore, keepToggleMenuAction) > containerWidth) {
 					// Not enough space to show the action
 					break;
 				}

@@ -3,21 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isMobile, isWeb } from '../../../../base/common/platform.js';
-import { localize } from '../../../../nls.js';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
-import product from '../../../../platform/product/common/product.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { LayoutController, RESPONSIVE_SIDEBAR_SETTING } from './desktopSessionLayoutController.js';
 import { MobileLayoutController } from './mobileSessionLayoutController.js';
-import { DOCK_DETAIL_PANEL_SETTING } from '../../../common/sessionConfig.js';
-import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
-import { SinglePaneLayoutController } from './singlePaneLayoutController.js';
+import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
+import { DesktopLayoutController } from './desktopLayoutController.js';
+import { localize } from '../../../../nls.js';
+import { ConfigurationScope, Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { SESSIONS_LAYOUT_SCOPE_SETTING } from '../../../common/chatLayout.js';
 
-class SessionsLayoutContribution extends Disposable implements IWorkbenchContribution {
+export class SessionsLayoutContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.sessionsLayoutContribution';
 
@@ -27,38 +24,34 @@ class SessionsLayoutContribution extends Disposable implements IWorkbenchContrib
 	) {
 		super();
 
-		if (layoutService.isSinglePaneLayoutEnabled) {
-			this._register(instantiationService.createInstance(SinglePaneLayoutController));
+		if (layoutService.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop) {
+			this._register(instantiationService.createInstance(DesktopLayoutController));
 			return;
 		}
 
-		if (isWeb && isMobile) {
-			this._register(instantiationService.createInstance(MobileLayoutController));
-			return;
-		}
-
-		this._register(instantiationService.createInstance(LayoutController));
+		this._register(instantiationService.createInstance(MobileLayoutController));
 	}
 }
 
 registerWorkbenchContribution2(SessionsLayoutContribution.ID, SessionsLayoutContribution, WorkbenchPhase.BlockRestore);
 
-Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
 	id: 'sessions',
+	title: localize('sessionsConfigurationTitle', "Sessions"),
 	properties: {
-		[RESPONSIVE_SIDEBAR_SETTING]: {
-			type: 'boolean',
-			markdownDescription: localize('sessions.layout.autoCollapseSessionsSidebar', "Controls whether the sessions sidebar is automatically collapsed in a narrow Agents window while both the editor and the side panel are open, and shown again once either of them closes."),
-			default: product.quality !== 'stable',
+		[SESSIONS_LAYOUT_SCOPE_SETTING]: {
+			type: 'string',
+			enum: ['session-shared', 'chat-shared', 'chat'],
+			enumDescriptions: [
+				localize('sessionsLayoutScope.sessionShared', "Keep editors and selected panel views separate for each session, with shared Editor, Details, and bottom-panel visibility across existing workspace sessions."),
+				localize('sessionsLayoutScope.chatShared', "Keep editors and selected panel views separate for each chat, with shared Editor, Details, and bottom-panel visibility across existing workspace chats."),
+				localize('sessionsLayoutScope.chat', "Keep editors, Editor and Details composition, bottom-panel visibility, and selected panel views separate for each chat."),
+			],
+			default: 'session-shared',
+			scope: ConfigurationScope.WINDOW,
 			tags: ['experimental'],
-			experiment: { mode: 'auto' }
-		},
-		[DOCK_DETAIL_PANEL_SETTING]: {
-			type: 'boolean',
-			markdownDescription: localize('sessions.layout.singlePaneDetailPanel', "Controls whether the Agents window docks the detail panel inside the editor so a single editor tab bar spans across the editor and the detail panel. Requires a window reload to take effect."),
-			default: true,
-			tags: ['experimental'],
-			experiment: { mode: 'startup' }
+			experiment: { mode: 'startup' },
+			description: localize('sessionsLayoutScope.description', "Choose whether layout state belongs to each session or each chat in non-phone Agents windows. Pane sizes remain shared. Terminal behavior is unchanged in all modes. Changes take effect after manually reloading the window."),
 		},
 	},
 });

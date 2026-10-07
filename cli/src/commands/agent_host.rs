@@ -12,20 +12,17 @@ use std::time::{Duration, Instant};
 
 use tokio::io::{AsyncBufReadExt, BufReader};
 
-use crate::auth::Auth;
-use crate::constants::{self, AGENT_HOST_PORT};
+use crate::constants;
 use crate::log;
 use crate::options::TelemetryLevel;
 use crate::state::LauncherPaths;
 use crate::tunnels::agent_host::{
-	classify_agent_host, serve_agent_host_tunnel_connection, AgentHostConfig, AgentHostManager,
-	AgentHostReuseDecision, AgentHostSidecar, LoopbackAuth,
+	classify_agent_host, AgentHostConfig, AgentHostManager, AgentHostReuseDecision,
+	AgentHostSidecar, LoopbackAuth,
 };
 use crate::tunnels::agent_host_registry::{self, AgentHostEndpointIdentity, AgentHostServerType};
 use crate::tunnels::code_server::CodeServerArgs;
-use crate::tunnels::dev_tunnels::DevTunnels;
 use crate::tunnels::idle_timeout::{self, TokioIdleSleeper};
-use crate::tunnels::ready_active_agent_host;
 use crate::tunnels::shutdown_signal::ShutdownRequest;
 use crate::tunnels::user_data_path::resolve_user_data_path;
 use crate::update_service::Platform;
@@ -36,7 +33,6 @@ use crate::util::prereqs::PreReqChecker;
 
 use super::args::AgentHostArgs;
 use super::output;
-use super::tunnels::fulfill_existing_tunnel_args;
 use super::CommandContext;
 
 /// Internal env var that flips `code agent host` into supervisor mode:
@@ -101,7 +97,6 @@ enum ForegroundAction {
 		host: Option<String>,
 		port: u16,
 		token: Option<String>,
-		tunnel_name: Option<String>,
 	},
 }
 
@@ -122,7 +117,6 @@ fn decide_foreground_action(
 		host,
 		port,
 		token,
-		tunnel_name,
 		instance_id,
 	} = decision
 	else {
@@ -139,13 +133,7 @@ fn decide_foreground_action(
 	// matches the running supervisor. If it differs, error out with a
 	// clear message instead of silently sharing a differently-bound
 	// supervisor.
-	if let Some(conflict) = detect_config_conflict(
-		args,
-		host.as_deref(),
-		port,
-		token.as_deref(),
-		tunnel_name.as_deref(),
-	) {
+	if let Some(conflict) = detect_config_conflict(args, host.as_deref(), port, token.as_deref()) {
 		return ForegroundAction::ConflictError(format!(
 			"Agent host already running on {host_str}:{port} (PID {pid}), but {conflict}.\n\
 			 Use `{application_name} agent kill` to stop it, or pass `--replace` to take over.",
@@ -159,7 +147,6 @@ fn decide_foreground_action(
 		host,
 		port,
 		token,
-		tunnel_name,
 	}
 }
 
@@ -202,7 +189,6 @@ async fn run_foreground(ctx: CommandContext, args: AgentHostArgs) -> Result<i32,
 			host,
 			port,
 			token,
-			tunnel_name,
 		} => {
 			print_reuse_banner(
 				&ctx.log,
@@ -211,7 +197,6 @@ async fn run_foreground(ctx: CommandContext, args: AgentHostArgs) -> Result<i32,
 				host.as_deref(),
 				port,
 				token.as_deref(),
-				tunnel_name.as_deref(),
 			);
 			Ok(0)
 		}
@@ -231,8 +216,7 @@ async fn start_supervisor(ctx: CommandContext, args: AgentHostArgs) -> Result<i3
 
 /// Body of the supervisor process. Starts an [`AgentHostManager`], binds
 /// an [`AgentHostSidecar`] on the user's chosen `--host`/`--port`,
-/// optionally exposes it over a dev tunnel, prints the readiness banner /
-/// sentinel, then services connections until killed.
+/// prints the readiness banner / sentinel, then services connections until killed.
 async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Result<i32, AnyError> {
 	let started = Instant::now();
 	let user_data_path = resolve_user_data_path(args.user_data_dir.as_deref());
@@ -341,27 +325,6 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 		});
 	}
 
-	let mut pending_tunnel = None;
-	let mut tunnel_name: Option<String> = None;
-	if args.tunnel {
-		let mut auth = Auth::new(&ctx.paths, ctx.log.clone());
-		auth.set_provider(crate::auth::AuthProvider::Github);
-		let mut dt = DevTunnels::new_remote_tunnel(&ctx.log, auth, &ctx.paths);
-
-		let mut tunnel = if let Some(existing) =
-			fulfill_existing_tunnel_args(args.existing_tunnel.clone(), &args.name)
-		{
-			dt.start_existing_tunnel(existing).await
-		} else {
-			dt.start_new_launcher_tunnel(args.name.as_deref(), args.random_name, &[])
-				.await
-		}?;
-
-		tunnel_name = Some(tunnel.name.clone());
-		let tunnel_port = tunnel.add_port_direct(AGENT_HOST_PORT).await?;
-		pending_tunnel = Some((tunnel, tunnel_port));
-	}
-
 	let listen_addr = resolve_listen_addr(&args)?;
 	let loopback_auth = match args.connection_token.as_deref() {
 		Some(t) => LoopbackAuth::Token(t.to_string()),
@@ -374,77 +337,12 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 		listen_addr,
 		args.host.clone(),
 		loopback_auth,
-		tunnel_name.clone(),
 		user_data_path.clone(),
 		instance_id.clone(),
 		activity,
 	)
 	.await?;
 	let bound_port = sidecar.bound_addr().port();
-
-	let mut tunnel_handle: Option<crate::tunnels::dev_tunnels::ActiveTunnel> = None;
-	if let Some((tunnel, mut tunnel_port)) = pending_tunnel {
-		// Route each tunneled connection through the same protocol-v6
-		// selection-gateway request router `code tunnel`'s control_server
-		// uses (`serve_agent_host_tunnel_connection`), instead of the
-		// legacy direct proxy (`AgentHostSidecar::serve_tunnel_connection`)
-		// this used to call unconditionally. That legacy method never
-		// looked at the request path, so a renderer's `/agent-host/select`
-		// WebSocket upgrade -- sent because this tunnel is tagged
-		// `protocolv6`, see `add_port_direct` above -- fell straight
-		// through to the AH backend instead of the selection gateway, and
-		// no inventory was ever sent (the reported timeout).
-		//
-		// The root/default (legacy v5) route must still resolve to *this*
-		// running sidecar -- never `ensure_supervisor_running`, which
-		// could spawn or reuse an unrelated supervisor -- so we build an
-		// already-resolved `SharedActiveAgentHost` from the sidecar's own
-		// published identity.
-		//
-		// Each relayed socket carries its own `--idle-timeout` activity
-		// guard, attached to the transport so it survives the WebSocket
-		// upgrade (see `idle_timeout::GuardedStream`). The inner dial the
-		// gateway makes back into our own listener is not enough on its
-		// own: a client still waiting to send its selection, or one whose
-		// selection resolves to a *different* endpoint (another live
-		// registry entry, or a freshly spawned dedicated host), never
-		// reaches our accept loop at all, so without this guard an
-		// actively proxied tunnel client could not stop us timing out from
-		// under it.
-		let active_agent_host = ready_active_agent_host(sidecar.active_agent_host());
-		let launcher_paths = ctx.paths.clone();
-		let gateway_user_data_path = user_data_path.clone();
-		let tunnel_log = ctx.log.clone();
-		info!(
-			ctx.log,
-			"Routing dev-tunnel-hosted agent-host port through the protocol-v6 selection gateway"
-		);
-		let tunnel_activity = sidecar.activity_tracker();
-		tokio::spawn(async move {
-			while let Some(socket) = tunnel_port.recv().await {
-				let log = tunnel_log.clone();
-				let active_agent_host = active_agent_host.clone();
-				let launcher_paths = launcher_paths.clone();
-				let user_data_path = gateway_user_data_path.clone();
-				let rw = idle_timeout::GuardedStream::new(
-					socket.into_rw(),
-					tunnel_activity.as_ref().map(|a| a.client_connected()),
-				);
-				tokio::spawn(async move {
-					serve_agent_host_tunnel_connection(
-						log,
-						rw,
-						active_agent_host,
-						launcher_paths,
-						user_data_path,
-						false,
-					)
-					.await;
-				});
-			}
-		});
-		tunnel_handle = Some(tunnel);
-	}
 
 	let product = constants::QUALITYLESS_PRODUCT_NAME;
 	let token_suffix = args
@@ -454,9 +352,6 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 		.unwrap_or_default();
 
 	output::print_banner_header(&format!("{product} Agent Host"), started.elapsed());
-	if let (Some(base), Some(name)) = (constants::EDITOR_WEB_URL, &tunnel_name) {
-		output::print_banner_line("Tunnel", &format!("{base}/agents/tunnel/{name}"));
-	}
 	// Resolve the user's `--host` choice into an `IpAddr` so the banner can
 	// either suggest exposing the agent host or enumerate the bound
 	// interfaces. Defaults to loopback when `--host` was omitted.
@@ -506,10 +401,6 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 	}
 	sidecar.shutdown().await;
 
-	if let Some(mut tunnel) = tunnel_handle.take() {
-		tunnel.close().await.ok();
-	}
-
 	Ok(0)
 }
 
@@ -543,14 +434,10 @@ fn print_reuse_banner(
 	host: Option<&str>,
 	port: u16,
 	token: Option<&str>,
-	tunnel_name: Option<&str>,
 ) {
 	let product = constants::QUALITYLESS_PRODUCT_NAME;
 	let token_suffix = token.map(|t| format!("?tkn={t}")).unwrap_or_default();
 	output::print_banner_header(&format!("{product} Agent Host"), started.elapsed());
-	if let (Some(base), Some(name)) = (constants::EDITOR_WEB_URL, tunnel_name) {
-		output::print_banner_line("Tunnel", &format!("{base}/agents/tunnel/{name}"));
-	}
 	// Surface the host the supervisor was actually bound to (falling back
 	// to loopback if unknown). This lets the network hint correctly say
 	// "use --host to expose" only when the supervisor really is
@@ -592,7 +479,6 @@ fn detect_config_conflict(
 	running_host: Option<&str>,
 	running_port: u16,
 	running_token: Option<&str>,
-	running_tunnel: Option<&str>,
 ) -> Option<String> {
 	if let (Some(requested), Some(running)) = (args.host.as_deref(), running_host) {
 		if requested != running {
@@ -629,11 +515,6 @@ fn detect_config_conflict(
 			}
 			Some(_) => {}
 		}
-	}
-	if args.tunnel && running_tunnel.is_none() {
-		return Some(
-			"--tunnel conflicts with the running supervisor (not exposed via a tunnel)".to_string(),
-		);
 	}
 	None
 }
@@ -1074,7 +955,6 @@ mod tests {
 			host: Some("127.0.0.1".to_string()),
 			port: 9000,
 			token: Some("tok".to_string()),
-			tunnel_name: None,
 			instance_id: "instance-existing".to_string(),
 		}
 	}
@@ -1097,7 +977,6 @@ mod tests {
 				host: Some("127.0.0.1".to_string()),
 				port: 9000,
 				token: Some("tok".to_string()),
-				tunnel_name: None,
 			}
 		);
 	}
@@ -1236,7 +1115,6 @@ mod tests {
 				host: Some("127.0.0.1".to_string()),
 				port: standalone_port,
 				token: Some("standalone-tok".to_string()),
-				tunnel_name: None,
 				instance_id: "standalone-existing".to_string(),
 			}
 		);
@@ -1247,7 +1125,6 @@ mod tests {
 				host: Some("127.0.0.1".to_string()),
 				port: standalone_port,
 				token: Some("standalone-tok".to_string()),
-				tunnel_name: None,
 			}
 		);
 
