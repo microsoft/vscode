@@ -108,7 +108,7 @@ import { AgentHostAutoTierScope } from '../../agentSessions/agentHost/agentHostA
 import { ChatModelSelectionDiagnostics } from './chatModelSelectionDiagnostics.js';
 import { deserializeUntitledInputAttachments, deserializeUntitledInputState, serializeUntitledInputAttachments, serializeUntitledInputState } from './chatInputStatePersistence.js';
 import { ChatInputStateOrigin, IChatModel, IChatModelInputState, IChatRequestModeInfo, IChatRequestModel, IInputModel, IIntendedModelHolder, IntendedModelSlot, logChangesToStateModel } from '../../../common/model/chatModel.js';
-import { isInConversationModelChoice, ModelSelectionReason, resolveConfiguredModel, RestoredModelReason } from '../../../common/modelSelection.js';
+import { getRegisteredLanguageModels, isInConversationModelChoice, ModelSelectionReason, resolveConfiguredModel, resolveModelIdentifierFromLanguageModels, RestoredModelReason } from '../../../common/modelSelection.js';
 import { filterModelsForSession, hasModelsTargetingSession, isModelHiddenInPicker, isModelSupportedForInlineChat, isModelSupportedForMode, isNewConversation, isSessionStarted, mergeModelsWithCache, shouldDropAgnosticDraftModel, shouldResetOnModelListChange, shouldRestorePerTypeModelOnSessionSwitch } from './chatInputModelUtils.js';
 import { getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { IChatResponseViewModel, isResponseVM } from '../../../common/model/chatViewModel.js';
@@ -1038,6 +1038,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// loading, or the pick lands on the general catalog instead.
 			isAwaitingSessionModels: sessionType => this.chatSessionsService.requiresCustomModelsForSessionType(sessionType)
 				&& !hasModelsTargetingSession(this.getAllMergedModels(), sessionType),
+			// Judged on live models only: the cache would make a retired model look published.
+			isModelAbsenceConclusive: modelId => {
+				const liveModels = getRegisteredLanguageModels(this.languageModelsService);
+				return resolveModelIdentifierFromLanguageModels(liveModels, modelId, this.languageModelsService, liveModels).kind === 'unavailable';
+			},
 			getConfiguredModelValue: () => this.getConfiguredModelValue(),
 			// Workbench chat runs a mode, and can be shown inline, so both bear on what it can run.
 			isModelSupportedHere: model => isModelSupportedForMode(model, this.currentModeKind) && isModelSupportedForInlineChat(model, this.location),
