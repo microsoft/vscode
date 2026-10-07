@@ -6604,32 +6604,33 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 
+	/** Persists supplied metadata in one transaction, leaving omitted fields unchanged. */
 	private async _storeSessionMetadata(session: URI, model: ModelSelection | undefined, workingDirectory: URI | undefined, workingDirectories: readonly URI[] | undefined, customizationDirectory: URI | undefined, project: IAgentSessionProjectInfo | undefined, projectResolved = project !== undefined, configValues?: Record<string, unknown>, archived?: boolean, ehcliAdopted?: boolean, lastMigratedTurnId?: string): Promise<void> {
 		const dbRef = this._sessionDataService.openDatabase(session);
 		const db = dbRef.object;
 		try {
-			const work: Promise<void>[] = [];
+			const metadata: Record<string, string> = {};
 			if (model) {
-				work.push(db.setMetadata(CopilotAgent._META_MODEL, this._serializeModelSelection(model)));
+				metadata[CopilotAgent._META_MODEL] = this._serializeModelSelection(model);
 			}
 			// Archiving is user-curated state; losing it on adoption would resurface
 			// everything the user filed away in the extension host list.
 			if (archived) {
-				work.push(db.setMetadata(AH_META_IS_ARCHIVED_DB_KEY, 'true'));
+				metadata[AH_META_IS_ARCHIVED_DB_KEY] = 'true';
 			}
 			// Outlives the transient `ehcliAdoptable` summary marker so the session
 			// keeps being listed like the legacy session it was migrated from.
 			if (ehcliAdopted) {
-				work.push(db.setMetadata(AH_META_EHCLI_ADOPTED_DB_KEY, 'true'));
+				metadata[AH_META_EHCLI_ADOPTED_DB_KEY] = 'true';
 			}
 			// The migration boundary: the last turn that existed at adoption. Lets the
 			// chat editor substitute the session-wide changeset only for that turn (a
 			// migrated turn has no per-turn checkpoint) and never a post-adoption one.
 			if (lastMigratedTurnId) {
-				work.push(db.setMetadata(AH_META_EHCLI_LAST_TURN_DB_KEY, lastMigratedTurnId));
+				metadata[AH_META_EHCLI_LAST_TURN_DB_KEY] = lastMigratedTurnId;
 			}
 			if (workingDirectory) {
-				work.push(db.setMetadata(CopilotAgent._META_CWD, workingDirectory.toString()));
+				metadata[CopilotAgent._META_CWD] = workingDirectory.toString();
 			}
 			// Persist the ordered set alongside the legacy single cwd so a
 			// multi-root session restores every directory on reload. Reads prefer
@@ -6637,25 +6638,27 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// before this key existed. Written together with `_META_CWD` from the
 			// same source so index 0 stays consistent across both keys.
 			if (workingDirectories) {
-				work.push(db.setMetadata(CopilotAgent._META_CWDS, JSON.stringify(workingDirectories.map(d => d.toString()))));
+				metadata[CopilotAgent._META_CWDS] = JSON.stringify(workingDirectories.map(d => d.toString()));
 			}
 			if (customizationDirectory) {
-				work.push(db.setMetadata(CopilotAgent._META_CUSTOMIZATION_DIRECTORY, customizationDirectory.toString()));
+				metadata[CopilotAgent._META_CUSTOMIZATION_DIRECTORY] = customizationDirectory.toString();
 			}
 			if (projectResolved) {
-				work.push(db.setMetadata(CopilotAgent._META_PROJECT_RESOLVED, 'true'));
+				metadata[CopilotAgent._META_PROJECT_RESOLVED] = 'true';
 			}
 			if (project) {
-				work.push(db.setMetadata(CopilotAgent._META_PROJECT_URI, project.uri.toString()));
-				work.push(db.setMetadata(CopilotAgent._META_PROJECT_DISPLAY_NAME, project.displayName));
+				metadata[CopilotAgent._META_PROJECT_URI] = project.uri.toString();
+				metadata[CopilotAgent._META_PROJECT_DISPLAY_NAME] = project.displayName;
 			}
 			// Persisted the same way `AgentService._persistConfigValues` writes them,
 			// so restore's config resolution overlays them (used by adopt to force
 			// folder isolation) — folded into this write to avoid a second DB open.
 			if (configValues) {
-				work.push(db.setMetadata('configValues', JSON.stringify(configValues)));
+				metadata.configValues = JSON.stringify(configValues);
 			}
-			await Promise.all(work);
+			if (Object.keys(metadata).length > 0) {
+				await db.setMetadataValues(metadata);
+			}
 		} finally {
 			dbRef.dispose();
 		}
