@@ -164,7 +164,7 @@ export class MissionControlSealing extends Disposable {
 			if (this._store.isDisposed) {
 				throw new ProtocolError(JsonRpcErrorCodes.InvalidRequest, 'Mission Control sealing is closed');
 			}
-			const inner: unknown = JSON.parse(Buffer.from(plaintext).toString('utf8'));
+			const inner: unknown = JSON.parse(Buffer.from(plaintext.buffer, plaintext.byteOffset, plaintext.byteLength).toString('utf8'));
 			if (!isObject(inner) || inner.cty !== 'text' || typeof inner.value !== 'string' || !inner.value
 				|| !isObject(inner.ctx) || inner.ctx.purpose !== use
 				|| (inner.ctx.resource !== undefined && inner.ctx.resource !== resource)

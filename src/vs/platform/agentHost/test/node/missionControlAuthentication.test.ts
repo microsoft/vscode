@@ -66,6 +66,26 @@ suite('Mission Control sealed authentication', () => {
 		await assert.rejects(sealing.open(`${parts.slice(0, 3).join('.')}.${corrupted.toString('base64url')}`, 'auth-token', resource), /open sealed/);
 	});
 
+	for (const valid of [true, false]) {
+		test(`decodes the decrypted view and scrubs its bytes after ${valid ? 'successful' : 'failed'} parsing`, async () => {
+			const sealing = store.add(new MissionControlSealing());
+			const token = seal(sealing, 'test-token');
+			const bytes = Buffer.from(valid ? JSON.stringify({
+				cty: 'text', ctx: { purpose: 'auth-token', resource }, value: 'test-token',
+			}) : 'invalid-json');
+			const allocation = Buffer.concat([Buffer.from([1]), bytes, Buffer.from([2])]);
+			const plaintext = allocation.subarray(1, allocation.length - 1);
+			const byteOpener: { crypto_box_seal_open(ciphertext: Uint8Array, publicKey: Uint8Array, privateKey: Uint8Array): Uint8Array } = sodium;
+			stub(byteOpener, 'crypto_box_seal_open').returns(plaintext);
+			if (valid) {
+				assert.deepStrictEqual(await sealing.open(token, 'auth-token', resource), { token: 'test-token', connection: undefined });
+			} else {
+				await assert.rejects(sealing.open(token, 'auth-token', resource), /Invalid sealed authentication plaintext/);
+			}
+			assert.deepStrictEqual(allocation, Buffer.concat([Buffer.from([1]), Buffer.alloc(bytes.length), Buffer.from([2])]));
+		});
+	}
+
 	test('advertises independent keys for both algorithms and purposes with identical MC and AHP projections', () => {
 		const sealing = store.add(new MissionControlSealing());
 		const keys = sealing.advertisedKeys;
