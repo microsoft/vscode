@@ -170,6 +170,99 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		});
 	});
 
+	test('authenticates and retries SDK catalog search instead of returning an empty page', async () => {
+		let authenticationRequests = 0;
+		let searchRequests = 0;
+		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+			'copilotcli',
+			async () => {
+				authenticationRequests++;
+				return true;
+			},
+			new class extends mock<IAgentHostService>() {
+				override readonly onAgentHostStart = Event.None;
+				override readonly onAgentHostExit = Event.None;
+				override async searchCustomizationMarketplace() {
+					searchRequests++;
+					return searchRequests === 1
+						? { kind: 'unavailable' as const, reason: 'authentication' as const }
+						: {
+							kind: 'page' as const,
+							items: [{
+								selectionId: 'figma',
+								kind: 'mcp' as const,
+								displayName: 'Figma MCP Server',
+								installable: true,
+							}],
+						};
+				}
+			}(),
+			new class extends mock<IAgentHostConnectionsService>() {
+				override resolveSessionResourceIdentity() {
+					return {
+						connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY,
+						backendSession: URI.parse('ahp-session:/backend-session'),
+					};
+				}
+			}(),
+			new class extends mock<IAgentHostCustomizationService>() {
+				override readonly onDidChangeCustomizations = Event.None;
+			}(),
+			new class extends mock<IAgentPluginService>() {
+				override readonly plugins = observableValue<readonly IAgentPlugin[]>('plugins', []);
+			}(),
+			new class extends mock<IDialogService>() { }(),
+			new NullLogService(),
+		));
+
+		const page = await provider.query(URI.parse('agent-host-copilotcli:/frontend-session'), { query: 'figma' }, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			authenticationRequests,
+			searchRequests,
+			items: page?.items.map(item => item.displayName),
+		}, {
+			authenticationRequests: 1,
+			searchRequests: 2,
+			items: ['Figma MCP Server'],
+		});
+	});
+
+	test('surfaces an unavailable SDK catalog as a source error', async () => {
+		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+			'copilotcli',
+			async () => { throw new Error('Unexpected authentication'); },
+			new class extends mock<IAgentHostService>() {
+				override readonly onAgentHostStart = Event.None;
+				override readonly onAgentHostExit = Event.None;
+				override async searchCustomizationMarketplace() {
+					return { kind: 'unavailable' as const, reason: 'unsupported' as const };
+				}
+			}(),
+			new class extends mock<IAgentHostConnectionsService>() {
+				override resolveSessionResourceIdentity() {
+					return {
+						connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY,
+						backendSession: URI.parse('ahp-session:/backend-session'),
+					};
+				}
+			}(),
+			new class extends mock<IAgentHostCustomizationService>() {
+				override readonly onDidChangeCustomizations = Event.None;
+			}(),
+			new class extends mock<IAgentPluginService>() {
+				override readonly plugins = observableValue<readonly IAgentPlugin[]>('plugins', []);
+			}(),
+			new class extends mock<IDialogService>() { }(),
+			new NullLogService(),
+		));
+
+		await assert.rejects(
+			provider.query(URI.parse('agent-host-copilotcli:/frontend-session'), { query: 'figma' }, CancellationToken.None),
+			/does not support GitHub Feed search/,
+		);
+	});
+
 	test('installs the retained SDK catalog selection without searching again', async () => {
 		const session = URI.parse('agent-host-copilotcli:/frontend-session');
 		const requests: unknown[] = [];

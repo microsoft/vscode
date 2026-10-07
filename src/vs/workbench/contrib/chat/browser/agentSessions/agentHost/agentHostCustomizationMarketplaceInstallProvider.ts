@@ -88,15 +88,31 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		} catch {
 			return undefined;
 		}
-		const result = await this.agentHostService.searchCustomizationMarketplace(this.providerId, backendSession, {
+		const search = () => this.agentHostService.searchCustomizationMarketplace!(this.providerId, backendSession, {
 			query,
 			mediaType: options.mediaType,
 			limit: options.pageSize ?? 30,
 			cursor: options.cursor,
 		});
+		let result = await search();
 		this.throwIfCancelled(token);
+		if (result.kind === 'unavailable' && result.reason === 'authentication') {
+			if (!await this.resolveAuthentication()) {
+				throw new CancellationError();
+			}
+			this.throwIfCancelled(token);
+			result = await search();
+			this.throwIfCancelled(token);
+		}
 		if (result.kind === 'unavailable') {
-			return undefined;
+			switch (result.reason) {
+				case 'authentication':
+					throw new Error(localize('agentHost.customizationSearch.authenticationRequired', "Sign in to Copilot to search the GitHub Feed."));
+				case 'session':
+					throw new Error(localize('agentHost.customizationSearch.sessionUnavailable', "The selected Copilot session is unavailable for GitHub Feed search."));
+				case 'unsupported':
+					throw new Error(localize('agentHost.customizationSearch.unsupported', "The active Copilot runtime does not support GitHub Feed search."));
+			}
 		}
 		return {
 			items: result.items.map(item => {
