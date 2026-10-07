@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { isWindows } from '../../../../base/common/platform.js';
+import { removeAnsiEscapeCodes } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import { TerminalClaimKind, type TerminalCommandResult, type TerminalSessionClaim } from '../../common/state/protocol/state.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
@@ -22,9 +24,12 @@ interface INonPtyShellStream {
 	readonly uri: string;
 	readonly title: string;
 	created: boolean;
+	/** The last cumulative snapshot, or the streamed transcript once the call streams chunks. */
 	lastSnapshot: string;
 	sourceTruncated: boolean;
 	finalized: boolean;
+	/** Set once the call streams `tool.shell_output` chunks, which replace its lossy snapshots. */
+	chunks?: { lastSequence: number; openLineStream?: string };
 	/** The attached shell that keeps running after the tool call returned, if any. */
 	backgroundShellId?: string;
 	/** The last task-list read started before the call went to the background; only later reads can settle the shell. */
@@ -165,6 +170,8 @@ export interface INonPtyShellToolCompletion {
  * may be rewritten once output is truncated (a trailing truncation marker
  * under the emit cap, a rolling tail past the large-output threshold); this
  * class preserves the streamed transcript across those lossy rewrites.
+ * Runtimes that publish `tool.shell_output` send every chunk instead, so a
+ * call that streams chunks appends them and ignores its snapshots.
  *
  * An attached command that keeps running after its tool call returns keeps
  * receiving the call's partial output, so its channel stays live until the
@@ -226,7 +233,7 @@ export class NonPtyShellTerminalStreams extends Disposable {
 		if (created) {
 			this._createTerminal(toolCallId, stream);
 		}
-		if (stream.finalized || cumulativeOutput === stream.lastSnapshot) {
+		if (stream.finalized || stream.chunks || cumulativeOutput === stream.lastSnapshot) {
 			return { uri: stream.uri, created };
 		}
 		const truncatedPrefix = getTruncatedOutputPrefix(cumulativeOutput);
@@ -259,6 +266,43 @@ export class NonPtyShellTerminalStreams extends Disposable {
 			}
 		}
 		stream.lastSnapshot = cumulativeOutput;
+		return { uri: stream.uri, created };
+	}
+
+	/**
+	 * Appends a `tool.shell_output` chunk, which carries new output rather than
+	 * a snapshot. A call switches to chunks only at its first one, so its
+	 * transcript never misses output.
+	 */
+	appendChunk(toolCallId: string, chunk: { readonly text: string; readonly sequence: number; readonly stream?: string }): { uri: string; created: boolean } | undefined {
+		const stream = this._streams.get(toolCallId);
+		if (!stream || (!stream.chunks && chunk.sequence !== 0)) {
+			return undefined;
+		}
+		const created = !stream.created;
+		if (created) {
+			this._createTerminal(toolCallId, stream);
+		}
+		const chunks = stream.chunks ??= { lastSequence: -1 };
+		if (stream.finalized || chunk.sequence <= chunks.lastSequence) {
+			return { uri: stream.uri, created };
+		}
+		chunks.lastSequence = chunk.sequence;
+		// Match the runtime's plain-text snapshots, which drop ANSI escapes and Windows line endings.
+		let text = removeAnsiEscapeCodes(chunk.text);
+		if (isWindows) {
+			text = text.replace(/\r\n/g, '\n');
+		}
+		if (!text) {
+			return { uri: stream.uri, created };
+		}
+		const source = chunk.stream ?? 'stdout';
+		if (chunks.openLineStream !== undefined && chunks.openLineStream !== source) {
+			text = `\n${text}`;
+		}
+		chunks.openLineStream = /[\r\n]$/.test(text) ? undefined : source;
+		this._terminalManager.appendOutputTerminalData(stream.uri, text);
+		stream.lastSnapshot += text;
 		return { uri: stream.uri, created };
 	}
 
@@ -297,7 +341,11 @@ export class NonPtyShellTerminalStreams extends Disposable {
 			if (created) {
 				this.append(toolCallId, result.preview);
 			} else if (!result.truncated) {
-				if (stream.sourceTruncated || !result.preview.startsWith(stream.lastSnapshot)) {
+				if (stream.chunks) {
+					if (result.preview !== stream.lastSnapshot) {
+						this._replaceOutput(stream, result.preview);
+					}
+				} else if (stream.sourceTruncated || !result.preview.startsWith(stream.lastSnapshot)) {
 					this._replaceOutput(stream, result.preview);
 				} else {
 					this.append(toolCallId, result.preview);

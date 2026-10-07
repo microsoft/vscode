@@ -16,7 +16,7 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { asCssVariable, menuBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
-import { computeChatTerminalMirrorCols } from '../../terminal/browser/chatTerminalCommandMirror.js';
+import { computeChatTerminalMirrorCols, enableCursorLineReflow } from '../../terminal/browser/chatTerminalCommandMirror.js';
 import { DetachedProcessInfo } from '../../terminal/browser/detachedTerminal.js';
 import { IDetachedTerminalInstance, ITerminalService } from '../../terminal/browser/terminal.js';
 import { DecorationSelector, getTerminalCommandDecorationState } from '../../terminal/browser/xterm/decorationStyles.js';
@@ -152,6 +152,7 @@ export class BackgroundShellOutputView extends Disposable {
 				return;
 			}
 			this._terminal = this._register(terminal);
+			enableCursorLineReflow(terminal);
 			terminal.attachToElement(this._terminalContainer, { enableGpu: false });
 			terminal.xterm.write(hideCursor);
 			// The details are laid out after they are built, so measure on the next frame.

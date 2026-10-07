@@ -161,10 +161,12 @@ suite('SessionBackgroundShellsControl', () => {
 	test('shows only the command above a fixed-height terminal that streams its output while details are shown', async () => {
 		const writes: string[] = [];
 		const sizes: string[] = [];
+		const rawXterm = { options: {} as { reflowCursorLine?: boolean } };
 		instantiationService.stub(ITerminalService, new class extends mock<ITerminalService>() {
 			override async createDetachedTerminal(): Promise<IDetachedTerminalInstance> {
 				return new class extends mock<IDetachedTerminalInstance>() {
 					override readonly xterm = new class extends mock<IDetachedXtermTerminal>() {
+						readonly raw = rawXterm;
 						override write(data: string | Uint8Array): void { writes.push(String(data)); }
 						override resize(cols: number, rows: number): void { sizes.push(`${cols}x${rows}`); }
 					}();
@@ -209,7 +211,7 @@ suite('SessionBackgroundShellsControl', () => {
 		const onlyOutputShown = Array.from(details.children).every(child => child.classList.contains('chat-background-shell-output') || (isHTMLElement(child) && child.hidden));
 		hover?.disposable?.dispose();
 
-		assert.deepStrictEqual({ loading, running, exited, command, onlyOutputShown, writes, sizes, reused, released: details.querySelector('.chat-background-shell-output') === null }, {
+		assert.deepStrictEqual({ loading, running, exited, command, onlyOutputShown, writes, sizes, reflowCursorLine: rawXterm.options.reflowCursorLine, reused, released: details.querySelector('.chat-background-shell-output') === null }, {
 			loading: { status: 'Running', empty: 'Waiting for output...' },
 			running: 'Running',
 			exited: 'Exited with code 0',
@@ -217,6 +219,7 @@ suite('SessionBackgroundShellsControl', () => {
 			onlyOutputShown: true,
 			writes: ['\x1b[?25l', 'step 1', '\r\nstep 2', '\x1b[2J\x1b[3J\x1b[Hstep 2'],
 			sizes: ['80x10'],
+			reflowCursorLine: true,
 			reused: true,
 			released: true,
 		});
