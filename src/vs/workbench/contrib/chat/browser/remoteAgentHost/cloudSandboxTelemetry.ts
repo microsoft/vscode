@@ -39,6 +39,10 @@ export type CloudSandboxConnectionStage = 'credentials' | 'connection' | 'relay'
 export type CloudSandboxConnectionOutcome = 'success' | 'failure' | 'cancelled';
 export type CloudSandboxConnectionSurface = 'agentsDesktop' | 'agentsWeb' | 'editorDesktop' | 'editorWeb' | 'unknown';
 type CloudSandboxConnectionSource = NonNullable<ICloudSandboxConnectOptions['connectionSource']>;
+type CloudSandboxEnvironmentKind = 'cloud' | 'user-local';
+type CloudSandboxEnvironmentClassification = {
+	environmentKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Cloud sandbox or user-local Mission Control host; no environment identity.' };
+};
 type CloudSandboxConnectionPhase = Exclude<CloudSandboxConnectionStage, 'connection'>;
 
 export function getCloudSandboxConnectionSurface(isSessionsWindow: boolean, isWeb: boolean): CloudSandboxConnectionSurface {
@@ -85,7 +89,7 @@ export interface ICloudSandboxTelemetryService {
 	reportCredentialRefreshStopped(reason: CloudSandboxRefreshStopReason, consecutiveFailures: number, error?: unknown): void;
 
 	/** Track one logical connection, including retries and subsequent outages. No identity is recorded. */
-	trackConnection(stage: CloudSandboxConnectionStage, surface?: CloudSandboxConnectionSurface, source?: CloudSandboxConnectionSource): ICloudSandboxConnectionTelemetry;
+	trackConnection(stage: CloudSandboxConnectionStage, surface?: CloudSandboxConnectionSurface, source?: CloudSandboxConnectionSource, environmentKind?: ICloudSandboxConnectOptions['environmentKind']): ICloudSandboxConnectionTelemetry;
 }
 
 /** How often accumulated request counts are reported. */
@@ -160,11 +164,11 @@ export class CloudSandboxTelemetryService extends Disposable implements ICloudSa
 		});
 	}
 
-	trackConnection(stage: CloudSandboxConnectionStage, surface: CloudSandboxConnectionSurface = 'unknown', source: CloudSandboxConnectionSource = 'existing'): ICloudSandboxConnectionTelemetry {
+	trackConnection(stage: CloudSandboxConnectionStage, surface: CloudSandboxConnectionSurface = 'unknown', source: CloudSandboxConnectionSource = 'existing', environmentKind?: ICloudSandboxConnectOptions['environmentKind']): ICloudSandboxConnectionTelemetry {
 		if (this._store.isDisposed) {
 			return nullConnectionTelemetry;
 		}
-		const connection = new CloudSandboxConnectionTelemetry(stage, surface, source, event => {
+		const connection = new CloudSandboxConnectionTelemetry(stage, surface, source, environmentKind ?? 'cloud', event => {
 			this._telemetryService.publicLog2<CloudSandboxConnectionOutcomeEvent, CloudSandboxConnectionOutcomeClassification>('cloudSandboxConnectionOutcome', event);
 		}, event => {
 			this._telemetryService.publicLog2<CloudSandboxFirstSessionRequestEvent, CloudSandboxFirstSessionRequestClassification>('cloudSandboxFirstSessionRequest', event);
@@ -185,14 +189,21 @@ export class CloudSandboxTelemetryService extends Disposable implements ICloudSa
 
 	flushConnectionHealth(): void {
 		const now = Date.now();
-		const counts: CloudSandboxConnectionHealthEvent = { connectedMs: 0, unexpectedDisconnects: 0, receivedFrames: 0 };
+		const counts = new Map<CloudSandboxEnvironmentKind, CloudSandboxConnectionHealthEvent>();
 		for (const connection of this._connections) {
 			const delta = connection.takeHealthSnapshot(now);
-			counts.connectedMs += delta.connectedMs;
-			counts.unexpectedDisconnects += delta.unexpectedDisconnects;
-			counts.receivedFrames += delta.receivedFrames;
+			const aggregate = counts.get(delta.environmentKind);
+			if (aggregate) {
+				aggregate.connectedMs += delta.connectedMs;
+				aggregate.unexpectedDisconnects += delta.unexpectedDisconnects;
+				aggregate.receivedFrames += delta.receivedFrames;
+			} else {
+				counts.set(delta.environmentKind, delta);
+			}
 		}
-		this._reportConnectionHealth(counts);
+		for (const aggregate of counts.values()) {
+			this._reportConnectionHealth(aggregate);
+		}
 	}
 
 	private _reportConnectionHealth(counts: CloudSandboxConnectionHealthEvent): void {
@@ -273,12 +284,13 @@ class CloudSandboxConnectionTelemetry extends Disposable implements ICloudSandbo
 	private _firstRequest: { readonly id: string; readonly startedAt: number } | undefined;
 	private _connectedSince: number | undefined;
 	private _restoring = false;
-	private _counts: CloudSandboxConnectionHealthEvent = { connectedMs: 0, unexpectedDisconnects: 0, receivedFrames: 0 };
+	private _counts = { connectedMs: 0, unexpectedDisconnects: 0, receivedFrames: 0 };
 
 	constructor(
 		stage: CloudSandboxConnectionStage,
 		private readonly _surface: CloudSandboxConnectionSurface,
 		private readonly _source: CloudSandboxConnectionSource,
+		private readonly _environmentKind: CloudSandboxEnvironmentKind,
 		private readonly _reportOutcome: (event: CloudSandboxConnectionOutcomeEvent) => void,
 		private readonly _reportFirstRequest: (event: CloudSandboxFirstSessionRequestEvent) => void,
 		private readonly _onDispose: () => void,
@@ -444,7 +456,7 @@ class CloudSandboxConnectionTelemetry extends Disposable implements ICloudSandbo
 		if (this._firstRequest) {
 			const durationMs = Math.max(0, Date.now() - this._firstRequest.startedAt);
 			this._firstRequest = undefined;
-			this._reportFirstRequest({ surface: this._surface, source: this._source, outcome, durationMs });
+			this._reportFirstRequest({ surface: this._surface, source: this._source, environmentKind: this._environmentKind, outcome, durationMs });
 		}
 	}
 
@@ -455,7 +467,7 @@ class CloudSandboxConnectionTelemetry extends Disposable implements ICloudSandbo
 		}
 		const counts = this._counts;
 		this._counts = { connectedMs: 0, unexpectedDisconnects: 0, receivedFrames: 0 };
-		return counts;
+		return { ...counts, environmentKind: this._environmentKind };
 	}
 
 	private _pauseConnectedTime(): void {
@@ -476,7 +488,7 @@ class CloudSandboxConnectionTelemetry extends Disposable implements ICloudSandbo
 		}
 		this._reportOutcome({
 			operation: operation.operation, outcome, stage: operation.stage, durationMs: Math.max(0, Date.now() - operation.startedAt),
-			surface: this._surface, source: this._source,
+			surface: this._surface, source: this._source, environmentKind: this._environmentKind,
 			credentialRequests: operation.credentialRequests, wakingResponses: operation.wakingResponses, transportAttempts: operation.transportAttempts,
 			credentialsMs: operation.durations.credentials, relayMs: operation.durations.relay, protocolMs: operation.durations.protocol,
 			authenticationMs: operation.durations.authentication, restorationMs: operation.durations.restoration,
@@ -499,6 +511,7 @@ class CloudSandboxConnectionTelemetry extends Disposable implements ICloudSandbo
 }
 
 type CloudSandboxConnectionOutcomeEvent = {
+	environmentKind: CloudSandboxEnvironmentKind;
 	operation: 'connect' | 'recover';
 	outcome: CloudSandboxConnectionOutcome;
 	stage: CloudSandboxConnectionStage;
@@ -522,7 +535,7 @@ type CloudSandboxConnectionOutcomeEvent = {
 	restorationFailures: number;
 };
 
-export type CloudSandboxConnectionOutcomeClassification = {
+export type CloudSandboxConnectionOutcomeClassification = CloudSandboxEnvironmentClassification & {
 	operation: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Logical connect or recovery, including all retries.' };
 	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Success, failure, or cancellation; cancellations are not failures.' };
 	stage: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Last observed connection stage: credentials, connection, relay, protocol, authentication, or restoration.' };
@@ -549,13 +562,14 @@ export type CloudSandboxConnectionOutcomeClassification = {
 };
 
 type CloudSandboxFirstSessionRequestEvent = {
+	environmentKind: CloudSandboxEnvironmentKind;
 	surface: CloudSandboxConnectionSurface;
 	source: CloudSandboxConnectionSource;
 	outcome: CloudSandboxConnectionOutcome;
 	durationMs: number;
 };
 
-export type CloudSandboxFirstSessionRequestClassification = {
+export type CloudSandboxFirstSessionRequestClassification = CloudSandboxEnvironmentClassification & {
 	surface: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Editor or Agents window, on desktop or web; unknown when not supplied.' };
 	source: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Created or existing environment from the caller; does not imply warm or cold compute.' };
 	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Outcome of the first session create, list, or subscribe request issued while ready; not turn completion.' };
@@ -565,12 +579,13 @@ export type CloudSandboxFirstSessionRequestClassification = {
 };
 
 type CloudSandboxConnectionHealthEvent = {
+	environmentKind: CloudSandboxEnvironmentKind;
 	connectedMs: number;
 	unexpectedDisconnects: number;
 	receivedFrames: number;
 };
 
-export type CloudSandboxConnectionHealthClassification = {
+export type CloudSandboxConnectionHealthClassification = CloudSandboxEnvironmentClassification & {
 	connectedMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Sum of authenticated ready connection milliseconds since the previous snapshot, excluding outages.' };
 	unexpectedDisconnects: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Losses of previously ready connections; excludes initial retries and intentional teardown.' };
 	receivedFrames: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Inbound relay WebSocket frames, including setup, recovery, control, malformed and chunk frames; not unique protocol messages.' };

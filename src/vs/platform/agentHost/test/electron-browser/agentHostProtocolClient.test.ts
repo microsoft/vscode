@@ -482,28 +482,30 @@ suite('AgentHostProtocolClient', () => {
 		}
 		assert.deepStrictEqual(results, ['copilotcli', 'codex', 'claude'].map(provider => [provider, provider, true]));
 	});
-	test('relay keep-alive continues during sixteen minutes of uninterrupted inbound traffic', () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
-		const transport = disposables.add(new TestProtocolTransport(AgentHostClientConnectionKind.WebPubSub));
-		const { client } = createClient(transport, undefined, { hasHighLoad: () => false });
-		try {
-			await connectClient(client, transport, { 'copilot.keepAliveTimeoutMs': 90_000 });
-			let answered = 0;
-			for (let second = 0; second < 16 * 60; second++) {
-				transport.fireMessage({ jsonrpc: '2.0', id: -1, result: null });
-				await timeout(1000);
-				const requests = transport.sentMessages.filter(message => hasKey(message, { method: true }) && message.method === 'ping');
-				for (const request of requests.slice(answered)) {
-					assert.ok(hasKey(request, { id: true }));
-					transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: null });
+	for (const connectionKind of [AgentHostClientConnectionKind.WebPubSub, AgentHostClientConnectionKind.MissionControl]) {
+		test(`${connectionKind} relay keep-alive continues during sixteen minutes of uninterrupted inbound traffic`, () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+			const transport = disposables.add(new TestProtocolTransport(connectionKind));
+			const { client } = createClient(transport, undefined, { hasHighLoad: () => false });
+			try {
+				await connectClient(client, transport, { 'copilot.keepAliveTimeoutMs': 90_000 });
+				let answered = 0;
+				for (let second = 0; second < 16 * 60; second++) {
+					transport.fireMessage({ jsonrpc: '2.0', id: -1, result: null });
+					await timeout(1000);
+					const requests = transport.sentMessages.filter(message => hasKey(message, { method: true }) && message.method === 'ping');
+					for (const request of requests.slice(answered)) {
+						assert.ok(hasKey(request, { id: true }));
+						transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: null });
+					}
+					answered = requests.length;
 				}
-				answered = requests.length;
+				assert.strictEqual(answered, 32);
+				assert.strictEqual(client.connectionState, AgentHostClientState.Connected);
+			} finally {
+				client.dispose();
 			}
-			assert.strictEqual(answered, 32);
-			assert.strictEqual(client.connectionState, AgentHostClientState.Connected);
-		} finally {
-			client.dispose();
-		}
-	}));
+		}));
+	}
 
 	test('Dev Container facade is capability gated for old and malformed hosts', async () => {
 		const supported: boolean[] = [];
@@ -3260,90 +3262,92 @@ suite('AgentHostProtocolClient', () => {
 			}
 		});
 
-		test('WPS authenticates before refreshing its minimal root snapshot and never forwards host configuration', async () => {
-			const transport = disposables.add(new TestProtocolTransport(AgentHostClientConnectionKind.WebPubSub));
-			const workspaceTrust = createWorkspaceTrustServices();
-			const trustedFoldersChanged = disposables.add(new Emitter<void>());
-			workspaceTrust.management.onDidChangeTrustedFolders = trustedFoldersChanged.event;
-			const configurationService = new TestConfigurationService();
-			const client = disposables.add(new AgentHostProtocolClient(
-				'test.example:1234', transport,
-				{ resolveInitialAuthentication: async () => ({ resource: 'https://api.github.com', token: 'copilot-sealed.v1.test.ciphertext' }) },
-				new NullLogService(), createPermissionService(), configurationService, NullTelemetryService,
-				workspaceTrustEnablementService, workspaceTrust.management, workspaceTrust.request,
-			));
-			const connecting = client.connect();
-			const initialize = await waitForRequest(transport, 'initialize');
-			transport.fireMessage({
-				jsonrpc: '2.0', id: initialize.id, result: {
-					protocolVersion: PROTOCOL_VERSION, serverSeq: 1,
-					snapshots: [{ resource: ROOT_STATE_URI, fromSeq: 1, state: { agents: [] } }],
-				},
-			});
-			const authentication = await waitForRequest(transport, 'authenticate');
-			assert.strictEqual(findRequest(transport, 'subscribe'), undefined);
-			transport.fireMessage({ jsonrpc: '2.0', id: authentication.id, result: {} });
-			const rootSubscription = await waitForRequest(transport, 'subscribe');
-			transport.fireMessage({
-				jsonrpc: '2.0', method: 'action', params: {
-					channel: ROOT_STATE_URI, serverSeq: 4, origin: undefined, action: {
-						type: ActionType.RootAgentsChanged,
-						agents: [{ provider: 'updated-provider', displayName: 'Updated', description: '', models: [] }],
+		for (const connectionKind of [AgentHostClientConnectionKind.WebPubSub, AgentHostClientConnectionKind.MissionControl]) {
+			test(`${connectionKind} authenticates before refreshing its minimal root snapshot and never forwards host configuration`, async () => {
+				const transport = disposables.add(new TestProtocolTransport(connectionKind));
+				const workspaceTrust = createWorkspaceTrustServices();
+				const trustedFoldersChanged = disposables.add(new Emitter<void>());
+				workspaceTrust.management.onDidChangeTrustedFolders = trustedFoldersChanged.event;
+				const configurationService = new TestConfigurationService();
+				const client = disposables.add(new AgentHostProtocolClient(
+					'test.example:1234', transport,
+					{ resolveInitialAuthentication: async () => ({ resource: 'https://api.github.com', token: 'copilot-sealed.v1.test.ciphertext' }) },
+					new NullLogService(), createPermissionService(), configurationService, NullTelemetryService,
+					workspaceTrustEnablementService, workspaceTrust.management, workspaceTrust.request,
+				));
+				const connecting = client.connect();
+				const initialize = await waitForRequest(transport, 'initialize');
+				transport.fireMessage({
+					jsonrpc: '2.0', id: initialize.id, result: {
+						protocolVersion: PROTOCOL_VERSION, serverSeq: 1,
+						snapshots: [{ resource: ROOT_STATE_URI, fromSeq: 1, state: { agents: [] } }],
 					},
-				},
-			});
-			transport.fireMessage({
-				jsonrpc: '2.0', id: rootSubscription.id, result: {
-					snapshot: {
-						resource: ROOT_STATE_URI, fromSeq: 3,
-						state: { agents: [], config: { schema: { type: 'object', properties: {} }, values: { hostOwned: 'preserved' } } },
+				});
+				const authentication = await waitForRequest(transport, 'authenticate');
+				assert.strictEqual(findRequest(transport, 'subscribe'), undefined);
+				transport.fireMessage({ jsonrpc: '2.0', id: authentication.id, result: {} });
+				const rootSubscription = await waitForRequest(transport, 'subscribe');
+				transport.fireMessage({
+					jsonrpc: '2.0', method: 'action', params: {
+						channel: ROOT_STATE_URI, serverSeq: 4, origin: undefined, action: {
+							type: ActionType.RootAgentsChanged,
+							agents: [{ provider: 'updated-provider', displayName: 'Updated', description: '', models: [] }],
+						},
 					},
-				},
+				});
+				transport.fireMessage({
+					jsonrpc: '2.0', id: rootSubscription.id, result: {
+						snapshot: {
+							resource: ROOT_STATE_URI, fromSeq: 3,
+							state: { agents: [], config: { schema: { type: 'object', properties: {} }, values: { hostOwned: 'preserved' } } },
+						},
+					},
+				});
+				await connecting;
+				await configurationService.setUserConfiguration(SYNC_SETTING_A, false);
+				fireConfigurationChange(configurationService, SYNC_SETTING_A);
+				await configurationService.setUserConfiguration(TELEMETRY_SETTING_ID, TelemetryConfiguration.OFF);
+				fireConfigurationChange(configurationService, TELEMETRY_SETTING_ID);
+				await configurationService.setUserConfiguration(GLOBAL_AUTO_APPROVE_SETTING_ID, false);
+				fireConfigurationChange(configurationService, GLOBAL_AUTO_APPROVE_SETTING_ID);
+				trustedFoldersChanged.fire();
+				await flushMicrotasks();
+				const root = client.rootState.value;
+				assert.ok(root && !(root instanceof Error));
+				assert.deepStrictEqual({
+					connection: client.connectionState,
+					rootValues: root.config?.values,
+					providers: root.agents.map(agent => agent.provider),
+					configDispatch: findDispatchAction(transport, ActionType.RootConfigChanged),
+					managedPermissions: findNotification(transport, 'setClientManagedSettingsPermissions'),
+				}, {
+					connection: AgentHostClientState.Connected,
+					rootValues: { hostOwned: 'preserved' },
+					providers: ['updated-provider'],
+					configDispatch: undefined,
+					managedPermissions: undefined,
+				});
+				const firstRefresh = client.authenticate({ resource: 'https://api.github.com', token: 'copilot-sealed.v1.test.refreshed' });
+				const secondRefresh = client.authenticate({ resource: 'https://mcp.example.test', token: 'copilot-sealed.v1.test.mcp' });
+				const firstAuthentication = await waitForRequestAt(transport, 'authenticate', 1);
+				const secondAuthentication = await waitForRequestAt(transport, 'authenticate', 2);
+				transport.fireMessage({ jsonrpc: '2.0', id: firstAuthentication.id, result: {} });
+				transport.fireMessage({ jsonrpc: '2.0', id: secondAuthentication.id, result: {} });
+				const sharedRootRefresh = await waitForRequestAt(transport, 'subscribe', 1);
+				await Promise.resolve();
+				assert.strictEqual(transport.sentMessages.filter(message => hasKey(message, { method: true, id: true }) && message.method === 'subscribe').length, 2);
+				transport.fireMessage({
+					jsonrpc: '2.0', method: 'action', params: {
+						channel: ROOT_STATE_URI, serverSeq: 5, origin: undefined, action: { type: ActionType.RootActiveSessionsChanged, activeSessions: 2 },
+					},
+				});
+				transport.fireMessage({ jsonrpc: '2.0', id: sharedRootRefresh.id, error: { code: JsonRpcErrorCodes.InternalError, message: 'Root refresh failed' } });
+				await Promise.all([assert.rejects(firstRefresh, /Root refresh failed/), assert.rejects(secondRefresh, /Root refresh failed/)]);
+				const retained = client.rootState.value;
+				assert.ok(retained && !(retained instanceof Error));
+				assert.strictEqual(retained.activeSessions, 2);
 			});
-			await connecting;
-			await configurationService.setUserConfiguration(SYNC_SETTING_A, false);
-			fireConfigurationChange(configurationService, SYNC_SETTING_A);
-			await configurationService.setUserConfiguration(TELEMETRY_SETTING_ID, TelemetryConfiguration.OFF);
-			fireConfigurationChange(configurationService, TELEMETRY_SETTING_ID);
-			await configurationService.setUserConfiguration(GLOBAL_AUTO_APPROVE_SETTING_ID, false);
-			fireConfigurationChange(configurationService, GLOBAL_AUTO_APPROVE_SETTING_ID);
-			trustedFoldersChanged.fire();
-			await flushMicrotasks();
-			const root = client.rootState.value;
-			assert.ok(root && !(root instanceof Error));
-			assert.deepStrictEqual({
-				connection: client.connectionState,
-				rootValues: root.config?.values,
-				providers: root.agents.map(agent => agent.provider),
-				configDispatch: findDispatchAction(transport, ActionType.RootConfigChanged),
-				managedPermissions: findNotification(transport, 'setClientManagedSettingsPermissions'),
-			}, {
-				connection: AgentHostClientState.Connected,
-				rootValues: { hostOwned: 'preserved' },
-				providers: ['updated-provider'],
-				configDispatch: undefined,
-				managedPermissions: undefined,
-			});
-			const firstRefresh = client.authenticate({ resource: 'https://api.github.com', token: 'copilot-sealed.v1.test.refreshed' });
-			const secondRefresh = client.authenticate({ resource: 'https://mcp.example.test', token: 'copilot-sealed.v1.test.mcp' });
-			const firstAuthentication = await waitForRequestAt(transport, 'authenticate', 1);
-			const secondAuthentication = await waitForRequestAt(transport, 'authenticate', 2);
-			transport.fireMessage({ jsonrpc: '2.0', id: firstAuthentication.id, result: {} });
-			transport.fireMessage({ jsonrpc: '2.0', id: secondAuthentication.id, result: {} });
-			const sharedRootRefresh = await waitForRequestAt(transport, 'subscribe', 1);
-			await Promise.resolve();
-			assert.strictEqual(transport.sentMessages.filter(message => hasKey(message, { method: true, id: true }) && message.method === 'subscribe').length, 2);
-			transport.fireMessage({
-				jsonrpc: '2.0', method: 'action', params: {
-					channel: ROOT_STATE_URI, serverSeq: 5, origin: undefined, action: { type: ActionType.RootActiveSessionsChanged, activeSessions: 2 },
-				},
-			});
-			transport.fireMessage({ jsonrpc: '2.0', id: sharedRootRefresh.id, error: { code: JsonRpcErrorCodes.InternalError, message: 'Root refresh failed' } });
-			await Promise.all([assert.rejects(firstRefresh, /Root refresh failed/), assert.rejects(secondRefresh, /Root refresh failed/)]);
-			const retained = client.rootState.value;
-			assert.ok(retained && !(retained instanceof Error));
-			assert.strictEqual(retained.activeSessions, 2);
-		});
+		}
 
 		function findRequest(transport: TestProtocolTransport, method: string): JsonRpcRequest | undefined {
 			return transport.sentMessages.find(
