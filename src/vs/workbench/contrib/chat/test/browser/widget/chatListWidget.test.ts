@@ -1241,7 +1241,8 @@ suite('ChatListWidget', () => {
 			const { model, container, widget, viewModel } = context;
 			container.classList.add('interactive-list');
 			container.style.setProperty('--vscode-spacing-size80', '8px');
-			const text = 'Keep this request visible while its response changes and the transcript is resized.';
+			// Keep the sticky request clamped to two lines at both test widths.
+			const text = 'Keep this request visible while its response changes and the transcript is resized. '.repeat(3);
 			const request = model.addRequest({
 				text,
 				parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
@@ -1294,21 +1295,23 @@ suite('ChatListWidget', () => {
 
 		test('width changes keep sticky templates and code editors while updating measured geometry', async () => {
 			const { container, widget, row, bubble } = await createTranscript();
-			const beforeWidth = bubble.getBoundingClientRect().width;
+			const beforeBounds = bubble.getBoundingClientRect();
 			const editors = [...widget.editorsInUse()];
 			const boundsReads = sinon.spy(bubble, 'getBoundingClientRect');
 			container.style.width = '320px';
 			widget.layout(300, 320);
 			await waitForStableLayout(widget);
 			const measured = boundsReads.callCount > 0;
+			const afterBounds = bubble.getBoundingClientRect();
 			assert.deepStrictEqual({
 				sameRow: container.querySelector('.monaco-tree-sticky-row') === row,
 				sameBubble: row.querySelector('.chat-markdown-part') === bubble,
 				measured,
-				narrower: bubble.getBoundingClientRect().width < beforeWidth,
+				narrower: afterBounds.width < beforeBounds.width,
+				sameHeight: afterBounds.height === beforeBounds.height,
 				visible: row.getBoundingClientRect().height > 0,
 				sameEditors: editors.length > 0 && editors.every((editor, index) => [...widget.editorsInUse()][index] === editor),
-			}, { sameRow: true, sameBubble: true, measured: true, narrower: true, visible: true, sameEditors: true });
+			}, { sameRow: true, sameBubble: true, measured: true, narrower: true, sameHeight: true, visible: true, sameEditors: true });
 		});
 
 		test('streaming and hidden content updates do not replace an unchanged pinned request', async () => {
