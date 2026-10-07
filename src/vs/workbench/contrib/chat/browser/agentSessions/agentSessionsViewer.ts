@@ -195,7 +195,7 @@ export function getAgentSessionStatusIcon(session: IAgentSession): ThemeIcon {
 	}
 
 	if (session.status === AgentSessionStatus.NeedsInput) {
-		return { ...Codicon.report, color: themeColorFromId('list.warningForeground') };
+		return { ...Codicon.reportQuestion, color: themeColorFromId('list.warningForeground') };
 	}
 
 	if (session.status === AgentSessionStatus.Failed) {
