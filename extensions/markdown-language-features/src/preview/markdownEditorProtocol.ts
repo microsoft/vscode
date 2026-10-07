@@ -77,6 +77,9 @@ export const markdownEditorHost = defineInterface({ id: 'markdown.editor.host' }
 	addComment: requestType(z.extend(range, { text: z.string() }), z.void()),
 	deleteComment: requestType(z.object({ id: z.string() }), z.void()),
 	highlight: requestType(z.object({ source: z.string(), languageId: z.string() }), highlightResult),
+	prepareRename: requestType(z.object({ requestId: offset, offset, editEpoch: offset }), z.extend(range, { placeholder: z.string() })),
+	rename: requestType(z.object({ requestId: offset, newName: z.string() }), z.void()),
+	cancelRename: requestType(z.object({ requestId: offset }), z.void()),
 });
 
 export const markdownEditorRenderer = defineInterface({ id: 'markdown.editor.renderer' }, {

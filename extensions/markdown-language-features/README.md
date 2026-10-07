@@ -33,3 +33,22 @@ webview generation has its own secret-authenticated transport and connection;
 reload/disposal closes pending requests and detaches listeners. Nested code
 block editors do not receive this secret and keep their separately sandboxed
 protocols; only their opaque host-transport payloads cross named RPC methods.
+
+### Rich editor rename
+
+In an editable Markdown rich editor, put the caret on a heading, link, or reference
+supported by the Markdown rename provider and press **F2**, or run
+**Markdown Editor: Rename Symbol**. Enter applies the provider's workspace edit,
+including references in other files; Escape cancels. The widget suspends the rich
+editor's native text input while focused and restores focus when dismissed.
+The exact range returned by the prepare-rename provider stays highlighted while
+the widget is open, without changing the document selection.
+
+Rename uses `vscode.prepareRename` and `vscode.executeDocumentRenameProvider`
+against the existing authoritative document. The host drains accepted edits and
+maps renderer offsets through line/character positions, including CRLF documents.
+Prepared sessions are invalidated by cancellation, reload, or disposal, and
+document versions are checked again before applying provider results. Provider
+errors and rejected workspace edits are displayed rather than treated as success.
+Cancellation prevents application until the workspace edit has been dispatched;
+an edit already being applied is undone through the normal undo command.

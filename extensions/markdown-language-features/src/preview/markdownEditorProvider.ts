@@ -23,6 +23,7 @@ import { generateUuid } from '../util/uuid';
 import { MarkdownEditorRichLinkController } from './markdownEditorRichLinks';
 import { markdownEditorHost, markdownEditorRenderer, type CodeBlockEditorProviderDefinition, type ResolvedCodeBlockEditor } from './markdownEditorProtocol';
 import { MarkdownEditorRpcTransport } from './markdownEditorRpc';
+import { MarkdownEditorRename } from './markdownEditorRename';
 
 export interface MarkdownCodeBlockEditorApiV1 {
 	getProvider(providerId: string): MarkdownCodeBlockEditorProviderApi | undefined;
@@ -416,7 +417,13 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		});
 
 		const comments = this.#wireComments(document, editorWebview);
+		const rename = new MarkdownEditorRename(document, () => editQueue.drain(),
+			() => ({ text: webviewText, editEpoch: editQueue.epoch }),
+			() => webviewPanel.active && !resolveCancellation.token.isCancellationRequested);
 		editorWebview.setHandlers({
+			prepareRename: message => rename.prepare(message),
+			rename: message => rename.rename(message),
+			cancelRename: message => rename.cancel(message.requestId),
 			ready: async (message, _context, { signal }) => {
 				webviewReady = true;
 				editorWebview.acceptReady();
@@ -565,6 +572,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			? this.#wireDocumentDiff(originalDocument, document, editorWebview)
 			: this.#wireQuickDiff(document, editorWebview);
 		const reloadWebview = (): void => {
+			rename.cancel();
 			webviewReady = false;
 			void editQueue.enqueueBarrier(async epoch => {
 				if (resolveCancellation.token.isCancellationRequested) {
@@ -631,6 +639,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		this.#configureWebview(document, editorWebview, editQueue.epoch);
 
 		webviewPanel.onDidDispose(() => {
+			rename.cancel();
 			contributionUpdate++;
 			editQueue.invalidate();
 			resolveCancellation.cancel();

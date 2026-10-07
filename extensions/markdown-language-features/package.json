@@ -143,6 +143,12 @@
     ],
     "commands": [
       {
+        "command": "markdown.editor.rename",
+        "title": "%markdown.editor.rename%",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'"
+      },
+      {
         "command": "_markdown.copyImage",
         "title": "%markdown.copyImage.title%",
         "category": "Markdown"
@@ -652,6 +658,10 @@
       ],
       "commandPalette": [
         {
+          "command": "markdown.editor.rename",
+          "when": "activeCustomEditorId == 'vscode.markdown.editor'"
+        },
+        {
           "command": "_markdown.openImage",
           "when": "false"
         },
@@ -950,6 +960,11 @@
       ]
     },
     "keybindings": [
+      {
+        "command": "markdown.editor.rename",
+        "key": "f2",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus"
+      },
       {
         "command": "markdown.showPreviewToSide",
         "key": "ctrl+k v",

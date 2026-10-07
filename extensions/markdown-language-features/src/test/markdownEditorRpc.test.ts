@@ -41,6 +41,9 @@ suite('Markdown editor RPC', () => {
 			addComment: () => { },
 			deleteComment: () => { },
 			highlight: () => ({ tokens: [], colorMap: [] }),
+			prepareRename: () => ({ start: 0, endExclusive: 1, placeholder: 'name' }),
+			rename: () => { },
+			cancelRename: () => { },
 			...hostOverrides,
 		});
 		host.get(markdownEditorRenderer);
@@ -97,6 +100,27 @@ suite('Markdown editor RPC', () => {
 				{ runtimeId: 'one', message: { nested: ['opaque', 2] } },
 			],
 		});
+	});
+
+	test('routes rename sessions and rejects invalid offsets across RPC', async () => {
+		const seen: unknown[] = [];
+		const { renderer } = pair({
+			prepareRename: params => { seen.push(params); return { start: 2, endExclusive: 8, placeholder: 'Target' }; },
+			rename: params => { seen.push(params); },
+			cancelRename: params => { seen.push(params); },
+		});
+		const client = renderer.get(markdownEditorHost);
+		assert.deepStrictEqual(await client.prepareRename({ requestId: 4, offset: 3, editEpoch: 2 }),
+			{ start: 2, endExclusive: 8, placeholder: 'Target' });
+		await client.rename({ requestId: 4, newName: 'New target' });
+		await client.cancelRename({ requestId: 4 });
+		await assert.rejects(renderer.channel.sendRequest('markdown.editor.host::prepareRename',
+			{ requestId: 4, offset: -1, editEpoch: 2 }), { code: ErrorCode.invalidParams });
+		assert.deepStrictEqual(seen, [
+			{ requestId: 4, offset: 3, editEpoch: 2 },
+			{ requestId: 4, newName: 'New target' },
+			{ requestId: 4 },
+		]);
 	});
 
 	test('rejects malformed parameters, unknown members, and failed handlers', async () => {

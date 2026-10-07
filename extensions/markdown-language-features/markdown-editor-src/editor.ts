@@ -18,6 +18,7 @@ import { WebviewLinkPresentationProvider } from './linkPresentationProvider';
 import { markdownEditorHost, markdownEditorRenderer, type CodeBlockEditorProviderDefinition, type MarkdownEditorHost } from '../src/preview/markdownEditorProtocol';
 import { MarkdownEditorRpcTransport } from '../src/preview/markdownEditorRpc';
 import { LazyCodeBlockEditorFactory } from '../src/preview/lazyCodeBlockEditorFactory';
+import { RenameController } from './renameController';
 
 interface VsCodeApi {
 	postMessage(message: unknown): void;
@@ -118,6 +119,7 @@ class Editor extends Disposable {
 	#nextCodeBlockEditorRuntimeId = 1;
 	readonly #codeBlockEditorHostTransports = new Map<string, CodeBlockEditorHostTransport>();
 	#controller: EditorController | undefined;
+	#rename: RenameController | undefined;
 	#view: EditorView | undefined;
 	#embeddedCodeEditorFactory: LazyCodeBlockEditorFactory | undefined;
 	/** Identifies the authoritative text baseline against which local edits are computed. */
@@ -219,7 +221,11 @@ class Editor extends Disposable {
 					this.#view?.revealRangeAtTop(OffsetRange.fromTo(start, endExclusive));
 				}
 			},
-			command: ({ command: commandId }) => {
+			command: async ({ command: commandId }) => {
+				if (commandId === 'markdown.editor.rename') {
+					await this.#rename?.start();
+					return;
+				}
 				const command = commands.find(command => command.id === commandId);
 				if (command) {
 					this.#controller?.executeCommand(command);
@@ -343,6 +349,7 @@ class Editor extends Disposable {
 			},
 		}));
 		this.#view = view;
+		this.#rename = this._register(new RenameController(model, view, this.#host, () => this.#editEpoch));
 
 		// Wire history chords (undo/redo) to the extension so they run against the
 		// backing TextDocument's own undo stack. `record` is deliberately omitted:
