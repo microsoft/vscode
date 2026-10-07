@@ -223,7 +223,7 @@ suite('aiCustomizationManagementEditor', () => {
 		markdownRendererService: { render(markdown: { value: string }): { element: HTMLElement; dispose(): void } };
 		editorPreviewDisposables: DisposableStore;
 		editorPreviewRenderScheduler: { cancel(): void; schedule(): void };
-		viewMode: 'list' | 'migration' | 'editor' | 'mcpDetail' | 'pluginDetail' | 'toolsDetail';
+		viewMode: 'list' | 'migration' | 'editor' | 'marketplaceDetail' | 'mcpDetail' | 'connectorDetail' | 'pluginDetail';
 		mcpDetailInput: IMcpServerDetailInput | undefined;
 		embeddedMcpDetail: { setMigratable(migratable: boolean): void } | undefined;
 		refreshMcpDetailMigrationState(): void;
