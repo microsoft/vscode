@@ -55,6 +55,8 @@ The active session remains visible even when a filter would otherwise exclude it
 
 A caller can acquire a disposable reveal of a session row or its archive action for onboarding. The list temporarily includes that session despite filters and presentation caps, expands its section, and exposes the requested spotlight target. An archive-action reveal also keeps the action visible without hover or focus. Releasing the reveal restores normal filtering and action visibility without changing the user's saved filters.
 
+Inbox presentation is an alternate list-owned view mode. It hides in-progress sessions, including pinned and active sessions, while preserving an explicit onboarding reveal. Remaining unarchived sessions bypass custom, external, quick-chat, workspace, and date sections and render as one top-level list ordered by natural updated time. Pinned sessions retain their fixed section above that list, and archived sessions retain their fixed final section when included.
+
 ## Grouping
 
 ### Workspace grouping
@@ -115,7 +117,7 @@ Session facades may expose catalog-backed peer-chat identities, titles, interact
 
 ## Persistence
 
-List presentation state is profile-scoped user state. This includes grouping, sorting, filtering, section and nested-session collapse, pins, custom groups, manual sort keys, and section order. A nested session starts expanded, and the user's later collapse or expansion choice persists across list and window recreation. Storage keys are private implementation details; other components change list state through the owning service API.
+List presentation state is profile-scoped user state. This includes grouping, sorting, inbox presentation, filtering, section and nested-session collapse, pins, custom groups, manual sort keys, and section order. A nested session starts expanded, and the user's later collapse or expansion choice persists across list and window recreation. Storage keys are private implementation details; other components change list state through the owning service API.
 
 ## Change policy
 

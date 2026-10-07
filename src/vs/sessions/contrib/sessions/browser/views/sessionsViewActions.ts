@@ -36,7 +36,7 @@ import { getSessionListChats, SessionItemCanImportContext, SessionItemContextMen
 import { getChatCapabilities, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionComparisonService } from '../../../../services/sessions/common/sessionComparison.js';
-import { IsWorkspaceGroupCappedContext, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext } from './sessionsView.js';
+import { IsWorkspaceGroupCappedContext, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewInboxContext, SessionsViewSortingContext } from './sessionsView.js';
 import { Menus } from '../../../../browser/menus.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -331,6 +331,7 @@ MenuRegistry.appendMenuItem(Menus.SidebarSessionsHeader, {
 MenuRegistry.appendMenuItem(Menus.SessionsViewFilter, {
 	submenu: Menus.SessionsViewOrdering,
 	title: localize2('ordering', "Ordering"),
+	when: SessionsViewInboxContext.negate(),
 	group: '1_presentation',
 	order: 0,
 });
@@ -338,6 +339,7 @@ MenuRegistry.appendMenuItem(Menus.SessionsViewFilter, {
 MenuRegistry.appendMenuItem(Menus.SessionsViewFilter, {
 	submenu: Menus.SessionsViewGrouping,
 	title: localize2('grouping', "Grouping"),
+	when: SessionsViewInboxContext.negate(),
 	group: '1_presentation',
 	order: 1,
 });
@@ -345,7 +347,7 @@ MenuRegistry.appendMenuItem(Menus.SessionsViewFilter, {
 MenuRegistry.appendMenuItem(Menus.SessionsViewFilter, {
 	submenu: Menus.SessionsViewShow,
 	title: localize2('showSessions', "Show"),
-	when: SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Workspace),
+	when: ContextKeyExpr.and(SessionsViewInboxContext.negate(), SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Workspace)),
 	group: '1_presentation',
 	order: 2,
 });
@@ -477,7 +479,7 @@ registerAction2(class ToggleCompactSessionsViewAction extends Action2 {
 			menu: [{
 				id: Menus.SidebarSessionsHeader,
 				group: 'view',
-				order: 0,
+				order: 1,
 				when: ContextKeyExpr.and(ChatContextKeys.enabled, IsPhoneLayoutContext.negate()),
 			}]
 		});
@@ -486,6 +488,28 @@ registerAction2(class ToggleCompactSessionsViewAction extends Action2 {
 		const viewsService = accessor.get(IViewsService);
 		const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
 		view?.toggleCompact();
+	}
+});
+
+registerAction2(class ToggleInboxSessionsViewAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsViewPane.toggleInbox',
+			title: localize2('toggleInboxSessionsView', "Inbox View"),
+			category: SessionsCategories.Sessions,
+			toggled: SessionsViewInboxContext,
+			menu: [{
+				id: Menus.SidebarSessionsHeader,
+				group: 'view',
+				order: 0,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, IsPhoneLayoutContext.negate()),
+			}]
+		});
+	}
+	override run(accessor: ServicesAccessor) {
+		const viewsService = accessor.get(IViewsService);
+		const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
+		view?.toggleInbox();
 	}
 });
 
@@ -545,7 +569,7 @@ registerAction2(class CollapseAllGroupsAction extends Action2 {
 			id: 'sessionsViewPane.collapseAllGroups',
 			title: localize2('collapseAllGroups', "Collapse All Groups"),
 			category: SessionsCategories.Sessions,
-			menu: [{ id: Menus.SidebarSessionsHeader, group: 'view', order: 1, when: ChatContextKeys.enabled }]
+			menu: [{ id: Menus.SidebarSessionsHeader, group: 'view', order: 2, when: ChatContextKeys.enabled }]
 		});
 	}
 	override run(accessor: ServicesAccessor) {

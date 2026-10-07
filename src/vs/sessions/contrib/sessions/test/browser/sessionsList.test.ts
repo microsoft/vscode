@@ -78,7 +78,7 @@ import { IActiveSession, ISessionsManagementService } from '../../../../services
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForInbox, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IChatService, IChatToolInvocation } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -109,6 +109,7 @@ function createSession(id: string, opts: {
 	isRead?: boolean;
 	isAutomation?: boolean;
 	isExternal?: boolean;
+	status?: SessionStatus;
 	resource?: URI;
 }): ISession & { readonly isArchived: ISettableObservable<boolean, void> } {
 	const createdAt = opts.createdAt ?? new Date();
@@ -139,7 +140,7 @@ function createSession(id: string, opts: {
 		isExternal: observableValue(`isExternal-${id}`, opts.isExternal === true),
 		title: observableValue(`title-${id}`, id),
 		updatedAt: observableValue(`updatedAt-${id}`, updatedAt),
-		status: observableValue(`status-${id}`, SessionStatus.Completed),
+		status: observableValue(`status-${id}`, opts.status ?? SessionStatus.Completed),
 		modelId: observableValue(`modelId-${id}`, undefined),
 		mode: observableValue(`mode-${id}`, undefined),
 		loading: observableValue(`loading-${id}`, false),
@@ -2625,6 +2626,45 @@ suite('Sessions - SessionsList', () => {
 	});
 
 	suite('groupSessionsForList', () => {
+
+		suite('groupSessionsForInbox', () => {
+
+			test('hides running sessions and merges remaining session kinds by updated time', () => {
+				const sessions = [
+					createSession('older-workspace', { workspaceLabel: 'Alpha', updatedAt: new Date('2024-06-01T10:00:00Z') }),
+					createSession('running-pinned', { workspaceLabel: 'Alpha', status: SessionStatus.InProgress, updatedAt: new Date('2024-06-01T15:00:00Z') }),
+					createSession('needs-input', { workspaceLabel: 'Beta', status: SessionStatus.NeedsInput, updatedAt: new Date('2024-06-01T14:00:00Z') }),
+					createSession('quick-chat', { updatedAt: new Date('2024-06-01T13:00:00Z') }),
+					createSession('pinned', { workspaceLabel: 'Gamma', updatedAt: new Date('2024-06-01T12:00:00Z') }),
+					createSession('archived', { workspaceLabel: 'Delta', isArchived: true, updatedAt: new Date('2024-06-01T11:00:00Z') }),
+					createSession('automation', { isAutomation: true, updatedAt: new Date('2024-06-01T16:00:00Z') }),
+				];
+				const sections = groupSessionsForInbox(
+					sessions,
+					session => session.sessionId === 'running-pinned' || session.sessionId === 'pinned',
+					'Done',
+				);
+
+				assert.deepStrictEqual(sections.map(section => ({
+					id: section.id,
+					sessions: section.sessions.map(session => session.sessionId),
+				})), [
+					{ id: 'pinned', sessions: ['pinned'] },
+					{ id: 'inbox', sessions: ['needs-input', 'quick-chat', 'older-workspace'] },
+					{ id: 'archived', sessions: ['archived'] },
+				]);
+			});
+
+			test('temporarily includes a revealed running session', () => {
+				const running = createSession('running', { status: SessionStatus.InProgress });
+				const sections = groupSessionsForInbox([running], () => false, 'Done', running.sessionId);
+
+				assert.deepStrictEqual(sections.map(section => ({
+					id: section.id,
+					sessions: section.sessions.map(session => session.sessionId),
+				})), [{ id: 'inbox', sessions: ['running'] }]);
+			});
+		});
 
 		for (const grouping of [SessionsGrouping.Workspace, SessionsGrouping.Date]) {
 			test(`groups external sessions before Done while preserving pins (${grouping})`, () => {

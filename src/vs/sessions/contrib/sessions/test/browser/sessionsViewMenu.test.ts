@@ -33,7 +33,7 @@ import { ISession, ISessionEnvironment } from '../../../../services/sessions/com
 import { buildTestSession } from '../../../../services/sessions/test/common/testSessionBuilder.js';
 import { SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { SessionsListFilters } from '../../browser/views/sessionsListFilters.js';
-import { IsWorkspaceGroupCappedContext, SessionsView, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewSortingContext } from '../../browser/views/sessionsView.js';
+import { IsWorkspaceGroupCappedContext, SessionsView, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewInboxContext, SessionsViewSortingContext } from '../../browser/views/sessionsView.js';
 import { TestCommandService } from './sessionsListTestUtils.js';
 import '../../browser/views/sessionsViewActions.js';
 
@@ -66,6 +66,7 @@ suite('Sessions - View Menu', () => {
 		const grouping = SessionsViewGroupingContext.bindTo(contextKeyService);
 		const capped = IsWorkspaceGroupCappedContext.bindTo(contextKeyService);
 		const compact = SessionsViewCompactContext.bindTo(contextKeyService);
+		const inbox = SessionsViewInboxContext.bindTo(contextKeyService);
 		const filters = store.add(new SessionsListFilters(store.add(new InMemoryStorageService()), store.add(new NullLogService())));
 		const sessionsChanged = store.add(new Emitter<void>());
 		const providersChanged = store.add(new Emitter<void>());
@@ -126,7 +127,7 @@ suite('Sessions - View Menu', () => {
 			await instantiationService.invokeFunction(accessor => command.handler(accessor));
 		};
 		return {
-			snapshot, sorting, grouping, capped, compact, contextKeyService, filters, run, sessionsControl,
+			snapshot, sorting, grouping, capped, compact, inbox, contextKeyService, filters, run, sessionsControl,
 			setSessions: (value: readonly ISession[]) => {
 				sessions = value;
 				sessionsChanged.fire();
@@ -153,14 +154,14 @@ suite('Sessions - View Menu', () => {
 		]);
 	});
 
-	test('places Compact View and Collapse All Groups in their own header overflow group', () => {
+	test('places view controls in their own header overflow group', () => {
 		const { snapshot, contextKeyService } = createMenu();
 		const menuService = store.add(new MenuService(new TestCommandService(), new MockKeybindingService(), store.add(new InMemoryStorageService())));
 		const { primary, secondary } = getActionBarActions(
 			menuService.getMenuActions(Menus.SidebarSessionsHeader, contextKeyService),
 			group => group.startsWith('navigation'),
 		);
-		const viewActionIds = ['sessionsViewPane.toggleCompact', 'sessionsViewPane.collapseAllGroups'];
+		const viewActionIds = ['sessionsViewPane.toggleInbox', 'sessionsViewPane.toggleCompact', 'sessionsViewPane.collapseAllGroups'];
 		assert.deepStrictEqual({
 			group: snapshot(Menus.SidebarSessionsHeader).filter(item => item.group === 'view'),
 			primary: primary.filter(action => viewActionIds.includes(action.id)).map(action => action.id),
@@ -168,6 +169,7 @@ suite('Sessions - View Menu', () => {
 			filter: snapshot(Menus.SessionsViewFilter).filter(item => item.title === 'Compact View' || item.title === 'Collapse All Groups'),
 		}, {
 			group: [
+				{ title: 'Inbox View', group: 'view', checked: false },
 				{ title: 'Compact View', group: 'view', checked: false },
 				{ title: 'Collapse All Groups', group: 'view' },
 			],
@@ -177,21 +179,30 @@ suite('Sessions - View Menu', () => {
 		});
 	});
 
-	test('preserves the Compact View toggle and hides header view actions when AI is disabled', () => {
-		const { snapshot, compact, contextKeyService } = createMenu();
+	test('preserves view toggles and hides header view actions when AI is disabled', () => {
+		const { snapshot, compact, inbox, contextKeyService } = createMenu();
 		const viewActions = () => snapshot(Menus.SidebarSessionsHeader).filter(item => item.group === 'view');
 		compact.set(true);
+		inbox.set(true);
 		const checked = viewActions();
 		IsPhoneLayoutContext.bindTo(contextKeyService).set(true);
 		const phone = viewActions();
 		ChatContextKeys.enabled.bindTo(contextKeyService).set(false);
 		assert.deepStrictEqual({ checked, phone, disabled: viewActions() }, {
 			checked: [
+				{ title: 'Inbox View', group: 'view', checked: true },
 				{ title: 'Compact View', group: 'view', checked: true },
 				{ title: 'Collapse All Groups', group: 'view' },
 			],
 			phone: [{ title: 'Collapse All Groups', group: 'view' }],
 			disabled: [],
+		});
+
+		test('hides grouping and ordering controls in Inbox View', () => {
+			const { snapshot, inbox } = createMenu();
+			inbox.set(true);
+
+			assert.deepStrictEqual(snapshot(Menus.SessionsViewFilter).filter(item => item.group === '1_presentation'), []);
 		});
 	});
 

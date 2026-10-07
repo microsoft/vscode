@@ -3497,6 +3497,7 @@ interface ISessionsListControlBaseOptions {
 	readonly overrideStyles?: IStyleOverride<IListStyles>;
 	readonly grouping: () => SessionsGrouping;
 	readonly sorting: () => SessionsSorting;
+	readonly inbox?: () => boolean;
 	readonly compact?: () => boolean;
 	readonly showNavigationShortcuts?: () => boolean;
 	readonly customizationsCount?: IObservable<number>;
@@ -4437,6 +4438,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 				getSessionListChats(session, reader, !this._excludeArchived);
 				session.isExternal?.read(reader);
 				session.application.read(reader);
+				session.status.read(reader);
+				session.updatedAt.read(reader);
 			}
 			if (initialized && this.visible) {
 				this.update();
@@ -4490,8 +4493,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 			return !comparison || !isComparisonLaunchPending(comparison);
 		});
 
+		const inbox = this.options.inbox?.() ?? false;
 		const grouping = this.options.grouping();
-		const sorting = this.options.sorting();
+		const sorting = inbox ? SessionsSorting.Updated : this.options.sorting();
 		const sortKeyForGrouping = (s: ISession, srt: SessionsSorting) => this._sessionsListModelService.getSortKey(s, sortingToMode(srt));
 
 		// Pull regular (non-pinned, non-archived) grouped sessions out of the
@@ -4501,20 +4505,22 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// retained so they return to the group once unpinned/restored).
 		const groupedMembers = new Map<string, ISession[]>();
 		const groupedRegularIds = new Set<string>();
-		for (const s of filtered) {
-			const group = this.getRenderedSessionGroup(s);
-			if (group) {
-				let members = groupedMembers.get(group.id);
-				if (!members) {
-					members = [];
-					groupedMembers.set(group.id, members);
+		if (!inbox) {
+			for (const s of filtered) {
+				const group = this.getRenderedSessionGroup(s);
+				if (group) {
+					let members = groupedMembers.get(group.id);
+					if (!members) {
+						members = [];
+						groupedMembers.set(group.id, members);
+					}
+					members.push(s);
+					groupedRegularIds.add(s.sessionId);
 				}
-				members.push(s);
-				groupedRegularIds.add(s.sessionId);
 			}
 		}
 		const forSections = groupedRegularIds.size > 0 ? filtered.filter(s => !groupedRegularIds.has(s.sessionId)) : filtered;
-		if (forSections.some(session => session.isExternal?.get() && !session.isArchived.get() && !this.isSessionPinned(session))) {
+		if (!inbox && forSections.some(session => session.isExternal?.get() && !session.isArchived.get() && !this.isSessionPinned(session))) {
 			logSettingExperimentTrigger(this.telemetryService, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING);
 		}
 
@@ -4560,9 +4566,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 			.sort((a, b) => b.group.createdAt - a.group.createdAt)
 			.map(item => `group:${item.group.id}`);
 
-		const sections = groupSessionsForList(forSections, grouping, sorting, session => this.isSessionPinned(session), (s, srt) => this._sessionsListModelService.getSortKey(s, sortingToMode(srt)), getChatSessionArchivedSectionLabel(getChatSessionArchiveActionWording(this.configurationService)), this.groupExternalSessions);
+		const archivedSectionLabel = getChatSessionArchivedSectionLabel(getChatSessionArchiveActionWording(this.configurationService));
+		const sections = inbox
+			? groupSessionsForInbox(forSections, session => this.isSessionPinned(session), archivedSectionLabel, onboardingSession?.sessionId, session => this._sessionsListModelService.getSortKey(session, 'updated'))
+			: groupSessionsForList(forSections, grouping, sorting, session => this.isSessionPinned(session), (s, srt) => this._sessionsListModelService.getSortKey(s, sortingToMode(srt)), archivedSectionLabel, this.groupExternalSessions);
 		const comparisonGroupsByWorkspaceLabel = new Map<string, ISessionGroupItem[]>();
-		if (grouping === SessionsGrouping.Workspace) {
+		if (!inbox && grouping === SessionsGrouping.Workspace) {
 			for (const groupItem of groupItemsById.values()) {
 				if (!groupItem.comparison) {
 					continue;
@@ -4605,7 +4614,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// Keep the "Chats" section always visible (even with no quick chats) so its
 		// header — leading chat icon, label, and the "+" create action — is always
 		// reachable. Only when a provider can actually serve quick chats.
-		if (showEmptyDefaultGroups && this._someProviderSupportsQuickChats() && !sections.some(s => s.id === QUICK_CHATS_SECTION_ID)) {
+		if (!inbox && showEmptyDefaultGroups && this._someProviderSupportsQuickChats() && !sections.some(s => s.id === QUICK_CHATS_SECTION_ID)) {
 			sections.push({ id: QUICK_CHATS_SECTION_ID, label: localize('chatsSection', "Chats"), sessions: [] });
 		}
 
@@ -4614,7 +4623,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// so all matching sessions are visible. When the user has chosen
 		// "Show All Sessions" (uncapped), show every workspace group inline instead
 		// of hiding some behind a "more workspaces" entry.
-		const partitionFolders = grouping === SessionsGrouping.Workspace && !this.hasFindPattern && this.workspaceGroupCapped;
+		const partitionFolders = !inbox && grouping === SessionsGrouping.Workspace && !this.hasFindPattern && this.workspaceGroupCapped;
 		const moreFolderSectionIds = new Set<string>();
 		if (partitionFolders) {
 			const workspaceSections = sections.filter(s => s.id.startsWith('workspace:'));
@@ -4817,92 +4826,100 @@ export class SessionsList extends Disposable implements ISessionsList {
 			children.push(renderSection(pinnedSection));
 		}
 
-		// Quick chats render as a single "Chats" entry directly below Pinned (above
-		// the workspace/date groups) in both grouping modes.
-		const quickChatsSection = sections.find(s => s.id === QUICK_CHATS_SECTION_ID);
-		if (quickChatsSection) {
-			children.push(renderSection(quickChatsSection));
-		}
-
-		const renderGroupById = (id: string): void => {
-			const groupItem = groupItemsById.get(id.slice('group:'.length));
-			if (groupItem) {
-				children.push(renderGroup(groupItem));
+		if (inbox) {
+			const inboxSection = sections.find(section => section.id === INBOX_SECTION_ID);
+			if (inboxSection) {
+				children.push(...toSessionChildren(inboxSection.sessions));
 			}
-		};
-
-		if (grouping === SessionsGrouping.Date) {
-			// Groups form a contiguous, fully user-ordered block right below the
-			// Pinned section. They no longer interleave with the date sections by
-			// recency and never mix into Today/Yesterday/etc. Pinned stays at the
-			// top, Done (archived) stays at the bottom.
-			const resolvedGroupIds = this._sessionSectionOrderService.resolveOrder(defaultGroupIds);
-			this._topLevelOrder = resolvedGroupIds;
-			for (const id of resolvedGroupIds) {
-				renderGroupById(id);
-			}
-			for (const section of sections) {
-				if (section.id === 'pinned' || section.id === 'archived' || section.id === QUICK_CHATS_SECTION_ID || section.id === EXTERNAL_SESSIONS_SECTION_ID) {
-					continue;
-				}
-				children.push(renderSection(section));
-			}
+			this._topLevelOrder = [];
 		} else {
-			// Workspace grouping: groups and (primary) workspace sections share one
-			// freely-reorderable, user-managed order right below Pinned. Groups
-			// default above workspaces; workspaces default to their alphabetical
-			// order. Pinned stays first, Done last, and hidden ("+N more")
-			// workspaces are appended below the ordered block.
-			const workspaceSections = sections.filter(s => s.id.startsWith('workspace:'));
-			if (comparisonGroupsByWorkspaceLabel.size > 0) {
-				const unknownWorkspaceLabel = localize('unknown', "Unknown");
-				workspaceSections.sort((a, b) => {
-					if (a.label === unknownWorkspaceLabel) {
-						return b.label === unknownWorkspaceLabel ? 0 : 1;
-					}
-					if (b.label === unknownWorkspaceLabel) {
-						return -1;
-					}
-					return a.label.localeCompare(b.label);
-				});
+			// Quick chats render as a single "Chats" entry directly below Pinned (above
+			// the workspace/date groups) in both grouping modes.
+			const quickChatsSection = sections.find(s => s.id === QUICK_CHATS_SECTION_ID);
+			if (quickChatsSection) {
+				children.push(renderSection(quickChatsSection));
 			}
-			const sectionById = new Map(workspaceSections.map(s => [s.id, s] as const));
-			const primaryWorkspaceIds = workspaceSections
-				.filter(s => !moreFolderSectionIds.has(s.id))
-				.map(s => s.id);
 
-			const comparisonGroupIds = new Set(
-				[...groupItemsById.values()]
-					.filter(groupItem => groupItem.comparison)
-					.map(groupItem => `group:${groupItem.group.id}`),
-			);
-			const defaultOrder = [...defaultGroupIds.filter(id => !comparisonGroupIds.has(id)), ...primaryWorkspaceIds];
-			const resolvedIds = this._sessionSectionOrderService.resolveOrder(defaultOrder);
-			this._topLevelOrder = resolvedIds;
-			for (const id of resolvedIds) {
-				if (id.startsWith('group:')) {
+			const renderGroupById = (id: string): void => {
+				const groupItem = groupItemsById.get(id.slice('group:'.length));
+				if (groupItem) {
+					children.push(renderGroup(groupItem));
+				}
+			};
+
+			if (grouping === SessionsGrouping.Date) {
+				// Groups form a contiguous, fully user-ordered block right below the
+				// Pinned section. They no longer interleave with the date sections by
+				// recency and never mix into Today/Yesterday/etc. Pinned stays at the
+				// top, Done (archived) stays at the bottom.
+				const resolvedGroupIds = this._sessionSectionOrderService.resolveOrder(defaultGroupIds);
+				this._topLevelOrder = resolvedGroupIds;
+				for (const id of resolvedGroupIds) {
 					renderGroupById(id);
-				} else {
-					const section = sectionById.get(id);
-					if (section) {
-						children.push(renderWorkspaceSection(section));
+				}
+				for (const section of sections) {
+					if (section.id === 'pinned' || section.id === 'archived' || section.id === QUICK_CHATS_SECTION_ID || section.id === EXTERNAL_SESSIONS_SECTION_ID) {
+						continue;
+					}
+					children.push(renderSection(section));
+				}
+			} else {
+				// Workspace grouping: groups and (primary) workspace sections share one
+				// freely-reorderable, user-managed order right below Pinned. Groups
+				// default above workspaces; workspaces default to their alphabetical
+				// order. Pinned stays first, Done last, and hidden ("+N more")
+				// workspaces are appended below the ordered block.
+				const workspaceSections = sections.filter(s => s.id.startsWith('workspace:'));
+				if (comparisonGroupsByWorkspaceLabel.size > 0) {
+					const unknownWorkspaceLabel = localize('unknown', "Unknown");
+					workspaceSections.sort((a, b) => {
+						if (a.label === unknownWorkspaceLabel) {
+							return b.label === unknownWorkspaceLabel ? 0 : 1;
+						}
+						if (b.label === unknownWorkspaceLabel) {
+							return -1;
+						}
+						return a.label.localeCompare(b.label);
+					});
+				}
+				const sectionById = new Map(workspaceSections.map(s => [s.id, s] as const));
+				const primaryWorkspaceIds = workspaceSections
+					.filter(s => !moreFolderSectionIds.has(s.id))
+					.map(s => s.id);
+
+				const comparisonGroupIds = new Set(
+					[...groupItemsById.values()]
+						.filter(groupItem => groupItem.comparison)
+						.map(groupItem => `group:${groupItem.group.id}`),
+				);
+				const defaultOrder = [...defaultGroupIds.filter(id => !comparisonGroupIds.has(id)), ...primaryWorkspaceIds];
+				const resolvedIds = this._sessionSectionOrderService.resolveOrder(defaultOrder);
+				this._topLevelOrder = resolvedIds;
+				for (const id of resolvedIds) {
+					if (id.startsWith('group:')) {
+						renderGroupById(id);
+					} else {
+						const section = sectionById.get(id);
+						if (section) {
+							children.push(renderWorkspaceSection(section));
+						}
 					}
 				}
-			}
 
-			const moreFolderSections = workspaceSections.filter(s => moreFolderSectionIds.has(s.id));
-			if (moreFolderSections.length > 0) {
-				if (this.expandedMoreFolders) {
-					for (const section of moreFolderSections) {
-						children.push(renderWorkspaceSection(section));
+				const moreFolderSections = workspaceSections.filter(s => moreFolderSectionIds.has(s.id));
+				if (moreFolderSections.length > 0) {
+					if (this.expandedMoreFolders) {
+						for (const section of moreFolderSections) {
+							children.push(renderWorkspaceSection(section));
+						}
+						children.push({
+							element: { showMore: true as const, kind: 'folders' as const, mode: 'less' as const, sectionId: SHOW_MORE_FOLDERS_LABEL, sectionLabel: SHOW_MORE_FOLDERS_LABEL, remainingCount: 0 },
+						});
+					} else {
+						children.push({
+							element: { showMore: true as const, kind: 'folders' as const, mode: 'more' as const, sectionId: SHOW_MORE_FOLDERS_LABEL, sectionLabel: SHOW_MORE_FOLDERS_LABEL, remainingCount: moreFolderSections.length },
+						});
 					}
-					children.push({
-						element: { showMore: true as const, kind: 'folders' as const, mode: 'less' as const, sectionId: SHOW_MORE_FOLDERS_LABEL, sectionLabel: SHOW_MORE_FOLDERS_LABEL, remainingCount: 0 },
-					});
-				} else {
-					children.push({
-						element: { showMore: true as const, kind: 'folders' as const, mode: 'more' as const, sectionId: SHOW_MORE_FOLDERS_LABEL, sectionLabel: SHOW_MORE_FOLDERS_LABEL, remainingCount: moreFolderSections.length },
-					});
 				}
 			}
 		}
@@ -5282,7 +5299,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * sessions keep their fixed section.
 	 */
 	private isReorderable(session: ISession): boolean {
-		return !session.isArchived.get();
+		return !session.isArchived.get() && (!(this.options.inbox?.() ?? false) || this.isSessionPinned(session));
 	}
 
 	/**
@@ -5325,7 +5342,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	 * dropped instead so the list falls back to natural ordering.
 	 */
 	private reorderSessions(dragged: ISession[], target: ISession, position: 'before' | 'after'): void {
-		const mode = sortingToMode(this.options.sorting());
+		const mode = this.options.inbox?.() ? 'updated' : sortingToMode(this.options.sorting());
 		const grouping = this.options.grouping();
 		const getKey = (s: ISession) => this._sessionsListModelService.getSortKey(s, mode);
 
@@ -6501,6 +6518,7 @@ export function computeReorderSortChanges(input: IReorderSortInput): { set: Map<
 
 /** Fixed section id for workspace-less "quick chat" sessions. */
 export const QUICK_CHATS_SECTION_ID = 'quickchats';
+export const INBOX_SECTION_ID = 'inbox';
 
 /**
  * Whether a session is a workspace-less "quick chat", per the session's own
@@ -6569,6 +6587,46 @@ export function groupSessionsForList(
 		sections.push({ id: 'archived', label: archivedSectionLabel, sessions: archived });
 	}
 
+	return sections;
+}
+
+export function groupSessionsForInbox(
+	sessions: ISession[],
+	isSessionPinned: (session: ISession) => boolean,
+	archivedSectionLabel: string = getChatSessionArchivedSectionLabel(ChatSessionArchiveActionWording.MarkAsDone),
+	revealSessionId?: string,
+	getPinnedSortKey?: (session: ISession) => number,
+): ISessionSection[] {
+	const sorted = sortSessions(
+		sessions.filter(session => !isAutomationSession(session) && (session.status.get() !== SessionStatus.InProgress || session.sessionId === revealSessionId)),
+		SessionsSorting.Updated,
+	);
+	const pinned: ISession[] = [];
+	const inbox: ISession[] = [];
+	const archived: ISession[] = [];
+	for (const session of sorted) {
+		if (session.isArchived.get()) {
+			archived.push(session);
+		} else if (isSessionPinned(session)) {
+			pinned.push(session);
+		} else {
+			inbox.push(session);
+		}
+	}
+	if (getPinnedSortKey) {
+		pinned.sort((a, b) => getPinnedSortKey(b) - getPinnedSortKey(a));
+	}
+
+	const sections: ISessionSection[] = [];
+	if (pinned.length > 0) {
+		sections.push({ id: 'pinned', label: localize('pinned', "Pinned"), sessions: pinned });
+	}
+	if (inbox.length > 0) {
+		sections.push({ id: INBOX_SECTION_ID, label: localize('inbox', "Inbox"), sessions: inbox });
+	}
+	if (archived.length > 0) {
+		sections.push({ id: 'archived', label: archivedSectionLabel, sessions: archived });
+	}
 	return sections;
 }
 

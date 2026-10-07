@@ -70,6 +70,8 @@ export const SessionsViewId = 'sessions.workbench.view.sessionsView';
 const GROUPING_STORAGE_KEY = 'sessionsViewPane.grouping';
 const SORTING_STORAGE_KEY = 'sessionsViewPane.sorting';
 const COMPACT_STORAGE_KEY = 'sessionsViewPane.compact';
+const INBOX_STORAGE_KEY = 'sessionsViewPane.inbox';
+const INBOX_VIEW_SHEET_ID = 'inbox';
 const CUSTOMIZATIONS_MIN_HEIGHT = 129;
 const SESSIONS_SECTION_MIN_HEIGHT = 120;
 const SESSIONS_HEADER_ELLIPSIS_MIN_WIDTH = 8;
@@ -85,6 +87,7 @@ export function getCustomizationsPresentation(phoneLayout: boolean, aiEnabled: b
 export const SessionsViewGroupingContext = new RawContextKey<string>('sessionsViewPane.grouping', SessionsGrouping.Workspace);
 export const SessionsViewSortingContext = new RawContextKey<string>('sessionsViewPane.sorting', SessionsSorting.Created);
 export const SessionsViewCompactContext = new RawContextKey<boolean>('sessionsViewPane.compact', false);
+export const SessionsViewInboxContext = new RawContextKey<boolean>('sessionsViewPane.inbox', false);
 export const IsWorkspaceGroupCappedContext = new RawContextKey<boolean>('sessionsViewPane.workspaceGroupCapped', true);
 
 export interface ISessionsHeaderElements {
@@ -166,9 +169,11 @@ export class SessionsView extends ViewPane {
 	private currentGrouping: SessionsGrouping = SessionsGrouping.Workspace;
 	private currentSorting: SessionsSorting = SessionsSorting.Created;
 	private currentCompact = false;
+	private currentInbox = false;
 	private groupingContextKey: IContextKey | undefined;
 	private sortingContextKey: IContextKey | undefined;
 	private compactContextKey: IContextKey<boolean> | undefined;
+	private inboxContextKey: IContextKey<boolean> | undefined;
 	private workspaceGroupCappedContextKey: IContextKey<boolean> | undefined;
 	private readonly filterContextKeys = new Map<string, { key: IContextKey<boolean>; getDefault: () => boolean }>();
 	private currentBodyHeight = 0;
@@ -214,6 +219,7 @@ export class SessionsView extends ViewPane {
 			this.currentSorting = storedSorting as SessionsSorting;
 		}
 		this.currentCompact = this.storageService.getBoolean(COMPACT_STORAGE_KEY, StorageScope.PROFILE, false);
+		this.currentInbox = this.storageService.getBoolean(INBOX_STORAGE_KEY, StorageScope.PROFILE, false);
 		logSessionsListCompactViewState(telemetryService, this.currentCompact);
 
 		// Ensure context keys reflect restored state immediately
@@ -223,6 +229,8 @@ export class SessionsView extends ViewPane {
 		this.sortingContextKey.set(this.currentSorting);
 		this.compactContextKey = SessionsViewCompactContext.bindTo(contextKeyService);
 		this.compactContextKey.set(this.currentCompact);
+		this.inboxContextKey = SessionsViewInboxContext.bindTo(contextKeyService);
+		this.inboxContextKey.set(this.currentInbox);
 
 		// Bind workspace group capped context key (will be synced with persisted state in renderBody)
 		this.workspaceGroupCappedContextKey = IsWorkspaceGroupCappedContext.bindTo(contextKeyService);
@@ -297,6 +305,7 @@ export class SessionsView extends ViewPane {
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 			grouping: () => this.currentGrouping,
 			sorting: () => this.currentSorting,
+			inbox: () => this.currentInbox,
 			compact: () => this.currentCompact,
 			showNavigationShortcuts: () => this.customizationsPresentation === 'treatment',
 			customizationsCount: this.customizationsNavigationState.totalCount,
@@ -876,6 +885,13 @@ export class SessionsView extends ViewPane {
 				checked: this.currentGrouping === SessionsGrouping.Date,
 				group: 'group',
 			},
+			{
+				id: INBOX_VIEW_SHEET_ID,
+				label: localize('inboxView', "Inbox View"),
+				checked: this.currentInbox,
+				group: 'view',
+				groupTitle: localize('sortGroupSheet.view', "View"),
+			},
 		];
 
 		showMobileSortGroupSheet(this.layoutService.mainContainer, localize('sortGroupSheet.title', "Sort"), items).then(selectedId => {
@@ -883,9 +899,13 @@ export class SessionsView extends ViewPane {
 				return;
 			}
 			if (selectedId === SessionsSorting.Created || selectedId === SessionsSorting.Updated) {
+				this.setInbox(false);
 				this.setSorting(selectedId);
 			} else if (selectedId === SessionsGrouping.Workspace || selectedId === SessionsGrouping.Date) {
+				this.setInbox(false);
 				this.setGrouping(selectedId);
+			} else if (selectedId === INBOX_VIEW_SHEET_ID) {
+				this.setInbox(!this.currentInbox);
 			}
 		});
 	}
@@ -926,5 +946,20 @@ export class SessionsView extends ViewPane {
 
 	toggleCompact(): void {
 		this.setCompact(!this.currentCompact);
+	}
+
+	setInbox(inbox: boolean): void {
+		if (this.currentInbox === inbox) {
+			return;
+		}
+
+		this.currentInbox = inbox;
+		this.storageService.store(INBOX_STORAGE_KEY, inbox, StorageScope.PROFILE, StorageTarget.USER);
+		this.inboxContextKey?.set(inbox);
+		this.sessionsControl?.update(true);
+	}
+
+	toggleInbox(): void {
+		this.setInbox(!this.currentInbox);
 	}
 }
