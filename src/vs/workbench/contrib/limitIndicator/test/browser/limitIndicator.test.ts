@@ -13,6 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IDiffEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { EditorType } from '../../../../../editor/common/editorCommon.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
+import { IMarkerDecorationsService } from '../../../../../editor/common/services/markerDecorations.js';
 import { MarkerDecorationsService } from '../../../../../editor/common/services/markerDecorationsService.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { ColorDetector, DecoratorLimitReporter } from '../../../../../editor/contrib/colorPicker/browser/colorDetector.js';
@@ -23,7 +24,7 @@ import { MarkerSeverity } from '../../../../../platform/markers/common/markers.j
 import { MarkerService } from '../../../../../platform/markers/common/markerService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ILanguageStatus, ILanguageStatusService } from '../../../../services/languageStatus/common/languageStatusService.js';
-import { LimitIndicatorContribution } from '../../browser/limitIndicator.contribution.js';
+import { DiagnosticDecorationLimitReporter, LimitIndicatorContribution } from '../../browser/limitIndicator.contribution.js';
 
 suite('LimitIndicatorContribution', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -44,7 +45,8 @@ suite('LimitIndicatorContribution', () => {
 		modelService = instantiationService.get(IModelService);
 		markerService = disposables.add(new MarkerService());
 		decorationService = disposables.add(new MarkerDecorationsService(modelService, markerService));
-		editor = disposables.add(instantiateTestCodeEditor(instantiationService, createModel()));
+		instantiationService.stub(IMarkerDecorationsService, decorationService);
+		editor = createEditor();
 		activeEditor = editor;
 		activeEditorChanged = disposables.add(new Emitter<void>());
 		statuses = new Set();
@@ -58,11 +60,17 @@ suite('LimitIndicatorContribution', () => {
 				return toDisposable(() => statuses.delete(status));
 			}
 		};
-		contribution = disposables.add(new LimitIndicatorContribution(editorService, languageStatusService, decorationService));
+		contribution = disposables.add(new LimitIndicatorContribution(editorService, languageStatusService));
 	});
 
 	function createModel(): ITextModel {
 		return disposables.add(modelService.createModel(Array.from({ length: 600 }, () => 'value').join('\n'), null));
+	}
+
+	function createEditor(): ITestCodeEditor {
+		const editor = disposables.add(instantiateTestCodeEditor(instantiationService, createModel()));
+		editor.registerAndInstantiateContribution(DiagnosticDecorationLimitReporter.ID, DiagnosticDecorationLimitReporter);
+		return editor;
 	}
 
 	function setActiveEditor(control: IEditorService['activeTextEditorControl']): void {
@@ -111,7 +119,7 @@ suite('LimitIndicatorContribution', () => {
 	test('shows existing overflow when the contribution is initialized', async () => {
 		contribution.dispose();
 		await changeMarkers(editor.getModel(), 501);
-		contribution = disposables.add(new LimitIndicatorContribution(editorService, languageStatusService, decorationService));
+		contribution = disposables.add(new LimitIndicatorContribution(editorService, languageStatusService));
 
 		assert.deepStrictEqual([...statuses].map(status => status.id), ['diagnosticsLimitInfo']);
 	});
@@ -138,7 +146,7 @@ suite('LimitIndicatorContribution', () => {
 
 	test('follows the active split editor and ignores background diagnostics', async () => {
 		const affected = editor.getModel();
-		const otherEditor = disposables.add(instantiateTestCodeEditor(instantiationService, createModel()));
+		const otherEditor = createEditor();
 		await changeMarkers(affected, 501);
 		const counts = [statuses.size];
 
@@ -180,7 +188,7 @@ suite('LimitIndicatorContribution', () => {
 	});
 
 	test('uses the modified editor in a diff', async () => {
-		const modifiedEditor = disposables.add(instantiateTestCodeEditor(instantiationService, createModel()));
+		const modifiedEditor = createEditor();
 		await changeMarkers(editor.getModel(), 501);
 		setActiveEditor(new class extends mock<IDiffEditor>() {
 			override getEditorType() { return EditorType.IDiffEditor; }
@@ -245,7 +253,7 @@ suite('LimitIndicatorContribution', () => {
 		});
 		colorReporter.update(3, 1);
 		foldingReporter.update(10, 5);
-		contribution = disposables.add(new LimitIndicatorContribution(editorService, languageStatusService, decorationService));
+		contribution = disposables.add(new LimitIndicatorContribution(editorService, languageStatusService));
 		await changeMarkers(editor.getModel(), 501);
 
 		assert.deepStrictEqual([...statuses].map(status => ({ id: status.id, detail: status.detail, command: status.command })), [

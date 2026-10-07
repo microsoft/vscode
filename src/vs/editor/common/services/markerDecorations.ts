@@ -17,12 +17,12 @@ export interface IMarkerDecorationsService {
 	readonly _serviceBrand: undefined;
 
 	readonly onDidChangeMarker: Event<ITextModel>;
+	readonly onDidChangeDecorationLimit: Event<ITextModel>;
 
 	getMarker(uri: URI, decoration: IModelDecoration): IMarker | null;
 
 	getLiveMarkers(uri: URI): [Range, IMarker][];
 
-	/** Returns the decoration limit when markers were truncated, or false otherwise. */
 	getDecorationLimit(uri: URI): number | false;
 
 	addMarkerSuppression(uri: URI, range: Range): IDisposable;

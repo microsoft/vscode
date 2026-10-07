@@ -74,13 +74,17 @@ suite('MarkerDecorationsService', () => {
 		]);
 	});
 
-	test('notifies when only the limit changes, without replacing decorations', async () => {
+	test('separately notifies when only the limit changes, without replacing decorations', async () => {
 		const model = createModel();
 		await changeMarkers(model, 500);
 		const decorationIds = model.getAllDecorations().map(decoration => decoration.id);
-		const changes: { resource: URI; limited: number | false }[] = [];
+		const markerChanges: URI[] = [];
 		disposables.add(decorationService.onDidChangeMarker(model => {
-			changes.push({ resource: model.uri, limited: decorationService.getDecorationLimit(model.uri) });
+			markerChanges.push(model.uri);
+		}));
+		const limitChanges: { resource: URI; limited: number | false }[] = [];
+		disposables.add(decorationService.onDidChangeDecorationLimit(model => {
+			limitChanges.push({ resource: model.uri, limited: decorationService.getDecorationLimit(model.uri) });
 		}));
 
 		await changeMarkers(model, 1, 'overflow');
@@ -88,10 +92,12 @@ suite('MarkerDecorationsService', () => {
 		await changeMarkers(model, 0, 'overflow');
 
 		assert.deepStrictEqual({
-			changes,
+			markerChanges,
+			limitChanges,
 			decorationIds: model.getAllDecorations().map(decoration => decoration.id)
 		}, {
-			changes: [{ resource: model.uri, limited: 500 }, { resource: model.uri, limited: false }],
+			markerChanges: [],
+			limitChanges: [{ resource: model.uri, limited: 500 }, { resource: model.uri, limited: false }],
 			decorationIds
 		});
 	});

@@ -30,6 +30,9 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 	private readonly _onDidChangeMarker = this._register(new Emitter<ITextModel>());
 	readonly onDidChangeMarker: Event<ITextModel> = this._onDidChangeMarker.event;
 
+	private readonly _onDidChangeDecorationLimit = this._register(new Emitter<ITextModel>());
+	readonly onDidChangeDecorationLimit: Event<ITextModel> = this._onDidChangeDecorationLimit.event;
+
 	private readonly _suppressedRanges = new ResourceMap<Set<Range>>();
 
 	private readonly _markerDecorations = new ResourceMap<MarkerDecorations>();
@@ -132,8 +135,11 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 			});
 		}
 
-		if (markerDecorations.update(markers, limited)) {
+		if (markerDecorations.update(markers)) {
 			this._onDidChangeMarker.fire(markerDecorations.model);
+		}
+		if (markerDecorations.updateLimit(limited)) {
+			this._onDidChangeDecorationLimit.fire(markerDecorations.model);
 		}
 	}
 }
@@ -142,7 +148,11 @@ class MarkerDecorations extends Disposable {
 
 	private readonly _map = new BidirectionalMap<IMarker, /*decoration id*/string>();
 
-	public limited: number | false = false;
+	private _limited: number | false = false;
+
+	public get limited(): number | false {
+		return this._limited;
+	}
 
 	constructor(
 		readonly model: ITextModel
@@ -154,9 +164,7 @@ class MarkerDecorations extends Disposable {
 		}));
 	}
 
-	public update(markers: IMarker[], limited: number | false): boolean {
-		const limitChanged = this.limited !== limited;
-		this.limited = limited;
+	public update(markers: IMarker[]): boolean {
 
 		// We use the fact that marker instances are not recreated when different owners
 		// update. So we can compare references to find out what changed since the last update.
@@ -164,7 +172,7 @@ class MarkerDecorations extends Disposable {
 		const { added, removed } = diffSets(new Set(this._map.keys()), new Set(markers));
 
 		if (added.length === 0 && removed.length === 0) {
-			return limitChanged;
+			return false;
 		}
 
 		const oldIds: string[] = removed.map(marker => this._map.get(marker)!);
@@ -182,6 +190,14 @@ class MarkerDecorations extends Disposable {
 		for (let index = 0; index < ids.length; index++) {
 			this._map.set(added[index], ids[index]);
 		}
+		return true;
+	}
+
+	public updateLimit(limited: number | false): boolean {
+		if (this._limited === limited) {
+			return false;
+		}
+		this._limited = limited;
 		return true;
 	}
 

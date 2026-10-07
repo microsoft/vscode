@@ -6,14 +6,16 @@
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import Severity from '../../../../base/common/severity.js';
 import { ICodeEditor, getCodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
 import { EditorOption, filterValidationDecorations } from '../../../../editor/common/config/editorOptions.js';
+import { IEditorContribution } from '../../../../editor/common/editorCommon.js';
 import { IMarkerDecorationsService } from '../../../../editor/common/services/markerDecorations.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ILanguageStatus, ILanguageStatusService } from '../../../services/languageStatus/common/languageStatusService.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from '../../../common/contributions.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
-import { Event } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import * as nls from '../../../../nls.js';
 
 import { FoldingController } from '../../../../editor/contrib/folding/browser/folding.js';
@@ -29,12 +31,11 @@ export class LimitIndicatorContribution extends Disposable implements IWorkbench
 
 	constructor(
 		@IEditorService editorService: IEditorService,
-		@ILanguageStatusService languageStatusService: ILanguageStatusService,
-		@IMarkerDecorationsService markerDecorationsService: IMarkerDecorationsService
+		@ILanguageStatusService languageStatusService: ILanguageStatusService
 	) {
 		super();
 
-		const accessors = [new ColorDecorationAccessor(), new FoldingRangeAccessor(), new DiagnosticDecorationAccessor(markerDecorationsService)];
+		const accessors = [new ColorDecorationAccessor(), new FoldingRangeAccessor(), new DiagnosticDecorationAccessor()];
 		const statusEntries = accessors.map(indicator => new LanguageStatusEntry(languageStatusService, indicator));
 		statusEntries.forEach(entry => this._register(entry));
 
@@ -103,21 +104,56 @@ class DiagnosticDecorationAccessor implements LanguageFeatureAccessor {
 	readonly label = nls.localize('status.limitedDiagnosticHighlights.short', "Diagnostic highlights");
 	readonly source = nls.localize('diagnosticHighlightsStatusItem.source', "Diagnostics");
 
-	constructor(private readonly markerDecorationsService: IMarkerDecorationsService) { }
+	getLimitReporter(editor: ICodeEditor): LimitInfo | undefined {
+		return DiagnosticDecorationLimitReporter.get(editor) ?? undefined;
+	}
+}
 
-	getLimitReporter(editor: ICodeEditor): LimitInfo {
-		const markerDecorationsService = this.markerDecorationsService;
-		return {
-			onDidChange: Event.any(
-				Event.signal(editor.onDidChangeModel),
-				Event.signal(Event.filter(editor.onDidChangeConfiguration, e => e.hasChanged(EditorOption.renderValidationDecorations) || e.hasChanged(EditorOption.readOnly))),
-				Event.signal(Event.filter(markerDecorationsService.onDidChangeMarker, model => model === editor.getModel()))
-			),
-			get limited(): number | false {
-				const model = editor.getModel();
-				return model && !filterValidationDecorations(editor.getOptions()) ? markerDecorationsService.getDecorationLimit(model.uri) : false;
+export class DiagnosticDecorationLimitReporter extends Disposable implements IEditorContribution, LimitInfo {
+
+	static readonly ID = 'editor.contrib.diagnosticDecorationLimitReporter';
+
+	static get(editor: ICodeEditor): DiagnosticDecorationLimitReporter | null {
+		return editor.getContribution<DiagnosticDecorationLimitReporter>(DiagnosticDecorationLimitReporter.ID);
+	}
+
+	private readonly _onDidChange = this._register(new Emitter<void>());
+	readonly onDidChange = this._onDidChange.event;
+
+	private _limited: number | false = false;
+	get limited(): number | false {
+		return this._limited;
+	}
+
+	constructor(
+		private readonly editor: ICodeEditor,
+		@IMarkerDecorationsService private readonly markerDecorationsService: IMarkerDecorationsService
+	) {
+		super();
+
+		this._register(editor.onDidChangeModel(() => this.update()));
+		this._register(editor.onDidChangeConfiguration(e => {
+			if (e.hasChanged(EditorOption.renderValidationDecorations) || e.hasChanged(EditorOption.readOnly)) {
+				this.update();
 			}
-		};
+		}));
+		this._register(markerDecorationsService.onDidChangeDecorationLimit(model => {
+			if (model === editor.getModel()) {
+				this.update();
+			}
+		}));
+		this.update();
+	}
+
+	private update(): void {
+		const model = this.editor.getModel();
+		const limited = model && !filterValidationDecorations(this.editor.getOptions())
+			? this.markerDecorationsService.getDecorationLimit(model.uri)
+			: false;
+		if (limited !== this._limited) {
+			this._limited = limited;
+			this._onDidChange.fire();
+		}
 	}
 }
 
@@ -125,7 +161,6 @@ class LanguageStatusEntry implements IDisposable {
 
 	private _limitStatusItem: IDisposable | undefined;
 	private _indicatorChangeListener: IDisposable | undefined;
-	private _limited: number | false = false;
 
 	constructor(private languageStatusService: ILanguageStatusService, private accessor: LanguageFeatureAccessor) {
 	}
@@ -152,24 +187,18 @@ class LanguageStatusEntry implements IDisposable {
 
 
 	private updateStatusItem(info: LimitInfo | undefined) {
-		const limited = info?.limited ?? false;
-		if (limited === this._limited) {
-			return;
-		}
-		this._limited = limited;
-
 		if (this._limitStatusItem) {
 			this._limitStatusItem.dispose();
 			this._limitStatusItem = undefined;
 		}
-		if (limited !== false) {
+		if (info && info.limited !== false) {
 			const status: ILanguageStatus = {
 				id: this.accessor.id,
 				selector: '*',
 				name: this.accessor.name,
 				severity: Severity.Warning,
 				label: this.accessor.label,
-				detail: nls.localize('status.limited.details', 'only {0} shown for performance reasons', limited),
+				detail: nls.localize('status.limited.details', 'only {0} shown for performance reasons', info.limited),
 				command: this.accessor.settingsId ? { id: openSettingsCommand, arguments: [this.accessor.settingsId], title: configureSettingsLabel } : undefined,
 				accessibilityInfo: undefined,
 				source: this.accessor.source,
@@ -180,7 +209,6 @@ class LanguageStatusEntry implements IDisposable {
 	}
 
 	public dispose() {
-		this._limited = false;
 		this._limitStatusItem?.dispose();
 		this._limitStatusItem = undefined;
 		this._indicatorChangeListener?.dispose();
@@ -192,3 +220,5 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 	LimitIndicatorContribution,
 	LifecyclePhase.Restored
 );
+
+registerEditorContribution(DiagnosticDecorationLimitReporter.ID, DiagnosticDecorationLimitReporter, EditorContributionInstantiation.Lazy);
