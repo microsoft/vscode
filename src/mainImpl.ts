@@ -72,7 +72,6 @@ if (process.platform === 'linux') {
 	const installedDesktopName = product.linuxDesktopName && `/usr/share/applications/${product.linuxDesktopName}.desktop`;
 	if (snapName) {
 		app.setDesktopName(`${snapName}_${product.applicationName}.desktop`);
-		// eslint-disable-next-line local/code-no-sync-fs -- Electron launch settings must be initialized before app readiness.
 	} else if (installedDesktopName && fs.existsSync(installedDesktopName)) {
 		app.setDesktopName(`${product.linuxDesktopName}.desktop`);
 	}
@@ -422,7 +421,6 @@ function readArgvConfigSync(): IArgvConfig {
 	const argvConfigPath = getArgvConfigPath();
 	let argvConfig: IArgvConfig | undefined = undefined;
 	try {
-		// eslint-disable-next-line local/code-no-sync-fs -- Electron launch settings must be initialized before app readiness.
 		argvConfig = parse(fs.readFileSync(argvConfigPath).toString());
 	} catch (error) {
 		if (error && error.code === 'ENOENT') {
@@ -445,9 +443,7 @@ function createDefaultArgvConfigSync(argvConfigPath: string): void {
 
 		// Ensure argv config parent exists
 		const argvConfigPathDirname = path.dirname(argvConfigPath);
-		// eslint-disable-next-line local/code-no-sync-fs -- Electron launch settings must be initialized before app readiness.
 		if (!fs.existsSync(argvConfigPathDirname)) {
-			// eslint-disable-next-line local/code-no-sync-fs -- Electron launch settings must be initialized before app readiness.
 			fs.mkdirSync(argvConfigPathDirname);
 		}
 
@@ -468,7 +464,6 @@ function createDefaultArgvConfigSync(argvConfigPath: string): void {
 		];
 
 		// Create initial argv.json with default content
-		// eslint-disable-next-line local/code-no-sync-fs -- Electron launch settings must be initialized before app readiness.
 		fs.writeFileSync(argvConfigPath, defaultArgvConfigContent.join('\n'));
 	} catch (error) {
 		console.error(`Unable to create argv.json configuration file in ${argvConfigPath}, falling back to defaults (${error})`);
@@ -500,10 +495,8 @@ function configureCrashReporter(): void {
 			app.exit(1);
 		}
 
-		// eslint-disable-next-line local/code-no-sync-fs -- Electron launch settings must be initialized before app readiness.
 		if (!fs.existsSync(crashReporterDirectory)) {
 			try {
-				// eslint-disable-next-line local/code-no-sync-fs -- Electron launch settings must be initialized before app readiness.
 				fs.mkdirSync(crashReporterDirectory, { recursive: true });
 			} catch (error) {
 				console.error(`The path '${crashReporterDirectory}' specified for --crash-reporter-directory does not seem to exist or cannot be created.`);

@@ -66,8 +66,7 @@ export async function parseServerConnectionToken(args: ServerParsedArgs, default
 
 		let rawConnectionToken: string;
 		try {
-			// eslint-disable-next-line local/code-no-sync-fs -- Connection-token parsing exposes a synchronous startup contract.
-			rawConnectionToken = fs.readFileSync(connectionTokenFile).toString().replace(/\r?\n$/, '');
+			rawConnectionToken = (await fs.promises.readFile(connectionTokenFile, 'utf8')).replace(/\r?\n$/, '');
 		} catch (e) {
 			return new ServerConnectionTokenParseError(`Unable to read the connection token file at '${connectionTokenFile}'.`);
 		}

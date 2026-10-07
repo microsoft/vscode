@@ -51,7 +51,6 @@ function enableASARSupport(): void {
 		if (traceSink === '1' || traceSink === 'true' || traceSink === 'on' || traceSink === 'stderr') {
 			trace = message => { try { process.stderr.write(`${prefix}${message}\n`); } catch { /* ignore */ } };
 		} else {
-			// eslint-disable-next-line local/code-no-sync-fs -- Synchronous bootstrap tracing must survive process teardown.
 			trace = message => { try { fs.appendFileSync(traceSink, `${prefix}${message}\n`); } catch { /* ignore */ } };
 		}
 	}

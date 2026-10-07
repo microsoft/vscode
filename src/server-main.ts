@@ -190,7 +190,6 @@ function installServerProcessExitDiagnostics(): void {
 	const logsPath = sanitizeStringArg(parsedArgs['logsPath']) || os.tmpdir();
 	const diagnosticsFile = path.join(logsPath, 'server-exit-diagnostics.log');
 	try {
-		// eslint-disable-next-line local/code-no-sync-fs -- Server shutdown diagnostics must survive process teardown.
 		fs.mkdirSync(logsPath, { recursive: true });
 	} catch {
 		// best effort: the directory is normally created by the server already
@@ -217,7 +216,6 @@ function installServerProcessExitDiagnostics(): void {
 	const log = (message: string) => {
 		const line = `[server-exit-diagnostics][${new Date().toISOString()}][pid:${process.pid}][+${Date.now() - startTime}ms] ${message}`;
 		try {
-			// eslint-disable-next-line local/code-no-sync-fs -- Server shutdown diagnostics must survive process teardown.
 			fs.appendFileSync(diagnosticsFile, `${line}\n`);
 		} catch {
 			// ignore logging failures while the process is tearing down

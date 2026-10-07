@@ -11,7 +11,6 @@ export function createWaitMarkerFileSync(verbose?: boolean): string | undefined 
 	const randomWaitMarkerPath = randomPath(tmpdir());
 
 	try {
-		// eslint-disable-next-line local/code-no-sync-fs -- The CLI wait marker must exist before its path is returned.
 		writeFileSync(randomWaitMarkerPath, ''); // use built-in fs to avoid dragging in more dependencies
 		if (verbose) {
 			console.log(`Marker file for --wait created: ${randomWaitMarkerPath}`);

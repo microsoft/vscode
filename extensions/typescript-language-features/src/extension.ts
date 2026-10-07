@@ -109,7 +109,6 @@ export function activate(
 	return getExtensionApi(onCompletionAccepted.event, pluginManager);
 }
 
-export function deactivate() {
-	// eslint-disable-next-line local/code-no-sync-fs -- Temporary directories are removed during synchronous extension deactivation.
-	fs.rmSync(temp.instanceTempDir.value, { recursive: true, force: true });
+export async function deactivate(): Promise<void> {
+	await fs.promises.rm(temp.instanceTempDir.value, { recursive: true, force: true });
 }

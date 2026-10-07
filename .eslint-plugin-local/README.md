@@ -119,9 +119,13 @@ The rule checks static imports, re-exports, import types, literal dynamic import
 
 ## Asynchronous production filesystem operations
 
-`local/code-no-sync-fs` rejects synchronous Node filesystem calls in core and built-in extension production code, including `original-fs` and the synchronous `pfs` helpers. It follows named and namespace imports, local aliases, destructuring, literal `require`/dynamic imports, and `createRequire` bindings. Tests, development scripts, and the isolated desktop/server CLI entry points are excluded by the ESLint configuration.
+`local/code-no-sync-fs` rejects synchronous Node filesystem calls in core and built-in extension production code, including `original-fs` and the synchronous `pfs` helpers. It follows named and namespace imports, local aliases, destructuring, literal `require`/dynamic imports, and `createRequire` bindings. Tests, development scripts, top-level `src/` bootstrap files, the Electron main entry point, the AMD loader, and the isolated desktop/server CLI and Git askpass entry points are excluded by the ESLint configuration.
 
-Use `fs/promises` or the existing asynchronous filesystem helpers. A synchronous startup, shutdown, worker-isolated operation, or existing synchronous contract may require an exception; keep it at the call site with an explanatory `eslint-disable-next-line local/code-no-sync-fs -- ...` comment. Deferred runtime conversions must explain the contract or ordering that needs review rather than exempting the whole file.
+The configuration also excludes the synchronous helper implementations in `pfs.ts` and designated core startup/shutdown files: `wait.ts`, `remoteExtensionHostAgentServer.ts`, `server.main.ts`, `extHostCLIServer.ts`, `extHostExtensionService.ts`, and `extHostStoragePaths.ts`. These are exact-file exclusions, not directory exclusions; production callers of synchronous `pfs` helpers remain checked.
+
+**Do not disable this rule unless absolutely necessary.** Synchronous filesystem calls block the event loop and can stall unrelated work throughout the process. Use `fs/promises` or the existing asynchronous filesystem helpers; difficulty propagating `async` is not by itself a justification for disabling the rule.
+
+Existing suppressions document audited legacy constraints and deferred work, not permission to add more synchronous calls. Outside the designated startup/shutdown exclusions, an unavoidable exception must be limited to the call site, with an explanatory `eslint-disable-next-line local/code-no-sync-fs -- ...` comment stating why asynchronous I/O cannot be used. Do not exempt additional runtime services. Deferred runtime conversions must identify the contract or ordering that needs review.
 
 Run the rule and configuration tests with `node --test .eslint-plugin-local/tests/code-no-sync-fs.test.ts`. Custom rule tests also run in CI through `npm run test-build-scripts`.
 

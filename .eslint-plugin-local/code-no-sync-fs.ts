@@ -51,7 +51,7 @@ export default new class implements eslint.Rule.RuleModule {
 		type: 'problem',
 		docs: { description: 'Prevent blocking filesystem operations in production code.' },
 		messages: {
-			syncFs: 'Do not use {{name}} in production code. Use asynchronous filesystem APIs, or document a narrow synchronous exception.',
+			syncFs: '{{name}} blocks the event loop and can stall all work in this process. Use asynchronous filesystem APIs. DO NOT disable this rule unless absolutely necessary; any unavoidable exception must be narrowly scoped and explain why asynchronous I/O cannot be used.',
 		},
 		schema: [],
 	};

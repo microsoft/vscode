@@ -187,7 +187,7 @@ class AMDModuleImporter {
 			const vm = nodeRequire('vm');
 
 			const filePath = URI.parse(scriptSrc).fsPath;
-			const content = await fs.promises.readFile(filePath, 'utf8');
+			const content = fs.readFileSync(filePath).toString();
 			const scriptSource = module.wrap(content.replace(/^#!.*/, ''));
 			const script = new vm.Script(scriptSource);
 			const compileWrapper = script.runInThisContext();
