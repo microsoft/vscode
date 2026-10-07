@@ -112,13 +112,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			this._provisional.setSessionCreationMetadata(item.resource, metadata);
 		}
 
-		// Bridge any pre-creation provisional session the user built up
-		// against the untitled chat-input URI to the freshly-minted real
-		// resource. The provisional service is the source of truth for the
-		// `state.config.values` the user picked via chips; copying them
-		// here means the agent's `_materializeProvisional` will see them on
-		// first send. Recoverable failure falls through to the handler's standard
-		// create path; ambiguous final-URI cleanup rejects to prevent unsafe reuse.
+		// Graduate the draft's backend and chip selections without recreating a matching session.
 		if (request.untitledResource) {
 			const workingDirectory = this._newSessionFolderService.getFolder(request.untitledResource)
 				?? this._newSessionFolderService.getDefaultFolder()
@@ -138,7 +132,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			this._importConversationStore.rename(request.untitledResource, item.resource);
 			const rebound = await this._provisional.tryRebind(request.untitledResource, item.resource, this._provider);
 			const previousResource = item.resource;
-			// The final item is not published yet; retired allocations must not be reused.
+			// Use the retained backend identity; failed or retired allocations must not be reused.
 			const nextResource = previousResource.with({ path: rebound?.path ?? `/${generateUuid()}` });
 			if (nextResource.path !== previousResource.path) {
 				const pending = this._sessionListStore.isPendingNewSession(this._provider, rawId);
@@ -154,6 +148,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 				if (currentDirectory) {
 					this._newSessionFolderService.setFolder(nextResource, currentDirectory);
 				}
+				this._newSessionFolderService.clear(previousResource);
 				this._importConversationStore.rename(previousResource, nextResource);
 				if (metadata) {
 					this._provisional.setSessionCreationMetadata(nextResource, metadata);

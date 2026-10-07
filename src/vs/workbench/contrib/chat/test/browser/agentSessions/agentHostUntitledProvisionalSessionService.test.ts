@@ -59,6 +59,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	readonly resolveCalls: IAgentResolveSessionConfigParams[] = [];
 	readonly disposeAttempts: URI[] = [];
 	createGate: DeferredPromise<void> | undefined;
+	returnedSession: URI | undefined;
 	failNextCreate = false;
 	failNextDispose = false;
 	enforceStandardTombstones = false;
@@ -107,7 +108,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		if (gate) {
 			await gate.p;
 		}
-		return config.session;
+		return this.returnedSession ?? config.session;
 	}
 
 	override async disposeSession(session: URI): Promise<void> {
@@ -292,6 +293,18 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		cleanup = ds.add(new DisposableStore());
 	});
 
+	function seedImportedConversation(resource: URI): void {
+		importStore.set(resource, {
+			turns: [{
+				id: 'imported-turn',
+				message: { text: 'Imported message', origin: { kind: MessageKind.User } },
+				responseParts: [],
+				usage: undefined,
+				state: TurnState.Complete,
+			}],
+		});
+	}
+
 	test('getOrCreate creates one backend provisional and returns the same URI on repeat calls', async () => {
 		agentHost.resolveQueue = [];
 		const ui = untitledChatUri('a');
@@ -314,6 +327,227 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		});
 	});
 
+	test('graduation reuses a matching backend without creating or disposing a session', async () => {
+		const ui = untitledChatUri('reuse-backend');
+		const real = ui.with({ path: '/real-reuse-backend' });
+		const directory = URI.file('/workspace');
+		const backend = await provisional.getOrCreate(ui, 'copilot', directory);
+		assert.ok(backend);
+
+		const rebound = await provisional.tryRebind(ui, real, 'copilot');
+		const boundResource = real.with({ path: backend.path });
+		await provisional.disposeSession(ui);
+		const repeated = await provisional.tryRebind(ui, boundResource, 'copilot');
+
+		assert.deepStrictEqual({
+			rebound: rebound?.toString(),
+			repeated: repeated?.toString(),
+			oldMapping: provisional.get(ui),
+			newMapping: provisional.get(boundResource)?.toString(),
+			directories: provisional.getProvisionalWorkingDirectories(boundResource)?.map(uri => uri.toString()),
+			createCount: agentHost.createCalls.length,
+			disposed: agentHost.disposed.map(uri => uri.toString()),
+		}, {
+			rebound: backend.toString(),
+			repeated: backend.toString(),
+			oldMapping: undefined,
+			newMapping: backend.toString(),
+			directories: [directory.toString()],
+			createCount: 1,
+			disposed: [],
+		});
+	});
+
+	test('graduation reuses the backend already recreated for a changed folder', async () => {
+		const ui = untitledChatUri('reuse-changed-folder');
+		const real = ui.with({ path: '/real-reuse-changed-folder' });
+		const initialFolder = URI.file('/initial-folder');
+		const latestFolder = URI.file('/latest-folder');
+		folderService.setFolder(ui, initialFolder);
+		const initialBackend = await provisional.getOrCreate(ui, 'copilot', initialFolder);
+		assert.ok(initialBackend);
+		agentHost.resolveQueue = [{ schema: makeSchema(true), values: { isolation: 'folder' } }];
+		folderService.setFolder(ui, latestFolder);
+		const replacement = await provisional.waitForPending(ui);
+		assert.ok(replacement);
+
+		const rebound = await provisional.tryRebind(ui, real, 'copilot');
+
+		assert.deepStrictEqual({
+			rebound: rebound?.toString(),
+			replacement: replacement.toString(),
+			createCount: agentHost.createCalls.length,
+			directories: provisional.getProvisionalWorkingDirectories(real.with({ path: rebound?.path }))?.map(uri => uri.toString()),
+			disposed: agentHost.disposed.map(uri => uri.toString()),
+		}, {
+			rebound: replacement.toString(),
+			replacement: replacement.toString(),
+			createCount: 2,
+			directories: [latestFolder.toString()],
+			disposed: [initialBackend.toString()],
+		});
+	});
+
+	test('graduated backend disposal belongs only to the real UI resource', async () => {
+		const ui = untitledChatUri('retained-backend-disposal');
+		const real = ui.with({ path: '/real-retained-backend-disposal' });
+		const backend = await provisional.getOrCreate(ui, 'copilot', undefined);
+		assert.ok(backend);
+		await provisional.tryRebind(ui, real, 'copilot');
+		const boundResource = real.with({ path: backend.path });
+
+		await provisional.disposeSession(ui);
+		const afterOldDisposal = [...agentHost.disposed];
+		await provisional.disposeSession(boundResource);
+
+		assert.deepStrictEqual({
+			afterOldDisposal,
+			disposed: agentHost.disposed.map(uri => uri.toString()),
+			mapping: provisional.get(boundResource),
+		}, {
+			afterOldDisposal: [],
+			disposed: [backend.toString()],
+			mapping: undefined,
+		});
+	});
+
+	test('graduation retains the exact backend URI advertised by a conforming host', async () => {
+		agentHost.returnedSession = URI.parse('ahp-session://other-host/opaque-session?identity=preserved');
+		const ui = untitledChatUri('opaque-backend');
+		const real = ui.with({ path: '/real-opaque-backend' });
+		await provisional.getOrCreate(ui, 'copilot', undefined);
+
+		const rebound = await provisional.tryRebind(ui, real, 'copilot');
+		const boundResource = real.with({ path: agentHost.returnedSession.path });
+
+		assert.deepStrictEqual({
+			rebound: rebound?.toString(),
+			mapping: provisional.get(boundResource)?.toString(),
+			createCount: agentHost.createCalls.length,
+			disposed: agentHost.disposed.map(uri => uri.toString()),
+		}, {
+			rebound: agentHost.returnedSession.toString(),
+			mapping: agentHost.returnedSession.toString(),
+			createCount: 1,
+			disposed: [],
+		});
+	});
+
+	test('graduation recreates the backend when creation metadata changes', async () => {
+		const ui = untitledChatUri('creation-metadata');
+		const real = ui.with({ path: '/real-creation-metadata' });
+		const backend = await provisional.getOrCreate(ui, 'copilot', undefined);
+		assert.ok(backend);
+		const metadata = { [VSCODE_EPHEMERAL_SESSION_META_KEY]: true };
+		provisional.setSessionCreationMetadata(real, metadata);
+
+		const rebound = await provisional.tryRebind(ui, real, 'copilot');
+
+		assert.deepStrictEqual({
+			rebound: rebound?.toString(),
+			createCount: agentHost.createCalls.length,
+			metadata: agentHost.createCalls.at(-1)?._meta,
+			disposed: agentHost.disposed.map(uri => uri.toString()),
+		}, {
+			rebound: URI.from({ scheme: 'copilot', path: real.path }).toString(),
+			createCount: 2,
+			metadata,
+			disposed: [backend.toString()],
+		});
+	});
+
+	test('graduation keeps active-client customizations synchronized on the retained backend', async () => {
+		const ui = untitledChatUri('retained-customizations');
+		const real = ui.with({ path: '/real-retained-customizations' });
+		const backend = await provisional.getOrCreate(ui, 'copilot', undefined);
+		assert.ok(backend);
+		const rebound = await provisional.tryRebind(ui, real, 'copilot');
+		const plugin: ClientPluginCustomization = { type: CustomizationType.Plugin, id: 'plugin:retained', uri: 'file:///plugins/retained', name: 'Retained' };
+
+		customizations.set([plugin], undefined);
+
+		assert.deepStrictEqual({
+			rebound: rebound?.toString(),
+			createCount: agentHost.createCalls.length,
+			lastActiveClient: agentHost.dispatched.filter(action => action.type === ActionType.SessionActiveClientSet).at(-1),
+		}, {
+			rebound: backend.toString(),
+			createCount: 1,
+			lastActiveClient: {
+				channel: backend.toString(),
+				type: ActionType.SessionActiveClientSet,
+				activeClient: { clientId: agentHost.clientId, tools: [], customizations: [plugin] },
+			},
+		});
+	});
+
+	test('config changes after graduation reach the retained backend without recreating it', async () => {
+		const ui = untitledChatUri('retained-config');
+		const real = ui.with({ path: '/real-retained-config' });
+		const backend = await provisional.getOrCreate(ui, 'copilot', undefined);
+		assert.ok(backend);
+		await provisional.tryRebind(ui, real, 'copilot');
+		const boundResource = real.with({ path: backend.path });
+		agentHost.resolveQueue = [{ schema: makeSchema(false), values: { isolation: 'worktree' } }];
+
+		const configured = await provisional.applyConfigChange(boundResource, 'copilot', undefined, { isolation: 'worktree' });
+
+		assert.deepStrictEqual({
+			configured: configured?.toString(),
+			createCount: agentHost.createCalls.length,
+			lastConfigChange: agentHost.dispatched.filter(action => action.type === ActionType.SessionConfigChanged).at(-1),
+		}, {
+			configured: backend.toString(),
+			createCount: 1,
+			lastConfigChange: { channel: backend.toString(), type: ActionType.SessionConfigChanged, config: { isolation: 'worktree' } },
+		});
+	});
+
+	test('graduation recreates the backend when the provider changes', async () => {
+		const ui = untitledChatUri('changed-provider');
+		const real = URI.parse('agent-host-claude:/real-changed-provider');
+		const backend = await provisional.getOrCreate(ui, 'copilot', undefined);
+		assert.ok(backend);
+
+		const rebound = await provisional.tryRebind(ui, real, 'claude');
+
+		assert.deepStrictEqual({
+			rebound: rebound?.toString(),
+			provider: agentHost.createCalls.at(-1)?.provider,
+			createCount: agentHost.createCalls.length,
+			disposed: agentHost.disposed.map(uri => uri.toString()),
+		}, {
+			rebound: 'claude:/real-changed-provider',
+			provider: 'claude',
+			createCount: 2,
+			disposed: [backend.toString()],
+		});
+	});
+
+	test('graduation imports history into a replacement instead of the empty provisional backend', async () => {
+		const ui = untitledChatUri('imported-backend');
+		const real = ui.with({ path: '/real-imported-backend' });
+		const backend = await provisional.getOrCreate(ui, 'copilot', undefined);
+		assert.ok(backend);
+		seedImportedConversation(real);
+
+		const rebound = await provisional.tryRebind(ui, real, 'copilot');
+
+		assert.deepStrictEqual({
+			rebound: rebound?.toString(),
+			createCount: agentHost.createCalls.length,
+			importedTurns: agentHost.createCalls.at(-1)?.importConversation?.turns.map(turn => turn.id),
+			disposed: agentHost.disposed.map(uri => uri.toString()),
+			remainingImport: importStore.take(real),
+		}, {
+			rebound: URI.from({ scheme: 'copilot', path: real.path }).toString(),
+			createCount: 2,
+			importedTurns: ['imported-turn'],
+			disposed: [backend.toString()],
+			remainingImport: undefined,
+		});
+	});
+
 	for (const provider of ['copilotcli', 'codex', 'claude']) {
 		for (const supported of [false, true]) {
 			test(`${provider} provisional drafts negotiate addressing and retain their frontend resource (${supported})`, async () => {
@@ -323,22 +557,25 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 				const draft = URI.parse(`agent-host-${provider}:/untitled-interop`);
 				const committed = URI.parse(`agent-host-${provider}:/final-interop`);
 				const initial = await provisional.getOrCreate(draft, provider, undefined);
+				assert.ok(initial);
 				const rebound = await provisional.tryRebind(draft, committed, provider);
 				assert.deepStrictEqual({
 					initialScheme: initial?.scheme,
 					rebound: rebound?.toString(),
-					resolved: provisional.get(committed)?.toString(),
+					resolved: provisional.get(committed.with({ path: initial.path }))?.toString(),
+					createCount: agentHost.createCalls.length,
 				}, {
 					initialScheme: supported ? 'ahp-session' : provider,
-					rebound: `${supported ? 'ahp-session' : provider}:/final-interop`,
-					resolved: `${supported ? 'ahp-session' : provider}:/final-interop`,
+					rebound: initial.toString(),
+					resolved: initial.toString(),
+					createCount: 1,
 				});
 			});
 		}
 	}
 
 	for (const provider of ['copilotcli', 'codex', 'claude']) {
-		test(`${provider} a pre-initialize draft retains its identity while rebind uses the negotiated host`, async () => {
+		test(`${provider} a pre-initialize draft retains its identity through graduation`, async () => {
 			agentHost.initializeResult.set(undefined, undefined);
 			const draft = URI.parse(`agent-host-${provider}:/untitled-before-initialize`);
 			const committed = URI.parse(`agent-host-${provider}:/after-initialize`);
@@ -356,7 +593,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 			}, {
 				initialScheme: provider,
 				retained: initial?.toString(),
-				rebound: 'ahp-session:/after-initialize',
+				rebound: initial?.toString(),
 				frontend: `agent-host-${provider}:/after-initialize`,
 			});
 		});
@@ -600,8 +837,10 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		const real = URI.from({ scheme: 'agent-host-copilot', path: '/real-started-primary-removed' });
 
 		await provisional.getOrCreate(ui, 'copilot', primary);
-		await provisional.tryRebind(ui, real, 'copilot');
-		const realBackend = provisional.get(real);
+		const rebound = await provisional.tryRebind(ui, real, 'copilot');
+		assert.ok(rebound);
+		const boundResource = real.with({ path: rebound.path });
+		const realBackend = provisional.get(boundResource);
 		assert.ok(realBackend);
 		const createsAfterRebind = agentHost.createCalls.length;
 
@@ -613,12 +852,12 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 			removed: [workspaceFolder(primary, 0)],
 			changed: [],
 		});
-		await provisional.waitForPending(real);
+		await provisional.waitForPending(boundResource);
 
 		assert.deepStrictEqual({
 			createsAfterRemoval: agentHost.createCalls.length - createsAfterRebind,
 			liveBackendDisposed: agentHost.disposed.some(uri => uri.toString() === realBackend.toString()),
-			currentBackend: provisional.get(real)?.toString(),
+			currentBackend: provisional.get(boundResource)?.toString(),
 		}, {
 			createsAfterRemoval: 0,
 			liveBackendDisposed: false,
@@ -665,8 +904,10 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		const real = URI.from({ scheme: 'agent-host-copilot', path: '/real-started-multi-root-enabled' });
 
 		await provisional.getOrCreate(ui, 'copilot', primary);
-		await provisional.tryRebind(ui, real, 'copilot');
-		const realBackend = provisional.get(real);
+		const rebound = await provisional.tryRebind(ui, real, 'copilot');
+		assert.ok(rebound);
+		const boundResource = real.with({ path: rebound.path });
+		const realBackend = provisional.get(boundResource);
 		assert.ok(realBackend);
 		const createsAfterRebind = agentHost.createCalls.length;
 
@@ -674,12 +915,12 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		// directories are the agent's fixed process root once the session started.
 		agentHost.rootStateAgents = [agentInfo('copilot', true)];
 		agentHost.fireRootStateChange();
-		await provisional.waitForPending(real);
+		await provisional.waitForPending(boundResource);
 
 		assert.deepStrictEqual({
 			createsAfterEnable: agentHost.createCalls.length - createsAfterRebind,
 			liveBackendDisposed: agentHost.disposed.some(uri => uri.toString() === realBackend.toString()),
-			currentBackend: provisional.get(real)?.toString(),
+			currentBackend: provisional.get(boundResource)?.toString(),
 		}, {
 			createsAfterEnable: 0,
 			liveBackendDisposed: false,
@@ -740,7 +981,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		);
 	});
 
-	test('tryRebind reselects when the primary is removed during final creation', async () => {
+	test('tryRebind reselects when the primary is removed during imported session creation', async () => {
 		const primary = URI.file('/workspace/one');
 		const secondary = URI.file('/workspace/two');
 		workspaceFolders = [primary, secondary];
@@ -749,6 +990,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		agentHost.rootStateAgents = [agentInfo('copilot', true)];
 		const ui = untitledChatUri('rebind-primary-removed');
 		const real = URI.from({ scheme: 'agent-host-copilot', path: '/real-rebind-primary-removed' });
+		seedImportedConversation(real);
 
 		await provisional.getOrCreate(ui, 'copilot', primary);
 		const gate = new DeferredPromise<void>();
@@ -772,13 +1014,14 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		assert.deepStrictEqual(finalCreate?.workingDirectories?.map(directory => directory.toString()), [secondary.toString()]);
 	});
 
-	test('tryRebind does not root the started session at the removed folder when the last folder is removed during final creation', async () => {
+	test('tryRebind does not root the imported session at the removed folder when the last folder is removed during creation', async () => {
 		const only = URI.file('/workspace/one');
 		workspaceFolders = [only];
 		workbenchState = WorkbenchState.FOLDER;
 		agentHost.rootStateAgents = [agentInfo('copilot', true)];
 		const ui = untitledChatUri('rebind-last-folder-removed');
 		const real = URI.from({ scheme: 'agent-host-copilot', path: '/real-rebind-last-folder-removed' });
+		seedImportedConversation(real);
 
 		await provisional.getOrCreate(ui, 'copilot', only);
 		const gate = new DeferredPromise<void>();
@@ -1230,16 +1473,20 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		const newUi = URI.from({ scheme: 'agent-host-copilot', path: '/real-g' });
 		const rebind = provisional.tryRebind(ui, newUi, 'copilot');
 		assert.strictEqual(agentHost.createCalls.some(c => c.session?.path === '/real-g'), false);
+		const initialBackend = provisional.get(ui);
+		assert.ok(initialBackend);
 		blocked.complete({ schema: makeSchema(false), values: { isolation: 'worktree' } });
-		await rebind;
+		const rebound = await rebind;
 
-		const reboundCreate = agentHost.createCalls.find(c => c.session?.path === '/real-g');
-		assert.ok(reboundCreate, 'rebind triggered a createSession');
 		assert.deepStrictEqual({
-			isolation: reboundCreate.config?.['isolation'],
-			_meta: reboundCreate._meta,
+			rebound: rebound?.toString(),
+			createCount: agentHost.createCalls.length,
+			config: agentHost.dispatched.filter(action => action.type === ActionType.SessionConfigChanged).at(-1)?.config,
+			_meta: agentHost.createCalls[0]._meta,
 		}, {
-			isolation: 'worktree',
+			rebound: initialBackend.toString(),
+			createCount: 1,
+			config: { isolation: 'worktree' },
 			_meta: {
 				multiRoot: {
 					workspaceFile: workspaceConfiguration.toString(),
@@ -1248,9 +1495,10 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		});
 	});
 
-	test('tryRebind retries when config changes during final session creation', async () => {
+	test('tryRebind retries when config changes during imported session creation', async () => {
 		const ui = untitledChatUri('rebind-config-race');
 		const realUi = URI.from({ scheme: 'agent-host-copilot', path: '/real-config-race' });
+		seedImportedConversation(realUi);
 		await provisional.getOrCreate(ui, 'copilot', undefined);
 		const oldBackend = provisional.get(ui);
 		assert.ok(oldBackend);
@@ -1283,7 +1531,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 	});
 
 	for (const provider of ['copilotcli', 'codex', 'claude']) {
-		test(`standard ${provider} rebind retries with a fresh identity after retiring a stale candidate`, async () => {
+		test(`standard ${provider} imported rebind retries with a fresh identity after retiring a stale candidate`, async () => {
 			agentHost.initializeResult.set({
 				protocolVersion: '0.9.0', serverSeq: 0, snapshots: [],
 				_meta: { 'vscode.agentHost': true, 'vscode.ahpSessionUris': true },
@@ -1291,6 +1539,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 			agentHost.enforceStandardTombstones = true;
 			const ui = URI.from({ scheme: `agent-host-${provider}`, path: '/untitled-standard-race' });
 			const realUi = ui.with({ path: '/standard-race' });
+			seedImportedConversation(realUi);
 			await provisional.getOrCreate(ui, provider, undefined);
 			const creationCount = agentHost.createCalls.length;
 			const gate = new DeferredPromise<void>();
@@ -1327,7 +1576,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 	}
 
 	for (const provider of ['copilotcli', 'codex', 'claude']) {
-		test(`standard ${provider} rebind keeps the latest folder after retiring a stale candidate`, async () => {
+		test(`standard ${provider} imported rebind keeps the latest folder after retiring a stale candidate`, async () => {
 			agentHost.initializeResult.set({
 				protocolVersion: '0.9.0', serverSeq: 0, snapshots: [],
 				_meta: { 'vscode.agentHost': true, 'vscode.ahpSessionUris': true },
@@ -1335,6 +1584,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 			agentHost.enforceStandardTombstones = true;
 			const ui = URI.from({ scheme: `agent-host-${provider}`, path: '/untitled-folder-race' });
 			const real = ui.with({ path: '/folder-race' });
+			seedImportedConversation(real);
 			const initial = URI.file('/initial-folder');
 			const latest = URI.file('/latest-folder');
 			folderService.setFolder(ui, initial);
@@ -1360,9 +1610,10 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		});
 	}
 
-	test('tryRebind disposes its candidate when the old entry is retired during creation', async () => {
+	test('tryRebind disposes its imported candidate when the old entry is retired during creation', async () => {
 		const ui = untitledChatUri('rebind-dispose-race');
 		const realUi = URI.from({ scheme: 'agent-host-copilot', path: '/real-dispose-race' });
+		seedImportedConversation(realUi);
 		await provisional.getOrCreate(ui, 'copilot', undefined);
 		const oldBackend = provisional.get(ui);
 		assert.ok(oldBackend);
@@ -1417,6 +1668,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 	test('tryRebind blocks deterministic URI reuse until failed disposal is retried', async () => {
 		const ui = untitledChatUri('rebind-dispose-failure');
 		const realUi = URI.from({ scheme: 'agent-host-copilot', path: '/real-dispose-failure' });
+		seedImportedConversation(realUi);
 		await provisional.getOrCreate(ui, 'copilot', undefined);
 		const gate = new DeferredPromise<void>();
 		cleanup.add({ dispose: () => gate.cancel() });
@@ -1765,11 +2017,12 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		const real = URI.from({ scheme: 'agent-host-copilot', path: '/real-rebind-roots' });
 
 		await provisional.getOrCreate(untitled, 'copilot', folderA);
-		await provisional.tryRebind(untitled, real, 'copilot');
+		const rebound = await provisional.tryRebind(untitled, real, 'copilot');
+		assert.ok(rebound);
 
 		assert.deepStrictEqual({
 			untitled: provisional.getProvisionalWorkingDirectories(untitled),
-			real: provisional.getProvisionalWorkingDirectories(real)?.map(directory => directory.toString()),
+			real: provisional.getProvisionalWorkingDirectories(real.with({ path: rebound.path }))?.map(directory => directory.toString()),
 		}, {
 			untitled: undefined,
 			real: [folderA.toString(), folderB.toString()],

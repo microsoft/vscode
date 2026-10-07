@@ -16,7 +16,7 @@
  * - backend resource: the negotiated host resource for provisional state.
  * - real chat resource: `agent-host-PROVIDER:/<uuid>` after
  *   `chatServiceImpl.acceptInput` calls `createNewChatSessionItem`.
- * - real backend resource: a new negotiated host resource after `tryRebind`.
+ * - real backend resource: the retained provisional resource unless immutable inputs changed.
  *
  * Required flow:
  * 1. `AgentHostChatInputPicker` calls `getOrCreate(untitled, provider, cwd)`.
@@ -25,10 +25,9 @@
  * 2. On first Send, `AgentHostSessionListController.newChatSessionItem`
  *    receives both `request.untitledResource` and the newly generated real
  *    resource. It must call `tryRebind` before the handler invokes the agent.
- * 3. `tryRebind` snapshots the workbench-owned config from the untitled
- *    provisional record, creates a new provisional for the real backend
- *    resource, swaps `_entries`, fires `onDidChange`, then best-effort disposes
- *    the untitled backend provisional.
+ * 3. `tryRebind` retains a matching backend and synchronizes the workbench-owned
+ *    config, then moves its mapping to the real UI resource. Changed immutable
+ *    inputs or an imported conversation require a replacement backend.
  * 4. `AgentHostSessionHandler._invokeAgent` calls `get(realResource)`. When a
  *    rebound provisional exists, it takes a refcounted subscription on that
  *    backend state up front so the rest of the handler observes the preserved
@@ -160,10 +159,8 @@ export interface IAgentHostUntitledProvisionalSessionService {
 	): Promise<URI | undefined>;
 
 	/**
-	 * Bridge the untitled chat UI resource to the real chat UI resource created
-	 * for first Send. Must copy the workbench-owned config into the real backend
-	 * provisional before the handler invokes the agent. No-op when no old mapping
-	 * exists; idempotent when the new mapping is already present.
+	 * Graduates a draft onto its real UI resource, retaining a backend with matching immutable inputs.
+	 * Synchronizes the workbench-owned config before invocation; no-ops without a draft or when already bound.
 	 */
 	tryRebind(
 		oldSessionResource: URI,
@@ -204,6 +201,7 @@ interface IProvisionalGeneration {
 	readonly backendSession: URI;
 	readonly workingDirectory: URI | undefined;
 	readonly workingDirectories: readonly URI[] | undefined;
+	readonly metadata: Record<string, unknown> | undefined;
 }
 
 type ProvisionalOperationResult = URI | void;
@@ -661,6 +659,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			const workingDirectories = this._computeEntryWorkingDirectories(entry);
 			const configVersion = entry.configVersion;
 			const config = { ...entry.config };
+			const metadata = this.getInitialSessionMetadata(sessionResource);
 
 			// Prewarming is silent; first Send owns interactive trust, so never create in an untrusted target.
 			if (!await this._isTargetFolderTrusted(workingDirectory)) {
@@ -674,7 +673,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				created = await this._agentHostService.createSession({
 					provider: entry.provider,
 					session: candidate,
-					_meta: this.getInitialSessionMetadata(),
+					_meta: metadata,
 					workingDirectories,
 					config,
 					progressToken: generateUuid(),
@@ -696,7 +695,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			}
 
 			const previous = entry.generation;
-			entry.generation = { backendSession: created, workingDirectory, workingDirectories };
+			entry.generation = { backendSession: created, workingDirectory, workingDirectories, metadata };
 			this._publishActiveClient(entry);
 			this._onDidChange.fire(sessionResource);
 			if (previous) {
@@ -786,25 +785,36 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 					oldEntry.usesWorkspaceRootSet = true;
 				}
 				const targetWorkingDirectories = this._computeEntryWorkingDirectories(oldEntry);
+				const metadata = this.getInitialSessionMetadata(newSessionResource);
+				const matchingGeneration = oldEntry.provider === provider ? this._generationMatchingDesiredState(oldEntry) : undefined;
+				const reusableGeneration = !imported && matchingGeneration && equals(matchingGeneration.metadata ?? {}, metadata ?? {}) ? matchingGeneration : undefined;
 				let created: URI;
-				try {
-					created = await this._agentHostService.createSession({
-						provider,
-						session: newBackendSession,
-						_meta: this.getInitialSessionMetadata(),
-						workingDirectories: targetWorkingDirectories,
+				if (reusableGeneration) {
+					created = reusableGeneration.backendSession;
+					this._agentHostService.dispatch(created.toString(), {
+						type: ActionType.SessionConfigChanged,
 						config,
-						...(imported ? { model: imported.model, importConversation: { turns: imported.turns, model: imported.model } } : {}),
-						progressToken: generateUuid(),
 					});
-				} catch (err) {
-					this._logService.warn(`[AgentHostProvisional] Failed to create rebound provisional: ${err instanceof Error ? err.message : String(err)}`);
-					this._restoreImportedConversation(newSessionResource, imported);
-					const disposed = await this._disposeBackend(newBackendSession, 'failed rebound candidate');
-					if (!disposed) {
-						throw new Error(`Cannot safely recover rebound session ${newBackendSession.toString()} until its candidate is retired`);
+				} else {
+					try {
+						created = await this._agentHostService.createSession({
+							provider,
+							session: newBackendSession,
+							_meta: metadata,
+							workingDirectories: targetWorkingDirectories,
+							config,
+							...(imported ? { model: imported.model, importConversation: { turns: imported.turns, model: imported.model } } : {}),
+							progressToken: generateUuid(),
+						});
+					} catch (err) {
+						this._logService.warn(`[AgentHostProvisional] Failed to create rebound provisional: ${err instanceof Error ? err.message : String(err)}`);
+						this._restoreImportedConversation(newSessionResource, imported);
+						const disposed = await this._disposeBackend(newBackendSession, 'failed rebound candidate');
+						if (!disposed) {
+							throw new Error(`Cannot safely recover rebound session ${newBackendSession.toString()} until its candidate is retired`);
+						}
+						return undefined;
 					}
-					return undefined;
 				}
 
 				if (this._entries.get(oldSessionResource) !== oldEntry || oldEntry.disposed) {
@@ -835,7 +845,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				const newEntry = this._createEntry(provider, config, configVersion, targetWorkingDirectory, oldEntry.resolvedConfig);
 				newEntry.usesWorkspaceRootSet = oldEntry.usesWorkspaceRootSet;
 				this._updateActiveClientScope(newEntry);
-				newEntry.generation = { backendSession: created, workingDirectory: targetWorkingDirectory, workingDirectories: targetWorkingDirectories };
+				newEntry.generation = { backendSession: created, workingDirectory: targetWorkingDirectory, workingDirectories: targetWorkingDirectories, metadata };
 				const boundResource = newSessionResource.with({ path: created.path });
 				this._entries.set(boundResource, newEntry);
 				if (!isEqual(boundResource, newSessionResource)) {
@@ -855,7 +865,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				// Notify only the real resource; notifying the old URI can recreate an orphan while the widget still uses it.
 				this._onDidChange.fire(boundResource);
 
-				if (oldGeneration) {
+				if (oldGeneration && !isEqual(oldGeneration.backendSession, created)) {
 					// The temporary generation is in-memory only, so disposal is best-effort.
 					await this._disposeBackend(oldGeneration.backendSession, 'temporary provisional generation');
 				}
