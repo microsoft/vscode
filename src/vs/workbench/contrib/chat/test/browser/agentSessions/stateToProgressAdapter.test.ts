@@ -8,10 +8,13 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { renderMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
+import { getChatMarkdownRenderOptions } from '../../../browser/widget/chatContentMarkdownRenderer.js';
 import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { toAgentMessageDelegationMeta } from '../../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
+import { buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentWorkspaceContinuationMeta.js';
@@ -22,7 +25,7 @@ import { ChatTranscriptContextAttachmentDisplayKind, IChatRequestTranscriptConte
 import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatToolInputInvocationData, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
-import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, getAgentHostActivityProgressId, systemNotificationToChatPart, messageAttachmentsToVariableData, shouldObserveSubagentChat, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { appendToolOutput, turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, getAgentHostActivityProgressId, systemNotificationToChatPart, messageAttachmentsToVariableData, shouldObserveSubagentChat, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { getQuotaReset } from '../../../../../services/chat/common/chatEntitlementService.js';
 
 // ---- Helper factories -------------------------------------------------------
@@ -142,6 +145,79 @@ function assertInputOutputDetails(details: unknown): asserts details is IToolRes
 
 suite('stateToProgressAdapter', () => {
 
+	test('appends tool output chunks without changing arguments or creating a terminal resource', () => {
+		const call = createToolCallState({ toolInput: '{"command":"echo output"}' });
+		const plain = toolCallStateToInvocation(createToolCallState());
+		appendToolOutput(plain, call, { output: 'first', isPty: false });
+		appendToolOutput(plain, call, { output: ' second', isPty: false });
+		const pty = toolCallStateToInvocation(call);
+		appendToolOutput(pty, call, { output: 'first', isPty: true });
+		appendToolOutput(pty, call, { output: ' second', isPty: true });
+		assert.deepStrictEqual({
+			input: call.toolInput,
+			plain: plain.toolSpecificData?.kind === 'simpleToolInvocation' ? plain.toolSpecificData.output : undefined,
+			pty: pty.toolSpecificData?.kind === 'terminal' ? { output: pty.toolSpecificData.terminalCommandOutput?.text, terminal: pty.toolSpecificData.terminalCommandUri } : undefined,
+		}, { input: '{"command":"echo output"}', plain: 'first second', pty: { output: 'first second', terminal: undefined } });
+	});
+
+	test('generic confirmed-tool input does not suppress streamed output', () => {
+		const pending: ToolCallPendingConfirmationState = {
+			status: ToolCallStatus.PendingConfirmation, toolCallId: 'tc', toolName: 'query', displayName: 'Query',
+			invocationMessage: 'Query', toolInput: '{"query":"example"}',
+		};
+		const invocation = toolCallStateToInvocation(pending);
+		assert.strictEqual(invocation.toolSpecificData?.kind, 'input');
+		const running = createToolCallState({ toolCallId: 'tc', toolInput: pending.toolInput });
+		appendToolOutput(invocation, running, { output: 'first', isPty: false });
+		appendToolOutput(invocation, running, { output: ' second', isPty: false });
+		assert.deepStrictEqual(invocation.toolSpecificData, {
+			kind: 'simpleToolInvocation', input: '{"query":"example"}', output: 'first second',
+		});
+	});
+
+	test('Copilot metadata preserves internal requests, attachments, and latest-call usage', () => {
+		const detail = { type: 'github_reference', number: 7, title: 'Fix', url: 'https://github.com/o/r/issues/7', future: true };
+		const turn = createTurn({
+			message: {
+				text: 'display',
+				origin: { kind: MessageKind.Tool },
+				_meta: { 'copilot.visibility': 'internal' },
+				attachments: [{ type: MessageAttachmentKind.Simple, label: 'Fix', _meta: { 'copilot.attachmentDetail': detail } }],
+			},
+			usage: { inputTokens: 5, outputTokens: 2, _meta: { 'copilot.usageDetail': { cost: 0.5, duration: 10 } } },
+		});
+		const history = turnsToHistory(URI.parse('copilot:/session'), [turn], 'copilot');
+		const request = history.find(item => item.type === 'request');
+		const usage = usageInfoToChatUsage(turn.usage);
+		assert.deepStrictEqual({
+			request: request?.type === 'request' ? {
+				prompt: request.prompt, hidden: request.isHidden, requestHidden: request.isRequestHidden, metadata: request.metadata, attachment: request.variableData?.variables[0]._meta,
+			} : undefined,
+			usage: { cost: usage?.copilotCredits, latest: usage?.latestModelCall },
+		}, {
+			request: { prompt: 'display', hidden: undefined, requestHidden: true, metadata: turn.message._meta, attachment: { 'copilot.attachmentDetail': detail } },
+			usage: { cost: undefined, latest: { cost: 0.5, duration: 10 } },
+		});
+	});
+
+	test('Copilot attachment details survive history alongside VS Code metadata', () => {
+		const detail = { type: 'selection', text: 'captured text', filePath: '/remote/file.ts', future: { value: true } };
+		const metadata = { 'copilot.attachmentDetail': detail, browserView: null };
+		const turn = createTurn({
+			message: {
+				text: 'Explain this selection',
+				origin: { kind: MessageKind.User },
+				attachments: [{ type: MessageAttachmentKind.Simple, label: 'file.ts', modelRepresentation: 'fallback text', _meta: metadata }],
+			},
+		});
+		const history = turnsToHistory(URI.parse('copilot:/session'), [turn], 'copilot');
+		const request = history.find(item => item.type === 'request');
+		const variable = request?.type === 'request' ? request.variableData?.variables[0] : undefined;
+		assert.deepStrictEqual(variable && { kind: variable.kind, value: variable.value, modelDescription: variable.modelDescription, metadata: variable._meta }, {
+			kind: 'generic', value: 'fallback text', modelDescription: 'captured text', metadata,
+		});
+	});
+
 	test('Fusion phases use subagent pills without inventing child chats', () => {
 		const phase = { fusionId: 'fusion-1', phaseId: 'phase-1', model: 'model-a', status: 'running', startedAt: 1000 };
 		const running = createToolCallState({
@@ -257,7 +333,7 @@ suite('stateToProgressAdapter', () => {
 		], ['agentHost.chatActivity', 'agentHost.chatActivity:fusion:1', 'agentHost.chatActivity:fusion:2', undefined, undefined]);
 	});
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('detects the canonical automatic reply answer', () => {
 		assert.deepStrictEqual([
@@ -587,40 +663,56 @@ suite('stateToProgressAdapter', () => {
 				history[2].type === 'request' ? history[2].origin : undefined,
 			], [{
 				kind: ChatRequestOriginKind.Delegation,
-				sourceSessionResource: URI.parse('agent-host-session://copilot/creator?turn=creating-turn'),
+				sourceSessionResource: URI.parse(buildOpenSessionLinkUri(URI.parse('copilot:/creator'), undefined, 'creating-turn', 'local')),
 				delegationScope: 'session',
 			}, undefined]);
 		});
 
-		test('created session maps an aliased backend source to its logical provider', () => {
+		for (const provider of ['copilotcli', 'codex', 'claude']) {
+			test(`created ${provider} session retains its standard delegation source`, () => {
+				const turn = createTurn({
+					message: {
+						text: 'Hello',
+						origin: { kind: MessageKind.User },
+						_meta: toAgentMessageDelegationMeta({
+							sourceSession: 'ahp-session:/creator',
+							sourceChat: 'ahp-chat://default/YWhwLXNlc3Npb246L2NyZWF0b3I',
+						}),
+					},
+				});
+
+				const history = rawTurnsToHistory(
+					URI.parse('ahp-session:/created'),
+					[turn],
+					`agent-host-${provider}`,
+					'remote',
+				);
+
+				assert.deepStrictEqual(history[0].type === 'request' ? history[0].origin : undefined, {
+					kind: ChatRequestOriginKind.Delegation,
+					sourceSessionResource: URI.parse(buildOpenSessionLinkUri(URI.parse('ahp-session:/creator'), undefined, undefined, 'remote')),
+					delegationScope: 'session',
+				});
+			});
+		}
+
+		test('delegation keeps opaque source session and chat resources on their owning connection', () => {
+			const source = URI.parse('session-store://tenant/root?revision=2');
+			const chat = URI.parse('conversation://tenant/peer?revision=1#part');
 			const turn = createTurn({
 				message: {
-					text: 'Hello',
-					origin: { kind: MessageKind.User },
-					_meta: toAgentMessageDelegationMeta({
-						sourceSession: 'ahp-session:/creator',
-						sourceChat: 'ahp-chat://default/YWhwLXNlc3Npb246L2NyZWF0b3I',
-					}),
+					text: 'Delegated', origin: { kind: MessageKind.User },
+					_meta: toAgentMessageDelegationMeta({ sourceSession: source.toString(), sourceChat: chat.toString() }),
 				},
 			});
-
-			const history = rawTurnsToHistory(
-				URI.parse('ahp-session:/created'),
-				[turn],
-				'copilot',
-				'remote',
-				undefined,
-				undefined,
-				undefined,
-				undefined,
-				'copilot',
-			);
-
-			assert.deepStrictEqual(history[0].type === 'request' ? history[0].origin : undefined, {
-				kind: ChatRequestOriginKind.Delegation,
-				sourceSessionResource: URI.parse('agent-host-session://copilot/creator'),
-				delegationScope: 'session',
-			});
+			const history = rawTurnsToHistory(URI.parse('ahp-session:/receiver'), [turn], 'agent-host-claude', 'other-host');
+			const link = history[0].type === 'request' ? history[0].origin?.sourceSessionResource : undefined;
+			assert.ok(link);
+			assert.deepStrictEqual({
+				source: parseOpenSessionLinkUri(link)?.toString(),
+				chat: URI.parse(parseOpenSessionLinkChatId(link)!).toString(),
+				owner: parseOpenSessionLinkConnectionAuthority(link),
+			}, { source: source.toString(), chat: chat.toString(), owner: 'other-host' });
 		});
 
 		test('thread coordination tools restore deterministic target-session chips', () => {
@@ -1107,6 +1199,26 @@ suite('stateToProgressAdapter', () => {
 			]);
 		});
 
+		test('restores the Auto selection reason with the routing part', () => {
+			const reason = 'Auto selected gpt-5.4-mini to prioritize cost efficiency, alongside model fit for this task.';
+			const turn = createTurn({
+				usage: {
+					model: 'gpt-5.4-mini',
+					_meta: { autoModeResolved: { chosenModel: 'gpt-5.4-mini', selectionReason: reason } },
+				},
+			});
+			const lookup = makeLookup('agent-host-copilot:', { 'gpt-5.4-mini': 'GPT-5.4 mini' });
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p', lookup);
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+
+			assert.deepStrictEqual(response.parts, [
+				{ kind: 'autoModeResolution', resolved: { id: 'gpt-5.4-mini', name: 'GPT-5.4 mini', reason } },
+			]);
+		});
+
 		test('drops a routing part that never resolved from restored history', () => {
 			const turn = createTurn({ message: message('first'), usage: { model: 'auto' } });
 			const lookup = makeLookup('agent-host-copilot:', { 'auto': 'Auto' }, 'auto');
@@ -1530,7 +1642,7 @@ suite('stateToProgressAdapter', () => {
 				confirmationButtons: [{ data: { resume: true }, label: 'Try Again' }],
 			};
 
-			const history = rawTurnsToHistory(URI.file('/'), [errorTurn, completeTurn], 'p', '', undefined, undefined, undefined, createAgentHostResourceUriMapper(''), undefined, () => errorDetails);
+			const history = rawTurnsToHistory(URI.file('/'), [errorTurn, completeTurn], 'p', '', undefined, undefined, undefined, createAgentHostResourceUriMapper(''), () => errorDetails);
 			const responses = history.filter(item => item.type === 'response');
 
 			assert.deepStrictEqual(responses.map(response => response.type === 'response' ? response.errorDetails : undefined), [
@@ -1604,7 +1716,299 @@ suite('stateToProgressAdapter', () => {
 		});
 	});
 
+	suite('image generation', () => {
+		test('preserves metadata-only image failure details and classification in live and restored state', () => {
+			const backendSession = URI.parse('other-host:/opaque-image-session');
+			const imageGeneration = { requestedModel: { id: 'remote/image-model', name: 'Remote Image' } };
+			const running = createToolCallState({
+				toolName: 'remote_create_image',
+				toolInput: undefined,
+				_meta: { 'vscode.imageGeneration': imageGeneration },
+			});
+			const completed = createCompletedToolCall({
+				...running,
+				status: ToolCallStatus.Completed,
+				success: false,
+				content: [],
+				error: { message: 'The image service rejected the request.' },
+			});
+			const live = rawToolCallStateToInvocation(running, undefined, backendSession, 'other-host');
+			rawFinalizeToolInvocation(live, completed, backendSession, 'other-host');
+			const restored = completedToolCallToSerialized(completed, undefined, backendSession, 'other-host');
+			const expected = {
+				title: 'Generated image failed',
+				data: { kind: 'input', rawInput: undefined, editable: false, imageGeneration },
+				details: {
+					input: '',
+					inputLanguage: 'json',
+					output: [{ type: 'embed', value: 'The image service rejected the request.', isText: true, mimeType: 'text/plain' }],
+					isError: true,
+					mcpOutput: undefined,
+				},
+			};
+			assert.deepStrictEqual([live, restored].map(part => ({
+				title: part.pastTenseMessage,
+				data: part.toolSpecificData,
+				details: part.kind === 'toolInvocation' ? IChatToolInvocation.resultDetails(part) : part.resultDetails,
+			})), [expected, expected]);
+		});
+
+		for (const streaming of [false, true]) {
+			test(`preserves metadata-only image cancellation in history (streaming=${streaming})`, () => {
+				const backendSession = URI.parse('other-host:/opaque-image-session');
+				const imageGeneration = { requestedModel: { id: 'remote/image-model' } };
+				const cancelled: ICompletedToolCall = {
+					toolCallId: 'remote-image',
+					toolName: 'remote_create_image',
+					displayName: 'Remote Image',
+					invocationMessage: 'Working on an image',
+					status: ToolCallStatus.Cancelled,
+					reason: ToolCallCancellationReason.Denied,
+					reasonMessage: 'Stopped by the user',
+					_meta: { 'vscode.imageGeneration': imageGeneration },
+				};
+				const live = streaming
+					? toolCallStateToStreamingInvocation({ ...cancelled, status: ToolCallStatus.Streaming }, undefined, backendSession, 'other-host')
+					: rawToolCallStateToInvocation(createToolCallState({ toolName: cancelled.toolName, _meta: cancelled._meta }), undefined, backendSession, 'other-host');
+				rawFinalizeToolInvocation(live, cancelled, backendSession, 'other-host');
+				const restored = completedToolCallToSerialized(cancelled, undefined, backendSession, 'other-host');
+				const expected = {
+					title: 'Image generation cancelled',
+					data: { kind: 'input', rawInput: undefined, editable: false, imageGeneration },
+				};
+				assert.deepStrictEqual([live, restored].map(part => ({ title: part.pastTenseMessage, data: part.toolSpecificData })), [expected, expected]);
+			});
+		}
+
+		for (const toolInput of [undefined, '']) {
+			test(`does not give ordinary output-only tools an empty input dropdown (input=${toolInput})`, () => {
+				const backendSession = URI.parse('other-host:/ordinary-session');
+				const running = createToolCallState({ toolName: 'ordinary_tool', toolInput });
+				const completed = createCompletedToolCall({ toolName: running.toolName, toolInput, content: [{ type: ToolResultContentType.Text, text: 'Finished waiting.' }] });
+				const live = rawToolCallStateToInvocation(running, undefined, backendSession, 'other-host');
+				rawFinalizeToolInvocation(live, completed, backendSession, 'other-host');
+				const restored = completedToolCallToSerialized(completed, undefined, backendSession, 'other-host');
+				assert.deepStrictEqual([IChatToolInvocation.resultDetails(live), restored.resultDetails], [undefined, undefined]);
+			});
+		}
+
+		for (const toolName of ['image_generation', 'image_gen.imagegen', 'test_tool']) {
+			for (const streaming of [true, false]) {
+				test(`preserves the cancelled ${toolName} label from ${streaming ? 'streaming' : 'running'} across live and restored history`, () => {
+					const backendSession = URI.parse('copilot:/cancelled-image');
+					const invocationMessage = 'Running test tool...';
+					const cancelled: ICompletedToolCall = {
+						toolCallId: 'cancelled-tool',
+						toolName,
+						displayName: 'Test Tool',
+						invocationMessage,
+						status: ToolCallStatus.Cancelled,
+						reason: ToolCallCancellationReason.Denied,
+						reasonMessage: 'Stopped by the user',
+					};
+					const live = streaming
+						? toolCallStateToStreamingInvocation({ ...cancelled, status: ToolCallStatus.Streaming }, undefined, backendSession, 'local')
+						: rawToolCallStateToInvocation(createToolCallState({ toolCallId: cancelled.toolCallId, toolName, invocationMessage }), undefined, backendSession, 'local');
+					rawFinalizeToolInvocation(live, cancelled, backendSession, 'local');
+					const restored = completedToolCallToSerialized(cancelled, undefined, backendSession, 'local');
+					const message = toolName === 'test_tool' ? invocationMessage : 'Image generation cancelled';
+					assert.deepStrictEqual({
+						liveMessage: live.pastTenseMessage ?? live.invocationMessage,
+						liveComplete: IChatToolInvocation.isComplete(live),
+						restoredMessage: restored.pastTenseMessage,
+						restoredComplete: restored.isComplete,
+					}, {
+						liveMessage: message,
+						liveComplete: true,
+						restoredMessage: message,
+						restoredComplete: true,
+					});
+				});
+			}
+		}
+
+		for (const [toolName, success] of [
+			['image_generation', true],
+			['image_generation', false],
+			['image_gen.imagegen', true],
+			['image_gen.imagegen', false],
+		] as const) {
+			test(`preserves the ${success ? 'completed' : 'failed'} ${toolName} label across live and restored history`, () => {
+				const backendSession = URI.parse('copilot:/image-state');
+				const pastTenseMessage = success ? 'Generated image' : '"Generate Image" failed';
+				const expectedMessage = success ? pastTenseMessage : 'Generated image failed';
+				const completed = createCompletedToolCall({
+					toolName,
+					invocationMessage: 'Generating image',
+					pastTenseMessage,
+					success,
+					toolInput: undefined,
+					content: success ? [{ type: ToolResultContentType.EmbeddedResource, data: 'aW1hZ2U=', contentType: 'image/png' }] : [],
+					error: success ? undefined : { message: 'Image generation returned no usable image.' },
+				});
+				const live = rawToolCallStateToInvocation(createToolCallState({
+					toolName,
+					invocationMessage: 'Generating image',
+				}), undefined, backendSession, 'local');
+				rawFinalizeToolInvocation(live, completed, backendSession, 'local');
+				const restored = completedToolCallToSerialized(completed, undefined, backendSession, 'local');
+				const expectedDetails = {
+					input: '',
+					inputLanguage: 'json',
+					output: success
+						? [{ type: 'embed', value: 'aW1hZ2U=', mimeType: 'image/png' }]
+						: [{ type: 'embed', value: 'Image generation returned no usable image.', isText: true, mimeType: 'text/plain' }],
+					isError: !success,
+					mcpOutput: undefined,
+				};
+				assert.deepStrictEqual({
+					live: live.pastTenseMessage,
+					restored: restored.pastTenseMessage,
+					complete: restored.isComplete,
+					details: [IChatToolInvocation.resultDetails(live), restored.resultDetails],
+				}, { live: expectedMessage, restored: expectedMessage, complete: true, details: [expectedDetails, expectedDetails] });
+			});
+		}
+
+		for (const name of [undefined, 'Image Preview']) {
+			test(`uses structured image identity with ${name ? 'a display name' : 'an id fallback'} on a non-VS Code host`, () => {
+				const backendSession = URI.parse('other-host:/opaque-resource');
+				const expectedName = name ?? 'provider/image-preview';
+				const metadata = { 'vscode.imageGeneration': { requestedModel: { id: 'provider/image-preview', name } } };
+				const running = createToolCallState({
+					toolName: 'remote_create_image',
+					_meta: metadata,
+				});
+				const live = rawToolCallStateToInvocation(running, undefined, backendSession, 'other-host');
+				const state = live.state.get();
+				assert.ok(state.type === IChatToolInvocation.StateKind.Executing);
+				const progress = state.progress.get().message;
+				const completed = createCompletedToolCall({
+					toolName: running.toolName,
+					_meta: metadata,
+					pastTenseMessage: 'Generated image',
+					content: [{ type: ToolResultContentType.EmbeddedResource, data: 'aW1hZ2U=', contentType: 'image/png' }],
+				});
+				rawFinalizeToolInvocation(live, completed, backendSession, 'other-host');
+				const restored = completedToolCallToSerialized(completed, undefined, backendSession, 'other-host');
+				assert.deepStrictEqual({
+					progress,
+					live: live.pastTenseMessage,
+					restored: restored.pastTenseMessage,
+					imageData: restored.toolSpecificData,
+				}, {
+					progress: `Generating image with ${expectedName}`,
+					live: `Generated image with ${expectedName}`,
+					restored: `Generated image with ${expectedName}`,
+					imageData: { kind: 'generatedImage' },
+				});
+			});
+		}
+
+		for (const toolName of ['image_gen.imagegen', 'image_generation']) {
+			for (const resourceReference of [false, true]) {
+				for (const toolInput of [undefined, '{"prompt":"Draw a puppy"}']) {
+					test(`${toolName} preserves ${resourceReference ? 'referenced' : 'embedded'} images ${toolInput ? 'with' : 'without'} input across live, reconnect, and history`, () => {
+						const backendSession = URI.parse('copilot:/image-session');
+						const connectionAuthority = 'ssh__image-host';
+						const uri = 'generated-images:/session/generated-image.png?version=1';
+						const content: ToolResultContent[] = resourceReference
+							? [{ type: ToolResultContentType.Resource, uri, contentType: 'image/png' }]
+							: [{ type: ToolResultContentType.EmbeddedResource, data: 'aW1hZ2U=', contentType: 'image/png' }];
+						const completed = createCompletedToolCall({ toolName, toolInput, content });
+						const responseParts: ToolCallResponsePart[] = [{ kind: ResponsePartKind.ToolCall, toolCall: completed }];
+						const live = rawToolCallStateToInvocation(createToolCallState({ toolName, toolInput }), undefined, backendSession, connectionAuthority);
+						rawFinalizeToolInvocation(live, completed, backendSession, connectionAuthority);
+						const reconnected = activeTurnToProgress(backendSession, {
+							id: 'turn-image',
+							startedAt: '2026-01-01T00:00:00.000Z',
+							message: message('Draw a puppy'),
+							responseParts,
+							usage: undefined,
+						}, connectionAuthority)[0];
+						const history = rawTurnsToHistory(backendSession, [createTurn({ responseParts })], 'participant', connectionAuthority)[1];
+						assert.ok(reconnected.kind === 'toolInvocationSerialized' && history.type === 'response');
+						const restored = history.parts[0];
+						assert.ok(restored.kind === 'toolInvocationSerialized');
+
+						const expected = {
+							toolSpecificData: { kind: 'generatedImage' },
+							resultDetails: {
+								input: toolInput ?? '',
+								inputLanguage: 'json',
+								output: resourceReference
+									? [{ type: 'ref', uri: toAgentHostContentUri(URI.parse(uri), connectionAuthority), mimeType: 'image/png' }]
+									: [{ type: 'embed', value: 'aW1hZ2U=', mimeType: 'image/png' }],
+								isError: false,
+								mcpOutput: undefined,
+							},
+						};
+						assert.deepStrictEqual([live, reconnected, restored].map(part => ({
+							toolSpecificData: part.toolSpecificData,
+							resultDetails: part.kind === 'toolInvocation' ? IChatToolInvocation.resultDetails(part) : part.resultDetails,
+						})), [expected, expected, expected]);
+					});
+				}
+			}
+		}
+
+		test('keeps local file image references directly accessible', () => {
+			const uri = 'file:///session/generated-image.png';
+			const result = completedToolCallToSerialized(createCompletedToolCall({
+				toolName: 'image_generation',
+				content: [{ type: ToolResultContentType.Resource, uri, contentType: 'image/png' }],
+			}), undefined, URI.file('/'), 'local');
+			assertInputOutputDetails(result.resultDetails);
+			assert.deepStrictEqual({
+				toolSpecificData: result.toolSpecificData,
+				output: result.resultDetails.output,
+			}, {
+				toolSpecificData: { kind: 'generatedImage' },
+				output: [{ type: 'ref', uri: URI.parse(uri), mimeType: 'image/png' }],
+			});
+		});
+
+		test('does not promote failed, empty, non-image, or image-viewing results to generated images', () => {
+			const image: ToolResultContent = { type: ToolResultContentType.EmbeddedResource, data: 'aW1hZ2U=', contentType: 'image/png' };
+			const calls = [
+				createCompletedToolCall({ toolName: 'image_generation', success: false, content: [image] }),
+				createCompletedToolCall({ toolName: 'image_generation', content: [] }),
+				createCompletedToolCall({ toolName: 'image_generation', content: [{ ...image, data: '' }] }),
+				createCompletedToolCall({ toolName: 'image_generation', content: [{ type: ToolResultContentType.Resource, uri: 'generated-images:/result', contentType: 'application/pdf' }] }),
+				createCompletedToolCall({ toolName: 'view_image', content: [image] }),
+			];
+			assert.deepStrictEqual(calls.map(call => completedToolCallToSerialized(call, undefined, URI.file('/'), 'local').toolSpecificData?.kind), ['input', 'input', 'input', 'input', undefined]);
+		});
+
+		test('keeps image tool output-only results without introducing empty details', () => {
+			const calls = [
+				createCompletedToolCall({ toolName: 'image_generation', content: [{ type: ToolResultContentType.Text, text: 'Output without arguments' }] }),
+				createCompletedToolCall({ toolName: 'image_generation' }),
+			];
+			assert.deepStrictEqual(calls.map(call => completedToolCallToSerialized(call, undefined, URI.file('/'), 'local').resultDetails), [{
+				input: '',
+				inputLanguage: 'json',
+				output: [{ type: 'embed', value: 'Output without arguments', isText: true, mimeType: 'text/plain' }],
+				isError: false,
+				mcpOutput: undefined,
+			}, undefined]);
+		});
+	});
+
 	suite('toolCallStateToInvocation', () => {
+
+		test('keeps image prompt input and image identity while running and reconnecting', () => {
+			const imageGeneration = { requestedModel: { id: 'provider/image-preview', name: 'Image Preview' } };
+			const tc = createToolCallState({
+				toolName: 'image_generation',
+				toolInput: '{"prompt":"A puppy","quality":"low"}',
+				_meta: { 'vscode.imageGeneration': imageGeneration },
+			});
+			const live = toolCallStateToInvocation(tc);
+			const expected = { kind: 'input', rawInput: tc.toolInput, editable: false, imageGeneration };
+			const restoredRunning = toolCallStateToInvocation(tc);
+			assert.deepStrictEqual([live.toolSpecificData, restoredRunning.toolSpecificData], [expected, expected]);
+		});
 
 		test('creates ChatToolInvocation for running tool', () => {
 			const tc = createToolCallState({
@@ -1747,6 +2151,79 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(carousel.answerPresentation, 'conversation');
 		});
 
+		test('does not repeat the question as the carousel message', () => {
+			const question = {
+				id: 'q1',
+				kind: ChatInputQuestionKind.SingleSelect,
+				message: 'Which test option do you prefer?',
+				required: true,
+				options: [{ id: 'a', label: 'Option A' }],
+			};
+			const repeated = createInputRequestCarousel({
+				id: 'repeated',
+				message: question.message,
+				questions: [question],
+			}, 'local');
+			const titled = createInputRequestCarousel({
+				id: 'titled',
+				message: question.message,
+				questions: [{ ...question, title: 'Test options' }],
+			}, 'local');
+			const contextual = createInputRequestCarousel({
+				id: 'contextual',
+				message: 'Select the best option for the cloud sandbox.',
+				questions: [question],
+			}, 'local');
+			const messageOnly = createInputRequestCarousel({
+				id: 'message-only',
+				message: question.message,
+			}, 'local');
+
+			assert.deepStrictEqual({
+				repeated: repeated.message,
+				titled: titled.message,
+				contextual: typeof contextual.message === 'string' ? contextual.message : contextual.message?.value,
+				messageOnly: messageOnly.message,
+				messageOnlyTitle: messageOnly.questions[0].title,
+			}, {
+				repeated: undefined,
+				titled: undefined,
+				contextual: 'Select the best option for the cloud sandbox.',
+				messageOnly: undefined,
+				messageOnlyTitle: question.message,
+			});
+		});
+
+		test('rewrites remote file links in retained question text', () => {
+			const message = 'Use [config](file:///workspace/config.json)?';
+			const repeated = createInputRequestCarousel({
+				id: 'repeated',
+				message,
+				questions: [{
+					id: 'q1',
+					kind: ChatInputQuestionKind.Text,
+					message: `${message}\nSee [notes](file:///workspace/notes.md).`,
+					required: true,
+				}],
+			}, 'my-host');
+			const messageOnly = createInputRequestCarousel({ id: 'message-only', message }, 'my-host');
+			const detailedMessage = repeated.questions[0].detailedMessage;
+
+			assert.deepStrictEqual({
+				repeatedMessage: repeated.message,
+				repeatedTitle: repeated.questions[0].title,
+				repeatedDetail: typeof detailedMessage === 'string' ? detailedMessage : detailedMessage?.value,
+				messageOnlyMessage: messageOnly.message,
+				messageOnlyTitle: messageOnly.questions[0].title,
+			}, {
+				repeatedMessage: undefined,
+				repeatedTitle: `Use [config](${rewriteAgentHostLinkTarget('file:///workspace/config.json', 'my-host')})?`,
+				repeatedDetail: `See [notes](${rewriteAgentHostLinkTarget('file:///workspace/notes.md', 'my-host')}).`,
+				messageOnlyMessage: undefined,
+				messageOnlyTitle: `Use [config](${rewriteAgentHostLinkTarget('file:///workspace/config.json', 'my-host')})?`,
+			});
+		});
+
 		test('attaches automation result data to live and restored configureAutomation calls', () => {
 			const content: ToolResultContent[] = [{
 				type: ToolResultContentType.Text,
@@ -1837,7 +2314,7 @@ suite('stateToProgressAdapter', () => {
 					},
 					requiredScopes: ['repo'],
 				},
-			}, undefined, URI.parse('agent-host-copilot://backend/session'), 'remote', 'frontend');
+			}, undefined, URI.parse('agent-host-copilot://backend/session'), 'remote', 'frontend', undefined, undefined, 'Example MCP (Connector)');
 
 			const state = invocation.state.get();
 			assert.strictEqual(state.type, IChatToolInvocation.StateKind.WaitingForAuthentication);
@@ -1853,7 +2330,7 @@ suite('stateToProgressAdapter', () => {
 				confirmationMessages: undefined,
 				server: {
 					id: 'frontend/mcp-1',
-					name: 'Example MCP',
+					name: 'Example MCP (Connector)',
 					resource: 'https://mcp.example.com',
 					oauthClient: {
 						clientId: 'configured-client-id',
@@ -2551,6 +3028,38 @@ suite('stateToProgressAdapter', () => {
 	});
 
 	suite('completedToolCallToEditParts', () => {
+		for (const kind of ['edit', 'rename'] as const) {
+			test(`keeps ${kind} pill snapshots distinct from their displayed file paths`, () => {
+				const beforeFile = 'file:///repo/original.ts';
+				const afterFile = kind === 'rename' ? 'file:///repo/renamed.ts' : beforeFile;
+				const [edit] = completedToolCallToEditParts(createCompletedToolCall({
+					content: [{
+						type: ToolResultContentType.FileEdit,
+						before: { uri: beforeFile, content: { uri: 'opaque-content:/a1' } },
+						after: { uri: afterFile, content: { uri: 'opaque-content:/b2' } },
+					}],
+				}), 'remote');
+
+				assert.deepStrictEqual({
+					kind: edit.editKind,
+					file: edit.uri.path,
+					before: edit.beforeContentUri?.path,
+					after: edit.afterContentUri?.path,
+					beforeContent: edit.beforeContentUri && fromAgentHostUri(edit.beforeContentUri).toString(),
+					afterContent: edit.afterContentUri && fromAgentHostUri(edit.afterContentUri).toString(),
+					distinct: edit.beforeContentUri?.toString() !== edit.afterContentUri?.toString(),
+				}, {
+					kind,
+					file: URI.parse(afterFile).path,
+					before: URI.parse(beforeFile).path,
+					after: URI.parse(afterFile).path,
+					beforeContent: 'opaque-content:/a1',
+					afterContent: 'opaque-content:/b2',
+					distinct: true,
+				});
+			});
+		}
+
 		test('keeps child attribution separate from the edit undo stop', () => {
 			const toolCall = createCompletedToolCall({
 				toolCallId: 'child-patch',
@@ -2574,6 +3083,45 @@ suite('stateToProgressAdapter', () => {
 	});
 
 	suite('finalizeToolInvocation', () => {
+
+		for (const toolName of ['bash', 'powershell', 'local_shell']) {
+			for (const success of [true, false]) {
+				test(`omits duplicate terminal completion text for ${toolName} (${success ? 'success' : 'failure'}) in live and replayed tools`, () => {
+					for (const pastTenseMessage of [undefined, 'Tool finished', 'Ran Bash']) {
+						const running = createToolCallState({
+							toolName,
+							displayName: 'Bash',
+							invocationMessage: 'Running tool',
+							toolInput: JSON.stringify({ command: 'echo hi', description: 'Print greeting' }),
+						});
+						const completed = createCompletedToolCall({
+							...running,
+							status: ToolCallStatus.Completed,
+							pastTenseMessage,
+							success,
+							content: [{ type: ToolResultContentType.Text, text: 'hi\n' }],
+						});
+						const invocation = toolCallStateToInvocation(running);
+						finalizeToolInvocation(invocation, completed);
+						const serialized = completedToolCallToSerialized(completed, undefined, URI.parse('cloud-session://host/session'), 'remote');
+						const expected = {
+							invocationMessage: `${success ? 'Running command' : 'Command failed'} \`Print greeting\``,
+							pastTenseMessage: undefined,
+							kind: 'terminal',
+							command: 'echo hi',
+							output: 'hi\r\n',
+						};
+						assert.deepStrictEqual([invocation, serialized].map(tool => ({
+							invocationMessage: typeof tool.invocationMessage === 'string' ? tool.invocationMessage : tool.invocationMessage.value,
+							pastTenseMessage: tool.pastTenseMessage,
+							kind: tool.toolSpecificData?.kind,
+							command: tool.toolSpecificData?.kind === 'terminal' ? tool.toolSpecificData.commandLine.original : undefined,
+							output: tool.toolSpecificData?.kind === 'terminal' ? tool.toolSpecificData.terminalCommandOutput?.text : undefined,
+						})), [expected, expected]);
+					}
+				});
+			}
+		}
 
 		test('rewrites markdown links in pastTenseMessage through the agent host scheme', () => {
 			const tc = createToolCallState({ status: ToolCallStatus.Running });
@@ -2975,6 +3523,39 @@ suite('stateToProgressAdapter', () => {
 			assert.deepStrictEqual(result, []);
 		});
 
+		for (const { fileName, title, resource } of [
+			{ fileName: '/workspaces/server/index.js', title: 'Edit index.js', resource: 'file:///workspaces/server/index.js' },
+			{ fileName: 'C:\\workspace\\file.ts', title: 'Edit file.ts', resource: 'file:///c%3A/workspace/file.ts' },
+			{ fileName: '\\\\server\\share\\file.ts', title: 'Edit file.ts', resource: 'file://server/share/file.ts' },
+			{ fileName: '/workspace/a\\b.ts', title: 'Edit a\\b.ts', resource: 'file:///workspace/a%5Cb.ts' },
+			{ fileName: '/workspace/a\\', title: 'Edit a\\', resource: 'file:///workspace/a%5C' },
+		]) {
+			test(`restores a remote write approval with a file pill and a plain filename in its title for ${fileName}`, () => {
+				const result = activeTurnToProgress(URI.parse('provider:/session/from-host'), createActiveTurnState([{
+					kind: ResponsePartKind.ToolCall,
+					toolCall: {
+						status: ToolCallStatus.PendingConfirmation, toolCallId: 'write', toolName: 'edit', displayName: 'Edit',
+						invocationMessage: 'Edit file', confirmationTitle: 'Edit file', toolInput: fileName,
+						_meta: { promptRequest: { kind: 'write', fileName } },
+					},
+				}]), 'sandbox.example');
+				const invocation = result.find((part): part is IChatToolInvocation => part.kind === 'toolInvocation');
+				assert.ok(invocation);
+				const confirmation = IChatToolInvocation.getConfirmationMessages(invocation);
+				assert.ok(confirmation?.message && typeof confirmation.message !== 'string');
+				const rendered = store.add(renderMarkdown(confirmation.message, getChatMarkdownRenderOptions()));
+				const target = rendered.element.querySelector('a')?.dataset.href;
+				assert.deepStrictEqual({
+					title: confirmation.title,
+					resource: target ? fromAgentHostUri(URI.parse(target)).toString() : undefined,
+					state: invocation.state.get().type,
+				}, {
+					title, resource,
+					state: IChatToolInvocation.StateKind.WaitingForConfirmation,
+				});
+			});
+		}
+
 		test('includes usage progress from active turn usage', () => {
 			const activeTurn = createActiveTurnState();
 			activeTurn.usage = { inputTokens: 1000, outputTokens: 250 };
@@ -3039,6 +3620,51 @@ suite('stateToProgressAdapter', () => {
 				kind: 'warning',
 				content: new MarkdownString('Worktree creation failed'),
 			});
+		});
+
+		test('produces a warning with a Configure Tools link for active BYOK tool limit notification', () => {
+			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState([{
+				kind: ResponsePartKind.SystemNotification,
+				content: 'Only 128 of 200 [enabled](command:evil) tools are available to this model.',
+				_meta: toAgentSystemNotificationMeta({
+					kind: AgentSystemNotificationKind.ByokToolLimitExceeded,
+					severity: AgentSystemNotificationSeverity.Warning,
+				}),
+			}]), undefined);
+
+			assert.deepStrictEqual(result.map(part => part.kind === 'warning' ? { kind: part.kind, value: part.content.value, isTrusted: part.content.isTrusted, keepVisibleWhenCollapsed: part.keepVisibleWhenCollapsed } : part), [{
+				kind: 'warning',
+				value: 'Only 128 of 200 \\[enabled\\]\\(command:evil\\) tools are available to this model. [Configure Tools](command:aiCustomization.openManagementEditor?%5B%22tools%22%5D)',
+				isTrusted: { enabledCommands: ['aiCustomization.openManagementEditor'] },
+				keepVisibleWhenCollapsed: true,
+			}]);
+		});
+
+		test('keeps host autolinks and HTML in a BYOK tool limit notification inert', () => {
+			const injected = 'command:aiCustomization.openManagementEditor?%5B%22hooks%22%5D';
+			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState([{
+				kind: ResponsePartKind.SystemNotification,
+				content: `Some tools were dropped. <${injected}> <a href="${injected}">hooks</a> &lt;b&gt;`,
+				_meta: toAgentSystemNotificationMeta({
+					kind: AgentSystemNotificationKind.ByokToolLimitExceeded,
+					severity: AgentSystemNotificationSeverity.Warning,
+				}),
+			}]), undefined);
+			const warning = result[0];
+			assert.ok(warning.kind === 'warning');
+
+			const rendered = renderMarkdown(warning.content);
+			try {
+				assert.deepStrictEqual({
+					links: [...rendered.element.querySelectorAll('a')].map(anchor => anchor.dataset.href),
+					text: rendered.element.textContent,
+				}, {
+					links: ['command:aiCustomization.openManagementEditor?%5B%22tools%22%5D'],
+					text: `Some tools were dropped. <${injected}> <a href="${injected}">hooks</a> &lt;b&gt; Configure Tools`,
+				});
+			} finally {
+				rendered.dispose();
+			}
 		});
 
 		test('styles workspace transitions as accessible transcript boundaries', () => {
@@ -3319,6 +3945,7 @@ suite('stateToProgressAdapter', () => {
 		});
 
 		test('preserves create metadata and proposed content for pending file confirmations', () => {
+			const fileUri = URI.file('/workspace/package.json');
 			const invocation = toolCallStateToInvocation({
 				toolCallId: 'tc-create',
 				toolName: 'write',
@@ -3340,10 +3967,10 @@ suite('stateToProgressAdapter', () => {
 				kind: 'modifiedFilesConfirmation',
 				options: ['Allow'],
 				modifiedFiles: [{
-					uri: URI.file('/workspace/package.json'),
+					uri: fileUri,
 					editKind: 'create',
 					originalUri: undefined,
-					modifiedContentUri: toAgentHostContentUri(URI.parse('pending-edit-content://session/tc-create/package.json'), 'local'),
+					modifiedContentUri: toAgentHostContentUri(URI.parse('pending-edit-content://session/tc-create/package.json'), 'local', fileUri),
 					originalContentUri: undefined,
 					insertions: undefined,
 					deletions: undefined,
@@ -3864,7 +4491,7 @@ suite('stateToProgressAdapter', () => {
 			}
 		});
 
-		test('preserves subagent model identity and name when refreshing toolSpecificData from content', () => {
+		test('preserves subagent model identity and configuration when refreshing toolSpecificData from content', () => {
 			const tc = createToolCallState({
 				_meta: { toolKind: 'subagent', subagentDescription: 'Find related files' },
 			});
@@ -3875,6 +4502,8 @@ suite('stateToProgressAdapter', () => {
 			if (invocation.toolSpecificData?.kind === 'subagent') {
 				invocation.toolSpecificData.modelId = 'agent-host-copilotcli:claude-sonnet-4';
 				invocation.toolSpecificData.modelName = 'Claude Sonnet 4';
+				invocation.toolSpecificData.modelConfiguration = { thinkingLevel: 'high', contextSize: 1000000 };
+				invocation.toolSpecificData.runtimeModelConfiguration = { reasoningEffort: 'xhigh', contextTier: 'long_context' };
 			}
 
 			const runningTc: ToolCallRunningState = {
@@ -3897,7 +4526,14 @@ suite('stateToProgressAdapter', () => {
 				assert.deepStrictEqual({
 					modelId: invocation.toolSpecificData.modelId,
 					modelName: invocation.toolSpecificData.modelName,
-				}, { modelId: 'agent-host-copilotcli:claude-sonnet-4', modelName: 'Claude Sonnet 4' });
+					modelConfiguration: invocation.toolSpecificData.modelConfiguration,
+					runtimeModelConfiguration: invocation.toolSpecificData.runtimeModelConfiguration,
+				}, {
+					modelId: 'agent-host-copilotcli:claude-sonnet-4',
+					modelName: 'Claude Sonnet 4',
+					modelConfiguration: { thinkingLevel: 'high', contextSize: 1000000 },
+					runtimeModelConfiguration: { reasoningEffort: 'xhigh', contextTier: 'long_context' },
+				});
 			}
 		});
 
@@ -3907,6 +4543,8 @@ suite('stateToProgressAdapter', () => {
 				assert.ok(invocation.toolSpecificData?.kind === 'subagent');
 				invocation.toolSpecificData.modelId = 'agent-host-copilotcli:openrouter/amazon/nova-micro-v1';
 				invocation.toolSpecificData.modelName = 'OpenRouter/Amazon: Nova Micro 1.0';
+				invocation.toolSpecificData.modelConfiguration = { reasoningEffort: 'low', contextTier: 'long_context' };
+				invocation.toolSpecificData.runtimeModelConfiguration = { reasoningEffort: 'xhigh', contextTier: 'long_context' };
 				finalizeToolInvocation(invocation, createCompletedToolCall({
 					toolName: 'task',
 					content: withDiscovery ? [{ type: ToolResultContentType.Subagent, resource: 'copilot://session/subagent/tc-1', title: 'Explore' }] : [],
@@ -3915,9 +4553,13 @@ suite('stateToProgressAdapter', () => {
 				assert.deepStrictEqual(serialized.toolSpecificData?.kind === 'subagent' ? {
 					modelId: serialized.toolSpecificData.modelId,
 					modelName: serialized.toolSpecificData.modelName,
+					modelConfiguration: serialized.toolSpecificData.modelConfiguration,
+					runtimeModelConfiguration: serialized.toolSpecificData.runtimeModelConfiguration,
 				} : undefined, {
 					modelId: 'agent-host-copilotcli:openrouter/amazon/nova-micro-v1',
 					modelName: 'OpenRouter/Amazon: Nova Micro 1.0',
+					modelConfiguration: { reasoningEffort: 'low', contextTier: 'long_context' },
+					runtimeModelConfiguration: { reasoningEffort: 'xhigh', contextTier: 'long_context' },
 				});
 			});
 		}

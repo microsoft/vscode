@@ -17,10 +17,12 @@ export const enum SessionChatPillKind {
 	Artifacts = 'artifacts',
 	References = 'references',
 	Customizations = 'customizations',
+	Canvases = 'canvases',
 	PullRequests = 'pullRequests',
 	Issues = 'issues',
 	Browsers = 'browsers',
 	Subagents = 'subagents',
+	BackgroundShells = 'backgroundShells',
 }
 
 /** All pill kinds, in the order they are offered in the visibility menu. */
@@ -31,9 +33,33 @@ export const SESSION_CHAT_PILL_KINDS: readonly SessionChatPillKind[] = [
 	SessionChatPillKind.Artifacts,
 	SessionChatPillKind.References,
 	SessionChatPillKind.Customizations,
+	SessionChatPillKind.Canvases,
 	SessionChatPillKind.Browsers,
 	SessionChatPillKind.Subagents,
+	SessionChatPillKind.BackgroundShells,
 ];
+
+/** Provider-neutral metadata for an active background shell owned by a chat. */
+export interface IChatBackgroundShell {
+	/** Identity of the entry, unique within the chat. */
+	readonly id: string;
+	/** The agent's own ID for the shell, when it reports one. Only shown to the user. */
+	readonly shellId?: string;
+	readonly description: string;
+	readonly command: string;
+	readonly startedAt: string;
+	/** Whether the shell is tied to its agent's lifetime, when the agent reports it. */
+	readonly attachmentMode?: 'attached' | 'detached';
+	/** The shell's live output, when the agent can show it. Only subscribes while read. */
+	readonly output?: IObservable<ChatBackgroundShellOutput>;
+}
+
+/** What a background shell's live output view shows. */
+export type ChatBackgroundShellOutput =
+	| { readonly status: 'loading' }
+	| { readonly status: 'running'; readonly text: string }
+	| { readonly status: 'exited'; readonly text: string; readonly exitCode?: number }
+	| { readonly status: 'unavailable'; readonly message: string };
 
 export function getSessionChatPillLabel(kind: SessionChatPillKind): string {
 	switch (kind) {
@@ -41,10 +67,12 @@ export function getSessionChatPillLabel(kind: SessionChatPillKind): string {
 		case SessionChatPillKind.Artifacts: return localize('sessionChatPills.artifacts', "Artifacts");
 		case SessionChatPillKind.References: return localize('sessionChatPills.references', "References");
 		case SessionChatPillKind.Customizations: return localize('sessionChatPills.customizations', "Customizations");
+		case SessionChatPillKind.Canvases: return localize('sessionChatPills.canvases', "Canvases");
 		case SessionChatPillKind.PullRequests: return localize('sessionChatPills.pullRequests', "Pull Requests");
 		case SessionChatPillKind.Issues: return localize('sessionChatPills.issues', "Issues");
 		case SessionChatPillKind.Browsers: return localize('sessionChatPills.browsers', "Browsers");
 		case SessionChatPillKind.Subagents: return localize('sessionChatPills.subagents', "Subagents");
+		case SessionChatPillKind.BackgroundShells: return localize('sessionChatPills.backgroundShells', "Background Shells");
 	}
 }
 

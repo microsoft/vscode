@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../../base/browser/dom.js';
-import { CustomizationMigrationCategoryId } from '../../../../contrib/chat/browser/aiCustomization/customizationMigrationCategories.js';
 import { Dimension } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { assert } from '../../../../../base/common/assert.js';
@@ -74,7 +73,7 @@ import { IAgentPluginService, IAgentPlugin } from '../../../../contrib/chat/comm
 import { ILanguageModelToolsService, IToolData, IToolSet, ToolDataSource } from '../../../../contrib/chat/common/tools/languageModelToolsService.js';
 import { IAgentHostToolSetEnablementService, IToolEnablementState } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import { IAgentHostActiveClientService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
-import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerEnablementState, AgentHostMcpServerSourceKind, AgentHostMcpSupportReason, IAgentHostMcpServerSupportSnapshot } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostMcpServerSupport.js';
+import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerEnablementState, AgentHostMcpServerSourceKind, IAgentHostMcpServerSupportSnapshot } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostMcpServerSupport.js';
 import { ExtensionState, IExtension, IExtensionsWorkbenchService } from '../../../../contrib/extensions/common/extensions.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IPluginMarketplaceService, IMarketplacePlugin, MarketplaceType, PluginSourceKind } from '../../../../contrib/chat/common/plugins/pluginMarketplaceService.js';
@@ -98,7 +97,7 @@ import { PromptsConfig } from '../../../../contrib/chat/common/promptSyntax/conf
 import { IAutomationDialogService } from '../../../../contrib/chat/common/automations/automationDialogService.js';
 import { IAutomationRunner } from '../../../../contrib/chat/common/automations/automationRunner.js';
 import { IAutomationService } from '../../../../contrib/chat/common/automations/automationService.js';
-import { IMcpWorkbenchService, IWorkbenchMcpServer, IMcpService, McpConnectionState, McpServerInstallState, MCP_PLUGIN_COLLECTION_ID_PREFIX } from '../../../../contrib/mcp/common/mcpTypes.js';
+import { IMcpWorkbenchService, IWorkbenchMcpServer, IMcpServer, IMcpService, McpConnectionState, McpServerInstallState, MCP_PLUGIN_COLLECTION_ID_PREFIX } from '../../../../contrib/mcp/common/mcpTypes.js';
 import { IMcpRegistry } from '../../../../contrib/mcp/common/mcpRegistryTypes.js';
 import { IWorkbenchLocalMcpServer, LocalMcpServerScope } from '../../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { McpListWidget } from '../../../../contrib/chat/browser/aiCustomization/mcpListWidget.js';
@@ -688,6 +687,11 @@ const activeSessionMcpServers: FixtureAgentHostMcpServer[] = [
 	{ id: 'mcp-top-level:fixture:session:Remote Search', name: 'Remote Search', enabled: true, status: McpServerStatus.Error, state: { kind: McpServerStatus.Error, error: { errorType: 'fixture', message: 'Fixture error' } }, logOutputChannelId: 'fixture-agent-host', start: mcpLifecycleNoop, stop: mcpLifecycleNoop, setEnabled() { } },
 ];
 
+const reconciledConnectorMcpServers: FixtureAgentHostMcpServer[] = [
+	{ ...activeSessionMcpServers[1], id: 'session/github-copilot-connector-93f713b9a912cfbc0384', name: 'github-copilot-connector-93f713b9a912cfbc0384', displayName: 'Microsoft Learn Docs', source: 'managed', sourceUri: undefined },
+	{ ...activeSessionMcpServers[1], id: 'session/github-copilot-connector-94d26095770df60673dd', name: 'github-copilot-connector-94d26095770df60673dd', displayName: 'Azure Data Explorer', source: 'managed', sourceUri: undefined },
+];
+
 const allStateMcpServers: FixtureAgentHostMcpServer[] = [
 	{ ...activeSessionMcpServers[0] },
 	{ ...activeSessionMcpServers[0], id: 'mcp-top-level:fixture:session:PostgreSQL', name: 'PostgreSQL', status: McpServerStatus.Error, state: { kind: McpServerStatus.Error, error: { errorType: 'fixture', message: 'Connection refused at localhost:5432. Check that the database is running before starting this server again.' } } },
@@ -870,11 +874,14 @@ const customizationMarketplaceResources: readonly ICustomizationMarketplaceResou
 	},
 ];
 
+const connectorIconDataUri = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="12" fill="#5b5fc7"/><path d="M13 20h38v27H13z" fill="#fff"/><path d="m13 20 19 16 19-16" fill="none" stroke="#5b5fc7" stroke-width="4"/></svg>')}`;
+
 const fixtureCopilotConnectors: readonly ICopilotConnector[] = [
 	{
 		name: 'workiq-mail',
 		displayName: 'Work IQ Mail',
 		description: 'Search and summarize Outlook mail through a connection managed by GitHub Copilot.',
+		icon: URI.parse(connectorIconDataUri),
 		version: '1.0.0',
 		author: { name: 'Microsoft', url: URI.parse('https://www.microsoft.com') },
 		homepage: URI.parse('https://github.com/features/copilot'),
@@ -928,6 +935,33 @@ const fixtureCopilotConnectors: readonly ICopilotConnector[] = [
 	},
 ];
 
+const reconciledCopilotConnectors: readonly ICopilotConnector[] = [
+	{
+		name: 'microsoftlearndocsmcpserver',
+		displayName: 'Microsoft Learn Docs',
+		description: 'Search official Microsoft documentation.',
+		tags: ['documentation'],
+		keywords: ['microsoft', 'learn'],
+		capabilities: ['Search documentation'],
+		representativeQueries: [],
+		connectionStatus: 'connected',
+		scopes: [],
+		mcpServers: [{ name: 'microsoftlearndocsmcpserver', type: 'http', url: URI.parse('https://api.github.com/copilot-connectors/api/v1/connectors/microsoftlearndocsmcpserver/mcp') }],
+	},
+	{
+		name: 'kusto',
+		displayName: 'Azure Data Explorer',
+		description: 'Query Azure Data Explorer.',
+		tags: ['data'],
+		keywords: ['kusto'],
+		capabilities: ['Query data'],
+		representativeQueries: [],
+		connectionStatus: 'connected',
+		scopes: [],
+		mcpServers: [{ name: 'kusto', type: 'http', url: URI.parse('https://api.github.com/copilot-connectors/api/v1/connectors/kusto/mcp') }],
+	},
+];
+
 const copilotConnectorMarketplaceResource: ICustomizationMarketplaceResource = {
 	sourceId: 'copilotConnectors',
 	identifier: 'workiq-mail',
@@ -945,6 +979,13 @@ function createEmptyCustomizationMarketplaceInstallService(): ICustomizationMark
 	return new class extends mock<ICustomizationMarketplaceInstallService>() {
 		override readonly onDidChange = Event.None;
 		override readonly installations = constObservable(emptyCustomizationMarketplaceInstallationSnapshot);
+	}();
+}
+
+function createEmptyCustomizationMarketplaceService(): ICustomizationMarketplaceService {
+	return new class extends mock<ICustomizationMarketplaceService>() {
+		override readonly sources = [];
+		override readonly onDidChangeSources = Event.None;
 	}();
 }
 
@@ -990,6 +1031,7 @@ interface IRenderEditorOptions {
 	readonly toggleMarketplaceVisibility?: boolean;
 	readonly customizationMarketplaceState?: 'ready' | 'empty' | 'error' | 'loading' | 'loadingMore';
 	readonly customizationMarketplaceInstallationState?: 'mixed' | 'missing' | 'error';
+	readonly customizationMarketplaceDetailState?: 'missing' | 'error' | 'unavailable';
 	readonly discoveryQuery?: string;
 	readonly clearDiscoveryQuery?: boolean;
 	readonly selectDiscoveryResult?: boolean;
@@ -1004,6 +1046,8 @@ interface IRenderEditorOptions {
 	readonly height?: number;
 	readonly skillUIIntegrations?: ReadonlyMap<string, string>;
 	readonly activeSessionMcpServers?: readonly FixtureAgentHostMcpServer[];
+	readonly mcpWorkbenchServers?: readonly IWorkbenchMcpServer[];
+	readonly mcpRuntimeServers?: readonly IMcpServer[];
 	readonly mcpServerCompatibility?: readonly ICustomizationMcpServerCompatibility[];
 	readonly agentHostFiles?: readonly IFixtureFile[];
 	readonly remoteClientSkillName?: string;
@@ -1016,8 +1060,6 @@ interface IRenderEditorOptions {
 	readonly editorDisplayMode?: 'preview' | 'raw';
 	readonly migrationDashboard?: boolean;
 	readonly migrationActivity?: boolean;
-	readonly migrationCategory?: CustomizationMigrationCategoryId;
-	readonly migrationPartialSelection?: boolean;
 }
 
 // ============================================================================
@@ -1069,7 +1111,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		},
 	];
 
-	const allMcpServers = [...mcpWorkspaceServers, ...mcpUserServers];
+	const allMcpServers = [...(options.mcpWorkbenchServers ?? [...mcpWorkspaceServers, ...mcpUserServers])];
 	const toolSets = options.toolSets ?? fixtureToolSets;
 	const selectedPromptType = options.selectedSection === AICustomizationManagementSection.Agents ? PromptsType.agent
 		: options.selectedSection === AICustomizationManagementSection.Skills ? PromptsType.skill
@@ -1083,15 +1125,6 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		.map(file => ({ ...file }));
 	const fileContents = createFixtureContentMap(fixtureFiles, agentInstructions);
 	fileContents.set(URI.file('/workspace/.vscode/mcp.json'), '{\n\t"servers": {\n\t\t"Remote Browser": {\n\t\t\t"type": "http",\n\t\t\t"url": "https://mcp.example.com"\n\t\t}\n\t}\n}\n');
-	if (options.migrationCategory === CustomizationMigrationCategoryId.McpServers) {
-		fileContents.set(URI.file('/workspace/.vscode/mcp.json'), JSON.stringify({
-			servers: {
-				'Remote Browser': { type: 'http', url: 'https://mcp.example.com' },
-				'Development Server': { command: 'node', gallery: true, version: '1', dev: { watch: 'src/**/*.ts' }, sandboxEnabled: true },
-				'Environment File Server': { command: 'node', envFile: '.env' },
-			},
-		}));
-	}
 	const delayedReadFiles = new ResourceSet();
 	if (options.pluginReadmeContent !== undefined) {
 		const pluginReadmeUri = URI.file('/workspace/.copilot/plugins/circleci/README.md');
@@ -1133,6 +1166,16 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(customizationMarketplaceResources[1]), { kind: 'installed', target: getFixtureInstallationTarget(customizationMarketplaceResources[1]) });
 	} else if (options.customizationMarketplaceInstallationState === 'missing') {
 		customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(customizationMarketplaceResources[0]), { kind: 'missing', target: getFixtureInstallationTarget(customizationMarketplaceResources[0]) });
+	}
+	if (options.customizationMarketplaceDetailState) {
+		const resource = customizationMarketplaceResources[0];
+		const target = getFixtureInstallationTarget(resource);
+		const state: CustomizationMarketplaceInstallState = options.customizationMarketplaceDetailState === 'missing'
+			? { kind: 'missing', target }
+			: options.customizationMarketplaceDetailState === 'error'
+				? { kind: 'error', target, message: 'Installation failed because the selected destination is not writable.' }
+				: { kind: 'unavailable', message: 'This customization requires a runtime that is not installed.', setupUrl: URI.parse('https://example.com/setup') };
+		customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), state);
 	}
 
 	const getCustomizationMarketplaceInstallations = () => createCustomizationMarketplaceInstallationSnapshot(
@@ -1248,7 +1291,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 					started: true,
 					activity: Array.from({ length: 4 }, (_, activityIndex) => ({
 						id: `activity-${activityIndex}`,
-						categoryLabel: 'Prompts to skills',
+						categoryLabel: 'Prompt to Skills',
 						scopeLabel: 'Your profile',
 						storage: PromptsStorage.user,
 						items: Array.from({ length: 4 }, (_, itemIndex) => ({
@@ -1337,7 +1380,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			const agentHostCustomizationService = createMockAgentHostCustomizationService(options.activeSessionMcpServers);
 			const activeClientService = new class extends mock<IAgentHostActiveClientService>() {
 				override acquireMcpServerSupportScope() {
-					if (options.migrationCategory !== CustomizationMigrationCategoryId.McpServers && !options.migrationDashboard) {
+					if (!options.migrationDashboard) {
 						return undefined;
 					}
 					const support: IAgentHostMcpServerSupportSnapshot = {
@@ -1364,28 +1407,8 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 						discoveryComplete: true,
 						coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
 					};
-					const migrationSupport: IAgentHostMcpServerSupportSnapshot = options.migrationCategory === CustomizationMigrationCategoryId.McpServers ? {
-						...support,
-						servers: [
-							...support.servers,
-							{
-								...support.servers[0],
-								id: 'mcp.config.ws0.development',
-								name: 'Development Server',
-								compatibility: { kind: 'partiallySupported', reasons: [AgentHostMcpSupportReason.DevelopmentModeIgnored, AgentHostMcpSupportReason.SandboxConfigurationIgnored, AgentHostMcpSupportReason.GalleryMetadataNotPortable, AgentHostMcpSupportReason.ServerVersionNotPortable] },
-								projectedConfiguration: { type: McpServerType.LOCAL, command: 'node' },
-							},
-							{
-								...support.servers[0],
-								id: 'mcp.config.ws0.env-file',
-								name: 'Environment File Server',
-								compatibility: { kind: 'partiallySupported', reasons: [AgentHostMcpSupportReason.EnvironmentFileIgnored] },
-								projectedConfiguration: { type: McpServerType.LOCAL, command: 'node', envFile: '.env' },
-							},
-						],
-					} : support;
 					return {
-						support: constObservable(migrationSupport),
+						support: constObservable(support),
 						isResolved: constObservable(true),
 						whenResolved: () => Promise.resolve(),
 						dispose: () => { },
@@ -1412,6 +1435,9 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				mcpService,
 				new class extends mock<IMcpCopilotGlobalConfigurationService>() {
 					override async getConfigurationResource() { return undefined; }
+				}(),
+				new class extends mock<IWorkspaceContextService>() {
+					override getWorkspace(): IWorkspace { return { id: 'test', folders: [] }; }
 				}(),
 			));
 			const activeDescriptor = harnessService.findHarnessById(getChatSessionType(options.sessionResource));
@@ -1668,7 +1694,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				override async install(server: IWorkbenchMcpServer) { return server; }
 			}());
 			reg.defineInstance(IMcpService, new class extends mock<IMcpService>() {
-				override readonly servers = constObservable(mcpRuntimeServers as never[]);
+				override readonly servers = constObservable((options.mcpRuntimeServers ?? mcpRuntimeServers) as never[]);
 				override readonly enablementModel = {
 					readEnabled: (serverId: string) => {
 						if (serverId.includes('mcp-web-search')) {
@@ -1774,7 +1800,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		assert(ctx.container.querySelector<HTMLElement>('.customization-discovery-search')?.offsetHeight === 24, 'Discover must use the standard compact search control height.');
 		assert(ctx.container.querySelector('.customization-discovery-search-actions .codicon-filter') !== null, 'Discover must expose Marketplace-style search filters.');
 		assert(ctx.container.querySelector('.customization-discovery-filters') === null, 'Discover must keep filters in the search toolbar instead of rendering quick-filter pills.');
-		assert(ctx.container.querySelector<HTMLElement>('.customization-discovery-source')?.textContent?.includes('All sources') === true, 'Discover must default to all customization sources.');
+		assert(ctx.container.querySelector<HTMLElement>('.customization-discovery-source')?.textContent?.includes('All Sources') === true, 'Discover must default to all customization sources.');
 		const description = ctx.container.querySelector<HTMLElement>('.customization-discovery-description');
 		const descriptionLinks = [...description?.querySelectorAll('a') ?? []].map(link => link.textContent);
 		assert(
@@ -1793,6 +1819,23 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			&& featuredDescription.getBoundingClientRect().top > featuredName.getBoundingClientRect().top,
 			'Featured cards must place source metadata beside the name and the description on the next line.',
 		);
+		const browsePrimaryAction = featuredCard?.querySelector<HTMLElement>(':scope > .customization-discovery-card-primary');
+		assert(
+			!featuredCard || !browsePrimaryAction
+			|| Math.abs(featuredCard.getBoundingClientRect().width - browsePrimaryAction.getBoundingClientRect().width) <= 1
+			&& Math.abs(featuredCard.getBoundingClientRect().height - browsePrimaryAction.getBoundingClientRect().height) <= 1,
+			'The Discover card primary action must cover the entire card behind its independent action.',
+		);
+		const cardActions = featuredCard?.querySelector<HTMLElement>('.customization-discovery-card-actions');
+		const lastCardAction = cardActions?.lastElementChild;
+		const cardPaddingRight = featuredCard ? parseFloat(DOM.getWindow(featuredCard).getComputedStyle(featuredCard).paddingRight) : 0;
+		assert(
+			!featuredCard || !cardActions || !(lastCardAction instanceof HTMLElement)
+			|| Math.abs(featuredCard.getBoundingClientRect().right - cardPaddingRight - lastCardAction.getBoundingClientRect().right) <= 1,
+			'Discover card actions must remain right-aligned.',
+		);
+		const cardIcon = featuredCard?.querySelector<HTMLElement>('.customization-discovery-card-icon');
+		assert(!cardIcon || cardIcon.offsetWidth === 40 && cardIcon.offsetHeight === 40, 'Discover cards must use the compact marketplace icon size.');
 		const header = ctx.container.querySelector<HTMLElement>('.customization-discovery-header');
 		const searchRow = ctx.container.querySelector<HTMLElement>('.customization-discovery-search-row');
 		const browse = ctx.container.querySelector<HTMLElement>('.customization-discovery-browse');
@@ -1890,10 +1933,34 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		if (availableRows[0] && availablePrimaryAction) {
 			availablePrimaryAction.focus();
 			const targetWindow = DOM.getWindow(availableRows[0]);
-			assert(targetWindow.getComputedStyle(availableRows[0]).outlineStyle === 'solid', 'Focused Discover results must outline the entire item, including its actions.');
-			assert(targetWindow.getComputedStyle(availablePrimaryAction).outlineStyle === 'none', 'Focused Discover results must not retain an inner primary-action outline.');
+			const rowBounds = availableRows[0].getBoundingClientRect();
+			const primaryActionBounds = availablePrimaryAction.getBoundingClientRect();
+			assert(targetWindow.getComputedStyle(availablePrimaryAction).outlineStyle === 'solid', 'Focused Discover results must outline the entire item.');
+			assert(targetWindow.getComputedStyle(availablePrimaryAction).borderRadius !== '0px', 'Focused Discover results must retain rounded corners for both pointer and keyboard focus.');
+			assert(
+				Math.abs(primaryActionBounds.left - rowBounds.left) <= 1
+				&& Math.abs(primaryActionBounds.top - rowBounds.top) <= 1
+				&& Math.abs(primaryActionBounds.right - rowBounds.right) <= 1
+				&& Math.abs(primaryActionBounds.bottom - rowBounds.bottom) <= 1,
+				'The Discover result primary action must cover the entire item behind its independent actions.',
+			);
+			const resultAction = availableRows[0].querySelector<HTMLElement>('.customization-discovery-result-actions .monaco-button');
+			if (resultAction) {
+				const pointerTransparentContent = [
+					availableRows[0].querySelector<HTMLElement>('.customization-discovery-result-icon'),
+					availableRows[0].querySelector<HTMLElement>('.customization-discovery-result-identity'),
+					availableRows[0].querySelector<HTMLElement>('.customization-discovery-result-aside'),
+				];
+				assert(
+					pointerTransparentContent.every(element => !element || targetWindow.getComputedStyle(element).pointerEvents === 'none')
+					&& targetWindow.getComputedStyle(resultAction).pointerEvents === 'auto',
+					'The Discover result must keep the primary action clickable around an independently clickable item action.',
+				);
+			}
 			availablePrimaryAction.blur();
 		}
+		const resultIcon = availableRows[0]?.querySelector<HTMLElement>('.customization-discovery-result-icon');
+		assert(!resultIcon || resultIcon.offsetWidth === 40 && resultIcon.offsetHeight === 40, 'Discover results must use the compact marketplace icon size.');
 		if (options.selectDiscoveryResult) {
 			const resultRows = ctx.container.querySelectorAll<HTMLElement>('.customization-discovery-result-row');
 			const selectedRow = resultRows[resultRows.length - 1];
@@ -1912,6 +1979,18 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				}
 			}
 			assert(detailContainer !== null && scrollHost !== null, 'Marketplace detail must render inside its page scroll host.');
+			if (options.customizationMarketplaceDetailState) {
+				const diagnostic = detailContainer.querySelector<HTMLElement>('.mcp-detail-diagnostic-card');
+				assert(Boolean(diagnostic?.textContent?.trim()), 'Marketplace failure detail must render its diagnostic banner.');
+				const detailSection = detailContainer.querySelector<HTMLElement>('.marketplace-detail-query-list');
+				assert(
+					!diagnostic || !detailSection
+					|| Math.abs(diagnostic.getBoundingClientRect().left - detailSection.getBoundingClientRect().left) <= 1
+					&& Math.abs(diagnostic.getBoundingClientRect().right - detailSection.getBoundingClientRect().right) <= 1,
+					'Marketplace failure detail must align with the page content.',
+				);
+				assert(options.customizationMarketplaceDetailState !== 'missing' || !diagnostic || diagnostic.offsetHeight < 72, 'A summary-only marketplace diagnostic must size to its content.');
+			}
 			assert(
 				scrollHost.getBoundingClientRect().bottom <= detailContainer.getBoundingClientRect().bottom + 1,
 				'Marketplace detail scroll host must remain inside the detail page bounds.',
@@ -2022,22 +2101,6 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			input.blur();
 			await new Promise(resolve => setTimeout(resolve, 300));
 		}
-	}
-
-	if (options.migrationCategory) {
-		await editor.showCustomizationMigrationPage(options.migrationCategory);
-	}
-
-	if (options.migrationPartialSelection) {
-		let firstMigrationCheckbox: HTMLElement | null = null;
-		for (let attempt = 0; attempt < 20 && !firstMigrationCheckbox; attempt++) {
-			firstMigrationCheckbox = ctx.container.querySelector<HTMLElement>('.prompt-migration-checkbox [role="checkbox"]');
-			if (!firstMigrationCheckbox) {
-				await new Promise(resolve => setTimeout(resolve, 50));
-			}
-		}
-		firstMigrationCheckbox?.click();
-		await new Promise(resolve => setTimeout(resolve, 50));
 	}
 
 	if (options.scrollToBottom) {
@@ -2189,9 +2252,10 @@ async function renderMcpErrorActions(ctx: ComponentFixtureContext): Promise<void
 	const row = [...ctx.container.querySelectorAll('.mcp-server-item')]
 		.find(row => row.querySelector('.mcp-server-state-icon.error')) as HTMLElement | undefined;
 	assert(!!row, 'The fixture must render an installed error row.');
-	assert(row.querySelector('.mcp-server-description')?.textContent === 'Component fixtures and screenshot tooling', 'Error rows retain their ordinary description.');
+	assert(!!row.querySelector('.mcp-server-source-path')?.textContent, 'Error rows retain their configuration path.');
+	assert(!row.querySelector('.mcp-server-description')?.textContent, 'Error rows hide their ordinary description when a configuration path is available.');
 	assert(!row.querySelector('.mcp-server-issue')?.textContent, 'Error rows must not show an inline error snippet.');
-	assert(row.querySelector('.mcp-server-show-output')?.textContent === 'Show Output', 'Error rows must show the output action.');
+	assert(!row.querySelector('.mcp-server-show-output'), 'Error rows must not show an inline output action.');
 	assert(!row.querySelector('.mcp-server-error-toggle'), 'Error rows must not expose an inline expansion control.');
 }
 
@@ -2208,6 +2272,7 @@ async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> 
 			reg.define(IListService, ListService);
 			reg.defineInstance(IMcpGalleryManifestService, createMockMcpGalleryManifestService());
 			reg.defineInstance(ICustomizationMarketplaceInstallService, createEmptyCustomizationMarketplaceInstallService());
+			reg.defineInstance(ICustomizationMarketplaceService, createEmptyCustomizationMarketplaceService());
 			reg.defineInstance(ICopilotConnectorsService, createMockCopilotConnectorsService(false));
 			reg.defineInstance(IMcpWorkbenchService, new class extends mock<IMcpWorkbenchService>() {
 				override readonly onChange = Event.None;
@@ -2420,6 +2485,7 @@ async function renderPluginCatalog(ctx: ComponentFixtureContext, browse: boolean
 				}
 			}());
 			reg.defineInstance(ICustomizationMarketplaceInstallService, createEmptyCustomizationMarketplaceInstallService());
+			reg.defineInstance(ICustomizationMarketplaceService, createEmptyCustomizationMarketplaceService());
 			reg.defineInstance(IAICustomizationItemsModel, createMockAICustomizationItemsModel());
 		},
 	});
@@ -2509,6 +2575,7 @@ function renderMcpDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): voi
 			reg.define(IListService, ListService);
 			reg.defineInstance(IMcpGalleryManifestService, createMockMcpGalleryManifestService());
 			reg.defineInstance(ICustomizationMarketplaceInstallService, createEmptyCustomizationMarketplaceInstallService());
+			reg.defineInstance(ICustomizationMarketplaceService, createEmptyCustomizationMarketplaceService());
 			reg.defineInstance(IConfigurationService, createDisabledConfigService(mcpAccessConfig, McpAccessValue.None, byPolicy));
 			reg.defineInstance(ICopilotConnectorsService, createMockCopilotConnectorsService(false));
 			reg.defineInstance(IMcpWorkbenchService, new class extends mock<IMcpWorkbenchService>() {
@@ -2595,6 +2662,7 @@ function renderPluginDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): 
 			}());
 			reg.defineInstance(IPluginInstallService, new class extends mock<IPluginInstallService>() { }());
 			reg.defineInstance(ICustomizationMarketplaceInstallService, createEmptyCustomizationMarketplaceInstallService());
+			reg.defineInstance(ICustomizationMarketplaceService, createEmptyCustomizationMarketplaceService());
 			reg.defineInstance(IAICustomizationItemsModel, createMockAICustomizationItemsModel());
 		},
 	});
@@ -2620,6 +2688,9 @@ function renderEmbeddedMcpDetail(
 		readonly error?: string;
 		readonly migratable?: boolean;
 		readonly source?: IMcpServerDetailInput['source'];
+		/** Replaces the server's configuration file with a non-file provenance. */
+		readonly provenance?: IMcpServerDetailInput['provenance'];
+		readonly definitionUnavailable?: IMcpServerDetailInput['definitionUnavailable'];
 	} = {},
 ): void {
 	const width = options.width ?? 480;
@@ -2676,7 +2747,9 @@ function renderEmbeddedMcpDetail(
 			...input,
 			error: options.error ? constObservable(options.error) : undefined,
 			migratable: options.migratable,
-			source: options.source ?? input.source,
+			source: options.provenance ? undefined : options.source ?? input.source,
+			provenance: options.provenance,
+			definitionUnavailable: options.definitionUnavailable,
 		});
 	}
 }
@@ -2834,13 +2907,13 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// Welcome page — default state with no section selected
 	WelcomePage: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['Wide Discover uses the same centered content measure as the management pages. Its title, compact Marketplace-style search and filter control, browse sections, and state messages share horizontal edges; featured cards retain their recessed surface and two-line text hierarchy.'],
+		expectedVisualDescriptions: ['Wide Discover uses the same centered content measure as the management pages. Its title, compact Marketplace-style search and filter control, browse sections, and state messages share horizontal edges; two-column cards keep actions right-aligned and featured cards retain their recessed surface and two-line text hierarchy.'],
 		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource, marketplaceVisibilityEnabled: true, width: 1200, expectedDiscoveryContentWidth: 840 }),
 	}),
 
 	WelcomePageNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['Narrow Discover uses one browse-card column, the same horizontal inset as Plugins, a toolbar filter, and no horizontal overflow. Featured cards retain their subtle recessed surface and two-line text hierarchy.'],
+		expectedVisualDescriptions: ['Narrow Discover uses one browse-card column with right-aligned actions, the same horizontal inset as Plugins, a toolbar filter, and no horizontal overflow. Featured cards retain their subtle recessed surface and two-line text hierarchy.'],
 		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource, marketplaceVisibilityEnabled: true, width: 550, height: 500, expectedDiscoveryContentWidth: 302 }),
 	}),
 
@@ -2923,13 +2996,18 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	McpServersCopilotConnectors: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The MCP Servers tree includes the connected Work IQ Mail MCP server with its Connector source and row actions. Disconnected and unavailable connectors are not shown.'],
-		render: ctx => renderEditor(ctx, {
-			sessionResource: localSessionResource,
-			selectedSection: AICustomizationManagementSection.McpServers,
-			copilotConnectorsEnabled: true,
-			mcpSearchQuery: 'workiq',
-		}),
+		expectedVisualDescriptions: ['The MCP Servers tree includes the connected Work IQ Mail MCP server with its catalog icon, Connector source, and row actions. Disconnected and unavailable connectors are not shown.'],
+		render: async ctx => {
+			await renderEditor(ctx, {
+				sessionResource: localSessionResource,
+				selectedSection: AICustomizationManagementSection.McpServers,
+				copilotConnectorsEnabled: true,
+				mcpSearchQuery: 'workiq',
+			});
+			const icon = ctx.container.querySelector<HTMLImageElement>('.mcp-server-item .mcp-server-icon img');
+			assert(icon !== null, 'The connected Connector row must render its catalog icon.');
+			await icon.decode();
+		},
 	}),
 
 	McpServersCopilotConnectorsEmpty: defineComponentFixture({
@@ -2940,6 +3018,23 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			selectedSection: AICustomizationManagementSection.McpServers,
 			copilotConnectorsEnabled: true,
 			copilotConnectors: [],
+		}),
+	}),
+
+	McpServersReconciledConnectors: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['The Plugins group contains one Kusto row and one Microsoft Learn Docs row, each with its Connector provenance and Sign In action. No opaque github-copilot-connector rows or Built-In group appear.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			isSessionsWindow: true,
+			selectedSection: AICustomizationManagementSection.McpServers,
+			copilotConnectorsEnabled: true,
+			copilotConnectors: reconciledCopilotConnectors,
+			marketplaceVisibilityEnabled: true,
+			activeSessionMcpServers: reconciledConnectorMcpServers,
+			mcpWorkbenchServers: [],
+			mcpRuntimeServers: [],
+			height: 460,
 		}),
 	}),
 
@@ -2968,13 +3063,13 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	McpServersTabCopilotCompatibility: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		additionalThemes: ['light2026', 'lightHighContrast'],
-		expectedVisualDescriptions: ['With the Copilot harness selected, Unsupported uses a red error icon and red message while Partially supported uses a yellow warning icon and yellow message. Both messages include a Migrations link; configuration file paths and compatibility badges do not appear.'],
+		expectedVisualDescriptions: ['With the Copilot harness selected, Unsupported begins its red message with a compact red error icon while Partially supported begins its yellow message with a compact yellow warning icon. Both messages include a Migrations link; compatibility icons do not appear beside the row actions, and configuration file paths and compatibility badges do not appear.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
 			mcpServerCompatibility: [
 				{ id: 'component-explorer', kind: 'partiallySupported' },
-				{ id: 'mcp-postgres', kind: 'unsupported' },
+				{ id: 'mcp-github', kind: 'unsupported' },
 			],
 		}),
 	}),
@@ -2982,7 +3077,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	McpServersAllStates: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		additionalThemes: ['light2026', 'darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['Every installed MCP row has the same height as the default running row. The tree presents all states without configuration file paths: running has no indicator, starting has a spinner, authentication shows Sign In without an auth icon, error retains the ordinary description and shows a red error icon plus Show Output before the switch, stopped shows a Start button styled like Sign In, disabled rows are dimmed with switches off and labels for Globally, Workspace, and Session scopes, Unsupported uses a red error treatment, and Partially supported uses a yellow warning treatment. Compatibility messages include a Migrations link; no state badges or inline error snippets appear.'],
+		expectedVisualDescriptions: ['Every installed MCP row has the same height as the default running row. The tree presents all states without configuration file paths: running has no indicator, starting has a spinner, authentication shows Sign In without an auth icon, error retains the ordinary description and shows a red error icon before the switch, stopped shows a Start button styled like Sign In, disabled rows are dimmed with switches off and labels for Globally, Workspace, and Session scopes, Unsupported begins its red message with a compact error icon, and Partially supported begins its yellow message with a compact warning icon. Compatibility messages include a Migrations link; compatibility icons do not appear beside row actions, and no state badges, inline output actions, or inline error snippets appear.'],
 		render: async ctx => {
 			await renderEditor(ctx, {
 				sessionResource: agentHostCopilotSessionResource,
@@ -3039,7 +3134,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	McpServersErrorActions: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['The error row retains its ordinary description and shows a red error icon followed by Show Output immediately before the switch. No inline error snippet, status badge, or expansion control appears.'],
+		expectedVisualDescriptions: ['The error row retains its ordinary description and shows a red error icon immediately before the switch. No inline output action, error snippet, status badge, or expansion control appears.'],
 		render: renderMcpErrorActions,
 	}),
 
@@ -3174,7 +3269,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	MigrationDashboard: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['The migration dashboard groups customizations under Your profile and vscode. Both scopes include a Custom location settings row for customizations found in unsupported configured locations.'],
+		expectedVisualDescriptions: ['The migration dashboard shows a flat tree of numbered migration types scoped to Workspace or Profile. Each expanded type lists the specific customizations and their source locations.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			migrationDashboard: true,
@@ -3269,64 +3364,6 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 				AICustomizationManagementSection.Tools,
 			],
 			emptyToolExtensions: true,
-		}),
-	}),
-
-	PromptMigration: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: false },
-		deferPaint: true,
-		render: ctx => renderEditor(ctx, {
-			sessionResource: agentHostCopilotSessionResource,
-			migrationCategory: CustomizationMigrationCategoryId.PromptFiles,
-		}),
-	}),
-
-	UserDataMigration: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: false },
-		render: ctx => renderEditor(ctx, {
-			sessionResource: agentHostCopilotSessionResource,
-			migrationCategory: CustomizationMigrationCategoryId.UserData,
-		}),
-	}),
-
-	McpMigration: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['The Migrate MCP Servers page has three sections: Ready to migrate with Remote Browser, Migrates with changes with Development Server and wrapped explanations of each property removal in its row, and Not migratable with Environment File Server. Each migratable section has its own Select all checkbox. The page scrolls when the explanations exceed the available height.'],
-		render: ctx => renderEditor(ctx, {
-			sessionResource: agentHostCopilotSessionResource,
-			migrationCategory: CustomizationMigrationCategoryId.McpServers,
-		}),
-	}),
-
-	McpMigrationNarrow: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: false },
-		render: ctx => renderEditor(ctx, {
-			sessionResource: agentHostCopilotSessionResource,
-			migrationCategory: CustomizationMigrationCategoryId.McpServers,
-			width: 650,
-			height: 650,
-		}),
-	}),
-
-	ConfiguredLocationsMigration: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: false },
-		deferPaint: true,
-		expectedVisualDescriptions: ['The Migrate Configured Locations page shows one Agents section containing only SuperAgent. Instructions and Skills sections are not shown because they have no files to migrate.'],
-		render: ctx => renderEditor(ctx, {
-			sessionResource: agentHostCopilotSessionResource,
-			files: [{
-				uri: URI.file('/workspace/.custom/agents/super.agent.md'),
-				storage: PromptsStorage.local,
-				type: PromptsType.agent,
-				source: PromptFileSource.ConfigWorkspace,
-				name: 'SuperAgent',
-			}],
-			configuration: {
-				[PromptsConfig.AGENTS_LOCATION_KEY]: {
-					'.custom/agents': true,
-				},
-			},
-			migrationCategory: CustomizationMigrationCategoryId.ConfiguredLocations,
 		}),
 	}),
 
@@ -3447,7 +3484,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	DiscoverClearedSearch: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['Clearing the search restores the featured customization cards immediately and the source picker defaults to All sources.'],
+		expectedVisualDescriptions: ['Clearing the search restores the featured customization cards immediately and the source picker defaults to All Sources.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			marketplaceVisibilityEnabled: true,
@@ -3488,6 +3525,42 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			selectDiscoveryResult: true,
 			width: 560,
 			height: 520,
+		}),
+	}),
+
+	DiscoverMissingDetail: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['A missing marketplace customization shows the MCP-style warning banner and a primary Repair action above its details.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			marketplaceVisibilityEnabled: true,
+			discoveryQuery: 'repository review',
+			selectDiscoveryResult: true,
+			customizationMarketplaceDetailState: 'missing',
+		}),
+	}),
+
+	DiscoverInstallErrorDetail: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['A marketplace installation error shows the MCP-style error banner with its failure reason and a disabled Install action above its details.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			marketplaceVisibilityEnabled: true,
+			discoveryQuery: 'repository review',
+			selectDiscoveryResult: true,
+			customizationMarketplaceDetailState: 'error',
+		}),
+	}),
+
+	DiscoverUnavailableDetail: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['An unavailable marketplace customization shows the MCP-style warning banner with its setup reason and a View Setup action above its details.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			marketplaceVisibilityEnabled: true,
+			discoveryQuery: 'repository review',
+			selectDiscoveryResult: true,
+			customizationMarketplaceDetailState: 'unavailable',
 		}),
 	}),
 
@@ -3865,6 +3938,35 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			type: McpServerType.REMOTE,
 			url: 'https://mcp.example.com/search',
 		})),
+	}),
+
+	EmbeddedMcpDetailBuiltinAgent: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['The MCP detail header shows Built-in: Copilot as plain description text in the proportional font below the server name. There is no Edit Configuration button. Configuration explains that Copilot configures this server automatically so its definition can\'t be viewed or edited, followed by an Open Settings link.'],
+		render: ctx => renderEmbeddedMcpDetail(
+			ctx,
+			makeLocalMcpServer('github-mcp-server', 'github-mcp-server', LocalMcpServerScope.User),
+			{
+				provenance: { label: 'Built-in: Copilot' },
+				definitionUnavailable: {
+					message: 'Copilot configures this server automatically, so its definition can\'t be viewed or edited.',
+					settingId: 'chat.agentHost.githubMcpServer.enabled',
+				},
+			},
+		),
+	}),
+
+	EmbeddedMcpDetailBuiltinExtension: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['The MCP detail header shows Built-in: GitHub Copilot Chat as a themed link in the proportional font below the server name. There is no Edit Configuration button, and the HTTP configuration is shown below.'],
+		render: ctx => renderEmbeddedMcpDetail(
+			ctx,
+			makeLocalMcpServer('github', 'GitHub', LocalMcpServerScope.User, 'GitHub tools from Copilot', {
+				type: McpServerType.REMOTE,
+				url: 'https://api.githubcopilot.com/mcp/',
+			}),
+			{ provenance: { label: 'Built-in: GitHub Copilot Chat', ariaLabel: 'Open extension details for GitHub Copilot Chat', open: () => { } } },
+		),
 	}),
 
 	EmbeddedMcpDetailErrorUnsupported: defineComponentFixture({

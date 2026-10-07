@@ -17,6 +17,7 @@ import { getSelectedModelStorageKey, getStoredSelectedModel, storeSelectedModel 
 import { ChatAgentLocation, ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelChatMetadataAndIdentifier, type IModelConfigurationAccess } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IntendedModelSlot } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { IModelPickerWorkflow } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerWorkflow.js';
 import { IPendingModelSelection, isInConversationModelChoice, ModelSelectionReason, RestoredModelReason } from '../../../../workbench/contrib/chat/common/modelSelection.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ChatModelSource, SessionStatus } from '../../../services/sessions/common/session.js';
@@ -64,6 +65,7 @@ class ConversationModelSelection {
 export const ISessionModelSelection = createDecorator<ISessionModelSelection>('sessionModelSelection');
 
 export interface ISessionModelSelection {
+	readonly workflow?: IModelPickerWorkflow;
 	readonly _serviceBrand: undefined;
 	readonly state: IObservable<ISessionModelSelectionState>;
 	readonly modelConfiguration?: IModelConfigurationAccess;
@@ -86,6 +88,7 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 	private readonly _state = observableValue<ISessionModelSelectionState>(this, EMPTY_MODEL_SELECTION_STATE);
 	readonly state: IObservable<ISessionModelSelectionState> = this._state;
 	readonly modelConfiguration: IModelConfigurationAccess | undefined;
+	readonly workflow: IModelPickerWorkflow | undefined;
 
 	private readonly _providerListener = this._register(new MutableDisposable());
 	private readonly _modelConfigurationListener = this._register(new MutableDisposable());
@@ -114,13 +117,14 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 
 	constructor(
 		private readonly _session: IObservable<IActiveSession | undefined>,
-		options: { readonly modelConfiguration?: boolean },
+		options: { readonly modelConfiguration?: boolean; readonly workflow?: IModelPickerWorkflow },
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService logService: ILogService,
 	) {
 		super();
+		this.workflow = options.workflow;
 		this.modelConfiguration = options.modelConfiguration ? {
 			getModelConfiguration: modelId => this._modelConfigurationAccess?.getModelConfiguration(modelId),
 			getModelConfigurationSchema: modelId => this._modelConfigurationAccess?.getModelConfigurationSchema?.(modelId),
@@ -241,6 +245,10 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 			getBoundConversationKey: () => this._boundConversationKey,
 			getIntentHolder: () => this._conversation().intent,
 			applyModel: model => this._pushModelToProvider(model),
+			isModelAbsenceConclusive: modelId => {
+				const session = this._activeSession;
+				return !!session && this._activeProvider?.getModelsSnapshot(session.sessionId, modelId).desiredModelResolution.kind === 'unavailable';
+			},
 			// The provider owns Automation model preferences; the controller only selects the model.
 		};
 	}

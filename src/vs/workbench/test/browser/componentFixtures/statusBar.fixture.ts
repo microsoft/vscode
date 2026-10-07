@@ -9,6 +9,7 @@ import { StatusbarEntryItem } from '../../../browser/parts/statusbar/statusbarIt
 import { IStatusbarEntry } from '../../../services/statusbar/browser/statusbar.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from './fixtureUtils.js';
 
+import '../../../browser/media/floatingPanels.css';
 import '../../../browser/parts/statusbar/media/statusbarpart.css';
 import '../../../contrib/modernUI/browser/media/statusBar.css';
 
@@ -24,6 +25,14 @@ interface IFixtureScenario {
 }
 
 const scenarios: readonly IFixtureScenario[] = [
+	{
+		label: 'Remote indicator hovered',
+		entries: [
+			{ entry: statusbarEntry('$(remote) SSH: 10.62.2.118', 'Editing on SSH: 10.62.2.118', 'remote'), classes: ['first-visible-item'], hoverBackground: 'var(--vscode-statusBarItem-remoteHoverBackground)' },
+			{ entry: statusbarEntry('$(error) 0', 'No Errors') },
+			{ entry: statusbarEntry('$(warning) 0', 'No Warnings') },
+		],
+	},
 	{
 		label: 'Simple buttons',
 		entries: [
@@ -161,13 +170,13 @@ export default defineThemedFixtureGroup({ path: 'workbench/statusBar/' }, {
 	DefaultDensity: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
 		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['Six status-bar scenarios at default density show simple, colored, two-part split, three-part split, and colored split buttons. Hover fills cover each complete colored item and meet without gaps at every split-button seam.'],
+		expectedVisualDescriptions: ['Seven status-bar scenarios at default density show a first-position remote indicator plus simple, colored, two-part split, three-part split, and colored split buttons. Hover fills cover each complete colored item and meet without gaps at every split-button seam.'],
 		render: context => renderStatusBar(context, false),
 	}),
 	CompactDensity: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
 		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['The same six status-bar scenarios at compact density use tighter spacing while preserving contiguous hover fills at split-button seams and full-width hover fills on colored items.'],
+		expectedVisualDescriptions: ['The same seven status-bar scenarios at compact density use tighter spacing while preserving contiguous hover fills at split-button seams and full-width hover fills on colored items.'],
 		render: context => renderStatusBar(context, true),
 	}),
 	Comparison_Default_Before: defineComponentFixture({

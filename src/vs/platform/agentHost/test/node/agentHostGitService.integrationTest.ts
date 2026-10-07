@@ -17,6 +17,7 @@ import assert from 'assert';
 import * as cp from 'child_process';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from 'fs';
 import { rm } from 'fs/promises';
+import { createServer, type Socket } from 'net';
 import { tmpdir } from 'os';
 import { NullLogService } from '../../../log/common/log.js';
 import { join } from '../../../../base/common/path.js';
@@ -27,8 +28,9 @@ import { INativeEnvironmentService } from '../../../environment/common/environme
 import { FileService } from '../../../files/common/fileService.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { DiskFileSystemProvider } from '../../../files/node/diskFileSystemProvider.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, GitRefType } from '../../common/agentHostGitService.js';
+import type { ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentHostGitService } from '../../node/agentHostGitService.js';
 
 class TestLogService extends NullLogService {
@@ -118,6 +120,21 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 
 		assert.strictEqual(await svc!.getCurrentBranchName(directory), undefined);
 		await assert.rejects(() => svc!.getCurrentBranchName(directory, { throwOnError: true }), /not a git repository/);
+	});
+
+	(hasGit ? test : test.skip)('listRefNamesWithOids returns an empty result for a successful strict lookup without matches', async () => {
+		tmpRoot = mkdtempSync(join(tmpdir(), 'agent-host-git-'));
+		cp.execFileSync('git', ['init', '-q'], { cwd: tmpRoot, stdio: 'pipe' });
+
+		assert.deepStrictEqual(await svc!.listRefNamesWithOids(URI.file(tmpRoot), 'refs/agents/session*/reviewed', { throwOnError: true }), []);
+	});
+
+	(hasGit ? test : test.skip)('listRefNamesWithOids throws on failed strict lookup without changing best-effort callers', async () => {
+		tmpRoot = mkdtempSync(join(tmpdir(), 'agent-host-nongit-'));
+		const directory = URI.file(tmpRoot);
+
+		assert.deepStrictEqual(await svc!.listRefNamesWithOids(directory, 'refs/agents/session*/reviewed'), []);
+		await assert.rejects(() => svc!.listRefNamesWithOids(directory, 'refs/agents/session*/reviewed', { throwOnError: true }), /not a git repository/);
 	});
 
 	(hasGit ? test : test.skip)('reports branch, github remote and clean state for a fresh repo', async () => {
@@ -212,6 +229,31 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 		assert.deepStrictEqual(await svc!.getDefaultBranch(URI.file(dir)), {
 			name: 'main',
 			startPoint: 'main',
+		});
+	});
+
+	(hasGit ? test : test.skip)('reports the default branch in the session git state regardless of the configured base branch', async () => {
+		const dir = initRepo();
+		const run = (...args: string[]) => cp.execFileSync('git', args, { cwd: dir, stdio: 'pipe' });
+		run('branch', 'release');
+		run('update-ref', 'refs/remotes/origin/main', 'refs/heads/main');
+		run('symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/main');
+		const defaultBranchFields = (state: ISessionGitState | undefined) => ({
+			baseBranchName: state?.baseBranchName,
+			defaultBranchName: state?.defaultBranchName,
+			defaultRemoteBranchName: state?.defaultRemoteBranchName,
+		});
+
+		const detected = defaultBranchFields(await svc!.getSessionGitState(URI.file(dir)));
+		const configured = defaultBranchFields(await svc!.getSessionGitState(URI.file(dir), 'release'));
+		// `origin/HEAD` outlives its target when the remote renames its default branch.
+		run('update-ref', '-d', 'refs/remotes/origin/main');
+		const dangling = defaultBranchFields(await svc!.getSessionGitState(URI.file(dir)));
+
+		assert.deepStrictEqual({ detected, configured, dangling }, {
+			detected: { baseBranchName: 'main', defaultBranchName: 'main', defaultRemoteBranchName: 'origin/main' },
+			configured: { baseBranchName: 'release', defaultBranchName: 'main', defaultRemoteBranchName: 'origin/main' },
+			dangling: { baseBranchName: 'main', defaultBranchName: 'main', defaultRemoteBranchName: undefined },
 		});
 	});
 
@@ -1085,6 +1127,40 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		}
 	});
 
+	(hasGit ? test : test.skip)('addWorktree tracks a differently named remote branch so a session branch follows a pull request', async () => {
+		const dir = initRepo();
+		const remotePath = join(dir, 'remote.git');
+		cp.execFileSync('git', ['init', '--bare', '-q', remotePath], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['remote', 'add', 'origin', remotePath], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['checkout', '-q', '-b', 'feature/pr'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['commit', '-q', '--allow-empty', '-m', 'pull request'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['push', '-q', 'origin', 'feature/pr'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['checkout', '-q', 'main'], { cwd: dir, env, stdio: 'pipe' });
+		const wtPath = join(dir, '..', `wt-${Date.now()}`);
+		try {
+			await svc!.addWorktree(URI.file(dir), {
+				path: URI.file(wtPath),
+				commitish: 'origin/feature/pr',
+				newBranchName: 'agents/pr-42-session',
+				track: true,
+			});
+
+			assert.deepStrictEqual({
+				branch: cp.execFileSync('git', ['branch', '--show-current'], { cwd: wtPath, env, encoding: 'utf8' }).trim(),
+				upstream: cp.execFileSync('git', ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}'], { cwd: wtPath, env, encoding: 'utf8' }).trim(),
+				localPullRequestBranch: cp.execFileSync('git', ['rev-parse', 'feature/pr'], { cwd: dir, env, encoding: 'utf8' }).trim() === cp.execFileSync('git', ['rev-parse', 'HEAD'], { cwd: wtPath, env, encoding: 'utf8' }).trim(),
+			}, {
+				branch: 'agents/pr-42-session',
+				upstream: 'origin/feature/pr',
+				localPullRequestBranch: true,
+			});
+		} finally {
+			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
+			await rmDirWithRetry(wtPath);
+			try { cp.execFileSync('git', ['branch', '-D', 'agents/pr-42-session'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
+		}
+	});
+
 	(hasGit ? test : test.skip)('fetch updates the selected remote branch with a narrowed fetch refspec', async () => {
 		const dir = initRepo();
 		const fs = await import('fs/promises');
@@ -1142,6 +1218,35 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
 			await rmDirWithRetry(wtPath);
 		}
+	});
+
+	(hasGit ? test : test.skip)('fetch bounds an unresponsive remote to five seconds unless its caller overrides the timeout', async function () {
+		this.timeout(20_000);
+		const dir = initRepo();
+		const sockets = new Set<Socket>();
+		const server = createServer(socket => {
+			sockets.add(socket);
+			// Terminating git fetch can reset its TCP connection on Windows.
+			socket.on('error', (error: NodeJS.ErrnoException) => assert.strictEqual(error.code, 'ECONNRESET'));
+			socket.on('close', () => sockets.delete(socket));
+		});
+		disposables.add(toDisposable(() => {
+			for (const socket of sockets) {
+				socket.destroy();
+			}
+			server.close();
+		}));
+		await new Promise<void>((resolve, reject) => {
+			server.once('error', reject);
+			server.listen(0, '127.0.0.1', resolve);
+		});
+		const address = server.address();
+		assert.ok(address && typeof address !== 'string');
+		cp.execFileSync('git', ['remote', 'add', 'unresponsive', `git://127.0.0.1:${address.port}/repo`], { cwd: dir, env, stdio: 'pipe' });
+		const branch = { kind: GitRefType.RemoteHead as const, remote: 'unresponsive', name: 'unresponsive/main', ref: 'refs/remotes/unresponsive/main' };
+
+		await assert.rejects(svc!.fetch(URI.file(dir), branch), /git fetch timed out after 5000ms/);
+		await assert.rejects(svc!.fetch(URI.file(dir), branch, { timeout: 100 }), /git fetch timed out after 100ms/);
 	});
 
 	(hasGit ? test : test.skip)('removeWorktree preserves dirty work unless forced', async () => {
@@ -1714,8 +1819,8 @@ suite('AgentHostGitService - overlayPathIntoTree (real git)', () => {
 		const { dir } = await initRepoWithFiles({ 'a.txt': 'a-v1\n', 'b.txt': 'b-v1\n' });
 		const base = headTree(dir);
 
-		// Working tree modifies a.txt only; capture it as the source tree.
-		await fs.writeFile(join(dir, 'a.txt'), 'a-v2\n');
+		// Change the size too so Git detects the edit even when filesystem timestamps collide.
+		await fs.writeFile(join(dir, 'a.txt'), 'a-v2-modified\n');
 		const source = await svc!.captureWorkingTreeAsTree(URI.file(dir));
 		assert.ok(source, 'expected a working-tree snapshot');
 
@@ -1730,7 +1835,7 @@ suite('AgentHostGitService - overlayPathIntoTree (real git)', () => {
 			},
 			{
 				files: ['a.txt', 'b.txt'],
-				aContent: 'a-v2\n', // overlaid from the source tree
+				aContent: 'a-v2-modified\n', // overlaid from the source tree
 				bContent: 'b-v1\n', // copied verbatim from the base tree
 			});
 	});

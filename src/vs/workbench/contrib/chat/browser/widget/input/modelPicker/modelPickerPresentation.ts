@@ -18,10 +18,15 @@ export function isHydraFusionModel(model: ILanguageModelChatMetadataAndIdentifie
 	return model.metadata.id === COPILOT_HYDRA_FUSION_MODEL_ID;
 }
 
+/** Whether the plan offers built-in HydraFusion only as an upgrade, never as a choice. */
+export function isHydraFusionUpgradeOnly(entitlement: ChatEntitlement): boolean {
+	return entitlement === ChatEntitlement.Free || entitlement === ChatEntitlement.EDU;
+}
+
 export function filterModelPickerModelsForEntitlement(models: ILanguageModelChatMetadataAndIdentifier[], entitlement: ChatEntitlement, languageModelsService: ILanguageModelsService): ILanguageModelChatMetadataAndIdentifier[];
 export function filterModelPickerModelsForEntitlement(models: readonly ILanguageModelChatMetadataAndIdentifier[], entitlement: ChatEntitlement, languageModelsService: ILanguageModelsService): readonly ILanguageModelChatMetadataAndIdentifier[];
 export function filterModelPickerModelsForEntitlement(models: readonly ILanguageModelChatMetadataAndIdentifier[], entitlement: ChatEntitlement, languageModelsService: ILanguageModelsService): readonly ILanguageModelChatMetadataAndIdentifier[] {
-	return entitlement === ChatEntitlement.Free
+	return isHydraFusionUpgradeOnly(entitlement)
 		? models.filter(model => !isHydraFusionModel(model) || isUserProvidedModel(model, languageModelsService))
 		: models;
 }
@@ -32,7 +37,7 @@ export function filterModelPickerControlModelsForEntitlement(
 	entitlement: ChatEntitlement,
 	languageModelsService: ILanguageModelsService,
 ): IStringDictionary<IModelControlEntry> {
-	if (entitlement !== ChatEntitlement.Free) {
+	if (!isHydraFusionUpgradeOnly(entitlement)) {
 		return controlModels;
 	}
 	const hydraFusion = controlModels[COPILOT_HYDRA_FUSION_MODEL_ID];

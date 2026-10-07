@@ -9,14 +9,27 @@ import { IDisposable } from '../../base/common/lifecycle.js';
 import { URI } from '../../base/common/uri.js';
 import { IProtocolTransport } from '../../platform/agentHost/common/state/sessionTransport.js';
 import { createDecorator } from '../../platform/instantiation/common/instantiation.js';
+import { IDevContainerRepository } from '../../platform/agentHost/common/devContainerSamples.js';
+import { RemoteAgentHostsEnabledSettingId } from '../../platform/agentHost/common/remoteAgentHostService.js';
+import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 
 /** Experimental setting that enables Dev Container Agent Host sessions. */
 export const DevContainerAgentHostEnabledSettingId = 'chat.agentHost.devContainer.enabled';
+
+export const DevContainerSamplesEnabledSettingId = 'chat.agentHost.devContainer.samples.enabled';
 
 export const DevContainerIdleTimeoutSettingId = 'chat.agentHost.devContainer.idleTimeout';
 
 /** Hidden experimental setting that enables combining Dev Container execution with a new worktree. */
 export const DevContainerWorktreeEnabledSettingId = 'chat.agentHost.devContainer.worktree.enabled';
+
+/** Whether new sample workspaces can be selected, independently of already-created sessions. */
+export function areDevContainerSamplesEnabled(configurationService: IConfigurationService): boolean {
+	return configurationService.getValue<boolean>(DevContainerSamplesEnabledSettingId) === true
+		&& configurationService.getValue<boolean>(DevContainerAgentHostEnabledSettingId) === true
+		&& configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId) === true
+		&& configurationService.getValue<boolean>('chat.disableAIFeatures') !== true;
+}
 
 /** Agent Host transport and workspace mapping produced by a Dev Container connector. */
 export interface IDevContainerAgentHostConnection {
@@ -31,6 +44,7 @@ export interface IDevContainerAgentHostConnection {
 	readonly workspaceUri: URI;
 	/** Native source path reported by the host that launched the container. */
 	readonly hostWorkspaceFolder?: string;
+	readonly repository?: IDevContainerRepository;
 	readonly defaultDirectory?: string;
 }
 

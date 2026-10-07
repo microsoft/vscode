@@ -266,6 +266,7 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 				id: string;
 				providerIds: string[];
 				label: string;
+				description?: string;
 				grouped: boolean;
 				address: string | undefined;
 				icon: ThemeIcon;
@@ -315,6 +316,7 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 						id: provider.id,
 						providerIds: [provider.id],
 						label: provider.label,
+						description: provider.hostDescription?.read(reader),
 						grouped: false,
 						address: provider.remoteAddress,
 						icon: provider.icon,
@@ -354,6 +356,7 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 		const changed = hosts.length !== this._hosts.length
 			|| hosts.some((h, i) => h.id !== this._hosts[i].id
 				|| h.label !== this._hosts[i].label
+				|| h.description !== this._hosts[i].description
 				|| h.address !== this._hosts[i].address
 				|| h.status !== this._hosts[i].status
 				|| h.sessionCreationProviderId !== this._hosts[i].sessionCreationProviderId

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { ISandboxNetworkRestrictions } from '../../sandbox/common/sandboxSettingsResolutionHelper.js';
 
 export const IPlaywrightService = createDecorator<IPlaywrightService>('playwrightService');
 
@@ -33,6 +34,7 @@ export interface IInvokeFunctionResult {
  * session can interact with.
  */
 export interface IPlaywrightService {
+	setSessionNetworkRestrictions(sessionId: string, restrictions: ISandboxNetworkRestrictions): Promise<void>;
 	readonly _serviceBrand: undefined;
 
 	/** Waits for a newly created browser view to become available and returns its initial summary. */

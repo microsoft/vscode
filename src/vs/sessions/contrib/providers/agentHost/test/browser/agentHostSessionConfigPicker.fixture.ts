@@ -13,6 +13,7 @@ import { ResolveSessionConfigResult } from '../../../../../../platform/agentHost
 import { IContextViewService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { ContextViewService } from '../../../../../../platform/contextview/browser/contextViewService.js';
 import { ILayoutService } from '../../../../../../platform/layout/browser/layoutService.js';
+import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IViewsService } from '../../../../../../workbench/services/views/common/viewsService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { IAgentWorkbenchLayoutService } from '../../../../../browser/workbench.js';
@@ -61,6 +62,7 @@ async function renderIsolationPicker({ container, disposableStore, theme }: Comp
 	const session = constObservable<IActiveSession | undefined>(new class extends mock<IActiveSession>() {
 		override readonly sessionId = 'fixture';
 		override readonly providerId = provider.id;
+		override readonly workspace = constObservable(undefined);
 		override readonly activeChat = constObservable(new class extends mock<IChat>() {
 			override readonly changesets = constObservable(undefined);
 		}());
@@ -75,6 +77,7 @@ async function renderIsolationPicker({ container, disposableStore, theme }: Comp
 	instantiationService.stub(IAgentWorkbenchLayoutService, { mainContainer: container });
 	instantiationService.stub(ISessionChangesService, {});
 	instantiationService.stub(IViewsService, {});
+	instantiationService.set(IQuickInputService, new class extends mock<IQuickInputService>() { }());
 	instantiationService.set(ILayoutService, new class extends mock<ILayoutService>() {
 		override readonly mainContainer = container;
 		override readonly activeContainer = container;

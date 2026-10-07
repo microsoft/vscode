@@ -35,7 +35,7 @@ import { ISessionContext } from '../../../../services/sessions/browser/sessionCo
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IAction } from '../../../../../base/common/actions.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING } from '../../../chat/common/constants.js';
+import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../chat/common/constants.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { IChatContextPickService } from '../../../../../workbench/contrib/chat/browser/attachments/chatContextPickService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -86,10 +86,25 @@ registerAction2(class extends Action2 {
 			title: nls.localize2('agentHostAgentPicker', "Agent"),
 			f1: false,
 			menu: [{
+				id: Menus.NewSessionConfig,
+				group: 'navigation',
+				order: -1,
+				when: ContextKeyExpr.and(
+					IsActiveSessionAgentHost, IsPhoneLayoutContext.negate(), ChatContextKeys.inAutomationsDialog.negate(),
+					ContextKeyExpr.or(
+						ContextKeyExpr.not(`config.${UNIFIED_WORKSPACE_PICKER_SETTING}`),
+						ContextKeyExpr.not(`config.${EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING}`),
+					),
+				),
+			}, {
 				id: Menus.NewSessionControl,
 				group: 'navigation',
 				order: -1,
-				when: ContextKeyExpr.and(IsActiveSessionAgentHost, IsPhoneLayoutContext.negate(), ChatContextKeys.inAutomationsDialog.negate()),
+				when: ContextKeyExpr.and(
+					IsActiveSessionAgentHost, IsPhoneLayoutContext.negate(), ChatContextKeys.inAutomationsDialog.negate(),
+					ContextKeyExpr.has(`config.${UNIFIED_WORKSPACE_PICKER_SETTING}`),
+					ContextKeyExpr.has(`config.${EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING}`),
+				),
 			}, {
 				id: Menus.NewSessionAttachContext,
 				group: 'navigation',
@@ -313,6 +328,7 @@ class AgentHostAgentPickerContribution extends Disposable implements IWorkbenchC
 			return item;
 		};
 
+		this._register(actionViewItemService.register(Menus.NewSessionConfig, AGENT_HOST_AGENT_PICKER_ACTION_ID, createFactory(true)));
 		this._register(actionViewItemService.register(Menus.NewSessionControl, AGENT_HOST_AGENT_PICKER_ACTION_ID, createFactory(true)));
 		this._register(actionViewItemService.register(Menus.AutomationsDialogInputToolbar, AGENT_HOST_AGENT_PICKER_ACTION_ID, createFactory(false)));
 		this._register(actionViewItemService.register(MenuId.ChatInput, AGENT_HOST_AGENT_PICKER_ACTION_ID, createFactory(true)));

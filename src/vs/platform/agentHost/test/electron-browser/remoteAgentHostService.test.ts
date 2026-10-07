@@ -87,6 +87,10 @@ class MockProtocolClient extends Disposable {
 		return this.connectDeferred.p;
 	}
 
+	get isDisposed(): boolean {
+		return this._store.isDisposed;
+	}
+
 	reconnectNow(): boolean {
 		this.reconnectNowCalls++;
 		return this.reconnectNowResult;
@@ -149,6 +153,10 @@ class TestConnectionFactory extends Disposable implements IRemoteAgentHostConnec
 
 	publishEntry(entry: IRemoteAgentHostEntry): void {
 		this._entries.set([...this._entries.get(), entry], undefined);
+	}
+
+	withdrawEntry(entry: IRemoteAgentHostEntry): void {
+		this._entries.set(this._entries.get().filter(value => getEntryAddress(value) !== getEntryAddress(entry)), undefined);
 	}
 
 	getConnectionObserver(): RemoteAgentHostConnectionObserver {
@@ -1328,6 +1336,27 @@ suite('RemoteAgentHostService', () => {
 			});
 		});
 
+		test('withdrawing a permanently refused broker entry prevents the outer service from redialing cached credentials', () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+			const factory = createFactory();
+			const entry = cloudSandboxEntry('Missing brokered host', 'cloud:missing');
+			const client = new MockProtocolClient(getEntryAddress(entry));
+			factory.stage(entry, client);
+			service.reconnect(getEntryAddress(entry));
+			const connected = service.waitForConnection(getEntryAddress(entry));
+			await waitForFactoryConnection(factory, 1);
+			client.connectDeferred.complete();
+			await connected;
+			factory.withdrawEntry(entry);
+			client.fireClose(AgentHostTransportFailureReason.HostNotRunning);
+			await timeout(60_000);
+			assert.deepStrictEqual({
+				configured: service.configuredEntries.filter(value => getEntryAddress(value) === getEntryAddress(entry)).length,
+				creations: factory.createdConnectionCount,
+				connected: service.getConnection(getEntryAddress(entry)) !== undefined,
+			}, { configured: 0, creations: 1, connected: false });
+			service.dispose();
+		}));
+
 		test('falls back to a fresh dial when a retained entry has no client', async () => {
 			const factory = createFactory(RemoteAgentHostEntryType.WSL);
 			const entry: IRemoteAgentHostEntry = {
@@ -1534,6 +1563,87 @@ suite('RemoteAgentHostService', () => {
 
 			assert.strictEqual(t2.disposed(), true, 'new transport disposable runs on full removal');
 		});
+
+		test('releases the retained transport owner when an explicit replacement fails', async () => {
+			const factory = createFactory();
+			const entry = cloudSandboxEntry('Cloud Sandbox', 'cloud:failed-replacement');
+			const transport = makeTransportDisposable();
+			const client = new MockProtocolClient('cloud:failed-replacement');
+			await reconnectStagedConnection(factory, entry, client, transport.disposable, true);
+
+			factory.stageFailure(entry, new Error('replacement failed'));
+			service.reconnect('cloud:failed-replacement');
+			await assert.rejects(() => service.waitForConnection('cloud:failed-replacement'), /replacement failed/);
+
+			assert.deepStrictEqual({
+				clientDisposed: client.isDisposed,
+				transportDisposed: transport.disposed(),
+				connection: service.getConnection('cloud:failed-replacement'),
+			}, {
+				clientDisposed: true,
+				transportDisposed: true,
+				connection: undefined,
+			});
+		});
+
+		for (const outcome of ['success', 'failure'] as const) {
+			test(`an abandoned factory ${outcome} does not release a newer reconnect owner`, async () => {
+				const address = 'cloud:retained-replacement';
+				const entry = cloudSandboxEntry('Sandbox', address);
+				const abandoned = disposables.add(new MockProtocolClient(address));
+				const retained = disposables.add(new MockProtocolClient(address));
+				const replacement = disposables.add(new MockProtocolClient(address));
+				const abandonedGate = new DeferredPromise<void>();
+				const replacementGate = new DeferredPromise<void>();
+				const transport = makeTransportDisposable();
+				const factory = disposables.add(new class extends TestConnectionFactory {
+					override async createConnection(entry: IRemoteAgentHostEntry): Promise<IRemoteAgentHostCreatedConnection> {
+						const created = await super.createConnection(entry);
+						try {
+							if (created.connection.clientId === abandoned.clientId) {
+								await abandonedGate.p;
+							} else if (created.connection.clientId === replacement.clientId) {
+								await replacementGate.p;
+							}
+						} catch (error) {
+							created.connection.dispose();
+							throw error;
+						}
+						return created;
+					}
+				}(RemoteAgentHostEntryType.CloudSandbox));
+				disposables.add(service.registerConnectionFactory(factory));
+				factory.stage(entry, abandoned);
+				service.reconnect(address);
+				await waitForFactoryConnection(factory, 1);
+				await service.removeRemoteAgentHost(address);
+				await reconnectStagedConnection(factory, entry, retained, transport.disposable, true);
+
+				factory.stage(entry, replacement);
+				service.reconnect(address);
+				await waitForFactoryConnection(factory, 3);
+				if (outcome === 'success') {
+					await abandonedGate.complete();
+				} else {
+					await abandonedGate.error(new Error('abandoned factory failed'));
+				}
+				await timeout(0);
+				const retainedBeforeAcquisition = !retained.isDisposed && !transport.disposed();
+				await replacementGate.complete();
+				await replacement.connectDeferred.complete();
+				await service.waitForConnection(address);
+
+				assert.deepStrictEqual({
+					retainedBeforeAcquisition,
+					retainedDisposed: retained.isDisposed,
+					clientId: service.getConnection(address)?.clientId,
+				}, {
+					retainedBeforeAcquisition: true,
+					retainedDisposed: true,
+					clientId: replacement.clientId,
+				});
+			});
+		}
 
 		test('disposes transportDisposable when service itself is disposed', async () => {
 			const factory = createFactory();
@@ -1757,6 +1867,20 @@ suite('RemoteAgentHostService', () => {
 	});
 
 	suite('display names', () => {
+		test('delegates inventory-owned labels without writing global overrides or connecting', () => {
+			const name = observableValue<string | undefined>('name', undefined);
+			const registration = disposables.add(service.registerDisplayName('cloudsandbox:environment', name, value => name.set(value, undefined)));
+			service.setDisplayName('cloudsandbox:environment', '  Profile Label  ');
+			const renamed = service.getDisplayNameOverride('cloudsandbox:environment');
+			service.setDisplayName('cloudsandbox:environment', '');
+			const restored = service.getDisplayNameOverride('cloudsandbox:environment');
+			registration.dispose();
+			assert.deepStrictEqual({
+				renamed, restored, removed: service.getDisplayNameOverride('cloudsandbox:environment'),
+				machineKeys: storageService.keys(StorageScope.APPLICATION, StorageTarget.MACHINE), createdClients: createdClients.length,
+			}, { renamed: 'Profile Label', restored: undefined, removed: undefined, machineKeys: [], createdClients: 0 });
+		});
+
 		test('persists normalized overrides only in this client without changing connection settings', () => {
 			const addresses = ['ws://host:8080', 'wss://host:8080', 'ssh:my-host', 'me@host:22', 'tunnel:my-tunnel', 'wsl:Ubuntu', 'devcontainer:repo'];
 			for (const address of addresses) {

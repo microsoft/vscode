@@ -2,7 +2,7 @@
   "name": "copilot-chat",
   "displayName": "GitHub Copilot",
   "description": "AI chat features powered by Copilot",
-  "version": "0.69.0",
+  "version": "0.70.0",
   "build": "1",
   "completionsCoreVersion": "1.378.1799",
   "internalLargeStorageAriaKey": "ec712b3202c5462fb6877acae7f1f9d7-c19ad55e-3e3c-4f99-984b-827f6d95bd9e-6917",
@@ -22,7 +22,7 @@
   "icon": "assets/copilot.png",
   "pricing": "Trial",
   "engines": {
-    "vscode": "^1.141.0",
+    "vscode": "^1.142.0",
     "npm": ">=9.0.0",
     "node": ">=22.14.0"
   },
@@ -81,7 +81,6 @@
     "onStartupFinished",
     "onLanguageModelChat:copilot",
     "onUri",
-    "onCommand:_github.copilot.chat.reportHarnessSwitchFeedbackSurvey",
     "onCommand:_github.copilot.chat.reportModelFeedbackSurvey",
     "onFileSystem:ccreq",
     "onFileSystem:ccsettings"
@@ -2156,6 +2155,11 @@
                     "type": "boolean",
                     "default": false,
                     "markdownDescription": "Whether Zero Data Retention (ZDR) is enabled for this endpoint. When `true`, `previous_response_id` will not be sent in requests via Responses API."
+                  },
+                  "statefulResponses": {
+                    "type": "boolean",
+                    "default": true,
+                    "markdownDescription": "Whether the Responses API server retains prior responses. When `true`, requests chain via `previous_response_id` and send only new history. Set to `false` for stateless servers that ignore `previous_response_id` (for example DeepSeek), so the full history is sent on every request. Ignored when `zeroDataRetentionEnabled` is `true`."
                   },
                   "supportsReasoningEffort": {
                     "type": "array",
@@ -6868,6 +6872,14 @@
         ]
       },
       {
+        "path": "./assets/prompts/skills/migrate-customizations/SKILL.md",
+        "sessionTypes": [
+          "copilotcli",
+          "claude",
+          "codex"
+        ]
+      },
+      {
         "path": "./assets/prompts/skills/init/SKILL.md",
         "sessionTypes": [
           "local"
@@ -6905,6 +6917,7 @@
       },
       {
         "path": "./assets/prompts/skills/create-canvas/SKILL.md",
+        "when": "config.chat.canvases.enabled",
         "sessionTypes": [
           "copilotcli"
         ]

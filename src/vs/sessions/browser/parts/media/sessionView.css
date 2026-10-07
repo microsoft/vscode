@@ -14,7 +14,7 @@
 
 /* Shared inset for the header content, transcript, and composer. */
 .session-view {
-	--session-view-content-horizontal-padding: var(--vscode-spacing-size320);
+	--session-view-content-horizontal-padding: var(--vscode-spacing-size240);
 }
 
 .session-view .session-view-centered-content {

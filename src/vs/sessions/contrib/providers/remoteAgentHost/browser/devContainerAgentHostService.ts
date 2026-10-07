@@ -13,6 +13,7 @@ import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable }
 import { IObservable, observableFromEvent, observableValue, waitForState } from '../../../../../base/common/observable.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { findDevContainerSample } from '../../../../../platform/agentHost/common/devContainerSamples.js';
 import { localize } from '../../../../../nls.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority, fromAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { agentsWindowAgentHostClientInfo } from '../../../../../platform/agentHost/common/agentHostClientInfo.js';
@@ -98,7 +99,7 @@ class DevContainerConnectionFactory extends Disposable implements IRemoteAgentHo
 			connection: {
 				type: RemoteAgentHostEntryType.DevContainer,
 				address: connection.address,
-				hostPath: connection.hostWorkspaceFolder ?? devContainerSourcePath(workspaceUri),
+				...(connection.repository ? { repository: connection.repository } : { hostPath: connection.hostWorkspaceFolder ?? devContainerSourcePath(workspaceUri) }),
 				...(hostAuthority ? { hostAuthority } : {}),
 			},
 		};
@@ -415,7 +416,7 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 			address,
 			name,
 			devContainerSourceWorkspaceUri: workspaceUri,
-			devContainerWorktreeScope: getComparisonKey(fromAgentHostUri(workspaceUri)),
+			devContainerWorktreeScope: findDevContainerSample(workspaceUri) ? undefined : getComparisonKey(fromAgentHostUri(workspaceUri)),
 			resolveDevContainerWorktreeConnection: workspaceUri.scheme === AGENT_HOST_SCHEME
 				? () => resolveDevContainerSourceConnection(workspaceUri, this._remoteAgentHostService, this._sessionsProvidersService, CancellationToken.None)
 				: undefined,
@@ -660,7 +661,7 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 					continue;
 				}
 				const uri = URI.parse(candidate.workspaceUri);
-				if ((uri.scheme !== Schemas.file && (uri.scheme !== AGENT_HOST_SCHEME || !uri.authority)) || candidate.name.length === 0) {
+				if ((uri.scheme !== Schemas.file && (uri.scheme !== AGENT_HOST_SCHEME || !uri.authority) && !findDevContainerSample(uri)) || candidate.name.length === 0) {
 					continue;
 				}
 				result.set(getComparisonKey(uri), { workspaceUri: uri.toString(), name: candidate.name });

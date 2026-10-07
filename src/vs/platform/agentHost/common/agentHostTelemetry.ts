@@ -23,6 +23,7 @@ export const enum AgentHostClientConnectionKind {
 	WSL = 'wsl',
 	RemoteExtensionHost = 'remote_extension_host',
 	WebPubSub = 'web_pub_sub',
+	MissionControl = 'mission_control',
 	Unknown = 'unknown',
 }
 
@@ -59,6 +60,13 @@ export type AgentHostTurnSendStage =
 	| 'attachments'
 	/** Running the outgoing-turn chat contributions. */
 	| 'contributions'
+	/**
+	 * Waiting for the provider's turn preparation (`IAgentChats.prepareTurn`).
+	 * Preparation is started earlier and runs alongside the stages above and
+	 * the checkpoint capture, so this measures only the time it still costs
+	 * the critical path — not the preparation's total cost.
+	 */
+	| 'providerPreparation'
 	/**
 	 * Waiting for the turn-start checkpoint. The capture is started earlier and
 	 * runs alongside the stages above, so this measures only the time it still
@@ -120,6 +128,16 @@ export interface ICodexAccountTelemetryContext {
 	readonly chatgptPlanTier?: 'free' | 'go' | 'plus' | 'pro' | 'business' | 'enterprise' | 'edu' | 'unknown';
 	readonly chatgptWeeklyQuotaState: 'available' | 'unavailable' | 'missing' | 'nonWeekly' | 'stale' | 'expired' | 'invalid';
 	readonly chatgptWeeklyUsedPercentBucket?: number;
+	readonly chatgptFiveHourQuotaState: 'available' | 'unavailable' | 'missing' | 'stale' | 'expired' | 'invalid';
+	readonly chatgptFiveHourUsedPercentBucket?: number;
+}
+
+export type CodexModelProvider = 'openai' | 'copilot' | 'other' | 'unknown';
+
+export interface IAgentTurnTelemetryCorrelation {
+	readonly agentSessionId: string;
+	readonly chatSessionId: string;
+	readonly turnId: string;
 }
 
 /** Provider-owned, immutable context captured without I/O when a turn starts. */
@@ -168,6 +186,7 @@ export function readClientConnectionKind(meta: Record<string, unknown> | undefin
 		case AgentHostClientConnectionKind.WSL:
 		case AgentHostClientConnectionKind.RemoteExtensionHost:
 		case AgentHostClientConnectionKind.WebPubSub:
+		case AgentHostClientConnectionKind.MissionControl:
 			return value;
 		default:
 			return AgentHostClientConnectionKind.Unknown;

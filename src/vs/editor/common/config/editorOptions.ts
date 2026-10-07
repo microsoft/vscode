@@ -463,7 +463,7 @@ export interface IEditorOptions {
 	 */
 	multiCursorMergeOverlapping?: boolean;
 	/**
-	 * Configure the behaviour when pasting a text with the line count equal to the cursor count.
+	 * Configure the behaviour when pasting text with a line count equal to the cursor count or when pasting column selections into a single cursor.
 	 * Defaults to 'spread'.
 	 */
 	multiCursorPaste?: 'spread' | 'full';
@@ -666,6 +666,11 @@ export interface IEditorOptions {
 	 * Maximum value is 2000
 	 */
 	occurrencesHighlightDelay?: number;
+	/**
+	 * Merge single-document highlights from all matching providers.
+	 * Defaults to false.
+	 */
+	occurrencesHighlightFromAllProviders?: boolean;
 	/**
 	 * Show code lens
 	 * Defaults to true.
@@ -5931,6 +5936,7 @@ export const enum EditorOption {
 	multiCursorLimit,
 	occurrencesHighlight,
 	occurrencesHighlightDelay,
+	occurrencesHighlightFromAllProviders,
 	overtypeCursorStyle,
 	overtypeOnPaste,
 	overviewRulerBorder,
@@ -6532,10 +6538,10 @@ export const EditorOptions = {
 		['spread', 'full'] as const,
 		{
 			markdownEnumDescriptions: [
-				nls.localize('multiCursorPaste.spread', "Each cursor pastes a single line of the text."),
+				nls.localize('multiCursorPaste.spread', "Each cursor pastes a single line of the text. When pasting column selections into a single cursor, each copied line is pasted on a successive destination line and padded with spaces to form a rectangle."),
 				nls.localize('multiCursorPaste.full', "Each cursor pastes the full text.")
 			],
-			markdownDescription: nls.localize('multiCursorPaste', "Controls pasting when the line count of the pasted text matches the cursor count.")
+			markdownDescription: nls.localize('multiCursorPaste', "Controls pasting when the line count of the pasted text matches the cursor count, or when pasting column selections into a single cursor.")
 		}
 	)),
 	multiCursorLimit: register(new EditorIntOption(
@@ -6563,6 +6569,12 @@ export const EditorOptions = {
 		{
 			description: nls.localize('occurrencesHighlightDelay', "Controls the delay in milliseconds after which occurrences are highlighted."),
 			tags: ['preview']
+		}
+	)),
+	occurrencesHighlightFromAllProviders: register(new EditorBooleanOption(
+		EditorOption.occurrencesHighlightFromAllProviders, 'occurrencesHighlightFromAllProviders', false,
+		{
+			description: nls.localize('occurrencesHighlightFromAllProviders', "Controls whether single-document highlights from all matching providers are merged. When enabled, basic word-based highlighting is only used if no other provider matches.")
 		}
 	)),
 	overtypeOnPaste: register(new EditorBooleanOption(

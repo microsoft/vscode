@@ -9,6 +9,7 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { dirname } from '../../../base/common/path.js';
 import { URI } from '../../../base/common/uri.js';
+import { generateUuid } from '../../../base/common/uuid.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 
@@ -28,16 +29,20 @@ export interface IAgentHostStorageService {
 export interface IAgentHostStorageWriter {
 	mkdir(path: string): Promise<void>;
 	writeFile(path: string, contents: string): Promise<void>;
+	rename(from: string, to: string): Promise<void>;
+	rm(path: string): Promise<void>;
 }
 
 const defaultStorageWriter: IAgentHostStorageWriter = {
 	mkdir: path => fs.promises.mkdir(path, { recursive: true }).then(() => undefined),
 	writeFile: (path, contents) => fs.promises.writeFile(path, contents, 'utf8'),
+	rename: (from, to) => fs.promises.rename(from, to),
+	rm: path => fs.promises.rm(path, { force: true }),
 };
 
 /**
  * A small host-owned persistent store. Reads are synchronously available after
- * construction; writes are coalesced so callers never wait on disk I/O.
+ * construction; writes are coalesced and atomically replace the persisted file.
  */
 export class AgentHostStorageService extends Disposable implements IAgentHostStorageService {
 	declare readonly _serviceBrand: undefined;
@@ -144,7 +149,13 @@ export class AgentHostStorageService extends Disposable implements IAgentHostSto
 
 		const write = this._writeThrottler.queue(async () => {
 			await this._writer.mkdir(dirname(resource.fsPath));
-			await this._writer.writeFile(resource.fsPath, JSON.stringify(this._data));
+			const temporaryPath = `${resource.fsPath}.${generateUuid()}.tmp`;
+			try {
+				await this._writer.writeFile(temporaryPath, JSON.stringify(this._data));
+				await this._writer.rename(temporaryPath, resource.fsPath);
+			} finally {
+				await this._writer.rm(temporaryPath);
+			}
 		});
 		this._pendingWrites.add(write);
 		const untrack = () => this._pendingWrites.delete(write);

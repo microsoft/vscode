@@ -59,13 +59,13 @@ const definitions: readonly IAgentServerToolDefinition[] = [
 	{
 		name: replyToAgentMergeReviewThreadToolName,
 		title: 'Reply to Agent Merge Review Thread',
-		description: 'Reply to an unresolved review thread authorized for the active Agent Merge turn and optionally resolve it.',
+		description: 'Reply to an unresolved review thread authorized for the active Agent Merge turn and optionally resolve it only after publication is confirmed. A reply added to an existing pending review remains unpublished and the thread is not resolved. A pending reply stops this folder\'s monitoring when the turn ends; the user must explicitly re-enable Agent Merge to resume. Do not retry a pending or indeterminate reply, or submit, discard, or replace the user\'s pending review; ask the user how to proceed.',
 		inputSchema: {
 			type: 'object',
 			properties: {
 				threadId: { type: 'string', description: 'GraphQL node ID of an authorized unresolved review thread.' },
 				body: { type: 'string', description: 'Concise reply describing how the feedback was addressed.' },
-				resolve: { type: 'boolean', description: 'Whether to resolve the thread after posting the reply. Defaults to true.' },
+				resolve: { type: 'boolean', description: 'Whether to resolve the thread after confirming the reply is published. Defaults to true.' },
 			},
 			required: ['threadId', 'body'],
 		},
@@ -254,9 +254,7 @@ function getDisplay(toolName: string, args: unknown, result?: IServerToolDisplay
 			return {
 				displayName: localize('agentMerge.tool.replyReview', "Reply to Review Thread"),
 				invocationMessage: localize('agentMerge.tool.replyReview.running', "Replying to review feedback"),
-				pastTenseMessage: result?.success === false
-					? localize('agentMerge.tool.replyReview.failed', "Failed to reply to review feedback")
-					: localize('agentMerge.tool.replyReview.complete', "Replied to review feedback"),
+				pastTenseMessage: getReviewReplyMessage(result),
 			};
 		case rerunAgentMergeWorkflowToolName:
 			return {
@@ -322,6 +320,20 @@ function getEnablementMessage(enabled: boolean, result: IServerToolDisplayResult
 	return (value?.enabled ?? enabled)
 		? localize('agentMerge.tool.enable.complete', "Enabled Agent Merge")
 		: localize('agentMerge.tool.disable.complete', "Disabled Agent Merge");
+}
+
+function getReviewReplyMessage(result: IServerToolDisplayResult | undefined): string {
+	if (result?.success === false) {
+		return localize('agentMerge.tool.replyReview.failed', "Failed to reply to review feedback");
+	}
+	const value: { readonly reply?: string } | undefined = result?.text ? parse(result.text) : undefined;
+	if (!result || value?.reply === 'succeeded' || value?.reply === 'reconciled') {
+		return localize('agentMerge.tool.replyReview.complete', "Replied to review feedback");
+	}
+	if (value?.reply === 'pending') {
+		return localize('agentMerge.tool.replyReview.pending', "Saved an unpublished review reply");
+	}
+	return localize('agentMerge.tool.replyReview.indeterminate', "Could not confirm review reply publication");
 }
 
 function getWorkflowRerunMessage(result: IServerToolDisplayResult | undefined): string {

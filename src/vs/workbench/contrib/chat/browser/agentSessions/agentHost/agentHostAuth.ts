@@ -12,7 +12,8 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { authenticationAccountId, authenticationAccountMeta } from '../../../../../../platform/agentHost/common/meta/agentAuthenticationAccount.js';
 import { deriveGitHubEndpoints } from '../../../../../../platform/github/common/githubEndpoints.js';
-import { type McpOAuthClient, type ModelSelection, type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { type McpAuthRequirement, type McpOAuthClient, type ModelSelection, type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { copilotConnectorsScope } from '../../../../../../platform/copilotConnectors/common/copilotConnectorsRequestService.js';
@@ -254,9 +255,15 @@ export class AgentHostAuthenticationRecovery {
 
 	private async _recover(accessor: ServicesAccessor, key: string, resource: ProtectedResourceMetadata, options: IResolvedAgentHostAuthenticationOptions): Promise<void> {
 		throwIfAuthenticationStale(options);
+		const logService = accessor.get(ILogService);
+		if (options.renewAuthentication) {
+			await options.renewAuthentication(resource);
+			throwIfAuthenticationStale(options);
+			logService.info(`${options.logPrefix} Renewed authentication for resource: ${resource.resource}`);
+			return;
+		}
 		const authenticationService = accessor.get(IAuthenticationService);
 		const commandService = accessor.get(ICommandService);
-		const logService = accessor.get(ILogService);
 		const scopes = resource.scopes_supported ?? [];
 		const quarantinePresent = options.authTokenCache?.getRejectedSession(resource.resource, scopes) !== undefined;
 		const resolution = await resolveSessionForProtectedResource(authenticationService, logService, resource, options, null);
@@ -472,6 +479,8 @@ export interface IAgentHostAuthenticationOptions {
 	readonly authTokenCache?: AgentHostAuthTokenCache;
 	readonly logPrefix: string;
 	readonly isCurrent?: () => boolean;
+	/** Renews a connection-owned credential instead of retrying or replacing the user's authentication session. */
+	readonly renewAuthentication?: (resource: ProtectedResourceMetadata) => Promise<void>;
 	readonly authenticate: (request: IAgentHostAuthenticateRequest) => Promise<unknown>;
 }
 
@@ -885,6 +894,27 @@ async function forceAuthenticationInteractively(
 	} finally {
 		reportAgentHostAuthSignInResult(telemetryService, data, watch.elapsed());
 	}
+}
+
+/** Supplies a previously authorized MCP token without creating sessions or prompting for access. */
+export function autoAuthenticateMcpServer(
+	accessor: ServicesAccessor,
+	connection: Pick<IAgentConnection, 'authenticate'>,
+	agentHost: { readonly scheme: string; readonly authority: string },
+	serverName: string,
+	auth: Pick<McpAuthRequirement, 'resource' | 'oauthClient' | 'requiredScopes'>,
+): Promise<boolean> {
+	return resolveMcpServerAuthentication(accessor, auth.resource, {
+		allowInteraction: false,
+		logPrefix: '[AgentHost]',
+		mcpServerId: agentHostMcpServerId(agentHost.authority, serverName, auth.resource.resource),
+		mcpServerName: serverName,
+		mcpServerUrl: auth.resource.resource,
+		oauthClient: auth.oauthClient,
+		scopes: auth.requiredScopes ?? [],
+		agentHost,
+		authenticate: request => connection.authenticate(request),
+	});
 }
 
 export async function resolveMcpServerAuthentication(

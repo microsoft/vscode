@@ -6,9 +6,9 @@
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { IObservable } from '../../../base/common/observable.js';
-import { GitHubAccountHandle, GitHubRequestErrorKind } from './githubTypes.js';
+import { AccountHandle, RequestErrorKind } from './types.js';
 
-export interface PullRequestRef extends GitHubAccountHandle {
+export interface PullRequestRef extends AccountHandle {
 	readonly owner: string;
 	readonly repo: string;
 	readonly number: number;
@@ -55,7 +55,7 @@ export interface PullRequestSubscriptionOptions extends PullRequestInterests {
 
 export interface GitHubFragmentError {
 	readonly message: string;
-	readonly kind: GitHubRequestErrorKind;
+	readonly kind: RequestErrorKind;
 	readonly statusCode?: number;
 }
 
@@ -119,6 +119,8 @@ export interface PullRequestReview {
 }
 
 export interface PullRequestInlineComment extends PullRequestComment {
+	/** GitHub's review-comment state (PENDING or SUBMITTED), when available. */
+	readonly state?: string;
 	readonly reviewId?: string;
 	readonly replyToId?: string;
 	readonly path?: string;

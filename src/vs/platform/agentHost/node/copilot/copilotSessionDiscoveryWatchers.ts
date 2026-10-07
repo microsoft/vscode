@@ -13,6 +13,10 @@ import { ILogService } from '../../../log/common/log.js';
 
 const readinessFiles = ['events.jsonl', 'workspace.yaml', 'vscode.metadata.json'];
 export const copilotDiscoveryRetryDelays = [250, 1_000, 5_000, 60_000];
+/** Per-candidate retry backoff; longer than the shared SDK failure backoff so unresolved sessions stop driving catalog scans. */
+export const copilotCandidateRetryDelays = [250, 1_000, 5_000, 60_000, 5 * 60_000, 15 * 60_000, 60 * 60_000];
+/** Catalog scans a newly observed session may trigger before falling back to the slow scan cadence. */
+const copilotCandidateFastScans = 4;
 export type CopilotDiscoveryReason = 'startup' | 'directoryAdded' | 'rootReconcile' | 'journalCreated' | 'metadataChanged' | 'readinessProbe' | 'retry';
 
 interface IDirectoryChanges {
@@ -202,12 +206,20 @@ export class CopilotSessionDiscoveryCandidate extends Disposable {
 	private _revision = 0;
 	private _nextScanAt = Infinity;
 	private _reason: CopilotDiscoveryReason;
+	private readonly _enrollment: CopilotDiscoveryReason;
+	private _observedNotReady = false;
+	private _fastGranted = false;
+	private _fastScans = 0;
 	readonly observedAt = Date.now();
 	deleted = false;
 
 	get revision(): number { return this._revision; }
 	get nextScanAt(): number { return this._nextScanAt; }
 	get reason(): CopilotDiscoveryReason { return this._reason; }
+	/** Readiness fingerprint from the latest probe, or undefined before the first probe. */
+	get fingerprint(): string | undefined { return this._fingerprint; }
+	/** Whether this candidate may still trigger catalog scans at the fast cadence. */
+	get urgent(): boolean { return this._fastScans > 0; }
 	get watching(): boolean { return !!this._watch.value; }
 
 	constructor(
@@ -220,6 +232,7 @@ export class CopilotSessionDiscoveryCandidate extends Disposable {
 	) {
 		super();
 		this._reason = reason;
+		this._enrollment = reason;
 	}
 
 	watch(): void {
@@ -237,6 +250,7 @@ export class CopilotSessionDiscoveryCandidate extends Disposable {
 			const journal = URI.joinPath(this._resource, 'events.jsonl');
 			if (event.contains(journal, FileChangeType.ADDED, FileChangeType.DELETED)) {
 				this._hasJournal = event.contains(journal, FileChangeType.ADDED);
+				this._observedNotReady ||= !this._hasJournal;
 				this._changed('journalCreated');
 			} else if ([...event.rawAdded, ...event.rawUpdated, ...event.rawDeleted].some(resource =>
 				isEqual(dirname(resource), this._resource) && readinessFiles.slice(1).includes(basename(resource)))) {
@@ -250,6 +264,14 @@ export class CopilotSessionDiscoveryCandidate extends Disposable {
 		this._reason = reason;
 		this._attempt = 0;
 		this._nextScanAt = this._hasJournal ? Date.now() : Infinity;
+		// Grant the fast-scan budget once: to folders created while discovery was observing the
+		// root, or when a session was seen without a journal and then gained one. History that
+		// was already ready when first observed (at startup, root reconcile, or an overflow
+		// probe) uses the slow cadence regardless of its later retry reason.
+		if (this._hasJournal && !this._fastGranted && (this._enrollment === 'directoryAdded' || this._observedNotReady)) {
+			this._fastGranted = true;
+			this._fastScans = copilotCandidateFastScans;
+		}
 		this._logService.trace(`[CopilotDiscovery] Candidate ${this.id}: reason=${reason}, hasJournal=${this._hasJournal}, revision=${this._revision}`);
 		this._onChange();
 	}
@@ -263,6 +285,7 @@ export class CopilotSessionDiscoveryCandidate extends Disposable {
 				return false;
 			}
 			this._hasJournal = stats[0]?.isFile === true;
+			this._observedNotReady ||= !this._hasJournal;
 			const fingerprint = stats.map((stat, index) => index === 0 ? String(this._hasJournal) : stat ? `${stat.ctime}:${stat.mtime}:${stat.size}` : '').join('|');
 			if (this._fingerprint === undefined ? this._hasJournal : this._fingerprint !== fingerprint) {
 				this._changed(this._fingerprint === undefined ? this._reason : 'readinessProbe');
@@ -277,6 +300,14 @@ export class CopilotSessionDiscoveryCandidate extends Disposable {
 
 	retry(): void {
 		this._reason = 'retry';
-		this._nextScanAt = this._hasJournal ? Date.now() + copilotDiscoveryRetryDelays[Math.min(this._attempt++, copilotDiscoveryRetryDelays.length - 1)] : Infinity;
+		this._nextScanAt = this._hasJournal ? Date.now() + copilotCandidateRetryDelays[Math.min(this._attempt++, copilotCandidateRetryDelays.length - 1)] : Infinity;
+	}
+
+	waitForChange(): void {
+		this._nextScanAt = Infinity;
+	}
+
+	consumeFastScan(): void {
+		this._fastScans = Math.max(0, this._fastScans - 1);
 	}
 }

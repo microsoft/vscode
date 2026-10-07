@@ -30,7 +30,7 @@ import { AgentHostAllowSignedOutWhenUsableSettingId } from '../../../../../../pl
 import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IAgentSdkSetupService } from '../../../../../services/agentHost/browser/agentSdkSetupService.js';
-import { hasSignedInCodexChatGPTAccount, ICodexAccountService } from '../../../../../services/agentHost/browser/codexAccountService.js';
+import { canInitializeCodexWithoutGitHub, ICodexAccountService } from '../../../../../services/agentHost/browser/codexAccountService.js';
 import { IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
 import { getChatSessionTelemetryContext } from '../../../common/chatService/chatServiceTelemetry.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
@@ -146,12 +146,12 @@ export function getConfiguredSessionTypePickerAvailability(
 ): SessionTypeAvailability {
 	const allowSignedOutWhenUsable = configurationService.getValue<boolean>(AgentHostAllowSignedOutWhenUsableSettingId) === true;
 	const hasAgentSdkSetup = hasAgentSdkSetupForSessionType(agentSdkSetupService.setups, type);
-	const hasProviderAccount = type === AgentSessionProviders.AgentHostCodex && hasSignedInCodexChatGPTAccount(codexAccountService.account);
+	const canInitializeWithoutGitHub = type === AgentSessionProviders.AgentHostCodex && canInitializeCodexWithoutGitHub(codexAccountService.account);
 	return getSessionTypePickerAvailability(
 		type,
 		getSessionTypeAvailability(chatSessionsService, chatEntitlementService, languageModelsService, type, allowSignedOutWhenUsable),
 		allowSignedOutWhenUsable,
-		canInitializeSessionTypeOnSelection(chatEntitlementService.entitlement, allowSignedOutWhenUsable, hasAgentSdkSetup, hasProviderAccount),
+		canInitializeSessionTypeOnSelection(chatEntitlementService.entitlement, allowSignedOutWhenUsable, hasAgentSdkSetup, canInitializeWithoutGitHub),
 	);
 }
 

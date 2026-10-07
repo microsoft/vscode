@@ -155,7 +155,7 @@ function getMirrorRaw(detached: IDetachedTerminalInstance): RawXtermTerminal {
  * with no prompt line to protect, so resize reflow should re-wrap the cursor line like any
  * other line (xterm skips it by default).
  */
-function enableCursorLineReflow(detached: IDetachedTerminalInstance): void {
+export function enableCursorLineReflow(detached: IDetachedTerminalInstance): void {
 	getMirrorRaw(detached).options.reflowCursorLine = true;
 }
 
@@ -860,10 +860,6 @@ export class DetachedTerminalSnapshotMirror extends Disposable {
 	public setOutput(output: IChatTerminalToolInvocationData['terminalCommandOutput'] | undefined): void {
 		this._output = output;
 		this._outputVersion++;
-	}
-
-	public hasSelection(): boolean {
-		return !this._store.isDisposed && !!this._resolvedTerminal && getMirrorRaw(this._resolvedTerminal).hasSelection();
 	}
 
 	public async attach(container: HTMLElement): Promise<void> {

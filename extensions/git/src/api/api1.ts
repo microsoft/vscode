@@ -262,6 +262,10 @@ export class ApiRepository implements Repository {
 		return this.#repository.getMergeBase(ref1, ref2);
 	}
 
+	getRemoteRefs(remote: string, opts?: { heads?: boolean; tags?: boolean }): Promise<Ref[]> {
+		return this.#repository.getRemoteRefs(remote, opts);
+	}
+
 	tag(name: string, message: string, ref?: string | undefined): Promise<void> {
 		return this.#repository.tag({ name, message, ref });
 	}
@@ -310,6 +314,10 @@ export class ApiRepository implements Repository {
 		return this.#repository.pushTo(remoteName, branchName, setUpstream, force);
 	}
 
+	pushRefWithLease(remote: string, branch: string, newSha: string, expectedSha: string): Promise<void> {
+		return this.#repository.pushRefWithLease(remote, branch, newSha, expectedSha);
+	}
+
 	blame(path: string): Promise<string> {
 		return this.#repository.blame(path);
 	}
@@ -330,8 +338,20 @@ export class ApiRepository implements Repository {
 		return this.#repository.mergeAbort();
 	}
 
-	rebase(branch: string): Promise<void> {
-		return this.#repository.rebase(branch);
+	rebase(branch: string, options?: { onto?: string; rebaseMerges?: boolean }): Promise<void> {
+		return this.#repository.rebase(branch, options);
+	}
+
+	rebaseAbort(): Promise<void> {
+		return this.#repository.rebaseAbort();
+	}
+
+	updateRef(ref: string, newSha: string, oldSha: string): Promise<void> {
+		return this.#repository.updateRef(ref, newSha, oldSha);
+	}
+
+	resetKeep(ref: string): Promise<void> {
+		return this.#repository.resetKeep(ref);
 	}
 
 	createStash(options?: { message?: string; includeUntracked?: boolean; staged?: boolean }): Promise<void> {

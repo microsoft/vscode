@@ -151,6 +151,15 @@ export interface IAgentHostChangesetOperationService extends IDisposable {
 	 * Without Git state, clears cached operations but defers initial publication.
 	 */
 	updateOperations(sessionKey: string, changeset?: string, gitState?: ISessionGitState, gitHubState?: ISessionGitHubState): void;
+	/**
+	 * Coalesces an event-driven refresh of the operation owners related to a
+	 * session, chat, or folder resource.
+	 */
+	scheduleRelatedOperationsUpdate(resourceKey: string): void;
+	/**
+	 * Coalesces an event-driven refresh of one exact changeset owner.
+	 */
+	scheduleOwnerOperationsUpdate(ownerKey: string): void;
 
 	/**
 	 * Returns the operations that should be advertised for the given changeset, or

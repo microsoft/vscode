@@ -66,6 +66,57 @@ function createSubscription<T>(): IAgentSubscription<T> {
 suite('AgentHostGenericConfigChips', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const provider of ['copilotcli', 'codex', 'claude']) {
+		for (const remote of [false, true]) {
+			test(`peer selection subscribes only to its owning ${provider} session (${remote ? 'remote' : 'local'})`, () => {
+				const acquired: string[] = [];
+				const released: string[] = [];
+				const agentHost = new class extends mock<IAgentHostService>() {
+					override readonly onAgentHostStart = Event.None;
+					override readonly onAgentHostExit = Event.None;
+					override readonly onDidNotification = Event.None;
+					override readonly resourceUris = identityAgentHostResourceUriMapper;
+					override getSubscription<T extends StateComponents>(_kind: T, resource: URI): IReference<IAgentSubscription<ComponentToState[T]>> {
+						acquired.push(resource.toString());
+						return { object: createSubscription<ComponentToState[T]>(), dispose: () => released.push(resource.toString()) };
+					}
+				}();
+				const remoteService = new class extends mock<IRemoteAgentHostService>() {
+					override readonly onDidChangeConnections = Event.None;
+					override readonly connections: readonly IRemoteAgentHostConnectionInfo[] = [{ address: 'host', name: 'Host', status: { kind: 'connected' } }];
+					override getConnection() { return agentHost; }
+					override getConnectionByAuthority() { return agentHost; }
+				}();
+				const connections = disposables.add(new AgentHostConnectionsService(agentHost, remoteService, new TestPathService(), new NullLogService()));
+				const backend = URI.parse(`${provider}:/parent`);
+				const resource = connections.getSessionResource(backend, remote ? 'host' : AMBIENT_AGENT_HOST_AUTHORITY)!;
+				for (const fragment of ['', 'first-peer', 'second-peer']) {
+					const widget = new class extends mock<IChatWidget>() {
+						override readonly onDidChangeViewModel = Event.None;
+						override readonly viewModel = new class extends mock<IChatViewModel>() {
+							override readonly sessionResource = resource.with({ fragment });
+						}();
+					}();
+					const provisional = new class extends mock<IAgentHostUntitledProvisionalSessionService>() {
+						override readonly onDidChange = Event.None;
+						override get() { return undefined; }
+					}();
+					const chips = disposables.add(new AgentHostGenericConfigChips(widget,
+						disposables.add(new TestInstantiationService()), connections, provisional,
+						new class extends mock<IAgentHostSessionWorkingDirectoryResolver>() { }(),
+						new class extends mock<IWorkspaceContextService>() { }(),
+						new class extends mock<IAgentHostNewSessionFolderService>() { }(),
+					));
+					chips.dispose();
+				}
+				assert.deepStrictEqual({ acquired, released }, {
+					acquired: [backend.toString(), backend.toString(), backend.toString()],
+					released: [backend.toString(), backend.toString(), backend.toString()],
+				});
+			});
+		}
+	}
+
 	test('moves its subscription when the provisional generation changes', () => {
 		const sessionResource = URI.parse('agent-host-copilot:/untitled-test');
 		const firstBackend = URI.parse('copilot:/first-generation');
@@ -99,6 +150,9 @@ suite('AgentHostGenericConfigChips', () => {
 			disposables.add(new TestInstantiationService()),
 			new class extends mock<IAgentHostConnectionsService>() {
 				override readonly onDidChangeSessionResolution = Event.None;
+				override resolveSessionResourceIdentity() {
+					return { connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY, backendSession: firstBackend };
+				}
 				override resolveSessionResource() {
 					return { connection: agentHostService, connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY, backendSession: firstBackend };
 				}
@@ -329,6 +383,39 @@ suite('AgentHostGenericConfigChips - remote sessions', () => {
 		});
 	});
 
+	test('native approvals and host-owned reports do not create duplicate generic chips', () => {
+		const config = makeConfig();
+		delete config.schema.properties.autoApprove;
+		config.schema.properties.approvalMode = { type: 'string', title: 'Native approvals', enum: ['manual', 'assisted', 'allow-all'], sessionMutable: true };
+		config.schema.properties.effectiveApprovalMode = { type: 'string', title: 'Effective approvals', enum: ['manual', 'assisted', 'allow-all', 'unknown'], readOnly: true };
+		config.schema.properties.target = { type: 'string', title: 'Target', enum: ['workspace', 'worktree'], sessionMutable: false };
+		const { container } = setup(config);
+		assert.deepStrictEqual({
+			chips: container.querySelectorAll('.agent-host-generic-chip-slot').length,
+			native: container.querySelector('.agent-host-chat-input-picker-host-approvalMode'),
+			effective: container.querySelector('.agent-host-chat-input-picker-host-effectiveApprovalMode'),
+			target: container.querySelector('.agent-host-chat-input-picker-host-target'),
+		}, { chips: 3, native: null, effective: null, target: null });
+	});
+
+	test('malformed preferred VS approval schemas remain editable through generic fallback only', async () => {
+		const config = makeConfig();
+		config.schema.properties.autoApprove = { type: 'string', title: 'Custom approvals', enum: ['custom', 'other'], sessionMutable: true };
+		config.schema.properties.approvalMode = { type: 'string', title: 'Native approvals', enum: ['manual', 'assisted', 'allow-all'], sessionMutable: true };
+		config.values.autoApprove = 'custom';
+		const rig = setup(config);
+		await rig.open('autoApprove');
+		await rig.actionWidget.select('other');
+		assert.deepStrictEqual({
+			fallback: rig.trigger('autoApprove').getAttribute('aria-label'),
+			native: rig.container.querySelector('.agent-host-chat-input-picker-host-approvalMode'),
+			writes: rig.host.connection.dispatches,
+		}, {
+			fallback: 'Custom approvals: custom', native: null,
+			writes: [{ channel: backendSession.toString(), config: { autoApprove: 'other' } }],
+		});
+	});
+
 	test('sends the raw selection to the owning session and refreshes with its advertised provider', async () => {
 		const { open, actionWidget, host, secondHost, refreshes, config, trigger } = setup();
 		await open();
@@ -342,7 +429,7 @@ suite('AgentHostGenericConfigChips - remote sessions', () => {
 		}, {
 			writes: [{ channel: backendSession.toString(), config: { customChoice: 'second' } }],
 			otherWrites: [],
-			refreshes: [[firstResource.toString(), 'test-agent', workingDirectory.toString(), { ...config.values, customChoice: 'second' }]],
+			refreshes: [[firstResource.toString(), 'test-agent', workingDirectory.toString(), { customChoice: 'second', toggle: false, locked: 'first' }]],
 			label: 'Custom Choice: Second Option',
 		});
 	});
@@ -528,7 +615,7 @@ suite('AgentHostGenericConfigChips - remote sessions', () => {
 		assert.deepStrictEqual({
 			requests: host.connection.completionRequests.map(request => ({ ...request, workingDirectory: request.workingDirectory?.toString() })), labels: actionWidget.labels,
 		}, {
-			requests: [{ provider: 'test-agent', property: 'customChoice', query: undefined, workingDirectory: workingDirectory.toString(), config: config.values }],
+			requests: [{ provider: 'test-agent', property: 'customChoice', query: undefined, workingDirectory: workingDirectory.toString(), config: { customChoice: 'first', toggle: false, locked: 'first' } }],
 			labels: ['Dynamic Option'],
 		});
 	});

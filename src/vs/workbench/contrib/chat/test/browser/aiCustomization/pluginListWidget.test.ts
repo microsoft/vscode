@@ -134,6 +134,40 @@ suite('pluginListWidget', () => {
 		});
 	});
 
+	test('reveals, selects, and focuses an installed plugin by URI', async () => {
+		const targetUri = URI.file('/plugins/security');
+		const targetEntry = {
+			type: 'plugin-item' as const,
+			item: {
+				plugin: { uri: targetUri },
+			},
+		};
+		const calls: string[] = [];
+		const widget = Object.assign(Object.create(PluginListWidget.prototype), {
+			browseMode: false,
+			searchQuery: '',
+			filterPlugins: async () => { },
+			currentTreeGroups: [{
+				element: { type: 'group-header' },
+				children: [targetEntry],
+			}],
+			list: {
+				reveal: (entry: object) => calls.push(entry === targetEntry ? 'reveal' : 'reveal-other'),
+				setFocus: (entries: readonly object[]) => calls.push(entries[0] === targetEntry ? 'focus' : 'focus-other'),
+				setSelection: (entries: readonly object[]) => calls.push(entries[0] === targetEntry ? 'select' : 'select-other'),
+				domFocus: () => calls.push('dom-focus'),
+			},
+		}) as PluginListWidget;
+
+		assert.deepStrictEqual({
+			revealed: await widget.revealAndSelectItemByUri(targetUri),
+			calls,
+		}, {
+			revealed: true,
+			calls: ['reveal', 'focus', 'select', 'dom-focus'],
+		});
+	});
+
 	test('installed metadata contains contribution counts without enablement copy', () => {
 		const plugin = new class extends mock<IAgentPlugin>() {
 			override readonly uri = URI.file('/plugins/example');

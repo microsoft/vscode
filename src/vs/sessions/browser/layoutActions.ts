@@ -8,7 +8,7 @@ import { Codicon } from '../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../base/common/keyCodes.js';
 import { localize, localize2 } from '../../nls.js';
 import { Categories } from '../../platform/action/common/actionCommonCategories.js';
-import { Action2, MenuRegistry, registerAction2 } from '../../platform/actions/common/actions.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../platform/contextkey/common/contextkey.js';
 import { Menus } from './menus.js';
 import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
@@ -16,9 +16,20 @@ import { KeybindingWeight } from '../../platform/keybinding/common/keybindingsRe
 import { registerIcon } from '../../platform/theme/common/iconRegistry.js';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../platform/accessibility/common/accessibility.js';
 import { TogglePanelAction } from '../../workbench/browser/parts/panel/panelActions.js';
+import { LayoutDensityMenu } from '../../workbench/browser/actions/layoutDensityActions.js';
 import { IsAuxiliaryWindowContext, IsWindowAlwaysOnTopContext, PanelVisibleContext, SideBarVisibleContext } from '../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService, Parts } from '../../workbench/services/layout/browser/layoutService.js';
 import { SessionsWelcomeVisibleContext, CustomViewVisibleContext, IsPhoneLayoutContext } from '../common/contextkeys.js';
+
+for (const menu of [Menus.TitleBarContext, MenuId.MenubarViewMenu]) {
+	MenuRegistry.appendMenuItem(menu, {
+		title: localize('layoutDensity', "Layout Density"),
+		submenu: LayoutDensityMenu,
+		group: '2_configuration',
+		order: 8,
+		when: IsPhoneLayoutContext.negate(),
+	});
+}
 
 // Register Icons
 const panelCloseIcon = registerIcon('agent-panel-close', Codicon.close, localize('agentPanelCloseIcon', "Icon to close the panel."));
