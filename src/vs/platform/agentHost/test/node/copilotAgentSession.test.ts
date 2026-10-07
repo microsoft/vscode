@@ -17178,6 +17178,7 @@ Use the attached image as context.
 				sessionId: 'test-session-1',
 				message: 'Configure deployment',
 				mode: 'form',
+				elicitationSource: 'deploy-mcp-server',
 				requestedSchema: {
 					type: 'object',
 					properties: {
@@ -17339,10 +17340,70 @@ Use the attached image as context.
 				sessionId: 'test-session-1',
 				message: 'Need input',
 				mode: 'form',
+				elicitationSource: 'some-mcp-server',
 				requestedSchema: { type: 'object', properties: { ok: { type: 'boolean' } } },
 			});
 
 			assert.deepStrictEqual(result, { action: 'cancel' });
+			assert.strictEqual(signals.length, 0);
+		});
+
+		test('built-in structured ask_user batches questions with freeform selects and AskUser purpose', async () => {
+			const { session, runtime, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-ask-user');
+
+			const resultPromise = runtime.handleElicitationRequest({
+				sessionId: 'test-session-1',
+				message: 'I need a few decisions before planning.',
+				mode: 'form',
+				requestedSchema: {
+					type: 'object',
+					properties: {
+						sessions: { type: 'string', title: 'Which sessions show a light?', enum: ['live', 'all'], enumNames: ['Only live hosted CLI panes', 'Hosted plus historical'] },
+						idle: { type: 'string', title: 'What should an idle CLI show?', oneOf: [{ const: 'grey', title: 'Grey' }, { const: 'none', title: 'Nothing' }] },
+						extras: { type: 'array', title: 'Extras', items: { type: 'string', enum: ['tooltip', 'sound'] } },
+					},
+				},
+			});
+
+			const request = getInputRequest(signals[0]);
+			assert.strictEqual(readChatInputRequestPurpose(request), ChatInputRequestPurpose.AskUser);
+			assert.deepStrictEqual(request.questions?.map(q => ({
+				id: q.id,
+				title: q.title,
+				kind: q.kind,
+				allowFreeformInput: q.kind === ChatInputQuestionKind.SingleSelect || q.kind === ChatInputQuestionKind.MultiSelect ? q.allowFreeformInput : undefined,
+			})), [
+				{ id: 'sessions', title: 'Which sessions show a light?', kind: ChatInputQuestionKind.SingleSelect, allowFreeformInput: true },
+				{ id: 'idle', title: 'What should an idle CLI show?', kind: ChatInputQuestionKind.SingleSelect, allowFreeformInput: true },
+				{ id: 'extras', title: 'Extras', kind: ChatInputQuestionKind.MultiSelect, allowFreeformInput: true },
+			]);
+
+			session.respondToUserInputRequest(request.id, ChatInputResponseKind.Accept, {
+				sessions: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Selected, value: 'live' } },
+				idle: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Text, value: 'dim amber' } },
+				extras: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.SelectedMany, value: ['tooltip'], freeformValues: ['badge'] } },
+			});
+
+			assert.deepStrictEqual(await resultPromise, {
+				action: 'accept',
+				content: { sessions: 'live', idle: 'dim amber', extras: ['tooltip', 'badge'] },
+			});
+		});
+
+		test('built-in structured ask_user declines under autopilot so the runtime answers autonomously', async () => {
+			const { runtime, signals } = await createAgentSession(disposables, {
+				configValues: { [SessionConfigKey.Mode]: 'autopilot' },
+			});
+
+			const result = await runtime.handleElicitationRequest({
+				sessionId: 'test-session-1',
+				message: 'Need input',
+				mode: 'form',
+				requestedSchema: { type: 'object', properties: { ok: { type: 'boolean' } } },
+			});
+
+			assert.deepStrictEqual(result, { action: 'decline' });
 			assert.strictEqual(signals.length, 0);
 		});
 

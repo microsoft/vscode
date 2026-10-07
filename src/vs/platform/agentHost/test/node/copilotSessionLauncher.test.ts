@@ -2064,7 +2064,7 @@ suite('CopilotSessionLauncher resume config', () => {
 		model: ModelSelection | undefined,
 		snapshot: CopilotSessionLaunchPlan['snapshot'] = { tools: [], plugins: [], mcpServers: {} },
 		createClientSdkTools: ICopilotSessionRuntime['createClientSdkTools'] = () => [],
-	): Promise<{ model?: string; reasoningEffort?: string; contextTier?: string; availableTools?: string[]; excludedTools?: string[]; modelCapabilities?: Record<string, unknown>; toolSearch?: { enabled: boolean }; enableExperimentalMode?: boolean; featureFlags?: Record<string, boolean>; memory?: { enabled: boolean } }> {
+	): Promise<{ model?: string; reasoningEffort?: string; contextTier?: string; availableTools?: string[]; excludedTools?: string[]; modelCapabilities?: Record<string, unknown>; toolSearch?: { enabled: boolean }; enableExperimentalMode?: boolean; featureFlags?: Record<string, boolean>; memory?: { enabled: boolean }; askUserVariant?: string }> {
 		const plan = {
 			kind: 'resume',
 			client: { createSession: async () => { throw new Error('unused'); }, resumeSession: async () => { throw new Error('unused'); } },
@@ -2356,6 +2356,13 @@ suite('CopilotSessionLauncher resume config', () => {
 				{ enabled: true, deferThreshold: 1 },
 			]
 		);
+		store.dispose();
+	});
+
+	test('always uses the structured ask_user variant', async () => {
+		const store = new DisposableStore();
+		const config = await buildResumeConfig(createLauncher(store, {}), { id: 'claude-opus-4.8' });
+		assert.strictEqual(config.askUserVariant, 'elicitation');
 		store.dispose();
 	});
 

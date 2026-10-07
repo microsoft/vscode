@@ -338,8 +338,11 @@ function toCopilotSdkMode(mode: string | undefined): CopilotSdkMode | undefined 
  * Projects an {@link ElicitationSchema} field into a
  * {@link ChatInputQuestion}. The schema's property key becomes the
  * question id so we can route the answer back by field name.
+ *
+ * `allowFreeformInput` is set for the SDK's built-in structured `ask_user`
+ * tool, whose select fields are suggestions rather than strict MCP enums.
  */
-function elicitationFieldToQuestion(fieldName: string, field: ElicitationSchemaField, required: boolean): ChatInputQuestion {
+function elicitationFieldToQuestion(fieldName: string, field: ElicitationSchemaField, required: boolean, allowFreeformInput = false): ChatInputQuestion {
 	const base = {
 		id: fieldName,
 		title: field.title ?? fieldName,
@@ -369,17 +372,18 @@ function elicitationFieldToQuestion(fieldName: string, field: ElicitationSchemaF
 				options,
 				min: field.minItems,
 				max: field.maxItems,
+				...(allowFreeformInput ? { allowFreeformInput } : {}),
 			};
 		}
 		case 'string': {
 			if (hasKey(field, { enum: true })) {
 				const enumNames = field.enumNames;
 				const options: ChatInputOption[] = field.enum.map((value, idx) => ({ id: value, label: enumNames?.[idx] ?? value }));
-				return { ...base, kind: ChatInputQuestionKind.SingleSelect, options };
+				return { ...base, kind: ChatInputQuestionKind.SingleSelect, options, ...(allowFreeformInput ? { allowFreeformInput } : {}) };
 			}
 			if (hasKey(field, { oneOf: true })) {
 				const options: ChatInputOption[] = field.oneOf.map(option => ({ id: option.const, label: option.title }));
-				return { ...base, kind: ChatInputQuestionKind.SingleSelect, options };
+				return { ...base, kind: ChatInputQuestionKind.SingleSelect, options, ...(allowFreeformInput ? { allowFreeformInput } : {}) };
 			}
 			return {
 				...base,
@@ -6079,12 +6083,18 @@ export class CopilotAgentSession extends Disposable {
 	 *
 	 * Under autopilot the request is auto-cancelled — there is no user
 	 * available to fill in a form, and accepting with empty content would
-	 * be misleading to the MCP server.
+	 * be misleading to the MCP server. Requests from the SDK's built-in
+	 * structured `ask_user` tool (no `elicitationSource`) are declined
+	 * instead, which the runtime turns into a "work autonomously" result.
 	 */
 	private async _handleElicitationRequest(context: ElicitationContext): Promise<ElicitationResult> {
+		const isBuiltInAskUser = context.elicitationSource === undefined && context.mode !== 'url';
+		if (isBuiltInAskUser && this._isAutoReplyEnabled()) {
+			return { action: 'decline' };
+		}
 		const isAutopilot = this._isAutopilotMode();
 		if (isAutopilot) {
-			return { action: 'cancel' };
+			return { action: isBuiltInAskUser ? 'decline' : 'cancel' };
 		}
 		if (!this.hasActiveTurn) {
 			this._logService.warn(`[Copilot:${this.sessionId}] Rejecting elicitation request without an active turn`);
@@ -6099,7 +6109,7 @@ export class CopilotAgentSession extends Disposable {
 			const schema = context.mode === 'url' ? undefined : context.requestedSchema;
 			const requiredSet = new Set(schema?.required ?? []);
 			const questions: ChatInputQuestion[] | undefined = schema
-				? Object.entries(schema.properties).map(([fieldName, field]) => elicitationFieldToQuestion(fieldName, field, requiredSet.has(fieldName)))
+				? Object.entries(schema.properties).map(([fieldName, field]) => elicitationFieldToQuestion(fieldName, field, requiredSet.has(fieldName), isBuiltInAskUser))
 				: undefined;
 
 			const pendingElicitation = this._pendingElicitations.register(requestId, { schema });
@@ -6109,7 +6119,7 @@ export class CopilotAgentSession extends Disposable {
 				message: context.message,
 				...(context.mode === 'url' && context.url ? { url: context.url } : {}),
 				...(questions && questions.length > 0 ? { questions } : {}),
-			}, ChatInputRequestPurpose.Elicitation);
+			}, isBuiltInAskUser ? ChatInputRequestPurpose.AskUser : ChatInputRequestPurpose.Elicitation);
 
 			this._emitAction({
 				type: ActionType.ChatInputRequested,
