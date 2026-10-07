@@ -33,6 +33,7 @@ import { TestAgentHostStartupTelemetryService } from './testAgentHostStartupTele
 import { AgentHostStartupPerformance, type IAgentHostStartupPerformance, type IAgentHostStartupMetrics } from '../../node/agentHostStartupPerformance.js';
 import { AgentHostLaunchKind } from '../../common/agentHostTelemetry.js';
 import { chatCatalogV2ToCatalogChats } from '../../node/agentHostCatalogSourceResolver.js';
+import { getTelemetryMigrationSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { AgentChatMigrationDeferred, AgentSession, AgentWorkingDirectoryChangedError, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agent.js';
@@ -6964,6 +6965,46 @@ suite('AgentService (node dispatcher)', () => {
 					{ uri: existingPeer.toString(), providerData: `backing:${existingPeer.path}`, workingDirectories: [primary.toString()] },
 					{ uri: addedPeer.toString(), providerData: `backing:${addedPeer.path}`, workingDirectories: [added.toString()] },
 				],
+			});
+		});
+
+		test('pins inherited multi-root chats without invalidating their effective scopes', async () => {
+			class MultiChatAgent extends MockAgent {
+				override async createChat(): Promise<void> { }
+			}
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MultiChatAgent('copilot', {
+				multipleChats: { fork: true },
+				multipleWorkingDirectories: { immutablePrimary: true },
+			}));
+			registerTestAgentProvider(svc, agent);
+			const workingDirectories = Array.from({ length: 15 }, (_, index) => URI.file(`/workspace/root-${index}`));
+			const session = await svc.createSession({ provider: agent.id, workingDirectories });
+			const state = getStateManager(svc);
+			for (let index = 1; index < 32; index++) {
+				await svc.createChat(session, URI.parse(buildChatUri(session, `peer-${index}`)));
+			}
+			const workingDirectoryChanges: string[] = [];
+			let chatWorkingDirectoryActions = 0;
+			disposables.add(state.onDidChangeSessionWorkingDirectories(({ session }) => workingDirectoryChanges.push(session)));
+			disposables.add(state.onDidEmitEnvelope(envelope => {
+				if (envelope.action.type === ActionType.ChatWorkingDirectorySet) {
+					chatWorkingDirectoryActions++;
+				}
+			}));
+
+			await svc.addSessionWorkingDirectoryForChat(session, URI.file('/workspace/added'), { isolation: 'folder' });
+
+			assert.deepStrictEqual({
+				chats: state.getSessionState(session.toString())?.chats.length,
+				pinnedChats: state.getSessionState(session.toString())?.chats.filter(chat => chat.workingDirectories?.length === workingDirectories.length).length,
+				chatWorkingDirectoryActions,
+				workingDirectoryChanges,
+			}, {
+				chats: 32,
+				pinnedChats: 32,
+				chatWorkingDirectoryActions: 480,
+				workingDirectoryChanges: [session.toString()],
 			});
 		});
 
@@ -19352,6 +19393,148 @@ suite('AgentService (node dispatcher)', () => {
 				},
 			);
 		});
+
+		for (const scenario of ['declined', 'settingDisabled', 'adoptionFailed', 'restoreFailed', 'eligibleRestoreFailed', 'skipped', 'migrated'] as const) {
+			test(`legacy migration diagnostics: ${scenario}`, async () => {
+				const session = AgentSession.uri('copilot', `migration-${scenario}`);
+				const events: { data: Record<string, unknown>; error: boolean }[] = [];
+				const telemetry = new class extends NullTelemetryServiceShape {
+					override publicLog2(name?: string, data?: unknown): void {
+						if (name === 'agentHost.legacyCopilotCliMigration') {
+							events.push({ data: data as Record<string, unknown>, error: false });
+						}
+					}
+					override publicLogError2(name?: string, data?: unknown): void {
+						if (name === 'agentHost.legacyCopilotCliMigration') {
+							events.push({ data: data as Record<string, unknown>, error: true });
+						}
+					}
+				};
+				class MigrationAgent extends MockAgent {
+					constructor() { super('copilot'); }
+					override async listChatsToMigrate(): Promise<IAgentChatMetadata[]> {
+						return [];
+					}
+					async ensureChatAdopted(): Promise<IAgentChatAdoptionResult> {
+						if (scenario === 'adoptionFailed') {
+							throw new ProtocolError(JSON_RPC_INTERNAL_ERROR, `adoption failed for ${session}; frontend agent-host-copilotcli:/migration-${scenario}; id migration-${scenario}`);
+						}
+						return scenario === 'declined'
+							? { adopted: false, eligible: false, reason: 'notLegacyChat' }
+							: scenario === 'skipped' || scenario === 'eligibleRestoreFailed'
+								? { adopted: false, eligible: true, reason: 'workingDirectoryMissing' }
+								: { adopted: true, eligible: true, reason: 'adopted' };
+					}
+					override async getChatMetadata(chat: URI): Promise<IAgentChatMetadata> {
+						return { chat, startTime: 1, modifiedTime: 1 };
+					}
+					override async materializeChat(...args: Parameters<MockAgent['materializeChat']>): ReturnType<MockAgent['materializeChat']> {
+						if (scenario === 'restoreFailed' || scenario === 'eligibleRestoreFailed') {
+							throw new Error(`restore failed for ${session}; frontend agent-host-copilotcli:/migration-${scenario}; id migration-${scenario}`);
+						}
+						return super.materializeChat(...args);
+					}
+				}
+				const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, telemetry));
+				registerTestAgentProvider(localService, disposables.add(new MigrationAgent()));
+				getConfigurationService(localService).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: scenario !== 'settingDisabled' });
+				if (scenario === 'skipped' || scenario === 'migrated') {
+					await localService.restoreSession(session);
+				} else {
+					await assert.rejects(() => localService.restoreSession(session), scenario === 'declined' ? /reason=notLegacyChat/ : scenario === 'settingDisabled' ? /reason=settingDisabled/ : /failed/);
+				}
+				const failed = scenario === 'adoptionFailed' || scenario === 'restoreFailed' || scenario === 'eligibleRestoreFailed';
+				assert.deepStrictEqual(events.map(({ data, error }) => ({
+					error,
+					migrationSessionId: data.migrationSessionId,
+					outcome: data.outcome,
+					stage: data.stage,
+					reason: data.reason,
+					diagnosticCategory: data.diagnosticCategory,
+					eligible: data.eligible,
+					advertisedAsAdoptable: data.advertisedAsAdoptable,
+					errorCode: data.errorCode,
+					errorMessage: data.errorMessage,
+				})), [{
+					error: failed,
+					migrationSessionId: getTelemetryMigrationSessionId(session),
+					outcome: failed ? 'failed' : scenario === 'settingDisabled' ? 'declined' : scenario,
+					stage: scenario === 'adoptionFailed' ? 'adoption' : failed ? 'restore' : scenario === 'declined' || scenario === 'settingDisabled' ? 'eligibility' : 'complete',
+					reason: scenario === 'adoptionFailed' ? 'unknown' : scenario === 'declined' ? 'notLegacyChat' : scenario === 'settingDisabled' ? 'settingDisabled' : scenario === 'skipped' || scenario === 'eligibleRestoreFailed' ? 'workingDirectoryMissing' : 'adopted',
+					diagnosticCategory: scenario === 'migrated' ? 'notApplicable' : scenario === 'settingDisabled' ? 'configurationDisabled' : scenario === 'declined' ? 'unknown' : 'needsInvestigation',
+					eligible: scenario === 'adoptionFailed' || scenario === 'settingDisabled' ? undefined : scenario !== 'declined',
+					advertisedAsAdoptable: false,
+					errorCode: scenario === 'adoptionFailed' ? String(JSON_RPC_INTERNAL_ERROR) : undefined,
+					errorMessage: failed ? `${scenario === 'adoptionFailed' ? 'adoption' : 'restore'} failed for [REDACTED: session]; frontend [REDACTED: session]; id [REDACTED: session]` : undefined,
+				}]);
+			});
+		}
+
+		const declineCases: {
+			name: string;
+			diagnostics: IAgentChatAdoptionResult['diagnostics'];
+			advertised: boolean;
+			category: string;
+		}[] = [
+				{ name: 'no evidence', diagnostics: undefined, advertised: false, category: 'unknown' },
+				{ name: 'explicit external origin', diagnostics: { markerStatus: 'valid', provenance: 'external', markerFromCache: false }, advertised: false, category: 'expectedExclusion' },
+				{ name: 'cached external origin', diagnostics: { markerStatus: 'valid', provenance: 'external', markerFromCache: true }, advertised: false, category: 'expectedExclusion' },
+				{ name: 'missing marker', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false }, advertised: false, category: 'unknown' },
+				{ name: 'ambiguous origin', diagnostics: { markerStatus: 'valid', provenance: 'unknown', markerFromCache: false }, advertised: false, category: 'unknown' },
+				{ name: 'invalid marker', diagnostics: { markerStatus: 'invalid', provenance: 'unknown', markerFromCache: false }, advertised: false, category: 'needsInvestigation' },
+				{ name: 'unreadable marker', diagnostics: { markerStatus: 'readError', provenance: 'unknown', markerFromCache: false, errorCode: 'EACCES', errorMessage: 'access denied: copilot:/decline-evidence (id=decline-evidence)' }, advertised: false, category: 'needsInvestigation' },
+				{ name: 'advertised legacy marker disappeared', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false }, advertised: true, category: 'needsInvestigation' },
+				{ name: 'external origin contradicts advertisement', diagnostics: { markerStatus: 'valid', provenance: 'external', markerFromCache: false }, advertised: true, category: 'needsInvestigation' },
+			];
+		for (const { name, diagnostics, advertised, category } of declineCases) {
+			test(`legacy migration decline evidence: ${name}`, async () => {
+				const events: { data: Record<string, unknown>; error: boolean }[] = [];
+				const telemetry = new class extends NullTelemetryServiceShape {
+					override publicLog2(name?: string, data?: unknown): void {
+						if (name === 'agentHost.legacyCopilotCliMigration') {
+							events.push({ data: data as Record<string, unknown>, error: false });
+						}
+					}
+					override publicLogError2(name?: string, data?: unknown): void {
+						if (name === 'agentHost.legacyCopilotCliMigration') {
+							events.push({ data: data as Record<string, unknown>, error: true });
+						}
+					}
+				};
+				class DecliningAgent extends MockAgent {
+					constructor() { super('copilot'); }
+					override async listChatsToMigrate(): Promise<IAgentChatMetadata[]> {
+						return [];
+					}
+					async ensureChatAdopted(): Promise<IAgentChatAdoptionResult> {
+						return { adopted: false, eligible: false, reason: 'notLegacyChat', diagnostics };
+					}
+				}
+				const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, telemetry));
+				registerTestAgentProvider(localService, disposables.add(new DecliningAgent()));
+				getConfigurationService(localService).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+				const session = AgentSession.uri('copilot', 'decline-evidence');
+				if (advertised) {
+					getStateManager(localService).announceSurfacedSession({
+						resource: session.toString(), provider: 'copilot', title: 'Legacy',
+						status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+						_meta: withSessionEhcliAdoptable(undefined),
+					});
+				}
+				await assert.rejects(() => localService.restoreSession(session), /reason=notLegacyChat/);
+				assert.deepStrictEqual(events.map(({ data, error }) => ({
+					error, outcome: data.outcome, category: data.diagnosticCategory,
+					advertised: data.advertisedAsAdoptable, eligible: data.eligible,
+					markerStatus: data.markerStatus, provenance: data.provenance, markerFromCache: data.markerFromCache,
+					errorCode: data.eligibilityErrorCode, errorMessage: data.eligibilityErrorMessage,
+				})), [{
+					error: diagnostics?.errorMessage !== undefined, outcome: 'declined', category,
+					advertised, eligible: false,
+					markerStatus: diagnostics?.markerStatus, provenance: diagnostics?.provenance, markerFromCache: diagnostics?.markerFromCache,
+					errorCode: diagnostics?.errorCode, errorMessage: diagnostics?.errorMessage === undefined ? undefined : 'access denied: [REDACTED: session] (id=[REDACTED: session])',
+				}]);
+			});
+		}
 
 		test('surfaces an adopted legacy session on open so it is never absent from both lists', async () => {
 			// Surface-before-retract: adoption writes `session.db` (the extension host

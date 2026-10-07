@@ -880,7 +880,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.strictEqual(chat.interactivity.get(), ChatInteractivity.Full);
 	});
 
-	test('inventory-owned disconnect retains summaries and restores them under the same account only', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('inventory-owned hosts reject removal without losing summaries and disconnect restores them under the same account only', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		connection.addSession(createSession('retained', { summary: 'Retained native session' }));
 		let disconnects = 0;
@@ -889,9 +889,12 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			retainSessionsOnDisconnect: true,
 			readOnlyWhenDisconnected: true,
 			disconnectOnDemand: async () => { disconnects++; },
+			canRemove: false,
 		};
 		const provider = createProvider(disposables, connection, { storageService }, inventoryConfig);
 		await timeout(0);
+		await assert.rejects(provider.remove(), /cannot be removed locally/);
+		const afterRejectedRemoval = { sessions: provider.getSessions().length, disconnects, canRemove: provider.canRemove };
 		await provider.disconnect();
 		provider.clearConnection();
 		provider.setConnectionStatus(RemoteAgentHostConnectionStatus.disconnected);
@@ -902,12 +905,12 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const restored = createProvider(disposables, connection, { storageService, noConnection: true }, inventoryConfig);
 		const otherAccount = createProvider(disposables, connection, { storageService, noConnection: true }, { ...inventoryConfig, sessionCacheKey: 'test.missionControl.account-two' });
 		assert.deepStrictEqual({
-			disconnects, disconnected,
+			afterRejectedRemoval, disconnects, disconnected,
 			restored: restored.getSessions().map(session => session.resource.toString()),
 			otherAccount: otherAccount.getSessions().length,
 			advertisedAgents: restored.sessionTypes,
 		}, {
-			disconnects: 1, disconnected: [{
+			afterRejectedRemoval: { sessions: 1, disconnects: 0, canRemove: false }, disconnects: 1, disconnected: [{
 				title: 'Retained native session', resource: disconnected[0].resource, interactivity: ChatInteractivity.ReadOnly,
 			}],
 			restored: [disconnected[0].resource], otherAccount: 0, advertisedAgents: [],

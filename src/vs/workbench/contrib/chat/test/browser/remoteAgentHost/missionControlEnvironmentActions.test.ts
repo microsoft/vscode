@@ -6,18 +6,19 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { Emitter } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { cloudSandboxAddress } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IMissionControlEnvironmentService, IMissionControlHost } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
-import { IRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { INotificationService, Severity } from '../../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
-import { IQuickInputButton, IQuickInputHideEvent, IQuickInputService, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, QuickInputHideReason } from '../../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputButton, IQuickInputHideEvent, IQuickInputService, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, IQuickPickSeparator, QuickInputHideReason } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { ConnectMissionControlEnvironmentCommand } from '../../../browser/remoteAgentHost/missionControlEnvironmentActions.js';
 
 class TestEnvironmentQuickPick extends mock<IQuickPick<IQuickPickItem, { useSeparators: true }>>() {
@@ -25,7 +26,6 @@ class TestEnvironmentQuickPick extends mock<IQuickPick<IQuickPickItem, { useSepa
 	private readonly hideEmitter = this.store.add(new Emitter<IQuickInputHideEvent>());
 	private readonly acceptEmitter = this.store.add(new Emitter<IQuickPickDidAcceptEvent>());
 	private readonly buttonEmitter = this.store.add(new Emitter<IQuickInputButton>());
-	private readonly itemButtonEmitter = this.store.add(new Emitter<IQuickPickItemButtonEvent<IQuickPickItem>>());
 	private visible = false;
 	private isBusy = false;
 	readonly shown = new DeferredPromise<void>();
@@ -33,11 +33,12 @@ class TestEnvironmentQuickPick extends mock<IQuickPick<IQuickPickItem, { useSepa
 	override readonly onDidHide = this.hideEmitter.event;
 	override readonly onDidAccept = this.acceptEmitter.event;
 	override readonly onDidTriggerButton = this.buttonEmitter.event;
-	override readonly onDidTriggerItemButton = this.itemButtonEmitter.event;
 	override selectedItems: readonly IQuickPickItem[] = [];
 	override activeItems: readonly IQuickPickItem[] = [];
 	override items: readonly (IQuickPickItem | IQuickPickSeparator)[] = [];
 	override buttons: readonly IQuickInputButton[] = [];
+	override title: string | undefined;
+	override placeholder: string | undefined;
 	override value = '';
 	override severity = Severity.Info;
 	override validationMessage: string | undefined;
@@ -61,7 +62,6 @@ class TestEnvironmentQuickPick extends mock<IQuickPick<IQuickPickItem, { useSepa
 		}
 	}
 	override accept(inBackground = false): void { this.acceptEmitter.fire({ inBackground }); }
-	triggerItemButton(item: IQuickPickItem): void { this.itemButtonEmitter.fire({ item, button: item.buttons![0] }); }
 	override dispose(): void {
 		this.hide();
 		this.disposed = true;
@@ -82,7 +82,7 @@ suite('Mission Control environment picker', () => {
 		const instantiation = store.add(new TestInstantiationService());
 		const inventory = new DeferredPromise<readonly IMissionControlHost[]>();
 		const hosts = observableValue<readonly IMissionControlHost[]>('hosts', cached);
-		const calls = { tokens: [] as CancellationToken[], connections: [] as string[], hidden: [] as string[], restored: [] as string[], errors: [] as string[] };
+		const calls = { tokens: [] as CancellationToken[], connections: [] as string[], errors: [] as string[] };
 		let accountKey: string | undefined = 'account';
 		const service = new class extends mock<IMissionControlEnvironmentService>() {
 			override readonly enabled = enabled;
@@ -97,19 +97,13 @@ suite('Mission Control environment picker', () => {
 				}
 			}
 			override async connect(id: string) { calls.connections.push(id); }
-			override async hide(id: string) {
-				calls.hidden.push(id);
-				hosts.set(hosts.get().map(host => host.id === id ? { ...host, hidden: true } : host), undefined);
-			}
-			override restore(id: string) {
-				calls.restored.push(id);
-				hosts.set(hosts.get().map(host => host.id === id ? { ...host, hidden: false } : host), undefined);
-			}
 		}();
 		instantiation.stub(IMissionControlEnvironmentService, service);
+		const connectionChanges = store.add(new Emitter<void>());
+		const connections: IRemoteAgentHostConnectionInfo[] = [];
 		instantiation.stub(IRemoteAgentHostService, new class extends mock<IRemoteAgentHostService>() {
-			override readonly onDidChangeConnections = Event.None;
-			override readonly connections = [];
+			override readonly onDidChangeConnections = connectionChanges.event;
+			override readonly connections = connections;
 		}());
 		instantiation.stub(INotificationService, new class extends TestNotificationService {
 			override error(message: Parameters<TestNotificationService['error']>[0]) {
@@ -120,8 +114,52 @@ suite('Mission Control environment picker', () => {
 		instantiation.stub(IQuickInputService, { backButton: { tooltip: 'Back' }, focus: () => { } }, 'createQuickPick', () => quickPick);
 		const run = () => instantiation.invokeFunction(accessor => CommandsRegistry.getCommand(ConnectMissionControlEnvironmentCommand)!.handler(accessor));
 		const signOut = () => { accountKey = undefined; hosts.set([], undefined); };
-		return { quickPick, inventory, calls, hosts, run, signOut, instantiation };
+		return { quickPick, inventory, calls, hosts, run, signOut, instantiation, connections, connectionChanges };
 	}
+
+	test('shows only availability and active connection status on a single line', async () => {
+		const { quickPick, inventory, run, connections, connectionChanges } = fixture([
+			environment('online'), { ...environment('offline'), status: 'offline' },
+		]);
+		const done = run();
+		await quickPick.shown.p;
+		const rows = () => quickPick.hostItems().map(item => ({ label: item.label, description: item.description, detail: item.detail }));
+		const states = [rows()];
+		for (const status of [RemoteAgentHostConnectionStatus.connecting, RemoteAgentHostConnectionStatus.connected, RemoteAgentHostConnectionStatus.reconnecting, RemoteAgentHostConnectionStatus.disconnected]) {
+			connections.splice(0, connections.length, { address: cloudSandboxAddress('online'), name: 'Host online', status });
+			connectionChanges.fire();
+			states.push(rows());
+		}
+		quickPick.hide();
+		await done;
+		await inventory.complete([]);
+		const offline = { label: 'Host offline', description: 'Offline', detail: undefined };
+		assert.deepStrictEqual(states, [
+			[{ label: 'Host online', description: 'Online', detail: undefined }, offline],
+			[{ label: 'Host online', description: 'Online · Connecting', detail: undefined }, offline],
+			[{ label: 'Host online', description: 'Online · Connected', detail: undefined }, offline],
+			[{ label: 'Host online', description: 'Online · Reconnecting', detail: undefined }, offline],
+			[{ label: 'Host online', description: 'Online', detail: undefined }, offline],
+		]);
+	});
+
+	test('uses Environments for the picker title, refresh action and empty state', async () => {
+		const { quickPick, inventory, run } = fixture();
+		const done = run();
+		await quickPick.shown.p;
+		await inventory.complete([]);
+		await quickPick.refreshed.p;
+		const copy = {
+			title: quickPick.title, placeholder: quickPick.placeholder,
+			refresh: quickPick.buttons[0].tooltip, empty: quickPick.validationMessage,
+		};
+		quickPick.hide();
+		await done;
+		assert.deepStrictEqual(copy, {
+			title: 'Environments', placeholder: 'Select an environment to connect',
+			refresh: 'Refresh Environments', empty: 'No environments found.',
+		});
+	});
 
 	test('shows retained hosts immediately while refreshing and preserves query, selection and focus', async () => {
 		const { quickPick, inventory, calls, run } = fixture([environment('a')]);
@@ -149,6 +187,21 @@ suite('Mission Control environment picker', () => {
 		const { calls, quickPick, run } = fixture([], false);
 		await assert.rejects(async () => run(), /require remote agent hosts and AI features to be enabled/);
 		assert.deepStrictEqual({ requests: calls.tokens.length, shown: quickPick.shown.isSettled }, { requests: 0, shown: false });
+	});
+
+	test('refreshes cached rows on open and removes hosts absent from the endpoint', async () => {
+		const { quickPick, inventory, calls, run } = fixture([environment('deleted'), environment('remaining')]);
+		const done = run();
+		await quickPick.shown.p;
+		const cached = quickPick.hostItems().map(item => item.label);
+		await inventory.complete([environment('remaining')]);
+		await quickPick.refreshed.p;
+		const refreshed = quickPick.hostItems().map(item => item.label);
+		quickPick.hide();
+		await done;
+		assert.deepStrictEqual({ cached, refreshed, requests: calls.tokens.length }, {
+			cached: ['Host deleted', 'Host remaining'], refreshed: ['Host remaining'], requests: 1,
+		});
 	});
 
 	test('cached hosts can be accepted before refresh, and closing cancels late results', async () => {
@@ -181,34 +234,31 @@ suite('Mission Control environment picker', () => {
 		});
 	}
 
-	test('hide and restore are keyboard-accessible local actions without connecting', async () => {
+	test('hosts have no hide or restore actions and accepting a host connects directly', async () => {
 		const { quickPick, inventory, calls, run } = fixture([environment('a')]);
 		const done = run();
 		await quickPick.shown.p;
-		quickPick.triggerItemButton(quickPick.hostItems()[0]);
-		const hidden = quickPick.hostItems()[0].description;
+		const rows = quickPick.items.map(item => ({ type: item.type, label: item.label, buttons: item.type === 'separator' ? undefined : item.buttons }));
 		quickPick.selectedItems = [quickPick.hostItems()[0]];
 		quickPick.accept();
-		const restored = quickPick.hostItems()[0].description;
-		quickPick.hide();
 		await done;
 		await inventory.complete([]);
-		assert.deepStrictEqual({ hidden, restored, calls: { hidden: calls.hidden, restored: calls.restored, connections: calls.connections } }, {
-			hidden: 'Hidden', restored: 'Relay disconnected', calls: { hidden: ['a'], restored: ['a'], connections: [] },
+		assert.deepStrictEqual({ rows, connections: calls.connections }, {
+			rows: [{ type: undefined, label: 'Host a', buttons: undefined }], connections: ['a'],
 		});
 	});
 
-	test('duplicate names retain friendly primary labels with secondary disambiguation', async () => {
+	test('duplicate names show only friendly labels and availability without host IDs', async () => {
 		const { quickPick, inventory, run } = fixture([environment('env_11111111', 'Machine'), environment('env_22222222', 'Machine')]);
 		const done = run();
 		await quickPick.shown.p;
-		const rows = quickPick.hostItems().map(item => ({ label: item.label, detail: item.detail }));
+		const rows = quickPick.hostItems().map(item => ({ label: item.label, description: item.description, detail: item.detail }));
 		quickPick.hide();
 		await done;
 		await inventory.complete([]);
 		assert.deepStrictEqual(rows, [
-			{ label: 'Machine', detail: 'Mission Control · Last reported online · Host 11111111' },
-			{ label: 'Machine', detail: 'Mission Control · Last reported online · Host 22222222' },
+			{ label: 'Machine', description: 'Online', detail: undefined },
+			{ label: 'Machine', description: 'Online', detail: undefined },
 		]);
 	});
 

@@ -3,29 +3,48 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, getActiveElement, isAncestor, isHTMLElement } from '../../../base/browser/dom.js';
+import { $, getActiveElement, getWindow, isAncestor, isHTMLElement, runAtThisOrScheduleAtNextAnimationFrame } from '../../../base/browser/dom.js';
 import { Direction, GridNode, IGridStyles, ISerializableView, ISerializedGrid, ISerializedNode, IView, SerializableGrid, Sizing, isGridBranchNode } from '../../../base/browser/ui/grid/grid.js';
 import { Orientation } from '../../../base/browser/ui/sash/sash.js';
 import { Emitter } from '../../../base/common/event.js';
-import { Disposable, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { ISessionGridPlacement } from '../../services/sessions/browser/sessionsPartService.js';
 import { isSessionGridLeafData, projectSessionGrid } from '../../services/sessions/browser/sessionGridState.js';
 import { Color } from '../../../base/common/color.js';
 
+export interface ISessionGridView extends IView {
+	/** Applies the allocated geometry without laying out descendants. */
+	layoutContainer(width: number, height: number, top: number, left: number): void;
+	/** Lays out descendants using the most recently applied geometry. */
+	layoutContents(): void;
+}
+
 export interface ISessionGridEntry {
 	readonly id: string;
-	readonly view: IView;
+	readonly view: ISessionGridView;
 	readonly placement?: ISessionGridPlacement;
+}
+
+interface ILayout {
+	readonly width: number;
+	readonly height: number;
+	readonly top: number;
+	readonly left: number;
 }
 
 /** A host keeps grid identity stable while its content is projected onto the desktop surface. */
 class SessionGridLeaf implements ISerializableView {
 	readonly element = $('.session-grid-leaf');
 	private projected = false;
+	private active = false;
 	private visible = true;
-	private lastLayout: { width: number; height: number; top: number; left: number } | undefined;
+	private lastLayout: ILayout | undefined;
+	private projectedLayout: ILayout | undefined;
+	private appliedLayout: ILayout | undefined;
+	private appliedVisible: boolean | undefined;
+	private contentsDirty = false;
 
-	constructor(readonly id: string, readonly view: IView) {
+	constructor(readonly id: string, readonly view: ISessionGridView, private readonly requestLayout: (leaf: SessionGridLeaf) => void) {
 		this.element.appendChild(view.element);
 	}
 
@@ -38,28 +57,61 @@ class SessionGridLeaf implements ISerializableView {
 	layout(width: number, height: number, top: number, left: number): void {
 		this.lastLayout = { width, height, top, left };
 		if (!this.projected) {
-			this.view.layout(width, height, top, left);
+			this.requestLayout(this);
 		}
 	}
 
 	setVisible(visible: boolean): void {
 		this.visible = visible;
 		if (!this.projected) {
-			this.view.setVisible?.(visible);
+			this.requestLayout(this);
 		}
 	}
 
 	project(host: HTMLElement | undefined, active: boolean): void {
-		const wasProjected = this.projected;
+		const changed = this.projected !== !!host || this.active !== active;
 		this.projected = !!host;
+		this.active = active;
 		const parent = host && active ? host : this.element;
 		if (this.view.element.parentElement !== parent) {
 			parent.appendChild(this.view.element);
 		}
-		this.view.setVisible?.(host ? active : this.visible);
-		if (wasProjected && !this.projected && this.lastLayout) {
-			const { width, height, top, left } = this.lastLayout;
-			this.view.layout(width, height, top, left);
+		if (changed) {
+			this.requestLayout(this);
+		}
+	}
+
+	layoutProjected(dimensions: ILayout): void {
+		this.projectedLayout = dimensions;
+		this.requestLayout(this);
+	}
+
+	applyGeometry(): void {
+		const dimensions = this.projected ? this.projectedLayout : this.lastLayout;
+		if (!(this.projected ? this.active : this.visible) || !dimensions) {
+			return;
+		}
+		const { width, height, top, left } = dimensions;
+		const previous = this.appliedLayout;
+		if (previous?.width === width && previous.height === height && previous.top === top && previous.left === left) {
+			return;
+		}
+		this.appliedLayout = dimensions;
+		this.contentsDirty = true;
+		this.view.layoutContainer(width, height, top, left);
+	}
+
+	applyContents(isCurrent: () => boolean): void {
+		const visible = this.projected ? this.active : this.visible;
+		const visibilityChanged = this.appliedVisible !== visible;
+		const layout = this.contentsDirty || visibilityChanged;
+		this.contentsDirty = false;
+		this.appliedVisible = visible;
+		if (visibilityChanged) {
+			this.view.setVisible?.(visible);
+		}
+		if (visible && this.appliedLayout && layout && isCurrent()) {
+			this.view.layoutContents();
 		}
 	}
 
@@ -82,8 +134,11 @@ export class SessionGridLayout extends Disposable {
 	private styles: IGridStyles = { separatorBorder: Color.transparent };
 	private maximizedId: string | undefined;
 	private updatingLayout = false;
+	private flushingLayout = false;
+	private readonly pendingLayouts = new Set<SessionGridLeaf>();
+	private readonly layoutFrame = this._register(new MutableDisposable<IDisposable>());
 
-	constructor() {
+	constructor(private readonly scheduleLayout: (callback: () => void) => IDisposable = callback => runAtThisOrScheduleAtNextAnimationFrame(getWindow(this.element), callback)) {
 		super();
 		this.element.appendChild(this.projectionHost);
 		this.projectionHost.style.display = 'none';
@@ -103,7 +158,7 @@ export class SessionGridLayout extends Disposable {
 			const desired = new Set(entries.map(entry => entry.id));
 			for (const entry of entries) {
 				if (!this.leaves.has(entry.id)) {
-					const leaf = new SessionGridLeaf(entry.id, entry.view);
+					const leaf = new SessionGridLeaf(entry.id, entry.view, leaf => this.requestLayout(leaf));
 					this.leaves.set(entry.id, leaf);
 					leaf.project(this.phone ? this.projectionHost : undefined, entry.id === active);
 					if (!this.grid.value) {
@@ -117,9 +172,10 @@ export class SessionGridLayout extends Disposable {
 			}
 			for (const [id, leaf] of this.leaves) {
 				if (!desired.has(id)) {
+					this.leaves.delete(id);
+					this.pendingLayouts.delete(leaf);
 					leaf.project(undefined, false);
 					this.grid.value!.removeView(leaf);
-					this.leaves.delete(id);
 					this.placements.delete(id);
 				}
 			}
@@ -211,8 +267,10 @@ export class SessionGridLayout extends Disposable {
 	resize(id: string, width: number, height: number): void {
 		const leaf = this.leaves.get(id);
 		if (leaf && !this.phone) {
-			this.setMaximized(undefined);
-			this.grid.value!.resizeView(leaf, { width, height });
+			this.preserveFocus(() => {
+				this.setMaximized(undefined);
+				this.grid.value!.resizeView(leaf, { width, height });
+			});
 		}
 	}
 
@@ -225,7 +283,7 @@ export class SessionGridLayout extends Disposable {
 		const leaf = this.leaves.get(id);
 		const size = leaf && this.grid.value!.getViewSize(leaf);
 		if (leaf && size && !this.phone && !this.maximized && !this.updatingLayout && size.width === leaf.minimumWidth) {
-			this.grid.value!.expandView(leaf);
+			this.preserveFocus(() => this.grid.value!.expandView(leaf));
 		}
 	}
 
@@ -236,16 +294,18 @@ export class SessionGridLayout extends Disposable {
 		}
 		const columns = Math.ceil(Math.sqrt(leaves.length));
 		const rows = Math.ceil(leaves.length / columns);
-		this.setMaximized(undefined);
-		this.preserveFocus(() => this.setGrid(SerializableGrid.from({
-			orientation: Orientation.VERTICAL,
-			groups: Array.from({ length: rows }, (_, row) => {
-				const items = leaves.slice(row * columns, (row + 1) * columns);
-				return items.length === 1
-					? { data: items[0], size: 1 }
-					: { groups: items.map(data => ({ data, size: 1 })), size: 1 };
-			})
-		})));
+		this.preserveFocus(() => {
+			this.setMaximized(undefined);
+			this.setGrid(SerializableGrid.from({
+				orientation: Orientation.VERTICAL,
+				groups: Array.from({ length: rows }, (_, row) => {
+					const items = leaves.slice(row * columns, (row + 1) * columns);
+					return items.length === 1
+						? { data: items[0], size: 1 }
+						: { groups: items.map(data => ({ data, size: 1 })), size: 1 };
+				})
+			}));
+		});
 	}
 
 	serialize(): ISerializedGrid | undefined {
@@ -354,7 +414,48 @@ export class SessionGridLayout extends Disposable {
 			const { width, height, top, left } = dimensions;
 			this.projectionHost.style.width = `${width}px`;
 			this.projectionHost.style.height = `${height}px`;
-			projected.view.layout(width, height, top, left);
+			projected.layoutProjected({ width, height, top, left });
+		}
+	}
+
+	private requestLayout(leaf: SessionGridLeaf): void {
+		if (this._store.isDisposed || this.leaves.get(leaf.id) !== leaf) {
+			return;
+		}
+		this.pendingLayouts.add(leaf);
+		if (!this.updatingLayout && !this.flushingLayout && !this.layoutFrame.value) {
+			this.layoutFrame.value = this.scheduleLayout(() => this.flushLayouts());
+		}
+	}
+
+	private flushLayouts(): void {
+		if (this.flushingLayout) {
+			return;
+		}
+		this.layoutFrame.clear();
+		this.flushingLayout = true;
+		try {
+			while (this.pendingLayouts.size > 0) {
+				const leaves = [...this.pendingLayouts];
+				this.pendingLayouts.clear();
+				for (const leaf of leaves) {
+					if (this.leaves.get(leaf.id) === leaf) {
+						leaf.applyGeometry();
+					}
+				}
+				for (const leaf of leaves) {
+					if (this.leaves.get(leaf.id) !== leaf) {
+						continue;
+					}
+					if (this.pendingLayouts.size > 0) {
+						this.pendingLayouts.add(leaf);
+					} else {
+						leaf.applyContents(() => this.leaves.get(leaf.id) === leaf);
+					}
+				}
+			}
+		} finally {
+			this.flushingLayout = false;
 		}
 	}
 
@@ -370,6 +471,10 @@ export class SessionGridLayout extends Disposable {
 		this.updatingLayout = true;
 		try {
 			fn();
+			if (!updatingLayout) {
+				// Structural operations finish child layout before restoring focus; sash callbacks share one frame.
+				this.flushLayouts();
+			}
 			if (owned && focused.isConnected && (this.projectedId === undefined || isAncestor(focused, this.projectionHost)) && getActiveElement() !== focused) {
 				focused.focus();
 			}
@@ -379,6 +484,8 @@ export class SessionGridLayout extends Disposable {
 	}
 
 	override dispose(): void {
+		this.layoutFrame.clear();
+		this.pendingLayouts.clear();
 		for (const leaf of this.leaves.values()) {
 			leaf.view.element.remove();
 		}

@@ -94,6 +94,34 @@ suite('AgentHostStateManager', () => {
 		assert.deepStrictEqual(fired, [sessionChatUri, sessionChatUri]);
 	});
 
+	test('batches chat working-directory invalidation by effective scope', () => {
+		manager.createSession({ ...makeSessionSummary(), workingDirectories: ['file:///a', 'file:///b'] });
+		const peer = buildChatUri(sessionUri, 'peer');
+		manager.addChat(sessionUri, peer);
+		const fired: string[] = [];
+		const actions: string[] = [];
+		disposables.add(manager.onDidChangeSessionWorkingDirectories(({ session }) => fired.push(session)));
+		disposables.add(manager.onDidEmitEnvelope(envelope => {
+			if (envelope.channel === peer && envelope.action.type === ActionType.ChatWorkingDirectorySet) {
+				actions.push(envelope.action.directory);
+			}
+		}));
+
+		manager.runWithBatchedWorkingDirectoryChanges(() => {
+			manager.dispatchServerAction(peer, { type: ActionType.ChatWorkingDirectorySet, directory: 'file:///a' });
+			manager.dispatchServerAction(peer, { type: ActionType.ChatWorkingDirectorySet, directory: 'file:///b' });
+		});
+		manager.runWithBatchedWorkingDirectoryChanges(() => {
+			manager.dispatchServerAction(peer, { type: ActionType.ChatWorkingDirectoryRemoved, directory: 'file:///b' });
+			manager.dispatchServerAction(peer, { type: ActionType.ChatWorkingDirectorySet, directory: 'file:///c' });
+		});
+
+		assert.deepStrictEqual({ fired, actions }, {
+			fired: [peer],
+			actions: ['file:///a', 'file:///b', 'file:///c'],
+		});
+	});
+
 	test('getSnapshot returns undefined for unknown session', () => {
 		const unknown = URI.from({ scheme: 'copilot', path: '/unknown' }).toString();
 		const snapshot = manager.getSnapshot(unknown);

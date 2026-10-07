@@ -43,6 +43,7 @@ import { ResourceLabelFormatter } from '../../../platform/label/common/label.js'
 import { ILoggerOptions, ILoggerResource, LogLevel } from '../../../platform/log/common/log.js';
 import { IMarkerData } from '../../../platform/markers/common/markers.js';
 import { IProgressOptions, IProgressStep } from '../../../platform/progress/common/progress.js';
+import { NotificationTelemetryId } from '../../../platform/notification/common/notificationTelemetry.js';
 import * as quickInput from '../../../platform/quickinput/common/quickInput.js';
 import { IRemoteConnectionData, TunnelDescription } from '../../../platform/remote/common/remoteAuthorityResolver.js';
 import { AuthInfo, Credentials } from '../../../platform/request/common/request.js';
@@ -629,8 +630,9 @@ export interface MainThreadOutputServiceShape extends IDisposable {
 	$dispose(channelId: string): Promise<void>;
 }
 
-export interface IProgressOptionsDto extends Omit<IProgressOptions, 'title' | 'legacyExtensionLinkParsing'> {
+export interface IProgressOptionsDto extends Omit<IProgressOptions, 'title' | 'legacyExtensionLinkParsing' | 'telemetry'> {
 	readonly title?: string;
+	readonly telemetryId?: NotificationTelemetryId;
 }
 
 export interface IProgressStepDto extends Omit<IProgressStep, 'message'> {

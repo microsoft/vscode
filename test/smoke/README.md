@@ -83,7 +83,7 @@ Run the local and SSH Dev Container cases:
 npm run smoketest -- --tracing -g 'Agents Window \((SSH )?Dev Container AgentHost\)'
 ```
 
-The Tunnel suite uses a real private, agent-host-only Dev Tunnel. It is opt-in because ordinary PR smoke jobs do not have account credentials. Supply a GitHub user token authorized to create, connect to, and delete Dev Tunnels, plus a compatible tunnel CLI if it cannot be discovered:
+The Tunnel suite uses a real private Dev Tunnel with remote editor access and agent-host support. The fixture provisions and verifies exactly the editor control port 31545 and agent-host port 31546, then starts the normal `tunnel` command. It is opt-in because ordinary PR smoke jobs do not have account credentials. Supply a GitHub user token authorized to create, connect to, and delete Dev Tunnels, plus a compatible tunnel CLI if it cannot be discovered:
 
 ```bash
 export VSCODE_SMOKE_TEST_TUNNEL_TOKEN="$(gh auth token)"
