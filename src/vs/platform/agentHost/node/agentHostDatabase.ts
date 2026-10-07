@@ -705,7 +705,10 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 	private _closed: Promise<void> | true | undefined;
 	private readonly _transactionSequencer = new Sequencer();
 
-	constructor(private readonly _path: string) { }
+	constructor(
+		private readonly _path: string,
+		private readonly _onDidRunStatement?: (sql: string) => Promise<void>,
+	) { }
 
 	async registerSession(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
 		const { provider, startTime, modifiedTime = startTime, source } = sessionOptions;
@@ -2276,7 +2279,10 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					}
 				}
 				const revision = this._nextRevision(expectedCatalogRevision);
-				await run(database, 'UPDATE session_chat_catalogs SET revision = ? WHERE session_uri = ?', [revision, session]);
+				const updateRevisionSql = 'UPDATE session_chat_catalogs SET revision = ? WHERE session_uri = ?';
+				await run(database, updateRevisionSql, [revision, session]);
+				await this._onDidRunStatement?.(updateRevisionSql);
+				this._validateWriteBoundary(validate);
 				await exec(database, 'COMMIT');
 				return { status: 'applied', catalogRevision: revision };
 			} catch (error) {

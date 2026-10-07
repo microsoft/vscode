@@ -12,7 +12,7 @@ import { createSingleCallFunction } from '../../../base/common/functional.js';
 import { type IDisposable, type IReference } from '../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { ILogService } from '../../log/common/log.js';
-import type { ISessionCatalogSyncAcknowledgement, ISessionCatalogSyncPendingSnapshot, ISessionCatalogSyncSnapshot, ISessionDataService, ISessionDatabase } from '../common/sessionDataService.js';
+import type { ISessionCatalogSyncAcknowledgement, ISessionCatalogSyncPendingSnapshot, ISessionCatalogSyncSnapshot, ISessionDataService, ISessionDatabase, SessionCatalogSyncTransitionResult, SessionCatalogSyncWriteResult } from '../common/sessionDataService.js';
 import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, AgentHostCatalogData, decodeAgentHostCatalogPayload, encodeAgentHostCatalogPayload, hashAgentHostCatalogPayload, IAgentHostCatalogEncodedPayload } from './agentHostCatalogProjection.js';
 import type { AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabase, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Envelope, IAgentHostDatabaseSessionV2Receipt } from './agentHostDatabase.js';
 
@@ -366,8 +366,12 @@ export class AgentHostCatalogSyncService {
 			} catch (error) {
 				this._logService.warn(`[AgentHostCatalogSync] Failed to read sessions_v2 row for ${sessionKey}`, error);
 				const legacyMetadataMatches = await catalogLegacyMetadataMatches(ref.object, request.legacyMetadata);
-				const pending = await this._storePending(ref.object, request, encoded, existing, legacyMetadataMatches);
-				return { status: 'pending', sourceRevision: pending.sourceRevision, reason: 'upsertFailed' };
+				const pending = await this._storePending(ref.object, request, encoded, existing, legacyMetadataMatches, validate, writeValidator);
+				return {
+					status: 'pending',
+					sourceRevision: pending.snapshot.sourceRevision,
+					reason: pending.result === 'cancelled' ? 'cancelled' : 'upsertFailed',
+				};
 			}
 
 			const sessionGeneration = central?.sessionGeneration
@@ -384,14 +388,21 @@ export class AgentHostCatalogSyncService {
 					request.legacyMetadata,
 					existing.sessionGeneration,
 					snapshot,
+					writeValidator,
 				);
-				if (!transitioned) {
+				if (transitioned === 'cancelled') {
+					return { status: 'pending', sourceRevision, reason: 'cancelled' };
+				}
+				if (transitioned === 'generationMismatch') {
 					continue;
 				}
 			} else {
 				traceStage('writeLocalReceipt');
 				await validate?.();
-				const writeResult = await ref.object.setMetadataValuesAndCatalogSyncSnapshot(request.legacyMetadata, snapshot);
+				const writeResult = await ref.object.setMetadataValuesAndCatalogSyncSnapshot(request.legacyMetadata, snapshot, writeValidator);
+				if (writeResult === 'cancelled') {
+					return { status: 'pending', sourceRevision, reason: 'cancelled' };
+				}
 				if (writeResult === 'replayed'
 					&& request.chatCatalogRevision === undefined
 					&& matchesAcknowledgedCatalogReceipt(existing, central)
@@ -546,16 +557,19 @@ export class AgentHostCatalogSyncService {
 		encoded: IAgentHostCatalogEncodedPayload,
 		existing: ISessionCatalogSyncSnapshot | undefined,
 		legacyMetadataMatches: boolean,
-	): Promise<ISessionCatalogSyncPendingSnapshot> {
+		validate?: () => Promise<void>,
+		writeValidator?: () => boolean,
+	): Promise<{ readonly snapshot: ISessionCatalogSyncPendingSnapshot; readonly result: SessionCatalogSyncWriteResult | SessionCatalogSyncTransitionResult }> {
 		const sessionGeneration = existing?.sessionGeneration ?? generateUuid();
 		const sourceRevision = this._sourceRevision(existing, undefined, sessionGeneration, encoded.payloadHash, legacyMetadataMatches);
 		const snapshot = this._pendingSnapshot(sessionGeneration, sourceRevision, encoded);
+		await validate?.();
 		if (existing && existing.sessionGeneration !== sessionGeneration) {
-			await database.transitionMetadataValuesAndCatalogSyncSnapshot(request.legacyMetadata, existing.sessionGeneration, snapshot);
-		} else {
-			await database.setMetadataValuesAndCatalogSyncSnapshot(request.legacyMetadata, snapshot);
+			const result = await database.transitionMetadataValuesAndCatalogSyncSnapshot(request.legacyMetadata, existing.sessionGeneration, snapshot, writeValidator);
+			return { snapshot, result };
 		}
-		return snapshot;
+		const result = await database.setMetadataValuesAndCatalogSyncSnapshot(request.legacyMetadata, snapshot, writeValidator);
+		return { snapshot, result };
 	}
 
 	private _sourceRevision(
