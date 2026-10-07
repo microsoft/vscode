@@ -6,6 +6,7 @@
 // Protocol client for communicating with an agent host process.
 
 import { DeferredPromise, disposableTimeout, IntervalTimer, TimeoutTimer } from '../../../base/common/async.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
 import { CancellationError } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable, IReference, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
@@ -1449,6 +1450,49 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction): void {
 		const seq = this._subscriptionManager.dispatchOptimistic(channel, action);
 		this.dispatchAction(channel, action, this._clientId, seq);
+	}
+
+	async dispatchConfirmed<T>(channel: string, subscription: IAgentSubscription<T>, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction, token: CancellationToken): Promise<ActionEnvelope> {
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		if (this._state.kind === AgentHostClientState.Closed || this._state.kind === AgentHostClientState.Incompatible) {
+			throw this._state.error;
+		}
+		if (this._state.kind === AgentHostClientState.Reconnecting) {
+			throw transportLostError(this._address);
+		}
+		const resource = URI.parse(channel);
+		const held = isAhpRootChannel(channel) ? this.rootState : this._subscriptionManager.getSubscriptionUnmanaged<T>(resource);
+		if (held !== subscription) {
+			throw new Error(`No matching held subscription for ${channel}`);
+		}
+		const store = new DisposableStore();
+		const confirmed = new DeferredPromise<ActionEnvelope>();
+		let clientSeq: number | undefined;
+		store.add(token.onCancellationRequested(() => confirmed.error(new CancellationError())));
+		store.add(Event.once(Event.filter(this.onDidAction, envelope => envelope.channel === channel && clientSeq !== undefined && envelope.origin?.clientId === this._clientId && envelope.origin.clientSeq === clientSeq))(envelope => confirmed.complete(envelope)));
+		store.add(Event.once(Event.filter(this.onDidChangeConnectionState, state => state === AgentHostClientState.Closed || state === AgentHostClientState.Incompatible || state === AgentHostClientState.Reconnecting))(() => confirmed.error(transportLostError(this._address))));
+		if (subscription.onDidError) {
+			store.add(Event.once(subscription.onDidError)(error => confirmed.error(error)));
+		}
+		try {
+			if (subscription.value === undefined) {
+				const initialized = new DeferredPromise<void>();
+				store.add(Event.once(Event.filter(subscription.onDidChange, () => subscription.value !== undefined))(() => initialized.complete()));
+				await Promise.race([initialized.p, confirmed.p]);
+			}
+			if (subscription.value instanceof Error) {
+				throw subscription.value;
+			}
+			if (!confirmed.isSettled) {
+				clientSeq = this._subscriptionManager.dispatchOptimistic(channel, action);
+				this.dispatchAction(channel, action, this._clientId, clientSeq);
+			}
+			return await confirmed.p;
+		} finally {
+			store.dispose();
+		}
 	}
 
 	/**

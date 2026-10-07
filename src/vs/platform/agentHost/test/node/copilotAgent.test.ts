@@ -546,7 +546,9 @@ class TestSessionDataService extends Disposable implements ISessionDataService {
 	deleteSessionData(): Promise<void> { return Promise.resolve(); }
 	readonly onWillDeleteSessionData = Event.None;
 	cleanupOrphanedData(): Promise<void> { return Promise.resolve(); }
-	whenIdle(): Promise<void> { return Promise.resolve(); }
+	async whenIdle(): Promise<void> {
+		await Promise.all([...this._databases.values()].map(db => db.whenIdle()));
+	}
 }
 type CopilotModelsList = CopilotClient['rpc']['models']['list'];
 type CopilotPluginsUninstall = CopilotClient['rpc']['plugins']['uninstall'];
@@ -1263,6 +1265,8 @@ function getCreatedClientOptions(agent: CopilotAgent): readonly CopilotClientOpt
 	return agent.createdClientOptions;
 }
 
+const sessionDataServicesByAgent = new WeakMap<CopilotAgent, ISessionDataService>();
+
 function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; fileService?: FileService; copilotApiService?: ICopilotApiService; gitHubEndpointService?: IAgentHostGitHubEndpointService; telemetryService?: ITelemetryService; userHome?: URI; logService?: ILogService; proxyResolver?: IAgentHostProxyResolver; byokBridgeRegistry?: IByokLmBridgeRegistry; byokProxyService?: IByokLmProxyService; otelService?: IAgentHostOTelService; customizationEnablementService?: ICustomizationEnablementService; useRealCustomizationEnablementService?: boolean; worktreeIsolation?: IAgentHostWorktreeIsolation; rootConfig?: Record<string, unknown>; now?: () => number; startupPerformance?: IAgentHostStartupPerformance }): { agent: CopilotAgent; instantiationService: IInstantiationService; authenticationService: AgentHostAuthenticationService; configurationService: IAgentConfigurationService; worktreeIsolation: IAgentHostWorktreeIsolation; managedSettingsService: IAgentHostManagedSettingsService; fileService: FileService; stateManager: AgentHostStateManager } {
 	const services = new ServiceCollection();
 	const logService = options?.logService ?? new NullLogService();
@@ -1341,6 +1345,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 			? instantiationService.createInstance(ResumePathCopilotAgent, options.copilotClient)
 			: instantiationService.createInstance(TestableCopilotAgent, options.copilotClient, options.now ?? Date.now)
 		: instantiationService.createInstance(CopilotAgent);
+	sessionDataServicesByAgent.set(agent, sessionDataService);
 	return { agent, instantiationService, authenticationService, configurationService: configService, worktreeIsolation, managedSettingsService, fileService, stateManager };
 }
 
@@ -1446,6 +1451,8 @@ async function collectDiscoveredChats(agent: CopilotAgent): Promise<Array<{ id: 
 
 async function disposeAgent(agent: CopilotAgent): Promise<void> {
 	await agent.shutdown();
+	await sessionDataServicesByAgent.get(agent)?.whenIdle();
+	sessionDataServicesByAgent.delete(agent);
 	agent.dispose();
 	// CopilotAgent.dispose calls super.dispose() from a promise continuation so
 	// async shutdown can stop SDK sessions before child disposables are released.

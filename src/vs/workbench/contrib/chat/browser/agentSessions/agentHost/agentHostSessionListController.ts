@@ -130,7 +130,16 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			// untitled chat-input resource to the freshly-minted real resource so
 			// the provisional `getOrCreate` for the real resource seeds it.
 			this._importConversationStore.rename(request.untitledResource, item.resource);
-			const rebound = await this._provisional.tryRebind(request.untitledResource, item.resource, this._provider);
+			let rebound: URI | undefined;
+			try {
+				rebound = await this._provisional.tryRebind(request.untitledResource, item.resource, this._provider, token);
+			} catch (error) {
+				this._sessionListStore.clearPendingNewSession(this._provider, rawId);
+				this._newSessionFolderService.clear(item.resource);
+				this._provisional.clearSessionCreationMetadata(item.resource);
+				this._importConversationStore.rename(item.resource, request.untitledResource);
+				throw error;
+			}
 			const previousResource = item.resource;
 			// Use the retained backend identity; failed or retired allocations must not be reused.
 			const nextResource = previousResource.with({ path: rebound?.path ?? `/${generateUuid()}` });
