@@ -1695,6 +1695,50 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
+	test('relay session listing awaits directory grants and removes ungranted projects', async () => {
+		const path = await mkdtemp(join(process.cwd(), '.build', 'relay-session-grants-'));
+		try {
+			const workspace = join(path, 'workspace');
+			const outside = join(path, 'outside');
+			await Promise.all([mkdir(workspace), mkdir(outside)]);
+			const relay = disposables.add(new MockProtocolServer());
+			const scopedHandler = disposables.add(new ProtocolServerHandler(
+				agentService, stateManager, relay,
+				{ allowExtensionMethods: false, relayRoots: [workspace] },
+				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+			));
+			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'listing-lane', false));
+			relay.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', { clientId: 'listing-lane', protocolVersions: [PROTOCOL_VERSION] }));
+			for (const [name, directories, project] of [
+				['allowed', [workspace], workspace],
+				['outside-project', [workspace], outside],
+				['mixed', [workspace, outside], workspace],
+				['missing', [join(workspace, 'missing')], workspace],
+				['empty', [], workspace],
+			] as const) {
+				agentService.listedSessions.push({
+					session: URI.parse(`copilot:/${name}`),
+					startTime: 1000,
+					modifiedTime: 1000,
+					workingDirectories: directories.map(directory => URI.file(directory)),
+					project: { uri: URI.file(project), displayName: name },
+				});
+			}
+			transport.simulateMessage(request(2, 'listSessions', {}));
+			await scopedHandler.whenIdle();
+			const response = findResponse(transport.sent, 2);
+			const items = response && hasKey(response, { result: true }) ? (response.result as ListSessionsResult).items : undefined;
+			assert.deepStrictEqual(items?.map(item => ({ resource: item.resource, project: item.project })), [
+				{ resource: 'copilot:/allowed', project: { uri: URI.file(workspace).toString(), displayName: 'allowed' } },
+				{ resource: 'copilot:/outside-project', project: undefined },
+			]);
+		} finally {
+			await rm(path, { recursive: true });
+		}
+	});
+
 	test('live-contract Mission Control carries subscriptions, streaming, tools, and approvals through the native handler', async () => {
 		const local = connectClient('local-session-creator');
 		local.simulateMessage(request(2, 'createSession', { channel: 'copilot:///local-session', provider: 'copilot', workingDirectories: [URI.file(process.cwd()).toString()] }));
@@ -2453,6 +2497,9 @@ suite('ProtocolServerHandler', () => {
 				{ id: 31, method: 'resourceRead', params: { uri: buildSessionDbUri('ahp-chat://broken', 'peer-tool', '/file', 'before') }, allowed: false },
 				{ id: 33, method: 'resourceRead', params: { uri: workerContent }, allowed: true },
 				{ id: 34, method: 'resourceWrite', params: { uri: URI.file(join(workspace, 'not-directory.txt', 'child')).toString(), data: 'invalid', encoding: ContentEncoding.Utf8 }, allowed: false },
+				{ id: 35, method: 'createSession', params: { channel: 'copilot:/granted-session', provider: 'copilot', workingDirectories: [URI.file(workspace).toString()] }, allowed: true },
+				{ id: 36, method: 'createSession', params: { channel: 'copilot:/denied-session', provider: 'copilot', workingDirectories: [URI.file(workspace).toString(), URI.file(outside).toString()] }, allowed: false },
+				{ id: 37, method: 'createSession', params: { channel: 'copilot:/empty-session', provider: 'copilot', workingDirectories: [] }, allowed: false },
 			];
 			for (const item of cases) {
 				transport.simulateMessage(request(item.id, item.method, { channel: ROOT_STATE_URI, ...item.params }));
@@ -2467,20 +2514,22 @@ suite('ProtocolServerHandler', () => {
 					const response = findResponse(transport.sent, item.id);
 					return { id: item.id, allowed: !!response && hasKey(response, { result: true }) };
 				}),
-				reads,
+				reads: reads.sort(),
 				writes,
 				terminalDirectories,
 				rejectedDirectories,
+				createdSessions: agentService.createSessionConfigs.map(config => config?.session?.toString()),
 				deniedCodes: cases.filter(item => !item.allowed).map(item => {
 					const response = findResponse(transport.sent, item.id);
 					return response && hasKey(response, { error: true }) ? response.error.code : undefined;
 				}),
 			}, {
 				results: cases.map(item => ({ id: item.id, allowed: item.allowed })),
-				reads: [cases[0].params.uri, cases[1].params.uri, dbContent, gitContent, gitHeadContent, pendingContent, peerContent, peerDbContent, workerContent],
+				reads: [cases[0].params.uri, cases[1].params.uri, dbContent, gitContent, gitHeadContent, pendingContent, peerContent, peerDbContent, workerContent].sort(),
 				writes: [URI.file(join(workspace, 'new.txt')).toString()],
 				terminalDirectories: [URI.file(workspace).toString()],
 				rejectedDirectories: ['Working directory is outside the host workspace grants'],
+				createdSessions: ['copilot:/granted-session'],
 				deniedCodes: cases.filter(item => !item.allowed).map(() => AhpErrorCodes.PermissionDenied),
 			});
 			for (const { id, data } of [{ id: 21, data: 'default preview' }, { id: 26, data: 'peer preview' }, { id: 33, data: 'worker preview' }]) {
