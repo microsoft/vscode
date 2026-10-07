@@ -33,13 +33,13 @@ export class SandboxOutputAnalyzer extends Disposable implements IOutputAnalyzer
 		}
 
 		const os = await this._sandboxService.getOS();
+		if (os === OperatingSystem.Windows) {
+			return undefined;
+		}
 		let fileSystemSetting: TerminalChatAgentToolsSettingId;
 		switch (os) {
 			case OperatingSystem.Linux:
 				fileSystemSetting = TerminalChatAgentToolsSettingId.AgentSandboxLinuxFileSystem;
-				break;
-			case OperatingSystem.Windows:
-				fileSystemSetting = TerminalChatAgentToolsSettingId.AgentSandboxWindowsFileSystem;
 				break;
 			default:
 				fileSystemSetting = TerminalChatAgentToolsSettingId.AgentSandboxMacFileSystem;

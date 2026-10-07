@@ -23169,6 +23169,18 @@ Use the attached image as context.
 			assert.deepStrictEqual(mockSession.shellInitScriptUpdates, []);
 		});
 
+		test('Windows retains SDK shell init scripts when the custom terminal override is configured', async () => {
+			const { session, mockSession, setConfigValue } = await createEnabledSession({
+				platform: 'win32',
+				rootValues: { [CopilotCliConfigKey.EnableCustomTerminalTool]: true },
+			});
+			setConfigValue(SessionConfigKey.ShellInitScripts, [initScript]);
+
+			await session.send('go', undefined, 'turn-1', 'interactive');
+
+			assert.deepStrictEqual(mockSession.shellInitScriptUpdates.map(update => (update as unknown[]).length), [1]);
+		});
+
 		test('removes its own script on dispose and leaves a successor instance script intact', async () => {
 			const successorScript = '/mock-userdata/agentHost/shellInit/test-session-1/successor-instance/init.sh';
 			const { session, storedFileContents, setConfigValue } = await createEnabledSession({

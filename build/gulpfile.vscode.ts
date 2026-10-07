@@ -26,7 +26,7 @@ import { createAsar } from './lib/asar.ts';
 import minimist from 'minimist';
 import { compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileAllExtensionsBuildTask, compileExtensionMediaBuildTask, cleanExtensionsBuildTask, compileCopilotExtensionBuildTask } from './gulpfile.extensions.ts';
 import { checkApiProposalNamesTask, copyCodiconsTask } from './lib/compilation.ts';
-import { ensureCopilotPlatformPackage, getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getCopilotRuntimeVersion, getCopilotTgrepExcludeFilter, getMxcExcludeFilter, getRipgrepExcludeFilter, prepareBuiltInCopilotRipgrepShim } from './lib/copilot.ts';
+import { ensureCopilotPlatformPackage, getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getCopilotRuntimeVersion, getCopilotTgrepExcludeFilter, getRipgrepExcludeFilter, prepareBuiltInCopilotRipgrepShim } from './lib/copilot.ts';
 import { ensureOSProxyResolverPlatformPackage, getOSProxyResolverExcludeFilter, getOSProxyResolverPlatformFiles } from './lib/osProxyResolver.ts';
 import { readAgentSdkResults } from './agent-sdk/common.ts';
 import { readDictationRuntimeResults } from './dictation-runtime/common.ts';
@@ -252,7 +252,6 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			.pipe(filter(getCopilotExcludeFilter(platform, arch)))
 			.pipe(filter(getCopilotTgrepExcludeFilter(platform, arch)))
 			.pipe(filter(getRipgrepExcludeFilter(platform, arch)))
-			.pipe(filter(getMxcExcludeFilter(arch)))
 			.pipe(filter(getFoundryLocalExcludeFilter()))
 			.pipe(filter(getOSProxyResolverExcludeFilter(platform, arch)))
 			.pipe(jsFilter)
@@ -266,7 +265,6 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				// The Dev Container CLI is spawned as an external Node process,
 				// so its bundled entrypoint must be available outside the ASAR.
 				'**/@devcontainers/cli/**',
-				'**/@microsoft/mxc-sdk/bin/**',
 				'**/node-pty/build/Release/*',
 				'**/node-pty/build/Release/conpty/*',
 				'**/node-pty/lib/worker/conoutSocketWorker.js',
