@@ -788,7 +788,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private readonly _restoreSessionInFlight = new Map<string, Promise<void>>();
 	private readonly _restoreSubagentInFlight = new Map<string, Promise<void>>();
-	private readonly _restoredSubagentAdmissionRetries = new Map<string, { run(): Promise<void> }>();
+	private readonly _restoredSubagentAdmissionRetries = new Map<string, { run(): Promise<void>; cancel(): void; isCurrent(): boolean }>();
 	private readonly _sessionResidency: AgentSessionResidency;
 
 	/**
@@ -1019,7 +1019,9 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}));
 		this._register(this._stateManager.onDidRemoveSession(session => {
-			this._restoredSubagentAdmissionRetries.delete(session.toString());
+			const sessionKey = session.toString();
+			this._restoredSubagentAdmissionRetries.get(sessionKey)?.cancel();
+			this._restoredSubagentAdmissionRetries.delete(sessionKey);
 			for (const chat of this._pendingAgentMergeNotices.keys()) {
 				if (parseRequiredSessionUriFromChatUri(chat) === session) {
 					this._pendingAgentMergeNotices.delete(chat);
@@ -2508,7 +2510,12 @@ export class AgentService extends Disposable implements IAgentService {
 		return values;
 	}
 
-	private async _migrateChatCatalog(session: URI, token: CancellationToken, mutation?: Parameters<typeof migrateChatCatalogV2>[3], chatsOverride?: readonly ICatalogChat[], metadataFallbacks: Readonly<Record<string, string>> = {}): Promise<Awaited<ReturnType<typeof migrateChatCatalogV2>> | undefined> {
+	private async _migrateChatCatalog(
+		session: URI,
+		token: CancellationToken,
+		mutation?: Parameters<typeof migrateChatCatalogV2>[3],
+		catalogOverrideFactory?: () => Promise<{ readonly chats: readonly ICatalogChat[]; readonly metadataFallbacks: Readonly<Record<string, string>> } | undefined>,
+	): Promise<Awaited<ReturnType<typeof migrateChatCatalogV2>> | undefined> {
 		if (token.isCancellationRequested || !this._isSessionCatalogEnabled()) {
 			return;
 		}
@@ -2520,12 +2527,23 @@ export class AgentService extends Disposable implements IAgentService {
 					if (token.isCancellationRequested) {
 						return;
 					}
-					if (chatsOverride) {
+					const catalogOverride = await catalogOverrideFactory?.();
+					if (catalogOverrideFactory && !catalogOverride) {
+						return;
+					}
+					if (catalogOverride) {
 						const [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([session.toString()]);
 						if (snapshot?.authorityVersion !== 2) {
 							const previousDirtyRevision = await this._orchestratorDatabase.getSessionV2PayloadDirty(session.toString());
 							const dirtyRevision = await this._orchestratorDatabase.markSessionV2PayloadDirty(session.toString());
-							const synchronized = await synchronize(await this._buildListVisibleCatalogSyncRequest(session, {}, chatsOverride, database, undefined, metadataFallbacks));
+							const synchronized = await synchronize(await this._buildListVisibleCatalogSyncRequest(
+								session,
+								{},
+								catalogOverride.chats,
+								database,
+								undefined,
+								catalogOverride.metadataFallbacks,
+							));
 							if (synchronized.status === 'pending') {
 								this._catalogReconciliationService.schedule();
 								throw new Error(`Failed to stage restored chat catalog for ${session.toString()}: ${synchronized.reason}`);
@@ -10902,18 +10920,31 @@ export class AgentService extends Disposable implements IAgentService {
 	private _queueRestoredSubagentAdmissionRetry(agent: IAgent, parentSession: URI, turns: readonly Turn[]): void {
 		const sessionKey = parentSession.toString();
 		const existing = this._restoredSubagentAdmissionRetries.get(sessionKey);
-		if (existing) {
+		if (existing?.isCurrent()) {
 			void existing.run();
 			return;
 		}
+		existing?.cancel();
+		if (!this._stateManager.getSessionState(sessionKey)) {
+			this._logService.warn(`[AgentService] Cannot queue restored private chat admission without owner state for ${sessionKey}`);
+			return;
+		}
 		let current: Promise<void> | undefined;
+		let cancelled = false;
 		const admission = {
 			run: (): Promise<void> => {
+				if (!admission.isCurrent()) {
+					return Promise.resolve();
+				}
 				if (current) {
 					return current;
 				}
 				const retry = this._catalogReconciliationService.runPass()
-					.then(() => this._registerRestoredSubagentSummaries(agent, parentSession, turns));
+					.then(async () => {
+						if (admission.isCurrent()) {
+							await this._registerRestoredSubagentSummaries(agent, parentSession, turns, admission.isCurrent);
+						}
+					});
 				current = retry;
 				void retry.then(() => {
 					if (this._restoredSubagentAdmissionRetries.get(sessionKey) === admission) {
@@ -10927,12 +10958,18 @@ export class AgentService extends Disposable implements IAgentService {
 				});
 				return retry;
 			},
+			cancel: (): void => {
+				cancelled = true;
+			},
+			isCurrent: (): boolean => !cancelled
+				&& this._restoredSubagentAdmissionRetries.get(sessionKey) === admission
+				&& this._stateManager.getSessionState(sessionKey) !== undefined,
 		};
 		this._restoredSubagentAdmissionRetries.set(sessionKey, admission);
 		void admission.run();
 	}
 
-	private async _registerRestoredSubagentSummaries(agent: IAgent, parentSession: URI, turns: readonly Turn[]): Promise<void> {
+	private async _registerRestoredSubagentSummaries(agent: IAgent, parentSession: URI, turns: readonly Turn[], isCurrent: () => boolean = () => true): Promise<void> {
 		const parentSessionStr = parentSession.toString();
 		const parentChat = this._defaultChatUri(parentSession);
 		const discovered = new Map<string, { title: string; toolCallId: string }>();
@@ -10953,6 +10990,9 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 			}
 		}
+		if (!isCurrent()) {
+			return;
+		}
 		const restored = [...discovered.values()].map(child => {
 			const chatUri = buildSubagentChatUri(parentSessionStr, child.toolCallId);
 			const origin = { kind: ChatOriginKind.Tool, chat: parentChat, toolCallId: child.toolCallId } as const;
@@ -10961,6 +11001,9 @@ export class AgentService extends Disposable implements IAgentService {
 		});
 		const normalized = await this._peerChatStore.readNormalizedChat(parentSession, URI.parse(parentChat));
 		for (const child of restored) {
+			if (!isCurrent()) {
+				return;
+			}
 			await this._peerChatStore.persistPrivateChat(parentSession, {
 				chat: child.chatUri,
 				parentChat,
@@ -10971,59 +11014,76 @@ export class AgentService extends Disposable implements IAgentService {
 				session: parentSessionStr,
 				chat: child.chatUri,
 			}, {});
+			if (!isCurrent()) {
+				return;
+			}
 			child.title = title ?? child.title;
 		}
 		if (!normalized.normalized && this._isSessionCatalogEnabled() && restored.length > 0) {
-			const state = this._stateManager.getSessionState(parentSessionStr);
-			if (!state) {
-				throw new Error(`Missing restored owner state for ${parentSessionStr}`);
-			}
-			const source = await this._orchestratorDatabase.getSessionV2(parentSessionStr);
-			const decoded = source && decodeAgentHostCatalogPayload(source.payload);
-			if (!decoded || !decoded.ok) {
-				throw new Error(`Missing restored catalog source for ${parentSessionStr}`);
-			}
-			const metadataFallbacks: Record<string, string> = {};
-			const chats = new Map<string, ICatalogChat>();
-			for (const chat of decoded.value.data.chats) {
-				if (chat.summary !== undefined) {
-					metadataFallbacks[customChatTitleMetadataKey(chat.uri)] = chat.summary;
+			const result = await this._migrateChatCatalog(parentSession, CancellationToken.None, undefined, async () => {
+				if (!isCurrent()) {
+					return;
 				}
-				if (chat.titleSource !== undefined) {
-					metadataFallbacks[customChatTitleSourceMetadataKey(chat.uri)] = chat.titleSource;
+				const state = this._stateManager.getSessionState(parentSessionStr);
+				if (!state) {
+					throw new Error(`Missing restored owner state for ${parentSessionStr}`);
 				}
-				chats.set(chat.uri, {
-					uri: chat.uri,
-					kind: chat.kind,
-					title: chat.summary,
-					origin: fromCatalogChatOrigin(chat.origin),
-					interactivity: chat.interactivity,
-					archived: chat.archived,
-					isRead: chat.isRead,
-					inheritedTurnId: chat.inheritedTurnId,
-					workingDirectories: chat.workingDirectories,
-					changes: chat.changes,
-				});
+				const source = await this._orchestratorDatabase.getSessionV2(parentSessionStr);
+				const decoded = source && decodeAgentHostCatalogPayload(source.payload);
+				if (!decoded || !decoded.ok) {
+					throw new Error(`Missing restored catalog source for ${parentSessionStr}`);
+				}
+				const metadataFallbacks: Record<string, string> = {};
+				const chats = new Map<string, ICatalogChat>();
+				for (const chat of decoded.value.data.chats) {
+					if (chat.summary !== undefined) {
+						metadataFallbacks[customChatTitleMetadataKey(chat.uri)] = chat.summary;
+					}
+					if (chat.titleSource !== undefined) {
+						metadataFallbacks[customChatTitleSourceMetadataKey(chat.uri)] = chat.titleSource;
+					}
+					chats.set(chat.uri, {
+						uri: chat.uri,
+						kind: chat.kind,
+						title: chat.summary,
+						origin: fromCatalogChatOrigin(chat.origin),
+						interactivity: chat.interactivity,
+						archived: chat.archived,
+						isRead: chat.isRead,
+						inheritedTurnId: chat.inheritedTurnId,
+						workingDirectories: chat.workingDirectories,
+						changes: chat.changes,
+					});
+				}
+				for (const chat of this._catalogChatsFromState(state, parentChat)) {
+					chats.set(chat.uri, chat);
+				}
+				for (const child of restored) {
+					const existing = chats.get(child.chatUri);
+					chats.set(child.chatUri, {
+						...existing,
+						uri: child.chatUri,
+						kind: 'peer',
+						title: existing?.title || child.title,
+						origin: child.origin,
+						interactivity: ChatInteractivity.Hidden,
+					});
+				}
+				return {
+					chats: [...chats.values()],
+					metadataFallbacks,
+				};
+			});
+			if (!isCurrent()) {
+				return;
 			}
-			for (const chat of this._catalogChatsFromState(state, parentChat)) {
-				chats.set(chat.uri, chat);
-			}
-			for (const child of restored) {
-				const existing = chats.get(child.chatUri);
-				chats.set(child.chatUri, {
-					...existing,
-					uri: child.chatUri,
-					kind: 'peer',
-					title: existing?.title || child.title,
-					origin: child.origin,
-					interactivity: ChatInteractivity.Hidden,
-				});
-			}
-			const result = await this._migrateChatCatalog(parentSession, CancellationToken.None, undefined, [...chats.values()], metadataFallbacks);
 			if (!result || (result.status !== 'applied' && result.status !== 'replayed' && result.status !== 'alreadyNormalized')) {
 				throw new Error(`Failed to activate restored private chats for ${parentSessionStr}: ${result?.status ?? 'unavailable'}`);
 			}
 			for (const child of restored) {
+				if (!isCurrent()) {
+					return;
+				}
 				await this._peerChatStore.persistPrivateChat(parentSession, {
 					chat: child.chatUri,
 					parentChat,
@@ -11033,6 +11093,9 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}
 		for (const child of restored) {
+			if (!isCurrent()) {
+				return;
+			}
 			this._stateManager.registerRestoredChatSummary(parentSessionStr, child.chatUri, {
 				title: child.title,
 				origin: child.origin,
