@@ -263,6 +263,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	readonly onDidChangeSessionConfig: Event<string>;
 	/** Returns the last resolved dynamic configuration for a session. */
 	getSessionConfig(sessionId: string): ResolveSessionConfigResult | undefined;
+	/** Whether permission controls must use the owning host's reports instead of client policy. */
+	usesHostPermissionState?(sessionId: string): boolean;
 	/** Waits for a draft's authentication and configuration resolution, rejecting if configuration is unavailable. */
 	whenSessionConfigResolved(sessionId: string, token: CancellationToken): Promise<ResolveSessionConfigResult>;
 	/** Canceled when the draft is disposed, including when its provider disconnects. */

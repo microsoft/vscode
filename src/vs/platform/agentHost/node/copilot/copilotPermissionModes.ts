@@ -71,12 +71,12 @@ function getPermissions(policy: SessionEventPayload<'session.managed_settings_re
 	return permissions && typeof permissions === 'object' && !Array.isArray(permissions) ? permissions : undefined;
 }
 
-export function getCopilotApprovalPreview(config: Readonly<Record<string, unknown>>, policy: SessionEventPayload<'session.managed_settings_resolved'>['data'], clientPermissions?: IAgentHostManagedSettingsPermissions, isNewSession = true): Record<string, unknown> {
+export function getCopilotApprovalPreview(config: Readonly<Record<string, unknown>>, policy: SessionEventPayload<'session.managed_settings_resolved'>['data'], clientPermissions?: IAgentHostManagedSettingsPermissions, isNewSession = true, globalAutoApprove = false): Record<string, unknown> {
 	const availableApprovalModes = getCopilotAvailableApprovalModes(policy).filter(mode =>
 		(mode !== 'assisted' || clientPermissions?.disableAssistedPermissionsMode !== true)
 		&& (mode !== 'autoApprove' || clientPermissions?.disableBypassPermissionsMode !== 'disable'));
 	const managedDefault = getPermissions(policy)?.defaultMode;
-	const selected = isNewSession
+	const selected = globalAutoApprove ? 'autoApprove' : isNewSession
 		? config[SessionConfigKey.AutoApprove] ?? (managedDefault === 'assisted' || managedDefault === 'allow-all' ? fromCopilotPermissionMode(managedDefault) : 'default')
 		: config.effectiveApprovalMode ?? config[SessionConfigKey.AutoApprove] ?? 'default';
 	return {

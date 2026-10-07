@@ -36,7 +36,7 @@ Do not add a VS Code `policy:` merely to mirror runtime policy. Do not add a Git
 `permissions.disableAssistedPermissionsMode` and `permissions.disableBypassPermissionsMode`
 independently restrict Assisted and Allow All. The former is sticky true across
 managed sources. The latter must not be projected into a blanket Manual-only
-restriction for local Copilot Agent Host. An explicit legacy `ChatToolsAutoApprove=false`
+restriction for Copilot Agent Host running on the desktop client machine. An explicit legacy `ChatToolsAutoApprove=false`
 device policy still forces Manual; preserve its provenance when bridging it.
 If several policy services contribute the same false value, retain all effective
 sources: a managed source must not hide a simultaneous legacy device restriction.
@@ -47,11 +47,24 @@ Use the connection's explicit local identity, not its ambient status: the
 ambient host in a remote editor window is itself remote. Remote managed-mode
 integration remains unaddressed.
 
+Granular mode controls apply to Copilot Agent Host, not the legacy Local harness.
+Local retains its existing blanket restriction; do not relax it to match Agent Host.
+For the in-scope connection and provider, the client renders the host's read-only
+available/effective reports and submits requested selections. Policy provenance
+belongs in the compatibility bridge and host, not in picker policy checks.
+Missing or malformed reports make permission controls unavailable, never unrestricted
+or implicitly Manual. A valid Manual-only report is distinct from unavailable state.
+Live backing reports take precedence over stateless configuration previews.
+
 `permissions.defaultMode` is a new-session default, not a restriction. The runtime
 composes defaults restrictively and owns startup, fallback, and resume behavior.
 On the local connection, do not materialize the displayed Manual fallback as an explicit host selection.
 Only explicit `chat.defaultConfiguration.approvals` values and remembered user
 choices override the runtime default; the setting's schema default does not.
+Restrictions cap all requested modes, including global auto-approval. In the
+Agents Window, a remembered choice wins over an ordinary configured starting
+preference; a policy-enforced starting preference still wins over that remembered
+choice. All remain subject to runtime restrictions.
 Keep requested session configuration separate from read-only effective and
 available approval modes, and never replace saved intent with a policy downgrade.
 Authoritative reports belong to each live backing/chat. Session-level presentation

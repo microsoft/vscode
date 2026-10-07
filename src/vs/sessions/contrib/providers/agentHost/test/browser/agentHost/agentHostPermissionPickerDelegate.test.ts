@@ -28,7 +28,7 @@ import { DeferredPromise, timeout } from '../../../../../../../base/common/async
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { type IConfigurationOverrides, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { type IConfigurationOverrides, IConfigurationService, IConfigurationValue } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ResolveSessionConfigResult, SessionConfigPropertySchema } from '../../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IAgentConnection, IAgentHostNetworkDiagnosticsInfo } from '../../../../../../../platform/agentHost/common/agentService.js';
@@ -40,7 +40,7 @@ import { AgentHostCustomTerminalToolEnabledSettingId } from '../../../../../../.
 import { SessionConfigKey } from '../../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import type { ISessionSandboxPolicy } from '../../../../../../../platform/agentHost/common/meta/agentSandboxPolicyMeta.js';
 import type { RootConfigState } from '../../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { ChatPermissionLevel } from '../../../../../../../workbench/contrib/chat/common/constants.js';
+import { ChatConfiguration, ChatPermissionLevel } from '../../../../../../../workbench/contrib/chat/common/constants.js';
 import { AgentHostPermissionPickerDelegate, isWellKnownAutoApproveSchema, isWellKnownClaudePermissionModeSchema, isWellKnownModeSchema, isWellKnownModeValue } from '../../../browser/agentHostPermissionPickerDelegate.js';
 import { getPermissionLevelMeta } from '../../../../copilotChatSessions/browser/permissionPicker.js';
 import { IAgentHostSessionsProvider } from '../../../../../../common/agentHostSessionsProvider.js';
@@ -95,6 +95,8 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 	readonly setCalls: Array<[string, string, string]> = [];
 	readonly trackedOperations: Array<[string, Promise<void>]> = [];
 	readonly resolving = observableValue<boolean>('resolving', false);
+	hostAuthoritative = false;
+	usesHostPermissionState(): boolean { return this.hostAuthoritative; }
 
 	getSessionConfig(sessionId: string): ResolveSessionConfigResult | undefined {
 		return this.sessionConfigs.get(sessionId) ?? this.config;
@@ -246,6 +248,33 @@ function makeActiveSession(sessionType = 'copilotcli'): IActiveSession {
 
 suite('AgentHostPermissionPickerDelegate', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('host reports, not renderer policy, drive the Agent Host permission delegate', async () => {
+		const configuration = new class extends TestConfigurationService {
+			override inspect<T>(key: string): IConfigurationValue<T> {
+				return { ...super.inspect<T>(key), policyValue: key === ChatConfiguration.GlobalAutoApprove ? false as T : undefined };
+			}
+		}();
+		const { delegate, provider } = setup(store, makeActiveSession(), undefined, undefined, undefined, configuration);
+		provider.hostAuthoritative = true;
+		provider.config = makeWellKnownConfig('autoApprove');
+		provider.config.schema.properties.availableApprovalModes = { type: 'array', title: 'Available', readOnly: true };
+		provider.config.schema.properties.effectiveApprovalMode = { type: 'string', title: 'Effective', readOnly: true };
+		provider.config.values.availableApprovalModes = ['default', 'assisted'];
+		provider.config.values.effectiveApprovalMode = 'assisted';
+		provider.fireChange();
+		const available = { level: delegate.currentPermissionLevel.get(), choices: delegate.availableLevels, restricted: delegate.isPolicyRestricted(), applicable: delegate.isApplicable.get() };
+		await delegate.setPermissionLevel(ChatPermissionLevel.Assisted);
+		await delegate.setPermissionLevel(ChatPermissionLevel.AutoApprove);
+		delete provider.config.values.availableApprovalModes;
+		provider.fireChange();
+		await delegate.setPermissionLevel(ChatPermissionLevel.Default);
+		assert.deepStrictEqual({ available, unavailable: { choices: delegate.availableLevels, applicable: delegate.isApplicable.get() }, writes: provider.setCalls }, {
+			available: { level: ChatPermissionLevel.Assisted, choices: ['default', 'assisted'], restricted: false, applicable: true },
+			unavailable: { choices: [], applicable: false },
+			writes: [[SESSION_ID, 'autoApprove', 'assisted']],
+		});
+	});
 
 	test('uses Copilot approval keys, effective posture and host-available choices', async () => {
 		const { delegate, provider } = setup(store, makeActiveSession('copilot'));
@@ -466,6 +495,47 @@ suite('AgentHostPermissionPickerDelegate', () => {
 			requestsWithConfig: diagnosticsRequests(),
 			setting: delegate.getSandboxToggleSettingId(),
 		}, { requestsForClaude: 0, requestsWithoutConfig: 0, requestsWithConfig: 0, setting: AgentSandboxSettingId.AgentSandboxEnabled });
+	});
+
+	test('running-session picker does not disable host-allowed Assisted under the client legacy policy', () => {
+		const configuration = new class extends TestConfigurationService {
+			override inspect<T>(key: string): IConfigurationValue<T> {
+				return { ...super.inspect<T>(key), policyValue: key === ChatConfiguration.GlobalAutoApprove ? false as T : undefined };
+			}
+		}();
+		const { instantiationService, provider, activeSessionObs } = setup(store, makeActiveSession(), undefined, undefined, undefined, configuration);
+		provider.hostAuthoritative = true;
+		provider.config = makeWellKnownConfig('autoApprove');
+		provider.config.schema.properties.availableApprovalModes = { type: 'array', title: 'Available', readOnly: true };
+		provider.config.schema.properties.effectiveApprovalMode = { type: 'string', title: 'Effective', readOnly: true };
+		provider.config.values.availableApprovalModes = ['default', 'assisted'];
+		provider.config.values.effectiveApprovalMode = 'assisted';
+		provider.fireChange();
+		instantiationService.set(IContextKeyService, store.add(new ContextKeyService(configuration)));
+		instantiationService.set(IKeybindingService, new MockKeybindingService());
+		instantiationService.set(ICommandService, new class extends mock<ICommandService>() { }());
+		instantiationService.set(IDialogService, new class extends mock<IDialogService>() { }());
+		instantiationService.set(IOpenerService, new class extends mock<IOpenerService>() { }());
+		instantiationService.set(IStorageService, store.add(new InMemoryStorageService()));
+		instantiationService.set(ITelemetryService, NullTelemetryService);
+		instantiationService.set(IHoverService, new class extends mock<IHoverService>() {
+			override setupDelayedHover() { return { dispose: () => { } }; }
+		}());
+		let items: readonly IActionListItem<unknown>[] = [];
+		instantiationService.set(IActionWidgetService, new class extends mock<IActionWidgetService>() {
+			override show<T>(_user: string, _preview: boolean, shown: readonly IActionListItem<T>[]): void { items = shown; }
+			override hide(): void { }
+		}());
+		const action = instantiationService.createInstance(MenuItemAction, { id: 'test.authoritativePermissions', title: 'Permissions' }, undefined, undefined, undefined, undefined);
+		const picker = store.add(instantiationService.createInstance(AgentHostPermissionPickerActionItem, action, { compact: observableValue('compact', false) }, activeSessionObs));
+		const container = document.createElement('div');
+		picker.render(container);
+		picker.show();
+		assert.deepStrictEqual({
+			label: container.querySelector('.chat-input-picker-label')?.textContent,
+			assistedDisabled: items.find(item => item.label === 'Assisted permissions')?.disabled,
+			hasAllowAll: items.some(item => item.label === 'Allow all'),
+		}, { label: 'Assisted permissions', assistedDisabled: false, hasAllowAll: false });
 	});
 
 	test('running-session picker renders sandbox status as an icon and writes only session choices', async () => {

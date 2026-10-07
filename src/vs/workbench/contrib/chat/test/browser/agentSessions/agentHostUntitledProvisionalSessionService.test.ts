@@ -1209,6 +1209,83 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		assert.strictEqual(overlay?.schema.properties['branch'].readOnly, true);
 	});
 
+	test('permission validation is queued before later picks and an immediate Send', async () => {
+		const ui = URI.parse('agent-host-copilotcli:/untitled-authority-race');
+		const target = URI.parse('agent-host-copilotcli:/authority-race');
+		await configurationService.setUserConfiguration(ChatConfiguration.DefaultConfiguration, { approvals: 'autoApprove' });
+		const result = (value: string): ResolveSessionConfigResult => ({
+			schema: { type: 'object', properties: {
+				autoApprove: { type: 'string', title: 'Permissions', enum: ['default', 'assisted', 'autoApprove'], sessionMutable: true },
+				availableApprovalModes: { type: 'array', title: 'Available', readOnly: true },
+				effectiveApprovalMode: { type: 'string', title: 'Effective', readOnly: true },
+			} },
+			values: { autoApprove: value, effectiveApprovalMode: value, availableApprovalModes: ['default', 'assisted', 'autoApprove'] },
+		});
+		const pending = new DeferredPromise<ResolveSessionConfigResult>();
+		cleanup.add({ dispose: () => pending.cancel() });
+		agentHost.resolveQueue = [pending.p, result('default'), result('default'), result('assisted'), result('assisted')];
+		const first = provisional.applyConfigChange(ui, 'copilotcli', undefined, { autoApprove: 'default' });
+		const second = provisional.applyConfigChange(ui, 'copilotcli', undefined, { autoApprove: 'assisted', mode: 'plan' });
+		const mode = provisional.applyConfigChange(ui, 'copilotcli', undefined, { mode: 'interactive' });
+		const send = provisional.tryRebind(ui, target, 'copilotcli');
+		await timeout(0);
+		const before = agentHost.createCalls.length;
+		pending.complete(result('autoApprove'));
+		await Promise.all([first, second, mode, send]);
+		assert.deepStrictEqual({
+			before,
+			selections: agentHost.dispatched.filter(action => action.type === ActionType.SessionConfigChanged && action.config?.autoApprove !== undefined).map(action => action.config?.autoApprove),
+			sent: agentHost.createCalls.at(-1)?.config?.autoApprove,
+			mode: agentHost.createCalls.at(-1)?.config?.mode,
+		}, { before: 0, selections: ['default', 'assisted'], sent: 'assisted', mode: 'interactive' });
+	});
+
+	test('rapid non-permission edits stay optimistic without replay or generation churn', async () => {
+		const ui = URI.parse('agent-host-copilotcli:/untitled-mode-order');
+		await provisional.getOrCreate(ui, 'copilotcli', undefined);
+		const entry = (provisional as AgentHostUntitledProvisionalSessionService)['_entries'].get(ui)!;
+		const version = entry.configVersion;
+		const snapshots: unknown[] = [];
+		const resolved: unknown[] = [];
+		cleanup.add(provisional.onDidChange(() => snapshots.push(provisional.getResolvedConfig(ui)?.values.mode)));
+		agentHost.resolveSessionConfig = async params => {
+			resolved.push(params.config?.mode);
+			return { schema: makeSchema(false), values: { ...params.config } };
+		};
+		const first = provisional.applyConfigChange(ui, 'copilotcli', undefined, { mode: 'plan' });
+		const second = provisional.applyConfigChange(ui, 'copilotcli', undefined, { mode: 'interactive' });
+		await Promise.all([first, second]);
+		assert.deepStrictEqual({
+			resolved, snapshots,
+			versionChanges: entry.configVersion - version,
+			creations: agentHost.createCalls.length,
+			mode: entry.config.mode,
+		}, { resolved: ['interactive', 'interactive'], snapshots: ['interactive'], versionChanges: 2, creations: 1, mode: 'interactive' });
+	});
+
+	test('failed permission validation blocks an immediate Send rather than sending old elevated intent', async () => {
+		const ui = URI.parse('agent-host-copilotcli:/untitled-authority-failure');
+		const pending = new DeferredPromise<ResolveSessionConfigResult>();
+		cleanup.add({ dispose: () => pending.cancel() });
+		agentHost.resolveQueue = [pending.p, { schema: makeSchema(false), values: {} }];
+		const change = provisional.applyConfigChange(ui, 'copilotcli', undefined, { autoApprove: 'default' });
+		const send = provisional.tryRebind(ui, URI.parse('agent-host-copilotcli:/authority-failure'), 'copilotcli');
+		const rejected = Promise.all([assert.rejects(change, /could not resolve session permissions/), assert.rejects(send, /could not resolve session permissions/)]);
+		pending.complete({ schema: makeSchema(false), values: {} });
+		await rejected;
+		assert.strictEqual(agentHost.createCalls.length, 0);
+		agentHost.resolveQueue = [{
+			schema: { type: 'object', properties: {
+				autoApprove: { type: 'string', title: 'Permissions', enum: ['default', 'assisted', 'autoApprove'], sessionMutable: true },
+				availableApprovalModes: { type: 'array', title: 'Available', readOnly: true },
+				effectiveApprovalMode: { type: 'string', title: 'Effective', readOnly: true },
+			} },
+			values: { availableApprovalModes: ['default', 'assisted', 'autoApprove'], effectiveApprovalMode: 'autoApprove' },
+		}];
+		await provisional.tryRebind(ui, URI.parse('agent-host-copilotcli:/authority-recovered'), 'copilotcli');
+		assert.deepStrictEqual(agentHost.createCalls.map(call => call.config?.autoApprove), ['default']);
+	});
+
 	test('equals check skips onDidChange when re-resolved config is identical', async () => {
 		const ui = untitledChatUri('f');
 		const result: ResolveSessionConfigResult = {

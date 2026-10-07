@@ -71,4 +71,19 @@ suite('Copilot managed permission modes', () => {
 			{ effectiveApprovalMode: 'default', availableApprovalModes: ['default', 'assisted', 'autoApprove'] },
 		]);
 	});
+
+	test('global approval is previewed by the host without bypassing policy or changing intent', () => {
+		const config = { autoApprove: 'assisted' };
+		assert.deepStrictEqual([
+			getCopilotApprovalPreview(config, policy, undefined, true, true),
+			getCopilotApprovalPreview(config, policy, { disableBypassPermissionsMode: 'disable' }, true, true),
+			getCopilotApprovalPreview(config, policy, { disableAssistedPermissionsMode: true, disableBypassPermissionsMode: 'disable' }),
+			config,
+		], [
+			{ effectiveApprovalMode: 'autoApprove', availableApprovalModes: ['default', 'assisted', 'autoApprove'] },
+			{ effectiveApprovalMode: 'default', availableApprovalModes: ['default', 'assisted'] },
+			{ effectiveApprovalMode: 'default', availableApprovalModes: ['default'] },
+			{ autoApprove: 'assisted' },
+		]);
+	});
 });

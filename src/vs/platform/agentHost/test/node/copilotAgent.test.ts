@@ -1512,6 +1512,23 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('failed permission preview does not advertise unrestricted or effective modes', async () => {
+		const client = new TestCopilotClient([]);
+		client.resolveManagedSettings = async () => { throw new Error('Policy resolution failed'); };
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		try {
+			const result = await agent.resolveChatConfig({ config: { autoApprove: 'assisted' } });
+			assert.deepStrictEqual({
+				requested: result.values.autoApprove,
+				available: result.values.availableApprovalModes,
+				effective: result.values.effectiveApprovalMode,
+				reportDeclared: result.schema.properties.availableApprovalModes.readOnly,
+			}, { requested: 'assisted', available: undefined, effective: undefined, reportDeclared: true });
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
 	test('sandbox override survives config resolution but is not inherited by forks', async () => {
 		const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]) });
 		try {

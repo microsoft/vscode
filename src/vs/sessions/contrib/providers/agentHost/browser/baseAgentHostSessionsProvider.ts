@@ -54,7 +54,7 @@ import { readSessionSandboxPolicy, type ISessionSandboxPolicy } from '../../../.
 import { readSessionSandboxState } from '../../../../../platform/agentHost/common/meta/agentSandboxStateMeta.js';
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ResolveSessionConfigResult, type SessionConfigPropertySchema, type SessionConfigSchema, type SessionConfigValueItem } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { AgentCustomization, ChangesSummary, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type CanvasReference, type CanvasState, type ChatOrigin, type ClientPluginCustomization, Customization, CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, McpServerStatus, MessageKind, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, type SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AgentCustomization, ChangesSummary, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type CanvasReference, type CanvasState, type ChatOrigin, type ClientPluginCustomization, Customization, CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, McpServerStatus, MessageKind, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, type SessionActiveClient, SessionLifecycle, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { isActionKnownToVersion } from '../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { ActionType, isChatAction, isSessionAction, NotificationType, type SessionSummaryChanges } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isChatInSessionReadAggregate, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionCreationReference, readSessionEhcliAdoptable, readFolderGitHubState, readFolderScopeGitState, readSessionExternal, parseSessionGitHubData, readSessionGitHubData, readSessionGitState, readWorkingDirectoryKey, readWorkingDirectoryKeys, readWorkingDirectoryScopeId, readWorkingDirectoryScopeIds, withMigratedSessionGitHubState, withSessionGitHubData, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionMeta, SessionSourceControlOutcome, StateComponents, withSessionCreationReference, withSessionExternal, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ChatState, type ChatSummary, type ISessionCreationReference as IProtocolSessionCreationReference, type ISessionGitHubState, type ISessionGitState, type ISessionMultiRootMetadata } from '../../../../../platform/agentHost/common/state/sessionState.js';
@@ -77,8 +77,7 @@ import { IChatSessionFileChange, IChatSessionFileChange2, IChatSessionsService }
 import { assertAutomationSessionTemplate, IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationModelConfiguration } from '../../../automations/browser/automationModelConfiguration.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, getChatPermissionLevelFromDefaultConfiguration, isChatPermissionLevel, type IChatDefaultConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
-import { getAgentHostPermissionDefault, isAutoApprovePolicyRestricted, normalizeSessionConfigValue } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
-import { IPolicyService } from '../../../../../platform/policy/common/policy.js';
+import { getAgentHostPermissionDefault, getAgentHostPermissionState, isAutoApprovePolicyRestricted, normalizeSessionConfigValue, usesAgentHostPermissionState, validateAgentHostPermissionState } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { getRegisteredLanguageModels, getVisibleLanguageModelsForTarget, resolveConfiguredModel, resolveModelIdentifier, resolveModelIdentifierFromLanguageModels } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
 import { canInitializeCodexWithoutGitHub } from '../../../../../workbench/services/agentHost/browser/codexAccountService.js';
@@ -3047,6 +3046,7 @@ class NewSession extends Disposable {
 	 */
 	private _configRequestSeq = 0;
 	private _hasResolvedConfig = false;
+	private _requiresHostPermissionState = false;
 	private _initialConfigError: Error | undefined;
 	private _lastResolvedConfigSchema: SessionConfigSchema | undefined;
 
@@ -3351,6 +3351,15 @@ class NewSession extends Disposable {
 	}
 	getConfigValues(): Record<string, unknown> | undefined { return this._config && filterSessionConfigValues(this._config.schema, this._config.values); }
 
+	publishPermissionConfig(): void {
+		if (this._requiresHostPermissionState && this._subscription && this._backendUri && this._connection && this._config) {
+			this._connection.dispatch(this._backendUri.toString(), {
+				type: ActionType.SessionConfigChanged,
+				config: { [SessionConfigKey.AutoApprove]: this._config.values[SessionConfigKey.AutoApprove] },
+			});
+		}
+	}
+
 	trackConfigResolution(promise: Promise<void>): Promise<void> {
 		this._configResolution = promise;
 		void promise.then(
@@ -3376,10 +3385,10 @@ class NewSession extends Disposable {
 
 	/** Whether the backend session may only be created with the resolved initial permissions, mode, or pull request. */
 	private get _requiresResolvedInitialConfig(): boolean {
-		return !!this._resolveInitialPermissionConfig || !!this._initialModeId || !!this._initialPullRequestUrl;
+		return this._requiresHostPermissionState || !!this._resolveInitialPermissionConfig || !!this._initialModeId || !!this._initialPullRequestUrl;
 	}
 
-	async waitForConfigurationReady(): Promise<void> {
+	async waitForConfigurationReady(retryConnection?: IAgentConnection): Promise<void> {
 		while (this._configOperation || this._configResolution) {
 			if (this._configOperation) {
 				await raceCancellationError(this._configOperation, this.cancellationToken);
@@ -3387,9 +3396,13 @@ class NewSession extends Disposable {
 				await this.waitForConfigResolution();
 			}
 		}
+		if (retryConnection && this._requiresHostPermissionState && !getAgentHostPermissionState(this._config)) {
+			await this.trackConfigResolution(this.resolveConfig(retryConnection, true).then(() => undefined));
+		}
 		if (this._requiresResolvedInitialConfig && !this._hasResolvedConfig) {
 			throw this._initialConfigError ?? new Error(localize('agentHost.initialConfigFailed', "The initial session configuration could not be resolved."));
 		}
+		validateAgentHostPermissionState(this._config, this._requiresHostPermissionState);
 	}
 
 	private _clearConfigResolution(promise: Promise<void>): void {
@@ -3463,6 +3476,7 @@ class NewSession extends Disposable {
 	 * @param strict Rethrow the latest resolution error instead of treating the refresh as best effort.
 	 */
 	async resolveConfig(connection: IAgentConnection, strict = false): Promise<boolean> {
+		this._requiresHostPermissionState = usesAgentHostPermissionState(connection.isLocal, this.agentProvider);
 		const seq = ++this._configRequestSeq;
 		const values = this._config?.values ?? this._unresolvedConfigValues;
 		this._isResolvingConfig.set(true, undefined);
@@ -3475,6 +3489,7 @@ class NewSession extends Disposable {
 			if (seq !== this._configRequestSeq) {
 				return false;
 			}
+			validateAgentHostPermissionState(discovered, !!this._resolveInitialPermissionConfig && this._requiresHostPermissionState);
 			let result = discovered;
 			if (!this._hasResolvedConfig || !this._config) {
 				const permissions = !this._hasResolvedConfig ? this._resolveInitialPermissionConfig?.(discovered) : undefined;
@@ -3488,6 +3503,7 @@ class NewSession extends Disposable {
 					if (seq !== this._configRequestSeq) {
 						return false;
 					}
+					validateAgentHostPermissionState(result, !!this._resolveInitialPermissionConfig && this._requiresHostPermissionState);
 				}
 				for (const [key, value] of Object.entries(permissions ?? {})) {
 					const approval = getSessionApprovalProperty(result.schema);
@@ -3526,6 +3542,8 @@ class NewSession extends Disposable {
 			if (this._requiresResolvedInitialConfig && !this._hasResolvedConfig) {
 				this._initialConfigError = error instanceof Error ? error : new Error(getErrorMessage(error));
 				this._logService.error(`[${this._providerId}] Failed to resolve initial session configuration`, error);
+			} else if (usesAgentHostPermissionState(connection.isLocal, this.agentProvider)) {
+				this._logService.warn(`[${this._providerId}] Failed to resolve session permissions`, error);
 			}
 			if (strict) {
 				throw error;
@@ -3682,6 +3700,7 @@ class NewSession extends Disposable {
 			// graduation the wire-level refcount stays positive.
 			const ref = connection.getSubscription(StateComponents.Session, backendUri, 'BaseAgentHostSessionsProvider.session');
 			this._subscription = ref;
+			this.publishPermissionConfig();
 			const chatUri = URI.parse(buildDefaultChatUri(backendUri));
 			const chatRef = connection.getSubscription(StateComponents.Chat, chatUri, 'BaseAgentHostSessionsProvider.chat');
 			this._chatSubscription = chatRef;
@@ -3853,7 +3872,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return undefined;
 		}
 		const permissionId = getAgentHostSessionPermissionId(sessionType, config);
-		const option = getAgentHostSessionPermissionOptions(sessionType, isAutoApprovePolicyRestricted(this._baseConfigurationService, sessionType === 'copilotcli' ? this._policyService : undefined, this.connection?.isLocal), true, config)
+		const option = getAgentHostSessionPermissionOptions(sessionType, isAutoApprovePolicyRestricted(this._baseConfigurationService, this.connection?.isLocal, sessionType), true, config)
 			.find(option => option.id === permissionId);
 		const mode = config.values[SessionConfigKey.Mode] ?? config.schema.properties[SessionConfigKey.Mode]?.default;
 		return option ? { ...option, comparisonModeId: typeof mode === 'string' ? mode : undefined } : undefined;
@@ -4126,7 +4145,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	private readonly _activeClientSyncCancellation = this._register(new MutableDisposable<ActiveClientSyncCancellationTokenSource>());
 	private _activeSessionScopeSessionType: string | undefined;
 	private _activeSessionScopeRoots: readonly URI[] | undefined;
-	protected readonly _policyService: IPolicyService | undefined = undefined;
 
 	constructor(
 		@IChatSessionsService protected readonly _chatSessionsService: IChatSessionsService,
@@ -4821,18 +4839,18 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const baseInitialConfigValues = initialAutomationConfiguration
 			? {
 				...this._derivedNewSessionConfig(workspace),
-				...this._normalizeAutomationSessionConfig(initialSessionTemplate?.config),
+				...this._normalizeAutomationSessionConfig(sessionType.id, initialSessionTemplate?.config),
 			}
-			: this._initialNewSessionConfig(workspace);
+			: this._initialNewSessionConfig(workspace, sessionType.id);
 		const permissionConfig = initialPermissionId
 			? getAgentHostSessionPermissionConfig(
 				sessionType.id,
 				initialPermissionId,
-				isAutoApprovePolicyRestricted(this._baseConfigurationService, sessionType.id === 'copilotcli' ? this._policyService : undefined, this.connection?.isLocal),
+				isAutoApprovePolicyRestricted(this._baseConfigurationService, connection?.isLocal, sessionType.id),
 				true,
 			)
 			: undefined;
-		if (initialPermissionId && !permissionConfig && getAgentHostSessionPermissionOptions(sessionType.id, isAutoApprovePolicyRestricted(this._baseConfigurationService, sessionType.id === 'copilotcli' ? this._policyService : undefined, this.connection?.isLocal), true).length > 0) {
+		if (initialPermissionId && !permissionConfig && getAgentHostSessionPermissionOptions(sessionType.id, isAutoApprovePolicyRestricted(this._baseConfigurationService, connection?.isLocal, sessionType.id), true).length > 0) {
 			throw new Error(`Agent '${sessionType.id}' does not support permission '${initialPermissionId}'.`);
 		}
 		const initialConfigValues = {
@@ -4858,7 +4876,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				initialModeId,
 				initialPullRequestUrl,
 				resolveInitialPermissionConfig: initialPermissionId ? config => {
-					const permissions = getAgentHostSessionPermissionConfig(sessionType.id, initialPermissionId, isAutoApprovePolicyRestricted(this._baseConfigurationService, sessionType.id === 'copilotcli' ? this._policyService : undefined, this.connection?.isLocal), true, config);
+					const permissions = getAgentHostSessionPermissionConfig(sessionType.id, initialPermissionId, isAutoApprovePolicyRestricted(this._baseConfigurationService, this.connection?.isLocal, sessionType.id), true, config);
 					if (!permissions) {
 						throw new Error(localize('agentHost.initialPermissionUnsupported', "The selected session permissions could not be applied: agent '{0}' does not support permission '{1}'.", sessionType.id, initialPermissionId));
 					}
@@ -4945,8 +4963,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		};
 	}
 
-	private _normalizeAutomationSessionConfig(config: Readonly<Record<string, unknown>> | undefined): Record<string, unknown> {
-		const policyRestricted = isAutoApprovePolicyRestricted(this._baseConfigurationService, this._policyService, this.connection?.isLocal);
+	private _normalizeAutomationSessionConfig(provider: string, config: Readonly<Record<string, unknown>> | undefined): Record<string, unknown> {
+		const policyRestricted = isAutoApprovePolicyRestricted(this._baseConfigurationService, this.connection?.isLocal, provider);
 		return Object.fromEntries(Object.entries(config ?? {}).map(([key, value]) => [
 			key,
 			normalizeSessionConfigValue(key, value, policyRestricted),
@@ -5115,18 +5133,17 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * local-only `chat.permissions.default` setting is intentionally NOT
 	 * consulted here.
 	 *
-	 * If enterprise policy disables global auto-approval
-	 * (`chat.tools.global.autoApprove` policy value `false`), the approval seed
-	 * is clamped to `default` so the agent host never starts in an elevated
-	 * permission level the user is not allowed to pick.
+	 * Copilot Agent Host on the client machine retains requested intent and
+	 * reports policy-capped effective permissions. Other connections retain
+	 * the legacy client-side Manual clamp.
 	 *
 	 * The user's `git.branchPrefix` setting (resource-scoped to the workspace's
 	 * first folder) is seeded into the `worktreeBranchPrefix` slot so the agent
 	 * host can prepend it to the branch it creates for an isolated worktree.
 	 */
-	protected _initialNewSessionConfig(workspace?: ISessionWorkspace): Record<string, unknown> | undefined {
+	protected _initialNewSessionConfig(workspace?: ISessionWorkspace, provider?: string): Record<string, unknown> | undefined {
 		const config = Object.create(null) as Record<string, unknown>;
-		const policyRestricted = isAutoApprovePolicyRestricted(this._baseConfigurationService, this._policyService, this.connection?.isLocal);
+		const policyRestricted = isAutoApprovePolicyRestricted(this._baseConfigurationService, this.connection?.isLocal, provider);
 
 		// Seed session config values from the last user picks, migrating any
 		// legacy `autoApprove='autopilot'` remembered value into the new
@@ -5155,7 +5172,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const resolvedAutoApprove =
 			normalizeAutoApproveValue(policyDefaults?.approvals, policyRestricted)
 			?? normalizeAutoApproveValue(remembered[SessionConfigKey.AutoApprove], policyRestricted)
-			?? normalizeAutoApproveValue(getAgentHostPermissionDefault(this._baseConfigurationService, this.connection?.isLocal), policyRestricted);
+			?? normalizeAutoApproveValue(getAgentHostPermissionDefault(this._baseConfigurationService, usesAgentHostPermissionState(this.connection?.isLocal, provider)), policyRestricted);
 		if (resolvedAutoApprove) {
 			remembered[SessionConfigKey.AutoApprove] = resolvedAutoApprove;
 		} else {
@@ -5304,10 +5321,26 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// surface) is repeatedly reading the running config.
 		const newSession = this._getNewSession(sessionId);
 		if (newSession) {
-			return newSession.getConfig();
+			const config = newSession.getConfig();
+			const state = this._lastSessionStates.get(sessionId);
+			const live = state?.config;
+			if (config && state && state.lifecycle !== SessionLifecycle.Creating && this.usesHostPermissionState(sessionId)) {
+				return { ...config, values: {
+					...config.values,
+					effectiveApprovalMode: live?.values.effectiveApprovalMode,
+					availableApprovalModes: live?.values.availableApprovalModes,
+				} };
+			}
+			return config;
 		}
 		this._keepSessionStateAlive(sessionId);
 		return this._runningSessionConfigs.get(sessionId);
+	}
+
+	usesHostPermissionState(sessionId: string): boolean {
+		const rawId = this._sessionKeyFromChatId(sessionId);
+		const provider = this._getNewSession(sessionId)?.agentProvider ?? (rawId ? this._sessionCache.get(rawId)?.agentProvider : undefined);
+		return usesAgentHostPermissionState(this.connection?.isLocal, provider);
 	}
 
 	getNewSessionCancellationToken(sessionId: string): CancellationToken {
@@ -5414,7 +5447,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	async setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void> {
-		const policyRestricted = isAutoApprovePolicyRestricted(this._baseConfigurationService, this._policyService, this.connection?.isLocal);
+		const hostAuthoritative = this.usesHostPermissionState(sessionId);
+		const policyRestricted = !hostAuthoritative && isAutoApprovePolicyRestricted(this._baseConfigurationService);
 		const normalizedValue = normalizeSessionConfigValue(property, value, policyRestricted);
 
 		// Mark resolution before firing so the first picker render is already inert.
@@ -5426,7 +5460,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 					return;
 				}
 			}
-			const config = newSession.getConfigForWrite();
+			const config = hostAuthoritative && property === SessionConfigKey.AutoApprove ? this.getSessionConfig(sessionId) : newSession.getConfigForWrite();
+			if (property === SessionConfigKey.AutoApprove) {
+				validateAgentHostPermissionState(config, hostAuthoritative);
+			}
 			if (!config || !isSessionConfigWritable(config.schema.properties[property], true)) {
 				throw new Error(`Session configuration '${property}' is not writable.`);
 			}
@@ -5444,6 +5481,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				}
 			}
 			newSession.setConfigValue(property, normalizedValue, true);
+			if (property === SessionConfigKey.AutoApprove) {
+				newSession.publishPermissionConfig();
+			}
 			this._onDidChangeSessionConfig.fire(sessionId);
 			await newSession.trackConfigResolution(this._refreshNewSessionConfig(newSession));
 			this._rememberSessionConfigValue(property, normalizedValue);
@@ -5458,6 +5498,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 
 		const schema = runningConfig.schema.properties[property];
+		if (property === SessionConfigKey.AutoApprove) {
+			validateAgentHostPermissionState(runningConfig, hostAuthoritative);
+		}
 		if (!isSessionConfigWritable(schema, false)) {
 			throw new Error(`Session configuration '${property}' is not writable.`);
 		}
@@ -5501,13 +5544,17 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// (`sessionMutable: true` and not `readOnly`), otherwise force the
 		// current value through. This guarantees replace semantics never
 		// alter a non-editable property even if the caller included it.
-		const policyRestricted = isAutoApprovePolicyRestricted(this._baseConfigurationService, this._policyService, this.connection?.isLocal);
+		const hostAuthoritative = this.usesHostPermissionState(sessionId);
+		const policyRestricted = !hostAuthoritative && isAutoApprovePolicyRestricted(this._baseConfigurationService);
 		const nextValues: Record<string, unknown> = {};
 		for (const [key, schema] of Object.entries(runningConfig.schema.properties)) {
 			const editable = schema.sessionMutable === true && schema.readOnly !== true;
 			if (editable) {
 				nextValues[key] = normalizeSessionConfigValue(key, values[key], policyRestricted);
-				if (nextValues[key] !== undefined) {
+				if (key === SessionConfigKey.AutoApprove && !equals(nextValues[key], runningConfig.values[key])) {
+					validateAgentHostPermissionState(runningConfig, hostAuthoritative);
+				}
+				if (nextValues[key] !== undefined && !(hostAuthoritative && key === SessionConfigKey.AutoApprove && equals(nextValues[key], runningConfig.values[key]))) {
 					validateSessionConfigWrite(runningConfig.schema, runningConfig.values, key, nextValues[key], false);
 				}
 			} else if (Object.hasOwn(runningConfig.values, key)) {
@@ -5730,10 +5777,19 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			if (this._runningSessionConfigResolveSeq.get(sessionId) !== seq) {
 				return;
 			}
-			const sandboxEnabled = this._runningSessionConfigs.get(sessionId)?.values[SessionConfigKey.SandboxEnabled];
-			this._runningSessionConfigs.set(sessionId, sandboxEnabled === undefined ? resolved : {
+			const current = this._runningSessionConfigs.get(sessionId);
+			const sandboxEnabled = current?.values[SessionConfigKey.SandboxEnabled];
+			if (this.usesHostPermissionState(sessionId)) {
+				for (const key of ['effectiveApprovalMode', 'availableApprovalModes']) {
+					delete resolved.values[key];
+					if (Object.hasOwn(current?.values ?? {}, key)) {
+						resolved.values[key] = current?.values[key];
+					}
+				}
+			}
+			this._runningSessionConfigs.set(sessionId, {
 				...resolved,
-				values: { ...resolved.values, [SessionConfigKey.SandboxEnabled]: sandboxEnabled },
+				values: { ...resolved.values, ...(sandboxEnabled === undefined ? {} : { [SessionConfigKey.SandboxEnabled]: sandboxEnabled }) },
 			});
 			this._onDidChangeSessionConfig.fire(sessionId);
 		} catch (err) {
@@ -6912,7 +6968,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!this.connection) {
 			throw new Error(this._notConnectedSendErrorMessage());
 		}
-		await newSession.waitForConfigurationReady();
+		await newSession.waitForConfigurationReady(this.connection);
 		await newSession.waitForEagerCreate();
 		if (this._getNewSession(newSession.sessionId) !== newSession) {
 			throw new Error('Session was disposed before its configuration could be applied.');
@@ -7524,6 +7580,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const previous = this._lastSessionStates.get(sessionId);
 		this._lastSessionStates.set(sessionId, state);
 		const newSession = this._newSessions.get(sessionId);
+		if (this.usesHostPermissionState(sessionId)
+			&& (!equals(previous?.config?.values.effectiveApprovalMode, state.config?.values.effectiveApprovalMode)
+				|| !equals(previous?.config?.values.availableApprovalModes, state.config?.values.availableApprovalModes))) {
+			this._onDidChangeSessionConfig.fire(sessionId);
+		}
 		const previousBranchName = newSession?.session.workspace.get()?.folders[0]?.gitRepository?.branchName;
 		newSession?.applySessionMeta(state._meta, state.workingDirectories?.[0]);
 		const branchName = newSession?.session.workspace.get()?.folders[0]?.gitRepository?.branchName;
@@ -7623,14 +7684,15 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * `onDidChangeSessionConfig` fires.
 	 */
 	private _seedRunningConfigFromState(sessionId: string, state: SessionState): void {
-		const stateConfig = state.config;
+		const existing = this._runningSessionConfigs.get(sessionId);
+		const hostAuthoritative = usesAgentHostPermissionState(this.connection?.isLocal, state.provider) && state.lifecycle !== SessionLifecycle.Creating;
+		const stateConfig = state.config ?? (hostAuthoritative && existing ? { schema: existing.schema, values: {} } : undefined);
 		if (!stateConfig) {
 			return;
 		}
-		if (Object.keys(stateConfig.schema.properties).length === 0) {
+		if (Object.keys(stateConfig.schema.properties).length === 0 && !hostAuthoritative) {
 			return;
 		}
-		const existing = this._runningSessionConfigs.get(sessionId);
 		let seeded: ResolveSessionConfigResult;
 		if (existing && this._runningSessionConfigResolveSeq.has(sessionId)) {
 			const values = { ...existing.values };
@@ -7657,6 +7719,19 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 					...stateConfig.values,
 				},
 			};
+		}
+		if (hostAuthoritative) {
+			for (const key of ['effectiveApprovalMode', 'availableApprovalModes']) {
+				delete seeded.values[key];
+				delete seeded.schema.properties[key];
+				if (Object.hasOwn(state.config?.values ?? {}, key)) {
+					seeded.values[key] = state.config?.values[key];
+				}
+				const property = state.config?.schema.properties[key];
+				if (property) {
+					seeded.schema.properties[key] = property;
+				}
+			}
 		}
 		if (existing && resolvedConfigsEqual(existing, seeded)) {
 			return;

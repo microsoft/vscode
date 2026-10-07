@@ -28,10 +28,16 @@ import { chatAgentLeader, chatVariableLeader } from '../../../../../common/reque
 import { MockChatSessionsService } from '../../../../common/mockChatSessionsService.js';
 import { MockChatWidgetService } from '../../../widget/mockChatWidget.js';
 import { IChatWidget } from '../../../../../browser/chat.js';
+import { IChatViewModel } from '../../../../../common/model/chatViewModel.js';
 import { TestConfigurationService } from '../../../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { NullPolicyService } from '../../../../../../../../platform/policy/common/policy.js';
+import { IAgentHostUntitledProvisionalSessionService } from '../../../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { upcastPartial } from '../../../../../../../../base/test/common/mock.js';
 import { IAgentHostConnectionsService } from '../../../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { IAgentConnection } from '../../../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentSubscription } from '../../../../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { ComponentToState, SessionLifecycle, SessionState, StateComponents } from '../../../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ResolveSessionConfigResult } from '../../../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import { toCommandCompletionAttachmentMeta } from '../../../../../../../../platform/agentHost/common/meta/agentCompletionAttachmentMeta.js';
 
 class TestChatSessionsService extends MockChatSessionsService {
 	constructor(private readonly insertText = '#roadmap.md') {
@@ -219,7 +225,7 @@ suite('AgentHostInputCompletions #chat references', () => {
 			new MockChatWidgetService(),
 			new TestChatSessionsService(),
 			new TestConfigurationService(),
-			new NullPolicyService(),
+			upcastPartial<IAgentHostUntitledProvisionalSessionService>({ getResolvedConfig: () => undefined }),
 			upcastPartial<IAgentHostConnectionsService>({ resolveSessionResource: () => undefined }),
 		));
 		const widget = upcastPartial<IChatWidget>({});
@@ -264,7 +270,7 @@ suite('AgentHostInputCompletions plain text', () => {
 			new MockChatWidgetService(),
 			new TestChatSessionsService(),
 			new TestConfigurationService(),
-			new NullPolicyService(),
+			upcastPartial<IAgentHostUntitledProvisionalSessionService>({ getResolvedConfig: () => undefined }),
 			upcastPartial<IAgentHostConnectionsService>({ resolveSessionResource: () => undefined }),
 		));
 
@@ -293,7 +299,7 @@ suite('AgentHostInputCompletions plain text', () => {
 			new MockChatWidgetService(),
 			new TestChatSessionsService(),
 			new TestConfigurationService(),
-			new NullPolicyService(),
+			upcastPartial<IAgentHostUntitledProvisionalSessionService>({ getResolvedConfig: () => undefined }),
 			upcastPartial<IAgentHostConnectionsService>({ resolveSessionResource: () => undefined }),
 		));
 		const results = ['/review', '/review '].map(label => {
@@ -321,7 +327,7 @@ suite('AgentHostInputCompletions plain text', () => {
 			new MockChatWidgetService(),
 			new TestChatSessionsService(),
 			new TestConfigurationService(),
-			new NullPolicyService(),
+			upcastPartial<IAgentHostUntitledProvisionalSessionService>({ getResolvedConfig: () => undefined }),
 			upcastPartial<IAgentHostConnectionsService>({ resolveSessionResource: () => undefined }),
 		));
 		const results = ['/', '/rev'].map(text => {
@@ -362,6 +368,48 @@ suite('AgentHostInputCompletions plain text', () => {
 	});
 });
 
+suite('AgentHostInputCompletions permission authority', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('resolves the provisional backend and prioritizes materialized reports over the preview', () => {
+		const resource = URI.parse('agent-host-copilotcli:/untitled-completions');
+		const backend = URI.parse('ahp-session:/actual-backing');
+		const preview: ResolveSessionConfigResult = {
+			schema: { type: 'object', properties: {
+				autoApprove: { type: 'string', title: 'Permissions', enum: ['default', 'assisted', 'autoApprove'] },
+				availableApprovalModes: { type: 'array', title: 'Available', readOnly: true },
+				effectiveApprovalMode: { type: 'string', title: 'Effective', readOnly: true },
+			} },
+			values: { availableApprovalModes: ['default', 'assisted', 'autoApprove'], effectiveApprovalMode: 'autoApprove' },
+		};
+		const state = upcastPartial<SessionState>({ provider: 'copilotcli', lifecycle: SessionLifecycle.Creating,
+			config: { ...preview, values: { availableApprovalModes: ['default'], effectiveApprovalMode: 'default' } } });
+		const reads: string[] = [];
+		const connection = upcastPartial<IAgentConnection>({
+			isLocal: true,
+			getSubscriptionUnmanaged: <T extends StateComponents>(_kind: T, uri: URI) => {
+				reads.push(uri.toString());
+				return upcastPartial<IAgentSubscription<ComponentToState[T]>>({ value: state as ComponentToState[T] });
+			},
+		});
+		const completions = store.add(new TestableAgentHostInputCompletions(
+			new LanguageFeaturesService(), new MockChatWidgetService(), new TestChatSessionsService(), new TestConfigurationService(),
+			upcastPartial<IAgentHostUntitledProvisionalSessionService>({ get: () => backend, getResolvedConfig: () => preview }),
+			upcastPartial<IAgentHostConnectionsService>({ resolveSessionResource: () => ({ connection, connectionAuthority: 'local', backendSession: URI.parse('copilotcli:/untitled-completions') }) }),
+		));
+		const widget = upcastPartial<IChatWidget>({ viewModel: upcastPartial<IChatViewModel>({ model: upcastPartial<IChatViewModel['model']>({ sessionResource: resource }) }) });
+		const item: IChatInputCompletionItem = { insertText: '', label: 'Allow all', attachment: {
+			kind: 'command', command: 'allow-all', description: 'Allow all', _meta: toCommandCompletionAttachmentMeta({ command: 'allow-all', action: { applyConfig: { autoApprove: 'autoApprove' } } }),
+		} };
+		const draftOffered = !!completions.buildItem(new Position(1, 1), item, widget);
+		state.lifecycle = SessionLifecycle.Ready;
+		const materializedOffered = !!completions.buildItem(new Position(1, 1), item, widget);
+		state.config = undefined;
+		const missingReportOffered = !!completions.buildItem(new Position(1, 1), item, widget);
+		assert.deepStrictEqual({ draftOffered, materializedOffered, missingReportOffered, reads }, { draftOffered: true, materializedOffered: false, missingReportOffered: false, reads: [backend.toString(), backend.toString(), backend.toString()] });
+	});
+});
+
 suite('AgentHostInputCompletions skills', () => {
 	const store = new DisposableStore();
 
@@ -374,7 +422,7 @@ suite('AgentHostInputCompletions skills', () => {
 			new MockChatWidgetService(),
 			new TestChatSessionsService(),
 			new TestConfigurationService(),
-			new NullPolicyService(),
+			upcastPartial<IAgentHostUntitledProvisionalSessionService>({ getResolvedConfig: () => undefined }),
 			upcastPartial<IAgentHostConnectionsService>({ resolveSessionResource: () => undefined }),
 		));
 		const built = completions.buildItem(new Position(1, 8), {
@@ -411,7 +459,7 @@ suite('AgentHostInputCompletions follow-up suggestions', () => {
 			new MockChatWidgetService(),
 			new TestChatSessionsService(),
 			new TestConfigurationService(),
-			new NullPolicyService(),
+			upcastPartial<IAgentHostUntitledProvisionalSessionService>({ getResolvedConfig: () => undefined }),
 			upcastPartial<IAgentHostConnectionsService>({ resolveSessionResource: () => undefined }),
 		));
 
@@ -443,7 +491,7 @@ suite('AgentHostInputCompletions follow-up suggestions', () => {
 			new MockChatWidgetService(),
 			new TestChatSessionsService(),
 			new TestConfigurationService(),
-			new NullPolicyService(),
+			upcastPartial<IAgentHostUntitledProvisionalSessionService>({ getResolvedConfig: () => undefined }),
 			upcastPartial<IAgentHostConnectionsService>({ resolveSessionResource: () => undefined }),
 		));
 

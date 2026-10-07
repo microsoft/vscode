@@ -40,7 +40,7 @@
  * - `_entries` is keyed by chat UI resources and stores backend resources.
  * - `getOrCreate` is serialized per chat UI resource; chip instances may race.
  * - Recoverable `tryRebind` failure degrades to the handler's normal create
- *   path. It rejects only when an ambiguous final URI cannot be retired safely.
+ *   path. It rejects unresolved permission changes or unsafe final-URI reuse.
  * - Abandoned untitled chats must dispose their backend provisional state when
  *   `IChatService.onDidDisposeSession` reports the chat UI resource.
  * - Callers own provider and working-directory consistency. Derive them from
@@ -50,6 +50,7 @@
 
 import { SequencerByKey } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { equals } from '../../../../../../base/common/objects.js';
@@ -75,8 +76,8 @@ import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent, WorkbenchState 
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { ChatConfiguration, type IChatDefaultConfiguration } from '../../../common/constants.js';
-import { getAgentHostPermissionDefault, isAutoApprovePolicyRestricted } from '../../../common/agentHostConfigPolicy.js';
-import { IPolicyService } from '../../../../../../platform/policy/common/policy.js';
+import { getAgentHostPermissionDefault, isAutoApprovePolicyRestricted, usesAgentHostPermissionState, validateAgentHostPermissionState } from '../../../common/agentHostConfigPolicy.js';
+import { validateSessionConfigWrite } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IAgentHostNewSessionFolderService, computeDesiredWorkingDirectories, computeWorkingDirectories, hasImmutablePrimaryWorkingDirectory, supportsMultipleWorkingDirectories } from './agentHostNewSessionFolderService.js';
@@ -117,7 +118,7 @@ export interface IAgentHostUntitledProvisionalSessionService {
 	 * Returns `undefined` in the Agents window, where the sessions provider owns
 	 * the initial config supplied on the request.
 	 */
-	getInitialSessionConfig(): Record<string, unknown> | undefined;
+	getInitialSessionConfig(provider: string, isLocal: boolean | undefined): Record<string, unknown> | undefined;
 
 	/** Initial session metadata, including any metadata registered for the resource. */
 	getInitialSessionMetadata(sessionResource?: URI): Record<string, unknown> | undefined;
@@ -233,13 +234,7 @@ interface IEntry {
 	readonly provider: string;
 	readonly activeClientBinding: MutableDisposable<ActiveClientBinding>;
 	generation: IProvisionalGeneration | undefined;
-	/**
-	 * Workbench-owned snapshot of session-config values for this provisional.
-	 * Seeded from {@link _getInitialConfig} at create time and mutated
-	 * synchronously by {@link applyConfigChange} so {@link tryRebind} can read
-	 * the latest values without waiting for the agent to echo them back through
-	 * `state.config.values`.
-	 */
+	/** Requested values; permission changes are validated in the draft queue before publication. */
 	config: Record<string, unknown>;
 	/**
 	 * Monotonic revision of {@link config}. Async generation creation snapshots
@@ -262,6 +257,7 @@ interface IEntry {
 	 * entry is rebound or disposed.
 	 */
 	resolvedConfig?: ResolveSessionConfigResult;
+	pendingPermissionChange?: Record<string, unknown>;
 	disposed: boolean;
 }
 
@@ -298,7 +294,6 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		@IAgentHostImportConversationStore private readonly _importConversationStore: IAgentHostImportConversationStore,
 		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
-		@IPolicyService private readonly _policyService: IPolicyService,
 	) {
 		super();
 
@@ -496,8 +491,8 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		this._sessionCreationMetadata.delete(sessionResource);
 	}
 
-	getInitialSessionConfig(): Record<string, unknown> | undefined {
-		return this._getInitialConfig();
+	getInitialSessionConfig(provider: string, isLocal: boolean | undefined): Record<string, unknown> | undefined {
+		return this._getInitialConfig(provider, isLocal);
 	}
 
 	async waitForPending(sessionResource: URI): Promise<URI | undefined> {
@@ -556,7 +551,8 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		if (this._rebound.has(sessionResource)) {
 			return undefined;
 		}
-		const entry = this._createEntry(provider, { ...(this._getInitialConfig() ?? {}) }, 0, workingDirectory);
+		const connection = this._agentHostConnectionsService.resolveSessionResource(sessionResource)?.connection ?? this._agentHostConnectionsService.ambientConnection;
+		const entry = this._createEntry(provider, { ...(this._getInitialConfig(provider, connection.isLocal) ?? {}) }, 0, workingDirectory);
 		this._entries.set(sessionResource, entry);
 		return entry;
 	}
@@ -769,6 +765,10 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			const oldEntry = this._entries.get(oldSessionResource);
 			if (!oldEntry || oldEntry.disposed) {
 				return undefined;
+			}
+			if (oldEntry.pendingPermissionChange) {
+				const connection = this._agentHostConnectionsService.resolveSessionResource(oldSessionResource)?.connection ?? this._agentHostConnectionsService.ambientConnection;
+				await this._applyPermissionChange(oldSessionResource, oldEntry, connection, oldEntry.pendingPermissionChange);
 			}
 
 			let newBackendSession = this._toBackendUri(newSessionResource, provider);
@@ -1025,6 +1025,26 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		}
 	}
 
+	private _applyConfigValues(entry: IEntry, partial: Record<string, unknown>): void {
+		Object.assign(entry.config, partial);
+		entry.configVersion++;
+		if (entry.resolvedConfig) {
+			entry.resolvedConfig = { ...entry.resolvedConfig, values: { ...entry.resolvedConfig.values, ...partial } };
+		}
+	}
+
+	private async _applyPermissionChange(sessionResource: URI, entry: IEntry, connection: IAgentHostSessionResolution['connection'], partial: Record<string, unknown>): Promise<void> {
+		entry.pendingPermissionChange = { [SessionConfigKey.AutoApprove]: partial[SessionConfigKey.AutoApprove] };
+		const resolved = await connection.resolveSessionConfig({ provider: entry.provider, workingDirectory: entry.workingDirectory, config: { ...entry.config } });
+		validateAgentHostPermissionState(resolved, true);
+		validateSessionConfigWrite(resolved.schema, resolved.values, SessionConfigKey.AutoApprove, partial[SessionConfigKey.AutoApprove], true);
+		if (entry.disposed || this._entries.get(sessionResource) !== entry) {
+			throw new CancellationError();
+		}
+		this._applyConfigValues(entry, { [SessionConfigKey.AutoApprove]: partial[SessionConfigKey.AutoApprove] });
+		entry.pendingPermissionChange = undefined;
+	}
+
 	async applyConfigChange(
 		sessionResource: URI,
 		provider: string,
@@ -1035,22 +1055,21 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		if (!entry) {
 			return undefined;
 		}
-		// Fresh entries already contain defaults; apply the user's partial on top.
-		// Mutate before queueing so a racing tryRebind sees the latest config.
-		Object.assign(entry.config, partial);
-		entry.configVersion++;
-		// Keep overlay values current while schema re-resolution is pending.
-		if (entry.resolvedConfig) {
-			entry.resolvedConfig = {
-				...entry.resolvedConfig,
-				values: { ...entry.resolvedConfig.values, ...partial },
-			};
+		const connection = this._agentHostConnectionsService.resolveSessionResource(sessionResource)?.connection ?? this._agentHostConnectionsService.ambientConnection;
+		const hostAuthoritative = usesAgentHostPermissionState(connection.isLocal, provider);
+		const validatePermissions = hostAuthoritative && Object.hasOwn(partial, SessionConfigKey.AutoApprove);
+		const optimistic = validatePermissions ? Object.fromEntries(Object.entries(partial).filter(([key]) => key !== SessionConfigKey.AutoApprove)) : partial;
+		if (Object.keys(optimistic).length > 0) {
+			this._applyConfigValues(entry, optimistic);
 		}
 
-		// Serialize dispatch and re-resolution so racing chip changes settle in order.
+		// Register validation in the queue before Send can graduate this draft.
 		return this._queue(sessionResource, async () => {
 			if (this._entries.get(sessionResource) !== entry || entry.disposed) {
 				return undefined;
+			}
+			if (validatePermissions) {
+				await this._applyPermissionChange(sessionResource, entry, connection, partial);
 			}
 			const backend = await this._reconcileGeneration(sessionResource, entry);
 			if (!backend || this._entries.get(sessionResource) !== entry || entry.disposed) {
@@ -1101,25 +1120,23 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 	 * - `isolation`: workbench has no isolation picker, so always `'folder'`.
 	 * - `mode` / `autoApprove`: seeded from the single
 	 *   `chat.defaultConfiguration` object setting (`mode` and
-	 *   `approvals` properties). The approval seed is clamped to `'default'`
-	 *   when the `chat.tools.global.autoApprove` policy is off. The local-only
+	 *   `approvals` properties). Copilot Agent Host retains requested intent;
+	 *   other connections keep the legacy policy clamp. The local-only
 	 *   `chat.permissions.default` setting is NOT used.
 	 *
 	 * Skipped entirely in the Agents window, where the sessions provider
 	 * supplies config via `request.agentHostSessionConfig` instead.
 	 */
-	private _getInitialConfig(): Record<string, unknown> | undefined {
+	private _getInitialConfig(provider: string, isLocal: boolean | undefined): Record<string, unknown> | undefined {
 		if (this._environmentService.isSessionsWindow) {
 			return undefined;
 		}
 		const config: Record<string, unknown> = { [SessionConfigKey.Isolation]: 'folder' };
 
 		const configuredDefaults = this._configurationService.getValue<IChatDefaultConfiguration>(ChatConfiguration.DefaultConfiguration);
-		const configuredApprovals = getAgentHostPermissionDefault(this._configurationService, this._agentHostService.isLocal);
+		const configuredApprovals = getAgentHostPermissionDefault(this._configurationService, usesAgentHostPermissionState(isLocal, provider));
 		if (configuredApprovals) {
-			const policyRestricted = isAutoApprovePolicyRestricted(this._configurationService, this._policyService, this._agentHostService.isLocal);
-			// Bypass and (legacy) Autopilot auto-approve at least some tool
-			// calls, so clamp anything but Default under policy.
+			const policyRestricted = isAutoApprovePolicyRestricted(this._configurationService, isLocal, provider);
 			config[SessionConfigKey.AutoApprove] = policyRestricted && configuredApprovals !== 'default' ? 'default' : configuredApprovals;
 		}
 

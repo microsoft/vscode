@@ -21,8 +21,7 @@ import { IChatRequestVariableEntry, toAgentHostCompletionVariableEntry, AgentHos
 import { ISessionContext } from '../../../../services/sessions/browser/sessionContext.js';
 import { AgentHostInputCompletionHandler, getAgentHostCompletionAttachmentRange, getCommandArgumentHintPlaceholder } from '../../browser/agentHostInputCompletions.js';
 import { INewChatAttachments } from '../../browser/newChatContextAttachments.js';
-import { IPolicyService, NullPolicyService } from '../../../../../platform/policy/common/policy.js';
-import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 
 class TestableAgentHostInputCompletionHandler extends AgentHostInputCompletionHandler {
 	buildItem(position: Position, item: IChatInputCompletionItem): CompletionItem | undefined {
@@ -38,9 +37,8 @@ suite('AgentHostInputCompletions', () => {
 		const services = new ServiceCollection(
 			[ISessionContext, { _serviceBrand: undefined, session: constObservable(undefined) }],
 			[IChatSessionsService, new class extends mock<IChatSessionsService>() { }],
-			[IPolicyService, new NullPolicyService()],
-			[IAgentHostConnectionsService, new class extends mock<IAgentHostConnectionsService>() {
-				override resolveSessionResource() { return undefined; }
+			[ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+				override getProvider() { return undefined; }
 			}()],
 		);
 		const model = store.add(createTextModel('/', null, undefined, URI.parse('test:input')));

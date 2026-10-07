@@ -14,8 +14,9 @@ import { ActionType } from '../../../../../../platform/agentHost/common/state/pr
 import { SessionConfigPropertySchema, SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { isAutoApprovePolicyRestricted, normalizeSessionConfigValue } from '../../../common/agentHostConfigPolicy.js';
-import { IPolicyService } from '../../../../../../platform/policy/common/policy.js';
+import { isAutoApprovePolicyRestricted, normalizeSessionConfigValue, usesAgentHostPermissionState, validateAgentHostPermissionState } from '../../../common/agentHostConfigPolicy.js';
+import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { validateSessionConfigWrite } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import {
 	AbstractAgentHostConfigFileSystemProvider,
 	AbstractAgentHostConfigSchemaRegistrar,
@@ -126,7 +127,6 @@ export class AgentSessionSettingsFileSystemProvider extends AbstractAgentHostCon
 		private readonly _schemaRegistrar: AgentSessionSettingsSchemaRegistrar,
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IPolicyService private readonly _policyService: IPolicyService,
 		@ILogService logService: ILogService,
 	) {
 		super(logService);
@@ -175,12 +175,21 @@ export class AgentSessionSettingsFileSystemProvider extends AbstractAgentHostCon
 			return;
 		}
 
-		const policyRestricted = isAutoApprovePolicyRestricted(this._configurationService, this._policyService, this._agentHostService.isLocal);
+		const snapshot = target.ref.object.value;
+		const provider = snapshot instanceof Error ? undefined : snapshot?.provider;
+		const hostAuthoritative = usesAgentHostPermissionState(this._agentHostService.isLocal, provider);
+		const policyRestricted = isAutoApprovePolicyRestricted(this._configurationService, this._agentHostService.isLocal, provider);
 		const nextValues: Record<string, unknown> = {};
 		for (const [key, schema] of Object.entries(current.schema.properties)) {
 			if (sessionSettingsPropertyFilter(key, schema)) {
 				if (Object.hasOwn(values, key)) {
 					nextValues[key] = normalizeSessionConfigValue(key, values[key], policyRestricted);
+				}
+				if (hostAuthoritative && key === SessionConfigKey.AutoApprove && !equals(nextValues[key], current.values[key])) {
+					validateAgentHostPermissionState(current, true);
+					if (nextValues[key] !== undefined) {
+						validateSessionConfigWrite(current.schema, current.values, key, nextValues[key], false);
+					}
 				}
 			} else if (Object.hasOwn(current.values, key)) {
 				nextValues[key] = current.values[key];

@@ -11,10 +11,10 @@ import { TestDialogService } from '../../../../../platform/dialogs/test/common/t
 import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { applyAgentHostCompletionAction, isPolicyBlockedCompletionAction } from '../../browser/agentHostCompletionAction.js';
-import { autoApprovePolicyValue } from '../../common/agentHostConfigPolicy.js';
+import { autoApprovePolicyValue, getAgentHostPermissionState, isAutoApprovePolicyRestricted, usesAgentHostPermissionState, validateAgentHostPermissionState } from '../../common/agentHostConfigPolicy.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { resetShownWarnings } from '../../common/chatPermissionWarnings.js';
-import { NullPolicyService, PolicyValueSource } from '../../../../../platform/policy/common/policy.js';
+import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 
 /** Test configuration service whose `inspect` reports a fixed `policyValue` for the global auto-approve setting. */
 class PolicyTestConfigurationService extends TestConfigurationService {
@@ -91,13 +91,21 @@ suite('applyAgentHostCompletionAction', () => {
 	});
 
 	suite('isPolicyBlockedCompletionAction', () => {
-		test('managed Assisted relaxation applies only to local connections', () => {
+		test('host availability controls completions independently of the client policy', () => {
 			const configuration = new PolicyTestConfigurationService(false);
-			const policy = new NullPolicyService();
-			policy.getPolicyValueSource = () => PolicyValueSource.NativeMdm;
+			const config = permissionConfig();
+			config.values.availableApprovalModes = ['default', 'assisted'];
 			assert.deepStrictEqual([true, false, undefined].map(isLocal =>
-				['assisted', 'autoApprove'].map(autoApprove => isPolicyBlockedCompletionAction({ applyConfig: { autoApprove } }, configuration, policy, isLocal))
+				['assisted', 'autoApprove'].map(autoApprove => isPolicyBlockedCompletionAction({ applyConfig: { autoApprove } }, configuration, usesAgentHostPermissionState(isLocal, 'copilotcli'), config))
 			), [[false, true], [true, true], [true, true]]);
+		});
+
+		test('missing host state blocks every approval completion, but not a mode-only action', () => {
+			const configuration = new PolicyTestConfigurationService(undefined);
+			assert.deepStrictEqual([
+				...['default', 'assisted', 'autoApprove'].map(autoApprove => isPolicyBlockedCompletionAction({ applyConfig: { autoApprove } }, configuration, true)),
+				isPolicyBlockedCompletionAction({ applyConfig: { mode: 'plan' } }, configuration, true),
+			], [true, true, true, false]);
 		});
 
 		test('elevated autoApprove is blocked only when policy restricts auto-approval', () => {
@@ -106,6 +114,55 @@ suite('applyAgentHostCompletionAction', () => {
 			assert.strictEqual(isPolicyBlockedCompletionAction({ applyConfig: { autoApprove: 'autoApprove' } }, restricted), true);
 			assert.strictEqual(isPolicyBlockedCompletionAction({ applyConfig: { autoApprove: 'assisted' } }, restricted), true);
 			assert.strictEqual(isPolicyBlockedCompletionAction({ applyConfig: { autoApprove: 'autoApprove' } }, unrestricted), false);
+		});
+
+		function permissionConfig(): ResolveSessionConfigResult {
+			return {
+				schema: { type: 'object', properties: {
+					autoApprove: { type: 'string', title: 'Permissions', enum: ['default', 'assisted', 'autoApprove'], sessionMutable: true },
+					availableApprovalModes: { type: 'array', title: 'Available', readOnly: true },
+					effectiveApprovalMode: { type: 'string', title: 'Effective', readOnly: true },
+				} },
+				values: { autoApprove: 'autoApprove', availableApprovalModes: ['default', 'assisted', 'autoApprove'], effectiveApprovalMode: 'default' },
+			};
+		}
+
+		suite('Agent Host permission authority', () => {
+			test('only an explicitly local Copilot connection bypasses client policy interpretation', () => {
+				const configuration = new PolicyTestConfigurationService(false);
+				assert.deepStrictEqual([true, false, undefined].flatMap(isLocal =>
+					['copilotcli', 'claude', 'codex', undefined].map(provider => isAutoApprovePolicyRestricted(configuration, isLocal, provider))
+				), [false, true, true, true, true, true, true, true, true, true, true, true]);
+			});
+
+			test('rejects incomplete or malformed reports without synthesizing Manual', () => {
+				const config = permissionConfig();
+				const values = [
+					{}, { availableApprovalModes: ['default'] }, { effectiveApprovalMode: 'default' },
+					{ availableApprovalModes: 'default', effectiveApprovalMode: 'default' },
+					{ availableApprovalModes: [], effectiveApprovalMode: 'default' },
+					{ availableApprovalModes: ['default', 'default'], effectiveApprovalMode: 'default' },
+					{ availableApprovalModes: ['default', 'unknown'], effectiveApprovalMode: 'default' },
+					{ availableApprovalModes: ['default'], effectiveApprovalMode: 'assisted' },
+					{ availableApprovalModes: ['default'], effectiveApprovalMode: 'default' },
+				];
+				assert.deepStrictEqual(values.map(values => getAgentHostPermissionState({ ...config, values })), [
+					undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+					{ available: ['default'], effective: 'default' },
+				]);
+				assert.throws(() => validateAgentHostPermissionState(undefined, true), /could not resolve session permissions/);
+				assert.doesNotThrow(() => validateAgentHostPermissionState(undefined, false));
+			});
+
+			test('read-only host declarations are required; requested intent does not select the effective mode', () => {
+				const config = permissionConfig();
+				const reported = getAgentHostPermissionState(config);
+				config.schema.properties.effectiveApprovalMode = { type: 'string', title: 'Effective' };
+				assert.deepStrictEqual([reported, getAgentHostPermissionState(config)], [
+					{ available: ['default', 'assisted', 'autoApprove'], effective: 'default' },
+					undefined,
+				]);
+			});
 		});
 
 		test('non-elevated and mode-axis actions are never policy-blocked', () => {

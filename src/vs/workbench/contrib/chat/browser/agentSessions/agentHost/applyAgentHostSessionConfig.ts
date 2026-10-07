@@ -11,8 +11,8 @@ import { IAgentHostConnectionsService } from '../../../../../../platform/agentHo
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { IPolicyService } from '../../../../../../platform/policy/common/policy.js';
-import { isAutoApprovePolicyRestricted, normalizeSessionConfigValue } from '../../../common/agentHostConfigPolicy.js';
+import { isAutoApprovePolicyRestricted, normalizeSessionConfigValue, usesAgentHostPermissionState, validateAgentHostPermissionState } from '../../../common/agentHostConfigPolicy.js';
+import { validateSessionConfigWrite } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { getLocalAgentHostSessionProvider, toAgentHostBackendSessionUri } from './agentHostSessionUri.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
@@ -29,7 +29,6 @@ export interface IApplyAgentHostSessionConfigServices {
 	readonly workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver;
 	readonly workspaceContextService: IWorkspaceContextService;
 	readonly configurationService: IConfigurationService;
-	readonly policyService?: IPolicyService;
 }
 
 /**
@@ -40,8 +39,8 @@ export interface IApplyAgentHostSessionConfigServices {
  * sessions through an AHP `SessionConfigChanged` dispatch, matching how the
  * agent-host chat-input pickers apply changes.
  *
- * An elevated `autoApprove` value is clamped back to `default` when enterprise
- * policy disables global auto-approval, mirroring the pickers.
+ * Copilot Agent Host selections use host-reported availability. Other
+ * connections retain the legacy client policy clamp.
  *
  * @returns `true` when `sessionResource` is agent-host-backed and the change was
  * dispatched, `false` otherwise (so callers can fall back).
@@ -56,8 +55,10 @@ export async function applyAgentHostSessionConfigChange(
 		return false;
 	}
 
-	const { agentHostService, connectionsService, provisionalService, workingDirectoryResolver, workspaceContextService, configurationService } = services;
-	const policyRestricted = isAutoApprovePolicyRestricted(configurationService, services.policyService, agentHostService.isLocal);
+	const { connectionsService, provisionalService, workingDirectoryResolver, workspaceContextService, configurationService } = services;
+	const resolution = connectionsService.resolveSessionResource(sessionResource);
+	const connection = resolution?.connection ?? connectionsService.ambientConnection;
+	const policyRestricted = isAutoApprovePolicyRestricted(configurationService, connection.isLocal, provider);
 	const partial: Record<string, string> = { ...config };
 	const autoApprove = partial[SessionConfigKey.AutoApprove];
 	if (autoApprove !== undefined) {
@@ -76,12 +77,20 @@ export async function applyAgentHostSessionConfigChange(
 	if (!backendSession) {
 		return false;
 	}
-	agentHostService.dispatch(backendSession.toString(), {
+	const state = connection.getSubscriptionUnmanaged(StateComponents.Session, backendSession)?.value;
+	const current = state && !(state instanceof Error) ? state.config : undefined;
+	const hostAuthoritative = usesAgentHostPermissionState(connection.isLocal, state && !(state instanceof Error) ? state.provider : provider);
+	if (autoApprove !== undefined && hostAuthoritative) {
+		validateAgentHostPermissionState(current, true);
+		if (current) {
+			validateSessionConfigWrite(current.schema, current.values, SessionConfigKey.AutoApprove, autoApprove, false);
+		}
+	}
+	connection.dispatch(backendSession.toString(), {
 		type: ActionType.SessionConfigChanged,
 		config: partial,
 	});
-	const state = agentHostService.getSubscriptionUnmanaged(StateComponents.Session, backendSession)?.value;
-	const currentValues = state && !(state instanceof Error) ? state.config?.values : undefined;
+	const currentValues = current?.values;
 	const nextConfig = { ...(currentValues ?? {}), ...partial };
 	void provisionalService.refreshResolvedConfig(sessionResource, provider, workingDirectory, nextConfig);
 	return true;

@@ -70,8 +70,12 @@ suite('Copilot PermissionPicker', () => {
 		});
 	});
 
-	for (const policyRestricted of [false, true]) {
-		test(`labels Assisted permissions as experimental on phones${policyRestricted ? ' while honoring enterprise policy' : ''}`, async () => {
+	for (const { policyRestricted, hostAuthoritative } of [
+		{ policyRestricted: false, hostAuthoritative: false },
+		{ policyRestricted: true, hostAuthoritative: false },
+		{ policyRestricted: true, hostAuthoritative: true },
+	]) {
+		test(`labels Assisted permissions on phones (policy=${policyRestricted}, host=${hostAuthoritative})`, async () => {
 			const container = dom.append(document.body, dom.$('.phone-layout'));
 			store.add(toDisposable(() => container.remove()));
 			const configurationService = new class extends TestConfigurationService {
@@ -85,6 +89,7 @@ suite('Copilot PermissionPicker', () => {
 				{
 					availableLevels: [ChatPermissionLevel.Default, ChatPermissionLevel.Assisted, ChatPermissionLevel.AutoApprove],
 					currentPermissionLevel: constObservable(ChatPermissionLevel.Default),
+					...(hostAuthoritative ? { isPolicyRestricted: () => false } : {}),
 					getPermissionLevelMeta: (_level, meta) => meta,
 					setPermissionLevel: () => { throw new Error('Opening or dismissing the picker must not change permissions'); },
 				},
@@ -116,12 +121,12 @@ suite('Copilot PermissionPicker', () => {
 
 			assert.deepStrictEqual(levels, [
 				{ label: 'Default permissions', badge: undefined, ariaLabel: null, disabled: false },
-				{ label: 'Assisted permissions', badge: 'Experimental', ariaLabel: 'Assisted permissions, Experimental, Evaluates risk before running tools', disabled: policyRestricted },
-				{ label: 'Allow all', badge: undefined, ariaLabel: null, disabled: policyRestricted },
+				{ label: 'Assisted permissions', badge: 'Experimental', ariaLabel: 'Assisted permissions, Experimental, Evaluates risk before running tools', disabled: policyRestricted && !hostAuthoritative },
+				{ label: 'Allow all', badge: undefined, ariaLabel: null, disabled: policyRestricted && !hostAuthoritative },
 			]);
 		});
 
-		test(`offers experimental Assisted permissions by default${policyRestricted ? ' but disables it under enterprise policy' : ''}`, async () => {
+		test(`offers experimental Assisted permissions by default (policy=${policyRestricted}, host=${hostAuthoritative})`, async () => {
 			const configurationService = new class extends TestConfigurationService {
 				override inspect<T>(key: string): IConfigurationValue<T> {
 					const result = super.inspect<T>(key);
@@ -219,6 +224,39 @@ suite('Copilot PermissionPicker', () => {
 			pointerFocusCalls: 1,
 			keyboardFocusCalls: 2,
 		});
+	});
+
+	test('host-authoritative delegates bypass the legacy client clamp, not legacy delegates', async () => {
+		const configuration = new class extends TestConfigurationService {
+			override inspect<T>(key: string): IConfigurationValue<T> {
+				return { ...super.inspect<T>(key), policyValue: key === ChatConfiguration.GlobalAutoApprove ? false as T : undefined };
+			}
+		}();
+		const states = [];
+		for (const hostAuthoritative of [false, true]) {
+			const writes: ChatPermissionLevel[] = [];
+			const picker = store.add(new PermissionPicker(
+				{
+					availableLevels: [ChatPermissionLevel.Default, ChatPermissionLevel.Assisted],
+					...(hostAuthoritative ? { isPolicyRestricted: () => false } : {}),
+					getPermissionLevelMeta: (_level, meta) => meta,
+					setPermissionLevel: level => { writes.push(level); },
+				},
+				new class extends mock<IActionWidgetService>() { override hide(): void { } }(),
+				configuration,
+				new TestDialogService(undefined, { result: true }),
+				new class extends mock<IOpenerService>() { }(),
+				store.add(new TestStorageService()),
+				NullTelemetryService,
+				new class extends mock<IHoverService>() { }(),
+				unmanagedEnablementService,
+			));
+			const items = picker.getActionListItems(() => true);
+			const assisted = items.find(item => item.item?.id === 'permissionPicker.assisted')!;
+			await assisted.item!.run();
+			states.push({ disabled: assisted.disabled, writes });
+		}
+		assert.deepStrictEqual(states, [{ disabled: true, writes: [] }, { disabled: false, writes: [ChatPermissionLevel.Assisted] }]);
 	});
 
 	test('sandbox toggle locks direct disabling under managed enablement', async () => {

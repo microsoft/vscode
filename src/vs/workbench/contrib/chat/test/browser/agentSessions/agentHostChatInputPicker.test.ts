@@ -121,10 +121,15 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 				properties: {
 					mode: { title: 'Mode', type: 'string', enum: ['interactive', 'plan', 'autopilot'], enumLabels: ['Interactive', 'Plan', 'Autopilot'], sessionMutable: true },
 					autoApprove: { title: 'Permissions', type: 'string', enum: ['default', 'assisted', 'autoApprove'], enumLabels: ['Manual permissions', 'Assisted permissions', 'Allow all'], sessionMutable: true },
+					availableApprovalModes: { type: 'array', title: 'Available permissions', readOnly: true },
+					effectiveApprovalMode: { type: 'string', title: 'Effective permissions', readOnly: true },
 					[SessionConfigKey.SandboxEnabled]: { title: 'Sandbox', type: 'string', enum: ['default', 'on', 'off'], sessionMutable: true },
 				},
 			},
-			values: { mode: 'interactive', autoApprove: 'assisted' },
+			values: {
+				mode: 'interactive', autoApprove: 'assisted',
+				availableApprovalModes: ['default', 'assisted', 'autoApprove'], effectiveApprovalMode: 'assisted',
+			},
 		};
 		const widget = new class extends mock<IChatWidget>() {
 			override readonly onDidChangeViewModel = Event.None;
@@ -283,6 +288,21 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		};
 		return { modePicker, permissionPicker, modeContainer, permissionContainer, configuration, config, actionWidget, widget, instantiationService, branchCompletionQueries, branchCompletionProperties, branchCompletionItems, dispatches, resolvedRefreshes, connection, policyService, settingsRequests, hoverTargets, onDidShow: onDidShow.event, sandboxReady, setSession, managedSandboxEnforced, managedSandboxAllowsBypass, logErrors, diagnosticsRequests: () => diagnosticsRequests, fireHostStart: () => onAgentHostStart.fire() };
 	}
+
+	test('a materialized snapshot without config cannot inherit permission reports from a preview', () => {
+		const rig = setup(false);
+		const state = rig.setSession(URI.parse('agent-host-copilotcli:/authority-missing'), URI.parse('ahp-session:/authority-missing'), rig.connection, 'copilotcli');
+		rig.permissionPicker['_provisional'].getResolvedConfig = () => rig.config;
+		const before = rig.permissionPicker['_readContext']()?.value;
+		Object.assign(state, { config: undefined });
+		rig.permissionPicker['_renderChip']();
+		assert.deepStrictEqual({
+			before,
+			after: rig.permissionPicker['_readContext']()?.value,
+			readOnly: rig.permissionPicker['_readContext']()?.propertySchema.readOnly,
+			label: rig.permissionContainer.textContent,
+		}, { before: 'assisted', after: undefined, readOnly: true, label: 'Permissions Unavailable' });
+	});
 
 	test('native approval bindings restrict combined choices and write the original host key', async () => {
 		const rig = setup();
@@ -943,6 +963,20 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 	});
 
 	for (const combined of [false, true]) {
+		test(`missing host permission state is unavailable, not Manual or unrestricted (${combined})`, async () => {
+			const { config, permissionPicker, permissionContainer, actionWidget, dispatches } = setup(combined);
+			delete config.values.availableApprovalModes;
+			delete config.values.effectiveApprovalMode;
+			permissionPicker['_renderChip']();
+			await permissionPicker['_showPicker'](document.createElement('div'));
+			assert.deepStrictEqual({
+				label: permissionContainer.textContent,
+				combined: permissionPicker['_isModePickerCombined'](),
+				shows: actionWidget.showCount,
+				dispatches,
+			}, { label: 'Permissions Unavailable', combined: false, shows: 0, dispatches: [] });
+		});
+
 		test(`remote MDM restriction stays Manual-only with experimental picker ${combined}`, async () => {
 			const rig = setup(combined);
 			rig.configuration.policyRestricted = true;
@@ -983,7 +1017,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 				await picker['_showPicker'](document.createElement('div'), combinedPicker);
 				const levels = actionWidget.items.filter(item => ['Manual permissions', 'Assisted permissions', 'Allow all'].includes(item.label ?? ''))
 					.map(item => ({ label: item.label, disabled: item.disabled, explained: item.disabled ? !!item.detail && !!item.hover : undefined }));
-				const context = permissionPicker['_bindContext'](SessionConfigKey.AutoApprove, config.schema, config.values);
+				const context = permissionPicker['_bindContext'](SessionConfigKey.AutoApprove, config.schema, config.values, !remote);
 				assert.deepStrictEqual({ levels, choice: config.values.autoApprove, displayed: context?.value, hover: context?.approvalHover, dispatches }, {
 					levels: [
 						{ label: 'Manual permissions', disabled: false, explained: undefined },
@@ -1021,7 +1055,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			});
 		});
 
-		test(`preserves enterprise approval restrictions (${combined ? 'combined' : 'separate'} picker)`, async () => {
+		test(`host reports take precedence over client policy (${combined ? 'combined' : 'separate'} picker)`, async () => {
 			const { modePicker, permissionPicker, configuration, actionWidget, dispatches } = setup(combined);
 			configuration.policyRestricted = true;
 			const picker = combined ? modePicker : permissionPicker;
@@ -1033,10 +1067,10 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			assert.deepStrictEqual({ levels, dispatches }, {
 				levels: [
 					{ label: 'Manual permissions', disabled: false, badge: undefined },
-					{ label: 'Assisted permissions', disabled: true, badge: 'Experimental' },
-					{ label: 'Allow all', disabled: true, badge: undefined },
+					{ label: 'Assisted permissions', disabled: false, badge: 'Experimental' },
+					{ label: 'Allow all', disabled: false, badge: undefined },
 				],
-				dispatches: [{ type: ActionType.SessionConfigChanged, config: { autoApprove: 'default' } }],
+				dispatches: [{ type: ActionType.SessionConfigChanged, config: { autoApprove: 'assisted' } }],
 			});
 		});
 
@@ -1208,6 +1242,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		modeButton.focus();
 		config.values.mode = 'plan';
 		config.values.autoApprove = 'autoApprove';
+		config.values.effectiveApprovalMode = 'autoApprove';
 		modePicker['_renderChip']();
 		assert.deepStrictEqual({
 			sameTrigger: modeContainer.querySelector('.action-label') === trigger,
@@ -1489,7 +1524,6 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 				override async refreshResolvedConfig(): Promise<void> { }
 			}(),
 			configurationService,
-			new NullPolicyService(),
 			new class extends mock<IAgentHostNewSessionFolderService>() {
 				override getFolder() { return URI.file('/workspace'); }
 			}(),

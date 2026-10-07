@@ -18,6 +18,7 @@ import { narrowClaudePermissionMode } from '../../../../../platform/agentHost/co
 import { narrowCodexPermissionsPreset } from '../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
 import { SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { getAgentHostPermissionState } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
 import { IPermissionLevelMeta, IPermissionPickerDelegate } from '../../copilotChatSessions/browser/permissionPicker.js';
 import { getSessionConfigProvider, IAgentHostSessionsProvider, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionConfigProvider, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
@@ -66,6 +67,14 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 
 	readonly getSandboxToggleSettingId = (): string | undefined => this.sandboxToggleSettingId.get();
 
+	private _usesHostPermissionState(): boolean {
+		const session = this._session.get();
+		return !!session && this._getAgentHostProvider(session.providerId)?.usesHostPermissionState?.(session.sessionId) === true;
+	}
+
+	readonly isPolicyRestricted = (): boolean => !this._usesHostPermissionState()
+		&& this._configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
+
 	get availableLevels(): readonly ChatPermissionLevel[] {
 		const session = this._session.get();
 		if (!session) {
@@ -73,6 +82,9 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 		}
 		const provider = this._getProvider(session.providerId);
 		const config = provider?.getSessionConfig(session.sessionId);
+		if (this._usesHostPermissionState()) {
+			return getAgentHostPermissionState(config)?.available ?? [];
+		}
 		const approvalProperty = getSessionApprovalProperty(config?.schema);
 		const values = config && approvalProperty ? getAvailableSessionApprovalValues(approvalProperty, config.schema, config.values).map(value => readSessionApprovalLevel(approvalProperty, value)) : [];
 		return [
@@ -180,6 +192,9 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 			const session = this._session.read(reader);
 			const provider = session && this._getProvider(session.providerId);
 			const config = session && provider?.getSessionConfig(session.sessionId);
+			if (this._usesHostPermissionState() && !getAgentHostPermissionState(config)) {
+				return false;
+			}
 			const approvalProperty = getSessionApprovalProperty(config?.schema);
 			const isNewSession = !!session && provider?.getCreateSessionConfig(session.sessionId) !== undefined;
 			return !phoneInputPresenter.enabled.read(reader)
@@ -294,6 +309,9 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 			return ChatPermissionLevel.Default;
 		}
 		const config = provider.getSessionConfig(session.sessionId);
+		if (this._usesHostPermissionState()) {
+			return getAgentHostPermissionState(config)?.effective ?? ChatPermissionLevel.Default;
+		}
 		const approvalProperty = getSessionApprovalProperty(config?.schema);
 		const value = config && approvalProperty ? readSessionApprovalLevel(approvalProperty, getEffectiveSessionApprovalValue(approvalProperty, config.schema, config.values)) : undefined;
 		return isChatPermissionLevel(value) ? value : ChatPermissionLevel.Default;
@@ -309,7 +327,11 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 		if (!provider) {
 			return false;
 		}
-		const approvalProperty = getSessionApprovalProperty(provider.getSessionConfig(session.sessionId)?.schema);
+		const config = provider.getSessionConfig(session.sessionId);
+		if (this._usesHostPermissionState() && !getAgentHostPermissionState(config)) {
+			return false;
+		}
+		const approvalProperty = getSessionApprovalProperty(config?.schema);
 		return !!approvalProperty && isSessionConfigWritable(approvalProperty.schema, provider.getCreateSessionConfig(session.sessionId) !== undefined);
 	}
 

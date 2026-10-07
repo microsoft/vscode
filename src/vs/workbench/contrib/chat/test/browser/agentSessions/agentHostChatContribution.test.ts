@@ -123,6 +123,7 @@ import { IAgentHostSessionWorkingDirectorySynchronizer } from '../../../browser/
 import { IAgentHostShellInitSynchronizer } from '../../../browser/agentSessions/agentHost/agentHostShellInitSynchronizer.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostImportConversationStore } from '../../../browser/agentSessions/agentHost/agentHostImportConversationStore.js';
+import { IPolicyService, NullPolicyService } from '../../../../../../platform/policy/common/policy.js';
 import { AgentHostNewSessionFolderService, IAgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { OpenAgentHostFolderPickerAction } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
 import { MenuId, MenuRegistry, isIMenuItem, type IMenuItem } from '../../../../../../platform/actions/common/actions.js';
@@ -1469,6 +1470,7 @@ suite('AgentHostChatContribution', () => {
 			const quotaUpdates: Parameters<IChatEntitlementService['acceptQuotas']>[0][] = [];
 			instantiationService.get(IChatEntitlementService).acceptQuotas = quotas => { quotaUpdates.push(quotas); };
 			instantiationService.stub(IConfigurationService, new TestConfigurationService());
+			instantiationService.stub(IPolicyService, new NullPolicyService());
 			instantiationService.stub(IAgentHostResourceService, new class extends mock<IAgentHostResourceService>() {
 				override connectionClosed(): void { }
 			}());
@@ -5439,6 +5441,29 @@ suite('AgentHostChatContribution', () => {
 				carriedFolder: workspaceFolder.toString(),
 			});
 		}));
+
+		test('newChatSessionItem restores imported history to the draft when permission validation rejects rebind', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+			const untitled = URI.parse('agent-host-copilot:/untitled-permission-retry');
+			let allocated: URI | undefined;
+			const renames: [string, string][] = [];
+			instantiationService.stub(IAgentHostImportConversationStore, {
+				rename: (from, to) => { renames.push([from.toString(), to.toString()]); },
+			});
+			instantiationService.stub(IAgentHostUntitledProvisionalSessionService, {
+				tryRebind: async (_old, next) => {
+					allocated = next;
+					throw new Error('Permissions unavailable');
+				},
+			});
+			const controller = createSessionListController(disposables, instantiationService, agentHostService);
+			await assert.rejects(controller.newChatSessionItem({ prompt: 'Continue', untitledResource: untitled }, CancellationToken.None), /Permissions unavailable/);
+			assert.ok(allocated);
+			assert.deepStrictEqual({
+				renames,
+				pending: controller.isNewSession(allocated),
+			}, { renames: [[untitled.toString(), allocated.toString()], [allocated.toString(), untitled.toString()]], pending: false });
+		});
 
 		test('newChatSessionItem skips rebind when no untitled provisional resource is provided', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { instantiationService, agentHostService } = createTestServices(disposables);

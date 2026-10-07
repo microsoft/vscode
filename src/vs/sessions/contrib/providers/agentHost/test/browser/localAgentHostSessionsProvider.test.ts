@@ -46,7 +46,6 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { IDialogService, IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { NullPolicyService, PolicyValueSource } from '../../../../../../platform/policy/common/policy.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
@@ -60,7 +59,7 @@ import { IChatService, type ChatSendResult, type IChatModelReference, type IChat
 import { IChatSessionsService, isIChatSessionFileChange2 } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatWidgetHistoryService } from '../../../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
-import { ChatModeKind } from '../../../../../../workbench/contrib/chat/common/constants.js';
+import { ChatConfiguration, ChatModeKind } from '../../../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import type { IChatModel, IChatModelInputState, IInputModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ISessionChangeEvent, ISessionsProvider, type ISessionsProviderCreateSessionOptions } from '../../../../../services/sessions/common/sessionsProvider.js';
@@ -118,7 +117,7 @@ function createVSCodeSessionConfigSchema(overrides: SessionConfigSchema['propert
 }
 
 class MockAgentHostService extends mock<IAgentHostService>() {
-	override isLocal = true;
+	override isLocal = false;
 	declare readonly _serviceBrand: undefined;
 
 	private _onDidAction = new Emitter<ActionEnvelope>();
@@ -152,6 +151,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	public failDisposeSessionFor: string | undefined;
 	public dispatchedActions: { channel: string; action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction; clientId: string; clientSeq: number }[] = [];
 	public failResolveSessionConfig = false;
+	public permissionReportsEnabled = true;
 	public resolveSessionConfigResult: ResolveSessionConfigResult = { schema: createVSCodeSessionConfigSchema(), values: { isolation: 'worktree' } };
 	public resolveSessionConfigRequests: { config?: Record<string, unknown>; workingDirectory?: URI }[] = [];
 	public resolveSessionConfigHandler: ((request: { config?: Record<string, unknown> }) => ResolveSessionConfigResult) | undefined;
@@ -294,10 +294,10 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	override async deleteDetachedWorktree(handle: string): Promise<void> { this.deletedDetachedWorktrees.push(handle); }
 	override async claimDetachedWorktree(handle: string): Promise<void> { this.claimedDetachedWorktrees.push(handle); }
 
-	override async resolveSessionConfig(request: { config?: Record<string, unknown>; workingDirectory?: URI }): Promise<ResolveSessionConfigResult> {
+	override async resolveSessionConfig(request: { provider?: string; config?: Record<string, unknown>; workingDirectory?: URI }): Promise<ResolveSessionConfigResult> {
 		this.resolveSessionConfigRequests.push(request);
 		if (this.onResolveSessionConfig) {
-			return this.onResolveSessionConfig(request);
+			return this.withPermissionReport(await this.onResolveSessionConfig(request), request.provider);
 		}
 		await this.resolveSessionConfigBarrier?.p;
 		await Promise.resolve();
@@ -305,7 +305,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			throw new Error('resolveSessionConfig unavailable');
 		}
 		if (this.resolveSessionConfigHandler) {
-			return this.resolveSessionConfigHandler(request);
+			return this.withPermissionReport(this.resolveSessionConfigHandler(request), request.provider);
 		}
 		const values = { ...this.resolveSessionConfigResult.values };
 		for (const [key, value] of Object.entries(request.config ?? {})) {
@@ -314,7 +314,26 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 				values[key] = value;
 			}
 		}
-		return { ...this.resolveSessionConfigResult, values };
+		return this.withPermissionReport({ ...this.resolveSessionConfigResult, values }, request.provider);
+	}
+
+	private withPermissionReport(config: ResolveSessionConfigResult, provider: string | undefined): ResolveSessionConfigResult {
+		if (!this.permissionReportsEnabled || !this.isLocal || provider !== 'copilotcli' || !config.schema.properties.autoApprove) {
+			return config;
+		}
+		const available = ['default', 'assisted', 'autoApprove'].filter(value => config.schema.properties.autoApprove.enum?.includes(value));
+		return {
+			schema: { ...config.schema, properties: {
+				...config.schema.properties,
+				availableApprovalModes: { type: 'array', title: 'Available permissions', readOnly: true },
+				effectiveApprovalMode: { type: 'string', title: 'Effective permissions', readOnly: true },
+			} },
+			values: {
+				availableApprovalModes: available,
+				effectiveApprovalMode: available.find(value => value === config.values.autoApprove) ?? 'default',
+				...config.values,
+			},
+		};
 	}
 
 	override async sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {
@@ -6555,19 +6574,106 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	for (const isLocal of [true, false]) {
 		test(`managed policy relaxation in Agents requires a local connection (${isLocal})`, async () => {
-			class ManagedPolicyProvider extends LocalAgentHostSessionsProvider {
-				protected override readonly _policyService = new class extends NullPolicyService {
-					override getPolicyValueSource() { return PolicyValueSource.NativeMdm; }
-				}();
-			}
 			agentHost.isLocal = isLocal;
 			const provider = createProvider(disposables, agentHost, undefined, {
-				configurationService: createPolicyRestrictedConfigurationService(), providerCtor: ManagedPolicyProvider,
+				configurationService: createPolicyRestrictedConfigurationService(),
 			});
 			const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
 			await provider.whenSessionConfigResolved(session.sessionId, CancellationToken.None);
 			await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.AutoApprove, 'assisted');
 			assert.strictEqual(agentHost.resolveSessionConfigRequests.at(-1)?.config?.autoApprove, isLocal ? 'assisted' : 'default');
+		});
+	}
+
+	test('local Copilot blocks unresolved approval changes and Send but can recover other draft settings', async () => {
+		agentHost.isLocal = true;
+		agentHost.permissionReportsEnabled = false;
+		const provider = createProvider(disposables, agentHost);
+		const session = provider.createNewSession(URI.file('/home/user/project'), provider.sessionTypes[0].id);
+		const initial = await provider.whenSessionConfigResolved(session.sessionId, CancellationToken.None);
+		await assert.rejects(provider.setSessionConfigValue(session.sessionId, SessionConfigKey.AutoApprove, 'assisted'), /could not resolve session permissions/);
+		const chat = await provider.createNewChat(session.sessionId);
+		await assert.rejects(provider.sendRequest(session.sessionId, chat.resource, { query: 'do not send' }), /could not resolve session permissions/);
+		agentHost.permissionReportsEnabled = true;
+		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Mode, 'plan');
+		const resolved = await provider.whenSessionConfigResolved(session.sessionId, CancellationToken.None);
+		assert.deepStrictEqual({
+			initialIsolation: initial.values.isolation,
+			available: resolved.values.availableApprovalModes,
+			effective: resolved.values.effectiveApprovalMode,
+			intent: provider.getCreateSessionConfig(session.sessionId)?.autoApprove,
+			mode: resolved.values.mode,
+		}, { initialIsolation: 'worktree', available: ['default', 'assisted', 'autoApprove'], effective: 'default', intent: undefined, mode: 'plan' });
+	});
+
+	test('local Copilot retries missing permission reports on Send without dropping explicit Manual', async () => {
+		agentHost.isLocal = true;
+		agentHost.permissionReportsEnabled = false;
+		const configurationService = new TestConfigurationService();
+		await configurationService.setUserConfiguration(ChatConfiguration.DefaultConfiguration, { approvals: 'manual' });
+		const sent: unknown[] = [];
+		const provider = createProvider(disposables, agentHost, undefined, {
+			configurationService, openSession: true,
+			sendRequest: async (resource, _message, options) => {
+				sent.push(options?.agentHostSessionConfig?.autoApprove);
+				agentHost.addSession(createSession(AgentSession.id(resource)));
+				return { kind: 'sent', data: {} as IChatSendRequestData };
+			},
+		});
+		const session = provider.createNewSession(URI.file('/home/user/project'), provider.sessionTypes[0].id);
+		await provider.whenSessionConfigResolved(session.sessionId, CancellationToken.None);
+		const chat = await provider.createNewChat(session.sessionId);
+		await assert.rejects(provider.sendRequest(session.sessionId, chat.resource, { query: 'first attempt' }), /could not resolve session permissions/);
+		agentHost.permissionReportsEnabled = true;
+		const pending = new DeferredPromise<void>();
+		disposables.add(toDisposable(() => pending.cancel()));
+		agentHost.resolveSessionConfigBarrier = pending;
+		const send = provider.sendRequest(session.sessionId, chat.resource, { query: 'retry' });
+		await timeout(0);
+		let writeSettled = false;
+		const write = provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Mode, 'plan').then(() => { writeSettled = true; });
+		await timeout(0);
+		const settledBeforeResolution = writeSettled;
+		pending.complete();
+		await Promise.all([send, write]);
+		assert.deepStrictEqual({ sent, settledBeforeResolution, writeSettled }, { sent: ['default'], settledBeforeResolution: false, writeSettled: true });
+	});
+
+	for (const lifecycle of [SessionLifecycle.Creating, SessionLifecycle.Ready]) {
+		test(`local Copilot draft updates the host and only materialized reports override newer previews (${lifecycle})`, async () => {
+			agentHost.isLocal = true;
+			const provider = createProvider(disposables, agentHost);
+			const session = provider.createNewSession(URI.file('/home/user/project'), provider.sessionTypes[0].id);
+			const initial = await provider.whenSessionConfigResolved(session.sessionId, CancellationToken.None);
+			await timeout(0);
+			const backend = agentHost.createdSessionUris[0];
+			assert.ok(backend);
+			const state: SessionState = {
+				provider: 'copilotcli', title: 'Draft', status: ProtocolSessionStatus.Idle, lifecycle,
+				activeClients: [], chats: [],
+				config: { ...initial, values: { ...initial.values, autoApprove: 'default', effectiveApprovalMode: 'default' } },
+			};
+			agentHost.setSessionStateResource(backend, state);
+			const pending = new DeferredPromise<void>();
+			disposables.add(toDisposable(() => pending.cancel()));
+			agentHost.resolveSessionConfigBarrier = pending;
+			const change = provider.setSessionConfigValue(session.sessionId, SessionConfigKey.AutoApprove, 'assisted');
+			await timeout(0);
+			agentHost.setSessionStateResource(backend, {
+				...state,
+				config: { ...initial, values: { ...initial.values, autoApprove: 'assisted', effectiveApprovalMode: 'default', availableApprovalModes: ['default'] } },
+			});
+			pending.complete();
+			await change;
+			assert.deepStrictEqual({
+				forwarded: agentHost.dispatchedActions.filter(entry => entry.action.type === ActionType.SessionConfigChanged).at(-1)?.action,
+				effective: provider.getSessionConfig(session.sessionId)?.values.effectiveApprovalMode,
+				requested: provider.getCreateSessionConfig(session.sessionId)?.autoApprove,
+			}, {
+				forwarded: { type: ActionType.SessionConfigChanged, config: { autoApprove: 'assisted' } },
+				effective: lifecycle === SessionLifecycle.Creating ? 'assisted' : 'default',
+				requested: 'assisted',
+			});
 		});
 	}
 
@@ -12535,6 +12641,73 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		const latest = provider.getSessionConfig(session!.sessionId);
 		assert.deepStrictEqual(latest?.values, { autoApprove: 'autoApprove', isolation: 'worktree', branch: 'main', [SessionConfigKey.AgentMergeFolders]: agentMergeFolders });
+	}));
+
+	test('local Copilot running reports beat late previews and unrelated replacement preserves capped intent', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.isLocal = true;
+		agentHost.addSession(createSession('authority-write', { summary: 'Authority Write' }));
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService: createPolicyRestrictedConfigurationService() });
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(candidate => candidate.title.get() === 'Authority Write')!;
+		const config: SessionConfigState = {
+			schema: createVSCodeSessionConfigSchema({
+				availableApprovalModes: { type: 'array', title: 'Available', readOnly: true },
+				effectiveApprovalMode: { type: 'string', title: 'Effective', readOnly: true },
+			}),
+			values: { autoApprove: 'autoApprove', mode: 'interactive', availableApprovalModes: ['default', 'assisted'], effectiveApprovalMode: 'assisted' },
+		};
+		const state: SessionState = { provider: 'copilotcli', title: 'Authority Write', status: ProtocolSessionStatus.Idle, lifecycle: SessionLifecycle.Ready, activeClients: [], chats: [], config };
+		agentHost.setSessionState('authority-write', 'copilotcli', state);
+		await waitForSessionConfig(provider, session.sessionId, value => value?.values.effectiveApprovalMode === 'assisted');
+		await provider.replaceSessionConfig(session.sessionId, { autoApprove: 'autoApprove', mode: 'plan' });
+		await assert.rejects(provider.setSessionConfigValue(session.sessionId, SessionConfigKey.AutoApprove, 'autoApprove'), /does not offer/);
+		const pending = new DeferredPromise<ResolveSessionConfigResult>();
+		disposables.add(toDisposable(() => pending.cancel()));
+		agentHost.onResolveSessionConfig = () => pending.p;
+		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Mode, 'interactive');
+		agentHost.setSessionState('authority-write', 'copilotcli', { ...state, config: { ...config, values: { ...config.values, availableApprovalModes: ['default'], effectiveApprovalMode: 'default' } } });
+		pending.complete({ ...config, values: { ...config.values, effectiveApprovalMode: 'assisted' } });
+		await timeout(0);
+		assert.deepStrictEqual({
+			requested: provider.getSessionConfig(session.sessionId)?.values.autoApprove,
+			effective: provider.getSessionConfig(session.sessionId)?.values.effectiveApprovalMode,
+			available: provider.getSessionConfig(session.sessionId)?.values.availableApprovalModes,
+			replaced: agentHost.dispatchedActions.find(entry => entry.action.type === ActionType.SessionConfigChanged && entry.action.replace)?.action,
+		}, {
+			requested: 'autoApprove', effective: 'default', available: ['default'],
+			replaced: { type: ActionType.SessionConfigChanged, config: { autoApprove: 'autoApprove', mode: 'plan' }, replace: true },
+		});
+	}));
+
+	test('local Copilot clears omitted runtime reports instead of reconstructing them from cached values', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.isLocal = true;
+		agentHost.addSession(createSession('authority-missing', { summary: 'Authority Missing' }));
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(candidate => candidate.title.get() === 'Authority Missing')!;
+		const config: SessionConfigState = {
+			schema: createVSCodeSessionConfigSchema({
+				availableApprovalModes: { type: 'array', title: 'Available', readOnly: true },
+				effectiveApprovalMode: { type: 'string', title: 'Effective', readOnly: true },
+			}),
+			values: { autoApprove: 'assisted', availableApprovalModes: ['default', 'assisted'], effectiveApprovalMode: 'assisted' },
+		};
+		const state: SessionState = { provider: 'copilotcli', title: 'Authority Missing', status: ProtocolSessionStatus.Idle, lifecycle: SessionLifecycle.Ready, activeClients: [], chats: [], config };
+		for (const missing of ['availableApprovalModes', 'effectiveApprovalMode', 'config']) {
+			agentHost.setSessionState('authority-missing', 'copilotcli', state);
+			await waitForSessionConfig(provider, session.sessionId, value => value?.values.effectiveApprovalMode === 'assisted');
+			const incomplete = { ...config, values: { ...config.values } };
+			delete incomplete.values[missing];
+			agentHost.setSessionState('authority-missing', 'copilotcli', { ...state, config: missing === 'config' ? undefined : incomplete });
+			await assert.rejects(provider.setSessionConfigValue(session.sessionId, SessionConfigKey.AutoApprove, 'default'), /could not resolve session permissions/);
+		}
+		assert.deepStrictEqual({
+			available: provider.getSessionConfig(session.sessionId)?.values.availableApprovalModes,
+			effective: provider.getSessionConfig(session.sessionId)?.values.effectiveApprovalMode,
+			writes: agentHost.dispatchedActions.filter(entry => entry.action.type === ActionType.SessionConfigChanged),
+		}, { available: undefined, effective: undefined, writes: [] });
 	}));
 
 	test('running session config writes clamp autoApprove to default when policy disables global auto-approve', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {

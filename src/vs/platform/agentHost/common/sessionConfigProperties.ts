@@ -134,6 +134,8 @@ export function validateSessionConfigWrite(schema: SessionConfigSchema, values: 
 /** Retains advertised values without inventing defaults, renaming aliases, or enforcing UI readOnly hints. */
 export function filterSessionConfigValues(schema: SessionConfigSchema, values: Readonly<Record<string, unknown>> | undefined, isNewSession = true): Record<string, unknown> {
 	return Object.fromEntries(Object.entries(values ?? {}).filter(([key, value]) =>
-		value !== undefined && !getSessionConfigWriteError(schema, values ?? {}, key, value, isNewSession, key !== SessionConfigKey.AutoApprove)
+		value !== undefined
+		&& !(Object.hasOwn(schema.properties, SessionConfigKey.AutoApprove) && (key === 'effectiveApprovalMode' || key === 'availableApprovalModes'))
+		&& !getSessionConfigWriteError(schema, values ?? {}, key, value, isNewSession, key !== SessionConfigKey.AutoApprove)
 	));
 }

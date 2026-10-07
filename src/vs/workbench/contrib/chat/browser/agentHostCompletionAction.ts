@@ -6,10 +6,10 @@
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
-import { IPolicyService } from '../../../../platform/policy/common/policy.js';
+import { ResolveSessionConfigResult } from '../../../../platform/agentHost/common/state/protocol/commands.js';
 import { SessionConfigKey } from '../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { IAgentHostCompletionAction } from '../../../../platform/agentHost/common/meta/agentCompletionAttachmentMeta.js';
-import { isAutoApprovePolicyRestricted } from '../common/agentHostConfigPolicy.js';
+import { getAgentHostPermissionState, isAutoApprovePolicyRestricted } from '../common/agentHostConfigPolicy.js';
 import { maybeConfirmElevatedPermissionLevel } from '../common/chatPermissionWarnings.js';
 import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../common/constants.js';
 
@@ -68,18 +68,11 @@ function getElevatedAutoApproveLevel(value: string | undefined): ChatPermissionL
 	return value === ChatPermissionLevel.AutoApprove || value === ChatPermissionLevel.Assisted || value === ChatPermissionLevel.Autopilot ? value : undefined;
 }
 
-/**
- * Whether a completion {@link IAgentHostCompletionAction} would set an elevated
- * `autoApprove` level (Allow all / Assisted) that enterprise policy currently
- * blocks. Completion consumers use this to omit such items entirely when global
- * auto-approval is policy-disabled — rather than offering an item that would
- * show an elevated-permission warning and then be silently clamped to Default.
- * The node producer cannot see the (client-side) policy, so this gating lives on
- * the client, mirroring how the permission pickers disable elevated levels.
- */
-export function isPolicyBlockedCompletionAction(action: IAgentHostCompletionAction, configurationService: IConfigurationService, policyService?: IPolicyService, isLocal = false): boolean {
-	return getElevatedAutoApproveLevel(action.applyConfig?.[SessionConfigKey.AutoApprove]) !== undefined
-		&& (action.applyConfig?.[SessionConfigKey.AutoApprove] === 'autoApprove'
-			? isAutoApprovePolicyRestricted(configurationService)
-			: isAutoApprovePolicyRestricted(configurationService, policyService, isLocal));
+/** Omits approval requests not offered by host state or the legacy client policy. */
+export function isPolicyBlockedCompletionAction(action: IAgentHostCompletionAction, configurationService: IConfigurationService, hostAuthoritative = false, config?: ResolveSessionConfigResult): boolean {
+	const requested = action.applyConfig?.[SessionConfigKey.AutoApprove];
+	if (hostAuthoritative && requested !== undefined) {
+		return !getAgentHostPermissionState(config)?.available.some(value => value === requested);
+	}
+	return getElevatedAutoApproveLevel(requested) !== undefined && isAutoApprovePolicyRestricted(configurationService);
 }

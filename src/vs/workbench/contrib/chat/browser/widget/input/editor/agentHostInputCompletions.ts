@@ -26,10 +26,12 @@ import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } fr
 import { LifecyclePhase } from '../../../../../../services/lifecycle/common/lifecycle.js';
 import { ChatDynamicVariableModel } from '../../../attachments/chatDynamicVariables.js';
 import { IChatInputCompletionItem, IChatSessionsService, isAgentHostTarget } from '../../../../common/chatSessionsService.js';
-import { getChatSessionType } from '../../../../common/model/chatUri.js';
+import { getChatSessionType, isUntitledChatSession } from '../../../../common/model/chatUri.js';
 import { IChatWidget, IChatWidgetService } from '../../../chat.js';
 import { applyAgentHostCompletionAction, isPolicyBlockedCompletionAction } from '../../../agentHostCompletionAction.js';
-import { IPolicyService } from '../../../../../../../platform/policy/common/policy.js';
+import { SessionLifecycle, StateComponents } from '../../../../../../../platform/agentHost/common/state/sessionState.js';
+import { usesAgentHostPermissionState } from '../../../../common/agentHostConfigPolicy.js';
+import { getLocalAgentHostSessionProvider, resolveAgentHostChatSession } from '../../../agentSessions/agentHost/agentHostSessionUri.js';
 import { applyAgentHostSessionConfigChange } from '../../../agentSessions/agentHost/applyAgentHostSessionConfig.js';
 import { IAgentHostConnectionsService } from '../../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
@@ -65,7 +67,7 @@ export class AgentHostInputCompletions extends AgentHostInputCompletionsBase<ICh
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IPolicyService private readonly _policyService: IPolicyService,
+		@IAgentHostUntitledProvisionalSessionService private readonly _provisionalService: IAgentHostUntitledProvisionalSessionService,
 		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
 	) {
 		super(languageFeaturesService, chatSessionsService);
@@ -107,7 +109,6 @@ export class AgentHostInputCompletions extends AgentHostInputCompletionsBase<ICh
 				workingDirectoryResolver: accessor.get(IAgentHostSessionWorkingDirectoryResolver),
 				workspaceContextService: accessor.get(IWorkspaceContextService),
 				configurationService: accessor.get(IConfigurationService),
-				policyService: this._policyService,
 			};
 			const applied = await applyAgentHostCompletionAction(arg.action, dialogService, storageService, async config => { await applyAgentHostSessionConfigChange(sessionResource, config, services); });
 			if (applied && arg.reference) {
@@ -186,12 +187,17 @@ export class AgentHostInputCompletions extends AgentHostInputCompletionsBase<ICh
 			case 'command': {
 				const action = getCompletionAction(attachment._meta);
 				if (action) {
-					// Omit an elevated auto-approve toggle (Allow all / Assisted)
-					// when enterprise policy disables global auto-approval, rather
-					// than offering an item that would warn then clamp to Default.
 					const sessionResource = widget.viewModel?.model.sessionResource;
-					const connection = sessionResource ? this._connectionsService.resolveSessionResource(sessionResource)?.connection : undefined;
-					if (isPolicyBlockedCompletionAction(action, this._configurationService, this._policyService, connection?.isLocal)) {
+					const resolution = sessionResource ? resolveAgentHostChatSession(sessionResource, this._provisionalService.get(sessionResource), this._connectionsService) : undefined;
+					const snapshot = resolution?.connection.getSubscriptionUnmanaged(StateComponents.Session, resolution.backendSession)?.value;
+					const state = snapshot instanceof Error ? undefined : snapshot;
+					const overlay = sessionResource ? this._provisionalService.getResolvedConfig(sessionResource) : undefined;
+					const provider = state?.provider ?? (sessionResource ? getLocalAgentHostSessionProvider(sessionResource) : undefined);
+					const hostAuthoritative = usesAgentHostPermissionState(resolution?.connection.isLocal, provider);
+					const config = hostAuthoritative && snapshot instanceof Error ? undefined
+						: hostAuthoritative && state && state.lifecycle !== SessionLifecycle.Creating ? state.config
+							: sessionResource && isUntitledChatSession(sessionResource) ? overlay ?? state?.config : state?.config ?? overlay;
+					if (isPolicyBlockedCompletionAction(action, this._configurationService, hostAuthoritative, config)) {
 						return undefined;
 					}
 					// Config-action completion (permission/mode toggle). Keep-text

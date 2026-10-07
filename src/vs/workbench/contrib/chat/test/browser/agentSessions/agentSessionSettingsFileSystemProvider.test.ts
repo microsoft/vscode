@@ -293,11 +293,13 @@ suite('AgentSessionSettingsFileSystemProvider (editor-window per-session adapter
 			const { fs, uri, agentHostService } = createHarness(makeSessionState({
 				autoApprove: { type: 'string', title: 'Permissions', sessionMutable: true, enum: ['default', 'assisted'] },
 				mode: { type: 'string', title: 'Mode', sessionMutable: true, enum: ['interactive', 'plan'] },
-			}, { autoApprove: 'default', mode: 'interactive' }), createPolicyRestrictedConfigurationService(), policyService);
+				availableApprovalModes: { type: 'array', title: 'Available', readOnly: true },
+				effectiveApprovalMode: { type: 'string', title: 'Effective', readOnly: true },
+			}, { autoApprove: 'default', mode: 'interactive', availableApprovalModes: ['default', 'assisted'], effectiveApprovalMode: 'default' }), createPolicyRestrictedConfigurationService(), policyService);
 			Object.assign(agentHostService, { isLocal });
 			await fs.writeFile(uri, VSBuffer.fromString('{ "autoApprove": "assisted", "mode": "plan" }').buffer, { create: false, overwrite: true, unlock: false, atomic: false });
 			assert.deepStrictEqual(agentHostService.dispatchedActions.map(entry => entry.action), [
-				{ type: ActionType.SessionConfigChanged, config: { autoApprove: isLocal ? 'assisted' : 'default', mode: 'plan' }, replace: true },
+				{ type: ActionType.SessionConfigChanged, config: { autoApprove: isLocal ? 'assisted' : 'default', mode: 'plan', availableApprovalModes: ['default', 'assisted'], effectiveApprovalMode: 'default' }, replace: true },
 			]);
 		});
 	}
@@ -312,6 +314,29 @@ suite('AgentSessionSettingsFileSystemProvider (editor-window per-session adapter
 		assert.strictEqual(agentHostService.dispatchedActions.length, 1);
 		const action = agentHostService.dispatchedActions[0].action as { config: Record<string, unknown> };
 		assert.deepStrictEqual(action.config, { autoApprove: 'autopilot' });
+	});
+
+	test('host authority rejects new unavailable choices but preserves capped intent during unrelated edits', async () => {
+		const state = makeSessionState({
+			autoApprove: { type: 'string', title: 'Permissions', enum: ['default', 'assisted', 'autoApprove'], sessionMutable: true },
+			mode: { type: 'string', title: 'Mode', enum: ['interactive', 'plan'], sessionMutable: true },
+			availableApprovalModes: { type: 'array', title: 'Available', readOnly: true },
+			effectiveApprovalMode: { type: 'string', title: 'Effective', readOnly: true },
+		}, { autoApprove: 'autoApprove', mode: 'interactive', availableApprovalModes: ['default', 'assisted'], effectiveApprovalMode: 'default' });
+		const { fs, uri, agentHostService } = createHarness(state, createPolicyRestrictedConfigurationService());
+		Object.assign(agentHostService, { isLocal: true });
+		const write = (values: object) => fs.writeFile(uri, VSBuffer.fromString(JSON.stringify(values)).buffer, { create: false, overwrite: true, unlock: false, atomic: false });
+		await write({ autoApprove: 'autoApprove', mode: 'plan' });
+		state.config!.values.autoApprove = 'default';
+		agentHostService.setSessionState(BACKEND_SESSION, state);
+		await assert.rejects(write({ autoApprove: 'autoApprove', mode: 'plan' }), /does not offer/);
+		delete state.config!.values.availableApprovalModes;
+		agentHostService.setSessionState(BACKEND_SESSION, state);
+		await assert.rejects(write({ autoApprove: 'assisted' }), /could not resolve session permissions/);
+		assert.deepStrictEqual(agentHostService.dispatchedActions.map(entry => entry.action), [{
+			type: ActionType.SessionConfigChanged, replace: true,
+			config: { autoApprove: 'autoApprove', mode: 'plan', availableApprovalModes: ['default', 'assisted'], effectiveApprovalMode: 'default' },
+		}]);
 	});
 
 	test('writeFile does not dispatch when the only requested change is clamped away by policy', async () => {
