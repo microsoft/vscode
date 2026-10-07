@@ -297,7 +297,7 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	 * Projects runtime-managed restrictions into the Settings UI without changing configuration values.
 	 * Return undefined when editable. Runtime policy enforcement remains authoritative.
 	 */
-	managedSettingsPresentation?: (read: (key: string) => ManagedSettingValue | undefined) => ManagedSettingsPresentationValue | undefined;
+	managedSettingsPresentation?: (read: (key: string) => ManagedSettingValue | undefined, localValue?: unknown) => ManagedSettingsPresentationValue | undefined;
 
 	/**
 	 * When specified, this setting's globally-scoped value is mirrored into the

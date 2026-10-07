@@ -223,7 +223,6 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 	}
 
 	for (const kind of ['create', 'resume'] as const) {
-<<<<<<< HEAD
 		test(`${kind} exposes native events before the SDK session is returned without changing policy handling`, async () => {
 			const fixture = setup(kind);
 			const events: string[] = [];
@@ -236,7 +235,8 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 				events,
 				applied: fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.enabled),
 			}, { events: ['session.managed_settings_resolved', 'session.title_changed'], applied: [false] });
-=======
+		});
+
 		test(`${kind} applies managed denial of current working directory access`, async () => {
 			const fixture = setup(kind, true, true, false, undefined, undefined, { addCurrentWorkingDirectory: false });
 			fixture.configuration.updateRootConfig({ sandbox: { enabled: 'on', addCurrentWorkingDirectory: true } });
@@ -311,7 +311,6 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 			assert.deepStrictEqual(fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.userPolicy?.network), [{
 				allowOutbound: true,
 			}]);
->>>>>>> 35a44d5d036 (Respect managed sandbox host and filesystem restrictions (#339954))
 		});
 
 		for (const [key, field] of [

@@ -18,7 +18,7 @@ export const IManagedSettingsPresentationService = createDecorator<IManagedSetti
 export interface IManagedSettingsPresentationService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChange: Event<ReadonlySet<string>>;
-	getValue(setting: string): ManagedSettingsPresentationValue | undefined;
+	getValue(setting: string, localValue?: unknown): ManagedSettingsPresentationValue | undefined;
 }
 
 export class ManagedSettingsPresentationService extends Disposable implements IManagedSettingsPresentationService {
@@ -38,8 +38,8 @@ export class ManagedSettingsPresentationService extends Disposable implements IM
 		this._register(this.registry.onDidUpdateConfiguration(() => this.update()));
 	}
 
-	getValue(setting: string): ManagedSettingsPresentationValue | undefined {
-		return this.registry.getConfigurationProperties()[setting]?.managedSettingsPresentation?.(key => this.managedSettingsService.getManagedSettingValue(key));
+	getValue(setting: string, localValue?: unknown): ManagedSettingsPresentationValue | undefined {
+		return this.registry.getConfigurationProperties()[setting]?.managedSettingsPresentation?.(key => this.managedSettingsService.getManagedSettingValue(key), localValue);
 	}
 
 	private update(): void {

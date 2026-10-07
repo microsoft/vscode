@@ -673,7 +673,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		restricted: true,
 	},
 	[AgentSandboxSettingId.AgentSandboxUserConfiguredPaths]: {
-		managedSettingsPresentation: read => {
+		managedSettingsPresentation: (read, localValue) => {
 			const managed: IAgentSandboxUserConfiguredPaths = {};
 			for (const [property, key] of [
 				['readwritePaths', COPILOT_SANDBOX_READWRITE_PATHS_KEY],
@@ -684,16 +684,33 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 				if (value === undefined) {
 					continue;
 				}
-				const paths: unknown = typeof value === 'string' ? JSON.parse(value) : value;
+				let paths: unknown = value;
+				if (typeof value === 'string') {
+					try {
+						paths = JSON.parse(value);
+					} catch {
+						console.warn('Failed to parse managed sandbox filesystem paths; ignoring the presentation override.');
+						return undefined;
+					}
+				}
 				if (!isStringArray(paths)) {
-					throw new Error(`${key} must be a string array`);
+					console.warn('Managed sandbox filesystem paths must be a string array; ignoring the presentation override.');
+					return undefined;
 				}
 				managed[property] = paths;
 			}
 			if (!Object.keys(managed).length) {
 				return undefined;
 			}
-			const resolved = SandboxSettingsResolutionHelper.resolveFileSystemPaths(undefined, managed);
+			const local: IAgentSandboxUserConfiguredPaths = {};
+			if (localValue && typeof localValue === 'object') {
+				for (const [property, paths] of Object.entries(localValue)) {
+					if ((property === 'readwritePaths' || property === 'readonlyPaths' || property === 'deniedPaths') && isStringArray(paths)) {
+						local[property] = paths;
+					}
+				}
+			}
+			const resolved = SandboxSettingsResolutionHelper.resolveFileSystemPaths(local, managed);
 			return {
 				readwritePaths: resolved.readwritePaths ?? [],
 				readonlyPaths: resolved.readonlyPaths ?? [],

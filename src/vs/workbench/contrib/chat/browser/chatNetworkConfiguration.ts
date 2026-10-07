@@ -31,8 +31,8 @@ export const chatNetworkDomainConfigurationProperties: Record<string, IConfigura
 			if (typeof value === 'string') {
 				try {
 					hosts = JSON.parse(value);
-				} catch (error) {
-					console.warn('Failed to parse managed sandbox allowed hosts; ignoring the presentation override.', error);
+				} catch {
+					console.warn('Failed to parse managed sandbox allowed hosts; ignoring the presentation override.');
 					return undefined;
 				}
 			}

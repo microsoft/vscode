@@ -52,6 +52,20 @@ suite('Chat network configuration', () => {
 		]);
 	});
 
+	test('does not log malformed managed allowed hosts or parse errors', () => {
+		const presentation = chatNetworkDomainConfigurationProperties[AgentNetworkDomainSettingId.AllowedNetworkDomains].managedSettingsPresentation!;
+		const consoleWarn = stub(console, 'warn');
+		try {
+			const value = presentation(() => 'private.enterprise.example');
+			assert.deepStrictEqual({ value, warnings: consoleWarn.args }, {
+				value: undefined,
+				warnings: [['Failed to parse managed sandbox allowed hosts; ignoring the presentation override.']],
+			});
+		} finally {
+			consoleWarn.restore();
+		}
+	});
+
 	for (const [oldKey, newKey] of [
 		['chat.agent.allowedNetworkDomains', AgentNetworkDomainSettingId.AllowedNetworkDomains],
 		['chat.agent.deniedNetworkDomains', AgentNetworkDomainSettingId.DeniedNetworkDomains],

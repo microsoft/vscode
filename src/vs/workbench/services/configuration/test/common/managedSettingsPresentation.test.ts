@@ -127,4 +127,20 @@ suite('ManagedSettingsPresentationService', () => {
 		changed.fire();
 		assert.deepStrictEqual(events, []);
 	});
+
+	test('passes the inspected local value to presentation callbacks without persisting it', () => {
+		register({
+			'test.managedLocal': {
+				type: 'string', default: 'default',
+				managedSettingsPresentation: (read, localValue) => read('restrict') === true && typeof localValue === 'string' ? localValue : undefined,
+			},
+		});
+		const { service } = setup({ restrict: true });
+		assert.deepStrictEqual({
+			first: service.getValue('test.managedLocal', 'first'),
+			second: service.getValue('test.managedLocal', 'second'),
+			withoutLocal: service.getValue('test.managedLocal'),
+			default: registry.getConfigurationProperties()['test.managedLocal'].default,
+		}, { first: 'first', second: 'second', withoutLocal: undefined, default: 'default' });
+	});
 });
