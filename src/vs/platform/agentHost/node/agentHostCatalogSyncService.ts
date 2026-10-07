@@ -5,6 +5,7 @@
 
 import { generateUuid } from '../../../base/common/uuid.js';
 import { URI } from '../../../base/common/uri.js';
+import { getComparisonKey } from '../../../base/common/resources.js';
 import { SequencerByKey } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { createSingleCallFunction } from '../../../base/common/functional.js';
@@ -174,7 +175,7 @@ export class AgentHostCatalogSyncService {
 	) { }
 
 	isSessionDeletionFenced(session: URI): boolean {
-		return this._deletionFences.has(session.toString());
+		return this._deletionFences.has(this._getStorageKey(session));
 	}
 
 	/** Makes one provider-independent replay attempt, serialized with ordinary writes and deletion. */
@@ -195,10 +196,10 @@ export class AgentHostCatalogSyncService {
 		});
 	}
 
-	/** Prevents new synchronization and returns a shared per-session queue drain. */
+	/** Prevents new synchronization and returns a shared per-database queue drain. */
 	beginSessionDeletion(session: URI): IAgentHostCatalogDeletionFence {
-		const sessionKey = session.toString();
-		let fence = this._deletionFences.get(sessionKey);
+		const storageKey = this._getStorageKey(session);
+		let fence = this._deletionFences.get(storageKey);
 		if (fence) {
 			fence.count++;
 		} else {
@@ -206,16 +207,16 @@ export class AgentHostCatalogSyncService {
 				count: 1,
 				whenDrained: this._queue(session, 'deletionFence', async () => { }),
 			};
-			this._deletionFences.set(sessionKey, fence);
+			this._deletionFences.set(storageKey, fence);
 		}
 		const acquiredFence = fence;
 		const release = createSingleCallFunction(() => {
-			if (this._deletionFences.get(sessionKey) !== acquiredFence) {
+			if (this._deletionFences.get(storageKey) !== acquiredFence) {
 				return;
 			}
 			acquiredFence.count--;
 			if (acquiredFence.count === 0) {
-				this._deletionFences.delete(sessionKey);
+				this._deletionFences.delete(storageKey);
 			}
 		});
 		return {
@@ -317,12 +318,17 @@ export class AgentHostCatalogSyncService {
 		});
 	}
 
+	/** Native and standard session URIs can address the same session database. */
+	private _getStorageKey(session: URI): string {
+		return getComparisonKey(this._sessionDataService.getSessionDataDir(session));
+	}
+
 	private _queue<T>(session: URI, kind: 'write' | 'migration' | 'deletionFence', operation: () => Promise<T>): Promise<T> {
 		const operationId = generateUuid();
 		const stopWatch = StopWatch.create();
 		const prefix = `[AgentHostCatalogSync] session=${session.toString()}, operationId=${operationId}, kind=${kind}`;
 		this._logService.trace(`${prefix}, stage=queued`);
-		return this._sequencer.queue(session.toString(), async () => {
+		return this._sequencer.queue(this._getStorageKey(session), async () => {
 			const queueWaitMs = Math.round(stopWatch.elapsed());
 			const executionStopWatch = StopWatch.create();
 			this._logService.trace(`${prefix}, stage=started, queueWaitMs=${queueWaitMs}`);
