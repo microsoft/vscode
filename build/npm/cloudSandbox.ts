@@ -15,6 +15,7 @@ interface SandboxSetupOptions {
 	platform: NodeJS.Platform;
 	arch: string;
 	nodeVersion: string;
+	nodeExecutable: string;
 	root: string;
 	home: string;
 	run: (command: string, args: readonly string[], captureOutput?: boolean) => string;
@@ -42,6 +43,7 @@ function sandboxOptions(overrides: Partial<SandboxSetupOptions>): SandboxSetupOp
 		env, platform, root,
 		arch: overrides.arch ?? process.arch,
 		nodeVersion: overrides.nodeVersion ?? process.versions.node,
+		nodeExecutable: overrides.nodeExecutable ?? process.execPath,
 		home: overrides.home ?? os.homedir(),
 		run: overrides.run ?? ((command, args, captureOutput = false) => {
 			const output = execFileSync(command, args, {
@@ -57,10 +59,10 @@ function sandboxOptions(overrides: Partial<SandboxSetupOptions>): SandboxSetupOp
 /**
  * Prepare native-build and graphical prerequisites only in Mission Control cloud sandboxes.
  */
-export function prepareCloudSandbox(overrides: Partial<SandboxSetupOptions> = {}): boolean {
+export function prepareCloudSandbox(overrides: Partial<SandboxSetupOptions> = {}): string | undefined {
 	const options = sandboxOptions(overrides);
 	if (!options) {
-		return false;
+		return undefined;
 	}
 	const { run, root, home, nodeVersion, arch } = options;
 	const requiredVersion = fs.readFileSync(path.join(root, '.nvmrc'), 'utf8').trim();
@@ -90,7 +92,7 @@ export function prepareCloudSandbox(overrides: Partial<SandboxSetupOptions> = {}
 	const required = requiredVersion.split('.').map(Number);
 	const current = nodeVersion.split('.').map(Number);
 	if (current[0] === required[0] && (current[1] > required[1] || (current[1] === required[1] && current[2] >= required[2]))) {
-		return true;
+		return options.nodeExecutable;
 	}
 
 	const archiveName = `node-v${requiredVersion}-linux-${arch}.tar.xz`;
@@ -125,8 +127,43 @@ export function prepareCloudSandbox(overrides: Partial<SandboxSetupOptions> = {}
 		}
 	}
 
-	const bin = `'${path.join(nodeDirectory, 'bin').replaceAll('\'', '\'\\\'\'')}'`;
-	throw new Error(`Cloud Sandbox: installed Node.js ${requiredVersion}. The running process still uses ${nodeVersion}.\nRun this in your shell, then rerun node build/npm/cloudSandboxSetup.ts before installing dependencies:\nexport PATH=${bin}:"$PATH"\nhash -r`);
+	const binDirectory = options.env.PATH?.split(path.delimiter).find(directory => {
+		if (!path.isAbsolute(directory)) {
+			return false;
+		}
+		try {
+			fs.accessSync(path.join(directory, 'node'), fs.constants.X_OK);
+			return true;
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+				return false;
+			}
+			throw error;
+		}
+	});
+	if (!binDirectory) {
+		throw new Error('Cloud Sandbox setup: cannot find the existing Node.js executable on PATH.');
+	}
+	for (const executable of ['node', 'npm', 'npx']) {
+		const target = path.join(nodeDirectory, 'bin', executable);
+		fs.accessSync(target, fs.constants.X_OK);
+		const destination = path.join(binDirectory, executable);
+		if (destination === target) {
+			continue;
+		}
+		const temporaryLink = path.join(binDirectory, `.${executable}-vscode-cloud-${process.pid}`);
+		fs.symlinkSync(target, temporaryLink);
+		try {
+			fs.renameSync(temporaryLink, destination);
+		} finally {
+			fs.rmSync(temporaryLink, { force: true });
+		}
+	}
+	if (run('node', ['--version'], true).trim() !== `v${requiredVersion}`) {
+		throw new Error('Cloud Sandbox setup: the required Node.js version is not selected on PATH.');
+	}
+	console.log(`Cloud Sandbox: selected Node.js ${requiredVersion} on PATH; continuing setup with the downloaded runtime.`);
+	return node;
 }
 
 /**
