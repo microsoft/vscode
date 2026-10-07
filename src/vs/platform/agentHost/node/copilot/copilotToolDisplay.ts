@@ -99,6 +99,20 @@ export const enum CopilotToolName {
 	CodeqlChecker = 'codeql_checker',
 }
 
+/** Identifies native input schemas understood by the tool-group summary adapter. */
+export function getToolSummaryInputContract(toolName: string): 'copilot-cli-v1' | undefined {
+	switch (toolName) {
+		case CopilotToolName.View:
+		case CopilotToolName.Edit:
+		case CopilotToolName.Grep:
+		case CopilotToolName.Rg:
+		case CopilotToolName.Glob:
+			return 'copilot-cli-v1';
+		default:
+			return undefined;
+	}
+}
+
 /**
  * Copilot CLI tools withheld from ephemeral sessions, where subagents only add
  * latency.

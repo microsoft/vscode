@@ -17438,6 +17438,28 @@ Use the attached image as context.
 			return toolSet;
 		};
 
+		test('declares the native input contract without attributing client or MCP tools', async () => {
+			const clientSnapshot: IActiveClientSnapshot = {
+				...snapshot,
+				tools: [{ name: 'edit', description: 'Client implementation', inputSchema: { type: 'object' } }],
+			};
+			const activeClientToolSet = new ActiveClientToolSet();
+			activeClientToolSet.set('test-client', clientSnapshot.tools);
+			const { mockSession, signals } = await createAgentSession(disposables, { clientSnapshot, activeClientToolSet });
+			mockSession.fire('tool.execution_start', { toolCallId: 'native', toolName: 'view', arguments: { path: '/workspace/File.ts', view_range: [1, 10] } });
+			mockSession.fire('tool.execution_start', { toolCallId: 'client', toolName: 'edit', arguments: { path: '/workspace/File.ts' } });
+			mockSession.fire('tool.execution_start', { toolCallId: 'mcp', toolName: 'grep', arguments: { pattern: 'layout' }, mcpServerName: 'server', mcpToolName: 'grep' });
+			assert.deepStrictEqual(getActions(signals).flatMap(action =>
+				action.type === ActionType.ChatToolCallStart ? [{
+					id: action.toolCallId,
+					contract: readToolCallMeta(action)['vscode.toolInputContract'],
+				}] : []), [
+				{ id: 'native', contract: 'copilot-cli-v1' },
+				{ id: 'client', contract: undefined },
+				{ id: 'mcp', contract: undefined },
+			]);
+		});
+
 		test('permission before a held client-tool start retains the owning client', async () => {
 			const { session, runtime, waitForSignal } = await createAgentSession(disposables, {
 				clientSnapshot: snapshot, activeClientToolSet: activeClientToolSetWith('test-client'),

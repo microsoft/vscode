@@ -9,7 +9,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { getToolInvocationSummary } from '../../../common/tools/toolInvocationSummary.js';
-import { hasToolInvocationError } from './toolInvocationParts/chatToolPartUtilities.js';
+import { isToolResultInputOutputDetails } from '../../../common/tools/languageModelToolsService.js';
 
 /** Summarizes visible tool activity and outcomes without interpreting model-authored messages. */
 export function getToolGroupSummary(
@@ -38,6 +38,7 @@ export function getToolGroupSummary(
 	let diagnosticSteps = 0;
 	let failed = 0;
 	let skipped = 0;
+	let denied = 0;
 	let unfinished = 0;
 	let otherSteps = visibleItemCount - tools.length - editResourcesByPart.length + editResourcesByPart.filter(resources => resources.length === 0).length;
 
@@ -48,11 +49,16 @@ export function getToolGroupSummary(
 		calls.add(tool.toolCallId);
 		const confirmation = IChatToolInvocation.executionConfirmedOrDenied(tool);
 		const summary = getToolInvocationSummary(tool);
-		if (confirmation?.type === ToolConfirmKind.Denied || confirmation?.type === ToolConfirmKind.Skipped || summary?.kind === 'skipped') {
+		if (confirmation?.type === ToolConfirmKind.Denied || summary?.kind === 'denied') {
+			denied++;
+			continue;
+		}
+		if (confirmation?.type === ToolConfirmKind.Skipped || summary?.kind === 'skipped') {
 			skipped++;
 			continue;
 		}
-		if (hasToolInvocationError(tool)) {
+		const resultDetails = IChatToolInvocation.resultDetails(tool);
+		if (IChatToolInvocation.resultError(tool) || isToolResultInputOutputDetails(resultDetails) && resultDetails.isError) {
 			failed++;
 			continue;
 		}
@@ -178,6 +184,13 @@ export function getToolGroupSummary(
 			text: skipped === 1 ? localize('toolSummary.skipped', "1 tool call skipped") : localize('toolSummary.skippedPlural', "{0} tool calls skipped", skipped),
 			steps: skipped,
 			overflowDetail: localize('toolSummary.skippedOverflow', "{0} skipped", skipped),
+		});
+	}
+	if (denied > 0) {
+		labels.push({
+			text: denied === 1 ? localize('toolSummary.denied', "1 tool call denied") : localize('toolSummary.deniedPlural', "{0} tool calls denied", denied),
+			steps: denied,
+			overflowDetail: localize('toolSummary.deniedOverflow', "{0} denied", denied),
 		});
 	}
 	if (unfinished > 0) {

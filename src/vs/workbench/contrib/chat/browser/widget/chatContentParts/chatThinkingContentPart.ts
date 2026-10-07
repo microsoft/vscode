@@ -2442,14 +2442,6 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 
 				const autorunDisposable = autorun(reader => {
 					if (isComplete) {
-						if (this.isToolChain && toolInvocationOrMarkdown.toolSpecificData?.kind === 'terminal') {
-							toolInvocationOrMarkdown.state.read(reader);
-							const previousTitle = this.currentTitle;
-							this.updateDropdownClickability();
-							if (this.currentTitle !== previousTitle) {
-								this._onDidChangeHeight.fire();
-							}
-						}
 						return;
 					}
 

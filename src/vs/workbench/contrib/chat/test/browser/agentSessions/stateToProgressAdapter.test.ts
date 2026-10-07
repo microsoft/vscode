@@ -1978,12 +1978,14 @@ suite('stateToProgressAdapter', () => {
 	});
 
 	suite('toolCallStateToInvocation', () => {
+		const nativeToolMeta = { 'vscode.toolInputContract': 'copilot-cli-v1' };
+
 		test('preserves deterministic tool summaries in live and restored host calls', () => {
 			const resourceUris = createAgentHostResourceUriMapper('remote-test');
 			const session = URI.parse('ahp-session:/opaque-session');
 			const input = JSON.stringify({ path: '/workspace/file.ts', view_range: [10, 29] });
-			const running = createToolCallState({ toolName: 'view', toolInput: input });
-			const completed = createCompletedToolCall({ toolName: 'view', toolInput: input });
+			const running = createToolCallState({ toolName: 'view', toolInput: input, _meta: nativeToolMeta });
+			const completed = createCompletedToolCall({ toolName: 'view', toolInput: input, _meta: nativeToolMeta });
 			const live = rawToolCallStateToInvocation(running, undefined, session, 'remote-test', undefined, undefined, resourceUris);
 			rawFinalizeToolInvocation(live, completed, session, 'remote-test', resourceUris);
 			const restored = completedToolCallToSerialized(completed, undefined, session, 'remote-test', resourceUris);
@@ -2000,6 +2002,40 @@ suite('stateToProgressAdapter', () => {
 			});
 		});
 
+		test('requires an explicit native input contract and excludes client and MCP implementations', () => {
+			const resourceUris = createAgentHostResourceUriMapper('remote-test');
+			const session = URI.parse('ahp-session:/unrelated-peer/session-id');
+			const calls = [
+				createCompletedToolCall({ toolName: 'view', toolInput: '{"path":"/workspace/File.ts","view_range":[1,10]}' }),
+				createCompletedToolCall({ toolName: 'edit', toolInput: '{"path":"/workspace/File.ts"}' }),
+				createCompletedToolCall({ toolName: 'grep', toolInput: '{"pattern":"layout"}', _meta: { 'vscode.toolInputContract': 'different-v1' } }),
+				createCompletedToolCall({ toolName: 'view', toolInput: '{"path":"/workspace/File.ts","view_range":[1,10]}', _meta: { 'vscode.toolInputContract': {} } }),
+				createCompletedToolCall({
+					toolName: 'view', toolInput: '{"path":"/workspace/File.ts","view_range":[1,10]}', _meta: nativeToolMeta,
+					contributor: { kind: ToolCallContributorKind.Client, clientId: 'another-client' },
+				}),
+				createCompletedToolCall({
+					toolName: 'edit', toolInput: '{"path":"/workspace/File.ts"}', _meta: nativeToolMeta,
+					contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'server' },
+				}),
+				createCompletedToolCall({
+					toolName: 'bash', toolInput: '{"command":"not a shell","mode":"async"}', _meta: { ...nativeToolMeta, toolKind: 'terminal' },
+					contributor: { kind: ToolCallContributorKind.Client, clientId: 'another-client' },
+				}),
+			];
+			const summaries = calls.map(call => {
+				const live = rawToolCallStateToInvocation(createToolCallState({
+					toolCallId: call.toolCallId, toolName: call.toolName, toolInput: call.toolInput, contributor: call.contributor, _meta: call._meta,
+				}), undefined, session, 'remote-test', undefined, undefined, resourceUris);
+				rawFinalizeToolInvocation(live, call, session, 'remote-test', resourceUris);
+				const restored = completedToolCallToSerialized(call, undefined, session, 'remote-test', resourceUris);
+				return { live: live.summary, serialized: live.toJSON().summary, restored: restored.summary };
+			});
+			assert.deepStrictEqual(summaries, calls.map(() => ({
+				live: { kind: 'unknown' }, serialized: { kind: 'unknown' }, restored: { kind: 'unknown' },
+			})));
+		});
+
 		test('keeps cancelled and disposal-settled host calls out of successful summaries', async () => {
 			const running = createToolCallState({ toolCallId: 'skipped', toolName: 'grep', toolInput: '{"pattern":"skipped"}' });
 			const cancelled: ICompletedToolCall = {
@@ -2014,7 +2050,7 @@ suite('stateToProgressAdapter', () => {
 			const settled = toolCallStateToInvocation(running);
 			await settled.didExecuteTool(undefined);
 			const success = completedToolCallToSerialized(createCompletedToolCall({
-				toolCallId: 'success', toolName: 'grep', toolInput: '{"pattern":"success"}',
+				toolCallId: 'success', toolName: 'grep', toolInput: '{"pattern":"success"}', _meta: nativeToolMeta,
 			}), undefined, URI.file('/'), 'local');
 			const summaries = [live, live.toJSON(), settled, settled.toJSON(), completedToolCallToSerialized(cancelled, undefined, URI.file('/'), 'local')]
 				.map(tool => getToolGroupSummary([success, tool], [], 2, extUri));
@@ -2024,6 +2060,25 @@ suite('stateToProgressAdapter', () => {
 				'Searched for 1 phrase, 1 unfinished tool call',
 				'Searched for 1 phrase, 1 unfinished tool call',
 				'Searched for 1 phrase, 1 tool call skipped',
+			]);
+		});
+
+		test('distinguishes denied results from skipped calls in live and restored summaries', () => {
+			const summaries = [ToolCallCancellationReason.Skipped, ToolCallCancellationReason.Denied, ToolCallCancellationReason.ResultDenied].map(reason => {
+				const running = createToolCallState({ toolName: 'view', toolInput: '{"path":"/workspace/File.ts"}' });
+				const cancelled: ICompletedToolCall = {
+					status: ToolCallStatus.Cancelled, toolCallId: running.toolCallId, toolName: running.toolName,
+					displayName: running.displayName, invocationMessage: running.invocationMessage, toolInput: running.toolInput, reason,
+				};
+				const live = toolCallStateToInvocation(running);
+				finalizeToolInvocation(live, cancelled);
+				const restored = completedToolCallToSerialized(cancelled, undefined, URI.parse('ahp-session:/opaque-session'), 'remote');
+				return [live, live.toJSON(), restored].map(tool => getToolGroupSummary([tool], [], 1, extUri));
+			});
+			assert.deepStrictEqual(summaries, [
+				['1 tool call skipped', '1 tool call skipped', '1 tool call skipped'],
+				['1 tool call denied', '1 tool call denied', '1 tool call denied'],
+				['1 tool call denied', '1 tool call denied', '1 tool call denied'],
 			]);
 		});
 
@@ -2059,7 +2114,7 @@ suite('stateToProgressAdapter', () => {
 			});
 		});
 
-		test('keeps explicitly asynchronous host commands unfinished until an exit is reported', () => {
+		test('counts completed asynchronous invocations without tracking the background process', () => {
 			const running = createCompletedToolCall({
 				toolName: 'bash',
 				toolInput: '{"command":"build","mode":"async"}',
@@ -2072,9 +2127,15 @@ suite('stateToProgressAdapter', () => {
 			});
 			const titles = [running, completed].map(call => {
 				const tool = completedToolCallToSerialized(call, undefined, URI.file('/'), 'local');
-				return getToolGroupSummary([tool], [], 1, extUri);
+				return {
+					title: getToolGroupSummary([tool], [], 1, extUri),
+					inferredBackground: tool.toolSpecificData?.kind === 'terminal' ? tool.toolSpecificData.isBackground : undefined,
+				};
 			});
-			assert.deepStrictEqual(titles, ['1 unfinished tool call', 'Ran 1 command']);
+			assert.deepStrictEqual(titles, [
+				{ title: 'Ran 1 command', inferredBackground: undefined },
+				{ title: 'Ran 1 command', inferredBackground: undefined },
+			]);
 		});
 
 		test('recognizes raw native shell input alongside failed commands', () => {

@@ -91,7 +91,7 @@ import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION, getAgentMergeGitHubToolRestriction, isAgentMergeRestrictedMcpServer, isCopilotMcpToolName } from '../shared/agentMergeToolRestrictions.js';
 import { GITHUB_MCP_SERVER_NAME } from '../shared/githubMcpServer.js';
 import { AgentHostGitHubMcpServerEnabledSettingId } from '../../common/agentService.js';
-import { CopilotToolName, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getSdkImageGenerationMetadata, getShellIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isAgentCoordinationTool, isCopilotSdkToolOutputFile, isEditTool, isHiddenTool, isShellHelperTool, isShellTool, isTaskCompleteTool, parseCopilotStreamingToolInput, synthesizeSkillToolCall, tryStringify } from './copilotToolDisplay.js';
+import { CopilotToolName, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getSdkImageGenerationMetadata, getShellIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolSummaryInputContract, isAgentCoordinationTool, isCopilotSdkToolOutputFile, isEditTool, isHiddenTool, isShellHelperTool, isShellTool, isTaskCompleteTool, parseCopilotStreamingToolInput, synthesizeSkillToolCall, tryStringify } from './copilotToolDisplay.js';
 import { imageGenerationToolMetaKey } from '../../common/meta/agentImageGenerationMeta.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
 import { ICopilotApiService, type IRestrictedTelemetryContext } from '../shared/copilotApiService.js';
@@ -4504,6 +4504,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 		const result = await mapSessionEvents(this._storageUri, db, events, this._chatChannelUri, {
 			workingDirectory: this._workingDirectory,
+			clientToolNames: this._clientToolNames,
 			model: this._launchPlan.kind === 'create'
 				? this._launchPlan.model
 				: this._launchPlan.fallback.model,
@@ -6744,6 +6745,9 @@ export class CopilotAgentSession extends Disposable {
 			}
 
 			const meta = this._createToolCallMeta(e.data.toolName, parameters);
+			if (!isClientTool && !mcpServerName && !e.data.mcpToolName) {
+				meta['vscode.toolInputContract'] = getToolSummaryInputContract(e.data.toolName);
+			}
 			if (mcpServerName) {
 				meta.mcpServerName = mcpServerName;
 			}

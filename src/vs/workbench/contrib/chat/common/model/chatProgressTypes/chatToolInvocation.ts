@@ -10,7 +10,7 @@ import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
 import { ConfirmedReason, IChatAgentFeedbackReviewConfirmationData, IChatAutomationConfigurationData, IChatAutomationConfiguredData, IChatExtensionsContent, IChatGeneratedImageData, IChatModifiedFilesConfirmationData, IChatSearchToolInvocationData, IChatSessionCreatedData, IChatSimpleToolInvocationData, IChatSubagentToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationOtherClientData, IChatToolInvocationSerialized, ToolConfirmKind, type ToolDeniedReason, type IChatMcpAuthenticationRequiredServer, type IChatTerminalToolInvocationData } from '../../chatService/chatService.js';
 import { IPreparedToolInvocation, isToolResultOutputDetails, IToolConfirmationMessages, IToolData, IToolProgressStep, IToolResult, ToolDataSource } from '../../tools/languageModelToolsService.js';
-import { ChatToolInvocationSummary, getToolInvocationSummary } from '../../tools/toolInvocationSummary.js';
+import { ChatToolInvocationSummary } from '../../tools/toolInvocationSummary.js';
 
 export interface IStreamingToolCallOptions {
 	toolCallId: string;
@@ -455,7 +455,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		// persist the serialized call as 'skipped' if we were waiting for postapproval
 		const waitingForPostApproval = this.state.get().type === IChatToolInvocation.StateKind.WaitingForPostApproval;
 		const details = waitingForPostApproval ? undefined : IChatToolInvocation.resultDetails(this);
-		const summary = getToolInvocationSummary(this);
+		const summary: ChatToolInvocationSummary | undefined = IChatToolInvocation.isComplete(this) ? this.summary : { kind: 'incomplete' };
 
 		return {
 			kind: 'toolInvocationSerialized',

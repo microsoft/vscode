@@ -461,6 +461,7 @@ suite('ChatThinkingContentPart', () => {
 				{ invocationMessage: 'Run tests', toolSpecificData: { kind: 'terminal', commandLine: { original: 'test' }, language: 'shellscript', terminalCommandState: { exitCode: 0 } } },
 				{ id: 'run_in_terminal', displayName: 'Run', modelDescription: 'Run', source: ToolDataSource.Internal }, 'command', undefined, { command: 'test' },
 			);
+			command.summary = { kind: 'command' };
 			await command.didExecuteTool({ content: [] });
 			part.appendItem(() => ({ domNode: $('div') }), command.toolId, command);
 			const markdown: IChatMarkdownContent = {
@@ -472,13 +473,14 @@ suite('ChatThinkingContentPart', () => {
 			assert.strictEqual(part.domNode.querySelector('.monaco-button-mdlabel')?.textContent, 'Edited 2 files, ran 1 command');
 		});
 
-		test('refreshes background command summaries when their process exits', async () => {
+		test('keeps a background command header unchanged when its process exits', async () => {
 			const part = createToolChain();
 			const terminalData: IChatTerminalToolInvocationData = { kind: 'terminal', commandLine: { original: 'build' }, language: 'shellscript', isBackground: true };
 			const terminal = new ChatToolInvocation(
 				{ invocationMessage: 'Run build', toolSpecificData: terminalData },
 				{ id: 'run_in_terminal', displayName: 'Run', modelDescription: 'Run', source: ToolDataSource.Internal }, 'command', undefined, { command: 'build' },
 			);
+			terminal.summary = { kind: 'command' };
 			const search = new ChatToolInvocation(
 				{ invocationMessage: 'Search files' },
 				{ id: 'grep_search', displayName: 'Search', modelDescription: 'Search', source: ToolDataSource.Internal }, 'search', undefined, { query: 'layout' },
@@ -491,10 +493,11 @@ suite('ChatThinkingContentPart', () => {
 			part.finalizeTitleIfDefault();
 			const button = part.domNode.querySelector<HTMLElement>('.monaco-button')!;
 			const running = button.textContent;
-			terminalData.terminalCommandState = { exitCode: 0 };
-			terminal.notifyToolSpecificDataChanged();
+			terminalData.terminalCommandState = { exitCode: 1 };
+			part.expandContent();
+			part.finalizeTitleIfDefault();
 			assert.deepStrictEqual({ running, completed: button.textContent, aria: button.ariaLabel }, {
-				running: 'Searched for 1 phrase, 1 unfinished tool call', completed: 'Ran 1 command, searched for 1 phrase', aria: 'Ran 1 command, searched for 1 phrase',
+				running: 'Ran 1 command, searched for 1 phrase', completed: 'Ran 1 command, searched for 1 phrase', aria: 'Ran 1 command, searched for 1 phrase',
 			});
 		});
 

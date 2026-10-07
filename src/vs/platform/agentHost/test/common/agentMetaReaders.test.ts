@@ -41,6 +41,14 @@ suite('Agent host _meta readers', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('validates the explicit native tool input contract', () => {
+		const key = 'vscode.toolInputContract';
+		assert.deepStrictEqual([
+			readToolCallMeta(toolCall(toToolCallMeta({ [key]: 'copilot-cli-v1' })))[key],
+			...[undefined, null, {}, true, 'copilot', 'future-v2'].map(value => readToolCallMeta(toolCall({ [key]: value }))[key]),
+		], ['copilot-cli-v1', undefined, undefined, undefined, undefined, undefined, undefined]);
+	});
+
 	test('Copilot network restrictions round trip and reject malformed or absent metadata', () => {
 		const restrictions = { sandboxEnabled: true, allowNetwork: false, allowedDomains: ['example.com'], deniedDomains: [] };
 		const key = 'vscode.copilotSandboxNetworkRestrictions';

@@ -86,7 +86,7 @@ suite('ChatToolGroupSummary', () => {
 		}, { local: 'Read File.ts', remote: 'Read 2 files' });
 	});
 
-	test('does not count terminal wrappers without a successful process exit', () => {
+	test('keeps completed command facts independent of background process exit state', () => {
 		const terminal = tool('terminal', { kind: 'command' });
 		const results = [undefined, 1, 0].map(exitCode => summarize([{
 			...terminal,
@@ -95,7 +95,7 @@ suite('ChatToolGroupSummary', () => {
 				isBackground: true, terminalCommandState: exitCode === undefined ? undefined : { exitCode },
 			},
 		}]));
-		assert.deepStrictEqual(results, ['1 unfinished tool call', '1 tool call failed', 'Ran 1 command']);
+		assert.deepStrictEqual(results, ['Ran 1 command', 'Ran 1 command', 'Ran 1 command']);
 	});
 
 	test('does not hide empty summary metadata behind another known activity', () => {
@@ -208,13 +208,14 @@ suite('ChatToolGroupSummary', () => {
 			{ ...tool('failed-one'), resultError: true },
 			{ ...tool('failed-two'), resultError: true },
 			{ ...tool('skipped'), isConfirmed: { type: ToolConfirmKind.Skipped } },
+			tool('denied', { kind: 'denied' }),
 			tool('unfinished', { kind: 'incomplete' }),
 			tool('unknown'),
 		];
-		assert.strictEqual(summarize(tools), 'Edited File.ts, ran 1 command, read File.ts, 5 other steps (2 failed, 1 skipped, 1 unfinished)');
+		assert.strictEqual(summarize(tools), 'Edited File.ts, ran 1 command, read File.ts, 6 other steps (2 failed, 1 skipped, 1 denied, 1 unfinished)');
 	});
 
-	test('keeps known activity and reports failed, skipped, and unfinished outcomes', () => {
+	test('keeps known activity and distinguishes failed, skipped, denied, and unfinished outcomes', () => {
 		const command = tool('command', { kind: 'command' });
 		const running = new ChatToolInvocation(
 			{ invocationMessage: 'Running', toolSpecificData: { kind: 'terminal', commandLine: { original: 'build' }, language: 'shellscript' } },
@@ -235,7 +236,7 @@ suite('ChatToolGroupSummary', () => {
 			unknown: 'Ran 1 command, 1 other step',
 			onlyUnknown: undefined,
 			failed: '1 tool call failed',
-			denied: '1 tool call skipped',
+			denied: '1 tool call denied',
 			skipped: '1 tool call skipped',
 			unfinished: '1 unfinished tool call',
 			restoredUnfinished: '1 unfinished tool call',

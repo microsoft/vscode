@@ -543,7 +543,7 @@ function getToolRawInput(tc: ToolCallState): unknown {
 
 function getToolSummary(tc: ToolCallState, resourceUris: IAgentHostResourceUriMapper): ChatToolInvocationSummary {
 	if (tc.status === ToolCallStatus.Cancelled) {
-		return { kind: 'skipped' };
+		return { kind: tc.reason === ToolCallCancellationReason.Skipped ? 'skipped' : 'denied' };
 	}
 	if (tc.status !== ToolCallStatus.Completed) {
 		return { kind: 'incomplete' };
@@ -551,16 +551,18 @@ function getToolSummary(tc: ToolCallState, resourceUris: IAgentHostResourceUriMa
 	if (!tc.success) {
 		return { kind: 'failed' };
 	}
-	if (tc.contributor?.kind === ToolCallContributorKind.MCP) {
-		return { kind: 'unknown' };
-	}
 	const edits = getToolFileEdits(tc).map(normalizeFileEdit);
 	if (edits.length > 0) {
 		return edits.every(edit => edit !== undefined)
 			? { kind: 'edit', resources: edits.map(edit => ({ uri: resourceUris.fromAgentHost(edit.resource) })) } : { kind: 'unknown' };
 	}
-	if (isTerminalToolCall(tc) && getTerminalInput(tc)?.trim()) {
-		return { kind: 'command' };
+	const meta = readToolCallMeta(tc);
+	if (getTerminalContent(tc.content) || !tc.contributor && meta.toolKind === 'terminal') {
+		const exitCode = getTerminalCommandResult(tc)?.exitCode;
+		return { kind: exitCode !== undefined && exitCode !== 0 ? 'failed' : 'command' };
+	}
+	if (tc.contributor || meta['vscode.toolInputContract'] !== 'copilot-cli-v1') {
+		return { kind: 'unknown' };
 	}
 	return getToolInvocationSummaryFromInput(tc.toolName, getToolRawInput(tc), uri => resourceUris.fromAgentHost(uri)) ?? { kind: 'unknown' };
 }
@@ -1858,10 +1860,6 @@ function buildTerminalToolSpecificData(
 		? { ...existing?.commandLine, original: nextCommand }
 		: existing?.commandLine ?? { original: '' };
 	const nextOutput = getTerminalOutput(tc);
-	const nativeShellInput = tc.contributor?.kind !== ToolCallContributorKind.MCP && (tc.toolName === 'bash' || tc.toolName === 'powershell')
-		? getToolRawInput(tc) : undefined;
-	const shellMode = typeof nativeShellInput === 'object' && nativeShellInput !== null ? (nativeShellInput as { mode?: unknown }).mode : undefined;
-	const isBackground = shellMode === 'async' ? true : shellMode === 'sync' ? false : undefined;
 	// Spread `existing` so any field set by a prior pass (notably the
 	// async-populated AHP fields and anything we don't explicitly handle)
 	// is preserved unless we have a fresh value to override it with.
@@ -1881,7 +1879,6 @@ function buildTerminalToolSpecificData(
 			: existing?.terminalToolSessionId,
 		terminalCommandUri: terminalContentUri ? URI.parse(terminalContentUri) : existing?.terminalCommandUri,
 		isPty: terminalContent?.isPty ?? existing?.isPty,
-		...(isBackground !== undefined ? { isBackground } : {}),
 		terminalCommandOutput: nextOutput ?? existing?.terminalCommandOutput,
 	};
 }

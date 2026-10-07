@@ -7,7 +7,7 @@ import assert from 'assert';
 import { revive } from '../../../../../../base/common/marshalling.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
+import { IChatTerminalToolInvocationData, IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { getToolInvocationSummary, getToolInvocationSummaryFromInput } from '../../../common/tools/toolInvocationSummary.js';
@@ -110,6 +110,42 @@ suite('Tool invocation summaries', () => {
 		}, {
 			unfinished: { kind: 'incomplete' },
 			completed: { kind: 'read', resources: [{ uri: file }] },
+		});
+	});
+
+	test('round-trips completed background commands without persisting transient process status', async () => {
+		const terminal: IChatTerminalToolInvocationData = {
+			kind: 'terminal', commandLine: { original: 'build' }, language: 'shellscript', isBackground: true,
+		};
+		const tool = new ChatToolInvocation(
+			{ invocationMessage: 'Run build', toolSpecificData: terminal },
+			{ id: 'bash', displayName: 'Shell', modelDescription: 'Shell', source: ToolDataSource.Internal },
+			'build', undefined, undefined,
+		);
+		tool.summary = { kind: 'command' };
+		await tool.didExecuteTool({ content: [] });
+		const saved = JSON.stringify(tool.toJSON());
+		const summaries = [undefined, 0, 1].map(exitCode => {
+			const restored: IChatToolInvocationSerialized = revive(JSON.parse(saved));
+			restored.toolSpecificData = { ...terminal, terminalCommandState: exitCode === undefined ? undefined : { exitCode } };
+			return { stored: restored.summary, displayed: getToolInvocationSummary(restored) };
+		});
+		assert.deepStrictEqual(summaries, [undefined, 0, 1].map(() => ({
+			stored: { kind: 'command' }, displayed: { kind: 'command' },
+		})));
+	});
+
+	test('preserves an explicit incomplete fact when disposal settles an invocation', async () => {
+		const tool = new ChatToolInvocation(
+			{ invocationMessage: 'Run build' },
+			{ id: 'bash', displayName: 'Shell', modelDescription: 'Shell', source: ToolDataSource.Internal },
+			'build', undefined, undefined,
+		);
+		tool.summary = { kind: 'incomplete' };
+		await tool.didExecuteTool(undefined);
+		const restored: IChatToolInvocationSerialized = revive(JSON.parse(JSON.stringify(tool.toJSON())));
+		assert.deepStrictEqual({ stored: restored.summary, displayed: getToolInvocationSummary(restored) }, {
+			stored: { kind: 'incomplete' }, displayed: { kind: 'incomplete' },
 		});
 	});
 

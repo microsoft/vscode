@@ -6,7 +6,7 @@
 import { Schemas } from '../../../../../base/common/network.js';
 import { posix, win32 } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IChatToolInvocation, IChatToolInvocationSerialized, isLegacyChatTerminalToolInvocationData } from '../chatService/chatService.js';
+import { IChatToolInvocation, IChatToolInvocationSerialized } from '../chatService/chatService.js';
 
 export interface IChatToolSummaryResource {
 	readonly uri: URI;
@@ -14,7 +14,7 @@ export interface IChatToolSummaryResource {
 
 /** Structured facts used for local tool-group summaries, including after history restoration. */
 export type ChatToolInvocationSummary =
-	| { readonly kind: 'incomplete' | 'unknown' | 'failed' | 'skipped' }
+	| { readonly kind: 'incomplete' | 'unknown' | 'failed' | 'skipped' | 'denied' }
 	| { readonly kind: 'read'; readonly resources: readonly IChatToolSummaryResource[] }
 	| { readonly kind: 'search'; readonly queries: readonly string[]; readonly searchKind: 'text' | 'files' }
 	| { readonly kind: 'command' }
@@ -24,31 +24,7 @@ export function getToolInvocationSummary(invocation: IChatToolInvocation | IChat
 	if (!IChatToolInvocation.isComplete(invocation) || invocation.kind === 'toolInvocationSerialized' && invocation.isComplete === false) {
 		return { kind: 'incomplete' };
 	}
-	const summary = invocation.summary;
-	if (summary?.kind === 'incomplete' || summary?.kind === 'unknown' || summary?.kind === 'failed' || summary?.kind === 'skipped') {
-		return summary;
-	}
-	if (invocation.source?.type === 'mcp') {
-		return undefined;
-	}
-	const data = invocation.toolSpecificData;
-	if (data?.kind === 'terminal') {
-		if (isLegacyChatTerminalToolInvocationData(data) || !data.commandLine.original) {
-			return undefined;
-		}
-		const exitCode = data.terminalCommandState?.exitCode;
-		if (exitCode === 0) {
-			return { kind: 'command' };
-		}
-		if (exitCode !== undefined) {
-			return { kind: 'failed' };
-		}
-		if (data.isBackground || data.didContinueInBackground) {
-			return { kind: 'incomplete' };
-		}
-		return summary?.kind === 'command' ? summary : undefined;
-	}
-	return summary;
+	return invocation.summary;
 }
 
 /** Called at the agent-host boundary after validating native tool provenance and successful completion. */

@@ -137,6 +137,7 @@ async function renderAgentHostToolOutcomes(context: ComponentFixtureContext, sce
 	const completed = (toolCallId: string, toolName: string, success: boolean, toolInput?: string): ICompletedToolCall => ({
 		status: ToolCallStatus.Completed, toolCallId, toolName, success, toolInput, confirmed: ToolCallConfirmationReason.NotNeeded,
 		displayName: toolName, invocationMessage: toolName, pastTenseMessage: toolName,
+		_meta: { 'vscode.toolInputContract': 'copilot-cli-v1' },
 	});
 	const calls: ICompletedToolCall[] = scenario === 'manyTools' ? [
 		...['first', 'second', 'third'].map(id => completed(id, 'grep', true, '{"pattern":"layout"}')),
