@@ -67,4 +67,23 @@ suite('Open Markdown document link', () => {
 			target: { kind: 'external', uri: 'https://example.com/docs#section' },
 		});
 	});
+
+	test('passes editor placement and focus options to file opens', async () => {
+		const sourceUri = vscode.Uri.file('/workspace/readme.md');
+		const targetUri = vscode.Uri.file('/workspace/example.py');
+		const opened: { uri: string; viewColumn: vscode.ViewColumn | undefined; preserveFocus: boolean | undefined }[] = [];
+		const opener = new MdLinkOpener({
+			resolveLinkTarget: async () => ({ kind: 'file', uri: targetUri }),
+		}, async (uri, options) => {
+			opened.push({ uri: uri.toString(), viewColumn: options.viewColumn, preserveFocus: options.preserveFocus });
+		});
+
+		await opener.openDocumentLink('example.py', sourceUri, { viewColumn: vscode.ViewColumn.Two, preserveFocus: true });
+		await opener.openDocumentLink('example.py', sourceUri);
+
+		assert.deepStrictEqual(opened, [
+			{ uri: targetUri.toString(), viewColumn: vscode.ViewColumn.Two, preserveFocus: true },
+			{ uri: targetUri.toString(), viewColumn: vscode.ViewColumn.Active, preserveFocus: undefined },
+		]);
+	});
 });
