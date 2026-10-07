@@ -631,6 +631,28 @@ suite('Cloud Sandbox install setup', () => {
 		assert.deepStrictEqual(results, Array.from({ length: 2 }, () => ({ status: 0, stdout: '', stderr: '' })));
 	});
 
+	test('the dev launcher uses the existing shared-memory workaround for Linux Cloud Sandboxes', t => {
+		if (process.platform === 'win32') {
+			t.skip('The development launcher uses bash.');
+			return;
+		}
+		const root = fixture(t);
+		fs.mkdirSync(path.join(root, 'scripts'));
+		fs.copyFileSync(path.join(repositoryRoot, 'scripts/code.sh'), path.join(root, 'scripts/code.sh'));
+		fs.mkdirSync(path.join(root, '.build/electron'), { recursive: true });
+		const fakeNode = path.join(root, 'host-bin/node');
+		fs.writeFileSync(fakeNode, '#!/bin/sh\nprintf "code\\n"\n', { mode: 0o755 });
+		fs.writeFileSync(path.join(root, '.build/electron/code'), '#!/bin/sh\nprintf "%s\\n" "$@"\n', { mode: 0o755 });
+		const result = spawnSync('bash', ['-c', 'OSTYPE=linux-gnu; source "$0" --test-launch', path.join(root, 'scripts/code.sh')], {
+			encoding: 'utf8', timeout: 10_000,
+			env: { ...process.env, PATH: `${path.dirname(fakeNode)}${path.delimiter}${process.env.PATH}`, GITHUB_ENVIRONMENT_ID: 'environment', VSCODE_SKIP_PRELAUNCH: '1' },
+		});
+		assert.deepStrictEqual({
+			status: result.status,
+			args: result.stdout.trim().split('\n'),
+		}, { status: 0, args: ['.', '--disable-extension=vscode.vscode-api-tests', '--disable-dev-shm-usage', '--test-launch'] }, result.stderr);
+	});
+
 	test('startup continues under the selected Node executable without a manual second invocation', t => {
 		if (process.platform === 'win32') {
 			t.skip('The sandbox startup executable fixture uses a POSIX shell.');
