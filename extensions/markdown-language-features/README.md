@@ -161,6 +161,5 @@ The lock/pencil toggle controls both editing permission and presentation:
 - **Locked:** uses reading presentation with conventional Markdown whitespace.
 
 The remembered locked/editable state determines presentation when opening an
-editor. Presentation is not selected independently by the experimental
-source-editing preference. Switching modes does not modify the document or
-change the Markdown-syntax reveal policy.
+editor. Switching modes does not modify the document or change the
+Markdown-syntax reveal policy.
