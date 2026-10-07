@@ -3657,7 +3657,6 @@ export class CopilotAgentSession extends Disposable {
 		if (currentTurn) {
 			currentTurn.messageCharLen = prompt.length;
 		}
-		this._showUnshownManagedPluginFailure();
 		const turn = this._currentTurn.value;
 		this._hostInstructions = hostInstructions;
 		this._pendingSnapshotReminder = this._snapshotReadonlyReminder(attachments);
@@ -6433,6 +6432,9 @@ export class CopilotAgentSession extends Disposable {
 			// normal send. Zero-message continuation has no such echo and remains
 			// quarantined until assistant.turn_start instead.
 			this._dropLateRootTurnEvents = false;
+			// Show a failure held from between turns only now, so that a newer
+			// failure from this message's own preparation replaces it.
+			this._showUnshownManagedPluginFailure();
 			// First SDK event for the loop: promote the turn out of `pending`.
 			this._currentTurn.value?.markRunning();
 			// The message is admitted only after required plugins are prepared.
@@ -8442,7 +8444,8 @@ export class CopilotAgentSession extends Disposable {
 	 * Ends the plugin preparation activity and adds the failure to the
 	 * waiting turn. The turn continues without the plugins that could not be
 	 * prepared. A failure reported while no turn is waiting, for example
-	 * after a background policy refresh, is shown in the next sent turn.
+	 * after a background policy refresh, is shown when the next message is
+	 * admitted, unless that message's own preparation reports a newer one.
 	 */
 	private _reportManagedPluginFailure(message: string): void {
 		this._setManagedPluginActivity(undefined);

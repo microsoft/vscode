@@ -14395,6 +14395,11 @@ Use the attached image as context.
 				return getActions(signals).flatMap(action => action.type === ActionType.ChatActivityChanged ? [action.activity] : []);
 			}
 
+			function getWarnings(signals: readonly AgentSignal[]) {
+				return getActions(signals).flatMap(action => action.type === ActionType.ChatResponsePart && action.part.kind === ResponsePartKind.SystemNotification
+					? [{ turnId: action.turnId, content: action.part.content }] : []);
+			}
+
 			test('shows progress as the activity of the waiting chat', async () => {
 				const sessionUri = AgentSession.uri('copilot', 'owner');
 				const chatChannelUri = URI.parse(buildChatUri(sessionUri, 'peer'));
@@ -14482,10 +14487,8 @@ Use the attached image as context.
 				});
 			});
 
-			test('shows a failure reported while no turn waits in the next sent turn, unless preparation completes first', async () => {
+			test('shows a failure reported while no turn waits when the next message is admitted, unless preparation completes first', async () => {
 				const { session, mockSession, signals } = await createAgentSession(disposables);
-				const getWarnings = () => getActions(signals).flatMap(action => action.type === ActionType.ChatResponsePart && action.part.kind === ResponsePartKind.SystemNotification
-					? [{ turnId: action.turnId, content: action.part.content }] : []);
 
 				mockSession.fire('session.warning', { warningType: 'managed_plugins', message: 'Failed after a policy refresh' });
 				await session.send('First message', undefined, 'turn-1');
@@ -14494,8 +14497,21 @@ Use the attached image as context.
 				mockSession.fire('session.warning', { warningType: 'managed_plugins', message: 'Failed in the background' });
 				mockSession.fire('session.info', { infoType: 'managed_plugins_complete', message: 'Plugins required by your organization admin are ready.' });
 				await session.send('Second message', undefined, 'turn-2');
+				mockSession.fire('user.message', { content: 'Second message' } as SessionEventPayload<'user.message'>['data']);
 
-				assert.deepStrictEqual(getWarnings(), [{ turnId: 'turn-1', content: 'Failed after a policy refresh' }]);
+				assert.deepStrictEqual(getWarnings(signals), [{ turnId: 'turn-1', content: 'Failed after a policy refresh' }]);
+			});
+
+			test('a failure from the next message\'s own preparation replaces the one held from between turns', async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+
+				mockSession.fire('session.warning', { warningType: 'managed_plugins', message: 'Failed after a policy refresh' });
+				await session.send('First message', undefined, 'turn-1');
+				mockSession.fire('session.info', { infoType: 'managed_plugins', message: installing });
+				mockSession.fire('session.warning', { warningType: 'managed_plugins', message: 'Failed again before admission' });
+				mockSession.fire('user.message', { content: 'First message' } as SessionEventPayload<'user.message'>['data']);
+
+				assert.deepStrictEqual(getWarnings(signals), [{ turnId: 'turn-1', content: 'Failed again before admission' }]);
 			});
 		});
 
