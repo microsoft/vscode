@@ -1925,7 +1925,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 					origin: chat.origin,
 					...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
 					...(isSessionStatusArchived(chat.status) || chat.archived === true ? { archived: true } : {}),
-					...(chat.status !== undefined ? { isRead: isSessionStatusRead(chat.status) } : {}),
+					...(chat.status !== undefined ? { status: chat.status, isRead: isSessionStatusRead(chat.status) } : {}),
 					...(chat.changes !== undefined ? { changes: chat.changes } : {}),
 				})) ?? (s.defaultChat ? [{ chat: URI.parse(s.defaultChat), kind: 'default' as const }] : undefined),
 				// Carry durable host provenance for sessions first materialized from a listing.
