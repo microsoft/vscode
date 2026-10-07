@@ -78,8 +78,8 @@ export class PluginCustomizationMarketplaceProvider implements ICustomizationMar
 		}
 		const marketplaceIds = new Set(this.marketplaceService.getMarketplaceReferences()
 			.filter(reference => this.registry === 'default'
-					? reference.canonicalId === defaultMarketplaceId
-					: reference.canonicalId !== defaultMarketplaceId)
+				? reference.canonicalId === defaultMarketplaceId
+				: reference.canonicalId !== defaultMarketplaceId)
 			.map(reference => reference.canonicalId));
 		if (!marketplaceIds.size) {
 			return { items: [], total: 0 };
