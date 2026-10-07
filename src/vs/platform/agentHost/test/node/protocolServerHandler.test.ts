@@ -1199,7 +1199,7 @@ suite('ProtocolServerHandler', () => {
 		assert.strictEqual(supportsAgentHostTiming(undefined), false);
 		assert.strictEqual(supportsAgentHostTiming({ ...(initialize.result as InitializeResult), _meta: { 'vscode.agentHostTiming': 'true' } }), false);
 		const diagnostic: IAgentHostFirstResponseDiagnostic = {
-			requestId: 'request-1', provider: 'copilot', outcome: 'notDispatched',
+			requestId: 'request-1', provider: 'copilot', connectionKind: AgentHostClientConnectionKind.WebPubSub, outcome: 'notDispatched',
 			sessionTurnKind: 'unknown', invocationKind: 'unknown', trustInteractionRequired: true,
 			totalElapsedMs: 0, hasResponseText: false,
 		};
@@ -1209,7 +1209,15 @@ suite('ProtocolServerHandler', () => {
 		const invalid = waitForResponse(transport, 3);
 		transport.simulateMessage(request(3, 'vscode/reportAgentHostFirstResponse', { ...diagnostic, totalElapsedMs: 'not numeric' }));
 		assert.ok(hasKey(await invalid, { error: true }));
-		assert.deepStrictEqual(calls, [diagnostic]);
+		const invalidConnectionKind = waitForResponse(transport, 4);
+		transport.simulateMessage(request(4, 'vscode/reportAgentHostFirstResponse', { ...diagnostic, connectionKind: 'private-environment-id' }));
+		assert.ok(hasKey(await invalidConnectionKind, { error: true }));
+		const legacy = { ...diagnostic };
+		delete legacy.connectionKind;
+		const legacyResponse = waitForResponse(transport, 5);
+		transport.simulateMessage(request(5, 'vscode/reportAgentHostFirstResponse', legacy));
+		await legacyResponse;
+		assert.deepStrictEqual(calls, [diagnostic, legacy]);
 
 		const disabled = connectClient('timing-disabled');
 		const disabledInitialize = findResponse(disabled.sent, 1);
@@ -1218,7 +1226,7 @@ suite('ProtocolServerHandler', () => {
 		const ignored = waitForResponse(disabled, 2);
 		disabled.simulateMessage(request(2, 'vscode/reportAgentHostFirstResponse', diagnostic));
 		await ignored;
-		assert.deepStrictEqual(calls, [diagnostic]);
+		assert.deepStrictEqual(calls, [diagnostic, legacy]);
 	});
 
 	test('UI timing bridge allowlists payloads, rejects invalid durations and drains the exporter', async () => {

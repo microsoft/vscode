@@ -258,6 +258,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private readonly _resourceIdentity: AgentHostResourceIdentity;
 	private readonly _transportFactory: (() => IProtocolTransport) | undefined;
 	private _transport!: IProtocolTransport;
+	get clientConnectionKind(): AgentHostClientConnectionKind | undefined { return this._transport.clientConnectionKind; }
 	private _relayRootRefresh: { readonly transport: IProtocolTransport; readonly promise: Promise<void> } | undefined;
 	/** Disposable holding the listeners attached to the current transport. */
 	private readonly _transportListeners = this._register(new MutableDisposable<DisposableStore>());
