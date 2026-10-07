@@ -14331,6 +14331,22 @@ Use the attached image as context.
 					}],
 				});
 			});
+
+			test('shows a failure reported while no turn waits in the next sent turn, unless preparation completes first', async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				const getWarnings = () => getActions(signals).flatMap(action => action.type === ActionType.ChatResponsePart && action.part.kind === ResponsePartKind.SystemNotification
+					? [{ turnId: action.turnId, content: action.part.content }] : []);
+
+				mockSession.fire('session.warning', { warningType: 'managed_plugins', message: 'Failed after a policy refresh' });
+				await session.send('First message', undefined, 'turn-1');
+				mockSession.fire('user.message', { content: 'First message' } as SessionEventPayload<'user.message'>['data']);
+				mockSession.fire('session.idle', {});
+				mockSession.fire('session.warning', { warningType: 'managed_plugins', message: 'Failed in the background' });
+				mockSession.fire('session.info', { infoType: 'managed_plugins_complete', message: 'Plugins required by your organization admin are ready.' });
+				await session.send('Second message', undefined, 'turn-2');
+
+				assert.deepStrictEqual(getWarnings(), [{ turnId: 'turn-1', content: 'Failed after a policy refresh' }]);
+			});
 		});
 
 		test('Fusion phase events surface milestones and clear live activity on completion', async () => {
