@@ -20,7 +20,7 @@ import { ICommandService } from '../../../../../../platform/commands/common/comm
 import { IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
-import { CustomizationMarketplaceMediaType, CustomizationMarketplaceService, getCustomizationMarketplaceResourceKey, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceMediaType, CustomizationMarketplaceRecoveryGroup, CustomizationMarketplaceService, getCustomizationMarketplaceResourceKey, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IListService, ListService, WorkbenchList } from '../../../../../../platform/list/browser/listService.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
@@ -1768,7 +1768,7 @@ suite('AICustomizationDiscoveryPage', () => {
 				authorizations: 0,
 				healthyVisible: true,
 				accessibleAction: true,
-				label: 'Sign In to view Copilot Connectors.',
+				label: 'Sign In to access Copilot Connectors.',
 				primary: true,
 				warnings: 0,
 			},
@@ -1823,6 +1823,88 @@ suite('AICustomizationDiscoveryPage', () => {
 			});
 		});
 	}
+
+
+	test('coalesces shared GitHub account recovery into one sign-in invitation', async () => {
+		const fixture = createPage(['agentFinder', 'copilotConnectors']);
+		const recoveries: string[] = [];
+		for (const sourceId of ['agentFinder', 'copilotConnectors']) {
+			fixture.recoveryActions.set(sourceId, {
+				label: 'Sign In',
+				kind: 'signIn',
+				groupId: CustomizationMarketplaceRecoveryGroup.GitHubDefaultAccount,
+				run: async () => { recoveries.push(sourceId); },
+			});
+		}
+		fixture.page.setSearchQuery('figma');
+		fixture.page.setVisible(true);
+		const sourceErrors = [
+			{ sourceId: 'agentFinder', message: 'Sign in to Copilot to search the GitHub Feed.' },
+			{ sourceId: 'copilotConnectors', message: 'Sign in to view connectors.' },
+		];
+		await fixture.requests[0].result.complete({ items: [], sourceErrors });
+		await timeout(0);
+		const actions = fixture.container.querySelectorAll<HTMLElement>('.customization-marketplace-source-signin .monaco-button');
+		assert.strictEqual(actions.length, 1);
+		const initialMessage = fixture.container.querySelector('.customization-marketplace-source-signin .customization-marketplace-source-message')?.textContent;
+		const ariaLabel = actions[0].getAttribute('aria-label');
+		actions[0].click();
+		await timeout(0);
+		await fixture.requests[1].result.complete({ items: [resource('figma')] });
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			initialMessage,
+			ariaLabel,
+			recoveries,
+			queries: fixture.requests.map(request => request.options.query),
+			signInPrompts: fixture.container.querySelectorAll('.customization-marketplace-source-signin').length,
+			results: fixture.page.getAccessibilityContent().match(/^figma$/gm),
+		}, {
+			initialMessage: 'Sign in to access GitHub Feed and Copilot Connectors.',
+			ariaLabel: 'Sign In to access GitHub Feed and Copilot Connectors.',
+			recoveries: ['agentFinder'],
+			queries: ['figma', 'figma'],
+			signInPrompts: 0,
+			results: ['figma'],
+		});
+	});
+
+	test('keeps Connector authorization separate from shared account sign-in', async () => {
+		const fixture = createPage(['agentFinder', 'copilotConnectors']);
+		fixture.recoveryActions.set('agentFinder', {
+			label: 'Sign In',
+			kind: 'signIn',
+			groupId: CustomizationMarketplaceRecoveryGroup.GitHubDefaultAccount,
+			run: async () => { },
+		});
+		fixture.recoveryActions.set('copilotConnectors', {
+			label: 'Authorize Connectors',
+			kind: 'signIn',
+			run: async () => { },
+		});
+		fixture.page.setSearchQuery('figma');
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({
+			items: [],
+			sourceErrors: [
+				{ sourceId: 'agentFinder', message: 'Sign in to Copilot to search the GitHub Feed.' },
+				{ sourceId: 'copilotConnectors', message: 'Authorize connectors.' },
+			],
+		});
+		await timeout(0);
+
+		assert.deepStrictEqual(
+			[...fixture.container.querySelectorAll<HTMLElement>('.customization-marketplace-source-signin')].map(row => ({
+				message: row.querySelector('.customization-marketplace-source-message')?.textContent,
+				action: row.querySelector('.monaco-button')?.textContent,
+			})),
+			[
+				{ message: 'Sign in to Copilot to search the GitHub Feed.', action: 'Sign In' },
+				{ message: 'Authorize connectors.', action: 'Authorize Connectors' },
+			],
+		);
+	});
 
 
 	for (const query of ['', '@type:mcp mail']) {

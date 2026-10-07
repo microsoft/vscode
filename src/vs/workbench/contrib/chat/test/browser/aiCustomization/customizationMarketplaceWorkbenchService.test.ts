@@ -18,7 +18,7 @@ import { IPlatformCustomizationMarketplaceService } from '../../../../../../plat
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
-import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceCursor, ICustomizationMarketplaceEntry, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceService, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceMediaType, CustomizationMarketplaceRecoveryGroup, ICustomizationMarketplaceCursor, ICustomizationMarketplaceEntry, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceService, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { IPluginMarketplacePage, IPluginMarketplaceQuery, IPluginMarketplaceService, MarketplaceType, parseMarketplaceReference, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { ICustomizationHarnessService, ICustomizationMarketplaceSearchProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
@@ -357,9 +357,11 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		const rolloutAction = service.getSourceRecoveryAction('copilotConnectors');
 		await rolloutAction?.run(CancellationToken.None);
 		assert.deepStrictEqual({
-			unrelated, label: action.label, rolloutLabel: rolloutAction?.label, kind: action.kind, signIns, authorizations, afterConsent: service.getSourceRecoveryAction('copilotConnectors'),
+			unrelated, label: action.label, rolloutLabel: rolloutAction?.label, kind: action.kind, groupId: action.groupId,
+			rolloutGroupId: rolloutAction?.groupId, signIns, authorizations, afterConsent: service.getSourceRecoveryAction('copilotConnectors'),
 		}, {
 			unrelated: undefined, label: 'Sign In', rolloutLabel: 'Authorize Connectors', kind: 'signIn',
+			groupId: CustomizationMarketplaceRecoveryGroup.GitHubDefaultAccount, rolloutGroupId: undefined,
 			signIns: [CancellationToken.None], authorizations: [CancellationToken.None], afterConsent: undefined,
 		});
 	});
@@ -393,6 +395,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 				return {
 					label: 'Sign In',
 					kind: 'signIn',
+					groupId: CustomizationMarketplaceRecoveryGroup.GitHubDefaultAccount,
 					async run(token) { recoveries.push(token); },
 				};
 			},
@@ -410,10 +413,12 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		assert.deepStrictEqual({
 			label: action?.label,
 			kind: action?.kind,
+			groupId: action?.groupId,
 			recoveries,
 		}, {
 			label: 'Sign In',
 			kind: 'signIn',
+			groupId: CustomizationMarketplaceRecoveryGroup.GitHubDefaultAccount,
 			recoveries: [CancellationToken.None],
 		});
 	});

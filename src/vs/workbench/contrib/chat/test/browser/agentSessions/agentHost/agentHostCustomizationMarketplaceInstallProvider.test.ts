@@ -14,6 +14,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../ba
 import { IAgentCustomizationInstallation } from '../../../../../../../platform/agentHost/common/agent.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentHostService } from '../../../../../../../platform/agentHost/common/agentService.js';
+import { CustomizationMarketplaceRecoveryGroup } from '../../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { IDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
 import { NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { AgentHostCustomizationMarketplaceInstallProvider } from '../../../../browser/agentSessions/agentHost/agentHostCustomizationMarketplaceInstallProvider.js';
@@ -220,7 +221,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			/Sign in to Copilot/,
 		);
 		const recovery = provider.getRecoveryAction();
-		const beforeSignIn = { authenticationRequests, searchRequests, recovery: recovery && { label: recovery.label, kind: recovery.kind } };
+		const beforeSignIn = { authenticationRequests, searchRequests, recovery: recovery && { label: recovery.label, kind: recovery.kind, groupId: recovery.groupId } };
 		await recovery?.run(CancellationToken.None);
 		const page = await provider.query(URI.parse('agent-host-copilotcli:/frontend-session'), { query: 'figma' }, CancellationToken.None);
 
@@ -233,7 +234,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			beforeSignIn: {
 				authenticationRequests: 0,
 				searchRequests: 1,
-				recovery: { label: 'Sign In', kind: 'signIn' },
+				recovery: { label: 'Sign In', kind: 'signIn', groupId: CustomizationMarketplaceRecoveryGroup.GitHubDefaultAccount },
 			},
 			authenticationRequests: 1,
 			searchRequests: 2,

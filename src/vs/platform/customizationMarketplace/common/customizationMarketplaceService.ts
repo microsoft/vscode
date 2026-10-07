@@ -182,7 +182,13 @@ export interface ICustomizationMarketplaceSourceInfo {
 export interface ICustomizationMarketplaceSourceRecoveryAction {
 	readonly label: string;
 	readonly kind?: 'signIn';
+	/** Equivalent recoveries with the same group are presented as one action. */
+	readonly groupId?: string;
 	run(token: CancellationToken): Promise<void>;
+}
+
+export const enum CustomizationMarketplaceRecoveryGroup {
+	GitHubDefaultAccount = 'githubDefaultAccount',
 }
 
 export function createLazyCustomizationMarketplaceProvider(id: string, createProvider: () => ICustomizationMarketplaceProvider, sourceId = id): ICustomizationMarketplaceProvider {
