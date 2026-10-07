@@ -1505,7 +1505,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	getModelPickerOptions(sessionId: string): ISessionModelPickerOptions {
 		const draft = this._newSessions.get(sessionId);
 		if (draft && this._usesSandbox()) {
-			return { useGroupedModelPicker: true, showFeatured: false, showUnavailableFeatured: false, showManageModelsAction: false, showAutoModel: false };
+			return { showUnavailableFeatured: false, showManageModelsAction: false, showAutoModel: false };
 		}
 
 		// A session type that requires an explicit model selection cannot fall
@@ -1515,8 +1515,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		const sessionType = this.getSession(sessionId)?.sessionType;
 		const showAutoModel = !sessionType || this.chatSessionsService.supportsAutoModelForSessionType(sessionType);
 		return {
-			useGroupedModelPicker: true,
-			showFeatured: true,
 			showUnavailableFeatured: false,
 			showManageModelsAction: false,
 			showAutoModel,

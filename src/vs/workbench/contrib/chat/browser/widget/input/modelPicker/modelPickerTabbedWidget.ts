@@ -570,6 +570,10 @@ export class TabbedModelPicker extends Disposable {
 				},
 			});
 		}
+		// With no models there is nothing to search, only the reason shown in their place.
+		if (!context.models.length) {
+			return actions;
+		}
 		actions.push({
 			id: 'search',
 			icon: Codicon.search,

@@ -7,11 +7,13 @@ import assert from 'assert';
 import * as dom from '../../../../../../../../base/browser/dom.js';
 import { DeferredPromise, timeout } from '../../../../../../../../base/common/async.js';
 import { IStringDictionary } from '../../../../../../../../base/common/collections.js';
+import { Codicon } from '../../../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../../../base/common/event.js';
 import { AnchorPosition } from '../../../../../../../../base/common/layout.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../../../../../base/common/errors.js';
 import { MutableDisposable, toDisposable } from '../../../../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../../../../../base/common/themables.js';
 import { upcastPartial } from '../../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
 import { IAccessibilityService } from '../../../../../../../../platform/accessibility/common/accessibility.js';
@@ -186,7 +188,7 @@ suite('TabbedModelPicker', () => {
 		const availableModels = options.models ?? models;
 		const context: ITabbedModelPickerContext = {
 			workflow: options.workflow,
-			models: availableModels, selectedModelId: options.selectedModelId ?? availableModels[0].identifier,
+			models: availableModels, selectedModelId: options.selectedModelId ?? availableModels[0]?.identifier,
 			recentModelIds: [], pinnedModelIds: options.pinnedModelIds ?? [],
 			controlModels: options.controlModels ?? Object.fromEntries(availableModels.map(model => [model.metadata.id, { exists: true, featured: true, label: model.metadata.name }])),
 			configurationAccess: access, isUBB: false, showManageModels: false, providerPlaceholders: options.providerPlaceholders ?? [],
@@ -944,6 +946,35 @@ suite('TabbedModelPicker', () => {
 			upgrade: true,
 			selected: ['Balance'],
 			selections: [auto.identifier],
+		});
+	});
+
+	test('without models the Copilot tab explains why, with the placeholder\'s own icon and action and nothing to search', () => {
+		let trustRequests = 0;
+		const result = createPicker({
+			models: [],
+			providerPlaceholders: [{
+				vendor: 'copilot',
+				label: 'Restricted Mode',
+				icon: Codicon.workspaceUntrusted,
+				message: 'Trust this workspace to enable models.',
+				action: { label: 'Trust Workspace', run: () => trustRequests++ },
+			}],
+		});
+		const welcome = element(result.popup, '.chat-model-picker-welcome');
+		element(welcome, '.monaco-button').click();
+		assert.deepStrictEqual({
+			tabs: Array.from(result.popup.querySelectorAll('.chat-model-picker-tabbar [role="radio"]'), tab => tab.getAttribute('aria-label')),
+			icon: !!welcome.querySelector(`.chat-model-picker-welcome-icon${ThemeIcon.asCSSSelector(Codicon.workspaceUntrusted)}`),
+			text: Array.from(welcome.querySelectorAll('.chat-model-picker-welcome-title, .chat-model-picker-welcome-message, .monaco-button'), part => part.textContent),
+			tabBarActions: Array.from(result.popup.querySelectorAll<HTMLElement>('.tabbed-action-list-tabbar-action'), action => action.dataset.id),
+			trustRequests,
+		}, {
+			tabs: ['Copilot'],
+			icon: true,
+			text: ['Restricted Mode', 'Trust this workspace to enable models.', 'Trust Workspace'],
+			tabBarActions: [],
+			trustRequests: 1,
 		});
 	});
 
