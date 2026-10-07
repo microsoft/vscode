@@ -330,9 +330,9 @@ class CreatePluginAction extends Action2 {
 
 			// Step 9: Reveal the plugin directory in the OS file explorer
 			try {
-				await commandService.executeCommand('revealFileInOS', pluginRoot);
+				await commandService.executeCommand('revealUriInOS', pluginRoot);
 			} catch {
-				// revealFileInOS may not be available for all URI schemes
+				// revealUriInOS may not be available for all URI schemes
 			}
 
 			notificationService.info(localize('pluginCreated', "Plugin '{0}' created successfully.", pluginName));
