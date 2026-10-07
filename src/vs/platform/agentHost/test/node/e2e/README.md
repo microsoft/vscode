@@ -231,6 +231,8 @@ A mismatch fails the test as `[capi-replay] N model request mismatch(es)` and pr
 
 ## Running the tests
 
+Runner, coverage, Windows launch support, and the Linux mount wrapper live under `test/integration/agentHost/`; package commands and the general integration entrypoints invoke them. The mount wrapper is test infrastructure, not a registered VS Code filesystem provider.
+
 Replay is the default — no setup, no token:
 
 ```bash
@@ -300,6 +302,10 @@ option is per release; normal tests still require complete replay consumption.
 Each test needs an agent host server (a forked subprocess) fronted by a `CapiReplayProxy`. `AgentHostE2EServerLease` (in `harness/agentHostE2ETestHarness.ts`) owns that lifecycle and picks one of two strategies:
 
 The lease also owns isolated data directories. Servers normally share one directory as their home and VS Code user-data directory, with provider-specific config overrides prevented from escaping it, so both shared and provider-specific scenarios are isolated from developer-machine configuration.
+
+The parallel runner defaults to `--storage split` on Linux CI: the selected replay suite uses an executable, private 4 GiB tmpfs mount, followed by required disk-backed persistence and lifecycle tests. SQLite remains file-backed in both passes, including migrations, transactions, connection close/reopen, idle eviction, deletion, and host restart. The disk pass covers session history and provider context across restart, archived-session restoration, automation definition and failed-run persistence, cancelled-request deduplication, ordered/duplicate-turn cold resume, and detached-worktree archive/restart/deletion recovery. A failure in either pass fails the run. Host-process restarts preserve tmpfs files; machine restart and physical-storage durability are not covered by tmpfs.
+
+`--storage disk` runs the selected suite with normal temporary storage; `--storage tmpfs` runs only the RAM-backed pass. Local runs and other platforms retain disk-backed storage by default. Linux tmpfs requires noninteractive `sudo mount`/`umount`; allocation, capacity, and cleanup errors fail explicitly rather than falling back to disk. Each mount uses a uniquely allocated directory under `/tmp`, outside the checkout so providers cannot discover repository instructions through parent directories. Only that directory is removed after unmounting and child cleanup; diagnostics remain in the workspace logs artifact. Temporary-directory overrides apply only to E2E children, not other integration suites.
 
 On Windows, test-server cleanup records descendants before requesting graceful shutdown and terminates any survivors after the server exits, before temporary directories are removed. Recording descendants and waiting for graceful exit share the existing shutdown deadline.
 
@@ -617,6 +623,8 @@ Keep asserting the real tool result: the replayed assistant text can report the 
 ### A turn hangs or times out with no OS pattern
 
 When a test times out waiting for a notification and it is **not** platform-specific local execution (above), the failure is usually inside the bundled provider SDK/CLI. Every failed test tails the Agent Host process log into the test output before its temporary user-data directory is removed; look for the `[agent-host-e2e] # …` lines, including provider stderr and pipeline errors. For the **Copilot** provider, the harness additionally tails the most recent Copilot runtime (`@github/copilot` CLI) `process-*.log`, which records startup, auth, model requests, and the turn lifecycle. A turn that started but never produced a model response, a panic, or an out-of-order / protocol error points at the SDK/CLI. Re-record after an SDK bump if the fixture is stale; otherwise treat it as a genuine regression. The Copilot runtime runs at `--log trace` in this harness, and its full logs live under the server's temp home (`${homeDir}/.copilot/logs`) until the suite tears down.
+
+The parallel runner samples Linux CPU, I/O, and memory pressure plus CPU, memory, and disk counters every five seconds from outside the host processes. Samples are published under `.build/logs/integration-tests/agent-host-resources-<pid>.jsonl`; timestamps correlate with host phase logs. Resource pressure supports a contention hypothesis but does not establish which operation stalled.
 
 ### Session disposal times out
 
