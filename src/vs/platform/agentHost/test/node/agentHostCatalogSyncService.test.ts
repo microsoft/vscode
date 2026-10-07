@@ -15,6 +15,7 @@ import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, AgentHostCatalogData, encodeAgentHo
 import { AgentHostCatalogSyncService, replayPendingCatalogSnapshot } from '../../node/agentHostCatalogSyncService.js';
 import { chatCatalogV2ToCatalogChats } from '../../node/agentHostCatalogSourceResolver.js';
 import { AgentHostDatabase, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabaseSessionV2Envelope } from '../../node/agentHostDatabase.js';
+import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 
 const session = URI.parse('agenthost:test-session');
@@ -992,6 +993,117 @@ suite('AgentHostCatalogSyncService', () => {
 			],
 			title: 'three',
 		});
+	});
+
+	for (const operation of ['write', 'migration'] as const) {
+		test(`serializes a ${operation} through another URI for the same session database`, async () => {
+			const local = store.add(await SessionDatabase.open(':memory:'));
+			const central = store.add(new AgentHostDatabase(':memory:'));
+			const service = new AgentHostCatalogSyncService(createSessionDataService(local), central, new NullLogService());
+			const legacySession = URI.parse('codex:/shared-session');
+			const standardSession = URI.parse('ahp-session:/shared-session');
+			for (const resource of [legacySession, standardSession]) {
+				await central.registerSessionV2(resource.toString(), {
+					provider: 'codex', startTime: 1, source: 'restore',
+				}, { checkTombstone: true });
+			}
+			const started = new DeferredPromise<void>();
+			const release = new DeferredPromise<void>();
+			const order: string[] = [];
+			const first = service.runExclusive(legacySession, async synchronize => {
+				order.push('first started');
+				started.complete();
+				await release.p;
+				const result = await synchronize({ data: data('first'), legacyMetadata: { customTitle: 'first' } });
+				order.push('first finished');
+				return result;
+			});
+			await started.p;
+			const request = { data: data('second'), legacyMetadata: { customTitle: 'second' } };
+			const second = operation === 'write'
+				? service.runExclusive(standardSession, async synchronize => {
+					order.push('second started');
+					return synchronize(request);
+				})
+				: service.runMigrationExclusive(standardSession, async (_database, synchronize) => {
+					order.push('second started');
+					return synchronize(request);
+				});
+			release.complete();
+			const results = await Promise.allSettled([first, second]);
+			const snapshot = await local.getCatalogSyncSnapshot();
+			const catalog = await central.getSessionV2(standardSession.toString());
+
+			assert.deepStrictEqual({
+				results,
+				order,
+				title: await local.getMetadata('customTitle'),
+				receipt: snapshot?.state,
+				generationMatches: snapshot?.sessionGeneration === catalog?.sessionGeneration,
+			}, {
+				results: [
+					{ status: 'fulfilled', value: { status: 'acknowledged', sourceRevision: 0 } },
+					{ status: 'fulfilled', value: { status: 'acknowledged', sourceRevision: 0 } },
+				],
+				order: ['first started', 'first finished', 'second started'],
+				title: 'second',
+				receipt: 'acknowledged',
+				generationMatches: true,
+			});
+		});
+	}
+
+	test('shares deletion fences across session storage aliases', async () => {
+		const { service } = await createHarness();
+		const alias = session.with({ scheme: 'ahp-session' });
+		const firstFence = store.add(service.beginSessionDeletion(session));
+		await firstFence.whenDrained;
+
+		await assert.rejects(
+			service.synchronize(alias, { data: data('blocked'), legacyMetadata: {} }),
+			/Catalog synchronization rejected during session deletion/,
+		);
+		await assert.rejects(service.runMigrationExclusive(alias, async () => { }), /Catalog synchronization rejected during session deletion/);
+		const replay = await service.replayPending(alias, CancellationToken.None);
+		const secondFence = store.add(service.beginSessionDeletion(alias));
+		await secondFence.whenDrained;
+		firstFence.dispose();
+		const fencedAfterFirstRelease = service.isSessionDeletionFenced(session);
+		secondFence.dispose();
+
+		assert.deepStrictEqual({
+			replay,
+			fencedAfterFirstRelease,
+			fencedAfterSecondRelease: service.isSessionDeletionFenced(alias),
+		}, {
+			replay: undefined,
+			fencedAfterFirstRelease: true,
+			fencedAfterSecondRelease: false,
+		});
+	});
+
+	test('deletion drains writes through storage aliases while unrelated sessions remain independent', async () => {
+		const { service } = await createHarness();
+		const started = new DeferredPromise<void>();
+		const release = new DeferredPromise<void>();
+		const writer = service.runExclusive(session, async () => {
+			started.complete();
+			await release.p;
+		});
+		await started.p;
+		const fence = store.add(service.beginSessionDeletion(session.with({ scheme: 'ahp-session' })));
+		let drained = false;
+		const drain = fence.whenDrained.then(() => { drained = true; });
+		let drainedBeforeRelease: boolean;
+		try {
+			await service.runExclusive(URI.parse('codex:/independent-session'), async () => { });
+			drainedBeforeRelease = drained;
+		} finally {
+			release.complete();
+			await Promise.all([writer, drain]);
+		}
+
+		assert.deepStrictEqual({ drainedBeforeRelease, drained }, { drainedBeforeRelease: false, drained: true });
 	});
 
 	test('rejects synchronization until overlapping deletion fences are released', async () => {
