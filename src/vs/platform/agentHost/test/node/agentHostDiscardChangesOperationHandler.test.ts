@@ -36,6 +36,7 @@ class TestGitService implements IAgentHostGitService {
 	async getWorktreeRoots(): Promise<URI[]> { return []; }
 	async addWorktree(): Promise<void> { }
 	async copyWorktreeIncludeFiles(): Promise<void> { }
+	async symlinkWorktreeFolders(): Promise<readonly string[]> { return []; }
 	async addExistingWorktree(): Promise<void> { }
 	async removeWorktree(): Promise<void> { }
 	async branchExists(): Promise<boolean> { return false; }
@@ -68,6 +69,7 @@ class TestGitService implements IAgentHostGitService {
 	async diffTreePaths(): Promise<string[] | undefined> { return undefined; }
 	async computeFileDiffsBetweenRefs(): Promise<readonly ISessionFileDiff[] | undefined> { return undefined; }
 	async getFetchRemoteUrls(): Promise<undefined> { return undefined; }
+	async getFetchRemotes(): Promise<undefined> { return undefined; }
 	async getUntrackedPaths(): Promise<readonly string[]> { return this.untrackedPaths; }
 	async getBranchDiffSafetyInfo(): Promise<undefined> { return undefined; }
 	async getDiffPatchBetweenRefs(): Promise<undefined> { return undefined; }

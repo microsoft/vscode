@@ -12,7 +12,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize2 } from '../../../../../nls.js';
 import { MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
-import { renderEditorTabBarFixture } from '../../../../../workbench/test/browser/componentFixtures/editor/editorTabBar.fixture.js';
+import { renderEditorTabsFixture } from '../../../../../workbench/test/browser/componentFixtures/editor/tabs.fixture.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 
 const primaryMenu = MenuId.for('sessions.fixture.editorHeaderPrimary');
@@ -86,7 +86,7 @@ MenuRegistry.appendMenuItem(addTabMenu, {
 function renderHeader(ctx: ComponentFixtureContext, breadcrumbs: boolean, primaryAction: boolean, secondaryAction = false, layoutActions = false, showTabs: 'multiple' | 'single' | 'none' = 'multiple', addTab = false, tabHeight: 'default' | 'compact' = 'default', headerWidth?: number, reserveHeaderSpace = false): void {
 	ctx.container.classList.add('agent-sessions-workbench', 'dock-detail-panel');
 
-	renderEditorTabBarFixture(ctx, {
+	renderEditorTabsFixture(ctx, {
 		modernUI: true,
 		partOptions: { showTabs, tabHeight },
 		breadcrumbs: breadcrumbs ? { filePath: 'on', icons: true } : undefined,
@@ -103,11 +103,12 @@ function renderHeader(ctx: ComponentFixtureContext, breadcrumbs: boolean, primar
 	});
 }
 
-function renderConnectedCard(ctx: ComponentFixtureContext, secondTabActive = false): void {
+function renderConnectedCard(ctx: ComponentFixtureContext, secondTabActive = false, compactLayout = false): void {
 	ctx.container.classList.add('agent-sessions-workbench', 'dock-detail-panel');
-	renderEditorTabBarFixture(ctx, {
+	ctx.container.classList.toggle('modern-ui-compact', compactLayout);
+	renderEditorTabsFixture(ctx, {
 		modernUI: true,
-		width: 358,
+		width: compactLayout ? 360 : 358,
 		editors: [
 			{ resource: URI.file('/Changes'), icon: Codicon.diffMultiple, pinned: true, active: true },
 			...(secondTabActive ? [{ resource: URI.file('/README.md'), pinned: true, active: true }] : []),
@@ -125,6 +126,16 @@ export default defineThemedFixtureGroup({ path: 'sessions/editorHeader/' }, {
 		render: ctx => renderConnectedCard(ctx),
 		additionalThemes: ['visualStudioDark', 'darkHighContrast', 'lightHighContrast'],
 		expectedVisualDescriptions: ['The Changes tab joins the card outline at both upper corners and at the lower-left junction without gaps or doubled borders.'],
+	}),
+	CompactLayoutChangesCard: defineComponentFixture({
+		render: ctx => renderConnectedCard(ctx, false, true),
+		additionalThemes: ['visualStudioDark', 'darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The compact Changes tab outline continues across the inactive tab strip.'],
+	}),
+	CompactLayoutSecondTabCard: defineComponentFixture({
+		render: ctx => renderConnectedCard(ctx, true, true),
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The compact active tab outline connects continuously to the tab strip on both sides.'],
 	}),
 	ConnectedSecondTabCard: defineComponentFixture({
 		render: ctx => renderConnectedCard(ctx, true),

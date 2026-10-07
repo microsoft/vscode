@@ -66,7 +66,7 @@ suite('Agent Host timing OTel', () => {
 				delete process.env[key];
 			}
 			Object.assign(process.env, env);
-			return disposables.add(new AgentHostOTelService(fetchFn, new NullLogService(), new class extends mock<INativeEnvironmentService>() {
+			return disposables.add(new AgentHostOTelService({ fetchFn }, new NullLogService(), new class extends mock<INativeEnvironmentService>() {
 				override readonly userDataPath = directory;
 			}));
 		} finally {
@@ -83,6 +83,18 @@ suite('Agent Host timing OTel', () => {
 	async function readSpans(): Promise<ICompletedSpanData[]> {
 		return (await readFile(outfile, 'utf8')).trim().split('\n').map(line => JSON.parse(line));
 	}
+
+	test('exposes resolved enablement independently of diagnostic export support', () => {
+		const cases: { env: NodeJS.ProcessEnv; enabled: boolean }[] = [
+			{ env: {}, enabled: false },
+			{ env: { COPILOT_OTEL_ENABLED: 'false' }, enabled: false },
+			{ env: { COPILOT_OTEL_ENABLED: 'true' }, enabled: true },
+			{ env: { COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED: 'true' }, enabled: true },
+			{ env: { OTEL_EXPORTER_OTLP_ENDPOINT: 'http://localhost:4318' }, enabled: true },
+			{ env: { COPILOT_OTEL_FILE_EXPORTER_PATH: outfile }, enabled: true },
+		];
+		assert.deepStrictEqual(cases.map(({ env }) => createService(env).enabled), cases.map(({ enabled }) => enabled));
+	});
 
 	test('allowlists diagnostics, preserves zero, and omits unknown or invalid measurements', () => {
 		const attributes = agentHostTimingAttributes({

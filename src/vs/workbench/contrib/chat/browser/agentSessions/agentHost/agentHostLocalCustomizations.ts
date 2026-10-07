@@ -7,11 +7,12 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { basename, isEqualOrParent } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { parseAgentHostHarness } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { CustomizationEnablementKind, type AgentCustomization, CustomizationType, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { customizationId, type ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { AICustomizationSource, AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
-import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
+import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { IPromptsService, isUserToggleableCustomization, matchesSessionType, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { type ICustomizationSyncProvider } from '../../../common/customizationHarnessService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
@@ -71,6 +72,9 @@ export interface ILocalCustomizationFile {
  * (to render disable affordances) and the agent host wire (to compute the
  * `customizations` set published via `activeClientSet`).
  *
+ * Non-default configured agent, skill, and instruction locations are adapted
+ * into client customizations; default locations remain host-discovered.
+ *
  * Built-in skills bundled with the Agents app (only present when the
  * sessions-aware prompts service is in play) are also enumerated so that
  * `/create-pr`, `/merge`, etc. are available to every agent host without
@@ -86,10 +90,14 @@ export async function enumerateLocalCustomizationsForHarness(
 ): Promise<readonly ILocalCustomizationFile[]> {
 	const result: ILocalCustomizationFile[] = [];
 	const seenUris = new ResourceSet();
-	const storageSources = options?.includeUserStorage
+	const harnessSessionType = parseAgentHostHarness(sessionType) ?? sessionType;
+	const fullySyncedStorageSources = options?.includeUserStorage
 		? [PromptsStorage.user, ...SYNCABLE_STORAGE_SOURCES]
 		: SYNCABLE_STORAGE_SOURCES;
 	for (const type of SYNCABLE_PROMPT_TYPES) {
+		const storageSources = type === PromptsType.prompt
+			? fullySyncedStorageSources
+			: [PromptsStorage.local, PromptsStorage.user, ...SYNCABLE_STORAGE_SOURCES];
 		const userDisabled = promptsService.getDisabledPromptFiles(type);
 		const lists = await Promise.all(
 			storageSources.map(storage => promptsService.listPromptFilesForStorage(type, storage, token)),
@@ -98,7 +106,12 @@ export async function enumerateLocalCustomizationsForHarness(
 			const source = storageSources[i];
 			const userToggleable = isUserToggleableCustomization(type, source);
 			for (const file of lists[i]) {
-				if (matchesSessionType(file.sessionTypes, sessionType) && !seenUris.has(file.uri)) {
+				if (!fullySyncedStorageSources.includes(source)
+					&& file.source !== PromptFileSource.ConfigWorkspace
+					&& file.source !== PromptFileSource.ConfigPersonal) {
+					continue;
+				}
+				if (matchesSessionType(file.sessionTypes, harnessSessionType) && !seenUris.has(file.uri)) {
 					seenUris.add(file.uri);
 					result.push({
 						uri: file.uri,

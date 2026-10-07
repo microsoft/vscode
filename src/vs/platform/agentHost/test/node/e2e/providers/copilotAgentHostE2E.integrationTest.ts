@@ -138,7 +138,8 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 	test('client tool reaches ready after start and completes', async function () {
 		this.timeout(180_000);
 		await runAhpSnapshotTest(client, COPILOT_CONFIG, this.test!, createdSessions, tempDirs, {
-			ignoredActionTypes: [ActionType.ChatUsage],
+			// Sandbox metadata can arrive on either side of tool registration.
+			ignoredActionTypes: [ActionType.ChatUsage, ActionType.SessionMetaChanged],
 		});
 
 		const start = client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallStart'))
@@ -940,6 +941,10 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 			ignoredActionTypes: [
 				ActionType.ChatUsage,
 				ActionType.ChatToolCallDelta,
+				// The async shell is published as background work from a separate task-list read,
+				// so its timing against the tool calls isn't part of this scenario.
+				ActionType.ChatBackgroundWorkSet,
+				ActionType.ChatBackgroundWorkRemoved,
 				ActionType.SessionChatUpdated,
 				ActionType.SessionTitleChanged,
 				ActionType.SessionServerToolsChanged,

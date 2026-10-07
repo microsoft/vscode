@@ -64,7 +64,11 @@ export interface IAgentHostConnectionInfo {
  */
 export interface IAgentHostSessionIdentity {
 	readonly connectionAuthority: string;
+	/** Provider-owned remote address, retained even when the live connection has been removed. */
+	readonly connectionAddress?: string;
 	readonly backendSession: URI;
+	/** The backend resource was advertised, not reconstructed by the bounded legacy fallback. */
+	readonly backendSessionIsAdvertised?: true;
 	readonly defaultChangesetKind?: DefaultChangesetKind;
 }
 
@@ -74,6 +78,7 @@ export interface IAgentHostSessionResolution extends IAgentHostSessionIdentity {
 
 /** Provider-owned policy needed to resolve a workbench session resource back to its host. */
 export interface IAgentHostSessionResolutionPolicy {
+	readonly connectionAddress?: string;
 	readonly sessionSchemeAlias?: IAgentHostSessionSchemeAlias;
 	readonly defaultChangesetKind?: DefaultChangesetKind;
 }
@@ -139,6 +144,18 @@ export interface IAgentHostConnectionsService {
 	 * At most one policy may be registered for an authority.
 	 */
 	registerSessionResolutionPolicy(authority: string, policy: IAgentHostSessionResolutionPolicy): IDisposable;
+
+	/** Records an exact backend identity and adapts only its frontend provider scheme. */
+	registerSessionResource(backendSession: URI, authority?: string, provider?: string): URI;
+
+	/** Looks up a frontend resource using its advertised backend identity on one connection. */
+	findSessionResource(backendSession: URI, authority?: string): URI | undefined;
+
+	/**
+	 * Maps a backend session through provider policy only when the resource
+	 * resolves back to that exact session. Unsupported identities return undefined.
+	 */
+	getSessionResource(backendSession: URI, authority?: string): URI | undefined;
 
 	/**
 	 * Resolves an agent-host chat-session resource to its connection authority

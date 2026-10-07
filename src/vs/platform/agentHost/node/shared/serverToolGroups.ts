@@ -8,6 +8,7 @@ import { createSessionServerToolGroup, type ISessionServerToolAccessor } from '.
 import type { IServerToolDisplay, IServerToolDisplayResult, IServerToolGroup } from './agentServerToolHost.js';
 import { createAgentMergeServerToolGroup, type IAgentMergeToolAccessor } from './agentMergeServerTools.js';
 import { createArtifactServerToolGroup, type IArtifactServerToolAccessor } from './artifactServerTools.js';
+import { createSessionIsolationToolGroup, type ISessionIsolationToolAccessor } from './sessionIsolationTools.js';
 
 /**
  * Builds the server-tool groups contributed to every agent host session, in
@@ -25,12 +26,13 @@ import { createArtifactServerToolGroup, type IArtifactServerToolAccessor } from 
  * When omitted (the pure display path) the session group's `execute` is inert,
  * but its definitions and display remain available.
  */
-export function buildServerToolGroups(sessionAccessor?: ISessionServerToolAccessor, agentMergeAccessor?: IAgentMergeToolAccessor, artifactAccessor?: IArtifactServerToolAccessor, areAgentOrchestrationLimitsEnabled?: () => boolean): readonly IServerToolGroup[] {
+export function buildServerToolGroups(sessionAccessor?: ISessionServerToolAccessor, agentMergeAccessor?: IAgentMergeToolAccessor, artifactAccessor?: IArtifactServerToolAccessor, areAgentOrchestrationLimitsEnabled?: () => boolean, isolationAccessor?: ISessionIsolationToolAccessor): readonly IServerToolGroup[] {
 	return [
 		feedbackServerToolGroup,
 		createSessionServerToolGroup(sessionAccessor, areAgentOrchestrationLimitsEnabled),
 		createAgentMergeServerToolGroup(agentMergeAccessor),
 		createArtifactServerToolGroup(artifactAccessor),
+		createSessionIsolationToolGroup(isolationAccessor),
 	];
 }
 

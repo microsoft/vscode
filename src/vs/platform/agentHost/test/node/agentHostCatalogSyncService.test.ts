@@ -4,14 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { DeferredPromise } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import type { ISessionCatalogSyncAcknowledgement, ISessionCatalogSyncPendingSnapshot, SessionCatalogSyncWriteResult } from '../../common/sessionDataService.js';
 import { META_GIT_STATE } from '../../common/agentHostGitStateService.js';
 import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, AgentHostCatalogData, encodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
-import { AgentHostCatalogSyncService } from '../../node/agentHostCatalogSyncService.js';
+import { AgentHostCatalogSyncService, replayPendingCatalogSnapshot } from '../../node/agentHostCatalogSyncService.js';
+import { chatCatalogV2ToCatalogChats } from '../../node/agentHostCatalogSourceResolver.js';
 import { AgentHostDatabase, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabaseSessionV2Envelope } from '../../node/agentHostDatabase.js';
+import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 
 const session = URI.parse('agenthost:test-session');
@@ -130,6 +134,218 @@ suite('AgentHostCatalogSyncService', () => {
 			service: new AgentHostCatalogSyncService(createSessionDataService(local), central, new NullLogService()),
 		};
 	}
+
+	async function activateChatCatalog(central: AgentHostDatabase) {
+		const source = await central.getSessionV2(session.toString());
+		if (!source || !await central.markSessionV2PayloadClean(session.toString(), source.payloadDirty)) {
+			throw new Error('Expected a persisted legacy catalog');
+		}
+		const result = await central.ensureChatCatalogV2(session.toString(), {
+			sessionGeneration: source.sessionGeneration,
+			sourceRevision: source.sourceRevision,
+			payloadHash: source.payloadHash,
+			catalogRevision: 0,
+		}, {
+			defaultChat: { chat: data('initial').chats[0].uri, order: 0, metadata: { summary: 'Chat', titleSource: 'user' } },
+			peers: [],
+			privateDescendants: [],
+		});
+		if (result.status !== 'applied') {
+			throw new Error(`Expected catalog activation, got ${result.status}`);
+		}
+		const [snapshot] = await central.readCatalogSnapshot([session.toString()]);
+		if (!snapshot?.header) {
+			throw new Error('Expected an activated catalog header');
+		}
+		return { ...snapshot, header: snapshot.header };
+	}
+
+	test('synchronizes normalized session aggregates without overwriting a concurrent chat patch', async () => {
+		const { local, central, service } = await createHarness();
+		await service.synchronize(session, { data: data('initial', 'Chat'), legacyMetadata: {} });
+		const snapshot = await activateChatCatalog(central);
+		const request = {
+			data: { ...data('aggregate'), chats: chatCatalogV2ToCatalogChats(snapshot) },
+			legacyMetadata: {},
+			chatCatalogRevision: snapshot.header.revision,
+		};
+		const applied = await service.synchronize(session, request);
+		const chat = snapshot.chats[0];
+		await central.updateChatV2Metadata(chat.chat, chat, { metadata: { ...chat.metadata, summary: 'Concurrent' } });
+		const rejected = await service.synchronize(session, { ...request, data: { ...request.data, summary: 'Stale aggregate' } });
+		const pending = await local.getCatalogSyncSnapshot();
+		const [current] = await central.readCatalogSnapshot([session.toString()]);
+		if (!current?.header) {
+			throw new Error('Expected the current catalog header');
+		}
+		const accepted = await service.synchronize(session, {
+			data: { ...data('Latest aggregate'), chats: chatCatalogV2ToCatalogChats(current) },
+			legacyMetadata: {},
+			chatCatalogRevision: current.header.revision,
+		});
+		const source = await central.getSessionV2(session.toString());
+		const [final] = await central.readCatalogSnapshot([session.toString()]);
+		assert.deepStrictEqual({
+			applied,
+			rejected,
+			pending: pending?.state,
+			accepted,
+			summary: source && summaryOf(source.payload),
+			chat: final.chats[0].metadata?.summary,
+			headerRevision: final.header?.revision,
+			receipt: (await local.getCatalogSyncSnapshot())?.state,
+		}, {
+			applied: { status: 'acknowledged', sourceRevision: 1 },
+			rejected: { status: 'pending', sourceRevision: 2, reason: 'conflict' },
+			pending: 'pending',
+			accepted: { status: 'acknowledged', sourceRevision: 3 },
+			summary: 'Latest aggregate',
+			chat: 'Concurrent',
+			headerRevision: current.header?.revision,
+			receipt: 'acknowledged',
+		});
+	});
+
+	for (const localStorage of [false, true]) {
+		test(`rebuilds normalized requests after a catalog revision conflict ${localStorage ? 'with' : 'without'} local storage`, async () => {
+			const { local, central, service } = await createHarness();
+			await service.synchronize(session, { data: data('initial', 'Chat'), legacyMetadata: {} });
+			await activateChatCatalog(central);
+			const sessionData = createSessionDataService(local);
+			const syncing = localStorage ? service : new AgentHostCatalogSyncService({ ...sessionData, tryOpenDatabase: async () => undefined }, central, new NullLogService());
+			const revisions: number[] = [];
+			const result = await syncing.synchronizeMigrationWithFactory(session, async () => {
+				const [snapshot] = await central.readCatalogSnapshot([session.toString()]);
+				if (!snapshot.header) {
+					throw new Error('Missing normalized synchronization header');
+				}
+				revisions.push(snapshot.header.revision);
+				if (revisions.length === 1) {
+					const chat = snapshot.chats[0];
+					await central.updateChatV2Metadata(chat.chat, chat, { metadata: { ...chat.metadata, summary: 'Concurrent title' } });
+				}
+				return {
+					data: { ...data('aggregate'), chats: chatCatalogV2ToCatalogChats(snapshot) },
+					legacyMetadata: {},
+					chatCatalogRevision: snapshot.header.revision,
+				};
+			});
+			const stored = await central.getSessionV2(session.toString());
+			assert.deepStrictEqual({
+				status: result.status,
+				revisions,
+				summary: stored && summaryOf(stored.payload),
+				chat: stored && JSON.parse(stored.payload).data.chats[0].summary,
+				receipt: localStorage ? (await local.getCatalogSyncSnapshot())?.state : undefined,
+			}, {
+				status: 'acknowledged', revisions: [1, 2], summary: 'aggregate', chat: 'Concurrent title',
+				receipt: localStorage ? 'acknowledged' : undefined,
+			});
+		});
+	}
+
+	test('replays a durable normalized aggregate without legacy upsert or chat mutation', async () => {
+		const { local, central, service } = await createHarness();
+		await service.synchronize(session, { data: data('initial', 'Chat'), legacyMetadata: {} });
+		const snapshot = await activateChatCatalog(central);
+		const source = await central.getSessionV2(session.toString());
+		const encoded = encodeAgentHostCatalogPayload({ ...data('Replayed aggregate'), chats: chatCatalogV2ToCatalogChats(snapshot) });
+		if (!source || !encoded.ok) {
+			throw new Error('Expected a valid normalized aggregate');
+		}
+		const pending: ISessionCatalogSyncPendingSnapshot = {
+			sessionGeneration: source.sessionGeneration,
+			sourceRevision: source.sourceRevision + 1,
+			projectionVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
+			payload: encoded.value.payload,
+			payloadHash: encoded.value.payloadHash,
+			state: 'pending',
+		};
+		await local.setMetadataValuesAndCatalogSyncSnapshot({}, pending);
+		const result = await replayPendingCatalogSnapshot(central, session, pending, acknowledgement => local.acknowledgeCatalogSyncSnapshot(acknowledgement), CancellationToken.None);
+		const stored = await central.getSessionV2(session.toString());
+		assert.deepStrictEqual({
+			result,
+			summary: stored && summaryOf(stored.payload),
+			snapshot: (await central.readCatalogSnapshot([session.toString()]))[0],
+			receipt: (await local.getCatalogSyncSnapshot())?.state,
+		}, {
+			result: { session: session.toString(), status: 'succeeded', reason: 'pendingReplayed', sourceRevision: 1 },
+			summary: 'Replayed aggregate',
+			snapshot,
+			receipt: 'acknowledged',
+		});
+	});
+
+	test('traces queued catalog work separately from its execution and preserves failures', async () => {
+		const { local, central } = await createHarness();
+		const traces: { operationId: string; stage: string; outcome?: string; queueWaitMs?: number; executionMs?: number }[] = [];
+		const logService = new class extends NullLogService {
+			override trace(message: string): void {
+				const match = /operationId=(?<operationId>[^,]+), kind=write, stage=(?<stage>[^,]+)(?:, outcome=(?<outcome>[^,]+))?(?:, queueWaitMs=(?<queueWaitMs>\d+))?(?:, executionMs=(?<executionMs>\d+))?$/.exec(message);
+				if (match?.groups) {
+					traces.push({
+						operationId: match.groups.operationId,
+						stage: match.groups.stage,
+						outcome: match.groups.outcome,
+						queueWaitMs: match.groups.queueWaitMs === undefined ? undefined : Number(match.groups.queueWaitMs),
+						executionMs: match.groups.executionMs === undefined ? undefined : Number(match.groups.executionMs),
+					});
+				}
+			}
+		}();
+		const service = new AgentHostCatalogSyncService(createSessionDataService(local), central, logService);
+		const started = new DeferredPromise<void>();
+		const release = new DeferredPromise<void>();
+		const blocker = service.runExclusive(session, async () => {
+			started.complete();
+			await release.p;
+		});
+		await started.p;
+		const queued = service.runExclusive(session, async () => { throw new Error('catalog operation failed'); });
+		const rejected = assert.rejects(queued, /catalog operation failed/);
+		const beforeRelease = traces.map(trace => trace.stage);
+		release.complete();
+		await Promise.all([blocker, rejected]);
+
+		assert.deepStrictEqual({
+			beforeRelease,
+			stages: traces.map(trace => [trace.stage, trace.outcome]),
+			operationCount: new Set(traces.map(trace => trace.operationId)).size,
+			validDurations: traces.filter(trace => trace.stage === 'settled').every(trace => trace.queueWaitMs !== undefined && trace.queueWaitMs >= 0 && trace.executionMs !== undefined && trace.executionMs >= 0),
+		}, {
+			beforeRelease: ['queued', 'started', 'queued'],
+			stages: [
+				['queued', undefined],
+				['started', undefined],
+				['queued', undefined],
+				['settled', 'completed'],
+				['started', undefined],
+				['settled', 'failed'],
+			],
+			operationCount: 2,
+			validDurations: true,
+		});
+	});
+
+	test('traces the local write boundary before awaiting it', async () => {
+		const { local, central } = await createHarness();
+		const stages: string[] = [];
+		const logService = new class extends NullLogService {
+			override trace(message: string): void {
+				const match = /attempt=\d+, stage=(?<stage>[^,]+)/.exec(message);
+				if (match?.groups) {
+					stages.push(match.groups.stage);
+				}
+			}
+		}();
+		const service = new AgentHostCatalogSyncService(createSessionDataService(local), central, logService);
+		local.failLocalWrite = true;
+
+		await assert.rejects(service.synchronize(session, { data: data('one'), legacyMetadata: {} }), /local write failed/);
+
+		assert.deepStrictEqual(stages, ['readLocalReceipt', 'readCentralCatalog', 'readLegacyMetadata', 'writeLocalReceipt']);
+	});
 
 	test('writes legacy metadata and pending receipt before sessions_v2, then clears payload on exact acknowledgement', async () => {
 		const order: string[] = [];
@@ -417,6 +633,178 @@ suite('AgentHostCatalogSyncService', () => {
 		});
 	});
 
+	test('targeted replay recovers a pending payload when there is no central row', async () => {
+		const { local, central, service } = await createHarness();
+		central.upsertError = new Error('central unavailable');
+		await service.synchronize(session, { data: data('pending'), legacyMetadata: { customTitle: 'pending' } });
+		central.upsertError = undefined;
+
+		const result = await service.replayPending(session, CancellationToken.None);
+		const catalog = await central.getSessionV2(session.toString());
+
+		assert.deepStrictEqual({
+			result,
+			receipt: (await local.getCatalogSyncSnapshot())?.state,
+			title: catalog && summaryOf(catalog.payload),
+		}, {
+			result: { session: session.toString(), status: 'succeeded', reason: 'pendingReplayed', sourceRevision: 0 },
+			receipt: 'acknowledged',
+			title: 'pending',
+		});
+	});
+
+	test('targeted replay skips already acknowledged snapshots without reading the central catalog', async () => {
+		const { central, service } = await createHarness();
+		await service.synchronize(session, { data: data('one'), legacyMetadata: {} });
+		central.calls.length = 0;
+
+		const result = await service.replayPending(session, CancellationToken.None);
+
+		assert.deepStrictEqual({ result, calls: central.calls }, { result: undefined, calls: [] });
+	});
+
+	test('targeted replay respects a session deletion fence', async () => {
+		const { local, central, service } = await createHarness();
+		central.upsertError = new Error('central unavailable');
+		await service.synchronize(session, { data: data('pending'), legacyMetadata: {} });
+		const fence = store.add(service.beginSessionDeletion(session));
+		await fence.whenDrained;
+		central.calls.length = 0;
+
+		const result = await service.replayPending(session, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			result,
+			calls: central.calls,
+			receipt: (await local.getCatalogSyncSnapshot())?.state,
+		}, {
+			result: undefined,
+			calls: [],
+			receipt: 'pending',
+		});
+	});
+
+	test('targeted replay cancelled while queued performs no central writes', async () => {
+		const { local, central, service } = await createHarness();
+		central.upsertError = new Error('central unavailable');
+		await service.synchronize(session, { data: data('pending'), legacyMetadata: {} });
+		const started = new DeferredPromise<void>();
+		const release = new DeferredPromise<void>();
+		const blocker = service.runExclusive(session, async () => {
+			started.complete();
+			await release.p;
+		});
+		await started.p;
+		central.calls.length = 0;
+		const cancellation = store.add(new CancellationTokenSource());
+		const replay = service.replayPending(session, cancellation.token);
+		cancellation.cancel();
+		release.complete();
+		await blocker;
+
+		assert.deepStrictEqual({
+			result: await replay,
+			calls: central.calls,
+			receipt: (await local.getCatalogSyncSnapshot())?.state,
+		}, {
+			result: undefined,
+			calls: [],
+			receipt: 'pending',
+		});
+	});
+
+	test('a targeted replay queued during a real catalog close retains its pending snapshot', async () => {
+		const snapshotQueued = new DeferredPromise<void>();
+		class ClosingCatalogDatabase extends AgentHostDatabase {
+			failUpsert = true;
+
+			override async upsertSessionV2(envelope: IAgentHostDatabaseSessionV2Envelope, expectedSessionGeneration: string | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult> {
+				if (this.failUpsert) {
+					throw new Error('central unavailable');
+				}
+				return super.upsertSessionV2(envelope, expectedSessionGeneration);
+			}
+
+			override readCatalogSnapshot(sessions?: readonly string[]) {
+				const result = super.readCatalogSnapshot(sessions);
+				snapshotQueued.complete();
+				return result;
+			}
+		}
+		const local = new TestSessionDatabase();
+		const central = store.add(new ClosingCatalogDatabase(':memory:'));
+		await central.registerSessionV2(session.toString(), {
+			provider: 'copilotcli',
+			startTime: 1,
+			source: 'explicit',
+		}, { checkTombstone: false });
+		const service = new AgentHostCatalogSyncService(createSessionDataService(local), central, new NullLogService());
+		await service.synchronize(session, { data: data('pending'), legacyMetadata: {} });
+		central.failUpsert = false;
+		const started = new DeferredPromise<void>();
+		const release = new DeferredPromise<void>();
+		const transactionSequencer = (central as unknown as {
+			_transactionSequencer: { queue<T>(operation: () => Promise<T>): Promise<T> };
+		})._transactionSequencer;
+		const blocker = transactionSequencer.queue(async () => {
+			started.complete();
+			await release.p;
+		});
+		await started.p;
+		const replay = service.replayPending(session, CancellationToken.None);
+		try {
+			await snapshotQueued.p;
+			await central.close();
+		} finally {
+			release.complete();
+		}
+		await blocker;
+
+		assert.deepStrictEqual({
+			result: await replay,
+			receipt: (await local.getCatalogSyncSnapshot())?.state,
+		}, {
+			result: { session: session.toString(), status: 'pending', reason: 'upsertFailed', sourceRevision: 0 },
+			receipt: 'pending',
+		});
+	});
+
+	for (const stage of ['catalog read', 'tombstone read', 'central upsert']) {
+		test(`targeted replay stops when cancelled during ${stage}`, async () => {
+			const { local, central, service } = await createHarness();
+			central.upsertError = new Error('central unavailable');
+			await service.synchronize(session, { data: data('pending'), legacyMetadata: {} });
+			central.upsertError = undefined;
+			const cancellation = store.add(new CancellationTokenSource());
+			if (stage === 'catalog read') {
+				central.getSessionV2 = async () => {
+					cancellation.cancel();
+					return undefined;
+				};
+			} else if (stage === 'tombstone read') {
+				central.isSessionTombstoned = async () => {
+					cancellation.cancel();
+					return false;
+				};
+			} else {
+				central.upsertSessionV2 = async () => {
+					cancellation.cancel();
+					return 'applied';
+				};
+			}
+
+			const result = await service.replayPending(session, cancellation.token);
+
+			assert.deepStrictEqual({
+				result,
+				receipt: (await local.getCatalogSyncSnapshot())?.state,
+			}, {
+				result: { session: session.toString(), status: 'retry', reason: 'cancelled' },
+				receipt: 'pending',
+			});
+		});
+	}
+
 	test('replays an acknowledged exact receipt without rewriting sessions_v2', async () => {
 		const { local, central, service } = await createHarness();
 		const request = { data: data('one'), legacyMetadata: { customTitle: 'one' } };
@@ -605,6 +993,117 @@ suite('AgentHostCatalogSyncService', () => {
 			],
 			title: 'three',
 		});
+	});
+
+	for (const operation of ['write', 'migration'] as const) {
+		test(`serializes a ${operation} through another URI for the same session database`, async () => {
+			const local = store.add(await SessionDatabase.open(':memory:'));
+			const central = store.add(new AgentHostDatabase(':memory:'));
+			const service = new AgentHostCatalogSyncService(createSessionDataService(local), central, new NullLogService());
+			const legacySession = URI.parse('codex:/shared-session');
+			const standardSession = URI.parse('ahp-session:/shared-session');
+			for (const resource of [legacySession, standardSession]) {
+				await central.registerSessionV2(resource.toString(), {
+					provider: 'codex', startTime: 1, source: 'restore',
+				}, { checkTombstone: true });
+			}
+			const started = new DeferredPromise<void>();
+			const release = new DeferredPromise<void>();
+			const order: string[] = [];
+			const first = service.runExclusive(legacySession, async synchronize => {
+				order.push('first started');
+				started.complete();
+				await release.p;
+				const result = await synchronize({ data: data('first'), legacyMetadata: { customTitle: 'first' } });
+				order.push('first finished');
+				return result;
+			});
+			await started.p;
+			const request = { data: data('second'), legacyMetadata: { customTitle: 'second' } };
+			const second = operation === 'write'
+				? service.runExclusive(standardSession, async synchronize => {
+					order.push('second started');
+					return synchronize(request);
+				})
+				: service.runMigrationExclusive(standardSession, async (_database, synchronize) => {
+					order.push('second started');
+					return synchronize(request);
+				});
+			release.complete();
+			const results = await Promise.allSettled([first, second]);
+			const snapshot = await local.getCatalogSyncSnapshot();
+			const catalog = await central.getSessionV2(standardSession.toString());
+
+			assert.deepStrictEqual({
+				results,
+				order,
+				title: await local.getMetadata('customTitle'),
+				receipt: snapshot?.state,
+				generationMatches: snapshot?.sessionGeneration === catalog?.sessionGeneration,
+			}, {
+				results: [
+					{ status: 'fulfilled', value: { status: 'acknowledged', sourceRevision: 0 } },
+					{ status: 'fulfilled', value: { status: 'acknowledged', sourceRevision: 0 } },
+				],
+				order: ['first started', 'first finished', 'second started'],
+				title: 'second',
+				receipt: 'acknowledged',
+				generationMatches: true,
+			});
+		});
+	}
+
+	test('shares deletion fences across session storage aliases', async () => {
+		const { service } = await createHarness();
+		const alias = session.with({ scheme: 'ahp-session' });
+		const firstFence = store.add(service.beginSessionDeletion(session));
+		await firstFence.whenDrained;
+
+		await assert.rejects(
+			service.synchronize(alias, { data: data('blocked'), legacyMetadata: {} }),
+			/Catalog synchronization rejected during session deletion/,
+		);
+		await assert.rejects(service.runMigrationExclusive(alias, async () => { }), /Catalog synchronization rejected during session deletion/);
+		const replay = await service.replayPending(alias, CancellationToken.None);
+		const secondFence = store.add(service.beginSessionDeletion(alias));
+		await secondFence.whenDrained;
+		firstFence.dispose();
+		const fencedAfterFirstRelease = service.isSessionDeletionFenced(session);
+		secondFence.dispose();
+
+		assert.deepStrictEqual({
+			replay,
+			fencedAfterFirstRelease,
+			fencedAfterSecondRelease: service.isSessionDeletionFenced(alias),
+		}, {
+			replay: undefined,
+			fencedAfterFirstRelease: true,
+			fencedAfterSecondRelease: false,
+		});
+	});
+
+	test('deletion drains writes through storage aliases while unrelated sessions remain independent', async () => {
+		const { service } = await createHarness();
+		const started = new DeferredPromise<void>();
+		const release = new DeferredPromise<void>();
+		const writer = service.runExclusive(session, async () => {
+			started.complete();
+			await release.p;
+		});
+		await started.p;
+		const fence = store.add(service.beginSessionDeletion(session.with({ scheme: 'ahp-session' })));
+		let drained = false;
+		const drain = fence.whenDrained.then(() => { drained = true; });
+		let drainedBeforeRelease: boolean;
+		try {
+			await service.runExclusive(URI.parse('codex:/independent-session'), async () => { });
+			drainedBeforeRelease = drained;
+		} finally {
+			release.complete();
+			await Promise.all([writer, drain]);
+		}
+
+		assert.deepStrictEqual({ drainedBeforeRelease, drained }, { drainedBeforeRelease: false, drained: true });
 	});
 
 	test('rejects synchronization until overlapping deletion fences are released', async () => {

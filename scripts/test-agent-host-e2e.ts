@@ -62,12 +62,22 @@ const suites: readonly ISuite[] = [
 		label: 'Copilot',
 		file: 'src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts',
 	},
+	{
+		id: 'copilot-otel',
+		label: 'Copilot OTel',
+		file: 'src/vs/platform/agentHost/test/node/e2e/providers/copilotOtelAgentHostE2E.integrationTest.ts',
+	},
+	{
+		id: 'copilot-managed-settings',
+		label: 'Copilot managed settings',
+		file: 'src/vs/platform/agentHost/test/node/e2e/providers/copilotManagedSettingsAgentHostE2E.integrationTest.ts',
+	},
 ];
 
 async function main(): Promise<void> {
 	validateEnvironment();
 	const { jobs, forwardedArgs } = parseArguments(process.argv.slice(2));
-	prepareTestRuntime();
+	await prepareTestRuntime();
 
 	const startedAt = process.hrtime.bigint();
 	const surfaceOutputs = prepareSurfaceOutputs();
@@ -138,7 +148,7 @@ function parseArguments(args: readonly string[]): { jobs: number; forwardedArgs:
 	return { jobs: Math.min(jobs, suites.length), forwardedArgs };
 }
 
-function prepareTestRuntime(): void {
+async function prepareTestRuntime(): Promise<void> {
 	const environment = { ...process.env };
 	delete environment.ELECTRON_RUN_AS_NODE;
 
@@ -146,7 +156,8 @@ function prepareTestRuntime(): void {
 	if (!existsSync(join(repoRoot, 'node_modules'))) {
 		runSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['install'], environment);
 	}
-	if (process.env['VSCODE_SKIP_PRELAUNCH'] !== '1') {
+	const { shouldDownloadElectron } = await import('../build/lib/electronVersion.ts');
+	if (shouldDownloadElectron(repoRoot, environment)) {
 		runSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'electron'], environment);
 	}
 }

@@ -45,5 +45,9 @@ suite('AgentHostTelemetry', () => {
 			},
 			connectionKind: AgentHostClientConnectionKind.DevContainer,
 		});
+
+		test('Mission Control connection kind round trips through client metadata', () => {
+			assert.strictEqual(readClientConnectionKind(toAgentHostClientMeta(AgentHostClientConnectionKind.MissionControl, TelemetryLevel.USAGE, undefined, undefined)), AgentHostClientConnectionKind.MissionControl);
+		});
 	});
 });

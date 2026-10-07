@@ -18,6 +18,7 @@ import { resolveModelConfigValue } from '../../../platform/inlineEdits/common/mo
 import { observeUnifiedCompletions } from './unifiedCompletions';
 import { shortenOpportunityId } from '../../../platform/inlineEdits/common/utils/utils';
 import { ILogger, ILogService } from '../../../platform/log/common/logService';
+import { gitHubCopilotRequestTeProperty } from '../../../platform/networking/common/fetch';
 import { getNotebookId } from '../../../platform/notebook/common/helpers';
 import { INotebookService } from '../../../platform/notebook/common/notebookService';
 import { CapturingToken } from '../../../platform/requestLogger/common/capturingToken';
@@ -703,7 +704,7 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 		if (isLlmCompletionInfo(info)) {
 			this.model.nextEditProvider.handleAcceptance(info.documentId, info.suggestion);
 			if (!item.isEditInAnotherDocument) {
-				this._trackSurvivalRate(info);
+				this._trackSurvivalRate(info, item.telemetryBuilder);
 			}
 		} else {
 			this.model.diagnosticsBasedProvider?.handleAcceptance(info.documentId, info.suggestion);
@@ -711,11 +712,12 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 	}
 
 	// TODO: Support tracking Diagnostics NES
-	private async _trackSurvivalRate(item: LlmCompletionInfo) {
+	private async _trackSurvivalRate(item: LlmCompletionInfo, telemetryBuilder: NextEditProviderTelemetryBuilder) {
 		const result = item.suggestion.result;
 		if (!result || !result.edit) {
 			return;
 		}
+		const gitHubCopilotRequestTe = telemetryBuilder.nesBuilder.getGitHubCopilotRequestTe();
 
 		const docBeforeEdits = result.documentBeforeEdits.value;
 		const docAfterEdits = result.edit.toEdit().apply(docBeforeEdits);
@@ -738,12 +740,13 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 			diffedNextEdit,
 			userEdits,
 			{ includeArc: true },
-			res => {
+			res => void gitHubCopilotRequestTe.then(requestTe => {
 				/* __GDPR__
 					"reportInlineEditSurvivalRate" : {
 						"owner": "hediet",
 						"comment": "Reports the survival rate for an inline edit.",
 						"opportunityId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Unique identifier for an opportunity to show an NES." },
+						"gitHubCopilotRequestTe": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Raw value of the CAPI X-GitHub-Copilot-Request-Te response header for the model call that produced the accepted edit, logged unmodified. Non-user-identifying service metadata; omitted when absent." },
 
 						"survivalRateFourGram": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The rate between 0 and 1 of how much of the AI edit is still present in the document." },
 						"survivalRateNoRevert": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The rate between 0 and 1 of how much of the ranges the AI touched ended up being reverted." },
@@ -755,6 +758,7 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 				this._telemetryService.sendTelemetryEvent('reportInlineEditSurvivalRate', { microsoft: true, github: { eventNamePrefix: 'copilot-nes/' } },
 					{
 						opportunityId: item.requestUuid,
+						...gitHubCopilotRequestTeProperty(requestTe),
 					},
 					{
 						survivalRateFourGram: res.fourGram,
@@ -764,8 +768,7 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 						arc: res.arc!,
 					}
 				);
-
-			}
+			})
 		);
 	}
 

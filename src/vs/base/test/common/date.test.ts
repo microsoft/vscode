@@ -40,6 +40,7 @@ suite('Date', () => {
 			strictEqual(fromNow(Date.now() - 35000), '35 secs');
 			strictEqual(fromNow(Date.now() - 35000, undefined, false), '35 secs');
 			strictEqual(fromNow(Date.now() - 35000, undefined, true), '35 seconds');
+			strictEqual(fromNow(Date.now() + 4 * 60 * 60 * 1000, false, true), 'in 4 hours');
 		});
 		test('disallowNow', () => {
 			strictEqual(fromNow(Date.now() - 5000), 'now');

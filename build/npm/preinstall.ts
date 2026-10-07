@@ -7,6 +7,7 @@ import * as fs from 'fs';
 import * as child_process from 'child_process';
 import * as os from 'os';
 import { isUpToDate, forceInstallMessage } from './installStateHash.ts';
+import { isCloudSandbox } from './cloudSandbox.ts';
 
 if (!process.env['VSCODE_SKIP_NODE_VERSION_CHECK']) {
 	// Get the running Node.js version
@@ -194,6 +195,9 @@ function getHeaderInfo(rcFile: string): { disturl: string; target: string } | un
 		let match = line.match(/\s*disturl=*\"(.*)\"\s*$/);
 		if (match !== null && match.length >= 1) {
 			disturl = match[1];
+			if (isCloudSandbox() && disturl === 'https://electronjs.org/headers') {
+				disturl = 'https://artifacts.electronjs.org/headers/dist';
+			}
 		}
 		match = line.match(/\s*target=*\"(.*)\"\s*$/);
 		if (match !== null && match.length >= 1) {

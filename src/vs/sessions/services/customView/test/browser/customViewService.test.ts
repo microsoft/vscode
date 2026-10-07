@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { constObservable, IObservable } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -54,6 +54,51 @@ suite('Sessions - CustomViewService', () => {
 			shown: first,
 			replaced: second,
 			hidden: undefined,
+		});
+	});
+
+	test('hides a custom view atomically with its replacement destination', () => {
+		const service = createService();
+		disposables.add(service.registerCustomView(descriptor('view')));
+		service.showCustomView('view');
+		const session = observableValue('session', 'first');
+		const observed: { view: string | undefined; session: string }[] = [];
+		disposables.add(autorun(reader => observed.push({
+			view: service.activeCustomView.read(reader)?.id,
+			session: session.read(reader),
+		})));
+
+		transaction(tx => {
+			service.hideCustomView(tx);
+			session.set('second', tx);
+		});
+
+		assert.deepStrictEqual(observed, [
+			{ view: 'view', session: 'first' },
+			{ view: undefined, session: 'second' },
+		]);
+	});
+
+	test('reopening a view publishes intent without replacing its rendered descriptor', () => {
+		const service = createService();
+		disposables.add(service.registerCustomView(descriptor('view')));
+		const openings: string[] = [];
+		const descriptors: (string | undefined)[] = [];
+		disposables.add(autorun(reader => {
+			const opening = service.activeCustomViewOpen.read(reader);
+			if (opening) {
+				openings.push(opening.source);
+			}
+		}));
+		disposables.add(autorun(reader => descriptors.push(service.activeCustomView.read(reader)?.id)));
+
+		service.showCustomView('view');
+		service.showCustomView('view', { source: 'history' });
+		service.showCustomView('view');
+
+		assert.deepStrictEqual({ openings, descriptors }, {
+			openings: ['explicit', 'history', 'explicit'],
+			descriptors: [undefined, 'view'],
 		});
 	});
 

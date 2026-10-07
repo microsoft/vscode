@@ -46,7 +46,7 @@ import {
 	type Turn
 } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
-import { AgentHostResponseFileChangesProvider } from '../../../browser/agentSessions/agentHost/agentHostResponseFileChanges.js';
+import { agentHostChangesetFileToEntryDiff, AgentHostResponseFileChangesProvider } from '../../../browser/agentSessions/agentHost/agentHostResponseFileChanges.js';
 import { AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES, IChatResponseFileEdit } from '../../../browser/chatResponseFileChangesService.js';
 
 class FakeAgentConnection extends mock<IAgentConnection>() {
@@ -154,6 +154,30 @@ suite('AgentHostResponseFileChangesProvider', () => {
 		ds.add(autorun(r => { latest = obs.read(r); runs++; }));
 		return { latest: () => latest, runs: () => runs };
 	}
+
+	test('response diffs preserve renamed file paths independently of content addresses', () => {
+		const diff = agentHostChangesetFileToEntryDiff({
+			id: 'renamed-file',
+			edit: {
+				before: { uri: 'file:///repo/old.ts', content: { uri: 'opaque-content:/a1' } },
+				after: { uri: 'file:///repo/new.ts', content: { uri: 'opaque-content:/b2' } },
+			},
+		}, authority)!;
+
+		assert.deepStrictEqual({
+			file: diff.modifiedURI.path,
+			before: diff.originalURI.path,
+			after: diff.modifiedSnapshotURI?.path,
+			beforeContent: fromAgentHostUri(diff.originalURI).toString(),
+			afterContent: diff.modifiedSnapshotURI && fromAgentHostUri(diff.modifiedSnapshotURI).toString(),
+		}, {
+			file: '/repo/new.ts',
+			before: '/repo/old.ts',
+			after: '/repo/new.ts',
+			beforeContent: 'opaque-content:/a1',
+			afterContent: 'opaque-content:/b2',
+		});
+	});
 
 	for (const owner of ['session', 'chat'] as const) {
 		test(`uses the advertised ${owner}-owned turn URI for an opaque chat`, () => {
@@ -497,8 +521,8 @@ suite('AgentHostResponseFileChangesProvider', () => {
 		}, {
 			originalScheme: 'vscode-agent-host',
 			originalAuthority: 'local',
-			originalSource: 'git-blob://a-before/',
-			modifiedSource: 'git-blob://a-after/',
+			originalSource: 'git-blob://a-before',
+			modifiedSource: 'git-blob://a-after',
 		});
 	});
 
@@ -1321,6 +1345,84 @@ suite('AgentHostResponseFileChangesProvider', () => {
 			isAuthoritativeEmpty: true,
 		});
 	});
+
+	test('excludes response edits outside a known session workspace', () => {
+		const ds = store.add(new DisposableStore());
+		const conn = new FakeAgentConnection();
+		const provider = ds.add(createProvider(conn, () => backendSession, () => defaultChatUri));
+
+		conn.setState(backendSession.toString(), { workingDirectories: [URI.file('/repo').toString()], chats: [] } as unknown as SessionState);
+		conn.setState(turnChangesetUri('t1', defaultChatUri), { status: ChangesetStatus.Computing, files: [] } satisfies ChangesetState);
+		conn.setState(turnChangesetUri('t2', defaultChatUri), { status: ChangesetStatus.Computing, files: [] } satisfies ChangesetState);
+		conn.setState(defaultChatUri.toString(), {
+			changesets: turnChangesetCatalog(defaultChatUri),
+			turns: [
+				{ id: 't1', responseParts: [toolCallPart(fileEdit('/repo/app.ts'), 'app'), toolCallPart(fileEdit('/session-state/plan.md'), 'plan')] },
+				{ id: 't2', responseParts: [toolCallPart(fileEdit('/session-state/plan.md'))] },
+			],
+		} as unknown as ChatState);
+
+		const mixed = observe(provider, ds, 't1');
+		const outsideOnly = observe(provider, ds, 't2');
+		conn.setState(turnChangesetUri('t2', defaultChatUri), { status: ChangesetStatus.Ready, files: [] } satisfies ChangesetState);
+
+		assert.deepStrictEqual({
+			mixed: mixed.latest().map(diff => fromAgentHostUri(diff.modifiedURI).path),
+			outsideOnly: outsideOnly.latest(),
+			outsideOnlyIsAuthoritativeEmpty: outsideOnly.latest() === AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES,
+		}, {
+			mixed: ['/repo/app.ts'],
+			outsideOnly: [],
+			outsideOnlyIsAuthoritativeEmpty: true,
+		});
+	});
+
+	for (const { scope, workingDirectories, expected } of [
+		{ scope: 'a subset', workingDirectories: [URI.file('/peer').toString()], expected: ['/peer/app.ts'] },
+		{ scope: 'no working-directory access', workingDirectories: [], expected: [] },
+	]) {
+		test(`uses the turn-owning chat workspace when filtering response edits for ${scope}`, () => {
+			const ds = store.add(new DisposableStore());
+			const conn = new FakeAgentConnection();
+			const peerChatUri = URI.parse('ahp-chat:/peer');
+			const peerChat = createChatState({
+				resource: peerChatUri.toString(),
+				title: 'Peer',
+				status: SessionStatus.Idle,
+				modifiedAt: new Date(0).toISOString(),
+				workingDirectories,
+			});
+			const provider = ds.add(createProvider(conn, () => backendSession, () => peerChatUri));
+
+			conn.setState(backendSession.toString(), {
+				workingDirectories: [URI.file('/repo').toString()],
+				chats: [peerChat],
+				defaultChat: defaultChatUri.toString(),
+			} as unknown as SessionState);
+			conn.setState(turnChangesetUri('t1', peerChatUri), { status: ChangesetStatus.Computing, files: [] } satisfies ChangesetState);
+			conn.setState(peerChatUri.toString(), {
+				...peerChat,
+				changesets: turnChangesetCatalog(peerChatUri),
+				turns: [{
+					id: 't1',
+					responseParts: [
+						toolCallPart(fileEdit('/peer/app.ts'), 'peer'),
+						toolCallPart(fileEdit('/repo/parent.ts'), 'parent'),
+					],
+				}],
+			} as unknown as ChatState);
+
+			const observed = observe(provider, ds);
+
+			assert.deepStrictEqual({
+				files: observed.latest().map(diff => fromAgentHostUri(diff.modifiedURI).path),
+				isAuthoritativeEmpty: observed.latest() === AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES,
+			}, {
+				files: expected,
+				isAuthoritativeEmpty: expected.length === 0,
+			});
+		});
+	}
 
 	test('the recorded migrated turn falls back to the branch changeset when its turn changeset is empty', () => {
 		// #333642: migrated legacy Copilot CLI sessions have no per-turn

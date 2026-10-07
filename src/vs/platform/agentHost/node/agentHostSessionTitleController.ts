@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Limiter } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { isObject } from '../../../base/common/types.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
@@ -16,7 +15,9 @@ import { ActionType } from '../common/state/sessionActions.js';
 import { buildDefaultChatUri, isAhpChatChannel, isDefaultChatUri, TurnState, type Turn, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { buildConversationContext, renderResponseMarkdown, truncateMiddle } from '../common/agentHostConversationContext.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
-import type { GitHubIssueOrPullRequest, IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
+import type { IAgentHostPeerChatPersistenceService } from './agentHostPeerChatStore.js';
+import type { GitHubIssueOrPullRequest } from '../../github/common/githubQueryService.js';
+import type { IAgentHostGitHubService } from './agentHostGitHubService.js';
 import { ICopilotApiService, type ICopilotUtilityChatMessage } from './shared/copilotApiService.js';
 import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, persistSessionMetadata, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
 
@@ -24,7 +25,6 @@ const MAX_TITLE_LENGTH = 200;
 const MAX_ACTIVE_AGENT_FALLBACK_TITLE_LENGTH = 40;
 const MAX_TITLE_TOKENS = 32;
 const GITHUB_CONTEXT_REQUEST_TIMEOUT = 5_000;
-const MAX_CONCURRENT_GITHUB_CONTEXT_REQUESTS = 5;
 const MAX_GITHUB_CONTEXT_BODY_CHARS = 4_000;
 const MAX_GITHUB_CONTEXT_REFERENCES = 10;
 const MAX_TRAILING_HAN_SUFFIX_CODE_UNITS = 6;
@@ -86,13 +86,15 @@ interface ITitlePromptContext {
 
 export interface IAgentHostSessionTitleControllerOptions {
 	readonly sessionDataService: ISessionDataService;
+	readonly persistMetadata?: (resource: ProtocolURI, values: Readonly<Record<string, string>>) => Promise<void>;
+	readonly readNormalizedChat?: IAgentHostPeerChatPersistenceService['readNormalizedChat'];
 	readonly queueCatalogSync?: (session: ProtocolURI, metadataOverrides: Readonly<Record<string, string>>) => void;
 	readonly persistSurfacedSessionTitle?: (session: ProtocolURI, title: string) => Promise<void>;
 	readonly getGitHubCopilotToken?: () => string | undefined;
 	readonly getGitHubToken?: () => string | undefined;
 	readonly getGitHubHost?: () => string | undefined;
 	readonly gitHubContextRequestTimeout?: number;
-	readonly octoKitService?: IAgentHostOctoKitService;
+	readonly gitHubService?: IAgentHostGitHubService;
 	readonly copilotApiService?: ICopilotApiService;
 	readonly getInitialTitleGenerationStrategy?: () => AutomaticTitleGenerationStrategy;
 }
@@ -677,23 +679,19 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 	private async _appendGitHubContext(promptContent: string, referenceSource: string, cancellationSignal: AbortSignal, token: CancellationToken): Promise<string> {
 		const references = this._parseGitHubReferences(referenceSource);
 		const githubToken = this._options.getGitHubToken?.();
-		const octoKitService = this._options.octoKitService;
-		if (references.length === 0 || !githubToken || !octoKitService) {
+		const gitHubService = this._options.gitHubService;
+		if (references.length === 0 || !githubToken || !gitHubService) {
 			return promptContent;
 		}
 
 		const signal = AbortSignal.any([cancellationSignal, AbortSignal.timeout(this._options.gitHubContextRequestTimeout ?? GITHUB_CONTEXT_REQUEST_TIMEOUT)]);
-		const limiter = new Limiter<IGitHubReferenceContext | undefined>(MAX_CONCURRENT_GITHUB_CONTEXT_REQUESTS);
+		const store = new DisposableStore();
 		try {
-			const contexts = await Promise.all(references.map(reference => limiter.queue(async () => {
+			const client = store.add(gitHubService.acquireRepositoryClient(signal)).object;
+			const { account } = await client.credentials.getCredential(signal);
+			const contexts = await Promise.all(references.map(async reference => {
 				try {
-					const value = await octoKitService.getIssueOrPullRequest(
-						reference.owner,
-						reference.repo,
-						reference.number,
-						githubToken,
-						signal,
-					);
+					const value = await client.query.getIssueOrPullRequest({ ...account, owner: reference.owner, repo: reference.repo, number: reference.number }, signal);
 					return { reference, value };
 				} catch (error) {
 					if (!token.isCancellationRequested) {
@@ -701,7 +699,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 					}
 					return undefined;
 				}
-			})));
+			}));
 			const successfulContexts = contexts.filter(context => context !== undefined);
 			if (successfulContexts.length === 0) {
 				return promptContent;
@@ -712,8 +710,13 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			const contentBudget = Math.max(0, MAX_TITLE_CONTEXT_CHARS - gitHubContext.length - separator.length);
 			const content = promptContent.length > contentBudget ? truncateMiddle(promptContent, contentBudget) : promptContent;
 			return `${content}${separator}${gitHubContext}`;
+		} catch (error) {
+			if (!token.isCancellationRequested) {
+				this._logService.warn('[AgentHostSessionTitleController] Failed to acquire GitHub context', error);
+			}
+			return promptContent;
 		} finally {
-			limiter.dispose();
+			store.dispose();
 		}
 	}
 
@@ -897,6 +900,10 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 	}
 
 	private _persistSessionFlag(session: ProtocolURI, key: string, value: string): void {
+		if (this._options.persistMetadata && (key === SESSION_CUSTOM_TITLE_KEY || key === SESSION_CUSTOM_TITLE_SOURCE_KEY || key.startsWith('customChatTitle:') || key.startsWith('customChatTitleSource:'))) {
+			void this._options.persistMetadata(session, { [key]: value }).catch(error => this._logService.warn(`[AgentHostSessionTitleController] Failed to persist ${key}`, error));
+			return;
+		}
 		persistSessionMetadata(this._options.sessionDataService, this._logService, session, key, value);
 	}
 
@@ -916,7 +923,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		// Tool membership is only a compatibility fallback for sessions materialized before strategy snapshots.
 		const strategy = state?.serverTools
 			? state.serverTools.some(tool => tool.name === SessionServerToolName.RenameChat) ? 'activeAgent' : 'utility'
-			: this._options.getInitialTitleGenerationStrategy?.() ?? 'deferred';
+			: this._options.getInitialTitleGenerationStrategy?.() ?? 'utility';
 		if (channel && !this._isEphemeralSession(channel)) {
 			this._titleGenerationStrategies.set(channel, strategy);
 			if (state) {
@@ -928,7 +935,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		return strategy;
 	}
 
-	/** Restores scheduling without changing the strategy of legacy sessions. */
+	/** Restores scheduling without opting legacy sessions into the deferred experiment. */
 	async restoreTitleGenerationStrategy(channel: ProtocolURI, chatChannel?: ProtocolURI): Promise<void> {
 		await this._restoreTitleGenerationStrategy(channel);
 		if (chatChannel && this._titleGenerationStrategies.get(channel) === 'deferred') {
@@ -1007,10 +1014,16 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 				if (typeof seed.title !== 'string' || typeof seed.turnIndex !== 'number' || !Number.isSafeInteger(seed.turnIndex) || seed.turnIndex < 0) {
 					return;
 				}
-				const [title, source] = await Promise.all([
-					ref.object.getMetadata(independentChat ? customChatTitleMetadataKey(independentChat) : SESSION_CUSTOM_TITLE_KEY),
-					ref.object.getMetadata(independentChat ? customChatTitleSourceMetadataKey(independentChat) : SESSION_CUSTOM_TITLE_SOURCE_KEY),
-				]);
+				const normalized = await this._options.readNormalizedChat?.(URI.parse(channel), URI.parse(chatChannel));
+				if (normalized?.normalized && !normalized.chat) {
+					throw new Error(`Missing normalized chat during deferred title restoration: ${chatChannel}`);
+				}
+				const [title, source] = normalized?.normalized
+					? [normalized.chat?.metadata?.summary, normalized.chat?.metadata?.titleSource]
+					: await Promise.all([
+						ref.object.getMetadata(independentChat ? customChatTitleMetadataKey(independentChat) : SESSION_CUSTOM_TITLE_KEY),
+						ref.object.getMetadata(independentChat ? customChatTitleSourceMetadataKey(independentChat) : SESSION_CUSTOM_TITLE_SOURCE_KEY),
+					]);
 				const key = independentChat ?? channel;
 				if (this._store.isDisposed || this._restoringDeferredSeeds.get(chatChannel) !== restore || this._titleGenerationStrategies.get(channel) !== 'deferred' || this._lastAppliedTitle.has(key) || this._renamedTitles.has(key) || this._deferredRefinementStarted.has(key)) {
 					return;

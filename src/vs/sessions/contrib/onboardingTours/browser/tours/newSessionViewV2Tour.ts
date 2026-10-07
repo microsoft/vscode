@@ -6,6 +6,7 @@
 import { IObservable } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { ISpotlightPayload, ISpotlightStep, SPOTLIGHT_PRESENTATION_KIND } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js';
+import { onboardingScenarioRegistry } from '../../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
 import { IOnboardingScenario } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
 import { SessionHarnessPickerVisibleContext, SessionWorkspacePickerVisibleContext } from '../../../../common/contextkeys.js';
 import { NEW_SESSION_ONBOARDING_SEEN_KEY } from './newSessionTour.js';
@@ -15,6 +16,8 @@ export const NEW_SESSION_VIEW_V2_TOUR_ID = 'sessions.onboarding.newSessionViewV2
 export const NEW_SESSION_VIEW_V2_VARIATION_TREATMENT = 'onb.newSessionViewV2.variation';
 export const NEW_SESSION_VIEW_V2_VARIATIONS = ['default', 'workspaceAndModel'] as const;
 export type NewSessionViewV2Variation = typeof NEW_SESSION_VIEW_V2_VARIATIONS[number];
+
+onboardingScenarioRegistry.registerDescriptor({ id: NEW_SESSION_VIEW_V2_TOUR_ID, developerModeVariations: NEW_SESSION_VIEW_V2_VARIATIONS });
 
 const NEW_SESSION_VIEW_V2_EXPERIMENT = {
 	behaviorFlag: 'onb.newSessionViewV2.show',
@@ -68,7 +71,11 @@ const workspaceAndModelPayload: ISpotlightPayload = {
 };
 
 /** Builds the interactive new-session view tour. */
-export function createNewSessionViewV2Tour(signal: IObservable<boolean>, resolveVariation?: () => Promise<NewSessionViewV2Variation>): IOnboardingScenario<ISpotlightPayload> {
+export function createNewSessionViewV2Tour(
+	signal: IObservable<boolean>,
+	resolveVariation?: () => Promise<NewSessionViewV2Variation>,
+	options: { enabledByDefault?: boolean } = {},
+): IOnboardingScenario<ISpotlightPayload> {
 	return {
 		id: NEW_SESSION_VIEW_V2_TOUR_ID,
 		seenKey: NEW_SESSION_ONBOARDING_SEEN_KEY,
@@ -76,7 +83,7 @@ export function createNewSessionViewV2Tour(signal: IObservable<boolean>, resolve
 		when: createNewSessionViewRecentTourWhen(),
 		trigger: { kind: 'observable', signal },
 		priority: 110,
-		experiment: NEW_SESSION_VIEW_V2_EXPERIMENT,
+		experiment: options.enabledByDefault ? undefined : NEW_SESSION_VIEW_V2_EXPERIMENT,
 		presentation: {
 			kind: SPOTLIGHT_PRESENTATION_KIND,
 			payload: {

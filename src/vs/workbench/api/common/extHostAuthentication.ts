@@ -25,6 +25,7 @@ import { IExtHostUrlsService } from './extHostUrls.js';
 import { encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { equals as arraysEqual } from '../../../base/common/arrays.js';
 import { IExtHostProgress } from './extHostProgress.js';
+import { NotificationTelemetryId } from '../../../platform/notification/common/notificationTelemetry.js';
 import { IProgressStep } from '../../../platform/progress/common/progress.js';
 import { CancellationError, isCancellationError } from '../../../base/common/errors.js';
 import { raceCancellationError, SequencerByKey } from '../../../base/common/async.js';
@@ -129,32 +130,43 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 	}
 
 	registerAuthenticationProvider(id: string, label: string, provider: vscode.AuthenticationProvider, options?: vscode.AuthenticationProviderOptions): vscode.Disposable {
+		const disposables = new DisposableStore();
+		// Capture changes before queueing, but forward them only after the main thread acknowledges registration.
+		const bufferedSessionChanges = Event.buffer<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>(
+			listener => provider.onDidChangeSessions(listener), 'authentication provider registration', false, [], disposables);
+		const providerData: ProviderWithMetadata = { label, provider, disposable: disposables, options: options ?? { supportsMultipleAccounts: false } };
 		// register
 		void this._providerOperations.queue(id, async () => {
 			// This use to be synchronous, but that wasn't an accurate representation because the main thread
 			// may have unregistered the provider in the meantime. I don't see how this could really be done
 			// synchronously, so we just say first one wins.
 			if (this._authenticationProviders.get(id)) {
+				disposables.dispose();
 				this._logService.error(`An authentication provider with id '${id}' is already registered. The existing provider will not be replaced.`);
 				return;
 			}
-			const listener = provider.onDidChangeSessions(e => this._proxy.$sendDidChangeSessions(id, e));
-			this._authenticationProviders.set(id, { label, provider, disposable: listener, options: options ?? { supportsMultipleAccounts: false } });
-			await this._proxy.$registerAuthenticationProvider({
-				id,
-				label,
-				supportsMultipleAccounts: options?.supportsMultipleAccounts ?? false,
-				supportedAuthorizationServers: options?.supportedAuthorizationServers,
-				supportsChallenges: options?.supportsChallenges
-			});
+			this._authenticationProviders.set(id, providerData);
+			try {
+				await this._proxy.$registerAuthenticationProvider({
+					id,
+					label,
+					supportsMultipleAccounts: options?.supportsMultipleAccounts ?? false,
+					supportedAuthorizationServers: options?.supportedAuthorizationServers,
+					supportsChallenges: options?.supportsChallenges
+				});
+				disposables.add(bufferedSessionChanges(e => this._proxy.$sendDidChangeSessions(id, e)));
+			} catch (error) {
+				disposables.dispose();
+				this._authenticationProviders.delete(id);
+				this._logService.error(`Failed to register authentication provider '${id}'.`, error);
+			}
 		});
 
 		// unregister
 		return new Disposable(() => {
 			void this._providerOperations.queue(id, async () => {
-				const providerData = this._authenticationProviders.get(id);
-				if (providerData) {
-					providerData.disposable?.dispose();
+				if (this._authenticationProviders.get(id) === providerData) {
+					disposables.dispose();
 					this._authenticationProviders.delete(id);
 					await this._proxy.$unregisterAuthenticationProvider(id);
 				}
@@ -590,7 +602,8 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 						title: nls.localize('authenticatingTo', "Authenticating to '{0}'", this.label),
 						cancellable: true
 					},
-					(progress, token) => handler(scopes, progress, token));
+					(progress, token) => handler(scopes, progress, token),
+					NotificationTelemetryId.AuthenticationSignIn);
 				if (token) {
 					break;
 				}

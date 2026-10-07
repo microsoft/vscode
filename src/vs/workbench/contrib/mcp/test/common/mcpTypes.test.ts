@@ -80,6 +80,12 @@ suite('MCP Types', () => {
 			assert.strictEqual(McpServerDefinition.equals(def1, def2), false);
 		});
 
+		test('returns false when gallery metadata differs', () => {
+			const def1 = createBasicDefinition({ gallery: true });
+			const def2 = createBasicDefinition({ gallery: undefined });
+			assert.strictEqual(McpServerDefinition.equals(def1, def2), false);
+		});
+
 		test('returns false when roots differ', () => {
 			const def1 = createBasicDefinition({ roots: [URI.file('/path1')] });
 			const def2 = createBasicDefinition({ roots: [URI.file('/path2')] });
@@ -247,6 +253,34 @@ suite('MCP Types', () => {
 		}, {
 			serialized: defaultCwd,
 			deserialized: defaultCwd.toString(),
+		});
+	});
+
+	test('McpServerDefinition preserves source metadata when serialized', () => {
+		const definition: McpServerDefinition = {
+			id: 'test-server',
+			label: 'Test Server',
+			cacheNonce: 'nonce',
+			launch: {
+				type: McpServerTransportType.Stdio,
+				command: 'server',
+				args: [],
+				env: {},
+				envFile: undefined,
+				cwd: undefined,
+				sandbox: undefined,
+			},
+			gallery: true,
+			version: '1.0.0',
+		};
+
+		const deserialized = McpServerDefinition.fromSerialized(McpServerDefinition.toSerialized(definition));
+		assert.deepStrictEqual({
+			gallery: deserialized.gallery,
+			version: deserialized.version,
+		}, {
+			gallery: true,
+			version: '1.0.0',
 		});
 	});
 
