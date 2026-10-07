@@ -2100,8 +2100,8 @@ suite('CopilotSessionLauncher resume config', () => {
 			disabled: disabled.featureFlags,
 			enabled: enabled.featureFlags,
 		}, {
-			disabled: { CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true },
-			enabled: { CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true, STABILITY_ORDERED_SYSTEM_PROMPT_V2: true },
+			disabled: { CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true, copilot_swe_agent_memory_in_repo_store: false },
+			enabled: { CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true, copilot_swe_agent_memory_in_repo_store: false, STABILITY_ORDERED_SYSTEM_PROMPT_V2: true },
 		});
 	});
 
