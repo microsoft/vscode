@@ -10,7 +10,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { CustomizationMarketplaceMediaType } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
-import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { PluginCustomizationMarketplaceProvider, getPluginCustomizationMarketplaceSourceInfos, getPluginMarketplaceIdentifier } from '../../../browser/aiCustomization/pluginCustomizationMarketplaceProvider.js';
 import { ChatConfiguration } from '../../../common/constants.js';
@@ -59,7 +59,7 @@ suite('PluginCustomizationMarketplaceProvider', () => {
 			nextCursor: 'next',
 			errors: [{ marketplace: customReference.displayLabel, message: 'Another marketplace is unavailable' }],
 		};
-		const provider = new PluginCustomizationMarketplaceProvider('custom', service, new TestConfigurationService());
+		const provider = new PluginCustomizationMarketplaceProvider('custom', service);
 		const page = await provider.query({ query: 'review', pageSize: 1 }, CancellationToken.None);
 		assert.deepStrictEqual({
 			id: provider.id,
@@ -122,7 +122,7 @@ suite('PluginCustomizationMarketplaceProvider', () => {
 			}],
 			errors: [],
 		};
-		const provider = new PluginCustomizationMarketplaceProvider('custom', service, new TestConfigurationService());
+		const provider = new PluginCustomizationMarketplaceProvider('custom', service);
 
 		const page = await provider.query({}, CancellationToken.None);
 
@@ -141,7 +141,7 @@ suite('PluginCustomizationMarketplaceProvider', () => {
 			}],
 			errors: [],
 		};
-		const provider = new PluginCustomizationMarketplaceProvider('custom', service, new TestConfigurationService());
+		const provider = new PluginCustomizationMarketplaceProvider('custom', service);
 
 		const page = await provider.query({}, CancellationToken.None);
 
@@ -151,21 +151,24 @@ suite('PluginCustomizationMarketplaceProvider', () => {
 		});
 	});
 
-	test('default provider is suppressed while the public feed is enabled', async () => {
+	test('default provider remains available independently of the GitHub feed', async () => {
 		const service = new TestPluginMarketplaceService();
-		const provider = new PluginCustomizationMarketplaceProvider('default', service, new TestConfigurationService({
-			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true,
-		}));
-		assert.deepStrictEqual(await provider.query({}, CancellationToken.None), { items: [], total: 0 });
-		assert.strictEqual(service.calls.length, 0);
+		service.page = { items: [{ ...plugin, marketplace: defaultReference.displayLabel, marketplaceReference: defaultReference }], total: 1, errors: [] };
+		const provider = new PluginCustomizationMarketplaceProvider('default', service);
+		const page = await provider.query({}, CancellationToken.None);
+		assert.deepStrictEqual({
+			ids: [...service.calls[0].marketplaceIds],
+			items: page.items.map(item => item.identifier),
+		}, {
+			ids: [defaultReference.canonicalId],
+			items: [getPluginMarketplaceIdentifier(service.page.items[0])],
+		});
 	});
 
 	test('default provider selects only the existing default marketplace', async () => {
 		const service = new TestPluginMarketplaceService();
 		service.page = { items: [{ ...plugin, marketplace: defaultReference.displayLabel, marketplaceReference: defaultReference }], total: 1, errors: [] };
-		const provider = new PluginCustomizationMarketplaceProvider('default', service, new TestConfigurationService({
-			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: false,
-		}));
+		const provider = new PluginCustomizationMarketplaceProvider('default', service);
 		const page = await provider.query({ mediaType: CustomizationMarketplaceMediaType.ClaudePlugin }, CancellationToken.None);
 		assert.deepStrictEqual({
 			ids: [...service.calls[0].marketplaceIds],
@@ -180,7 +183,7 @@ suite('PluginCustomizationMarketplaceProvider', () => {
 
 	test('maps customization media types to native Plugin marketplace types', async () => {
 		const service = new TestPluginMarketplaceService();
-		const provider = new PluginCustomizationMarketplaceProvider('custom', service, new TestConfigurationService());
+		const provider = new PluginCustomizationMarketplaceProvider('custom', service);
 		await provider.query({ mediaType: CustomizationMarketplaceMediaType.CopilotPlugin }, CancellationToken.None);
 		await provider.query({ mediaType: CustomizationMarketplaceMediaType.ClaudePlugin }, CancellationToken.None);
 		const unsupported = await provider.query({ mediaType: CustomizationMarketplaceMediaType.Skill }, CancellationToken.None);
@@ -200,27 +203,21 @@ suite('PluginCustomizationMarketplaceProvider', () => {
 		const service = new TestPluginMarketplaceService();
 		const configuration = new TestConfigurationService({
 			[ChatConfiguration.PluginsEnabled]: true,
-			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true,
 		});
 		const sourceIds = () => getPluginCustomizationMarketplaceSourceInfos(configuration, service).map(source => source.id);
 		service.references = [defaultReference];
-		const publicOnly = sourceIds();
+		const defaultOnly = sourceIds();
 		service.references = [defaultReference, customReference];
 		const withCustom = sourceIds();
-		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, false);
-		service.references = [defaultReference];
-		const defaultWithoutPublic = sourceIds();
 		await configuration.setUserConfiguration(ChatConfiguration.PluginsEnabled, false);
 		const pluginsDisabled = sourceIds();
 		assert.deepStrictEqual({
-			publicOnly,
+			defaultOnly,
 			withCustom,
-			defaultWithoutPublic,
 			pluginsDisabled,
 		}, {
-			publicOnly: [],
+			defaultOnly: [CustomizationMarketplaceSources.PluginMarketplaces.id],
 			withCustom: [CustomizationMarketplaceSources.PluginMarketplaces.id],
-			defaultWithoutPublic: [CustomizationMarketplaceSources.PluginMarketplaces.id],
 			pluginsDisabled: [],
 		});
 	});

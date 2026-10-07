@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { CustomizationMarketplaceIcon, CustomizationMarketplaceInstallation, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceResource } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
@@ -21,7 +20,6 @@ export function removeLegacyCustomizationMarketplaceInstallationRecords(storageS
 
 export interface ICustomizationMarketplaceInstallationAssociation {
 	readonly id: string;
-	readonly providerInstallationId?: string;
 	readonly sourceId: string;
 	readonly identifier: string;
 	readonly version?: string;
@@ -34,19 +32,7 @@ export interface ICustomizationMarketplaceInstallationAssociation {
 }
 
 export type CustomizationMarketplaceInstallationAssociationTarget =
-	| {
-		readonly kind: 'skill';
-		readonly uri: URI;
-		readonly files: readonly string[];
-		readonly resolvedRevision: string;
-		readonly source: 'local' | 'user';
-		readonly harness: string;
-		readonly sourceFolder: URI;
-		readonly destinationGroupId?: string;
-		readonly project?: URI;
-		readonly session?: URI;
-	}
-	| { readonly kind: 'plugin'; readonly uri: URI; readonly resolvedRevision?: string }
+	| { readonly kind: 'plugin'; readonly uri: URI }
 	| { readonly kind: 'mcp'; readonly id: string }
 	| {
 		readonly kind: 'copilotConnector';
@@ -57,8 +43,6 @@ export type CustomizationMarketplaceInstallationAssociationTarget =
 	};
 
 export class CustomizationMarketplaceInstallationAssociationCache extends Disposable {
-	private readonly _onDidChange = this._register(new Emitter<void>());
-	readonly onDidChange: Event<void> = this._onDidChange.event;
 	private readonly _associations = new Map<string, ICustomizationMarketplaceInstallationAssociation>();
 
 	get associations(): ReadonlyMap<string, ICustomizationMarketplaceInstallationAssociation> {
@@ -71,25 +55,6 @@ export class CustomizationMarketplaceInstallationAssociationCache extends Dispos
 
 	delete(association: ICustomizationMarketplaceInstallationAssociation): void {
 		this._associations.delete(association.id);
-	}
-
-	replaceProviderAssociations(associations: readonly ICustomizationMarketplaceInstallationAssociation[]): void {
-		const providerIds = new Set(associations.map(association => association.providerInstallationId).filter((id): id is string => !!id));
-		let changed = false;
-		for (const [id, association] of this._associations) {
-			if (association.providerInstallationId && !providerIds.has(association.providerInstallationId)) {
-				this._associations.delete(id);
-				changed = true;
-			}
-		}
-		for (const association of associations) {
-			const previous = this._associations.get(association.id);
-			this._associations.set(association.id, association);
-			changed ||= previous !== association;
-		}
-		if (changed) {
-			this._onDidChange.fire();
-		}
 	}
 }
 

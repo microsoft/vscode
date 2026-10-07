@@ -79,6 +79,7 @@ import {
 	hasSameMcpMembership,
 	preserveMcpEntryOrder,
 	shouldLoadMcpGallerySnapshot,
+	shouldShowLegacyMcpGallery,
 	setPrimaryMcpServerEnablement,
 } from '../../../browser/aiCustomization/mcpListWidget.js';
 import { ActiveSessionMcpServerMatcher, getEffectiveMcpServerCount, getRuntimeServerMatchKeys } from '../../../browser/aiCustomization/mcpServerCount.js';
@@ -1007,6 +1008,16 @@ suite('mcpListWidget', () => {
 			shouldLoadMcpGallerySnapshot(true, '', 1, false, false, true),
 			shouldLoadMcpGallerySnapshot(true, '', 0, false, false, false),
 		], [false, true, false, false, false]);
+	});
+
+	test('legacy Available retains the MCP Gallery until Marketplace visibility is enabled', () => {
+		const configuration = (enabled: boolean | undefined) => ({
+			getValue: () => enabled,
+		}) as unknown as IConfigurationService;
+		assert.deepStrictEqual(
+			[undefined, false, true].map(enabled => shouldShowLegacyMcpGallery(configuration(enabled))),
+			[true, true, false],
+		);
 	});
 
 	test('does not restart management gallery search when Discover owns MCP discovery', () => {

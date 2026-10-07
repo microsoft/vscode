@@ -9,14 +9,12 @@ import { Lazy } from '../../../../../base/common/lazy.js';
 import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
-import { AgentFinderRestProvider } from '../../../../../platform/agentFinder/common/agentFinderRestProvider.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IPlatformCustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceIpc.js';
+import { IPlatformCustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/platformCustomizationMarketplaceService.js';
 import { createLazyCustomizationMarketplaceProvider, CustomizationMarketplaceService, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources, queryEnabledCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { createMcpGalleryMarketplaceProviders, getAllMcpGalleryMarketplaceSourceInfos, getCustomizationMarketplaceSourceInfos } from '../../../../../platform/customizationMarketplace/common/mcpGalleryMarketplaceProvider.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { createPluginCustomizationMarketplaceProviders, getAllPluginCustomizationMarketplaceSourceInfos, getPluginCustomizationMarketplaceSourceInfos } from './pluginCustomizationMarketplaceProvider.js';
@@ -25,17 +23,15 @@ import { CopilotConnectorsMarketplaceProvider, ICopilotConnectorsService } from 
 export class PlatformCustomizationMarketplaceWorkbenchService implements ICustomizationMarketplaceService {
 	declare readonly _serviceBrand: undefined;
 	readonly allSources = getAllMcpGalleryMarketplaceSourceInfos();
-	get sources() { return getCustomizationMarketplaceSourceInfos(this.configurationService, this.productService); }
+	get sources() { return getCustomizationMarketplaceSourceInfos(); }
 	private readonly service: Lazy<CustomizationMarketplaceService>;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IProductService private readonly productService: IProductService,
 	) {
 		this.service = new Lazy(() => new CustomizationMarketplaceService([
 			...createMcpGalleryMarketplaceProviders(instantiationService),
-			createLazyCustomizationMarketplaceProvider(CustomizationMarketplaceSources.AgentFinderPublicFeed.id, () => instantiationService.createInstance(AgentFinderRestProvider)),
 		]));
 	}
 
@@ -52,9 +48,13 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 	readonly allSources: ICustomizationMarketplaceService['sources'];
 	readonly onDidChangeSources: Event<void>;
 	get sources() {
+		const harnessSources = this.harnessService.getActiveDescriptor().marketplaceSearchProvider
+			? [CustomizationMarketplaceSources.AgentFinderPublicFeed]
+			: [];
 		return [
 			...getPluginCustomizationMarketplaceSourceInfos(this.configurationService, this.pluginMarketplaceService),
-			...this.platformService.sources,
+			...this.platformService.sources.filter(source => source.id !== CustomizationMarketplaceSources.AgentFinderPublicFeed.id),
+			...harnessSources,
 			CustomizationMarketplaceSources.CopilotConnectors,
 		];
 	}
@@ -76,9 +76,12 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 			this.harnessService.activeSessionResource.read(reader);
 			this.harnessBindingCancellation.value = new CancellationTokenSource();
 		}));
+		const platformSources = (platformService.allSources ?? platformService.sources)
+			.filter(source => source.id !== CustomizationMarketplaceSources.AgentFinderPublicFeed.id);
 		this.allSources = [
 			...getAllPluginCustomizationMarketplaceSourceInfos(),
-			...(platformService.allSources ?? platformService.sources),
+			...platformSources,
+			CustomizationMarketplaceSources.AgentFinderPublicFeed,
 			CustomizationMarketplaceSources.CopilotConnectors,
 		];
 		this.onDidChangeSources = Event.any(
@@ -87,30 +90,17 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 			Event.fromObservableLight(this.harnessService.activeHarness),
 			Event.fromObservableLight(this.harnessService.activeSessionResource),
 		);
-		const platformProviders = (platformService.allSources ?? platformService.sources).map(source => {
+		const platformProviders = platformSources.map(source => {
 			const providerId = `platform.${source.id}`;
 			return createLazyCustomizationMarketplaceProvider(providerId, () => ({
 				id: providerId,
 				query: async (options, token) => {
-					const harnessBindingToken = source.id === CustomizationMarketplaceSources.AgentFinderPublicFeed.id
-						? this.harnessBindingCancellation.value?.token
-						: undefined;
-					if (source.id === CustomizationMarketplaceSources.AgentFinderPublicFeed.id) {
-						const harnessProvider = this.harnessService.getActiveDescriptor().marketplaceSearchProvider;
-						if (harnessProvider && harnessBindingToken && !harnessBindingToken.isCancellationRequested) {
-							const page = await harnessProvider.query(this.harnessService.activeSessionResource.get(), options, token);
-							if (page) {
-								return { ...page, cacheToken: harnessBindingToken };
-							}
-						}
-					}
 					const page = await this.platformService.query({ ...options, sourceIds: [source.id], cursor: options.cursor ? { token: options.cursor } : undefined }, token);
 					const sourceError = page.sourceErrors?.find(error => error.sourceId === source.id);
 					return {
 						items: page.items.map(({ sourceId: _sourceId, ...item }) => item),
 						total: page.total,
 						nextCursor: page.nextCursor?.token,
-						...(harnessBindingToken ? { cacheToken: harnessBindingToken } : {}),
 						...(sourceError
 							? page.nextCursor ? { warning: sourceError.message } : { error: sourceError.message }
 							: {}),
@@ -121,6 +111,18 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 		this.service = new Lazy(() => new CustomizationMarketplaceService([
 			...createPluginCustomizationMarketplaceProviders(instantiationService),
 			...platformProviders,
+			createLazyCustomizationMarketplaceProvider('harness.githubFeed', () => ({
+				id: 'harness.githubFeed',
+				query: async (options, token) => {
+					const cacheToken = this.harnessBindingCancellation.value?.token;
+					const provider = this.harnessService.getActiveDescriptor().marketplaceSearchProvider;
+					if (!provider || !cacheToken || cacheToken.isCancellationRequested) {
+						return { items: [], total: 0, ...(cacheToken ? { cacheToken } : {}) };
+					}
+					const page = await provider.query(this.harnessService.activeSessionResource.get(), options, token);
+					return page ? { ...page, cacheToken } : { items: [], total: 0, cacheToken };
+				},
+			}), CustomizationMarketplaceSources.AgentFinderPublicFeed.id),
 			createLazyCustomizationMarketplaceProvider(CustomizationMarketplaceSources.CopilotConnectors.id, () => new CopilotConnectorsMarketplaceProvider(copilotConnectorsService, configurationService)),
 		]));
 	}

@@ -1372,6 +1372,10 @@ export function shouldLoadMcpGallerySnapshot(visible: boolean, query: string, it
 	return accessEnabled && visible && !query.trim() && itemCount === 0 && !failed && !loading;
 }
 
+export function shouldShowLegacyMcpGallery(configurationService: IConfigurationService): boolean {
+	return configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) !== true;
+}
+
 export function hasSameMcpMembership(previous: string, current: string): boolean {
 	return previous === current;
 }
@@ -2215,7 +2219,7 @@ export class McpListWidget extends Disposable {
 	}
 
 	private isGalleryDiscoveryEnabled(): boolean {
-		return this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) === true;
+		return !shouldShowLegacyMcpGallery(this.configurationService);
 	}
 
 	setVisible(visible: boolean): void {

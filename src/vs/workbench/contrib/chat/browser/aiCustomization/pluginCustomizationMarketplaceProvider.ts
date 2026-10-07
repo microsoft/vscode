@@ -8,7 +8,7 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { createLazyCustomizationMarketplaceProvider, CustomizationMarketplaceMediaType, ICustomizationMarketplaceProvider, ICustomizationMarketplaceSourceEntry, ICustomizationMarketplaceSourceInfo, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
-import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { CustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { DEFAULT_PLUGIN_MARKETPLACE, parseMarketplaceReference } from '../../common/plugins/marketplaceReference.js';
@@ -18,7 +18,6 @@ const defaultMarketplaceId = parseMarketplaceReference(DEFAULT_PLUGIN_MARKETPLAC
 const pluginMarketplaceSourceInfo: ICustomizationMarketplaceSourceInfo = {
 	...CustomizationMarketplaceSources.PluginMarketplaces,
 	configurationDependencies: [
-		CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled,
 		ChatConfiguration.PluginsEnabled,
 		ChatConfiguration.PluginMarketplaces,
 		ChatConfiguration.ExtraMarketplaces,
@@ -33,11 +32,6 @@ export function getPluginMarketplaceIdentifier(plugin: IMarketplacePlugin): stri
 	return JSON.stringify([plugin.marketplaceReference.canonicalId, plugin.name, plugin.sourceDescriptor, plugin.version]);
 }
 
-export function isPluginMarketplaceReferenceAvailableInDiscover(configurationService: IConfigurationService, reference: IMarketplacePlugin['marketplaceReference']): boolean {
-	return configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled) !== true ||
-		reference.canonicalId !== defaultMarketplaceId;
-}
-
 export function getPluginCustomizationMarketplaceSourceInfos(
 	configurationService: IConfigurationService,
 	marketplaceService: IPluginMarketplaceService,
@@ -46,7 +40,7 @@ export function getPluginCustomizationMarketplaceSourceInfos(
 	if (configurationService.getValue<boolean>(ChatConfiguration.PluginsEnabled) !== true) {
 		return sources.filter(source => source.id !== pluginMarketplaceSourceInfo.id);
 	}
-	return marketplaceService.getMarketplaceReferences().some(reference => isPluginMarketplaceReferenceAvailableInDiscover(configurationService, reference))
+	return marketplaceService.getMarketplaceReferences().length > 0
 		? sources
 		: sources.filter(source => source.id !== pluginMarketplaceSourceInfo.id);
 }
@@ -73,7 +67,6 @@ export class PluginCustomizationMarketplaceProvider implements ICustomizationMar
 	constructor(
 		private readonly registry: 'custom' | 'default',
 		@IPluginMarketplaceService private readonly marketplaceService: IPluginMarketplaceService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		this.id = `${this.sourceId}.${registry}`;
 	}
@@ -84,10 +77,9 @@ export class PluginCustomizationMarketplaceProvider implements ICustomizationMar
 			return { items: [], total: 0 };
 		}
 		const marketplaceIds = new Set(this.marketplaceService.getMarketplaceReferences()
-			.filter(reference => isPluginMarketplaceReferenceAvailableInDiscover(this.configurationService, reference) &&
-				(this.registry === 'default'
+			.filter(reference => this.registry === 'default'
 					? reference.canonicalId === defaultMarketplaceId
-					: reference.canonicalId !== defaultMarketplaceId))
+					: reference.canonicalId !== defaultMarketplaceId)
 			.map(reference => reference.canonicalId));
 		if (!marketplaceIds.size) {
 			return { items: [], total: 0 };
