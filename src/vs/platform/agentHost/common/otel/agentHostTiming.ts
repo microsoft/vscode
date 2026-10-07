@@ -6,6 +6,7 @@
 import { vBoolean, vEnum, vNumber, vObj, vOptionalProp, vString, type ValidatorType } from '../../../../base/common/validation.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { agentHostProviderTimingMeasurements, sanitizeAgentHostProviderTiming, type IAgentHostProviderTiming } from '../agentHostProviderTiming.js';
+import { agentHostClientConnectionKindValidator } from '../agentHostTelemetry.js';
 
 export const AgentHostTurnTimingSpanName = 'vscode.agent_host.turn_timing';
 export const AgentHostProviderTimingSpanName = 'vscode.agent_host.provider_timing';
@@ -16,6 +17,7 @@ export const AgentHostTimingAttributePrefix = 'vscode.agent_host.';
 export const agentHostFirstResponseValidator = vObj({
 	requestId: vString(),
 	provider: vString(),
+	connectionKind: vOptionalProp(agentHostClientConnectionKindValidator),
 	agentSessionId: vOptionalProp(vString()),
 	chatId: vOptionalProp(vString()),
 	outcome: vEnum('success', 'cancelled', 'error', 'notDispatched'),
@@ -113,6 +115,10 @@ export function agentHostTimingAttributes(diagnostic: IAgentHostTurnTimingDiagno
 		}
 	} else {
 		put('requestId', diagnostic.requestId);
+		const connectionKind = agentHostClientConnectionKindValidator.validate(diagnostic.connectionKind).content;
+		if (connectionKind !== undefined) {
+			put('connectionKind', connectionKind);
+		}
 		put('outcome', diagnostic.outcome);
 		put('sessionTurnKind', diagnostic.sessionTurnKind);
 		put('invocationKind', diagnostic.invocationKind);

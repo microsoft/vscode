@@ -20,6 +20,7 @@ import { OTelSqliteStore } from '../../../../otel/node/sqlite/otelSqliteStore.js
 import { NullTelemetryService } from '../../../../telemetry/common/telemetryUtils.js';
 import { AgentHostFirstResponseSpanName, AgentHostTimingAttributePrefix, AgentHostTurnTimingSpanName, AgentHostProviderTimingSpanName, agentHostTimingAttributes, type IAgentHostFirstResponseDiagnostic, type IAgentHostTurnTimingDiagnostic } from '../../../common/otel/agentHostTiming.js';
 import { AgentHostProviderTiming } from '../../../common/agentHostProviderTiming.js';
+import { AgentHostClientConnectionKind } from '../../../common/agentHostTelemetry.js';
 import { buildDefaultChatUri } from '../../../common/state/sessionState.js';
 import { AgentHostClientConnectionService } from '../../../node/agentHostClientConnectionService.js';
 import { AgentHostTelemetryReporter } from '../../../node/agentHostTelemetryReporter.js';
@@ -156,6 +157,31 @@ suite('Agent Host timing OTel', () => {
 			{ hasResponseText: false, firstResponseTextMs: undefined, rootToolCallsBeforeFirstText: undefined, rendererRootInvocationOrdinal: 1, totalElapsedMs: 70 },
 			{ hasResponseText: true, firstResponseTextMs: 0, rootToolCallsBeforeFirstText: 0, rendererRootInvocationOrdinal: 1, totalElapsedMs: 70 },
 		]);
+	});
+
+	test('exports optional connection kind without inferring it from the provider', async () => {
+		const service = createService({ COPILOT_OTEL_FILE_EXPORTER_PATH: outfile });
+		const connectionKinds = [
+			undefined,
+			AgentHostClientConnectionKind.Local,
+			AgentHostClientConnectionKind.DirectWebSocket,
+			AgentHostClientConnectionKind.DevTunnel,
+			AgentHostClientConnectionKind.DevContainer,
+			AgentHostClientConnectionKind.SSH,
+			AgentHostClientConnectionKind.WSL,
+			AgentHostClientConnectionKind.RemoteExtensionHost,
+			AgentHostClientConnectionKind.WebPubSub,
+			AgentHostClientConnectionKind.MissionControl,
+			AgentHostClientConnectionKind.Unknown,
+		];
+		for (const connectionKind of connectionKinds) {
+			service.emitFirstResponse({ ...renderer, provider: 'copilot', connectionKind });
+		}
+		await service.flush();
+		assert.deepStrictEqual((await readSpans()).map(span => ({
+			connectionKind: span.attributes[`${prefix}connectionKind`],
+			firstResponseTextMs: span.attributes[`${prefix}firstResponseTextMs`],
+		})), connectionKinds.map(connectionKind => ({ connectionKind, firstResponseTextMs: 60 })));
 	});
 
 	test('exports numeric file metadata with content capture off and without model accounting', async () => {
