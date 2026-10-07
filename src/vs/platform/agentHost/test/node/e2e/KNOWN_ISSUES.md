@@ -121,17 +121,6 @@ Responses are correct, but session notifications intermittently differ from the 
   --grep "retains context across consecutive turns|client-selected model is used for the turn"
 ```
 
-### Codex changeset aggregation: Windows validation pending
-
-The session's combined changes could lose shell edits when a late Git-state or subscription refresh replaced its checkpoint-backed result with tracked file edits. A deterministic Linux reproduction confirms that both files remain on disk while the changeset becomes empty. See [#338153](https://github.com/microsoft/vscode/issues/338153).
-
-- Idle session-wide refreshes now use Git checkpoints with tracked-edit fallback; automatic refreshes use tracked edits while any chat has an active turn. The regression in `session changeset aggregates provider edits from default and peer chats` verifies the actual file contents and resubscribes after both edits have appeared.
-- Gate: Codex/Windows only in `changesetSuite.ts`. Re-enable after repeated clean Windows runs include both chats' edits after resubscription; keep the issue open until then.
-
-```bat
-scripts\test-integration.bat --run src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts --grep "session changeset aggregates provider edits from default and peer chats"
-```
-
 ### Binary writes to client-hosted files are corrupted
 
 An agent host can address files that live on a connected client and send symmetric AHP filesystem operations back to that client. When the host writes binary content this way, bytes that are not valid UTF-8 are replaced before they reach the client, so images and other binary files can be corrupted.
