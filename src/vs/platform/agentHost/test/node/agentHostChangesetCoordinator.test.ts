@@ -1650,7 +1650,7 @@ class TestChangesetService implements IAgentHostChangesetService {
 		this.branchRefreshes.push(session);
 	}
 	refreshSessionChangeset(session: string, strategy?: ChangesetDiffStrategy): void {
-		assert.strictEqual(strategy, 'fileEditTracker');
+		assert.strictEqual(strategy ?? 'auto', 'auto');
 		this.sessionRefreshes.push(session);
 	}
 	onWorkingDirectoryAvailable(session: string): void {
@@ -1667,7 +1667,7 @@ class TestChangesetService implements IAgentHostChangesetService {
 					this.refreshBranchChangeset(session);
 					break;
 				case ChangesetKind.Session:
-					this.refreshSessionChangeset(session, 'fileEditTracker');
+					this.refreshSessionChangeset(session);
 					break;
 				case ChangesetKind.Uncommitted:
 					void this.computeUncommittedChangeset(session);
