@@ -19,6 +19,7 @@ import { INotificationService, Severity } from '../../../../../platform/notifica
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { IAgentPluginRepositoryService } from '../../common/plugins/agentPluginRepositoryService.js';
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
@@ -284,6 +285,7 @@ export class ManagePluginMarketplacesAction extends Action2 {
 				return;
 			}
 			const actionItems: IQuickPickItem[] = [];
+			actionItems.push({ id: 'showPlugins', label: localize('showPlugins', "Show Plugins") });
 			const repoUri = pluginRepositoryService.getRepositoryUri(ref);
 			if (await fileService.exists(repoUri)) {
 				actionItems.push({ id: 'openDirectory', label: localize('openMarketplaceDirectory', "Open Folder") });
@@ -304,6 +306,12 @@ export class ManagePluginMarketplacesAction extends Action2 {
 			}
 
 			switch (action.id) {
+				case 'showPlugins':
+					await commandService.executeCommand(
+						AICustomizationManagementCommands.OpenMarketplace,
+						AICustomizationManagementSection.Plugins,
+					);
+					return;
 				case 'openDirectory':
 					await commandService.executeCommand('revealFileInOS', repoUri);
 					return;

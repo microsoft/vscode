@@ -20,7 +20,8 @@ import { autorun, derived, IObservable, IReaderWithStore } from '../../../../bas
 import { IPagedModel, PagedModel } from '../../../../base/common/paging.js';
 import { dirname, isEqual } from '../../../../base/common/resources.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -44,8 +45,9 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { VIEW_CONTAINER } from '../../extensions/browser/extensions.contribution.js';
 import { manageExtensionIcon } from '../../extensions/browser/extensionsIcons.js';
 import { AbstractExtensionsListView } from '../../extensions/browser/extensionsViews.js';
-import { DefaultViewsContext, extensionsFilterSubMenu, IExtensionsWorkbenchService, SearchAgentPluginsContext } from '../../extensions/common/extensions.js';
+import { extensionsFilterSubMenu, SearchAgentPluginsContext } from '../../extensions/common/extensions.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
+import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../common/aiCustomizationWorkspaceService.js';
 import { IAgentPlugin, IAgentPluginService } from '../common/plugins/agentPluginService.js';
 import { isContributionEnabled } from '../common/enablement.js';
 import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
@@ -53,7 +55,7 @@ import { hasSourceChanged, IMarketplacePlugin, IPluginMarketplaceService } from 
 import { AgentPluginEditorInput } from './agentPluginEditor/agentPluginEditorInput.js';
 import { AgentPluginItemKind, findInstalledPlugin, IAgentPluginItem, IInstalledPluginItem, IMarketplacePluginItem } from './agentPluginEditor/agentPluginItems.js';
 import { getInstalledPluginContextMenuActions, InstallPluginAction, OpenPluginReadmeAction } from './agentPluginActions.js';
-import { HasInstalledAgentPluginsContext, InstalledAgentPluginsViewId, RefreshAgentPluginMarketplacesCommandId } from './chat.js';
+import { RefreshAgentPluginMarketplacesCommandId } from './chat.js';
 
 //#region Item model
 
@@ -570,16 +572,15 @@ class AgentPluginsBrowseCommand extends Action2 {
 				group: '1_predefined',
 				order: 2,
 				when: ContextKeyExpr.and(ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
-			}, {
-				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', InstalledAgentPluginsViewId), ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
-				group: 'navigation',
 			}],
 		});
 	}
 
 	async run(accessor: ServicesAccessor) {
-		accessor.get(IExtensionsWorkbenchService).openSearch('@agentPlugins ');
+		await accessor.get(ICommandService).executeCommand(
+			AICustomizationManagementCommands.OpenMarketplace,
+			AICustomizationManagementSection.Plugins,
+		);
 	}
 }
 
@@ -645,40 +646,13 @@ export class AgentPluginsViewsContribution extends Disposable implements IWorkbe
 
 	static ID = 'workbench.chat.agentPlugins.views.contribution';
 
-	constructor(
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IAgentPluginService agentPluginService: IAgentPluginService,
-	) {
+	constructor() {
 		super();
-
-		const hasInstalledKey = HasInstalledAgentPluginsContext.bindTo(contextKeyService);
-		this._register(autorun(reader => {
-			hasInstalledKey.set(agentPluginService.plugins.read(reader).length > 0);
-		}));
 
 		registerAction2(AgentPluginsBrowseCommand);
 		registerAction2(RefreshPluginMarketplacesCommand);
 
 		Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([
-			{
-				id: InstalledAgentPluginsViewId,
-				name: localize2('agent-plugins-installed', "Agent Plugins - Installed"),
-				ctorDescriptor: new SyncDescriptor(AgentPluginsListView, [{ installedOnly: true }]),
-				when: ContextKeyExpr.and(DefaultViewsContext, HasInstalledAgentPluginsContext, ChatContextKeys.Setup.hidden.negate()),
-				weight: 30,
-				order: 5,
-				canToggleVisibility: true,
-			},
-			{
-				id: 'workbench.views.agentPlugins.default.marketplace',
-				name: localize2('agent-plugins', "Agent Plugins"),
-				ctorDescriptor: new SyncDescriptor(AgentPluginsListView, [{}]),
-				when: ContextKeyExpr.and(DefaultViewsContext, HasInstalledAgentPluginsContext.toNegated(), ChatContextKeys.Setup.hidden.negate()),
-				weight: 30,
-				order: 5,
-				canToggleVisibility: true,
-				hideByDefault: true,
-			},
 			{
 				id: 'workbench.views.agentPlugins.marketplace',
 				name: localize2('agent-plugins', "Agent Plugins"),
