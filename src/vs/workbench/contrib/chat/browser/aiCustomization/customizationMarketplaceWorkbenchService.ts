@@ -137,14 +137,10 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 			return undefined;
 		}
 		return {
-			label: this.copilotConnectorsService.catalogMayRequireConsent
-				? localize('customizationMarketplace.authorizeConnectors', "Authorize Connectors")
-				: localize('customizationMarketplace.signIn', "Sign In"),
+			label: localize('customizationMarketplace.signIn', "Sign In"),
 			kind: 'signIn',
-			...(this.copilotConnectorsService.catalogMayRequireConsent ? {} : { groupId: CustomizationMarketplaceRecoveryGroup.GitHubDefaultAccount }),
-			run: token => this.copilotConnectorsService.catalogMayRequireConsent
-				? this.copilotConnectorsService.authorize(token)
-				: this.copilotConnectorsService.signIn(token),
+			groupId: CustomizationMarketplaceRecoveryGroup.GitHubDefaultAccount,
+			run: token => this.copilotConnectorsService.signIn(token),
 		};
 	}
 

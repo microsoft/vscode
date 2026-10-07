@@ -1870,43 +1870,6 @@ suite('AICustomizationDiscoveryPage', () => {
 		});
 	});
 
-	test('keeps Connector authorization separate from shared account sign-in', async () => {
-		const fixture = createPage(['agentFinder', 'copilotConnectors']);
-		fixture.recoveryActions.set('agentFinder', {
-			label: 'Sign In',
-			kind: 'signIn',
-			groupId: CustomizationMarketplaceRecoveryGroup.GitHubDefaultAccount,
-			run: async () => { },
-		});
-		fixture.recoveryActions.set('copilotConnectors', {
-			label: 'Authorize Connectors',
-			kind: 'signIn',
-			run: async () => { },
-		});
-		fixture.page.setSearchQuery('figma');
-		fixture.page.setVisible(true);
-		await fixture.requests[0].result.complete({
-			items: [],
-			sourceErrors: [
-				{ sourceId: 'agentFinder', message: 'Sign in to Copilot to search the GitHub Feed.' },
-				{ sourceId: 'copilotConnectors', message: 'Authorize connectors.' },
-			],
-		});
-		await timeout(0);
-
-		assert.deepStrictEqual(
-			[...fixture.container.querySelectorAll<HTMLElement>('.customization-marketplace-source-signin')].map(row => ({
-				message: row.querySelector('.customization-marketplace-source-message')?.textContent,
-				action: row.querySelector('.monaco-button')?.textContent,
-			})),
-			[
-				{ message: 'Sign in to Copilot to search the GitHub Feed.', action: 'Sign In' },
-				{ message: 'Authorize connectors.', action: 'Authorize Connectors' },
-			],
-		);
-	});
-
-
 	for (const query of ['', '@type:mcp mail']) {
 		test(`connector sign-in with no ${query ? 'search' : 'browse'} results is an invitation, not a warning or empty success`, async () => {
 			const fixture = createPage(['copilotConnectors']);

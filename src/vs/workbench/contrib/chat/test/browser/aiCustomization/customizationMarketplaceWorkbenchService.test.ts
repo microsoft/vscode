@@ -63,7 +63,6 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			override readonly connectors = [];
 			override readonly connectedMcpServers = [];
 			override readonly authorizationRequired = false;
-			override readonly catalogMayRequireConsent = false;
 			override readonly connectionStateKnown = false;
 		}());
 		const harness = { id: 'local', label: 'Local', icon: { id: 'vm' }, marketplaceSearchProvider } satisfies IHarnessDescriptor;
@@ -335,34 +334,26 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 	});
 
 
-	test('connector sign-in is offered only for a source requiring explicit authorization', async () => {
+	test('connector catalog recovery offers only ordinary sign-in', async () => {
 		const configuration = createConfiguration(['copilotConnectors']);
-		const authorizations: CancellationToken[] = [];
 		const signIns: CancellationToken[] = [];
 		let authorizationRequired = true;
-		let catalogMayRequireConsent = false;
 		const connectorsService = new class extends mock<ICopilotConnectorsService>() {
 			override get authorizationRequired() { return authorizationRequired; }
-			override get catalogMayRequireConsent() { return catalogMayRequireConsent; }
 			override async signIn(token: CancellationToken) { signIns.push(token); authorizationRequired = false; }
-			override async authorize(token: CancellationToken) { authorizations.push(token); authorizationRequired = false; }
 		}();
 		const service = createService(configuration, new class extends mock<ICustomizationMarketplaceService>() { }(), connectorsService);
 		const unrelated = service.getSourceRecoveryAction('agentFinder');
 		const action = service.getSourceRecoveryAction('copilotConnectors');
 		assert.ok(action);
 		await action.run(CancellationToken.None);
-		authorizationRequired = true;
-		catalogMayRequireConsent = true;
-		const rolloutAction = service.getSourceRecoveryAction('copilotConnectors');
-		await rolloutAction?.run(CancellationToken.None);
 		assert.deepStrictEqual({
-			unrelated, label: action.label, rolloutLabel: rolloutAction?.label, kind: action.kind, groupId: action.groupId,
-			rolloutGroupId: rolloutAction?.groupId, signIns, authorizations, afterConsent: service.getSourceRecoveryAction('copilotConnectors'),
+			unrelated, label: action.label, kind: action.kind, groupId: action.groupId,
+			signIns, afterSignIn: service.getSourceRecoveryAction('copilotConnectors'),
 		}, {
-			unrelated: undefined, label: 'Sign In', rolloutLabel: 'Authorize Connectors', kind: 'signIn',
-			groupId: CustomizationMarketplaceRecoveryGroup.GitHubDefaultAccount, rolloutGroupId: undefined,
-			signIns: [CancellationToken.None], authorizations: [CancellationToken.None], afterConsent: undefined,
+			unrelated: undefined, label: 'Sign In', kind: 'signIn',
+			groupId: CustomizationMarketplaceRecoveryGroup.GitHubDefaultAccount,
+			signIns: [CancellationToken.None], afterSignIn: undefined,
 		});
 	});
 
