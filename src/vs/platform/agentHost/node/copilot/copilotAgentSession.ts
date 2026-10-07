@@ -5454,8 +5454,10 @@ export class CopilotAgentSession extends Disposable {
 
 	/** The effective SDK sandbox policy, or `undefined` when sandboxing is disabled. */
 	private _computeSdkSandboxConfig(): SandboxConfig | undefined {
-		const sandbox = getSessionSandboxConfig(this._configurationService, this._ownerSessionUri.toString(), this._platform);
-		return buildSandboxConfigForSdk(this._platform, sandbox, this._sandboxExtraReadonlyPaths());
+		const owner = this._ownerSessionUri.toString();
+		const sandbox = getSessionSandboxConfig(this._configurationService, owner, this._platform);
+		const policy = this._configurationService.getSessionSandboxPolicy(owner);
+		return buildSandboxConfigForSdk(this._platform, sandbox, this._sandboxExtraReadonlyPaths(), policy);
 	}
 
 	/** Keeps the generated script readable until disposal, even after its configuration is cleared. */
