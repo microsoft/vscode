@@ -102,7 +102,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
     "@devcontainers/cli": "0.88.0",
-    "@github/copilot-sdk": "1.0.17-preview.5",
+    "@github/copilot-sdk": "1.0.17-preview.7",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
     "@microsoft/dev-tunnels-connections": "^1.3.41",
@@ -248,8 +248,8 @@
     "istanbul-lib-report": "^3.0.0",
     "istanbul-lib-source-maps": "^4.0.1",
     "istanbul-reports": "^3.1.5",
-    "json-schema-to-typescript": "16.0.0",
     "js-yaml": "^4.2.0",
+    "json-schema-to-typescript": "16.0.0",
     "lazy.js": "^0.4.2",
     "merge-options": "^1.0.1",
     "mime": "^1.4.1",
@@ -327,5 +327,5 @@
     "@vscode/windows-process-tree@0.8.0": true,
     "node-pty@1.1.0": true
   },
-  "copilotRuntimeVersion": "1.0.92-5"
+  "copilotRuntimeVersion": "1.0.93-1"
 }
