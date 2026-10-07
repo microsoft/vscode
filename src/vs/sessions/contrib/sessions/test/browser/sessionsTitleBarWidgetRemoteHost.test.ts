@@ -52,10 +52,11 @@ suite('SessionsTitleBarWidget - Remote Host', () => {
 		});
 	}
 
-	function createHarness(session: IActiveSession | undefined, sessionTitle?: string) {
+	function createHarness(session: IActiveSession | undefined, sessionTitle?: string, remoteHost = remoteProvider) {
 		const activeSession = observableValue<IActiveSession | undefined>('activeSession', session);
-		const providers = new Map([remoteProvider, localProvider].map(provider => [provider.id, provider]));
+		const providers = new Map([remoteHost, localProvider].map(provider => [provider.id, provider]));
 		const onDidChangeProviders = store.add(new Emitter<ISessionsProvidersChangeEvent>());
+		const onDidChangeSessionTypes = store.add(new Emitter<void>());
 		const providersService = mockObject<ISessionsProvidersService>()({
 			_serviceBrand: undefined,
 			onDidChangeProviders: onDidChangeProviders.event,
@@ -77,7 +78,10 @@ suite('SessionsTitleBarWidget - Remote Host', () => {
 				blockedSessions: constObservable([]),
 				requiresInputKind: constObservable(undefined),
 			}),
-			upcastPartial<ISessionsManagementService>({ onDidChangeSessions: Event.None }),
+			upcastPartial<ISessionsManagementService>({
+				onDidChangeSessions: Event.None,
+				onDidChangeSessionTypes: onDidChangeSessionTypes.event,
+			}),
 			upcastPartial<ISessionsService>({ activeSession }),
 			providersService,
 			upcastPartial<ICommandService>({}),
@@ -96,6 +100,7 @@ suite('SessionsTitleBarWidget - Remote Host', () => {
 			container,
 			providers,
 			onDidChangeProviders,
+			onDidChangeSessionTypes,
 			presentation: () => ({
 				text: container.textContent,
 				ariaLabel: container.getAttribute('aria-label'),
@@ -158,6 +163,36 @@ suite('SessionsTitleBarWidget - Remote Host', () => {
 			text: 'No workspace [Renamed machine]',
 			ariaLabel: 'Show Sessions: No workspace [Renamed machine]',
 			hover: 'No workspace [Renamed machine]',
+		});
+	});
+
+	test('updates the host name when the same provider is renamed', () => {
+		let label = 'Remote machine';
+		const provider = upcastPartial<IAgentHostSessionsProvider>({
+			...remoteProvider,
+			get label() { return label; },
+		});
+		const harness = createHarness(createSession(provider.id), undefined, provider);
+		const before = harness.presentation();
+		label = 'Renamed machine';
+		harness.onDidChangeSessionTypes.fire();
+
+		assert.deepStrictEqual({
+			before,
+			after: harness.presentation(),
+			sameProvider: harness.providers.get(provider.id) === provider,
+		}, {
+			before: {
+				text: 'No workspace [Remote machine]',
+				ariaLabel: 'Show Sessions: No workspace [Remote machine]',
+				hover: 'No workspace [Remote machine]',
+			},
+			after: {
+				text: 'No workspace [Renamed machine]',
+				ariaLabel: 'Show Sessions: No workspace [Renamed machine]',
+				hover: 'No workspace [Renamed machine]',
+			},
+			sameProvider: true,
 		});
 	});
 

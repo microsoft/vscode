@@ -228,8 +228,10 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			this._render();
 		}));
 
-		// Re-render when sessions data changes (e.g., changes info updated)
-		this._register(this.sessionsManagementService.onDidChangeSessions(() => {
+		this._register(Event.any(
+			this.sessionsManagementService.onDidChangeSessions,
+			this.sessionsManagementService.onDidChangeSessionTypes,
+		)(() => {
 			this._lastRenderState = undefined;
 			this._render();
 		}));
