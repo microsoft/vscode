@@ -78,7 +78,7 @@ export const CopilotLocalIndexEnabledSettingId = 'github.copilot.chat.localIndex
 
 export const AgentHostOpus48PromptEnabledSettingId = 'chat.agentHost.opus48Prompt.enabled';
 
-export const AgentHostStabilityOrderedPromptEnabledSettingId = 'chat.agentHost.copilot.stabilityOrderedPrompt.enabled';
+export const CopilotStabilityOrderedPromptEnabledSettingId = 'chat.copilot.stabilityOrderedPrompt.enabled';
 
 export const AgentHostToolSearchEnabledSettingId = 'chat.agentHost.copilot.toolSearch.enabled';
 
