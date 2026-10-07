@@ -10880,9 +10880,6 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		for (const child of discovered.values()) {
 			const chatUri = buildSubagentChatUri(parentSessionStr, child.toolCallId);
-			if (this._stateManager.getChatState(chatUri)) {
-				continue;
-			}
 			const origin = { kind: ChatOriginKind.Tool, chat: parentChat, toolCallId: child.toolCallId } as const;
 			const existing = this._stateManager.getSessionState(parentSessionStr)?.chats.find(chat => chat.resource === chatUri);
 			await this._peerChatStore.persistPrivateChat(parentSession, {
