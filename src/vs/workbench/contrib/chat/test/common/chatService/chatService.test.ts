@@ -3470,6 +3470,51 @@ suite('ChatService', () => {
 			}, { requests: [['one', 'First message', 'First response'], ['two', 'Sent in ChatGPT', 'Complete external response']], unchangedRequest: true, draft: 'Unsent local draft' });
 		});
 
+		test('promotes recorded history to a live turn without replacing the model, input, or unchanged requests', async () => {
+			const historyChanges = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
+			const serverRequests = testDisposables.add(new Emitter<IChatSessionServerRequest>());
+			const progressObs = observableValue<IChatProgress[]>('progress', []);
+			const isCompleteObs = observableValue('complete', true);
+			const isReadOnly = observableValue('readOnly', true);
+			const first: IChatSessionHistoryItem[] = [
+				{ id: 'first', type: 'request', prompt: 'First', participant: remoteScheme },
+				{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString('Finished') }], participant: remoteScheme },
+			];
+			const active: IChatSessionHistoryItem = { id: 'active', type: 'request', prompt: 'Continue', participant: remoteScheme };
+			const { resource, resolutionCount } = setupRemoteProvider({
+				history: [...first, active, { type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString('Recorded prefix') }], participant: remoteScheme }],
+				onDidChangeHistory: historyChanges.event, onDidStartServerRequest: serverRequests.event,
+				progressObs, isCompleteObs, isReadOnly, interruptActiveResponseCallback: async () => true,
+			});
+			const service = createChatService();
+			instantiationService.stub(IChatService, service);
+			const ref = testDisposables.add((await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None))!);
+			const model = ref.object;
+			const input = model.inputModel;
+			const firstRequest = model.getRequests()[0];
+			input.setState({ inputText: 'Unsent draft' });
+
+			transaction(tx => {
+				historyChanges.fire([...first, active, { type: 'response', parts: [], participant: remoteScheme }]);
+				serverRequests.fire({ id: 'active', prompt: 'Continue', resume: true });
+				progressObs.set([{ kind: 'markdownContent', content: new MarkdownString('Recorded prefix and live continuation') }], tx);
+				isCompleteObs.set(false, tx);
+				isReadOnly.set(false, tx);
+			});
+			isCompleteObs.set(true, undefined);
+			const reopened = testDisposables.add((await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None))!);
+			assert.deepStrictEqual({
+				sameModel: reopened.object === model, sameInput: model.inputModel === input,
+				sameFirstRequest: model.getRequests()[0] === firstRequest, resolutions: resolutionCount(),
+				draft: input.state.get()?.inputText, readOnly: model.isReadOnly.get(),
+				requests: model.getRequests().map(request => [request.id, request.response?.response.toString()]),
+			}, {
+				sameModel: true, sameInput: true, sameFirstRequest: true, resolutions: 1,
+				draft: 'Unsent draft', readOnly: false,
+				requests: [['first', 'Finished'], ['active', 'Recorded prefix and live continuation']],
+			});
+		});
+
 		for (const change of ['metadata', 'content'] as const) {
 			test(`passive history preserves model and view order when an older response changes ${change}`, async () => {
 				const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());

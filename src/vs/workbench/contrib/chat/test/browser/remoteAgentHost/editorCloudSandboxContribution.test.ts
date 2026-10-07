@@ -155,6 +155,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 		[RemoteAgentHostsEnabledSettingId]: true,
 	});
 	const connectionsChanged = store.add(new Emitter<void>());
+	const initialConnection = new DeferredPromise<void>();
 	const authenticationService = new RemoteAgentHostAuthenticationService();
 	const authenticationPending = store.add(authenticationService.acquire(address)).object;
 	const notifications = store.add(new Emitter<INotification>());
@@ -294,6 +295,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 			if (state.completeAuthentication) {
 				authenticationPending.set(false, undefined);
 			}
+			initialConnection.complete();
 			return cloudSandboxAddress(connectOptions.environmentId);
 		}
 		override async disconnect(candidate: string): Promise<void> {
@@ -378,6 +380,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	const contribution = store.add(instantiationService.createInstance(TestEditorCloudSandboxContribution));
 	return {
 		instantiationService, contribution, controllers, contributions, contentProviders, chatSessionsService, state, calls, policies, notifications, errorNotifications, resolvers, sentimentChanged, accountChanged, authenticationPending, initialRefreshes, connectionsChanged, focusChanged, discoveryModes, workspaceTrust,
+		whenConnected: initialConnection.p,
 		refresh: async () => {
 			await contribution.refresh(CancellationToken.None);
 			await Promise.all(initialRefreshes);
@@ -919,6 +922,7 @@ suite('Editor cloud sandbox discovery', () => {
 		await h.refresh();
 		h.state.online = true;
 		await h.contribution.activate();
+		await h.whenConnected;
 		const controller = h.controllers.get(sessionType)!;
 		await controller.refresh(CancellationToken.None);
 		const deltas: IChatSessionItemsDelta[] = [];
@@ -1171,6 +1175,7 @@ suite('Editor cloud sandbox discovery', () => {
 		h.state.online = true;
 		h.state.hostSessions = [{ ...h.state.hostSessions[0], status: SessionStatus.Idle }];
 		await h.contribution.activate();
+		await h.whenConnected;
 		await h.controllers.get(sessionType)!.refresh(CancellationToken.None);
 		const before = h.items()[0].status;
 		h.state.connected = false;
@@ -1201,6 +1206,7 @@ suite('Editor cloud sandbox discovery', () => {
 		await h.refresh();
 		h.state.online = true;
 		const activated = await h.contribution.activate();
+		await h.whenConnected;
 		await h.controllers.get(sessionType)!.refresh(CancellationToken.None);
 		h.notifications.fire({ type: NotificationType.SessionSummaryChanged, channel: 'ahp-root://', session: backendSession.toString(), changes: { title: 'Updated remotely', status: SessionStatus.InProgress } });
 		assert.deepStrictEqual({
@@ -1242,6 +1248,7 @@ suite('Editor cloud sandbox discovery', () => {
 		h.state.completeAuthentication = false;
 		h.state.hostSessions = [{ ...h.state.hostSessions[0], summary: 'Host title', status: SessionStatus.Idle | SessionStatus.IsRead | SessionStatus.IsArchived }];
 		await h.contribution.activate();
+		await h.whenConnected;
 		await h.controllers.get(sessionType)!.refresh(CancellationToken.None);
 		const before = h.items().map(item => [item.label, item.isRead, item.archived]);
 		h.authenticationPending.set(false, undefined);
@@ -1258,6 +1265,7 @@ suite('Editor cloud sandbox discovery', () => {
 		h.state.online = true;
 		h.state.hostSessions = [{ ...h.state.hostSessions[0], status: SessionStatus.InputNeeded | SessionStatus.IsRead | SessionStatus.IsArchived }];
 		await h.contribution.activate();
+		await h.whenConnected;
 		const controller = h.controllers.get(sessionType)!;
 		await controller.refresh(CancellationToken.None);
 		const before = controller.items.map(item => [item.resource.toString(), item.status, item.isRead, item.archived]);
@@ -1291,6 +1299,7 @@ suite('Editor cloud sandbox discovery', () => {
 		h.state.online = true;
 		h.state.hostSessions = [{ ...h.state.hostSessions[0], status: SessionStatus.Idle | SessionStatus.IsRead | SessionStatus.IsArchived }];
 		await h.contribution.activate();
+		await h.whenConnected;
 		const controller = h.controllers.get(sessionType)!;
 		await controller.refresh(CancellationToken.None);
 		h.state.connected = false;
