@@ -11,6 +11,7 @@ import { DeferredPromise, Limiter, raceCancellationError, timeout } from '../../
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { IDisposable } from '../../../util/vs/base/common/lifecycle';
 import { ResourceMap } from '../../../util/vs/base/common/map';
+import { extUriBiasedIgnorePathCase } from '../../../util/vs/base/common/resources';
 import { URI } from '../../../util/vs/base/common/uri';
 import { IAuthenticationService } from '../../authentication/common/authentication';
 import { ICAPIClientService } from '../../endpoint/common/capiClient';
@@ -604,7 +605,9 @@ export class RemoteContentExclusion implements IDisposable {
 	 * This avoids expensive calls to the git extension API for every file.
 	 */
 	private findCachedRepoMetadataForFile(file: URI): CachedRepoMetadata | undefined {
-		const filePath = file.path.toLowerCase();
+		// Repos whose roots differ only in case are distinct on a case-sensitive file system.
+		const ignoreCase = extUriBiasedIgnorePathCase.ignorePathCasing(file);
+		const filePath = ignoreCase ? file.path.toLowerCase() : file.path;
 		let bestMatch: CachedRepoMetadata | undefined;
 		let bestMatchLength = 0;
 
@@ -614,7 +617,7 @@ export class RemoteContentExclusion implements IDisposable {
 			if (metadata.rootUri.scheme !== file.scheme || metadata.rootUri.authority !== file.authority) {
 				continue;
 			}
-			const normalizedRepoRoot = metadata.repoRootPath.toLowerCase();
+			const normalizedRepoRoot = ignoreCase ? metadata.repoRootPath.toLowerCase() : metadata.repoRootPath;
 			if ((filePath.startsWith(normalizedRepoRoot + '/') || filePath === normalizedRepoRoot) &&
 				normalizedRepoRoot.length > bestMatchLength) {
 				bestMatch = metadata;
@@ -627,7 +630,8 @@ export class RemoteContentExclusion implements IDisposable {
 
 /** Keys a repo root by identity rather than path, so schemes cannot collide with one another. */
 function repoRootCacheKey(rootUri: URI): string {
-	return `${rootUri.scheme}://${rootUri.authority}${rootUri.path.toLowerCase()}`;
+	const path = extUriBiasedIgnorePathCase.ignorePathCasing(rootUri) ? rootUri.path.toLowerCase() : rootUri.path;
+	return `${rootUri.scheme}://${rootUri.authority}${path}`;
 }
 
 /** Compares two rule sets by content, so an unchanged refresh does not retire memoised verdicts. */

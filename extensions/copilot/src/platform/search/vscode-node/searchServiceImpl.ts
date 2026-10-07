@@ -10,6 +10,9 @@ import { LogExecTime } from '../../log/common/logExecTime';
 import { ILogService } from '../../log/common/logService';
 import { BaseSearchServiceImpl } from '../vscode/baseSearchServiceImpl';
 
+/** Search providers cap an unset limit at 20,000, so widened searches use this explicit ceiling. */
+const MAX_FILE_SEARCH_RESULTS = 1_000_000;
+
 export class SearchServiceImpl extends BaseSearchServiceImpl {
 
 	constructor(
@@ -26,16 +29,21 @@ export class SearchServiceImpl extends BaseSearchServiceImpl {
 		// results. Appending also keeps any RelativePattern the caller passed scoped to its baseUri.
 		const exclude = copilotIgnoreExclude ? [...options?.exclude ?? [], copilotIgnoreExclude] : options?.exclude;
 		const searchOptions = { ...options, exclude };
-		const results = await super.findFiles(filePattern, searchOptions, token);
-		const allowed = await filterIngoredResources(this._ignoreService, results);
+		let results = await super.findFiles(filePattern, searchOptions, token);
+		let allowed = await filterIngoredResources(this._ignoreService, results);
 		// Like the search itself, a missing or zero limit means no limit.
 		const maxResults = options?.maxResults;
-		if (maxResults === undefined || maxResults <= 0 || results.length < maxResults || allowed.length === results.length) {
+		if (maxResults === undefined || maxResults <= 0) {
 			return allowed;
 		}
-		// Excluded files used up part of a full page, so search again without a limit to fill the caller's quota.
-		const unlimited = await super.findFiles(filePattern, { ...searchOptions, maxResults: undefined }, token);
-		return (await filterIngoredResources(this._ignoreService, unlimited)).slice(0, maxResults);
+		// Excluded files can fill a page, so widen with explicit limits until the caller's quota is met.
+		let limit = maxResults;
+		while (allowed.length < maxResults && results.length >= limit && limit < MAX_FILE_SEARCH_RESULTS && !token?.isCancellationRequested) {
+			limit = Math.min(limit * 4, MAX_FILE_SEARCH_RESULTS);
+			results = await super.findFiles(filePattern, { ...searchOptions, maxResults: limit }, token);
+			allowed = await filterIngoredResources(this._ignoreService, results);
+		}
+		return allowed.slice(0, maxResults);
 	}
 
 	override findTextInFiles2(query: vscode.TextSearchQuery2, options?: vscode.FindTextInFilesOptions2, token?: vscode.CancellationToken): vscode.FindTextInFilesResponse {

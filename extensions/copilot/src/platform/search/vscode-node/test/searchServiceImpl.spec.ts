@@ -226,7 +226,24 @@ suite('SearchServiceImpl', () => {
 			searchedMaxResults: search.mock.calls.map(([, options]) => options?.maxResults)
 		}).toEqual({
 			results: [allowedFile.toString()],
-			searchedMaxResults: [1, undefined]
+			searchedMaxResults: [1, 4]
+		});
+	});
+
+	test('findFiles widens the search with explicit limits until enough files are allowed', async () => {
+		const excluded = Array.from({ length: 20 }, (_, index) => URI.file(`/workspace/repo/secrets/key-${index}.ts`));
+		// Search providers substitute a 20,000 cap for an unset limit, so the service must never leave it unset.
+		search.mockImplementation(async (_pattern, options) => [...excluded, allowedFile].slice(0, options?.maxResults ?? 20_000));
+		const service = new SearchServiceImpl(ignoreServiceRecording([], ...excluded), new TestLogService());
+
+		const results = await service.findFiles('**/*', { maxResults: 1 });
+
+		expect({
+			results: results.map(uri => uri.toString()),
+			searchedMaxResults: search.mock.calls.map(([, options]) => options?.maxResults)
+		}).toEqual({
+			results: [allowedFile.toString()],
+			searchedMaxResults: [1, 4, 16, 64]
 		});
 	});
 

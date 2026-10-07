@@ -5,6 +5,7 @@
 
 import { beforeEach, describe, expect, suite, test, vi } from 'vitest';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
+import { isLinux } from '../../../../util/vs/base/common/platform';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { IAuthenticationService } from '../../../authentication/common/authentication';
 import { ICAPIClientService } from '../../../endpoint/common/capiClient';
@@ -189,7 +190,7 @@ suite('RemoteContentExclusion', () => {
 			expect(result).toBe(false);
 		});
 
-		test('should be case-insensitive when matching paths', async () => {
+		test.skipIf(isLinux)('should be case-insensitive when matching paths on a case-insensitive file system', async () => {
 			// Setup: Cache a repository with lowercase path
 			const repoRoot = '/workspace/myrepo';
 			mockGitService.setRepositoryFetchUrls({
@@ -207,6 +208,23 @@ suite('RemoteContentExclusion', () => {
 
 			// Should still be 1 because the path matching is case-insensitive
 			expect(mockGitService.getRepositoryFetchUrlsCallCount).toBe(1);
+		});
+
+		test.skipIf(!isLinux)('keeps repositories whose roots differ only in case apart on a case-sensitive file system', async () => {
+			const remotes = new Map([['/workspace/Repo', 'https://github.com/org/excluded.git'], ['/workspace/repo', 'https://github.com/org/open.git']]);
+			mockGitService.getRepositoryFetchUrls = vi.fn().mockImplementation((uri: URI) => {
+				const root = [...remotes.keys()].find(candidate => uri.path.startsWith(candidate + '/') || uri.path === candidate);
+				return Promise.resolve(root ? { rootUri: URI.file(root), remoteFetchUrls: [remotes.get(root)!] } : undefined);
+			});
+			mockCAPIClientService.setResponder(repos => rulesResponse(new Map([['https://github.com/org/excluded.git', { paths: ['*'] }]]), repos));
+
+			// Loaded last, the open repo would overwrite the excluded one if their roots shared a cache entry.
+			await remoteContentExclusion.loadRepos([URI.file('/workspace/Repo'), URI.file('/workspace/repo')]);
+
+			expect({
+				excluded: await remoteContentExclusion.isIgnored(URI.file('/workspace/Repo/index.ts'), CancellationToken.None),
+				open: await remoteContentExclusion.isIgnored(URI.file('/workspace/repo/index.ts'), CancellationToken.None)
+			}).toEqual({ excluded: true, open: false });
 		});
 
 		test('should clear cache entry when repository is closed', async () => {
