@@ -2438,8 +2438,7 @@ suite('CodexAgent prewarm eviction', () => {
 			const refresh = new DeferredPromise<void>();
 			agent['_modelsRefreshPromise'] = refresh.p;
 
-			// Prewarm starts resolving the old selection while discovery is pending.
-			// The first turn can select a different model before discovery completes.
+			// The first turn can change the selection while prewarm waits for discovery.
 			const resolving = agent['_resolveModel'](entry);
 			const selected = { id: changeModelId ? alternateModel : COPILOT_TEST_MODEL, config: { thinkingLevel: 'high' } };
 			await agent.chats.changeModel(chat, selected, context);
