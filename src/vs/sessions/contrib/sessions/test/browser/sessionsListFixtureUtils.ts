@@ -127,6 +127,7 @@ export type SessionsListFixtureRow =
 export interface ISessionsListFixtureView {
 	readonly grouping?: SessionsGrouping;
 	readonly sorting?: SessionsSorting;
+	readonly inbox?: boolean;
 	readonly compact?: boolean;
 	readonly phone?: boolean;
 	readonly width?: number;
@@ -757,6 +758,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 	const list = disposableStore.add(instantiationService.createInstance(TestSessionsList, listHost, {
 		grouping: () => view.grouping ?? SessionsGrouping.Workspace,
 		sorting: () => view.sorting ?? SessionsSorting.Created,
+		inbox: () => view.inbox ?? false,
 		compact: () => view.compact ?? false,
 		showNavigationShortcuts: () => header?.navigationShortcuts ?? false,
 		customizationsCount: constObservable(header?.customizationsCount ?? 0),

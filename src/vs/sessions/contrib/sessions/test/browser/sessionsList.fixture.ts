@@ -277,6 +277,23 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	SessionsList_WorkspaceSection: defineSessionsListFixture({
 		sessions: [{ id: 'c', title: 'Update onboarding copy', workspace: 'vscode-docs', minutesAgo: 180 }],
 	}),
+	SessionsList_Inbox: defineSessionsListFixture({
+		sessions: [
+			{ id: 'running', title: 'Run smoke tests', workspace: 'vscode', minutesAgo: 1, status: SessionStatus.InProgress, description: 'Running the macOS smoke suite' },
+			{ id: 'approval', title: 'Publish the release branch', workspace: 'vscode', minutesAgo: 2, status: SessionStatus.NeedsInput, approvalCommand: 'git push origin release/1.139' },
+			{ id: 'quick', title: 'Summarize the latest review feedback', isQuickChat: true, minutesAgo: 5 },
+			{ id: 'grouped', title: 'Investigate flaky integration test', workspace: 'vscode-tools', minutesAgo: 12 },
+			{ id: 'pinned', title: 'Plan authentication migration', workspace: 'vscode', minutesAgo: 30, pinned: true },
+			{ id: 'older', title: 'Update onboarding copy', workspace: 'vscode-docs', minutesAgo: 60 },
+		],
+		groups: [releaseWork('grouped')],
+		header: {},
+		view: { inbox: true, height: 330, expanded: [{ section: 'pinned' }] },
+	}, {
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast'],
+		expectedVisualDescriptions: ['Inbox View shows the expanded Pinned section followed by a flat recency-ordered list containing workspace sessions, a workspace-less chat, and a custom-group member. The in-progress session and the Chats, custom-group, workspace, and time section headers are absent.'],
+	}),
 	SessionsList_UnreadStatusIcons: defineSessionsListFixture({
 		sessions: UNREAD_STATUS_ICON_SESSIONS,
 		view: { width: 400 },
