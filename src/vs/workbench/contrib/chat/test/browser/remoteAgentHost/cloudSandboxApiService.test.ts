@@ -305,7 +305,7 @@ suite('CloudSandboxApiService connection credentials', () => {
 				tasks: [], repositories: new Map(), logService,
 				onRequest: async () => {
 					await timeout(35);
-					return jsonResponse({ message: 'private response body', access_token: 'secret-token' }, 500, {
+					return jsonResponse({ message: 'Failed to open relay; token=secret-token', access_token: 'secret-token', privateBody: 'private response body' }, 500, {
 						'x-github-request-id': requestId,
 						'retry-after': '45',
 						'set-cookie': 'private-cookie',
@@ -322,7 +322,7 @@ suite('CloudSandboxApiService connection credentials', () => {
 				retryAfterSeconds: 45,
 			});
 			assert.deepStrictEqual(logService.errors, [
-				`[CloudSandboxApi] ${action} failed: method=GET host=api.githubcopilot.com environmentId=env-1 sessionId=session-1 clientId=${action === 'connect' ? 'none' : 'client-1'} status=500 requestId=${requestId} durationMs=35 retryAfterSeconds=45`,
+				`[CloudSandboxApi] ${action} failed: method=GET host=api.githubcopilot.com environmentId=env-1 sessionId=session-1 clientId=${action === 'connect' ? 'none' : 'client-1'} status=500 requestId=${requestId} durationMs=35 retryAfterSeconds=45 message=Failed to open relay; token=[redacted]`,
 			]);
 		}));
 
@@ -388,7 +388,7 @@ suite('CloudSandboxApiService connection credentials', () => {
 				message: 'Mission Control connect failed: HTTP 500',
 			});
 			assert.deepStrictEqual(logService.errors, [
-				'[CloudSandboxApi] connect failed: method=GET host=api.githubcopilot.com environmentId=env-1 sessionId=none clientId=none status=500 requestId=unavailable durationMs=0 retryAfterSeconds=none',
+				'[CloudSandboxApi] connect failed: method=GET host=api.githubcopilot.com environmentId=env-1 sessionId=none clientId=none status=500 requestId=unavailable durationMs=0 retryAfterSeconds=none message=private response body',
 			]);
 		}));
 	}

@@ -31,6 +31,7 @@ interface ICapturedEvent {
 }
 
 const connectionDetails = {
+	environmentKind: 'cloud',
 	surface: 'unknown', source: 'existing', credentialRequests: 0, wakingResponses: 0, transportAttempts: 0,
 	credentialsMs: 0, relayMs: 0, protocolMs: 0, authenticationMs: 0, restorationMs: 0,
 	firstFailurePhase: undefined, firstFailureCode: undefined,
@@ -71,6 +72,46 @@ suite('cloudSandbox telemetry', () => {
 			getCloudSandboxConnectionSurface(true, true),
 		], ['editorDesktop', 'editorWeb', 'agentsDesktop', 'agentsWeb']);
 	});
+
+	test('separates Mission Control outcomes and connection health from cloud sandboxes', () => runWithFakedTimers({}, async () => {
+		const telemetry = new TestTelemetryService();
+		const service = store.add(new CloudSandboxTelemetryService(telemetry));
+		const cloud = store.add(service.trackConnection('connection'));
+		const missionControl = store.add(service.trackConnection('connection', 'agentsDesktop', 'existing', 'user-local'));
+		cloud.onConnectionStateChange('connected');
+		missionControl.onConnectionStateChange('connected');
+		missionControl.recordConnectionDiagnostic({ operationId: 'session', phase: 'protocol.firstSessionRequest', outcome: 'started', timestamp: Date.now() });
+		await timeout(1000);
+		missionControl.recordConnectionDiagnostic({ operationId: 'session', phase: 'protocol.firstSessionRequest', outcome: 'succeeded', timestamp: Date.now() });
+		missionControl.onConnectionStateChange('reconnecting');
+		missionControl.onConnectionStateChange('reconnecting');
+		await timeout(1000);
+		missionControl.onConnectionStateChange('connected');
+		await timeout(1000);
+		service.flushConnectionHealth();
+		missionControl.dispose();
+		cloud.dispose();
+		const failed = store.add(service.trackConnection('credentials', 'agentsDesktop', 'existing', 'user-local'));
+		failed.completeConnect('failure');
+		const cancelled = store.add(service.trackConnection('credentials', 'agentsDesktop', 'existing', 'user-local'));
+		cancelled.completeConnect('cancelled');
+		service.dispose();
+
+		assert.deepStrictEqual({
+			outcomes: telemetry.events.filter(event => event.eventName === 'cloudSandboxConnectionOutcome').map(event => [
+				event.data?.environmentKind, event.data?.operation, event.data?.outcome,
+			]),
+			firstRequest: telemetry.events.find(event => event.eventName === 'cloudSandboxFirstSessionRequest')?.data,
+			health: telemetry.events.filter(event => event.eventName === 'cloudSandboxConnectionHealth').map(event => event.data),
+		}, {
+			outcomes: [['cloud', 'connect', 'success'], ['user-local', 'connect', 'success'], ['user-local', 'recover', 'success'], ['user-local', 'connect', 'failure'], ['user-local', 'connect', 'cancelled']],
+			firstRequest: { environmentKind: 'user-local', surface: 'agentsDesktop', source: 'existing', outcome: 'success', durationMs: 1000 },
+			health: [
+				{ environmentKind: 'cloud', connectedMs: 3000, unexpectedDisconnects: 0, receivedFrames: 0 },
+				{ environmentKind: 'user-local', connectedMs: 2000, unexpectedDisconnects: 1, receivedFrames: 0 },
+			],
+		});
+	}));
 
 	test('attributes cumulative phases and actual requests to each logical operation without exporting diagnostic content', () => runWithFakedTimers({}, async () => {
 		const telemetry = new TestTelemetryService();
@@ -318,7 +359,7 @@ suite('cloudSandbox telemetry', () => {
 			connection.recordConnectionDiagnostic({ operationId: 'first', phase: 'protocol.firstSessionRequest', outcome: 'succeeded', timestamp: Date.now() });
 			service.dispose();
 			assert.deepStrictEqual(telemetry.events.filter(event => event.eventName === 'cloudSandboxFirstSessionRequest'), [{
-				eventName: 'cloudSandboxFirstSessionRequest', data: { surface: 'editorDesktop', source: 'existing', outcome, durationMs: 40 },
+				eventName: 'cloudSandboxFirstSessionRequest', data: { environmentKind: 'cloud', surface: 'editorDesktop', source: 'existing', outcome, durationMs: 40 },
 			}]);
 		}));
 	}
@@ -455,7 +496,7 @@ suite('cloudSandbox telemetry', () => {
 
 		assert.deepStrictEqual(telemetry.events, [
 			{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'connect', outcome: 'success', stage: 'connection', durationMs: 7000, credentialsMs: 2000 } },
-			{ eventName: 'cloudSandboxConnectionHealth', data: { connectedMs: 3000, unexpectedDisconnects: 0, receivedFrames: 0 } },
+			{ eventName: 'cloudSandboxConnectionHealth', data: { environmentKind: 'cloud', connectedMs: 3000, unexpectedDisconnects: 0, receivedFrames: 0 } },
 		]);
 	}));
 
@@ -501,7 +542,7 @@ suite('cloudSandbox telemetry', () => {
 		assert.deepStrictEqual(telemetry.events, [
 			{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'connect', outcome: 'success', stage: 'connection', durationMs: 2000 } },
 			{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'recover', outcome: 'success', stage: 'connection', durationMs: 9000 } },
-			{ eventName: 'cloudSandboxConnectionHealth', data: { connectedMs: 13_000, unexpectedDisconnects: 1, receivedFrames: 2 } },
+			{ eventName: 'cloudSandboxConnectionHealth', data: { environmentKind: 'cloud', connectedMs: 13_000, unexpectedDisconnects: 1, receivedFrames: 2 } },
 		]);
 	}));
 
@@ -524,7 +565,7 @@ suite('cloudSandbox telemetry', () => {
 			assert.deepStrictEqual(telemetry.events, [
 				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'connect', outcome: 'success', stage: 'connection', durationMs: 0 } },
 				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'recover', outcome: state === 'failed' ? 'failure' : 'cancelled', stage: 'connection', durationMs: 13_000 } },
-				{ eventName: 'cloudSandboxConnectionHealth', data: { connectedMs: 4000, unexpectedDisconnects: 1, receivedFrames: 0 } },
+				{ eventName: 'cloudSandboxConnectionHealth', data: { environmentKind: 'cloud', connectedMs: 4000, unexpectedDisconnects: 1, receivedFrames: 0 } },
 			]);
 		}));
 	}
@@ -555,12 +596,12 @@ suite('cloudSandbox telemetry', () => {
 				periodic,
 				health: telemetry.events.filter(e => e.eventName === 'cloudSandboxConnectionHealth'),
 			}, {
-				periodic: [{ eventName: 'cloudSandboxConnectionHealth', data: { connectedMs: 540_000, unexpectedDisconnects: 0, receivedFrames: 0 } }],
+				periodic: [{ eventName: 'cloudSandboxConnectionHealth', data: { environmentKind: 'cloud', connectedMs: 540_000, unexpectedDisconnects: 0, receivedFrames: 0 } }],
 				health: [
-					{ eventName: 'cloudSandboxConnectionHealth', data: { connectedMs: 540_000, unexpectedDisconnects: 0, receivedFrames: 0 } },
-					{ eventName: 'cloudSandboxConnectionHealth', data: { connectedMs: 30_000, unexpectedDisconnects: 0, receivedFrames: 0 } },
-					{ eventName: 'cloudSandboxConnectionHealth', data: { connectedMs: 300_000, unexpectedDisconnects: 0, receivedFrames: 0 } },
-					{ eventName: 'cloudSandboxConnectionHealth', data: { connectedMs: 10_000, unexpectedDisconnects: 0, receivedFrames: 0 } },
+					{ eventName: 'cloudSandboxConnectionHealth', data: { environmentKind: 'cloud', connectedMs: 540_000, unexpectedDisconnects: 0, receivedFrames: 0 } },
+					{ eventName: 'cloudSandboxConnectionHealth', data: { environmentKind: 'cloud', connectedMs: 30_000, unexpectedDisconnects: 0, receivedFrames: 0 } },
+					{ eventName: 'cloudSandboxConnectionHealth', data: { environmentKind: 'cloud', connectedMs: 300_000, unexpectedDisconnects: 0, receivedFrames: 0 } },
+					{ eventName: 'cloudSandboxConnectionHealth', data: { environmentKind: 'cloud', connectedMs: 10_000, unexpectedDisconnects: 0, receivedFrames: 0 } },
 				],
 			});
 		});
@@ -600,7 +641,7 @@ suite('cloudSandbox telemetry', () => {
 		service.dispose();
 		assert.deepStrictEqual(telemetry.events, [
 			{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'connect', outcome: 'cancelled', stage: 'credentials', durationMs: 3000, credentialsMs: 3000 } },
-			{ eventName: 'cloudSandboxConnectionHealth', data: { connectedMs: 0, unexpectedDisconnects: 0, receivedFrames: 1 } },
+			{ eventName: 'cloudSandboxConnectionHealth', data: { environmentKind: 'cloud', connectedMs: 0, unexpectedDisconnects: 0, receivedFrames: 1 } },
 		]);
 	}));
 
@@ -628,8 +669,8 @@ suite('cloudSandbox telemetry', () => {
 			...connectionDetails, operation: 'connect', outcome: 'success', stage: 'protocol', durationMs: 2000,
 			firstFailurePhase: 'protocol.reconnect', firstFailureCode: JsonRpcErrorCodes.InvalidParams, protocolFailures: 1,
 		};
-		const firstRequest: ClassifiedSample<CloudSandboxFirstSessionRequestClassification> = { surface: 'unknown', source: 'existing', outcome: 'success', durationMs: 3000 };
-		const health: ClassifiedSample<CloudSandboxConnectionHealthClassification> = { connectedMs: 3000, unexpectedDisconnects: 0, receivedFrames: 1 };
+		const firstRequest: ClassifiedSample<CloudSandboxFirstSessionRequestClassification> = { environmentKind: 'cloud', surface: 'unknown', source: 'existing', outcome: 'success', durationMs: 3000 };
+		const health: ClassifiedSample<CloudSandboxConnectionHealthClassification> = { environmentKind: 'cloud', connectedMs: 3000, unexpectedDisconnects: 0, receivedFrames: 1 };
 		const telemetry = new TestTelemetryService();
 		const service = store.add(new CloudSandboxTelemetryService(telemetry));
 		const connection = store.add(service.trackConnection('connection'));

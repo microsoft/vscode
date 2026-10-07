@@ -18,6 +18,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { MissionControlControlVerifier, type IMissionControlSigningKey } from '../../node/missionControl/missionControlControl.js';
 import { MissionControlProtocolServer, type IMissionControlSocket } from '../../node/missionControl/missionControlProtocolServer.js';
 import { MissionControlEnvironment } from '../../node/missionControl/missionControlEnvironment.js';
+import type { IConnectionDiagnosticEvent } from '../../common/connectionDiagnostics.js';
 import type { IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { MissionControlSessionMirror } from '../../node/missionControl/missionControlSessionMirror.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -165,6 +166,39 @@ suite('Mission Control WPS', () => {
 		assert.deepStrictEqual({ closed: socket.closed, errors: errors.map(error => error.message) }, {
 			closed: true, errors: ['Mission Control WPS operation rejected'],
 		});
+	});
+
+	test('reports sanitized WPS server errors and acknowledgement timeouts', async () => {
+		const { key } = signingFixture();
+		const clock = sinon.useFakeTimers();
+		try {
+			const errors: string[] = [];
+			const socket = new FakeWpsSocket();
+			const send = sinon.stub(socket, 'send').callsFake(data => {
+				const frame = JSON.parse(data) as { ackId: number };
+				socket.emit('message', JSON.stringify({ type: 'ack', ackId: frame.ackId, success: false, error: { message: 'Access denied; token=private-token' } }));
+			});
+			const server = store.add(new MissionControlProtocolServer(
+				{ url: 'ws://127.0.0.1/fake', access_token: 'fake-token', groups: { control: `${prefix}.control` } },
+				'owner', 'environment', new MissionControlControlVerifier('environment', 'owner', [key]),
+				() => socket, error => errors.push(error.message),
+			));
+			const ready = server.connect();
+			socket.emit('message', JSON.stringify({ type: 'system', event: 'connected' }));
+			await assert.rejects(ready, /connection closed before joining/);
+			send.restore();
+			const disconnected = store.add(new MissionControlProtocolServer(
+				{ url: 'ws://127.0.0.1/fake', access_token: 'fake-token', groups: { control: `${prefix}.control` } },
+				'owner', 'environment', new MissionControlControlVerifier('environment', 'owner', [key]),
+				() => new FakeWpsSocket(), error => errors.push(error.message),
+			));
+			const timedOut = assert.rejects(disconnected.connect(), /connection closed before joining/);
+			await clock.tickAsync(30_000);
+			await timedOut;
+			assert.deepStrictEqual(errors, ['Mission Control WPS operation rejected: Access denied; token=[redacted]', 'Mission Control WPS acknowledgement timed out']);
+		} finally {
+			clock.restore();
+		}
 	});
 
 	test('reports an unexpected socket close without logging its untrusted reason', async () => {
@@ -471,6 +505,27 @@ suite('Mission Control WPS', () => {
 		}
 	});
 
+	test('preserves validated GitHub request IDs in failed registration errors', async () => {
+		const path = await mkdtemp(join(process.cwd(), '.build', 'mission-control-request-id-'));
+		const requestId = 'ABCD:1234:5678:90AB:CDEF';
+		const service = store.add(new MissionControlEnvironment({
+			userDataPath: path,
+			name: 'VS Code OSS',
+			fetch: async () => Response.json({ message: 'Registration unavailable; token=private-token' }, { status: 503, headers: { 'x-github-request-id': requestId } }),
+			attach: () => ({ dispose() { } }),
+			onError: error => { throw error; },
+		}));
+		try {
+			await assert.rejects(service.configure({ baseUrl: 'http://127.0.0.1:9999/', accountId: 'owner', credential: 'fake-local-token', roots: [path] }), {
+				name: 'CloudSandboxRequestError',
+				message: `Mission Control request failed (503) (requestId=${requestId}): Registration unavailable; token=[redacted]`,
+			});
+		} finally {
+			service.dispose();
+			await rm(path, { recursive: true });
+		}
+	});
+
 	test('joins verified client lanes, binds initialize, and publishes responses on to-client', async () => {
 		const { key, signed } = signingFixture();
 		const socket = new FakeWpsSocket();
@@ -535,10 +590,12 @@ suite('Mission Control WPS', () => {
 		socket.deliver(`${prefix}.control`, signed('client-a', 'first'), 1);
 		socket.deliver(`${prefix}.control`, signed('client-a', 'retry'), 2);
 		socket.deliver(`${prefix}.control`, signed('client-a', 'changed-role', true), 3);
-		assert.deepStrictEqual({ laneCount: lanes.length, joins: socket.joins, passive: lanes[0].relayPassive, errors }, {
+		assert.deepStrictEqual({ laneCount: lanes.length, joins: socket.joins, passive: lanes[0].relayPassive, connectionKind: lanes[0].clientConnectionKind, transportKind: lanes[0].transportKind, errors }, {
 			laneCount: 1,
 			joins: [`${prefix}.control`, `${prefix}.client.client-a.to-host`],
 			passive: false,
+			connectionKind: 'mission_control',
+			transportKind: 'websocket',
 			errors: ['Mission Control cannot change the role of an existing client lane'],
 		});
 	});
@@ -550,6 +607,7 @@ suite('Mission Control WPS', () => {
 			const { key } = signingFixture();
 			const sockets: FakeWpsSocket[] = [];
 			const errors: string[] = [];
+			const diagnostics: IConnectionDiagnosticEvent[] = [];
 			const requests: { path: string; bearer: boolean; body: Record<string, unknown> | undefined }[] = [];
 			const environment = {
 				id: 'environment', kind: 'user-local', user_id: 'owner', owner_id: 'owner', owner_type: 'user',
@@ -571,6 +629,7 @@ suite('Mission Control WPS', () => {
 				fetch: fakeFetch,
 				attach: () => ({ dispose() { } }),
 				onError: error => errors.push(error instanceof Error ? error.message : String(error)),
+				onDiagnostic: event => diagnostics.push(event),
 				socketFactory: () => {
 					const socket = new FakeWpsSocket();
 					sockets.push(socket);
@@ -587,6 +646,10 @@ suite('Mission Control WPS', () => {
 			const persisted = (JSON.parse(await readFile(join(path, 'agent-host-mission-control-id'), 'utf8')) as { id: string }).id;
 			const rebind = await service.configure({ ...options, accountId: 'other' }).then(() => 'accepted', () => 'rejected');
 			await service.configure(undefined);
+			assert.deepStrictEqual(diagnostics.filter(event => event.outcome === 'info').map(event => ({ phase: event.phase, durationMs: event.durationMs })), [
+				{ phase: 'relayDisconnected', durationMs: 60_000 },
+			]);
+			assert.deepStrictEqual(diagnostics.filter(event => event.phase === 'relay').map(event => event.outcome), ['started', 'succeeded', 'started', 'succeeded']);
 			assert.deepStrictEqual({
 				requests: requests.map(request => [request.path, request.bearer, request.body?.kind, request.body?.compute_id]),
 				persisted: /^[0-9a-f-]{36}$/.test(persisted),
@@ -622,7 +685,7 @@ suite('Mission Control WPS', () => {
 
 	suite('heartbeat Retry-After', () => {
 		async function withEnvironment(
-			replies: readonly { retryAfter?: string; status?: number; body?: string }[],
+			replies: readonly { retryAfter?: string; status?: number; body?: string; headers?: Record<string, string> }[],
 			run: (fixture: {
 				service: MissionControlEnvironment;
 				clock: sinon.SinonFakeTimers;
@@ -693,7 +756,7 @@ suite('Mission Control WPS', () => {
 								await delayed.started.complete();
 								return delayed.response.p;
 							}
-							const responseOptions: ResponseInit = { status: reply?.status ?? 200, headers: reply?.retryAfter === undefined ? {} : { 'rEtRy-AfTeR': reply.retryAfter } };
+							const responseOptions: ResponseInit = { status: reply?.status ?? 200, headers: { ...reply?.headers, ...(reply?.retryAfter === undefined ? {} : { 'rEtRy-AfTeR': reply.retryAfter }) } };
 							return reply?.body === undefined ? Response.json(environment, responseOptions) : new Response(reply.body, responseOptions);
 						}
 						return Response.json(url.pathname === '/user' ? { id: 123, type: 'User' } : url.pathname.endsWith('/jwks.json') ? { keys: [key] } : environment);
@@ -748,6 +811,27 @@ suite('Mission Control WPS', () => {
 				clock.restore();
 				await rm(path, { recursive: true });
 			}
+		}
+
+		test('keeps actionable HTTP server messages local and redacts credentials without logging other response fields', async () => {
+			await withEnvironment([{}, {
+				status: 503,
+				body: JSON.stringify({ message: 'Relay unavailable; token=private-token', access_token: 'private-token', privateBody: 'private response body' }),
+			}], async ({ clock, errors }) => {
+				await clock.tickAsync(60_000);
+				assert.deepStrictEqual(errors, ['Mission Control request failed (503): Relay unavailable; token=[redacted]']);
+			});
+		});
+
+		for (const header of ['ABCD:1234:5678:90AB:CDEF', 'invalid-request-id', 'ghp_secret', 'A'.repeat(129)]) {
+			test(`validates GitHub request correlation on failed heartbeats: ${header}`, async () => {
+				await withEnvironment([{}, { status: 503, body: '{}', headers: { 'x-github-request-id': header } }], async ({ clock, errors }) => {
+					await clock.tickAsync(60_000);
+					assert.deepStrictEqual(errors, [
+						`Mission Control request failed (503)${header === 'ABCD:1234:5678:90AB:CDEF' ? ` (requestId=${header})` : ''}`,
+					]);
+				});
+			});
 		}
 
 		test('rotates expiring access tokens during load shedding without reconnecting a healthy socket', async () => {
@@ -852,8 +936,8 @@ suite('Mission Control WPS', () => {
 		}
 
 		for (const response of [
-			{ name: '429', status: 429, error: 'Mission Control request failed (429)' },
-			{ name: '503', status: 503, error: 'Mission Control request failed (503)' },
+			{ name: '429', status: 429, error: 'Mission Control request failed (429): not-json' },
+			{ name: '503', status: 503, error: 'Mission Control request failed (503): not-json' },
 			{ name: 'invalid JSON on a successful response', status: 200, error: 'Mission Control returned invalid JSON' },
 		]) {
 			test(`honors the header before handling ${response.name}`, async () => {
