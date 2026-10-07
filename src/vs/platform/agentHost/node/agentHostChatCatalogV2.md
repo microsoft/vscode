@@ -250,11 +250,8 @@ inherited fields use `null` to clear. Interactivity cannot change a chat's
 visible/private role. Only private chats can be reparented, within the live
 owner catalog, without cycles.
 
-Existing `getSessionChatCatalog`, `replaceSessionChatCatalog` and
-`recoverSessionChatCatalog` dispatch to normalized peers after cutover.
-Terminal recovery returns `conflict` for any divergent candidate; an exact
-complete normalized peer snapshot acknowledges the unchanged revision without
-re-importing rows.
+Existing `getSessionChatCatalog` and `replaceSessionChatCatalog` dispatch to
+normalized peers after cutover.
 They preserve the default pointer, private descendants and bounded metadata;
 removing a peer tombstones its owned private closure atomically. Reordering
 does not change ownership epochs. Session deletion/unregistration/exclusion

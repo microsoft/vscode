@@ -366,48 +366,6 @@ suite('AgentHostDatabase sessions_v2', () => {
 		});
 	});
 
-	test('recovery atomically excludes current foreign ownership and preserves source membership', async () => {
-		database = new AgentHostDatabase(':memory:');
-		const source = 'copilotcli:/source';
-		const target = 'copilotcli:/target';
-		for (const session of [source, target]) {
-			await database.registerRuntimeSession(session, { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
-		}
-		await database.replaceSessionChatCatalog(source, [{ chat: 'ahp-chat://existing', order: 0, archived: true, providerData: 'current' }], undefined);
-		await database.replaceSessionChatCatalog(target, [], undefined);
-		const claim = database.replaceSessionChatCatalog(target, [
-			{ chat: 'ahp-chat://moved', order: 0, providerData: 'target-current' },
-		], 1);
-		const recovery = database.recoverSessionChatCatalog(source, [
-			{ chat: 'ahp-chat://existing', order: 0, archived: true, providerData: 'current' },
-			{ chat: 'ahp-chat://moved', order: 1, providerData: 'historical' },
-			{ chat: 'ahp-chat://missing', order: 2, providerData: 'recovered' },
-		], 1);
-		await Promise.all([claim, recovery]);
-		const sourceAfter = await database.getSessionChatCatalog(source);
-		const targetAfter = await database.getSessionChatCatalog(target);
-		const staleRecovery = await database.recoverSessionChatCatalog(source, [], 1);
-		await database.tombstoneAndUnregisterSession(source);
-		const deletedRecovery = await database.recoverSessionChatCatalog(source, [], 2);
-
-		assert.deepStrictEqual({
-			source: sourceAfter?.chats,
-			target: targetAfter?.chats,
-			staleRecovery,
-			deletedRecovery,
-			sourceAfterDeletion: await database.getSessionChatCatalog(source),
-		}, {
-			source: [
-				{ chat: 'ahp-chat://existing', order: 0, archived: true, providerData: 'current' },
-				{ chat: 'ahp-chat://missing', order: 1, providerData: 'recovered' },
-			],
-			target: [{ chat: 'ahp-chat://moved', order: 0, providerData: 'target-current' }],
-			staleRecovery: { status: 'conflict' },
-			deletedRecovery: { status: 'tombstoned' },
-			sourceAfterDeletion: undefined,
-		});
-	});
-
 	test('sequences chat catalog reads behind queued replacements', async () => {
 		const sequencedDatabase = new AgentHostDatabase(':memory:');
 		database = sequencedDatabase;
@@ -2677,30 +2635,6 @@ suite('AgentHostDatabase sessions_v2', () => {
 			}, { parent: undefined, order: undefined, interactivity: ChatInteractivity.Hidden, summary: 'Private' });
 		});
 
-		test('terminal recovery conflicts for every divergent field and only acknowledges an exact no-op', async () => {
-			database = new AgentHostDatabase(':memory:');
-			await seed();
-			await database.ensureChatCatalogV2(session, expectation(), candidate());
-			const current = (await database.getSessionChatCatalog(session))!;
-			const actual = current.chats[0];
-			const noop = await database.recoverSessionChatCatalog(session, current.chats, current.revision);
-			const before = await database.readCatalogSnapshot([session]);
-			const conflicts = [];
-			for (const divergent of [
-				{ ...actual, providerData: 'different' }, { ...actual, origin: '' }, { ...actual, workingDirectories: [] },
-				{ ...actual, isRead: true }, { ...actual, archived: false }, { ...actual, inheritedTurnId: '' },
-				{ ...actual, metadata: { ...actual.metadata, summary: 'different' } },
-			]) {
-				conflicts.push(await database.recoverSessionChatCatalog(session, [divergent], current.revision));
-			}
-			conflicts.push(await database.recoverSessionChatCatalog(session, [], current.revision));
-			assert.deepStrictEqual({
-				noop, conflicts, unchanged: stableStringify(before) === stableStringify(await database.readCatalogSnapshot([session])),
-			}, {
-				noop: { status: 'applied', revision: 1 }, conflicts: Array.from({ length: 8 }, () => ({ status: 'conflict' })), unchanged: true,
-			});
-		});
-
 		test('explicit legacy both-empty deletion facts preserve global tombstones before legacy keys are cleaned', async () => {
 			const path = join(temporaryDirectory!, 'legacy-deleted-identity.db');
 			const deletedChat = 'chat://deleted-legacy';
@@ -2718,12 +2652,12 @@ suite('AgentHostDatabase sessions_v2', () => {
 			const raw = await openDatabase(path);
 			try {
 				const current = (await database.getSessionChatCatalog(session))!;
-				const recovery = await database.recoverSessionChatCatalog(session, [...current.chats, { chat: deletedChat, order: 1 }], current.revision);
+				const replacement = await database.replaceSessionChatCatalog(session, [...current.chats, { chat: deletedChat, order: 1 }], current.revision);
 				assert.deepStrictEqual({
-					recovery, detail: await database.getChatV2ProviderDetail(deletedChat),
+					replacement, detail: await database.getChatV2ProviderDetail(deletedChat),
 					tombstone: await all(raw, `SELECT chat_uri, tombstoned, ownership_revision FROM chats_v2 WHERE chat_uri = '${deletedChat}'`),
 				}, {
-					recovery: { status: 'conflict' }, detail: undefined,
+					replacement: { status: 'conflict' }, detail: undefined,
 					tombstone: [{ chat_uri: deletedChat, tombstoned: 1, ownership_revision: 1 }],
 				});
 			} finally {
