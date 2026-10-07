@@ -34,6 +34,7 @@ import { ActionType } from './applyPatch/parser';
 import { EditFileResult } from './editFileToolResult';
 import { createEditConfirmation, formatDiffAsUnified } from './editFileToolUtils';
 import { resolveToolInputPath } from './toolUtils';
+import { FileCreateReservation, FileWriteSnapshot, getFileWriteGuard, getFileWriteLineage, isFileNotFound, readFileWriteState, StaleFileWriteError, throwIfFileWriteCancelled } from './fileWriteGuard';
 
 export interface ICreateFileParams {
 	filePath: string;
@@ -61,12 +62,13 @@ export class CreateFileTool implements ICopilotTool<ICreateFileParams> {
 	) { }
 
 	async invoke(options: vscode.LanguageModelToolInvocationOptions<ICreateFileParams>, token: vscode.CancellationToken) {
+		const promptContext = this._promptContext;
 		const uri = this.promptPathRepresentationService.resolveFilePath(options.input.filePath);
 		if (!uri) {
 			throw new Error(`Invalid file path`);
 		}
 
-		if (!this._promptContext?.stream) {
+		if (!promptContext?.stream) {
 			throw new Error('Invalid stream');
 		}
 
@@ -75,88 +77,125 @@ export class CreateFileTool implements ICopilotTool<ICreateFileParams> {
 			throw new Error('Invalid input: filePath and content are required');
 		}
 
-		const fileExists = await this.fileExists(uri);
-		const hasSupportedNotebooks = this.notebookService.hasSupportedNotebooks(uri);
-		let doc: undefined | NotebookDocumentSnapshot | TextDocumentSnapshot = undefined;
+		const guard = getFileWriteGuard(this.fileSystemService);
+		const lineage = getFileWriteLineage(options, promptContext);
+		const release = await guard.acquire([uri], token);
+		let reservation: FileCreateReservation | undefined;
+		let mutationStarted = false;
+		let emitted = false;
+		let prepared: FileWriteSnapshot[] = [];
 		try {
+			prepared = await guard.capture([uri], target => readFileWriteState(this.fileSystemService, target));
+			guard.assertTracked(lineage, prepared);
+			const fileExists = await this.fileExists(uri);
+			const hasSupportedNotebooks = this.notebookService.hasSupportedNotebooks(uri);
+			if (fileExists) {
+				throw new Error(hasSupportedNotebooks
+					? l10n.t('File already exists. You must use the {0} tool to modify it.', ToolName.EditNotebook)
+					: l10n.t('File already exists. You must use an edit tool to modify it.'));
+			}
+			let doc: NotebookDocumentSnapshot | TextDocumentSnapshot | undefined;
+			try {
+				if (hasSupportedNotebooks) {
+					doc = await this.workspaceService.openNotebookDocumentAndSnapshot(uri, this.alternativeNotebookContent.getFormat(promptContext.request?.model));
+				} else {
+					doc = await this.workspaceService.openTextDocumentAndSnapshot(uri);
+				}
+			} catch (error) {
+				if (!isFileNotFound(error)) {
+					throw error;
+				}
+			}
+
+			const languageId = doc?.languageId ?? getLanguageForResource(uri).languageId;
+			const fileExtension = extname(uri);
+			const modelId = options.model && (await this.endpointProvider.getChatEndpoint(options.model)).model;
+			const notebookEdits: { target: vscode.Uri; edits: vscode.NotebookEdit | vscode.NotebookEdit[] }[] = [];
+
 			if (hasSupportedNotebooks) {
-				doc = await this.workspaceService.openNotebookDocumentAndSnapshot(uri, this.alternativeNotebookContent.getFormat(this._promptContext?.request?.model));
-			} else {
-				doc = await this.workspaceService.openTextDocumentAndSnapshot(uri);
+				let content = options.input.content;
+				const processor = new CodeBlockProcessor(() => undefined, () => undefined, codeBlock => content = codeBlock.code);
+				processor.processMarkdown(options.input.content);
+				processor.flush();
+				content = removeLeadingFilepathComment(options.input.content, languageId, options.input.filePath);
+				await processFullRewriteNewNotebook(uri, content, {
+					textEdit: () => undefined,
+					notebookEdit: (target, edits) => { notebookEdits.push({ target, edits }); },
+				}, this.alternativeNotebookEditGenerator, { source: NotebookEditGenrationSource.createFile, requestId: options.chatRequestId, model: options.model ? this.endpointProvider.getChatEndpoint(options.model).then(m => m.model) : undefined }, token);
 			}
-		} catch (e) {
-			// ignored
-		}
-
-		// note: fileExists could be `false` but we might still get a `doc` if it's held in memory
-		if (fileExists && !!doc?.getText()) {
+			throwIfFileWriteCancelled(token);
+			await guard.validate(lineage, prepared, [uri], target => readFileWriteState(this.fileSystemService, target));
+			throwIfFileWriteCancelled(token);
+			mutationStarted = true;
+			reservation = await guard.reserveCreate(uri);
+			if (!await reservation.verify()) {
+				throw new StaleFileWriteError([uri]);
+			}
+			throwIfFileWriteCancelled(token);
+			guard.emitted(lineage, prepared);
+			emitted = true;
 			if (hasSupportedNotebooks) {
-				throw new Error(`File already exists. You must use the ${ToolName.EditNotebook} tool to modify it.`);
+				for (const edit of notebookEdits) {
+					promptContext.stream.notebookEdit(edit.target, edit.edits);
+				}
+				promptContext.stream.notebookEdit(uri, true);
+				this.sendTelemetry(options.chatRequestId, modelId, fileExtension);
 			} else {
-				throw new Error(`File already exists. You must use an edit tool to modify it.`);
+				const content = removeLeadingFilepathComment(options.input.content, languageId, options.input.filePath);
+				// Replace a deleted file's stale buffer rather than prepending to it (microsoft/vscode#311043).
+				if (doc && doc.getText().length > 0) {
+					const lastLine = doc.lineCount - 1;
+					promptContext.stream.textEdit(uri, TextEdit.replace(new ExtRange(0, 0, lastLine, doc.lineAt(lastLine).text.length), content));
+				} else {
+					promptContext.stream.textEdit(uri, TextEdit.insert(new ExtPosition(0, 0), content));
+				}
+				promptContext.stream.textEdit(uri, true);
+				this.sendTelemetry(options.chatRequestId, modelId, fileExtension);
+				return new LanguageModelToolResult([
+					new LanguageModelPromptTsxPart(
+						await renderPromptElementJSON(
+							this.instantiationService,
+							EditFileResult,
+							{ files: [{ operation: ActionType.ADD, uri, isNotebook: false }], diagnosticsTimeout: 2000, toolName: ToolName.CreateFile, requestId: options.chatRequestId, model: options.model },
+							options.tokenizationOptions ?? {
+								tokenBudget: 1000,
+								countTokens: t => Promise.resolve(t.length * 3 / 4)
+							},
+							token,
+						),
+					)
+				]);
 			}
-		}
 
-		const languageId = doc?.languageId ?? getLanguageForResource(uri).languageId;
-		const fileExtension = extname(uri);
-		const modelId = options.model && (await this.endpointProvider.getChatEndpoint(options.model)).model;
-
-		if (hasSupportedNotebooks) {
-			// Its possible we have a code block with a language id
-			// Also possible we have file paths in the content.
-			let content = options.input.content;
-			const processor = new CodeBlockProcessor(() => undefined, () => undefined, (codeBlock) => content = codeBlock.code);
-			processor.processMarkdown(options.input.content);
-			processor.flush();
-			content = removeLeadingFilepathComment(options.input.content, languageId, options.input.filePath);
-			await processFullRewriteNewNotebook(uri, content, this._promptContext.stream, this.alternativeNotebookEditGenerator, { source: NotebookEditGenrationSource.createFile, requestId: options.chatRequestId, model: options.model ? this.endpointProvider.getChatEndpoint(options.model).then(m => m.model) : undefined }, token);
-			this._promptContext.stream.notebookEdit(uri, true);
-			this.sendTelemetry(options.chatRequestId, modelId, fileExtension);
-		} else {
-			const content = removeLeadingFilepathComment(options.input.content, languageId, options.input.filePath);
-			// When the file has been deleted from disk but VS Code still holds a stale
-			// in-memory doc with content, use a full-document replace so the old buffer
-			// is overwritten rather than prepended to (https://github.com/microsoft/vscode/issues/311043).
-			if (!fileExists && doc && doc.getText().length > 0) {
-				const lastLine = doc.lineCount - 1;
-				this._promptContext.stream.textEdit(uri, TextEdit.replace(new ExtRange(0, 0, lastLine, doc.lineAt(lastLine).text.length), content));
-			} else {
-				this._promptContext.stream.textEdit(uri, TextEdit.insert(new ExtPosition(0, 0), content));
-			}
-			this._promptContext.stream.textEdit(uri, true);
-			this.sendTelemetry(options.chatRequestId, modelId, fileExtension);
 			return new LanguageModelToolResult([
-				new LanguageModelPromptTsxPart(
-					await renderPromptElementJSON(
-						this.instantiationService,
-						EditFileResult,
-						{ files: [{ operation: ActionType.ADD, uri, isNotebook: false }], diagnosticsTimeout: 2000, toolName: ToolName.CreateFile, requestId: options.chatRequestId, model: options.model },
-						options.tokenizationOptions ?? {
-							tokenBudget: 1000,
-							countTokens: (t) => Promise.resolve(t.length * 3 / 4)
-						},
-						token,
-					),
-				)
+				new LanguageModelTextPart(`File created at ${this.promptPathRepresentationService.getFilePath(uri)}`)
 			]);
+		} catch (error) {
+			if (mutationStarted && !emitted) {
+				guard.emitted(lineage, prepared);
+			}
+			throw error;
+		} finally {
+			try {
+				if (reservation && !emitted) {
+					await reservation.rollback();
+				}
+			} finally {
+				release();
+			}
 		}
-
-		return new LanguageModelToolResult([
-			new LanguageModelTextPart(
-				`File created at ${this.promptPathRepresentationService.getFilePath(uri)}`,
-			)
-		]);
 	}
 
-	/**
-	 * Don't copy this helper, this is generally not a good pattern because it's vulnerable to race conditions. But the fileSystemService doesn't give us a proper atomic method for this.
-	 */
+	/** Advisory check only; the native exclusive reservation is the no-overwrite gate. */
 	private async fileExists(uri: URI): Promise<boolean> {
 		try {
 			await this.fileSystemService.stat(uri);
 			return true;
 		} catch (e) {
-			return false;
+			if (isFileNotFound(e)) {
+				return false;
+			}
+			throw e;
 		}
 	}
 

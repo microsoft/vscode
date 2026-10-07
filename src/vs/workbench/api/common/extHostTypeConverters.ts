@@ -3497,7 +3497,14 @@ export namespace ChatAgentRequest {
 			acceptedConfirmationData: request.acceptedConfirmationData,
 			rejectedConfirmationData: request.rejectedConfirmationData,
 			location2,
-			toolInvocationToken: Object.freeze<IToolInvocationContext>({ sessionResource: request.sessionResource, requestId: request.requestId, workingDirectory: URI.revive(request.workingDirectory) }) as never,
+			toolInvocationToken: Object.freeze(LanguageModelToolInvocationContext.to({
+				sessionResource: request.sessionResource,
+				requestId: request.requestId,
+				workingDirectory: request.workingDirectory,
+				parentRequestId: request.parentRequestId,
+				subagentInvocationId: request.subAgentInvocationId,
+				modeInstructions: request.modeInstructions,
+			})) as never,
 			tools,
 			model,
 			modelConfiguration,
@@ -3716,6 +3723,44 @@ namespace ChatLanguageModelToolReferences {
 			}
 		}
 		return toolReferences;
+	}
+}
+
+export namespace LanguageModelToolInvocationContext {
+	export function to(context: extHostProtocol.IToolInvocationContextDto | undefined) {
+		if (context === undefined) {
+			return undefined;
+		}
+		if (!context || typeof context !== 'object') {
+			throw new Error('Invalid tool invocation token');
+		}
+		for (const id of [context.requestId, context.parentRequestId, context.subagentInvocationId]) {
+			if (id !== undefined && (typeof id !== 'string' || !id.length)) {
+				throw new Error('Invalid tool invocation token identity');
+			}
+		}
+		const result = {
+			...context,
+			sessionResource: reviveResource(context.sessionResource),
+			workingDirectory: context.workingDirectory === undefined ? undefined : reviveResource(context.workingDirectory),
+			parentSessionResource: context.parentSessionResource === undefined ? undefined : reviveResource(context.parentSessionResource),
+			modeInstructions: context.modeInstructions ? {
+				...context.modeInstructions,
+				uri: URI.revive(context.modeInstructions.uri),
+				toolReferences: revive<IChatRequestModeInstructions['toolReferences']>(context.modeInstructions.toolReferences.map(reference => ({ ...reference }))),
+			} : undefined,
+		};
+		return result satisfies IToolInvocationContext;
+	}
+
+	function reviveResource(resource: string | UriComponents): URI {
+		if (typeof resource === 'string') {
+			return URI.parse(resource, true);
+		}
+		if (!isUriComponents(resource) || !resource.scheme.length) {
+			throw new Error('Invalid tool invocation token resource');
+		}
+		return URI.from(resource, true);
 	}
 }
 

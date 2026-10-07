@@ -40,6 +40,7 @@ import { assertFileNotContentExcluded, isFileExternalAndNeedsConfirmation, resol
 import { IGrepResultService } from './grepResultService';
 import { IRegionContextProviderService, type PathInfo, type RegionResult } from '../../../platform/languageContextProvider/common/regionContextProvider';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
+import { getFileWriteGuard, getFileWriteLineage, hashFileContent, isFileNotFound, readFileWriteState, throwIfFileWriteCancelled } from './fileWriteGuard';
 
 export const getReadFileV2Description = (orig: vscode.LanguageModelToolInformation): vscode.LanguageModelToolInformation => ({
 	name: ToolName.ReadFile,
@@ -246,6 +247,10 @@ export class ReadFileTool extends Disposable implements ICopilotTool<ReadFilePar
 	async invoke(options: vscode.LanguageModelToolInvocationOptions<ReadFileParams>, token: vscode.CancellationToken) {
 		let ranges: IParamRanges | undefined;
 		let uri: URI | undefined;
+		const promptContext = this._promptContext;
+		const guard = getFileWriteGuard(this.fileSystemService);
+		const lineage = getFileWriteLineage(options, promptContext);
+		let release: (() => void) | undefined;
 		try {
 			uri = resolveToolInputPath(options.input.filePath, this.promptPathRepresentationService);
 
@@ -253,9 +258,14 @@ export class ReadFileTool extends Disposable implements ICopilotTool<ReadFilePar
 				throw new Error(`Cannot read image files with ${ToolName.ReadFile}. Use ${ToolName.ViewImage} instead.`);
 			}
 
+			release = await guard.acquire([uri], token, true);
 			// Handle binary files — read raw bytes and check for null bytes
 			const binary = await hexdumpIfBinary(this.fileSystemService, uri);
 			if (binary) {
+				const hash = hashFileContent(binary.data);
+				const baseline = await guard.snapshot(uri, { kind: 'bytes', hash, diskHash: hash });
+				release();
+				release = undefined;
 				const input = options.input;
 				let startByte: number | undefined;
 				let endByte: number | undefined;
@@ -270,7 +280,7 @@ export class ReadFileTool extends Disposable implements ICopilotTool<ReadFilePar
 				}
 
 				void this.sendReadFileTelemetry('success', options, { start: 0, end: 0, truncated: false }, uri);
-				return new LanguageModelToolResult([
+				const result = new LanguageModelToolResult([
 					new LanguageModelPromptTsxPart(
 						await renderPromptElementJSON(
 							this.instantiationService,
@@ -284,9 +294,17 @@ export class ReadFileTool extends Disposable implements ICopilotTool<ReadFilePar
 						),
 					)
 				]);
+				throwIfFileWriteCancelled(token);
+				guard.recordRead(lineage, baseline);
+				promptContext?.turnEditedDocuments?.delete(uri);
+				return result;
 			}
 
-			const documentSnapshot = await this.getSnapshot(uri);
+			const documentSnapshot = await this.getSnapshot(uri, promptContext);
+			const diskState = await readFileWriteState(this.fileSystemService, uri);
+			const baseline = await guard.snapshot(uri, { kind: 'text', hash: hashFileContent(documentSnapshot.getText()), diskHash: diskState.kind === 'missing' ? 'missing' : diskState.hash });
+			release();
+			release = undefined;
 			ranges = getParamRanges(options.input, documentSnapshot);
 			const languageId = documentSnapshot.languageId;
 			const doRealLineAdjustment = this.configurationService.getExperimentBasedConfig(ConfigKey.ReadFileToolAllowLineAdjustments, this.experimentationService);
@@ -360,12 +378,12 @@ export class ReadFileTool extends Disposable implements ICopilotTool<ReadFilePar
 
 			void this.sendReadFileTelemetry('success', options, ranges, uri, documentSnapshot);
 			const useCodeFences = this.configurationService.getExperimentBasedConfig<boolean>(ConfigKey.TeamInternal.ReadFileCodeFences, this.experimentationService);
-			return new LanguageModelToolResult([
+			const result = new LanguageModelToolResult([
 				new LanguageModelPromptTsxPart(
 					await renderPromptElementJSON(
 						this.instantiationService,
 						ReadFileResult,
-						{ uri, startLine: ranges.start, endLine: ranges.end, truncated: ranges.truncated, snapshot: documentSnapshot, languageModel: this._promptContext?.request?.model, useCodeFences },
+						{ uri, startLine: ranges.start, endLine: ranges.end, truncated: ranges.truncated, snapshot: documentSnapshot, languageModel: promptContext?.request?.model, useCodeFences },
 						// If we are not called with tokenization options, have _some_ fake tokenizer
 						// otherwise we end up returning the entire document on every readFile.
 						options.tokenizationOptions ?? {
@@ -376,9 +394,26 @@ export class ReadFileTool extends Disposable implements ICopilotTool<ReadFilePar
 					),
 				)
 			]);
+			throwIfFileWriteCancelled(token);
+			guard.recordRead(lineage, baseline);
+			if (promptContext?.turnEditedDocuments?.has(uri)) {
+				promptContext.turnEditedDocuments.set(uri, documentSnapshot);
+			}
+			return result;
 		} catch (err) {
+			if (uri && !token.isCancellationRequested) {
+				let missing = false;
+				try {
+					await this.fileSystemService.stat(uri);
+				} catch (statError) {
+					missing = isFileNotFound(statError);
+				}
+				await guard.recordFailedRead(lineage, uri, missing);
+			}
 			void this.sendReadFileTelemetry('error', options, ranges || { start: 0, end: 0, truncated: false }, uri);
 			throw err;
+		} finally {
+			release?.();
 		}
 	}
 
@@ -512,9 +547,9 @@ export class ReadFileTool extends Disposable implements ICopilotTool<ReadFilePar
 		return originTool;
 	}
 
-	private async getSnapshot(uri: URI) {
+	private async getSnapshot(uri: URI, context = this._promptContext) {
 		if (this.notebookService.hasSupportedNotebooks(uri)) {
-			return this.workspaceService.openNotebookDocumentAndSnapshot(uri, this.alternativeNotebookContent.getFormat(this._promptContext?.request?.model));
+			return this.workspaceService.openNotebookDocumentAndSnapshot(uri, this.alternativeNotebookContent.getFormat(context?.request?.model));
 		}
 
 		return TextDocumentSnapshot.create(await this.workspaceService.openTextDocument(uri));

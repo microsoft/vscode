@@ -615,6 +615,7 @@ suite('AgentHostClientTools', () => {
 				registerToolData: () => toDisposable(() => { }),
 				registerToolImplementation: () => toDisposable(() => { }),
 				registerTool: () => toDisposable(() => { }),
+				registerToolResultProcessor: () => toDisposable(() => { }),
 				getTools: () => tools,
 				getAllToolsIncludingDisabled: () => tools,
 				getTool: (id: string) => tools.find(t => t.id === id),
@@ -3333,6 +3334,43 @@ suite('AgentHostClientTools', () => {
 				subagentChat,
 				'completion should target the subagent default chat URI'
 			);
+		});
+
+		test('parallel background child paths carry decoded parent identities through deferred client execution', async () => {
+			const { handler, connection, toolsService } = createHandlerWithMocks(disposables, [testRunTaskTool]);
+			const children = [
+				{ agent: 'card /中文 A', parent: 'original /parent A?', turn: 'child-turn-a' },
+				{ agent: 'card /中文 B', parent: 'original /parent B?', turn: 'child-turn-b' },
+			].map((identity, index) => {
+				const resource = URI.parse('agent-host-copilot:/session-1').with({ path: `/session-1/background-subagent/${encodeURIComponent(identity.agent)}/request/${encodeURIComponent(identity.parent)}` });
+				const backend = AgentSession.uri('copilot', resource.path.substring(1)).toString();
+				return { ...identity, index, resource, backend, chat: buildDefaultChatUri(backend) };
+			});
+			for (const child of children) {
+				connection.applySessionAction(URI.parse(child.chat), {
+					type: ActionType.ChatTurnStarted, turnId: child.turn, startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'child work', origin: { kind: MessageKind.User } },
+				});
+				connection.applySessionAction(URI.parse(child.chat), {
+					type: ActionType.ChatToolCallStart, turnId: child.turn, toolCallId: `inner-${child.index}`, toolName: 'runTask', displayName: 'Run Task', contributor: { kind: ToolCallContributorKind.Client, clientId: connection.clientId },
+				});
+				connection.applySessionAction(URI.parse(child.chat), {
+					type: ActionType.ChatToolCallReady, turnId: child.turn, toolCallId: `inner-${child.index}`, invocationMessage: 'Run Task', toolInput: '{"task":"build"}', confirmed: ToolCallConfirmationReason.NotNeeded,
+				});
+				await handler.provideChatSessionContent(child.resource, CancellationToken.None);
+			}
+			for (const child of [...children].reverse()) {
+				applyRunningClientExecution(connection, child.chat, child.turn, {
+					toolCallId: `inner-${child.index}`, toolName: 'runTask', displayName: 'Run Task', invocationMessage: 'Run Task', toolInput: '{"task":"build"}', confirmed: ToolCallConfirmationReason.NotNeeded,
+				}, URI.parse(child.backend));
+			}
+			await timeout(0);
+			await timeout(0);
+			assert.deepStrictEqual(children.map(child => {
+				const invocation = toolsService.invokedToolCalls.find(call => call.callId === `inner-${child.index}`);
+				const begun = toolsService.begunToolCalls.find(call => call.toolCallId === `inner-${child.index}`);
+				const completion = connection.dispatchedActions.find(entry => entry.action.type === ActionType.ChatToolCallComplete && entry.action.toolCallId === `inner-${child.index}`);
+				return { path: invocation?.context?.sessionResource.path, request: invocation?.context?.requestId, parent: invocation?.chatRequestId, contextParent: invocation?.context?.parentRequestId, card: invocation?.subAgentInvocationId, renderedCard: begun?.subAgentInvocationId, channel: completion?.channel.toString() };
+			}), children.map(child => ({ path: child.resource.path, request: child.turn, parent: child.parent, contextParent: child.parent, card: child.agent, renderedCard: child.agent, channel: child.chat })));
 		});
 
 		test('observes child tools from a client-provided delegated task', async () => {

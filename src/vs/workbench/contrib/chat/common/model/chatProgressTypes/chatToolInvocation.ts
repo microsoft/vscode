@@ -30,7 +30,10 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	public readonly toolId: string;
 	public readonly icon?: ThemeIcon;
 	public source: ToolDataSource;
-	public readonly subAgentInvocationId: string | undefined;
+	private _subAgentInvocationId: string | undefined;
+	public get subAgentInvocationId(): string | undefined {
+		return this._subAgentInvocationId;
+	}
 	public parameters: unknown;
 	public generatedTitle?: string;
 	public readonly chatRequestId?: string;
@@ -69,6 +72,14 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		return new ChatToolInvocation(undefined, options.toolData, options.toolCallId, options.subagentInvocationId, undefined, { startInStreaming: true }, options.chatRequestId);
 	}
 
+	/** Binds an initially headless invocation once its exact rendering owner is known. */
+	public bindToSubagent(subagentInvocationId: string): void {
+		if (this._subAgentInvocationId !== undefined && this._subAgentInvocationId !== subagentInvocationId) {
+			throw new Error('Tool invocation subagent ownership mismatch');
+		}
+		this._subAgentInvocationId = subagentInvocationId;
+	}
+
 	/**
 	 * Create a tool invocation already in cancelled state.
 	 * Use this when a hook denies tool execution before it even starts.
@@ -102,7 +113,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		this.toolId = toolData.id;
 		this.icon = preparedInvocation?.icon ?? (toolData.icon && ThemeIcon.isThemeIcon(toolData.icon) ? toolData.icon : undefined);
 		this.source = toolData.source;
-		this.subAgentInvocationId = subAgentInvocationId;
+		this._subAgentInvocationId = subAgentInvocationId;
 		this.parameters = parameters;
 		this.chatRequestId = chatRequestId;
 

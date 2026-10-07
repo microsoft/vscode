@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import { CancellationError } from '../../../base/common/errors.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../base/common/lifecycle.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
@@ -15,7 +16,8 @@ import { toToolSetKey } from '../../contrib/chat/common/tools/languageModelTools
 import { CountTokensCallback, ILanguageModelToolsService, IToolData, IToolInvocation, IToolProgressStep, IToolResult, ToolDataSource, ToolProgress, toolResultHasBuffers, ToolSet } from '../../contrib/chat/common/tools/languageModelToolsService.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { Dto, SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExtHostContext, ExtHostLanguageModelToolsShape, IToolDataDto, IToolDefinitionDto, MainContext, MainThreadLanguageModelToolsShape } from '../common/extHost.protocol.js';
+import { ExtHostContext, ExtHostLanguageModelToolsShape, IToolDataDto, IToolDefinitionDto, IToolInvocationDto, MainContext, MainThreadLanguageModelToolsShape } from '../common/extHost.protocol.js';
+import * as typeConvert from '../common/extHostTypeConverters.js';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageModelTools)
 export class MainThreadLanguageModelTools extends Disposable implements MainThreadLanguageModelToolsShape {
@@ -60,9 +62,19 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 		return this.getToolDtos();
 	}
 
-	async $invokeTool(dto: Dto<IToolInvocation>, token?: CancellationToken): Promise<Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>>> {
+	async $invokeTool(dto: IToolInvocationDto, token?: CancellationToken): Promise<Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>>> {
+		if (token?.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		const context = typeConvert.LanguageModelToolInvocationContext.to(dto.context);
+		const invocation: IToolInvocation = {
+			...revive<IToolInvocation>(dto),
+			context,
+			chatRequestId: context?.requestId ?? dto.chatRequestId,
+			subAgentInvocationId: context?.subagentInvocationId ?? dto.subAgentInvocationId,
+		};
 		const result = await this._languageModelToolsService.invokeTool(
-			revive<IToolInvocation>(dto),
+			invocation,
 			(input, token) => this._proxy.$countTokensForInvocation(dto.callId, input, token),
 			token ?? CancellationToken.None,
 		);

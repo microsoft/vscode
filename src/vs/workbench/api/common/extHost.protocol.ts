@@ -67,7 +67,7 @@ import { IChatSessionItem, IChatSessionProviderOptionGroup, IChatSessionProvider
 import { IChatRequestVariableValue } from '../../contrib/chat/common/attachments/chatVariables.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { IChatMessage, IChatResponsePart, ILanguageModelChatInfoOptions, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatRequestOptions, ILanguageModelChatSelector } from '../../contrib/chat/common/languageModels.js';
-import { IPreparedToolInvocation, IStreamedToolInvocation, IToolInvocation, IToolInvocationPreparationContext, IToolInvocationStreamContext, IToolProgressStep, IToolResult, ToolDataSource } from '../../contrib/chat/common/tools/languageModelToolsService.js';
+import { IPreparedToolInvocation, IStreamedToolInvocation, IToolInvocation, IToolInvocationContext, IToolInvocationPreparationContext, IToolInvocationStreamContext, IToolProgressStep, IToolResult, ToolDataSource } from '../../contrib/chat/common/tools/languageModelToolsService.js';
 import { IPromptFileContext, IPromptFileResource } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { DebugConfigurationProviderTriggerKind, IAdapterDescriptor, IConfig, IDebugSessionReplMode, IDebugTestRunReference, IDebugVisualization, IDebugVisualizationContext, IDebugVisualizationTreeItem, MainThreadDebugVisualization } from '../../contrib/debug/common/debug.js';
 import { McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch } from '../../contrib/mcp/common/mcpTypes.js';
@@ -1880,10 +1880,24 @@ export interface IToolDefinitionDto extends IToolDataDto {
 	toolSet?: string;
 }
 
+/** Tool context crossing RPC, including URI strings from external agent runtimes. */
+export type IToolInvocationContextDto = Omit<Dto<IToolInvocationContext>, 'sessionResource' | 'workingDirectory' | 'parentSessionResource'> & {
+	readonly sessionResource: UriComponents | string;
+	readonly workingDirectory?: UriComponents | string;
+	readonly parentSessionResource?: UriComponents | string;
+	readonly parentRequestId?: string;
+	readonly subagentInvocationId?: string;
+	readonly modeInstructions?: Dto<IChatRequestModeInstructions>;
+};
+
+export type IToolInvocationDto = Omit<Dto<IToolInvocation>, 'context'> & {
+	context: IToolInvocationContextDto | undefined;
+};
+
 export interface MainThreadLanguageModelToolsShape extends IDisposable {
 	$getTools(): Promise<Dto<IToolDataDto>[]>;
 	$acceptToolProgress(callId: string, progress: IToolProgressStep): void;
-	$invokeTool(dto: Dto<IToolInvocation>, token?: CancellationToken): Promise<Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>>>;
+	$invokeTool(dto: IToolInvocationDto, token?: CancellationToken): Promise<Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>>>;
 	$countTokensForInvocation(callId: string, input: string, token: CancellationToken): Promise<number>;
 	$registerTool(id: string, hasHandleToolStream: boolean): void;
 	$registerToolWithDefinition(extensionId: ExtensionIdentifier, definition: IToolDefinitionDto, hasHandleToolStream: boolean): void;
@@ -1894,7 +1908,7 @@ export type IChatRequestVariableValueDto = Dto<IChatRequestVariableValue>;
 
 export interface ExtHostLanguageModelToolsShape {
 	$onDidChangeTools(tools: IToolDataDto[]): void;
-	$invokeTool(dto: Dto<IToolInvocation>, token: CancellationToken): Promise<Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>>>;
+	$invokeTool(dto: IToolInvocationDto, token: CancellationToken): Promise<Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>>>;
 	$countTokensForInvocation(callId: string, input: string, token: CancellationToken): Promise<number>;
 
 	$handleToolStream(toolId: string, context: IToolInvocationStreamContext, token: CancellationToken): Promise<IStreamedToolInvocation | undefined>;
