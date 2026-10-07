@@ -252,7 +252,9 @@ suite('AgentHostGitStateService', () => {
 		const authenticationService: IAgentHostAuthenticationService = {
 			_serviceBrand: undefined,
 			onDidChangeAuthToken: Event.None,
+			onDidDiscardAuthToken: Event.None,
 			getAuthAccount: () => undefined,
+			getAuthAccountForToken: () => undefined,
 			getAuthToken: () => 'token',
 		};
 
@@ -1516,7 +1518,9 @@ suite('AgentHostGitStateService', () => {
 			const authenticationService: IAgentHostAuthenticationService = {
 				_serviceBrand: undefined,
 				onDidChangeAuthToken: Event.None,
+				onDidDiscardAuthToken: Event.None,
 				getAuthAccount: () => undefined,
+				getAuthAccountForToken: () => undefined,
 				getAuthToken: () => 'token',
 			};
 			const h = createHarness({ query, authenticationService });

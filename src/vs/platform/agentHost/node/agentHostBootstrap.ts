@@ -39,7 +39,7 @@ import { AgentHostClientConnectionService, IAgentHostClientConnectionService } f
 import { AgentHostSessionTitleController, IAgentHostSessionTitleController } from './agentHostSessionTitleController.js';
 import { AgentHostLocalTurns, IAgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { IAgentHostGitHubService } from './agentHostGitHubService.js';
-import { ICopilotApiService } from './shared/copilotApiService.js';
+import { ICopilotApiService } from '../../github/common/copilotApiService.js';
 import { AgentHostStartupMarks, IAgentHostStartupPerformance } from './agentHostStartupPerformance.js';
 
 export interface ICreateAgentHostRuntimeOptions {

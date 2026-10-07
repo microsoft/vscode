@@ -1734,6 +1734,16 @@ export default defineConfig(
 					]
 				},
 				{
+					'target': 'src/vs/platform/github/~',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'@vscode/copilot-api', // shared protocol types; the hosting binding loads the implementation
+						'@anthropic-ai/sdk', // shared inference protocol types
+					]
+				},
+				{
 					'target': 'src/vs/platform/agentHost/~',
 					'restrictions': [
 						'vs/base/~',

@@ -86,7 +86,7 @@ import { readSessionInitiator, SESSION_INITIATOR_METADATA_KEY, withSessionInitia
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { AGENT_MERGE_CHANGESET_ID, buildBranchChangesetUri, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri, buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
-import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
+import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../../github/common/copilotApiService.js';
 import { getWorktreesRoot, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
 import type { IAgentHostPullRequestResolver } from '../../node/shared/pullRequestResolver.js';
 import { readSessionAdditionalWorktrees, writeSessionAdditionalWorktrees } from '../../node/shared/sessionAdditionalWorktrees.js';

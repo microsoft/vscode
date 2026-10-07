@@ -39,7 +39,9 @@ import { AgentHostTurnTracker } from '../../../node/agentHostTurnTracker.js';
 import { IAgentSdkDownloader } from '../../../node/agentSdkDownloader.js';
 import { CodexAgent } from '../../../node/codex/codexAgent.js';
 import { CodexProxyService, ICodexProxyService } from '../../../node/codex/codexProxyService.js';
-import { CopilotApiError, CopilotApiService, ICopilotApiService, type FetchFunction } from '../../../node/shared/copilotApiService.js';
+import { CopilotApiError, ICopilotApiService, type FetchFunction } from '../../../../github/common/copilotApiService.js';
+import { createTestCopilotApiService } from '../testCopilotApiService.js';
+import { authenticationAccountMeta } from '../../../common/meta/agentAuthenticationAccount.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../../node/shared/worktreeIsolation.js';
 import { createNullSessionDataService } from '../../common/sessionTestHelpers.js';
 import { createTestAgentHostProxyResolver } from '../agentServiceTestUtils.js';
@@ -56,7 +58,8 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, fetch: FetchFu
 	const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
 	const endpoints = disposables.add(new AgentHostGitHubEndpointService(configurationService, logService));
 	const productService: IProductService = { _serviceBrand: undefined, ...product };
-	const apiService = disposables.add(new CopilotApiService(fetch, logService, productService, endpoints));
+	const authentication = disposables.add(new AgentHostAuthenticationService(logService));
+	const apiService = createTestCopilotApiService(disposables, fetch, logService, productService, endpoints, authentication);
 	const events: { eventName: string; data: ITelemetryData }[] = [];
 	const telemetry = disposables.add(new AgentHostTelemetryService(TelemetryService.createWithLevel({
 		telemetryLevel: TelemetryLevel.USAGE,
@@ -87,7 +90,6 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, fetch: FetchFu
 	instantiationService.stub(INativeEnvironmentService, { userHome: URI.from({ scheme: Schemas.inMemory, path: '/sku-test-home' }) });
 	const createAgent = () => disposables.add(instantiationService.createInstance(CodexAgent));
 	const agent = createAgent();
-	const authentication = disposables.add(new AgentHostAuthenticationService(logService));
 	const clientConnections = disposables.add(new AgentHostClientConnectionService());
 	const reporter = new AgentHostTelemetryReporter(telemetry);
 	const tracker = disposables.add(new AgentHostTurnTracker(reporter, clientConnections, logService));
@@ -95,7 +97,10 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, fetch: FetchFu
 	const session = AgentSession.uri(agent.id, 'sku-test').toString();
 	return {
 		agent, createAgent, apiService, authentication, configurationService, endpoints, telemetry, events, reporter, tracker, toolTracker, session, warnings,
-		authenticate: (token: string) => authentication.authenticate({ resource: endpoints.getCopilotResource().resource, token }, [agent]),
+		authenticate: (token: string) => authentication.authenticate({
+			resource: endpoints.getCopilotResource().resource, token,
+			_meta: authenticationAccountMeta({ providerId: 'github', accountId: token }),
+		}, [agent]),
 		completeTurn: (turnId: string, turnAgent = agent) => {
 			tracker.turnStarted(turnAgent, session, turnId, 'gpt-5.4', 'trusted', 'explicit', undefined, undefined);
 			tracker.turnCompleted(session, turnId, 'success');
@@ -350,9 +355,11 @@ suite('Codex Copilot SKU telemetry', () => {
 
 	test('uses metadata recovered by a CAPI request after initial discovery failed', async () => {
 		let available = false;
-		const harness = createHarness(disposables, async () => available
-			? Response.json({ endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: 'recovered-sku' })
-			: new Response('Unavailable', { status: 503 }));
+		const harness = createHarness(disposables, async url => String(url).endsWith('/models')
+			? Response.json({ object: 'list', data: [] })
+			: available
+				? Response.json({ endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: 'recovered-sku' })
+				: new Response('Unavailable', { status: 503 }));
 		await harness.authenticate('test-token-a');
 		await harness.agent.refreshModels();
 		harness.tracker.turnStarted(harness.agent, harness.session, 'recovering', 'gpt-5.4', 'trusted', 'explicit', undefined, undefined);
@@ -423,9 +430,9 @@ suite('Codex Copilot SKU telemetry', () => {
 
 	test('omits expired metadata and follows a refreshed entitlement for the same token', async () => {
 		let sku = 'sku-a';
-		const harness = createHarness(disposables, async () => Response.json({
-			endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: sku,
-		}));
+		const harness = createHarness(disposables, async url => String(url).endsWith('/models')
+			? Response.json({ object: 'list', data: [] })
+			: Response.json({ endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: sku }));
 		await harness.authenticate('test-token-a');
 		await harness.agent.refreshModels();
 		harness.completeTurn('initial');
@@ -455,7 +462,7 @@ suite('Codex Copilot SKU telemetry', () => {
 		assert.deepStrictEqual(harness.turnSkus(), [undefined]);
 	});
 
-	test('an expired cache refresh keeps the endpoint it was called for', async () => {
+	test('an endpoint change cancels an expired cache refresh without rerouting its credential', async () => {
 		let retiredCredentialReachedEnterprise = false;
 		const harness = createHarness(disposables, async url => {
 			if (String(url).endsWith('/copilot_internal/user') && !String(url).startsWith('https://api.github.com/')) {
@@ -473,12 +480,12 @@ suite('Codex Copilot SKU telemetry', () => {
 			clock.setSystemTime(Date.now() + 30 * 60 * 1000);
 			const refreshing = harness.apiService.resolveCopilotSku('test-token-a');
 			harness.configurationService.updateRootConfig({ [AgentHostConfigKey.GithubEnterpriseUri]: 'https://acme.ghe.com' });
+			await assert.rejects(refreshing, /invalidated/);
 
 			assert.deepStrictEqual({
-				resolvedSku: await refreshing,
 				currentSku: harness.apiService.getCachedCopilotSku('test-token-a'),
 				retiredCredentialReachedEnterprise,
-			}, { resolvedSku: 'dotcom-sku', currentSku: undefined, retiredCredentialReachedEnterprise: false });
+			}, { currentSku: undefined, retiredCredentialReachedEnterprise: false });
 		} finally {
 			clock.restore();
 		}

@@ -94,7 +94,7 @@ import { AgentHostGitHubMcpServerEnabledSettingId } from '../../common/agentServ
 import { CopilotToolName, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getSdkImageGenerationMetadata, getShellIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isAgentCoordinationTool, isCopilotSdkToolOutputFile, isEditTool, isHiddenTool, isShellHelperTool, isShellTool, isTaskCompleteTool, parseCopilotStreamingToolInput, synthesizeSkillToolCall, tryStringify } from './copilotToolDisplay.js';
 import { imageGenerationToolMetaKey } from '../../common/meta/agentImageGenerationMeta.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
-import { ICopilotApiService, type IRestrictedTelemetryContext } from '../shared/copilotApiService.js';
+import { ICopilotApiService, type IRestrictedTelemetryContext } from '../../../github/common/copilotApiService.js';
 import type { IAgentHostRestrictedTelemetryContext } from '../agentHostRestrictedTelemetry.js';
 import { buildChatErrorInfoFromCopilotSdkFields } from './copilotSdkChatError.js';
 import { McpCustomizationController, type IMcpServerProvenance, type ISdkMcpServer } from '../shared/mcpCustomizationController.js';
