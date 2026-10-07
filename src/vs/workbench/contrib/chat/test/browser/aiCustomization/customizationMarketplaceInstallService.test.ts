@@ -663,11 +663,6 @@ suite('CustomizationMarketplaceInstallService', () => {
 			mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
 			installation: { kind: 'providerPlugin', name: 'azure', marketplace: 'awesome-copilot' },
 		});
-		if (isWeb) {
-			await assert.rejects(fixture.service.install(candidate), /not available in VS Code for the Web/);
-			assert.deepStrictEqual(installs, []);
-			return;
-		}
 
 		await fixture.service.install(candidate);
 
