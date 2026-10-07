@@ -20,7 +20,7 @@ import { Disposable, DisposableStore, toDisposable, type IDisposable, type IRefe
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isEqualOrParent } from '../../../../base/common/resources.js';
-import { autorun, observableValue, waitForState } from '../../../../base/common/observable.js';
+import { autorun, constObservable, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { PluginFormat } from '../../../agentPlugins/common/pluginParsers.js';
@@ -313,6 +313,7 @@ class TestAgentHostGitService implements IAgentHostGitService {
 	async getBranch(): Promise<IBranch | undefined> { return undefined; }
 	async getRefs(): Promise<IBranch[]> { return []; }
 	async getBranches(): Promise<IBranch[]> { return []; }
+	hasGitRoot() { return constObservable(undefined); }
 	async getRepositoryRoot(): Promise<URI | undefined> { return this.repositoryRoot; }
 	async getWorktreeRoots(): Promise<URI[]> { return []; }
 	async addWorktree(repositoryRoot: URI, options: IAddWorktreeOptions): Promise<void> {

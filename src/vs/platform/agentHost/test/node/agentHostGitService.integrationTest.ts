@@ -29,6 +29,7 @@ import { FileService } from '../../../files/common/fileService.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { DiskFileSystemProvider } from '../../../files/node/diskFileSystemProvider.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, GitRefType } from '../../common/agentHostGitService.js';
 import type { ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentHostGitService } from '../../node/agentHostGitService.js';
@@ -91,6 +92,14 @@ suite('AgentHostGitService - getRepositoryRoot (real git)', () => {
 	function initRepository(directory: string): string {
 		cp.execFileSync('git', ['init', '-q'], { cwd: directory, stdio: 'pipe' });
 		return URI.file(cp.execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: directory, encoding: 'utf8' }).trim()).fsPath;
+	}
+
+	async function fillRootCache(prefix: string): Promise<void> {
+		for (let index = 0; index < 110; index++) {
+			const directory = join(tmpRoot, `${prefix}-${index}`);
+			mkdirSync(directory);
+			await service.getRepositoryRoot(URI.file(directory));
+		}
 	}
 
 	(hasGit ? test : test.skip)('shares concurrent successful lookups and caches the root', async () => {
@@ -177,6 +186,139 @@ suite('AgentHostGitService - getRepositoryRoot (real git)', () => {
 			lookups: 2,
 		});
 	});
+
+	(hasGit ? test : test.skip)('observable availability distinguishes unknown, a non-repository, and git init', async () => {
+		const directory = URI.file(tmpRoot);
+		const availability = service.hasGitRoot(directory);
+		const values: (boolean | undefined)[] = [];
+		disposables.add(autorun(reader => { values.push(availability.read(reader)); }));
+
+		await service.getRepositoryRoot(directory);
+		initRepository(tmpRoot);
+		await service.getRepositoryRoot(directory, { refreshIfNone: true });
+		await service.getRepositoryRoot(directory, { refreshIfNone: true });
+
+		assert.deepStrictEqual({ values, current: availability.get(), lookups: logService.repositoryRootLookups }, {
+			values: [undefined, false, true],
+			current: true,
+			lookups: 2,
+		});
+	});
+
+	(hasGit ? test : test.skip)('uncached descendants observe a known ancestor root without another probe', async () => {
+		const descendant = URI.file(join(tmpRoot, 'src', 'nested'));
+		const availability = service.hasGitRoot(descendant);
+		const values: (boolean | undefined)[] = [];
+		disposables.add(autorun(reader => { values.push(availability.read(reader)); }));
+		initRepository(tmpRoot);
+
+		await service.getRepositoryRoot(URI.file(tmpRoot));
+
+		assert.deepStrictEqual({ values, lookups: logService.repositoryRootLookups }, { values: [undefined, true], lookups: 1 });
+	});
+
+	(hasGit ? test : test.skip)('a cached negative ancestor does not classify an unqueried descendant as non-git', async () => {
+		await service.getRepositoryRoot(URI.file(tmpRoot));
+
+		assert.strictEqual(service.hasGitRoot(URI.file(join(tmpRoot, 'nested'))).get(), undefined);
+	});
+
+	(hasGit ? test : test.skip)('an exact non-worktree result takes precedence over an inferred ancestor root', async () => {
+		initRepository(tmpRoot);
+		await service.getRepositoryRoot(URI.file(tmpRoot));
+		const gitDirectory = URI.file(join(tmpRoot, '.git'));
+		const before = service.hasGitRoot(gitDirectory).get();
+		await service.getRepositoryRoot(gitDirectory);
+
+		assert.deepStrictEqual({ before, after: service.hasGitRoot(gitDirectory).get() }, { before: true, after: false });
+	});
+
+	(hasGit ? test : test.skip)('an inconclusive probe leaves observable availability unknown and remains retryable', async () => {
+		const directoryPath = join(tmpRoot, 'missing-observable');
+		const directory = URI.file(directoryPath);
+		const availability = service.hasGitRoot(directory);
+		const values: (boolean | undefined)[] = [];
+		disposables.add(autorun(reader => { values.push(availability.read(reader)); }));
+
+		await service.getRepositoryRoot(directory);
+		mkdirSync(directoryPath);
+		initRepository(directoryPath);
+		await service.getRepositoryRoot(directory);
+
+		assert.deepStrictEqual({ values, lookups: logService.repositoryRootLookups }, { values: [undefined, true], lookups: 2 });
+	});
+
+	(hasGit ? test : test.skip)('a failed negative refresh changes availability to unknown instead of retaining false', async () => {
+		const directory = URI.file(tmpRoot);
+		const availability = service.hasGitRoot(directory);
+		const values: (boolean | undefined)[] = [];
+		disposables.add(autorun(reader => { values.push(availability.read(reader)); }));
+		await service.getRepositoryRoot(directory);
+		const fs = await import('fs/promises');
+		await fs.writeFile(join(tmpRoot, '.git'), 'invalid gitfile\n');
+		await service.getRepositoryRoot(directory, { refreshIfNone: true });
+		await fs.unlink(join(tmpRoot, '.git'));
+		initRepository(tmpRoot);
+		await service.getRepositoryRoot(directory);
+
+		assert.deepStrictEqual(values, [undefined, false, undefined, true]);
+	});
+
+	(hasGit ? test : test.skip)('reading unresolved derived availability does not populate or evict the cache', async () => {
+		const directory = URI.file(tmpRoot);
+		await service.getRepositoryRoot(directory);
+		for (let index = 0; index < 200; index++) {
+			service.hasGitRoot(URI.file(join(tmpRoot, `unknown-${index}`))).get();
+		}
+		await service.getRepositoryRoot(directory);
+
+		assert.strictEqual(logService.repositoryRootLookups, 1);
+	});
+
+	(hasGit ? test : test.skip)('observed handles become unknown after cache eviction and recover on rediscovery', async () => {
+		const directoryPath = join(tmpRoot, 'observed-root');
+		mkdirSync(directoryPath);
+		const directory = URI.file(directoryPath);
+		const first = service.hasGitRoot(directory);
+		const second = service.hasGitRoot(directory);
+		const values: (boolean | undefined)[] = [];
+		const firstObserver = disposables.add(autorun(reader => { values.push(first.read(reader)); }));
+		const secondObserver = disposables.add(autorun(reader => { second.read(reader); }));
+		await service.getRepositoryRoot(directory);
+		await fillRootCache('unobserved');
+		firstObserver.dispose();
+		initRepository(directoryPath);
+		await service.getRepositoryRoot(directory, { refreshIfNone: true });
+		const whileObserved = second.get();
+		secondObserver.dispose();
+		await fillRootCache('evicted');
+
+		assert.deepStrictEqual({
+			values,
+			whileObserved,
+			afterEviction: first.get(),
+		}, {
+			values: [undefined, false, undefined],
+			whileObserved: true,
+			afterEviction: undefined,
+		});
+	}).timeout(30_000);
+
+	(hasGit ? test : test.skip)('a handle resubscribed after cache eviction observes future discovery', async () => {
+		const directory = URI.file(tmpRoot);
+		const availability = service.hasGitRoot(directory);
+		const firstObserver = disposables.add(autorun(reader => { availability.read(reader); }));
+		await service.getRepositoryRoot(directory);
+		firstObserver.dispose();
+		await fillRootCache('handle');
+		const values: (boolean | undefined)[] = [];
+		disposables.add(autorun(reader => { values.push(availability.read(reader)); }));
+		initRepository(tmpRoot);
+
+		await service.getRepositoryRoot(directory);
+
+		assert.deepStrictEqual(values, [undefined, true]);
+	}).timeout(30_000);
 
 	(hasGit ? test : test.skip)('orders refresh after an in-flight lookup and before subsequent readers', async () => {
 		const directory = URI.file(tmpRoot);

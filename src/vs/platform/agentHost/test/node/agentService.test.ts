@@ -16367,6 +16367,7 @@ suite('AgentService (node dispatcher)', () => {
 			const calls: string[] = [];
 			const gitService = {
 				_serviceBrand: undefined,
+				hasGitRoot: createNoopGitService().hasGitRoot,
 				getCurrentBranch: async () => undefined,
 				getDefaultBranch: async () => undefined,
 				getBranch: async () => undefined,
@@ -16480,6 +16481,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('createSession infers workspace-less (and skips git overlay) when no working directory', async () => {
 			const gitService = {
 				_serviceBrand: undefined,
+				hasGitRoot: createNoopGitService().hasGitRoot,
 				getCurrentBranch: async () => undefined,
 				getDefaultBranch: async () => undefined,
 				getBranch: async () => undefined,
