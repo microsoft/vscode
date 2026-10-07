@@ -119,7 +119,11 @@ controls image paste; disabling it does not disable ordinary text paste.
 
 Clipboard image bytes cross the typed editor bridge; the host chooses the
 destination and applies edits to the authoritative document. Multiple images
-are supported. Unsaved documents, stale edits, denied clipboard access, and
+are supported. In desktop webviews, paste first captures a native paste event
+through a temporary editable target, preserving file clipboard images and
+filenames that the async Clipboard API may omit. Hosts without native paste
+support use the async Clipboard API instead; unsupported formats are reported.
+Unsaved documents, stale edits, denied clipboard access, and
 workspace-edit failures display an error rather than silently dropping images.
 The provider's default alt text is inserted without starting a snippet session.
 This integration reuses the built-in Markdown media provider, not arbitrary

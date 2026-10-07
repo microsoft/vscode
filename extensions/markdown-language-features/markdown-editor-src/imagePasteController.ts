@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AsyncClipboardStrategy, EditorModel, EditorView, Selection, type IClipboardContext, type IClipboardStrategy } from '@vscode/markdown-editor';
+import { AsyncClipboardStrategy, EditorModel, EditorView, Selection, readNativeClipboard, type IClipboardContext, type IClipboardStrategy } from '@vscode/markdown-editor';
 import { Disposable } from '@vscode/observables';
 import type { MarkdownEditorHost } from '../src/preview/markdownEditorProtocol';
 
@@ -23,6 +23,10 @@ export class ImagePasteController extends Disposable implements IClipboardStrate
 	) {
 		super();
 		this.#strategy = new AsyncClipboardStrategy(clipboard, (context, plainText) => this.#paste(context, async () => {
+			const native = readNativeClipboard(context.element);
+			if (native) {
+				return { text: native.text, images: plainText ? [] : native.files.filter(file => file.type.startsWith('image/')) };
+			}
 			if (plainText || !clipboard.read) { return { text: await clipboard.readText(), images: [] }; }
 			const items = await clipboard.read();
 			const images: File[] = [];
@@ -36,6 +40,9 @@ export class ImagePasteController extends Disposable implements IClipboardStrate
 				} else if (item.types.includes('text/plain')) {
 					text += await (await item.getType('text/plain')).text();
 				}
+			}
+			if (items.length && !images.length && !text && items.every(item => !item.types.includes('text/plain'))) {
+				throw new Error('The clipboard formats are not available to this editor. Try copying the image itself instead of its file.');
 			}
 			return { text, images };
 		}));
