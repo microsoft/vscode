@@ -122,6 +122,7 @@ the deadline remain missing; the marker is not proof that a turn completed.
 | Host `providerStageQueueMs`, `providerStageClientMs`, `providerStageSnapshotMs`, `providerStageConfigMs`, `providerStageCreateMs`, `providerStageFinalizeMs`, `providerStagePersistMs`, `providerStageRefreshMs`, `providerStageTurnPrepareMs`, `providerStageModelResponseMs` | Sequential provider-marked stages between provider dispatch and first progress (chat queue wait, SDK client acquisition, customization snapshot, session config, SDK create/resume, post-create setup, session registration/persistence, live-session refresh, per-turn preparation, and SDK send until first progress). Only stages the provider ran are present; a turn ending before first progress retains its partial open stage. Copilot marks all of them; other providers currently mark none |
 | Host `hostRootTurnOrdinal`, `hostProcessAgeMs`, `titleGenerationStrategy` | Existing root ordinal and process age captured at turn start, and effective `activeAgent`, `utility`, or `deferred` strategy when observed |
 | Renderer `requestId` | Exact client request ID, duplicated as `turnId` for joins |
+| Renderer `connectionKind` | Existing bounded `AgentHostClientConnectionKind`, captured from the client connection at invocation start; `unknown` when unavailable, absent in older diagnostic payloads |
 | Renderer `outcome`, `sessionTurnKind`, `invocationKind` | Existing diagnostic classifications described below |
 | Renderer `firstResponseTextMs`, `totalElapsedMs` | Invocation to qualifying first live root markdown, and invocation to terminal outcome |
 | Renderer `hasResponseText`, `rootToolCallsBeforeFirstText` | Whether qualifying text occurred; distinct live root tools before that text, absent without text |
@@ -164,7 +165,7 @@ user-owned; the diagnostics add no workspace paths, content or credentials.
 
 The renderer reports `agentHost.firstResponse` and writes a content-free
 `[AgentHostFirstResponse]` JSON record to its existing log. Schema version 1
-contains `requestId`, `provider`, optional backend `agentSessionId` / `chatId`,
+contains `requestId`, `provider`, `connectionKind`, optional backend `agentSessionId` / `chatId`,
 `sessionTurnKind` (`first`, `later`, or `unknown`), `outcome` (`success`,
 `cancelled`, `error`, or `notDispatched`), `hasResponseText`, optional
 `firstResponseTextMs`, and `totalElapsedMs`. The log additionally retains
@@ -180,6 +181,33 @@ The endpoint is the first nonwhitespace live root markdown emission, including
 final-only responses, not physical submit, paint, or a semantic guarantee of an
 answer. Reasoning, tool output, restored history and server-initiated observation
 do not start this metric. Existing first-progress measurements are unchanged.
+
+`connectionKind` reuses `AgentHostClientConnectionKind`, assigned by the owning
+client transport/integration and exposed through `IAgentConnection`. Values are
+`local`, `direct_websocket`, `dev_tunnel`, `dev_container`, `ssh`, `wsl`,
+`remote_extension_host`, `web_pub_sub`, `mission_control`, and `unknown`. The
+invocation captures this classification once, independently of provider names,
+host identities, or the configured-host registry, so it survives disconnection.
+Missing or unrecognized classifications become `unknown`; older diagnostic
+payloads can omit the field. The log and OTel diagnostic carry the same value,
+with no environment IDs, addresses, or credentials.
+
+Today, the GitHub-managed sandbox integration assigns `web_pub_sub`, while
+user-local environments discovered through Mission Control assign
+`mission_control`, although both use the Web PubSub relay. This is an
+integration classification, not a general hosting-ownership guarantee: future
+contributions must deliberately select their connection kind. PubSub usage
+alone does not identify a GitHub-managed sandbox or a user-managed environment.
+
+For cloud-sandbox first-response-text latency, filter `agentHost.firstResponse`
+to `connectionKind = web_pub_sub`, `invocationKind = newTurn`, `hasResponseText = true`,
+and `trustInteractionRequired = false`, then compute percentiles of
+`firstResponseTextMs`. Use `connectionKind = mission_control` for the current
+user-local cohort. Scope these filters to deployed versions using the
+classifications above; missing historical values are not cloud sandboxes.
+Separate outcomes and first/later turns when comparing cohorts. This remains
+invocation-to-first-response-text latency, not model TTFT or submission-to-paint
+latency; no connection-event join is needed.
 
 `rendererRootInvocationOrdinal` counts root invocation attempts across providers
 in this renderer lifetime, including declined, cancelled and resumed attempts.

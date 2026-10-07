@@ -118,6 +118,13 @@ suite('LocalAgentHostServiceClient events', () => {
 		};
 	}
 
+	test('exposes the local connection kind before the host starts', () => {
+		const { service } = createService();
+		const beforeStart = service.clientConnectionKind;
+		service.startAgentHost();
+		assert.deepStrictEqual([beforeStart, service.clientConnectionKind], [AgentHostClientConnectionKind.Local, AgentHostClientConnectionKind.Local]);
+	});
+
 	test('forwards readiness changes and keeps another window refresh from restarting the shared host', async () => {
 		class PolicyConfigurationService extends TestConfigurationService {
 			override inspect<T>(key: string): IConfigurationValue<T> {

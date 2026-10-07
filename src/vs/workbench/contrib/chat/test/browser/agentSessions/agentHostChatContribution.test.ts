@@ -105,6 +105,7 @@ import { ILabelService } from '../../../../../../platform/label/common/label.js'
 import { MockLabelService } from '../../../../../services/label/test/common/mockLabelService.js';
 import { IAgentHostFileSystemService } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { IRemoteAgentHostService, NullRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { AgentHostClientConnectionKind } from '../../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IWorkingCopyService } from '../../../../../services/workingCopy/common/workingCopyService.js';
 import { IWorkbenchAssignmentService } from '../../../../../services/assignment/common/assignmentService.js';
@@ -214,6 +215,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	declare readonly _serviceBrand: undefined;
 
 	override resourceUris = identityAgentHostResourceUriMapper;
+	override clientConnectionKind: AgentHostClientConnectionKind | undefined;
 
 	private readonly _onDidAction = new Emitter<ActionEnvelope>();
 	override readonly onDidAction = this._onDidAction.event;
@@ -6690,51 +6692,70 @@ suite('AgentHostChatContribution', () => {
 
 	suite('progress routing', () => {
 
-		test('first response telemetry avoids the common session ID and preserves log correlation', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
-			const exported: IAgentHostFirstResponseDiagnostic[] = [];
-			agentHostService.reportFirstResponse = async diagnostic => { exported.push(diagnostic); };
-			const events: Record<string, unknown>[] = [];
-			instantiationService.stub(ITelemetryService, {
-				...NullTelemetryService,
-				publicLog2(eventName: string, data: Record<string, unknown> | undefined): void {
-					if (eventName === 'agentHost.firstResponse' && data) {
-						events.push(data);
-					}
-				},
-			});
-			const records = captureFirstResponseTimings(instantiationService);
-			const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
-				provider: 'copilot',
-				agentId: 'agent-host-copilot',
-				sessionType: 'agent-host-copilot',
-				fullName: 'Test',
-				description: 'test',
-				connection: agentHostService,
-				connectionAuthority: 'local',
-			}));
-			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
-			fire({ type: 'chat/responsePart', session, turnId, part: { kind: 'markdown', id: 'answer', content: 'Hello' } } as ChatAction);
-			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
-			await turnPromise;
+		for (const connectionKind of [
+			undefined,
+			AgentHostClientConnectionKind.Local,
+			AgentHostClientConnectionKind.DirectWebSocket,
+			AgentHostClientConnectionKind.DevTunnel,
+			AgentHostClientConnectionKind.DevContainer,
+			AgentHostClientConnectionKind.SSH,
+			AgentHostClientConnectionKind.WSL,
+			AgentHostClientConnectionKind.RemoteExtensionHost,
+			AgentHostClientConnectionKind.WebPubSub,
+			AgentHostClientConnectionKind.MissionControl,
+			AgentHostClientConnectionKind.Unknown,
+		]) {
+			test(`first response telemetry preserves connection kind and correlation (${connectionKind})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
+				agentHostService.clientConnectionKind = connectionKind;
+				const exported: IAgentHostFirstResponseDiagnostic[] = [];
+				agentHostService.reportFirstResponse = async diagnostic => { exported.push(diagnostic); };
+				const events: Record<string, unknown>[] = [];
+				instantiationService.stub(ITelemetryService, {
+					...NullTelemetryService,
+					publicLog2(eventName: string, data: Record<string, unknown> | undefined): void {
+						if (eventName === 'agentHost.firstResponse' && data) {
+							events.push(data);
+						}
+					},
+				});
+				const records = captureFirstResponseTimings(instantiationService);
+				const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+					provider: 'copilot',
+					agentId: 'agent-host-copilot',
+					sessionType: 'agent-host-copilot',
+					fullName: 'Test',
+					description: 'test',
+					connection: agentHostService,
+					connectionAuthority: connectionKind === AgentHostClientConnectionKind.Local ? 'local' : agentHostAuthority('ws://unregistered:8080'),
+					requiresWorkspaceTrust: false,
+				}));
+				const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+				agentHostService.clientConnectionKind = undefined;
+				fire({ type: 'chat/responsePart', session, turnId, part: { kind: 'markdown', id: 'answer', content: 'Hello' } } as ChatAction);
+				fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+				await turnPromise;
 
-			const agentSessionId = AgentSession.uri('copilot', 'new-turntest').toString();
-			assert.deepStrictEqual(exported, events.map(event => ({
-				...event, agentSessionId: 'new-turntest', chatId: parseChatUri(session)?.chatId,
-			})));
-			assert.deepStrictEqual({
-				telemetry: events.map(event => ({
-					requestId: event.requestId,
-					agentSessionId: event.agentSessionId,
-					chatId: event.chatId,
-					commonSessionIdKeys: Object.keys(event).filter(key => key.toLowerCase() === 'sessionid'),
-				})),
-				logs: records,
-			}, {
-				telemetry: [{ requestId: turnId, agentSessionId, chatId: session, commonSessionIdKeys: [] }],
-				logs: events.map(event => ({ ...event, sessionId: agentSessionId, turnId })),
-			});
-		}));
+				const agentSessionId = AgentSession.uri('copilot', 'new-turntest').toString();
+				assert.deepStrictEqual(exported, events.map(event => ({
+					...event, agentSessionId: 'new-turntest', chatId: parseChatUri(session)?.chatId,
+				})));
+				assert.deepStrictEqual({
+					telemetry: events.map(event => ({
+						requestId: event.requestId,
+						agentSessionId: event.agentSessionId,
+						chatId: event.chatId,
+						connectionKind: event.connectionKind,
+						commonSessionIdKeys: Object.keys(event).filter(key => key.toLowerCase() === 'sessionid'),
+						hasResponseText: event.hasResponseText,
+					})),
+					logs: records,
+				}, {
+					telemetry: [{ requestId: turnId, agentSessionId, chatId: session, connectionKind: connectionKind ?? AgentHostClientConnectionKind.Unknown, commonSessionIdKeys: [], hasResponseText: true }],
+					logs: events.map(event => ({ ...event, sessionId: agentSessionId, turnId })),
+				});
+			}));
+		}
 
 		test('first-response OTel bridge failures do not fail a completed invocation', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
