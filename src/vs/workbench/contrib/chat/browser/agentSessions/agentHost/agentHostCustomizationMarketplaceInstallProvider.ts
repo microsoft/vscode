@@ -24,6 +24,7 @@ import { IRecordedCustomizationMarketplaceResource, ICustomizationMarketplaceIns
 import { ICustomizationMarketplaceSearchProvider } from '../../../common/customizationHarnessService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IAgentHostCustomizationService } from './agentHostCustomizationService.js';
+import { getGitHubMcpRegistryIcon } from '../../aiCustomization/githubMcpRegistryIcons.js';
 
 const maxCachedReceiptSessions = 50;
 const maxCatalogAssociations = 1000;
@@ -138,6 +139,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 					this.unavailableCatalogItems.delete(item.selectionId);
 				}
 				const publisher = getGitHubPublisher(item.publisher);
+				const registryIcon = item.kind === 'mcp' ? getGitHubMcpRegistryIcon(item.itemUrl) : undefined;
 				const providerPlugin = !item.unavailableMessage && item.kind === 'plugin' && item.pluginName && item.marketplace
 					? { kind: 'providerPlugin' as const, name: item.pluginName, marketplace: item.marketplace }
 					: undefined;
@@ -153,7 +155,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 					repository: item.repository ? URI.from({ scheme: Schemas.https, authority: 'github.com', path: `/${item.repository}` }) : undefined,
 					publisher: item.publisher,
 					publisherUrl: publisher?.profile,
-					icon: publisher?.avatar,
+					icon: publisher?.avatar ?? registryIcon,
 					installation: providerPlugin ?? { kind: 'providerCatalog' as const, resourceKind: item.kind, selectionId: item.selectionId },
 				};
 			}),
@@ -366,6 +368,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 	private toMarketplaceResource(installation: IAgentCustomizationInstallation): ICustomizationMarketplaceResource {
 		const catalogue = installation.catalogue;
 		const publisher = getGitHubPublisher(catalogue?.publisher);
+		const registryIcon = installation.kind === 'mcp' ? getGitHubMcpRegistryIcon(catalogue?.itemUrl) : undefined;
 		return {
 			sourceId: this.getSourceId(catalogue?.source),
 			identifier: catalogue?.resourceId ?? catalogue?.itemUrl ?? installation.installationId,
@@ -380,7 +383,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 			url: catalogue?.itemUrl ? URI.parse(catalogue.itemUrl) : undefined,
 			publisher: catalogue?.publisher,
 			publisherUrl: publisher?.profile,
-			icon: publisher?.avatar,
+			icon: publisher?.avatar ?? registryIcon,
 		};
 	}
 

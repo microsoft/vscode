@@ -31,7 +31,7 @@ In the treatment, Automations and Customizations are the first rows in the Sessi
 #### Actions and Expected Results
 
 1. Open Discover. Browse available resources without signing in or starting a chat session.
-2. Check that the leading section and data-backed Skills, MCP servers, and Plugins sections show names, descriptions, publisher information, resource types, and available star metadata. Repository owner images have a fallback icon when absent or unavailable.
+2. Check that the leading section and data-backed Skills, MCP servers, and Plugins sections show names, descriptions, publisher information, resource types, and available star metadata. SDK MCP results whose trusted registry identity exists in the GitHub MCP Registry snapshot use its curated owner avatar even when the card omits publisher; unknown identities and failed images use the type fallback.
 3. Search for a generic topic such as `postgres`, then combine Installed, MCPs, Plugins, and Skills using the search filter menu. Typed `@installed` and `@type:` tokens must stay synchronized with the filters.
 4. Verify that search replaces browse cards with one flat virtualized list, with installed items before available items. Only the latest search is displayed, even if an earlier request finishes later.
 5. Scroll near the end of search results. Existing results remain visible while the next page loads, then results append without duplicates or a persistent Load More footer. If client-side type filtering leaves too few rows to scroll after bounded backfilling, a Load More action provides access to the remaining continuation. Change the query or type and verify pagination resets.

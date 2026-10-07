@@ -77,14 +77,24 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 					calls.push({ provider, session: session.toString(), query: request.query });
 					return {
 						kind: 'page' as const,
-						items: request.query ? [{
-							selectionId: 'selection',
-							kind: 'skill' as const,
-							displayName: 'Demo Skill',
-							description: 'Demo',
-							publisher: 'octo-org',
-							installable: true,
-						}] : [{
+						items: request.query ? [
+							{
+								selectionId: 'selection',
+								kind: 'skill' as const,
+								displayName: 'Demo Skill',
+								description: 'Demo',
+								publisher: 'octo-org',
+								installable: true,
+							},
+							{
+								selectionId: 'playwright',
+								kind: 'mcp' as const,
+								displayName: 'Playwright',
+								description: 'Browser automation',
+								itemUrl: 'https://api.mcp.github.com/oss/v0.1/servers/microsoft%2Fplaywright-mcp/versions/latest',
+								installable: true,
+							},
+						] : [{
 							selectionId: 'featured-plugin:awesome-copilot:azure',
 							kind: 'plugin' as const,
 							displayName: 'Azure',
@@ -124,7 +134,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				items: page.items.map(item => ({
 					...item,
 					publisherUrl: item.publisherUrl?.toString(),
-					icon: URI.isUri(item.icon) ? item.icon.toString() : item.icon,
+					icon: URI.isUri(item.icon) ? item.icon.toString(true) : item.icon,
 				})),
 			},
 		}, {
@@ -165,6 +175,20 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 					publisherUrl: 'https://github.com/octo-org',
 					icon: 'https://github.com/octo-org.png',
 					installation: { kind: 'providerCatalog', resourceKind: 'skill', selectionId: 'selection' },
+				}, {
+					identifier: 'playwright',
+					displayName: 'Playwright',
+					description: 'Browser automation',
+					mediaType: 'application/mcp-server+json',
+					tags: [],
+					capabilities: [],
+					representativeQueries: [],
+					version: undefined,
+					repository: undefined,
+					publisher: undefined,
+					publisherUrl: undefined,
+					icon: 'https://avatars.githubusercontent.com/u/6154722?v=4',
+					installation: { kind: 'providerCatalog', resourceKind: 'mcp', selectionId: 'playwright' },
 				}],
 				nextCursor: 'next',
 			},
