@@ -143,6 +143,12 @@
     ],
     "commands": [
       {
+        "command": "markdown.editor.triggerSuggest",
+        "title": "%markdown.editor.triggerSuggest%",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'"
+      },
+      {
         "command": "markdown.editor.rename",
         "title": "%markdown.editor.rename%",
         "category": "Markdown Editor",
@@ -658,6 +664,10 @@
       ],
       "commandPalette": [
         {
+          "command": "markdown.editor.triggerSuggest",
+          "when": "activeCustomEditorId == 'vscode.markdown.editor'"
+        },
+        {
           "command": "markdown.editor.rename",
           "when": "activeCustomEditorId == 'vscode.markdown.editor'"
         },
@@ -960,6 +970,11 @@
       ]
     },
     "keybindings": [
+      {
+        "command": "markdown.editor.triggerSuggest",
+        "key": "ctrl+space",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus"
+      },
       {
         "command": "markdown.editor.rename",
         "key": "f2",

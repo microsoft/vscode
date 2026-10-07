@@ -24,6 +24,7 @@ import { MarkdownEditorRichLinkController } from './markdownEditorRichLinks';
 import { markdownEditorHost, markdownEditorRenderer, type CodeBlockEditorProviderDefinition, type ResolvedCodeBlockEditor } from './markdownEditorProtocol';
 import { MarkdownEditorRpcTransport } from './markdownEditorRpc';
 import { MarkdownEditorRename } from './markdownEditorRename';
+import { MarkdownEditorLanguageFeatures } from './markdownEditorLanguageFeatures';
 
 export interface MarkdownCodeBlockEditorApiV1 {
 	getProvider(providerId: string): MarkdownCodeBlockEditorProviderApi | undefined;
@@ -420,7 +421,23 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		const rename = new MarkdownEditorRename(document, () => editQueue.drain(),
 			() => ({ text: webviewText, editEpoch: editQueue.epoch }),
 			() => webviewPanel.active && !resolveCancellation.token.isCancellationRequested);
+		const languageFeatures = new MarkdownEditorLanguageFeatures(document, () => editQueue.drain(),
+			() => ({ text: webviewText, editEpoch: editQueue.epoch }),
+			() => webviewPanel.active && !resolveCancellation.token.isCancellationRequested);
+		const diagnosticsChanged = (): void => {
+			if (webviewReady && !resolveCancellation.token.isCancellationRequested) {
+				void editorWebview.renderer.diagnosticsChanged({}).catch(error =>
+					this.#logger.trace('Markdown editor', 'Failed to refresh diagnostics', error));
+			}
+		};
+		const diagnosticListener = vscode.languages.onDidChangeDiagnostics(event => {
+			if (event.uris.some(uri => uri.toString() === document.uri.toString())) { diagnosticsChanged(); }
+		});
 		editorWebview.setHandlers({
+			getDiagnostics: () => languageFeatures.diagnostics(),
+			completions: message => languageFeatures.completions(message),
+			acceptCompletion: message => languageFeatures.accept(message),
+			cancelCompletions: message => languageFeatures.cancel(message.requestId),
 			prepareRename: message => rename.prepare(message),
 			rename: message => rename.rename(message),
 			cancelRename: message => rename.cancel(message.requestId),
@@ -433,6 +450,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 				signal.throwIfAborted();
 				editorWebview.publishReady();
 				await postCodeBlockEditorProviders();
+				diagnosticsChanged();
 			},
 
 			resolveCodeBlockEditor: async (message, _context, { signal }) => {
@@ -555,6 +573,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			if (e.document.uri.toString() !== document.uri.toString()) {
 				return;
 			}
+			diagnosticsChanged();
 			if (
 				e.document.getText() === expectedWebviewContent?.content
 				&& expectedWebviewContent.epoch === editQueue.epoch
@@ -573,6 +592,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			: this.#wireQuickDiff(document, editorWebview);
 		const reloadWebview = (): void => {
 			rename.cancel();
+			languageFeatures.cancel();
 			webviewReady = false;
 			void editQueue.enqueueBarrier(async epoch => {
 				if (resolveCancellation.token.isCancellationRequested) {
@@ -640,6 +660,8 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 
 		webviewPanel.onDidDispose(() => {
 			rename.cancel();
+			languageFeatures.cancel();
+			diagnosticListener.dispose();
 			contributionUpdate++;
 			editQueue.invalidate();
 			resolveCancellation.cancel();

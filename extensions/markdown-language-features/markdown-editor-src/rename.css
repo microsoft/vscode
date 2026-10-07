@@ -28,6 +28,10 @@
 .md-rename-target {
 	position: absolute;
 	border-radius: 2px;
-	background: var(--vscode-editor-symbolHighlightBackground);
-	box-shadow: inset 0 0 0 1px var(--vscode-editor-symbolHighlightBorder, var(--vscode-focusBorder));
+	background: color-mix(in srgb, var(--vscode-editor-symbolHighlightBackground) 35%, transparent);
+	box-shadow: inset 0 0 0 1px var(--vscode-contrastActiveBorder, color-mix(in srgb, var(--vscode-editor-symbolHighlightBorder, var(--vscode-focusBorder)) 40%, transparent));
+}
+
+.md-editor.md-rename-active .md-cursor {
+	display: none;
 }

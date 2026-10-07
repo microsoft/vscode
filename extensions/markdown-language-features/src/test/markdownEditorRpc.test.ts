@@ -44,10 +44,15 @@ suite('Markdown editor RPC', () => {
 			prepareRename: () => ({ start: 0, endExclusive: 1, placeholder: 'name' }),
 			rename: () => { },
 			cancelRename: () => { },
+			getDiagnostics: () => ({ editEpoch: 0, items: [] }),
+			completions: () => ({ items: [], incomplete: false }),
+			acceptCompletion: () => ({ offset: 0, editEpoch: 0, retrigger: false }),
+			cancelCompletions: () => { },
 			...hostOverrides,
 		});
 		host.get(markdownEditorRenderer);
 		renderer.register(markdownEditorRenderer, {
+			diagnosticsChanged: () => { },
 			update: () => { },
 			codeBlockEditorProviders: () => { },
 			codeBlockEditorHostTransportMessage: () => { },

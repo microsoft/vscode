@@ -116,12 +116,19 @@ export class RenameController extends Disposable {
 			});
 		};
 		const blur = (): void => this.cancel();
+		const inputFocus = (): void => { view.element.classList.add('md-rename-active'); };
+		const inputBlur = (): void => { view.element.classList.remove('md-rename-active'); };
+		this.#widget.inputElement.addEventListener('focus', inputFocus);
+		this.#widget.inputElement.addEventListener('blur', inputBlur);
 		view.element.addEventListener('keydown', keydown, true);
 		this.#widget.element.addEventListener('focusout', focusout);
 		document.addEventListener('focusout', documentFocusout);
 		window.addEventListener('blur', blur);
 		this._register({
 			dispose: () => {
+				view.element.classList.remove('md-rename-active');
+				this.#widget.inputElement.removeEventListener('focus', inputFocus);
+				this.#widget.inputElement.removeEventListener('blur', inputBlur);
 				view.element.removeEventListener('keydown', keydown, true);
 				this.#widget.element.removeEventListener('focusout', focusout);
 				document.removeEventListener('focusout', documentFocusout);

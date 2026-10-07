@@ -36,13 +36,15 @@ protocols; only their opaque host-transport payloads cross named RPC methods.
 
 ### Rich editor rename
 
-In an editable Markdown rich editor, put the caret on a heading, link, or reference
-supported by the Markdown rename provider and press **F2**, or run
+In an editable Markdown rich editor, put the caret on a target supported by an
+installed rename provider and press **F2**, or run
 **Markdown Editor: Rename Symbol**. Enter applies the provider's workspace edit,
 including references in other files; Escape cancels. The widget suspends the rich
 editor's native text input while focused and restores focus when dismissed.
 The exact range returned by the prepare-rename provider stays highlighted while
-the widget is open, without changing the document selection.
+the widget is open, without changing the document selection. This subtle
+highlight stays visible while the editor's painted caret is hidden; the native
+input caret remains visible. Provider error messages are preserved verbatim.
 
 Rename uses `vscode.prepareRename` and `vscode.executeDocumentRenameProvider`
 against the existing authoritative document. The host drains accepted edits and
@@ -52,3 +54,37 @@ document versions are checked again before applying provider results. Provider
 errors and rejected workspace edits are displayed rather than treated as success.
 Cancellation prevents application until the workspace edit has been dispatched;
 an edit already being applied is undone through the normal undo command.
+
+### Rich editor diagnostics and completion
+
+Diagnostics from all registered collections are rendered using the code editor's
+squiggle geometry and severity theme colors. Hints use its three-dot marker.
+Document and diagnostic changes refresh the overlays; hovering a marked range
+shows the message, source, and code. Enable `markdown.validate.enabled` for the
+built-in Markdown validator. Other extensions can publish diagnostics without
+any rich-editor-specific API.
+
+Press **Ctrl+Space**, or run **Markdown Editor: Trigger Suggest**, to query the
+existing completion providers. Typing also requests suggestions when
+`editor.quickSuggestions.other` is enabled. The isolated observable widget uses
+VS Code's symbol icons, selected-row details, matched-prefix highlighting,
+editor font, and suggestion theme colors. Arrow keys navigate, Enter/Tab accept,
+and Escape cancels; focus stays in the editor. The popup flips above the caret
+when needed and limits its list height to the available viewport.
+
+The host uses `vscode.executeCompletionItemProvider` against the same
+authoritative document and applies the primary and additional edits together
+through `WorkspaceEdit`. Follow-up commands are executed, including routing
+`editor.action.triggerSuggest` back to the rich editor. Epoch/version checks
+discard stale results; invalid/overlapping edits and provider failures are shown
+explicitly. A command failure after insertion is reported as a partial success,
+not as though the insertion failed.
+
+This first integration supports ordinary text completions and case-insensitive
+prefix filtering. Snippet items are explicitly marked unsupported and never
+inserted literally; snippet sessions, fuzzy ranking, commit characters, and the
+documentation-details pane are not implemented. The public VS Code API cannot
+resolve a retained completion item: accepting re-queries and resolves the list
+through the chosen index, then verifies the effective item identity before
+applying it. Providers with unstable lists may require requesting suggestions
+again.

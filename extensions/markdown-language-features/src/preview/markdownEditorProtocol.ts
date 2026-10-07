@@ -8,6 +8,20 @@ import * as z from 'zod/mini';
 
 const offset = z.int().check(z.nonnegative());
 const range = z.object({ start: offset, endExclusive: offset });
+const diagnostic = z.extend(range, {
+	message: z.string(),
+	severity: z.enum(['error', 'warning', 'info', 'hint']),
+	source: z.optional(z.string()),
+	code: z.optional(z.string()),
+});
+const completion = z.object({
+	id: z.string(),
+	label: z.string(),
+	detail: z.optional(z.string()),
+	type: z.optional(z.string()),
+	unsupported: z.optional(z.string()),
+	highlightLength: z.optional(offset),
+});
 const sandbox = z.object({
 	forms: z.optional(z.boolean()),
 	downloads: z.optional(z.boolean()),
@@ -80,9 +94,14 @@ export const markdownEditorHost = defineInterface({ id: 'markdown.editor.host' }
 	prepareRename: requestType(z.object({ requestId: offset, offset, editEpoch: offset }), z.extend(range, { placeholder: z.string() })),
 	rename: requestType(z.object({ requestId: offset, newName: z.string() }), z.void()),
 	cancelRename: requestType(z.object({ requestId: offset }), z.void()),
+	getDiagnostics: requestType(z.object({}), z.object({ editEpoch: offset, items: z.array(diagnostic) })),
+	completions: requestType(z.object({ requestId: offset, offset, editEpoch: offset, automatic: z.boolean() }), z.object({ items: z.array(completion), incomplete: z.boolean() })),
+	acceptCompletion: requestType(z.object({ requestId: offset, id: z.string() }), z.object({ offset: z.optional(offset), editEpoch: offset, retrigger: z.boolean(), warning: z.optional(z.string()) })),
+	cancelCompletions: requestType(z.object({ requestId: offset }), z.void()),
 });
 
 export const markdownEditorRenderer = defineInterface({ id: 'markdown.editor.renderer' }, {
+	diagnosticsChanged: requestType(z.object({}), z.void()),
 	update: requestType(z.object({ content: z.string(), editEpoch: offset }), z.void()),
 	codeBlockEditorProviders: requestType(z.object({ codeBlockEditorProviders: z.readonly(z.array(codeBlockEditorProvider)) }), z.void()),
 	codeBlockEditorHostTransportMessage: requestType(runtimeMessage, z.void()),
@@ -106,3 +125,5 @@ export type CodeBlockEditorProviderDefinition = z.infer<typeof codeBlockEditorPr
 export type ResolvedCodeBlockEditor = z.infer<typeof resolvedCodeBlockEditor>;
 export type HighlightResult = z.infer<typeof highlightResult>;
 export type RichLinkPresentationUpdate = z.infer<typeof richLinkPresentationUpdate>;
+export type MarkdownDiagnostic = z.infer<typeof diagnostic>;
+export type MarkdownCompletion = z.infer<typeof completion>;

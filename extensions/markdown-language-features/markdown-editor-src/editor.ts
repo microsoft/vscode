@@ -19,6 +19,8 @@ import { markdownEditorHost, markdownEditorRenderer, type CodeBlockEditorProvide
 import { MarkdownEditorRpcTransport } from '../src/preview/markdownEditorRpc';
 import { LazyCodeBlockEditorFactory } from '../src/preview/lazyCodeBlockEditorFactory';
 import { RenameController } from './renameController';
+import { CompletionController } from './completionController';
+import { DiagnosticsController } from './diagnosticsController';
 
 interface VsCodeApi {
 	postMessage(message: unknown): void;
@@ -120,6 +122,8 @@ class Editor extends Disposable {
 	readonly #codeBlockEditorHostTransports = new Map<string, CodeBlockEditorHostTransport>();
 	#controller: EditorController | undefined;
 	#rename: RenameController | undefined;
+	#completion: CompletionController | undefined;
+	#diagnostics: DiagnosticsController | undefined;
 	#view: EditorView | undefined;
 	#embeddedCodeEditorFactory: LazyCodeBlockEditorFactory | undefined;
 	/** Identifies the authoritative text baseline against which local edits are computed. */
@@ -168,6 +172,7 @@ class Editor extends Disposable {
 		this.model.readonlyMode.set(initialState.readonly, undefined);
 
 		this._register(this.#connection.register(markdownEditorRenderer, {
+			diagnosticsChanged: () => this.#diagnostics?.refresh(),
 			update: ({ content, editEpoch }) => {
 				// Applying authoritative text maps selection and clears stale pending-paragraph state.
 				this.#editEpoch = editEpoch;
@@ -222,6 +227,10 @@ class Editor extends Disposable {
 				}
 			},
 			command: async ({ command: commandId }) => {
+				if (commandId === 'markdown.editor.triggerSuggest') {
+					await this.#completion?.start();
+					return;
+				}
 				if (commandId === 'markdown.editor.rename') {
 					await this.#rename?.start();
 					return;
@@ -350,6 +359,8 @@ class Editor extends Disposable {
 		}));
 		this.#view = view;
 		this.#rename = this._register(new RenameController(model, view, this.#host, () => this.#editEpoch));
+		this.#completion = this._register(new CompletionController(model, view, this.#host, () => this.#editEpoch));
+		this.#diagnostics = this._register(new DiagnosticsController(model, view, this.#host, () => this.#editEpoch));
 
 		// Wire history chords (undo/redo) to the extension so they run against the
 		// backing TextDocument's own undo stack. `record` is deliberately omitted:
