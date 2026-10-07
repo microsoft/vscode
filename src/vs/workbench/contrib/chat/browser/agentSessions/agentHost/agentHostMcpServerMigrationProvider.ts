@@ -14,6 +14,7 @@ import { localize } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { MAX_ENV_VAR_RESOLVE_LENGTH } from '../../../../../../platform/mcp/common/envVarResolution.js';
 import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
@@ -159,6 +160,7 @@ export class AgentHostMcpServerMigrationProvider extends Disposable implements I
 			for (const requested of requestedCandidates) {
 				const current = currentCandidates.get(getMcpServerCustomizationMigrationCandidateKey(requested));
 				if (!current || !equals(current.projectedConfiguration, requested.projectedConfiguration)
+					|| !equals(current.migratedConfiguration, requested.migratedConfiguration)
 					|| !equals(current.removedProperties, requested.removedProperties)) {
 					failures.push(this.noLongerEligible(requested));
 				} else {
@@ -249,6 +251,16 @@ export class AgentHostMcpServerMigrationProvider extends Disposable implements I
 	private getExclusionDetails(server: IAgentHostMcpServerSupport | undefined, reason: McpServerCustomizationMigrationFailureReason): readonly string[] {
 		if (server && server.applicability !== AgentHostMcpServerApplicability.Applicable) {
 			return [localize('mcpMigrationServerNotApplicable', "This server is not associated with the current workspace.")];
+		}
+		switch (reason) {
+			case McpServerCustomizationMigrationFailureReason.EnvironmentVariableInName:
+				return [localize('mcpMigrationServerEnvironmentVariableInName', "Environment variable references ('${env:...}') in environment variable or header names are not supported in the destination MCP configuration. Use a fixed name to migrate this server.")];
+			case McpServerCustomizationMigrationFailureReason.InvalidEnvironmentVariableName:
+				return [localize('mcpMigrationServerInvalidEnvironmentVariableName', "The destination MCP configuration only supports environment variable names made of letters, digits and underscores that do not start with a digit. Rename the variable to migrate this server.")];
+			case McpServerCustomizationMigrationFailureReason.EnvironmentVariableValueTooLong:
+				return [localize('mcpMigrationServerEnvironmentVariableValueTooLong', "A value that references an environment variable is longer than {0} characters, so the destination would not expand it. Shorten the value to migrate this server.", MAX_ENV_VAR_RESOLVE_LENGTH)];
+			case McpServerCustomizationMigrationFailureReason.UnsupportedEnvironmentVariableInUrl:
+				return [localize('mcpMigrationServerUnsupportedEnvironmentVariableInUrl', "The destination MCP configuration does not support environment variables in the scheme or port of a URL, or as the whole URL. Use a fixed value there to migrate this server.")];
 		}
 		if (server && server.compatibility.kind !== 'supported') {
 			return server.compatibility.reasons.map(getMcpCompatibilityDetail);
