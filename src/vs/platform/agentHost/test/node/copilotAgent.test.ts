@@ -4828,6 +4828,150 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	for (const initialModels of [
+		[{ id: 'gpt-4o', name: 'GPT-4o' }, { id: 'retired', name: 'Retired' }],
+		[{ id: 'auto', name: 'Auto' }],
+	]) {
+		test(`retains the previous model catalog during an empty refresh and recovers on retry (${initialModels[0].id})`, async () => {
+			const client = new TestCopilotClient([], initialModels);
+			const agent = createTestAgent(disposables, { copilotClient: client });
+			let clock: ReturnType<typeof useFakeTimers> | undefined;
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.refreshModels();
+				const previousCatalog = agent.models.get();
+				const catalogs: string[][] = [];
+				disposables.add(autorun(reader => catalogs.push(agent.models.read(reader).map(model => model.id))));
+				clock = useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+				client.modelListResponses.push([], [{ id: 'replacement', name: 'Replacement' }]);
+
+				await agent.refreshModels();
+				const retainedCatalog = agent.models.get();
+				await clock.tickAsync(100);
+
+				assert.deepStrictEqual({ retainedCatalog, catalogs, requestCount: client.modelListRequests.length }, {
+					retainedCatalog: previousCatalog,
+					catalogs: [initialModels.map(model => model.id), ['replacement']],
+					requestCount: 3,
+				});
+			} finally {
+				clock?.restore();
+				await disposeAgent(agent);
+			}
+		});
+	}
+
+	test('retains the previous model catalog after empty refresh retries are exhausted and retries on the next tick', async () => {
+		const client = new TestCopilotClient([], [{ id: 'gpt-4o', name: 'GPT-4o' }]);
+		const logService = new NullLogService();
+		const errorLog = spy(logService, 'error');
+		const agent = createTestAgent(disposables, { copilotClient: client, logService });
+		let clock: ReturnType<typeof useFakeTimers> | undefined;
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			await agent.refreshModels();
+			const previousCatalog = agent.models.get();
+			clock = useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+			for (let i = 0; i < 5; i++) {
+				client.modelListResponses.push([]);
+			}
+
+			await agent.refreshModels();
+			await clock.tickAsync(100);
+			const retainedCatalog = agent.models.get();
+			const requestsAfterRetries = client.modelListRequests.length;
+			await clock.tickAsync(100);
+			const requestsAfterWaiting = client.modelListRequests.length;
+			client.modelListResponses.push([{ id: 'replacement', name: 'Replacement' }]);
+			await agent.refreshModels();
+
+			assert.deepStrictEqual({
+				retainedCatalog,
+				requestsAfterRetries,
+				requestsAfterWaiting,
+				requestsAfterRecovery: client.modelListRequests.length,
+				recoveredModels: agent.models.get().map(model => model.id),
+				errors: errorLog.getCalls().map(call => String(call.args[0])),
+			}, {
+				retainedCatalog: previousCatalog,
+				requestsAfterRetries: 6,
+				requestsAfterWaiting: 6,
+				requestsAfterRecovery: 7,
+				recoveredModels: ['replacement'],
+				errors: ['Error: Model refresh returned an empty catalog; retaining the previous models'],
+			});
+		} finally {
+			clock?.restore();
+			errorLog.restore();
+			await disposeAgent(agent);
+		}
+	});
+
+	test('retains the previous model catalog when a token refresh returns an empty catalog', async () => {
+		const client = new TestCopilotClient([], [{ id: 'gpt-4o', name: 'GPT-4o' }]);
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		let clock: ReturnType<typeof useFakeTimers> | undefined;
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			await agent.refreshModels();
+			const catalogs: string[][] = [];
+			disposables.add(autorun(reader => catalogs.push(agent.models.read(reader).map(model => model.id))));
+			clock = useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+			client.modelListResponses.push([]);
+
+			await agent.authenticate('https://api.github.com', 'replacement-token');
+			await clock.tickAsync(100);
+
+			assert.deepStrictEqual({ catalogs, requests: client.modelListRequests }, {
+				catalogs: [['gpt-4o'], ['gpt-4o']],
+				requests: [
+					{ gitHubToken: 'token' },
+					{ gitHubToken: 'replacement-token' },
+					{ gitHubToken: 'replacement-token' },
+				],
+			});
+		} finally {
+			clock?.restore();
+			await disposeAgent(agent);
+		}
+	});
+
+	test('clears the retained model catalog and cancels empty refresh retries on sign-out', async () => {
+		const client = new TestCopilotClient([], [{ id: 'gpt-4o', name: 'GPT-4o' }]);
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		let clock: ReturnType<typeof useFakeTimers> | undefined;
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			await agent.refreshModels();
+			clock = useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+			client.modelListResponses.push([]);
+			await agent.refreshModels();
+
+			await agent.authenticate('https://api.github.com', '');
+			await clock.tickAsync(100);
+			const signedOutModels = agent.models.get();
+			const requestsAfterSignOut = client.modelListRequests.length;
+			client.modelListResponses.push([]);
+			await agent.authenticate('https://api.github.com', 'replacement-token');
+			await clock.tickAsync(100);
+
+			assert.deepStrictEqual({
+				signedOutModels,
+				requestsAfterSignOut,
+				modelsAfterSignIn: agent.models.get().map(model => model.id),
+				requestsAfterSignIn: client.modelListRequests.length,
+			}, {
+				signedOutModels: [],
+				requestsAfterSignOut: 2,
+				modelsAfterSignIn: ['auto'],
+				requestsAfterSignIn: 3,
+			});
+		} finally {
+			clock?.restore();
+			await disposeAgent(agent);
+		}
+	});
+
 	test('coalesces concurrent refreshModels calls onto one models.list request', async () => {
 		const client = new TestCopilotClient([], [{
 			id: 'gpt-4o',
@@ -9723,6 +9867,41 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('does not retry an empty refresh with only fallback Auto and HydraFusion and accepts a later catalog', async () => {
+		const client = new TestCopilotClient([], []);
+		const { agent } = createTestAgentContext(disposables, {
+			copilotClient: client,
+			rootConfig: { [CopilotCliConfigKey.HydraFusion]: true },
+		});
+		let clock: ReturnType<typeof useFakeTimers> | undefined;
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			await agent.refreshModels();
+			clock = useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+			await agent.refreshModels();
+			await clock.tickAsync(100);
+			const emptyCatalogModels = agent.models.get().map(model => model.id);
+			const requestsAfterEmptyRefresh = client.modelListRequests.length;
+			client.modelListResponses.push([{ id: 'gpt-4o', name: 'GPT-4o' }]);
+			await agent.refreshModels();
+
+			assert.deepStrictEqual({
+				emptyCatalogModels,
+				requestsAfterEmptyRefresh,
+				models: agent.models.get().map(model => model.id),
+				requestCount: client.modelListRequests.length,
+			}, {
+				emptyCatalogModels: ['auto', 'hydrafusion'],
+				requestsAfterEmptyRefresh: 2,
+				models: ['gpt-4o', 'hydrafusion'],
+				requestCount: 3,
+			});
+		} finally {
+			clock?.restore();
+			await disposeAgent(agent);
+		}
+	});
+
 	test('a runtime that lists no models accepts unlisted models beside HydraFusion, as an empty catalog does', async () => {
 		const { agent } = createTestAgentContext(disposables, {
 			copilotClient: new TestCopilotClient([], []),
@@ -9754,6 +9933,18 @@ suite('CopilotAgent', () => {
 				tokenPrices: {
 					contextMax: 200_000,
 					longContext: { contextMax: 1_000_000, inputPrice: 2 },
+				},
+			},
+		};
+		const freeLongContextModel: ITestCopilotModelInfo = {
+			id: 'free-long-ctx',
+			name: 'Free Long Ctx',
+			capabilities: { limits: { max_context_window_tokens: 200_000 } },
+			billing: {
+				multiplier: 1,
+				tokenPrices: {
+					contextMax: 200_000,
+					longContext: { contextMax: 1_000_000 },
 				},
 			},
 		};
@@ -9813,21 +10004,49 @@ suite('CopilotAgent', () => {
 		});
 
 		test('defaults to long_context when model has no surcharge and no explicit selection (free long context)', async () => {
-			const freeLongContextModel: ITestCopilotModelInfo = {
-				id: 'free-long-ctx',
-				name: 'Free Long Ctx',
-				capabilities: { limits: { max_context_window_tokens: 200_000 } },
-				billing: {
-					multiplier: 1,
-					tokenPrices: {
-						contextMax: 200_000,
-						longContext: { contextMax: 1_000_000 },
-					},
-				},
-			};
 			const config = await captureSessionConfig({ id: 'free-long-ctx' }, [freeLongContextModel]);
 			assert.ok(config);
 			assert.strictEqual(config.contextTier, 'long_context');
+		});
+
+		test('retains free long context metadata during an empty model refresh', async () => {
+			const client = new TestCopilotClient([], [freeLongContextModel]);
+			let capturedConfig: CopilotCreateSessionOptions | undefined;
+			client.createSession = async config => {
+				capturedConfig = config;
+				return new MockCopilotSession() as unknown as CopilotSession;
+			};
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const agent = createTestAgent(disposables, { copilotClient: client, sessionDataService });
+			let clock: ReturnType<typeof useFakeTimers> | undefined;
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.refreshModels();
+				clock = useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+				for (let i = 0; i < 5; i++) {
+					client.modelListResponses.push([]);
+				}
+				await agent.refreshModels();
+				await clock.tickAsync(100);
+				clock.restore();
+				clock = undefined;
+
+				const { session } = await provisionSession(agent, {
+					session: AgentSession.uri('copilotcli', 'retained-context'),
+					workingDirectories: [URI.file('/workspace')],
+					model: { id: 'free-long-ctx' },
+				});
+				const chat = defaultChatUri(session);
+				await agent.chats.sendMessage(chat, 'hello', undefined, undefined, undefined, undefined, exactChatContext(session, chat, session));
+
+				assert.deepStrictEqual({
+					model: capturedConfig?.model,
+					contextTier: capturedConfig?.contextTier,
+				}, { model: 'free-long-ctx', contextTier: 'long_context' });
+			} finally {
+				clock?.restore();
+				await disposeAgent(agent);
+			}
 		});
 	});
 
