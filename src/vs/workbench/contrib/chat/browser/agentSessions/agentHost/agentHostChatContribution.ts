@@ -341,7 +341,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			? store.add(this._instantiationService.createInstance(
 				AgentHostCustomizationMarketplaceInstallProvider,
 				agent.provider,
-				() => this._resolveAuthenticationInteractively(this._protectedResourcesService.getProtectedResources(agent.provider) ?? []),
+				() => this._resolveMarketplaceAuthenticationInteractively(this._protectedResourcesService.getProtectedResources(agent.provider) ?? []),
 			))
 			: undefined;
 		store.add(this._customizationHarnessService.registerExternalHarness({
@@ -503,6 +503,17 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	 * to the server. Returns true if authentication succeeded.
 	 */
 	private async _resolveAuthenticationInteractively(protectedResources: readonly ProtectedResourceMetadata[]): Promise<boolean> {
+		return this._resolveAuthenticationInteractivelyForSession(protectedResources);
+	}
+
+	private async _resolveMarketplaceAuthenticationInteractively(protectedResources: readonly ProtectedResourceMetadata[]): Promise<boolean> {
+		const account = this._defaultAccountService.currentDefaultAccount
+			?? await this._defaultAccountService.getDefaultAccount()
+			?? await this._defaultAccountService.signIn();
+		return account ? this._resolveAuthenticationInteractivelyForSession(protectedResources, account.sessionId) : false;
+	}
+
+	private async _resolveAuthenticationInteractivelyForSession(protectedResources: readonly ProtectedResourceMetadata[], preferredSessionId?: string): Promise<boolean> {
 		const generation = this._authenticationGeneration;
 		if (!this._isAuthenticationCurrent(generation)) {
 			return false;
@@ -519,6 +530,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		return this._instantiationService.invokeFunction(resolveAuthenticationInteractively, protectedResources, {
 			authTokenCache: this._authTokenCache,
 			logPrefix: '[AgentHost]',
+			preferredSessionId,
 			isCurrent: () => this._isAuthenticationCurrent(generation),
 			authenticate: request => this._authenticateIfCurrent(request, generation),
 		});
