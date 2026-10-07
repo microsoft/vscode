@@ -182,7 +182,7 @@ export function getAgentSessionProviderDescription(provider: AgentSessionTarget)
 		case AgentSessionProviders.AgentHostClaude:
 			return localize('chat.session.providerDescription.claude', "Delegate tasks to the Claude Agent SDK using the Claude models included in your GitHub Copilot subscription. The agent iterates via chat and works interactively to implement changes on your main workspace.");
 		case AgentSessionProviders.Codex:
-			return localize('chat.session.providerDescription.codex', "Open a new Codex session using the Codex extension from OpenAI. Codex sessions can be managed from the chat sessions view.");
+			return localize('chat.session.providerDescription.codex', "Open a new Codex session using the Codex extension from OpenAI. Codex sessions can be managed from the Sessions view.");
 		case AgentSessionProviders.AgentHostCodex:
 			return localize('chat.session.providerDescription.agentHostCodex', "Work with OpenAI's Codex agent using your ChatGPT or GitHub Copilot subscription.");
 		case AgentSessionProviders.Growth:

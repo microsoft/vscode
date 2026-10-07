@@ -371,8 +371,8 @@ export class ChatSessionStore extends Disposable {
 							this._didReportIssue = true;
 							this.dialogService.prompt({
 								custom: true, // so text is copyable
-								title: localize('chatSessionStore.serializationError', 'Error saving chat session'),
-								message: localize('chatSessionStore.writeError', 'Error serializing chat session for storage. The session will be lost if the window is closed. Please report this issue to the VS Code team:\n\n{0}', e.stack || toErrorMessage(e)),
+								title: localize('chatSessionStore.serializationError', 'Error saving session'),
+								message: localize('chatSessionStore.writeError', 'Error serializing session for storage. The session will be lost if the window is closed. Please report this issue to the VS Code team:\n\n{0}', e.stack || toErrorMessage(e)),
 								buttons: [
 									{ label: localize('reportIssue', 'Report Issue'), run: () => this.openerService.open('https://github.com/microsoft/vscode/issues/new?template=bug_report.md') }
 								]
@@ -879,7 +879,7 @@ function getSessionMetadataSync(session: ChatModel): IChatSessionEntryMetadata {
 
 	return {
 		sessionId: session.sessionId,
-		title: title || localize('newChat', "New Chat"),
+		title: title || localize('newChat', "New Session"),
 		lastMessageDate: session.lastMessageDate,
 		timing: session.timing,
 		initialLocation: session.initialLocation,
@@ -905,7 +905,7 @@ async function getSessionMetadata(session: ChatModel | ISerializableChatData): P
 
 	return {
 		sessionId: session.sessionId,
-		title: session.customTitle || localize('newChat', "New Chat"),
+		title: session.customTitle || localize('newChat', "New Session"),
 		lastMessageDate,
 		timing: {
 			created: session.creationDate,

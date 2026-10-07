@@ -236,7 +236,7 @@ export class ChatSubmitAction extends SubmitAction {
 					group: 'navigation',
 					alt: {
 						id: 'workbench.action.chat.sendToNewChat',
-						title: localize2('chat.newChat.label', "Send to New Chat"),
+						title: localize2('chat.newChat.label', "Send to New Session"),
 						icon: Codicon.plus
 					}
 				}, {
@@ -779,7 +779,7 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 					group: 'navigation',
 					alt: {
 						id: 'workbench.action.chat.sendToNewChat',
-						title: localize2('chat.newChat.label', "Send to New Chat"),
+						title: localize2('chat.newChat.label', "Send to New Session"),
 						icon: Codicon.plus
 					}
 				}]
@@ -874,7 +874,7 @@ class SendToNewChatAction extends Action2 {
 
 		super({
 			id: 'workbench.action.chat.sendToNewChat',
-			title: localize2('chat.newChat.label', "Send to New Chat"),
+			title: localize2('chat.newChat.label', "Send to New Session"),
 			precondition,
 			category: CHAT_CATEGORY,
 			f1: false,

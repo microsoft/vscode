@@ -2449,7 +2449,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			}),
 		]);
 		if (!before) {
-			stream.warning(vscode.l10n.t('Could not find the task for this chat session.'));
+			stream.warning(vscode.l10n.t('Could not find the task for this session.'));
 			return {};
 		}
 		const priorTurnCount = before.task.sessions?.length ?? 0;
@@ -2504,7 +2504,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		const resource = context.chatSessionContext.chatSessionItem.resource;
 		const taskId = SessionIdForTask.parseTaskId(resource);
 		if (!taskId) {
-			stream.warning(vscode.l10n.t('Could not resolve the task for this chat session.'));
+			stream.warning(vscode.l10n.t('Could not resolve the task for this session.'));
 			this.logService.error(`Invalid cloud task resource: ${resource}`);
 			return {};
 		}

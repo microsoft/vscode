@@ -42,6 +42,28 @@ suite('Chat Accessibility Help', () => {
 		});
 	}
 
+	test('uses Sessions navigation in the editor and Chat navigation in the Agents window', () => {
+		const keybindings = new MockKeybindingService();
+		const editor = getAccessibilityHelpText('agentView', keybindings, false);
+		const agentsWindow = getAccessibilityHelpText('agentView', keybindings, false, true);
+
+		assert.deepStrictEqual({
+			editorSessionsView: editor.includes('The Sessions view is a persistent interface'),
+			editorNewSession: editor.includes('To create a new session, invoke the New Session command'),
+			editorChatView: editor.includes('The chat view is a persistent interface'),
+			agentsChatView: agentsWindow.includes('The chat view is a persistent interface'),
+			agentsNewChat: agentsWindow.includes('To create a new chat, invoke the New Chat command'),
+			agentsSessionsView: agentsWindow.includes('The Sessions view is a persistent interface'),
+		}, {
+			editorSessionsView: true,
+			editorNewSession: true,
+			editorChatView: false,
+			agentsChatView: true,
+			agentsNewChat: true,
+			agentsSessionsView: false,
+		});
+	});
+
 	test('documents generated image previews and saving', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({

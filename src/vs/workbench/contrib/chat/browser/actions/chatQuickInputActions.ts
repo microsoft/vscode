@@ -23,7 +23,7 @@ export function registerQuickChatActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.quickchat.openInChatView',
-				title: localize2('chat.openInChatView.label', "Open in Chat View"),
+				title: localize2('chat.openInChatView.label', "Open in Sessions View"),
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.chatSparkle,

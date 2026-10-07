@@ -120,7 +120,7 @@ async function resolveMigratedSessionForOpen(accessor: ServicesAccessor, resourc
 	}
 
 	return accessor.get(IProgressService).withProgress(
-		{ location: ProgressLocation.Window, title: localize('chat.openingSession', "Opening chat…") },
+		{ location: ProgressLocation.Window, title: localize('chat.openingSession', "Opening session…") },
 		async () => {
 			const migrated = await adoptLegacyCopilotCliResource(connection, resource, logService, configurationService, telemetryService, 'open', LEGACY_MIGRATION_OPEN_TIMEOUT_MS);
 			if (!migrated) {
@@ -177,7 +177,7 @@ export async function openSessionByResource(accessor: ServicesAccessor, resource
 
 	const session = instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService).getSession(resource));
 	if (!session) {
-		throw new Error(`Chat session not found: ${resource.toString()}`);
+		throw new Error(`Session not found: ${resource.toString()}`);
 	}
 
 	return instantiationService.invokeFunction(openSession, session, openOptions, /* alreadyResolved */ true);
@@ -257,7 +257,7 @@ async function openSessionDefault(accessor: ServicesAccessor, session: IAgentSes
 		return await chatWidgetService.openSession(session.resource, target, options);
 	} catch (error) {
 		logService.error(`[AgentSessions] openSession failed: ${session.resource.toString()}`, error);
-		notificationService.error(localize('chat.openSessionFailed', "Failed to open chat session: {0}", toErrorMessage(error)));
+		notificationService.error(localize('chat.openSessionFailed', "Failed to open session: {0}", toErrorMessage(error)));
 		return undefined;
 	}
 }

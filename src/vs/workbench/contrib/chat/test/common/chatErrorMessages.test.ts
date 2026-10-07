@@ -183,7 +183,7 @@ suite('ChatErrorMessages', () => {
 				{ code: ChatFetchResponseType.Unknown, message: 'Sorry, no response was returned.' },
 				{ code: ChatFetchResponseType.ExtensionBlocked, message: 'Sorry, something went wrong.' },
 				{ code: ChatFetchResponseType.AgentUnauthorized, message: 'Sorry, something went wrong.' },
-				{ code: ChatFetchResponseType.InvalidStatefulMarker, message: 'Your chat session state is invalid, please start a new chat.' },
+				{ code: ChatFetchResponseType.InvalidStatefulMarker, message: 'Your session state is invalid. Please start a new session.' },
 			]);
 		});
 

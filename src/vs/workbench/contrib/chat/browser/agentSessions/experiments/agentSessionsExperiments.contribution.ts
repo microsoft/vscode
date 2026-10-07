@@ -267,7 +267,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 // Add to the global title bar if command center is disabled
 MenuRegistry.appendMenuItem(MenuId.TitleBar, {
 	submenu: MenuId.ChatTitleBarMenu,
-	title: localize('title4', "Chat"),
+	title: localize('title4', "Sessions"),
 	group: 'navigation',
 	icon: Codicon.chatSparkle,
 	when: ContextKeyExpr.and(
@@ -284,7 +284,7 @@ MenuRegistry.appendMenuItem(MenuId.TitleBar, {
 MenuRegistry.appendMenuItem(MenuId.AgentsTitleBarControlMenu, {
 	command: {
 		id: 'workbench.action.chat.toggle',
-		title: localize('openChat', "Open Chat"),
+		title: localize('openChat', "Open Sessions"),
 	},
 	when: ChatContextKeys.enabled,
 	group: 'a_open',

@@ -251,8 +251,8 @@ suite('SessionTypePickerActionItem', () => {
 			checked: true,
 			enabled: true,
 			description: undefined,
-			ariaDescription: 'Open a new Codex session using the Codex extension from OpenAI. Codex sessions can be managed from the chat sessions view.',
-			hover: 'Open a new Codex session using the Codex extension from OpenAI. Codex sessions can be managed from the chat sessions view.',
+			ariaDescription: 'Open a new Codex session using the Codex extension from OpenAI. Codex sessions can be managed from the Sessions view.',
+			hover: 'Open a new Codex session using the Codex extension from OpenAI. Codex sessions can be managed from the Sessions view.',
 		});
 	});
 

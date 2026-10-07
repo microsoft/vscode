@@ -748,7 +748,8 @@ export class DefaultSettings extends Disposable {
 			order: prop.order,
 			nonLanguageSpecificDefaultValueSource: defaultValueSource,
 			isLanguageTagSetting,
-			categoryLabel: (isString(prop.source) ? undefined : prop.source?.id) === prop.section?.id ? prop.title : prop.section?.id
+			categoryLabel: (isString(prop.source) ? undefined : prop.source?.id) === prop.section?.id ? prop.title : prop.section?.id,
+			settingsDisplayCategory: prop.section?.settingsDisplayCategory,
 		};
 	}
 

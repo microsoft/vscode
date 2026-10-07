@@ -285,7 +285,7 @@ suite('Chat Pet Colors', () => {
 		assert.deepStrictEqual({ activated, unlocked: service.unlockedAchievements.get(), opened }, { activated: false, unlocked: [], opened: [] });
 	});
 
-	test('workbench slash command and Command Palette availability respect the AI opt-out independently of agent registration', () => {
+	function createSlashCommandHarness(isSessionsWindow: boolean) {
 		const slashCommands: IChatSlashData[] = [];
 		const configuration = new TestConfigurationService();
 		store.add(new ChatSlashCommandsContribution(
@@ -307,9 +307,14 @@ suite('Chat Pet Colors', () => {
 			new class extends mock<IAgentHostSessionWorkingDirectoryResolver>() { }(),
 			new class extends mock<IWorkspaceContextService>() { }(),
 			createService(),
-			new class extends mock<IWorkbenchEnvironmentService>() { override readonly isSessionsWindow = false; }(),
+			new class extends mock<IWorkbenchEnvironmentService>() { override readonly isSessionsWindow = isSessionsWindow; }(),
 			new class extends mock<IAgentHostConnectionsService>() { }(),
 		));
+		return { slashCommands, configuration };
+	}
+
+	test('workbench slash command and Command Palette availability respect the AI opt-out independently of agent registration', () => {
+		const { slashCommands, configuration } = createSlashCommandHarness(false);
 		const blobby = slashCommands.find(command => command.command === 'blobby');
 		const changeColor = MenuRegistry.getCommand(CHAT_PET_CHANGE_COLOR_COMMAND_ID);
 		assert.ok(blobby?.when && changeColor?.precondition);
@@ -339,6 +344,31 @@ suite('Chat Pet Colors', () => {
 			{ slash: true, palette: false },
 			{ slash: true, palette: true },
 		]);
+	});
+
+	test('uses session lifecycle wording in the editor and chat lifecycle wording in the Agents window', () => {
+		const details = (isSessionsWindow: boolean) => {
+			const { slashCommands } = createSlashCommandHarness(isSessionsWindow);
+			return Object.fromEntries(slashCommands
+				.filter(command => ['clear', 'fork', 'rename'].includes(command.command))
+				.map(command => [command.command, command.detail]));
+		};
+
+		assert.deepStrictEqual({
+			editor: details(false),
+			agentsWindow: details(true),
+		}, {
+			editor: {
+				clear: 'Start a new session and archive the current one',
+				fork: 'Fork conversation into a new session',
+				rename: 'Rename this session',
+			},
+			agentsWindow: {
+				clear: 'Start a new chat and archive the current one',
+				fork: 'Fork conversation into a new chat',
+				rename: 'Rename this chat',
+			},
+		});
 	});
 
 	test('represents color customization as an achievement without inventing a hat', () => {

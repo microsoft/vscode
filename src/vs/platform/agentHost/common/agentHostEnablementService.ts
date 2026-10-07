@@ -45,12 +45,13 @@ export interface IAgentHostEnablementService {
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 configurationRegistry.registerConfiguration({
 	id: 'chatAgentHost',
-	title: nls.localize('chatAgentHostConfigurationTitle', "Chat Agent Host"),
+	title: nls.localize('chatAgentHostConfigurationTitle', "Agent Host"),
+	settingsDisplayCategory: nls.localize('interactiveSessionConfigurationTitle', "Sessions"),
 	type: 'object',
 	properties: {
 		'chat.editor.preferCopilotHarness': {
 			type: 'boolean',
-			description: nls.localize('chat.editor.preferCopilotHarness', "When enabled, uses the Agent Host Copilot SDK whenever the local harness would otherwise be selected for a new editor chat session. Claude and Codex selections are unaffected."),
+			description: nls.localize('chat.editor.preferCopilotHarness', "When enabled, uses the Agent Host Copilot SDK whenever the local harness would otherwise be selected for a new editor session. Claude and Codex selections are unaffected."),
 			default: false,
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
@@ -61,21 +62,21 @@ configurationRegistry.registerConfiguration({
 				localization: {
 					description: {
 						key: 'chat.editor.preferCopilotHarness.policy',
-						value: nls.localize('chat.editor.preferCopilotHarness.policy', "Configure whether VS Code uses the Agent Host Copilot SDK instead of the local harness for new editor chat sessions."),
+						value: nls.localize('chat.editor.preferCopilotHarness.policy', "Configure whether VS Code uses the Agent Host Copilot SDK instead of the local harness for new editor sessions."),
 					},
 				},
 			},
 		},
 		'chat.defaultToCopilotHarness': {
 			type: 'boolean',
-			description: nls.localize('chat.defaultToCopilotHarness', "When enabled, new editor and panel chat sessions default to the Agent Host Copilot SDK instead of the local harness."),
+			description: nls.localize('chat.defaultToCopilotHarness', "When enabled, new editor and panel sessions default to the Agent Host Copilot SDK instead of the local harness."),
 			default: false,
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
 		},
 		'chat.editor.localAgent.enabled': {
 			type: 'boolean',
-			description: nls.localize('chat.editor.localAgent.enabled', "When enabled, shows the VS Code local chat harness in the chat picker. This setting is ignored in virtual workspaces, where the local chat harness is always available."),
+			description: nls.localize('chat.editor.localAgent.enabled', "When enabled, shows the VS Code local harness in the session picker. This setting is ignored in virtual workspaces, where the local harness is always available."),
 			default: true,
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },

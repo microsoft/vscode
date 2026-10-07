@@ -1949,7 +1949,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 		// So when creating a session we need a dummy label (or an initial prompt).
 
 		if (!session) {
-			stream.warning(l10n.t('Chat session not found.'));
+			stream.warning(l10n.t('Session not found.'));
 			return { session: undefined, trusted };
 		}
 		this.logService.info(`Using Copilot CLI session: ${session.object.sessionId} (isNewSession: ${isNewSession}, isolationEnabled: ${isIsolationEnabled(workspaceInfo)}, workingDirectory: ${workingDirectory}, worktreePath: ${worktreeProperties?.worktreePath})`);

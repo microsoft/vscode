@@ -2649,7 +2649,7 @@ export class ChatService extends Disposable implements IChatService {
 }
 
 export async function chatModelToChatDetail(model: IChatModel): Promise<IChatDetail> {
-	const title = model.title || localize('newChat', "New Chat");
+	const title = model.title || localize('newChat', "New Session");
 	return {
 		sessionResource: model.sessionResource,
 		title,

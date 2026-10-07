@@ -41,7 +41,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { IPaneCompositePartService } from '../../../../services/panecomposite/browser/panecomposite.js';
 import { ChatSessionArchiveActionWording, getChatSessionArchiveActionPresentation } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 
-const AGENT_SESSIONS_CATEGORY = localize2('chatSessions', "Chat Agent Sessions");
+const AGENT_SESSIONS_CATEGORY = { value: localize('chatSessions', "Agent Sessions"), original: 'Chat Agent Sessions' };
 
 //#region Chat View
 
@@ -537,9 +537,9 @@ abstract class BaseArchiveAgentSessionAction extends BaseAgentSessionAction {
 			if (chatModel && !await showClearEditingSessionConfirmation(chatModel, dialogService, {
 				isArchiveAction: true,
 				titleOverride: this.wording === ChatSessionArchiveActionWording.MarkAsDone
-					? localize('markSessionDone', "Mark chat as done with pending edits?")
-					: localize('archiveSession', "Archive chat with pending edits?"),
-				messageOverride: localize('archiveSessionDescription', "You have pending changes in this chat session.")
+					? localize('markSessionDone', "Mark session as done with pending edits?")
+					: localize('archiveSession', "Archive session with pending edits?"),
+				messageOverride: localize('archiveSessionDescription', "You have pending changes in this session.")
 			})) {
 				return;
 			}
@@ -831,8 +831,8 @@ export class DeleteAgentSessionAction extends BaseAgentSessionAction {
 
 		const confirmed = await dialogService.confirm({
 			message: sessions.length === 1
-				? localize('deleteSession.confirm', "Are you sure you want to delete this chat session?")
-				: localize('deleteSessions.confirm', "Are you sure you want to delete {0} chat sessions?", sessions.length),
+				? localize('deleteSession.confirm', "Are you sure you want to delete this session?")
+				: localize('deleteSessions.confirm', "Are you sure you want to delete {0} sessions?", sessions.length),
 			detail: localize('deleteSession.detail', "This action cannot be undone."),
 			primaryButton: localize('deleteSession.delete', "Delete")
 		});
@@ -864,7 +864,7 @@ export class DeleteAgentSessionAction extends BaseAgentSessionAction {
 					await chatSessionsService.deleteChatSessionItem(session.resource, CancellationToken.None);
 					await widgetService.getWidgetBySessionResource(session.resource)?.clear();
 				} catch (err) {
-					dialogService.error(localize('deleteSession.error', "Failed to delete chat session: {0}", toErrorMessage(err)));
+					dialogService.error(localize('deleteSession.error', "Failed to delete session: {0}", toErrorMessage(err)));
 				}
 			}
 		}
@@ -881,7 +881,7 @@ export class DeleteAllLocalSessionsAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.chat.clearHistory',
-			title: localize2('agentSessions.deleteAll', "Delete All Local Workspace Chat Sessions"),
+			title: localize2('agentSessions.deleteAll', "Delete All Local Workspace Sessions"),
 			precondition: ChatContextKeys.enabled,
 			category: AGENT_SESSIONS_CATEGORY,
 			f1: true,
@@ -901,8 +901,8 @@ export class DeleteAllLocalSessionsAction extends Action2 {
 
 		const confirmed = await dialogService.confirm({
 			message: localSessionsCount === 1
-				? localize('deleteAllChats.confirmSingle', "Are you sure you want to delete 1 local workspace chat session?")
-				: localize('deleteAllChats.confirm', "Are you sure you want to delete {0} local workspace chat sessions?", localSessionsCount),
+				? localize('deleteAllChats.confirmSingle', "Are you sure you want to delete 1 local workspace session?")
+				: localize('deleteAllChats.confirm', "Are you sure you want to delete {0} local workspace sessions?", localSessionsCount),
 			detail: localize('deleteAllChats.detail', "This action cannot be undone."),
 			primaryButton: localize('deleteAllChats.button', "Delete All")
 		});

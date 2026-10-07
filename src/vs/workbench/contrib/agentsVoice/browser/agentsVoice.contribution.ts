@@ -632,7 +632,7 @@ configurationRegistry.registerConfiguration({
 	properties: {
 		'agents.voice.enabled': {
 			type: 'boolean',
-			description: nls.localize('agents.voice.enabled', "Enable the Voice Mode panel in the chat view for voice-driven coding conversations."),
+			description: nls.localize('agents.voice.enabled', "Enable the Voice Mode panel in the Sessions view for voice-driven coding conversations."),
 			default: false,
 			experiment: {
 				mode: 'auto',
@@ -648,7 +648,7 @@ configurationRegistry.registerConfiguration({
 				localization: {
 					description: {
 						key: 'agents.voice.enabled',
-						value: nls.localize('agents.voice.enabled', "Enable the Voice Mode panel in the chat view for voice-driven coding conversations."),
+						value: nls.localize('agents.voice.enabled', "Enable the Voice Mode panel in the Sessions view for voice-driven coding conversations."),
 					},
 				},
 			},

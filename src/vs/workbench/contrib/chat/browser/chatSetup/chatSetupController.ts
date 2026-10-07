@@ -97,7 +97,7 @@ export class ChatSetupController extends Disposable {
 
 	async setup(options: IChatSetupControllerOptions = {}): Promise<ChatSetupResultValue> {
 		const watch = new StopWatch(false);
-		const title = localize('setupChatProgress', "Getting chat ready...");
+		const title = localize('setupChatProgress', "Getting session ready...");
 		const badge = this.activityService.showViewContainerActivity(ChatViewContainerId, {
 			badge: new ProgressBadge(() => title),
 		});

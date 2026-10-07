@@ -26,12 +26,12 @@ export function setup(logger: Logger) {
 			for (const term of ['chat', 'agent', 'copilot', 'mcp']) {
 				const commands = await app.workbench.quickaccess.getVisibleCommandNames(term);
 				for (const command of commands) {
-					if (command === 'Chat: Use AI Features with Copilot for free...') {
+					if (command === 'Sessions: Use AI Features with Copilot for free...') {
 						expectedFound = true;
 						continue;
 					}
 
-					if (command.includes('Chat') || command.includes('Agent') || command.includes('Copilot') || command.includes('MCP')) {
+					if (command.includes('Chat') || command.includes('Sessions') || command.includes('Agent') || command.includes('Copilot') || command.includes('MCP')) {
 						unexpectedFound.add(command);
 					}
 				}

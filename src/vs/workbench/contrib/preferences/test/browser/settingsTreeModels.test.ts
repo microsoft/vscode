@@ -758,6 +758,15 @@ suite('SettingsTree', () => {
 			});
 	});
 
+	test('settingKeyToDisplayFormat - with display category', () => {
+		assert.deepStrictEqual(
+			settingKeyToDisplayFormat('chat.editor.codex.preferAgentHost', 'chatSidebar', false, 'Sessions'),
+			{
+				category: 'Sessions › Editor › Codex',
+				label: 'Prefer Agent Host'
+			});
+	});
+
 	test('settingKeyToDisplayFormat - known acronym/term', () => {
 		assert.deepStrictEqual(
 			settingKeyToDisplayFormat('css.someCssSetting'),

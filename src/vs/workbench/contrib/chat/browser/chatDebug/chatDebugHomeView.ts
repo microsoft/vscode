@@ -158,7 +158,7 @@ export class ChatDebugHomeView extends Disposable {
 
 		DOM.append(this.scrollContent, $('p.chat-debug-home-subtitle', undefined,
 			sessionResources.length > 0
-				? localize('chatDebug.homeSubtitle', "Select a chat session to debug")
+				? localize('chatDebug.homeSubtitle', "Select a session to debug")
 				: localize('chatDebug.noSessions', "Send a chat message to get started")
 		));
 
@@ -167,7 +167,7 @@ export class ChatDebugHomeView extends Disposable {
 
 			const sessionList = DOM.append(this.scrollContent, $('.chat-debug-home-session-list'));
 			sessionList.setAttribute('role', 'list');
-			sessionList.setAttribute('aria-label', localize('chatDebug.sessionList', "Chat sessions"));
+			sessionList.setAttribute('aria-label', localize('chatDebug.sessionList', "Sessions"));
 
 			const items: HTMLButtonElement[] = [];
 
@@ -185,13 +185,13 @@ export class ChatDebugHomeView extends Disposable {
 				} else if (importedTitle) {
 					sessionTitle = localize('chatDebug.importedSession', "Imported: {0}", importedTitle);
 				} else if (LocalChatSessionUri.isLocalSession(sessionResource)) {
-					sessionTitle = localize('chatDebug.newSession', "New Chat");
+					sessionTitle = localize('chatDebug.newSession', "New Session");
 				} else if (getChatSessionType(sessionResource) === 'copilotcli') {
 					const pathId = sessionResource.path.replace(/^\//, '').split('-')[0];
 					const shortId = pathId || sessionResource.authority || sessionResource.toString();
 					sessionTitle = localize('chatDebug.copilotCliSessionWithId', "Copilot CLI: {0}", shortId);
 				} else {
-					sessionTitle = localize('chatDebug.newSession', "New Chat");
+					sessionTitle = localize('chatDebug.newSession', "New Session");
 				}
 				const isActive = activeSessionResource !== undefined && sessionResource.toString() === activeSessionResource.toString();
 

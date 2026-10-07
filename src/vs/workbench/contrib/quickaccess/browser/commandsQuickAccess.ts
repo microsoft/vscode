@@ -243,8 +243,11 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 			}
 
 			// Alias
-			const aliasLabel = typeof action.item.title !== 'string' ? action.item.title.original : undefined;
-			const aliasCategory = (category && action.item.category && typeof action.item.category !== 'string') ? action.item.category.original : undefined;
+			const configuredAliasCategory = typeof action.item.categoryAlias === 'string' ? action.item.categoryAlias : action.item.categoryAlias?.value;
+			const aliasLabel = typeof action.item.title !== 'string'
+				? action.item.title.original
+				: configuredAliasCategory ? action.item.title : undefined;
+			const aliasCategory = configuredAliasCategory ?? ((category && action.item.category && typeof action.item.category !== 'string') ? action.item.category.original : undefined);
 			const commandAlias = (aliasLabel && category) ?
 				aliasCategory ? `${aliasCategory}: ${aliasLabel}` : `${category}: ${aliasLabel}` :
 				aliasLabel;

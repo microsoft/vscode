@@ -349,6 +349,7 @@ export interface IConfigurationNode {
 	order?: number;
 	type?: string | string[];
 	title?: string;
+	settingsDisplayCategory?: string;
 	description?: string;
 	properties?: IStringDictionary<IConfigurationPropertySchema>;
 	allOf?: IConfigurationNode[];
@@ -393,6 +394,7 @@ export type IRegisteredConfigurationPropertySchema = IConfigurationPropertySchem
 	section?: {
 		id?: string;
 		title?: string;
+		settingsDisplayCategory?: string;
 		order?: number;
 		extensionInfo?: IExtensionInfo;
 	};
@@ -840,6 +842,7 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 				property.section = {
 					id: configuration.id,
 					title: configuration.title,
+					settingsDisplayCategory: configuration.settingsDisplayCategory,
 					order: configuration.order,
 					extensionInfo: configuration.extensionInfo
 				};

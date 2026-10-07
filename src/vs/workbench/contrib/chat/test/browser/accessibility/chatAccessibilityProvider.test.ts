@@ -11,6 +11,7 @@ import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAccessibleViewService } from '../../../../../../platform/accessibility/browser/accessibleView.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { ChatAccessibilityProvider } from '../../../browser/accessibility/chatAccessibilityProvider.js';
 import { Response } from '../../../common/model/chatModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
@@ -33,6 +34,7 @@ suite('ChatAccessibilityProvider', () => {
 		accessibleViewHint = '';
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IAccessibleViewService, { getOpenAriaHint: () => accessibleViewHint });
+		instantiationService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: false }));
 		provider = instantiationService.createInstance(ChatAccessibilityProvider);
 	});
 
@@ -43,6 +45,21 @@ suite('ChatAccessibilityProvider', () => {
 	function createViewModel(response: Response): IChatResponseViewModel {
 		return upcastPartial<IChatResponseViewModel>({ response, setVote: () => { } });
 	}
+
+	test('uses session terminology in the editor and chat terminology in the Agents window', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IAccessibleViewService, { getOpenAriaHint: () => accessibleViewHint });
+		instantiationService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: true }));
+		const agentsWindowProvider = instantiationService.createInstance(ChatAccessibilityProvider);
+
+		assert.deepStrictEqual({
+			editor: provider.getWidgetAriaLabel(),
+			agentsWindow: agentsWindowProvider.getWidgetAriaLabel(),
+		}, {
+			editor: 'Session',
+			agentsWindow: 'Chat',
+		});
+	});
 
 	for (const { name, content, labels } of [
 		{ name: 'empty response', content: '', labels: [' ', ` ${hint}`] },

@@ -536,7 +536,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': 'chatView',
 				enum: ['chatView', 'quickChat'],
 				enumDescriptions: [
-					localize('askChatLocation.chatView', "Ask chat questions in the Chat view."),
+					localize('askChatLocation.chatView', "Ask chat questions in the Sessions view."),
 					localize('askChatLocation.quickChat', "Ask chat questions in Quick Chat.")
 				]
 			},

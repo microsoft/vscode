@@ -312,7 +312,7 @@ const COPY_BUTTON: IQuickInputButton = {
  * Button that sets a prompt file to be visible.
  */
 const MAKE_VISIBLE_BUTTON: IQuickInputButton = {
-	tooltip: localize('makeVisible', "Hidden from chat view agent picker. Click to show."),
+	tooltip: localize('makeVisible', "Hidden from Sessions view agent picker. Click to show."),
 	iconClass: ThemeIcon.asClassName(Codicon.eyeClosed),
 	alwaysVisible: true,
 };
@@ -321,7 +321,7 @@ const MAKE_VISIBLE_BUTTON: IQuickInputButton = {
  * Button that sets a prompt file to be invisible.
  */
 const MAKE_INVISIBLE_BUTTON: IQuickInputButton = {
-	tooltip: localize('makeInvisible', "Shown in chat view agent picker. Click to hide."),
+	tooltip: localize('makeInvisible', "Shown in Sessions view agent picker. Click to hide."),
 	iconClass: ThemeIcon.asClassName(Codicon.eye),
 };
 
@@ -591,7 +591,7 @@ export class PromptFilePickers {
 		if (visibility === false) {
 			buttons = (buttons ?? []).concat(MAKE_VISIBLE_BUTTON);
 			promptName = localize('hiddenLabelInfo', "{0} (hidden)", promptName);
-			tooltip = localize('hiddenInAgentPicker', "Hidden from chat view agent picker");
+			tooltip = localize('hiddenInAgentPicker', "Hidden from Sessions view agent picker");
 		} else if (visibility === true) {
 			buttons = (buttons ?? []).concat(MAKE_INVISIBLE_BUTTON);
 		}

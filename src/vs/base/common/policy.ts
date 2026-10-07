@@ -50,7 +50,7 @@ export const PolicyCategoryData: {
 	},
 	[PolicyCategory.InteractiveSession]: {
 		name: {
-			key: 'interactiveSessionConfigurationTitle', value: localize('interactiveSessionConfigurationTitle', "Chat"),
+			key: 'interactiveSessionConfigurationTitle', value: localize('interactiveSessionConfigurationTitle', "Sessions"),
 		}
 	},
 	[PolicyCategory.Telemetry]: {

@@ -457,7 +457,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				super({
 					id: 'workbench.action.chat.upgradePlan',
 					title: localize2('managePlan', "Upgrade to GitHub Copilot Pro"),
-					category: localize2('chat.category', 'Chat'),
+					category: { value: localize('chat.category', 'Sessions'), original: 'Chat' },
 					f1: true,
 					precondition: ContextKeyExpr.and(
 						ChatContextKeys.Setup.hidden.negate(),
@@ -525,7 +525,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				super({
 					id: 'workbench.action.chat.manageAdditionalSpend',
 					title: localize2('manageAdditionalSpend', "Manage GitHub Copilot Budget"),
-					category: localize2('chat.category', 'Chat'),
+					category: { value: localize('chat.category', 'Sessions'), original: 'Chat' },
 					f1: true,
 					precondition: ContextKeyExpr.and(
 						ChatContextKeys.Setup.hidden.negate(),

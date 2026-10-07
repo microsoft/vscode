@@ -179,13 +179,13 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 		return [{
 			id: 'newChatSession',
 			class: undefined,
-			label: localize('chat.newChatSession', "New Chat Session"),
+			label: localize('chat.newChatSession', "New Session"),
 			tooltip: '',
 			hover: { content: '' },
 			checked: false,
 			icon: Codicon.plus,
 			enabled: true,
-			category: { label: localize('chat.newChatSession.category', "New Chat Session"), order: 0, showHeader: false },
+			category: { label: localize('chat.newChatSession.category', "New Session"), order: 0, showHeader: false },
 			description: this.keybindingService.lookupKeybinding(ACTION_ID_NEW_CHAT)?.getLabel() || undefined,
 			run: async () => {
 				this.commandService.executeCommand(ACTION_ID_NEW_CHAT, this.chatSessionPosition);

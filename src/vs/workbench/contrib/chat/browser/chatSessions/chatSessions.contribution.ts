@@ -188,7 +188,7 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 					}
 				},
 				commands: {
-					markdownDescription: localize('chatCommandsDescription', "Commands available for this chat session, which the user can invoke with a `/`."),
+					markdownDescription: localize('chatCommandsDescription', "Commands available for this session, which the user can invoke with a `/`."),
 					type: 'array',
 					items: {
 						additionalProperties: false,
@@ -1688,7 +1688,7 @@ function registerNewSessionInPlaceAction(type: string, displayName: string): IDi
 			// than whatever becomes active during the async open.
 			const activeEditor = accessor.get(IEditorGroupsService).activeGroup.activeEditor;
 			const replaceEditorForResource = activeEditor instanceof ChatEditorInput ? activeEditor.sessionResource : undefined;
-			await openChatSession(accessor, { type: type, displayName: localize('chat', "Chat"), position: chatSessionPosition, replaceEditorForResource });
+			await openChatSession(accessor, { type: type, displayName, position: chatSessionPosition, replaceEditorForResource });
 		}
 	});
 }

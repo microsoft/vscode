@@ -399,7 +399,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 		this._syncSuggestionShown = true;
 
 		vscode.window.showInformationMessage(
-			vscode.l10n.t('Enable session sync for richer cross-device chat session history.'),
+			vscode.l10n.t('Enable session sync for richer cross-device session history.'),
 			vscode.l10n.t('Enable'),
 			vscode.l10n.t('Don\'t Show Again'),
 		).then(choice => {
@@ -1104,7 +1104,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 		}
 		this._policyNotificationShown = true;
 		void vscode.window.showInformationMessage(
-			vscode.l10n.t('Cloud sync for chat session insights is disabled for this workspace by your organization\'s policy.')
+			vscode.l10n.t('Cloud sync for session insights is disabled for this workspace by your organization\'s policy.')
 		);
 	}
 

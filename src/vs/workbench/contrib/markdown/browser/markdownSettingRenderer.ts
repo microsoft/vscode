@@ -127,17 +127,23 @@ export class SimpleSettingRenderer {
 		return this.renderSetting(setting, newValue);
 	}
 
-	private viewInSettingsMessage(settingId: string, alreadyDisplayed: boolean) {
+	private getSettingDisplayName(setting: ISetting | string): { category: string; label: string } {
+		return typeof setting === 'string'
+			? settingKeyToDisplayFormat(setting)
+			: settingKeyToDisplayFormat(setting.key, '', false, setting.settingsDisplayCategory);
+	}
+
+	private viewInSettingsMessage(setting: ISetting | string, alreadyDisplayed: boolean) {
 		if (alreadyDisplayed) {
 			return nls.localize('viewInSettings', "View in Settings");
 		} else {
-			const displayName = settingKeyToDisplayFormat(settingId);
+			const displayName = this.getSettingDisplayName(setting);
 			return nls.localize('viewInSettingsDetailed', "View \"{0}: {1}\" in Settings", displayName.category, displayName.label);
 		}
 	}
 
-	private restorePreviousSettingMessage(settingId: string): string {
-		const displayName = settingKeyToDisplayFormat(settingId);
+	private restorePreviousSettingMessage(setting: ISetting | string): string {
+		const displayName = this.getSettingDisplayName(setting);
 		return nls.localize('restorePreviousValue', "Restore value of \"{0}: {1}\"", displayName.category, displayName.label);
 	}
 
@@ -147,7 +153,7 @@ export class SimpleSettingRenderer {
 	}
 
 	private booleanSettingMessage(setting: ISetting, booleanValue: boolean): string | undefined {
-		const displayName = settingKeyToDisplayFormat(setting.key);
+		const displayName = this.getSettingDisplayName(setting);
 		if (this.isAlreadySet(setting, booleanValue)) {
 			if (booleanValue) {
 				return nls.localize('alreadysetBoolTrue', "\"{0}: {1}\" is already enabled", displayName.category, displayName.label);
@@ -164,7 +170,7 @@ export class SimpleSettingRenderer {
 	}
 
 	private stringSettingMessage(setting: ISetting, stringValue: string): string | undefined {
-		const displayName = settingKeyToDisplayFormat(setting.key);
+		const displayName = this.getSettingDisplayName(setting);
 		if (this.isAlreadySet(setting, stringValue)) {
 			return nls.localize('alreadysetString', "\"{0}: {1}\" is already set to \"{2}\"", displayName.category, displayName.label, stringValue);
 		}
@@ -173,7 +179,7 @@ export class SimpleSettingRenderer {
 	}
 
 	private numberSettingMessage(setting: ISetting, numberValue: number): string | undefined {
-		const displayName = settingKeyToDisplayFormat(setting.key);
+		const displayName = this.getSettingDisplayName(setting);
 		if (this.isAlreadySet(setting, numberValue)) {
 			return nls.localize('alreadysetNum', "\"{0}: {1}\" is already set to {2}", displayName.category, displayName.label, numberValue);
 		}
@@ -221,11 +227,12 @@ export class SimpleSettingRenderer {
 		const actions: IAction[] = [];
 
 		const settingId = uri.authority;
+		const setting = this.getSetting(settingId);
 		const newSettingValue = this.parseValue(uri.authority, uri.path.substring(1));
 		const currentSettingValue = this._configurationService.inspect(settingId).userValue;
 
 		if ((newSettingValue !== undefined) && newSettingValue === currentSettingValue && this._updatedSettings.has(settingId)) {
-			const restoreMessage = this.restorePreviousSettingMessage(settingId);
+			const restoreMessage = this.restorePreviousSettingMessage(setting ?? settingId);
 			actions.push({
 				class: undefined,
 				id: 'restoreSetting',
@@ -237,7 +244,6 @@ export class SimpleSettingRenderer {
 				}
 			});
 		} else if (newSettingValue !== undefined) {
-			const setting = this.getSetting(settingId);
 			const trySettingMessage = setting ? this.getSettingMessage(setting, newSettingValue) : undefined;
 
 			if (setting && trySettingMessage) {
@@ -254,7 +260,7 @@ export class SimpleSettingRenderer {
 			}
 		}
 
-		const viewInSettingsMessage = this.viewInSettingsMessage(settingId, actions.length > 0);
+		const viewInSettingsMessage = this.viewInSettingsMessage(setting ?? settingId, actions.length > 0);
 		actions.push({
 			class: undefined,
 			enabled: true,

@@ -72,7 +72,7 @@ import { localChatSessionType } from '../../common/chatSessionsService.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 
-export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
+export const CHAT_CATEGORY = { value: localize('chat.category', 'Sessions'), original: 'Chat' };
 
 const COPILOT_CLI_AGENT_HOST_PROVIDER_ID = 'copilotcli';
 
@@ -555,7 +555,7 @@ class PrimaryOpenChatGlobalAction extends OpenChatGlobalAction {
 	constructor() {
 		super({
 			id: CHAT_OPEN_ACTION_ID,
-			title: localize2('openChat', "Open Chat"),
+			title: localize2('openChat', "Open Sessions"),
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyI,
@@ -580,7 +580,7 @@ export abstract class ModeOpenChatGlobalAction extends OpenChatGlobalAction {
 	constructor(mode: IChatMode, keybinding?: ICommandPaletteOptions['keybinding']) {
 		super({
 			id: getOpenChatActionIdForMode(mode),
-			title: localize2('openChatMode', "Open Chat ({0})", mode.label.get()),
+			title: localize2('openChatMode', "Open Sessions ({0})", mode.label.get()),
 			keybinding
 		}, mode);
 	}
@@ -623,7 +623,7 @@ export function registerChatActions() {
 		constructor() {
 			super({
 				id: TOGGLE_CHAT_ACTION_ID,
-				title: localize2('toggleChat', "Toggle Chat"),
+				title: localize2('toggleChat', "Toggle Sessions"),
 				category: CHAT_CATEGORY
 			});
 		}
@@ -669,7 +669,7 @@ export function registerChatActions() {
 		constructor() {
 			super({
 				id: ACTION_ID_OPEN_CHAT,
-				title: localize2('interactiveSession.open', "New Chat Editor"),
+				title: localize2('interactiveSession.open', "New Session Editor"),
 				icon: Codicon.plus,
 				f1: true,
 				category: CHAT_CATEGORY,
@@ -707,7 +707,7 @@ export function registerChatActions() {
 		constructor() {
 			super({
 				id: ACTION_ID_OPEN_CHAT + '.copilotIcon',
-				title: localize2('interactiveSession.open', "New Chat Editor"),
+				title: localize2('interactiveSession.open', "New Session Editor"),
 				icon: Codicon.copilot,
 				f1: false,
 				category: CHAT_CATEGORY,
@@ -732,7 +732,7 @@ export function registerChatActions() {
 		constructor() {
 			super({
 				id: ACTION_ID_OPEN_CHAT + '.newSessionIcon',
-				title: localize2('interactiveSession.open', "New Chat Editor"),
+				title: localize2('interactiveSession.open', "New Session Editor"),
 				icon: Codicon.newSession,
 				f1: false,
 				category: CHAT_CATEGORY,
@@ -757,7 +757,7 @@ export function registerChatActions() {
 		constructor() {
 			super({
 				id: ACTION_ID_OPEN_CHAT + '.commentIcon',
-				title: localize2('interactiveSession.open', "New Chat Editor"),
+				title: localize2('interactiveSession.open', "New Session Editor"),
 				icon: Codicon.comment,
 				f1: false,
 				category: CHAT_CATEGORY,
@@ -782,7 +782,7 @@ export function registerChatActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.openChatToSide',
-				title: localize2('interactiveSession.openToSide', "New Chat Editor to the Side"),
+				title: localize2('interactiveSession.openToSide', "New Session Editor to the Side"),
 				f1: true,
 				category: CHAT_CATEGORY,
 				precondition: ChatContextKeys.enabled,
@@ -800,7 +800,7 @@ export function registerChatActions() {
 		constructor() {
 			super({
 				id: `workbench.action.newChatWindow`,
-				title: localize2('interactiveSession.newChatWindow', "New Chat Window"),
+				title: localize2('interactiveSession.newChatWindow', "New Session Window"),
 				f1: true,
 				category: CHAT_CATEGORY,
 				precondition: ChatContextKeys.enabled,
@@ -1514,8 +1514,8 @@ export function registerChatActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.openFeatureSettings',
-				title: localize2('openChatFeatureSettings', "Chat Settings"),
-				shortTitle: localize('openChatFeatureSettings.short', "Chat Settings"),
+				title: localize2('openChatFeatureSettings', "Sessions Settings"),
+				shortTitle: localize('openChatFeatureSettings.short', "Sessions Settings"),
 				category: CHAT_CATEGORY,
 				f1: true,
 				precondition: ChatContextKeys.enabled,

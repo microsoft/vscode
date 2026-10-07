@@ -542,7 +542,7 @@ const apiMenus: IAPIMenu[] = [
 	{
 		key: 'chat/editor/inlineGutter',
 		id: MenuId.ChatEditorInlineMenu,
-		description: localize('menus.chatEditorInlineGutter', "The inline gutter menu in the chat editor."),
+		description: localize('menus.chatEditorInlineGutter', "The inline gutter menu in the session editor."),
 		supportsSubmenus: false,
 		proposed: 'contribChatEditorInlineGutterMenu',
 	},
@@ -787,6 +787,7 @@ namespace schema {
 		shortTitle?: string | ILocalizedString;
 		enablement?: string;
 		category?: string | ILocalizedString;
+		categoryAlias?: string | ILocalizedString;
 		icon?: IUserFriendlyIcon;
 	}
 
@@ -812,6 +813,9 @@ namespace schema {
 			return false;
 		}
 		if (command.category && !isValidLocalizedString(command.category, collector, 'category')) {
+			return false;
+		}
+		if (command.categoryAlias && !isValidLocalizedString(command.categoryAlias, collector, 'categoryAlias')) {
 			return false;
 		}
 		if (!isValidIcon(command.icon, collector)) {
@@ -866,6 +870,10 @@ namespace schema {
 			},
 			category: {
 				description: localize('vscode.extension.contributes.commandType.category', '(Optional) Category string by which the command is grouped in the UI'),
+				type: 'string'
+			},
+			categoryAlias: {
+				description: localize('vscode.extension.contributes.commandType.categoryAlias', '(Optional) Legacy category string used only when searching for the command in the Command Palette'),
 				type: 'string'
 			},
 			enablement: {
@@ -928,7 +936,7 @@ commandsExtensionPoint.setHandler(extensions => {
 			return;
 		}
 
-		const { icon, enablement, category, title, shortTitle, command } = userFriendlyCommand;
+		const { icon, enablement, category, categoryAlias, title, shortTitle, command } = userFriendlyCommand;
 
 		let absoluteIcon: { dark: URI; light?: URI } | ThemeIcon | undefined;
 		if (icon) {
@@ -958,6 +966,7 @@ commandsExtensionPoint.setHandler(extensions => {
 			shortTitle,
 			tooltip: title,
 			category,
+			categoryAlias,
 			precondition: ContextKeyExpr.deserialize(enablement),
 			icon: absoluteIcon
 		}));

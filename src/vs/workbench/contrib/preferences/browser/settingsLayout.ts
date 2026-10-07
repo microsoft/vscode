@@ -179,7 +179,7 @@ export const tocData: ITOCEntry<string> = {
 		},
 		{
 			id: 'chat',
-			label: localize('chat', "Chat"),
+			label: localize('chat', "Sessions"),
 			children: [
 				{
 					id: 'chat/agent',

@@ -556,7 +556,7 @@ describe('cloud session visibility', () => {
 				before: [['started-here', undefined, 'vscode'], ['external', true, 'github/autopilot']],
 				after: [['started-here', undefined, 'vscode'], ['external', undefined, 'github/autopilot']],
 				changeEvents: 1,
-				output: ['Could not find the task for this chat session.'],
+				output: ['Could not find the task for this session.'],
 			});
 		});
 
