@@ -25,7 +25,7 @@ import { URI } from '../../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { ensureNodePtyShim } from './nodePtyShim';
 import { ensureRipgrepShim } from './ripgrepShim';
-import { resolveAppModulePathSync } from './appNodeModules';
+import { resolveAppModulePath } from './appNodeModules';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { formatTokenCount, getAutoModelDescription, getModelCapabilitiesDescription, getReasoningEffortDescription, normalizeTokenPrices, pickDefaultReasoningEffort } from '../../../conversation/common/languageModelAccess';
 
@@ -582,7 +582,7 @@ export class CopilotCLISDK implements ICopilotCLISDK {
 			// (or `node_modules.asar.unpacked/...` in a packaged build), so point
 			// `MXC_BIN_DIR` there. The @github/copilot package's own `mxc-bin/` is excluded
 			// from the product build (see build/.moduleignore).
-			process.env['MXC_BIN_DIR'] = resolveAppModulePathSync(this.envService.appRoot, '@microsoft', 'mxc-sdk', 'bin');
+			process.env['MXC_BIN_DIR'] = await resolveAppModulePath(this.envService.appRoot, '@microsoft', 'mxc-sdk', 'bin');
 
 			// On Linux the MXC bubblewrap sandbox backend does not forward a PTY into
 			// the container, so the CLI's default PTY-backed interactive shell can
