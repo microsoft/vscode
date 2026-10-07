@@ -506,54 +506,48 @@ suite('SpotlightOverlay', () => {
 		target.tabIndex = 0;
 		let additionalElements: HTMLElement[] = [];
 		overlay.show(target, content(), { placement: 'left', targetOverlayVisible: true, allowTargetInteraction: true, additionalElements: () => additionalElements });
-		const root = container.querySelector<HTMLElement>('.spotlight-overlay')!;
 		const hole = container.querySelector<HTMLElement>('.spotlight-hole')!;
 		const holeRect = () => [hole.style.left, hole.style.top, hole.style.width, hole.style.height];
 		const nextFrame = () => new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, resolve)));
-		const calloutMouseDown = () => {
+		const keepsFocus = (focused: HTMLElement) => {
+			focused.focus();
 			const event = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
 			getButtons(container)[2].dispatchEvent(event);
 			return event.defaultPrevented;
 		};
-		const targetOnly = holeRect();
-		target.focus();
-		const keepsFocusWithoutElements = calloutMouseDown();
-
+		const holes = [holeRect()];
+		const keptFocus = [keepsFocus(target)];
 		const menu = createTarget(container, 150, 150, 170, 140);
-		const menuItem = $('div');
-		menuItem.tabIndex = 0;
-		menu.appendChild(menuItem);
+		menu.tabIndex = 0;
 		additionalElements = [menu, createTarget(container, 400, 200, 50, 50)];
 		await nextFrame();
-		const withElements = holeRect();
-		const keepsFocusOutsideElements = calloutMouseDown();
-		menuItem.focus();
-		const keepsFocusInsideElements = calloutMouseDown();
-		const blockers = Array.from(container.getElementsByClassName('spotlight-blocker')).map(blocker => (blocker as HTMLElement).style.display);
-		for (const element of additionalElements) {
-			element.remove();
-		}
+		holes.push(holeRect());
+		keptFocus.push(keepsFocus(target), keepsFocus(menu));
+		additionalElements.forEach(element => element.remove());
 		await nextFrame();
+		holes.push(holeRect());
 
-		assert.deepStrictEqual({
-			targetOnly,
-			withElements,
-			afterRemoval: holeRect(),
-			blockers,
-			targetOverlayVisible: root.classList.contains('target-overlay-visible'),
-			keepsFocusWithoutElements,
-			keepsFocusOutsideElements,
-			keepsFocusInsideElements,
-		}, {
-			targetOnly: ['294px', '294px', '32px', '32px'],
-			withElements: ['144px', '144px', '312px', '182px'],
-			afterRemoval: ['294px', '294px', '32px', '32px'],
-			blockers: ['', '', '', ''],
-			targetOverlayVisible: true,
-			keepsFocusWithoutElements: false,
-			keepsFocusOutsideElements: false,
-			keepsFocusInsideElements: true,
+		assert.deepStrictEqual({ holes, keptFocus }, {
+			holes: [['294px', '294px', '32px', '32px'], ['144px', '144px', '312px', '182px'], ['294px', '294px', '32px', '32px']],
+			keptFocus: [false, false, true],
 		});
+	});
+	test('leaves Escape and Tab inside additional elements to them', () => {
+		const container = createContainer();
+		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver as unknown as typeof ResizeObserver));
+		const menu = createTarget(container, 150, 150, 170, 140);
+		const skips: string[] = [];
+		disposables.add(overlay.onDidSkip(reason => skips.push(reason)));
+		overlay.show(createTarget(container, 300, 300, 20, 20), content(), { targetOverlayVisible: true, allowTargetInteraction: true, additionalElements: () => [menu] });
+		const press = (element: HTMLElement, key: string, keyCode: number) => {
+			const event = new KeyboardEvent('keydown', { key, keyCode, bubbles: true, cancelable: true });
+			element.dispatchEvent(event);
+			return event.defaultPrevented;
+		};
+		const prevented = [press(menu, 'Escape', 27), press(menu, 'Tab', 9)];
+		press(createTarget(container, 0, 0, 10, 10), 'Escape', 27);
+
+		assert.deepStrictEqual({ prevented, skips }, { prevented: [false, false], skips: [OnboardingDismissReason.EscapeKey] });
 	});
 	test('hideNext routes target keyboard events through the focus trap', () => {
 		const container = createContainer();

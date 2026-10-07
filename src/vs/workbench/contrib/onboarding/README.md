@@ -210,7 +210,7 @@ this._register(registerOnboardingTargetProvider(MY_FEATURE_ONBOARDING_TARGET, sc
 }));
 ```
 
-A target can also return `additionalElements` to highlight other elements together with it, such as a menu that `open` shows outside the target. The spotlight reads them on every layout, covers the target and every visible element in the hole, and places the callout beside them all. While focus is inside one of them, clicking the callout leaves focus there, so elements that close on blur stay open across steps. Set `allowTargetInteraction` on the step to keep them interactive.
+A target can also return `additionalElements` to highlight other elements together with it, such as a menu that `open` shows outside the target. The spotlight reads them on every layout, covers the target and every visible element in the hole, and places the callout beside them all. While focus is inside one of them, clicking the callout leaves focus there, so elements that close on blur stay open across steps, and Escape is left to the element. Because focus can move into them, the step is also announced to screen readers. Set `allowTargetInteraction` on the step to keep them interactive.
 
 The shared resolver validates the element's document and visibility. A registered provider is authoritative: returning `undefined` does not fall back to marked DOM elements. In particular, an unknown or expired scope must not fall back to the feature's active owner.
 

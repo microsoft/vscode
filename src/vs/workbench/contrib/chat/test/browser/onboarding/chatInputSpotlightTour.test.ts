@@ -5,199 +5,155 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../../../../base/browser/window.js';
-import { timeout } from '../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { Emitter } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
-import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { IContextViewService } from '../../../../../../platform/contextview/browser/contextView.js';
+import { IContextKeyChangeEvent, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { EditorPartModalVisibleContext } from '../../../../../common/contextkeys.js';
 import { resolveOnboardingTarget } from '../../../../onboarding/browser/spotlight/onboardingTarget.js';
+import { ISpotlightPayload } from '../../../../onboarding/browser/spotlight/spotlightTypes.js';
 import { onboardingScenarioRegistry } from '../../../../onboarding/common/onboardingRegistry.js';
+import { OnboardingOutcome } from '../../../../onboarding/common/onboardingScenario.js';
 import { IOnboardingScenarioService } from '../../../../onboarding/common/onboardingScenarioService.js';
-import { AgentHostChatInputPicker } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.js';
+import { AgentHostChatInputPicker, AgentHostPickerSection } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.js';
 import { IChatWidget } from '../../../browser/chat.js';
-import { CHAT_INPUT_TOUR_ID, ChatInputSpotlightTour, ChatInputTourTarget, createChatInputTour } from '../../../browser/onboarding/chatInputSpotlightTour.js';
+import { CHAT_INPUT_TOUR_ID, ChatInputSpotlightTour, ChatInputTourTarget } from '../../../browser/onboarding/chatInputSpotlightTour.js';
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 
 suite('ChatInputSpotlightTour', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createElement(label: string): HTMLElement {
-		const element = mainWindow.document.createElement('button');
+		const element = mainWindow.document.body.appendChild(mainWindow.document.createElement('button'));
 		element.textContent = label;
-		mainWindow.document.body.appendChild(element);
 		disposables.add(toDisposable(() => element.remove()));
 		return element;
 	}
 
-	function createHarness(options: { readonly combinedPermissions?: boolean; readonly shown?: boolean } = {}) {
-		let pickersRendered = false;
-		const opened: string[] = [];
-		const sections: string[] = [];
+	function createHarness(combined = true) {
+		const opened: { label: string; section: AgentHostPickerSection; token: CancellationToken }[] = [];
 		const menu = createElement('menu');
 		const createPicker = (label: string, combinesPermissions: boolean) => {
 			const element = createElement(label);
 			let open = false;
 			return new class extends mock<AgentHostChatInputPicker>() {
-				override get triggerElement() { return pickersRendered ? element : undefined; }
+				override get triggerElement() { return element; }
 				override get combinesPermissions() { return combinesPermissions; }
-				override get isOpen() { return open; }
-				override show(_anchor: HTMLElement, openPermissions?: boolean) {
+				override get menuElement() { return open ? menu : undefined; }
+				override async showSection(section: AgentHostPickerSection, token: CancellationToken) {
 					open = true;
-					opened.push(`${label}${openPermissions ? ':permissions' : ''}`);
+					opened.push({ label, section, token });
 				}
 			}();
 		};
-		const combined = options.combinedPermissions ?? true;
-		const pickers = new Map<string, AgentHostChatInputPicker>([
-			[SessionConfigKey.Mode, createPicker('mode', combined)],
-			[SessionConfigKey.AutoApprove, createPicker('autoApprove', false)],
-		]);
-		const modelPicker = createElement('Auto');
-		const inputPart = new class extends mock<ChatInputPart>() {
-			override getAgentHostPicker(property: string) { return property === SessionConfigKey.AutoApprove && combined ? undefined : pickers.get(property); }
-			override get modelPickerElement() { return pickersRendered ? modelPicker : undefined; }
-		}();
+		const pickers = new Map<string, AgentHostChatInputPicker>([[SessionConfigKey.Mode, createPicker('mode', combined)], [SessionConfigKey.AutoApprove, createPicker('autoApprove', false)]]);
+		const model = createElement('Auto');
 		const chat = new class extends mock<IChatWidget>() {
 			override readonly domNode = mainWindow.document.body;
-			override readonly inputPart = inputPart;
+			override readonly inputPart = new class extends mock<ChatInputPart>() {
+				override getAgentHostPicker(property: string) { return property === SessionConfigKey.AutoApprove && combined ? undefined : pickers.get(property); }
+				override getModelPickerControl() { return { element: model, open: () => { }, select: () => false }; }
+			}();
 		}();
 
 		const eligibleChat = observableValue<IChatWidget | undefined>('eligibleChat', undefined);
+		const runs: { token: CancellationToken; result: DeferredPromise<OnboardingOutcome> }[] = [];
 		const onboardingService = new class extends mock<IOnboardingScenarioService>() {
-			override hasBeenShown(): boolean { return options.shown ?? false; }
-		}();
-		const contextViewService = new class extends mock<IContextViewService>() {
-			override getContextViewElement() { return menu; }
-		}();
-		const actionWidgetService = new class extends mock<IActionWidgetService>() {
-			override readonly isVisible = false;
-			override hide() { }
-			override focusItemById(itemId: string) { sections.push(`focus:${itemId}`); }
-		}();
-		const commandService = new class extends mock<ICommandService>() {
-			override async executeCommand<R>(commandId: string): Promise<R | undefined> {
-				sections.push(commandId);
-				return undefined;
+			override runScenario(_id: string, token: CancellationToken) {
+				runs.push({ token, result: new DeferredPromise<OnboardingOutcome>() });
+				return runs[runs.length - 1].result.p;
 			}
 		}();
+		const onDidChangeContext = disposables.add(new Emitter<IContextKeyChangeEvent>());
+		const contextKeyService = new class extends mock<IContextKeyService>() {
+			override readonly onDidChangeContext = onDidChangeContext.event;
+			override getContextKeyValue<T>(key: string) { return (key === EditorPartModalVisibleContext.key) as T; }
+		}();
 
-		const tour = disposables.add(new ChatInputSpotlightTour({ eligibleChat }, onboardingService, contextViewService, actionWidgetService, commandService));
+		const tour = disposables.add(new ChatInputSpotlightTour({ eligibleChat }, onboardingService, contextKeyService));
 		return {
-			tour,
-			chat,
-			opened,
-			sections,
-			menu,
-			modelPicker,
-			pickerElement: (property: string) => pickers.get(property)?.triggerElement,
+			tour, opened, runs, menu, model, pickers,
 			setEligible: (value: boolean) => eligibleChat.set(value ? chat : undefined, undefined),
-			renderPickers: () => { pickersRendered = true; },
+			openModalEditor: () => onDidChangeContext.fire({ affectsSome: keys => keys.has(EditorPartModalVisibleContext.key), allKeysContainedIn: () => false }),
 			settle: () => timeout(ChatInputSpotlightTour.SETTLE_DELAY_MS),
-			retry: () => timeout(ChatInputSpotlightTour.RETRY_DELAY_MS),
 		};
 	}
 
-	async function openTargets() {
-		const targets = Object.values(ChatInputTourTarget).map(targetId => ({ targetId, target: resolveOnboardingTarget(mainWindow, targetId) }));
-		const additionalElementsBeforeOpen = targets.map(({ target }) => target?.additionalElements?.());
-		for (const { target } of targets) {
-			await target?.open?.();
-		}
-		return { targets, additionalElementsBeforeOpen, additionalElements: targets.map(({ target }) => target?.additionalElements?.()) };
-	}
+	const resolveTargets = () => Object.values(ChatInputTourTarget).map(targetId => resolveOnboardingTarget(mainWindow, targetId));
 
-	test('starts in the eligible chat once its pickers render and moves the open menu from agent mode to permissions', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const { tour, opened, sections, menu, modelPicker, pickerElement, setEligible, renderPickers, settle, retry } = createHarness();
-
-		const registered = onboardingScenarioRegistry.getScenario(CHAT_INPUT_TOUR_ID) !== undefined;
-		await settle();
+	test('starts once its targets render in the eligible chat and opens each picker section with the step token', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { tour, opened, menu, model, pickers, setEligible, settle } = createHarness();
 		const beforeEligible = tour.signal.get();
 		setEligible(true);
 		await settle();
-		const beforeRender = tour.signal.get();
-		renderPickers();
-		await retry();
-		const { targets, additionalElementsBeforeOpen, additionalElements } = await openTargets();
+		const targets = resolveTargets();
+		const menuBeforeOpen = targets.map(target => target?.additionalElements?.());
+		for (const target of targets) {
+			await target?.open?.(CancellationToken.Cancelled);
+		}
+		const scenario = onboardingScenarioRegistry.getScenario(CHAT_INPUT_TOUR_ID)!;
 
 		assert.deepStrictEqual({
-			registered,
 			beforeEligible,
-			beforeRender,
 			afterRender: tour.signal.get(),
-			targets: targets.map(({ targetId, target }) => ({ targetId, element: target?.element.textContent })),
-			modePickerIsShared: targets[0].target?.element === pickerElement(SessionConfigKey.Mode) && targets[1].target?.element === pickerElement(SessionConfigKey.Mode),
-			modelPicker: targets[2].target?.element === modelPicker,
-			opened,
-			sections,
-			additionalElementsBeforeOpen,
-			additionalElementsAreMenu: additionalElements.map(elements => elements?.length === 1 && elements[0] === menu),
-			steps: createChatInputTour(tour.signal).presentation.payload.steps.map(step => ({ targetId: step.targetId, openTarget: step.openTarget })),
+			targets: targets.map(target => target?.element),
+			menuBeforeOpen,
+			menuAfterOpen: targets.map(target => target?.additionalElements?.()),
+			opened: opened.map(({ label, section, token }) => ({ label, section, cancelled: token.isCancellationRequested })),
+			experiment: scenario.experiment,
+			steps: (scenario.presentation.payload as ISpotlightPayload).steps.map(step => [step.targetId, step.openTarget]),
 		}, {
-			registered: true,
 			beforeEligible: false,
-			beforeRender: false,
 			afterRender: true,
-			targets: [
-				{ targetId: ChatInputTourTarget.AgentMode, element: 'mode' },
-				{ targetId: ChatInputTourTarget.Permissions, element: 'mode' },
-				{ targetId: ChatInputTourTarget.ModelPicker, element: 'Auto' },
-			],
-			modePickerIsShared: true,
-			modelPicker: true,
-			opened: ['mode'],
-			sections: ['focus:agentHostModePicker.mode', 'focus:agentHostModePicker.mode', 'collapseSectionCodeAction', 'focus:agentHostModePicker.permissions', 'expandSectionCodeAction'],
-			additionalElementsBeforeOpen: [[], [], undefined],
-			additionalElementsAreMenu: [true, true, false],
-			steps: [
-				{ targetId: ChatInputTourTarget.ModelPicker, openTarget: undefined },
-				{ targetId: ChatInputTourTarget.AgentMode, openTarget: true },
-				{ targetId: ChatInputTourTarget.Permissions, openTarget: true },
-			],
+			targets: [pickers.get(SessionConfigKey.Mode)!.triggerElement, pickers.get(SessionConfigKey.Mode)!.triggerElement, model],
+			menuBeforeOpen: [[], [], undefined],
+			menuAfterOpen: [[menu], [menu], undefined],
+			opened: [{ label: 'mode', section: 'mode', cancelled: true }, { label: 'mode', section: 'permissions', cancelled: true }],
+			experiment: { behaviorFlag: 'onb.chatInput.show', assignmentContextIdFlag: 'onb.chatInput.id' },
+			steps: [[ChatInputTourTarget.ModelPicker, undefined], [ChatInputTourTarget.AgentMode, true], [ChatInputTourTarget.Permissions, true]],
 		});
 	}));
 
 	test('uses the separate permissions picker when mode and permissions are not combined', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const { tour, opened, setEligible, renderPickers, settle } = createHarness({ combinedPermissions: false });
-		renderPickers();
+		const { opened, pickers, setEligible, settle } = createHarness(false);
 		setEligible(true);
 		await settle();
-		const { targets } = await openTargets();
+		const permissions = resolveTargets()[1];
+		await permissions?.open?.();
 
-		assert.deepStrictEqual({
-			triggered: tour.signal.get(),
-			permissionsTarget: targets[1].target?.element.textContent,
-			opened,
-		}, {
-			triggered: true,
-			permissionsTarget: 'autoApprove',
-			opened: ['mode', 'autoApprove:permissions'],
+		assert.deepStrictEqual({ element: permissions?.element, opened: opened.map(({ label, section }) => [label, section]) }, {
+			element: pickers.get(SessionConfigKey.AutoApprove)!.triggerElement,
+			opened: [['autoApprove', 'permissions']],
 		});
 	}));
 
-	test('stops waiting when the chat stops being eligible', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const { tour, setEligible, renderPickers, settle } = createHarness();
+	test('drops the signal and its targets while the chat is not eligible', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { tour, setEligible, settle } = createHarness();
 		setEligible(true);
+		await settle();
 		setEligible(false);
-		renderPickers();
-		await settle();
-		const afterIneligible = tour.signal.get();
+		const whenIneligible = { signal: tour.signal.get(), targets: resolveTargets().filter(target => target).length };
 		setEligible(true);
-		await settle();
 
-		assert.deepStrictEqual({ afterIneligible, afterEligibleAgain: tour.signal.get() }, { afterIneligible: false, afterEligibleAgain: true });
+		assert.deepStrictEqual({ whenIneligible, whenEligibleAgain: tour.signal.get() }, { whenIneligible: { signal: false, targets: 0 }, whenEligibleAgain: true });
 	}));
 
-	test('does not start a tour that was already shown', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const { tour, setEligible, renderPickers, settle } = createHarness({ shown: true });
-		renderPickers();
+	test('ends the running tour when a modal editor opens', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { runs, setEligible, openModalEditor, settle } = createHarness();
 		setEligible(true);
 		await settle();
+		for (const step of (onboardingScenarioRegistry.getScenario(CHAT_INPUT_TOUR_ID)!.presentation.payload as ISpotlightPayload).steps) {
+			step.onBeforeShow?.();
+		}
+		openModalEditor();
 
-		assert.strictEqual(tour.signal.get(), false);
+		assert.deepStrictEqual(runs.map(run => run.token.isCancellationRequested), [true]);
+		runs[0].result.complete(OnboardingOutcome.Aborted);
 	}));
 });

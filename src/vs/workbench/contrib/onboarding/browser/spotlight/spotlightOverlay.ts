@@ -5,6 +5,7 @@
 
 import { $, addDisposableGenericMouseDownListener, addDisposableListener, animate, append, EventType, getActiveElement, getWindow, isHTMLElement, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
+import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -57,14 +58,7 @@ export interface ISpotlightShowOptions {
 	readonly padding?: number;
 	readonly hideNext?: boolean;
 	readonly targetOverlayVisible?: boolean;
-	/**
-	 * Returns other elements to highlight together with the target, such as a menu the target
-	 * opened. Read on every layout, so the list can change while the step is shown. The hole covers
-	 * the target and every visible element in the list, and the callout is placed beside them all.
-	 * While focus is inside one of these elements, clicking the callout leaves focus there, so
-	 * elements that close on blur stay open. Combine with `allowTargetInteraction` to keep them
-	 * interactive.
-	 */
+	/** Other elements to highlight with the target. See `IOnboardingTarget.additionalElements`. */
 	readonly additionalElements?: () => readonly HTMLElement[];
 	/** Advances on target activation; `advanceOnly` consumes the activation without running its action. */
 	readonly advanceOnTargetClick?: SpotlightTargetClickBehavior;
@@ -215,7 +209,8 @@ export class SpotlightOverlay extends Disposable {
 					return;
 				}
 				const keyboardEvent = new StandardKeyboardEvent(event);
-				if (keyboardEvent.equals(KeyCode.Escape)) {
+				// Escape inside an additional element, such as a menu, closes that element rather than the tour.
+				if (keyboardEvent.equals(KeyCode.Escape) && !options.additionalElements?.().some(element => element.contains(eventTarget))) {
 					this._onDidSkip.fire(OnboardingDismissReason.EscapeKey);
 				}
 			}, true));
@@ -241,6 +236,8 @@ export class SpotlightOverlay extends Disposable {
 
 		const additionalElements = options.additionalElements;
 		if (additionalElements) {
+			// Focus can move into the additional elements, so screen readers might not read the callout.
+			status(localize('spotlight.stepAnnouncement', "{0}: {1}", content.title, this._description.textContent ?? ''));
 			this._stepListeners.add(addDisposableGenericMouseDownListener(this._callout, event => {
 				const activeElement = getActiveElement();
 				if (activeElement && additionalElements().some(element => element.contains(activeElement))) {

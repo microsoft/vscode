@@ -297,6 +297,30 @@ suite('OnboardingScenarioService', () => {
 		assert.deepStrictEqual(presentation.runs, ['observable-1']);
 	});
 
+	test('an automatic run that waited behind another presentation is dropped once it is no longer eligible', async () => {
+		const presentation = new RecordingPresentation(uniqueKind());
+		registerPresentation(presentation);
+		const signal = observableValue<boolean>('onboardingTestSignal', true);
+		registerScenario({ id: 'stale-1', trigger: { kind: 'observable', signal }, presentation: { kind: presentation.kind, payload: undefined } });
+		const finish = new DeferredPromise<void>();
+		const occupant = runWithOnboardingPresentation(mainWindow, CancellationToken.None, () => finish.p);
+		const { service } = createService();
+		service.start();
+		await timeout(0);
+		signal.set(false, undefined);
+		finish.complete();
+		await occupant;
+		await timeout(0);
+		const whileIneligible = { runs: [...presentation.runs], shown: service.hasBeenShown('stale-1') };
+		signal.set(true, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual({ whileIneligible, runs: presentation.runs }, {
+			whileIneligible: { runs: [], shown: false },
+			runs: ['stale-1'],
+		});
+	});
+
 	test('command-triggered scenarios never run automatically', async () => {
 		const presentation = new RecordingPresentation(uniqueKind());
 		registerPresentation(presentation);

@@ -48,18 +48,16 @@ suite('ChatOnboardingEligibility', () => {
 		}();
 
 		const addWidget = (widgetOptions: IWidgetOptions = {}) => {
-			let sessionType = widgetOptions.sessionType ?? SessionType.AgentHostCopilot;
+			const viewModel = (type: string) => new class extends mock<IChatViewModel>() {
+				override readonly sessionResource = URI.from({ scheme: type, path: '/untitled-1' });
+			}();
 			let visible = widgetOptions.visible ?? true;
 			const onDidChangeViewModel = disposables.add(new Emitter<IChatWidgetViewModelChangeEvent>());
 			const widget = new class extends mock<IChatWidget>() {
 				override readonly viewContext = widgetOptions.viewContext ?? { viewId: 'workbench.panel.chat.view.copilot' };
 				override readonly onDidChangeViewModel = onDidChangeViewModel.event;
 				override get visible() { return visible; }
-				override get viewModel() {
-					return new class extends mock<IChatViewModel>() {
-						override readonly sessionResource = URI.from({ scheme: sessionType, path: '/untitled-1' });
-					}();
-				}
+				override viewModel = viewModel(widgetOptions.sessionType ?? SessionType.AgentHostCopilot);
 			}();
 			widgets.push(widget);
 			onDidAddWidget.fire(widget);
@@ -70,7 +68,7 @@ suite('ChatOnboardingEligibility', () => {
 					onDidChangeWidgetVisibility.fire(widget);
 				},
 				switchSession: (value: string) => {
-					sessionType = value;
+					widget.viewModel = viewModel(value);
 					onDidChangeViewModel.fire({ previousSessionResource: undefined, currentSessionResource: undefined });
 				},
 			};
@@ -99,12 +97,10 @@ suite('ChatOnboardingEligibility', () => {
 			before,
 			beforeVisible,
 			afterVisible: eligibility.eligibleChat.get() === hidden.widget,
-			isNewUser: eligibility.isNewUser.get(),
 		}, {
 			before: undefined,
 			beforeVisible: undefined,
 			afterVisible: true,
-			isNewUser: true,
 		});
 	});
 
@@ -140,13 +136,11 @@ suite('ChatOnboardingEligibility', () => {
 			whenBypassed,
 			beforeSending,
 			afterSending: sendsNow.eligibility.eligibleChat.get(),
-			isNewUserAfterSending: sendsNow.eligibility.isNewUser.get(),
 		}, {
 			whenSent: undefined,
 			whenBypassed: true,
 			beforeSending: true,
 			afterSending: undefined,
-			isNewUserAfterSending: false,
 		});
 	});
 });
