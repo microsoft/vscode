@@ -299,12 +299,14 @@ export class SessionHeaderBar extends Disposable {
 		// codicon, cross-fade, reduced-motion); here we just feed it the latest state.
 		// Metadata is surfaced above the chat input, so the title keeps the
 		// read/unread status indicator.
+		// The title shows the active chat, so its read state must too: the session's
+		// own `isRead` aggregates all chats and would show another peer chat's unread state.
+		const activeChat = activeChatObservable.read(reader);
 		const status = session.status.read(reader);
-		const isRead = session.isRead.read(reader);
+		const isRead = activeChat ? activeChat.isRead.read(reader) : session.isRead.read(reader);
 		const isArchived = session.isArchived.read(reader);
 		this._statusIcon.setStatus(status, isRead, isArchived);
 
-		const activeChat = activeChatObservable.read(reader);
 		if (!activeChat) {
 			this._activeChat = undefined;
 			this._titleTextEl.textContent = this._getUntitledTitle(reader);
