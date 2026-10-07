@@ -61,7 +61,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		});
 	});
 
-	test('projects non-empty SDK catalog searches and declines browse requests', async () => {
+	test('projects SDK catalog searches and featured plugin browse results', async () => {
 		const frontendSession = URI.parse('agent-host-copilotcli:/frontend-session');
 		const backendSession = URI.parse('ahp-session:/backend-session');
 		const calls: { readonly provider: string; readonly session: string; readonly query: string }[] = [];
@@ -75,15 +75,24 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 					calls.push({ provider, session: session.toString(), query: request.query });
 					return {
 						kind: 'page' as const,
-						items: [{
+						items: request.query ? [{
 							selectionId: 'selection',
 							kind: 'skill' as const,
 							displayName: 'Demo Skill',
 							description: 'Demo',
 							publisher: 'octo-org',
 							installable: true,
+						}] : [{
+							selectionId: 'featured-plugin:awesome-copilot:azure',
+							kind: 'plugin' as const,
+							displayName: 'Azure',
+							description: 'Azure tools',
+							publisher: 'microsoft',
+							pluginName: 'azure',
+							marketplace: 'awesome-copilot',
+							installable: true,
 						}],
-						nextCursor: 'next',
+						nextCursor: request.query ? 'next' : undefined,
 					};
 				}
 			}(),
@@ -117,8 +126,28 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				})),
 			},
 		}, {
-			calls: [{ provider: 'copilotcli', session: backendSession.toString(), query: 'demo' }],
-			browse: undefined,
+			calls: [
+				{ provider: 'copilotcli', session: backendSession.toString(), query: 'demo' },
+				{ provider: 'copilotcli', session: backendSession.toString(), query: '' },
+			],
+			browse: {
+				items: [{
+					identifier: '["awesome-copilot","azure"]',
+					displayName: 'Azure',
+					description: 'Azure tools',
+					mediaType: 'application/vnd.github.copilot-plugin',
+					tags: [],
+					capabilities: [],
+					representativeQueries: [],
+					version: undefined,
+					repository: undefined,
+					publisher: 'microsoft',
+					publisherUrl: URI.parse('https://github.com/microsoft'),
+					icon: URI.parse('https://github.com/microsoft.png'),
+					installation: { kind: 'providerPlugin', name: 'azure', marketplace: 'awesome-copilot' },
+				}],
+				nextCursor: undefined,
+			},
 			page: {
 				items: [{
 					identifier: 'selection',
@@ -309,6 +338,50 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		}, CancellationToken.None);
 
 		assert.deepStrictEqual(calls, ['authenticate', 'prepare', 'apply']);
+	});
+
+	test('installs a featured SDK marketplace plugin without local marketplace identity', async () => {
+		const session = URI.parse('agent-host-copilotcli:/frontend-session');
+		const calls: unknown[] = [];
+		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+			'copilotcli',
+			async () => true,
+			new class extends mock<IAgentHostService>() {
+				override readonly onAgentHostStart = Event.None;
+				override readonly onAgentHostExit = Event.None;
+				override async installPlugin(provider: string, request: { readonly source: string }): Promise<void> {
+					calls.push({ provider, request });
+				}
+			}(),
+			new class extends mock<IAgentHostConnectionsService>() { }(),
+			new class extends mock<IAgentHostCustomizationService>() {
+				override readonly onDidChangeCustomizations = Event.None;
+			}(),
+			new class extends mock<IAgentPluginService>() {
+				override readonly plugins = observableValue<readonly IAgentPlugin[]>('plugins', []);
+			}(),
+			new class extends mock<IDialogService>() { }(),
+			new NullLogService(),
+		));
+		const resource = {
+			sourceId: 'agentFinder',
+			identifier: '["awesome-copilot","azure"]',
+			displayName: 'Azure',
+			description: 'Azure tools',
+			mediaType: 'application/vnd.github.copilot-plugin',
+			tags: [],
+			capabilities: [],
+			representativeQueries: [],
+			installation: { kind: 'providerPlugin' as const, name: 'azure', marketplace: 'awesome-copilot' },
+		};
+
+		assert.strictEqual(provider.getInstallUnavailableMessage(resource), undefined);
+		await provider.install(session, resource, CancellationToken.None);
+
+		assert.deepStrictEqual(calls, [{
+			provider: 'copilotcli',
+			request: { source: 'azure@awesome-copilot' },
+		}]);
 	});
 
 	test('preserves SDK plugin inventory when session-bound receipt inventory is unavailable', async () => {

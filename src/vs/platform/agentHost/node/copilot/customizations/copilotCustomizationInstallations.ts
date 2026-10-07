@@ -29,6 +29,30 @@ const catalogSearchCapabilities = [
 const retainedCatalogLifetimeMs = 4 * 60_000;
 const maxRetainedCatalogEntries = 1000;
 const policySessionIdleTimeoutMs = 10 * 60_000;
+const copilotPluginMediaType = 'application/vnd.github.copilot-plugin';
+const featuredPlugins = [
+	{
+		marketplace: 'awesome-copilot',
+		name: 'azure',
+		displayName: 'Azure',
+		description: localize('copilot.featuredPlugin.azure.description', "Plan, deploy, troubleshoot, and manage Azure resources with skills and MCP tools."),
+		publisher: 'microsoft',
+	},
+	{
+		marketplace: 'copilot-plugins',
+		name: 'workiq',
+		displayName: 'WorkIQ',
+		description: localize('copilot.featuredPlugin.workiq.description', "Find answers across Microsoft 365 emails, meetings, documents, and Teams messages."),
+		publisher: 'microsoft',
+	},
+	{
+		marketplace: 'awesome-copilot',
+		name: 'security-best-practices',
+		displayName: 'Security Best Practices',
+		description: localize('copilot.featuredPlugin.securityBestPractices.description', "Build secure, accessible, reliable software."),
+		publisher: 'github',
+	},
+] as const;
 
 const skillInstallationContract = {
 	...catalogContract,
@@ -46,7 +70,7 @@ interface ISdkResult {
 }
 
 interface ICopilotCustomizationInstallationClient {
-	readonly rpc: Pick<CopilotClient['rpc'], 'catalog' | 'skills' | 'mcp'>;
+	readonly rpc: Pick<CopilotClient['rpc'], 'catalog' | 'skills' | 'mcp'> & Partial<Pick<CopilotClient['rpc'], 'plugins'>>;
 }
 
 export interface ICopilotCustomizationPolicySession {
@@ -161,6 +185,12 @@ export class CopilotCustomizationInstallations extends Disposable {
 	}
 
 	async search(session: URI, request: IAgentCustomizationMarketplaceSearchRequest): Promise<IAgentCustomizationMarketplaceSearchResult> {
+		if (!request.query.trim()) {
+			if (request.mediaType && request.mediaType !== copilotPluginMediaType) {
+				return { kind: 'page', items: [] };
+			}
+			return this.browseFeaturedPlugins(await this.getClient(), request);
+		}
 		const visiblePolicySessionId = this.getPolicySessionId(session);
 		if (!visiblePolicySessionId && !this.createPolicySession) {
 			return { kind: 'unavailable', reason: 'session' };
@@ -210,6 +240,32 @@ export class CopilotCustomizationInstallations extends Disposable {
 		} finally {
 			retainedCursor?.dispose();
 		}
+	}
+
+	private async browseFeaturedPlugins(client: ICopilotCustomizationInstallationClient, request: IAgentCustomizationMarketplaceSearchRequest): Promise<IAgentCustomizationMarketplaceSearchResult> {
+		const marketplacesApi = client.rpc.plugins?.marketplaces;
+		if (!marketplacesApi) {
+			return { kind: 'unavailable', reason: 'unsupported' };
+		}
+		const availableMarketplaces = new Set((await marketplacesApi.list()).marketplaces
+			.filter(marketplace => marketplace.available !== false)
+			.map(marketplace => marketplace.name));
+		return {
+			kind: 'page',
+			items: featuredPlugins
+				.filter(featured => availableMarketplaces.has(featured.marketplace))
+				.map(featured => ({
+					selectionId: `featured-plugin:${featured.marketplace}:${featured.name}`,
+					kind: 'plugin' as const,
+					displayName: featured.displayName,
+					description: featured.description,
+					publisher: featured.publisher,
+					pluginName: featured.name,
+					marketplace: featured.marketplace,
+					installable: true,
+				}))
+				.slice(0, request.limit),
+		};
 	}
 
 	async list(session: URI): Promise<readonly IAgentCustomizationInstallation[]> {
@@ -517,7 +573,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 			case undefined: return ['ai-skill', 'mcp-server'];
 			case 'application/ai-skill': return ['ai-skill'];
 			case 'application/mcp-server+json': return ['mcp-server'];
-			case 'application/vnd.github.copilot-plugin': return [];
+			case copilotPluginMediaType: return [];
 			default: return [];
 		}
 	}

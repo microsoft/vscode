@@ -22,13 +22,99 @@ suite('CopilotCustomizationInstallations', () => {
 		}, () => undefined));
 
 		const search = await service.search(URI.parse('agent-host-copilotcli:///unmaterialized'), {
+			query: 'demo',
+			limit: 10,
+		});
+		const mcpBrowse = await service.search(URI.parse('agent-host-copilotcli:///unmaterialized'), {
 			query: '',
+			mediaType: 'application/mcp-server+json',
 			limit: 10,
 		});
 		await assert.rejects(service.list(URI.parse('agent-host-copilotcli:///unmaterialized')), /Start a Copilot agent session/);
-		assert.deepStrictEqual({ clientRequests, search }, {
+		assert.deepStrictEqual({ clientRequests, search, mcpBrowse }, {
 			clientRequests: 0,
 			search: { kind: 'unavailable', reason: 'session' },
+			mcpBrowse: { kind: 'page', items: [] },
+		});
+	});
+
+	test('uses SDK marketplace browse for an empty featured-plugin query', async () => {
+		const calls: string[] = [];
+		const marketplaces = new class extends mock<CopilotClient['rpc']['plugins']['marketplaces']>() {
+			override readonly list: CopilotClient['rpc']['plugins']['marketplaces']['list'] = async () => {
+				calls.push('list');
+				return {
+					marketplaces: [
+						{ name: 'awesome-copilot', source: 'GitHub: github/awesome-copilot', isDefault: true },
+						{ name: 'copilot-plugins', source: 'GitHub: github/copilot-plugins', isDefault: true },
+						{ name: 'other', source: 'GitHub: example/other' },
+					],
+				};
+			};
+			override readonly browse: CopilotClient['rpc']['plugins']['marketplaces']['browse'] = async request => {
+				calls.push(`browse:${request.name}`);
+				throw new Error('Unexpected marketplace browse');
+			};
+		}();
+		const catalog = new class extends mock<CopilotClient['rpc']['catalog']>() {
+			override readonly search: CopilotClient['rpc']['catalog']['search'] = async () => {
+				throw new Error('Unexpected catalog search');
+			};
+		}();
+		const client = {
+			rpc: {
+				catalog,
+				plugins: new class extends mock<CopilotClient['rpc']['plugins']>() {
+					override readonly marketplaces = marketplaces;
+				}(),
+				skills: new class extends mock<CopilotClient['rpc']['skills']>() { }(),
+				mcp: new class extends mock<CopilotClient['rpc']['mcp']>() { }(),
+			},
+		};
+		const service = store.add(new CopilotCustomizationInstallations(
+			async () => client,
+			() => undefined,
+		));
+
+		const result = await service.search(URI.parse('agent-host-copilotcli:///unmaterialized'), { query: '', limit: 10 });
+
+		assert.deepStrictEqual({ calls, result }, {
+			calls: ['list'],
+			result: {
+				kind: 'page',
+				items: [
+					{
+						selectionId: 'featured-plugin:awesome-copilot:azure',
+						kind: 'plugin',
+						displayName: 'Azure',
+						description: 'Plan, deploy, troubleshoot, and manage Azure resources with skills and MCP tools.',
+						publisher: 'microsoft',
+						pluginName: 'azure',
+						marketplace: 'awesome-copilot',
+						installable: true,
+					},
+					{
+						selectionId: 'featured-plugin:copilot-plugins:workiq',
+						kind: 'plugin',
+						displayName: 'WorkIQ',
+						description: 'Find answers across Microsoft 365 emails, meetings, documents, and Teams messages.',
+						publisher: 'microsoft',
+						pluginName: 'workiq',
+						marketplace: 'copilot-plugins',
+						installable: true,
+					},
+					{
+						selectionId: 'featured-plugin:awesome-copilot:security-best-practices',
+						kind: 'plugin',
+						displayName: 'Security Best Practices',
+						description: 'Build secure, accessible, reliable software.',
+						publisher: 'github',
+						pluginName: 'security-best-practices',
+						marketplace: 'awesome-copilot',
+						installable: true,
+					},
+				],
+			},
 		});
 	});
 

@@ -322,6 +322,8 @@ export interface IAgentCustomizationMarketplaceSearchItem {
 	readonly displayName: string;
 	readonly description?: string;
 	readonly publisher?: string;
+	readonly pluginName?: string;
+	readonly marketplace?: string;
 	readonly version?: string;
 	readonly repository?: string;
 	readonly path?: string;

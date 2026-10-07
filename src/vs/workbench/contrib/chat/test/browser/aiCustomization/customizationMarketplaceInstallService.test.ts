@@ -647,6 +647,39 @@ suite('CustomizationMarketplaceInstallService', () => {
 		assert.deepStrictEqual([gallery.kind, connector.kind], ['installed', 'installed']);
 	});
 
+	test('routes an SDK-featured plugin without local marketplace validation', async () => {
+		const installs: ICustomizationMarketplaceResource[] = [];
+		const provider = new class implements ICustomizationMarketplaceInstallProvider {
+			readonly onDidChange = Event.None;
+			getInstallations() { return Promise.resolve([]); }
+			async install(_session: URI, resource: ICustomizationMarketplaceResource): Promise<void> { installs.push(resource); }
+			repair(): Promise<void> { throw new Error('Unexpected repair'); }
+			uninstall(): Promise<void> { throw new Error('Unexpected uninstall'); }
+		}();
+		const fixture = await createFixture({ enabled: true, installProvider: provider });
+		const candidate = resource({
+			identifier: '["awesome-copilot","azure"]',
+			displayName: 'Azure',
+			mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+			installation: { kind: 'providerPlugin', name: 'azure', marketplace: 'awesome-copilot' },
+		});
+		if (isWeb) {
+			await assert.rejects(fixture.service.install(candidate), /not available in VS Code for the Web/);
+			assert.deepStrictEqual(installs, []);
+			return;
+		}
+
+		await fixture.service.install(candidate);
+
+		assert.deepStrictEqual({
+			installs,
+			trustChecks: fixture.pluginService.trustChecks,
+		}, {
+			installs: [candidate],
+			trustChecks: [],
+		});
+	});
+
 	test('validates configured marketplace trust before invoking the SDK provider', async () => {
 		let providerInstalls = 0;
 		const provider = new class implements ICustomizationMarketplaceInstallProvider {

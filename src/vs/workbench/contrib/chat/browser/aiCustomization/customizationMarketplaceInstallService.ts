@@ -215,7 +215,8 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		}
 		const installedSource = installed.installation;
 		const resourceSource = resource.installation;
-		if (installedSource?.kind === 'configuredPlugin' && resourceSource?.kind === 'configuredPlugin') {
+		if (installedSource?.kind === 'configuredPlugin' &&
+			(resourceSource?.kind === 'configuredPlugin' || resourceSource?.kind === 'providerPlugin')) {
 			return versionsCompatible && installedSource.name === resourceSource.name && installedSource.marketplace === resourceSource.marketplace;
 		}
 		if (installedSource?.kind === 'plugin' && resourceSource?.kind === 'plugin') {
@@ -615,11 +616,10 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 					: localize('customizationMarketplace.sourceUnavailable', "This resource does not provide a supported installation source."),
 			};
 		}
-		if (source.kind === 'skill' || source.kind === 'mcp' || source.kind === 'plugin' || source.kind === 'providerCatalog') {
-			if (!this.configurationService.getValue<boolean>(ChatConfiguration.PluginsEnabled)) {
-				if (source.kind === 'plugin') {
-					return { kind: 'unavailable', message: localize('customizationMarketplace.pluginsDisabled', "Enable agent plugins to install this resource.") };
-				}
+		if (source.kind === 'skill' || source.kind === 'mcp' || source.kind === 'plugin' || source.kind === 'providerPlugin' || source.kind === 'providerCatalog') {
+			if ((source.kind === 'plugin' || source.kind === 'providerPlugin') &&
+				!this.configurationService.getValue<boolean>(ChatConfiguration.PluginsEnabled)) {
+				return { kind: 'unavailable', message: localize('customizationMarketplace.pluginsDisabled', "Enable agent plugins to install this resource.") };
 			}
 			return providerBinding
 				? { kind: 'available' }
@@ -686,7 +686,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		const binding = this.providerBinding;
 		const provider = binding?.provider;
 		const kind = resource.installation?.kind;
-		return binding && provider && (kind === 'skill' || kind === 'mcp' || kind === 'plugin' || kind === 'configuredPlugin'
+		return binding && provider && (kind === 'skill' || kind === 'mcp' || kind === 'plugin' || kind === 'configuredPlugin' || kind === 'providerPlugin'
 			|| kind === 'providerCatalog'
 			|| this.providerInstallations.some(installation => this.matchesProviderInstallation(installation.resource, resource)))
 			? binding
@@ -694,7 +694,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 	}
 
 	private isProviderManagedInstallation(installation: CustomizationMarketplaceInstallation): boolean {
-		return !!this.providerBinding && (installation.kind === 'skill' || installation.kind === 'mcp' || installation.kind === 'plugin' || installation.kind === 'configuredPlugin' || installation.kind === 'providerCatalog');
+		return !!this.providerBinding && (installation.kind === 'skill' || installation.kind === 'mcp' || installation.kind === 'plugin' || installation.kind === 'configuredPlugin' || installation.kind === 'providerPlugin' || installation.kind === 'providerCatalog');
 	}
 
 	private associateInstalledResource(resource: ICustomizationMarketplaceResource, target: Extract<CustomizationMarketplaceInstallationRecordTarget, { readonly kind: 'plugin' | 'mcp' }>): void {

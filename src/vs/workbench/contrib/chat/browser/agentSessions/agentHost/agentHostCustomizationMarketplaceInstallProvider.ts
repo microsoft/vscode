@@ -76,8 +76,8 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 
 	async query(sessionResource: URI, options: ICustomizationMarketplaceSourceQuery, token: CancellationToken): Promise<ICustomizationMarketplaceSourcePage | undefined> {
 		this.throwIfCancelled(token);
-		const query = options.query?.trim();
-		if (!query || !this.agentHostService.searchCustomizationMarketplace) {
+		const query = options.query?.trim() ?? '';
+		if (!this.agentHostService.searchCustomizationMarketplace) {
 			return undefined;
 		}
 		let backendSession: URI;
@@ -107,8 +107,11 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 					this.unavailableCatalogItems.delete(item.selectionId);
 				}
 				const publisher = getGitHubPublisher(item.publisher);
+				const providerPlugin = !item.unavailableMessage && item.kind === 'plugin' && item.pluginName && item.marketplace
+					? { kind: 'providerPlugin' as const, name: item.pluginName, marketplace: item.marketplace }
+					: undefined;
 				return {
-					identifier: item.selectionId,
+					identifier: providerPlugin ? JSON.stringify([providerPlugin.marketplace, providerPlugin.name]) : item.selectionId,
 					displayName: item.displayName,
 					description: item.description ?? '',
 					mediaType: getCatalogMediaType(item.kind),
@@ -120,7 +123,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 					publisher: item.publisher,
 					publisherUrl: publisher?.profile,
 					icon: publisher?.avatar,
-					installation: { kind: 'providerCatalog' as const, resourceKind: item.kind, selectionId: item.selectionId },
+					installation: providerPlugin ?? { kind: 'providerCatalog' as const, resourceKind: item.kind, selectionId: item.selectionId },
 				};
 			}),
 			nextCursor: result.nextCursor,
@@ -190,6 +193,15 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 			if (!installation.name || !installation.marketplace || !installation.marketplaceId || !installation.marketplaceSource) {
 				throw new Error(localize('agentHost.customizationInstall.pluginIdentityUnavailable', "The SDK plugin installation identity is unavailable."));
 			}
+			if (!this.agentHostService.installPlugin) {
+				throw new Error(localize('agentHost.customizationInstall.pluginUnavailable', "The selected agent does not support SDK plugin installation."));
+			}
+			await this.agentHostService.installPlugin(this.providerId, { source: `${installation.name}@${installation.marketplace}` });
+			this.throwIfCancelled(token);
+			this._onDidChange.fire();
+			return;
+		}
+		if (installation?.kind === 'providerPlugin') {
 			if (!this.agentHostService.installPlugin) {
 				throw new Error(localize('agentHost.customizationInstall.pluginUnavailable', "The selected agent does not support SDK plugin installation."));
 			}
