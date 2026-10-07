@@ -811,8 +811,8 @@ suite('ProtocolServerHandler', () => {
 	});
 
 	for (const kind of [AgentHostTransportKind.MessagePort, AgentHostTransportKind.WebSocket]) {
-		test(`negotiates 0.9.0, 0.10.0 and 1.0.0 on ${kind} connections, including relay clients`, () => {
-			const offered = [['0.9.0'], ['0.10.0'], ['1.0.0'], ['0.9.0', '0.10.0', '1.0.0']];
+		test(`negotiates supported caret ranges and 0.10.0 on ${kind} connections, including relay clients`, () => {
+			const offered = [['0.9.0'], ['0.9.1'], ['0.10.0'], ['0.9.0', '0.10.0'], ['1.0.0'], ['1.5.0'], ['0.9.0', '0.10.0', '1.5.0', '1.0.0']];
 			const negotiated = [false, true].flatMap(relay => offered.map((protocolVersions, index) => {
 				const clientId = `compatible-${relay}-${index}`;
 				const transport = disposables.add(new MockProtocolTransport(kind, relay ? clientId : undefined));
@@ -822,9 +822,27 @@ suite('ProtocolServerHandler', () => {
 				transport.simulateClose();
 				return response.result?.protocolVersion;
 			}));
-			assert.deepStrictEqual(negotiated, ['0.9.0', '0.10.0', '1.0.0', '1.0.0', '0.9.0', '0.10.0', '1.0.0', '1.0.0']);
+			assert.deepStrictEqual(negotiated, [
+				'0.9.0', '0.9.1', '0.10.0', '0.10.0', '1.0.0', '1.5.0', '1.5.0',
+				'0.9.0', '0.9.1', '0.10.0', '0.10.0', '1.0.0', '1.5.0', '1.5.0',
+			]);
 		});
 	}
+
+	test('handshake reports malformed protocol versions as invalid parameters', () => {
+		const transport = disposables.add(new MockProtocolTransport());
+		server.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', {
+			protocolVersions: ['1.0.0', '01.0.0'],
+			clientId: 'client-malformed-version',
+		}));
+		const response = findResponse(transport.sent, 1) as JsonRpcResponse;
+		assert.deepStrictEqual(hasKey(response, { error: true }) ? response.error : undefined, {
+			code: JsonRpcErrorCodes.InvalidParams,
+			message: 'Invalid protocol version: 01.0.0',
+		});
+		transport.simulateClose();
+	});
 
 	test('upgrade method advertised when management socket env var is set', () => {
 		const originalEnv = process.env.VSCODE_AGENT_HOST_MANAGEMENT_SOCKET;
