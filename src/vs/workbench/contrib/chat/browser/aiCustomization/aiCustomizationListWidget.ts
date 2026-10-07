@@ -653,6 +653,14 @@ export function getCustomizationItemAriaLabel(item: IAICustomizationListItem): s
 	return item.disabled ? localize('itemAriaLabelDisabled', "{0}, disabled", nameAndDescription) : nameAndDescription;
 }
 
+export function getMultiRootWorkspaceRelativeFilename(item: IAICustomizationListItem, workspaceContextService: IWorkspaceContextService, labelService: ILabelService): string {
+	if (getAICustomizationWorkspaceGroups(workspaceContextService).length === 0 ||
+		!getAICustomizationWorkspaceGroupForResource(item.uri, workspaceContextService)) {
+		return item.filename;
+	}
+	return labelService.getUriLabel(item.uri, { relative: true, noPrefix: true });
+}
+
 export class AICustomizationListWidget extends Disposable {
 
 	readonly element: HTMLElement;
@@ -1062,7 +1070,7 @@ export class AICustomizationListWidget extends Disposable {
 		if (loadId === this._sectionLoadId) {
 			this.sectionLoading = false;
 			this.filterItems();
-			this.announceItemCount(this.applySearchFilter(this.allItems).length);
+			this.announceItemCount(this.applySearchFilter(this.getItemsForDisplay(this.allItems)).length);
 		}
 	}
 
@@ -1444,6 +1452,21 @@ export class AICustomizationListWidget extends Disposable {
 		return matched;
 	}
 
+	private getItemsForDisplay(items: readonly IAICustomizationListItem[]): IAICustomizationListItem[] {
+		const isMultiRoot = getAICustomizationWorkspaceGroups(this.workspaceContextService).length > 0;
+		if (!isMultiRoot) {
+			return [...items];
+		}
+
+		return items.map(item => {
+			if (!isAICustomizationWorkspaceGroupKey(this.getItemGroupKey(item, isMultiRoot))) {
+				return item;
+			}
+			const filename = getMultiRootWorkspaceRelativeFilename(item, this.workspaceContextService, this.labelService);
+			return filename === item.filename ? item : { ...item, filename };
+		});
+	}
+
 	/**
 	 * Builds grouped display entries from items assigned to groups.
 	 * Empty groups are omitted. Collapsed groups show only their header.
@@ -1742,7 +1765,7 @@ export class AICustomizationListWidget extends Disposable {
 	 * Filters items based on the current search query and builds grouped display entries.
 	 */
 	private filterItems(): number {
-		const matchedItems = this.applySearchFilter(this.allItems);
+		const matchedItems = this.applySearchFilter(this.getItemsForDisplay(this.allItems));
 		this.groupMatchedItems(matchedItems);
 
 		return this.usesCustomizationTreePresentation() ? this.getDisplayedItemCount() : matchedItems.length;
