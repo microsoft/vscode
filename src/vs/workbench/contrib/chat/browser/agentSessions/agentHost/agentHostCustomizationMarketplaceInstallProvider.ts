@@ -144,7 +144,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 					? { kind: 'providerPlugin' as const, name: item.pluginName, marketplace: item.marketplace }
 					: undefined;
 				return {
-					identifier: providerPlugin ? JSON.stringify([providerPlugin.marketplace, providerPlugin.name]) : item.selectionId,
+					identifier: providerPlugin ? JSON.stringify([providerPlugin.marketplace, providerPlugin.name]) : item.itemUrl ?? item.selectionId,
 					displayName: item.displayName,
 					description: item.description ?? '',
 					mediaType: getCatalogMediaType(item.kind),

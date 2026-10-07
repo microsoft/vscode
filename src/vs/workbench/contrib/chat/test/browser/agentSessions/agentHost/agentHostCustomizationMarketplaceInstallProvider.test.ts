@@ -176,7 +176,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 					icon: 'https://github.com/octo-org.png',
 					installation: { kind: 'providerCatalog', resourceKind: 'skill', selectionId: 'selection' },
 				}, {
-					identifier: 'playwright',
+					identifier: 'https://api.mcp.github.com/oss/v0.1/servers/microsoft%2Fplaywright-mcp/versions/latest',
 					displayName: 'Playwright',
 					description: 'Browser automation',
 					mediaType: 'application/mcp-server+json',
