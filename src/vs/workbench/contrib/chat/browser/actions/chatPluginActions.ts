@@ -26,6 +26,7 @@ import { IPluginInstallService } from '../../common/plugins/pluginInstallService
 import { type IMarketplaceReference, MarketplaceReferenceKind, parseMarketplaceReference, parseMarketplaceReferences, readConfiguredMarketplaces } from '../../common/plugins/pluginMarketplaceService.js';
 import { getStrictKnownMarketplaces, isMarketplaceReferenceAllowed } from '../../common/plugins/strictKnownMarketplaces.js';
 import { InstalledAgentPluginsViewId } from '../chat.js';
+import { getPluginCustomizationMarketplaceSourceId } from '../aiCustomization/pluginCustomizationMarketplaceProvider.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
 export class ManagePluginsAction extends Action2 {
@@ -309,7 +310,10 @@ export class ManagePluginMarketplacesAction extends Action2 {
 				case 'showPlugins':
 					await commandService.executeCommand(
 						AICustomizationManagementCommands.OpenMarketplace,
-						AICustomizationManagementSection.Plugins,
+						{
+							section: AICustomizationManagementSection.Plugins,
+							sourceId: getPluginCustomizationMarketplaceSourceId(ref),
+						},
 					);
 					return;
 				case 'openDirectory':

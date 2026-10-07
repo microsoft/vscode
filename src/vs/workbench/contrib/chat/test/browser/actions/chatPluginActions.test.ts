@@ -15,6 +15,7 @@ import { INotification, INotificationHandle, INotificationService } from '../../
 import { IInputOptions, IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { ManagePluginMarketplacesAction } from '../../../browser/actions/chatPluginActions.js';
+import { getPluginCustomizationMarketplaceSourceId } from '../../../browser/aiCustomization/pluginCustomizationMarketplaceProvider.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IAgentPluginRepositoryService } from '../../../common/plugins/agentPluginRepositoryService.js';
@@ -132,8 +133,9 @@ suite('ManagePluginMarketplacesAction', () => {
 
 	test('shows plugins from a configured marketplace in Customizations', async () => {
 		const marketplace = parseMarketplaceReference('anthropics/claude-code')!;
+		const otherMarketplace = parseMarketplaceReference('microsoft/vscode-marketplace')!;
 		const fixture = createFixture({
-			[ChatConfiguration.PluginMarketplaces]: [marketplace.rawValue],
+			[ChatConfiguration.PluginMarketplaces]: [otherMarketplace.rawValue, marketplace.rawValue],
 			[ChatConfiguration.ExtraMarketplaces]: {},
 			[ChatConfiguration.StrictMarketplaces]: null,
 		});
@@ -151,7 +153,10 @@ suite('ManagePluginMarketplacesAction', () => {
 			],
 			commands: [{
 				id: AICustomizationManagementCommands.OpenMarketplace,
-				args: [AICustomizationManagementSection.Plugins],
+				args: [{
+					section: AICustomizationManagementSection.Plugins,
+					sourceId: getPluginCustomizationMarketplaceSourceId(marketplace),
+				}],
 			}],
 		});
 	});
