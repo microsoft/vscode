@@ -209,34 +209,44 @@ export class CopilotCustomizationInstallations extends Disposable {
 		}
 		const query = retainedCursor?.query ?? request.query;
 		const limit = retainedCursor?.limit ?? request.limit;
+		let page = retainedCursor ? { token: retainedCursor.token, number: retainedCursor.page } : undefined;
 		try {
-			const search = await client.rpc.catalog.search({
-				contract: {
-					protocolVersion: 3,
-					requiredCapabilities: catalogSearchCapabilities,
-				},
-				policySessionId,
-				query,
-				limit,
-				kinds: this.toCatalogKinds(kinds),
-				...(retainedCursor ? { page: { token: retainedCursor.token, number: retainedCursor.page } } : {}),
-			});
-			if (search.kind !== 'succeeded') {
-				if (search.kind === 'negotiation-refused' || search.kind === 'unsupported-kind') {
-					return { kind: 'unavailable', reason: 'unsupported' };
+			while (true) {
+				const search = await client.rpc.catalog.search({
+					contract: {
+						protocolVersion: 3,
+						requiredCapabilities: catalogSearchCapabilities,
+					},
+					policySessionId,
+					query,
+					limit,
+					kinds: this.toCatalogKinds(kinds),
+					...(page ? { page } : {}),
+				});
+				if (search.kind !== 'succeeded') {
+					if (search.kind === 'negotiation-refused' || search.kind === 'unsupported-kind') {
+						return { kind: 'unavailable', reason: 'unsupported' };
+					}
+					if (search.kind === 'authentication-required') {
+						return { kind: 'unavailable', reason: 'authentication' };
+					}
+					throw new Error(search.message);
 				}
-				if (search.kind === 'authentication-required') {
-					return { kind: 'unavailable', reason: 'authentication' };
+				const items = search.candidates
+					.filter(candidate => this.isInstallableCatalogCandidate(candidate))
+					.map(candidate => this.retainCatalogCandidate(client, policySessionId, search.searchId, candidate));
+				if (items.length || !search.pagination?.hasNextPage) {
+					const nextCursor = search.pagination?.hasNextPage
+						? this.retainCatalogCursor(client, policySessionId, query, limit, kinds, search.pagination.token, search.pagination.currentPage + 1)
+						: undefined;
+					return { kind: 'page', items, nextCursor };
 				}
-				throw new Error(search.message);
+				const nextPage = search.pagination.currentPage + 1;
+				if (!Number.isSafeInteger(nextPage) || nextPage <= (page?.number ?? 0) || nextPage > search.pagination.maxPage) {
+					throw new Error(localize('copilot.customizationMarketplace.invalidPagination', "The Copilot customization catalog returned invalid pagination."));
+				}
+				page = { token: search.pagination.token, number: nextPage };
 			}
-			const items = search.candidates
-				.filter(candidate => this.isInstallableCatalogCandidate(candidate))
-				.map(candidate => this.retainCatalogCandidate(client, policySessionId, search.searchId, candidate));
-			const nextCursor = search.pagination?.hasNextPage
-				? this.retainCatalogCursor(client, policySessionId, query, limit, kinds, search.pagination.token, search.pagination.currentPage + 1)
-				: undefined;
-			return { kind: 'page', items, nextCursor };
 		} finally {
 			retainedCursor?.dispose();
 		}

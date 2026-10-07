@@ -276,6 +276,83 @@ suite('CopilotCustomizationInstallations', () => {
 		});
 	});
 
+	test('skips SDK pages whose candidates are all filtered', async () => {
+		const expiresAt = new Date(Date.now() + 60_000).toISOString();
+		const observedAt = new Date().toISOString();
+		const negotiated = { runtimeProtocolVersion: 3, grantedCapabilities: [] };
+		const requestPages: ({ token: string; number: number } | undefined)[] = [];
+		const catalog = new class extends mock<CopilotClient['rpc']['catalog']>() {
+			override readonly search: CopilotClient['rpc']['catalog']['search'] = async request => {
+				requestPages.push(request.page);
+				return requestPages.length === 1 ? {
+					kind: 'succeeded' as const,
+					searchId: 'filtered-search',
+					candidates: [{
+						handle: 'unavailable-skill',
+						handleExpiresAt: expiresAt,
+						kind: 'ai-skill' as const,
+						mediaType: 'application/ai-skill' as const,
+						installability: 'materialisation-unavailable' as const,
+						displayName: 'Unavailable Skill',
+						source: { kind: 'url' as const, url: 'https://example.test/unavailable-skill' },
+						provenance: { authority: 'agentfinder.github.com', observedAt, mediaType: 'application/ai-skill' as const },
+					}],
+					truncated: true,
+					negotiated,
+					pagination: {
+						token: 'private-sdk-token',
+						currentPage: 1,
+						pageSize: 10,
+						totalCount: 11,
+						totalCountRelation: 'unknown' as const,
+						pageCount: 2,
+						maxPage: 100,
+						hasNextPage: true,
+					},
+				} : {
+					kind: 'succeeded' as const,
+					searchId: 'visible-search',
+					candidates: [{
+						handle: 'available-mcp',
+						handleExpiresAt: expiresAt,
+						kind: 'mcp-server' as const,
+						mediaType: 'application/mcp-server+json' as const,
+						installability: 'installable' as const,
+						displayName: 'Available MCP',
+						source: { kind: 'url' as const, url: 'https://example.test/available-mcp' },
+						provenance: { authority: 'agentfinder.github.com', observedAt, mediaType: 'application/mcp-server+json' as const },
+					}],
+					truncated: false,
+					negotiated,
+				};
+			};
+		}();
+		const client = {
+			rpc: {
+				catalog,
+				skills: new class extends mock<CopilotClient['rpc']['skills']>() { }(),
+				mcp: new class extends mock<CopilotClient['rpc']['mcp']>() { }(),
+			},
+		};
+		const service = store.add(new CopilotCustomizationInstallations(async () => client, () => 'policy-session'));
+
+		const result = await service.search(URI.parse('agent-host-copilotcli:///session'), { query: 'azure', limit: 10 });
+
+		assert.deepStrictEqual({
+			requestPages,
+			result: result.kind === 'page' ? {
+				items: result.items.map(item => item.displayName),
+				hasNextCursor: typeof result.nextCursor === 'string',
+			} : result,
+		}, {
+			requestPages: [undefined, { token: 'private-sdk-token', number: 2 }],
+			result: {
+				items: ['Available MCP'],
+				hasNextCursor: false,
+			},
+		});
+	});
+
 	test('keeps SDK pagination tokens private behind workbench cursors', async () => {
 		const expiresAt = new Date(Date.now() + 60_000).toISOString();
 		const requests: unknown[] = [];
