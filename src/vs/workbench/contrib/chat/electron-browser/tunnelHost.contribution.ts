@@ -5,12 +5,17 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { localize2 } from '../../../../nls.js';
 import { IActionViewItemService, type IActionViewItemFactory } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { AgentHostRemoteConnectionsBackend, AgentHostRemoteConnectionsSettingId, IMissionControlSharingService } from '../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { INACTIVE_TUNNEL_MODE, IRemoteTunnelService, TunnelMode, TunnelStatus } from '../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { IsSessionsWindowContext, RemoteNameContext } from '../../../common/contextkeys.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
@@ -24,7 +29,19 @@ export const TOGGLE_SHARING_ID = 'sessions.tunnelHost.toggleSharing';
 
 const CATEGORY = localize2('tunnelHost.category', 'Remote Connections');
 
-export async function executeToggleRemoteConnections(remoteTunnelService: IRemoteTunnelService, commandService: ICommandService, startOptions?: IRemoteTunnelStartOptions): Promise<void> {
+export async function executeToggleRemoteConnections(accessor: ServicesAccessor, startOptions?: IRemoteTunnelStartOptions): Promise<void> {
+	const remoteTunnelService = accessor.get(IRemoteTunnelService);
+	const configurationService = accessor.get(IConfigurationService);
+	if (configurationService.getValue<AgentHostRemoteConnectionsBackend>(AgentHostRemoteConnectionsSettingId) === 'missionControl') {
+		const sharingService = accessor.get(IMissionControlSharingService);
+		const enabled = sharingService.state.get() !== 'disabled';
+		if (!enabled) {
+			await remoteTunnelService.stopTunnel();
+		}
+		await sharingService.setEnabled(!enabled);
+		return;
+	}
+	const commandService = accessor.get(ICommandService);
 	const [mode, status] = await Promise.all([
 		remoteTunnelService.getMode(),
 		remoteTunnelService.getTunnelStatus(),
@@ -38,7 +55,7 @@ export async function executeToggleRemoteConnections(remoteTunnelService: IRemot
 	}
 }
 
-class TunnelHostContribution extends Disposable implements IWorkbenchContribution {
+export class TunnelHostContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.tunnelHost';
 
@@ -52,10 +69,27 @@ class TunnelHostContribution extends Disposable implements IWorkbenchContributio
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IRemoteTunnelService private readonly remoteTunnelService: IRemoteTunnelService,
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IMissionControlSharingService private readonly missionControlSharingService: IMissionControlSharingService,
+		@ILogService private readonly logService: ILogService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
 
 		this._sharingContext = TUNNEL_HOST_SHARING_CONTEXT.bindTo(contextKeyService);
+		this._register(autorun(reader => {
+			this.missionControlSharingService.state.read(reader);
+			this._updateSharingContext();
+		}));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AgentHostRemoteConnectionsSettingId)) {
+				void this.remoteTunnelService.stopTunnel().catch(error => {
+					this.logService.error('Failed to stop Dev Tunnel sharing', error);
+					this.notificationService.error(error);
+				});
+				this._updateSharingContext();
+			}
+		}));
 		this._register(this.remoteTunnelService.onDidChangeTunnelStatus(status => {
 			this._hasReceivedStatus = true;
 			this._status = status;
@@ -89,7 +123,9 @@ class TunnelHostContribution extends Disposable implements IWorkbenchContributio
 	}
 
 	private _updateSharingContext(): void {
-		this._sharingContext.set(getRemoteTunnelAccessState(this._mode, this._status).isSharing);
+		this._sharingContext.set(this.configurationService.getValue<AgentHostRemoteConnectionsBackend>(AgentHostRemoteConnectionsSettingId) === 'missionControl'
+			? this.missionControlSharingService.state.get() === 'enabled'
+			: getRemoteTunnelAccessState(this._mode, this._status).isSharing);
 	}
 }
 
@@ -100,6 +136,7 @@ registerAction2(class ToggleRemoteConnectionsAction extends Action2 {
 			title: localize2('toggleSharing', "Allow Remote Connections"),
 			category: CATEGORY,
 			icon: Codicon.radioTower,
+			precondition: ChatContextKeys.enabled,
 			toggled: ContextKeyExpr.equals(TUNNEL_HOST_SHARING_KEY, true),
 			menu: {
 				id: MenuId.ChatInputSecondary,
@@ -116,7 +153,7 @@ registerAction2(class ToggleRemoteConnectionsAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		await executeToggleRemoteConnections(accessor.get(IRemoteTunnelService), accessor.get(ICommandService));
+		await executeToggleRemoteConnections(accessor);
 	}
 });
 

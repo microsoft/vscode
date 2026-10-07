@@ -13,17 +13,18 @@ Registration is opt-in and default-off. The activation path is available to buil
 ## Enable the real service
 
 1. Sign in to GitHub in the owning VS Code window.
-2. Enable `chat.agentHost.experimentalMissionControl.enabled`.
-3. Wait for `Mission Control ready; environmentId=...` in the Agent Host log.
-4. Create/use native sessions normally. From another compatible MC client, discover the environment, connect, authenticate with a sealed credential, and use standard AHP session operations.
+2. Set `chat.agentHost.remoteConnections` to `missionControl` (the default is `devTunnel`).
+3. Enable **Allow Remote Connections** in the Agents Window title bar or the local Agent Host chat toolbar. Selecting Mission Control in settings does not register the environment.
+4. Wait for `Mission Control ready; environmentId=...` in the Agent Host log.
+5. Create/use native sessions normally. From another compatible MC client, discover the environment, connect, authenticate with a sealed credential, and use standard AHP session operations.
 
-Registration uses `https://api.github.com`. An empty window can register the host without advertising a home-directory default. Disable the registration setting to withdraw remote access. Withdrawal disconnects relay ingress immediately; it does not delete native sessions, conversations or checkouts.
+Registration uses `https://api.github.com`. An empty window can register the host without advertising a home-directory default. Disable **Allow Remote Connections** to withdraw remote access. The sharing choice is remembered locally across restarts, not synchronized to other machines. Changing the backend turns sharing off until explicitly enabled again. Withdrawal disconnects relay ingress immediately; it does not delete native sessions, conversations or checkouts.
 
 ### Local integration testing
 
 Backend tests supply `IMissionControlOptions` directly to `MissionControlEnvironment.configure`, with a loopback HTTP `baseUrl` and `live` omitted or false. Test credentials and injected HTTP/relay implementations keep registration and authentication tests independent of the real service.
 
-The registration setting's experimental name and feature tags do not restrict availability to development builds.
+The backend setting's experimental feature tag does not restrict availability to development builds.
 
 ## Environment identity, name and ownership
 
