@@ -216,7 +216,7 @@ const hasGit = (() => {
 		const session = nextSessionUri();
 		await client.call('createSession', {
 			channel: session, provider: 'mock', workingDirectories: [URI.file(worktree).toString()],
-			config: { isolation: 'worktree', branch: 'feature/summary', worktreeCreateNewBranch: false },
+			config: { isolation: 'worktree', branch: 'main' },
 		});
 		const snapshot = await client.call<SubscribeResult>('subscribe', { channel: session });
 		const state = snapshot.snapshot!.state as SessionState;

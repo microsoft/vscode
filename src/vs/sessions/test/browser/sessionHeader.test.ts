@@ -18,6 +18,7 @@ import { IContextKeyService } from '../../../platform/contextkey/common/contextk
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { ChatHeader } from '../../browser/parts/chatHeader.js';
 import { SessionHeader } from '../../browser/parts/sessionHeader.js';
+import { SessionHeaderBar } from '../../browser/parts/sessionHeaderBar.js';
 import { SessionHeaderTargetsChatContext, SessionToolbarShowsSessionContext } from '../../common/contextkeys.js';
 import { ISessionsListModelService } from '../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
@@ -86,6 +87,61 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, capabilities: 
 
 suite('Sessions - Headers', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('reports only actual integer border-box height changes, including hidden ancestors and disposal', () => {
+		const { instantiationService, session, mainChat } = createHarness(disposables);
+		let observer: TestResizeObserver | undefined;
+		class TestResizeObserver implements ResizeObserver {
+			private target: Element | undefined;
+			options: ResizeObserverOptions | undefined;
+			disconnected = false;
+			constructor(private readonly callback: ResizeObserverCallback) { observer = this; }
+			observe(target: Element, options?: ResizeObserverOptions): void { this.target = target; this.options = options; }
+			unobserve(): void { }
+			disconnect(): void { this.disconnected = true; }
+			deliver(width: number, height: number): void {
+				assert.ok(this.target);
+				const size = [{ inlineSize: width, blockSize: height }];
+				this.callback([{
+					target: this.target,
+					borderBoxSize: size,
+					contentBoxSize: size,
+					devicePixelContentBoxSize: size,
+					contentRect: new DOMRectReadOnly(0, 0, width, height),
+				}], this);
+			}
+		}
+		const bar = disposables.add(instantiationService.createInstance(SessionHeaderBar, TestResizeObserver));
+		bar.setContext({ session, chat: constObservable(mainChat) });
+		bar.setVisible(true);
+		let measuredHeight = 35;
+		Object.defineProperty(bar.element, 'offsetHeight', { get: () => measuredHeight });
+		const initialHeight = bar.height;
+		const heights: number[] = [];
+		disposables.add(bar.onDidChangeHeight(() => heights.push(bar.height)));
+		assert.ok(observer);
+		observer.deliver(200, 35);
+		mainChat.title.set('A changed title with the same height', undefined);
+		observer.deliver(400, 35.4);
+		for (const height of [36, 0, 40]) {
+			measuredHeight = height;
+			observer.deliver(400, height);
+		}
+		bar.setVisible(false);
+		const hiddenHeight = bar.height;
+		observer.deliver(400, 0);
+		bar.setVisible(true);
+		const shownHeight = bar.height;
+		observer.deliver(400, 40);
+		measuredHeight = 42;
+		observer.deliver(400, 42);
+		bar.dispose();
+		observer.deliver(400, 60);
+		assert.deepStrictEqual({ initialHeight, hiddenHeight, shownHeight, heights, options: observer.options, disconnected: observer.disconnected }, {
+			initialHeight: 35, hiddenHeight: 0, shownHeight: 40, heights: [36, 0, 40, 42],
+			options: { box: 'border-box' }, disconnected: true,
+		});
+	});
 
 	// A native drag always fires dragstart with `target` set to the draggable
 	// container itself (not the descendant the gesture began on), so a real

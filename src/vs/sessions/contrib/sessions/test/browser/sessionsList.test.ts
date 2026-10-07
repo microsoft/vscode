@@ -31,6 +31,7 @@ import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSetting
 import { Separator, SubmenuAction } from '../../../../../base/common/actions.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -334,6 +335,7 @@ suite('Sessions - SessionsList', () => {
 		});
 
 		test('switches the navigation treatment without disturbing Find focus', async () => {
+			const commands: string[] = [];
 			const activeEditorChanged = disposables.add(new Emitter<void>());
 			const keybindingsChanged = disposables.add(new Emitter<void>());
 			const editorState: { activeEditor?: AICustomizationManagementEditorInput } = {};
@@ -348,6 +350,12 @@ suite('Sessions - SessionsList', () => {
 			};
 			let newSessionKeybinding = createNewSessionKeybinding(KeyMod.CtrlCmd | KeyCode.KeyN);
 			const harness = createListHarness(disposables, [], instantiationService => {
+				instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+					override async executeCommand<R>(commandId: string): Promise<R | undefined> {
+						commands.push(commandId);
+						return undefined;
+					}
+				});
 				ChatAutomationsEnabledContext.bindTo(instantiationService.get(IContextKeyService)).set(true);
 				instantiationService.stub(IAutomationService, new class extends mock<IAutomationService>() {
 					override readonly automations = constObservable([]);
@@ -453,7 +461,12 @@ suite('Sessions - SessionsList', () => {
 			list.focusAutomations();
 			await timeout(350);
 			const controlNavigationLabels = Array.from(navigationContainer.querySelectorAll('.session-section-shortcut .session-section-label'), element => element.textContent);
+			const controlTreeShortcuts = Array.from(listContainer.querySelectorAll('.session-section-shortcut .session-section-label'), element => element.textContent);
 			const controlAutomationsFocused = list.isAutomationsFocused();
+			const controlAutomationsRow = listContainer.querySelector<HTMLElement>('.session-section-shortcut');
+			assert.ok(controlAutomationsRow);
+			controlAutomationsRow.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+			await Promise.resolve();
 
 			assert.deepStrictEqual({
 				findInput,
@@ -475,7 +488,9 @@ suite('Sessions - SessionsList', () => {
 				navigationUsesList: navigationContainer.querySelector('.monaco-list') !== null && navigationContainer.querySelector('[role="tree"]') === null,
 				sessionsUseTree: listContainer.querySelector('[role="tree"]') !== null,
 				controlNavigationLabels,
+				controlTreeShortcuts,
 				controlAutomationsFocused,
+				commands,
 				newSessionKeybindingLookupUsesViewContext: keybindingLookupContexts.length >= 2
 					&& keybindingLookupContexts.every(context => context === harness.instantiationService.get(IContextKeyService)),
 			}, {
@@ -510,8 +525,10 @@ suite('Sessions - SessionsList', () => {
 				stableFindHeaderUnmoved: true,
 				navigationUsesList: true,
 				sessionsUseTree: true,
-				controlNavigationLabels: ['Automations'],
+				controlNavigationLabels: [],
+				controlTreeShortcuts: ['Automations'],
 				controlAutomationsFocused: true,
+				commands: ['sessionsView.manageAutomations'],
 				newSessionKeybindingLookupUsesViewContext: true,
 			});
 		});
@@ -1543,7 +1560,7 @@ suite('Sessions - SessionsList', () => {
 				const container = harness.createContainer();
 				harness.instantiationService.stub(IMenuService, harness.store.add(harness.instantiationService.createInstance(MenuService)));
 				renderSessionsHeader(container, false, harness.instantiationService, harness.store.add(new ContextKeyService(harness.instantiationService.get(IConfigurationService))), harness.store, () => list.reportArchivedFilterShown());
-				const filter = container.querySelector<HTMLElement>('a.action-label.codicon-settings[aria-haspopup="true"]');
+				const filter = container.querySelector<HTMLElement>('a.action-label[aria-label="Filter Sessions"][aria-haspopup="true"]');
 				const beforeShow = [...triggers];
 				filter?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
 				return { found: !!filter, beforeShow, afterShow: triggers };
@@ -3987,6 +4004,7 @@ suite('Sessions - SessionsList', () => {
 		function createChat(title: string, origin?: ChatOriginKind, interactivity = ChatInteractivity.Full, status = SessionStatus.Completed, updatedAt: IObservable<Date | undefined> = constObservable(new Date())): IChat {
 			return upcastPartial<IChat>({
 				resource: URI.parse(`test-chat://${title.replaceAll(' ', '-')}`),
+				createdAt: updatedAt.get() ?? new Date(0),
 				workspace: constObservable(undefined),
 				title: constObservable(title),
 				updatedAt,
@@ -4023,6 +4041,7 @@ suite('Sessions - SessionsList', () => {
 			expandChats = true,
 			compact = false,
 			configure?: (instantiationService: TestInstantiationService) => void,
+			sorting = SessionsSorting.Created,
 		): { readonly container: HTMLElement; readonly list: SessionsList; readonly managementService: TestSessionsManagementService } {
 			const harness = createListHarness(disposables, [session], instantiationService => {
 				if (enableMotion) {
@@ -4035,7 +4054,7 @@ suite('Sessions - SessionsList', () => {
 			const container = harness.createContainer();
 			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
 				grouping: () => SessionsGrouping.Date,
-				sorting: () => SessionsSorting.Created,
+				sorting: () => sorting,
 				compact: () => compact,
 				onSessionOpen: () => { },
 				onChatOpen,
@@ -4052,6 +4071,81 @@ suite('Sessions - SessionsList', () => {
 		function chatRowTitles(container: HTMLElement): string[] {
 			return [...container.querySelectorAll<HTMLElement>('.session-chat-title')].map(element => element.textContent ?? '');
 		}
+
+		test('orders nested sessions by updated time when updated ordering is selected', async () => {
+			const main = createChat('Main chat');
+			const firstUpdatedAt = observableValue<Date | undefined>('first-updated-at', new Date('2024-01-01'));
+			const first = { ...createChat('First chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.Completed, firstUpdatedAt), createdAt: new Date('2024-01-03') };
+			const second = { ...createChat('Second chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.Completed, constObservable(new Date('2024-01-02'))), createdAt: new Date('2024-01-02') };
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, first, second]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const { container } = renderSessionChatsList(session, undefined, false, true, false, undefined, SessionsSorting.Updated);
+			const snapshot = () => [...container.querySelectorAll<HTMLElement>('.session-chat-item')].map(item => ({
+				title: item.querySelector('.session-chat-title')?.textContent,
+				last: item.classList.contains('last-chat'),
+			}));
+			const initial = snapshot();
+
+			firstUpdatedAt.set(new Date('2024-01-04'), undefined);
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+
+			assert.deepStrictEqual({
+				initial,
+				updated: snapshot(),
+			}, {
+				initial: [
+					{ title: 'Second chat', last: false },
+					{ title: 'First chat', last: true },
+				],
+				updated: [
+					{ title: 'First chat', last: false },
+					{ title: 'Second chat', last: true },
+				],
+			});
+		});
+
+		test('observes updated ordering after archived nested sessions are shown', async () => {
+			const main = createChat('Main chat');
+			const archivedUpdatedAt = observableValue<Date | undefined>('archived-updated-at', new Date('2024-01-01'));
+			const archived = {
+				...createChat('Archived chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.Completed, archivedUpdatedAt),
+				createdAt: new Date('2024-01-01'),
+				isArchived: constObservable(true),
+			};
+			const visible = {
+				...createChat('Visible chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.Completed, constObservable(new Date('2024-01-02'))),
+				createdAt: new Date('2024-01-02'),
+			};
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, archived, visible]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const { container, list } = renderSessionChatsList(session, undefined, false, true, false, undefined, SessionsSorting.Updated);
+			const initiallyVisible = chatRowTitles(container);
+
+			list.setExcludeArchived(false);
+			const archivedShown = chatRowTitles(container);
+			archivedUpdatedAt.set(new Date('2024-01-03'), undefined);
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+
+			assert.deepStrictEqual({
+				initiallyVisible,
+				archivedShown,
+				updated: chatRowTitles(container),
+			}, {
+				initiallyVisible: ['Visible chat'],
+				archivedShown: ['Visible chat', 'Archived chat'],
+				updated: ['Archived chat', 'Visible chat'],
+			});
+		});
 
 		test('renders the exact main chat read state whether collapsed or expanded', () => {
 			const built = buildTestSession({
@@ -4479,7 +4573,7 @@ suite('Sessions - SessionsList', () => {
 			const container = harness.createContainer();
 			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
 				grouping: () => SessionsGrouping.Date,
-				sorting: () => SessionsSorting.Created,
+				sorting: () => SessionsSorting.Updated,
 				onSessionOpen: () => { },
 			}));
 			list.layout(120, 400);

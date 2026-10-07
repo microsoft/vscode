@@ -18,6 +18,7 @@ import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, MessageKind, ResponsePartKind, TurnState, type ISessionGitState, type Turn } from '../../../common/state/sessionState.js';
 import { AgentBranchNameGenerator, IAgentBranchNameGenerator } from '../../../node/shared/agentBranchNameGenerator.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
+import type { IAgentHostPullRequestResolver, IResolvedPullRequest } from '../../../node/shared/pullRequestResolver.js';
 import { buildWorktreeFailureNotification, detachedWorktreeRecordUri, normalizeWorktreeFailureDiagnostic, NullAgentHostWorktreeIsolation, SessionWorkingDirectoryMissingError, WorktreeIsolation, getWorktreeName, getWorktreesRoot } from '../../../node/shared/worktreeIsolation.js';
 import { ADDITIONAL_WORKTREES_METADATA_KEY, readSessionAdditionalWorktrees } from '../../../node/shared/sessionAdditionalWorktrees.js';
 import { TestSessionDatabase, createNoopGitService, createSessionDataService } from '../../common/sessionTestHelpers.js';
@@ -35,6 +36,11 @@ function createNullCopilotApiService(): ICopilotApiService {
 		resolveApiEndpoint: async () => undefined,
 	};
 }
+
+const nullPullRequestResolver: IAgentHostPullRequestResolver = {
+	_serviceBrand: undefined,
+	resolve: async () => { throw new Error('Pull request resolution is not expected.'); },
+};
 
 class TestLogService extends NullLogService {
 	readonly warnings: string[] = [];
@@ -153,7 +159,7 @@ suite('WorktreeIsolation', () => {
 		};
 	}
 
-	function createIsolation(disposableStore: Pick<DisposableStore, 'add'>, options?: { readonly branchNameGenerator?: IAgentBranchNameGenerator; readonly gitService?: IAgentHostGitService; readonly sessionDataService?: ISessionDataService; readonly logService?: NullLogService }): WorktreeIsolation {
+	function createIsolation(disposableStore: Pick<DisposableStore, 'add'>, options?: { readonly branchNameGenerator?: IAgentBranchNameGenerator; readonly gitService?: IAgentHostGitService; readonly pullRequestResolver?: IAgentHostPullRequestResolver; readonly sessionDataService?: ISessionDataService; readonly logService?: NullLogService }): WorktreeIsolation {
 		const branchNameGenerator = options?.branchNameGenerator ?? {
 			_serviceBrand: undefined,
 			generateBranchName: async () => branchName,
@@ -161,6 +167,7 @@ suite('WorktreeIsolation', () => {
 		return disposableStore.add(new WorktreeIsolation(
 			branchNameGenerator,
 			options?.gitService ?? createGitService(),
+			options?.pullRequestResolver ?? nullPullRequestResolver,
 			options?.sessionDataService ?? createSessionDataService(db),
 			options?.logService ?? new NullLogService(),
 		));
@@ -583,23 +590,29 @@ suite('WorktreeIsolation', () => {
 		const repoWorktreeSelected = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'feature' } });
 		const repoFolder = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'folder' } });
 		const repoFolderSelected = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'folder', [SessionConfigKey.Branch]: 'main' } });
+		const repoPullRequest = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'folder', [SessionConfigKey.PullRequestUrl]: 'https://github.com/microsoft/vscode/pull/1' } });
+		const noRepoPullRequest = await isolation.resolveIsolationConfig({ workingDirectory: undefined, config: { [SessionConfigKey.PullRequestUrl]: 'https://github.com/microsoft/vscode/pull/1' } });
 		headCommit = undefined; // unborn HEAD (no commits)
 		const noCommits = await isolation.resolveIsolationConfig({ workingDirectory: repoRoot, config: undefined });
 
 		assert.deepStrictEqual({
-			noRepo: { enum: noRepo.isolationProperty.protocol.enum, value: noRepo.isolationValue, branch: noRepo.branchProperty, prefix: noRepo.worktreeBranchPrefixProperty, includeFiles: noRepo.worktreeIncludeFilesProperty, symlinkFolders: noRepo.worktreeSymlinkFoldersProperty, branchTrack: noRepo.worktreeBranchTrackProperty, createNewBranch: noRepo.worktreeCreateNewBranchProperty },
-			repoWorktree: { enum: repoWorktree.isolationProperty.protocol.enum, value: repoWorktree.isolationValue, branchDefault: repoWorktree.branchDefault, branchDynamic: repoWorktree.branchProperty?.protocol.enumDynamic, branchReadOnly: repoWorktree.branchProperty?.protocol.readOnly, prefixReadOnly: repoWorktree.worktreeBranchPrefixProperty?.protocol.readOnly, includeFilesReadOnly: repoWorktree.worktreeIncludeFilesProperty?.protocol.readOnly, symlinkFoldersReadOnly: repoWorktree.worktreeSymlinkFoldersProperty?.protocol.readOnly, branchTrackReadOnly: repoWorktree.worktreeBranchTrackProperty?.protocol.readOnly, createNewBranchReadOnly: repoWorktree.worktreeCreateNewBranchProperty?.protocol.readOnly },
+			noRepo: { enum: noRepo.isolationProperty.protocol.enum, value: noRepo.isolationValue, branch: noRepo.branchProperty, prefix: noRepo.worktreeBranchPrefixProperty, includeFiles: noRepo.worktreeIncludeFilesProperty, symlinkFolders: noRepo.worktreeSymlinkFoldersProperty, pullRequestUrlReadOnly: noRepo.pullRequestUrlProperty.protocol.readOnly },
+			repoWorktree: { enum: repoWorktree.isolationProperty.protocol.enum, value: repoWorktree.isolationValue, branchDefault: repoWorktree.branchDefault, branchDynamic: repoWorktree.branchProperty?.protocol.enumDynamic, branchReadOnly: repoWorktree.branchProperty?.protocol.readOnly, prefixReadOnly: repoWorktree.worktreeBranchPrefixProperty?.protocol.readOnly, includeFilesReadOnly: repoWorktree.worktreeIncludeFilesProperty?.protocol.readOnly, symlinkFoldersReadOnly: repoWorktree.worktreeSymlinkFoldersProperty?.protocol.readOnly, pullRequestUrlReadOnly: repoWorktree.pullRequestUrlProperty.protocol.readOnly },
 			repoWorktreeSelected: { branchDefault: repoWorktreeSelected.branchDefault, branchValue: repoWorktreeSelected.branchValue, branchEnum: repoWorktreeSelected.branchProperty?.protocol.enum },
-			repoFolder: { value: repoFolder.isolationValue, branchDefault: repoFolder.branchDefault, branchDynamic: repoFolder.branchProperty?.protocol.enumDynamic, branchReadOnly: repoFolder.branchProperty?.protocol.readOnly, hasPrefix: !!repoFolder.worktreeBranchPrefixProperty, hasIncludeFiles: !!repoFolder.worktreeIncludeFilesProperty, hasSymlinkFolders: !!repoFolder.worktreeSymlinkFoldersProperty, hasBranchTrack: !!repoFolder.worktreeBranchTrackProperty, hasCreateNewBranch: !!repoFolder.worktreeCreateNewBranchProperty },
+			repoFolder: { value: repoFolder.isolationValue, branchDefault: repoFolder.branchDefault, branchDynamic: repoFolder.branchProperty?.protocol.enumDynamic, branchReadOnly: repoFolder.branchProperty?.protocol.readOnly, hasPrefix: !!repoFolder.worktreeBranchPrefixProperty, hasIncludeFiles: !!repoFolder.worktreeIncludeFilesProperty, hasSymlinkFolders: !!repoFolder.worktreeSymlinkFoldersProperty },
 			repoFolderSelected: { branchDefault: repoFolderSelected.branchDefault, branchValue: repoFolderSelected.branchValue },
-			noCommits: { enum: noCommits.isolationProperty.protocol.enum, value: noCommits.isolationValue, branch: noCommits.branchProperty, prefix: noCommits.worktreeBranchPrefixProperty, includeFiles: noCommits.worktreeIncludeFilesProperty, symlinkFolders: noCommits.worktreeSymlinkFoldersProperty, branchTrack: noCommits.worktreeBranchTrackProperty, createNewBranch: noCommits.worktreeCreateNewBranchProperty },
+			repoPullRequest: repoPullRequest.isolationValue,
+			noRepoPullRequest: noRepoPullRequest.isolationValue,
+			noCommits: { enum: noCommits.isolationProperty.protocol.enum, value: noCommits.isolationValue, branch: noCommits.branchProperty, prefix: noCommits.worktreeBranchPrefixProperty, includeFiles: noCommits.worktreeIncludeFilesProperty, symlinkFolders: noCommits.worktreeSymlinkFoldersProperty, pullRequestUrlReadOnly: noCommits.pullRequestUrlProperty.protocol.readOnly },
 		}, {
-			noRepo: { enum: ['folder'], value: 'folder', branch: undefined, prefix: undefined, includeFiles: undefined, symlinkFolders: undefined, branchTrack: undefined, createNewBranch: undefined },
-			repoWorktree: { enum: ['folder', 'worktree'], value: 'worktree', branchDefault: 'main', branchDynamic: true, branchReadOnly: false, prefixReadOnly: true, includeFilesReadOnly: true, symlinkFoldersReadOnly: true, branchTrackReadOnly: true, createNewBranchReadOnly: true },
+			noRepo: { enum: ['folder'], value: 'folder', branch: undefined, prefix: undefined, includeFiles: undefined, symlinkFolders: undefined, pullRequestUrlReadOnly: true },
+			repoWorktree: { enum: ['folder', 'worktree'], value: 'worktree', branchDefault: 'main', branchDynamic: true, branchReadOnly: false, prefixReadOnly: true, includeFilesReadOnly: true, symlinkFoldersReadOnly: true, pullRequestUrlReadOnly: true },
 			repoWorktreeSelected: { branchDefault: 'main', branchValue: 'feature', branchEnum: ['main'] },
-			repoFolder: { value: 'folder', branchDefault: 'feature', branchDynamic: true, branchReadOnly: false, hasPrefix: true, hasIncludeFiles: true, hasSymlinkFolders: true, hasBranchTrack: true, hasCreateNewBranch: true },
+			repoFolder: { value: 'folder', branchDefault: 'feature', branchDynamic: true, branchReadOnly: false, hasPrefix: true, hasIncludeFiles: true, hasSymlinkFolders: true },
 			repoFolderSelected: { branchDefault: 'feature', branchValue: 'main' },
-			noCommits: { enum: ['folder'], value: 'folder', branch: undefined, prefix: undefined, includeFiles: undefined, symlinkFolders: undefined, branchTrack: undefined, createNewBranch: undefined },
+			repoPullRequest: 'worktree',
+			noRepoPullRequest: 'folder',
+			noCommits: { enum: ['folder'], value: 'folder', branch: undefined, prefix: undefined, includeFiles: undefined, symlinkFolders: undefined, pullRequestUrlReadOnly: true },
 		});
 	});
 
@@ -744,13 +757,15 @@ suite('WorktreeIsolation', () => {
 		const gitService = createGitService();
 		const logService = new TestLogService();
 		const operations: string[] = [];
+		const fetchTimeouts: (number | undefined)[] = [];
 		gitService.getBranch = async (_root, name) => ({
 			ref: `refs/remotes/${name}`,
 			name,
 			remote: 'origin',
 			kind: GitRefType.RemoteHead,
 		});
-		gitService.fetch = async (_root, branch) => {
+		gitService.fetch = async (_root, branch, options) => {
+			fetchTimeouts.push(options?.timeout);
 			operations.push(`fetch:${branch.remote}:${branch.ref}`);
 			throw new Error('network unavailable');
 		};
@@ -775,52 +790,137 @@ suite('WorktreeIsolation', () => {
 		assert.deepStrictEqual({
 			worktree: worktree?.toString(),
 			operations,
+			fetchTimeouts,
 			warnings: logService.warnings,
 		}, {
 			worktree: URI.joinPath(worktreesRoot, 'my-feature').toString(),
 			operations: ['fetch:origin:refs/remotes/origin/main', 'add:origin/main'],
+			fetchTimeouts: [undefined],
 			warnings: [`[AgentHost:s1] Failed to fetch remote 'origin' before creating worktree: network unavailable`],
 		});
 	});
 
-	test('checks out an existing selected branch and uses the default branch as the diff base', async () => {
-		const gitService = createGitService();
-		gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'origin/main' });
+	function createPullRequestResolver(overrides?: Partial<IResolvedPullRequest>): IAgentHostPullRequestResolver {
+		return {
+			_serviceBrand: undefined,
+			resolve: async url => ({ url, webHost: 'github.com', owner: 'microsoft', repo: 'vscode', number: 42, headRef: 'feature/pr', baseRef: 'main', ...overrides }),
+		};
+	}
+
+	test('checks out a pull request on a new session branch tracking its head and diffs against its base', async () => {
+		// A local branch named after the pull request is never touched.
+		branchExists = true;
+		const fetched: { branch: string; timeout: number | undefined }[] = [];
+		const gitService: IAgentHostGitService = {
+			...createGitService(),
+			getFetchRemotes: async () => [
+				// A fork workflow: the pull request's repository is not `origin`.
+				{ name: 'origin', url: 'git@github.com:someone/vscode.git' },
+				{ name: 'upstream', url: 'ssh://git@ssh.github.com:443/Microsoft/VSCode.git' },
+			],
+			fetch: async (_root, branch, options) => { fetched.push({ branch: branch.name, timeout: options?.timeout }); },
+		};
 		const isolation = createIsolation(disposables, {
 			gitService,
+			pullRequestResolver: createPullRequestResolver(),
 			branchNameGenerator: { _serviceBrand: undefined, generateBranchName: async () => { throw new Error('should not generate a branch'); } },
+		});
+
+		const request = {
+			sessionUri,
+			sessionId,
+			workingDirectory: repoRoot,
+			// The pull request wins over a stale folder isolation selection.
+			config: { [SessionConfigKey.Isolation]: 'folder', [SessionConfigKey.PullRequestUrl]: 'https://github.com/microsoft/vscode/pull/42' },
+		};
+		const worktree = await isolation.resolveWorkingDirectory(request);
+		const again = await isolation.resolveWorkingDirectory(request);
+
+		assert.deepStrictEqual({
+			worktree: worktree?.toString(),
+			again: again?.toString(),
+			fetched,
+			addWorktreeArgs: addWorktreeCalls.map(call => ({ commitish: call.commitish, newBranchName: call.newBranchName, track: call.track })),
+			branchName: await db.getMetadata('copilot.worktree.branchName'),
+			diffBaseBranch: await db.getMetadata(META_DIFF_BASE_BRANCH),
+		}, {
+			worktree: URI.joinPath(worktreesRoot, 'pr-42-s1').toString(),
+			again: URI.joinPath(worktreesRoot, 'pr-42-s1').toString(),
+			fetched: [{ branch: 'upstream/feature/pr', timeout: 60_000 }, { branch: 'upstream/main', timeout: 60_000 }],
+			addWorktreeArgs: [{ commitish: 'upstream/feature/pr', newBranchName: 'agents/pr-42-s1', track: true }],
+			branchName: 'agents/pr-42-s1',
+			diffBaseBranch: 'upstream/main',
+		});
+	});
+
+	test('names the pull request session branch with the client branch prefix', async () => {
+		const isolation = createIsolation(disposables, {
+			gitService: {
+				...createGitService(),
+				getFetchRemotes: async () => [{ name: 'origin', url: 'git@github.com:microsoft/vscode.git' }],
+				fetch: async () => { },
+			},
+			pullRequestResolver: createPullRequestResolver(),
 		});
 
 		const worktree = await isolation.resolveWorkingDirectory({
 			sessionUri,
 			sessionId,
 			workingDirectory: repoRoot,
-			config: {
-				[SessionConfigKey.Isolation]: 'worktree',
-				[SessionConfigKey.Branch]: 'feature',
-				[SessionConfigKey.WorktreeBranchTrack]: true,
-				[SessionConfigKey.WorktreeCreateNewBranch]: false,
-			},
+			config: { [SessionConfigKey.PullRequestUrl]: 'https://github.com/microsoft/vscode/pull/42', [SessionConfigKey.WorktreeBranchPrefix]: 'user/' },
 		});
 
 		assert.deepStrictEqual({
 			worktree: worktree?.toString(),
-			addWorktreeArgs: addWorktreeCalls.map(call => ({
-				commitish: call.commitish,
-				newBranchName: call.newBranchName,
-				track: call.track,
-			})),
-			branchName: await db.getMetadata('copilot.worktree.branchName'),
-			diffBaseBranch: await db.getMetadata('agentHost.diffBaseBranch'),
+			newBranchNames: addWorktreeCalls.map(call => call.newBranchName),
 		}, {
-			worktree: URI.joinPath(worktreesRoot, 'feature').toString(),
-			addWorktreeArgs: [{
-				commitish: 'feature',
-				newBranchName: undefined,
-				track: true,
-			}],
-			branchName: 'feature',
-			diffBaseBranch: 'origin/main',
+			worktree: URI.joinPath(worktreesRoot, 'pr-42-s1').toString(),
+			newBranchNames: ['user/agents/pr-42-s1'],
+		});
+	});
+
+	test('pull request checkout failures reject instead of falling back to the folder', async () => {
+		const config = { [SessionConfigKey.PullRequestUrl]: 'https://github.com/microsoft/vscode/pull/42' };
+		const failureOf = async (options: { readonly gitService?: Partial<IAgentHostGitService>; readonly workingDirectory?: URI; readonly resolver?: IAgentHostPullRequestResolver; readonly pullRequestUrl?: string }): Promise<string> => {
+			const store = new DisposableStore();
+			try {
+				const isolation = createIsolation(store, {
+					gitService: {
+						...createGitService(),
+						getFetchRemotes: async () => [{ name: 'origin', url: 'git@github.com:microsoft/vscode.git' }],
+						fetch: async () => { },
+						...options.gitService,
+					},
+					pullRequestResolver: options.resolver ?? createPullRequestResolver(),
+				});
+				await isolation.resolveWorkingDirectory({
+					sessionUri,
+					sessionId,
+					workingDirectory: options.workingDirectory ?? repoRoot,
+					config: options.pullRequestUrl === undefined ? config : { [SessionConfigKey.PullRequestUrl]: options.pullRequestUrl },
+				});
+				return 'resolved';
+			} catch (error) {
+				return (error as Error).message;
+			} finally {
+				store.dispose();
+			}
+		};
+
+		assert.deepStrictEqual({
+			notRepository: await failureOf({ gitService: { getRepositoryRoot: async () => undefined }, workingDirectory: URI.file('/plain') }),
+			emptyUrl: await failureOf({ pullRequestUrl: '', resolver: { _serviceBrand: undefined, resolve: async url => { throw new Error(`Invalid pull request URL: '${url}'`); } } }),
+			resolveFailure: await failureOf({ resolver: { _serviceBrand: undefined, resolve: async () => { throw new Error('Pull request #42 has already been merged.'); } } }),
+			noMatchingRemote: await failureOf({ gitService: { getFetchRemotes: async () => [{ name: 'origin', url: 'https://github.com/someone/vscode.git' }] } }),
+			wrongHost: await failureOf({ gitService: { getFetchRemotes: async () => [{ name: 'origin', url: 'https://example.com/microsoft/vscode.git' }] } }),
+			fetchFailure: await failureOf({ gitService: { fetch: async () => { throw new Error('couldn\'t find remote ref'); } } }),
+		}, {
+			notRepository: `The workspace folder '${URI.file('/plain').fsPath}' is not a Git repository.`,
+			emptyUrl: 'Invalid pull request URL: \'\'',
+			resolveFailure: 'Pull request #42 has already been merged.',
+			noMatchingRemote: 'Pull request #42 belongs to microsoft/vscode, but the workspace repository has no remote for it.',
+			wrongHost: 'Pull request #42 belongs to microsoft/vscode, but the workspace repository has no remote for it.',
+			fetchFailure: 'Couldn\'t fetch branch \'feature/pr\' of pull request #42 from remote \'origin\': couldn\'t find remote ref',
 		});
 	});
 
@@ -995,6 +1095,7 @@ suite('WorktreeIsolation', () => {
 		const isolation = disposables.add(new WorktreeIsolation(
 			{ _serviceBrand: undefined, generateBranchName: async () => branchName },
 			createGitService(),
+			nullPullRequestResolver,
 			sessionDataService,
 			new NullLogService(),
 		));

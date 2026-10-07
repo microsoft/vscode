@@ -58,6 +58,8 @@ export interface ISpotlightShowOptions {
 	readonly targetOverlayVisible?: boolean;
 	/** Advances on target activation; `advanceOnly` consumes the activation without running its action. */
 	readonly advanceOnTargetClick?: SpotlightTargetClickBehavior;
+	/** Uses the control's activation event instead of DOM clicks when advancing after its action. */
+	readonly onDidActivateTarget?: Event<void>;
 }
 
 /**
@@ -230,19 +232,26 @@ export class SpotlightOverlay extends Disposable {
 		const hideNext = options.hideNext ?? advanceOnTargetClick;
 		this._nextButton.element.style.display = hideNext ? 'none' : '';
 		if (advanceOnTargetClick) {
-			this._stepListeners.add(addDisposableListener(target, EventType.CLICK, event => {
-				if (advanceOnly) {
-					event.preventDefault();
-					event.stopImmediatePropagation();
-					this._onDidClickNext.fire('target');
-					return;
-				}
+			const advanceAfterActivation = () => {
 				const handle = targetWindow.setTimeout(() => {
 					this._previousFocus = undefined;
 					this._onDidClickNext.fire('target');
 				});
 				this._stepListeners.add(toDisposable(() => targetWindow.clearTimeout(handle)));
-			}, true));
+			};
+			if (!advanceOnly && options.onDidActivateTarget) {
+				this._stepListeners.add(options.onDidActivateTarget(advanceAfterActivation));
+			} else {
+				this._stepListeners.add(addDisposableListener(target, EventType.CLICK, event => {
+					if (advanceOnly) {
+						event.preventDefault();
+						event.stopImmediatePropagation();
+						this._onDidClickNext.fire('target');
+						return;
+					}
+					advanceAfterActivation();
+				}, true));
+			}
 		}
 		if (advanceOnly) {
 			const onTargetKey = (event: KeyboardEvent) => {

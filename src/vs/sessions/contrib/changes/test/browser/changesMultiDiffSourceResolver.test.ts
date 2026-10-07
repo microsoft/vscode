@@ -9,6 +9,7 @@ import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { fromAgentHostUri, toAgentHostContentUri, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { ISessionFileChange } from '../../../../services/sessions/common/session.js';
 import { ChangesMultiDiffSourceResolver } from '../../browser/changesMultiDiffSourceResolver.js';
@@ -97,6 +98,66 @@ suite('ChangesMultiDiffSourceResolver', () => {
 			['/workspace/branch.ts'],
 		]);
 	});
+
+	for (const { name, initial, updated } of [
+		{ name: 'path', initial: { path: '/repo/docs/index.html' }, updated: { path: '/repo/src/index.html' } },
+		{ name: 'scheme', initial: { scheme: 'other-file' }, updated: { scheme: 'another-file' } },
+		{ name: 'authority', initial: { authority: 'first' }, updated: { authority: 'second' } },
+		{ name: 'query', initial: { query: 'ref=main' }, updated: { query: 'ref=feature' } },
+		{ name: 'fragment', initial: { fragment: 'L1' }, updated: { fragment: 'L2' } },
+	]) {
+		test(`keeps same-content files distinct and publishes ${name} updates`, async () => {
+			const sessionResource = URI.parse('agent-host:test-session');
+			const content = URI.parse('opaque-content://store/7f3a');
+			const file = URI.file('/repo/index.html');
+			const initialFile = file.with(initial);
+			const updatedFile = file.with(updated);
+			const makeChange = (file: URI): ISessionFileChange => ({
+				uri: toAgentHostUri(file, 'remote'),
+				modifiedUri: toAgentHostContentUri(content, 'remote', file),
+				insertions: 1,
+				deletions: 0,
+			});
+			const changes = observableValue<readonly ISessionFileChange[]>('changes', [
+				makeChange(file),
+				makeChange(initialFile),
+			]);
+			const resolver = disposables.add(new ChangesMultiDiffSourceResolver(
+				new class extends mock<IChangesViewService>() {
+					override readonly activeSessionResourceObs = observableValue<URI | undefined>(this, sessionResource);
+					override readonly activeSessionChangesObs = changes;
+				}(),
+				new class extends mock<IMultiDiffSourceResolverService>() {
+					override registerResolver() { return Disposable.None; }
+				}(),
+				new class extends mock<ISessionChangesService>() {
+					override getSessionResource() { return sessionResource; }
+				}(),
+			));
+			const source = await resolver.resolveDiffSource(URI.parse('changes-multi-diff-source:test-session'));
+			const snapshot = () => ({
+				files: source.resources.value.map(item => ({
+					labelPath: item.modifiedUri!.path,
+					openFile: fromAgentHostUri(item.goToFileUri!).toString(),
+					content: fromAgentHostUri(item.modifiedUri!).toString(),
+				})).sort((a, b) => a.openFile.localeCompare(b.openFile)),
+				unique: new Set(source.resources.value.map(item => item.getKey())).size,
+			});
+			const observed = [snapshot()];
+			disposables.add(source.resources.onDidChange(() => observed.push(snapshot())));
+
+			changes.set([makeChange(file), makeChange(updatedFile)], undefined);
+
+			assert.deepStrictEqual(observed, [initialFile, updatedFile].map(changedFile => ({
+				files: [file, changedFile].map(file => ({
+					labelPath: file.path,
+					openFile: file.toString(),
+					content: content.toString(),
+				})).sort((a, b) => a.openFile.localeCompare(b.openFile)),
+				unique: 2,
+			})));
+		});
+	}
 });
 
 function createChange(path: string): ISessionFileChange {

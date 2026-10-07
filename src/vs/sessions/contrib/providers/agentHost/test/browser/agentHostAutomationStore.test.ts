@@ -1271,6 +1271,96 @@ suite('AgentHostAutomationStore', () => {
 		);
 	});
 
+	for (const selection of ['on', 'off', 'default']) {
+		test(`automation templates round-trip sandbox selection ${selection}`, async () => {
+			const connection = disposables.add(new TestAutomationConnection());
+			const storage = disposables.add(new InMemoryStorageService());
+			const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+			const automation = await store.createAutomation({
+				name: 'Sandbox selection',
+				prompt: 'Review changes.',
+				schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+				target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'copilotcli' },
+				sessionTemplate: { config: { sandboxEnabled: selection } },
+			});
+			const create = connection.dispatched[0].action;
+			connection.setFirstAutomationSessionConfig({ sandboxEnabled: selection === 'off' ? 'on' : 'off' });
+			await store.updateAutomation(automation.id, { sessionTemplate: { config: { sandboxEnabled: selection } } });
+			const update = connection.dispatched.at(-1)?.action;
+
+			assert.deepStrictEqual({
+				created: create.type === ActionType.AutomationCreateRequested ? create.definition.session.config : undefined,
+				projected: automation.sessionTemplate?.config,
+				updated: update?.type === ActionType.AutomationUpdateRequested ? update.changes.session?.config : undefined,
+				reopened: store.getAutomation(automation.id)?.sessionTemplate?.config,
+			}, {
+				created: { sandboxEnabled: selection },
+				projected: { sandboxEnabled: selection },
+				updated: { sandboxEnabled: selection },
+				reopened: { sandboxEnabled: selection },
+			});
+		});
+	}
+
+	test('automation template reset clears sandbox preference while preserving definition-owned permissions', async () => {
+		const connection = disposables.add(new TestAutomationConnection());
+		const storage = disposables.add(new InMemoryStorageService());
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+		const automation = await store.createAutomation({
+			name: 'Sandbox reset',
+			prompt: 'Review changes.',
+			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'copilotcli' },
+		});
+		const permissions = { allow: ['Shell(echo *)'], deny: [] };
+		connection.setFirstAutomationSessionConfig({ sandboxEnabled: 'off', permissions });
+
+		await store.updateAutomation(automation.id, { sessionTemplate: null });
+		const update = connection.dispatched.at(-1)?.action;
+		assert.deepStrictEqual({
+			updated: update?.type === ActionType.AutomationUpdateRequested ? update.changes.session?.config : undefined,
+			reopened: store.getAutomation(automation.id)?.sessionTemplate,
+		}, {
+			updated: { permissions },
+			reopened: undefined,
+		});
+	});
+
+	test('host-authored sandbox preferences survive an Automation template round-trip', async () => {
+		const connection = disposables.add(new TestAutomationConnection());
+		const storage = disposables.add(new InMemoryStorageService());
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+		const automation = await store.createAutomation({
+			name: 'Host sandbox preference',
+			prompt: 'Review changes.',
+			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'copilotcli' },
+		});
+		const hostConfig = {
+			sandboxEnabled: 'off',
+			[SessionConfigKey.Permissions]: { allow: ['Shell(echo *)'], deny: [] },
+			[SessionConfigKey.WorktreeBranchPrefix]: 'host-prefix/',
+			[SessionConfigKey.AgentMerge]: true,
+		};
+		connection.setFirstAutomationSessionConfig({
+			...hostConfig,
+			[SessionConfigKey.ShellInitScripts]: [{ shell: 'bash', script: 'source ~/.bashrc' }],
+		});
+		const projected = store.getAutomation(automation.id)?.sessionTemplate;
+		await store.updateAutomation(automation.id, { name: 'Renamed', sessionTemplate: projected });
+		const update = connection.dispatched.at(-1)?.action;
+
+		assert.deepStrictEqual({
+			projected,
+			updated: update?.type === ActionType.AutomationUpdateRequested ? update.changes.session?.config : undefined,
+			reopened: store.getAutomation(automation.id)?.sessionTemplate,
+		}, {
+			projected: { config: { sandboxEnabled: 'off' } },
+			updated: hostConfig,
+			reopened: { config: { sandboxEnabled: 'off' } },
+		});
+	});
+
 	test('filters session-owned values from canonical templates', async () => {
 		const connection = disposables.add(new TestAutomationConnection());
 		const storage = disposables.add(new InMemoryStorageService());

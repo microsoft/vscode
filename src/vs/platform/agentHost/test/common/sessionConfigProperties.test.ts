@@ -190,8 +190,7 @@ suite('Session config properties', () => {
 				worktreeBranchPrefix: { type: 'string', title: 'Branch prefix', readOnly: true, sessionMutable: false },
 				worktreeIncludeFiles: { type: 'array', title: 'Included files', readOnly: true, sessionMutable: false },
 				worktreeSymlinkFolders: { type: 'array', title: 'Symlinked folders', readOnly: true, sessionMutable: false },
-				worktreeBranchTrack: { type: 'boolean', title: 'Track branch', readOnly: true, sessionMutable: false },
-				worktreeCreateNewBranch: { type: 'boolean', title: 'Create branch', readOnly: true, sessionMutable: false },
+				pullRequestUrl: { type: 'string', title: 'Pull request', readOnly: true, sessionMutable: false },
 				shellInitScripts: { type: 'array', title: 'Shell initialization', readOnly: true, sessionMutable: true },
 				providerOption: { type: 'string', title: 'Provider option', enum: ['allowed'], readOnly: true, sessionMutable: true },
 			},
@@ -200,8 +199,7 @@ suite('Session config properties', () => {
 			worktreeBranchPrefix: 'user/',
 			worktreeIncludeFiles: ['product.overrides.json'],
 			worktreeSymlinkFolders: ['node_modules'],
-			worktreeBranchTrack: true,
-			worktreeCreateNewBranch: false,
+			pullRequestUrl: 'https://github.com/microsoft/vscode/pull/1',
 			shellInitScripts: [{ shell: 'bash', script: 'source .venv/bin/activate' }],
 			providerOption: 'allowed',
 		};
@@ -218,7 +216,7 @@ suite('Session config properties', () => {
 		}, {
 			creation: values,
 			runtime: { shellInitScripts: values.shellInitScripts, providerOption: 'allowed' },
-			pickerEditable: [false, false, false, false, false, false, false],
+			pickerEditable: [false, false, false, false, false, false],
 		});
 	});
 
