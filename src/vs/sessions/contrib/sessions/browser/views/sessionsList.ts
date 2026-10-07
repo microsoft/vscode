@@ -77,7 +77,7 @@ import { ISessionSectionOrderService } from '../../../../services/sessions/brows
 import { InputBox, MessageType } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { IWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/common/assignmentService.js';
 import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
-import { markOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
+import { IOnboardingFocusTarget, markOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../../sessionComparison/common/sessionComparison.js';
 // =============================================================================
 // TEMPORARY (tracked by https://github.com/microsoft/vscode/issues/320480)
@@ -2188,7 +2188,10 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		private readonly customizationMigrationsAvailable: IObservable<boolean> = constObservable(false),
 		readonly templateId = SessionSectionRenderer.TEMPLATE_ID,
 		readonly rowClassName?: string,
-		private readonly onboardingEvents: { readonly onDidActivateNewSession: Event<void> } = { onDidActivateNewSession: Event.None },
+		private readonly onboardingOptions: {
+			readonly onDidActivateNewSession: Event<void>;
+			readonly getNewSessionFocusTarget?: () => IOnboardingFocusTarget | undefined;
+		} = { onDidActivateNewSession: Event.None },
 	) { }
 
 	renderTemplate(container: HTMLElement): ISessionSectionTemplate {
@@ -2305,7 +2308,8 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		if (element.id === NEW_SESSION_SECTION_ID) {
 			template.container.classList.add('session-section-new-session');
 			template.elementDisposables.add(markOnboardingTarget(template.container, 'sessions.newSession.button', {
-				onDidActivate: this.onboardingEvents.onDidActivateNewSession,
+				onDidActivate: this.onboardingOptions.onDidActivateNewSession,
+				focusTarget: this.onboardingOptions.getNewSessionFocusTarget?.(),
 			}));
 			template.keybindingHint.classList.add('visible');
 			const updateKeybinding = () => template.keybindingLabel.set(this.keybindingService.lookupKeybinding(NEW_SESSION_ACTION_ID, this.contextKeyService));
@@ -3806,7 +3810,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 			customizationMigrationsAvailable,
 			templateId,
 			rowClassName,
-			{ onDidActivateNewSession: this._onDidActivateNewSession.event },
+			{
+				onDidActivateNewSession: this._onDidActivateNewSession.event,
+				getNewSessionFocusTarget: () => this.navigationList ? {
+					element: this.navigationList.getHTMLElement(),
+					focus: () => this.focusNavigationSection(NEW_SESSION_SECTION_ID),
+				} : undefined,
+			},
 		);
 		const sectionRenderer = createSectionRenderer(undefined, 'session-list-section-row');
 		const shortcutSectionRenderer = createSectionRenderer(SESSION_SHORTCUT_SECTION_TEMPLATE_ID, 'session-list-shortcut-row');

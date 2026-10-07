@@ -31,7 +31,7 @@ import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSetting
 import { Separator, SubmenuAction } from '../../../../../base/common/actions.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -42,7 +42,7 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { createUSLayoutResolvedKeybinding } from '../../../../../platform/keybinding/test/common/keybindingsTestUtils.js';
 import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { WorkbenchList, WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
+import { IListService, ListService, WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { IOpenerService, OpenExternalOptions, OpenInternalOptions } from '../../../../../platform/opener/common/opener.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -56,6 +56,11 @@ import { SessionSummaryHoverWidget } from '../../../../../workbench/contrib/chat
 import { AICustomizationManagementEditorInput } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IPreferencesService, IOpenSettingsOptions } from '../../../../../workbench/services/preferences/common/preferences.js';
+import { SpotlightPresentation } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightPresentation.js';
+import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js';
+import { OnboardingOutcome } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
+import { TestHostService, TestLayoutService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import '../../../../../workbench/browser/actions/listCommands.js';
 import { AgentMergeSessionState } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { getSessionChatDragData, isSessionChatDrag, SessionsDataTransfers } from '../../../../browser/dnd.js';
 import { IsPhoneLayoutContext, IsQuickChatSessionContext, SessionIsArchivedContext, SessionSupportsMultipleChatsContext } from '../../../../common/contextkeys.js';
@@ -335,8 +340,10 @@ suite('Sessions - SessionsList', () => {
 		});
 
 		for (const activation of ['click', 'keyboard'] as const) {
-			test(`exposes the New Session navigation row as an onboarding target with ${activation} activation`, async () => {
-				const harness = createListHarness(disposables, []);
+			test(`spotlights the New Session navigation row and completes via ${activation} activation`, async () => {
+				const harness = createListHarness(disposables, [], instantiationService => {
+					instantiationService.stub(IListService, disposables.add(new ListService()));
+				});
 				const container = harness.createContainer();
 				const headerButton = mainWindow.document.createElement('button');
 				headerButton.textContent = 'New';
@@ -354,21 +361,49 @@ suite('Sessions - SessionsList', () => {
 					onSessionOpen: () => { },
 				}));
 				list.layout(300, 400);
+				list.focusCustomizations();
 
 				const target = resolveOnboardingTarget(mainWindow, 'sessions.newSession.button');
 				assert.ok(target?.onDidActivate);
 				const targetsNavigationRow = target.element === navigationContainer.querySelector('.session-section-new-session');
 				let activations = 0;
 				harness.store.add(target.onDidActivate(() => activations++));
+				const presentation = harness.store.add(new SpotlightPresentation(
+					new class extends TestLayoutService { override getContainer(): HTMLElement { return container; } }(),
+					new TestHostService(), harness.instantiationService.get(IContextKeyService),
+				));
+				const shown = new DeferredPromise<void>();
+				const result = presentation.run({
+					id: 'test.newSessionNavigation',
+					trigger: { kind: 'auto' },
+					presentation: {
+						kind: SPOTLIGHT_PRESENTATION_KIND,
+						payload: {
+							steps: [{
+								id: 'newSession', targetId: 'sessions.newSession.button', title: 'New Session', description: 'Start another task.',
+								allowTargetInteraction: true, advanceOnTargetClick: true, hideNext: false,
+							}],
+						} satisfies ISpotlightPayload,
+					},
+				}, { targetWindow: mainWindow, onAbort: Event.None, onDidShow: () => { void shown.complete(); } });
+				await shown.p;
+
 				if (activation === 'click') {
 					target.element.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
 				} else {
-					const navigation = Reflect.get(list, 'navigationList') as WorkbenchList<ISessionSection>;
-					navigation.setFocus([0]);
-					navigation.domFocus();
-					navigation.setSelection([0], new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13 }));
+					const next = [...container.querySelectorAll<HTMLElement>('.spotlight-callout-actions .monaco-button')].at(-1)!;
+					next.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, bubbles: true, cancelable: true }));
+					const navigation = navigationContainer.querySelector<HTMLElement>('.monaco-list')!;
+					assert.deepStrictEqual({
+						focused: mainWindow.document.activeElement === navigation,
+						newSessionFocused: target.element.closest('.monaco-list-row')?.classList.contains('focused'),
+					}, { focused: true, newSessionFocused: true });
+					navigation.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, shiftKey: true, bubbles: true, cancelable: true }));
+					assert.strictEqual(mainWindow.document.activeElement, next);
+					next.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, bubbles: true, cancelable: true }));
+					harness.instantiationService.invokeFunction(CommandsRegistry.getCommand('list.select')!.handler);
 				}
-				await timeout(0);
+				const outcome = (await result).outcome;
 
 				showNavigationShortcuts = false;
 				list.updateNavigationVisibility();
@@ -379,6 +414,8 @@ suite('Sessions - SessionsList', () => {
 				assert.deepStrictEqual({
 					targetsNavigationRow,
 					activations,
+					outcome,
+					overlayRemaining: !!container.querySelector('.spotlight-callout'),
 					commands: harness.commandService.calls,
 					targetAfterRemoval,
 					markerAfterRemoval,
@@ -386,6 +423,8 @@ suite('Sessions - SessionsList', () => {
 				}, {
 					targetsNavigationRow: true,
 					activations: 1,
+					outcome: OnboardingOutcome.Completed,
+					overlayRemaining: false,
 					commands: [{ commandId: NEW_SESSION_ACTION_ID, args: [undefined] }],
 					targetAfterRemoval: undefined,
 					markerAfterRemoval: false,
