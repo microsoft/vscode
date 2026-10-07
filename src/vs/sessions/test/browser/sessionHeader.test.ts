@@ -295,7 +295,7 @@ suite('Sessions - Headers', () => {
 		container.style.setProperty('--vscode-spacing-size280', '28px');
 		container.style.setProperty('--vscode-spacing-size320', '32px');
 		container.style.setProperty('--session-view-centered-content-max-width', '950px');
-		container.style.setProperty('--session-view-content-horizontal-padding', '32px');
+		container.style.setProperty('--session-view-content-horizontal-padding', '24px');
 		container.style.width = '1200px';
 		mainWindow.document.body.appendChild(container);
 
