@@ -8,6 +8,7 @@ import { createHash } from 'crypto';
 import { lstat, mkdir, readFile, realpath, rename, rmdir, stat, unlink, writeFile } from 'fs/promises';
 import { Sequencer, ThrottledDelayer } from '../../../../base/common/async.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { basename, dirname, isAbsolute, join, relative, sep } from '../../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js';
@@ -23,7 +24,7 @@ import { readCloudSandboxCloneResult } from '../../common/meta/cloudSandboxProje
 import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ROOT_STATE_URI } from '../../common/state/sessionState.js';
 import type { RootConfigState } from '../../common/state/protocol/state.js';
-import { ActionType, type IRootConfigChangedAction } from '../../common/state/sessionActions.js';
+import { ActionType, type ActionEnvelope } from '../../common/state/sessionActions.js';
 import { IAgentHostStateManager, AgentHostStateManager } from '../agentHostStateManager.js';
 
 export interface IMissionControlProject {
@@ -78,7 +79,8 @@ export class MissionControlProjects extends Disposable {
 	private readonly _mutations = new Sequencer();
 	private readonly _progress = this._register(new ThrottledDelayer<void>(1000));
 	private readonly _clones = new Map<string, AbortController>();
-	private readonly _actions = new WeakSet<IRootConfigChangedAction>();
+	private readonly _onDidChange = this._register(new Emitter<ActionEnvelope>());
+	readonly onDidChange = this._onDidChange.event;
 	private readonly _bootRoots = new Set<string>();
 	private readonly _runGit: typeof runGit;
 	private readonly _cataloguePath: string;
@@ -104,22 +106,33 @@ export class MissionControlProjects extends Disposable {
 	}
 
 	get roots(): readonly string[] {
-		return [...this._projects.values()].filter(project => project.status === 'ready').map(project => project.path);
+		return [...this._projects.values()].filter(project => project.status === 'ready' && this._isCurrentProject(project)).map(project => project.path);
 	}
 
 	get config(): RootConfigState {
-		return { schema: { type: 'object', properties: {} }, values: { copilot: { projects: [...this._projects.values()] } } };
+		return { schema: { type: 'object', properties: {} }, values: { copilot: { projects: [...this._projects.values()].filter(project => this._isCurrentProject(project)) } } };
 	}
 
-	ownsConfigChange(action: IRootConfigChangedAction): boolean {
-		return this._actions.has(action);
+	private _isCurrentProject(project: IMissionControlProject): boolean {
+		return !project.bootPinned || this._options.getRoots().some(root => extUriBiasedIgnorePathCase.isEqual(URI.file(root), URI.file(project.path)));
 	}
 
 	async initialize(): Promise<void> {
 		await (this._loaded ??= this._load());
 		await this._mutations.queue(async () => {
-			for (const root of this._options.getRoots()) {
-				const path = await realpath(root);
+			const paths = await Promise.all(this._options.getRoots().map(root => realpath(root)));
+			const currentIds = new Set(paths.map(path => this._id(path)));
+			for (const [id, project] of this._projects) {
+				if (project.bootPinned && !currentIds.has(id)) {
+					this._projects.delete(id);
+				}
+			}
+			for (const path of this._bootRoots) {
+				if (!currentIds.has(this._id(path))) {
+					this._bootRoots.delete(path);
+				}
+			}
+			for (const path of paths) {
 				const id = this._id(path);
 				if (!this._projects.has(id) && !this._bootRoots.has(path)) {
 					this._projects.set(id, await this._entry(path, 'pinned', true));
@@ -228,7 +241,7 @@ export class MissionControlProjects extends Disposable {
 	private async _remove(params: Record<string, unknown>): Promise<unknown> {
 		if (typeof params.id !== 'string' || !params.id
 			|| ['deleteClone', 'deleteWorktrees', 'force'].some(key => params[key] !== undefined && typeof params[key] !== 'boolean')) {
-			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'id and boolean removal options are required');
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'id must be a nonempty string; removal options must be booleans when provided');
 		}
 		if (params.deleteClone || params.deleteWorktrees || params.force) {
 			throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'Destructive project removal is not supported by this host');
@@ -478,9 +491,9 @@ export class MissionControlProjects extends Disposable {
 
 	private _publish(): void {
 		if (!this._store.isDisposed) {
-			const action: IRootConfigChangedAction = { type: ActionType.RootConfigChanged, config: this.config.values };
-			this._actions.add(action);
-			this._state.dispatchServerAction(ROOT_STATE_URI, action);
+			this._onDidChange.fire(this._state.createServerActionEnvelope(ROOT_STATE_URI, {
+				type: ActionType.RootConfigChanged, config: this.config.values,
+			}));
 		}
 	}
 }

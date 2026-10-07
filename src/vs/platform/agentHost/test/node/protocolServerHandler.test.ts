@@ -2398,9 +2398,10 @@ suite('ProtocolServerHandler', () => {
 		const calls: string[] = [];
 		const project = { id: 'opaque-project-id', name: 'repo', path: '/home/testuser/owner/repo', origin: 'cloned', git: true, status: 'cloning' };
 		const action: IRootConfigChangedAction = { type: ActionType.RootConfigChanged, config: { copilot: { projects: [project] } } };
+		const projectChanges = disposables.add(new Emitter<ActionEnvelope>());
 		const projects = new class extends mock<MissionControlProjects>() {
+			override readonly onDidChange = projectChanges.event;
 			override get config() { return { schema: { type: 'object' as const, properties: {} }, values: action.config }; }
-			override ownsConfigChange(value: IRootConfigChangedAction): boolean { return value === action; }
 			override handleRequest(method: string): Promise<unknown> | undefined {
 				if (method.endsWith('Project') || method === 'extensions/listProjects') {
 					calls.push(method);
@@ -2442,15 +2443,29 @@ suite('ProtocolServerHandler', () => {
 		passive.simulateMessage(request(9, 'extensions/getPlan', { channel: sessionUri }));
 		await scopedHandler.whenIdle();
 		const baseline = findResponse(active.sent, 3);
+		const local = connectClient('project-local-observer', [ROOT_STATE_URI]);
 		active.sent.length = 0;
 		stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { copilot: { token: 'host-secret' }, private: 'host-secret' } });
-		stateManager.dispatchServerAction(ROOT_STATE_URI, action);
+		local.sent.length = 0;
+		const hostConfig = stateManager.rootState.config;
+		projectChanges.fire(stateManager.createServerActionEnvelope(ROOT_STATE_URI, action));
 		active.simulateClose();
 		const reconnected = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'mc-active', false));
 		reconnected.relayAuthenticated = true;
 		relay.simulateConnection(reconnected);
 		reconnected.simulateMessage(request(10, 'reconnect', { clientId: 'mc-active', lastSeenServerSeq: -1, subscriptions: [ROOT_STATE_URI] }));
 		await scopedHandler.whenIdle();
+		reconnected.simulateClose();
+		const lastSeen = stateManager.serverSeq;
+		const readyAction: IRootConfigChangedAction = { type: ActionType.RootConfigChanged, config: { copilot: { projects: [{ ...project, status: 'ready' }] } } };
+		projectChanges.fire(stateManager.createServerActionEnvelope(ROOT_STATE_URI, readyAction));
+		const replayed = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'mc-active', false));
+		replayed.relayAuthenticated = true;
+		relay.simulateConnection(replayed);
+		replayed.simulateMessage(request(11, 'reconnect', { clientId: 'mc-active', lastSeenServerSeq: lastSeen, subscriptions: [ROOT_STATE_URI] }));
+		await scopedHandler.whenIdle();
+		const replayResponse = findResponse(replayed.sent, 11);
+		const replayResult = replayResponse && hasKey(replayResponse, { result: true }) ? replayResponse.result as ReconnectResult : undefined;
 		assert.deepStrictEqual({
 			preauthCatalogue: JSON.stringify(preauth).includes('opaque-project-id'),
 			preauthCapability: JSON.stringify(preauth).includes('"copilot.projectManagement":{"available":true}'),
@@ -2463,11 +2478,15 @@ suite('ProtocolServerHandler', () => {
 			secret: JSON.stringify(active.sent).includes('host-secret'),
 			reconnectedCatalogue: JSON.stringify(findResponse(reconnected.sent, 10)).includes('opaque-project-id'),
 			reconnectedSecret: JSON.stringify(reconnected.sent).includes('host-secret'),
+			hostConfigPreserved: stateManager.rootState.config === hostConfig,
+			localProjectActions: findNotifications(local.sent, 'action').length,
+			replay: replayResult?.type === 'replay' ? replayResult.actions.map(envelope => envelope.action) : replayResult?.type,
 		}, {
 			preauthCatalogue: false, preauthCapability: true, denied: AHP_AUTH_REQUIRED, authenticatedCatalogue: true,
 			calls: ['extensions/cloneProject', 'extensions/listProjects', 'extensions/getPlan'],
 			passiveDenied: Array(5).fill(JsonRpcErrorCodes.InvalidRequest), actions: [action], secret: false,
 			reconnectedCatalogue: true, reconnectedSecret: false,
+			hostConfigPreserved: true, localProjectActions: 0, replay: [readyAction],
 		});
 	});
 

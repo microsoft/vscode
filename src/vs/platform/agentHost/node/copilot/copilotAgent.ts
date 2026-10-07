@@ -1940,11 +1940,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidRequest, 'Session configuration is not available');
 		}
 		const entry = this._findSessionChat(session);
-		if (entry) {
-			await entry.setSessionApproveAll(enabled);
-		} else {
-			this._configurationService.updateSessionConfig(session.toString(), { [SessionConfigKey.AutoApprove]: enabled ? 'autoApprove' : 'default' });
+		if (!entry) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidRequest, 'Approval mode requires a live Copilot session');
 		}
+		await entry.setSessionApproveAll(enabled);
 	}
 
 	getMcpServerOwners(session: URI): ReadonlyMap<string, string> | undefined {

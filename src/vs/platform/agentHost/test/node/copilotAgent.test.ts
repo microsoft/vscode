@@ -15009,6 +15009,26 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('Copilot host approval toggles reject non-live runtimes without publishing a selection', async () => {
+			const { agent, configurationService, stateManager } = createTestAgentContext(disposables);
+			try {
+				const session = URI.parse('ahp-session:/deferred-copilot-session');
+				const now = new Date().toISOString();
+				stateManager.createSession({ resource: session.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle, createdAt: now, modifiedAt: now });
+				stateManager.setSessionConfig(session.toString(), { schema: { type: 'object', properties: {} }, values: { autoApprove: 'default' } });
+				const changes: Record<string, unknown>[] = [];
+				disposables.add(configurationService.onDidSessionConfigChange(event => changes.push(event.config)));
+				for (const enabled of [true, false]) {
+					await assert.rejects(agent.setSessionApproveAll(session, enabled), /requires a live Copilot session/);
+				}
+				assert.deepStrictEqual({ changes, selection: configurationService.getSessionConfigValues(session.toString())?.autoApprove }, {
+					changes: [], selection: 'default',
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('Copilot host approval toggle respects the host policy restriction', async () => {
 			const { agent, configurationService } = createTestAgentContext(disposables, { rootConfig: { [AgentHostAutoApprovePolicyRestrictedConfigKey]: true } });
 			try {

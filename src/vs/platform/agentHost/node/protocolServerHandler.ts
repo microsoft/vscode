@@ -422,6 +422,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	 */
 	private readonly _baselineDebt = new Map<string, Set<string>>();
 	private readonly _replayBuffer: ActionEnvelope[] = [];
+	private readonly _copilotProjectEnvelopes = new WeakSet<ActionEnvelope>();
 	private readonly _telemetryReporter: AgentHostTelemetryReporter;
 	private readonly _managedSettingsOwnerId = generateUuid();
 	private readonly _connectionDisposables = this._register(new DisposableMap<IProtocolTransport, DisposableStore>());
@@ -470,6 +471,12 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			}
 		}));
 		this._register(this._stateManager.onDidRejectClientAction(envelope => this._recordAndBroadcastAction(envelope)));
+		if (this._config.copilotProjects) {
+			this._register(this._config.copilotProjects.onDidChange(envelope => {
+				this._copilotProjectEnvelopes.add(envelope);
+				this._recordAndBroadcastAction(envelope);
+			}));
+		}
 
 		this._register(this._stateManager.onDidEmitNotification(notification => {
 			this._broadcastNotification(notification);
@@ -2913,9 +2920,12 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		if (client.transport.relayAuthenticated === false || !this._isChannelVisible(client, envelope.channel)) {
 			return false;
 		}
-		if (client.transport.relayClientId !== undefined && envelope.action.type === ActionType.RootConfigChanged
-			&& (!envelope.rejectionReason || envelope.origin?.clientId !== client.clientId)
-			&& !(envelope.rejectionReason === undefined && this._config.copilotProjects?.ownsConfigChange(envelope.action))) {
+		if (this._copilotProjectEnvelopes.has(envelope)) {
+			if (client.transport.relayClientId === undefined) {
+				return false;
+			}
+		} else if (client.transport.relayClientId !== undefined && envelope.action.type === ActionType.RootConfigChanged
+			&& (!envelope.rejectionReason || envelope.origin?.clientId !== client.clientId)) {
 			return false;
 		}
 		const sub = client.subscriptions.get(envelope.channel);

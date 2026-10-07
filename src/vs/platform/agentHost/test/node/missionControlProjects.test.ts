@@ -23,7 +23,8 @@ import { AgentHostGitService } from '../../node/agentHostGitService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { MissionControlProjects } from '../../node/missionControl/missionControlProjects.js';
 import { readCloudSandboxCloneResult, readCloudSandboxProjects } from '../../common/meta/cloudSandboxProjectMeta.js';
-import { ActionType } from '../../common/state/sessionActions.js';
+import { ActionType, type ActionEnvelope } from '../../common/state/sessionActions.js';
+import { ROOT_STATE_URI } from '../../common/state/sessionState.js';
 import { GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE } from '../../common/agent.js';
 import { ProtocolError } from '../../common/state/sessionProtocol.js';
 
@@ -95,10 +96,64 @@ suite('Mission Control projects', () => {
 		});
 	});
 
+	test('reconciles withdrawn boot pins before publishing a narrower sharing scope', async () => {
+		const { projects, options, workspace } = await fixture();
+		const next = join(directory, 'next-workspace');
+		await mkdir(next);
+		const folder = join(workspace, 'runtime-pin');
+		await mkdir(folder);
+		await projects.handleRequest('extensions/addProject', { path: folder });
+		options.getRoots = () => [];
+		const withdrawn = projects.roots;
+		await projects.initialize();
+		options.getRoots = () => [next];
+		await projects.initialize();
+		await assert.rejects(projects.handleRequest('extensions/addProject', { path: workspace })!, /outside|inside the host workspace grants/);
+		const narrowed = projects.roots;
+		options.getRoots = () => [workspace];
+		await projects.initialize();
+		assert.deepStrictEqual({ withdrawn, narrowed, reopened: projects.roots }, {
+			withdrawn: [folder], narrowed: [folder, next], reopened: [folder, workspace],
+		});
+	});
+
+	test('catalogue updates allocate ordered relay envelopes without changing private host configuration', async () => {
+		const { projects, state, workspace } = await fixture();
+		state.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { copilot: { token: 'private-token' } } });
+		const hostState = state.rootState;
+		const before = state.serverSeq;
+		const hostActions: ActionEnvelope[] = [];
+		const relayActions: ActionEnvelope[] = [];
+		store.add(state.onDidEmitEnvelope(envelope => hostActions.push(envelope)));
+		store.add(projects.onDidChange(envelope => relayActions.push(envelope)));
+		await projects.initialize();
+		const folder = join(workspace, 'folder');
+		await mkdir(folder);
+		await projects.handleRequest('extensions/addProject', { path: folder });
+		assert.deepStrictEqual({
+			hostStatePreserved: state.rootState === hostState,
+			privateConfig: state.rootState.config?.values.copilot,
+			hostActions,
+			sequences: relayActions.map(envelope => envelope.serverSeq - before),
+			channels: relayActions.map(envelope => envelope.channel),
+			relayContainsPrivateToken: JSON.stringify(relayActions).includes('private-token'),
+		}, {
+			hostStatePreserved: true, privateConfig: { token: 'private-token' }, hostActions: [],
+			sequences: [1, 2], channels: [ROOT_STATE_URI, ROOT_STATE_URI], relayContainsPrivateToken: false,
+		});
+	});
+
+	test('removal diagnostics identify invalid optional flags without requiring them', async () => {
+		const { projects } = await fixture();
+		const project = catalogue(projects)[0];
+		await assert.rejects(projects.handleRequest('extensions/removeProject', { id: project.id, force: 'true' })!, /removal options must be booleans when provided/);
+		assert.deepStrictEqual(await projects.handleRequest('extensions/removeProject', { id: project.id }), { removed: true });
+	});
+
 	test('clones under home, returns a provisional entry, publishes progress and ready, and preserves shallow branch fetches', async () => {
 		const gate = new DeferredPromise<void>();
 		const calls: { args: readonly string[]; token: string | undefined; helper: string | undefined }[] = [];
-		const { projects, state, home } = await fixture(async (args, env, _signal, progress) => {
+		const { projects, home } = await fixture(async (args, env, _signal, progress) => {
 			calls.push({ args, token: env.VSCODE_MC_GIT_TOKEN, helper: env.GIT_CONFIG_VALUE_1 });
 			if (args[0] === 'clone') {
 				progress(58);
@@ -108,7 +163,7 @@ suite('Mission Control projects', () => {
 				await promisify(execFile)('git', ['-C', path, 'remote', 'add', 'origin', 'https://github.com/owner/repo']);
 			}
 		});
-		const finished = Event.toPromise(Event.filter(state.onDidEmitEnvelope, envelope =>
+		const finished = Event.toPromise(Event.filter(projects.onDidChange, envelope =>
 			envelope.action.type === ActionType.RootConfigChanged && catalogue(projects).some(project => project.status === 'ready' && project.git)));
 		const initial = readCloudSandboxCloneResult(await projects.handleRequest('extensions/cloneProject', { url: 'https://github.com/owner/repo', depth: 1 }))!;
 		const joined = readCloudSandboxCloneResult(await projects.handleRequest('extensions/cloneProject', { url: 'https://github.com/owner/repo', depth: 1 }))!;
@@ -134,14 +189,14 @@ suite('Mission Control projects', () => {
 
 	test('GitHub SSH and scp URLs clone over HTTPS with the authenticated bearer', async () => {
 		const calls: { url: string; token: string | undefined }[] = [];
-		const { projects, state } = await fixture(async (args, env) => {
+		const { projects } = await fixture(async (args, env) => {
 			const url = args.at(-2)!;
 			calls.push({ url, token: env.VSCODE_MC_GIT_TOKEN });
 			await promisify(execFile)('git', ['init', args.at(-1)!]);
 			await promisify(execFile)('git', ['-C', args.at(-1)!, 'remote', 'add', 'origin', url]);
 		});
 		for (const [index, url] of ['git@github.com:owner/repo-0', 'ssh://git@github.com:22/owner/repo-1'].entries()) {
-			const finished = Event.toPromise(Event.filter(state.onDidEmitEnvelope, envelope =>
+			const finished = Event.toPromise(Event.filter(projects.onDidChange, envelope =>
 				envelope.action.type === ActionType.RootConfigChanged && catalogue(projects).some(project => project.status === 'ready' && project.remoteUrl === `https://github.com/owner/repo-${index}`)));
 			await projects.handleRequest('extensions/cloneProject', { url });
 			await finished;
@@ -154,11 +209,11 @@ suite('Mission Control projects', () => {
 
 	test('surfaces background clone failures in the shared catalogue without granting an incomplete checkout', async () => {
 		const gate = new DeferredPromise<void>();
-		const { projects, state } = await fixture(async () => {
+		const { projects } = await fixture(async () => {
 			await gate.p;
 			throw new Error('repository not found');
 		});
-		const failed = Event.toPromise(Event.filter(state.onDidEmitEnvelope, envelope =>
+		const failed = Event.toPromise(Event.filter(projects.onDidChange, envelope =>
 			envelope.action.type === ActionType.RootConfigChanged && catalogue(projects).some(project => project.status === 'failed')));
 		const initial = readCloudSandboxCloneResult(await projects.handleRequest('extensions/cloneProject', { url: 'https://github.com/owner/repo' }))!;
 		gate.complete();
@@ -176,14 +231,14 @@ suite('Mission Control projects', () => {
 
 	test('failed clones can be retried without overwriting nonempty directories', async () => {
 		let attempts = 0;
-		const { projects, state } = await fixture(async args => {
+		const { projects } = await fixture(async args => {
 			attempts++;
 			if (attempts === 2) {
 				await writeFile(join(args.at(-1)!, 'keep.txt'), 'keep');
 			}
 			throw new Error('clone failed');
 		});
-		const waitForFailure = () => Event.toPromise(Event.filter(state.onDidEmitEnvelope, envelope =>
+		const waitForFailure = () => Event.toPromise(Event.filter(projects.onDidChange, envelope =>
 			envelope.action.type === ActionType.RootConfigChanged && catalogue(projects).some(project => project.status === 'failed')));
 		let failed = waitForFailure();
 		const initial = readCloudSandboxCloneResult(await projects.handleRequest('extensions/cloneProject', { url: 'https://github.com/owner/repo' }))!;
@@ -211,11 +266,11 @@ suite('Mission Control projects', () => {
 	});
 
 	test('runs a real git clone from a granted local repository and preserves its fetch refspec', async () => {
-		const { projects, state, workspace, home } = await fixture();
+		const { projects, workspace, home } = await fixture();
 		const source = join(workspace, 'owner', 'repo');
 		await mkdir(source, { recursive: true });
 		await promisify(execFile)('git', ['init', source]);
-		const ready = Event.toPromise(Event.filter(state.onDidEmitEnvelope, envelope =>
+		const ready = Event.toPromise(Event.filter(projects.onDidChange, envelope =>
 			envelope.action.type === ActionType.RootConfigChanged && catalogue(projects).some(project => project.status === 'ready' && project.git)));
 		const initial = readCloudSandboxCloneResult(await projects.handleRequest('extensions/cloneProject', {
 			url: URI.file(source).toString(), depth: 1,
