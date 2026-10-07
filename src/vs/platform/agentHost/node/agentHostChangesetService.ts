@@ -635,7 +635,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 					this.refreshBranchChangeset(parsed.ownerUri);
 					break;
 				case ChangesetKind.Session:
-					this.refreshSessionChangeset(session, 'fileEditTracker');
+					// Keep checkpoint-backed shell edits when a Git state refresh
+					// arrives after the end-of-turn checkpoint computation.
+					this.refreshSessionChangeset(session);
 					break;
 				case ChangesetKind.Uncommitted:
 					void this.computeUncommittedChangeset(session);

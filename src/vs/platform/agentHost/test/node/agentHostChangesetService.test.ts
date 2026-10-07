@@ -3562,9 +3562,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 				completeTurn(stateManager);
 				svc.recomputeSubscribedChangesets(sessionStr);
 				await waitForChangesetReady(stateManager, selected);
-				assert.deepStrictEqual({ git: calls, tracked: db.getAllFileEditsCalls }, isolation === 'worktree'
-					? { git: 1, tracked: 0 }
-					: { git: 0, tracked: 1 });
+				assert.deepStrictEqual({ git: calls, tracked: db.getAllFileEditsCalls }, { git: 1, tracked: 0 });
 			});
 		}
 

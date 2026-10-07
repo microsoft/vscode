@@ -285,6 +285,36 @@ suite('AgentHostChangesetStrategy', () => {
 		}, { session: ready([gitOnlyDiff]), turn: ready([gitOnlyDiff]), gitCalls: 2, isolation: 'folder' });
 	});
 
+	test('subscribed session refreshes preserve checkpoint edits from default and peer chats', async () => {
+		const fixture = createFixture({
+			peer: { resource: buildChatUri(session, 'peer'), db: new TestSessionDatabase(), turnId: 'peer-turn' },
+		});
+		const edits = ['default-provider.txt', 'peer-provider.txt'].map(name => ({
+			after: { uri: URI.file(`/repo/${name}`).toString(), content: { uri: `git:/${name}` } },
+			diff: { added: 1, removed: 0 },
+		}));
+		fixture.results.git = edits;
+		await refresh(fixture);
+
+		const { publications, done } = recordSessionPublications(fixture, 1);
+		fixture.service.recomputeSubscribedChangesets(session);
+		await done;
+
+		assert.deepStrictEqual(publications, [ready(edits)]);
+	});
+
+	test('subscribed session refreshes fall back to tracked edits without checkpoints', async () => {
+		const fixture = createFixture();
+		fixture.results.baseline = undefined;
+		addEdit(fixture.db);
+		const { publications, done } = recordSessionPublications(fixture, 1);
+
+		fixture.service.recomputeSubscribedChangesets(session);
+		await done;
+
+		assert.deepStrictEqual(publications, [ready([trackedDiff()])]);
+	});
+
 	for (const strategies of [
 		['git', 'fileEditTracker'],
 		['fileEditTracker', 'git'],
@@ -895,7 +925,7 @@ suite('AgentHostChangesetStrategy', () => {
 		}, { state: ready([trackedDiff()]), reads: [2, 0], git: [] });
 	});
 
-	test('restore and subscription refreshes select tracker after isolation changes', async () => {
+	test('restore and subscription refreshes preserve session checkpoints after isolation changes', async () => {
 		const fixture = createFixture();
 		addEdit(fixture.db);
 		await refresh(fixture);
@@ -909,7 +939,7 @@ suite('AgentHostChangesetStrategy', () => {
 			turn: snapshot(fixture.state, turnChangeset),
 			gitCalls: fixture.gitCalls.length,
 			reads: [fixture.db.getAllFileEditsCalls, fixture.db.getFileEditsByTurnCalls],
-		}, { session: ready([trackedDiff()]), turn: ready([trackedDiff()]), gitCalls: 2, reads: [1, 1] });
+		}, { session: ready([gitOnlyDiff]), turn: ready([trackedDiff()]), gitCalls: 3, reads: [0, 1] });
 	});
 
 	test('main branch changes retain the persisted baseline while using the session folder', async () => {

@@ -1850,6 +1850,11 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 				10,
 			);
 
+			assert.deepStrictEqual(['default-provider.txt', 'peer-provider.txt'].map(name => readFileSync(join(workspace, name), 'utf8')), [
+				'DEFAULT_PROVIDER',
+				'PEER_PROVIDER',
+			]);
+
 			const files = await retry(async () => {
 				const state = await changesetState(sessionChangeset);
 				const matches = ['default-provider.txt', 'peer-provider.txt'].map(name => state.files.find(file => fileUri(file).endsWith(`/${name}`)));
@@ -1863,6 +1868,12 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 				'default-provider.txt',
 				'peer-provider.txt',
 			]);
+
+			// A refresh after checkpoint capture must still include shell edits that
+			// the provider's file-edit tracker cannot report.
+			await context.client.call('unsubscribe', { channel: sessionChangeset });
+			const refreshed = await changesetState(sessionChangeset);
+			assert.deepStrictEqual(refreshed.files.map(fileUri).sort(), files.map(file => fileUri(file!)).sort());
 
 			const expectedChanges = {
 				additions: files.reduce((total, file) => total + (file?.edit.diff?.added ?? 0), 0),
