@@ -6290,7 +6290,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	/** Resolves root-configured MCP servers that must be disabled when the SDK session starts. */
 	private async _disabledRootMcpServers(session: URI, sessionId: string, snapshot: IActiveClientSnapshot): Promise<readonly string[]> {
 		await this._customizationEnablementService.initializeSession(session.toString());
-		const rootServers = this._rootMcpCustomizations(sessionId, snapshot.mcpServers);
+		const client = await this._ensureClient();
+		const userServers = await client.rpc.mcp.config.list();
+		const rootServers = this._rootMcpCustomizations(sessionId, snapshot.mcpServers, Object.keys(userServers.servers));
 		const enablement = getSdkMcpServerEnablement(resolveCustomizationEnablement(
 			this._customizationEnablementService,
 			session,
@@ -6312,8 +6314,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return { customizations: this._rootMcpCustomizations(AgentSession.id(session), configured) };
 	}
 
-	private _rootMcpCustomizations(sessionId: string, mcpServers: AgentHostMcpServers): McpServerCustomization[] {
-		const serverNames = new Set(Object.keys(mcpServers));
+	private _rootMcpCustomizations(sessionId: string, mcpServers: AgentHostMcpServers, additionalServerNames: Iterable<string> = []): McpServerCustomization[] {
+		const serverNames = new Set([...Object.keys(mcpServers), ...additionalServerNames]);
 		if (this._isGitHubMcpServerEnabled()) {
 			serverNames.add(GITHUB_MCP_SERVER_NAME);
 		}

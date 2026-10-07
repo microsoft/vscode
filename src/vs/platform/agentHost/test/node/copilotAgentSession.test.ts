@@ -19729,10 +19729,233 @@ Use the attached image as context.
 
 	suite('MCP server inventory', () => {
 
+		for (const pending of [false, true]) {
+			test(`reconciles a newly configured MCP server before inventory publication with pending resolution ${pending}`, async () => {
+				const serverName = 'context7';
+				const inventoryGate = new DeferredPromise<void>();
+				let settled = !pending;
+				let enabled = false;
+				const { session, mockSession } = await createAgentSession(disposables, {
+					sessionCustomizations: () => [],
+					resolveCustomizationEnablement: () => settled ? {
+						kind: 'resolved',
+						enablement: [{ kind: CustomizationEnablementKind.Global, enabled }],
+						enabled,
+						workingDirectory: { kind: 'workspaceless' },
+					} : { kind: 'pending', reason: 'session' },
+					configureMockSession: mock => {
+						mock.mcpListResult = { servers: [{ name: serverName, status: 'connected', source: 'user' }] };
+						mock.mcpListGates.push(inventoryGate.p);
+					},
+				});
+				const publishedBeforeReconcile = session.topLevelMcpCustomizations().length;
+
+				await session.send('keep Context7 disabled');
+				inventoryGate.complete();
+				if (pending) {
+					settled = true;
+					enabled = true;
+					await session.send('enable Context7 after resolution settles');
+				}
+
+				assert.deepStrictEqual({
+					publishedBeforeReconcile,
+					disable: mockSession.mcpDisableCalls,
+					enable: mockSession.mcpEnableCalls,
+					materializingListCalls: mockSession.mcpMaterializingListCalls,
+				}, {
+					publishedBeforeReconcile: 0,
+					disable: [{ serverName }],
+					enable: pending ? [{ serverName }] : [],
+					materializingListCalls: 0,
+				});
+			});
+		}
+
+		test('does not force-enable a newly discovered configured-disabled MCP server or infer intent from startup', async () => {
+			const serverName = 'context7';
+			let retained: readonly Customization[] = [];
+			const { session, mockSession, signals } = await createAgentSession(disposables, {
+				sessionCustomizations: () => retained,
+				configureMockSession: mock => {
+					mock.mcpConfiguredListResult = { servers: [{ name: serverName, enabled: false, source: 'user' }] };
+				},
+			});
+			await timeout(0);
+			retained = session.topLevelMcpCustomizations();
+			await session.send('preserve configured-disabled defaults after publication');
+
+			mockSession.fire('session.mcp_server_status_changed', { serverName, status: 'pending' });
+			mockSession.fire('session.mcp_server_status_changed', { serverName, status: 'connected' });
+			await timeout(0);
+			retained = session.topLevelMcpCustomizations();
+			await session.send('leave runtime configuration unchanged');
+
+			assert.deepStrictEqual({
+				enable: mockSession.mcpEnableCalls,
+				disable: mockSession.mcpDisableCalls,
+				toggles: getActions(signals).filter(action => action.type === ActionType.SessionCustomizationToggled),
+			}, { enable: [], disable: [], toggles: [] });
+		});
+
+		test('preserves the enabled default for an intentionally client-configured MCP server', async () => {
+			const serverName = 'context7';
+			const { session, mockSession } = await createAgentSession(disposables, {
+				clientSnapshot: {
+					tools: [], plugins: [],
+					mcpServers: { [serverName]: { type: McpServerType.REMOTE, url: 'https://mcp.example.com/context7' } },
+				},
+				configureMockSession: mock => {
+					mock.mcpConfiguredListResult = { servers: [{ name: serverName, enabled: false }] };
+				},
+			});
+
+			await session.send('use the declared client server');
+
+			assert.deepStrictEqual({ enable: mockSession.mcpEnableCalls, disable: mockSession.mcpDisableCalls }, {
+				enable: [{ serverName }], disable: [],
+			});
+		});
+
+		for (const pending of [false, true]) {
+			test(`suppresses MCP authentication before any inventory or lifecycle update with pending resolution ${pending}`, async () => {
+				const serverName = 'context7';
+				const inventoryGate = new DeferredPromise<void>();
+				const targets: ICustomizationEnablementTarget[] = [];
+				const { session, runtime } = await createAgentSession(disposables, {
+					sessionCustomizations: () => [],
+					resolveCustomizationEnablement: target => {
+						targets.push(target);
+						return pending ? { kind: 'pending', reason: 'session' } : {
+							kind: 'resolved',
+							enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+							enabled: false,
+							workingDirectory: { kind: 'workspaceless' },
+						};
+					},
+					configureMockSession: mock => { mock.mcpListGates.push(inventoryGate.p); },
+				});
+
+				const result = await runtime.handleMcpAuthRequest({
+					requestId: 'auth-before-discovery',
+					serverName,
+					serverUrl: 'https://mcp.example.com/context7',
+					reason: 'upscope',
+				}, { sessionId: 'test-session-1' });
+				inventoryGate.complete();
+
+				assert.deepStrictEqual({
+					result,
+					published: session.topLevelMcpCustomizations(),
+					targets: targets.map(target => ({ id: target.id, name: target.name, source: target.source.toString() })),
+				}, {
+					result: null,
+					published: [],
+					targets: [{
+						id: 'mcp-top-level:copilotcli:test-session-1:context7',
+						name: serverName,
+						source: URI.parse('mcp-top-level:copilotcli:test-session-1:context7').toString(),
+					}],
+				});
+			});
+		}
+
+		test('suppresses authentication for a disabled discovered MCP server absent from the retained snapshot', async () => {
+			const serverName = 'context7';
+			const { session, runtime } = await createAgentSession(disposables, {
+				sessionCustomizations: () => [],
+				resolveCustomizationEnablement: () => ({
+					kind: 'resolved',
+					enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+					enabled: false,
+					workingDirectory: { kind: 'workspaceless' },
+				}),
+				configureMockSession: mock => {
+					mock.mcpConfiguredListResult = { servers: [{ name: serverName, enabled: false, source: 'user' }] };
+				},
+			});
+			await timeout(0);
+
+			const result = await runtime.handleMcpAuthRequest({
+				requestId: 'disabled-discovered-auth',
+				serverName,
+				serverUrl: 'https://mcp.example.com/context7',
+				reason: 'upscope',
+			}, { sessionId: 'test-session-1' });
+
+			assert.deepStrictEqual({ result, state: session.topLevelMcpCustomizations()[0]?.state }, {
+				result: null,
+				state: { kind: McpServerStatus.Stopped },
+			});
+		});
+
+		test('retries an observed MCP enablement snapshot overtaken by a newer lifecycle event', async () => {
+			const serverName = 'context7';
+			const id = 'mcp-top-level:copilotcli:test-session-1:context7';
+			const gate = new DeferredPromise<void>();
+			const { mockSession, signals } = await createAgentSession(disposables, {
+				sessionCustomizations: () => [{
+					type: CustomizationType.McpServer, id, uri: id, name: serverName,
+					state: { kind: McpServerStatus.Ready },
+				}],
+				configureMockSession: mock => {
+					mock.mcpListResult = { servers: [{ name: serverName, status: 'connected' }] };
+				},
+			});
+			await timeout(0);
+
+			mockSession.mcpListResult = { servers: [{ name: serverName, status: 'disabled' }] };
+			mockSession.mcpListGates.push(gate.p);
+			mockSession.fire('session.mcp_server_status_changed', { serverName, status: 'disabled' });
+			mockSession.mcpListResult = { servers: [{ name: serverName, status: 'pending' }] };
+			mockSession.fire('session.mcp_server_status_changed', { serverName, status: 'pending' });
+			gate.complete();
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				listCalls: mockSession.mcpListCalls,
+				toggles: getActions(signals).filter(action => action.type === ActionType.SessionCustomizationToggled),
+			}, { listCalls: 3, toggles: [] });
+		});
+
+		test('does not let an older observed MCP enablement request supersede a newer request', async () => {
+			const serverName = 'context7';
+			const id = 'mcp-top-level:copilotcli:test-session-1:context7';
+			const gate = new DeferredPromise<void>();
+			const { session, mockSession, signals } = await createAgentSession(disposables, {
+				sessionCustomizations: () => [{
+					type: CustomizationType.McpServer, id, uri: id, name: serverName,
+					state: { kind: McpServerStatus.Stopped },
+					enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+				}],
+				configureMockSession: mock => {
+					mock.mcpListResult = { servers: [{ name: serverName, status: 'disabled' }] };
+				},
+			});
+			await timeout(0);
+
+			mockSession.mcpListResult = { servers: [{ name: serverName, status: 'pending' }] };
+			mockSession.mcpListGates.push(gate.p);
+			mockSession.fire('session.mcp_server_status_changed', { serverName, status: 'pending' });
+			mockSession.mcpListResult = { servers: [{ name: serverName, status: 'disabled' }] };
+			mockSession.fire('session.mcp_server_status_changed', { serverName, status: 'disabled' });
+			await timeout(0);
+			gate.complete();
+			await timeout(0);
+			await session.send('keep latest Context7 configuration');
+
+			assert.deepStrictEqual({
+				enable: mockSession.mcpEnableCalls,
+				disable: mockSession.mcpDisableCalls,
+				toggles: getActions(signals).filter(action => action.type === ActionType.SessionCustomizationToggled),
+			}, { enable: [], disable: [], toggles: [] });
+		});
+
 		for (const testCase of [
 			{ name: 'records an externally disabled server', initialStatus: 'connected', observedStatus: 'disabled', desired: true, expected: false },
 			{ name: 'records an externally enabled server', initialStatus: 'disabled', observedStatus: 'pending', desired: false, expected: true },
 			{ name: 'does not record a host-requested enablement change', initialStatus: 'connected', observedStatus: 'disabled', desired: false, expected: undefined },
+			{ name: 'does not treat pending startup as an enablement change', initialStatus: 'disabled', observedStatus: 'pending', desired: false, expected: undefined },
 		] as const) {
 			test(testCase.name, async () => {
 				const serverName = 'component-explorer';
@@ -19754,10 +19977,19 @@ Use the attached image as context.
 						enabled: testCase.desired,
 						workingDirectory: { kind: 'workspaceless' },
 					}),
+					configureMockSession: mock => {
+						mock.mcpConfiguredListResult = {
+							servers: [{ name: serverName, enabled: testCase.initialStatus !== 'disabled', live: { status: testCase.initialStatus } }],
+						};
+					},
 				});
 
-				mockSession.fire('session.mcp_server_status_changed', { serverName, status: testCase.initialStatus });
+				await timeout(0);
+				mockSession.mcpConfiguredListResult = {
+					servers: [{ name: serverName, enabled: testCase.expected ?? testCase.desired, live: { status: testCase.observedStatus } }],
+				};
 				mockSession.fire('session.mcp_server_status_changed', { serverName, status: testCase.observedStatus });
+				await timeout(0);
 
 				assert.deepStrictEqual(getActions(signals)
 					.filter(action => action.type === ActionType.SessionCustomizationToggled)
@@ -19800,6 +20032,7 @@ Use the attached image as context.
 			const sending = session.send('reconcile MCP enablement');
 			await timeout(0);
 			mockSession.fire('session.mcp_server_status_changed', { serverName, status: 'disabled' });
+			await timeout(0);
 			enableGate.complete();
 			await timeout(0);
 			mockSession.fire('session.mcp_server_status_changed', { serverName, status: 'pending' });
