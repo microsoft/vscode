@@ -112,6 +112,26 @@ suite('MCP - expandEnvironmentVariablesInLaunch', () => {
 		});
 	});
 
+	test('remote: leaves URLs that the Copilot runtime rejects unexpanded, but still expands header values', () => {
+		const env = { HOST: 'mcp.example.com', PORT: '8443', BASE: 'https://base.example.com', SCHEME: 'https', TOKEN: 'tok' };
+		const urls = [
+			'https://${HOST:-example.com}/mcp',
+			'http://localhost:${PORT}/mcp',
+			'${BASE}/mcp',
+			'${SCHEME}://example.com/mcp',
+		];
+		assert.deepStrictEqual(urls.map(url => {
+			const launch = http('https://placeholder.example/mcp', [['Authorization', 'Bearer ${TOKEN}']]);
+			const result = expandEnvironmentVariablesInLaunch(launch, { url }, context(env));
+			return {
+				url,
+				uriUnchanged: result.type === McpServerTransportType.HTTP && result.uri === launch.uri,
+				headers: result.type === McpServerTransportType.HTTP ? result.headers : undefined,
+				hasReferences: launchHasEnvironmentVariableReferences({ ...launch, headers: [] }, { url }),
+			};
+		}), urls.map(url => ({ url, uriUnchanged: true, headers: [['Authorization', 'Bearer tok']], hasReferences: false })));
+	});
+
 	test('reports whether a launch has expandable references', () => {
 		const cases: [McpServerLaunch, string | undefined][] = [
 			[stdio({ args: ['$API_KEY', '${/}', '${input:x}'], env: { KEY: '${env:KEY}', '${NAME}': 'v' }, cwd: '${DIR}' }), undefined],
