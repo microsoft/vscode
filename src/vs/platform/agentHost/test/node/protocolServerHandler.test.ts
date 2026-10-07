@@ -5611,6 +5611,159 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
+	suite('client tool subscription ownership', () => {
+		const clientId = 'client-tools';
+		const peerChatUri = buildChatUri(sessionUri, 'peer');
+
+		function createSessionWithClientTools(): void {
+			stateManager.createSession(makeSessionSummary());
+			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady });
+			stateManager.addChat(sessionUri, peerChatUri);
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.SessionActiveClientSet,
+				activeClient: { clientId, tools: [{ name: 'toolSearch', description: 'Search tools' }] },
+			});
+			for (const chat of [defaultChatUri, peerChatUri]) {
+				stateManager.dispatchServerAction(chat, {
+					type: ActionType.ChatTurnStarted,
+					turnId: 'turn-1',
+					startedAt: '2025-01-01T00:00:00.000Z',
+					message: { text: 'search tools', origin: { kind: MessageKind.User } },
+				});
+				stateManager.dispatchServerAction(chat, {
+					type: ActionType.ChatToolCallStart,
+					turnId: 'turn-1',
+					toolCallId: 'tool-1',
+					toolName: 'toolSearch',
+					displayName: 'Search tools',
+					contributor: { kind: ToolCallContributorKind.Client, clientId },
+				});
+			}
+		}
+
+		function toolStatuses(): (ToolCallStatus | undefined)[] {
+			return [defaultChatUri, peerChatUri].map(chat => {
+				const part = stateManager.getSessionState(chat)?.activeTurn?.responseParts[0];
+				return part?.kind === ResponsePartKind.ToolCall ? part.toolCall.status : undefined;
+			});
+		}
+
+		for (const overlappingConnection of [false, true]) {
+			for (const { name, removed, retained, statuses } of [
+				{ name: 'peer chat with session retained', removed: peerChatUri, retained: sessionUri, statuses: [ToolCallStatus.Streaming, ToolCallStatus.Streaming] },
+				{ name: 'peer chat with main chat retained', removed: peerChatUri, retained: defaultChatUri, statuses: [ToolCallStatus.Streaming, ToolCallStatus.Completed] },
+				{ name: 'main chat with peer chat retained', removed: defaultChatUri, retained: peerChatUri, statuses: [ToolCallStatus.Completed, ToolCallStatus.Streaming] },
+				{ name: 'session with main chat retained', removed: sessionUri, retained: defaultChatUri, statuses: [ToolCallStatus.Streaming, ToolCallStatus.Completed] },
+				{ name: 'session with peer chat retained', removed: sessionUri, retained: peerChatUri, statuses: [ToolCallStatus.Completed, ToolCallStatus.Streaming] },
+			]) {
+				test(`unsubscribing ${name}${overlappingConnection ? ' on another connection' : ''} preserves the active client`, async () => {
+					createSessionWithClientTools();
+					const transport = connectClient(clientId, overlappingConnection ? [removed] : [removed, retained]);
+					if (overlappingConnection) {
+						connectClient(clientId, [retained]);
+					}
+					await handler.whenIdle();
+					transport.simulateMessage(notification('unsubscribe', { channel: removed }));
+
+					assert.deepStrictEqual({
+						clients: stateManager.getSessionState(sessionUri)?.activeClients.map(client => client.clientId),
+						statuses: toolStatuses(),
+						unsubscribed: agentService.unsubscribeCalls.map(call => call.resource),
+					}, {
+						clients: [clientId],
+						statuses,
+						unsubscribed: [removed],
+					});
+				});
+			}
+		}
+
+		test('repeated peer chat subscription churn preserves Search tools until the last subscription is released', async () => {
+			createSessionWithClientTools();
+			const transport = connectClient(clientId, [sessionUri, defaultChatUri]);
+			for (let id = 2; id < 12; id++) {
+				const response = waitForResponse(transport, id);
+				transport.simulateMessage(request(id, 'subscribe', { channel: peerChatUri }));
+				await response;
+				transport.simulateMessage(notification('unsubscribe', { channel: peerChatUri }));
+			}
+			const afterChurn = {
+				clients: stateManager.getSessionState(sessionUri)?.activeClients.map(client => client.clientId),
+				statuses: toolStatuses(),
+			};
+			transport.simulateMessage(notification('unsubscribe', { channel: sessionUri }));
+			const afterSessionUnsubscribe = {
+				clients: stateManager.getSessionState(sessionUri)?.activeClients.map(client => client.clientId),
+				statuses: toolStatuses(),
+			};
+			transport.simulateMessage(notification('unsubscribe', { channel: defaultChatUri }));
+			assert.deepStrictEqual({
+				afterChurn,
+				afterSessionUnsubscribe,
+				afterLastUnsubscribe: {
+					clients: stateManager.getSessionState(sessionUri)?.activeClients.map(client => client.clientId),
+					statuses: toolStatuses(),
+				},
+			}, {
+				afterChurn: { clients: [clientId], statuses: [ToolCallStatus.Streaming, ToolCallStatus.Streaming] },
+				afterSessionUnsubscribe: { clients: [clientId], statuses: [ToolCallStatus.Streaming, ToolCallStatus.Completed] },
+				afterLastUnsubscribe: { clients: [], statuses: [ToolCallStatus.Completed, ToolCallStatus.Completed] },
+			});
+		});
+
+		for (const retainedChat of [defaultChatUri, peerChatUri]) {
+			for (const overlappingConnection of [false, true]) {
+				test(`reconnect retaining only ${retainedChat === defaultChatUri ? 'main' : 'peer'} chat${overlappingConnection ? ' on another connection' : ''} preserves its client tools`, async () => {
+					return runWithFakedTimers({ useFakeTimers: true }, async () => {
+						createSessionWithClientTools();
+						const transport = connectClient(clientId, [sessionUri]);
+						if (overlappingConnection) {
+							connectClient(clientId, [retainedChat]);
+						}
+						await handler.whenIdle();
+						transport.simulateClose();
+						const reconnected = new MockProtocolTransport();
+						server.simulateConnection(reconnected);
+						const response = waitForResponse(reconnected, 1);
+						reconnected.simulateMessage(request(1, 'reconnect', {
+							clientId,
+							lastSeenServerSeq: stateManager.serverSeq,
+							subscriptions: overlappingConnection ? [] : [retainedChat],
+						}));
+						await response;
+						await timeout(30_001);
+
+						assert.deepStrictEqual({
+							clients: stateManager.getSessionState(sessionUri)?.activeClients.map(client => client.clientId),
+							statuses: toolStatuses(),
+						}, {
+							clients: [clientId],
+							statuses: retainedChat === defaultChatUri
+								? [ToolCallStatus.Streaming, ToolCallStatus.Completed]
+								: [ToolCallStatus.Completed, ToolCallStatus.Streaming],
+						});
+					});
+				});
+			}
+		}
+
+		test('a subscription to another session does not retain the active client', () => {
+			createSessionWithClientTools();
+			const otherSession = 'copilot:///other-session';
+			stateManager.createSession({ ...makeSessionSummary(), resource: otherSession });
+			const transport = connectClient(clientId, [sessionUri, otherSession]);
+			transport.simulateMessage(notification('unsubscribe', { channel: sessionUri }));
+
+			assert.deepStrictEqual({
+				clients: stateManager.getSessionState(sessionUri)?.activeClients,
+				statuses: toolStatuses(),
+			}, {
+				clients: [],
+				statuses: [ToolCallStatus.Completed, ToolCallStatus.Completed],
+			});
+		});
+	});
+
 	test('unsubscribe removes the active client and fails its owned tool calls', () => {
 		stateManager.createSession(makeSessionSummary());
 		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });

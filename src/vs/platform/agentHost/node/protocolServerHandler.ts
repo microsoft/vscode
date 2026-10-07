@@ -1242,16 +1242,26 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		}
 	}
 
-	/**
-	 * Release a client from a session: clear its pending disconnect timeout,
-	 * fail any client tool calls it still owns, and remove it from the active
-	 * clients. Used by the explicit-unsubscribe and reconnect-reconciliation
-	 * paths to drop a client that has left a session.
-	 */
+	/** Releases a chat's pending client tools, retaining the session contribution while any chat remains subscribed. */
 	private _releaseActiveClientForSession(session: string, clientId: string, chatChannel: string): void {
 		this._clearClientToolCallDisconnectTimeout(clientId, chatChannel);
+		if (this._hasClientSubscription(clientId, session) || this._hasClientSubscription(clientId, chatChannel)) {
+			return;
+		}
 		this._completeDisconnectedClientToolCalls(clientId, session, chatChannel);
-		this._removeActiveClient(session, clientId);
+		const state = this._stateManager.getSessionState(session);
+		if (!state?.chats.some(chat => this._hasClientSubscription(clientId, chat.resource))) {
+			this._removeActiveClient(session, clientId);
+		}
+	}
+
+	/** Whether any live connection for this client has an active state subscription to the channel. */
+	private _hasClientSubscription(clientId: string, channel: string): boolean {
+		const record = this._clients.get(clientId);
+		return record?.state === 'active' && record.connections.some(connection => {
+			const subscription = connection.subscriptions.get(channel);
+			return subscription?.kind === ChannelKind.State && subscription.active;
+		});
 	}
 
 	/**

@@ -634,6 +634,8 @@ The contract for provider-internal work that has no host call of its own (a plug
 
 Membership changes re-enter the same seam: a `session/chatAdded` envelope fans every current active client into the new exact chat. Client removal is likewise fanned out as `removeActiveClient(chat, context, clientId)`.
 
+The protocol server retains a session's active-client contribution while any live connection for that client subscribes to the session or one of its chats. Unsubscribing or reconnecting without a particular chat fails its pending client tools only when neither that chat nor its session remains subscribed; the session-wide contribution is removed only after its last session/chat subscription is gone. Subscriptions to other sessions or non-chat resources do not retain the contribution.
+
 ### 8d. Prompt-cache metadata
 
 `IAgentHostPromptCache` (`node/agentHostPromptCache.ts`) exposes exactly `read(session)` / `write(session, state)` over the `vscode.promptCache` `_meta` slot. `write` re-reads the persisted value first (several live provider sessions can share one session URI), skips a no-op write, merges rather than replaces `_meta`, and returns the effective state.

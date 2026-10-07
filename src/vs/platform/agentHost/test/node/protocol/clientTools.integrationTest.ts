@@ -17,11 +17,12 @@
  */
 
 import assert from 'assert';
-import { ToolCallContributorKind, ToolResultContentType, type ToolCallContributor } from '../../../common/state/sessionState.js';
+import { ResponsePartKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, type ToolCallContributor } from '../../../common/state/sessionState.js';
 import {
 	createAndSubscribeSession,
 	defaultChatChannel,
 	dispatchTurnStarted,
+	fetchSessionWithChat,
 	getAgentHostE2ETestTimeout,
 	getActionEnvelope,
 	IServerHandle,
@@ -38,7 +39,7 @@ suite('Protocol WebSocket — Client Tools', function () {
 
 	suiteSetup(async function () {
 		this.timeout(getAgentHostE2ETestTimeout(15_000, 60_000));
-		server = await startServer();
+		server = await startServer({ env: { VSCODE_AGENT_HOST_MOCK_MULTIPLE_CHATS: '1' } });
 	});
 
 	suiteTeardown(async function () {
@@ -103,6 +104,63 @@ suite('Protocol WebSocket — Client Tools', function () {
 		await client.waitForNotification(
 			n => isActionNotification(n, 'chat/turnComplete'),
 		);
+	});
+
+	test('peer chat subscription churn preserves the active client and successful tool execution', async function () {
+		this.timeout(10_000);
+		const clientId = 'test-client-tool';
+		const sessionUri = await createAndSubscribeSession(client, clientId);
+		const peerChat = buildChatUri(sessionUri, 'peer');
+		await client.call('createChat', { channel: sessionUri, chat: peerChat, title: 'Peer Chat' });
+		client.notify('dispatchAction', {
+			clientSeq: 1,
+			channel: sessionUri,
+			action: {
+				type: 'session/activeClientSet',
+				activeClient: { clientId, tools: [{ name: 'runTests', description: 'Runs tests' }] },
+			},
+		});
+		dispatchTurnStarted(client, sessionUri, 'turn-churn', 'client-tool', 2);
+		await client.waitForNotification(n => isActionNotification(n, 'chat/toolCallReady'));
+
+		for (let i = 0; i < 10; i++) {
+			await client.call('subscribe', { channel: peerChat });
+			client.notify('unsubscribe', { channel: peerChat });
+		}
+		const afterChurn = await fetchSessionWithChat(client, sessionUri);
+		const pendingPart = afterChurn.activeTurn?.responseParts[0];
+		client.notify('dispatchAction', {
+			clientSeq: 3,
+			channel: defaultChatChannel(sessionUri),
+			action: {
+				type: 'chat/toolCallComplete',
+				turnId: 'turn-churn',
+				toolCallId: 'tc-client-1',
+				result: {
+					success: true,
+					pastTenseMessage: 'Ran tests',
+					content: [{ type: ToolResultContentType.Text, text: 'all passed' }],
+				},
+			},
+		});
+		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
+		const completed = await fetchSessionWithChat(client, sessionUri);
+		const completedPart = completed.turns.at(-1)?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall);
+		assert.deepStrictEqual({
+			activeClients: afterChurn.activeClients.map(activeClient => activeClient.clientId),
+			pendingStatus: pendingPart?.kind === ResponsePartKind.ToolCall ? pendingPart.toolCall.status : undefined,
+			completedTool: completedPart?.kind === ResponsePartKind.ToolCall && completedPart.toolCall.status === ToolCallStatus.Completed ? {
+				success: completedPart.toolCall.success,
+				content: completedPart.toolCall.content,
+			} : undefined,
+		}, {
+			activeClients: [clientId],
+			pendingStatus: ToolCallStatus.Running,
+			completedTool: {
+				success: true,
+				content: [{ type: ToolResultContentType.Text, text: 'all passed' }],
+			},
+		});
 	});
 
 	// ---- Client tool with permission request --------------------------------
