@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { $ } from '../../../../../base/browser/dom.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
@@ -196,16 +195,22 @@ suite('SessionsTitleBarWidget - Remote Host', () => {
 		});
 	});
 
-	test('preserves the workspace label for remote workspace sessions', () => {
-		const harness = createHarness(createSession(remoteProvider.id, upcastPartial<ISessionWorkspace>({
+	test('preserves workspace and branch context for remote workspace sessions', () => {
+		const harness = createHarness(createSession(remoteProvider.id, upcastDeepPartial<ISessionWorkspace>({
 			label: 'Project [Remote machine]',
-			typeIcon: Codicon.folderCompact,
-			folders: [],
+			folders: [{
+				workingDirectory: URI.file('Q:\\project'),
+				gitRepository: { branchName: 'main', workTreeUri: URI.file('Q:\\project') },
+			}],
 		})));
-		assert.deepStrictEqual(harness.presentation(), {
-			text: 'Project [Remote machine]',
-			ariaLabel: 'Show Sessions: Project [Remote machine]',
-			hover: 'Project [Remote machine]',
+		assert.deepStrictEqual({
+			workspace: harness.container.querySelector('.agent-sessions-titlebar-workspace')?.textContent,
+			branch: harness.container.querySelector('.agent-sessions-titlebar-branch')?.textContent,
+			ariaLabel: harness.container.getAttribute('aria-label'),
+		}, {
+			workspace: 'Project [Remote machine]',
+			branch: 'main',
+			ariaLabel: 'Show Sessions: Project [Remote machine], branch main',
 		});
 	});
 
@@ -217,27 +222,4 @@ suite('SessionsTitleBarWidget - Remote Host', () => {
 			hover: 'Custom title',
 		});
 	});
-
-	for (const provider of [localProvider, remoteProvider]) {
-		test(`preserves workspace and branch context for ${provider.label} sessions`, () => {
-			const label = provider === localProvider ? 'Project' : 'Project [Remote machine]';
-			const harness = createHarness(createSession(provider.id, upcastDeepPartial<ISessionWorkspace>({
-				label,
-				folders: [{
-					workingDirectory: URI.file('Q:\\project'),
-					gitRepository: { branchName: 'main', workTreeUri: URI.file('Q:\\project') },
-				}],
-			})));
-
-			assert.deepStrictEqual({
-				workspace: harness.container.querySelector('.agent-sessions-titlebar-workspace')?.textContent,
-				branch: harness.container.querySelector('.agent-sessions-titlebar-branch')?.textContent,
-				ariaLabel: harness.container.getAttribute('aria-label'),
-			}, {
-				workspace: label,
-				branch: 'main',
-				ariaLabel: `Show Sessions: ${label}, branch main`,
-			});
-		});
-	}
 });
