@@ -1841,6 +1841,32 @@ suite('CloudSandboxAgentHostContribution provisioning', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('passes task creation start to the first connection but not to subsequent resumes', () => runWithFakedTimers({}, async () => {
+		const harness = await createContribution(store, [], {
+			createSession: async () => {
+				await timeout(200);
+				return { taskId: 'task-new', sessionId: 'sess-new', environmentId: 'env-new' };
+			},
+		});
+		const connectionTimings: { source: ICloudSandboxConnectOptions['connectionSource']; provisioningElapsed: number | undefined }[] = [];
+		harness.onConnect = async options => {
+			connectionTimings.push({
+				source: options.connectionSource,
+				provisioningElapsed: options.provisioningStartedAt === undefined ? undefined : Date.now() - options.provisioningStartedAt,
+			});
+			await timeout(50);
+		};
+		await timeout(1000);
+		await harness.contribution.provisionSession({ prompt: 'hello' }, CancellationToken.None);
+		await timeout(1000);
+		await harness.contribution.connect({ environmentId: 'env-new', name: 'Sandbox' });
+		harness.contribution.dispose();
+		assert.deepStrictEqual(connectionTimings, [
+			{ source: 'created', provisioningElapsed: 200 },
+			{ source: undefined, provisioningElapsed: undefined },
+		]);
+	}));
+
 	test('creates the task, seeds it like a discovered one, and connects to the bound environment', async () => {
 		const harness = await createContribution(store, []);
 		let connectionSource: ICloudSandboxConnectOptions['connectionSource'];

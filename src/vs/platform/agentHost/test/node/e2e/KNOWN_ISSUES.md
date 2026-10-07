@@ -21,7 +21,7 @@ Capability skips are tracked separately from suspected bugs. A provider that doe
 With native OpenTelemetry enabled, users can experience repeated 30-second stalls while the agent starts shell tools. Concurrent session-event delivery and permission lookup can time out, eventually failing the chat with `session event delivery failed: session lock unavailable`. This also occurs with content capture disabled.
 
 - Test: `shell tools and concurrent session events complete with OTel enabled` in `../providerIntegration/copilotOtel.integrationTest.ts`.
-- Scope: real bundled Copilot SDK `1.0.17-preview.5`; tokenless synthetic BYOK model, native file exporter, and concurrent session events. The disabled control remains unconditionally enabled.
+- Scope: real bundled Copilot SDK `1.0.17-preview.5` and later (still reproduces with `1.0.17-preview.8`); tokenless synthetic BYOK model, native file exporter, and concurrent session events. The disabled control remains unconditionally enabled.
 - Expected: all 288 real shell-tool calls succeed and each concurrent session-event RPC completes within 15 seconds, before the runtime's 30-second lock timeout; native tool spans are exported.
 - Observed: the disabled control completes in approximately 2.6 seconds on macOS; the enabled variant stalls.
 - Tracking: [github/copilot-agent-runtime#25128](https://github.com/github/copilot-agent-runtime/issues/25128).
@@ -119,16 +119,6 @@ Responses are correct, but session notifications intermittently differ from the 
 ```bash
 ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
   --grep "retains context across consecutive turns|client-selected model is used for the turn"
-```
-
-### Codex changeset aggregation flake on Windows
-
-The session's combined changes sometimes omit edits from one of its two chats, failing `session changeset aggregates provider edits from default and peer chats`. Unchanged retries pass; this does not establish lost files. See [#338153](https://github.com/microsoft/vscode/issues/338153).
-
-- Gate: Codex/Windows only in `changesetSuite.ts`. Remove it to reproduce in strict replay; re-enable after repeated clean Windows runs include both chats' edits.
-
-```bat
-scripts\test-integration.bat --run src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts --grep "session changeset aggregates provider edits from default and peer chats"
 ```
 
 ### Binary writes to client-hosted files are corrupted

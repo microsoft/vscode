@@ -260,7 +260,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 
 		if (parsed?.kind === ChangesetKind.Session) {
 			this._addSubscription(parsed.ownerUri, resourceStr);
-			this._changesets.refreshSessionChangeset(parsed.ownerUri, 'fileEditTracker');
+			this._changesets.refreshSessionChangeset(parsed.ownerUri);
 			// Chat-scoped Session Changes come only from tracked edits, which external file changes do not affect.
 			if (!isAhpChatChannel(parsed.ownerUri)) {
 				this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.ownerUri);
@@ -291,7 +291,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		if (kind === ChangesetKind.Branch) {
 			this._reconcileBranchSummaryResources(session);
 		} else {
-			this._changesets.refreshSessionChangeset(session, 'fileEditTracker');
+			this._changesets.refreshSessionChangeset(session);
 			this._changesetFileMonitor.trackSessionChanges(session, session);
 		}
 	}
@@ -471,7 +471,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 					this._trackBranchChangeset(resourceStr, parsed.ownerUri);
 					break;
 				case ChangesetKind.Session:
-					this._changesets.refreshSessionChangeset(parsed.ownerUri, 'fileEditTracker');
+					this._changesets.refreshSessionChangeset(parsed.ownerUri);
 					break;
 				case ChangesetKind.Uncommitted:
 					void this._changesets.computeUncommittedChangeset(parsed.ownerUri);
@@ -647,7 +647,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 				if (getSummaryChangesetKind(this._stateManager.getSessionState(session)?.config?.values) === ChangesetKind.Branch) {
 					this._reconcileBranchSummaryResources(session);
 				} else {
-					this._changesets.refreshSessionChangeset(session, 'fileEditTracker');
+					this._changesets.refreshSessionChangeset(session);
 				}
 			}
 			return;

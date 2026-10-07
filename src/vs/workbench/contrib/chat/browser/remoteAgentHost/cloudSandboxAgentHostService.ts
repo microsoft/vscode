@@ -99,11 +99,11 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 		// are terminal.
 	}
 
-	beginConnect(address: string, source: ICloudSandboxConnectOptions['connectionSource'], environmentKind: ICloudSandboxConnectOptions['environmentKind']): ICloudSandboxConnectionTelemetry | undefined {
+	beginConnect(address: string, options: ICloudSandboxConnectOptions): ICloudSandboxConnectionTelemetry | undefined {
 		if (this._store.isDisposed || this._connectionTelemetry.has(address)) {
 			return undefined;
 		}
-		const telemetry = this._telemetryService.trackConnection('credentials', this._surface, source, environmentKind);
+		const telemetry = this._telemetryService.trackConnection('credentials', this._surface, options.connectionSource, options);
 		this._connectionTelemetry.set(address, telemetry);
 		return telemetry;
 	}
@@ -129,7 +129,8 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 		const staged = this._stagedConnections.get(address);
 		let telemetry = this._connectionTelemetry.get(address);
 		if (!telemetry) {
-			telemetry = this._telemetryService.trackConnection('connection', this._surface, staged?.options.connectionSource, staged?.options.environmentKind);
+			// A new tracker for retained credentials is a new attachment, not the original provisioning flow.
+			telemetry = this._telemetryService.trackConnection('connection', this._surface, 'existing', { environmentKind: staged?.options.environmentKind });
 			this._connectionTelemetry.set(address, telemetry);
 		}
 		const connectionTelemetry = telemetry;
@@ -395,7 +396,7 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 		const watch = StopWatch.create(false);
 		this._logService.info(`${LOG_PREFIX} Connecting to sandbox environment ${options.environmentId}; sessionId=${options.sessionId ?? 'none'}`);
 
-		const telemetry = this._connectionFactory.beginConnect(address, options.connectionSource, options.environmentKind);
+		const telemetry = this._connectionFactory.beginConnect(address, options);
 		const operation = new DisposableStore();
 		const source = operation.add(new CancellationTokenSource(token));
 		let timedOut = false;
