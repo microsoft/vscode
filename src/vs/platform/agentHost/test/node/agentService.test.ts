@@ -20670,6 +20670,91 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('restores historical subagents into normalized private rows before title hydration', async () => {
+			const backing = createPerSessionDataService();
+			const directory = mkdtempSync(join(tmpdir(), 'agent-host-private-restore-'));
+			const path = join(directory, 'agent-host.db');
+			let database = disposables.add(new AgentHostDatabase(path));
+			try {
+				const errors: string[] = [];
+				const log = new class extends NullLogService {
+					override error(message: string | Error): void {
+						errors.push(String(message));
+					}
+				};
+				const createService = () => disposables.add(createTestAgentService(
+					log, fileService, backing.service, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+					undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database,
+				));
+				class HistoricalSubagentAgent extends MockAgent {
+					readonly reads: string[] = [];
+					override async getSessionMessages(session: URI): Promise<readonly Turn[]> {
+						this.reads.push(session.toString());
+						return super.getSessionMessages(session);
+					}
+				}
+				const agent = disposables.add(new HistoricalSubagentAgent('copilot'));
+				const first = createService();
+				registerTestAgentProvider(first, agent);
+				const session = await first.createSession({ provider: 'copilot' });
+				await first.whenCatalogReconciliationIdle();
+				const defaultChat = buildDefaultChatUri(session);
+				const child = buildSubagentChatUri(session.toString(), 'historical-task');
+				await backing.database(session).setMetadataValues({
+					[`customChatTitle:${child}`]: 'My Worker',
+					[`customChatTitleSource:${child}`]: 'user',
+				});
+				agent.sessionMessages = [
+					{ type: 'message', session, role: 'user', messageId: 'user', content: 'Delegate', toolRequests: [] },
+					{ type: 'message', session, role: 'assistant', messageId: 'assistant', content: '', toolRequests: [{ toolCallId: 'historical-task', name: 'task' }] },
+					{ type: 'tool_start', session, toolCallId: 'historical-task', toolName: 'task', displayName: 'Task', invocationMessage: 'Delegating', toolKind: 'subagent', subagentDescription: 'Historical Worker', subagentAgentName: 'explore' },
+					{ type: 'subagent_started', session, toolCallId: 'historical-task', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore' },
+					{ type: 'tool_complete', session, toolCallId: 'historical-task', result: { success: true, pastTenseMessage: 'Delegated', content: [] } },
+				];
+				first.dispose();
+				await database.close();
+				database = disposables.add(new AgentHostDatabase(path));
+				const restored = createService();
+				registerTestAgentProvider(restored, agent);
+				await restored.restoreSession(session);
+				const row = (await database.readChatV2(session.toString(), child)).chat!;
+				await database.updateChatV2Metadata(child, row, { metadata: { ...row.metadata, summary: 'Normalized Worker', titleSource: 'user' } });
+				restored.dispose();
+				await database.close();
+				database = disposables.add(new AgentHostDatabase(path));
+				const restarted = createService();
+				registerTestAgentProvider(restarted, agent);
+				await restarted.restoreSession(session);
+				const snapshot = (await database.readCatalogSnapshot([session.toString()]))[0];
+				const privateRow = snapshot.chats.find(chat => chat.chat === child);
+				assert.deepStrictEqual({
+					importedMetadata: row.metadata,
+					metadata: privateRow?.metadata,
+					parent: privateRow?.parentChat,
+					order: privateRow?.order,
+					title: getStateManager(restarted).getSessionState(session.toString())?.chats.find(chat => chat.resource === child)?.title,
+					childReads: agent.reads.filter(chat => chat === child).length,
+					childState: getStateManager(restarted).getChatState(child),
+					publicChats: snapshot.chats.filter(chat => chat.order !== undefined).map(chat => chat.chat),
+					errors,
+				}, {
+					importedMetadata: { interactivity: ChatInteractivity.Hidden, summary: 'My Worker', titleSource: 'user' },
+					metadata: { interactivity: ChatInteractivity.Hidden, summary: 'Normalized Worker', titleSource: 'user' },
+					parent: defaultChat,
+					order: undefined,
+					title: 'Normalized Worker',
+					childReads: 0,
+					childState: undefined,
+					publicChats: [defaultChat],
+					errors: [],
+				});
+				restarted.dispose();
+			} finally {
+				await database.close();
+				rmSync(directory, { recursive: true, force: true });
+			}
+		});
+
 		test('legacy subagent reconstruction replaces only a generic restored title', async () => {
 			registerTestAgentProvider(service, copilotAgent);
 			const parent = await service.createSession({ provider: 'copilot' });

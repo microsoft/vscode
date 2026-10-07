@@ -10823,6 +10823,12 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			const origin = { kind: ChatOriginKind.Tool, chat: parentChat, toolCallId: child.toolCallId } as const;
 			const existing = this._stateManager.getSessionState(parentSessionStr)?.chats.find(chat => chat.resource === chatUri);
+			await this._peerChatStore.persistPrivateChat(parentSession, {
+				chat: chatUri,
+				parentChat,
+				origin: JSON.stringify(origin),
+				metadata: { interactivity: ChatInteractivity.Hidden },
+			}, true);
 			const { title: persistedTitle } = await this._chatContributions.hydrateChat({
 				session: parentSessionStr,
 				chat: chatUri,

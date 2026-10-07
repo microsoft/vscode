@@ -58,6 +58,10 @@ or reconciliation. Conversion failures remain logged and isolated per owner.
 queued SELECT. It validates the visible default and the requested row's metadata
 and directories without decoding sibling or private rows. Title hydration and
 deferred-title restoration use this lookup rather than repeated full snapshots.
+Historical subagents discovered from restored parent tool results are registered
+as private rows before title hydration, retaining their parent edge and imported
+legacy custom title. Existing normalized metadata remains authoritative; child
+transcripts stay lazy and private rows never enter public peer ordering.
 
 `getChatV2ProviderDetail(chat)` lazily reads only opaque provider data.
 Absent snapshot directories mean inheritance;

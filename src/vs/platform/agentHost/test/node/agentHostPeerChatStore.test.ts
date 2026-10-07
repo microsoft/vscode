@@ -281,6 +281,7 @@ suite('AgentHostPeerChatStore', () => {
 		await store.remove(session, second);
 		const [after] = await orchestrator.readCatalogSnapshot([session.toString()]);
 		await assert.rejects(store.persistPrivateChat(session, { chat: second.toString(), metadata: { interactivity: ChatInteractivity.Hidden } }), /Conflicting private chat identity/);
+		await assert.rejects(store.persistPrivateChat(session, { chat: second.toString(), parentChat: first.toString(), metadata: { interactivity: ChatInteractivity.Hidden } }, true), /Conflicting private chat identity/);
 		assert.deepStrictEqual({
 			worker: before.chats.find(chat => chat.chat === second.toString())?.metadata,
 			remaining: after.chats.map(chat => ({ chat: chat.chat, order: chat.order, read: chat.isRead, archived: chat.archived })),

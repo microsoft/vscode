@@ -112,7 +112,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		return tracked;
 	}
 
-	persistPrivateChat(session: URI, chat: IAgentHostDatabaseChatV2NormalizationChat): Promise<void> {
+	persistPrivateChat(session: URI, chat: IAgentHostDatabaseChatV2NormalizationChat, restore = false): Promise<void> {
 		return this._enqueue(session, async () => {
 			while (true) {
 				const [snapshot] = await this._database.readCatalogSnapshot([session.toString()]);
@@ -126,15 +126,42 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 				if (existing && (existing.order !== undefined || existing.metadata?.interactivity !== ChatInteractivity.Hidden)) {
 					throw new Error(`Cannot replace public chat ${chat.chat} with a private chat`);
 				}
+				if (restore && existing) {
+					return;
+				}
+				let metadata = chat.metadata;
+				if (restore) {
+					const chatRef = await this._sessionDataService.tryOpenDatabase(URI.parse(chat.chat));
+					let title: string | undefined;
+					let titleSource: string | undefined;
+					try {
+						title = await chatRef?.object.getMetadata(SESSION_CUSTOM_TITLE_KEY);
+						titleSource = await chatRef?.object.getMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY);
+					} finally {
+						chatRef?.dispose();
+					}
+					const sessionRef = await this._sessionDataService.tryOpenDatabase(session);
+					try {
+						title ??= await sessionRef?.object.getMetadata(customChatTitleMetadataKey(chat.chat));
+						titleSource ??= await sessionRef?.object.getMetadata(customChatTitleSourceMetadataKey(chat.chat));
+					} finally {
+						sessionRef?.dispose();
+					}
+					metadata = {
+						...metadata,
+						...(title !== undefined ? { summary: toCatalogSummary(title) } : {}),
+						...(titleSource === 'user' || titleSource === 'agent' || titleSource === 'auto' ? { titleSource } : {}),
+					};
+				}
 				const result = existing
 					? await this._database.updateChatV2Metadata(chat.chat, existing, {
 						...(chat.parentChat !== undefined ? { parentChat: chat.parentChat } : {}),
 						...(chat.providerData !== undefined ? { providerData: chat.providerData } : {}),
 						...(chat.origin !== undefined ? { origin: chat.origin } : {}),
 						...(chat.workingDirectories !== undefined ? { workingDirectories: chat.workingDirectories } : {}),
-						metadata: { ...existing.metadata, ...chat.metadata, interactivity: ChatInteractivity.Hidden },
+						metadata: { ...existing.metadata, ...metadata, interactivity: ChatInteractivity.Hidden },
 					})
-					: await this._database.insertPrivateChatV2(session.toString(), chat, snapshot.header.revision);
+					: await this._database.insertPrivateChatV2(session.toString(), { ...chat, metadata }, snapshot.header.revision);
 				if (result.status === 'conflict') {
 					const [current] = await this._database.readCatalogSnapshot([session.toString()]);
 					if (current?.header?.revision === snapshot.header.revision) {
