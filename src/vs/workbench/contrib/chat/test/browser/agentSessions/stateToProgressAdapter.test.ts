@@ -1199,6 +1199,26 @@ suite('stateToProgressAdapter', () => {
 			]);
 		});
 
+		test('restores the Auto selection reason with the routing part', () => {
+			const reason = 'Auto selected gpt-5.4-mini to prioritize cost efficiency, alongside model fit for this task.';
+			const turn = createTurn({
+				usage: {
+					model: 'gpt-5.4-mini',
+					_meta: { autoModeResolved: { chosenModel: 'gpt-5.4-mini', selectionReason: reason } },
+				},
+			});
+			const lookup = makeLookup('agent-host-copilot:', { 'gpt-5.4-mini': 'GPT-5.4 mini' });
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p', lookup);
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+
+			assert.deepStrictEqual(response.parts, [
+				{ kind: 'autoModeResolution', resolved: { id: 'gpt-5.4-mini', name: 'GPT-5.4 mini', reason } },
+			]);
+		});
+
 		test('drops a routing part that never resolved from restored history', () => {
 			const turn = createTurn({ message: message('first'), usage: { model: 'auto' } });
 			const lookup = makeLookup('agent-host-copilot:', { 'auto': 'Auto' }, 'auto');

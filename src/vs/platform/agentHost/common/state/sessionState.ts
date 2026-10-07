@@ -265,6 +265,12 @@ export interface IAutoModeResolvedInfo {
 	readonly predictedLabel?: string;
 	readonly confidence?: number;
 	readonly candidateModels?: readonly string[];
+	/**
+	 * Display-only sentence from the routing service explaining why
+	 * {@link chosenModel} was picked; it already names the model. Absent for
+	 * on-device selections and when the service supplied no explanation.
+	 */
+	readonly selectionReason?: string;
 }
 
 /**
