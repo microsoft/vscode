@@ -299,7 +299,10 @@ export class NonPtyShellTerminalStreams extends Disposable {
 		if (created) {
 			this._createTerminal(toolCallId, stream);
 		}
-		const chunks = stream.chunks ??= { lastSequence: -1, pendingEscapes: new Map() };
+		if (!stream.chunks) {
+			stream.chunks = { lastSequence: -1, pendingEscapes: new Map() };
+		}
+		const chunks = stream.chunks;
 		if (stream.finalized || chunk.sequence <= chunks.lastSequence) {
 			return { uri: stream.uri, created };
 		}
