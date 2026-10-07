@@ -70,7 +70,7 @@ test('Connected defaults do not surface the theme active-top accent', async ({ p
 		structuralBoundary: '#2a2b2c',
 		themeActiveTop: '#3994bc',
 		shoulder: {
-			bottom: '0px',
+			bottom: '-1px',
 			height: '7px',
 			radius: '7px',
 			color: 'rgb(42, 43, 44)',
@@ -558,11 +558,11 @@ for (const [fixture, expected] of [
 			separator: 'rgb(34, 211, 238)',
 			indicator: 'block',
 			topAligned: true,
-			bodyOverlap: 1,
+			bodyOverlap: 0,
 			frameInsets: [1, 1],
 			shoulderTangents: {
-				left: ['0px', '7px', '7px', 'rgb(34, 211, 238)'],
-				right: ['0px', '7px', '7px', 'rgb(34, 211, 238)'],
+				left: ['-1px', '7px', '7px', 'rgb(34, 211, 238)'],
+				right: ['-1px', '7px', '7px', 'rgb(34, 211, 238)'],
 			},
 			visibleDividers: expected.dividers,
 		});

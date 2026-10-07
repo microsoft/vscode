@@ -54,10 +54,13 @@ type ITestTask = Omit<ReturnType<typeof task>, 'current_environment'> & {
 interface ITestSetup {
 	readonly service: CloudSandboxApiService;
 	readonly requestedUrls: string[];
+	readonly provisioningOutcomes: ProvisioningOutcome[];
 	/** Peak number of task-detail fetches in flight at once during the run. */
 	readonly concurrency: { max: number; current: number };
 	changeAuthentication(): void;
 }
+
+type ProvisioningOutcome = Parameters<ICloudSandboxTelemetryService['reportProvisioningOutcome']>;
 
 class TestLogService extends NullLogService {
 	readonly traces: string[] = [];
@@ -103,6 +106,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 	readonly authenticationSessions?: (scopes?: readonly string[]) => Promise<readonly AuthenticationSession[]>;
 }): ITestSetup {
 	const requestedUrls: string[] = [];
+	const provisioningOutcomes: ProvisioningOutcome[] = [];
 	const concurrency = { max: 0, current: 0 };
 	const remainingTaskRateLimits = new Map(options.rateLimitedTaskFetches ?? []);
 	let remainingListRateLimits = options.rateLimitedListPages ?? 0;
@@ -193,11 +197,15 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 	instantiationService.stub(ILogService, options.logService ?? new NullLogService());
 	instantiationService.stub(ICloudSandboxTelemetryService, new class extends mock<ICloudSandboxTelemetryService>() {
 		override reportRequest(): void { }
+		override reportProvisioningOutcome(...outcome: ProvisioningOutcome): void {
+			provisioningOutcomes.push(outcome);
+		}
 	}());
 
 	return {
 		service: store.add(instantiationService.createInstance(CloudSandboxApiService)),
 		requestedUrls,
+		provisioningOutcomes,
 		concurrency,
 		changeAuthentication: () => authenticationChanges.fire({ providerId: 'github', label: 'GitHub', event: { added: [], removed: [], changed: [] } }),
 	};
@@ -1580,6 +1588,7 @@ function createServiceForCreate(store: Pick<{ add<T extends { dispose(): void }>
 	}());
 	instantiationService.stub(ICloudSandboxTelemetryService, new class extends mock<ICloudSandboxTelemetryService>() {
 		override reportRequest(): void { }
+		override reportProvisioningOutcome(): void { }
 	}());
 	return { service: store.add(instantiationService.createInstance(CloudSandboxApiService)), calls, errors, warnings };
 }
@@ -1842,6 +1851,60 @@ suite('CloudSandboxApiService task deletion', () => {
 suite('CloudSandboxApiService session creation', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const result of ['success', 'HTTP error', 'network error', 'invalid binding', 'invalid JSON', 'cancelled', 'late success after cancellation'] as const) {
+		test(`reports provisioning duration separately when ${result}`, () => runWithFakedTimers({}, async () => {
+			const source = store.add(new CancellationTokenSource());
+			const error = new Error('private network error');
+			const { service, provisioningOutcomes } = createService(store, {
+				tasks: [], repositories: new Map(),
+				onRequest: async (_url, _token, options) => {
+					if (options.type === 'DELETE') {
+						await timeout(10);
+						return jsonResponse({}, 204);
+					}
+					await timeout(40);
+					if (result === 'cancelled' || result === 'late success after cancellation') {
+						source.cancel();
+					}
+					if (result === 'cancelled') {
+						throw new CancellationError();
+					}
+					if (result === 'network error') {
+						throw error;
+					}
+					if (result === 'HTTP error') {
+						return jsonResponse({ message: 'private server error' }, 500);
+					}
+					if (result === 'invalid JSON') {
+						return { res: { headers: {}, statusCode: 200 }, stream: bufferToStream(VSBuffer.fromString('invalid')) };
+					}
+					return jsonResponse({
+						id: 'private-task',
+						sessions: result === 'invalid binding' ? [] : [{ id: 'private-session', environment_id: 'private-environment' }],
+					});
+				},
+			});
+			await timeout(100);
+			const provisioning = service.createSession({ prompt: 'private prompt' }, source.token);
+			if (result === 'success' || result === 'late success after cancellation') {
+				await provisioning;
+			} else {
+				await assert.rejects(provisioning, caught => result === 'network error' ? caught === error : caught instanceof Error);
+			}
+			await timeout(100);
+			assert.deepStrictEqual(provisioningOutcomes, [[
+				result === 'success' ? 'success' : result === 'cancelled' || result === 'late success after cancellation' ? 'cancelled' : 'failure',
+				result === 'invalid binding' ? 50 : 40,
+			]]);
+		}));
+	}
+
+	test('reports already cancelled provisioning without issuing a request', () => runWithFakedTimers({}, async () => {
+		const { service, requestedUrls, provisioningOutcomes } = createService(store, { tasks: [], repositories: new Map() });
+		await assert.rejects(service.createSession({ prompt: 'hello' }, CancellationToken.Cancelled), isCancellationError);
+		assert.deepStrictEqual({ requestedUrls, provisioningOutcomes }, { requestedUrls: [], provisioningOutcomes: [['cancelled', 0]] });
+	}));
 
 	test('posts the on-demand sentinel and returns the bound environment', async () => {
 		const { service, calls } = createServiceForCreate(store, {

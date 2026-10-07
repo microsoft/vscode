@@ -68,7 +68,7 @@ import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { AgentHostDatabase, AgentHostDatabaseSessionChatCatalogReplaceResult, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabase, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSession, IAgentHostDatabaseSessionChat, IAgentHostDatabaseSessionChatCatalog, IAgentHostDatabaseSessionsV2Exclusion, IAgentHostDatabaseSessionsV2ExclusionExpectation, IAgentHostDatabaseSessionOptions, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Envelope, IAgentHostDatabaseSessionV2Receipt } from '../../node/agentHostDatabase.js';
-import { AgentHostPeerChatStore, CHAT_INHERITED_TURN_METADATA_KEY, CHAT_ORIGIN_METADATA_KEY, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_DIRECTORIES_METADATA_KEY, type IPersistedPeerChat } from '../../node/agentHostPeerChatStore.js';
+import { CHAT_INHERITED_TURN_METADATA_KEY, CHAT_ORIGIN_METADATA_KEY, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_DIRECTORIES_METADATA_KEY, type IPersistedPeerChat } from '../../node/agentHostPeerChatStore.js';
 import { AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT, AGENT_HOST_CATALOG_PAYLOAD_VERSION, AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT, decodeAgentHostCatalogPayload, encodeAgentHostCatalogPayload, type AgentHostCatalogData } from '../../node/agentHostCatalogProjection.js';
 import type { IAgentHostStorageService } from '../../node/agentHostStorageService.js';
 import { AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY, CATALOG_VERIFICATION_VERSION, type IAgentHostCatalogReconciliationReport } from '../../node/agentHostCatalogReconciliationService.js';
@@ -840,9 +840,6 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 		this._sessionChats.set(session, { revision, legacyMirroredRevision: current?.legacyMirroredRevision ?? 0, chats: [...chats] });
 		return { status: 'applied', revision };
 	}
-	async recoverSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult> {
-		return this.replaceSessionChatCatalog(session, chats, expectedRevision);
-	}
 	async markSessionChatCatalogLegacyMirrored(session: string, expectedRevision: number, payload?: string): Promise<boolean> {
 		const current = this._sessionChats.get(session);
 		if (!current || current.revision !== expectedRevision) {
@@ -898,9 +895,6 @@ class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
 	async ensureChatCatalogV2(..._args: Parameters<IAgentHostDatabase['ensureChatCatalogV2']>): ReturnType<IAgentHostDatabase['ensureChatCatalogV2']> { return { status: 'notReady' }; }
 	async registerChatCatalogV2(..._args: Parameters<IAgentHostDatabase['registerChatCatalogV2']>): ReturnType<IAgentHostDatabase['registerChatCatalogV2']> { return { status: 'notReady' }; }
 	async updateChatV2Metadata(..._args: Parameters<IAgentHostDatabase['updateChatV2Metadata']>): ReturnType<IAgentHostDatabase['updateChatV2Metadata']> { return { status: 'notReady' }; }
-	async recoverSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult> {
-		return this.replaceSessionChatCatalog(session, chats, expectedRevision);
-	}
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _sessions = new Map<string, IAgentHostDatabaseSession>();
@@ -6641,6 +6635,57 @@ suite('AgentService (node dispatcher)', () => {
 				});
 			});
 		}
+
+		test('set_workspace uses the sole connected active client for a provider-started turn', async () => {
+			const original = URI.file('/workspace/original');
+			const destination = URI.file('/workspace/destination');
+			class WorkspaceAgent extends MockAgent {
+				serverToolHost: IAgentServerToolHost | undefined;
+
+				setServerToolHost(host: IAgentServerToolHost): void {
+					this.serverToolHost = host;
+				}
+
+				async setChatWorkingDirectory(): Promise<void> { }
+			}
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new WorkspaceAgent('copilot', undefined, { workspaceConversion: true }));
+			registerTestAgentProvider(svc, agent);
+			const clientConnections = Reflect.get(svc, '_clientConnections') as IAgentHostClientConnectionService;
+			disposables.add(clientConnections.registerSource({
+				hasSeenClient: clientId => clientId === 'client',
+				isClientConnected: clientId => clientId === 'client',
+				isLocalClient: () => true,
+				getConnectedClientTransportCounts: () => new Map([['client', 1]]),
+				requestWorkspaceTrust: async () => true,
+				requestMcpAuthentication: async () => false,
+			}));
+			const session = await svc.createSession({
+				provider: agent.id,
+				workingDirectories: [original],
+				activeClient: { clientId: 'client', tools: [] },
+			});
+			const state = getStateManager(svc);
+			state.dispatchServerAction(session.toString(), { type: ActionType.SessionConfigChanged, config: { autoApprove: 'autoApprove' } });
+			const chat = URI.parse(buildDefaultChatUri(session));
+			agent.fireProgress({
+				kind: 'action',
+				resource: chat,
+				action: {
+					type: ActionType.ChatTurnStarted,
+					turnId: 'provider-turn',
+					startedAt: new Date().toISOString(),
+					message: { text: 'Work in the destination', origin: { kind: MessageKind.User } },
+				},
+			});
+			await waitForCondition(() => state.getActiveTurnId(chat.toString()) === 'provider-turn', 'Expected the provider-started turn to become active');
+			const result = await agent.serverToolHost!.executeTool(chat.toString(), SessionServerToolName.SetWorkspace, {
+				workspaceFolder: destination.toString(),
+				isolation: false,
+			});
+
+			assert.strictEqual(result.split('.')[0], `Workspace will be set to ${destination.toString()} after this turn ends`);
+		});
 
 		test('workspace finalization serializes peer disposal across metadata persistence', async () => {
 			const started = new DeferredPromise<void>();
@@ -19974,29 +20019,20 @@ suite('AgentService (node dispatcher)', () => {
 				};
 				getStateManager(localService).announceSurfacedSession(summary);
 				getStateManager(localService).prepareSessionSummariesForListing([summary]);
-				const notifications: INotification[] = [];
-				const listener = localService.onDidNotification(notification => notifications.push(notification));
+				const summaryChanged = Event.toPromise(Event.filter(localService.onDidNotification, notification => notification.type === 'root/sessionSummaryChanged'), disposables);
 
 				localService.dispatchAction(sessionStr, { type: ActionType.SessionIsReadChanged, isRead: true }, 'test-client', 1, AgentHostClientType.EditorWindow);
-				for (let attempt = 0; attempt < 20 && !notifications.some(notification => notification.type === 'root/sessionSummaryChanged'); attempt++) {
-					await timeout(0);
-				}
-				listener.dispose();
-				for (let attempt = 0; id === 'single' && attempt < 20 && await db.getMetadata(AH_META_DEFAULT_CHAT_IS_READ_DB_KEY) !== 'true'; attempt++) {
-					await timeout(0);
-				}
+				const changed = await summaryChanged;
+				// Summary publication precedes the queued default-chat and catalog writes.
+				await localService.whenCatalogReconciliationIdle();
 
-				const changed = notifications.find(notification => notification.type === 'root/sessionSummaryChanged');
+				assert.ok(changed.type === 'root/sessionSummaryChanged');
 				assert.deepStrictEqual({
 					id,
 					persistedSession: await db.getMetadata(AH_META_IS_READ_DB_KEY),
 					persistedDefault: await db.getMetadata(AH_META_DEFAULT_CHAT_IS_READ_DB_KEY),
-					publishedSessionRead: changed?.type === 'root/sessionSummaryChanged'
-						? !!(changed.changes.status! & SessionStatus.IsRead)
-						: undefined,
-					publishedChats: changed?.type === 'root/sessionSummaryChanged'
-						? changed.changes.chats?.map(chat => chat.status === undefined ? undefined : isSessionStatusRead(chat.status))
-						: undefined,
+					publishedSessionRead: !!(changed.changes.status! & SessionStatus.IsRead),
+					publishedChats: changed.changes.chats?.map(chat => chat.status === undefined ? undefined : isSessionStatusRead(chat.status)),
 				}, {
 					id,
 					persistedSession: expectedSessionRead ? 'true' : '',
@@ -23352,219 +23388,6 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(snapshot?.authorityVersion, 2);
 			const result = await database.replaceSessionChatCatalog(session.toString(), peers, snapshot.header?.revision);
 			assert.strictEqual(result.status, 'applied');
-		}
-
-		for (const malformed of ['backup', 'origin']) {
-			test(`listing isolates malformed recovery ${malformed} and still recovers another parent`, async () => {
-				const perSession = createPerSessionDataService();
-				const dataId = (resource: URI) => `${resource.authority ? `${resource.authority}-` : ''}${resource.path.slice(1)}`;
-				const sessionData: ISessionDataService = {
-					...perSession.service,
-					getSessionDataDir: resource => URI.file(`/session-data/${dataId(resource)}`),
-					getSessionDataDirById: id => URI.file(`/session-data/${id}`),
-					listSessionDataIds: async () => perSession.databaseIds().map(key => dataId(URI.parse(key))),
-					deleteSessionData: async () => { throw new Error('Recovery must not delete any backing data'); },
-				};
-				const database = disposables.add(new LegacyChatCatalogDatabase(':memory:'));
-				const errors: string[] = [];
-				class RecordingLogService extends NullLogService {
-					override error(_error: string | Error, message?: string): void {
-						if (message) {
-							errors.push(message);
-						}
-					}
-				}
-				const logService = new RecordingLogService();
-				const localService = disposables.add(createTestAgentService(
-					logService, fileService, sessionData,
-					{ _serviceBrand: undefined } as IProductService, createNoopGitService(),
-					undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database,
-				));
-				getConfigurationService(localService).updateRootConfig({ [AgentHostSessionCatalogEnabledConfigKey]: true });
-				class MultiChatAgent extends MockAgent {
-					override async createChat(): Promise<IAgentCreateChatResult> {
-						return { providerData: 'original-backing' };
-					}
-				}
-				const agent = disposables.add(new MultiChatAgent('copilotcli'));
-				registerTestAgentProvider(localService, agent);
-				const broken = await localService.createSession({ provider: 'copilotcli', session: AgentSession.uri('copilotcli', generateUuid()) });
-				const healthy = await localService.createSession({ provider: 'copilotcli', session: AgentSession.uri('copilotcli', generateUuid()) });
-				const selectedId = '653a2e4f-5354-46ae-9a96-30c1b2cf4ce1';
-				const peerStore = new AgentHostPeerChatStore(database, sessionData, logService);
-				for (const parent of [broken, healthy]) {
-					const chat = URI.parse(buildChatUri(parent, selectedId));
-					await localService.createChat(parent, chat, { title: 'Original Chat' });
-					await database.registerRuntimeSession(parent.with({ fragment: selectedId }).toString(), { provider: 'copilotcli', startTime: 1, source: 'restore' }, { checkTombstone: false });
-					await perSession.database(parent).setMetadata('peerChats', '[]');
-					await peerStore.reconcileLegacy(parent);
-					getStateManager(localService).removeSession(parent.toString());
-				}
-				const damagedDatabase = malformed === 'backup' ? perSession.database(broken) : perSession.database(URI.parse(buildChatUri(broken, selectedId)));
-				const damagedKey = malformed === 'backup' ? 'agentHost.peerChatRecovery339409' : CHAT_ORIGIN_METADATA_KEY;
-				await damagedDatabase.setMetadata(damagedKey, '{invalid-json');
-				const brokenBefore = await database.getSessionChatCatalog(broken.toString());
-
-				const listed = await localService.listSessions();
-				await localService.listSessions();
-
-				assert.deepStrictEqual({
-					listedParents: [broken, healthy].map(parent => listed.some(entry => entry.session.toString() === parent.toString())),
-					broken: await database.getSessionChatCatalog(broken.toString()),
-					healthy: (await database.getSessionChatCatalog(healthy.toString()))?.chats.map(chat => chat.chat),
-					phantoms: (await localService.getRegisteredSessions()).filter(resource => resource.fragment).map(resource => resource.toString()),
-					damagedMetadata: await damagedDatabase.getMetadata(damagedKey),
-					logged: errors.includes(`[AgentService] Failed to recover peer chats for ${broken.toString()}; preserving registrations`),
-				}, {
-					listedParents: [true, true],
-					broken: brokenBefore,
-					healthy: [buildChatUri(healthy, selectedId)],
-					phantoms: [broken.with({ fragment: selectedId }).toString()],
-					damagedMetadata: '{invalid-json',
-					logged: true,
-				});
-			});
-		}
-
-		for (const [cold, completed] of [[false, false], [true, false], [true, true]]) {
-			test(`listing recovers erased peer membership and unregisters only verified restored phantoms without deleting data (${cold ? 'cold' : 'live'} session, recovery ${completed ? 'completed' : 'new'})`, async () => {
-				const originalTurn: Turn = {
-					id: 'original-turn',
-					state: TurnState.Complete,
-					message: { text: 'Original peer conversation', origin: { kind: MessageKind.User } },
-					responseParts: [],
-					usage: undefined,
-				};
-				const perSession = createPerSessionDataService();
-				const dataId = (resource: URI) => `${resource.authority ? `${resource.authority}-` : ''}${resource.path.slice(1)}`;
-				const sessionData: ISessionDataService = {
-					...perSession.service,
-					getSessionDataDir: resource => URI.file(`/session-data/${dataId(resource)}`),
-					getSessionDataDirById: id => URI.file(`/session-data/${id}`),
-					listSessionDataIds: async () => perSession.databaseIds().map(key => dataId(URI.parse(key))),
-					deleteSessionData: async () => { throw new Error('Recovery must not delete any backing data'); },
-				};
-				const database = disposables.add(new LegacyChatCatalogDatabase(':memory:'));
-				const localService = disposables.add(createTestAgentService(
-					new NullLogService(), fileService, sessionData,
-					{ _serviceBrand: undefined } as IProductService, createNoopGitService(),
-					undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database,
-				));
-				getConfigurationService(localService).updateRootConfig({ [AgentHostSessionCatalogEnabledConfigKey]: true });
-				class MultiChatAgent extends MockAgent {
-					readonly materialized: { chat: string; providerData: string | undefined }[] = [];
-
-					override async createChat(): Promise<IAgentCreateChatResult> {
-						return { providerData: '{"sdkSessionId":"original-sdk-session"}' };
-					}
-
-					override async materializeChat(chat: URI, _context: URI | IAgentChatContext, providerData: string | undefined): Promise<void> {
-						if (!isDefaultChatUri(chat)) {
-							this.materialized.push({ chat: chat.toString(), providerData });
-						}
-					}
-
-					override async getSessionMessages(chat: URI): Promise<readonly Turn[]> {
-						return isDefaultChatUri(chat) ? [] : [originalTurn];
-					}
-				}
-				const agent = disposables.add(new MultiChatAgent('copilotcli'));
-				registerTestAgentProvider(localService, agent);
-				const parent = await localService.createSession({ provider: 'copilotcli', session: AgentSession.uri('copilotcli', generateUuid()) });
-				const selectedId = '653a2e4f-5354-46ae-9a96-30c1b2cf4ce1';
-				const otherId = 'c805f176-d9f7-4a24-a332-feac66843088';
-				const selected = URI.parse(buildChatUri(parent, selectedId));
-				const other = URI.parse(buildChatUri(parent, otherId));
-				await localService.createChat(parent, selected, { title: 'Original Selected Chat' });
-				await localService.createChat(parent, other, { title: 'Original Other Chat' });
-				const peerStore = new AgentHostPeerChatStore(database, sessionData, new NullLogService());
-				await peerStore.setRead(parent, other, false);
-				await perSession.database(other).createTurn('original-turn');
-				await perSession.database(other).setTurnEventId('original-turn', 'original-event');
-				const phantom = parent.with({ fragment: selectedId });
-				const explicitFragment = parent.with({ fragment: 'explicit-resource' });
-				await database.registerRuntimeSession(phantom.toString(), { provider: 'copilotcli', startTime: 1, source: 'restore' }, { checkTombstone: false });
-				await database.registerRuntimeSession(explicitFragment.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
-				await perSession.database(parent).setMetadata('peerChats', '[]');
-				await peerStore.reconcileLegacy(parent);
-				if (completed) {
-					await peerStore.recoverChatSelectionCorruption(parent, [selectedId]);
-					await database.unregisterSession(phantom.toString());
-				}
-				const currentRow = await database.getSessionV2(parent.toString());
-				const currentData = catalogDataOf(currentRow);
-				assert.ok(currentRow && currentData);
-				const stale = catalogEnvelope(parent, {
-					...currentData,
-					chats: currentData.chats.filter(chat => chat.kind === 'default'),
-				}, currentRow.sessionGeneration, currentRow.sourceRevision + 1);
-				await perSession.database(parent).setMetadataValuesAndCatalogSyncSnapshot({}, {
-					sessionGeneration: stale.sessionGeneration,
-					sourceRevision: stale.sourceRevision,
-					projectionVersion: stale.payloadVersion,
-					payload: stale.payload,
-					payloadHash: stale.payloadHash,
-					state: 'pending',
-				});
-				assert.strictEqual(await database.upsertSessionV2(stale, currentRow.sessionGeneration), 'applied');
-				const stateManager = getStateManager(localService);
-				stateManager.removeChat(parent.toString(), selected.toString());
-				stateManager.removeChat(parent.toString(), other.toString());
-				if (cold) {
-					stateManager.removeSession(parent.toString());
-				}
-
-				const membershipBeforeListing = completed ? (await database.getSessionChatCatalog(parent.toString()))?.chats.map(chat => chat.chat) : undefined;
-				const recoveryBeforeListing = completed ? await perSession.database(parent).getMetadata('agentHost.peerChatRecovery339409') : undefined;
-				const listed = await localService.listSessions();
-				const coldParentUnopened = !cold || stateManager.getSessionState(parent.toString()) === undefined;
-				const materializedBeforeOpen = [...agent.materialized];
-				const projectedAfterFirstList = catalogDataOf(await database.getSessionV2(parent.toString()))?.chats.map(chat => chat.uri);
-				const registered = await localService.getRegisteredSessions();
-				await localService.listSessions();
-				const lazyBeforeOpen = stateManager.getChatState(other.toString()) === undefined;
-				agent.materialized.length = 0;
-				await localService.subscribe(other, 'recovery-reader');
-				const restored = await stateManager.resolveChatState(other.toString());
-
-				assert.deepStrictEqual({
-					registered: registered.map(resource => resource.toString()).sort(),
-					membership: (await database.getSessionChatCatalog(parent.toString()))?.chats.map(chat => chat.chat),
-					listed: listed.find(entry => entry.session.toString() === parent.toString())?.chats?.map(chat => ({ uri: chat.chat.toString(), title: chat.summary ?? '' })),
-					listedRecoveredPeerIsRead: listed.find(entry => entry.session.toString() === parent.toString())?.chats?.find(chat => chat.chat.toString() === other.toString())?.isRead,
-					turnEvent: await perSession.database(other).getTurnEventId('original-turn'),
-					providerData: await perSession.database(other).getMetadata('agentHost.chatProviderData'),
-					lazyBeforeOpen,
-					coldParentUnopened,
-					materializedBeforeOpen,
-					projectedAfterFirstList,
-					projectedRecoveredPeerIsRead: catalogDataOf(await database.getSessionV2(parent.toString()))?.chats.find(chat => chat.uri === other.toString())?.isRead,
-					completedRecoveryUnchanged: !completed || recoveryBeforeListing === await perSession.database(parent).getMetadata('agentHost.peerChatRecovery339409'),
-					completedMembershipUnchanged: !completed || JSON.stringify(membershipBeforeListing) === JSON.stringify((await database.getSessionChatCatalog(parent.toString()))?.chats.map(chat => chat.chat)),
-					restoredTurns: restored?.turns.map(turn => ({ id: turn.id, text: turn.message.text })),
-					materialized: agent.materialized,
-				}, {
-					registered: [parent.toString(), explicitFragment.toString()].sort(),
-					membership: [selected.toString(), other.toString()],
-					listed: [
-						{ uri: buildDefaultChatUri(parent), title: '' },
-						{ uri: selected.toString(), title: 'Original Selected Chat' },
-						{ uri: other.toString(), title: 'Original Other Chat' },
-					],
-					listedRecoveredPeerIsRead: false,
-					turnEvent: 'original-event',
-					providerData: '{"sdkSessionId":"original-sdk-session"}',
-					lazyBeforeOpen: true,
-					coldParentUnopened: true,
-					materializedBeforeOpen: [],
-					projectedAfterFirstList: [buildDefaultChatUri(parent), selected.toString(), other.toString()],
-					projectedRecoveredPeerIsRead: false,
-					completedRecoveryUnchanged: true,
-					completedMembershipUnchanged: true,
-					restoredTurns: [{ id: 'original-turn', text: 'Original peer conversation' }],
-					materialized: [{ chat: other.toString(), providerData: '{"sdkSessionId":"original-sdk-session"}' }],
-				});
-			});
 		}
 
 		function createSessionDataService(sessionDatabase: TestSessionDatabase = new TestSessionDatabase()): ISessionDataService {

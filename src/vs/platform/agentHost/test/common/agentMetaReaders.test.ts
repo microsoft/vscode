@@ -562,6 +562,27 @@ suite('Agent host _meta readers', () => {
 		});
 	});
 
+	suite('usage info Auto mode resolution', () => {
+		function usage(autoModeResolved: unknown): UsageInfo {
+			return { _meta: { autoModeResolved } };
+		}
+
+		test('reads the selection reason only when it is a non-empty string', () => {
+			const selectionReason = 'Auto selected gpt-5.4-mini to prioritize cost efficiency, alongside model fit for this task.';
+			assert.deepStrictEqual([
+				readUsageInfoMeta(usage({ chosenModel: 'gpt-5.4-mini', selectionReason })).autoModeResolved,
+				readUsageInfoMeta(usage({ chosenModel: 'gpt-5.4-mini' })).autoModeResolved,
+				readUsageInfoMeta(usage({ chosenModel: 'gpt-5.4-mini', selectionReason: '  ' })).autoModeResolved,
+				readUsageInfoMeta(usage({ chosenModel: 'gpt-5.4-mini', selectionReason: 42 })).autoModeResolved,
+			], [
+				{ chosenModel: 'gpt-5.4-mini', selectionReason },
+				{ chosenModel: 'gpt-5.4-mini' },
+				{ chosenModel: 'gpt-5.4-mini' },
+				{ chosenModel: 'gpt-5.4-mini' },
+			]);
+		});
+	});
+
 	suite('usage info turn token totals', () => {
 		/** Wraps a `_meta` bag in a minimal {@link UsageInfo}. */
 		function usage(meta: Record<string, unknown> | undefined): UsageInfo {

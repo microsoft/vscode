@@ -155,7 +155,7 @@ suite('MultiEditorTabsControl', () => {
 	}
 
 	function connectedGroup(): HTMLElement {
-		const root = $('.monaco-workbench.modern-ui.modern-ui-tabs.modern-ui-connected-editor-tabs');
+		const root = $('.monaco-workbench.modern-ui.modern-ui-tabs.modern-ui-connected-editor-tabs.floating-panels');
 		root.style.cssText = '--vscode-spacing-size20: 2px; --vscode-spacing-size40: 4px; --vscode-spacing-size60: 6px; --vscode-spacing-size80: 8px; --vscode-spacing-size160: 16px; --vscode-spacing-size200: 20px; --vscode-spacing-size280: 28px; --vscode-strokeThickness: 1px; --vscode-cornerRadius-small: 4px; --vscode-cornerRadius-medium: 6px; --vscode-cornerRadius-large: 8px; --vscode-fontSize-body1: 13px; --vscode-fontWeight-regular: 400;';
 		mainWindow.document.body.appendChild(root);
 		disposables.add(toDisposable(() => root.remove()));
@@ -516,7 +516,7 @@ suite('MultiEditorTabsControl', () => {
 			actionPadding: measurements.every(measurement => new Set(measurement.padding).size === 1 && measurement.padding[0] === multiple.padding[0]),
 		}, {
 			single: { top: true, right: true, left: true, width: true },
-			horizontal: { clearance: [[6, 6, 6, 6], [6, 6, 6, 6], [3, 4, 3, 5], [4, 4, 4, 4]] },
+			horizontal: { clearance: [[7, 6, 6, 6], [7, 6, 6, 6], [4, 4, 3, 5], [4, 4, 4, 4]] },
 			leftAction: { top: true, right: true, left: true, width: true },
 			balancedActionSurface: true,
 			balancedActionInsets: true,
@@ -630,7 +630,7 @@ suite('MultiEditorTabsControl', () => {
 						const clearance = trailing - (wrapTabs && activeIndex === 1 ? 1 : 0);
 						expected.push({
 							tabHeight, tabActionLocation, wrapTabs, activeIndex,
-							top: clearance, bottom: clearance, trailing,
+							top: clearance + (!wrapTabs || activeIndex === 1 ? 1 : 0), bottom: clearance, trailing,
 							leftBorder: rowStart && !upperRow ? 'rgba(0, 0, 0, 0)' : undefined,
 						});
 					}
@@ -1111,7 +1111,7 @@ suite('MultiEditorTabsControl', () => {
 						});
 						expected.push({
 							...context,
-							insets: [upper ? index === 0 ? 2 : 1 : 0, upper ? rowEnd ? 2 : 1 : 0, 0],
+							insets: [upper ? index === 0 ? 2 : 1 : 0, upper ? rowEnd ? 2 : 1 : 0, active && !upper ? -1 : 0],
 							corners: [topLeftRadius, radius, active && !upper ? '0px' : upper ? '6px' : '4px', roundLeft && !(active && !upper) ? upper ? '6px' : '4px' : '0px'],
 							leftBorder: rowStart ? 'rgba(0, 0, 0, 0)' : undefined,
 						});
@@ -1261,8 +1261,8 @@ suite('MultiEditorTabsControl', () => {
 			});
 		}
 		assert.deepStrictEqual(measurements, [
-			{ tabHeight: 'default', stripHeight: 61, wrapping: true, upperRow: false, gap: -1, clippingGap: 0, bottomRadius: '0px', shoulder: '""', shoulderStroke: ['rgb(34, 211, 238)', 'rgb(34, 211, 238)'], shoulderBaselineOffset: 0, tabFillHeights: [28, 28], rowGap: 2, overflow: ['visible', 'visible'], separatorOffset: 0, connectionOverlap: 1 },
-			{ tabHeight: 'compact', stripHeight: 53, wrapping: true, upperRow: false, gap: -1, clippingGap: 0, bottomRadius: '0px', shoulder: '""', shoulderStroke: ['rgb(34, 211, 238)', 'rgb(34, 211, 238)'], shoulderBaselineOffset: 0, tabFillHeights: [24, 24], rowGap: 2, overflow: ['visible', 'visible'], separatorOffset: 0, connectionOverlap: 1 },
+			{ tabHeight: 'default', stripHeight: 61, wrapping: true, upperRow: false, gap: 0, clippingGap: 0, bottomRadius: '0px', shoulder: '""', shoulderStroke: ['rgb(34, 211, 238)', 'rgb(34, 211, 238)'], shoulderBaselineOffset: 0, tabFillHeights: [28, 29], rowGap: 1, overflow: ['visible', 'visible'], separatorOffset: 0, connectionOverlap: 0 },
+			{ tabHeight: 'compact', stripHeight: 53, wrapping: true, upperRow: false, gap: 0, clippingGap: 0, bottomRadius: '0px', shoulder: '""', shoulderStroke: ['rgb(34, 211, 238)', 'rgb(34, 211, 238)'], shoulderBaselineOffset: 0, tabFillHeights: [24, 25], rowGap: 1, overflow: ['visible', 'visible'], separatorOffset: 0, connectionOverlap: 0 },
 		]);
 	});
 
@@ -1323,6 +1323,31 @@ suite('MultiEditorTabsControl', () => {
 		]);
 	});
 
+	test('connected tabs do not overflow vertically while dragging', async () => {
+		const group = connectedGroup();
+		group.style.setProperty('--modern-ui-connected-tab-surface', '#ffffff');
+		model.openEditor(model.getEditorByIndex(1)!, { active: true });
+		control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
+		const measurements = [];
+		for (const [wrapTabs, width] of [[false, 320], [true, 150]] as const) {
+			const oldOptions = partOptions;
+			partOptions = { ...partOptions, wrapTabs, tabSizing: 'fixed', tabSizingFixedMinWidth: 120, tabSizingFixedMaxWidth: 120, editorActionsLocation: 'hidden' };
+			control.updateOptions(oldOptions, partOptions);
+			await layoutConnectedGroup(group, width);
+			const tabs = container.querySelector<HTMLElement>('.tabs-container')!;
+			tabs.classList.add('scroll');
+			measurements.push({
+				wrapTabs,
+				wrapping: tabs.closest('.tabs-and-actions-container')!.classList.contains('wrapping'),
+				verticalOverflow: tabs.scrollHeight - tabs.clientHeight,
+			});
+		}
+		assert.deepStrictEqual(measurements, [
+			{ wrapTabs: false, wrapping: false, verticalOverflow: 0 },
+			{ wrapTabs: true, wrapping: true, verticalOverflow: 0 },
+		]);
+	});
+
 	test('connected tabs reserve separator height without changing classic or shared modern tabs', async () => {
 		const readHeight = async () => {
 			control.layout({ container: Dimension.None, available: Dimension.None });
@@ -1366,6 +1391,7 @@ suite('MultiEditorTabsControl', () => {
 
 		const [activeTab, inactiveTab] = container.querySelectorAll<HTMLElement>('.tabs-container > .tab');
 		const activeFillStyle = mainWindow.getComputedStyle(activeTab.querySelector<HTMLElement>('.tab-fill')!);
+		const activeEdgeStyle = mainWindow.getComputedStyle(activeTab.querySelector<HTMLElement>('.tab-connected-edge')!);
 		const inactiveFillStyle = mainWindow.getComputedStyle(inactiveTab.querySelector<HTMLElement>('.tab-fill')!);
 		const row = container.querySelector<HTMLElement>('.tabs-and-actions-container')!;
 		const rowStyle = mainWindow.getComputedStyle(row);
@@ -1375,13 +1401,15 @@ suite('MultiEditorTabsControl', () => {
 
 		assert.deepStrictEqual({
 			active: { top: activeFillStyle.top, left: activeFillStyle.left, right: activeFillStyle.right, bottom: activeFillStyle.bottom },
+			activeEdgeBottom: activeEdgeStyle.bottom,
 			inactive: { top: inactiveFillStyle.top, left: inactiveFillStyle.left, right: inactiveFillStyle.right, bottom: inactiveFillStyle.bottom },
 			alignItems: rowStyle.alignItems,
 			editorActionsHeight: editorActionsStyle.height,
 			rowPaddingLeft: rowStyle.paddingLeft,
 			rowPaddingTop: rowStyle.paddingTop,
 		}, {
-			active: { top: '0px', left: '0px', right: '0px', bottom: '-2px' },
+			active: { top: '0px', left: '0px', right: '0px', bottom: '-1px' },
+			activeEdgeBottom: '-1px',
 			inactive: { top: '0px', left: '0px', right: '0px', bottom: '-1px' },
 			alignItems: 'flex-start',
 			editorActionsHeight: '32px',
@@ -1621,7 +1649,7 @@ suite('MultiEditorTabsControl', () => {
 			multiSelected: { clipping: '0px', edge: 'block', radius: '0px 5px 0px 0px', connectedClass: true },
 			singleSelected: { clipping: '0px', connectedClass: true },
 			terminalOutline: { right: '1px', rightShoulder: '""', rightMask: '""' },
-			normalOutline: { left: '1px', right: '1px', leftShoulder: '""', rightShoulder: '""', edge: 'block', overflowEdge: 'none', leftMaskHeight: '4px', leftMaskTop: '0px', rightMaskHeight: '4px', rightMaskTop: '0px' },
+			normalOutline: { left: '1px', right: '1px', leftShoulder: '""', rightShoulder: '""', edge: 'block', overflowEdge: 'none', leftMaskHeight: '3px', leftMaskTop: '0px', rightMaskHeight: '3px', rightMaskTop: '0px' },
 			rightShoulderAtViewport: { edge: true, clipped: false, right: '1px', rightShoulder: '""', rightMask: '""', overflowEdge: 'block' },
 			rightShoulderRevealed: { edge: false, clipped: false, rightShoulder: '""', rightMask: '""' },
 			leftShoulderAtViewport: { edge: true, clipped: false, left: '1px', leftShoulder: 'none', leftMask: 'none', overflowEdge: 'none' },
