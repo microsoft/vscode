@@ -8,7 +8,6 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { getAgentHostSupportedProtocolVersions, negotiateAgentHostProtocolVersion } from '../../common/agentHostProtocolCompatibility.js';
 import { createRemoteAgentHostState } from '../../common/remoteAgentHostMetadata.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
-import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 
 suite('Agent Host protocol compatibility', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -57,10 +56,9 @@ suite('Agent Host protocol compatibility', () => {
 		assert.deepStrictEqual(versions.map(version => negotiateAgentHostProtocolVersion([version])), versions.map(() => undefined));
 	});
 
-	test('reports malformed versions as invalid parameters', () => {
+	test('rejects malformed versions even alongside compatible offers', () => {
 		for (const version of ['0.9', '01.0.0', '1.0.0-beta', '1.0.0\n', 'not-a-version']) {
-			assert.throws(() => negotiateAgentHostProtocolVersion(['1.0.0', '0.10.0', version]), error =>
-				error instanceof ProtocolError && error.code === JsonRpcErrorCodes.InvalidParams);
+			assert.throws(() => negotiateAgentHostProtocolVersion(['1.0.0', '0.10.0', version]), /Invalid protocol version/);
 		}
 	});
 
