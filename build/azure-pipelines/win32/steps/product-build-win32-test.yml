@@ -117,10 +117,33 @@ steps:
             $AppNameShort = $AppProductJson.nameShort
             $env:INTEGRATION_TEST_ELECTRON_PATH = "$AppRoot\$AppNameShort.exe"
             $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\test\vscode-server-win32-$(VSCODE_ARCH)"
-            exec { .\scripts\test-integration.bat --build --tfs "Integration Tests" }
+            foreach ($flag in @('AGENT_HOST_REPLAY_RECORD', 'AGENT_HOST_UPDATE_AHP_SNAPSHOTS', 'AGENT_HOST_UPDATE_SNAPSHOTS')) {
+              if ([Environment]::GetEnvironmentVariable($flag) -eq '1') {
+                throw "Strict replay required: $flag must not be enabled"
+              }
+            }
+            $ResultsDirectory = Join-Path (Get-Location) '.build\logs\integration-tests\issue-338153'
+            New-Item -ItemType Directory -Force -Path $ResultsDirectory | Out-Null
+            $Results = @()
+            for ($iteration = 1; $iteration -le 20; $iteration++) {
+              $env:MOCHA_FILE = Join-Path $ResultsDirectory "iteration-$iteration-results.xml"
+              Write-Host "ISSUE_338153 START $iteration/20 source=$(Build.SourceVersion) platform=win32-x64"
+              exec { .\scripts\test-integration.bat --build --run src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts --grep "session changeset aggregates provider edits from default and peer chats" --reporter mocha-junit-reporter }
+              [xml]$Report = Get-Content -Raw -Path $env:MOCHA_FILE
+              $Cases = @($Report.SelectNodes('//testcase'))
+              $Failures = @($Report.SelectNodes('//failure | //error | //skipped'))
+              if ($Cases.Count -ne 1 -or $Failures.Count -ne 0 -or $Cases[0].name -notlike '*session changeset aggregates provider edits from default and peer chats*') {
+                throw "Iteration $iteration did not pass exactly the enabled target test"
+              }
+              $Results += [ordered]@{ iteration = $iteration; passed = $true; platform = 'win32-x64'; sourceVersion = '$(Build.SourceVersion)' }
+              $Results | ConvertTo-Json -Depth 5 | Set-Content -Encoding UTF8 -Path (Join-Path $ResultsDirectory 'repeat-results.json')
+              Write-Host "ISSUE_338153 PASS $iteration/20"
+            }
+            if ($Results.Count -ne 20) { throw 'Expected 20 successful Windows iterations' }
+            Write-Host 'ISSUE_338153 COMPLETE 20/20 PASSED'
           env:
             VSCODE_SKIP_PRELAUNCH: '1'
-          displayName: 🧪 Run integration tests (Electron)
+          displayName: 🧪 Issue 338153 - 20 Windows Codex replays
           timeoutInMinutes: 30
 
   - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'integration-browser-firefox') }}:
