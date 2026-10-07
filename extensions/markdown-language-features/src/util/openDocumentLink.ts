@@ -16,9 +16,12 @@ enum OpenMarkdownLinks {
 type OpenDocumentLinkOptions = {
 	viewColumn?: vscode.ViewColumn;
 	preserveFocus?: boolean;
+	background?: boolean;
 };
 
-type OpenDocument = (uri: vscode.Uri, options: vscode.TextDocumentShowOptions) => Thenable<unknown>;
+type OpenDocumentOptions = vscode.TextDocumentShowOptions & { background?: boolean };
+
+type OpenDocument = (uri: vscode.Uri, options: OpenDocumentOptions) => Thenable<unknown>;
 
 /**
  * Resolves Markdown links relative to a source resource and opens the resulting typed target.
@@ -126,7 +129,8 @@ export class MdLinkOpener {
 					selection: rangeSelection,
 					viewColumn: viewColumn ?? getViewColumn(fromResource),
 					preserveFocus: options.preserveFocus,
-				} satisfies vscode.TextDocumentShowOptions);
+					background: options.background,
+				} satisfies OpenDocumentOptions);
 				return;
 			}
 		}
