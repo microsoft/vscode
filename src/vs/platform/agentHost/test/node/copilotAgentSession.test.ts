@@ -15826,6 +15826,23 @@ Use the attached image as context.
 			assert.strictEqual((completions[0] as ChatTurnCompleteAction).turnId, 'turn-recovery');
 		});
 
+		test('provider start disarms the failed turn idle guard', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+
+			session.resetTurnState('turn-failed');
+			mockSession.fire('session.error', {
+				errorType: 'notFound',
+				message: 'model endpoint not found',
+			} as SessionEventPayload<'session.error'>['data']);
+			session.resetTurnState('turn-recovery');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-recovery' } as SessionEventPayload<'assistant.turn_start'>['data']);
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+
+			const completions = getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete);
+			assert.strictEqual(completions.length, 1, 'the recovery turn should complete on its own terminal idle');
+			assert.strictEqual((completions[0] as ChatTurnCompleteAction).turnId, 'turn-recovery');
+		});
+
 		test('abort-induced idle tears down a running turn without completing it', async () => {
 			// Plain abort (no queued message): the running turn is finalized by
 			// the client-dispatched ChatTurnCancelled, so the abort's idle must
