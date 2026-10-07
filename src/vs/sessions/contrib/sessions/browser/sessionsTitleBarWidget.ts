@@ -39,6 +39,7 @@ import { BlockedSessionsIndicatorModel, RequiresInputKind } from './blockedSessi
 import { getSessionWorkspaceDisplayInfo, ISessionWorkspaceDisplayInfo } from '../../../browser/sessionWorkspace.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../../workbench/services/environment/browser/environmentService.js';
+import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 
 /**
  * Internal command behind the blocked-sessions dropdown header's "Show All
@@ -428,7 +429,16 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	}
 
 	private _getCommandCenterTitle(): string | undefined {
-		return this._sessionTitle ?? this._workspaceInfo?.label ?? (this._isQuickChat ? localize('noWorkspace', "No workspace") : undefined);
+		const title = this._sessionTitle ?? this._workspaceInfo?.label;
+		if (title || !this._isQuickChat) {
+			return title;
+		}
+
+		const session = this.sessionsService.activeSession.get();
+		const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
+		return provider && isAgentHostProvider(provider) && provider.remoteAddress
+			? localize('noWorkspaceOnRemoteHost', "No workspace [{0}]", provider.label)
+			: localize('noWorkspace', "No workspace");
 	}
 
 	/**
