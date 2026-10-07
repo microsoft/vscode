@@ -147,6 +147,7 @@ export class MissionControlHost extends Disposable {
 				allowExtensionMethods: false,
 				relayRoots: relay.rootMeta ? undefined : roots,
 				relayRootMeta: relay.rootMeta,
+				advertisedModelProviders: ['copilotcli'],
 				relayResourceRoots: readOnly => this._resourceRoots(readOnly, getRoots()),
 				defaultDirectory: roots[0] ? URI.file(roots[0]).toString() : undefined,
 			},
