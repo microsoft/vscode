@@ -8321,6 +8321,112 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('sequences newer queued state after an ordered catalog mutation', async () => {
+			class RecordingCatalogDatabase extends TestAgentHostOrchestratorDatabase {
+				readonly applied: Array<{ readonly summary: string | undefined; readonly isArchived: boolean; readonly sourceRevision: number; readonly sessionGeneration: string }> = [];
+
+				override async upsertSessionV2(envelope: IAgentHostDatabaseSessionV2Envelope, expectedSessionGeneration: string | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult> {
+					const result = await super.upsertSessionV2(envelope, expectedSessionGeneration);
+					if (result === 'applied') {
+						const data = catalogDataOf(envelope)!;
+						this.applied.push({
+							summary: data.summary,
+							isArchived: data.isArchived,
+							sourceRevision: envelope.sourceRevision,
+							sessionGeneration: envelope.sessionGeneration,
+						});
+					}
+					return result;
+				}
+			}
+
+			const catalogDatabase = new RecordingCatalogDatabase();
+			const sessionDatabase = new TestSessionDatabase();
+			const svc = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createSessionDataService(sessionDatabase), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase,
+			));
+			registerTestAgentProvider(svc, copilotAgent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			await svc.whenCatalogReconciliationIdle();
+			const sessionKey = session.toString();
+			const initialApplied = catalogDatabase.applied.length;
+			const internals = svc as unknown as {
+				_catalogSyncService: {
+					runExclusive(session: URI, operation: () => Promise<void>): Promise<void>;
+				};
+				_queueCatalogSync(session: URI, metadataOverrides: Readonly<Record<string, string>>): void;
+				_persistOrderedListVisibleSessionState(session: URI, metadataOverrides: Readonly<Record<string, string>>): Promise<void>;
+			};
+			const blockerStarted = new DeferredPromise<void>();
+			const releaseBlocker = new DeferredPromise<void>();
+			const blocker = internals._catalogSyncService.runExclusive(session, async () => {
+				blockerStarted.complete();
+				await releaseBlocker.p;
+			});
+			await blockerStarted.p;
+
+			internals._queueCatalogSync(session, {});
+			getStateManager(svc).dispatchServerAction(sessionKey, { type: ActionType.SessionTitleChanged, title: 'Ordered title' });
+			const ordered = internals._persistOrderedListVisibleSessionState(session, {
+				[SESSION_ARTIFACTS_KEY]: JSON.stringify([{
+					id: 'ordered',
+					chat: buildDefaultChatUri(session),
+					type: SessionArtifactType.Website,
+					label: 'Ordered artifact',
+					link: 'https://example.com',
+				}]),
+			});
+			getStateManager(svc).dispatchServerAction(sessionKey, { type: ActionType.SessionTitleChanged, title: 'Newer title' });
+			getStateManager(svc).dispatchServerAction(sessionKey, { type: ActionType.SessionIsArchivedChanged, isArchived: true });
+			releaseBlocker.complete();
+			await Promise.all([blocker, ordered]);
+			await svc.whenCatalogReconciliationIdle();
+
+			const central = await catalogDatabase.getSessionV2(sessionKey);
+			const receipt = await sessionDatabase.getCatalogSyncSnapshot();
+			assert.deepStrictEqual({
+				applied: catalogDatabase.applied.slice(initialApplied).map(({ summary, isArchived, sourceRevision }) => ({ summary, isArchived, sourceRevision })),
+				central: {
+					summary: catalogDataOf(central)?.summary,
+					isArchived: catalogDataOf(central)?.isArchived,
+					artifacts: catalogDataOf(central)?._meta?.[SESSION_META_ARTIFACTS_KEY],
+					sourceRevision: central?.sourceRevision,
+					sessionGeneration: central?.sessionGeneration,
+				},
+				receipt: receipt && {
+					state: receipt.state,
+					sourceRevision: receipt.sourceRevision,
+					sessionGeneration: receipt.sessionGeneration,
+				},
+			}, {
+				applied: [
+					{ summary: undefined, isArchived: false, sourceRevision: 1 },
+					{ summary: 'Ordered title', isArchived: false, sourceRevision: 2 },
+					{ summary: 'Newer title', isArchived: true, sourceRevision: 3 },
+				],
+				central: {
+					summary: 'Newer title',
+					isArchived: true,
+					artifacts: [{
+						id: 'ordered',
+						chat: buildDefaultChatUri(session),
+						type: SessionArtifactType.Website,
+						label: 'Ordered artifact',
+						isArtifact: true,
+						link: 'https://example.com',
+					}],
+					sourceRevision: 3,
+					sessionGeneration: central?.sessionGeneration,
+				},
+				receipt: {
+					state: 'acknowledged',
+					sourceRevision: 3,
+					sessionGeneration: central?.sessionGeneration,
+				},
+			});
+		});
+
 		test('is a no-op for unknown sessions', async () => {
 			registerTestAgentProvider(service, copilotAgent);
 			const unknownSession = URI.from({ scheme: 'unknown', path: '/nope' });

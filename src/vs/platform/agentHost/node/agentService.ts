@@ -2404,8 +2404,66 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		const deferredOverrides = this._deferredCatalogMetadataOverrides.get(sessionKey);
 		this._deferredCatalogMetadataOverrides.delete(sessionKey);
-		await this._whenBackgroundCatalogStateWritesIdle(sessionKey);
-		await this._persistListVisibleSessionStateNow(session, { ...deferredOverrides, ...metadataOverrides }, chatsOverride, source);
+		const previous = this._backgroundCatalogStateWrites.get(sessionKey);
+		const write: IBackgroundCatalogStateWrite = {
+			promise: Promise.resolve(),
+			trailing: false,
+			trailingOverrides: {},
+			trailingSource: undefined,
+		};
+		this._backgroundCatalogStateWrites.set(sessionKey, write);
+		write.promise = this._drainOrderedCatalogStateWrite(
+			session,
+			{ ...deferredOverrides, ...metadataOverrides },
+			chatsOverride,
+			source,
+			previous?.promise,
+			write,
+		);
+		await write.promise;
+	}
+
+	private async _drainOrderedCatalogStateWrite(
+		session: URI,
+		metadataOverrides: Readonly<Record<string, string>>,
+		chatsOverride: readonly ICatalogChat[] | undefined,
+		source: IListVisibleCatalogSource,
+		previous: Promise<void> | undefined,
+		write: IBackgroundCatalogStateWrite,
+	): Promise<void> {
+		const sessionKey = session.toString();
+		let orderedError: unknown;
+		let orderedFailed = false;
+		try {
+			try {
+				if (previous) {
+					await Promise.allSettled([previous]);
+				}
+				await this._persistListVisibleSessionStateNow(session, metadataOverrides, chatsOverride, source);
+			} catch (error) {
+				orderedError = error;
+				orderedFailed = true;
+			}
+			while (write.trailing) {
+				const trailingOverrides = write.trailingOverrides;
+				const trailingSource = write.trailingSource!;
+				write.trailingOverrides = {};
+				write.trailingSource = undefined;
+				write.trailing = false;
+				try {
+					await this._persistListVisibleSessionStateNow(session, trailingOverrides, undefined, trailingSource);
+				} catch (error) {
+					this._logService.warn(`[AgentService] Failed to persist list-visible session state for ${sessionKey}`, error);
+				}
+			}
+			if (orderedFailed) {
+				throw orderedError;
+			}
+		} finally {
+			if (this._backgroundCatalogStateWrites.get(sessionKey) === write) {
+				this._backgroundCatalogStateWrites.delete(sessionKey);
+			}
+		}
 	}
 
 	private _flushDeferredCatalogMetadataOverrides(session: URI): void {
