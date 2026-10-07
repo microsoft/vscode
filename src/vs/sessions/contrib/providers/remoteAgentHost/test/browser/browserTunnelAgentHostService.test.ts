@@ -122,6 +122,12 @@ function createBrowserTunnelService(
 	sessions: readonly AuthenticationSession[] | ((provider: string) => readonly AuthenticationSession[]),
 	listTunnels: (authorization: string) => Promise<readonly IDevTunnelsWebTunnel[]>,
 	deleteTunnel?: (authorization: string) => Promise<boolean>,
+	connectionOptions?: {
+		onFactory: (factory: IRemoteAgentHostConnectionFactory) => void;
+		createSession: (provider: string) => Promise<AuthenticationSession>;
+		connector?: ITunnelAgentHostConnector;
+		dialogService?: IDialogService;
+	},
 ): BrowserTunnelAgentHostService {
 	class FakeManagementClient implements IDevTunnelsWebManagementClient {
 		constructor(_userAgent: string, _apiVersion: object, private readonly _userTokenCallback: () => Promise<string>) {
@@ -153,6 +159,12 @@ function createBrowserTunnelService(
 		override async getSessions(provider: string): Promise<readonly AuthenticationSession[]> {
 			return typeof sessions === 'function' ? sessions(provider) : sessions;
 		}
+		override async createSession(provider: string): Promise<AuthenticationSession> {
+			if (!connectionOptions) {
+				throw new Error('Unexpected interactive authentication');
+			}
+			return connectionOptions.createSession(provider);
+		}
 	}();
 	const tunnelApplicationConfig: ITunnelApplicationConfig = {
 		authenticationProviders: { github: { scopes: ['tunnel'] }, microsoft: { scopes: ['tunnel'] } },
@@ -163,21 +175,103 @@ function createBrowserTunnelService(
 	const configurationService = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true });
 
 	return store.add(new BrowserTunnelAgentHostService(
-		createRemoteAgentHostService(),
+		connectionOptions ? new class extends mock<IRemoteAgentHostService>() {
+			override registerConnectionFactory(factory: IRemoteAgentHostConnectionFactory) {
+				connectionOptions?.onFactory(factory);
+				return { dispose() { } };
+			}
+		}() : createRemoteAgentHostService(),
 		new NullLogService(),
 		store.add(new TestInstantiationService()),
 		configurationService,
 		authenticationService,
 		productService,
 		store.add(new InMemoryStorageService()),
-		new class extends mock<IRemoteAgentHostLocationPreferenceService>() { }(),
-		new class extends mock<IDialogService>() { }(),
-		{ connector: new FakeConnector(undefined), loadDevTunnelsWeb: async () => bundle },
+		new class extends mock<IRemoteAgentHostLocationPreferenceService>() {
+			override getPreference() { return undefined; }
+		}(),
+		connectionOptions?.dialogService ?? new class extends mock<IDialogService>() { }(),
+		{ connector: connectionOptions?.connector ?? new FakeConnector(undefined), loadDevTunnelsWeb: async () => bundle },
 	));
 }
 
 suite('BrowserTunnelAgentHostService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const authProvider of ['github', 'microsoft', undefined] as const) {
+		test(`cached prompt-mode tunnels do not authenticate interactively (${authProvider ?? 'automatic provider'})`, async () => {
+			let factory: IRemoteAgentHostConnectionFactory | undefined;
+			const interactiveProviders: string[] = [];
+			const service = createBrowserTunnelService(store, [], async () => [], undefined, {
+				onFactory: value => { factory = value; },
+				createSession: async provider => {
+					interactiveProviders.push(provider);
+					return { id: provider, accessToken: 'token', scopes: ['tunnel'], account: { id: provider, label: provider } };
+				},
+			});
+			for (let i = 0; i < 9; i++) {
+				service.cacheTunnel({ ...tunnel, tunnelId: `cached-${i}` }, authProvider);
+			}
+			assert.ok(factory);
+			await Promise.all(factory.entries.get().map(entry => assert.rejects(
+				factory!.createConnection(entry, { userInitiated: false }),
+				/No cached authentication available/,
+			)));
+			assert.deepStrictEqual(interactiveProviders, []);
+		});
+	}
+
+	test('background connections still prompt for affinity when a cached token exists but no location preference is saved', async () => {
+		let factory: IRemoteAgentHostConnectionFactory | undefined;
+		let prompts = 0;
+		const connector = new FakeConnector({
+			selectionId: 'selection',
+			inventory: {
+				userDataPath: '/data',
+				endpoints: [{ type: 'editor', pid: 1, instanceId: 'editor-id', endpointKind: 'socket', endpointLabel: '/tmp/editor.sock' }],
+			},
+		});
+		const service = createBrowserTunnelService(store,
+			[{ id: 'github', accessToken: 'token', scopes: ['tunnel'], account: { id: 'github', label: 'GitHub' } }],
+			async () => [], undefined, {
+			onFactory: value => { factory = value; },
+			createSession: async () => { throw new Error('Unexpected interactive authentication'); },
+			connector,
+			dialogService: new class extends mock<IDialogService>() {
+				override async prompt(): Promise<never> {
+					prompts++;
+					throw new Error('Affinity prompt shown');
+				}
+			}(),
+		});
+		service.cacheTunnel(tunnel, 'github');
+		assert.ok(factory);
+		await assert.rejects(factory.createConnection(factory.entries.get()[0], { userInitiated: false }), /Affinity prompt shown/);
+		assert.deepStrictEqual({ prompts, completeCalls: connector.completeCalls, cancelCalls: connector.cancelCalls }, {
+			prompts: 1, completeCalls: [], cancelCalls: ['selection'],
+		});
+	});
+
+	test('explicit tunnel connections can authenticate interactively', async () => {
+		let factory: IRemoteAgentHostConnectionFactory | undefined;
+		const interactiveProviders: string[] = [];
+		const service = createBrowserTunnelService(store, [], async () => [], undefined, {
+			onFactory: value => { factory = value; },
+			createSession: async provider => {
+				interactiveProviders.push(provider);
+				return { id: provider, accessToken: 'token', scopes: ['tunnel'], account: { id: provider, label: provider } };
+			},
+			connector: new class extends FakeConnector {
+				override async prepareSelection(): Promise<ITunnelGatewaySelectionSession | undefined> {
+					throw new Error('Authenticated connection reached the gateway');
+				}
+			}(undefined),
+		});
+		service.cacheTunnel(tunnel, 'github');
+		assert.ok(factory);
+		await assert.rejects(factory.createConnection(factory.entries.get()[0], { userInitiated: true }), /Authenticated connection reached the gateway/);
+		assert.deepStrictEqual(interactiveProviders, ['github']);
+	});
 
 	test('filters discovered tunnels below the supported protocol version', () => {
 		const results = filterBrowserTunnelInfos([

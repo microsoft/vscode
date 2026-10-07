@@ -4,16 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { IDisposable, ImmortalReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ILinkPresentationProvider, ILinkPresentationProviderRegistration, ILinkPresentationService } from '../../../../../platform/dataChannel/common/dataChannel.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { IGitHubService } from '../../../../../platform/github/common/githubService.js';
+import { IGitHubClient } from '../../../../../platform/github/common/githubService.js';
+import { IWorkbenchGitHubService } from '../../../../services/github/common/githubService.js';
 import { GitHubIssue, GitHubRepository } from '../../../../../platform/github/common/githubQueryService.js';
 import { FragmentState, PullRequestCore, PullRequestSnapshot } from '../../../../../platform/github/common/githubPullRequestService.js';
 import { GitHubRequestError } from '../../../../../platform/github/common/githubTransport.js';
@@ -23,6 +25,40 @@ import { GitHubLinkPresentationContribution } from '../../browser/githubLinkPres
 
 suite('GitHub link presentations', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('releases a client acquired after its watcher is disposed', async () => {
+		let released = 0;
+		let credentialCalls = 0;
+		const release = store.add(toDisposable(() => released++));
+		const client = new class extends mock<IGitHubClient>() {
+			override readonly credentials = new class extends mock<IGitHubClient['credentials']>() {
+				override async getCredential(signal: AbortSignal): Promise<never> {
+					credentialCalls++;
+					signal.throwIfAborted();
+					throw new Error('Unexpected credential lookup');
+				}
+			}();
+		}();
+		const service = new class extends mock<IWorkbenchGitHubService>() {
+			override readonly onDidChangeDefaultClient = Event.None;
+			override async acquireDefaultAccountClient() {
+				return { object: client, dispose: () => release.dispose() };
+			}
+		}();
+		const links = new TestLinkPresentationService();
+		store.add(new GitHubLinkPresentationContribution(
+			service, links,
+			new class extends mock<IDefaultAccountService>() {
+				override readonly onDidChangeDefaultAccount = Event.None;
+				override resolveGitHubUrl(path: string) { return `https://github.com/${path}`; }
+			}(),
+			new NullLogService(), new TestNotificationService(),
+		));
+		const watcher = store.add(links.createWatcher(URI.parse('https://github.com/owner/repo/issues/1')));
+		watcher.dispose();
+		await timeout(0);
+		assert.deepStrictEqual({ released, credentialCalls }, { released: 1, credentialCalls: 0 });
+	});
 
 	test('maps shared GitHub resources to accessible link presentations', async () => {
 		const linkPresentationService = new TestLinkPresentationService();
@@ -172,7 +208,7 @@ suite('GitHub link presentations', () => {
 
 		store.add(linkPresentationService.createWatcher(URI.parse('https://github.com/microsoft/vscode/issues/7')));
 		store.add(linkPresentationService.createWatcher(URI.parse('https://github.com/microsoft/vscode/pull/8')));
-		await Promise.resolve();
+		await notificationService.whenPrompted.p;
 		await notificationService.prompts[0].choices[0].run();
 
 		assert.deepStrictEqual({
@@ -221,7 +257,7 @@ suite('GitHub link presentations', () => {
 		));
 
 		store.add(linkPresentationService.createWatcher(URI.parse('https://github.com/microsoft/vscode/pull/8')));
-		await Promise.resolve();
+		await notificationService.whenPrompted.p;
 
 		assert.deepStrictEqual(notificationService.prompts.map(prompt => prompt.message), [
 			'Sign in to GitHub to load pull request status and other GitHub link details.',
@@ -231,15 +267,17 @@ suite('GitHub link presentations', () => {
 
 class TestNotificationService extends mock<INotificationService>() {
 
+	readonly whenPrompted = new DeferredPromise<void>();
 	readonly prompts: {
 		readonly severity: Severity;
-		readonly message: string;
+		readonly message: Parameters<INotificationService['prompt']>[1];
 		readonly choices: Parameters<INotificationService['prompt']>[2];
 		readonly options: Parameters<INotificationService['prompt']>[3];
 	}[] = [];
 
 	override prompt(...[severity, message, choices, options]: Parameters<INotificationService['prompt']>): NoOpNotification {
 		this.prompts.push({ severity, message, choices, options });
+		void this.whenPrompted.complete();
 		return new NoOpNotification();
 	}
 }
@@ -276,15 +314,15 @@ class TestLinkPresentationService extends mock<ILinkPresentationService>() {
 }
 
 function createGitHubService(
-	onHydrate: (resources: Parameters<IGitHubService['query']['hydrateResources']>[0]) => void,
-	getCredential: IGitHubService['credentials']['getCredential'] = async () => ({
+	onHydrate: (resources: Parameters<IGitHubClient['query']['hydrateResources']>[0]) => void,
+	getCredential: IGitHubClient['credentials']['getCredential'] = async () => ({
 		account: { host: 'api.github.com', accountId: '1' },
 		token: 'token',
 		generation: 1,
 		signal: new AbortController().signal,
 	}),
 	pullRequestCore?: FragmentState<PullRequestCore>,
-): IGitHubService {
+): IWorkbenchGitHubService {
 	const ready = <T>(value: T): FragmentState<T> => ({ value, status: 'ready', complete: true });
 	const missing: FragmentState<never> = { status: 'missing', complete: false };
 	const pullRequestSnapshot: PullRequestSnapshot = {
@@ -329,18 +367,18 @@ function createGitHubService(
 		participants: missing,
 	};
 
-	return new class extends mock<IGitHubService>() {
+	const client = new class extends mock<IGitHubClient>() {
 		override readonly credentials = {
 			onDidInvalidate: Event.None,
 			getCredential,
 			resolveCredential: async () => { throw new Error('Not implemented'); },
 			handleRequestError: () => { },
 		};
-		override readonly query = new class extends mock<IGitHubService['query']>() {
-			override async hydrateResources(resources: Parameters<IGitHubService['query']['hydrateResources']>[0]): Promise<void> {
+		override readonly query = new class extends mock<IGitHubClient['query']>() {
+			override async hydrateResources(resources: Parameters<IGitHubClient['query']['hydrateResources']>[0]): Promise<void> {
 				onHydrate(resources);
 			}
-			override subscribeRepository(ref: Parameters<IGitHubService['query']['subscribeRepository']>[0]) {
+			override subscribeRepository(ref: Parameters<IGitHubClient['query']['subscribeRepository']>[0]) {
 				return {
 					resource: {
 						ref,
@@ -363,7 +401,7 @@ function createGitHubService(
 					dispose: () => { },
 				};
 			}
-			override subscribeIssue(ref: Parameters<IGitHubService['query']['subscribeIssue']>[0]) {
+			override subscribeIssue(ref: Parameters<IGitHubClient['query']['subscribeIssue']>[0]) {
 				return {
 					resource: {
 						ref,
@@ -387,7 +425,7 @@ function createGitHubService(
 				};
 			}
 		}();
-		override readonly pullRequests = new class extends mock<IGitHubService['pullRequests']>() {
+		override readonly pullRequests = new class extends mock<IGitHubClient['pullRequests']>() {
 			override subscribePullRequest() {
 				return {
 					resource: {
@@ -400,5 +438,9 @@ function createGitHubService(
 				};
 			}
 		}();
+	}();
+	return new class extends mock<IWorkbenchGitHubService>() {
+		override readonly onDidChangeDefaultClient = Event.None;
+		override async acquireDefaultAccountClient() { return new ImmortalReference(client); }
 	}();
 }

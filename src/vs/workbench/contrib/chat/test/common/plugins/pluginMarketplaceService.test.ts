@@ -10,9 +10,10 @@ import { bufferToStream, VSBuffer } from '../../../../../../base/common/buffer.j
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../../base/common/network.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
-import { isWeb } from '../../../../../../base/common/platform.js';
-import { joinPath } from '../../../../../../base/common/resources.js';
+import { isWeb, isWindows } from '../../../../../../base/common/platform.js';
+import { basename, joinPath } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AGENT_PLUGIN_SCHEMA } from '../../../../../../platform/agentPlugins/common/agentPluginParser.js';
@@ -29,6 +30,7 @@ import { IEnvironmentService } from '../../../../../../platform/environment/comm
 import { AutoUpdateConfigurationValue, IExtensionsWorkbenchService } from '../../../../extensions/common/extensions.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IAgentPluginRepositoryService } from '../../../common/plugins/agentPluginRepositoryService.js';
+import { getPluginCacheUri, parseMarketplaceObjectEntry, validatePluginCacheUri } from '../../../common/plugins/marketplaceReference.js';
 import { IMarketplacePlugin, IMarketplaceReference, IPluginSourceDescriptor, MarketplaceReferenceKind, MarketplaceType, PluginMarketplaceService, PluginSourceKind, extraKnownMarketplacesToConfigDict, getPluginSourceLabel, parseMarketplaceReference, parseMarketplaceReferences, parsePluginSource, readConfiguredMarketplaces } from '../../../common/plugins/pluginMarketplaceService.js';
 import { IWorkspacePluginSettingsService } from '../../../common/plugins/workspacePluginSettingsService.js';
 
@@ -59,7 +61,155 @@ function stubMeteredConnectionService(instantiationService: TestInstantiationSer
 }
 
 suite('PluginMarketplaceService', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const [name, value] of [
+		['GitHub URL', 'https://github.com/microsoft/vscode/../../example/unapproved.git'],
+		['GitHub URL with ref', 'https://github.com/microsoft/vscode/../../example/unapproved.git#marketplace'],
+		['encoded parent', 'https://github.com/microsoft/vscode/%2e%2e/%2E%2E/example/unapproved.git'],
+		['mixed encoded parent', 'https://github.com/microsoft/vscode/.%2e/%2e./example/unapproved.git'],
+		['encoded separator', 'https://github.com/microsoft/vscode/..%2f..%2fexample/unapproved.git'],
+		['encoded backslash', 'https://github.com/microsoft/vscode/..%5c..%5cexample/unapproved.git'],
+		['backslash', String.raw`https://github.com/microsoft/vscode/..\..\example/unapproved.git`],
+		['current directory', 'https://example.com/team/./repo.git'],
+		['encoded current directory', 'https://example.com/team/%2e/repo.git'],
+		['cache escape', 'http://example.com/a/../../../../outside'],
+		['dot after removing git suffix', 'https://example.com/team/..git'],
+		['parent after removing git suffix', 'https://example.com/team/...git'],
+		['SSH URL', 'ssh://git@example.com/team/../../outside.git'],
+		['SCP URL', 'git@example.com:team/../../outside.git'],
+		['SCP git suffix', 'git@example.com:team/...git'],
+		['shorthand owner', '../repo'],
+		['shorthand repository', 'owner/..'],
+		['shorthand current owner', './repo'],
+		['shorthand current repository', 'owner/.'],
+	]) {
+		test(`rejects marketplace traversal: ${name}`, () => {
+			assert.deepStrictEqual({
+				invalid: parseMarketplaceReference(value),
+				allowed: parseMarketplaceReference('https://github.com/microsoft/vscode.git#marketplace')?.cloneUrl,
+			}, {
+				invalid: undefined,
+				allowed: 'https://github.com/microsoft/vscode.git',
+			});
+		});
+	}
+
+	for (const path of ['/cache/agentPlugins/', '/cache/agentPlugins/host/../']) {
+		test(`rejects an equivalent plugin cache root: ${path}`, () => {
+			assert.throws(() => validatePluginCacheUri(URI.file('/cache/agentPlugins'), URI.file(path)), /Invalid plugin cache path/);
+		});
+	}
+
+	test('plugin cache validation discards a revived filesystem path', () => {
+		const expected = URI.file('/cache/agentPlugins/github.com/microsoft/vscode');
+		const stored = { ...expected.toJSON(), fsPath: URI.file('/outside').fsPath, _sep: isWindows ? 1 : undefined };
+		const directory = validatePluginCacheUri(URI.file('/cache/agentPlugins'), URI.revive(stored));
+		assert.deepStrictEqual({ path: directory.path, fsPath: directory.fsPath }, { path: expected.path, fsPath: expected.fsPath });
+	});
+
+	(isWindows ? test : test.skip)('plugin cache validation respects Windows path casing', () => {
+		const root = URI.file(String.raw`C:\cache\agentPlugins`);
+		assert.doesNotThrow(() => validatePluginCacheUri(root, URI.file(String.raw`c:\CACHE\agentPlugins\github.com\owner\repo`)));
+		assert.throws(() => validatePluginCacheUri(root, URI.file('c:\\CACHE\\agentPlugins\\')), /Invalid plugin cache path/);
+	});
+
+	for (const segment of ['.. ', 'repo.', 'NUL', 'data:stream', 'file\u0001']) {
+		(isWindows ? test : test.skip)(`rejects Windows-invalid plugin cache component ${JSON.stringify(segment)}`, () => {
+			const root = URI.file('/cache/agentPlugins');
+			const segments = ['host', segment, 'repo'];
+			assert.throws(() => getPluginCacheUri(root, segments), /Invalid plugin cache path/);
+			assert.throws(() => validatePluginCacheUri(root, joinPath(root, ...segments)), /Invalid plugin cache path/);
+			const virtualRoot = root.with({ scheme: Schemas.inMemory });
+			assert.strictEqual(getPluginCacheUri(virtualRoot, segments).path, `${virtualRoot.path}/host/${segment}/repo`);
+		});
+	}
+
+	for (const value of [
+		'https://example.com/a/%2e%2e%20/repo.git',
+		'https://example.com/a/repo..git',
+		'owner/NUL',
+		'git@example.com:a/repo..git',
+	]) {
+		(isWindows && !isWeb ? test : test.skip)(`rejects Windows-invalid marketplace cache path ${value}`, () => {
+			assert.deepStrictEqual({
+				invalid: parseMarketplaceReference(value),
+				allowed: parseMarketplaceReference('owner/repo')?.cloneUrl,
+			}, { invalid: undefined, allowed: 'https://github.com/owner/repo.git' });
+		});
+	}
+
+	for (const [kind, source] of [
+		['shorthand', 'owner/repo'],
+		['host-only URL', 'https://example.com'],
+		['GitHub URL', 'https://github.com/owner/repo.git'],
+		['Git URL', 'https://example.com/owner/repo.git'],
+		['SSH URL', 'ssh://git@example.com/owner/repo.git'],
+	]) {
+		(isWindows && !isWeb ? test : test.skip)(`validates Windows marketplace ref cache segments for ${kind}`, () => {
+			const invalidRefs = ['branch.', 'r'.repeat(252), 'r'.repeat(256), `${'r'.repeat(249)}/`];
+			const allowedRefs = ['release/v1', 'r'.repeat(251), `${'r'.repeat(248)}/`];
+			assert.deepStrictEqual({
+				invalid: invalidRefs.map(ref => parseMarketplaceReference(`${source}#${ref}`)?.ref),
+				allowed: allowedRefs.map(ref => {
+					const parsed = parseMarketplaceReference(`${source}#${ref}`);
+					return parsed && basename(getPluginCacheUri(URI.file('/cache/agentPlugins'), parsed.cacheSegments));
+				}),
+			}, {
+				invalid: invalidRefs.map(() => undefined),
+				allowed: allowedRefs.map(ref => `ref_${encodeURIComponent(ref)}`),
+			});
+		});
+	}
+
+	test('workspace marketplace traversal cannot replace an allowed clone target', async () => {
+		const allowed = 'https://github.com/microsoft/vscode.git';
+		const workspaceReference = parseMarketplaceObjectEntry({
+			name: 'workspace-tools',
+			source: { source: 'git', url: 'https://github.com/microsoft/vscode/../../example/unapproved.git' },
+		});
+		const clones: string[] = [];
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({
+			[ChatConfiguration.PluginMarketplaces]: [allowed],
+			[ChatConfiguration.PluginsEnabled]: true,
+			[ChatConfiguration.StrictMarketplaces]: [{ source: 'github', repo: 'microsoft/vscode' }],
+		}));
+		instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache') });
+		instantiationService.stub(IFileService, {
+			readFile: async (resource: URI) => {
+				const value = VSBuffer.fromString('{"plugins":[]}');
+				return { resource, name: basename(resource), value, size: value.byteLength, mtime: 0, ctime: 0, etag: '', readonly: false, locked: false, executable: false };
+			},
+			createWatcher: () => ({ onDidChange: Event.None, dispose: () => { } }),
+		});
+		instantiationService.stub(IAgentPluginRepositoryService, {
+			agentPluginsHome: URI.file('/agent-plugins'),
+			ensureRepository: async (reference: IMarketplaceReference) => {
+				clones.push(reference.cloneUrl);
+				return URI.file('/cache/marketplace');
+			},
+		});
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IRequestService, {
+			request: async () => { throw new Error('Unexpected HTTP request'); },
+		});
+		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
+		instantiationService.stub(IWorkspacePluginSettingsService, {
+			extraMarketplaces: observableValue('test.extraMarketplaces', workspaceReference ? [{ name: 'workspace-tools', reference: workspaceReference }] : []),
+			enabledPlugins: observableValue('test.enabledPlugins', new Map()),
+		});
+		instantiationService.stub(IWorkspaceTrustManagementService, {
+			isWorkspaceTrusted: () => true,
+			onDidChangeTrust: Event.None,
+		});
+		instantiationService.stub(IExtensionsWorkbenchService, { getAutoUpdateValue: () => 'off' });
+		stubMeteredConnectionService(instantiationService);
+
+		const service = store.add(instantiationService.createInstance(PluginMarketplaceService));
+		await service.fetchMarketplacePlugins(CancellationToken.None);
+		assert.deepStrictEqual(clones, [allowed]);
+	});
 
 	test('parses GitHub shorthand marketplace', () => {
 		const parsed = parseMarketplaceReference('microsoft/vscode');
@@ -615,6 +765,21 @@ suite('PluginMarketplaceService - Agent Plugin direct install probes', () => {
 		}));
 	}
 
+	test('skips invalid Git entries without hiding valid marketplace plugins', async () => {
+		const fileService = new ProbeFileService();
+		const repoDir = URI.file('/repos/catalog');
+		fileService.files.set(joinPath(repoDir, 'marketplace.json').toString(), JSON.stringify({
+			plugins: [
+				{ name: 'invalid-github', source: { source: 'github', repo: 'owner/..' } },
+				{ name: 'invalid-url', source: { source: 'url', url: 'https://example.com/a/../b.git' } },
+				{ name: 'valid', source: { source: 'github', repo: 'owner/plugin' } },
+			],
+		}));
+		const service = createService(fileService);
+		const plugins = await service.readPluginsFromDirectory(repoDir, parseMarketplaceReference('owner/catalog')!);
+		assert.deepStrictEqual(plugins.map(plugin => plugin.name), ['valid']);
+	});
+
 	test('reads a Git direct-source manifest with a compatible schema revision', async () => {
 		const fileService = new ProbeFileService();
 		const repoDir = URI.file('/repos/compatible');
@@ -1155,9 +1320,19 @@ suite('PluginMarketplaceService - installed plugins lifecycle', () => {
 		service.addInstalledPlugin(uri, plugin);
 		assert.strictEqual(service.installedPlugins.get().length, 1);
 
-		service.removeInstalledPlugin(uri);
-		assert.strictEqual(service.installedPlugins.get().length, 0);
-		assert.strictEqual(service.getMarketplacePluginMetadata(uri), undefined);
+		const removed = service.removeInstalledPlugin(uri);
+		const missing = service.removeInstalledPlugin(uri);
+		assert.deepStrictEqual({
+			removed,
+			missing,
+			installed: service.installedPlugins.get().length,
+			metadata: service.getMarketplacePluginMetadata(uri),
+		}, {
+			removed: true,
+			missing: false,
+			installed: 0,
+			metadata: undefined,
+		});
 	});
 
 	test('addInstalledPlugin updates metadata for existing entry', () => {
@@ -1289,8 +1464,8 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 		};
 	}
 
-	function storeMarketplaceCache(storageService: InMemoryStorageService, marketplaceReference: IMarketplaceReference, plugin: IMarketplacePlugin): void {
-		storageService.store('chat.plugins.marketplaces.githubCache.v1', JSON.stringify({
+	function storeMarketplaceCache(storageService: InMemoryStorageService, marketplaceReference: IMarketplaceReference, plugin: IMarketplacePlugin, key = 'chat.plugins.marketplaces.githubCache.v2'): void {
+		storageService.store(key, JSON.stringify({
 			[marketplaceReference.canonicalId]: {
 				plugins: [plugin],
 				expiresAt: Date.now() + 60_000,
@@ -1298,6 +1473,54 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 			},
 		}), StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
+
+	test('refreshes marketplace catalogs cached before source validation', async () => {
+		const storageService = store.add(new InMemoryStorageService());
+		const reference = parseMarketplaceReference('owner/catalog')!;
+		storeMarketplaceCache(storageService, reference, {
+			...makeAzurePlugin(reference),
+			name: 'unsafe',
+			sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'owner/..' },
+		}, 'chat.plugins.marketplaces.githubCache.v1');
+		let requests = 0;
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({
+			[ChatConfiguration.PluginMarketplaces]: [reference.rawValue],
+			[ChatConfiguration.PluginsEnabled]: true,
+		}));
+		instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache') });
+		instantiationService.stub(IFileService, new TestFileService() as unknown as IFileService);
+		instantiationService.stub(IAgentPluginRepositoryService, createPluginRepositoryStub());
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IRequestService, {
+			request: async () => {
+				requests++;
+				return {
+					res: { headers: {}, statusCode: 200 },
+					stream: bufferToStream(VSBuffer.fromString(JSON.stringify({
+						plugins: [
+							{ name: 'unsafe', source: { source: 'github', repo: 'owner/..' } },
+							{ name: 'safe', source: { source: 'github', repo: 'owner/plugin' } },
+						],
+					}))),
+				};
+			},
+		});
+		instantiationService.stub(IStorageService, storageService);
+		instantiationService.stub(IWorkspacePluginSettingsService, {
+			extraMarketplaces: observableValue('test.extraMarketplaces', []),
+			enabledPlugins: observableValue('test.enabledPlugins', new Map()),
+		});
+		instantiationService.stub(IWorkspaceTrustManagementService, {
+			isWorkspaceTrusted: () => true,
+			onDidChangeTrust: Event.None,
+		});
+		instantiationService.stub(IExtensionsWorkbenchService, { getAutoUpdateValue: () => 'off' });
+		stubMeteredConnectionService(instantiationService);
+		const service = store.add(instantiationService.createInstance(PluginMarketplaceService));
+		const plugins = await service.fetchMarketplacePlugins(CancellationToken.None);
+		assert.deepStrictEqual({ requests, plugins: plugins.map(plugin => plugin.name) }, { requests: 1, plugins: ['safe'] });
+	});
 
 	test('hydrates a github-sourced plugin from installed.json name and marketplace cache after restart', async () => {
 		// Simulates: user installs the "azure" plugin from the
@@ -1573,13 +1796,52 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 });
 
 suite('parsePluginSource', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const logContext = {
 		pluginName: 'test',
 		logService: new NullLogService(),
 		logPrefix: '[test]',
 	};
+
+	for (const [name, source] of [
+		['GitHub parent', { source: 'github', repo: 'owner/..' }],
+		['GitHub current directory', { source: 'github', repo: './repo' }],
+		['Git URL parent', { source: 'url', url: 'https://example.com/a/../b.git' }],
+		['encoded Git URL parent', { source: 'url', url: 'https://example.com/a/%2e%2e/b.git' }],
+		['Git URL suffix', { source: 'url', url: 'https://example.com/...git' }],
+		['SCP parent', { source: 'url', url: 'git@example.com:a/../../b.git' }],
+		['git-subdir parent', { source: 'git-subdir', url: 'https://example.com/a/../b', path: 'plugins/tool' }],
+		['backslash parent', { source: 'url', url: String.raw`https://example.com/a\..\b.git` }],
+		['encoded backslash parent', { source: 'url', url: 'https://example.com/a%5c..%5cb.git' }],
+		['encoded backslash and dots', { source: 'url', url: 'https://example.com/a%5c%2e%2e%5cb.git' }],
+		['git-subdir backslash parent', { source: 'git-subdir', url: String.raw`https://example.com/a\..\b`, path: 'plugins/tool' }],
+	] as const) {
+		test(`skips unsafe Git source with a warning: ${name}`, () => {
+			const warnings: (string | Error)[] = [];
+			const logService = store.add(new class extends NullLogService {
+				override warn(message: string | Error): void { warnings.push(message); }
+			}());
+			const result = parsePluginSource(source, undefined, { ...logContext, logService });
+			assert.deepStrictEqual({ result, warnings: warnings.length }, { result: undefined, warnings: 1 });
+		});
+	}
+
+	for (const [name, source] of [
+		['GitHub reserved name', { source: 'github', repo: 'owner/NUL' }],
+		['Git URL trailing dot', { source: 'url', url: 'https://example.com/a/repo..git' }],
+		['GitHub revision', { source: 'github', repo: 'owner/repo', ref: 'branch.' }],
+		['Git URL revision', { source: 'url', url: 'https://example.com/a/repo.git', ref: 'branch ' }],
+	] as const) {
+		(isWindows && !isWeb ? test : test.skip)(`skips Windows-invalid Git source with a warning: ${name}`, () => {
+			const warnings: (string | Error)[] = [];
+			const logService = store.add(new class extends NullLogService {
+				override warn(message: string | Error): void { warnings.push(message); }
+			}());
+			const result = parsePluginSource(source, undefined, { ...logContext, logService });
+			assert.deepStrictEqual({ result, warnings: warnings.length }, { result: undefined, warnings: 1 });
+		});
+	}
 
 	test('parses string source as RelativePath', () => {
 		const result = parsePluginSource('./my-plugin', undefined, logContext);

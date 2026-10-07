@@ -8,13 +8,13 @@ import type { PermissionRequest } from '@github/copilot-sdk';
 import * as marked from '../../../../base/common/marked/marked.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { getEditFilePath, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolMarkdownContent, isEditTool, isHiddenTool, isMarkdownRenderedTool, synthesizeSkillToolCall } from '../../node/copilot/copilotToolDisplay.js';
+import { getEditFilePath, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getSdkImageGenerationMetadata, getShellIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolMarkdownContent, getToolSummaryInputContract, isEditTool, isHiddenTool, isMarkdownRenderedTool, synthesizeSkillToolCall } from '../../node/copilot/copilotToolDisplay.js';
 
 type CopilotShellPermissionRequest = Extract<PermissionRequest, { kind: 'shell' }>;
 type CopilotCustomToolPermissionRequest = Extract<PermissionRequest, { kind: 'custom-tool' }>;
 type CopilotWorkflowPermissionRequest = Extract<PermissionRequest, { kind: 'workflow' }>;
 
-function shellPermissionRequest(fullCommandText: string, requestSandboxBypass?: boolean): CopilotShellPermissionRequest {
+function shellPermissionRequest(fullCommandText: string, requestSandboxBypass?: boolean, requestSandboxPermissive?: boolean): CopilotShellPermissionRequest {
 	return {
 		kind: 'shell',
 		canOfferSessionApproval: false,
@@ -25,6 +25,7 @@ function shellPermissionRequest(fullCommandText: string, requestSandboxBypass?: 
 		possiblePaths: [],
 		possibleUrls: [],
 		requestSandboxBypass,
+		requestSandboxPermissive,
 	};
 }
 
@@ -40,6 +41,13 @@ function customToolPermissionRequest(toolName: string, args: CopilotCustomToolPe
 suite('copilotToolDisplay — friendly tool names', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('limits the summary input contract to supported native schemas', () => {
+		assert.deepStrictEqual(['view', 'edit', 'grep', 'rg', 'glob', 'bash', 'tool_search', 'my_tool', 'mcp__server__view'].map(getToolSummaryInputContract), [
+			'copilot-cli-v1', 'copilot-cli-v1', 'copilot-cli-v1', 'copilot-cli-v1', 'copilot-cli-v1',
+			undefined, undefined, undefined, undefined,
+		]);
+	});
 
 	test('mirrors internal Copilot CLI friendly labels for representative tools', () => {
 		const cases: Array<[toolName: string, displayName: string]> = [
@@ -110,6 +118,30 @@ suite('copilotToolDisplay — friendly tool names', () => {
 
 	test('falls back to the raw tool name for unknown tools', () => {
 		assert.strictEqual(getToolDisplayName('some_new_tool'), 'some_new_tool');
+	});
+
+	test('uses requested image identity rather than the conversation model', () => {
+		const metadata = getSdkImageGenerationMetadata({
+			model: 'claude-sonnet-5',
+			structuredContent: { imageGeneration: { requestedModel: { id: 'image-preview', name: 'Image Preview' } } },
+		});
+		assert.deepStrictEqual({
+			metadata,
+			completed: getPastTenseMessage('image_generation', 'Generate Image', undefined, true, undefined, undefined, undefined, metadata),
+			idFallback: getPastTenseMessage('image_generation', 'Generate Image', undefined, true, undefined, undefined, undefined, { requestedModel: { id: 'image-preview' } }),
+			legacy: getPastTenseMessage('image_generation', 'Generate Image', undefined, true),
+			failed: getPastTenseMessage('image_generation', 'Generate Image', undefined, false, undefined, undefined, undefined, metadata),
+			unrelated: getSdkImageGenerationMetadata({ model: 'gpt-5.5' }),
+			malformed: getSdkImageGenerationMetadata({ structuredContent: { imageGeneration: { requestedModel: { name: 'Not an identity' } } } }),
+		}, {
+			metadata: { requestedModel: { id: 'image-preview', name: 'Image Preview' } },
+			completed: 'Generated image with Image Preview',
+			idFallback: 'Generated image with image-preview',
+			legacy: 'Generated image',
+			failed: '"Generate Image" failed',
+			unrelated: undefined,
+			malformed: undefined,
+		});
 	});
 
 	test('prefers canonical tool titles and falls back to original MCP tool names', () => {
@@ -264,8 +296,8 @@ suite('getPermissionDisplay — server tool confirmation', () => {
 				isolation: false,
 			})),
 			{
-				confirmationTitle: 'Continue in app?',
-				invocationMessage: 'Continue this session in /workspace/app and make changes directly in that folder?',
+				confirmationTitle: 'Change Workspace to app?',
+				invocationMessage: 'Change this chat\'s workspace to /workspace/app and make changes directly in that folder? Other chats keep their workspaces.',
 				toolInput: undefined,
 				permissionKind: 'custom-tool',
 				permissionPath: undefined,
@@ -370,12 +402,16 @@ suite('getPermissionDisplay — cd-prefix stripping', () => {
 		assert.strictEqual(display.toolInput, 'dir');
 	});
 
-	test('confirmation title reflects sandbox bypass for shell requests', () => {
-		const sandboxed = getPermissionDisplay(shellPermissionRequest('npm test'), wd);
-		const bypass = getPermissionDisplay(shellPermissionRequest('npm test', true), wd);
-
-		assert.notStrictEqual(bypass.confirmationTitle, sandboxed.confirmationTitle);
-		assert.ok(/sandbox/i.test(bypass.confirmationTitle), `expected title to mention the sandbox, got: ${bypass.confirmationTitle}`);
+	test('confirmation title reflects sandbox escalation for shell requests', () => {
+		assert.deepStrictEqual({
+			sandboxed: getPermissionDisplay(shellPermissionRequest('npm test'), wd).confirmationTitle,
+			bypass: getPermissionDisplay(shellPermissionRequest('npm test', true), wd).confirmationTitle,
+			permissive: getPermissionDisplay(shellPermissionRequest('npm test', true, true), wd).confirmationTitle,
+		}, {
+			sandboxed: 'Run in terminal?',
+			bypass: 'Run in terminal outside the sandbox?',
+			permissive: 'Retry by allowing filesystem access inside the sandbox?',
+		});
 	});
 
 });

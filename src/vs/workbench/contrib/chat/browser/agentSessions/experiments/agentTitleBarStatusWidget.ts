@@ -1012,8 +1012,8 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			}));
 
 			const needsInputTooltip = attentionNeededSessions.length === 1
-				? localize('needsInputSessionsTooltip1', "{0} session needs input", attentionNeededSessions.length)
-				: localize('needsInputSessionsTooltip', "{0} sessions need input", attentionNeededSessions.length);
+				? localize('needsInputSessionsTooltip1', "{0} session needs attention", attentionNeededSessions.length)
+				: localize('needsInputSessionsTooltip', "{0} sessions need attention", attentionNeededSessions.length);
 			disposables.add(this.hoverService.setupManagedHover(hoverDelegate, needsInputSection, needsInputTooltip));
 		}
 

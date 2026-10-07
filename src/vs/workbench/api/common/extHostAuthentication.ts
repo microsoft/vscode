@@ -25,6 +25,7 @@ import { IExtHostUrlsService } from './extHostUrls.js';
 import { encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { equals as arraysEqual } from '../../../base/common/arrays.js';
 import { IExtHostProgress } from './extHostProgress.js';
+import { NotificationTelemetryId } from '../../../platform/notification/common/notificationTelemetry.js';
 import { IProgressStep } from '../../../platform/progress/common/progress.js';
 import { CancellationError, isCancellationError } from '../../../base/common/errors.js';
 import { raceCancellationError, SequencerByKey } from '../../../base/common/async.js';
@@ -601,7 +602,8 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 						title: nls.localize('authenticatingTo', "Authenticating to '{0}'", this.label),
 						cancellable: true
 					},
-					(progress, token) => handler(scopes, progress, token));
+					(progress, token) => handler(scopes, progress, token),
+					NotificationTelemetryId.AuthenticationSignIn);
 				if (token) {
 					break;
 				}

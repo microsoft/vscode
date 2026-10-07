@@ -11,6 +11,7 @@ import { ISessionDatabase } from '../../common/sessionDataService.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { isSubagentChatUri } from '../../common/state/sessionState.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
+import { CLAUDE_AGENT_PROVIDER_ID } from '../../common/agent.js';
 import type { ClaudeMapperState } from './claudeMapSessionEvents.js';
 import { getClaudeToolPath, isClaudeFileEditTool } from './claudeToolDisplay.js';
 
@@ -75,6 +76,7 @@ export class ClaudeFileEditObserver extends Disposable {
 			FileEditTracker,
 			sessionUri,
 			dbRef.object,
+			CLAUDE_AGENT_PROVIDER_ID,
 		);
 	}
 

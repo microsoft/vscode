@@ -9,6 +9,7 @@ import { Disposable, DisposableStore, toDisposable } from '../../../../../base/c
 import { IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ChatPetAccessoryId, ChatPetAchievementId } from '../../../../contrib/chat/browser/chatPetAchievements.js';
 import { ChatPetVariant, IChatPetService } from '../../../../contrib/chat/browser/chatPetService.js';
+import { ChatPetColor } from '../../../../contrib/chat/browser/chatPetColors.js';
 
 export interface IChatPetFixtureOptions {
 	readonly enabled: boolean;
@@ -16,6 +17,7 @@ export interface IChatPetFixtureOptions {
 	readonly unseenAchievements?: readonly ChatPetAchievementId[];
 	readonly selectedAccessory?: ChatPetAccessoryId;
 	readonly variant?: ChatPetVariant;
+	readonly color?: ChatPetColor;
 }
 
 export class FixtureChatPetService extends Disposable implements IChatPetService {
@@ -24,8 +26,8 @@ export class FixtureChatPetService extends Disposable implements IChatPetService
 
 	private readonly enabledValue: ISettableObservable<boolean>;
 	readonly enabled: IObservable<boolean>;
-	private readonly variantValue: ISettableObservable<ChatPetVariant>;
-	readonly variant: IObservable<ChatPetVariant>;
+	private readonly colorValue: ISettableObservable<ChatPetColor>;
+	readonly color: IObservable<ChatPetColor>;
 	private readonly onTheRunValue = observableValue(this, false);
 	readonly onTheRun: IObservable<boolean> = this.onTheRunValue;
 	private readonly scaleValue = observableValue(this, 1);
@@ -44,8 +46,8 @@ export class FixtureChatPetService extends Disposable implements IChatPetService
 		super();
 		this.enabledValue = observableValue(this, options.enabled);
 		this.enabled = this.enabledValue;
-		this.variantValue = observableValue(this, options.variant ?? 'stable');
-		this.variant = this.variantValue;
+		this.colorValue = observableValue(this, options.color ?? options.variant ?? 'stable');
+		this.color = this.colorValue;
 		this.unlockedAchievementsValue = observableValue<readonly ChatPetAchievementId[]>(this, options.unlockedAchievements ?? []);
 		this.unlockedAchievements = this.unlockedAchievementsValue;
 		this.unseenAchievementsValue = observableValue<readonly ChatPetAchievementId[]>(this, options.unseenAchievements ?? []);
@@ -60,8 +62,8 @@ export class FixtureChatPetService extends Disposable implements IChatPetService
 		return enabled;
 	}
 
-	setVariant(variant: ChatPetVariant): void {
-		this.variantValue.set(variant, undefined);
+	setColor(color: ChatPetColor): void {
+		this.colorValue.set(color, undefined);
 	}
 
 	setOnTheRun(onTheRun: boolean): void {

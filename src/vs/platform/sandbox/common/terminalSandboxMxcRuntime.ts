@@ -15,7 +15,6 @@ export interface IWindowsMxcConfigOptions {
 	shell?: string;
 	cwd: URI | undefined;
 	tempDir: URI;
-	schemaVersion?: string;
 	allowNetwork: boolean;
 	allowReadPaths: string[];
 	allowWritePaths: string[];
@@ -33,7 +32,7 @@ export interface IWindowsMxcTerminalSandboxRuntime {
 	getExecutablePath(appRoot: string, nativeModulesDir: string, arch: string | undefined): string;
 	getRuntimeReadPaths(appRoot: string | undefined, executablePath: string | undefined): string[];
 	createConfig(options: IWindowsMxcConfigOptions, buildSandboxPayload: IWindowsMxcBuildSandboxPayload): Promise<IWindowsMxcConfig>;
-	wrapCommand(executablePath: string, configPath: string): string;
+	wrapCommand(executablePath: string, configPath: string, nodePath: string, runnerPath: string, runAsNode: boolean): string;
 	wrapUnsandboxedCommand(command: string): string;
 	toWindowsPath(uri: URI): string;
 }
@@ -46,8 +45,6 @@ export interface IWindowsMxcTerminalSandboxRuntime {
  */
 export class WindowsMxcTerminalSandboxRuntime implements IWindowsMxcTerminalSandboxRuntime {
 	declare readonly _serviceBrand: undefined;
-
-	private readonly _configVersion = '0.6.0-alpha';
 
 	getExecutablePath(appRoot: string, nativeModulesDir: string, arch: string | undefined): string {
 		const binArch = arch === 'arm64' ? 'arm64' : 'x64';
@@ -73,7 +70,6 @@ export class WindowsMxcTerminalSandboxRuntime implements IWindowsMxcTerminalSand
 		const commandLine = `${shell} -NoProfile -Command ${this._quoteWindowsCommandLineArgument(options.command)}`;
 		const cwd = options.cwd ? this.toWindowsPath(options.cwd) : tempDirPath;
 		const policy: IWindowsMxcSandboxPolicy = {
-			version: options.schemaVersion ?? this._configVersion,
 			timeoutMs: 0,
 			filesystem: {
 				readwritePaths: options.allowWritePaths.map(path => this._normalizeWindowsPath(path)),
@@ -82,24 +78,34 @@ export class WindowsMxcTerminalSandboxRuntime implements IWindowsMxcTerminalSand
 			},
 			network: this._createNetworkPolicy(options.allowNetwork),
 			ui: {
-				allowWindows: true,
+				disable: false,
 				clipboard: 'none',
 				allowInputInjection: false,
 			},
 		};
 
 		const config = await buildSandboxPayload(commandLine, policy, cwd);
-		if (!config?.process) {
+		if (!config?.command) {
 			throw new Error('Unable to build Windows MXC sandbox payload');
 		}
 
-		config.process.env = [...options.env];
+		config.environment = Object.fromEntries(options.env.map(variable => {
+			const separator = variable.indexOf('=');
+			if (separator < 1) {
+				throw new Error(`Invalid Windows MXC environment variable: ${variable}`);
+			}
+			return [variable.slice(0, separator), variable.slice(separator + 1)];
+		}));
 
 		return config;
 	}
 
-	wrapCommand(executablePath: string, configPath: string): string {
-		return `& ${this._quotePowerShellArgument(executablePath)} ${this._quotePowerShellArgument(configPath)}`;
+	wrapCommand(executablePath: string, configPath: string, nodePath: string, runnerPath: string, runAsNode: boolean): string {
+		const binPath = win32.dirname(win32.dirname(executablePath));
+		const command = `& ${this._quotePowerShellArgument(nodePath)} ${this._quotePowerShellArgument(runnerPath)} ${this._quotePowerShellArgument(configPath)} ${this._quotePowerShellArgument(binPath)}`;
+		return runAsNode
+			? `& { $vscodeSandboxRunAsNode = $env:ELECTRON_RUN_AS_NODE; try { $env:ELECTRON_RUN_AS_NODE = '1'; ${command} } finally { $env:ELECTRON_RUN_AS_NODE = $vscodeSandboxRunAsNode } }`
+			: command;
 	}
 
 	wrapUnsandboxedCommand(command: string): string {
@@ -123,9 +129,7 @@ export class WindowsMxcTerminalSandboxRuntime implements IWindowsMxcTerminalSand
 	}
 
 	private _createNetworkPolicy(allowNetwork: boolean): NonNullable<IWindowsMxcSandboxPolicy['network']> {
-		// MXC does not support per-host network policies on Windows. Rely on the
-		// overall allow/block policy instead of emitting unsupported host lists.
-		return { allowOutbound: allowNetwork };
+		return { egress: { default: allowNetwork ? 'allow' : 'deny' }, ingress: { default: 'deny' } };
 	}
 
 	private _quotePowerShellArgument(value: string): string {

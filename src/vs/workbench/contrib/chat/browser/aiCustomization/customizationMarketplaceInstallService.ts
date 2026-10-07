@@ -27,11 +27,13 @@ import { mcpGalleryServiceUrlConfig } from '../../../../../platform/mcp/common/m
 import { UnsupportedMcpGalleryPackageError } from '../../../../../platform/mcp/common/mcpGalleryService.js';
 import { IMcpGalleryManifest, IMcpGalleryManifestService } from '../../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, McpServerInstallState } from '../../../mcp/common/mcpTypes.js';
 import { createCustomizationMarketplaceInstallationSnapshot, CustomizationMarketplaceInstallationTarget, CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService, RecordedCustomizationMarketplaceInstallState } from '../../common/customizationMarketplaceInstallService.js';
 import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { ChatConfiguration } from '../../common/constants.js';
+import { getCustomizationMarketplaceInstallTelemetryContext, runCustomizationMarketplaceInstallWithTelemetry } from '../../common/customizationMarketplaceInstallTelemetry.js';
 import { ICustomizationHarnessService, ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { IAgentPluginRepositoryService } from '../../common/plugins/agentPluginRepositoryService.js';
@@ -117,6 +119,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IFileService private readonly fileService: IFileService,
 		@ILogService private readonly logService: ILogService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IStorageService storageService: IStorageService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -246,6 +249,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		}
 		this.enabledDisposables.add(autorun(reader => {
 			this.pluginMarketplaceService.installedPlugins.read(reader);
+			this.agentPluginService.plugins.read(reader);
 			this.emitChange();
 			void this.reconcileRecords(this.getRecordsByKind('plugin'));
 		}));
@@ -506,8 +510,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 				state = { kind: await this.isSkillInstallationComplete(record.target) ? 'installed' : 'missing' };
 			} else if (record.target.kind === 'plugin') {
 				const target = record.target;
-				let installed = this.pluginMarketplaceService.installedPlugins.get().find(candidate => isEqual(candidate.pluginUri, target.uri));
-				installed ??= this.getInstalledPlugin(record);
+				const installed = await this.getExistingInstalledPlugin(record);
 				state = { kind: installed ? 'installed' : 'missing' };
 				if (installed && !isEqual(installed.pluginUri, target.uri)) {
 					record = { ...record, target: { ...target, uri: installed.pluginUri } };
@@ -736,19 +739,24 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 				operationDisposables.dispose();
 			}
 		}));
-		const operation = connector
-			? (async () => {
+		const operation = runCustomizationMarketplaceInstallWithTelemetry(
+			this.telemetryService,
+			getCustomizationMarketplaceInstallTelemetryContext('marketplace', resource.installation),
+			async () => {
+				if (!connector) {
+					const record = await this.doInstall(resource, token);
+					await this.addRecord(record);
+					return;
+				}
 				await this.runConnectorOperation(resource.sourceId, operationToken => this.copilotConnectorsService.connect(connector.name, operationToken), token);
 				const account = this.copilotConnectorsService.account;
 				if (!account) {
 					throw new Error(localize('customizationMarketplace.connectorAccountUnavailable', "The GitHub account used to connect this resource is no longer available."));
 				}
 				await this.addRecord(await this.createConnectorRecord(resource, account));
-			})()
-			: (async () => {
-				const record = await this.doInstall(resource, token);
-				await this.addRecord(record);
-			})();
+			},
+			token,
+		);
 		this.pending.set(key, { promise: operation, cancel: () => operationDisposables.dispose() });
 		this.emitChange();
 		let didComplete = false;
@@ -923,12 +931,14 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 				return;
 			}
 			const plugin = this.agentPluginService.plugins.get().find(candidate => isEqual(candidate.uri, installed.pluginUri));
-			if (!plugin?.remove) {
-				throw new Error(localize('customizationMarketplace.pluginUninstallUnavailable', "This plugin cannot be uninstalled from the customization marketplace."));
+			if (plugin?.remove) {
+				if (!await plugin.remove()) {
+					throw new CancellationError();
+				}
+				return;
 			}
-			if (!await plugin.remove()) {
-				throw new CancellationError();
-			}
+			this.agentPluginService.enablementModel.remove(installed.pluginUri.toString());
+			await this.pluginInstallService.uninstallPlugin(installed.pluginUri);
 			return;
 		}
 		if (record.target.kind !== 'skill') {
@@ -1151,15 +1161,41 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		return manifest;
 	}
 
+	private async getExistingInstalledPlugin(record: ICustomizationMarketplaceInstallationRecord) {
+		const target = record.target;
+		const recorded = target.kind === 'plugin'
+			? this.pluginMarketplaceService.installedPlugins.get().find(candidate => isEqual(candidate.pluginUri, target.uri))
+			: undefined;
+		const candidates = recorded
+			? [recorded, ...this.getInstalledPlugins(record).filter(candidate => !isEqual(candidate.pluginUri, recorded.pluginUri))]
+			: this.getInstalledPlugins(record);
+		for (const candidate of candidates) {
+			try {
+				if ((await this.fileService.resolve(candidate.pluginUri)).isDirectory) {
+					return candidate;
+				}
+			} catch (error) {
+				if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+					throw error;
+				}
+			}
+		}
+		return undefined;
+	}
+
 	private getInstalledPlugin(record: ICustomizationMarketplaceInstallationRecord) {
+		return this.getInstalledPlugins(record)[0];
+	}
+
+	private getInstalledPlugins(record: ICustomizationMarketplaceInstallationRecord) {
 		const source = record.installation;
 		if (source.kind === 'configuredPlugin') {
-			return this.pluginMarketplaceService.installedPlugins.get().find(({ plugin }) => getPluginMarketplaceIdentifier(plugin) === record.identifier);
+			return this.pluginMarketplaceService.installedPlugins.get().filter(({ plugin }) => getPluginMarketplaceIdentifier(plugin) === record.identifier);
 		}
 		if (source.kind !== 'plugin') {
-			return undefined;
+			return [];
 		}
-		return this.pluginMarketplaceService.installedPlugins.get().find(({ plugin }) => {
+		return this.pluginMarketplaceService.installedPlugins.get().filter(({ plugin }) => {
 			if (record.version !== undefined && plugin.version !== record.version) {
 				return false;
 			}

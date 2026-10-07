@@ -11,13 +11,24 @@ import { type IInstantiationService } from '../../../../../platform/instantiatio
 import { type INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { type IAgentHostAutoConnect, type IAgentHostConnectProgress } from '../../../../common/agentHostSessionsProvider.js';
 import { type ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
+import { RemoteAgentHostSessionsProvider, type IRemoteAgentHostSessionsProviderConfig } from './remoteAgentHostSessionsProvider.js';
 import { watchForIncompatibleNotifications } from './remoteHostOptions.js';
 
 /** Options supplied by a remote-host kind when creating its sessions provider. */
 export interface IEntryDrivenProviderOptions {
+	readonly sessionSchemeAlias?: IRemoteAgentHostSessionsProviderConfig['sessionSchemeAlias'];
 	readonly connectOnDemand?: () => Promise<void>;
 	readonly disconnectOnDemand?: () => Promise<void>;
+	readonly removeOnDemand?: () => Promise<void>;
+	readonly canRemove?: boolean;
+	readonly setDisplayName?: (name: string | undefined) => void;
+	readonly sessionCacheKey?: string;
+	readonly retainSessionsOnDisconnect?: boolean;
+	readonly readOnlyWhenDisconnected?: boolean;
+	readonly hostDescription?: IRemoteAgentHostSessionsProviderConfig['hostDescription'];
+	readonly removeLabel?: string;
+	readonly disconnectLabel?: string;
+	readonly connectionLabels?: IRemoteAgentHostSessionsProviderConfig['connectionLabels'];
 	readonly onDidReportConnectProgress?: Event<IAgentHostConnectProgress>;
 	readonly autoConnect?: IAgentHostAutoConnect;
 	readonly initialStatus?: RemoteAgentHostConnectionStatus;
@@ -83,12 +94,16 @@ export abstract class EntryDrivenProviderContribution extends Disposable {
 			const address = getEntryAddress(entry);
 			const existing = this._providerInstances.get(address);
 			if (existing && existing.defaultLabel !== (entry.name || address)) {
-				this._providerStores.deleteAndDispose(address);
+				this._updateProviderName(address, existing, entry.name);
 			}
 			if (!this._providerStores.has(address)) {
 				this._createProvider(address, entry.name, this._getProviderOptions(entry));
 			}
 		}
+	}
+
+	protected _updateProviderName(address: string, _provider: RemoteAgentHostSessionsProvider, _name: string): void {
+		this._providerStores.deleteAndDispose(address);
 	}
 
 	protected _createProvider(address: string, name: string, options: IEntryDrivenProviderOptions): RemoteAgentHostSessionsProvider {
@@ -99,9 +114,20 @@ export abstract class EntryDrivenProviderContribution extends Disposable {
 			name,
 			connectOnDemand: options.connectOnDemand,
 			disconnectOnDemand: options.disconnectOnDemand,
+			removeOnDemand: options.removeOnDemand,
+			canRemove: options.canRemove,
+			setDisplayName: options.setDisplayName,
+			sessionCacheKey: options.sessionCacheKey,
+			retainSessionsOnDisconnect: options.retainSessionsOnDisconnect,
+			readOnlyWhenDisconnected: options.readOnlyWhenDisconnected,
+			hostDescription: options.hostDescription,
+			removeLabel: options.removeLabel,
+			disconnectLabel: options.disconnectLabel,
+			connectionLabels: options.connectionLabels,
 			onDidReportConnectProgress: options.onDidReportConnectProgress,
 			autoConnect: options.autoConnect,
 			preferenceKey: options.preferenceKey,
+			...(options.sessionSchemeAlias ? { sessionSchemeAlias: options.sessionSchemeAlias } : {}),
 		});
 		if (options.initialStatus !== undefined) {
 			provider.setConnectionStatus(options.initialStatus);

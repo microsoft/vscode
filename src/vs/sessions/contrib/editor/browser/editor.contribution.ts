@@ -25,8 +25,8 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { ActiveEditorContext, EditorPartModalContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../workbench/common/contextkeys.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { Menus } from '../../../browser/menus.js';
-import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
-import { CustomViewVisibleContext, EditorMaximizedContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
+import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
+import { CustomViewVisibleContext, EditorMaximizedContext, DesktopLayoutContext } from '../../../common/contextkeys.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
@@ -34,10 +34,9 @@ import { IEditorService } from '../../../../workbench/services/editor/common/edi
 import { IListService } from '../../../../platform/list/browser/listService.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../workbench/common/editor.js';
 import { resolveCommandsContext } from '../../../../workbench/browser/parts/editor/editorCommandsContext.js';
-import { MultiDiffEditorInput } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
 import { CHANGES_VIEW_ID } from '../../changes/common/changes.js';
 import { ChangesViewPane } from '../../changes/browser/changesView.js';
-import { CONNECTED_EDITOR_TABS_CLASS, prepareMoveCopyEditors } from '../../../../workbench/browser/parts/editor/editor.js';
+import { CONNECTED_EDITOR_TABS_CLASS } from '../../../../workbench/browser/parts/editor/editor.js';
 import { IWorkbenchLayoutService, LayoutSettings, ModernUIEditorTabStyle, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IAuxiliaryWindowService } from '../../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID } from '../../../../workbench/browser/parts/editor/editorCommands.js';
@@ -93,10 +92,8 @@ export class SessionsTabStyleContribution extends Disposable implements IWorkben
 
 registerWorkbenchContribution2(SessionsTabStyleContribution.ID, SessionsTabStyleContribution, WorkbenchPhase.BlockStartup);
 
-// The pop-out-to-modal and close-editor-area buttons do not apply to the single-pane
-// redesign, so they are hidden when single-pane is enabled (original layout keeps them).
-const singlePaneDetailPanel = SinglePaneLayoutEnabledContext;
-const notSinglePaneDetailPanel = singlePaneDetailPanel.negate();
+const desktopDetailPanel = DesktopLayoutContext;
+const mobileLayout = desktopDetailPanel.negate();
 
 const editorTitleActionsWhen = ContextKeyExpr.and(
 	IsSessionsWindowContext,
@@ -104,29 +101,29 @@ const editorTitleActionsWhen = ContextKeyExpr.and(
 	IsTopRightEditorGroupContext);
 // Maximize/restore renders before Toggle Details in the editor-title layout cluster.
 // Hide/Show Editor remain registered but are hidden from the menu.
-const singlePaneLayoutMaximizeOrder = 9;
-const singlePaneLayoutHideEditorOrder = 20;
+const desktopLayoutMaximizeOrder = 9;
+const desktopLayoutHideEditorOrder = 20;
 
-// Keybinding scope for the single-pane maximize/restore toggle: active in the
-// main sessions window whenever the single-pane layout is on and the editor
+// Keybinding scope for the desktop maximize/restore toggle: active in the
+// main sessions window whenever the desktop layout is on and the editor
 // area is visible. Deliberately does not require the editor group to be focused
 // so the toggle works while typing in the chat.
-const singlePaneMaximizeKeybindingWhen = ContextKeyExpr.and(
+const desktopMaximizeKeybindingWhen = ContextKeyExpr.and(
 	IsSessionsWindowContext,
 	IsAuxiliaryWindowContext.toNegated(),
-	singlePaneDetailPanel,
+	desktopDetailPanel,
 	MainEditorAreaVisibleContext);
 
-class SinglePaneAddTabContribution extends Disposable implements IWorkbenchContribution {
+class DesktopAddTabContribution extends Disposable implements IWorkbenchContribution {
 
-	static readonly ID = 'workbench.contrib.sessions.singlePaneAddTab';
+	static readonly ID = 'workbench.contrib.sessions.desktopAddTab';
 
 	constructor(
 		@IAgentWorkbenchLayoutService layoutService: IAgentWorkbenchLayoutService,
 	) {
 		super();
 
-		if (!layoutService.isSinglePaneLayoutEnabled) {
+		if (layoutService.agentWorkbenchLayout !== AgentWorkbenchLayout.Desktop) {
 			return;
 		}
 
@@ -137,7 +134,7 @@ class SinglePaneAddTabContribution extends Disposable implements IWorkbenchContr
 	}
 }
 
-registerWorkbenchContribution2(SinglePaneAddTabContribution.ID, SinglePaneAddTabContribution, WorkbenchPhase.BlockStartup);
+registerWorkbenchContribution2(DesktopAddTabContribution.ID, DesktopAddTabContribution, WorkbenchPhase.BlockStartup);
 
 class MaximizeMainEditorPartAction extends Action2 {
 	static readonly ID = 'workbench.action.agentSessions.maximizeMainEditorPart';
@@ -151,22 +148,14 @@ class MaximizeMainEditorPartAction extends Action2 {
 			keybinding: {
 				weight: KeybindingWeight.SessionsContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyE,
-				when: ContextKeyExpr.and(singlePaneMaximizeKeybindingWhen, EditorMaximizedContext.negate())
+				when: ContextKeyExpr.and(desktopMaximizeKeybindingWhen, EditorMaximizedContext.negate())
 			},
-			menu: [
-				{
-					id: MenuId.EditorTitleLayout,
-					group: 'navigation',
-					order: singlePaneLayoutMaximizeOrder,
-					when: ContextKeyExpr.and(editorTitleActionsWhen, EditorMaximizedContext.negate(), singlePaneDetailPanel, MainEditorAreaVisibleContext)
-				},
-				{
-					id: MenuId.EditorTitleLayout,
-					group: 'navigation',
-					order: 99,
-					when: ContextKeyExpr.and(editorTitleActionsWhen, EditorMaximizedContext.negate(), notSinglePaneDetailPanel)
-				}
-			]
+			menu: {
+				id: MenuId.EditorTitleLayout,
+				group: 'navigation',
+				order: desktopLayoutMaximizeOrder,
+				when: ContextKeyExpr.and(editorTitleActionsWhen, EditorMaximizedContext.negate(), desktopDetailPanel, MainEditorAreaVisibleContext)
+			}
 		});
 	}
 
@@ -205,22 +194,14 @@ class RestoreMainEditorPartAction extends Action2 {
 			keybinding: {
 				weight: KeybindingWeight.SessionsContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyE,
-				when: ContextKeyExpr.and(singlePaneMaximizeKeybindingWhen, EditorMaximizedContext)
+				when: ContextKeyExpr.and(desktopMaximizeKeybindingWhen, EditorMaximizedContext)
 			},
-			menu: [
-				{
-					id: MenuId.EditorTitleLayout,
-					group: 'navigation',
-					order: singlePaneLayoutMaximizeOrder,
-					when: ContextKeyExpr.and(editorTitleActionsWhen, EditorMaximizedContext, singlePaneDetailPanel, MainEditorAreaVisibleContext)
-				},
-				{
-					id: MenuId.EditorTitleLayout,
-					group: 'navigation',
-					order: 99,
-					when: ContextKeyExpr.and(editorTitleActionsWhen, EditorMaximizedContext, notSinglePaneDetailPanel)
-				}
-			]
+			menu: {
+				id: MenuId.EditorTitleLayout,
+				group: 'navigation',
+				order: desktopLayoutMaximizeOrder,
+				when: ContextKeyExpr.and(editorTitleActionsWhen, EditorMaximizedContext, desktopDetailPanel, MainEditorAreaVisibleContext)
+			}
 		});
 	}
 
@@ -252,7 +233,7 @@ class HideMainEditorPartAction extends Action2 {
 			menu: {
 				id: MenuId.EditorTitleLayout,
 				group: 'navigation',
-				order: singlePaneLayoutHideEditorOrder,
+				order: desktopLayoutHideEditorOrder,
 				when: ContextKeyExpr.false()
 			}
 		});
@@ -284,7 +265,7 @@ class ShowMainEditorPartAction extends Action2 {
 			menu: {
 				id: MenuId.EditorTitleLayout,
 				group: 'navigation',
-				order: singlePaneLayoutHideEditorOrder,
+				order: desktopLayoutHideEditorOrder,
 				when: ContextKeyExpr.false()
 			}
 		});
@@ -295,7 +276,7 @@ class ShowMainEditorPartAction extends Action2 {
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		// A deliberate user action, so reveal the editor area explicitly (like the
 		// session-header Changes pill) rather than a plain part-visibility toggle:
-		// this records the reveal as intentional so the automatic single-pane hide
+		// this records the reveal as intentional so the automatic desktop hide
 		// rules do not undo it.
 		layoutService.revealEditorPartExplicitly();
 		editorGroupsService.activeGroup.focus();
@@ -303,102 +284,6 @@ class ShowMainEditorPartAction extends Action2 {
 }
 
 registerAction2(ShowMainEditorPartAction);
-
-class CloseMainEditorPartAction extends Action2 {
-	static readonly ID = 'workbench.action.agentSessions.closeMainEditorPart';
-
-	constructor() {
-		super({
-			id: CloseMainEditorPartAction.ID,
-			title: localize2('closeMainEditorPart', "Close Editor Area"),
-			icon: Codicon.close,
-			f1: false,
-			menu: {
-				id: MenuId.EditorTitleLayout,
-				group: 'navigation',
-				order: 100,
-				when: ContextKeyExpr.and(
-					IsSessionsWindowContext,
-					IsAuxiliaryWindowContext.toNegated(),
-					IsTopRightEditorGroupContext,
-					notSinglePaneDetailPanel)
-			}
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const commandService = accessor.get(ICommandService);
-		await commandService.executeCommand('workbench.action.closeAllGroups');
-	}
-}
-
-registerAction2(CloseMainEditorPartAction);
-
-class OpenEditorInModalEditorAction extends Action2 {
-	static readonly ID = 'workbench.action.agentSessions.openEditorInModal';
-
-	constructor() {
-		super({
-			id: OpenEditorInModalEditorAction.ID,
-			title: localize2('openEditorInModal', "Open in Modal Editor"),
-			icon: Codicon.openInWindow,
-			f1: false,
-			menu: {
-				id: MenuId.EditorTitleLayout,
-				group: 'navigation',
-				order: 1,
-				when: ContextKeyExpr.and(
-					IsSessionsWindowContext,
-					IsAuxiliaryWindowContext.toNegated(),
-					notSinglePaneDetailPanel
-				)
-			}
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const viewsService = accessor.get(IViewsService);
-		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
-		const configurationService = accessor.get(IConfigurationService);
-		const editorGroupsService = accessor.get(IEditorGroupsService);
-
-		const isMaximized = layoutService.isEditorMaximized();
-
-		// Set the `workbench.editor.useModal` setting to 'all'
-		await configurationService.updateValue('workbench.editor.useModal', 'all');
-
-		// Move all editors from the active group to the modal editor
-		const activeGroup = editorGroupsService.mainPart.activeGroup;
-
-		// Check for multi-file diff editor
-		const multiFileDiffEditor = activeGroup.editors
-			.find(editor => editor instanceof MultiDiffEditorInput);
-
-		if (multiFileDiffEditor) {
-			// Reopen multi-file diff editor as the first editor in the modal editor
-			const view = viewsService.getViewWithId<ChangesViewPane>(CHANGES_VIEW_ID);
-			await view?.openChanges();
-
-			// Close the multi-file diff editor
-			await activeGroup.closeEditor(multiFileDiffEditor);
-		}
-
-		// Move all remaining editors to the modal editor
-		const modalPart = await editorGroupsService.createModalEditorPart();
-		const editorsToMove = prepareMoveCopyEditors(activeGroup, activeGroup.editors.slice(), true);
-		activeGroup.moveEditors(editorsToMove, modalPart.activeGroup);
-
-		// Maximize
-		if (isMaximized && !modalPart.maximized) {
-			modalPart.toggleMaximized();
-		}
-
-		// Focus
-		modalPart.activeGroup.focus();
-	}
-}
-
-registerAction2(OpenEditorInModalEditorAction);
 
 class OpenModalEditorInEditorAction extends Action2 {
 	static readonly ID = 'workbench.action.agentSessions.openModalEditorInEditor';
@@ -497,12 +382,12 @@ class AddFileAsContextAction extends Action2 {
 				id: Menus.SessionsEditorTitle,
 				group: 'navigation',
 				order: 100000,
-				when: ContextKeyExpr.and(precondition, singlePaneDetailPanel)
+				when: ContextKeyExpr.and(precondition, desktopDetailPanel)
 			}, {
 				id: MenuId.EditorTitle,
 				group: 'navigation',
 				order: 100000, // towards the far right, mirroring Split Editor Right in the regular window
-				when: ContextKeyExpr.and(precondition, notSinglePaneDetailPanel)
+				when: ContextKeyExpr.and(precondition, mobileLayout)
 			}]
 		});
 	}
@@ -530,7 +415,7 @@ registerAction2(AddFileAsContextAction);
 
 /**
  * Mirrors extension-contributed `editor/title` items into {@link Menus.SessionsEditorTitle}
- * so they are not lost in the single-pane layout. See `LAYOUT.md` for details.
+ * so they are not lost in the desktop layout. See `LAYOUT.md` for details.
  */
 export class EditorTitleMenuBridgeContribution extends Disposable implements IWorkbenchContribution {
 
@@ -547,7 +432,7 @@ export class EditorTitleMenuBridgeContribution extends Disposable implements IWo
 	) {
 		super();
 
-		if (!layoutService.isSinglePaneLayoutEnabled) {
+		if (layoutService.agentWorkbenchLayout !== AgentWorkbenchLayout.Desktop) {
 			return;
 		}
 

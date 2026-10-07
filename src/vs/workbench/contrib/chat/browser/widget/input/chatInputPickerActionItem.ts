@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getActiveWindow } from '../../../../../../base/browser/dom.js';
+import './media/chatInputPicker.css';
+import { $, addDisposableListener, EventType, getActiveWindow, getWindow, reset } from '../../../../../../base/browser/dom.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 import { AnchorPosition } from '../../../../../../base/common/layout.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../../base/common/observable.js';
 import { ActionWidgetDropdownActionViewItem } from '../../../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
@@ -33,6 +35,12 @@ export interface IChatInputPickerOptions {
 
 	/** Context view layer used when the picker is hosted inside another context view. */
 	readonly contextViewLayer?: number;
+
+	/**
+	 * Forces the provider-tab model picker experience even when the global
+	 * experimental setting is disabled.
+	 */
+	readonly forceTabbedModelPicker?: boolean;
 }
 
 export function withChatInputPickerMotion(listOptions: IActionListOptions | undefined): IActionListOptions {
@@ -40,6 +48,38 @@ export function withChatInputPickerMotion(listOptions: IActionListOptions | unde
 		...withActionWidgetDropdownMotion(listOptions),
 		anchorPosition: AnchorPosition.ABOVE,
 	};
+}
+
+export function renderChatInputPickerSplit(container: HTMLElement, primaryButton = $('a'), secondaryButton = $('a')): { primaryButton: HTMLElement; secondaryButton: HTMLElement } {
+	container.classList.add('chat-input-picker-split');
+	container.role = 'group';
+	container.tabIndex = -1;
+	container.removeAttribute('aria-haspopup');
+	container.removeAttribute('aria-expanded');
+	primaryButton.classList.add('chat-input-picker-split-button', 'chat-input-picker-split-primary');
+	secondaryButton.classList.add('chat-input-picker-split-button', 'chat-input-picker-split-secondary');
+	for (const button of [primaryButton, secondaryButton]) {
+		button.role = 'button';
+		button.tabIndex = container.ariaDisabled === 'true' ? -1 : 0;
+		button.ariaDisabled = container.ariaDisabled;
+		button.ariaHasPopup ??= 'true';
+		button.ariaExpanded ??= 'false';
+	}
+	if (primaryButton.parentElement !== container || secondaryButton.parentElement !== container) {
+		reset(container, primaryButton, secondaryButton);
+	}
+	return { primaryButton, secondaryButton };
+}
+
+export function trackChatInputPickerFocus(container: HTMLElement): IDisposable {
+	const store = new DisposableStore();
+	const targetWindow = getWindow(container);
+	container.classList.add('chat-input-picker-focus-scope');
+	// Popup focus restoration can inherit :focus-visible from an input even after a pointer dismissal.
+	store.add(addDisposableListener(targetWindow, EventType.POINTER_DOWN, () => container.classList.add('pointer-focus'), true));
+	store.add(addDisposableListener(targetWindow, EventType.KEY_DOWN, () => container.classList.remove('pointer-focus'), true));
+	store.add(toDisposable(() => container.classList.remove('chat-input-picker-focus-scope', 'pointer-focus')));
+	return store;
 }
 
 /**

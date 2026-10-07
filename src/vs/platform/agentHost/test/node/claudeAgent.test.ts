@@ -312,6 +312,7 @@ async function startActiveTurn(disposables: Pick<DisposableStore, 'add'>, ctx: I
 class FakeAgentPluginManager implements IAgentPluginManager {
 	declare readonly _serviceBrand: undefined;
 	readonly basePath = URI.from({ scheme: 'inmemory', path: '/agentPlugins' });
+	readonly hostPluginsPath = URI.joinPath(this.basePath, '.host');
 
 	syncResult: readonly ISyncedCustomization[] | undefined;
 	syncCalls: { clientId: string; customizations: readonly ClientPluginCustomization[] }[] = [];
@@ -389,6 +390,8 @@ class FakeAgentHostAuthenticationService implements IAgentHostAuthenticationServ
 	getAuthToken(request: Parameters<IAgentHostAuthenticationService['getAuthToken']>[0]): string | undefined {
 		return this._tokens.get(request.resource);
 	}
+
+	getAuthAccount(): undefined { return undefined; }
 
 	dispose(): void {
 		this._onDidChangeAuthToken.dispose();
@@ -1070,6 +1073,7 @@ const ALL_MODELS: readonly CCAModel[] = [
  */
 class RecordingOTelService implements IAgentHostOTelService {
 	readonly _serviceBrand: undefined;
+	readonly enabled = false;
 	readonly diagnosticsEnabled = false;
 	emitTurnTiming(): void { }
 	emitFirstResponse(): void { }
@@ -1078,6 +1082,7 @@ class RecordingOTelService implements IAgentHostOTelService {
 	async getSdkTelemetryConfig(): Promise<undefined> { return undefined; }
 	async getNativeSdkTelemetryConfig(): Promise<undefined> { return undefined; }
 	getSessionTraceContext(): undefined { return undefined; }
+	setSessionComparisonMetadata(): void { }
 	releaseSessionTraceContext(): void { }
 	withTraceContext<T>(_context: undefined, fn: () => T): T { return fn(); }
 	getCurrentTraceContext(): undefined { return undefined; }
@@ -2601,6 +2606,19 @@ suite('ClaudeAgent', () => {
 			session: expected.toString(),
 			provisional: true,
 		});
+	});
+
+	test('standard host sessions retain their address and an independent Claude backing ID', async () => {
+		const { agent } = createTestContext(disposables);
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'tok');
+		const session = URI.parse('ahp-session:/new-claude');
+		const result = await createSession(agent, { session, workingDirectories: [URI.file('/work')] });
+		assert.deepStrictEqual({
+			session: result.session.toString(),
+			provisional: result.provisional,
+			backingProvider: result.chat?.backingSession?.scheme,
+			separateBacking: result.sdkSessionId !== AgentSession.id(session),
+		}, { session: session.toString(), provisional: true, backingProvider: 'claude', separateBacking: true });
 	});
 
 	test('createChat({ fork }) forks at the anchor uuid, then materializes lazily on first sendMessage', async () => {
@@ -7210,10 +7228,10 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 		}, {
 			result: { behavior: 'allow', updatedInput: input },
 			confirmation: {
-				displayName: 'Set Workspace',
-				invocationMessage: 'Continue this session in /workspace/app with changes isolated from the existing folder?',
+				displayName: 'Change Workspace',
+				invocationMessage: 'Change this chat\'s workspace to a new worktree of /workspace/app? Other chats keep their workspaces.',
 				toolInput: undefined,
-				confirmationTitle: 'Continue in app?',
+				confirmationTitle: 'Change Workspace to app?',
 				permissionKind: 'mcp',
 			},
 		});

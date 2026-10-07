@@ -193,7 +193,7 @@ export class CustomizationMarketplaceSkillInstaller {
 				cancellable: true,
 			}, async () => {
 				const resolved = await this.resolvePinnedSkillSourceDirectory(reference, installation.path, target.resolvedRevision, () => checkContext(token), token);
-				const staging = joinPath(dirname(targetRoot), `.customization-marketplace-${generateUuid()}`);
+				const staging = joinPath(dirname(target.sourceFolder), `.customization-marketplace-${generateUuid()}`);
 				try {
 					const stagedFiles = new Set(await this.copySkill(resolved.sourceDirectory, staging, () => checkContext(token), token));
 					const revisionAfterCopy = (await this.pluginGitService.revParse(resolved.repository, 'HEAD')).toLowerCase();

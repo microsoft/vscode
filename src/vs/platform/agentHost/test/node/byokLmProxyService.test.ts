@@ -9,7 +9,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { ByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
-import { ByokLmProxyService, type IByokLmProxyHandle } from '../../node/copilot/byokLmProxyService.js';
+import { ByokLmProxyService, type IByokLmProxyHandle, type IByokLmToolsCappedEvent } from '../../node/copilot/byokLmProxyService.js';
+import { BYOK_MAX_TOOLS } from '../../node/copilot/byokResponsesTranslation.js';
 
 /**
  * Exercises the inference path end-to-end without the Copilot SDK runtime:
@@ -38,14 +39,14 @@ suite('ByokLmProxyService', () => {
 
 	async function withProxy(
 		chat: (request: IByokLmChatRequest) => Promise<IByokLmChatResult>,
-		run: (handle: IByokLmProxyHandle) => Promise<void>,
+		run: (handle: IByokLmProxyHandle, service: ByokLmProxyService) => Promise<void>,
 	): Promise<void> {
 		const registry = new ByokLmBridgeRegistry();
 		const registration = registry.register('client-1', servingConnection(chat));
 		const service = new ByokLmProxyService(new NullLogService(), registry);
 		const handle = await service.start();
 		try {
-			await run(handle);
+			await run(handle, service);
 		} finally {
 			handle.dispose();
 			registration.dispose();
@@ -114,6 +115,40 @@ suite('ByokLmProxyService', () => {
 		);
 	});
 
+	test('caps tools at the BYOK limit, reports the session, and still serves the request', async () => {
+		const bridgeToolCounts: (number | undefined)[] = [];
+		const capEvents: IByokLmToolsCappedEvent[] = [];
+		const tools = (count: number) => Array.from({ length: count }, (_, i) => ({ type: 'function', name: `tool_${i}`, parameters: { type: 'object' } }));
+		await withProxy(
+			async (request) => {
+				bridgeToolCounts.push(request.tools?.length);
+				return { output: [{ type: 'message', content: [{ type: 'text', text: 'ok' }] }] };
+			},
+			async (handle, service) => {
+				const listener = service.onDidCapTools(e => capEvents.push(e));
+				try {
+					const statuses: number[] = [];
+					for (const count of [BYOK_MAX_TOOLS, 200]) {
+						const response = await fetch(responsesUrl(handle, 'acme'), {
+							method: 'POST',
+							headers: authHeaders(handle),
+							body: JSON.stringify({ model: 'm', input: 'hi', tools: tools(count) }),
+						});
+						statuses.push(response.status);
+						await response.text();
+					}
+					assert.deepStrictEqual(statuses, [200, 200]);
+				} finally {
+					listener.dispose();
+				}
+			},
+		);
+		assert.deepStrictEqual({ bridgeToolCounts, capEvents }, {
+			bridgeToolCounts: [BYOK_MAX_TOOLS, BYOK_MAX_TOOLS],
+			capEvents: [{ sessionId, requestedToolCount: 200, sentToolCount: BYOK_MAX_TOOLS }],
+		});
+	});
+
 	test('forwards a Responses request to the bridge and returns JSON by default', async () => {
 		let captured: IByokLmChatRequest | undefined;
 		await withProxy(
@@ -153,7 +188,7 @@ suite('ByokLmProxyService', () => {
 		await withProxy(
 			async request => {
 				captured.push(request);
-				return { output: [] };
+				return { output: [{ type: 'message', content: [{ type: 'text', text: 'an image' }] }] };
 			},
 			async handle => {
 				for (const input of [
@@ -376,6 +411,68 @@ suite('ByokLmProxyService', () => {
 				assert.strictEqual(response.status, 502);
 				const body = await response.json() as { error?: { message?: string } };
 				assert.strictEqual(body.error?.message, 'bridge exploded');
+			},
+		);
+	});
+
+	test('reports an empty response to a user message as a non-retryable error instead of an empty completion', async () => {
+		const userMessage = (text: string) => ({ type: 'message', role: 'user', content: [{ type: 'input_text', text }] });
+		await withProxy(
+			async () => ({
+				output: [
+					{ type: 'reasoning', id: 'rs_1', summary: [' '], encryptedContent: 'opaque' },
+					{ type: 'message', content: [{ type: 'text', text: '\n\n' }] },
+				],
+			}),
+			async (handle) => {
+				const results: Array<{ status: number; message?: string }> = [];
+				for (const input of [
+					[userMessage('hi')],
+					// A replacement turn after a cancelled turn keeps that turn's tool results.
+					[
+						userMessage('weather?'),
+						{ type: 'function_call', call_id: 'call_1', name: 'getWeather', arguments: '{}' },
+						{ type: 'function_call_output', call_id: 'call_1', output: 'cancelled' },
+						userMessage('replacement'),
+					],
+				]) {
+					const response = await fetch(responsesUrl(handle, 'acme'), {
+						method: 'POST',
+						headers: authHeaders(handle),
+						body: JSON.stringify({ model: 'qwen', stream: true, input }),
+					});
+					const body = await response.json() as { error?: { message?: string } };
+					results.push({ status: response.status, message: body.error?.message });
+				}
+				const expected = {
+					status: 422,
+					message: 'The model \'qwen\' returned an empty response with no text or tool calls. This can happen when the conversation exceeds the model\'s context window or output token limit. Try again, start a new session, or choose a different model.',
+				};
+				assert.deepStrictEqual(results, [expected, expected]);
+			},
+		);
+	});
+
+	test('streams an empty response that continues a turn after tool results', async () => {
+		await withProxy(
+			async () => ({ output: [] }),
+			async (handle) => {
+				const response = await fetch(responsesUrl(handle, 'acme'), {
+					method: 'POST',
+					headers: authHeaders(handle),
+					body: JSON.stringify({
+						model: 'qwen',
+						stream: true,
+						input: [
+							{ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'weather?' }] },
+							{ type: 'function_call', call_id: 'call_1', name: 'getWeather', arguments: '{}' },
+							{ type: 'function_call_output', call_id: 'call_1', output: 'sunny' },
+						],
+					}),
+				});
+				const text = await response.text();
+				assert.strictEqual(response.status, 200);
+				assert.ok(text.includes('event: response.completed'), `expected completed response: ${text}`);
 			},
 		);
 	});

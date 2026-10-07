@@ -37,13 +37,12 @@ import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/ser
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { Menus } from '../../../../browser/menus.js';
-import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISessionChangeset, ISessionChangesSummary, ISessionFolder, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ActiveSessionContextKeys, ChangesContextKeys, ChangesViewMode } from '../../common/changes.js';
 import { IChangesViewService } from '../../common/changesViewService.js';
-import { CustomViewVisibleContext, IsPhoneLayoutContext, SessionHasWorkspaceContext, SessionIsCreatedContext, SinglePaneChangesEditorTransitionContext, SinglePaneDiffEditorInputActiveContext, SinglePaneLayoutEnabledContext } from '../../../../common/contextkeys.js';
+import { CustomViewVisibleContext, IsPhoneLayoutContext, SessionHasWorkspaceContext, SessionIsCreatedContext, DesktopChangesEditorTransitionContext, DesktopDiffEditorInputActiveContext, DesktopLayoutContext } from '../../../../common/contextkeys.js';
 import { SessionChangesEditor } from '../../browser/sessionChangesEditor.js';
 import { MultiDiffEditor } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
 import { CHANGES_HEADER_ACTIONS_ID, ChangesPickerActionItem, ChangesPickerSummary, isChangesActionsWorkspaceReady, unlockChatPetCreatePullRequestAchievement } from '../../browser/changesView.js';
@@ -203,55 +202,55 @@ suite('Changes View Actions', () => {
 		});
 	});
 
-	test('single-pane header consolidates change stats into the picker while the classic header keeps its action', () => {
+	test('desktop header consolidates change stats into the picker while the mobile header keeps its action', () => {
 		const items = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderPrimary)
 			.filter(isIMenuItem)
 			.filter(item => item.command.id === 'chatEditing.versionsPicker' || item.command.id === 'workbench.changesView.action.viewChanges');
 		const picker = items.find(item => item.command.id === 'chatEditing.versionsPicker');
 		assert.ok(picker?.when);
 		const context = new Context(1, null);
-		context.setValue(SinglePaneLayoutEnabledContext.key, true);
+		context.setValue(DesktopLayoutContext.key, true);
 		context.setValue(ActiveEditorContext.key, SessionChangesEditor.ID);
 		context.setValue(ActiveSessionContextKeys.HasGitRepository.key, false);
 		const visibleWhileCatalogueLoads = picker.when.evaluate(context);
 		context.setValue(ActiveEditorContext.key, undefined);
 		const hiddenWithoutEditor = !picker.when.evaluate(context);
-		context.setValue(SinglePaneChangesEditorTransitionContext.key, true);
+		context.setValue(DesktopChangesEditorTransitionContext.key, true);
 		const visibleWhileEditorIsRestored = picker.when.evaluate(context);
-		context.setValue(SinglePaneChangesEditorTransitionContext.key, false);
+		context.setValue(DesktopChangesEditorTransitionContext.key, false);
 		context.setValue(ActiveEditorContext.key, 'workbench.editors.textEditor');
 		const hiddenForOtherEditor = !picker.when.evaluate(context);
-		const classicHeaderHasDiffStatsAction = MenuRegistry.getMenuItems(MenuId.ChatEditingSessionChangesFileHeaderRightToolbar)
+		const mobileHeaderHasDiffStatsAction = MenuRegistry.getMenuItems(MenuId.ChatEditingSessionChangesFileHeaderRightToolbar)
 			.filter(isIMenuItem)
 			.some(item => item.command.id === 'workbench.changesView.action.viewChanges');
 
 		assert.deepStrictEqual({
-			singlePaneHeader: items.map(item => {
+			desktopHeader: items.map(item => {
 				const when = item.when?.serialize() ?? '';
 				return {
 					id: item.command.id,
 					hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditor.ID),
-					hasTransitionGate: when.includes(SinglePaneChangesEditorTransitionContext.key),
-					hasSinglePaneConfigGate: when.includes(SinglePaneLayoutEnabledContext.key),
+					hasTransitionGate: when.includes(DesktopChangesEditorTransitionContext.key),
+					hasDesktopLayoutGate: when.includes(DesktopLayoutContext.key),
 				};
 			}),
 			visibleWhileCatalogueLoads,
 			hiddenWithoutEditor,
 			visibleWhileEditorIsRestored,
 			hiddenForOtherEditor,
-			classicHeaderHasDiffStatsAction,
+			mobileHeaderHasDiffStatsAction,
 		}, {
-			singlePaneHeader: [{
+			desktopHeader: [{
 				id: 'chatEditing.versionsPicker',
 				hasActiveEditorGate: true,
 				hasTransitionGate: true,
-				hasSinglePaneConfigGate: true,
+				hasDesktopLayoutGate: true,
 			}],
 			visibleWhileCatalogueLoads: true,
 			hiddenWithoutEditor: true,
 			visibleWhileEditorIsRestored: true,
 			hiddenForOtherEditor: true,
-			classicHeaderHasDiffStatsAction: true,
+			mobileHeaderHasDiffStatsAction: true,
 		});
 	});
 
@@ -493,7 +492,7 @@ suite('Changes View Actions', () => {
 			icon: ThemeIcon.isThemeIcon(item.command.icon) ? item.command.icon.id : undefined,
 			hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
 			hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditor.ID),
-			hasSinglePaneConfigGate: when.includes(SinglePaneLayoutEnabledContext.key),
+			hasDesktopLayoutGate: when.includes(DesktopLayoutContext.key),
 			hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
 		}, {
 			group: 'secondary/1_diff',
@@ -501,7 +500,7 @@ suite('Changes View Actions', () => {
 			icon: Codicon.collapseAll.id,
 			hasSessionsWindowGate: true,
 			hasActiveEditorGate: true,
-			hasSinglePaneConfigGate: true,
+			hasDesktopLayoutGate: true,
 			hasEditorAreaVisibleGate: true,
 		});
 	});
@@ -519,7 +518,7 @@ suite('Changes View Actions', () => {
 			icon: ThemeIcon.isThemeIcon(item.command.icon) ? item.command.icon.id : undefined,
 			hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
 			hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditor.ID),
-			hasSinglePaneConfigGate: when.includes(SinglePaneLayoutEnabledContext.key),
+			hasDesktopLayoutGate: when.includes(DesktopLayoutContext.key),
 			hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
 			hasAllCollapsedGate: when.includes(EditorContextKeys.multiDiffEditorAllCollapsed.key),
 		}, {
@@ -528,7 +527,7 @@ suite('Changes View Actions', () => {
 			icon: Codicon.expandAll.id,
 			hasSessionsWindowGate: true,
 			hasActiveEditorGate: true,
-			hasSinglePaneConfigGate: true,
+			hasDesktopLayoutGate: true,
 			hasEditorAreaVisibleGate: true,
 			hasAllCollapsedGate: true,
 		});
@@ -538,41 +537,41 @@ suite('Changes View Actions', () => {
 		const getSubmenu = (menuId: MenuId) => MenuRegistry.getMenuItems(menuId)
 			.filter(isISubmenuItem)
 			.find(item => item.submenu === Menus.SessionsDiffEditorView);
-		const singlePane = getSubmenu(Menus.SessionsEditorHeaderLayout);
-		const classic = getSubmenu(MenuId.EditorTitle);
+		const desktop = getSubmenu(Menus.SessionsEditorHeaderLayout);
+		const mobile = getSubmenu(MenuId.EditorTitle);
 
-		assert.ok(singlePane);
-		assert.ok(classic);
-		const singlePaneWhen = singlePane.when?.serialize() ?? '';
-		const classicWhen = classic.when?.serialize() ?? '';
+		assert.ok(desktop);
+		assert.ok(mobile);
+		const desktopWhen = desktop.when?.serialize() ?? '';
+		const mobileWhen = mobile.when?.serialize() ?? '';
 		assert.deepStrictEqual({
-			singlePaneTitle: typeof singlePane.title === 'string' ? singlePane.title : singlePane.title.value,
-			singlePaneGroup: singlePane.group,
-			singlePaneOrder: singlePane.order,
-			singlePaneHasTextDiffGate: singlePaneWhen.includes(TextCompareEditorActiveContext.key),
-			singlePaneHasChangesGate: singlePaneWhen.includes(SessionChangesEditor.ID),
-			singlePaneHasMultiDiffGate: singlePaneWhen.includes(MultiDiffEditor.ID),
-			singlePaneHasLayoutGate: singlePaneWhen.includes(SinglePaneLayoutEnabledContext.key),
-			classicTitle: typeof classic.title === 'string' ? classic.title : classic.title.value,
-			classicHasSessionsGate: classicWhen.includes(IsSessionsWindowContext.key),
-			classicHasTextDiffGate: classicWhen.includes(TextCompareEditorActiveContext.key),
-			classicHasChangesGate: classicWhen.includes(SessionChangesEditor.ID),
-			classicHasMultiDiffGate: classicWhen.includes(MultiDiffEditor.ID),
-			classicHasLayoutGate: classicWhen.includes(SinglePaneLayoutEnabledContext.key),
+			desktopTitle: typeof desktop.title === 'string' ? desktop.title : desktop.title.value,
+			desktopGroup: desktop.group,
+			desktopOrder: desktop.order,
+			desktopHasTextDiffGate: desktopWhen.includes(TextCompareEditorActiveContext.key),
+			desktopHasChangesGate: desktopWhen.includes(SessionChangesEditor.ID),
+			desktopHasMultiDiffGate: desktopWhen.includes(MultiDiffEditor.ID),
+			desktopHasLayoutGate: desktopWhen.includes(DesktopLayoutContext.key),
+			mobileTitle: typeof mobile.title === 'string' ? mobile.title : mobile.title.value,
+			mobileHasSessionsGate: mobileWhen.includes(IsSessionsWindowContext.key),
+			mobileHasTextDiffGate: mobileWhen.includes(TextCompareEditorActiveContext.key),
+			mobileHasChangesGate: mobileWhen.includes(SessionChangesEditor.ID),
+			mobileHasMultiDiffGate: mobileWhen.includes(MultiDiffEditor.ID),
+			mobileHasLayoutGate: mobileWhen.includes(DesktopLayoutContext.key),
 		}, {
-			singlePaneTitle: 'Diff View',
-			singlePaneGroup: 'secondary/1_diff',
-			singlePaneOrder: 20,
-			singlePaneHasTextDiffGate: true,
-			singlePaneHasChangesGate: true,
-			singlePaneHasMultiDiffGate: true,
-			singlePaneHasLayoutGate: true,
-			classicTitle: 'Diff View',
-			classicHasSessionsGate: true,
-			classicHasTextDiffGate: true,
-			classicHasChangesGate: true,
-			classicHasMultiDiffGate: true,
-			classicHasLayoutGate: true,
+			desktopTitle: 'Diff View',
+			desktopGroup: 'secondary/1_diff',
+			desktopOrder: 20,
+			desktopHasTextDiffGate: true,
+			desktopHasChangesGate: true,
+			desktopHasMultiDiffGate: true,
+			desktopHasLayoutGate: true,
+			mobileTitle: 'Diff View',
+			mobileHasSessionsGate: true,
+			mobileHasTextDiffGate: true,
+			mobileHasChangesGate: true,
+			mobileHasMultiDiffGate: true,
+			mobileHasLayoutGate: true,
 		});
 	});
 
@@ -635,7 +634,7 @@ suite('Changes View Actions', () => {
 				hasChangesGate: when.includes(SessionChangesEditor.ID),
 				hasMultiDiffGate: when.includes(MultiDiffEditor.ID),
 				hasTextEditorGate: when.includes(TEXT_FILE_EDITOR_ID),
-				hasLayoutGate: when.includes(SinglePaneLayoutEnabledContext.key),
+				hasLayoutGate: when.includes(DesktopLayoutContext.key),
 				checkedWhenEditorOn: toggled?.evaluate(editorOnContext),
 				checkedWhenDiffEditorOn: toggled?.evaluate(diffEditorOnContext),
 				checkedWhenInheritedOn: toggled?.evaluate(inheritedOnContext),
@@ -678,11 +677,11 @@ suite('Changes View Actions', () => {
 			},
 		];
 		assert.deepStrictEqual({
-			singlePane: summarize(getItems(Menus.SessionsEditorTitle)),
-			classic: summarize(getItems(MenuId.EditorTitle)),
+			desktop: summarize(getItems(Menus.SessionsEditorTitle)),
+			mobile: summarize(getItems(MenuId.EditorTitle)),
 		}, {
-			singlePane: expected,
-			classic: expected,
+			desktop: expected,
+			mobile: expected,
 		});
 	});
 
@@ -772,24 +771,21 @@ suite('Changes View Actions', () => {
 			category: item.command.category && typeof item.command.category !== 'string' ? item.command.category.value : item.command.category,
 			hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
 			hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditor.ID),
-			hasSinglePaneConfigGate: when.includes(SinglePaneLayoutEnabledContext.key),
+			hasDesktopLayoutGate: when.includes(DesktopLayoutContext.key),
 			hasSharedPrecondition: !!item.command.precondition,
 		}, {
 			title: 'Open Multi Diff Editor Layout Debug State',
 			category: 'Developer',
 			hasSessionsWindowGate: true,
 			hasActiveEditorGate: true,
-			hasSinglePaneConfigGate: true,
+			hasDesktopLayoutGate: true,
 			hasSharedPrecondition: false,
 		});
 	});
 
-	function getChangesAccessibilityHelp(singlePane: boolean): string {
+	function getChangesAccessibilityHelp(): string {
 		const instantiationService = new TestInstantiationService();
 		instantiationService.stub(IViewsService, new class extends mock<IViewsService>() { });
-		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() {
-			override readonly isSinglePaneLayoutEnabled = singlePane;
-		});
 		const provider = new SessionsChangesAccessibilityHelp().getProvider(instantiationService);
 
 		const content = provider.provideContent();
@@ -797,16 +793,12 @@ suite('Changes View Actions', () => {
 		return content;
 	}
 
-	test('Changes accessibility help describes the single-pane diff action', () => {
-		assert.strictEqual(getChangesAccessibilityHelp(true).includes('Use Diff View in the editor title area\'s More Actions menu'), true);
-	});
-
-	test('Changes accessibility help describes the classic diff action', () => {
-		assert.strictEqual(getChangesAccessibilityHelp(false).includes('Use Diff View in the editor title area\'s More Actions menu'), true);
+	test('Changes accessibility help describes the desktop diff action', () => {
+		assert.strictEqual(getChangesAccessibilityHelp().includes('Use Diff View in the editor title area\'s More Actions menu'), true);
 	});
 
 	test('Changes accessibility help describes Word Wrap', () => {
-		assert.strictEqual(getChangesAccessibilityHelp(false).includes('Use Word Wrap in the editor title area\'s More Actions menu'), true);
+		assert.strictEqual(getChangesAccessibilityHelp().includes('Use Word Wrap in the editor title area\'s More Actions menu'), true);
 	});
 
 	test('view mode toggles are in the editor title overflow for non-text single-file diffs', () => {
@@ -817,8 +809,8 @@ suite('Changes View Actions', () => {
 				const when = item.when?.serialize() ?? '';
 				const context = new Context(1, null);
 				context.setValue(IsSessionsWindowContext.key, true);
-				context.setValue(SinglePaneDiffEditorInputActiveContext.key, true);
-				context.setValue(SinglePaneLayoutEnabledContext.key, true);
+				context.setValue(DesktopDiffEditorInputActiveContext.key, true);
+				context.setValue(DesktopLayoutContext.key, true);
 				context.setValue(IsAuxiliaryWindowContext.key, false);
 				context.setValue(IsTopRightEditorGroupContext.key, true);
 				context.setValue(AuxiliaryBarVisibleContext.key, true);
@@ -834,8 +826,8 @@ suite('Changes View Actions', () => {
 					icon: ThemeIcon.isThemeIcon(item.command.icon) ? item.command.icon.id : undefined,
 					hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
 					hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditor.ID),
-					hasDiffEditorInputGate: when.includes(SinglePaneDiffEditorInputActiveContext.key),
-					hasSinglePaneConfigGate: when.includes(SinglePaneLayoutEnabledContext.key),
+					hasDiffEditorInputGate: when.includes(DesktopDiffEditorInputActiveContext.key),
+					hasDesktopLayoutGate: when.includes(DesktopLayoutContext.key),
 					hasAuxBarVisibleGate: when.includes(AuxiliaryBarVisibleContext.key),
 					hasEditorAreaVisibleGate: when.includes(MainEditorAreaVisibleContext.key),
 					hasViewModeGate: when.includes(ChangesContextKeys.ViewMode.key),
@@ -853,7 +845,7 @@ suite('Changes View Actions', () => {
 			hasSessionsWindowGate: true,
 			hasActiveEditorGate: true,
 			hasDiffEditorInputGate: true,
-			hasSinglePaneConfigGate: true,
+			hasDesktopLayoutGate: true,
 			hasAuxBarVisibleGate: true,
 			hasEditorAreaVisibleGate: false,
 			hasViewModeGate: true,
@@ -867,7 +859,7 @@ suite('Changes View Actions', () => {
 			hasSessionsWindowGate: true,
 			hasActiveEditorGate: true,
 			hasDiffEditorInputGate: true,
-			hasSinglePaneConfigGate: true,
+			hasDesktopLayoutGate: true,
 			hasAuxBarVisibleGate: true,
 			hasEditorAreaVisibleGate: false,
 			hasViewModeGate: true,
@@ -897,7 +889,7 @@ suite('Changes View Actions', () => {
 		context.setValue(IsSessionsWindowContext.key, true);
 		context.setValue(IsAuxiliaryWindowContext.key, false);
 		context.setValue(CustomViewVisibleContext.key, false);
-		context.setValue(SinglePaneLayoutEnabledContext.key, true);
+		context.setValue(DesktopLayoutContext.key, true);
 		context.setValue(SessionIsCreatedContext.key, true);
 		const visibleWhileChangesResolve = item.when?.evaluate(context) ?? false;
 		context.setValue(CustomViewVisibleContext.key, true);
@@ -907,7 +899,7 @@ suite('Changes View Actions', () => {
 			order: item.order,
 			hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
 			hasAuxiliaryWindowGate: when.includes(IsAuxiliaryWindowContext.key),
-			hasSinglePaneLayoutGate: when.includes(SinglePaneLayoutEnabledContext.key),
+			hasDesktopLayoutGate: when.includes(DesktopLayoutContext.key),
 			hasCreatedSessionGate: when.includes(SessionIsCreatedContext.key),
 			visibleWhileChangesResolve,
 			visibleForCustomView: item.when?.evaluate(context) ?? false,
@@ -917,7 +909,7 @@ suite('Changes View Actions', () => {
 			order: 5,
 			hasSessionsWindowGate: true,
 			hasAuxiliaryWindowGate: true,
-			hasSinglePaneLayoutGate: true,
+			hasDesktopLayoutGate: true,
 			hasCreatedSessionGate: true,
 			visibleWhileChangesResolve: true,
 			visibleForCustomView: false,

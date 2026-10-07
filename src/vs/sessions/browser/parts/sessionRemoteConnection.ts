@@ -47,6 +47,7 @@ export class SessionRemoteConnection extends Disposable {
 
 	private readonly _session = observableValue<IActiveSession | undefined>(this, undefined);
 	private readonly _attempt = observableValue<ConnectAttempt | undefined>(this, undefined);
+	private readonly _connectionAttemptObserved = observableValue(this, false);
 	private readonly _progressListener = this._register(new MutableDisposable());
 	private readonly _deadlineSignal = observableSignal(this);
 	// Kept separate so countdown ticks cannot restart the reconnecting-banner delay.
@@ -147,6 +148,11 @@ export class SessionRemoteConnection extends Disposable {
 
 	readonly bannerContent: IObservable<ISessionReadOnlyBannerContent | undefined> = derived(this, reader => this._getRemoteConnectionBannerContent(reader));
 	readonly recoveryContent: IObservable<IRemoteHostUnavailableEmptyStateContent | undefined> = derived(this, reader => this._getRemoteHostUnavailableContent(reader));
+	readonly isIdleDisconnected: IObservable<boolean> = derived(this, reader =>
+		this._getEffectiveStatus(reader)?.kind === 'disconnected'
+		&& this._attempt.read(reader) === undefined
+		&& !this._connectionAttemptObserved.read(reader)
+		&& !this._autoConnectPending.read(reader));
 
 	constructor(
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
@@ -154,15 +160,25 @@ export class SessionRemoteConnection extends Disposable {
 	) {
 		super();
 		this._register(autorun(reader => {
+			const session = this._session.read(reader);
+			const status = session?.remoteConnectionStatus?.read(reader);
+			if (status?.kind === 'connecting' || status?.kind === 'reconnecting') {
+				this._connectionAttemptObserved.set(true, undefined);
+			}
 			// A host that came back releases the latch, so a later outage gets its
 			// own automatic attempt instead of the session being limited to one.
-			if (this._getEffectiveStatus(reader)?.kind === 'connected' && this._autoConnected.read(reader) !== undefined) {
-				this._autoConnected.set(undefined, undefined);
+			if (status?.kind === 'connected') {
+				transaction(tx => {
+					this._autoConnected.set(undefined, tx);
+					this._connectionAttemptObserved.set(false, tx);
+					if (this._attempt.read(reader)?.kind === 'failed') {
+						this._attempt.set(undefined, tx);
+					}
+				});
 			}
 			if (!this._autoConnectPending.read(reader)) {
 				return;
 			}
-			const session = this._session.read(reader);
 			this._logService.info(`[SessionRemoteConnection] auto-connect triggered for ${session?.providerId}`);
 			this._autoConnected.set(session, undefined);
 			this.connect();
@@ -177,6 +193,7 @@ export class SessionRemoteConnection extends Disposable {
 		transaction(tx => {
 			this._session.set(session, tx);
 			this._attempt.set(undefined, tx);
+			this._connectionAttemptObserved.set(false, tx);
 			this._autoConnected.set(undefined, tx);
 			this._connectAttempted.set(undefined, tx);
 		});
@@ -224,6 +241,16 @@ export class SessionRemoteConnection extends Disposable {
 		}
 
 		void this._runConnect(session, statusBefore, () => provider.connect!());
+	}
+
+	connectOnInput(): void {
+		const session = this._session.get();
+		if (!session || session.isArchived.get() || session.remoteConnectionStatus?.get().kind !== 'disconnected'
+			|| this._autoConnected.get() === session || this._attempt.get() !== undefined) {
+			return;
+		}
+		this._autoConnected.set(session, undefined);
+		this.connect();
 	}
 
 	private async _runConnect(session: IActiveSession, statusBefore: SessionRemoteConnectionStatus | undefined, connect: () => Promise<void>): Promise<void> {

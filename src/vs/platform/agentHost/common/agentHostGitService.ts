@@ -14,7 +14,7 @@ import { ISessionFileDiff, ISessionGitState } from './state/sessionState.js';
  * Provider-agnostic session-database metadata key under which agents
  * persist the branch they want git-driven diffs anchored to. Read by
  * {@link IAgentHostChangesetService} when computing per-session file diffs; absent
- * value means the diff falls back to anchoring at HEAD.
+ * or cleared value falls back to the detected base branch, then HEAD.
  */
 export const META_DIFF_BASE_BRANCH = 'agentHost.diffBaseBranch';
 
@@ -28,7 +28,7 @@ export const META_DIFF_BASE_BRANCH = 'agentHost.diffBaseBranch';
  * pick the same base branch.
  */
 export function resolveDiffBaseBranchName(persistedBaseBranch: string | undefined, sessionGitStateBaseBranch: string | undefined): string | undefined {
-	const branchName = persistedBaseBranch ?? sessionGitStateBaseBranch;
+	const branchName = persistedBaseBranch || sessionGitStateBaseBranch;
 	if (!branchName) {
 		return undefined;
 	}
@@ -219,6 +219,12 @@ export interface IAddWorktreeOptions {
 	readonly onProgress?: (progress: IWorktreeFileProgress) => void;
 }
 
+/** A remote a repository fetches from. */
+export interface IGitRemote {
+	readonly name: string;
+	readonly url: string;
+}
+
 export interface IAgentHostGitService {
 	readonly _serviceBrand: undefined;
 	getCurrentBranch(workingDirectory: URI): Promise<string | undefined>;
@@ -312,8 +318,8 @@ export interface IAgentHostGitService {
 	 */
 	hasUpstream(workingDirectory: URI, branchName: string): Promise<boolean>;
 
-	/** Fetches the selected remote branch into its remote-tracking ref without changing the working tree. */
-	fetch(workingDirectory: URI, branch: IRemoteBranch): Promise<void>;
+	/** Fetches the selected remote branch without changing the working tree; defaults to a five-second timeout. */
+	fetch(workingDirectory: URI, branch: IRemoteBranch, options?: { readonly timeout?: number }): Promise<void>;
 
 	/**
 	 * Fetches the latest changes from the remote (`origin` unless
@@ -342,6 +348,8 @@ export interface IAgentHostGitService {
 	getSessionGitState(workingDirectory: URI, baseBranchName?: string): Promise<ISessionGitState | undefined>;
 	/** Returns fetch remote URLs with the preferred remote, then `origin`, first. */
 	getFetchRemoteUrls(workingDirectory: URI, preferredRemote?: string): Promise<readonly string[] | undefined>;
+	/** Returns the repository's fetch remotes in `git remote -v` order. */
+	getFetchRemotes(workingDirectory: URI): Promise<readonly IGitRemote[] | undefined>;
 	/** Returns repo-relative untracked file paths. */
 	getUntrackedPaths(workingDirectory: URI): Promise<readonly string[] | undefined>;
 
@@ -419,10 +427,11 @@ export interface IAgentHostGitService {
 	/**
 	 * Lists refs matching `pattern` (a `git for-each-ref` glob such as
 	 * `refs/sessions/<id>/*`) with their resolved commit OIDs. Returns an empty
-	 * array when none match. Optional: implementations that don't support raw
+	 * array when none match. Set `throwOnError` to distinguish a failed lookup
+	 * from an empty result. Optional: implementations that don't support raw
 	 * ref enumeration may omit it.
 	 */
-	listRefNamesWithOids?(repositoryRoot: URI, pattern: string): Promise<Array<{ readonly ref: string; readonly oid: string }>>;
+	listRefNamesWithOids?(repositoryRoot: URI, pattern: string, options?: { readonly throwOnError?: boolean }): Promise<Array<{ readonly ref: string; readonly oid: string }>>;
 
 	/**
 	 * Builds a new tree from `baseTreeOid` in which the single repo-relative

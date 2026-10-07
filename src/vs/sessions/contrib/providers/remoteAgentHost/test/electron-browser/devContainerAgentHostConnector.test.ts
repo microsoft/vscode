@@ -7,12 +7,15 @@ import assert from 'assert';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
-import { IChannel } from '../../../../../../base/parts/ipc/common/ipc.js';
+import { IChannel, ProxyChannel } from '../../../../../../base/parts/ipc/common/ipc.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { hasKey } from '../../../../../../base/common/types.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IDevContainerAgentHostConfig, IDevContainerAgentHostMainService } from '../../../../../../platform/agentHost/common/devContainerAgentHost.js';
+import { devContainerSamples, devContainerSampleUri, IDevContainerSampleSource } from '../../../../../../platform/agentHost/common/devContainerSamples.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { getEntryAddress, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -26,7 +29,7 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IOutputChannel, IOutputService } from '../../../../../../workbench/services/output/common/output.js';
-import { DevContainerAgentHostEnabledSettingId, DevContainerIdleTimeoutSettingId, DevContainerWorktreeEnabledSettingId } from '../../../../../common/devContainerAgentHostService.js';
+import { DevContainerAgentHostEnabledSettingId, DevContainerIdleTimeoutSettingId, DevContainerSamplesEnabledSettingId, DevContainerWorktreeEnabledSettingId } from '../../../../../common/devContainerAgentHostService.js';
 import { WorkspaceHistoryLoadState } from '../../../../../common/workspaceSelection.js';
 import { ISessionFolder, ISessionWorkspace } from '../../../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -41,6 +44,127 @@ suite('Dev Container Agent Host Connector', () => {
 	const devContainerAgentHostEnabledProperty = configurationRegistry.getConfigurationProperties()[DevContainerAgentHostEnabledSettingId];
 	const devContainerIdleTimeoutProperty = configurationRegistry.getConfigurationProperties()[DevContainerIdleTimeoutSettingId];
 	const devContainerWorktreeEnabledProperty = configurationRegistry.getExcludedConfigurationProperties()[DevContainerWorktreeEnabledSettingId];
+	const devContainerSamplesProperty = configurationRegistry.getConfigurationProperties()[DevContainerSamplesEnabledSettingId];
+
+	test('sample setting is application scoped, experiment controlled, and off by default', () => {
+		assert.deepStrictEqual({
+			scope: devContainerSamplesProperty.scope,
+			default: devContainerSamplesProperty.default,
+			tags: devContainerSamplesProperty.tags,
+			experiment: devContainerSamplesProperty.experiment,
+		}, {
+			scope: ConfigurationScope.APPLICATION,
+			default: false,
+			tags: ['experimental', 'onExP'],
+			experiment: { mode: 'auto' },
+		});
+	});
+
+	test('routes sample lifecycle with a sample identity and reconnects after the picker opt-in is disabled', async () => {
+		const configs: IDevContainerAgentHostConfig[] = [];
+		const lifecycle: (string | IDevContainerSampleSource)[] = [];
+		const repository = { repositoryPath: 'https://github.com/Microsoft/vscode-remote-try-go', volumeName: 'sample-volume', folder: 'vscode-remote-try-go' };
+		const configuration = new TestConfigurationService({
+			[DevContainerSamplesEnabledSettingId]: true,
+			[DevContainerAgentHostEnabledSettingId]: true,
+			[RemoteAgentHostsEnabledSettingId]: true,
+		});
+		const service = new class extends mock<IDevContainerAgentHostMainService>() {
+			override readonly onDidOutput = Event.None;
+			override readonly onDidRelayMessage = Event.None;
+			override readonly onDidRelayActivity = Event.None;
+			override readonly onDidRelayClose = Event.None;
+			override readonly onDidCloseConnection = Event.None;
+			override async isDockerAvailable() { return true; }
+			override async connect(config: IDevContainerAgentHostConfig) {
+				configs.push(config);
+				return { connectionId: config.connectionId, address: 'devcontainer:sample', name: config.name, remoteWorkspaceFolder: '/workspaces/vscode-remote-try-go', repository };
+			}
+			override async disconnect() { }
+			override async stopContainer(source: string | IDevContainerSampleSource) { lifecycle.push(source); return true; }
+			override async removeContainer(source: string | IDevContainerSampleSource) { lifecycle.push(source); return true; }
+		}();
+		const connector = new DevContainerAgentHostConnector(
+			new class extends mock<ISharedProcessService>() {
+				override getChannel(): IChannel {
+					const channel = ProxyChannel.fromService(service, store.add(new DisposableStore()));
+					return {
+						listen: (event, arg) => channel.listen(undefined, event, arg),
+						call: (command, arg) => channel.call(undefined, command, arg),
+					};
+				}
+			}(),
+			store.add(new TestInstantiationService()),
+			store.add(new NullLogService()),
+			configuration,
+			new class extends mock<IEnvironmentService>() { }(),
+			new class extends mock<IOutputService>() {
+				override getChannel() {
+					return new class extends mock<IOutputChannel>() { override append() { } }();
+				}
+			}(),
+			new class extends mock<IFileService>() {
+				override async exists(): Promise<never> { throw new Error('Samples do not have a host path'); }
+			}(),
+			new class extends mock<IRemoteAgentHostService>() { }(),
+			new class extends mock<ISessionsProvidersService>() { }(),
+		);
+		const source = devContainerSampleUri(devContainerSamples[0]);
+		await connector.isAvailable(source);
+		const beforeConnect = configs.length;
+		const target = await connector.createConnection(source, 'devcontainer:sample', CancellationToken.None);
+		store.add(target.transportDisposable!);
+		await configuration.setUserConfiguration(DevContainerSamplesEnabledSettingId, false);
+		const selectableAfterOptOut = await connector.isAvailable(source);
+		const reconnected = await connector.createConnection(source, 'devcontainer:sample', CancellationToken.None, { resume: false });
+		store.add(reconnected.transportDisposable!);
+		await configuration.setUserConfiguration('chat.disableAIFeatures', true);
+		await assert.rejects(connector.createConnection(source, 'devcontainer:sample', CancellationToken.None), /AI features are disabled/);
+		await connector.stopContainer(source);
+		await connector.removeContainer(source);
+		assert.deepStrictEqual({
+			beforeConnect,
+			selectableAfterOptOut,
+			configs: configs.map(config => hasKey(config, { sampleId: true }) ? { sampleId: config.sampleId, resume: config.resume } : config),
+			lifecycle,
+			repository: target.repository,
+			hostWorkspaceFolder: target.hostWorkspaceFolder,
+			workspace: target.workspaceUri.path,
+		}, {
+			beforeConnect: 0,
+			selectableAfterOptOut: false,
+			configs: [{ sampleId: 'go', resume: true }, { sampleId: 'go', resume: false }],
+			lifecycle: [{ sampleId: 'go' }, { sampleId: 'go' }],
+			repository,
+			hostWorkspaceFolder: undefined,
+			workspace: '/workspaces/vscode-remote-try-go',
+		});
+	});
+
+	test('sample availability requires its setting and Docker without reading a host workspace', async () => {
+		let dockerChecks = 0;
+		const fileService = new class extends mock<IFileService>() {
+			override async exists(): Promise<never> { throw new Error('Samples have no host folder'); }
+		}();
+		const mainService = new class extends mock<IDevContainerAgentHostMainService>() {
+			override async isDockerAvailable(): Promise<boolean> { dockerChecks++; return true; }
+		}();
+		const check = (enabled: boolean, hidden = false) => isDevContainerWorkspaceAvailable(
+			devContainerSampleUri(devContainerSamples[0]), fileService, mainService,
+			new TestConfigurationService({
+				[DevContainerSamplesEnabledSettingId]: enabled,
+				[DevContainerAgentHostEnabledSettingId]: true,
+				[RemoteAgentHostsEnabledSettingId]: true,
+				'chat.disableAIFeatures': hidden,
+			}),
+		);
+		assert.deepStrictEqual({
+			disabled: await check(false),
+			enabled: await check(true),
+			hidden: await check(true, true),
+			dockerChecks,
+		}, { disabled: false, enabled: true, hidden: false, dockerChecks: 1 });
+	});
 
 	test('requires Docker and a default Dev Container configuration', async () => {
 		const workspaceUri = URI.file('/workspace');
@@ -306,7 +430,7 @@ suite('Dev Container Agent Host Connector', () => {
 			await connector.removeContainer(workspaceUri);
 			assert.deepStrictEqual({
 				available, oldHostAvailable, withoutDocker, dockerChecks,
-				workspaces: configs.map(config => config.workspaceFolder),
+				workspaces: configs.map(config => hasKey(config, { workspaceFolder: true }) ? config.workspaceFolder : undefined),
 				output: output.filter(value => value === 'remote container output'),
 				workspace: target.workspaceUri,
 				disconnected: disconnected.length,
@@ -413,14 +537,14 @@ suite('Dev Container Agent Host Connector', () => {
 		assert.deepStrictEqual(calls, []);
 	});
 
-	test('registers a disabled-by-default user setting', () => {
+	test('registers an enabled-by-default user setting', () => {
 		assert.deepStrictEqual({
 			default: devContainerAgentHostEnabledProperty.default,
 			scope: devContainerAgentHostEnabledProperty.scope,
 			tags: devContainerAgentHostEnabledProperty.tags,
 			experiment: devContainerAgentHostEnabledProperty.experiment,
 		}, {
-			default: false,
+			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['onExP'],
 			experiment: { mode: 'auto' },

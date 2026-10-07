@@ -5,14 +5,6 @@
 
 import type { ResolveSessionConfigResult } from '../../platform/agentHost/common/state/protocol/commands.js';
 
-/**
- * When enabled, the Agents window docks the detail panel (auxiliary
- * bar) inside the editor part so a single editor tab bar spans the full width
- * across the editor content and the detail panel. Read once at startup; toggling
- * requires a window reload.
- */
-export const DOCK_DETAIL_PANEL_SETTING = 'sessions.layout.singlePaneDetailPanel';
-
 export const USE_WORKTREE_SETTING = 'sessions.useWorktree';
 
 export const USE_WORKTREE_SETTING_TREATMENT = 'agentSessionsUseWorktree';
@@ -52,6 +44,10 @@ export const enum SessionsCollectionSwitcher {
 	/** Only the Sessions header menu. */
 	Menu = 'menu',
 }
+
+export const SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING = 'sessions.sidebar.separateNavigation';
+
+export const SESSIONS_LIST_REARRANGE_TREATMENT = 'sessions.list.rearrage';
 
 export const enum SessionsChatTabsMode {
 	Multiple = 'multiple',

@@ -50,13 +50,17 @@ class TestMcpSupportConfigurationService extends TestConfigurationService {
 suite('agentHostMcpServerSupport', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('describes gallery and version metadata as non-portable', () => {
+	test('describes property removals as requiring confirmation', () => {
 		assert.deepStrictEqual({
 			gallery: getMcpCompatibilityDetail(AgentHostMcpSupportReason.GalleryMetadataNotPortable),
 			version: getMcpCompatibilityDetail(AgentHostMcpSupportReason.ServerVersionNotPortable),
+			dev: getMcpCompatibilityDetail(AgentHostMcpSupportReason.DevelopmentModeIgnored),
+			sandbox: getMcpCompatibilityDetail(AgentHostMcpSupportReason.SandboxConfigurationIgnored),
 		}, {
-			gallery: 'Gallery metadata cannot be migrated to the destination MCP configuration.\nTo migrate this server, remove the gallery property.',
-			version: 'Server version metadata cannot be migrated to the destination MCP configuration.\nTo migrate this server, remove the version property.',
+			gallery: 'Gallery metadata isn\'t supported. Migrating removes it and stops registry updates.',
+			version: 'Version metadata isn\'t supported. Migrating removes it; version pins are kept.',
+			dev: 'Development mode isn\'t supported. Migrating removes dev.',
+			sandbox: 'Per-server sandboxing isn\'t supported. Migrating removes sandboxEnabled.',
 		});
 	});
 
@@ -773,6 +777,71 @@ suite('agentHostMcpServerSupport', () => {
 			delivery: AgentHostMcpServerDelivery.NotDelivered,
 			enablement: { enabled: false, state: AgentHostMcpServerEnablementState.DisabledByAccess },
 		}]);
+	});
+
+	test('marks a workspace-folder server shadowed by a same-named server in another folder', async () => {
+		const roots = [URI.file('/root-one'), URI.file('/root-two')];
+		const workspaceFolderConfigPath = (index: number): IMcpConfigPath => ({
+			id: `ws${index}`,
+			key: 'workspaceFolderValue',
+			label: `root/.vscode/mcp.json`,
+			scope: StorageScope.WORKSPACE,
+			target: ConfigurationTarget.WORKSPACE_FOLDER,
+			order: 0,
+			uri: URI.joinPath(roots[index], '.vscode', 'mcp.json'),
+			workspaceFolder: { uri: roots[index], name: `root-${index}`, index, toResource: path => URI.joinPath(roots[index], path) },
+		});
+		const registered: IAgentHostMcpServerSupport = {
+			id: 'mcp.config.ws1.demo',
+			name: 'demo',
+			collectionId: 'mcp.config.ws1',
+			source: {
+				group: undefined,
+				kind: AgentHostMcpServerSourceKind.VscodeWorkspaceFolder,
+				label: 'root-two/.vscode/mcp.json',
+				collectionUri: URI.joinPath(roots[1], '.vscode', 'mcp.json'),
+				definitionLocation: undefined,
+				remoteAuthority: null,
+				extensionId: undefined,
+				pluginUri: undefined,
+			},
+			enablement: { enabled: true, state: AgentHostMcpServerEnablementState.EnabledProfile },
+			applicability: AgentHostMcpServerApplicability.Applicable,
+			delivery: AgentHostMcpServerDelivery.ClientForwarded,
+			compatibility: { kind: 'supported' },
+			projectedConfiguration: { type: McpServerType.LOCAL, command: 'server' },
+		};
+		const installed = (id: string, name: string, index: number, runtimeState: McpServerEnablementState): IAgentHostInstalledMcpServer => ({
+			id,
+			name,
+			label: name,
+			configuration: { type: McpServerType.LOCAL, command: 'server' },
+			configPath: workspaceFolderConfigPath(index),
+			sandbox: undefined,
+			runtimeState,
+		});
+
+		const result = await mergeInstalledMcpServersIntoAgentHostSupportAssessment(
+			{ servers: [registered], discoveryComplete: true },
+			[
+				installed('mcp.config.ws0.demo', 'demo', 0, McpServerEnablementState.Disabled),
+				installed('mcp.config.ws1.other', 'demo', 1, McpServerEnablementState.Disabled),
+				installed('mcp.config.ws0.disabled', 'disabled', 0, McpServerEnablementState.DisabledProfile),
+			],
+			makeConfigurationResolverService(),
+			roots,
+		);
+
+		assert.deepStrictEqual(result.servers.slice(1).map(server => ({
+			id: server.id,
+			delivery: server.delivery,
+			shadowedBy: server.shadowedBy,
+			projectedConfiguration: server.projectedConfiguration,
+		})), [
+			{ id: 'mcp.config.ws0.demo', delivery: AgentHostMcpServerDelivery.NotDelivered, shadowedBy: 'mcp.config.ws1.demo', projectedConfiguration: { type: McpServerType.LOCAL, command: 'server', args: undefined, env: undefined, envFile: undefined, cwd: undefined } },
+			{ id: 'mcp.config.ws1.other', delivery: AgentHostMcpServerDelivery.NotDelivered, shadowedBy: undefined, projectedConfiguration: undefined },
+			{ id: 'mcp.config.ws0.disabled', delivery: AgentHostMcpServerDelivery.NotDelivered, shadowedBy: undefined, projectedConfiguration: undefined },
+		]);
 	});
 
 	test('reacts to runtime enablement changes', async () => {

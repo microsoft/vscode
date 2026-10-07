@@ -29,9 +29,10 @@ import { IViewsService } from '../../../../../workbench/services/views/common/vi
 import { IDecorationsService } from '../../../../../workbench/services/decorations/common/decorations.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { GroupModelChangeKind, IEditorWillOpenEvent, IUntypedEditorInput, isResourceEditorInput } from '../../../../../workbench/common/editor.js';
-import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, IChatDeletedEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IAgentWorkbenchLayoutService, ISidePaneToggleEvent } from '../../../../browser/workbench.js';
+import { SESSIONS_LAYOUT_SCOPE_SETTING, ChatLayoutMode, ChatLayoutPresentation } from '../../../../common/chatLayout.js';
+import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService, ISidePaneToggleEvent } from '../../../../browser/workbench.js';
 import { ChatInteractivity, IChat, ISession, ISessionChangeset, ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionChangesService, SessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { CHANGES_VIEW_CONTAINER_ID } from '../../../changes/common/changes.js';
@@ -111,11 +112,14 @@ export function makeSession(resource: URI, opts?: {
 		resource,
 		providerId: 'test',
 		sessionType: 'local',
+		harness: 'copilot',
+		environment: 'local',
+		application: constObservable({ id: 'vscode', label: 'VS Code' }),
 		icon: Codicon.copilot,
 		createdAt: chat.createdAt,
 		workspace: observableValue('workspace', workspace),
 		title: chat.title,
-		updatedAt: chat.updatedAt,
+		updatedAt: constObservable(chat.updatedAt.get() ?? chat.createdAt),
 		status: chat.status,
 		modelId: chat.modelId,
 		mode: chat.mode,
@@ -141,6 +145,35 @@ export function makeSession(resource: URI, opts?: {
 	};
 }
 
+export function addPeerChat(session: IActiveSession, resource: URI, opts?: { readonly title?: string }): IChat {
+	const mainChat = session.mainChat.get();
+	const chat: IChat = {
+		resource,
+		createdAt: new Date(),
+		workspace: mainChat.workspace,
+		title: observableValue('title', opts?.title ?? 'Peer'),
+		updatedAt: observableValue('updatedAt', new Date()),
+		status: observableValue('status', SessionStatus.Completed),
+		checkpoints: observableValue('checkpoints', undefined),
+		changes: observableValue('changes', []),
+		changesets: constObservable([]),
+		modelId: observableValue('modelId', undefined),
+		modelSource: observableValue('modelSource', undefined),
+		mode: observableValue('mode', undefined),
+		isArchived: observableValue('isArchived', false),
+		isRead: observableValue('isRead', true),
+		interactivity: observableValue('interactivity', ChatInteractivity.Full),
+		lastTurnEnd: observableValue('lastTurnEnd', undefined),
+		description: observableValue('description', undefined),
+	};
+	(session.chats as ISettableObservable<readonly IChat[]>).set([...session.chats.get(), chat], undefined);
+	return chat;
+}
+
+export function setActiveChat(session: IActiveSession, chat: IChat): void {
+	(session.activeChat as ISettableObservable<IChat>).set(chat, undefined);
+}
+
 export interface ICreateOptions {
 	readonly useModal?: 'off' | 'some' | 'all';
 	readonly workspaceFolders?: readonly { readonly uri: URI }[];
@@ -152,22 +185,19 @@ export interface ICreateOptions {
 		readonly newSession: { readonly editorVisible: boolean; readonly auxiliaryBarVisible: boolean };
 		readonly existingSession: { readonly editorVisible: boolean; readonly auxiliaryBarVisible: boolean };
 	};
-	readonly newSessionViewState?: { readonly auxiliaryBarVisible: boolean };
-	readonly newSessionViewStateRaw?: string;
-	/** [D7] Value for `sessions.layout.autoCollapseSessionsSidebar` (defaults to enabled). */
-	readonly responsiveSidebar?: boolean;
-	/** [D7] When set, `openView`/`openViewContainer` reveal the auxiliary bar (mirroring production) so navigation reveals can be exercised. */
+	/** When set, `openView`/`openViewContainer` reveal the auxiliary bar (mirroring production) so navigation reveals can be exercised. */
 	readonly revealAuxiliaryBarOnOpen?: boolean;
-	/** Initial main container width (defaults to 2000). Set below `SMALL_WINDOW_MAX_WIDTH` to start space-constrained. */
+	/** Initial main container width (defaults to 2000). */
 	readonly mainContainerWidth?: number;
 	/** Initial part visibility overrides applied before the controller is constructed (mirrors restored layout after a reload). */
 	readonly initialPartVisibility?: ReadonlyMap<Parts, boolean>;
 	/** IDs of aux-bar view containers active at construction (defaults to Changes + Files). Empty ⇒ no active aux containers (e.g. a quick chat). */
 	readonly activeAuxViewContainerIds?: readonly string[];
-	/** When set, resolves the lifecycle `Restored` phase so a single-pane controller's managed-tab / detail-panel behaviour activates. */
+	/** When set, resolves the lifecycle `Restored` phase so a desktop controller's managed-tab / detail-panel behaviour activates. */
 	readonly activateAux?: boolean;
-	/** When true, the layout service reports single-pane layout enabled (drives base single-pane branches). */
-	readonly singlePaneLayoutEnabled?: boolean;
+	/** When true, the layout service reports desktop layout (drives base desktop branches). */
+	readonly desktopLayout?: boolean;
+	readonly chatLayoutMode?: ChatLayoutMode;
 }
 
 /**
@@ -183,6 +213,10 @@ export interface ITestLayoutHarness {
 	visibleSessionsObs: ISettableObservable<readonly (IActiveSession | undefined)[]>;
 	onDidChangeSessions: Emitter<ISessionsChangeEvent>;
 	onDidReplaceSession: Emitter<{ readonly from: ISession; readonly to: ISession }>;
+	onDidDeleteChat: Emitter<IChatDeletedEvent>;
+	onDidReplaceNewDraftSession: Emitter<{ readonly from: ISession; readonly to: ISession }>;
+	readonly chatLayoutPresentation: ChatLayoutPresentation;
+	chatLayoutIsPhoneObs: ISettableObservable<boolean>;
 	onDidChangePartVisibility: Emitter<IPartVisibilityChangeEvent>;
 	onWillToggleSidePane: Emitter<void>;
 	onDidToggleSidePane: Emitter<ISidePaneToggleEvent>;
@@ -216,9 +250,9 @@ export interface ITestLayoutHarness {
 	editorRevealedExplicitly: boolean;
 	/** Current suppression depth for `suppressEditorPartAutoVisibility()`. */
 	editorPartAutoVisibilitySuppressionDepth: number;
-	/** Whether the lifecycle `Restored` phase has resolved (activates single-pane managed-tab / detail-panel behaviour). */
+	/** Whether the lifecycle `Restored` phase has resolved (activates desktop managed-tab / detail-panel behaviour). */
 	activateAux: boolean;
-	/** Editors in the main part's active group (drives the single-pane managed-tab logic). */
+	/** Editors in the main part's active group (drives the desktop managed-tab logic). */
 	activeGroupEditors: EditorInput[];
 	/** Fires when the active editor group begins disposal. */
 	onWillDisposeActiveGroup: Emitter<void>;
@@ -238,11 +272,13 @@ export interface ITestLayoutHarness {
 	editorGroupsHaveContent: boolean;
 	/** Records every `applyWorkingSet` call made by the controller. */
 	applyWorkingSetCalls: (IEditorWorkingSet | 'empty')[];
-	/** Records the name of every `saveWorkingSet` call made by the controller. */
 	saveWorkingSetCalls: string[];
+	deleteWorkingSetCalls: string[];
+	workspaceFolders: { readonly uri: URI }[];
+	onDidChangeWorkspaceFolders: Emitter<void>;
 	/**
 	 * Optional callback invoked synchronously during `applyWorkingSet`, allowing
-	 * tests to simulate external visibility changes (e.g. the single-pane detail
+	 * tests to simulate external visibility changes (e.g. the desktop detail
 	 * panel) while `_isRestoringSessionLayout` is true.
 	 */
 	onApplyWorkingSet?: (workingSet: IEditorWorkingSet | 'empty') => void;
@@ -269,28 +305,18 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 	const storageService = store.add(new TestStorageService());
 	if (options.layoutState) {
 		const raw = JSON.stringify(options.layoutState);
-		// Seed both the classic desktop key and the fresh single-pane key so the
-		// same harness serves both the LayoutController and SinglePaneLayoutController tests.
+		// The same harness serves base/mobile and desktop controller tests.
 		storageService.store('sessions.layoutState', raw, StorageScope.WORKSPACE, 0);
 		storageService.store('sessions.singlePane.layoutState', raw, StorageScope.WORKSPACE, 0);
 	}
 	if (options.sidePaneVisibilityState) {
 		storageService.store('sessions.singlePane.sidePaneVisibility', JSON.stringify(options.sidePaneVisibilityState), StorageScope.WORKSPACE, 0);
 	}
-	if (options.newSessionViewState) {
-		const raw = JSON.stringify(options.newSessionViewState);
-		storageService.store('sessions.newSessionViewState', raw, StorageScope.WORKSPACE, 0);
-		storageService.store('sessions.singlePane.newSessionViewState', raw, StorageScope.WORKSPACE, 0);
-	}
-	if (options.newSessionViewStateRaw !== undefined) {
-		storageService.store('sessions.newSessionViewState', options.newSessionViewStateRaw, StorageScope.WORKSPACE, 0);
-		storageService.store('sessions.singlePane.newSessionViewState', options.newSessionViewStateRaw, StorageScope.WORKSPACE, 0);
-	}
 	instaService.stub(IStorageService, storageService);
 
 	const configService = new TestConfigurationService();
 	configService.setUserConfiguration('workbench.editor.useModal', options.useModal ?? 'all');
-	configService.setUserConfiguration('sessions.layout.autoCollapseSessionsSidebar', options.responsiveSidebar ?? true);
+	configService.setUserConfiguration(SESSIONS_LAYOUT_SCOPE_SETTING, options.chatLayoutMode ?? 'session-shared');
 	instaService.stub(IConfigurationService, configService);
 	const contextKeyService = store.add(new MockContextKeyService());
 	instaService.stub(IContextKeyService, contextKeyService);
@@ -298,6 +324,9 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		override publicLog2(): void { }
 	});
 	instaService.stub(ILogService, store.add(new NullLogService()));
+
+	const chatLayoutIsPhoneObs = observableValue<boolean>('chatLayoutIsPhone', false);
+	const chatLayoutPresentation = store.add(new ChatLayoutPresentation(configService, options.desktopLayout ?? false, chatLayoutIsPhoneObs));
 
 	const harness: ITestLayoutHarness = {
 		instaService,
@@ -307,6 +336,10 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		visibleSessionsObs: observableValue<readonly (IActiveSession | undefined)[]>('visibleSessions', []),
 		onDidChangeSessions: store.add(new Emitter<ISessionsChangeEvent>()),
 		onDidReplaceSession: store.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>()),
+		onDidDeleteChat: store.add(new Emitter<IChatDeletedEvent>()),
+		onDidReplaceNewDraftSession: store.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>()),
+		chatLayoutPresentation,
+		chatLayoutIsPhoneObs,
 		onDidChangePartVisibility: store.add(new Emitter<IPartVisibilityChangeEvent>()),
 		onWillToggleSidePane: store.add(new Emitter<void>()),
 		onDidToggleSidePane: store.add(new Emitter<ISidePaneToggleEvent>()),
@@ -358,9 +391,12 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		editorGroupsHaveContent: true,
 		applyWorkingSetCalls: [],
 		saveWorkingSetCalls: [],
+		deleteWorkingSetCalls: [],
+		workspaceFolders: options.workspaceFolders ? [...options.workspaceFolders] : [],
+		onDidChangeWorkspaceFolders: store.add(new Emitter<void>()),
 		openChangesEditorCalls: [],
 		sessionChangesService: store.add(new SessionChangesService(new class extends mock<IEditorService>() { }, instaService, new class extends mock<IAgentWorkbenchLayoutService>() {
-			override get isSinglePaneLayoutEnabled(): boolean { return options.singlePaneLayoutEnabled ?? false; }
+			override get agentWorkbenchLayout(): AgentWorkbenchLayout { return options.desktopLayout ? AgentWorkbenchLayout.Desktop : AgentWorkbenchLayout.Mobile; }
 		}, new class extends mock<IChangesViewService>() {
 			override readonly activeSessionResourceObs = constObservable<URI | undefined>(undefined);
 			override readonly activeSessionChangesetObs = constObservable<ISessionChangeset | undefined>(undefined);
@@ -415,6 +451,8 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 	instaService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 		override readonly onDidChangeSessions = harness.onDidChangeSessions.event;
 		override readonly onDidReplaceSession = harness.onDidReplaceSession.event;
+		override readonly onDidDeleteChat = harness.onDidDeleteChat.event;
+		override readonly onDidReplaceNewDraftSession = harness.onDidReplaceNewDraftSession.event;
 		override getSessions() { return []; }
 	});
 	instaService.stub(ISessionsService, new class extends mock<ISessionsService>() {
@@ -454,7 +492,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		override setChangesetId(): void { }
 	});
 	instaService.stub(ILifecycleService, new class extends mock<ILifecycleService>() {
-		// Resolves only when a test opts in via `activateAux`, so the single-pane
+		// Resolves only when a test opts in via `activateAux`, so the desktop
 		// managed-tab / detail-panel behaviour is not spun up otherwise.
 		override when(): Promise<void> { return harness.activateAux ? Promise.resolve() : new Promise<void>(() => { }); }
 	});
@@ -517,6 +555,25 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 				this.toggleSidePane();
 			}
 		}
+		captureSidePaneComposition(): SidePaneComposition {
+			return { editor: this.isVisible(Parts.EDITOR_PART), auxiliaryBar: this.isVisible(Parts.AUXILIARYBAR_PART) };
+		}
+		restoreSidePaneComposition(composition: SidePaneComposition): void {
+			const before = this.captureSidePaneComposition();
+			if (before.editor === composition.editor && before.auxiliaryBar === composition.auxiliaryBar) {
+				return;
+			}
+			const suppression = this.suppressEditorPartAutoVisibility();
+			try {
+				this.setPartHidden(!composition.editor, Parts.EDITOR_PART);
+				this.setPartHidden(!composition.auxiliaryBar, Parts.AUXILIARYBAR_PART);
+			} finally {
+				suppression.dispose();
+			}
+			if (!before.editor && !before.auxiliaryBar && (composition.editor || composition.auxiliaryBar)) {
+				harness.onDidRevealSidePane.fire();
+			}
+		}
 		toggleSidePane(): boolean {
 			harness.toggleSidePaneCalls++;
 			const getState = () => {
@@ -528,16 +585,16 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 			const sidePaneWasVisible = before.editor || before.auxiliaryBar;
 			harness.onWillToggleSidePane.fire();
 			try {
-				const singlePane = options.singlePaneLayoutEnabled ?? false;
-				// Mirror SinglePaneWorkbench: un-maximize before toggling both parts.
-				if (singlePane && harness.editorMaximized) {
+				const desktop = options.desktopLayout ?? false;
+				// Mirror DesktopWorkbench: un-maximize before toggling both parts.
+				if (desktop && harness.editorMaximized) {
 					this.setEditorMaximized(false);
 				}
 				const visible = !this.isSidePaneVisible();
 				const suppression = this.suppressEditorPartAutoVisibility();
 				try {
 					if (visible) {
-						const restore = harness.sidePaneStateBeforeHide ?? (singlePane
+						const restore = harness.sidePaneStateBeforeHide ?? (desktop
 							? { editor: true, auxiliaryBar: false }
 							: { editor: true, auxiliaryBar: true });
 						this.setPartHidden(!restore.editor, Parts.EDITOR_PART, true);
@@ -558,7 +615,8 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 			}
 			return this.isSidePaneVisible();
 		}
-		get isSinglePaneLayoutEnabled(): boolean { return options.singlePaneLayoutEnabled ?? false; }
+		get agentWorkbenchLayout(): AgentWorkbenchLayout { return options.desktopLayout ? AgentWorkbenchLayout.Desktop : AgentWorkbenchLayout.Mobile; }
+		get chatLayoutPresentation() { return harness.chatLayoutPresentation; }
 		readonly onDidChangeEditorMaximized = harness.onDidChangeEditorMaximized.event;
 		override readonly onDidLayoutMainContainer = harness.onDidLayoutMainContainer.event;
 		override get mainContainerDimension(): IDimension { return { width: harness.mainContainerWidth, height: 1000 }; }
@@ -700,6 +758,8 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		}
 	});
 
+	const workingSetContents = new Map<string, { readonly resources: URI[]; readonly activeResource: URI | undefined }>();
+
 	instaService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
 		override get mainPart() {
 			const groups = this.groups;
@@ -718,9 +778,20 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 				onWillCloseEditor: harness.onWillCloseEditor.event,
 			}] as unknown as IEditorGroupsService['groups'];
 		}
-		override saveWorkingSet(name: string): IEditorWorkingSet { harness.saveWorkingSetCalls.push(name); return { id: name, name }; }
+		override saveWorkingSet(name: string): IEditorWorkingSet {
+			harness.saveWorkingSetCalls.push(name);
+			const resources = harness.activeGroupEditors.map(editor => editor.resource).filter((resource): resource is URI => resource !== undefined);
+			workingSetContents.set(name, { resources, activeResource: harness.activeEditorInput?.resource });
+			return { id: name, name };
+		}
 		override async applyWorkingSet(workingSet: IEditorWorkingSet | 'empty') {
 			harness.applyWorkingSetCalls.push(workingSet);
+			const contents = workingSet === 'empty' ? { resources: [], activeResource: undefined } : workingSetContents.get(workingSet.id);
+			if (contents) {
+				harness.activeGroupEditors = contents.resources.map(resource => store.add(new TestStubEditorInput(resource)));
+				harness.activeEditorInput = contents.activeResource ? harness.activeGroupEditors.find(editor => isEqual(editor.resource, contents.activeResource)) : undefined;
+				harness.onDidEditorsChange.fire();
+			}
 			harness.onApplyWorkingSet?.(workingSet);
 			return true;
 		}
@@ -736,12 +807,14 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 			update();
 			return registrations;
 		}
-		override deleteWorkingSet() { }
+		override deleteWorkingSet(workingSet: IEditorWorkingSet) {
+			harness.deleteWorkingSetCalls.push(workingSet.id);
+		}
 	});
 
 	instaService.stub(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
-		override readonly onDidChangeWorkspaceFolders = Event.None;
-		override getWorkspace(): IWorkspace { return { id: 'test', folders: (options.workspaceFolders ?? []) as IWorkspace['folders'] }; }
+		override get onDidChangeWorkspaceFolders() { return Event.map(harness.onDidChangeWorkspaceFolders.event, () => ({ added: [], removed: [], changed: [] })); }
+		override getWorkspace(): IWorkspace { return { id: 'test', folders: harness.workspaceFolders as IWorkspace['folders'] }; }
 	});
 
 	return harness;

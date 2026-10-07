@@ -28,8 +28,8 @@ import {
 	PullRequestSubscriptionOptions,
 } from './githubPullRequestService.js';
 import { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } from './githubCredentialService.js';
-import { GitHubBackoffPolicy, gitHubBackoffDelay } from './githubBackoff.js';
-import { IGitHubScheduler, systemGitHubScheduler } from './githubScheduler.js';
+import { BackoffPolicy, backoffDelay } from './backoff.js';
+import { IRequestScheduler, systemRequestScheduler } from './scheduler.js';
 import { GitHubRequestError } from './githubTransport.js';
 import { EffectivePullRequestFragmentInterest, pullRequestOptionsForFragment, unionPullRequestInterests } from './pullRequestInterests.js';
 import { IPullRequestQuery, PullRequestFragmentResult } from './pullRequestQueryService.js';
@@ -72,7 +72,7 @@ export interface PullRequestPollingPolicy {
 	readonly mergeabilityVisible: number;
 	readonly mergeabilityBackground: number;
 	readonly participants: number;
-	readonly failureBackoff: GitHubBackoffPolicy;
+	readonly failureBackoff: BackoffPolicy;
 	readonly jitter: number;
 }
 
@@ -219,7 +219,7 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 	private _entryId = 0;
 
 	constructor(
-		scheduler: IGitHubScheduler = systemGitHubScheduler,
+		scheduler: IRequestScheduler = systemRequestScheduler,
 		private readonly _policy: PullRequestPollingPolicy = defaultPollingPolicy,
 		private readonly _credentials: IGitHubCredentials,
 		private readonly _queries: IPullRequestQuery,
@@ -231,7 +231,7 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 		this._register(this._credentials.onDidInvalidate(event => this._handleCredentialInvalidation(event)));
 	}
 
-	private readonly _clock: IGitHubScheduler;
+	private readonly _clock: IRequestScheduler;
 
 	subscribePullRequest(ref: PullRequestRef, options: PullRequestSubscriptionOptions): PullRequestSubscription {
 		const normalized = normalizeRef(ref);
@@ -672,7 +672,7 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 		}
 		const failures = (entry.failureCounts.get(fragment) ?? 0) + 1;
 		entry.failureCounts.set(fragment, failures);
-		this._scheduleFragment(entry, fragment, this._clock.now() + gitHubBackoffDelay(this._policy.failureBackoff, this._clock, failures));
+		this._scheduleFragment(entry, fragment, this._clock.now() + backoffDelay(this._policy.failureBackoff, this._clock, failures));
 	}
 
 	private _pollDelay(entry: PullRequestEntry, fragment: PullRequestFragment, interest: EffectivePullRequestFragmentInterest): number | undefined {

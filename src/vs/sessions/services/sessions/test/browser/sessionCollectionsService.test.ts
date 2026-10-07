@@ -30,6 +30,9 @@ function createSession(id: string, options?: { readonly workspace?: string; read
 		resource: URI.parse(`session://${id}`),
 		providerId: 'test',
 		sessionType: 'test',
+		harness: 'copilot',
+		environment: 'local',
+		application: constObservable({ id: 'vscode', label: 'VS Code' }),
 		icon: Codicon.account,
 		createdAt: new Date(),
 		workspace: observableValue(`workspace-${id}`, options?.workspace ? createWorkspace(options.workspace) : undefined),
@@ -81,6 +84,7 @@ function createServices(disposables: Pick<DisposableStore, 'add'>, context: ITes
 	instantiationService.stub(ISessionsManagementService, {
 		...mock<ISessionsManagementService>(),
 		getSessions: () => context.sessions,
+		getInFlightNewSessionRequests: () => [],
 		getSession: resource => context.sessions.find(session => session.resource.toString() === resource.toString()),
 		newSession: context.newSession,
 		onDidChangeSessions: context.sessionsChanged.event,
@@ -90,6 +94,7 @@ function createServices(disposables: Pick<DisposableStore, 'add'>, context: ITes
 		onDidUnarchiveSession: new Emitter<ISession>().event,
 		onDidDeleteSession: context.sessionDeleted.event,
 		onDidReplaceSession: new Emitter<{ readonly from: ISession; readonly to: ISession }>().event,
+		onDidReplaceNewDraftSession: new Emitter<{ readonly from: ISession; readonly to: ISession }>().event,
 		onDidDiscardNewSession: new Emitter<ISession>().event,
 	});
 	const groups = disposables.add(instantiationService.createInstance(SessionGroupsService));

@@ -319,7 +319,7 @@ class TrackedDocumentInfo extends Disposable {
 				...(repr.props.$$chatSessionId !== undefined ? { chatSessionId: repr.props.$$chatSessionId } : {}),
 				requestId: repr.props.$$requestId,
 				origin: repr.props.$origin,
-				harness: repr.props.$harness,
+				provider: repr.props.$origin === 'agentHost' ? repr.props.$harness || 'unknown' : undefined,
 				modifiedCount: telemetryEntry.modifiedCount,
 				deltaModifiedCount: deltaModifiedCount,
 				totalModifiedCount,

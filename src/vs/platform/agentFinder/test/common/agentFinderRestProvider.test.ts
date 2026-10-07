@@ -96,6 +96,7 @@ function resourceSnapshot(resource: ICustomizationMarketplaceEntry) {
 		url: resource.url?.toString(),
 		repository: resource.repository?.toString(),
 		icon: resource.icon?.toString(),
+		...(resource.publisherUrl ? { publisherUrl: resource.publisherUrl.toString() } : {}),
 	};
 }
 
@@ -141,6 +142,7 @@ suite('AgentFinderRestProvider', () => {
 				repository: 'https://github.com/ChromeDevTools/chrome-devtools-mcp',
 				icon: 'https://github.com/ChromeDevTools.png?size%3D64',
 				publisher: 'ChromeDevTools',
+				publisherUrl: 'https://github.com/ChromeDevTools',
 				version: undefined,
 				score: undefined,
 				installation: { kind: 'skill', repository: 'ChromeDevTools/chrome-devtools-mcp', ref: 'main', path: 'skills/a11y-debugging' },
@@ -159,7 +161,7 @@ suite('AgentFinderRestProvider', () => {
 		});
 	});
 
-	test('resolves an MCP registry icon through the fixed Agent Finder registry', async () => {
+	test('resolves MCP registry metadata through the fixed Agent Finder registry', async () => {
 		const lookups: { url: string; manifestUrl: string | undefined; manifestVersion: string | undefined; cancelled: boolean }[] = [];
 		const mcpGalleryService = upcastPartial<IMcpGalleryService>({
 			getMcpServer: async (url, manifest, token) => {
@@ -174,6 +176,9 @@ suite('AgentFinderRestProvider', () => {
 						light: 'https://avatars.githubusercontent.com/u/213697801',
 						dark: 'https://avatars.githubusercontent.com/u/213697801',
 					},
+					publisher: 'pgEdge',
+					publisherDisplayName: 'pgEdge, Inc.',
+					repositoryUrl: 'https://github.com/pgEdge/postgres-mcp',
 				});
 			},
 		});
@@ -187,8 +192,9 @@ suite('AgentFinderRestProvider', () => {
 				version: page.items[0].version,
 				url: page.items[0].url?.toString(),
 				externalUrl: page.items[0].externalUrl,
-				repository: page.items[0].repository,
+				repository: page.items[0].repository?.toString(),
 				publisher: page.items[0].publisher,
+				publisherUrl: page.items[0].publisherUrl?.toString(),
 				icon: page.items[0].icon?.toString(),
 				stars: page.items[0].stars,
 			},
@@ -200,8 +206,9 @@ suite('AgentFinderRestProvider', () => {
 				version: '1.0.0',
 				url: 'https://api.mcp.github.com/oss/v0.1/servers/io.github.pgEdge/postgres-mcp/versions/latest',
 				externalUrl: mcpServer.url,
-				repository: undefined,
-				publisher: undefined,
+				repository: 'https://github.com/pgEdge/postgres-mcp',
+				publisher: 'pgEdge, Inc.',
+				publisherUrl: 'https://github.com/pgEdge',
 				icon: 'https://avatars.githubusercontent.com/u/213697801',
 				stars: undefined,
 			},
@@ -214,7 +221,7 @@ suite('AgentFinderRestProvider', () => {
 		});
 	});
 
-	test('keeps the MCP result and logs when registry icon resolution fails', async () => {
+	test('keeps the MCP result and logs when registry metadata resolution fails', async () => {
 		const mcpGalleryService = upcastPartial<IMcpGalleryService>({
 			getMcpServer: async () => { throw new Error('offline'); },
 		});
@@ -228,7 +235,7 @@ suite('AgentFinderRestProvider', () => {
 			warnings: warning.args.map(args => args[0]),
 		}, {
 			icon: undefined,
-			warnings: ['[AgentFinderRestProvider] Failed to resolve the MCP catalog icon for \'io.github.pgEdge/postgres-mcp\'.'],
+			warnings: ['[AgentFinderRestProvider] Failed to resolve MCP catalog metadata for \'io.github.pgEdge/postgres-mcp\'.'],
 		});
 	});
 
@@ -252,7 +259,7 @@ suite('AgentFinderRestProvider', () => {
 		}, {
 			icon: undefined,
 			iconCancelled: true,
-			warnings: ['[AgentFinderRestProvider] Timed out resolving MCP catalog icons.'],
+			warnings: ['[AgentFinderRestProvider] Timed out resolving MCP catalog metadata.'],
 		});
 	}));
 
@@ -327,12 +334,12 @@ suite('AgentFinderRestProvider', () => {
 				},
 			]);
 
-			assert.deepStrictEqual(result.map(item => item.installation), [
-				{ kind: 'skill', repository: 'ChromeDevTools/chrome-devtools-mcp', ref: 'main', path: 'skills/a11y-debugging' },
-				{ kind: 'plugin', repository: 'github/awesome-copilot', ref: 'main', path: 'plugins/accessibility-kanban' },
-				{ kind: 'plugin', repository: 'JetBrains/go-modern-guidelines', ref: 'main', path: 'claude/modern-go-guidelines' },
-				{ kind: 'plugin', repository: 'github/copilot-plugins', ref: 'main', path: 'plugins/spark' },
-				{ kind: 'plugin', repository: 'github/copilot-plugins', ref: marketplacePluginSha, path: 'plugins/spark' },
+			assert.deepStrictEqual(result.map(item => ({ installation: item.installation, readmeUri: item.readmeUri?.toString() })), [
+				{ installation: { kind: 'skill', repository: 'ChromeDevTools/chrome-devtools-mcp', ref: 'main', path: 'skills/a11y-debugging' }, readmeUri: undefined },
+				{ installation: { kind: 'plugin', repository: 'github/awesome-copilot', ref: 'main', path: 'plugins/accessibility-kanban' }, readmeUri: 'https://raw.githubusercontent.com/github/awesome-copilot/main/plugins/accessibility-kanban/README.md' },
+				{ installation: { kind: 'plugin', repository: 'JetBrains/go-modern-guidelines', ref: 'main', path: 'claude/modern-go-guidelines' }, readmeUri: 'https://raw.githubusercontent.com/JetBrains/go-modern-guidelines/main/claude/modern-go-guidelines/README.md' },
+				{ installation: { kind: 'plugin', repository: 'github/copilot-plugins', ref: 'main', path: 'plugins/spark' }, readmeUri: 'https://raw.githubusercontent.com/github/copilot-plugins/main/plugins/spark/README.md' },
+				{ installation: { kind: 'plugin', repository: 'github/copilot-plugins', ref: marketplacePluginSha, path: 'plugins/spark' }, readmeUri: `https://raw.githubusercontent.com/github/copilot-plugins/${marketplacePluginSha}/plugins/spark/README.md` },
 			]);
 		});
 
@@ -349,8 +356,8 @@ suite('AgentFinderRestProvider', () => {
 			];
 			const result = await resources(variants);
 
-			assert.deepStrictEqual(result.map(item => ({ displayName: item.displayName, installation: item.installation })),
-				variants.map(() => ({ displayName: marketplacePlugin.displayName, installation: undefined })));
+			assert.deepStrictEqual(result.map(item => ({ displayName: item.displayName, installation: item.installation, readmeUri: item.readmeUri })),
+				variants.map(() => ({ displayName: marketplacePlugin.displayName, installation: undefined, readmeUri: undefined })));
 		});
 
 		test('supports repository-root skills and plugins without guessing a default branch', async () => {
@@ -360,10 +367,10 @@ suite('AgentFinderRestProvider', () => {
 				{ ...claudePlugin, url: 'https://github.com/JetBrains/go-modern-guidelines/tree/develop', metadata: { ...claudePlugin.metadata, repoPath: '.claude-plugin/plugin.json' } },
 			]);
 
-			assert.deepStrictEqual(result.map(item => item.installation), [
-				{ kind: 'skill', repository: 'ChromeDevTools/chrome-devtools-mcp', ref: 'release', path: '' },
-				{ kind: 'plugin', repository: 'github/awesome-copilot', ref: 'v1.2.3', path: '' },
-				{ kind: 'plugin', repository: 'JetBrains/go-modern-guidelines', ref: 'develop', path: '' },
+			assert.deepStrictEqual(result.map(item => ({ installation: item.installation, readmeUri: item.readmeUri?.toString() })), [
+				{ installation: { kind: 'skill', repository: 'ChromeDevTools/chrome-devtools-mcp', ref: 'release', path: '' }, readmeUri: undefined },
+				{ installation: { kind: 'plugin', repository: 'github/awesome-copilot', ref: 'v1.2.3', path: '' }, readmeUri: 'https://raw.githubusercontent.com/github/awesome-copilot/v1.2.3/README.md' },
+				{ installation: { kind: 'plugin', repository: 'JetBrains/go-modern-guidelines', ref: 'develop', path: '' }, readmeUri: 'https://raw.githubusercontent.com/JetBrains/go-modern-guidelines/develop/README.md' },
 			]);
 		});
 
@@ -751,8 +758,8 @@ suite('AgentFinderRestProvider', () => {
 		const page = await service.query({}, CancellationToken.None);
 		const item = page.items[0];
 
-		assert.deepStrictEqual({ repository: item.repository?.toString(), icon: item.icon?.toString(), publisher: item.publisher, version: item.version }, {
-			repository: 'https://github.com/Owner/Repository', icon: 'https://github.com/Owner.png?size%3D64', publisher: 'Owner', version: '2.0',
+		assert.deepStrictEqual({ repository: item.repository?.toString(), icon: item.icon?.toString(), publisher: item.publisher, publisherUrl: item.publisherUrl?.toString(), version: item.version }, {
+			repository: 'https://github.com/Owner/Repository', icon: 'https://github.com/Owner.png?size%3D64', publisher: 'Owner', publisherUrl: 'https://github.com/Owner', version: '2.0',
 		});
 	});
 

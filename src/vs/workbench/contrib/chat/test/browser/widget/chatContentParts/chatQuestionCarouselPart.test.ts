@@ -17,6 +17,8 @@ import { ChatQuestionCarouselData } from '../../../../common/model/chatProgressT
 import { AgentHostAutoReplyAnswer } from '../../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../../../platform/hover/test/browser/nullHoverService.js';
+import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
+import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import '../../../../../../browser/media/style.css';
 
 function createMockCarousel(questions: IChatQuestionCarousel['questions'], allowSkip: boolean = true): IChatQuestionCarousel {
@@ -1235,6 +1237,65 @@ suite('ChatQuestionCarouselPart', () => {
 				text: 'Thanks, your feedback has been recorded.',
 				hasSummary: false,
 				closeLabel: 'Dismiss Feedback Acknowledgement',
+				acknowledgementDismissed: 1,
+			});
+		});
+
+		test('submits a single-choice survey and exposes a keyboard-accessible feedback link', async () => {
+			const carousel = createMockCarousel([{
+				id: 'reason',
+				type: 'singleSelect',
+				title: 'Why did you switch harnesses?',
+				options: [{ id: 'preferLocal', label: 'I prefer the Local experience', value: 'preferLocal' }],
+				allowFreeformInput: false,
+				required: true,
+			}]);
+			const openedLinks: string[] = [];
+			let acknowledgementDismissed = 0;
+			createWidget(carousel, undefined, mainWindow.document.body, instantiationService => {
+				instantiationService.stub(IOpenerService, {
+					open: async resource => {
+						openedLinks.push(resource.toString());
+						return true;
+					},
+				});
+				instantiationService.stub(IMarkdownRendererService, instantiationService.createInstance(MarkdownRendererService));
+			}, {
+				submissionAcknowledgement: {
+					message: 'Thanks, your feedback has been recorded.',
+					description: new MarkdownString('Have specific feedback? [Share it on GitHub](https://github.com/microsoft/vscode/issues).'),
+					dismissLabel: 'Dismiss Feedback Acknowledgement',
+					onDidDismiss: () => acknowledgementDismissed++,
+				},
+			});
+
+			const option = widget.domNode.querySelector<HTMLElement>('.chat-question-list-item');
+			assert.ok(option);
+			option.click();
+			const link = widget.domNode.querySelector<HTMLAnchorElement>('.chat-question-description a');
+			assert.ok(link);
+			link.focus();
+			link.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+			await Promise.resolve();
+			link.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+
+			assert.deepStrictEqual({
+				answers: submittedAnswers,
+				hasTextInput: !!widget.domNode.querySelector('input, textarea'),
+				message: widget.domNode.querySelector('.chat-question-title')?.textContent,
+				linkText: link.textContent,
+				linkTabIndex: link.tabIndex,
+				linkFocused: mainWindow.document.activeElement === link,
+				openedLinks,
+				acknowledgementDismissed,
+			}, {
+				answers: new Map([['reason', { selectedValue: 'preferLocal', freeformValue: undefined }]]),
+				hasTextInput: false,
+				message: 'Thanks, your feedback has been recorded.',
+				linkText: 'Share it on GitHub',
+				linkTabIndex: 0,
+				linkFocused: true,
+				openedLinks: ['https://github.com/microsoft/vscode/issues'],
 				acknowledgementDismissed: 1,
 			});
 		});

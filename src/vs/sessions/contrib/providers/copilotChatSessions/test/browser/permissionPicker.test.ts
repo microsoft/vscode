@@ -30,6 +30,7 @@ import { TestStorageService } from '../../../../../../workbench/test/common/work
 import { IWorkbenchLayoutService } from '../../../../../../workbench/services/layout/browser/layoutService.js';
 import { DEFAULT_PERMISSION_LEVELS, getPermissionLevelMeta, IPermissionPickerDelegate, PermissionPicker } from '../../browser/permissionPicker.js';
 import { MobilePermissionPicker } from '../../browser/mobilePermissionPicker.js';
+import { PickerActionViewItem } from '../../../agentHost/browser/agentHostSessionConfigPicker.js';
 
 suite('Copilot PermissionPicker', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -40,6 +41,34 @@ suite('Copilot PermissionPicker', () => {
 		managedSandboxEnforced: constObservable(false),
 		managedSandboxAllowsBypass: constObservable(false),
 	};
+
+	test('toolbar focus and focusability target the permission trigger rather than its slot', () => {
+		const container = dom.append(document.body, dom.$('div'));
+		store.add(toDisposable(() => container.remove()));
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const picker = new PermissionPicker(
+			{ getPermissionLevelMeta: (_level, meta) => meta, setPermissionLevel: () => { } },
+			new class extends mock<IActionWidgetService>() { }(),
+			configuration,
+			new TestDialogService(),
+			new class extends mock<IOpenerService>() { }(),
+			store.add(new TestStorageService()),
+			NullTelemetryService,
+			new class extends mock<IHoverService>() { }(),
+			unmanagedEnablementService,
+		);
+		const item = store.add(new PickerActionViewItem(picker, undefined, true));
+		item.render(container);
+		const trigger = container.querySelector<HTMLElement>('.action-label')!;
+		item.setFocusable(false);
+		const disabledTabIndex = trigger.tabIndex;
+		item.setFocusable(true);
+		item.focus();
+		assert.deepStrictEqual({ disabledTabIndex, enabledTabIndex: trigger.tabIndex, focused: document.activeElement === trigger, itemFocused: item.isFocused() }, {
+			disabledTabIndex: -1, enabledTabIndex: 0, focused: true, itemFocused: true,
+		});
+	});
 
 	for (const policyRestricted of [false, true]) {
 		test(`labels Assisted permissions as experimental on phones${policyRestricted ? ' while honoring enterprise policy' : ''}`, async () => {
@@ -201,7 +230,6 @@ suite('Copilot PermissionPicker', () => {
 			}
 		}();
 		store.add(configurationService.onDidChangeConfigurationEmitter);
-		await configurationService.setUserConfiguration(ChatConfiguration.PermissionsSandboxToggleEnabled, true);
 		const managedSandboxEnforced = observableValue('managedSandboxEnforced', false);
 		const sandboxEnabled = observableValue<boolean | undefined>('sandboxEnabled', undefined);
 		let allowBypass: boolean | undefined;
@@ -272,7 +300,7 @@ suite('Copilot PermissionPicker', () => {
 						disabled,
 						title: managed
 							? 'Sandboxing is required by your organization'
-							: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. This choice is saved for this session only.',
+							: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. The applied setting is saved for this session and checked against current organization policy when restored.',
 						writes: disabled ? [] : (initiallyChecked ? [false, true] : [true]).map(enabled => ({ session: 'test-session', enabled })),
 					});
 				}
@@ -314,15 +342,13 @@ suite('Copilot PermissionPicker', () => {
 		managedSettingsChanged.fire();
 		assert.deepStrictEqual(visibleStates, [
 			{ disabled: true, rowDisabled: true, title: 'Sandboxing is required by your organization', hasHover: true },
-			{ disabled: false, rowDisabled: false, title: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. This choice is saved for this session only.', hasHover: false },
+			{ disabled: false, rowDisabled: false, title: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. The applied setting is saved for this session and checked against current organization policy when restored.', hasHover: false },
 			{ disabled: true, rowDisabled: true, title: 'Sandboxing is required by your organization', hasHover: true },
 		]);
 	});
 
 	test('sandbox re-enablement observes host confirmation and session bypass policy', () => {
-		const configurationService = new TestConfigurationService({
-			[ChatConfiguration.PermissionsSandboxToggleEnabled]: true,
-		});
+		const configurationService = new TestConfigurationService();
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		const allowsBypass = observableValue('sessionAllowsBypass', false);
 		const confirmedEnabled = observableValue<boolean | undefined>('confirmedEnabled', undefined);
@@ -403,7 +429,6 @@ suite('Copilot PermissionPicker', () => {
 	test('updates the shield icon when sandbox configuration finishes resolving', () => {
 		const sandboxSettingId = 'test.sandbox.enabled';
 		const configurationService = new TestConfigurationService();
-		configurationService.setUserConfiguration(ChatConfiguration.PermissionsSandboxToggleEnabled, true);
 		configurationService.setUserConfiguration(sandboxSettingId, AgentSandboxEnabledValue.On);
 		const isResolving = observableValue('isResolving', true);
 		const sandboxEnabled = observableValue<boolean | undefined>('sandboxEnabled', undefined);

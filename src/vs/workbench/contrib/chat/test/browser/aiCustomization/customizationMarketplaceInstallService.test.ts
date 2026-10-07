@@ -36,6 +36,8 @@ import { UnsupportedMcpGalleryPackageError } from '../../../../../../platform/mc
 import { IMcpGalleryManifest, IMcpGalleryManifestService } from '../../../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { IProgress, IProgressService, IProgressStep, ProgressLocation } from '../../../../../../platform/progress/common/progress.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, McpServerInstallState } from '../../../../mcp/common/mcpTypes.js';
@@ -50,6 +52,7 @@ import { IAICustomizationWorkspaceService } from '../../../common/aiCustomizatio
 import { ICustomizationMarketplaceInstallService } from '../../../common/customizationMarketplaceInstallService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { ICustomizationHarnessService, ICustomizationSourceFolder, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
+import { IEnablementModel } from '../../../common/enablement.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IAgentPluginRepositoryService, IEnsureRepositoryOptions } from '../../../common/plugins/agentPluginRepositoryService.js';
 import { IPluginGitService } from '../../../common/plugins/pluginGitService.js';
@@ -77,6 +80,16 @@ const sources = [
 	CustomizationMarketplaceSources.PluginMarketplaces,
 	{ ...CustomizationMarketplaceSources.McpGallery, enablementSetting: mcpGalleryTestSetting },
 ];
+
+class TestTelemetryService extends NullTelemetryServiceShape {
+	readonly events: { readonly name: string; readonly data: Record<string, unknown> }[] = [];
+
+	override publicLog2(eventName?: string, data?: Record<string, unknown>): void {
+		if (eventName && data) {
+			this.events.push({ name: eventName, data });
+		}
+	}
+}
 
 function resource(overrides: Partial<ICustomizationMarketplaceResource> = {}): ICustomizationMarketplaceResource {
 	return {
@@ -267,37 +280,69 @@ suite('CustomizationMarketplaceInstallService', () => {
 			}
 		}();
 		const agentPlugins = observableValue<readonly IAgentPlugin[]>('agentPlugins', []);
+		const removedPluginEnablements: string[] = [];
 		const agentPluginService = new class extends mock<IAgentPluginService>() {
 			override readonly plugins = agentPlugins;
+			override readonly enablementModel = new class extends mock<IEnablementModel>() {
+				override remove(key: string): void {
+					removedPluginEnablements.push(key);
+				}
+			}();
 		}();
 		const pluginService = new class extends mock<IPluginInstallService>() {
 			readonly calls: { source: string; options: IInstallPluginFromSourceOptions | undefined }[] = [];
 			readonly directInstalls: IMarketplaceInstalledPlugin['plugin'][] = [];
+			readonly uninstalls: URI[] = [];
 			onDirectInstall: ((token: CancellationToken | undefined) => Promise<void>) | undefined;
 			override async installPlugin(plugin: IMarketplaceInstalledPlugin['plugin'], token?: CancellationToken) {
 				this.directInstalls.push(plugin);
 				await this.onDirectInstall?.(token);
+				await this.createInstalledPluginDirectory(plugin);
+			}
+			override async uninstallPlugin(pluginUri: URI): Promise<boolean> {
+				this.uninstalls.push(pluginUri);
+				const current = installedPlugins.get();
+				if (!current.some(candidate => isEqual(candidate.pluginUri, pluginUri))) {
+					return false;
+				}
+				installedPlugins.set(current.filter(candidate => !isEqual(candidate.pluginUri, pluginUri)), undefined);
+				return true;
 			}
 			result: IInstallPluginFromSourceResult = { success: true };
 			onInstall: (() => Promise<IInstallPluginFromSourceResult>) | undefined;
 			autoMatch = true;
 			version = '1.0.0';
+			synchronousInstallDelayMs = 0;
 			readonly versions = new Map<string, string>();
 			override async installPluginFromSource(source: string, options?: IInstallPluginFromSourceOptions): Promise<IInstallPluginFromSourceResult> {
+				const synchronousStart = performance.now();
+				while (performance.now() - synchronousStart < this.synchronousInstallDelayMs) {
+					// Simulate synchronous validation before the first suspension point.
+				}
 				this.calls.push({ source, options });
 				const result = this.onInstall ? await this.onInstall() : this.result;
 				if (!result.success || result.matchedPlugin || !this.autoMatch) {
+					if (result.matchedPlugin) {
+						await this.createInstalledPluginDirectory(result.matchedPlugin);
+					}
 					return result;
 				}
 				const reference = parseMarketplaceReference(source);
 				assert.ok(reference?.githubRepo);
 				const path = options?.path ?? '';
 				const entry = installedPlugin({ kind: PluginSourceKind.GitHub, repo: reference.githubRepo, ref: reference.ref, path }, path, this.versions.get(path) ?? this.version, URI.file(`/cache/${reference.githubRepo}/ref_${reference.ref ?? 'default'}/${path || 'root'}`));
+				await fileService.createFolder(entry.pluginUri);
 				installedPlugins.set([...installedPlugins.get(), entry], undefined);
 				return { ...result, matchedPlugin: entry.plugin };
 			}
 			override getPluginInstallUri(plugin: IMarketplacePlugin): URI {
 				return installedPlugins.get().find(entry => entry.plugin === plugin)?.pluginUri ?? URI.file('/cache/missing-plugin');
+			}
+			private async createInstalledPluginDirectory(plugin: IMarketplacePlugin): Promise<void> {
+				const installed = installedPlugins.get().find(entry => entry.plugin === plugin);
+				if (installed) {
+					await fileService.createFolder(installed.pluginUri);
+				}
 			}
 		}();
 		const pluginSource = new class extends mock<IPluginSource>() {
@@ -551,12 +596,15 @@ suite('CustomizationMarketplaceInstallService', () => {
 		instantiationService.stub(IQuickInputService, quickInputService);
 		instantiationService.stub(ILabelService, labelService);
 		instantiationService.stub(ILogService, logService);
+		const telemetryService = new TestTelemetryService();
+		instantiationService.stub(ITelemetryService, telemetryService);
 		instantiationService.stub(IStorageService, storageService);
 		instantiationService.stub(ICommandService, commandService);
 		const service = store.add(instantiationService.createInstance(CustomizationMarketplaceInstallService));
 		return {
 			service, instantiationService, fileService, provider, storageService, commandService, deletedSkills, installedPlugins, marketplaceService, marketplaceChanges, agentPlugins, pluginService, repositoryService, pluginGitService, mcpService, mcpChanges,
-			connectorsService, connectedConnectors, connectorChanges, connectorAccountChanges, connectorDisconnected, mcpGalleryManifestService, harnessService, workspaceService, entitlementService, sentimentChanges, configurationService, dialogService, progressService, quickInputService,
+			connectorsService, connectedConnectors, connectorChanges, connectorAccountChanges, connectorDisconnected, mcpGalleryManifestService, harnessService, workspaceService, entitlementService, sentimentChanges, configurationService, dialogService, progressService, quickInputService, removedPluginEnablements,
+			telemetryService,
 		};
 	}
 
@@ -623,6 +671,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 
 		test('Marketplace visibility blocks installs without disabling the source', async () => {
 			const fixture = await createFixture();
+			fixture.pluginService.synchronousInstallDelayMs = 10;
 			await fixture.configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
 			fireConfigurationChange(fixture.configurationService, CustomizationMarketplaceConfiguration.MarketplaceEnabled);
 			const state = fixture.service.getInstallState(pluginResource());
@@ -634,10 +683,29 @@ suite('CustomizationMarketplaceInstallService', () => {
 				state,
 				pluginInstalls: fixture.pluginService.calls,
 				sourceStillEnabled: fixture.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled),
+				telemetry: fixture.telemetryService.events.map(event => ({
+					...event,
+					data: {
+						...event.data,
+						durationMs: typeof event.data.durationMs === 'number',
+						durationIncludesSynchronousSetup: typeof event.data.durationMs === 'number' && event.data.durationMs >= fixture.pluginService.synchronousInstallDelayMs,
+					},
+				})),
 			}, {
 				state: { kind: 'unavailable', message: 'Enable the customization marketplace to install this resource.' },
 				pluginInstalls: [{ source: 'owner/catalog#release', options: { path: 'plugins/demo' } }],
 				sourceStillEnabled: true,
+				telemetry: [{
+					name: 'chatCustomizationMarketplace.install',
+					data: {
+						surface: 'marketplace',
+						customizationType: 'plugin',
+						installKind: 'plugin',
+						outcome: 'success',
+						durationMs: true,
+						durationIncludesSynchronousSetup: true,
+					},
+				}],
 			});
 		});
 
@@ -1567,7 +1635,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 					state: fixture.service.getInstallState(candidate).kind,
 				}, {
 					calls: [{ source: 'owner/catalog#release', options: { path } }],
-					firstState: 'available',
+					firstState: 'installing',
 					lastState: 'installed',
 					state: 'installed',
 				});
@@ -1842,6 +1910,80 @@ suite('CustomizationMarketplaceInstallService', () => {
 				sha: fixture.service.getInstallState({ ...candidate, installation: { kind: 'plugin', repository: 'owner/catalog', ref: sha, path: 'plugins/demo' } }).kind,
 				tag: fixture.service.getInstallState(candidate).kind,
 			}, { sha: 'available', tag: 'available' });
+		});
+
+		test('reconciles a recorded plugin when its exact discovered target disappears', async () => {
+			const fixture = await createFixture();
+			const candidate = pluginResource();
+			const installed = installedPlugin({ kind: PluginSourceKind.GitHub, repo: 'owner/catalog', ref: 'release', path: 'plugins/demo' });
+			fixture.installedPlugins.set([installed], undefined);
+			fixture.pluginService.autoMatch = false;
+			fixture.pluginService.result = { success: true, matchedPlugin: installed.plugin };
+			await fixture.fileService.createFolder(installed.pluginUri);
+			await fixture.service.install(candidate);
+			fixture.agentPlugins.set([
+				new class extends mock<IAgentPlugin>() {
+					override readonly uri = installed.pluginUri;
+				}(),
+			], undefined);
+			const missing = Event.toPromise(Event.filter(fixture.service.onDidChange, () => fixture.service.getInstallState(candidate).kind === 'missing'));
+
+			await fixture.fileService.del(installed.pluginUri, { recursive: true });
+			fixture.agentPlugins.set([], undefined);
+			await missing;
+
+			assert.strictEqual(fixture.service.getInstallState(candidate).kind, 'missing');
+		});
+
+		test('clears a stale plugin record after its exact target folder is deleted', async () => {
+			const fixture = await createFixture();
+			const candidate = pluginResource();
+			const installed = installedPlugin({ kind: PluginSourceKind.GitHub, repo: 'owner/catalog', ref: 'release', path: 'plugins/demo' });
+			fixture.installedPlugins.set([installed], undefined);
+			fixture.pluginService.autoMatch = false;
+			fixture.pluginService.result = { success: true, matchedPlugin: installed.plugin };
+			await fixture.fileService.createFolder(installed.pluginUri);
+			await fixture.service.install(candidate);
+			fixture.service.dispose();
+			await fixture.fileService.del(installed.pluginUri, { recursive: true });
+			let unrelatedRemoveCalls = 0;
+			fixture.agentPlugins.set([
+				new class extends mock<IAgentPlugin>() {
+					override readonly uri = URI.file('/cache/unrelated-plugin');
+					override readonly label = 'demo';
+					override async remove(): Promise<boolean> {
+						unrelatedRemoveCalls++;
+						return true;
+					}
+				}(),
+			], undefined);
+			const restored = store.add(fixture.instantiationService.createInstance(CustomizationMarketplaceInstallService));
+			await timeout(0);
+			const stateAfterReload = restored.getInstallState(candidate).kind;
+			let uninstallError: string | undefined;
+			try {
+				await restored.uninstall(candidate);
+			} catch (error) {
+				uninstallError = error instanceof Error ? error.message : String(error);
+			}
+
+			assert.deepStrictEqual({
+				stateAfterReload,
+				uninstallError,
+				afterUninstall: restored.getInstallState(candidate).kind,
+				recorded: recordedResources(restored).length,
+				unrelatedRemoveCalls,
+				pluginUninstalls: fixture.pluginService.uninstalls.map(uri => uri.toString()),
+				removedPluginEnablements: fixture.removedPluginEnablements,
+			}, {
+				stateAfterReload: 'missing',
+				uninstallError: undefined,
+				afterUninstall: 'available',
+				recorded: 0,
+				unrelatedRemoveCalls: 0,
+				pluginUninstalls: [installed.pluginUri.toString()],
+				removedPluginEnablements: [installed.pluginUri.toString()],
+			});
 		});
 
 		test('uninstalls through the installed agent plugin', async () => {
@@ -2788,6 +2930,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 			await fixture.fileService.del(joinPath(skillDestination, 'scripts', 'run.sh'));
 			await reconciled;
 			const stateBeforeRepair = fixture.service.getInstallState(candidate).kind;
+			fixture.provider.writes.length = 0;
 
 			await fixture.service.repair(candidate);
 
@@ -2795,6 +2938,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 				stateBeforeRepair,
 				stateAfterRepair: fixture.service.getInstallState(candidate).kind,
 				files: await readTree(fixture.fileService, skillDestination),
+				stagingWritesOutsideDestination: fixture.provider.writes.filter(isStaging).map(uri => !isEqualOrParent(uri, destinationDirectory)),
 				repositoryCalls: fixture.repositoryService.calls.length,
 				confirmations: fixture.dialogService.confirmations.map(confirmation => confirmation.primaryButton),
 			}, {
@@ -2806,6 +2950,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 					['scripts/run.sh', 'original script'],
 					[SKILL_FILENAME, '# Locally edited skill'],
 				],
+				stagingWritesOutsideDestination: [true, true],
 				repositoryCalls: 2,
 				confirmations: ['Install', 'Repair'],
 			});

@@ -13,6 +13,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable, IReader, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { ActionListItemKind, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
@@ -39,7 +40,7 @@ import { SESSIONS_LIST_COLLECTION_SWITCHER_SETTING, SESSIONS_LIST_COLLECTIONS_SE
 import { DraggedSessionIdentifier, DraggedSessionListHeaderIdentifier } from '../../../browser/dnd.js';
 import { ISessionCollectionsService } from '../../../services/sessions/browser/sessionCollectionsService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
+import { ChatOriginKind, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { sessionPaletteColorIds } from '../../../services/sessions/common/sessionColors.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { SessionCollectionAttention, SessionCollectionsIconStrip, ISessionCollectionsSwitcherDelegate, SESSION_COLLECTIONS_CONTROLLER_ID } from './sessionCollectionsSwitcher.js';
@@ -163,6 +164,18 @@ for (let index = 1; index <= 9; index++) {
 	registerSwitchToIndexAction(index);
 }
 
+function hasUnreadCollectionChat(session: ISession, reader?: IReader): boolean {
+	const mainChat = session.mainChat.read(reader);
+	if (!mainChat.isRead.read(reader)) {
+		return true;
+	}
+	return session.chats.read(reader).some(chat =>
+		!isEqual(chat.resource, mainChat.resource) &&
+		chat.origin?.kind !== ChatOriginKind.Tool &&
+		!chat.isArchived.read(reader) &&
+		!chat.isRead.read(reader));
+}
+
 export class SessionCollectionsAttentionModel extends Disposable {
 
 	private readonly sessionsChanged: IObservable<void>;
@@ -185,7 +198,7 @@ export class SessionCollectionsAttentionModel extends Disposable {
 			if (session.status.read(reader) === SessionStatus.NeedsInput) {
 				return SessionCollectionAttention.NeedsInput;
 			}
-			hasUnread ||= !session.isRead.read(reader);
+			hasUnread ||= hasUnreadCollectionChat(session, reader);
 		}
 		return hasUnread ? SessionCollectionAttention.Unread : SessionCollectionAttention.None;
 	}

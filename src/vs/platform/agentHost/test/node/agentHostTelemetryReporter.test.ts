@@ -10,6 +10,7 @@ import { hash } from '../../../../base/common/hash.js';
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../../telemetry/common/telemetryUtils.js';
 import { createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
+import { NullAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentSession } from '../../common/agent.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { toAgentMergeMessageMeta } from '../../common/meta/agentMergeMessageMeta.js';
@@ -82,6 +83,31 @@ suite('AgentHostTelemetryReporter', () => {
 	const tools: ToolDefinition[] = [{ name: 'grep' }, { name: 'edit' }];
 	const userMessage: Message = { text: 'hello', origin: { kind: MessageKind.User } };
 
+	for (const enabled of [false, true]) {
+		test(`reports resolved OTel enablement (${enabled}) on admitted messages`, () => {
+			const service = new TestRestrictedTelemetryService();
+			const reporter = new AgentHostTelemetryReporter(service, { ...NullAgentHostOTelService, enabled, diagnosticsEnabled: !enabled });
+			reporter.userMessageSent('copilotcli', undefined, createUnknownAgentHostClientTelemetryContext(AgentHostClientType.EditorWindow), session, 'turn', undefined, 'direct', userMessage, false);
+
+			assert.deepStrictEqual(service.standardEvents
+				.map(event => ({ eventName: event.eventName, isOtelEnabled: event.data?.isOtelEnabled })), [
+				{ eventName: 'agentHost.userMessageSent', isOtelEnabled: enabled },
+			]);
+		});
+	}
+
+	test('bounds canvas provenance without exposing unknown source strings', () => {
+		const service = new TestRestrictedTelemetryService();
+		const reporter = new AgentHostTelemetryReporter(service);
+		for (const source of ['project', 'user', 'plugin', 'session', undefined, '/private/provider']) {
+			reporter.canvasOpened('copilotcli', session, source, undefined);
+		}
+		assert.deepStrictEqual(service.standardEvents, ['project', 'user', 'plugin', 'session', 'unknown', 'unknown'].map(extensionSource => ({
+			eventName: 'agentHost.canvasOpened',
+			data: { schemaVersion: 1, provider: 'copilotcli', agentSessionId: 'abc', extensionSource },
+		})));
+	});
+
 	test('limits turn context to schema fields on Codex completion and hang events', () => {
 		const service = new TestRestrictedTelemetryService();
 		const reporter = new AgentHostTelemetryReporter(service);
@@ -91,7 +117,7 @@ suite('AgentHostTelemetryReporter', () => {
 			const completion: IAgentHostTurnCompletedReport = {
 				provider, session, turnId: 'turn',
 				parentTurnId: undefined, parentToolCallId: undefined, subagentTaskModelSource: undefined,
-				timeToFirstProgress: undefined, timeToFirstSubstantiveProgress: undefined, timeToFirstEditMs: undefined, timeToFirstEditClassifierVersion: undefined,
+				timeToFirstProgress: undefined, timeToFirstSubstantiveProgress: undefined, timeToFirstEditMs: undefined,
 				startedWithSteering: false, receivedSteering: false,
 				totalTime: 100, result: 'success', model: undefined, modelTelemetryKind: undefined, modelSelectionKind: 'default',
 				permissionLevel: undefined, interactionMode: undefined, messageOriginKind: undefined, failure: undefined,
@@ -113,6 +139,10 @@ suite('AgentHostTelemetryReporter', () => {
 			assert.deepStrictEqual(service.standardEvents.splice(0), baseline.map(event => ({
 				...event, data: { ...event.data, ...(provider === 'codex' ? snapshot : {}) },
 			})));
+			// A legacy/selected model ID cannot determine the dispatch route. The
+			// provider-owned snapshot wins, and only Codex reports this field.
+			reporter.turnCompleted({ ...completion, model: 'legacy-model', codexModelProvider: 'openai' });
+			assert.strictEqual(service.standardEvents.splice(0)[0].data?.codexModelProvider, provider === 'codex' ? 'openai' : undefined);
 		}
 	});
 
@@ -129,7 +159,7 @@ suite('AgentHostTelemetryReporter', () => {
 			reporter.turnCompleted({
 				provider: 'copilot', session, turnId: 'turn',
 				parentTurnId: undefined, parentToolCallId: undefined, subagentTaskModelSource: undefined,
-				timeToFirstProgress: undefined, timeToFirstSubstantiveProgress: undefined, timeToFirstEditMs: undefined, timeToFirstEditClassifierVersion: undefined,
+				timeToFirstProgress: undefined, timeToFirstSubstantiveProgress: undefined, timeToFirstEditMs: undefined,
 				startedWithSteering: false, receivedSteering: false,
 				totalTime: 100, result: 'success', model: undefined, modelTelemetryKind: undefined, modelSelectionKind: 'default',
 				permissionLevel: undefined, interactionMode: undefined, messageOriginKind: undefined, failure: undefined,
@@ -272,6 +302,7 @@ suite('AgentHostTelemetryReporter', () => {
 			eventName: 'agentHost.userMessageSent',
 			data: {
 				provider: 'copilotcli',
+				isOtelEnabled: false,
 				hostLaunchKind: 'unknown',
 				initiatorClientId: 'client-1',
 				initiatorClientType: 'editor_window',
@@ -403,6 +434,7 @@ suite('AgentHostTelemetryReporter', () => {
 				initiatorClientType: 'editor_window',
 				turnIndex: '3',
 				messageText: 'hello agent',
+				messageTextChunk: zlib.gzipSync(Buffer.from('hello agent', 'utf8')).toString('base64'),
 			},
 		};
 		assert.deepStrictEqual(service.enhancedEvents, [expected]);
@@ -426,6 +458,7 @@ suite('AgentHostTelemetryReporter', () => {
 				turnIndex: '3',
 				headerRequestId: 'client-1',
 				messageText: 'sure, here you go',
+				messageTextChunk: zlib.gzipSync(Buffer.from('sure, here you go', 'utf8')).toString('base64'),
 			},
 		};
 		assert.deepStrictEqual(service.enhancedEvents, [expected]);
@@ -608,6 +641,8 @@ suite('AgentHostTelemetryReporter', () => {
 			telemetryContext: { copilotSku: 'sku-a' },
 			toolId: 'bash', toolSourceKind: 'internal',
 			confirmKind: 'userAction',
+			decisionSource: 'human_response',
+			permissionResult: 'approved',
 			confirmationNotNeededReason: undefined,
 			requestUnsandboxedExecution: true,
 		});
@@ -615,6 +650,8 @@ suite('AgentHostTelemetryReporter', () => {
 			provider: 'copilot', session, turnId: 'turn-3',
 			toolId: 'my-mcp-tool', toolSourceKind: 'mcp',
 			confirmKind: 'denied',
+			decisionSource: 'host_policy',
+			permissionResult: 'denied-interactively-by-user',
 			confirmationNotNeededReason: undefined,
 			requestUnsandboxedExecution: undefined,
 		});
@@ -631,6 +668,7 @@ suite('AgentHostTelemetryReporter', () => {
 				toolExtensionId: undefined,
 				toolSourceKind: 'internal',
 				confirmKind: 'confirmationNotNeeded',
+				approvalTelemetryVersion: 2,
 				settingId: undefined,
 				lmServiceScope: undefined,
 				customButtonKind: undefined,
@@ -654,6 +692,9 @@ suite('AgentHostTelemetryReporter', () => {
 				toolExtensionId: undefined,
 				toolSourceKind: 'internal',
 				confirmKind: 'userAction',
+				decisionSource: 'human_response',
+				permissionResult: 'approved',
+				approvalTelemetryVersion: 2,
 				settingId: undefined,
 				lmServiceScope: undefined,
 				customButtonKind: undefined,
@@ -673,6 +714,9 @@ suite('AgentHostTelemetryReporter', () => {
 				toolExtensionId: undefined,
 				toolSourceKind: 'mcp',
 				confirmKind: 'denied',
+				decisionSource: 'host_policy',
+				permissionResult: 'denied-interactively-by-user',
+				approvalTelemetryVersion: 2,
 				settingId: undefined,
 				lmServiceScope: undefined,
 				customButtonKind: undefined,

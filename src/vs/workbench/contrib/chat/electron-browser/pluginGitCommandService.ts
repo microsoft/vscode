@@ -77,10 +77,12 @@ export class NativePluginGitCommandService implements IPluginGitService {
 				token,
 				() => this._localGitService.pull(id, repoDir.fsPath, {
 					allowHardResetOnDivergence: true,
+					skipDetachedHead: true,
 					logErrors: false,
 				}),
 				authentication => this._localGitService.pull(id, repoDir.fsPath, {
 					allowHardResetOnDivergence: true,
+					skipDetachedHead: true,
 					authentication,
 				}),
 			);

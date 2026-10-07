@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { StopWatch } from '../../../../../../base/common/stopwatch.js';
+import type { AgentHostClientConnectionKind } from '../../../../../../platform/agentHost/common/agentHostTelemetry.js';
 
 export type AgentHostFirstResponseOutcome = 'success' | 'cancelled' | 'error' | 'notDispatched';
 
@@ -18,6 +19,7 @@ export interface IAgentHostFirstResponseEvent {
 	schemaVersion: 1;
 	requestId: string;
 	provider: string;
+	connectionKind: AgentHostClientConnectionKind;
 	agentSessionId?: string;
 	chatId?: string;
 	outcome: AgentHostFirstResponseOutcome;
@@ -37,6 +39,7 @@ export type AgentHostFirstResponseClassification = {
 	schemaVersion: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Version of the invocation timing contract.' };
 	requestId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Actual client request and protocol turn identifier.' };
 	provider: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Agent Host provider identifier.' };
+	connectionKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Allowlisted client connection kind captured at invocation start, including web_pub_sub for the current GitHub sandbox integration and mission_control for user-local Mission Control hosts. Unknown when unavailable; contains no environment identity.' };
 	agentSessionId?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Backend session identifier.' };
 	chatId?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Backend chat identifier.' };
 	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Terminal invocation outcome, including cancellation before dispatch.' };

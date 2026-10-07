@@ -10,6 +10,7 @@ import type { ISessionDataService } from '../../common/sessionDataService.js';
 export const SESSION_CUSTOM_TITLE_KEY = 'customTitle';
 export const SESSION_CUSTOM_TITLE_SOURCE_KEY = 'customTitleSource';
 export const SESSION_ARTIFACTS_KEY = 'sessionArtifacts';
+export const SESSION_WORKING_DIRECTORIES_KEY = 'agentHost.sessionWorkingDirectories';
 export const AGENT_HOST_TITLE_SOURCE_USER = 'user';
 export const AGENT_HOST_TITLE_SOURCE_AGENT = 'agent';
 export const AGENT_HOST_TITLE_SOURCE_AUTO = 'auto';
@@ -18,6 +19,18 @@ export type AgentHostTitleSource =
 	| typeof AGENT_HOST_TITLE_SOURCE_USER
 	| typeof AGENT_HOST_TITLE_SOURCE_AGENT
 	| typeof AGENT_HOST_TITLE_SOURCE_AUTO;
+
+/** Reads host-owned aggregate roots independently of a provider's default-chat cwd. */
+export function parseSessionWorkingDirectories(value: string | undefined): readonly string[] | undefined {
+	if (value === undefined) {
+		return undefined;
+	}
+	const directories: unknown = JSON.parse(value);
+	if (!Array.isArray(directories) || !directories.every(directory => typeof directory === 'string' && URI.parse(directory, true).scheme.length > 0)) {
+		throw new Error('Invalid persisted session working directories');
+	}
+	return directories;
+}
 
 export function customChatTitleMetadataKey(chat: string): string {
 	return `customChatTitle:${chat}`;

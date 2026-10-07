@@ -49,7 +49,7 @@ function getAgentSessionLinkPresentationStatus(status: AgentSessionLinkStatus): 
 	switch (status) {
 		case 'untitled': return { kind: 'neutral', label: localize('agentSessionLink.notStarted', "Not started") };
 		case 'inProgress': return { kind: 'pending', label: localize('agentSessionLink.working', "Working") };
-		case 'needsInput': return { kind: 'warning', label: localize('agentSessionLink.needsInput', "Needs input") };
+		case 'needsInput': return { kind: 'warning', label: localize('agentSessionLink.needsInput', "Needs attention") };
 		case 'completed': return { kind: 'success', label: localize('agentSessionLink.completed', "Completed") };
 		case 'error': return { kind: 'error', label: localize('agentSessionLink.error', "Error") };
 	}
@@ -90,14 +90,21 @@ export function isSendMessageTool(toolName: string): boolean {
  * ecosystem-wide invariant (an absent chat id already means "the default chat"),
  * so it is enforced here once rather than at each call site.
  */
-export function buildOpenSessionLinkUri(backendSession: URI | string, chatId?: string, turnId?: string): string {
-	const provider = AgentSession.provider(backendSession);
+export function buildOpenSessionLinkUri(backendSession: URI | string, chatId?: string, turnId?: string, connectionAuthority?: string): string {
+	const session = typeof backendSession === 'string' ? URI.parse(backendSession) : backendSession;
+	const provider = session.scheme;
 	const rawId = AgentSession.id(backendSession);
 	if (!provider) {
 		throw new Error(`Cannot build open-session link: missing provider in ${backendSession.toString()}`);
 	}
 	const base = URI.from({ scheme: AGENT_HOST_SESSION_LINK_SCHEME, authority: provider, path: `/${rawId}` }).toString();
 	const query: string[] = [];
+	if (connectionAuthority) {
+		query.push(`connectionAuthority=${encodeURIComponent(connectionAuthority)}`);
+	}
+	if (session.authority || session.query || session.fragment) {
+		query.push(`session=${encodeURIComponent(session.toString())}`);
+	}
 	if (chatId && chatId !== DEFAULT_CHAT_ID) {
 		query.push(`chat=${encodeURIComponent(chatId)}`);
 	}
@@ -112,11 +119,14 @@ export function buildOpenSessionLinkUri(backendSession: URI | string, chatId?: s
  *
  * Shape: `<product-protocol>://agents/agent-host-session/<provider>/<rawSessionId>[/chat/<chatId>]`.
  */
-export function buildExternalOpenSessionLinkUri(productUrlProtocol: string, backendSession: URI | string, chatId?: string, turnId?: string): string {
-	const sessionLink = buildOpenSessionLinkUri(backendSession);
+export function buildExternalOpenSessionLinkUri(productUrlProtocol: string, backendSession: URI | string, chatId?: string, turnId?: string, connectionAuthority?: string): string {
+	const sessionLinkText = buildOpenSessionLinkUri(backendSession, undefined, undefined, connectionAuthority);
+	const link = URI.parse(sessionLinkText);
+	const sessionLink = link.with({ query: '' }).toString();
 	const encodedTarget = sessionLink.slice(`${AGENT_HOST_SESSION_LINK_SCHEME}://`.length);
 	const chatPath = chatId && chatId !== DEFAULT_CHAT_ID ? `${AGENT_HOST_CHAT_LINK_PATH_SEGMENT}${encodeURIComponent(encodeURIComponent(chatId))}` : '';
-	const query = turnId ? `?turn=${encodeURIComponent(turnId)}` : '';
+	const queryParts = [sessionLinkText.split('?')[1] ?? '', turnId ? `turn=${encodeURIComponent(turnId)}` : ''].filter(Boolean);
+	const query = queryParts.length ? `?${queryParts.join('&')}` : '';
 	return `${productUrlProtocol}://${AGENTS_AUTHORITY}${AGENT_HOST_SESSION_LINK_PATH_PREFIX}${encodedTarget}${chatPath}${query}`;
 }
 
@@ -173,9 +183,16 @@ export function parseOpenSessionLinkUri(uri: URI | string): URI | undefined {
 	if (parsed.scheme !== AGENT_HOST_SESSION_LINK_SCHEME || !parsed.authority) {
 		return undefined;
 	}
+	if (/(?:^|&)connectionAuthority=/.test(parsed.query) && !parseOpenSessionLinkConnectionAuthority(parsed)) {
+		return undefined;
+	}
 	const rawId = parsed.path.replace(/^\//, '');
 	if (!rawId) {
 		return undefined;
+	}
+	const session = readOpenSessionLinkQueryParam(parsed, 'session');
+	if (session) {
+		return URI.parse(session, true);
 	}
 	return AgentSession.uri(parsed.authority, rawId);
 }
@@ -197,6 +214,10 @@ export function parseOpenSessionLinkChatId(uri: URI | string): string | undefine
 
 export function parseOpenSessionLinkTurnId(uri: URI | string): string | undefined {
 	return readOpenSessionLinkQueryParam(uri, 'turn');
+}
+
+export function parseOpenSessionLinkConnectionAuthority(uri: URI | string): string | undefined {
+	return readOpenSessionLinkQueryParam(uri, 'connectionAuthority');
 }
 
 function readOpenSessionLinkQueryParam(uri: URI | string, name: string): string | undefined {

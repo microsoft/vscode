@@ -58,6 +58,9 @@ rounds:
           part:
             kind: markdown
             content: PARENT_INITIAL_DONE
+      - channel: ${chat_0}
+        action:
+          type: chat/isReadChanged
       - responseTo: subscribe
         result: success
       - responseTo: subscribe
@@ -117,6 +120,9 @@ rounds:
           part:
             kind: markdown
             content: PARENT_FOLLOWUP_ONE_DONE
+      - channel: ${chat_0}
+        action:
+          type: chat/isReadChanged
       - responseTo: subscribe
         result: success
   - clientToServer:
@@ -174,5 +180,8 @@ rounds:
           part:
             kind: markdown
             content: PARENT_FOLLOWUP_TWO_DONE
+      - channel: ${chat_0}
+        action:
+          type: chat/isReadChanged
       - responseTo: subscribe
         result: success

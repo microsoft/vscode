@@ -36,8 +36,9 @@ class FailingChangesetOperationService extends Disposable implements IAgentHostC
 			contribution.dispose();
 		});
 	}
-
 	updateOperations(): void { }
+	scheduleRelatedOperationsUpdate(): void { }
+	scheduleOwnerOperationsUpdate(): void { }
 	getOperations() { return []; }
 	async invokeChangesetOperation(): Promise<never> { throw new Error('Not implemented'); }
 }
@@ -48,6 +49,7 @@ const nullGitStateService: IAgentHostGitStateService = {
 	onDidChangeSessionGitHubState: Event.None,
 	async refreshSessionGitState() { },
 	getMaterializedWorktreeMeta() { return undefined; },
+	async setFolderGitState() { },
 	async resolveSessionBaseBranchName() { return undefined; },
 	async setSessionGitHubState() { },
 	async recordSessionMerge() { },

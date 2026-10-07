@@ -13,12 +13,15 @@ import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { ActionType, type ActionEnvelope, type ChatTurnStartedAction, type ClientChangesetAction } from '../../common/state/sessionActions.js';
 import { AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, ChangesetStatus, ChatInteractivity, MessageKind, ResponsePartKind, SessionLifecycle, SessionStatus, TerminalClaimKind, TerminalLifecycleStatus, TurnState, type AnnotationsState, type AutomationRunState, type AutomationState, type ChangesetState, type ErrorInfo, type RootState, type SessionState, type SessionSummary, type TerminalState, type Turn } from '../../common/state/protocol/state.js';
 import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, createChatState, createDefaultChatSummary, getTurnError, ROOT_STATE_URI, StateComponents, type ChatState } from '../../common/state/sessionState.js';
-import { AgentSubscriptionManager, AutomationCatalogSubscription, AutomationRunSubscription, ChangesetStateSubscription, ChatStateSubscription, isActionEnvelopeRelevantToSubscriptionUris, RootStateSubscription, SessionStateSubscription, TerminalStateSubscription } from '../../common/state/agentSubscription.js';
+import { AgentSubscriptionManager, AutomationCatalogSubscription, AutomationRunSubscription, CanvasStateSubscription, ChangesetStateSubscription, ChatStateSubscription, isActionEnvelopeRelevantToSubscriptionUris, RootStateSubscription, SessionStateSubscription, TerminalStateSubscription } from '../../common/state/agentSubscription.js';
+import type { CanvasState } from '../../common/state/protocol/channels-canvas/state.js';
 import { normalizeLegacyActionEnvelope, readLegacyTurnError } from '../../common/state/legacyProtocolCompatibility.js';
 import { chatReducer } from '../../common/state/sessionReducers.js';
 import { resolveAgentHostSession } from '../../common/agentHostSubscriptionService.js';
 import { buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
+import { buildCanvasUri, parseCanvasChatUri } from '../../common/canvasUri.js';
+import type { IStateSnapshot } from '../../common/state/sessionProtocol.js';
 
 // Helpers
 
@@ -108,6 +111,21 @@ suite('resolveAgentHostSession', () => {
 			peer: sessionUri,
 			folder: sessionUri,
 			terminal: sessionUri,
+		});
+	});
+
+	test('pins local canvases to their owning session without interpreting other hosts', () => {
+		const chat = URI.parse(buildChatUri(sessionUri, 'peer'));
+		const canvas = buildCanvasUri(chat, 'preview');
+		const remote = canvas.with({ authority: 'another-host' });
+		assert.deepStrictEqual({
+			owner: parseCanvasChatUri(canvas)?.toString(),
+			session: resolveAgentHostSession(canvas).toString(),
+			remoteOwner: parseCanvasChatUri(remote),
+			extraPath: parseCanvasChatUri(canvas.with({ path: canvas.path + '/extra' })),
+			query: parseCanvasChatUri(canvas.with({ query: 'source=other' })),
+		}, {
+			owner: chat.toString(), session: sessionUri, remoteOwner: undefined, extraPath: undefined, query: undefined,
 		});
 	});
 });
@@ -264,6 +282,25 @@ suite('ChangesetStateSubscription', () => {
 		});
 	});
 
+});
+
+suite('CanvasStateSubscription', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('buffers new canvas source state across initial and reconnect snapshots', () => {
+		const resource = 'ahp-canvas://another-host/documents/preview';
+		const subscription = disposables.add(new CanvasStateSubscription(resource, 'c1', noop));
+		const initial: CanvasState = { instanceId: 'preview', extensionId: 'example:provider', canvasId: 'preview', url: 'https://example.test/old' };
+		const replacement: CanvasState = { ...initial, url: 'https://example.test/new' };
+		subscription.receiveEnvelope(makeEnvelope({ type: ActionType.CanvasStateChanged, canvas: replacement }, 2, undefined, undefined, resource));
+		subscription.handleSnapshot(initial, 1);
+		const ready = subscription.value;
+		subscription.beginSnapshotRefresh();
+		const { url: _url, ...unavailable } = replacement;
+		subscription.receiveEnvelope(makeEnvelope({ type: ActionType.CanvasStateChanged, canvas: unavailable }, 4, undefined, undefined, resource));
+		subscription.handleSnapshot(replacement, 3);
+		assert.deepStrictEqual({ ready, unavailable: subscription.value }, { ready: replacement, unavailable });
+	});
 });
 
 // RootStateSubscription
@@ -1026,7 +1063,7 @@ suite('AgentSubscriptionManager', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createManager(subscribe: (resource: URI) => Promise<{ resource: string; state: SessionState | ChatState | TerminalState | ChangesetState | AnnotationsState | AutomationState; fromSeq: number }> = async resource => {
+	function createManager(subscribe: (resource: URI) => Promise<IStateSnapshot> = async resource => {
 		const key = resource.toString();
 		subscribedResources.push(key);
 		if (key.endsWith('/annotations')) {
@@ -1307,6 +1344,24 @@ suite('AgentSubscriptionManager', () => {
 		assert.ok(subscribedResources.includes(terminalUri));
 
 		ref.dispose();
+	});
+
+	test('shares and releases the exact advertised canvas subscription', async () => {
+		const resource = URI.parse('ahp-canvas://another-host/documents/preview');
+		const canvas: CanvasState = { instanceId: 'preview', extensionId: 'example:provider', canvasId: 'preview' };
+		const mgr = createManager(async uri => {
+			subscribedResources.push(uri.toString());
+			return { resource: uri.toString(), state: canvas, fromSeq: 0 };
+		});
+		const first = mgr.getSubscription<CanvasState>(StateComponents.Canvas, resource, 'first');
+		const second = mgr.getSubscription<CanvasState>(StateComponents.Canvas, resource, 'second');
+		await Event.toPromise(first.object.onDidChange);
+		first.dispose();
+		const retained = mgr.currentSubscriptionUris().map(uri => uri.toString());
+		second.dispose();
+		assert.deepStrictEqual({ subscribedResources, retained, unsubscribedResources }, {
+			subscribedResources: [resource.toString()], retained: [resource.toString()], unsubscribedResources: [resource.toString()],
+		});
 	});
 
 	test('uses the normalized automation catalogue URI internally', async () => {

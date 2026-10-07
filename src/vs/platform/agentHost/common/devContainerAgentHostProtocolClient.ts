@@ -6,9 +6,11 @@
 import { CancellationError } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { hasKey } from '../../../base/common/types.js';
 import { DevContainerCloseConnectionNotification, DevContainerConnectExtensionMethod, devContainerConnectResultValidator, devContainerConnectionParamsValidator, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayCloseNotification, DevContainerRelayMessageNotification, devContainerRelayMessageValidator, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, type IAgentHostExtensionCommandMap } from './agentHostExtensionProtocol.js';
 import type { IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostOutput } from './devContainerAgentHost.js';
 import type { IRelayMessage } from './relayTransport.js';
+import type { IDevContainerSampleSource } from './devContainerSamples.js';
 
 /** Adapts the VS Code extension RPCs to the shared-process Dev Container service contract. */
 export class DevContainerAgentHostProtocolClient extends Disposable implements IDevContainerAgentHostMainService {
@@ -41,6 +43,9 @@ export class DevContainerAgentHostProtocolClient extends Disposable implements I
 	}
 
 	async connect(config: IDevContainerAgentHostConfig): Promise<IDevContainerAgentHostConnectResult> {
+		if (hasKey(config, { sampleId: true })) {
+			throw new Error('Dev Container samples are only supported on local Docker hosts.');
+		}
 		if (this._connections.has(config.connectionId)) {
 			throw new Error('Dev Container connectionId is already in use');
 		}
@@ -69,7 +74,10 @@ export class DevContainerAgentHostProtocolClient extends Disposable implements I
 		}
 	}
 
-	async stopContainer(workspaceFolder: string): Promise<boolean> {
+	async stopContainer(workspaceFolder: string | IDevContainerSampleSource): Promise<boolean> {
+		if (typeof workspaceFolder !== 'string') {
+			throw new Error('Dev Container samples are only supported on local Docker hosts.');
+		}
 		const result = await this._request(DevContainerStopExtensionMethod, { workspaceFolder });
 		if (typeof result !== 'boolean') {
 			throw new Error('Invalid Dev Container stop response');
@@ -77,7 +85,10 @@ export class DevContainerAgentHostProtocolClient extends Disposable implements I
 		return result;
 	}
 
-	async removeContainer(workspaceFolder: string): Promise<boolean> {
+	async removeContainer(workspaceFolder: string | IDevContainerSampleSource): Promise<boolean> {
+		if (typeof workspaceFolder !== 'string') {
+			throw new Error('Dev Container samples are only supported on local Docker hosts.');
+		}
 		const result = await this._request(DevContainerRemoveExtensionMethod, { workspaceFolder });
 		if (typeof result !== 'boolean') {
 			throw new Error('Invalid Dev Container remove response');

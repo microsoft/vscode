@@ -9,11 +9,12 @@ import { ILogService } from '../../../../log/common/log.js';
 import { type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IHydrationContext, type IAppliedClientAction, type IOutgoingTurn, type IRestoredChat, type ISendContribution, type ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
-import { buildDefaultChatUri, isAhpChatChannel, isDefaultChatUri } from '../../../common/state/sessionState.js';
+import { buildDefaultChatUri, isAhpChatChannel, isDefaultChatUri, parseRequiredSessionUriFromChatUri } from '../../../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 import { IAgentHostSessionTitleController } from '../../agentHostSessionTitleController.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../agentHostTurnTracker.js';
-import { AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, persistSessionMetadata, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../shared/persistSessionMetadata.js';
+import { AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../shared/persistSessionMetadata.js';
+import { IAgentHostPeerChatPersistenceService } from '../../agentHostPeerChatStore.js';
 
 /** Coordinates automatic and user-defined session and chat titles. */
 export class SessionTitleContribution extends Disposable implements IAgentHostChatContribution {
@@ -28,6 +29,7 @@ export class SessionTitleContribution extends Disposable implements IAgentHostCh
 		@IAgentHostSessionTitleController private readonly _titleController: IAgentHostSessionTitleController,
 		@IAgentHostTurnTracker private readonly _turnTracker: AgentHostTurnTracker,
 		@ILogService private readonly _logService: ILogService,
+		@IAgentHostPeerChatPersistenceService private readonly _chatPersistence: IAgentHostPeerChatPersistenceService,
 	) {
 		super();
 	}
@@ -97,6 +99,13 @@ export class SessionTitleContribution extends Disposable implements IAgentHostCh
 	 */
 	async onHydrateChat(context: IHydrationContext, restored: IRestoredChat): Promise<IRestoredChat> {
 		await this._titleController.restoreTitleGenerationStrategy(context.session, context.chat);
+		const normalized = await this._chatPersistence.readNormalizedChat(URI.parse(context.session), URI.parse(context.chat));
+		if (normalized.normalized) {
+			if (!normalized.chat) {
+				throw new Error(`Missing normalized chat during title hydration: ${context.chat}`);
+			}
+			return { ...restored, title: normalized.chat.metadata?.summary };
+		}
 		if (restored.title !== undefined) {
 			return restored;
 		}
@@ -130,6 +139,8 @@ export class SessionTitleContribution extends Disposable implements IAgentHostCh
 	}
 
 	private _persistSessionMetadata(session: string, key: string, value: string): void {
-		persistSessionMetadata(this._sessionDataService, this._logService, session, key, value);
+		const owner = isAhpChatChannel(session) ? parseRequiredSessionUriFromChatUri(session) : session;
+		void this._chatPersistence.persistMetadata(URI.parse(owner), URI.parse(session), { [key]: value }).catch(error =>
+			this._logService.warn(`[SessionTitleContribution] Failed to persist title for ${session}`, error));
 	}
 }

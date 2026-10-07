@@ -9,6 +9,7 @@ import { decodeBase64 } from '../../../../../../base/common/buffer.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../../../base/common/map.js';
 import { basename, extname, joinPath } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
@@ -18,7 +19,7 @@ import { Action2, MenuId, registerAction2 } from '../../../../../../platform/act
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
-import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { FileSystemProviderCapabilities, IFileService } from '../../../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
@@ -27,6 +28,8 @@ import { IWorkspaceContextService } from '../../../../../../platform/workspace/c
 import { REVEAL_IN_EXPLORER_COMMAND_ID } from '../../../../files/browser/fileConstants.js';
 import { CHAT_ATTACHABLE_IMAGE_MIME_TYPES, getAttachableImageExtension } from '../../../common/model/chatModel.js';
 import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { IChatImageRevealOrigin } from '../../attachments/chatImageReveal.js';
+import { IChatImageBase64Data } from '../../attachments/chatAttachmentWidgets.js';
 import { ChatAttachmentsContentPart } from './chatAttachmentsContentPart.js';
 import { IChatCollapsibleIODataPart } from './chatToolInputOutputContentPart.js';
 
@@ -42,9 +45,9 @@ const IMAGE_DECODE_DELAY_MS = 100;
 
 /**
  * A reusable widget for rendering a group of resource data parts (files, images)
- * with attachment pills and a toolbar with save actions.
+ * with image previews, attachment pills, and shared save actions.
  *
- * Used by ChatToolOutputContentSubPart and ChatMcpAppSubPart (for download resources).
+ * Inline image results bypass deferred attachment thumbnails while retaining the shared resource actions.
  */
 export class ChatResourceGroupWidget extends Disposable {
 	public readonly domNode: HTMLElement;
@@ -53,7 +56,7 @@ export class ChatResourceGroupWidget extends Disposable {
 
 	constructor(
 		parts: IChatCollapsibleIODataPart[],
-		private readonly _options: { showImageInHover?: boolean } | undefined,
+		private readonly _options: { showImageInHover?: boolean; imagePresentation?: 'thumbnail' | 'inline'; imageReveal?: IChatImageRevealOrigin; imageDimensions?: ResourceMap<dom.IDimension> } | undefined,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IFileService private readonly _fileService: IFileService,
@@ -70,15 +73,23 @@ export class ChatResourceGroupWidget extends Disposable {
 	}
 
 	private async _fillInResourceGroup(parts: IChatCollapsibleIODataPart[], itemsContainer: HTMLElement, actionsContainer: HTMLElement) {
-		// First pass: create entries immediately, using file placeholders for base64 images
+		// Only ordinary attachment thumbnails use the deferred file-placeholder path.
 		const entries: IChatRequestVariableEntry[] = [];
+		const imageBase64Data = new Map<string, IChatImageBase64Data>();
 		const deferredImageParts: { index: number; part: IChatCollapsibleIODataPart; mimeType: string }[] = [];
 
 		for (let i = 0; i < parts.length; i++) {
 			const part = parts[i];
 			const imageMimeType = getResourceImageMimeType(part);
 			if (imageMimeType) {
-				if (part.base64Value) {
+				if (this._options?.imagePresentation === 'inline') {
+					const id = generateUuid();
+					if (part.base64Value !== undefined) {
+						imageBase64Data.set(id, { data: part.base64Value, mimeType: imageMimeType });
+					}
+					const value = part.base64Value === undefined ? part.value : undefined;
+					entries.push({ kind: 'image', id, name: basename(part.uri), value: value ?? part.uri, mimeType: imageMimeType, isURL: !value && part.base64Value === undefined, references: [{ kind: 'reference', reference: part.uri }] });
+				} else if (part.base64Value) {
 					// Defer base64 decode - use file placeholder for now
 					entries.push({ kind: 'file', id: generateUuid(), name: basename(part.uri), fullName: part.uri.path, value: part.uri });
 					deferredImageParts.push({ index: i, part, mimeType: imageMimeType });
@@ -101,7 +112,6 @@ export class ChatResourceGroupWidget extends Disposable {
 			return;
 		}
 
-		// Render attachments immediately with placeholders
 		const attachments = this._register(this._instantiationService.createInstance(
 			ChatAttachmentsContentPart,
 			{
@@ -110,6 +120,10 @@ export class ChatResourceGroupWidget extends Disposable {
 				contentReferences: undefined,
 				domNode: undefined,
 				showImageInHover: this._options?.showImageInHover,
+				imagePresentation: this._options?.imagePresentation,
+				imageReveal: this._options?.imageReveal,
+				imageDimensions: this._options?.imageDimensions,
+				imageBase64Data,
 			}
 		));
 
@@ -196,8 +210,7 @@ class SaveResourcesAction extends Action2 {
 		const labelService = accessor.get(ILabelService);
 		const defaultFilepath = await fileDialog.defaultFilePath();
 
-		const savePart = async (part: IChatCollapsibleIODataPart, isFolder: boolean, uri: URI) => {
-			const target = isFolder ? joinPath(uri, basename(part.uri)) : uri;
+		const savePart = async (part: IChatCollapsibleIODataPart, target: URI) => {
 			try {
 				if (part.kind === 'data') {
 					await fileService.copy(part.uri, target, true);
@@ -236,7 +249,7 @@ class SaveResourcesAction extends Action2 {
 			if (!uri) {
 				return;
 			}
-			await withProgress(uri, [() => savePart(part, false, uri)]);
+			await withProgress(uri, [() => savePart(part, uri)]);
 		} else {
 			const uris = await fileDialog.showOpenDialog({
 				title: localize('chat.saveResources.title', "Pick folder to save resources"),
@@ -250,7 +263,26 @@ class SaveResourcesAction extends Action2 {
 				return;
 			}
 
-			await withProgress(uris[0], context.parts.map(part => () => savePart(part, true, uris[0])));
+			const folder = uris[0];
+			const caseSensitive = fileService.hasCapability(folder, FileSystemProviderCapabilities.PathCaseSensitive);
+			const nameKey = (name: string) => caseSensitive ? name : name.toLowerCase();
+			const reservedNames = new Set(context.parts.map(part => nameKey(basename(part.uri))));
+			const usedNames = new Set<string>();
+			const saves = context.parts.map(part => {
+				const name = basename(part.uri);
+				let targetName = name;
+				if (usedNames.has(nameKey(targetName))) {
+					const extension = extname(part.uri);
+					const stem = name.slice(0, name.length - extension.length);
+					let suffix = 2;
+					do {
+						targetName = `${stem}-${suffix++}${extension}`;
+					} while (reservedNames.has(nameKey(targetName)) || usedNames.has(nameKey(targetName)));
+				}
+				usedNames.add(nameKey(targetName));
+				return () => savePart(part, joinPath(folder, targetName));
+			});
+			await withProgress(folder, saves);
 		}
 	}
 }

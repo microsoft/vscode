@@ -47,7 +47,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { SessionAgentMergeEnabledContext, SessionIsActiveContext, SinglePaneChangesEditorTransitionContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
+import { SessionAgentMergeEnabledContext, SessionIsActiveContext, DesktopChangesEditorTransitionContext, DesktopLayoutContext } from '../../../common/contextkeys.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 import { defaultCountBadgeStyles, defaultProgressBarStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
@@ -108,9 +108,9 @@ const $ = dom.$;
 
 const RUN_SESSION_CODE_REVIEW_ACTION_ID = 'sessions.codeReview.run';
 const VERSIONS_PICKER_ACTION_ID = 'chatEditing.versionsPicker';
-const singlePaneChangesEditorHeader = ContextKeyExpr.and(
-	SinglePaneLayoutEnabledContext,
-	ContextKeyExpr.or(ActiveEditorContext.isEqualTo(SessionChangesEditorInput.EDITOR_ID), SinglePaneChangesEditorTransitionContext)
+const desktopChangesEditorHeader = ContextKeyExpr.and(
+	DesktopLayoutContext,
+	ContextKeyExpr.or(ActiveEditorContext.isEqualTo(SessionChangesEditorInput.EDITOR_ID), DesktopChangesEditorTransitionContext)
 );
 const EMPTY_FILE_CHANGES_MIN_HEIGHT = 140;
 const CHAT_PET_CREATE_PULL_REQUEST_ACTION_IDS = new Set([
@@ -378,7 +378,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 		const agentMergeEnabledObs = observableFromEvent(contextKeyService.onDidChangeContext, () =>
 			contextKeyService.getContextKeyValue<boolean>(SessionAgentMergeEnabledContext.key) === true);
 		const changesEditorTransitionObs = observableFromEvent(contextKeyService.onDidChangeContext, () =>
-			SinglePaneChangesEditorTransitionContext.getValue(contextKeyService) === true);
+			DesktopChangesEditorTransitionContext.getValue(contextKeyService) === true);
 		const workspaceFoldersObs = observableFromEvent(workspaceContextService.onDidChangeWorkspaceFolders, () =>
 			workspaceContextService.getWorkspace().folders);
 
@@ -599,7 +599,7 @@ class ChangesWorkbenchButtonBarWidget extends Disposable implements IChangesButt
 }
 
 /**
- * Changeset operations that the single-pane title bar never renders because
+ * Changeset operations that the desktop title bar never renders because
  * they are contributed to the Changes editor header toolbar instead.
  */
 const TITLE_BAR_EXCLUDED_OPERATION_IDS: ReadonlySet<string> = new Set([AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID]);
@@ -607,7 +607,7 @@ const TITLE_BAR_EXCLUDED_OPERATION_IDS: ReadonlySet<string> = new Set([AGENT_HOS
 /**
  * Renders the session changes action button-bar (e.g. "Create Pull Request") into
  * a container, choosing the agent-host or git variant based on the active session.
- * Used to host the actions in the single-pane Changes editor header.
+ * Used to host the actions in the desktop Changes editor header.
  */
 export class ChangesActionsBar extends Disposable {
 	constructor(
@@ -662,7 +662,7 @@ export class ChangesActionsBar extends Disposable {
 
 }
 
-// --- Editor header menus (single-pane): actions contribute to the group-owned
+// --- Editor header menus (desktop): actions contribute to the group-owned
 // primary/secondary header menus and gate themselves to the Changes editor.
 
 export const CHANGES_HEADER_ACTIONS_ID = 'workbench.changesView.headerActions';
@@ -894,7 +894,7 @@ export class ChangesViewPane extends ViewPane {
 		updateHasFileIcons();
 		this._register(this.themeService.onDidFileIconThemeChange(updateHasFileIcons));
 
-		// Files header (Branch Changes dropdown + diff stats). In the single-pane
+		// Files header (Branch Changes dropdown + diff stats). In the desktop
 		// redesign these live in the custom Changes editor instead, so the panel
 		// omits its header; otherwise (original layout) the header is shown here.
 		this.createFilesHeader(this.contentContainer);
@@ -1063,7 +1063,7 @@ export class ChangesViewPane extends ViewPane {
 			// Bind context keys
 			this._bindContextKeys(topLevelStats);
 
-			// In the single-pane redesign the Create PR actions render in the Changes
+			// In the desktop redesign the Create PR actions render in the Changes
 			// editor header instead of the detail panel.
 			this.createActionsButtonBar();
 		}
@@ -1089,7 +1089,7 @@ export class ChangesViewPane extends ViewPane {
 			const stats = topLevelStats.read(reader);
 			const hasEntries = stats !== undefined && stats.files > 0;
 
-			// Files header visibility (original layout only; absent in single-pane redesign).
+			// Files header visibility (original layout only; absent in desktop redesign).
 			if (this.filesHeaderNode) {
 				const hasGitRepository = this.changesViewService.activeSessionHasGitRepositoryObs.read(reader);
 				dom.setVisibility(!isUntitled && (hasGitRepository || hasEntries), this.filesHeaderNode);
@@ -1687,7 +1687,7 @@ export class ChangesViewPane extends ViewPane {
 
 	/**
 	 * Renders the files header (Branch Changes dropdown + diff stats) into the panel.
-	 * Standard layout only; {@link SinglePaneChangesViewPane} overrides this to a no-op
+	 * Standard layout only; {@link DesktopChangesViewPane} overrides this to a no-op
 	 * because the header lives in the custom Changes editor instead.
 	 */
 	protected createFilesHeader(contentContainer: HTMLElement): void {
@@ -1718,7 +1718,7 @@ export class ChangesViewPane extends ViewPane {
 
 	/**
 	 * Renders the Create-PR actions button bar into the actions container. Standard
-	 * layout only; {@link SinglePaneChangesViewPane} overrides this to a no-op because
+	 * layout only; {@link DesktopChangesViewPane} overrides this to a no-op because
 	 * the actions render in the Changes editor header instead.
 	 */
 	protected createActionsButtonBar(): void {
@@ -1745,7 +1745,7 @@ export class ChangesViewPane extends ViewPane {
 
 	/**
 	 * Whether the actions container should be shown for the given session state.
-	 * Standard layout shows it for non-untitled sessions; {@link SinglePaneChangesViewPane}
+	 * Standard layout shows it for non-untitled sessions; {@link DesktopChangesViewPane}
 	 * never shows it (the actions live in the Changes editor).
 	 */
 	protected isActionsContainerVisible(isUntitled: boolean): boolean {
@@ -1753,7 +1753,7 @@ export class ChangesViewPane extends ViewPane {
 	}
 
 	/**
-	 * Whether clicking a file opens the modal single-file diff. {@link SinglePaneChangesViewPane}
+	 * Whether clicking a file opens the modal single-file diff. {@link DesktopChangesViewPane}
 	 * never uses the modal editor.
 	 */
 	protected shouldOpenModalDiff(): boolean {
@@ -1878,7 +1878,7 @@ export class ChangesViewPane extends ViewPane {
 		// Opening a file diff is a deliberate action, so reveal the (possibly hidden)
 		// editor area explicitly to show it. The Changes editor is otherwise excluded
 		// from auto reveal-on-open, and the explicit reveal is not undone by the
-		// automatic single-pane hide rules.
+		// automatic desktop hide rules.
 		(this.workbenchLayoutService as IAgentWorkbenchLayoutService).revealEditorPartExplicitly();
 
 		// Determine the reveal target (original/modified URI pair) from the
@@ -1913,19 +1913,19 @@ export class ChangesViewPane extends ViewPane {
 }
 
 /**
- * Changes view for the single-pane layout: the files list lives in the docked
+ * Changes view for the desktop layout: the files list lives in the docked
  * detail panel while the Branch Changes header, Create-PR actions, and diffs are
  * shown in the custom Changes editor. Overrides the standard hooks to omit the
  * in-panel header/actions.
  */
-export class SinglePaneChangesViewPane extends ChangesViewPane {
+export class DesktopChangesViewPane extends ChangesViewPane {
 
 	protected override createFilesHeader(_contentContainer: HTMLElement): void {
-		// No in-panel header in single-pane; it lives in the Changes editor.
+		// No in-panel header in desktop; it lives in the Changes editor.
 	}
 
 	protected override createActionsButtonBar(): void {
-		// No in-panel Create-PR actions in single-pane; they live in the Changes editor header.
+		// No in-panel Create-PR actions in desktop; they live in the Changes editor header.
 	}
 
 	protected override isActionsContainerVisible(_isUntitled: boolean): boolean {
@@ -1933,7 +1933,7 @@ export class SinglePaneChangesViewPane extends ChangesViewPane {
 	}
 
 	protected override shouldOpenModalDiff(): boolean {
-		// Single-pane never uses the modal editor.
+		// Desktop never uses the modal editor.
 		return false;
 	}
 }
@@ -2112,7 +2112,7 @@ class VersionsPickerAction extends Action2 {
 				id: Menus.SessionsEditorHeaderPrimary,
 				group: 'navigation',
 				order: 1,
-				when: singlePaneChangesEditorHeader,
+				when: desktopChangesEditorHeader,
 			}],
 		});
 	}

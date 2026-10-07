@@ -7,14 +7,25 @@ import assert from 'assert';
 import { tmpdir } from 'os';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { join } from '../../../../base/common/path.js';
+import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { Promises } from '../../../../base/node/pfs.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AgentSession } from '../../common/agent.js';
 import { AgentHostDatabase, AgentHostDatabaseSessionChatCatalogReplaceResult, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabase, IAgentHostDatabaseExternalUpdate, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSession, IAgentHostDatabaseSessionChat, IAgentHostDatabaseSessionChatCatalog, IAgentHostDatabaseSessionsV2Exclusion, IAgentHostDatabaseSessionOptions, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Envelope, IAgentHostDatabaseSessionV2Receipt } from '../../node/agentHostDatabase.js';
 import { AgentSessionRegistry } from '../../node/agentSessionRegistry.js';
+import { listTestLegacyChatCatalogSessions, readTestChatV2, readTestSessionListCatalogs } from './chatMetadataTestHelpers.js';
 
 class TestAgentHostDatabase implements IAgentHostDatabase {
+	listLegacyChatCatalogSessions(sessions: readonly string[]): ReturnType<IAgentHostDatabase['listLegacyChatCatalogSessions']> {
+		return listTestLegacyChatCatalogSessions(this, sessions);
+	}
+	readChatV2(session: string, chat: string): ReturnType<IAgentHostDatabase['readChatV2']> {
+		return readTestChatV2(this, session, chat);
+	}
+	readSessionListCatalogs(sessions: readonly string[]): ReturnType<IAgentHostDatabase['readSessionListCatalogs']> {
+		return readTestSessionListCatalogs(this, sessions);
+	}
 	declare readonly _serviceBrand: undefined;
 
 	readonly sessions = new Map<string, IAgentHostDatabaseSession>();
@@ -171,6 +182,11 @@ class TestAgentHostDatabase implements IAgentHostDatabase {
 		return [...this._sessionsV2Exclusions.values()].filter(exclusion => exclusion.provider === provider);
 	}
 
+	async listAllSessionsV2Exclusions(): Promise<readonly IAgentHostDatabaseSessionsV2Exclusion[]> {
+		this._throwReadFailure();
+		return [...this._sessionsV2Exclusions.values()];
+	}
+
 	async clearSessionsV2Exclusion(provider: string, session: string): Promise<void> {
 		this._throwWriteFailure();
 		this._sessionsV2Exclusions.delete(`${provider}:${session}`);
@@ -192,6 +208,15 @@ class TestAgentHostDatabase implements IAgentHostDatabase {
 	}
 
 	async registerRuntimeSession(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
+		if (registerOptions.discoveryBackingSession !== undefined
+			&& (this._tombstones.has(registerOptions.discoveryBackingSession)
+				|| registerOptions.discoveryBackingSession !== session && this.sessions.has(registerOptions.discoveryBackingSession)
+				|| [...this._sessionsV2Exclusions.values()].some(exclusion =>
+					(exclusion.session === session && exclusion.provider !== sessionOptions.provider
+						|| registerOptions.discoveryBackingSession !== session && exclusion.session === registerOptions.discoveryBackingSession)
+					&& (exclusion.reason === 'providerAbsent' || exclusion.reason === 'staleExternal')))) {
+			return false;
+		}
 		const registered = await this.registerSessionV2(session, sessionOptions, registerOptions);
 		if (registerOptions.provisional) {
 			this.provisionalSessions.add(session);
@@ -240,6 +265,10 @@ class TestAgentHostDatabase implements IAgentHostDatabase {
 	}
 
 	async registerSessionV2(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
+		const existing = this.sessions.get(session);
+		if (existing && existing.provider !== sessionOptions.provider && sessionOptions.source === 'discovery') {
+			return false;
+		}
 		const registered = await this.registerSession(session, sessionOptions, registerOptions);
 		if (registered) {
 			this._sessionsV2Exclusions.delete(`${sessionOptions.provider}:${session}`);
@@ -285,6 +314,20 @@ class TestAgentHostDatabase implements IAgentHostDatabase {
 	async markSessionsV2PayloadsDirty(): Promise<void> { }
 	async markSessionV2PayloadClean(): Promise<boolean> { return false; }
 	async upsertSessionV2(_envelope: IAgentHostDatabaseSessionV2Envelope, _expectedSessionGeneration: string | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult> { return 'missingSession'; }
+	upsertSessionV2FromChatCatalog(...[envelope, expectedSessionGeneration]: Parameters<IAgentHostDatabase['upsertSessionV2FromChatCatalog']>): ReturnType<IAgentHostDatabase['upsertSessionV2FromChatCatalog']> {
+		return this.upsertSessionV2(envelope, expectedSessionGeneration);
+	}
+	async readCatalogSnapshot(...[sessions]: Parameters<IAgentHostDatabase['readCatalogSnapshot']>): ReturnType<IAgentHostDatabase['readCatalogSnapshot']> {
+		return (await this.listSessionV2Registrations()).filter(identity => sessions === undefined || sessions.includes(identity.session)).map(identity => ({
+			session: identity.session, authorityVersion: 1 as const, identity, isChatBacking: false, provisional: this.provisionalSessions.has(identity.session), chats: [],
+		}));
+	}
+	async getChatV2ProviderDetail(..._args: Parameters<IAgentHostDatabase['getChatV2ProviderDetail']>): ReturnType<IAgentHostDatabase['getChatV2ProviderDetail']> { return undefined; }
+	async ensureChatCatalogV2(..._args: Parameters<IAgentHostDatabase['ensureChatCatalogV2']>): ReturnType<IAgentHostDatabase['ensureChatCatalogV2']> { return { status: 'notReady' }; }
+	async registerChatCatalogV2(..._args: Parameters<IAgentHostDatabase['registerChatCatalogV2']>): ReturnType<IAgentHostDatabase['registerChatCatalogV2']> { return { status: 'notReady' }; }
+	async updateChatV2Metadata(..._args: Parameters<IAgentHostDatabase['updateChatV2Metadata']>): ReturnType<IAgentHostDatabase['updateChatV2Metadata']> { return { status: 'notReady' }; }
+	async insertPrivateChatV2(..._args: Parameters<IAgentHostDatabase['insertPrivateChatV2']>): ReturnType<IAgentHostDatabase['insertPrivateChatV2']> { return { status: 'notReady' }; }
+	async removePrivateChatV2(..._args: Parameters<IAgentHostDatabase['removePrivateChatV2']>): ReturnType<IAgentHostDatabase['removePrivateChatV2']> { return { status: 'notReady' }; }
 	async getSessionChatCatalog(_session: string): Promise<IAgentHostDatabaseSessionChatCatalog | undefined> { return undefined; }
 	async replaceSessionChatCatalog(_session: string, _chats: readonly IAgentHostDatabaseSessionChat[], _expectedRevision: number | undefined): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult> { return { status: 'applied', revision: 1 }; }
 	async markSessionChatCatalogLegacyMirrored(_session: string, _expectedRevision: number): Promise<boolean> { return false; }
@@ -365,6 +408,99 @@ suite('AgentSessionRegistry', () => {
 			compatible: [a.toString()],
 			listed: [],
 		});
+	});
+
+	test('discovery preserves registered identities and defaults unknown backing IDs to standard URIs', async () => {
+		const registry = createRegistry();
+		const legacy = AgentSession.uri('claude', 'legacy');
+		const standard = AgentSession.uri('ahp-session', 'standard');
+		const opaque = URI.parse('ahp-session://tenant/opaque');
+		await database.registerSession(legacy.toString(), { provider: 'claude', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		await registry.register(standard, { provider: 'claude', startTime: 2, source: 'explicit' }, { checkTombstone: false });
+		await registry.register(opaque, { provider: 'claude', startTime: 3, source: 'explicit' }, { checkTombstone: false });
+		const candidates = [
+			AgentSession.uri('claude', 'legacy'),
+			AgentSession.uri('claude', 'standard'),
+			AgentSession.uri('claude', 'opaque'),
+			AgentSession.uri('claude', 'new'),
+		];
+
+		const resolved = await registry.resolveDiscoveredSessionIdentities('claude', candidates);
+
+		assert.deepStrictEqual([...resolved].map(([candidate, resolution]) => resolution.status === 'resolved'
+			? [candidate, resolution.session.toString(), resolution.existing, resolution.registered]
+			: [candidate, resolution.status, resolution.message]), [
+			['claude:/legacy', 'claude:/legacy', true, true],
+			['claude:/standard', 'ahp-session:/standard', true, true],
+			['claude:/opaque', 'ahp-session:/opaque', false, false],
+			['claude:/new', 'ahp-session:/new', false, false],
+		]);
+	});
+
+	test('discovery isolates two registered identities for one provider backing', async () => {
+		const registry = createRegistry();
+		const legacy = AgentSession.uri('claude', 'duplicate');
+		const standard = AgentSession.uri('ahp-session', 'duplicate');
+		await registry.register(legacy, { provider: 'claude', startTime: 1, source: 'discovery' }, { checkTombstone: true });
+		await registry.register(standard, { provider: 'claude', startTime: 1, source: 'discovery' }, { checkTombstone: true });
+
+		const resolved = await registry.resolveDiscoveredSessionIdentities('claude', [legacy]);
+
+		assert.deepStrictEqual([...resolved.values()].map(resolution => resolution.status === 'conflict' ? {
+			status: resolution.status,
+			sessions: resolution.sessions.map(session => session.toString()),
+			message: resolution.message,
+		} : resolution), [{
+			status: 'conflict',
+			sessions: [legacy.toString(), standard.toString()],
+			message: `Conflicting session identities for provider claude backing duplicate: ${legacy.toString()}, ${standard.toString()}`,
+		}]);
+	});
+
+	test('discovery preserves the identity of an excluded registration without treating it as registered', async () => {
+		const registry = createRegistry();
+		const legacy = AgentSession.uri('claude', 'excluded');
+		await database.registerSessionV2(legacy.toString(), { provider: 'claude', startTime: 1, source: 'discovery' }, { checkTombstone: true });
+		await database.excludeSessionV2(
+			{ provider: 'claude', session: legacy.toString(), reason: 'providerAbsent', fingerprint: 'test' },
+			{
+				identity: { session: legacy.toString(), provider: 'claude', startTime: 1, modifiedTime: 1, external: true, source: 'discovery' },
+				catalog: undefined,
+			},
+		);
+
+		const resolved = await registry.resolveDiscoveredSessionIdentities('claude', [legacy]);
+
+		assert.deepStrictEqual([...resolved.values()].map(resolution => resolution.status === 'resolved' ? {
+			session: resolution.session.toString(),
+			existing: resolution.existing,
+			registered: resolution.registered,
+		} : resolution), [{
+			session: legacy.toString(),
+			existing: true,
+			registered: false,
+		}]);
+	});
+
+	test('discovery sees exclusion-only standard identity ownership across providers', async () => {
+		const registry = createRegistry();
+		const standard = AgentSession.uri('ahp-session', 'cross-provider-exclusion');
+		await registry.markSessionsV2Excluded({
+			provider: 'claude',
+			session: standard.toString(),
+			reason: 'staleExternal',
+			fingerprint: 'test',
+		});
+
+		const resolved = await registry.resolveDiscoveredSessionIdentities('codex', [AgentSession.uri('codex', 'cross-provider-exclusion')]);
+
+		assert.deepStrictEqual([...resolved.values()].map(resolution => resolution.status === 'conflict' ? {
+			status: resolution.status,
+			message: resolution.message,
+		} : resolution), [{
+			status: 'conflict',
+			message: 'Session identity for provider codex backing cross-provider-exclusion is owned by claude',
+		}]);
 	});
 
 	test('list migrates entries and returns the computed list without rereading', async () => {

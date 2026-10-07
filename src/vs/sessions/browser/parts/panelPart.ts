@@ -5,7 +5,8 @@
 
 import '../../../workbench/browser/parts/panel/media/panelpart.css';
 import './media/panelPart.css';
-import { IAction } from '../../../base/common/actions.js';
+import { localize } from '../../../nls.js';
+import { IAction, SubmenuAction } from '../../../base/common/actions.js';
 import { ActionsOrientation } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { ActivePanelContext, PanelFocusContext } from '../../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService, Parts, Position } from '../../../workbench/services/layout/browser/layoutService.js';
@@ -23,7 +24,8 @@ import { assertReturnsDefined } from '../../../base/common/types.js';
 import { IExtensionService } from '../../../workbench/services/extensions/common/extensions.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../workbench/common/views.js';
 import { HoverPosition } from '../../../base/browser/ui/hover/hoverWidget.js';
-import { IMenuService } from '../../../platform/actions/common/actions.js';
+import { IMenuService, MenuId } from '../../../platform/actions/common/actions.js';
+import { getContextMenuActions } from '../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { Menus } from '../menus.js';
 import { AbstractPaneCompositePart, CompositeBarPosition } from '../../../workbench/browser/parts/paneCompositePart.js';
 import { Part } from '../../../workbench/browser/part.js';
@@ -31,6 +33,8 @@ import { IPaneCompositeBarOptions } from '../../../workbench/browser/parts/paneC
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { Extensions } from '../../../workbench/browser/panecomposite.js';
+import { isPhoneLayout } from './mobile/mobileLayout.js';
+import { mainWindow } from '../../../base/browser/window.js';
 
 /**
  * Panel part specifically for agent sessions workbench.
@@ -119,6 +123,12 @@ export class PanelPart extends AbstractPaneCompositePart {
 				this.updateCompositeBar(true);
 			}
 		}));
+		this._register(this.layoutService.onDidChangePanelAlignment(() => this.relayoutForInsets()));
+		this._register(this.layoutService.onDidChangePartVisibility(e => {
+			if (e.partId === Parts.SIDEBAR_PART || e.partId === Parts.EDITOR_PART || e.partId === Parts.AUXILIARYBAR_PART) {
+				this.relayoutForInsets();
+			}
+		}));
 	}
 
 	override updateStyles(): void {
@@ -150,6 +160,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 			activityHoverOptions: {
 				position: () => this.layoutService.getPanelPosition() === Position.BOTTOM && !this.layoutService.isPanelMaximized() ? HoverPosition.ABOVE : HoverPosition.BELOW,
 			},
+			transformContextMenuActionsForComposite: actions => this.transformContextMenuActionsForComposite(actions),
 			fillExtraContextMenuActions: actions => this.fillExtraContextMenuActions(actions),
 			compositeSize: 0,
 			iconSize: 16,
@@ -168,6 +179,20 @@ export class PanelPart extends AbstractPaneCompositePart {
 		};
 	}
 
+	private transformContextMenuActionsForComposite(actions: IAction[]): IAction[] {
+		if (isPhoneLayout(this.layoutService)) {
+			return actions;
+		}
+
+		const alignmentActions = getContextMenuActions(
+			this.menuService.getMenuActions(MenuId.PanelAlignmentMenu, this.contextKeyService, { shouldForwardArgs: true })
+		).secondary.filter(action => action.id === 'workbench.action.alignPanelCenter' || action.id === 'workbench.action.alignPanelJustify');
+
+		return actions.map(action => action.id === 'moveToMenu'
+			? new SubmenuAction('workbench.action.panel.align', localize('alignPanel', "Align Panel"), alignmentActions)
+			: action);
+	}
+
 	private fillExtraContextMenuActions(_actions: IAction[]): void { }
 
 	override layout(width: number, height: number, top: number, left: number): void {
@@ -176,15 +201,32 @@ export class PanelPart extends AbstractPaneCompositePart {
 		}
 
 		// Layout content with reduced dimensions to account for visual margins and border.
-		const borderTotal = 2; // 1px border on each side
+		const compact = this.layoutService.isModernUICompact();
+		const borderTotal = compact ? 0 : 2;
+		const marginTop = compact ? 0 : PanelPart.MARGIN_TOP;
+		const marginLeft = !compact && !isPhoneLayout(this.layoutService) && !this.layoutService.isVisible(Parts.SIDEBAR_PART)
+			? AGENTS_FLOATING_PANEL_GAP
+			: 0;
+		const editorPaneVisible = this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow) || this.layoutService.isVisible(Parts.AUXILIARYBAR_PART);
+		const marginRight = !compact && this.layoutService.getPanelAlignment() === 'center' && editorPaneVisible
+			? AGENTS_FLOATING_PANEL_GAP
+			: 0;
 		super.layout(
-			width - borderTotal,
-			height - PanelPart.MARGIN_TOP - borderTotal,
+			width - marginLeft - marginRight - borderTotal,
+			height - marginTop - borderTotal,
 			top, left
 		);
 
 		// Restore the full grid-allocated dimensions so that Part.relayout() works correctly.
 		Part.prototype.layout.call(this, width, height, top, left);
+	}
+
+	private relayoutForInsets(): void {
+		const dimension = this.dimension;
+		const position = this.contentPosition;
+		if (dimension && position) {
+			this.layout(dimension.width, dimension.height, position.top, position.left);
+		}
 	}
 
 	protected override shouldShowCompositeBar(): boolean {

@@ -355,7 +355,7 @@ export class BrowserTunnelAgentHostService extends Disposable implements ITunnel
 				this._productService.nameShort,
 				auth,
 				tunnel,
-				options.userInitiated,
+				options.userInitiated || this.getAutoConnectMode(tunnel) === 'prompt',
 				options.onDiagnostic,
 			));
 			if (!connected) {

@@ -75,13 +75,15 @@ The Agents Window Dev Container suites require a reachable Linux Docker daemon. 
 
 Each selected Dev Container suite checks Docker in its first setup hook, before starting fixture resources, with a fresh `docker info` probe and a 60-second timeout. The probe runs asynchronously and logs its elapsed time and failure reason. Filtered-out suites do not probe Docker. Missing Docker fails the suite on Linux and for an explicitly requested Tunnel test; optional local runs on other platforms are skipped.
 
+The shared container fixture reads the selected desktop's product quality and commit. It first tries to install the exact commit's CLI into the product's commit-keyed server directory, including the runtime's `-dev` suffix when running from source. Unpublished commits fall back explicitly to the latest CLI in the same quality channel, installed in the quality-specific legacy directory so the production installer can discover it. Source runs without a product commit use latest directly. Downloads are checked before extraction, and installation failures fail container preparation.
+
 Run the local and SSH Dev Container cases:
 
 ```bash
 npm run smoketest -- --tracing -g 'Agents Window \((SSH )?Dev Container AgentHost\)'
 ```
 
-The Tunnel suite uses a real private, agent-host-only Dev Tunnel. It is opt-in because ordinary PR smoke jobs do not have account credentials. Supply a GitHub user token authorized to create, connect to, and delete Dev Tunnels, plus a compatible tunnel CLI if it cannot be discovered:
+The Tunnel suite uses a real private Dev Tunnel with remote editor access and agent-host support. The fixture provisions and verifies exactly the editor control port 31545 and agent-host port 31546, then starts the normal `tunnel` command. It is opt-in because ordinary PR smoke jobs do not have account credentials. Supply a GitHub user token authorized to create, connect to, and delete Dev Tunnels, plus a compatible tunnel CLI if it cannot be discovered:
 
 ```bash
 export VSCODE_SMOKE_TEST_TUNNEL_TOKEN="$(gh auth token)"

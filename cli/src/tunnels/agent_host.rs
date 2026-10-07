@@ -1095,11 +1095,6 @@ pub struct AgentHostSidecar {
 	listener: TcpListener,
 	bound_addr: SocketAddr,
 	public_token: Option<String>,
-	/// The host label published to the registry for this sidecar (see
-	/// [`Self::bind_tcp`]'s `host_label` parameter). Kept so
-	/// [`Self::active_agent_host`] can hand back exactly the identity
-	/// this sidecar published, without re-deriving it from `bound_addr`.
-	host_label: String,
 	user_data_path: PathBuf,
 	instance_id: String,
 	pid: u32,
@@ -1144,7 +1139,6 @@ impl AgentHostSidecar {
 		addr: SocketAddr,
 		host_label: Option<String>,
 		loopback_auth: LoopbackAuth,
-		tunnel_name: Option<String>,
 		user_data_path: PathBuf,
 		instance_id: String,
 		activity: Option<idle_timeout::ActivityTracker>,
@@ -1167,12 +1161,12 @@ impl AgentHostSidecar {
 		let entry = AgentHostEndpointMetadata::new_standalone(
 			pid,
 			instance_id.clone(),
-			host.clone(),
+			host,
 			bound_addr.port(),
 			public_token.clone().unwrap_or_default(),
 			AGENT_HOST_PROTOCOL_VERSION.to_string(),
 			VSCODE_CLI_QUALITY.map(str::to_string),
-			tunnel_name,
+			None,
 		);
 
 		// Registry publish does blocking filesystem I/O (write a temp file and
@@ -1210,54 +1204,12 @@ impl AgentHostSidecar {
 			listener,
 			bound_addr,
 			public_token,
-			host_label: host,
 			user_data_path,
 			instance_id,
 			pid,
 			registry_cleaned_up: AtomicBool::new(false),
 			activity,
 		}))
-	}
-
-	/// This sidecar's identity in the same shape as
-	/// [`super::control_server::SharedActiveAgentHost`]'s resolved value,
-	/// exactly matching what [`Self::bind_tcp`] published to the shared
-	/// endpoint registry (pid, host, port, token). Lets a caller that
-	/// already *is* the running supervisor (e.g. `code agent host
-	/// --tunnel` routing its own tunneled `/agent-host` port) build a
-	/// ready [`super::control_server::SharedActiveAgentHost`] -- see
-	/// [`super::control_server::ready_active_agent_host`] -- without going
-	/// through `ensure_supervisor_running`'s registry lookup/spawn path,
-	/// which exists for callers that do *not* already know whether a
-	/// supervisor is running.
-	pub fn active_agent_host(&self) -> crate::commands::agent_host::ActiveAgentHost {
-		crate::commands::agent_host::ActiveAgentHost {
-			pid: self.pid,
-			host: Some(self.host_label.clone()),
-			port: self.bound_addr.port(),
-			token: self.public_token.clone(),
-		}
-	}
-
-	/// Returns a cloned handle for reporting client activity to
-	/// `--idle-timeout` bookkeeping, or `None` when idle-timeout is
-	/// disabled.
-	///
-	/// Callers serving connections this sidecar did not accept itself (the
-	/// dev-tunnel-hosted port in `run_supervisor`, which is handed sockets
-	/// by the tunnel relay rather than by [`Self::serve`]'s accept loop)
-	/// must report each connection and attach the resulting guard to that
-	/// connection's transport with [`idle_timeout::GuardedStream`], so the
-	/// client counts as activity for as long as it stays connected.
-	pub fn activity_tracker(&self) -> Option<idle_timeout::ActivityTracker> {
-		self.activity.clone()
-	}
-
-	/// Returns the wrapped manager, e.g. so callers can pre-fetch the latest
-	/// release, run an update loop, or directly serve tunnel-relayed
-	/// connections that bypass the public connection token.
-	pub fn manager(&self) -> Arc<AgentHostManager> {
-		self.manager.clone()
 	}
 
 	/// The address the local TCP listener is bound to.
@@ -1308,36 +1260,6 @@ impl AgentHostSidecar {
 					});
 				}
 			}
-		}
-	}
-
-	/// Serves a single connection coming from the dev tunnel. The relay
-	/// authenticates the caller, so this path bypasses the public connection
-	/// token check used by [`serve`](Self::serve).
-	pub async fn serve_tunnel_connection<RW>(&self, rw: RW)
-	where
-		RW: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static,
-	{
-		debug!(self.log, "Serving tunnel agent host connection");
-		// Attached to the stream, same as the local accept loop in
-		// `serve`, so a tunnel-relayed client also counts as activity for
-		// `--idle-timeout` bookkeeping for as long as it stays connected
-		// -- including after a WebSocket upgrade.
-		let rw = idle_timeout::GuardedStream::new(
-			rw,
-			self.activity.as_ref().map(|a| a.client_connected()),
-		);
-		let mgr = self.manager.clone();
-		let svc = service_fn(move |req| {
-			let mgr = mgr.clone();
-			async move { handle_request(mgr, req).await }
-		});
-		let io = TokioIo::new(rw);
-		if let Err(e) = ServerBuilder::new(TokioExecutor::new())
-			.serve_connection_with_upgrades(io, svc)
-			.await
-		{
-			debug!(self.log, "Tunnel agent host connection ended: {:?}", e);
 		}
 	}
 
@@ -1436,10 +1358,7 @@ impl LoopbackAuth {
 	}
 }
 
-/// Wraps [`handle_request`] with public connection-token enforcement. Used by
-/// the local TCP accept loop; tunnel connections served through
-/// [`AgentHostSidecar::serve_tunnel_connection`] bypass this check because
-/// the relay provides its own authentication.
+/// Wraps [`handle_request`] with public connection-token enforcement for the local TCP accept loop.
 async fn handle_request_with_auth(
 	manager: Arc<AgentHostManager>,
 	req: Request<Incoming>,
@@ -1481,7 +1400,7 @@ pub enum AgentHostReuseDecision {
 	/// A live standalone agent host supervisor owns a registry entry.
 	/// Tunnel callers should forward to `127.0.0.1:port` instead of
 	/// binding a second listener / publishing a conflicting entry. `host`
-	/// and `tunnel_name` expose the supervisor's effective config so
+	/// exposes the supervisor's effective config so
 	/// foreground callers can detect a configuration conflict and refuse
 	/// to silently reuse.
 	Reuse {
@@ -1489,7 +1408,6 @@ pub enum AgentHostReuseDecision {
 		host: Option<String>,
 		port: u16,
 		token: Option<String>,
-		tunnel_name: Option<String>,
 		/// This entry's stable identity within the registry, used by
 		/// `--replace` to scope removal to exactly this instance.
 		instance_id: String,
@@ -1519,7 +1437,6 @@ pub async fn classify_agent_host(
 			} else {
 				Some(selected.connection_token)
 			},
-			tunnel_name: selected.tunnel_name,
 			instance_id: selected.instance_id,
 		},
 		None => AgentHostReuseDecision::SpawnFresh,
@@ -1538,17 +1455,6 @@ pub async fn classify_agent_host(
 /// selection path never drives `active_agent_host` from here either --
 /// only an actual legacy request does, so a tunnel that nobody connects
 /// to never spawns a standalone supervisor by itself.
-///
-/// This is the single request router shared by every caller that hosts
-/// the forwarded agent-host tunnel port, regardless of who owns
-/// `active_agent_host`: `code tunnel`'s `control_server` passes a lazily
-/// `ensure_supervisor_running`-backed future (it may not know of a live
-/// supervisor yet), while `code agent host --tunnel` passes an
-/// already-resolved [`super::control_server::ready_active_agent_host`]
-/// pointing at its own running sidecar (see
-/// [`AgentHostSidecar::active_agent_host`]) -- it already *is* the
-/// supervisor, so it must never call `ensure_supervisor_running` (which
-/// could spawn or reuse an unrelated one) from this path.
 ///
 /// `user_data_path` is passed in explicitly (rather than re-resolved
 /// internally) so it reflects whatever `--user-data-dir` (if any) the
@@ -2564,7 +2470,6 @@ mod tests {
 			SocketAddr::from(([127, 0, 0, 1], 0)),
 			Some("localhost".to_string()),
 			LoopbackAuth::Token("tok".to_string()),
-			Some("my-tunnel".to_string()),
 			user_data_path.clone(),
 			"instance-a".to_string(),
 			None,
@@ -2580,7 +2485,7 @@ mod tests {
 		assert_eq!(entry.pid, std::process::id());
 		assert_eq!(entry.instance_id, "instance-a");
 		assert_eq!(entry.connection_token, "tok");
-		assert_eq!(entry.tunnel_name.as_deref(), Some("my-tunnel"));
+		assert_eq!(entry.tunnel_name, None);
 		assert_eq!(entry.protocol_version, AGENT_HOST_PROTOCOL_VERSION);
 		match &entry.endpoint {
 			AgentHostEndpointAddress::Tcp { host, port } => {
@@ -2605,7 +2510,6 @@ mod tests {
 			SocketAddr::from(([127, 0, 0, 1], 0)),
 			None,
 			LoopbackAuth::Disabled,
-			None,
 			user_data_path.clone(),
 			"instance-activity".to_string(),
 			Some(tracker),
@@ -2765,7 +2669,6 @@ mod tests {
 				SocketAddr::from(([127, 0, 0, 1], 0)),
 				None,
 				LoopbackAuth::Disabled,
-				None,
 				user_data_path.clone(),
 				"instance-fallback".to_string(),
 				None,
@@ -2812,7 +2715,6 @@ mod tests {
 			SocketAddr::from(([127, 0, 0, 1], 0)),
 			None,
 			LoopbackAuth::Disabled,
-			None,
 			user_data_path.clone(),
 			"instance-c".to_string(),
 			None,
@@ -2860,7 +2762,6 @@ mod tests {
 			SocketAddr::from(([127, 0, 0, 1], 0)),
 			None,
 			LoopbackAuth::Disabled,
-			None,
 			user_data_path.clone(),
 			"instance-shutdown-then-drop".to_string(),
 			None,
@@ -2953,7 +2854,6 @@ mod tests {
 				host: Some("127.0.0.1".to_string()),
 				port,
 				token: Some("registry-tok".to_string()),
-				tunnel_name: None,
 				instance_id: "instance-registry".to_string(),
 			}
 		);
@@ -3238,30 +3138,6 @@ mod tests {
 		port
 	}
 
-	/// Like [`spawn_fake_target_endpoint`], but keeps echoing for as long
-	/// as the client stays connected instead of closing after one message.
-	/// Needed when a test must distinguish "the proxied session is still
-	/// live" from "the target hung up".
-	async fn spawn_persistent_fake_target_endpoint() -> u16 {
-		let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-		let port = listener.local_addr().unwrap().port();
-		tokio::spawn(async move {
-			loop {
-				let (stream, _) = listener.accept().await.unwrap();
-				tokio::spawn(async move {
-					if let Ok(mut ws) = tokio_tungstenite::accept_async(stream).await {
-						while let Some(Ok(msg)) = ws.next().await {
-							if msg.is_text() && ws.send(msg).await.is_err() {
-								break;
-							}
-						}
-					}
-				});
-			}
-		});
-		port
-	}
-
 	/// Drives a full client-side selection session against an in-process
 	/// [`run_gateway_session`] over an in-memory duplex pipe, returning the
 	/// client's WebSocket end after the initial inventory message (parsed
@@ -3510,24 +3386,17 @@ mod tests {
 		assert!(ack.contains(r#""ok":false"#), "got: {ack}");
 	}
 
-	// ---- Direct-hosted tunnel router (`serve_agent_host_tunnel_connection`) --
-	//
-	// These exercise the exact request router `code agent host --tunnel`'s
-	// `run_supervisor` now dispatches its dev-tunnel-hosted `AGENT_HOST_PORT`
-	// connections through -- previously it called
-	// `AgentHostSidecar::serve_tunnel_connection` unconditionally, which
-	// never looked at the request path, so a renderer's `/agent-host/select`
-	// upgrade (sent because the tunnel is tagged with the current
-	// `PROTOCOL_VERSION_TAG`, see `constants::PROTOCOL_VERSION`'s doc
-	// comment) fell straight through to the AH backend and no inventory was
-	// ever sent.
+	fn ready_active_agent_host(
+		active: crate::commands::agent_host::ActiveAgentHost,
+	) -> super::super::control_server::SharedActiveAgentHost {
+		use futures::FutureExt;
 
-	/// Accepts exactly one raw TCP connection, reads until the request's
-	/// header terminator, and replies with a fixed HTTP/1.1 body -- a
-	/// minimal stand-in for "the current sidecar's own local accept loop"
-	/// so tests can assert the direct-hosted-tunnel router's root/default
-	/// route reaches *this* fake endpoint specifically, without needing a
-	/// real `AgentHostManager`-backed server.
+		futures::future::ready(Ok(Arc::new(active)))
+			.boxed()
+			.shared()
+	}
+
+	/// Replies to one HTTP request with a fixed body to test the legacy tunnel route.
 	async fn spawn_fake_http_endpoint(body: &'static str) -> u16 {
 		use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
@@ -3557,33 +3426,20 @@ mod tests {
 		port
 	}
 
-	/// The root/default route of the direct-hosted-tunnel router must
-	/// resolve to exactly the `ActiveAgentHost` the caller already handed
-	/// it -- mirroring how `run_supervisor` builds one from its own
-	/// running sidecar's published identity (see
-	/// `AgentHostSidecar::active_agent_host`) -- rather than falling back
-	/// to some other discovery/spawn path. The registry here is left
-	/// completely empty (no `standalone`/`editor` entries at all): if the
-	/// router ever ignored the passed-in `active_agent_host` and instead
-	/// consulted the registry (e.g. via `ensure_supervisor_running`), it
-	/// would either 503 or try to spawn a brand-new supervisor process
-	/// instead of reaching the fake endpoint below, so reaching it proves
-	/// neither happened.
 	#[tokio::test]
-	async fn direct_tunnel_root_route_reaches_current_sidecar_without_spawning_supervisor() {
+	async fn tunnel_root_route_reaches_resolved_supervisor() {
 		let dir = tempfile::tempdir().unwrap();
 		let user_data_path = dir.path().join("user-data");
 		let launcher_paths = LauncherPaths::new_without_replacements(dir.path().to_path_buf());
 
 		let fake_port = spawn_fake_http_endpoint("current-sidecar-ok").await;
-		let active_agent_host = crate::tunnels::control_server::ready_active_agent_host(
-			crate::commands::agent_host::ActiveAgentHost {
+		let active_agent_host =
+			ready_active_agent_host(crate::commands::agent_host::ActiveAgentHost {
 				pid: std::process::id(),
 				host: Some("127.0.0.1".to_string()),
 				port: fake_port,
 				token: None,
-			},
-		);
+			});
 
 		let (client_io, server_io) = tokio::io::duplex(64 * 1024);
 		tokio::spawn(async move {
@@ -3619,14 +3475,13 @@ mod tests {
 		let dir = tempfile::tempdir().unwrap();
 		let user_data_path = dir.path().join("user-data");
 		let launcher_paths = LauncherPaths::new_without_replacements(dir.path().to_path_buf());
-		let active_agent_host = crate::tunnels::control_server::ready_active_agent_host(
-			crate::commands::agent_host::ActiveAgentHost {
+		let active_agent_host =
+			ready_active_agent_host(crate::commands::agent_host::ActiveAgentHost {
 				pid: 0,
 				host: Some("127.0.0.1".to_string()),
 				port: 1,
 				token: None,
-			},
-		);
+			});
 
 		let (client_io, server_io) = tokio::io::duplex(64 * 1024);
 		tokio::spawn(async move {
@@ -3660,28 +3515,9 @@ mod tests {
 		);
 	}
 
-	/// End-to-end regression test for the reported tunnel inventory
-	/// timeout: drives an actual HTTP/1 WebSocket upgrade request for
-	/// `AGENT_HOST_GATEWAY_SELECT_PATH` through
-	/// `serve_agent_host_tunnel_connection` -- the same router
-	/// `run_supervisor` now uses for `code agent host --tunnel`'s
-	/// dev-tunnel-hosted `AGENT_HOST_PORT` -- and observes the inventory
-	/// message the gateway sends immediately after upgrading. The
-	/// root/default route is deliberately pointed at an unreachable
-	/// address (port `1`, universally reserved/refused) so the test also
-	/// proves the select path never touches the legacy direct-proxy route
-	/// at all: if it did, this would hang or error instead of yielding an
-	/// inventory immediately.
-	///
-	/// This also ties the tunnel's protocol tag to the served route: the
-	/// tunnel `code agent host --tunnel` creates is tagged with the
-	/// current `PROTOCOL_VERSION_TAG` (`constants::PROTOCOL_VERSION`,
-	/// currently `6`), which is exactly the version that introduced this
-	/// selection route (see that constant's doc comment) -- so a tunnel
-	/// tagged this way must always be served by a router that understands
-	/// `AGENT_HOST_GATEWAY_SELECT_PATH`.
+	/// The selection route must return inventory without consulting the legacy supervisor.
 	#[tokio::test]
-	async fn direct_tunnel_select_route_dispatches_gateway_and_returns_inventory() {
+	async fn tunnel_select_route_dispatches_gateway_and_returns_inventory() {
 		const {
 			assert!(
 				crate::constants::PROTOCOL_VERSION >= 6,
@@ -3702,8 +3538,8 @@ mod tests {
 		)
 		.unwrap();
 
-		let active_agent_host = crate::tunnels::control_server::ready_active_agent_host(
-			crate::commands::agent_host::ActiveAgentHost {
+		let active_agent_host =
+			ready_active_agent_host(crate::commands::agent_host::ActiveAgentHost {
 				pid: 0,
 				host: Some("127.0.0.1".to_string()),
 				// Port 1 is a reserved, universally-refused TCP port: any
@@ -3711,8 +3547,7 @@ mod tests {
 				// immediately rather than silently succeeding.
 				port: 1,
 				token: None,
-			},
-		);
+			});
 
 		let (client_io, server_io) = tokio::io::duplex(64 * 1024);
 		tokio::spawn(async move {
@@ -3741,113 +3576,5 @@ mod tests {
 		let endpoints = inventory["endpoints"].as_array().unwrap();
 		assert_eq!(endpoints.len(), 1);
 		assert_eq!(endpoints[0]["instanceId"], "instance-direct-tunnel");
-	}
-
-	/// The dev-tunnel-hosted port in `run_supervisor` is handed sockets by
-	/// the tunnel relay, so they never pass through
-	/// `AgentHostSidecar::serve`'s accept loop and get no guard from it.
-	/// The gateway's inner dial back into our own listener does not cover
-	/// this either: a client still deciding what to select, or one whose
-	/// selection resolves to a *different* endpoint (as here), never
-	/// reaches that accept loop, so the supervisor owning the tunnel would
-	/// see zero clients and could time itself out while actively proxying.
-	///
-	/// Drives the real router (`serve_agent_host_tunnel_connection`) over a
-	/// guarded transport, exactly as `run_supervisor` now wires it up.
-	#[tokio::test]
-	async fn tunnel_hosted_gateway_connection_counts_as_activity_for_its_whole_session() {
-		let dir = tempfile::tempdir().unwrap();
-		let user_data_path = dir.path().join("user-data");
-		let launcher_paths = LauncherPaths::new_without_replacements(dir.path().to_path_buf());
-		let (tracker, mut activity_rx) = idle_timeout::new_activity_channel();
-
-		// A live endpoint that is *not* this supervisor, so a selection
-		// resolving to it never dials our own listener.
-		let target_port = spawn_persistent_fake_target_endpoint().await;
-		let entry = make_tcp_endpoint("instance-other-host", target_port, "");
-		agent_host_registry::publish_agent_host_endpoint(
-			&log::Logger::test(),
-			&user_data_path,
-			&entry,
-		)
-		.unwrap();
-
-		let active_agent_host = crate::tunnels::control_server::ready_active_agent_host(
-			crate::commands::agent_host::ActiveAgentHost {
-				pid: 0,
-				host: Some("127.0.0.1".to_string()),
-				port: 1,
-				token: None,
-			},
-		);
-
-		let (client_io, server_io) = tokio::io::duplex(64 * 1024);
-		let server_io =
-			idle_timeout::GuardedStream::new(server_io, Some(tracker.client_connected()));
-		tokio::spawn(async move {
-			serve_agent_host_tunnel_connection(
-				log::Logger::test(),
-				server_io,
-				active_agent_host,
-				launcher_paths,
-				user_data_path,
-				false,
-			)
-			.await;
-		});
-
-		let (mut client_ws, _resp) = tokio_tungstenite::client_async(
-			format!("ws://localhost{AGENT_HOST_GATEWAY_SELECT_PATH}"),
-			client_io,
-		)
-		.await
-		.expect("gateway select upgrade should succeed");
-
-		assert_eq!(
-			activity_rx.recv().await,
-			Some(idle_timeout::ActivityEvent::Connected)
-		);
-
-		match client_ws.next().await {
-			Some(Ok(Message::Text(_))) => {}
-			other => panic!("expected inventory message, got {other:?}"),
-		}
-
-		// Select the *other* endpoint and exchange a frame through the
-		// proxy, proving the session is live and served entirely by this
-		// tunnel connection without any inner dial back into our listener.
-		client_ws
-			.send(Message::Text(
-				r#"{"instanceId":"instance-other-host"}"#.into(),
-			))
-			.await
-			.unwrap();
-		match client_ws.next().await {
-			Some(Ok(Message::Text(t))) => {
-				let ack: serde_json::Value = serde_json::from_str(&t).unwrap();
-				assert_eq!(ack["ok"], true);
-			}
-			other => panic!("expected selection ack, got {other:?}"),
-		}
-		client_ws.send(Message::Text("ping".into())).await.unwrap();
-		match client_ws.next().await {
-			Some(Ok(Message::Text(t))) => assert_eq!(t.as_str(), "ping"),
-			other => panic!("expected proxied echo, got {other:?}"),
-		}
-
-		let premature = tokio::time::timeout(Duration::from_millis(500), activity_rx.recv()).await;
-		assert!(
-			premature.is_err(),
-			"a proxied tunnel client must count as activity for its whole session, got {premature:?}"
-		);
-
-		drop(client_ws);
-		let disconnected = tokio::time::timeout(Duration::from_secs(2), activity_rx.recv())
-			.await
-			.expect("did not observe a Disconnected activity event in time");
-		assert_eq!(
-			disconnected,
-			Some(idle_timeout::ActivityEvent::Disconnected)
-		);
 	}
 }

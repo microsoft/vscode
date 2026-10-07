@@ -225,7 +225,7 @@ export function defineAnnotationsTests(context: IAgentHostE2ETestContext): void 
 		}
 
 		// A host-local command produces a completed, durable turn without model traffic.
-		await driveTurnToCompletion(context.client, sessionUri, 'turn-annotations-residency', '/rename Annotation Residency', nextClientSeq());
+		await driveTurnToCompletion(context.client, sessionUri, 'turn-annotations-residency', '/rename Annotation Residency', nextClientSeq(), { expectUnread: false });
 		const annotation = {
 			id: annotationId,
 			origin: { session: sessionUri, chat: chatUri, turnId: 'turn-annotations-residency' },

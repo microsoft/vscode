@@ -5,6 +5,7 @@
 
 import { vBoolean, vEnum, vNumber, vObj, vOptionalProp, vString, type ValidatorType } from '../../../../base/common/validation.js';
 import { hasKey } from '../../../../base/common/types.js';
+import { agentHostClientConnectionKindValidator } from '../agentHostTelemetry.js';
 
 export const AgentHostTurnTimingSpanName = 'vscode.agent_host.turn_timing';
 export const AgentHostFirstResponseSpanName = 'vscode.agent_host.first_response';
@@ -14,6 +15,7 @@ export const AgentHostTimingAttributePrefix = 'vscode.agent_host.';
 export const agentHostFirstResponseValidator = vObj({
 	requestId: vString(),
 	provider: vString(),
+	connectionKind: vOptionalProp(agentHostClientConnectionKindValidator),
 	agentSessionId: vOptionalProp(vString()),
 	chatId: vOptionalProp(vString()),
 	outcome: vEnum('success', 'cancelled', 'error', 'notDispatched'),
@@ -44,7 +46,18 @@ export interface IAgentHostTurnTimingDiagnostic {
 	sendStageModelSelectionMs?: number;
 	sendStageAttachmentsMs?: number;
 	sendStageContributionsMs?: number;
+	sendStageProviderPreparationMs?: number;
 	sendStageCheckpointMs?: number;
+	providerStageQueueMs?: number;
+	providerStageClientMs?: number;
+	providerStageSnapshotMs?: number;
+	providerStageConfigMs?: number;
+	providerStageCreateMs?: number;
+	providerStageFinalizeMs?: number;
+	providerStagePersistMs?: number;
+	providerStageRefreshMs?: number;
+	providerStageTurnPrepareMs?: number;
+	providerStageModelResponseMs?: number;
 	hostRootTurnOrdinal?: number;
 	hostProcessAgeMs?: number;
 	titleGenerationStrategy?: 'activeAgent' | 'utility' | 'deferred';
@@ -80,11 +93,15 @@ export function agentHostTimingAttributes(diagnostic: IAgentHostTurnTimingDiagno
 		if (diagnostic.titleGenerationStrategy !== undefined) {
 			put('titleGenerationStrategy', diagnostic.titleGenerationStrategy);
 		}
-		for (const key of ['totalTime', 'timeToProviderDispatch', 'timeToFirstProgress', 'timeToFirstSubstantiveProgress', 'sendStageWorkingDirectoryMs', 'sendStageModelSelectionMs', 'sendStageAttachmentsMs', 'sendStageContributionsMs', 'sendStageCheckpointMs', 'hostRootTurnOrdinal', 'hostProcessAgeMs'] as const) {
+		for (const key of ['totalTime', 'timeToProviderDispatch', 'timeToFirstProgress', 'timeToFirstSubstantiveProgress', 'sendStageWorkingDirectoryMs', 'sendStageModelSelectionMs', 'sendStageAttachmentsMs', 'sendStageContributionsMs', 'sendStageProviderPreparationMs', 'sendStageCheckpointMs', 'providerStageQueueMs', 'providerStageClientMs', 'providerStageSnapshotMs', 'providerStageConfigMs', 'providerStageCreateMs', 'providerStageFinalizeMs', 'providerStagePersistMs', 'providerStageRefreshMs', 'providerStageTurnPrepareMs', 'providerStageModelResponseMs', 'hostRootTurnOrdinal', 'hostProcessAgeMs'] as const) {
 			measurement(key, diagnostic[key]);
 		}
 	} else {
 		put('requestId', diagnostic.requestId);
+		const connectionKind = agentHostClientConnectionKindValidator.validate(diagnostic.connectionKind).content;
+		if (connectionKind !== undefined) {
+			put('connectionKind', connectionKind);
+		}
 		put('outcome', diagnostic.outcome);
 		put('sessionTurnKind', diagnostic.sessionTurnKind);
 		put('invocationKind', diagnostic.invocationKind);

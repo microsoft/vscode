@@ -72,8 +72,7 @@ for (const theme of ['Dark', 'Light', 'DarkHighContrast', 'LightHighContrast']) 
 				const style = getComputedStyle(element);
 				return { width: style.borderTopWidth, style: style.borderTopStyle, transparent: style.borderTopColor === 'rgba(0, 0, 0, 0)' };
 			});
-			// The bundled dark theme deliberately overrides agentsCard.border with a transparent color.
-			expect(border).toEqual({ width: '1px', style: 'solid', transparent: theme === 'Dark' });
+			expect(border).toEqual({ width: '1px', style: 'solid', transparent: false });
 			await expectStableScreenshot(page, fixtureId, `sessions/grid/sessionsGrid/${scenario.name === 'Maximized' ? 'NestedSplits' : 'Maximized'}/Light`);
 		});
 	}
@@ -102,7 +101,7 @@ test('sessions grid header actions update their owning state', async ({ page }) 
 	};
 	await overflow().click();
 	await expect(page.locator('.context-view .action-label:not(.separator)')).toHaveText([
-		'Archive', 'New Chat in This Session', 'Show Chat Tabs', 'Unpin', 'Maximize', 'Close', 'Session Layout',
+		'Archive', 'Show Chat Tabs', 'Unpin', 'Maximize', 'Close', 'Session Layout',
 	]);
 	await activate('menuitemcheckbox', 'Maximize');
 	await expect(page.locator('.session-view:visible')).toHaveCount(1);
