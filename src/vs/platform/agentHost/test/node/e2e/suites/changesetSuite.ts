@@ -25,7 +25,7 @@
 
 import assert from 'assert';
 import { execFileSync, execSync } from 'child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, unlinkSync, writeFileSync } from 'fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { retry } from '../../../../../../base/common/async.js';
 import { join } from '../../../../../../base/common/path.js';
@@ -55,6 +55,7 @@ import { getActionEnvelope, getAgentHostE2ETestTimeout, isActionNotification } f
 import { assertExpectedFailure } from '../harness/expectedFailure.js';
 import { vscodeAgentHostTarget } from '../harness/agentHostTarget.js';
 import { conformanceTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 /** The subset of `ChangesetFile` these tests assert on. */
 interface IObservedChangesetFile {
@@ -122,7 +123,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 
 	/** A git repository with one committed file, so a branch point exists. */
 	function createGitWorkspace(prefix: string): string {
-		const workspace = mkdtempSync(join(tmpdir(), prefix));
+		const workspace = createTestDirectory(join(tmpdir(), prefix));
 		tempDirs.push(workspace);
 		initTestGitRepo(workspace);
 		writeFileSync(join(workspace, 'seed.txt'), 'seed\n');
@@ -133,7 +134,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 
 	function createRemoteGitWorkspace(prefix: string): { readonly workspace: string; readonly remote: string } {
 		const workspace = createGitWorkspace(`${prefix}-workspace-`);
-		const remote = mkdtempSync(join(tmpdir(), `${prefix}-remote-`));
+		const remote = createTestDirectory(join(tmpdir(), `${prefix}-remote-`));
 		tempDirs.push(remote);
 		execFileSync('git', ['init', '--bare', '-q'], { cwd: remote });
 		execFileSync('git', ['remote', 'add', 'origin', remote], { cwd: workspace });
@@ -149,7 +150,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	}
 
 	function pushRemoteCommit(remote: string, prefix: string, file: string, contents: string): void {
-		const clone = mkdtempSync(join(tmpdir(), `${prefix}-clone-`));
+		const clone = createTestDirectory(join(tmpdir(), `${prefix}-clone-`));
 		tempDirs.push(clone);
 		execFileSync('git', ['clone', '-q', remote, '.'], { cwd: clone });
 		execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: clone });
@@ -1047,7 +1048,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	});
 
 	conformanceTest(context, 'an empty repository reports an untracked file as added', async function () {
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-changeset-empty-repo-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-changeset-empty-repo-'));
 		tempDirs.push(workspace);
 		initTestGitRepo(workspace);
 		const sessionUri = await createSessionIn(workspace, 'changeset-empty-repo');

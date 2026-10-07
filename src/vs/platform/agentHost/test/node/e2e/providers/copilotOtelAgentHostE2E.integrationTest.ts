@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mkdir, mkdtemp, readFile, rm } from 'fs/promises';
+import { mkdir, readFile, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { retry } from '../../../../../../base/common/async.js';
 import { join } from '../../../../../../base/common/path.js';
@@ -25,6 +25,7 @@ import type { CapiReplayProxy } from '../harness/capiReplayProxy.js';
 import { normalizeVolatileText } from '../harness/capiWireCodec.js';
 import { assertExpectedFailure } from '../harness/expectedFailure.js';
 import { COPILOT_CONFIG } from './copilotTestConfiguration.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 const RECORD = process.env['AGENT_HOST_REPLAY_RECORD'] === '1' || process.env['AGENT_HOST_UPDATE_SNAPSHOTS'] === '1';
 
@@ -88,7 +89,7 @@ suite('Agent Host E2E — Copilot managed telemetry', function () {
 		initialized = false;
 		lease = undefined;
 		testTitle = this.currentTest!.title;
-		const directory = await mkdtemp(join(tmpdir(), 'copilot-managed-otel-'));
+		const directory = createTestDirectory(join(tmpdir(), 'copilot-managed-otel-'));
 		tempDirs.push(directory);
 		workspace = join(directory, 'workspace');
 		await mkdir(workspace);
@@ -441,7 +442,7 @@ suite('Agent Host E2E — Copilot OTel file exporter', function () {
 
 	suiteSetup(async function () {
 		this.timeout(60_000);
-		const directory = await mkdtemp(join(tmpdir(), 'copilot-otel-e2e-'));
+		const directory = createTestDirectory(join(tmpdir(), 'copilot-otel-e2e-'));
 		tempDirs.push(directory);
 		exportFile = join(directory, 'spans.jsonl');
 		lease = new AgentHostE2EServerLease(COPILOT_CONFIG, {
@@ -489,7 +490,7 @@ suite('Agent Host E2E — Copilot OTel file exporter', function () {
 
 	test('provider turn exports SDK spans through the Agent Host file exporter', async function () {
 		this.timeout(180_000);
-		const workspace = await mkdtemp(join(tmpdir(), 'copilot-otel-turn-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'copilot-otel-turn-'));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'copilot-otel-turn', createdSessions, URI.file(workspace));
 
