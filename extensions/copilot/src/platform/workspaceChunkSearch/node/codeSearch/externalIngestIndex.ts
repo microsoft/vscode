@@ -598,7 +598,7 @@ export class ExternalIngestIndex extends Disposable {
 		}
 
 		// Try to open existing database and check cache version
-		// eslint-disable-next-line local/code-no-sync-fs -- TODO: synchronous DatabaseSync cache initialization and recovery need caller review.
+		// eslint-disable-next-line local/code-no-sync-fs -- TODO: introduce awaited cache initialization; this existence check selects reuse versus recreation before returning a ready DatabaseSync.
 		if (fs.existsSync(dbPath)) {
 			try {
 				const db = new sql.DatabaseSync(dbPath, {
@@ -621,7 +621,7 @@ export class ExternalIngestIndex extends Disposable {
 
 			// Delete the old database file
 			try {
-				// eslint-disable-next-line local/code-no-sync-fs -- TODO: synchronous DatabaseSync cache initialization and recovery need caller review.
+				// eslint-disable-next-line local/code-no-sync-fs -- TODO: introduce awaited cache recovery; the incompatible database must be deleted before createFreshDatabase opens its replacement.
 				fs.unlinkSync(dbPath);
 			} catch (error) {
 				this._logService.warn(`ExternalIngestIndex: Failed to delete old database file: ${error}`);

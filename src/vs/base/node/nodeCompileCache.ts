@@ -74,7 +74,7 @@ export function enableNodeCompileCache(kind: NodeCompileCacheKind): boolean {
 
 	const isGeneratingCache = process.env['VSCODE_GENERATE_NODE_COMPILE_CACHE'] === '1';
 	const runtimeCachePrefix = `${process.version}-${process.arch}-`;
-	// eslint-disable-next-line local/code-no-sync-fs -- Compile-cache bootstrap and readiness diagnostics expose a synchronous startup contract.
+	// eslint-disable-next-line local/code-no-sync-fs -- The cache must be validated before enableCompileCache and subsequent module imports; an async probe would miss compilation of those startup modules.
 	const hasRuntimeCache = fs.existsSync(cacheDirectory) && fs.readdirSync(cacheDirectory).some(entry => entry.startsWith(runtimeCachePrefix));
 
 	if (!isGeneratingCache && !hasRuntimeCache) {
@@ -153,7 +153,7 @@ export function markNodeCompileCacheReady(log?: (message: string) => void): void
 
 	if (process.env['VSCODE_GENERATE_NODE_COMPILE_CACHE'] === '1') {
 		flushCompileCache();
-		// eslint-disable-next-line local/code-no-sync-fs -- Compile-cache bootstrap and readiness diagnostics expose a synchronous startup contract.
+		// eslint-disable-next-line local/code-no-sync-fs -- The generator treats this marker as proof that flushCompileCache completed; publish it before synchronous readiness returns.
 		fs.writeFileSync(getNodeCompileCacheReadyMarkerPath(kind), '');
 	}
 
@@ -163,9 +163,9 @@ export function markNodeCompileCacheReady(log?: (message: string) => void): void
 		if (!nodeCompileCacheStatus) {
 			throw new Error(`Node.js compile cache status is unavailable for ${kind}.`);
 		}
-		// eslint-disable-next-line local/code-no-sync-fs -- Compile-cache bootstrap and readiness diagnostics expose a synchronous startup contract.
+		// eslint-disable-next-line local/code-no-sync-fs -- The synchronous readiness hook can be followed by shutdown; create the measurements directory before its immediately following write.
 		fs.mkdirSync(measurementsDirectory, { recursive: true });
-		// eslint-disable-next-line local/code-no-sync-fs -- Compile-cache bootstrap and readiness diagnostics expose a synchronous startup contract.
+		// eslint-disable-next-line local/code-no-sync-fs -- The synchronous readiness hook can be followed by shutdown; finish measurements here rather than leave an unawaited write that may be lost.
 		fs.writeFileSync(join(measurementsDirectory, `${kind}.json`), JSON.stringify({
 			kind,
 			pid: process.pid,
@@ -181,7 +181,7 @@ export async function waitForNodeCompileCacheReady(): Promise<void> {
 	const pendingKinds = new Set(nodeCompileCacheKinds);
 	while (pendingKinds.size > 0) {
 		for (const kind of pendingKinds) {
-			// eslint-disable-next-line local/code-no-sync-fs -- Compile-cache bootstrap and readiness diagnostics expose a synchronous startup contract.
+			// eslint-disable-next-line local/code-no-sync-fs -- This poll runs only while generating the compile cache and waiting for child readiness, not in interactive product operation.
 			if (fs.existsSync(getNodeCompileCacheReadyMarkerPath(kind))) {
 				pendingKinds.delete(kind);
 			}

@@ -127,6 +127,8 @@ The configuration also excludes the synchronous helper implementations in `pfs.t
 
 Existing suppressions document audited legacy constraints and deferred work, not permission to add more synchronous calls. Outside the designated startup/shutdown exclusions, an unavoidable exception must be limited to the call site, with an explanatory `eslint-disable-next-line local/code-no-sync-fs -- ...` comment stating why asynchronous I/O cannot be used. Do not exempt additional runtime services. Deferred runtime conversions must identify the contract or ordering that needs review.
 
+Justifications must explain the concrete failure or lifecycle constraint an async replacement would introduce, not merely describe the synchronous operation. Temporary migration TODOs must name the readiness, sequencing, or ownership change needed to remove the suppression; they do not establish that synchronous I/O is permanently required.
+
 Run the rule and configuration tests with `node --test .eslint-plugin-local/tests/code-no-sync-fs.test.ts`. Custom rule tests also run in CI through `npm run test-build-scripts`.
 
 (Written by Copilot)
