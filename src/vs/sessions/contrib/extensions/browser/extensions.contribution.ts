@@ -18,7 +18,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: true,
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
-			agentsWindow: { default: false }
+			agentsWindow: { default: true }
 		},
 	},
 });
