@@ -20,9 +20,10 @@ import { IEnvironmentService } from '../../../../../../platform/environment/comm
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { ITelemetryService, type ITelemetryData } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { AuthenticationSessionsChangeEvent, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
-import { MissionControlEnvironmentService } from '../../../browser/remoteAgentHost/missionControlEnvironmentService.js';
+import { MissionControlEnvironmentService, type MissionControlConnectionAttemptClassification } from '../../../browser/remoteAgentHost/missionControlEnvironmentService.js';
 
 const firstAccount = JSON.stringify(['github', 'first']);
 const secondAccount = JSON.stringify(['github', 'second']);
@@ -42,6 +43,7 @@ suite('Mission Control inventory', () => {
 		const configuration = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true });
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const calls = { lists: 0, lookups: [] as string[], connects: [] as ICloudSandboxConnectOptions[], disconnects: [] as string[] };
+		const events: { eventName: string; data: ITelemetryData | undefined }[] = [];
 		let account: string | undefined = initialAccount;
 		let hidden = false;
 		let own = 'own';
@@ -85,9 +87,14 @@ suite('Mission Control inventory', () => {
 		}());
 		instantiation.stub(ILogService, store.add(new NullLogService()));
 		instantiation.stub(IAuthenticationService, { onDidChangeSessions: authenticationChanged.event });
+		instantiation.stub(ITelemetryService, new class extends mock<ITelemetryService>() {
+			override publicLog2(eventName: string, data?: ITelemetryData): void {
+				events.push({ eventName, data });
+			}
+		}());
 		const service = store.add(instantiation.createInstance(MissionControlEnvironmentService));
 		return {
-			service, storage, calls, configuration, authenticationChanged,
+			service, storage, calls, configuration, authenticationChanged, events,
 			setList: (result: Promise<readonly IMissionControlEnvironment[]>) => { list = result; listed = new DeferredPromise<void>(); return listed.p; },
 			setEnvironment: (result: Promise<ICloudSandboxEnvironment>) => { environment = result; },
 			setConnecting: (result: Promise<void>) => { connecting = result; },
@@ -97,6 +104,28 @@ suite('Mission Control inventory', () => {
 			setConnectionStatus: (status: RemoteAgentHostConnectionStatus) => { connectionStatus = status; },
 		};
 	}
+
+	test('records successful connects, preflight failures and caller cancellations without host identity', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const context = fixture();
+		await context.service.refresh(CancellationToken.None);
+		await context.service.connect('remote', CancellationToken.None);
+		context.setEnvironment(Promise.resolve({ id: 'remote', status: 'offline' }));
+		await assert.rejects(context.service.connect('remote', CancellationToken.None), /not online/);
+		const token = store.add(new CancellationTokenSource());
+		const availability = new DeferredPromise<ICloudSandboxEnvironment>();
+		context.setEnvironment(availability.p);
+		const cancelled = context.service.connect('remote', token.token);
+		token.cancel();
+		await assert.rejects(cancelled, CancellationError);
+		await availability.complete({ id: 'remote', status: 'online' });
+		type ClassifiedSample<T> = { [K in Exclude<keyof T, 'owner' | 'comment'>]: T[K] extends { isMeasurement: true } ? number : string };
+		const success: ClassifiedSample<MissionControlConnectionAttemptClassification> = { outcome: 'success', stage: 'connection', durationMs: 0 };
+		assert.deepStrictEqual(context.events, [
+			{ eventName: 'missionControlConnectionAttempt', data: success },
+			{ eventName: 'missionControlConnectionAttempt', data: { outcome: 'failure', stage: 'environment', durationMs: 0 } },
+			{ eventName: 'missionControlConnectionAttempt', data: { outcome: 'cancelled', stage: 'environment', durationMs: 0 } },
+		]);
+	}));
 
 	test('discovers native hosts before connection and excludes self and managed compute', async () => {
 		const { service, calls } = fixture();
@@ -374,10 +403,11 @@ suite('Mission Control inventory', () => {
 			await availability.complete({ id: 'remote', status: 'online' });
 			await relay.complete();
 			await timeout(0);
-			assert.deepStrictEqual({ before, connects: context.calls.connects.length, disconnects: context.calls.disconnects, retained: context.service.hosts.get().map(host => host.id) },
+			assert.deepStrictEqual({ before, connects: context.calls.connects.length, disconnects: context.calls.disconnects, retained: context.service.hosts.get().map(host => host.id), events: context.events },
 				{
 					before: { connects: phase === 'relay' ? 1 : 0, disconnects: 0 }, connects: phase === 'relay' ? 1 : 0,
-					disconnects: phase === 'relay' ? ['remote'] : [], retained: ['remote']
+					disconnects: phase === 'relay' ? ['remote'] : [], retained: ['remote'],
+					events: [{ eventName: 'missionControlConnectionAttempt', data: { outcome: 'timeout', stage: phase === 'relay' ? 'connection' : 'environment', durationMs: 60_000 } }],
 				});
 		}));
 	}

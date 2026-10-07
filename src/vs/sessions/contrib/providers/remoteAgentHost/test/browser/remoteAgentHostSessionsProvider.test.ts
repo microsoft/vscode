@@ -284,7 +284,7 @@ function createSession(id: string, opts?: { session?: URI; provider?: string; su
 	};
 }
 
-function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: { address?: string; preferenceKey?: string; connectionName?: string | undefined; chatService?: IChatService; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; onDidAcceptRequest?: Event<IChatRequestAcceptedEvent>; openSession?: boolean; storageService?: IStorageService; localAgentHostService?: IAgentHostService; remoteAgentHostService?: IRemoteAgentHostService; noConnection?: boolean; connectOnDemand?: () => Promise<void>; isWebPlatform?: boolean; workspaceTrusted?: boolean; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; configurationService?: IConfigurationService; composerService?: INewSessionComposerService; omitHostFromWorkspaceLabel?: boolean; workspaceTypeIcon?: ThemeIcon; sessionSchemeAlias?: IAgentHostSessionSchemeAlias; defaultChangesetKind?: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind']; sessionResolutionPolicies?: Array<{ authority: string; policy: IAgentHostSessionResolutionPolicy }>; devContainerWorktreeScope?: string; devContainerLifecycle?: IRemoteAgentHostSessionsProviderConfig['devContainerLifecycle']; devContainerSourceWorkspace?: URI; resolveDevContainerWorktreeConnection?: IRemoteAgentHostSessionsProviderConfig['resolveDevContainerWorktreeConnection']; readOnlyWhenDisconnected?: boolean; ctor?: typeof RemoteAgentHostSessionsProvider; labelService?: ILabelService; defaultDirectory?: string; activeSession?: IObservable<IActiveSession | undefined>; deleteSessionsOnDemand?: IRemoteAgentHostSessionsProviderConfig['deleteSessionsOnDemand'] }, configOverrides: Partial<IRemoteAgentHostSessionsProviderConfig> = {}): RemoteAgentHostSessionsProvider {
+function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: { fileDialogService?: IFileDialogService; address?: string; preferenceKey?: string; connectionName?: string | undefined; chatService?: IChatService; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; onDidAcceptRequest?: Event<IChatRequestAcceptedEvent>; openSession?: boolean; storageService?: IStorageService; localAgentHostService?: IAgentHostService; remoteAgentHostService?: IRemoteAgentHostService; noConnection?: boolean; connectOnDemand?: () => Promise<void>; isWebPlatform?: boolean; workspaceTrusted?: boolean; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; configurationService?: IConfigurationService; composerService?: INewSessionComposerService; omitHostFromWorkspaceLabel?: boolean; workspaceTypeIcon?: ThemeIcon; sessionSchemeAlias?: IAgentHostSessionSchemeAlias; defaultChangesetKind?: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind']; sessionResolutionPolicies?: Array<{ authority: string; policy: IAgentHostSessionResolutionPolicy }>; devContainerWorktreeScope?: string; devContainerLifecycle?: IRemoteAgentHostSessionsProviderConfig['devContainerLifecycle']; devContainerSourceWorkspace?: URI; resolveDevContainerWorktreeConnection?: IRemoteAgentHostSessionsProviderConfig['resolveDevContainerWorktreeConnection']; readOnlyWhenDisconnected?: boolean; ctor?: typeof RemoteAgentHostSessionsProvider; labelService?: ILabelService; defaultDirectory?: string; activeSession?: IObservable<IActiveSession | undefined>; deleteSessionsOnDemand?: IRemoteAgentHostSessionsProviderConfig['deleteSessionsOnDemand'] }, configOverrides: Partial<IRemoteAgentHostSessionsProviderConfig> = {}): RemoteAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IRemoteAgentHostAuthenticationService, new RemoteAgentHostAuthenticationService());
@@ -292,7 +292,7 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 	instantiationService.stub(IAgentHostSessionWorkingDirectoryResolver, new class extends mock<IAgentHostSessionWorkingDirectoryResolver>() {
 		override registerResolver() { return Disposable.None; }
 	}());
-	instantiationService.stub(IFileDialogService, {});
+	instantiationService.stub(IFileDialogService, overrides?.fileDialogService ?? {});
 	instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
 	instantiationService.stub(IConfigurationService, overrides?.configurationService ?? new TestConfigurationService({ [DevContainerIdleTimeoutSettingId]: 300 }));
 	instantiationService.stub(INotificationService, { error: () => { } });
@@ -1085,6 +1085,60 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.strictEqual(provider.browseActions.length, 1);
 		assert.ok(provider.browseActions[0].label.includes('Folders'));
 		assert.strictEqual(provider.browseActions[0].providerId, provider.id);
+	});
+
+	for (const workingDirectory of ['file:///C:/Users/test/project', 'test-fs://host/projects/project']) {
+		test(`folder browsing uses an advertised workspace when the host omits its default directory (${workingDirectory})`, async () => {
+			let defaultUri: URI | undefined;
+			const provider = createProvider(disposables, connection, {
+				fileDialogService: upcastPartial<IFileDialogService>({
+					showOpenDialog: async options => {
+						defaultUri = options.defaultUri;
+						return undefined;
+					},
+				}),
+			});
+			fireSessionAdded(connection, 'browse', { workingDirectory });
+
+			await provider.browseActions[0].run();
+
+			assert.strictEqual(defaultUri?.toString(), toAgentHostUri(URI.parse(workingDirectory), 'localhost__4321').toString());
+		});
+	}
+
+	test('folder browsing prefers the configured default directory over session workspaces', async () => {
+		let defaultUri: URI | undefined;
+		const provider = createProvider(disposables, connection, {
+			defaultDirectory: '/home/test',
+			fileDialogService: upcastPartial<IFileDialogService>({
+				showOpenDialog: async options => {
+					defaultUri = options.defaultUri;
+					return undefined;
+				},
+			}),
+		});
+		fireSessionAdded(connection, 'browse', { workingDirectory: 'file:///workspace/project' });
+
+		await provider.browseActions[0].run();
+
+		assert.strictEqual(defaultUri?.path, '/home/test');
+	});
+
+	test('inline folder browsing uses the same advertised workspace fallback', async () => {
+		const listed: string[] = [];
+		const provider = createProvider(disposables, connection);
+		fireSessionAdded(connection, 'browse', { workingDirectory: 'file:///C:/Users/test/project' });
+		connection.resourceList = async resource => {
+			listed.push(resource.toString());
+			return { entries: [{ name: 'src', type: 'directory' }] };
+		};
+
+		const folders = await provider.browseActions[0].listFolders?.('src', CancellationToken.None);
+
+		assert.deepStrictEqual({ listed, folders: folders?.map(folder => folder.uri.path) }, {
+			listed: ['file:///c%3A/Users/test/project'],
+			folders: ['/C:/Users/test/project/src'],
+		});
 	});
 
 	// ---- Session listing via notifications -------

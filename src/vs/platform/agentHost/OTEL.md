@@ -8,6 +8,13 @@ Product startup telemetry and its host-lifetime correlation ID are documented in
 [`PERFORMANCE.md`](PERFORMANCE.md). They use the existing usage-telemetry consent,
 not the OTel exporter or its configuration.
 
+Product telemetry event `agentHost.userMessageSent` includes `isOtelEnabled`, a boolean
+recording resolved Agent Host OTel configuration at submission, not SDK initialization
+or successful export. It is stored as `Measures["isotelenabled"]` in Kusto. Join error
+events to admitted turns by machine, session, chat, and turn identifiers to calculate
+OTel-scoped failure rates. Unmatched errors and absent fields on older builds are
+unknown, not disabled; a host restart or resume can change configuration after submission.
+
 Host-wide diagnostic logs can be subscribed to over local Agent Host ingress, but are not advertised on Mission Control relay connections. Those logs must not contend with session operations on the bounded relay publisher. This is separate from provider-native OTel logs and their configured exporter destinations.
 
 <!-- (Written by Copilot) -->
@@ -243,10 +250,17 @@ and administrator controls apply; no additional setting or exporter is needed.
 - `cloudSandboxConnectionOutcome`: one `connect` or `recover` outcome (`success`,
   `failure`, `cancelled`) and `durationMs`. Public connects start before credential
   minting, waking and sealed-token waits; direct factory dials start at connection
-  setup. `stage` is `credentials` or `connection`. Readiness means authenticated
+  setup. `stage` is the last observed credentials, connection, relay, protocol,
+  authentication or restoration stage. Readiness means authenticated
   AHP initialization/state restoration, not WebSocket open. Reuse is excluded.
   Retries, backoff and outer-client replacement stay in the same operation;
   an initial handshake retry is not a healthy connection drop.
+- `cloudSandboxProvisioningOutcome`: one task/VM creation outcome (`success`,
+  `failure`, `cancelled`) and client-observed `durationMs`, before connection
+  tracking starts. Includes account resolution, HTTP, response validation and
+  failure cleanup. Success means a usable environment/session binding was returned,
+  not that AHP or the repository is ready. This event does not contain a connection
+  identifier; analyze provisioning separately rather than joining individual attempts.
 - `cloudSandboxConnectionHealth`: five-minute aggregate deltas across tracked
   connections, plus each connection's final delta at teardown. `connectedMs`
   includes quiet healthy connections and excludes outages. `unexpectedDisconnects`
@@ -261,6 +275,55 @@ Report successful p50/p95 ready/recovery durations alongside failure and cancell
 rates; use p99 only with enough samples. Compare like traffic levels and product
 surfaces using existing `commitHash`, `version`, `common.platform`,
 `common.product` and `common.isAgentsWindow` properties (including web Agents).
+
+To compare provisioning with resuming, use **`readinessMs` on successful
+`cloudSandboxConnectionOutcome` events**, grouped by `environmentOperation`:
+
+| `environmentOperation` | Start of `readinessMs` | Meaning |
+|---|---|---|
+| `provision` | Task creation starts | New sandbox, including allocation, local provider setup and connection. |
+| `resume` | Connection to an existing sandbox starts | Reopening an existing environment; it may already be warm. |
+| `recover` | A previously ready connection is lost | Automatic recovery, even if the original connection provisioned the sandbox. |
+| `attach` | Connection to a user-local Mission Control host starts | Not a managed sandbox; exclude from provisioning/resume comparisons. |
+
+All successful samples end at **authenticated AHP readiness**, not credential
+issuance or WebSocket open. A slow `initialize`/`reconnect` response therefore
+counts toward the correct workflow, even if the host is still starting after
+credentials arrive. Failures and cancellations carry partial elapsed time;
+do not mix them into successful readiness percentiles.
+
+For provisioning, `provisioningMs` covers task creation through connection start;
+`readinessMs = provisioningMs + preparationMs + connectionMs`. For resume and
+recovery, `provisioningMs` is zero and `readinessMs = durationMs`. Provisioning
+start times are local, never persisted or emitted, and are not reused for later
+recoveries or independent dials. If a created-environment caller omits that start
+time, `provisioningMs` and `readinessMs` are absent rather than silently treating
+allocation as instantaneous; exclude missing measurements from comparisons.
+The separate `cloudSandboxProvisioningOutcome.durationMs` remains the API-phase
+duration, including failures before connection starts. It is **not** comparable
+on its own to end-to-end resume time, and must not be added again to `readinessMs`.
+
+For connection latency, `preparationMs` and `connectionMs` are an exclusive
+partition of `durationMs` on both connect and recovery outcomes:
+
+- `preparationMs` includes credential acquisition, environment wake/resume hidden
+  inside `/connect`, explicit HTTP 202 retry waits and sealed-token preparation.
+  After a credential failure it also includes retry/cooldown time until preparation
+  succeeds or connection setup resumes.
+- `connectionMs` is the remaining wall time: relay, protocol, authentication and
+  state restoration, including connection retry backoff but excluding credential
+  preparation nested inside authentication.
+
+The existing `credentialsMs`, `relayMs`, `protocolMs`, `authenticationMs` and
+`restorationMs` remain cumulative diagnostic spans, not an additive breakdown:
+they may overlap, and `credentialsMs` excludes backoff outside its spans.
+Compare successful provisioning, preparation and connection p50/p95 separately,
+split connection outcomes by `operation` and `surface`, and keep failures and
+cancellations separate. `source: created | existing` is not a warm/cold signal.
+`wakingResponses > 0` confirms observed waking, but zero does not prove warm compute.
+Both provisioning and preparation include client/network/credential overhead;
+pure server startup duration or warm/cold classification still requires a
+server-reported signal. Neither metric includes subsequent repository preparation.
 
 Both versions need this instrumentation; missing historical measurements cannot
 be reconstructed, and a version comparison alone is not causal proof. Deltas reset

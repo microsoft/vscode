@@ -73,7 +73,7 @@ export function registerBlockedSessionsHeaderActions(): IDisposable {
 		MenuRegistry.appendMenuItem(Menus.BlockedSessionsHeader, {
 			command: {
 				id: IGNORE_ALL_INPUT_NEEDED_COMMAND_ID,
-				title: localize('ignoreAllInputNeeded', "Ignore All Input Needed"),
+				title: localize('ignoreAllInputNeeded', "Ignore All Needs Attention Alerts"),
 				icon: Codicon.bellSlash,
 			},
 			group: 'navigation',

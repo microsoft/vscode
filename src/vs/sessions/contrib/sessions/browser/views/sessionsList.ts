@@ -77,7 +77,7 @@ import { ISessionSectionOrderService } from '../../../../services/sessions/brows
 import { InputBox, MessageType } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { IWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/common/assignmentService.js';
 import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
-import { markOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
+import { IOnboardingFocusTarget, markOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../../sessionComparison/common/sessionComparison.js';
 // =============================================================================
 // TEMPORARY (tracked by https://github.com/microsoft/vscode/issues/320480)
@@ -1620,7 +1620,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 					template.comparisonAttemptStatusLabel.textContent = '';
 					break;
 				case SessionStatus.NeedsInput:
-					template.comparisonAttemptStatusLabel.textContent = localize('comparisonAttemptNeedsInput', "Input needed");
+					template.comparisonAttemptStatusLabel.textContent = localize('comparisonAttemptNeedsInput', "Attention needed");
 					break;
 				case SessionStatus.Completed:
 					template.comparisonAttemptStatusLabel.textContent = '';
@@ -2188,6 +2188,10 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		private readonly customizationMigrationsAvailable: IObservable<boolean> = constObservable(false),
 		readonly templateId = SessionSectionRenderer.TEMPLATE_ID,
 		readonly rowClassName?: string,
+		private readonly onboardingOptions: {
+			readonly onDidActivateNewSession: Event<void>;
+			readonly getNewSessionFocusTarget?: () => IOnboardingFocusTarget | undefined;
+		} = { onDidActivateNewSession: Event.None },
 	) { }
 
 	renderTemplate(container: HTMLElement): ISessionSectionTemplate {
@@ -2303,6 +2307,10 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		}
 		if (element.id === NEW_SESSION_SECTION_ID) {
 			template.container.classList.add('session-section-new-session');
+			template.elementDisposables.add(markOnboardingTarget(template.container, 'sessions.newSession.button', {
+				onDidActivate: this.onboardingOptions.onDidActivateNewSession,
+				focusTarget: this.onboardingOptions.getNewSessionFocusTarget?.(),
+			}));
 			template.keybindingHint.classList.add('visible');
 			const updateKeybinding = () => template.keybindingLabel.set(this.keybindingService.lookupKeybinding(NEW_SESSION_ACTION_ID, this.contextKeyService));
 			updateKeybinding();
@@ -2825,7 +2833,7 @@ class SessionsAccessibilityProvider {
 					let label = element.label;
 					switch (this.automationStatus?.read(reader)) {
 						case SessionStatus.NeedsInput:
-							label = localize('automationsNeedsInputAria', "{0}, run needs input", element.label);
+							label = localize('automationsNeedsInputAria', "{0}, run needs attention", element.label);
 							break;
 						case SessionStatus.InProgress:
 							label = localize('automationsActiveAria', "{0}, run in progress", element.label);
@@ -2927,7 +2935,7 @@ class SessionsAccessibilityProvider {
 			const status = this.options?.showUnreadInCollapsedSections?.read(reader) ? getSessionHeaderStatus(sessions, reader, this.options.sessionsWithFailingCI?.read(reader)) : undefined;
 			switch (status) {
 				case SessionHeaderStatus.NeedsInput:
-					return localize('sessionSectionNeedsInputAria', "{0}, {1}, session needs input", label, sessions.length);
+					return localize('sessionSectionNeedsInputAria', "{0}, {1}, session needs attention", label, sessions.length);
 				case SessionHeaderStatus.FailingCI:
 					return localize('sessionSectionFailingCIAria', "{0}, {1}, session has failing CI checks", label, sessions.length);
 				case SessionHeaderStatus.Unread:
@@ -3577,6 +3585,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	readonly onDidUpdate: Event<void> = this._onDidUpdate.event;
 	private readonly _onDidOpenSession = this._register(new Emitter<URI>());
 	readonly onDidOpenSession = this._onDidOpenSession.event;
+	private readonly _onDidActivateNewSession = this._register(new Emitter<void>());
 
 	private readonly _onDidChangeFindOpenState = this._register(new Emitter<boolean>());
 	readonly onDidChangeFindOpenState: Event<boolean> = this._onDidChangeFindOpenState.event;
@@ -3801,6 +3810,13 @@ export class SessionsList extends Disposable implements ISessionsList {
 			customizationMigrationsAvailable,
 			templateId,
 			rowClassName,
+			{
+				onDidActivateNewSession: this._onDidActivateNewSession.event,
+				getNewSessionFocusTarget: () => this.navigationList ? {
+					element: this.navigationList.getHTMLElement(),
+					focus: () => this.focusNavigationSection(NEW_SESSION_SECTION_ID),
+				} : undefined,
+			},
 		);
 		const sectionRenderer = createSectionRenderer(undefined, 'session-list-section-row');
 		const shortcutSectionRenderer = createSectionRenderer(SESSION_SHORTCUT_SECTION_TEMPLATE_ID, 'session-list-shortcut-row');
@@ -4744,6 +4760,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.navigationList.setSelection([]);
 		switch (section.id) {
 			case NEW_SESSION_SECTION_ID:
+				this._onDidActivateNewSession.fire();
 				logSessionsInteraction(this.telemetryService, 'newSession', 'sidebar');
 				await this.commandService.executeCommand(NEW_SESSION_ACTION_ID, sideBySide ? { toSide: true } : undefined);
 				if (this.options.navigationContainer && DOM.isAncestorOfActiveElement(this.options.navigationContainer)) {
@@ -6120,8 +6137,8 @@ function getComparisonGroupSummary(comparison: ISessionComparison, sessions: rea
 	const finished = statuses.filter(status => status === SessionStatus.Completed || status === SessionStatus.Error).length;
 	if (needsInput > 0) {
 		return needsInput === 1
-			? localize('comparisonGroup.oneAttemptNeedsInput', "Comparison · 1 attempt needs input")
-			: localize('comparisonGroup.attemptsNeedInput', "Comparison · {0} attempts need input", needsInput);
+			? localize('comparisonGroup.oneAttemptNeedsInput', "Comparison · 1 attempt needs attention")
+			: localize('comparisonGroup.attemptsNeedInput', "Comparison · {0} attempts need attention", needsInput);
 	}
 	if (working > 0) {
 		return working === 1
@@ -6136,7 +6153,7 @@ function getComparisonGroupSummary(comparison: ISessionComparison, sessions: rea
 			? sessions.find(session => isEqual(session.resource, judge.sessionResource))?.status.read(reader)
 			: sessions.find(session => isEqual(session.resource, judge.sessionResource))?.status.get();
 		if (judgeStatus === SessionStatus.NeedsInput) {
-			return localize('comparisonGroup.judgeNeedsInput', "Comparison · Judge needs input");
+			return localize('comparisonGroup.judgeNeedsInput', "Comparison · Judge needs attention");
 		}
 		if (judgeStatus === SessionStatus.Untitled || judgeStatus === SessionStatus.InProgress) {
 			return localize('comparisonGroup.reviewing', "Comparison · Reviewing attempts");

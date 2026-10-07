@@ -799,7 +799,11 @@ export function usageInfoToAutoModeResolution(usage: UsageInfo | undefined, reso
 	}
 	return {
 		kind: 'autoModeResolution',
-		resolved: { id: resolution.chosenModel, name: resolvedModelName ?? resolution.chosenModel },
+		resolved: {
+			id: resolution.chosenModel,
+			name: resolvedModelName ?? resolution.chosenModel,
+			...(resolution.selectionReason ? { reason: resolution.selectionReason } : {}),
+		},
 	};
 }
 

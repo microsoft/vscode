@@ -10,6 +10,7 @@ import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../base/common/lifecycle.js';
 import { isObject } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
+import { IAgentHostPeerChatPersistenceService } from './agentHostPeerChatStore.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import {
@@ -221,6 +222,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IAgentHostGitStateService private readonly _gitStateService: IAgentHostGitStateService,
 		@IAgentHostWorktreeIsolation worktree: IAgentHostWorktreeIsolation,
+		@IAgentHostPeerChatPersistenceService private readonly _chatPersistence: IAgentHostPeerChatPersistenceService,
 	) {
 		super();
 		this._worktree = worktree;
@@ -633,7 +635,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 					this.refreshBranchChangeset(parsed.ownerUri);
 					break;
 				case ChangesetKind.Session:
-					this.refreshSessionChangeset(session, 'fileEditTracker');
+					// Keep checkpoint-backed shell edits when a Git state refresh
+					// arrives after the end-of-turn checkpoint computation.
+					this.refreshSessionChangeset(session);
 					break;
 				case ChangesetKind.Uncommitted:
 					void this.computeUncommittedChangeset(session);
@@ -1571,7 +1575,10 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			return;
 		}
 		if (this._stateManager.setChatSummaryChanges(chat, summary)) {
-			this._persistSessionFlag(containingSessionUri(chat), getChatChangesSummaryMetadataKey(chat), JSON.stringify(summary));
+			const session = containingSessionUri(chat);
+			void this._chatPersistence.persistMetadata(URI.parse(session), URI.parse(session), {
+				[getChatChangesSummaryMetadataKey(chat)]: JSON.stringify(summary),
+			}).catch(error => this._logService.warn(`[AgentHostChangesetService] Failed to persist chat changes for ${chat}`, error));
 		}
 	}
 
@@ -1742,6 +1749,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		const changesetUri = staticChangesetUri(session, kind);
 		const stopWatch = StopWatch.create();
 		const summarySession = containingSessionUri(session);
+		// Completed checkpoints cannot include edits from an active turn. Check
+		// all chats when the queued computation starts so auto keeps live edits.
+		const useActiveTurnEdits = strategy === 'auto' && this._stateManager.hasActiveTurn(summarySession);
 		const summaryKind = getSummaryChangesetKind(this._stateManager.getSessionState(summarySession)?.config?.values);
 		const workingDirectories = kind === 'session' && !isAhpChatChannel(session)
 			? this._getSessionSummaryWorkingDirectories(session)
@@ -1820,7 +1830,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			} else if (kind === 'branch') {
 				branchResult = await this._computeBranchDiffs(session, ref.object, workingDirectories?.[0]);
 				diffs = branchResult.kind === 'ready' ? branchResult.diffs : undefined;
-			} else if (strategy !== 'fileEditTracker') {
+			} else if (strategy !== 'fileEditTracker' && !useActiveTurnEdits) {
 				if (isMultiRootSession(workingDirectories)) {
 					const result = await this._computeMultiFolderSessionDiffs(session, ref.object, workingDirectories!, strategy);
 					diffs = result.diffs;
@@ -1852,7 +1862,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				}
 				usedEditTrackerFallback = strategy === 'auto';
 				const folderScope = this._getTrackedEditFolderScope(session, workingDirectories);
-				const peerSources = isAhpChatChannel(session) ? [] : this._openPeerChatSources(session, strategy === 'fileEditTracker');
+				const peerSources = isAhpChatChannel(session) ? [] : this._openPeerChatSources(session, strategy === 'fileEditTracker' || useActiveTurnEdits);
 				try {
 					if (peerSources.length > 0) {
 						const sources: ISessionDiffSource[] = [

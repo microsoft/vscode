@@ -199,9 +199,9 @@ suite('openSessionLink', () => {
 				kind: 'session',
 				title: 'Implement rich links',
 				detail: 'Updating core',
-				status: { kind: 'warning', label: 'Needs input' },
-				tooltip: 'Implement rich links · Needs input',
-				ariaLabel: 'Agent session Implement rich links, Needs input',
+				status: { kind: 'warning', label: 'Needs attention' },
+				tooltip: 'Implement rich links · Needs attention',
+				ariaLabel: 'Agent session Implement rich links, Needs attention',
 			},
 			chat: {
 				kind: 'chat',

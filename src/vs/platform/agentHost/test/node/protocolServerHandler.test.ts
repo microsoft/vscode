@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { generateKeyPairSync, sign, type JsonWebKey } from 'crypto';
 import { EventEmitter } from 'events';
 import sodium from 'libsodium-wrappers';
@@ -18,7 +19,7 @@ import { readCodexSessionModel, withCodexSessionModel } from '../../common/meta/
 import { type IAgentHostFirstResponseDiagnostic } from '../../common/otel/agentHostTiming.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
@@ -67,7 +68,7 @@ import { AgentHostSessionUrisCapabilityMetaKey, supportsAgentHostSessionUris } f
 // ---- Mock helpers -----------------------------------------------------------
 
 class MockProtocolTransport implements IProtocolTransport {
-	constructor(readonly transportKind = AgentHostTransportKind.Unknown, readonly clientId?: string, readonly passive?: boolean) { }
+	constructor(readonly transportKind = AgentHostTransportKind.Unknown, readonly clientId?: string, readonly passive?: boolean, readonly clientConnectionKind?: AgentHostClientConnectionKind) { }
 	get relayClientId(): string | undefined { return this.clientId; }
 	get relayPassive(): boolean | undefined { return this.passive; }
 	relayAuthenticated: boolean | undefined;
@@ -1695,6 +1696,50 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
+	test('relay session listing awaits directory grants and removes ungranted projects', async () => {
+		const path = await mkdtemp(join(process.cwd(), '.build', 'relay-session-grants-'));
+		try {
+			const workspace = join(path, 'workspace');
+			const outside = join(path, 'outside');
+			await Promise.all([mkdir(workspace), mkdir(outside)]);
+			const relay = disposables.add(new MockProtocolServer());
+			const scopedHandler = disposables.add(new ProtocolServerHandler(
+				agentService, stateManager, relay,
+				{ allowExtensionMethods: false, relayRoots: [workspace] },
+				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+			));
+			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'listing-lane', false));
+			relay.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', { clientId: 'listing-lane', protocolVersions: [PROTOCOL_VERSION] }));
+			for (const [name, directories, project] of [
+				['allowed', [workspace], workspace],
+				['outside-project', [workspace], outside],
+				['mixed', [workspace, outside], workspace],
+				['missing', [join(workspace, 'missing')], workspace],
+				['empty', [], workspace],
+			] as const) {
+				agentService.listedSessions.push({
+					session: URI.parse(`copilot:/${name}`),
+					startTime: 1000,
+					modifiedTime: 1000,
+					workingDirectories: directories.map(directory => URI.file(directory)),
+					project: { uri: URI.file(project), displayName: name },
+				});
+			}
+			transport.simulateMessage(request(2, 'listSessions', {}));
+			await scopedHandler.whenIdle();
+			const response = findResponse(transport.sent, 2);
+			const items = response && hasKey(response, { result: true }) ? (response.result as ListSessionsResult).items : undefined;
+			assert.deepStrictEqual(items?.map(item => ({ resource: item.resource, project: item.project })), [
+				{ resource: 'copilot:/allowed', project: { uri: URI.file(workspace).toString(), displayName: 'allowed' } },
+				{ resource: 'copilot:/outside-project', project: undefined },
+			]);
+		} finally {
+			await rm(path, { recursive: true });
+		}
+	});
+
 	test('live-contract Mission Control carries subscriptions, streaming, tools, and approvals through the native handler', async () => {
 		const local = connectClient('local-session-creator');
 		local.simulateMessage(request(2, 'createSession', { channel: 'copilot:///local-session', provider: 'copilot', workingDirectories: [URI.file(process.cwd()).toString()] }));
@@ -2453,6 +2498,9 @@ suite('ProtocolServerHandler', () => {
 				{ id: 31, method: 'resourceRead', params: { uri: buildSessionDbUri('ahp-chat://broken', 'peer-tool', '/file', 'before') }, allowed: false },
 				{ id: 33, method: 'resourceRead', params: { uri: workerContent }, allowed: true },
 				{ id: 34, method: 'resourceWrite', params: { uri: URI.file(join(workspace, 'not-directory.txt', 'child')).toString(), data: 'invalid', encoding: ContentEncoding.Utf8 }, allowed: false },
+				{ id: 35, method: 'createSession', params: { channel: 'copilot:/granted-session', provider: 'copilot', workingDirectories: [URI.file(workspace).toString()] }, allowed: true },
+				{ id: 36, method: 'createSession', params: { channel: 'copilot:/denied-session', provider: 'copilot', workingDirectories: [URI.file(workspace).toString(), URI.file(outside).toString()] }, allowed: false },
+				{ id: 37, method: 'createSession', params: { channel: 'copilot:/empty-session', provider: 'copilot', workingDirectories: [] }, allowed: false },
 			];
 			for (const item of cases) {
 				transport.simulateMessage(request(item.id, item.method, { channel: ROOT_STATE_URI, ...item.params }));
@@ -2467,20 +2515,22 @@ suite('ProtocolServerHandler', () => {
 					const response = findResponse(transport.sent, item.id);
 					return { id: item.id, allowed: !!response && hasKey(response, { result: true }) };
 				}),
-				reads,
+				reads: reads.sort(),
 				writes,
 				terminalDirectories,
 				rejectedDirectories,
+				createdSessions: agentService.createSessionConfigs.map(config => config?.session?.toString()),
 				deniedCodes: cases.filter(item => !item.allowed).map(item => {
 					const response = findResponse(transport.sent, item.id);
 					return response && hasKey(response, { error: true }) ? response.error.code : undefined;
 				}),
 			}, {
 				results: cases.map(item => ({ id: item.id, allowed: item.allowed })),
-				reads: [cases[0].params.uri, cases[1].params.uri, dbContent, gitContent, gitHeadContent, pendingContent, peerContent, peerDbContent, workerContent],
+				reads: [cases[0].params.uri, cases[1].params.uri, dbContent, gitContent, gitHeadContent, pendingContent, peerContent, peerDbContent, workerContent].sort(),
 				writes: [URI.file(join(workspace, 'new.txt')).toString()],
 				terminalDirectories: [URI.file(workspace).toString()],
 				rejectedDirectories: ['Working directory is outside the host workspace grants'],
+				createdSessions: ['copilot:/granted-session'],
 				deniedCodes: cases.filter(item => !item.allowed).map(() => AhpErrorCodes.PermissionDenied),
 			});
 			for (const { id, data } of [{ id: 21, data: 'default preview' }, { id: 26, data: 'peer preview' }, { id: 33, data: 'worker preview' }]) {
@@ -2881,6 +2931,101 @@ suite('ProtocolServerHandler', () => {
 		}
 
 		assert.deepStrictEqual(agentService.createTerminalClientTypes, [AgentHostClientType.EditorWindow, AgentHostClientType.Unknown]);
+	});
+
+	for (const firstKind of ['notification', 'request'] as const) {
+		for (const secondKind of ['notification', 'request'] as const) {
+			test(`relay working-directory ${firstKind} stays ahead of a following ${secondKind}`, async () => {
+				stateManager.createSession({ ...makeSessionSummary(), workingDirectories: [] });
+				const relay = disposables.add(new MockProtocolServer());
+				const scopedHandler = disposables.add(new ProtocolServerHandler(
+					agentService, stateManager, relay,
+					{ relayResourceRoots: () => [process.cwd()] },
+					disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+					managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+				));
+				const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'ordered-relay', false));
+				transport.relayAuthenticated = true;
+				relay.simulateConnection(transport);
+				transport.simulateMessage(request(1, 'initialize', { clientId: 'ordered-relay', protocolVersions: [PROTOCOL_VERSION] }));
+				const actions = [
+					{ type: ActionType.SessionWorkingDirectorySet, directory: URI.file(process.cwd()).toString() },
+					{ type: ActionType.SessionWorkingDirectoryRemoved, directory: URI.file(process.cwd()).toString() },
+				];
+				for (const [index, kind] of [firstKind, secondKind].entries()) {
+					const params = { channel: sessionUri, clientSeq: index + 1, action: actions[index] };
+					transport.simulateMessage(kind === 'notification'
+						? notification('dispatchAction', params)
+						: request(index + 2, 'dispatchAction', params));
+				}
+				await scopedHandler.whenIdle();
+				assert.deepStrictEqual({
+					actions: agentService.handledActions,
+					workingDirectories: stateManager.getSessionState(sessionUri)?.workingDirectories,
+				}, {
+					actions,
+					workingDirectories: [],
+				});
+			});
+		}
+	}
+
+	test('relay dispatch queues are independent per client and release after dispatch completes', async () => {
+		stateManager.createSession(makeSessionSummary());
+		const relay = disposables.add(new MockProtocolServer());
+		const scopedHandler = disposables.add(new ProtocolServerHandler(
+			agentService, stateManager, relay,
+			{ relayResourceRoots: () => [process.cwd()] },
+			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+		));
+		const connect = (clientId: string) => {
+			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, clientId, false));
+			transport.relayAuthenticated = true;
+			relay.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', { clientId, protocolVersions: [PROTOCOL_VERSION] }));
+			return transport;
+		};
+		const first = connect('first-relay');
+		const second = connect('second-relay');
+		const started = new DeferredPromise<void>();
+		const barrier = new DeferredPromise<void>();
+		const secondDispatched = new DeferredPromise<void>();
+		agentService.dispatchAction = async (_channel, action) => {
+			if (action.type === ActionType.SessionWorkingDirectorySet) {
+				await started.complete();
+				await barrier.p;
+			}
+			agentService.handledActions.push(action);
+			if (action.type === ActionType.SessionTitleChanged && action.title === 'Second client') {
+				await secondDispatched.complete();
+			}
+		};
+		const actions = [
+			{ type: ActionType.SessionWorkingDirectorySet, directory: URI.file(process.cwd()).toString() },
+			{ type: ActionType.SessionTitleChanged, title: 'First client' },
+			{ type: ActionType.SessionTitleChanged, title: 'Second client' },
+		];
+		let beforeCompletion: typeof agentService.handledActions;
+		try {
+			for (const [index, action] of actions.slice(0, 2).entries()) {
+				first.simulateMessage(notification('dispatchAction', { channel: sessionUri, clientSeq: index + 1, action }));
+			}
+			await started.p;
+			second.simulateMessage(notification('dispatchAction', { channel: sessionUri, clientSeq: 1, action: actions[2] }));
+			await secondDispatched.p;
+			beforeCompletion = [...agentService.handledActions];
+		} finally {
+			await barrier.complete();
+			await scopedHandler.whenIdle();
+		}
+		assert.deepStrictEqual({
+			beforeCompletion,
+			afterCompletion: agentService.handledActions,
+		}, {
+			beforeCompletion: [actions[2]],
+			afterCompletion: [actions[2], actions[0], actions[1]],
+		});
 	});
 
 	test('session working-directory actions reach the agent service', () => {
@@ -3923,6 +4068,7 @@ suite('ProtocolServerHandler', () => {
 			'vscode.clientMachineId': 'client-machine-id',
 			'vscode.clientDevDeviceId': 'client-dev-device-id',
 		});
+
 		transport1.simulateMessage(notification('dispatchAction', {
 			channel: 'ahp-root://',
 			clientSeq: 1,
@@ -3960,6 +4106,57 @@ suite('ProtocolServerHandler', () => {
 			machineIds: ['client-machine-id', 'client-machine-id'],
 			devDeviceIds: ['client-dev-device-id', 'client-dev-device-id'],
 		});
+	});
+
+	test('attributes Mission Control session creation and reconnected actions to the trusted relay route', async () => {
+		const first = new MockProtocolTransport(AgentHostTransportKind.WebSocket, undefined, undefined, AgentHostClientConnectionKind.MissionControl);
+		server.simulateConnection(first);
+		const initialized = waitForResponse(first, 1);
+		first.simulateMessage(request(1, 'initialize', {
+			clientId: 'mission-control-client', protocolVersions: [PROTOCOL_VERSION], clientInfo: agentsWindowAgentHostClientInfo,
+			_meta: { 'vscode.clientConnectionKind': AgentHostClientConnectionKind.Local },
+		}));
+		await initialized;
+		const created = waitForResponse(first, 2);
+		first.simulateMessage(request(2, 'createSession', { channel: 'ahp-session:/mission-control-session', provider: 'copilot', workingDirectories: [URI.file(process.cwd()).toString()] }));
+		await created;
+		first.simulateClose();
+
+		const second = new MockProtocolTransport(AgentHostTransportKind.WebSocket, undefined, undefined, AgentHostClientConnectionKind.MissionControl);
+		server.simulateConnection(second);
+		const reconnected = waitForResponse(second, 3);
+		second.simulateMessage(request(3, 'reconnect', { clientId: 'mission-control-client', lastSeenServerSeq: stateManager.serverSeq, subscriptions: [] }));
+		await reconnected;
+		second.simulateMessage(notification('dispatchAction', { channel: 'ahp-root://', clientSeq: 1, action: { type: ActionType.RootConfigChanged, config: {} } }));
+		assert.deepStrictEqual({
+			creation: telemetryService.events.filter(event => event.eventName === 'agentHost.sessionCreated').map(event => event.data),
+			action: agentService.handledClientContexts[0],
+		}, {
+			creation: [{ provider: 'copilot', initiatorClientType: 'agents_window', initiatorConnectionKind: 'mission_control', initiatorTransportKind: 'websocket', hostLaunchKind: 'vscode_main_process' }],
+			action: { clientType: 'agents_window', connectionKind: 'mission_control', transportKind: 'websocket', hostLaunchKind: 'vscode_main_process' },
+		});
+	});
+
+	for (const connectionKind of [AgentHostClientConnectionKind.SSH, AgentHostClientConnectionKind.DevTunnel]) {
+		test(`attributes successful session creation to ${connectionKind}`, async () => {
+			const transport = connectClient('creator', undefined, agentsWindowAgentHostClientInfo, { 'vscode.clientConnectionKind': connectionKind }, AgentHostTransportKind.WebSocket);
+			const created = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'createSession', { channel: 'ahp-session:/session', provider: 'copilot' }));
+			await created;
+			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'agentHost.sessionCreated').map(event => event.data), [
+				{ provider: 'copilot', initiatorClientType: 'agents_window', initiatorConnectionKind: connectionKind, initiatorTransportKind: 'websocket', hostLaunchKind: 'vscode_main_process' },
+			]);
+		});
+	}
+
+	test('does not count failed session creation', async () => {
+		const createSession = sinon.stub(agentService, 'createSession').rejects(new Error('Provider failed'));
+		disposables.add(toDisposable(() => createSession.restore()));
+		const transport = connectClient('creator');
+		const created = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'createSession', { channel: 'ahp-session:/failed', provider: 'copilot' }));
+		await created;
+		assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'agentHost.sessionCreated'), []);
 	});
 
 	test('applies telemetry disablement before reporting a reconnected client', async () => {
