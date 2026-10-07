@@ -169,6 +169,7 @@ export interface IChatWidgetFixtureOptions {
 	readonly collapseCompletedResponses?: boolean;
 	readonly terminalToolsInThinking?: boolean;
 	readonly simpleTerminalCollapsible?: boolean;
+	readonly realTerminalOutput?: boolean;
 	readonly thinkingPhrases?: readonly string[];
 	readonly editingSession?: IChatEditingSession;
 }
@@ -205,7 +206,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 
 	const widgetHolder: { current: IChatWidget | undefined } = { current: undefined };
 	const hasSubagents = options.messages.some(message => message.assistant?.some(part => part.kind === 'subagent'));
-	const hasTerminalOutput = options.messages.some(message => message.assistant?.some(part => part.kind === 'terminal' && part.output));
+	const hasTerminalOutput = options.realTerminalOutput ?? options.messages.some(message => message.assistant?.some(part => part.kind === 'terminal' && part.output));
 
 	const fixtureToolData: IToolData = {
 		id: 'fixture.terminalTool',
