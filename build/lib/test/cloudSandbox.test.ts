@@ -631,6 +631,51 @@ suite('Cloud Sandbox install setup', () => {
 		assert.deepStrictEqual(results, Array.from({ length: 2 }, () => ({ status: 0, stdout: '', stderr: '' })));
 	});
 
+	test('startup continues under the selected Node executable without a manual second invocation', t => {
+		if (process.platform === 'win32') {
+			t.skip('The sandbox startup executable fixture uses a POSIX shell.');
+			return;
+		}
+		const root = fixture(t);
+		const npmDirectory = path.join(root, 'build/npm');
+		fs.mkdirSync(path.join(npmDirectory, 'gyp'), { recursive: true });
+		fs.mkdirSync(path.join(root, 'remote'));
+		fs.writeFileSync(path.join(root, 'remote/.npmrc'), '');
+		for (const file of ['package.json', 'package-lock.json']) {
+			fs.writeFileSync(path.join(npmDirectory, 'gyp', file), '{}');
+		}
+		const selectedNode = path.join(root, 'selected-node');
+		const quote = (value: string) => `'${value.replaceAll('\'', '\'\\\'\'')}'`;
+		fs.writeFileSync(selectedNode, `#!/bin/sh
+export SELECTED_NODE_EXECUTED=1
+exec ${quote(process.execPath)} "$@"
+`, { mode: 0o755 });
+		fs.copyFileSync(path.join(repositoryRoot, 'build/npm/cloudSandboxSetup.ts'), path.join(npmDirectory, 'cloudSandboxSetup.ts'));
+		fs.writeFileSync(path.join(npmDirectory, 'installStateHash.ts'), 'export const root = process.cwd();');
+		fs.writeFileSync(path.join(npmDirectory, 'cloudSandbox.ts'), `
+			export function isCloudSandbox() { return true; }
+			export function prepareCloudSandbox() { return ${JSON.stringify(selectedNode)}; }
+			export function raiseCloudSandboxFileLimit() {}
+		`);
+		fs.writeFileSync(path.join(npmDirectory, 'preinstall.ts'), `
+			import assert from 'node:assert/strict';
+			import fs from 'node:fs';
+			assert.equal(process.env.SELECTED_NODE_EXECUTED, '1');
+			assert.equal(process.env.PATH.split(${JSON.stringify(path.delimiter)})[0], ${JSON.stringify(root)});
+			fs.mkdirSync('build/npm/gyp/node_modules/.bin', { recursive: true });
+			fs.writeFileSync('build/npm/gyp/node_modules/.bin/node-gyp', '');
+		`);
+		const result = spawnSync(process.execPath, [path.join(npmDirectory, 'cloudSandboxSetup.ts')], {
+			cwd: root, encoding: 'utf8', timeout: 10_000,
+			env: { ...process.env, HOME: root, USERPROFILE: root, GITHUB_ENVIRONMENT_ID: 'environment' },
+		});
+		assert.deepStrictEqual({
+			status: result.status,
+			completed: fs.existsSync(path.join(root, '.build/cloud-sandbox-setup')),
+			lockRemaining: fs.existsSync(path.join(root, '.local/share/vscode-cloud-sandbox/setup.lock')),
+		}, { status: 0, completed: true, lockRemaining: false }, result.stdout + result.stderr);
+	});
+
 	for (const failFirst of [false, true]) {
 		test(`concurrent sessions serialize setup and reuse success (initial failure: ${failFirst})`, async t => {
 			const root = fixture(t);
