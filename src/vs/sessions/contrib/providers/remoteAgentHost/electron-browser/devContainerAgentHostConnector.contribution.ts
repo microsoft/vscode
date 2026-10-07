@@ -362,7 +362,7 @@ export class DevContainerAgentHostConnector implements IDevContainerAgentHostCon
 		return connection.devContainerService;
 	}
 
-	async createConnection(workspaceUri: URI, address: string, token: CancellationToken, options?: { readonly resume: boolean }): Promise<IDevContainerAgentHostConnection> {
+	async createConnection(workspaceUri: URI, address: string, token: CancellationToken, options?: { readonly resume: boolean; readonly sandboxEnabled?: boolean }): Promise<IDevContainerAgentHostConnection> {
 		ensureDevContainerAgentHostsEnabled(this._configurationService);
 		const sample = findDevContainerSample(workspaceUri);
 		const sourceEntry = getDevContainerSourceEntry(workspaceUri, this._remoteAgentHostService);
@@ -389,6 +389,7 @@ export class DevContainerAgentHostConnector implements IDevContainerAgentHostCon
 				...source,
 				name,
 				resume: options?.resume ?? true,
+				...(options?.sandboxEnabled !== undefined ? { sandboxEnabled: options.sandboxEnabled } : {}),
 			});
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
@@ -419,6 +420,7 @@ export class DevContainerAgentHostConnector implements IDevContainerAgentHostCon
 						...source,
 						name,
 						resume: false,
+						...(result.sandboxSupported === true ? { sandboxEnabled: true } : {}),
 					});
 					return {
 						connectionId: reconnectConnectionId,
@@ -458,6 +460,7 @@ export class DevContainerAgentHostConnector implements IDevContainerAgentHostCon
 				name: result.name,
 				hostWorkspaceFolder: result.hostWorkspaceFolder,
 				repository: result.repository,
+				sandboxSupported: result.sandboxSupported === true,
 				transportFactory,
 				transportDisposable: combinedDisposable(
 					outputWriter,

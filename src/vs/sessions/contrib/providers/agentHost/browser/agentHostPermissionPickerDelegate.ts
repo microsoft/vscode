@@ -51,6 +51,8 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 	readonly managedSandboxAllowsBypass: IObservable<boolean>;
 	readonly sandboxEnabled: IObservable<boolean | undefined>;
 	readonly sandboxConfirmedEnabled: IObservable<boolean | undefined>;
+	readonly sandboxDevContainer: IObservable<boolean>;
+	readonly sandboxDevContainerSupported: IObservable<boolean | undefined>;
 	readonly sandboxToggleSettingId: IObservable<string | undefined>;
 	readonly sandboxToggleConfigurationKeys = [
 		AgentHostCustomTerminalToolEnabledSettingId,
@@ -123,6 +125,12 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 			const session = this._session.read(reader);
 			return !!session && this._getAgentHostProvider(session.providerId)?.isDevContainerRequested?.(session.sessionId) === true;
 		});
+		this.sandboxDevContainer = isDevContainer;
+		this.sandboxDevContainerSupported = derived(this, reader => {
+			this._configChangedSignal.read(reader);
+			const session = this._session.read(reader);
+			return session && this._getAgentHostProvider(session.providerId)?.getDevContainerSandboxSupported?.(session.sessionId);
+		});
 		const sandboxPolicy = derived(this, reader => {
 			if (isDevContainer.read(reader)) {
 				// The source host's policy does not describe the pending container session.
@@ -171,6 +179,9 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 		});
 		this.sandboxEnabled = derived(this, reader => {
 			this._configChangedSignal.read(reader);
+			if (this.sandboxDevContainerSupported.read(reader) === false) {
+				return false;
+			}
 			const session = this._session.read(reader);
 			const provider = session && this._getProvider(session.providerId);
 			const value = session && provider?.getSessionConfig(session.sessionId)?.values[SessionConfigKey.SandboxEnabled];
@@ -223,6 +234,8 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 				globalEnabled: settingId !== undefined && isAgentSandboxEnabledValue(this._configurationService.getValue<AgentSandboxEnabledSettingValue>(settingId)),
 				managedEnabled: this.managedSandboxEnforced.get(),
 				allowsBypass: this.managedSandboxAllowsBypass.get(),
+				devContainer: this.sandboxDevContainer.get(),
+				devContainerSandboxSupported: this.sandboxDevContainerSupported.get(),
 			};
 		}, enabled => this.setSandboxEnabled(enabled));
 	}
@@ -232,6 +245,9 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 		const provider = session && this._getProvider(session.providerId);
 		if (!session || !provider || !this.isSandboxToggleApplicable()) {
 			throw new Error('Sandbox configuration is unavailable for this session');
+		}
+		if (enabled && this.sandboxDevContainerSupported.get() === false) {
+			throw new Error(localize('agentHostPermissionPicker.devContainerSandboxUnavailable', "Recreate the Dev Container with sandboxing enabled before enabling sandboxing for this session."));
 		}
 		const operation = provider.setSessionConfigValue(session.sessionId, SessionConfigKey.SandboxEnabled, enabled ? 'on' : 'off');
 		provider.trackSessionConfigOperation?.(session.sessionId, operation);
@@ -267,6 +283,14 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 	}
 
 	getPermissionLevelHover(level: ChatPermissionLevel, _meta: IPermissionLevelMeta): string {
+		const hover = this._getPermissionLevelHover(level);
+		if (this.sandboxDevContainer.get() && this.getSandboxToggle()?.checked) {
+			return localize('agentHostPermissionPicker.devContainerSandboxHover', "{0}\n\nThe Dev Container will start with relaxed Docker security options and access to /dev/net/tun so terminal commands can run in a nested sandbox.", hover);
+		}
+		return hover;
+	}
+
+	private _getPermissionLevelHover(level: ChatPermissionLevel): string {
 		const session = this._session.get();
 		const config = session && this._getProvider(session.providerId)?.getSessionConfig(session.sessionId);
 		const approvalProperty = getSessionApprovalProperty(config?.schema);

@@ -103,6 +103,30 @@ suite('AgentHostSandboxToggle', () => {
 		});
 	});
 
+	test('disables sandbox enablement for a container lacking the startup options, even with a global default', () => {
+		const writes: boolean[] = [];
+		const toggle = createAgentHostSandboxToggle(() => ({
+			provider: 'copilotcli', sessionEnabled: undefined, globalEnabled: true, managedEnabled: false, allowsBypass: false,
+			devContainerSandboxSupported: false,
+		}), enabled => writes.push(enabled))!;
+		toggle.onChange(true);
+		assert.deepStrictEqual({ checked: toggle.checked, disabled: toggle.disabled, writes, explainsRecovery: toggle.title?.includes('Recreate it with sandboxing enabled') }, {
+			checked: false, disabled: true, writes: [], explainsRecovery: true,
+		});
+	});
+
+	test('explains relaxed Docker isolation before starting a sandboxed Dev Container', () => {
+		const toggle = createAgentHostSandboxToggle(() => ({
+			provider: 'copilotcli', sessionEnabled: true, globalEnabled: false, managedEnabled: false, allowsBypass: false,
+			devContainer: true,
+		}), () => { })!;
+		assert.deepStrictEqual({
+			label: toggle.label, checked: toggle.checked, disabled: toggle.disabled,
+			explainsIsolation: toggle.title?.includes('relaxes the outer container\'s isolation'),
+			explainsTun: toggle.title?.includes('/dev/net/tun'),
+		}, { label: 'Sandboxing in Dev Container', checked: true, disabled: false, explainsIsolation: true, explainsTun: true });
+	});
+
 	test('change callback rechecks policy and forwards only permitted choices', () => {
 		const writes: boolean[] = [];
 		const state = { provider: 'copilotcli', sessionEnabled: undefined, globalEnabled: false, managedEnabled: false, allowsBypass: false };

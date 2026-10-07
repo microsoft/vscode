@@ -88,7 +88,7 @@ export class DevContainerAgentHostProtocol extends Disposable {
 				if (!isAbsolute(workspaceFolder) || workspaceFolder.includes('\0') || !config.name.trim() || config.name.includes('\0')) {
 					throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'workspaceFolder must be an absolute host path and name must be non-empty');
 				}
-				return this._connect({ connectionId: config.connectionId, name: config.name, ...(config.resume !== undefined ? { resume: config.resume } : {}), workspaceFolder });
+				return this._connect({ connectionId: config.connectionId, name: config.name, ...(config.resume !== undefined ? { resume: config.resume } : {}), ...(config.sandboxEnabled !== undefined ? { sandboxEnabled: config.sandboxEnabled } : {}), workspaceFolder });
 			}
 			case DevContainerDisconnectExtensionMethod: {
 				const { connectionId } = this._validate(devContainerConnectionParamsValidator, params);

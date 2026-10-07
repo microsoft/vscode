@@ -43,6 +43,7 @@ import { toRemoteSessionMessageMetadata, withRemoteSessionOrigin } from '../../.
 import { USE_WORKTREE_SETTING } from '../../../../../common/sessionConfig.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
 import { IDialogService, IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -5072,6 +5073,33 @@ suite('LocalAgentHostSessionsProvider', () => {
 		);
 		assert.strictEqual(connectCalls, 0);
 	});
+
+	for (const scenario of [
+		{ global: 'on', choice: 'default', expected: true },
+		{ global: 'off', choice: 'default', expected: false },
+		{ global: 'on', choice: 'off', expected: false },
+		{ global: 'off', choice: 'on', expected: true },
+	]) {
+		test(`passes the effective sandbox choice to Dev Container startup (${scenario.global}, ${scenario.choice})`, async () => {
+			let options: { readonly sandboxEnabled: boolean } | undefined;
+			const provider = createProvider(disposables, agentHost, undefined, {
+				configurationService: new TestConfigurationService({ [AgentSandboxSettingId.AgentSandboxEnabled]: scenario.global }),
+				devContainerAgentHostService: new class extends mock<IDevContainerAgentHostService>() {
+					override async isAvailable(): Promise<boolean> { return true; }
+					override async connect(_workspace: URI, _token: CancellationToken, requested?: { readonly sandboxEnabled: boolean }): Promise<never> {
+						options = requested;
+						throw new Error('Stopped after startup request');
+					}
+				}(),
+			});
+			const session = provider.createNewSession(URI.file('/sandbox-project'), provider.sessionTypes[0].id);
+			await waitForSessionConfig(provider, session.sessionId, config => !!config?.schema.properties[SessionConfigKey.SandboxEnabled] && provider.isDevContainerAvailable(session.sessionId));
+			provider.setDevContainerEnabled(session.sessionId, true);
+			await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.SandboxEnabled, scenario.choice);
+			await assert.rejects(provider.prepareNewSession(session.sessionId, CancellationToken.None, 'hello'), /Stopped after startup request/);
+			assert.deepStrictEqual(options, { sandboxEnabled: scenario.expected });
+		});
+	}
 
 	test('Dev Container preparation links to the workspace log and supports cancellation without committing the draft', async () => {
 		const connecting = new DeferredPromise<void>();

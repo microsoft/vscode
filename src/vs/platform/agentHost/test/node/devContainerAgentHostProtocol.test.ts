@@ -55,6 +55,12 @@ suite('DevContainerAgentHostProtocol', () => {
 		assert.deepStrictEqual(service.connects.map(config => hasKey(config, { sampleId: true })), [false]);
 	});
 
+	test('forwards sandbox startup choices through the remote protocol', async () => {
+		const { service, protocol } = setup();
+		await protocol.handleRequest(DevContainerConnectExtensionMethod, { ...config, sandboxEnabled: true });
+		assert.strictEqual(service.connects[0].sandboxEnabled, true);
+	});
+
 	test('isolates IDs and notifications between transports', async () => {
 		const { service, notifications, protocol } = setup();
 		const otherNotifications: object[] = [];

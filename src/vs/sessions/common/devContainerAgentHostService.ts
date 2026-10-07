@@ -45,6 +45,7 @@ export interface IDevContainerAgentHostConnection {
 	/** Native source path reported by the host that launched the container. */
 	readonly hostWorkspaceFolder?: string;
 	readonly repository?: IDevContainerRepository;
+	readonly sandboxSupported?: boolean;
 	readonly defaultDirectory?: string;
 }
 
@@ -52,7 +53,7 @@ export interface IDevContainerAgentHostConnection {
 export interface IDevContainerAgentHostConnector {
 	/** Whether the workspace has a supported configuration and Docker is available on its host. */
 	isAvailable(workspaceUri: URI): Promise<boolean>;
-	createConnection(workspaceUri: URI, address: string, token: CancellationToken, options?: { readonly resume: boolean }): Promise<IDevContainerAgentHostConnection>;
+	createConnection(workspaceUri: URI, address: string, token: CancellationToken, options?: { readonly resume: boolean; readonly sandboxEnabled?: boolean }): Promise<IDevContainerAgentHostConnection>;
 	stopContainer?(workspaceUri: URI): Promise<boolean>;
 	removeContainer?(workspaceUri: URI): Promise<boolean>;
 	showLog(workspaceUri: URI): Promise<void>;
@@ -76,7 +77,9 @@ export interface IDevContainerAgentHostService {
 	registerConnector(connector: IDevContainerAgentHostConnector): IDisposable;
 	/** Whether the registered connector can launch this workspace. */
 	isAvailable(workspaceUri: URI): Promise<boolean>;
-	connect(workspaceUri: URI, token: CancellationToken): Promise<IDevContainerAgentHostTarget>;
+	connect(workspaceUri: URI, token: CancellationToken, options?: { readonly sandboxEnabled: boolean }): Promise<IDevContainerAgentHostTarget>;
+	/** Known Docker support for a workspace's current container, if already connected. */
+	getSandboxSupported?(workspaceUri: URI): boolean | undefined;
 	showLog(workspaceUri: URI): Promise<void>;
 	disconnect(workspaceUri: URI): Promise<void>;
 }

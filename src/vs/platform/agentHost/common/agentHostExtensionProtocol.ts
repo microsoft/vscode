@@ -32,7 +32,7 @@ export const DevContainerCloseConnectionNotification = 'vscode/devContainers/clo
 export const DevContainerOutputNotification = 'vscode/devContainers/output';
 
 export const devContainerConnectionParamsValidator = vObj({ connectionId: vString() });
-export const devContainerConnectParamsValidator = vObj({ connectionId: vString(), workspaceFolder: vString(), name: vString(), resume: vOptionalProp(vBoolean()) });
+export const devContainerConnectParamsValidator = vObj({ connectionId: vString(), workspaceFolder: vString(), name: vString(), resume: vOptionalProp(vBoolean()), sandboxEnabled: vOptionalProp(vBoolean()) });
 export const devContainerWorkspaceParamsValidator = vObj({ workspaceFolder: vString() });
 export const devContainerRelayMessageValidator = vObj({ connectionId: vString(), data: vString() });
 export const devContainerConnectResultValidator = vObj({
@@ -41,6 +41,7 @@ export const devContainerConnectResultValidator = vObj({
 	name: vString(),
 	remoteWorkspaceFolder: vString(),
 	hostWorkspaceFolder: vOptionalProp(vString()),
+	sandboxSupported: vOptionalProp(vBoolean()),
 });
 
 export const CollectAgentHostDebugLogsExtensionMethod = 'vscode/collectAgentHostDebugLogs';

@@ -162,6 +162,7 @@ class TestProvider extends mock<RemoteAgentHostSessionsProvider>() {
 	status = RemoteAgentHostConnectionStatus.disconnected;
 	disposed = false;
 	clearConnectionCalls = 0;
+	sandboxSupported: boolean | undefined;
 
 	constructor(readonly config: IRemoteAgentHostSessionsProviderConfig) {
 		super();
@@ -175,6 +176,10 @@ class TestProvider extends mock<RemoteAgentHostSessionsProvider>() {
 
 	override setConnectionStatus(status: RemoteAgentHostConnectionStatus): void {
 		this.status = status;
+	}
+
+	override setDevContainerSandboxSupported(supported: boolean | undefined): void {
+		this.sandboxSupported = supported;
 	}
 
 	override clearConnection(): void {
@@ -217,6 +222,40 @@ class TestDevContainerAgentHostService extends DevContainerAgentHostService {
 
 suite('Dev Container Agent Host Service', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const sandboxSupported of [false, true]) {
+		test(`propagates sandbox startup options and gates reuse (supported: ${sandboxSupported})`, async () => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const remoteService = store.add(new TestRemoteAgentHostService());
+			const providersService = store.add(new TestSessionsProvidersService());
+			const service = store.add(new TestDevContainerAgentHostService(instantiationService, remoteService, providersService, store.add(new InMemoryStorageService())));
+			const source = URI.file('/sandbox-project');
+			const options: { readonly resume: boolean; readonly sandboxEnabled?: boolean }[] = [];
+			instantiationService.stubInstance(AgentHostProtocolClient, new TestAgentConnection());
+			store.add(service.registerConnector({
+				isAvailable: async () => true,
+				showLog: async () => { },
+				createConnection: async (_workspace, address, _token, requested) => {
+					options.push(requested!);
+					return { address, name: 'Project', workspaceUri: URI.from({ scheme: AGENT_HOST_SCHEME, authority: agentHostAuthority(address), path: '/workspace' }), transportFactory: () => undefined as never, sandboxSupported };
+				},
+				stopContainer: async () => true,
+			}));
+			const first = await service.connect(source, CancellationToken.None, { sandboxEnabled: false });
+			if (sandboxSupported) {
+				const reused = await service.connect(source, CancellationToken.None, { sandboxEnabled: true });
+				await reused.release();
+			} else {
+				await assert.rejects(service.connect(source, CancellationToken.None, { sandboxEnabled: true }), /Recreate the container with sandboxing enabled/);
+			}
+			assert.deepStrictEqual({
+				options,
+				knownSupport: service.getSandboxSupported(source),
+				providerSupport: service.provider?.sandboxSupported,
+			}, { options: [{ resume: true, sandboxEnabled: false }], knownSupport: sandboxSupported, providerSupport: sandboxSupported });
+			await first.release();
+		});
+	}
 
 	test('registers a runtime provider around a factory-owned Agent Host connection', async () => {
 		const instantiationService = store.add(new TestInstantiationService());

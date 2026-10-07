@@ -434,12 +434,16 @@ suite('Copilot PermissionPicker', () => {
 		const isResolving = observableValue('isResolving', true);
 		const sandboxEnabled = observableValue<boolean | undefined>('sandboxEnabled', undefined);
 		let sandboxApplicable = false;
+		const sandboxDevContainer = observableValue('sandboxDevContainer', false);
+		const sandboxDevContainerSupported = observableValue<boolean | undefined>('sandboxDevContainerSupported', undefined);
 		const delegate: IPermissionPickerDelegate = {
 			getPermissionLevelMeta: (_level, meta) => ({ ...meta, label: 'Manual permissions', icon: Codicon.key }),
 			setPermissionLevel: () => { },
 			setSandboxEnabled: () => { },
 			isResolving,
 			sandboxEnabled,
+			sandboxDevContainer,
+			sandboxDevContainerSupported,
 			isSandboxToggleApplicable: () => sandboxApplicable,
 			getSandboxToggleProvider: () => 'copilotcli',
 			getSandboxToggleSettingId: () => sandboxSettingId,
@@ -479,6 +483,28 @@ suite('Copilot PermissionPicker', () => {
 			sandboxIcon: 'codicon codicon-shield sessions-chat-sandbox-icon',
 			triggerAriaLabel: 'Pick Permission Level, Manual permissions (sandboxed)',
 		});
+		sandboxDevContainer.set(true, undefined);
+		assert.deepStrictEqual({
+			labels: Array.from(trigger.querySelectorAll('.sessions-chat-dropdown-label')).map(element => element.textContent),
+			presentation: picker.presentation,
+			toggleLabel: picker['_getSandboxStandaloneToggle']()?.label,
+		}, {
+			labels: ['Manual permissions', 'Sandbox-ready container'],
+			presentation: { label: 'Manual permissions (sandbox-ready container)', level: ChatPermissionLevel.Default, sandboxed: true },
+			toggleLabel: 'Sandboxing in Dev Container',
+		});
+		sandboxDevContainerSupported.set(false, undefined);
+		assert.deepStrictEqual({
+			labels: Array.from(trigger.querySelectorAll('.sessions-chat-dropdown-label')).map(element => element.textContent),
+			shield: trigger.querySelector('.sessions-chat-sandbox-icon'),
+			toggleDisabled: picker['_getSandboxStandaloneToggle']()?.disabled,
+			presentation: picker.presentation,
+		}, {
+			labels: ['Manual permissions'], shield: null, toggleDisabled: true,
+			presentation: { label: 'Manual permissions', level: ChatPermissionLevel.Default, sandboxed: false },
+		});
+		sandboxDevContainer.set(false, undefined);
+		sandboxDevContainerSupported.set(undefined, undefined);
 		sandboxEnabled.set(false, undefined);
 		assert.deepStrictEqual({
 			sandboxIcon: trigger.querySelector('.sessions-chat-sandbox-icon'),

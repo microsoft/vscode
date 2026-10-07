@@ -7,7 +7,7 @@ import type WebSocket from 'ws';
 import { spawn, ChildProcessWithoutNullStreams } from 'child_process';
 import { createHash, randomUUID } from 'crypto';
 import { EventEmitter as NodeEventEmitter } from 'events';
-import { lstat, rename, rm, stat, writeFile } from 'fs/promises';
+import { lstat, mkdtemp, rename, rm, stat, writeFile } from 'fs/promises';
 import { Duplex } from 'stream';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { CancellationError, getErrorMessage, isCancellationError } from '../../../base/common/errors.js';
@@ -52,6 +52,7 @@ import { prepareOwnerOnlyDirectory } from './localAgentHostMetadata.js';
 import { buildCreateDevContainerCacheCommand, buildLinkDevContainerServerCacheCommand, canAddDevContainerServerCacheMount, devContainerServerCacheMount, getDevContainerCliCachePath, getDevContainerServerCachePath } from './devContainerServerCache.js';
 import { DevContainerSample, devContainerSamples, devContainerSampleUri, getDevContainerSampleFolder, IDevContainerRepository, IDevContainerSampleSource } from '../common/devContainerSamples.js';
 import { IPreparedDevContainerSample, prepareDevContainerSample } from './devContainerSamples.js';
+import { isDevContainerSandboxSupported, prepareDevContainerSandboxConfiguration } from './devContainerSandbox.js';
 
 const LOG_PREFIX = '[DevContainerAgentHost]';
 const DETECT_MUSL_COMMAND = 'if [ -e /etc/alpine-release ]; then printf musl; elif command -v ldd >/dev/null 2>&1; then case "$(ldd --version 2>&1)" in *musl*) printf musl;; esac; fi';
@@ -266,16 +267,24 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				const prepared = await this._prepareSample(config.connectionId, sample, tokenSource.token, containerId => {
 					sampleContainerStarted = true;
 					registerContainer(containerId);
-				});
+				}, config.sandboxEnabled);
 				upResult = prepared;
 				workspaceSelector = prepared.cliArgs;
 				repository = prepared.repository;
 			} else {
 				workspaceSelector = config.workspaceFolder;
 				const cacheMountArgs = await this._getServerCacheMountArgs(config.connectionId, config.workspaceFolder, tokenSource.token);
+				if (config.sandboxEnabled) {
+					const directory = await mkdtemp(join(this._environmentService.tmpDir.fsPath, 'vscode-dev-container-sandbox-'));
+					store.add(toDisposable(() => {
+						void rm(directory, { recursive: true, force: true }).catch(error => this._logService.error(`${LOG_PREFIX} Failed to remove sandbox override`, error));
+					}));
+					const sandboxArgs = await this._prepareSandboxConfiguration(config.connectionId, config.workspaceFolder, directory, tokenSource.token);
+					workspaceSelector = ['--workspace-folder', config.workspaceFolder, ...sandboxArgs];
+				}
 				const up = await this._runDevContainer(
 					config.connectionId,
-					['up', ...DEV_CONTAINER_LOG_ARGS, '--workspace-folder', config.workspaceFolder, ...cacheMountArgs],
+					['up', ...DEV_CONTAINER_LOG_ARGS, ...typeof workspaceSelector === 'string' ? ['--workspace-folder', workspaceSelector] : workspaceSelector, ...cacheMountArgs],
 					tokenSource.token,
 				);
 				const parsed = parseDevContainerUpResult(up.stdout);
@@ -286,6 +295,10 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				registerContainer(upResult.containerId);
 			}
 
+			const sandboxSupported = await this._getSandboxSupported(config.connectionId, upResult.containerId, tokenSource.token);
+			if (config.sandboxEnabled && !sandboxSupported) {
+				throw new Error(localize('devContainerAgentHost.sandboxUnsupported', "This Dev Container was started without the Docker options required for sandboxing. Recreate the container with sandboxing enabled before starting this session."));
+			}
 			const exec = this._createExec(config.connectionId, workspaceSelector, tokenSource.token);
 			const safeDirectoryStopWatch = StopWatch.create(false);
 			try {
@@ -392,6 +405,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				address: `devcontainer:${upResult.containerId}`,
 				name: config.name,
 				remoteWorkspaceFolder: upResult.remoteWorkspaceFolder,
+				sandboxSupported,
 				...(repository ? { repository } : {}),
 				...(hasKey(config, { workspaceFolder: true }) ? { hostWorkspaceFolder: config.workspaceFolder } : {}),
 			};
@@ -411,7 +425,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		}
 	}
 
-	protected _prepareSample(connectionId: string, sample: DevContainerSample, token: CancellationToken, onContainerStarted: (containerId: string) => void): Promise<IPreparedDevContainerSample> {
+	protected _prepareSample(connectionId: string, sample: DevContainerSample, token: CancellationToken, onContainerStarted: (containerId: string) => void, sandboxEnabled?: boolean): Promise<IPreparedDevContainerSample> {
 		return prepareDevContainerSample(sample, join(this._environmentService.userDataPath, 'devContainerSamples', sample.id), {
 			onContainerStarted,
 			docker: async args => {
@@ -433,7 +447,23 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 					lifetime.dispose();
 				}
 			},
-		});
+		}, sandboxEnabled);
+	}
+
+	protected async _prepareSandboxConfiguration(connectionId: string, workspaceFolder: string, directory: string, token: CancellationToken): Promise<readonly string[]> {
+		const result = await this._runDevContainer(connectionId, ['read-configuration', ...DEV_CONTAINER_LOG_ARGS, '--workspace-folder', workspaceFolder], token);
+		if (result.code !== 0) {
+			throw new Error(`Cannot read Dev Container configuration for sandboxing (exit ${result.code}): ${result.stderr}`);
+		}
+		return prepareDevContainerSandboxConfiguration(result.stdout, directory);
+	}
+
+	protected async _getSandboxSupported(_connectionId: string, containerId: string, token: CancellationToken): Promise<boolean> {
+		const result = await this._runDocker(['inspect', '--format', '{{json .}}', containerId], token);
+		if (result.code !== 0) {
+			throw new Error(`Cannot inspect Dev Container sandbox options (exit ${result.code}): ${result.stderr}`);
+		}
+		return isDevContainerSandboxSupported(result.stdout);
 	}
 
 	private async _getServerCacheMountArgs(connectionId: string, workspaceFolder: string, token: CancellationToken): Promise<readonly string[]> {

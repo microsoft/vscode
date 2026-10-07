@@ -69,6 +69,8 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 	readonly localCommands: { readonly command: string; readonly args: readonly string[] }[] = [];
 	relayCommand: string | undefined;
 	failDevContainerUp = false;
+	sandboxSupported = false;
+	sandboxConfigurationPrepared = false;
 	endpointSessionId: string | undefined = NullTelemetryService.sessionId;
 	containerSessionIds: string[] = [NullTelemetryService.sessionId];
 	endpointPollsBeforeAvailable = 0;
@@ -211,7 +213,7 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 		if (args[0] === 'exec') {
 			return Promise.resolve({ stdout: '', stderr: '', code: 0 });
 		}
-		assert.deepStrictEqual(args, ['up', '--log-level', 'debug', '--workspace-folder', '/workspace', ...this.cacheMountConfigured ? [] : ['--mount', devContainerServerCacheMount]]);
+		assert.deepStrictEqual(args, ['up', '--log-level', 'debug', '--workspace-folder', '/workspace', ...this.sandboxConfigurationPrepared ? ['--config', '/workspace/.devcontainer/devcontainer.json', '--override-config', '/sandbox/devcontainer.json'] : [], ...this.cacheMountConfigured ? [] : ['--mount', devContainerServerCacheMount]]);
 		if (this.failDevContainerUp) {
 			return Promise.reject(new Error('devcontainer up failed'));
 		}
@@ -228,6 +230,15 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 			return Promise.reject(this.containerMountsError);
 		}
 		return Promise.resolve(this.containerMounts);
+	}
+
+	protected override async _prepareSandboxConfiguration(): Promise<readonly string[]> {
+		this.sandboxConfigurationPrepared = true;
+		return ['--config', '/workspace/.devcontainer/devcontainer.json', '--override-config', '/sandbox/devcontainer.json'];
+	}
+
+	protected override async _getSandboxSupported(): Promise<boolean> {
+		return this.sandboxSupported;
 	}
 
 	protected override _isHostDirectoryOwnedByCurrentUser(path: string): Promise<boolean> {
@@ -621,6 +632,7 @@ suite('Dev Container Agent Host Main Service', () => {
 				name: 'Project Dev Container',
 				remoteWorkspaceFolder: '/workspaces/project',
 				hostWorkspaceFolder: '/workspace',
+				sandboxSupported: false,
 			},
 			devContainerArgs: [
 				['read-configuration', '--log-level', 'debug', '--workspace-folder', '/workspace', '--include-merged-configuration'],
@@ -631,6 +643,25 @@ suite('Dev Container Agent Host Main Service', () => {
 			disposed: true,
 			output: ['connection:Starting Dev Container\n', 'connection:Using shared server cache at /vscode/vscode-server-oss/cli/servers/linux-x64\n'],
 		});
+	});
+
+	test('uses the sandbox override for startup and reports actual container support', async () => {
+		const service = store.add(new TestDevContainerAgentHostMainService('', false, undefined, process.env, true, [], new Set(), tmpdir()));
+		service.sandboxSupported = true;
+		const result = await service.connect({ connectionId: 'sandbox', workspaceFolder: '/workspace', name: 'Project', sandboxEnabled: true });
+		assert.deepStrictEqual({
+			sandboxSupported: result.sandboxSupported,
+			up: service.devContainerArgs.find(args => args[0] === 'up'),
+		}, {
+			sandboxSupported: true,
+			up: ['up', '--log-level', 'debug', '--workspace-folder', '/workspace', '--config', '/workspace/.devcontainer/devcontainer.json', '--override-config', '/sandbox/devcontainer.json', '--mount', devContainerServerCacheMount],
+		});
+	});
+
+	test('refuses to enable sandboxing when up reuses a container without the required options', async () => {
+		const service = store.add(new TestDevContainerAgentHostMainService('', false, undefined, process.env, true, [], new Set(), tmpdir()));
+		await assert.rejects(service.connect({ connectionId: 'sandbox', workspaceFolder: '/workspace', name: 'Project', sandboxEnabled: true }), /Recreate the container with sandboxing enabled/);
+		assert.strictEqual(service.relayCommand, undefined);
 	});
 
 	test('partitions the shared cache by container libc and configures it before running the CLI', async () => {

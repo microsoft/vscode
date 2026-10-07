@@ -19,6 +19,8 @@ export interface IDevContainerAgentHostWorkspaceConfig {
 	readonly name: string;
 	/** Whether this explicit connection may restart a container stopped after its sessions became idle. */
 	readonly resume?: boolean;
+	/** Configure the container to permit nested terminal sandboxing. */
+	readonly sandboxEnabled?: boolean;
 }
 
 export type IDevContainerAgentHostConfig = IDevContainerAgentHostWorkspaceConfig | (Omit<IDevContainerAgentHostWorkspaceConfig, 'workspaceFolder'> & IDevContainerSampleSource);
@@ -32,6 +34,8 @@ export interface IDevContainerAgentHostConnectResult {
 	/** Native source workspace path on the parent host, when reported by the launcher. */
 	readonly hostWorkspaceFolder?: string;
 	readonly repository?: IDevContainerRepository;
+	/** Whether the actual container has the Docker options needed for nested sandboxing. */
+	readonly sandboxSupported?: boolean;
 }
 
 /** One chunk of output from a Dev Container CLI process. */
