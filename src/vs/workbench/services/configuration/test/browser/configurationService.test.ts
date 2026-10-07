@@ -1200,6 +1200,23 @@ suite('WorkspaceContextService - Workspace Editing', () => {
 		assert.deepStrictEqual(actual_1.changed.map(c => c.uri.toString()), [testObject.getWorkspace().folders[0].uri.toString()]);
 	}));
 
+	test('add folder and change settings by writing into the file triggers configuration change event', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const target = sinon.spy();
+		disposables.add(testObject.onDidChangeConfiguration(target));
+		const folderC = joinPath(ROOT, 'c');
+		await fileService.createFolder(folderC);
+		const workspace = {
+			folders: [...testObject.getWorkspace().folders.map(f => ({ path: f.uri.path })), { path: folderC.path }],
+			settings: { 'workspaceEditing.testSetting': 'workspaceValue' }
+		};
+		await fileService.writeFile(testObject.getWorkspace().configuration!, VSBuffer.fromString(JSON.stringify(workspace, null, '\t')));
+		await testObject.reloadConfiguration();
+
+		assert.strictEqual(testObject.getWorkspace().folders.length, 3);
+		assert.strictEqual(testObject.getValue('workspaceEditing.testSetting'), 'workspaceValue');
+		assert.ok(target.args.some(args => (<IConfigurationChangeEvent>args[0]).affectsConfiguration('workspaceEditing.testSetting')), 'Should trigger a configuration change event for the workspace setting');
+	}));
+
 });
 
 suite('WorkspaceService - Initialization', () => {
