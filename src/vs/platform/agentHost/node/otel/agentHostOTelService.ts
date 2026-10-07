@@ -308,6 +308,10 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 		this._spansDbPath = join(environmentService.userDataPath, SPANS_DB_SUBPATH);
 	}
 
+	get enabled(): boolean {
+		return this._config.enabled;
+	}
+
 	get diagnosticsEnabled(): boolean {
 		const hasDestination = this._config.exporterType === 'console'
 			|| (this._config.exporterType === 'file' && !!this._config.filePath)
