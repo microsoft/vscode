@@ -4580,7 +4580,7 @@ suite('AutomationsWorkspacePicker', () => {
 		});
 	});
 
-	test('user workspace selections do not update recent workspaces', async () => {
+	test('user workspace selections do not update recent workspaces without history opt-in', async () => {
 		const providersService = disposables.add(new MockSessionsProvidersService());
 		const provider = createMockProvider('local-1');
 		const originalFolder = URI.file('/local/original');
@@ -4614,6 +4614,123 @@ suite('AutomationsWorkspacePicker', () => {
 		}, {
 			selected: proposedFolder.toString(),
 			storageUnchanged: true,
+		});
+	});
+
+	for (const checkedTarget of ['same-folder', 'other-folder', 'no-workspace', 'none'] as const) {
+		test(`history-only browsing preserves ${checkedTarget} selection through initialization and refresh`, async () => {
+			const providersService = disposables.add(new MockSessionsProvidersService());
+			const provider = { ...createMockProvider('local-1'), supportsLocalWorkspaces: true };
+			providersService.setProviders([provider]);
+			const originalFolder = URI.file('/local/original');
+			const browsedFolder = URI.file('/local/browsed');
+			const storage: IStorageService = disposables.add(new TestStorageService());
+			seedStorage(storage, [
+				{ uri: originalFolder, providerId: provider.id, checked: checkedTarget === 'other-folder' },
+				...(checkedTarget === 'same-folder' ? [{ uri: browsedFolder, providerId: provider.id, checked: true }] : []),
+			]);
+			if (checkedTarget === 'no-workspace') {
+				storage.store('sessions.noWorkspaceChecked', true, StorageScope.PROFILE, StorageTarget.MACHINE);
+			}
+			const originalRecents = storage.get(STORAGE_KEY_RECENT_WORKSPACES, StorageScope.PROFILE);
+			const picker = createTestPicker(
+				disposables, providersService, storage, undefined, TestAutomationsWorkspacePicker,
+				{ showOpenDialog: async () => [browsedFolder] }, undefined, undefined,
+				{ persistHistory: true, restoreFromSessions: false, canRestoreWorkspace: () => false },
+			) as TestAutomationsWorkspacePicker;
+			picker.setTargetModel(new AutomationIsolationModel({
+				isQuickChat: false, folderUri: undefined, isolationMode: undefined, branch: undefined,
+			}));
+			picker.setSelectedWorkspace(originalFolder, { fireEvent: false, persist: false });
+			providersService.setProviders([provider]);
+			await timeout(0);
+			picker.refreshAutomaticSelection();
+			const initializationUnchanged = originalRecents === storage.get(STORAGE_KEY_RECENT_WORKSPACES, StorageScope.PROFILE);
+
+			await picker.select('Select...');
+			const selectedFolder = picker.selectedFolderUri;
+			await picker.select('No workspace');
+			picker.clearSelection();
+			const afterUserPick = storage.get(STORAGE_KEY_RECENT_WORKSPACES, StorageScope.PROFILE);
+			picker.setSelectedWorkspace(URI.file('/local/resynced'), { fireEvent: false, persist: false });
+
+			assert.deepStrictEqual({
+				initializationUnchanged,
+				selectedFolder,
+				resyncUnchanged: afterUserPick === storage.get(STORAGE_KEY_RECENT_WORKSPACES, StorageScope.PROFILE),
+				noWorkspaceChecked: storage.getBoolean('sessions.noWorkspaceChecked', StorageScope.PROFILE, false),
+				recents: storage.getObject<{ uri: URI; providerId: string; checked: boolean }[]>(STORAGE_KEY_RECENT_WORKSPACES, StorageScope.PROFILE)?.map(entry => ({
+					uri: entry.uri.toString(), providerId: entry.providerId, checked: entry.checked,
+				})),
+			}, {
+				initializationUnchanged: true,
+				selectedFolder: browsedFolder,
+				resyncUnchanged: true,
+				noWorkspaceChecked: checkedTarget === 'no-workspace',
+				recents: [
+					{ uri: browsedFolder.toString(), providerId: provider.id, checked: checkedTarget === 'same-folder' },
+					{ uri: originalFolder.toString(), providerId: provider.id, checked: checkedTarget === 'other-folder' },
+				],
+			});
+		});
+	}
+
+	test('history opt-in does not change ordinary new-session selection persistence', () => {
+		const providersService = disposables.add(new MockSessionsProvidersService());
+		const provider = createMockProvider('local-1');
+		providersService.setProviders([provider]);
+		const storage: IStorageService = disposables.add(new TestStorageService());
+		const originalFolder = URI.file('/local/original');
+		const pickedFolder = URI.file('/local/picked');
+		seedStorage(storage, [{ uri: originalFolder, providerId: provider.id, checked: true }]);
+		const picker = createTestPicker(
+			disposables, providersService, storage, undefined, WorkspacePicker,
+			undefined, undefined, undefined, { persistHistory: true },
+		);
+
+		picker.setSelectedWorkspace(pickedFolder);
+
+		assert.deepStrictEqual(storage.getObject<{ uri: URI; providerId: string; checked: boolean }[]>(STORAGE_KEY_RECENT_WORKSPACES, StorageScope.PROFILE)?.map(entry => ({
+			uri: entry.uri.toString(), providerId: entry.providerId, checked: entry.checked,
+		})), [
+			{ uri: pickedFolder.toString(), providerId: provider.id, checked: true },
+			{ uri: originalFolder.toString(), providerId: provider.id, checked: false },
+		]);
+	});
+
+	test('history-only remote picks share recents without changing the checked provider in another picker', async () => {
+		const providersService = disposables.add(new MockSessionsProvidersService());
+		const firstProvider = createMockProvider('first');
+		const remoteProvider = createMockProvider('remote');
+		providersService.setProviders([firstProvider, remoteProvider]);
+		const folder = URI.parse('vscode-agent-host://ssh-host/home/project');
+		const storage = disposables.add(new TestStorageService());
+		seedStorage(storage, [{ uri: folder, providerId: firstProvider.id, checked: true }]);
+		const workspacesService = upcastPartial<IWorkspacesService>({
+			getRecentlyOpened: async () => ({ workspaces: [], files: [] }),
+			onDidChangeRecentlyOpened: Event.None,
+		});
+		const recents = await createResolvedRecentWorkspacesService(disposables, storage, providersService, workspacesService);
+		const newSessionPicker = createTestPicker(disposables, providersService, storage, undefined, WorkspacePicker, undefined, workspacesService, recents);
+		const automationPicker = createTestPicker(
+			disposables, providersService, storage, undefined, TestAutomationsWorkspacePicker,
+			undefined, workspacesService, recents,
+			{ persistHistory: true, restoreFromSessions: false, canRestoreWorkspace: () => false },
+		);
+
+		automationPicker.setSelectedWorkspace(folder, { providerId: remoteProvider.id });
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			automation: automationPicker.selectedResolved?.providerId,
+			newSession: newSessionPicker.selectedResolved?.providerId,
+			recents: recents.getRecentWorkspaces(false).map(entry => ({
+				uri: entry.workspace.folders[0].root, providerId: entry.providerId, checked: entry.checked,
+			})),
+		}, {
+			automation: remoteProvider.id,
+			newSession: firstProvider.id,
+			recents: [{ uri: folder, providerId: firstProvider.id, checked: true }],
 		});
 	});
 

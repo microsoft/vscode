@@ -94,8 +94,8 @@ export interface ISessionsRecentWorkspacesService {
 	 */
 	getRecentWorkspaces(includeVSCodeRecents?: boolean, collapseWorktrees?: boolean): IRecentWorkspace[];
 
-	/** Records `folderUri` as most-recently used; `checked` un-checks every other entry. */
-	addRecentWorkspace(folderUri: URI, providerId: string | undefined, checked: boolean): void;
+	/** Records `folderUri` as most-recently used; `true` selects it, `false` unchecks it, and `undefined` preserves the checked target. */
+	addRecentWorkspace(folderUri: URI, providerId: string | undefined, checked: boolean | undefined): void;
 
 	/** Removes `folderUri` from the recent list, wherever it came from (own history or VS Code's recents). */
 	removeRecentWorkspace(folderUri: URI, removeCollapsedWorktrees?: boolean): void;
@@ -201,9 +201,10 @@ export class SessionsRecentWorkspacesService extends Disposable implements ISess
 		return recents;
 	}
 
-	addRecentWorkspace(folderUri: URI, providerId: string | undefined, checked: boolean): void {
+	addRecentWorkspace(folderUri: URI, providerId: string | undefined, checked: boolean | undefined): void {
 		this._updateExcludedVSCodeFolders([folderUri], false);
 		const recents = this._getStoredRecentWorkspaces();
+		const existing = recents.find(p => this.uriIdentityService.extUri.isEqual(URI.revive(p.uri), folderUri));
 		const filtered = recents.map(p => {
 			// Remove the entry being re-added (it will go to the front)
 			if (this.uriIdentityService.extUri.isEqual(URI.revive(p.uri), folderUri)) {
@@ -216,8 +217,17 @@ export class SessionsRecentWorkspacesService extends Disposable implements ISess
 			return p;
 		}).filter((p): p is IStoredRecentWorkspace => p !== undefined);
 
-		const entry: IStoredRecentWorkspace = { uri: folderUri.toJSON(), providerId, checked };
+		const entry: IStoredRecentWorkspace = {
+			uri: folderUri.toJSON(),
+			providerId: checked === undefined && existing?.checked ? existing.providerId : providerId,
+			checked: checked ?? existing?.checked ?? false,
+		};
 		const updated = [entry, ...filtered].slice(0, MAX_RECENT_WORKSPACES);
+		const checkedEntry = checked === undefined ? filtered.find(p => p.checked) : undefined;
+		if (checkedEntry && !updated.includes(checkedEntry)) {
+			// History-only additions must not evict the remembered new-session target.
+			updated[updated.length - 1] = checkedEntry;
+		}
 		if (checked) {
 			this.storageService.remove(STORAGE_KEY_NO_WORKSPACE_CHECKED, StorageScope.PROFILE);
 		}

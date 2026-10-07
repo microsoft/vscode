@@ -1172,6 +1172,7 @@ export function renderForm(
 	// automation always matches the chip the picker displays.
 
 	const workspacePicker = disposables.add(instantiationService.createInstance(MobileAutomationsWorkspacePicker, {
+		persistHistory: true,
 		restoreFromSessions: false,
 		canRestoreWorkspace: () => false,
 		canSelectWorkspace: (folderUri, preferredProviderId) =>

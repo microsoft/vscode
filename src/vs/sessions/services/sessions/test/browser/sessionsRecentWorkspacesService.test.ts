@@ -109,6 +109,107 @@ suite('SessionsRecentWorkspacesService', () => {
 		}));
 	}
 
+	test('history-only additions preserve the checked workspace and its provider', () => {
+		const { service } = createHarness([]);
+		service.addRecentWorkspace(firstFolder, 'provider', true);
+		service.addRecentWorkspace(secondFolder, 'provider', undefined);
+		service.addRecentWorkspace(firstFolder, 'other-provider', undefined);
+
+		assert.deepStrictEqual(service.getRecentWorkspaces(false).map(entry => ({
+			uri: entry.workspace.uri, providerId: entry.providerId, checked: entry.checked,
+		})), [
+			{ uri: firstFolder, providerId: 'provider', checked: true },
+			{ uri: secondFolder, providerId: 'provider', checked: false },
+		]);
+	});
+
+	test('history-only additions retain the checked entry within the history capacity', () => {
+		const { service } = createHarness([]);
+		service.addRecentWorkspace(firstFolder, 'provider', true);
+		const folders = Array.from({ length: 12 }, (_, index) => URI.file(`/history-${index}`));
+		for (const folder of folders) {
+			service.addRecentWorkspace(folder, 'provider', undefined);
+		}
+
+		assert.deepStrictEqual(service.getRecentWorkspaces(false).map(entry => ({
+			uri: entry.workspace.uri, checked: entry.checked,
+		})), [
+			...folders.slice(-9).reverse().map(uri => ({ uri, checked: false })),
+			{ uri: firstFolder, checked: true },
+		]);
+	});
+
+	test('history-only additions preserve No workspace across service recreation', () => {
+		const { service, storage } = createHarness([]);
+		service.addRecentWorkspace(firstFolder, 'provider', true);
+		service.checkNoWorkspace();
+		service.addRecentWorkspace(secondFolder, 'provider', undefined);
+		const restored = createHarness([], new Map(), storage).service;
+
+		assert.deepStrictEqual({
+			noWorkspace: restored.isNoWorkspaceChecked(),
+			recents: snapshot(restored),
+		}, {
+			noWorkspace: true,
+			recents: [
+				{ uri: secondFolder.toString(), source: 'agents', checked: false },
+				{ uri: firstFolder.toString(), source: 'agents', checked: false },
+			],
+		});
+	});
+
+	test('history-only additions without a checked entry remain bounded and do not check one', () => {
+		const { service } = createHarness([]);
+		const folders = Array.from({ length: 12 }, (_, index) => URI.parse(`vscode-agent-host://ssh-host/history-${index}`));
+		for (const folder of folders) {
+			service.addRecentWorkspace(folder, 'provider', undefined);
+		}
+
+		assert.deepStrictEqual({
+			noWorkspace: service.isNoWorkspaceChecked(),
+			recents: service.getRecentWorkspaces(false).map(entry => ({
+				uri: entry.workspace.uri, providerId: entry.providerId, checked: entry.checked,
+			})),
+		}, {
+			noWorkspace: false,
+			recents: folders.slice(-10).reverse().map(uri => ({ uri, providerId: 'provider', checked: false })),
+		});
+	});
+
+	test('history-only additions do not undo explicit workspace dismissal', () => {
+		const { service } = createHarness([]);
+		service.addRecentWorkspace(firstFolder, 'provider', true);
+		service.removeRecentWorkspace(firstFolder);
+		service.addRecentWorkspace(firstFolder, 'provider', undefined);
+
+		assert.deepStrictEqual({
+			dismissed: service.isWorkspaceDismissed(firstFolder),
+			recents: snapshot(service),
+		}, { dismissed: true, recents: [] });
+	});
+
+	test('explicit checked flags retain their selection and uncheck semantics', () => {
+		const { service } = createHarness([]);
+		service.addRecentWorkspace(firstFolder, 'provider', true);
+		service.addRecentWorkspace(firstFolder, 'provider', false);
+		const unchecked = snapshot(service);
+		service.checkNoWorkspace();
+		service.addRecentWorkspace(secondFolder, 'provider', true);
+
+		assert.deepStrictEqual({
+			unchecked,
+			noWorkspace: service.isNoWorkspaceChecked(),
+			selected: snapshot(service),
+		}, {
+			unchecked: [{ uri: firstFolder.toString(), source: 'agents', checked: false }],
+			noWorkspace: false,
+			selected: [
+				{ uri: secondFolder.toString(), source: 'agents', checked: true },
+				{ uri: firstFolder.toString(), source: 'agents', checked: false },
+			],
+		});
+	});
+
 	test('expands JSONC multi-root history in order while preserving Agents history, filtering, and deduplication', async () => {
 		const harness = createHarness([
 			recentWorkspace(),

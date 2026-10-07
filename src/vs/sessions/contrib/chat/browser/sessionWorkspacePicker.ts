@@ -119,6 +119,8 @@ export interface IWorkspacePickerItem {
 }
 
 export interface IWorkspacePickerOptions {
+	/** Records workspace picks in shared history even when selection persistence is disabled. */
+	readonly persistHistory?: boolean;
 	readonly onUserSelection?: () => void;
 	readonly whenSelectionAccepted?: () => Promise<boolean>;
 	readonly canSelectWorkspace?: (folderUri: URI, providerId: string | undefined) => Promise<boolean>;
@@ -1337,8 +1339,9 @@ export class WorkspacePicker extends Disposable {
 		this._watchSelectedGitHubInfo();
 		this._preselectionSource = source;
 		this._selectionOrigin = origin;
-		if (persist && this._shouldPersistSelection()) {
-			this.recentWorkspacesService.addRecentWorkspace(folderUri, resolved?.providerId, true);
+		const persistSelection = this._shouldPersistSelection();
+		if (persist && (persistSelection || this.options.persistHistory)) {
+			this.recentWorkspacesService.addRecentWorkspace(folderUri, resolved?.providerId, persistSelection ? true : undefined);
 		}
 		this._updateTriggerLabel();
 		this._onDidChangeSelection.fire();
