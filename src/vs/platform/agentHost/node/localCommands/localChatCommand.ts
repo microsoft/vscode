@@ -5,17 +5,17 @@
 
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
+import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IAgentHostChatContributions } from '../../common/agentHostChatContributionsService.js';
-import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType, StateAction } from '../../common/state/sessionActions.js';
 import { isAhpChatChannel, parseRequiredSessionUriFromChatUri, ResponsePartKind, ToolCallStatus, ToolResultContentType, type ISessionWithDefaultChat, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
 import { IAgentHostLocalTurns } from '../agentHostLocalTurns.js';
+import { IAgentHostPeerChatPersistenceService } from '../agentHostPeerChatStore.js';
 import { IAgentHostSessionTitleController } from '../agentHostSessionTitleController.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
-import { persistSessionMetadata } from '../shared/persistSessionMetadata.js';
 
 /**
  * A just-started chat turn offered to the local-command dispatcher before it is
@@ -145,7 +145,7 @@ export class AgentHostLocalCommands extends Disposable {
 		@IAgentHostSessionTitleController private readonly _titleController: IAgentHostSessionTitleController,
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostTerminalManager private readonly _terminalManager: IAgentHostTerminalManager,
-		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
+		@IAgentHostPeerChatPersistenceService private readonly _chatPersistence: IAgentHostPeerChatPersistenceService,
 	) {
 		super();
 		const context: ILocalChatCommandContext = {
@@ -154,7 +154,11 @@ export class AgentHostLocalCommands extends Disposable {
 			dispatch: (channel, action) => this._stateManager.dispatchServerAction(channel, action),
 			getState: channel => this._stateManager.getSessionState(channel),
 			updateChatTitle: (session, chat, title) => this._stateManager.updateChatTitle(session, chat, title),
-			persistSessionFlag: (session, key, value) => persistSessionMetadata(this._sessionDataService, this._logService, session, key, value),
+			persistSessionFlag: (resource, key, value) => {
+				const owner = isAhpChatChannel(resource) ? parseRequiredSessionUriFromChatUri(resource) : resource;
+				void this._chatPersistence.persistMetadata(URI.parse(owner), URI.parse(resource), { [key]: value }).catch(error =>
+					this._logService.warn(`[AgentHostLocalCommands] Failed to persist ${key}`, error));
+			},
 			markTitleRenamed: (session, chat, title) => this._titleController.markTitleRenamed(session, chat, title),
 		};
 		this._commands = LocalChatCommandRegistry.createAll(context).map(command => this._register(command));

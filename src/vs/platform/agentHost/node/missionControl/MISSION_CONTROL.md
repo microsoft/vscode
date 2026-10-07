@@ -45,7 +45,9 @@ New native allocations negotiate standard `ahp-session` resources with a separat
 
 The [security requirements matrix](./MISSION_CONTROL_SECURITY_REQUIREMENTS.md) links each requirement to implementation and tests. The supported boundary includes canonical-owner sealed authentication, signed control requests, lane/client-ID binding, passive mutation refusal, locally known workspace/resource grants, minimal pre-authentication state, and host-wide root-configuration exclusion. Remote windows cannot overwrite the owning machine's root settings or managed permissions.
 
-Remote owner access includes native sessions, tools, and granted workspace resources. Credentials are purpose-separated sealed-box values before WPS publication; recipient keys come from authenticated MC HTTPS rather than being trusted solely because they appeared in the relay. Private sealing keys stay host-local. This does not provide per-client/session credential sponsorship, OS confinement, or conversation end-to-end encryption.
+Remote owner access includes native sessions, tools, and granted workspace resources. Credentials are sealed before WPS publication using either NaCl sealed boxes or HPKE (X25519 / HKDF-SHA256 / AES-256-GCM). The host advertises independent keys for each algorithm and for each of the `auth-token` and `mcp-auth-token` purposes, allowing clients such as iOS to use HPKE while sealed-box clients remain compatible. Recipient keys come from authenticated MC HTTPS rather than being trusted solely because they appeared in the relay. Private sealing keys stay host-local. This does not provide per-client/session credential sponsorship, OS confinement, or conversation end-to-end encryption.
+
+Both algorithms use the same `copilot-sealed.v1` envelope and purpose/resource checks. MC registration/heartbeat keys and AHP root metadata identify the same recipients. Unknown or wrong-purpose key IDs return `CONFLICT` so clients can refresh trusted keys, repeat the handshake, and seal again; malformed, undecryptable, or context-mismatched values return `INVALID_PARAMS`. Private key bytes and owned plaintext buffers are scrubbed on disposal or after use. HPKE opening uses non-extractable WebCrypto private keys; their native storage is managed by the runtime and has no explicit zeroization API.
 
 Native authoritative AHP actions and selected genuine SDK metadata are mirrored to MC for history and task title/activity. Approval/input metadata may contain commands, diffs, plans and questions. The SDK adapter excludes assistant/system messages, auth/configuration, subagents, per-token deltas and routine backing shutdown events; AHP mirroring still carries authoritative conversation content.
 
@@ -62,6 +64,19 @@ Host-wide diagnostic log channels are not advertised on Mission Control ingress.
 A single ordered publisher and bounded reassembly/queue/lane limits preserve live protocol ordering. Replacement connections have distinct generations; stale predecessor frames/closures are fenced. Request-form compatibility for `dispatchAction` and `unsubscribe` shares the native notification path and does not make arbitrary notifications successful requests.
 
 Independent AHP/SDK spools use durable ingest acknowledgements and bounded failure/truncation signals. Signed backfill replays retained AHP frames exactly. SDK sequence ranges are reserved durably before publication; native journal cursors advance only after durable SDK acknowledgement. AHP process-restart epochs/spool durability and complete pre-registration history remain deferred. Native titles are synchronized through the runtime naming API, not fabricated SDK events.
+
+## Diagnostics and telemetry
+
+Host registration, relay readiness/recovery, unexpected relay losses and failures are recorded locally in the **Agent Host** log (`agenthost.log`). Client connection milestones and failures use the window log (`renderer.log`). HTTP failures include status and, when available, a request ID and a bounded, credential-redacted server message. WPS rejections and acknowledgement timeouts are also logged. Routine successful heartbeats and individual frames are not logged.
+
+Usage telemetry uses the existing telemetry service and consent:
+
+- `agentHost.missionControlOperation` reports host configuration, registration, token/key refresh and relay outcomes, plus failed heartbeats/check-ins. `relayDisconnected` reports only unexpected loss of a ready relay, with its ready duration; explicit withdrawal and credential rotation are excluded. Operation failures at different boundaries may describe the same underlying failure and must not be summed as distinct outages.
+- `missionControlConnectionAttempt` reports user-local connection success, failure, caller cancellation and timeout across inventory validation and relay establishment. This distinguishes the retained-host service's end-to-end deadline from the cancellation it sends to the shared relay service.
+- `cloudSandboxConnectionOutcome`, `cloudSandboxFirstSessionRequest` and `cloudSandboxConnectionHealth` distinguish `environmentKind=user-local` from `cloud`. Outcomes cover logical connects and recovery, including failure and cancellation. Health aggregates ready connection time and unexpected disconnects separately for each kind, excluding initial retries and intentional teardown.
+- `agentHost.clientConnection`, `agentHost.sessionCreated` and existing action/turn events identify user-local relay traffic with the bounded connection kind `mission_control`, alongside `ssh` and `dev_tunnel`. The host knows its relay route even when another conforming client omits VS Code metadata. Session creation is counted after successful AHP allocation, not discovery or restoration.
+
+No server messages, response bodies, credentials, environment names or addresses are added to these telemetry events. Server error messages remain local. Host-wide logs are not exposed over Mission Control ingress.
 
 ## Implementation ownership
 

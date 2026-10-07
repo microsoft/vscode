@@ -178,18 +178,18 @@ suite('CopilotShellTools', () => {
 			getWindowsMxcFilesystemPolicy: async () => ({ readonlyPaths: [], readwritePaths: [] }),
 			getWindowsMxcEnvironment: async () => [],
 			buildWindowsMxcSandboxPayload: async (commandLine, policy, workingDirectory, containerName = 'vscode-terminal-sandbox', containment = 'process') => ({
-				version: policy.version,
-				containerId: containerName,
-				containment,
-				lifecycle: { destroyOnExit: true, preservePolicy: false },
-				process: { commandLine, cwd: workingDirectory, timeout: policy.timeoutMs ?? 0 },
+				command: commandLine,
+				containerName,
+				containment: { type: containment },
+				workingDirectory,
+				timeoutMs: policy.timeoutMs ?? 0,
 				filesystem: {
 					readwritePaths: [...(policy.filesystem?.readwritePaths ?? [])],
 					readonlyPaths: [...(policy.filesystem?.readonlyPaths ?? [])],
 					deniedPaths: [...(policy.filesystem?.deniedPaths ?? [])],
 				},
-				network: { defaultPolicy: policy.network?.allowOutbound ? 'allow' : 'block' },
-				ui: { disable: !(policy.ui?.allowWindows ?? false), clipboard: policy.ui?.clipboard ?? 'none', injection: policy.ui?.allowInputInjection ?? false },
+				network: policy.network,
+				ui: policy.ui,
 			}),
 		} satisfies ISandboxHelperService;
 	}
@@ -963,7 +963,7 @@ suite('CopilotShellTools', () => {
 		// Windows wraps via the MXC executable and carries the user command
 		// in the JSON config file referenced by the wrapper.
 		if (platform.isWindows) {
-			assert.ok(sentCommand.includes('wxc-exec'), `Expected the command to be wrapped by the MXC runtime. Sent: ${sentCommand}`);
+			assert.ok(sentCommand.includes('mxcMain.js'), `Expected the command to be wrapped by the MXC SDK runner. Sent: ${sentCommand}`);
 		} else {
 			assert.ok(sentCommand.includes('sandbox-runtime'), `Expected the command to be wrapped by the sandbox runtime. Sent: ${sentCommand}`);
 			assert.ok(sentCommand.includes('echo hello'), `Wrapped command should still contain the user command. Sent: ${sentCommand}`);

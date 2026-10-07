@@ -84,6 +84,7 @@ import { applyMcpServerEnablement } from '../../node/shared/mcpCustomizationCont
 import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { createLegacyChatMetadataPersistence } from './chatMetadataTestHelpers.js';
 import { MockAgent } from './mockAgent.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
 import { createTestAgentService, getTestAgentStateManager, registerTestAgentProvider } from './agentServiceTestUtils.js';
@@ -238,6 +239,7 @@ function createTestSideEffects(
 		[IAdditionalWorktreeLifecycleService, new AdditionalWorktreeLifecycleService(options.sessionDataService, worktreeIsolation)],
 		[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
 		[IAgentHostPeerChatPersistenceService, {
+			...createLegacyChatMetadataPersistence(options.sessionDataService),
 			_serviceBrand: undefined,
 			setRead: async () => { },
 			setArchived: async () => { },
@@ -2003,6 +2005,7 @@ suite('AgentSideEffects', () => {
 				eventName: 'agentHost.userMessageSent',
 				data: {
 					provider: 'mock',
+					isOtelEnabled: false,
 					hostLaunchKind: 'vscode_main_process',
 					initiatorClientId: 'client-agents',
 					initiatorClientType: 'agents_window',
@@ -4617,6 +4620,7 @@ suite('AgentSideEffects', () => {
 				eventName: 'agentHost.userMessageSent',
 				data: {
 					provider: 'mock',
+					isOtelEnabled: false,
 					hostLaunchKind: 'vscode_main_process',
 					initiatorClientId: undefined,
 					initiatorClientType: 'unknown',

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Emitter } from '../../../../../base/common/event.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -11,11 +12,12 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IWorkspace, IWorkspaceContextService, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspace, IWorkspaceContextService, IWorkspaceFoldersChangeEvent, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceFolderCreationData } from '../../../../../platform/workspaces/common/workspaces.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustUriInfo } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkspaceEditingService } from '../../../../../workbench/services/workspaces/common/workspaceEditing.js';
 import { IWorkspaceFolderLabelService } from '../../../../../workbench/services/workspaces/common/workspaceFolderLabelService.js';
+import { IHistoryService } from '../../../../../workbench/services/history/common/history.js';
 import { ChatInteractivity, IChat, ISessionFolder, ISessionGitRepository, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -166,11 +168,17 @@ suite('WorkspaceFolderManagementContribution', () => {
 		const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
 		const workspaceEditing = new TestWorkspaceEditing();
 		const workspaceTrust = new TestWorkspaceTrust();
+		const workspaceFoldersChanged = disposables.add(new Emitter<IWorkspaceFoldersChangeEvent>());
+		const historyService = new class extends mock<IHistoryService>() {
+			clearRecentlyOpenedCalls = 0;
+			override clearRecentlyOpened(): void { this.clearRecentlyOpenedCalls++; }
+		};
 
 		const sessionsService = new class extends mock<ISessionsService>() {
 			override readonly activeSession = activeSession;
 		};
 		const workspaceContextService = new class extends mock<IWorkspaceContextService>() {
+			override readonly onDidChangeWorkspaceFolders = workspaceFoldersChanged.event;
 			override getWorkspace(): IWorkspace {
 				return {
 					folders: workspaceEditing.folders.map((folder, index) =>
@@ -193,9 +201,10 @@ suite('WorkspaceFolderManagementContribution', () => {
 			workspaceEditing,
 			workspaceTrust,
 			folderLabel,
+			historyService,
 		));
 
-		return { contribution, activeSession, workspaceEditing, workspaceTrust, folderLabel };
+		return { contribution, activeSession, workspaceEditing, workspaceTrust, folderLabel, historyService, workspaceFoldersChanged };
 	}
 
 	// Lets the reactive autorun's queued folder-management work run to completion.
@@ -204,6 +213,20 @@ suite('WorkspaceFolderManagementContribution', () => {
 			await Promise.resolve();
 		}
 	}
+
+	test('clears recently opened editors when a previous workspace folder is removed', () => {
+		const { historyService, workspaceFoldersChanged } = createContribution();
+		const previous = new WorkspaceFolder({ uri: URI.file('/previous'), name: 'previous', index: 0 });
+		const current = new WorkspaceFolder({ uri: URI.file('/current'), name: 'current', index: 0 });
+
+		workspaceFoldersChanged.fire({ added: [previous], removed: [], changed: [] });
+		const afterAdd = historyService.clearRecentlyOpenedCalls;
+		workspaceFoldersChanged.fire({ added: [], removed: [], changed: [previous] });
+		const afterChange = historyService.clearRecentlyOpenedCalls;
+		workspaceFoldersChanged.fire({ added: [current], removed: [previous], changed: [] });
+
+		assert.deepStrictEqual([afterAdd, afterChange, historyService.clearRecentlyOpenedCalls], [0, 0, 1]);
+	});
 
 	test('mounts a session that does not require workspace trust without granting trust', async () => {
 		const { activeSession, workspaceEditing, workspaceTrust } = createContribution();

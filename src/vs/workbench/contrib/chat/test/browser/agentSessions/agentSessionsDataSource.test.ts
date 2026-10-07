@@ -145,7 +145,7 @@ suite('AgentSessionsDataSource', () => {
 				['unread', { ...Codicon.circleFilled, color: themeColorFromId('textLink.foreground') }],
 				['archived', { ...Codicon.passFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') }],
 				['in-progress', { ...Codicon.sessionInProgress, color: themeColorFromId('textLink.foreground') }],
-				['needs-input', { ...Codicon.circleFilled, color: themeColorFromId('list.warningForeground') }],
+				['needs-input', { ...Codicon.report, color: themeColorFromId('list.warningForeground') }],
 				['failed', { ...Codicon.error, color: themeColorFromId('errorForeground') }],
 			]);
 		});

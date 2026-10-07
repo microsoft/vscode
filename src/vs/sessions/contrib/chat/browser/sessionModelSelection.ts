@@ -245,6 +245,10 @@ export class SessionModelSelection extends Disposable implements ISessionModelSe
 			getBoundConversationKey: () => this._boundConversationKey,
 			getIntentHolder: () => this._conversation().intent,
 			applyModel: model => this._pushModelToProvider(model),
+			isModelAbsenceConclusive: modelId => {
+				const session = this._activeSession;
+				return !!session && this._activeProvider?.getModelsSnapshot(session.sessionId, modelId).desiredModelResolution.kind === 'unavailable';
+			},
 			// The provider owns Automation model preferences; the controller only selects the model.
 		};
 	}

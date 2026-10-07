@@ -18,13 +18,14 @@ import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IAccessibleViewService } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import type { IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
+import { AGENT_HOST_TERMINAL_MAX_CONTENT_LENGTH } from '../../../../../platform/agentHost/common/terminalConstants.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { ChatDropdownPillActionViewItem } from '../../../../browser/chatDropdownPill.js';
-import { IDetachedTerminalInstance, IDetachedXtermTerminal, ITerminalService } from '../../../terminal/browser/terminal.js';
+import { IDetachedTerminalInstance, IDetachedXtermTerminal, IDetachedXTermOptions, ITerminalService } from '../../../terminal/browser/terminal.js';
 import { SessionBackgroundShellsControl, type IChatBackgroundShellsSource } from '../../browser/sessionBackgroundShellsControl.js';
 import { sessionBackgroundShellsPillOptions } from '../../browser/sessionChatPillOptions.js';
 import type { ChatBackgroundShellOutput, IChatBackgroundShell } from '../../common/sessionChatPills.js';
@@ -161,10 +162,14 @@ suite('SessionBackgroundShellsControl', () => {
 	test('shows only the command above a fixed-height terminal that streams its output while details are shown', async () => {
 		const writes: string[] = [];
 		const sizes: string[] = [];
+		const rawXterm = { options: {} as { reflowCursorLine?: boolean } };
+		let scrollback: number | undefined;
 		instantiationService.stub(ITerminalService, new class extends mock<ITerminalService>() {
-			override async createDetachedTerminal(): Promise<IDetachedTerminalInstance> {
+			override async createDetachedTerminal(options: IDetachedXTermOptions): Promise<IDetachedTerminalInstance> {
+				scrollback = options.scrollback;
 				return new class extends mock<IDetachedTerminalInstance>() {
 					override readonly xterm = new class extends mock<IDetachedXtermTerminal>() {
+						readonly raw = rawXterm;
 						override write(data: string | Uint8Array): void { writes.push(String(data)); }
 						override resize(cols: number, rows: number): void { sizes.push(`${cols}x${rows}`); }
 					}();
@@ -209,7 +214,7 @@ suite('SessionBackgroundShellsControl', () => {
 		const onlyOutputShown = Array.from(details.children).every(child => child.classList.contains('chat-background-shell-output') || (isHTMLElement(child) && child.hidden));
 		hover?.disposable?.dispose();
 
-		assert.deepStrictEqual({ loading, running, exited, command, onlyOutputShown, writes, sizes, reused, released: details.querySelector('.chat-background-shell-output') === null }, {
+		assert.deepStrictEqual({ loading, running, exited, command, onlyOutputShown, writes, sizes, scrollback, reflowCursorLine: rawXterm.options.reflowCursorLine, reused, released: details.querySelector('.chat-background-shell-output') === null }, {
 			loading: { status: 'Running', empty: 'Waiting for output...' },
 			running: 'Running',
 			exited: 'Exited with code 0',
@@ -217,6 +222,8 @@ suite('SessionBackgroundShellsControl', () => {
 			onlyOutputShown: true,
 			writes: ['\x1b[?25l', 'step 1', '\r\nstep 2', '\x1b[2J\x1b[3J\x1b[Hstep 2'],
 			sizes: ['80x10'],
+			scrollback: AGENT_HOST_TERMINAL_MAX_CONTENT_LENGTH,
+			reflowCursorLine: true,
 			reused: true,
 			released: true,
 		});

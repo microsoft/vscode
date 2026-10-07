@@ -86,6 +86,15 @@ suite('SessionsListModelService', () => {
 		});
 	});
 
+	test('uses the report icon when a session needs attention', () => {
+		const icon = service.getStatusIcon(SessionStatus.NeedsInput, true, false);
+
+		assert.deepStrictEqual(
+			{ id: icon.id, color: icon.color?.id },
+			{ id: Codicon.report.id, color: 'list.warningForeground' },
+		);
+	});
+
 	// -- Pinning --
 
 	test('pinSession marks session as pinned', () => {

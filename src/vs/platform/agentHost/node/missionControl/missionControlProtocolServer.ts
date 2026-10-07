@@ -9,7 +9,8 @@ import { DeferredPromise, IntervalTimer, RunOnceScheduler } from '../../../../ba
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { hasKey } from '../../../../base/common/types.js';
-import { AgentHostClientConnectionKind } from '../../common/agentHostTelemetry.js';
+import { AgentHostClientConnectionKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
+import { getConnectionDiagnosticError } from '../../common/connectionDiagnostics.js';
 import type { AhpServerNotification, JsonRpcNotification, JsonRpcParseErrorResponse, JsonRpcRequest, JsonRpcResponse, ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { Reassembler } from '../../common/webPubSub/chunking.js';
@@ -43,7 +44,8 @@ function newConnectionGeneration(): number {
 }
 
 class MissionControlLane extends Disposable implements IProtocolTransport {
-	readonly clientConnectionKind = AgentHostClientConnectionKind.WebPubSub;
+	readonly clientConnectionKind = AgentHostClientConnectionKind.MissionControl;
+	readonly transportKind = AgentHostTransportKind.WebSocket;
 	get relayClientId(): string { return this.clientId; }
 	get relayPassive(): boolean { return this.passive; }
 	get relayAuthenticated(): boolean | undefined { return this._authentication?.authenticated; }
@@ -154,7 +156,10 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 	private readonly _lanes = this._register(new DisposableMap<string, MissionControlLane>());
 	private readonly _reassembler = new Reassembler();
 	private readonly _sweep = this._register(new IntervalTimer());
-	private readonly _ackTimeout = this._register(new RunOnceScheduler(() => this.dispose(), 30_000));
+	private readonly _ackTimeout = this._register(new RunOnceScheduler(() => {
+		this.dispose();
+		this._onError(new Error('Mission Control WPS acknowledgement timed out'));
+	}, 30_000));
 	private readonly _ready = new DeferredPromise<void>();
 	private readonly _pending = new Set<number>();
 	private readonly _outbound: { ackId: number; frame: string; mirror?: boolean }[] = [];
@@ -339,7 +344,7 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 				const pending = this._pending.delete(id);
 				if ((group || pending) && fields.success !== true && !(pending && (fields.error as { name?: string } | undefined)?.name === 'Duplicate')) {
 					this.dispose();
-					throw new Error('Mission Control WPS operation rejected');
+					throw new Error(`Mission Control WPS operation rejected${fields.error ? `: ${getConnectionDiagnosticError(fields.error).message}` : ''}`);
 				}
 				if (group && group !== this._bootstrap.groups.control && group !== this._bootstrap.groups.ingest_ack) {
 					const clientId = parseGroupName(group).scope === 'client' ? group.split('.')[5] : undefined;

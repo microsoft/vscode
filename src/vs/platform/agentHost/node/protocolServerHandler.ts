@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposableTimeout, raceCancellationError, raceTimeout } from '../../../base/common/async.js';
+import { disposableTimeout, raceCancellationError, raceTimeout, SequencerByKey } from '../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
-import { lstatSync, realpathSync, statSync } from 'fs';
+import { lstat, realpath, stat } from 'fs/promises';
 import { parseSessionDbUri } from '../common/sessionDbUri.js';
 import { parsePendingEditContentUri } from '../common/pendingEditContentUri.js';
 import { parseGitBlobUri } from './gitDiffContent.js';
@@ -16,7 +16,7 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { isJsonRpcResponse } from '../../../base/common/jsonRpcProtocol.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
-import { hasKey } from '../../../base/common/types.js';
+import { hasKey, isDefined } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
@@ -403,6 +403,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	 * {@link IClientRecord}.
 	 */
 	private readonly _clients = new Map<string, IClientRecord>();
+	private readonly _relayClientDispatchSequencer = new SequencerByKey<string>();
 	/**
 	 * State channels a client is subscribed to but has never been given a
 	 * baseline snapshot for by THIS server process, keyed by clientId.
@@ -606,7 +607,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 						if (client) {
 							const pending = this._dispatchClientAction(client, msg.params);
 							if (pending) {
-								pending.catch(error => this._logService.error('[ProtocolServer] Notification dispatch failed', error));
+								this._trackRequest(pending).catch(error => this._logService.error('[ProtocolServer] Notification dispatch failed', error));
 							}
 						}
 						break;
@@ -1541,7 +1542,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	private _createClientTelemetryContext(clientInfo: Implementation | undefined, meta: Record<string, unknown> | undefined, transport: IProtocolTransport, fallbackConnectionKind = AgentHostClientConnectionKind.Unknown): IAgentHostClientTelemetryContext {
-		const connectionKind = readClientConnectionKind(meta);
+		const connectionKind = transport.clientConnectionKind ?? readClientConnectionKind(meta);
 		const machineId = readClientMachineId(meta);
 		const devDeviceId = readClientDevDeviceId(meta);
 		return {
@@ -1718,10 +1719,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		},
 		createSession: async (_client, params) => {
 			this._requireRelayMutation(_client);
-			if (_client.transport.relayClientId !== undefined && this._config.relayResourceRoots && (!params.workingDirectories?.length || !params.workingDirectories.every(directory => this._isGrantedRelayResource(directory, false)))) {
+			if (_client.transport.relayClientId !== undefined && this._config.relayResourceRoots && (!params.workingDirectories?.length || !(await Promise.all(params.workingDirectories.map(directory => this._isGrantedRelayResource(directory, false)))).every(Boolean))) {
 				throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'Session creation requires a host workspace grant');
 			}
-			if (this._config.relayRoots && (!params.workingDirectories?.length || !params.workingDirectories.every(directory => this._isGrantedRelayDirectory(directory)))) {
+			if (this._config.relayRoots && (!params.workingDirectories?.length || !(await Promise.all(params.workingDirectories.map(directory => this._isGrantedRelayDirectory(directory)))).every(Boolean))) {
 				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Working directory is not an explicitly granted project root');
 			}
 			let createdSession: URI;
@@ -1750,6 +1751,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			if (createdSession.toString() !== URI.parse(params.channel).toString()) {
 				this._logService.warn(`[ProtocolServer] createSession: provider returned URI ${createdSession.toString()} but client requested ${params.channel}`);
 			}
+			this._telemetryReporter.sessionCreated(this._stateManager.getSessionSummary(createdSession.toString())?.provider ?? params.provider, _client.telemetryContext);
 			return null;
 		},
 		disposeSession: async (_client, params) => {
@@ -1814,54 +1816,60 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		},
 		listSessions: async (client) => {
 			const sessions = await this._agentService.listSessions();
-			const items = sessions.filter(s => this._isSessionVisible(client, s.session.toString())
-				&& (!this._config.relayRoots || (s.workingDirectories?.length && s.workingDirectories.every(directory => this._isGrantedRelayDirectory(directory.toString()))))).map(s => {
-					const provider = s.provider ?? AgentSession.provider(s.session);
-					if (!provider) {
-						throw new Error(`Agent session URI has no provider scheme: ${s.session.toString()}`);
+			const visible = await Promise.all(sessions.map(async s => this._isSessionVisible(client, s.session.toString())
+				&& (!this._config.relayRoots || (s.workingDirectories?.length && (await Promise.all(s.workingDirectories.map(directory => this._isGrantedRelayDirectory(directory.toString())))).every(Boolean)))));
+			const items = sessions.filter((_, index) => visible[index]).map(s => {
+				const provider = s.provider ?? AgentSession.provider(s.session);
+				if (!provider) {
+					throw new Error(`Agent session URI has no provider scheme: ${s.session.toString()}`);
+				}
+				return {
+					resource: s.session.toString(),
+					provider,
+					title: s.summary ?? 'Session',
+					status: s.status ?? SessionStatus.Idle,
+					activity: s.activity,
+					createdAt: new Date(s.startTime).toISOString(),
+					modifiedAt: new Date(s.modifiedTime).toISOString(),
+					...(s.project ? { project: { uri: s.project.uri.toString(), displayName: s.project.displayName } } : {}),
+					workingDirectories: s.workingDirectories?.map(d => d.toString()),
+					changes: s.changes,
+					chats: s.chats?.map(chat => ({
+						resource: chat.chat.toString(),
+						title: chat.summary ?? '',
+						origin: chat.origin,
+						...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
+						// Forward the chat's activity bits so clients can present them without subscribing.
+						...(chat.status !== undefined || chat.isRead !== undefined ? {
+							status: withSessionStatusFlag(
+								withSessionStatusFlag(chat.status ?? SessionStatus.Idle, SessionStatus.IsArchived, chat.archived === true),
+								SessionStatus.IsRead,
+								chat.isRead ?? (chat.status !== undefined && (chat.status & SessionStatus.IsRead) === SessionStatus.IsRead),
+							),
+						} : {}),
+						...(chat.archived === true ? { archived: true } : {}),
+						...(chat.changes !== undefined ? { changes: chat.changes } : {}),
+					})),
+					defaultChat: s.chats?.find(chat => chat.kind === 'default')?.chat.toString(),
+					// `_meta` carries durable host provenance, including session kind
+					// and provider-native discovery provenance.
+					...(s._meta !== undefined ? { _meta: s._meta } : {}),
+				} satisfies ListSessionsResult['items'][number];
+			});
+			const prepared = this._stateManager.prepareSessionSummariesForListing(items);
+			if (this._config.relayRoots) {
+				const granted = await Promise.all(prepared.map(async item => {
+					if (!item.workingDirectories?.length || !(await Promise.all(item.workingDirectories.map(directory => this._isGrantedRelayDirectory(directory)))).every(Boolean)) {
+						return undefined;
 					}
 					return {
-						resource: s.session.toString(),
-						provider,
-						title: s.summary ?? 'Session',
-						status: s.status ?? SessionStatus.Idle,
-						activity: s.activity,
-						createdAt: new Date(s.startTime).toISOString(),
-						modifiedAt: new Date(s.modifiedTime).toISOString(),
-						...(s.project ? { project: { uri: s.project.uri.toString(), displayName: s.project.displayName } } : {}),
-						workingDirectories: s.workingDirectories?.map(d => d.toString()),
-						changes: s.changes,
-						chats: s.chats?.map(chat => ({
-							resource: chat.chat.toString(),
-							title: chat.summary ?? '',
-							origin: chat.origin,
-							...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
-							...(chat.isRead !== undefined ? {
-								status: withSessionStatusFlag(
-									withSessionStatusFlag(SessionStatus.Idle, SessionStatus.IsArchived, chat.archived === true),
-									SessionStatus.IsRead,
-									chat.isRead,
-								),
-							} : {}),
-							...(chat.archived === true ? { archived: true } : {}),
-							...(chat.changes !== undefined ? { changes: chat.changes } : {}),
-						})),
-						defaultChat: s.chats?.find(chat => chat.kind === 'default')?.chat.toString(),
-						// `_meta` carries durable host provenance, including session kind
-						// and provider-native discovery provenance.
-						...(s._meta !== undefined ? { _meta: s._meta } : {}),
-					} satisfies ListSessionsResult['items'][number];
-				});
-			const prepared = this._stateManager.prepareSessionSummariesForListing(items);
-			return {
-				items: this._config.relayRoots
-					? prepared.filter(item => item.workingDirectories?.length && item.workingDirectories.every(directory => this._isGrantedRelayDirectory(directory)))
-						.map(item => ({
-							...item,
-							...(item.project && !this._isGrantedRelayDirectory(item.project.uri) ? { project: undefined } : {}),
-						}))
-					: prepared,
-			};
+						...item,
+						...(item.project && !await this._isGrantedRelayDirectory(item.project.uri) ? { project: undefined } : {}),
+					};
+				}));
+				return { items: granted.filter(isDefined) };
+			}
+			return { items: prepared };
 		},
 		listAutomationTriggerDefinitions: async (_client, params) => {
 			return this._agentService.listAutomationTriggerDefinitions(params);
@@ -2009,13 +2017,23 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			client.transport.send(jsonRpcError(id, AHP_AUTH_REQUIRED, 'Relay identity authentication is required'));
 			return;
 		}
-		try {
-			this._requireRelayResourceAccess(client, method, params);
-		} catch (error) {
-			this._logService.warn('[ProtocolServer] Relay resource access denied', error);
-			client.transport.send(jsonRpcErrorFrom(id, error));
+		if (client.transport.relayClientId !== undefined && this._config.relayResourceRoots && method !== 'dispatchAction') {
+			this._trackRequest(this._requireRelayResourceAccess(client, method, params)).then(() => {
+				if (!client.disposables.isDisposed) {
+					this._handleAuthorizedRequest(client, method, params, id);
+				}
+			}, error => {
+				this._logService.warn('[ProtocolServer] Relay resource access denied', error);
+				if (!client.disposables.isDisposed) {
+					client.transport.send(jsonRpcErrorFrom(id, error));
+				}
+			});
 			return;
 		}
+		this._handleAuthorizedRequest(client, method, params, id);
+	}
+
+	private _handleAuthorizedRequest(client: IConnectedClient, method: string, params: unknown, id: number): void {
 		if (method === 'dispatchAction' || method === 'unsubscribe') {
 			this._trackRequest(this._handleLegacyNotificationRequest(client, method, params)).then(
 				result => {
@@ -2104,7 +2122,14 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		client.transport.send(jsonRpcError(id, JsonRpcErrorCodes.MethodNotFound, `Method not found: ${method}`));
 	}
 
-	private _dispatchClientAction(client: IConnectedClient, params: DispatchActionParams): void | Promise<void> {
+	private _dispatchClientAction(client: IConnectedClient, params: DispatchActionParams): Promise<void> {
+		if (client.transport.relayClientId !== undefined && this._config.relayResourceRoots) {
+			return this._relayClientDispatchSequencer.queue(client.clientId, () => this._dispatchClientActionNow(client, params));
+		}
+		return this._dispatchClientActionNow(client, params);
+	}
+
+	private async _dispatchClientActionNow(client: IConnectedClient, params: DispatchActionParams): Promise<void> {
 		this._logService.trace(`[ProtocolServer] dispatchAction: ${JSON.stringify(params.action.type)}`);
 		const action = params.action;
 		const origin = { clientId: client.clientId, clientSeq: params.clientSeq };
@@ -2122,13 +2147,16 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		}
 		if (!rejection && client.transport.relayClientId !== undefined && this._config.relayResourceRoots && action.type === ActionType.SessionWorkingDirectorySet) {
 			try {
-				if (!this._isGrantedRelayResource(action.directory, false)) {
+				if (!await this._isGrantedRelayResource(action.directory, false)) {
 					rejection = 'Working directory is outside the host workspace grants';
 				}
 			} catch (error) {
 				this._logService.warn('[ProtocolServer] Invalid relay working-directory resource', error);
 				rejection = 'Working-directory resource could not be authorized';
 			}
+		}
+		if (client.disposables.isDisposed) {
+			return;
 		}
 		if (rejection) {
 			this._logService.warn(`[ProtocolServer] rejecting client action: ${rejection}`);
@@ -2198,7 +2226,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		}
 	}
 
-	private _requireRelayResourceAccess(client: IConnectedClient, method: string, params: unknown): void {
+	private async _requireRelayResourceAccess(client: IConnectedClient, method: string, params: unknown): Promise<void> {
 		if (client.transport.relayClientId === undefined || !this._config.relayResourceRoots) {
 			return;
 		}
@@ -2208,13 +2236,13 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		for (const field of fields) {
 			const value = isParamsObject(params) ? params[field] ?? (field === 'cwd' ? this._config.defaultDirectory : undefined) : undefined;
 			const readOnly = ['resourceRead', 'resourceList', 'resourceResolve', 'createResourceWatch'].includes(method) || (method === 'resourceCopy' && field === 'source') || (method === 'resourceRequest' && isParamsObject(params) && params.write !== true);
-			if (typeof value !== 'string' || !this._isGrantedRelayResource(value, readOnly)) {
+			if (typeof value !== 'string' || !await this._isGrantedRelayResource(value, readOnly)) {
 				throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'Resource is outside the host workspace grants');
 			}
 			if (field === 'cwd') {
 				let directory = false;
 				try {
-					directory = statSync(URI.parse(value).fsPath).isDirectory();
+					directory = (await stat(URI.parse(value).fsPath)).isDirectory();
 				} catch (error) {
 					if (!isParamsObject(error) || (error.code !== 'ENOENT' && error.code !== 'ENOTDIR')) {
 						throw error;
@@ -2227,7 +2255,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		}
 	}
 
-	private _isGrantedRelayResource(resource: string, readOnly: boolean): boolean {
+	private async _isGrantedRelayResource(resource: string, readOnly: boolean): Promise<boolean> {
 		const uri = URI.parse(resource, true);
 		if (uri.scheme !== Schemas.file) {
 			const gitContent = readOnly ? parseGitBlobUri(resource) : undefined;
@@ -2264,8 +2292,8 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		let canonical: string;
 		while (true) {
 			try {
-				const resolvedAncestor = realpathSync(ancestor);
-				if (ancestor !== uri.fsPath && !statSync(resolvedAncestor).isDirectory()) {
+				const resolvedAncestor = await realpath(ancestor);
+				if (ancestor !== uri.fsPath && !(await stat(resolvedAncestor)).isDirectory()) {
 					return false;
 				}
 				canonical = resolve(resolvedAncestor, relative(ancestor, uri.fsPath));
@@ -2278,7 +2306,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					throw error;
 				}
 				try {
-					if (lstatSync(ancestor).isSymbolicLink()) {
+					if ((await lstat(ancestor)).isSymbolicLink()) {
 						return false;
 					}
 				} catch (statError) {
@@ -2289,17 +2317,20 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				ancestor = dirname(ancestor);
 			}
 		}
-		return this._config.relayResourceRoots?.(readOnly).some(root => {
+		for (const root of this._config.relayResourceRoots?.(readOnly) ?? []) {
 			try {
-				const relativePath = relative(realpathSync(root), canonical);
-				return !isAbsolute(relativePath) && relativePath !== '..' && !relativePath.startsWith(`..${sep}`);
+				const relativePath = relative(await realpath(root), canonical);
+				if (!isAbsolute(relativePath) && relativePath !== '..' && !relativePath.startsWith(`..${sep}`)) {
+					return true;
+				}
 			} catch (error) {
 				if (isParamsObject(error) && error.code === 'ENOENT') {
-					return false;
+					continue;
 				}
 				throw error;
 			}
-		}) === true;
+		}
+		return false;
 	}
 
 	private _projectRelayRootSnapshot(client: IConnectedClient, snapshot: IStateSnapshot): IStateSnapshot {
@@ -2341,7 +2372,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		}
 	}
 
-	private _isGrantedRelayDirectory(directory: string): boolean {
+	private async _isGrantedRelayDirectory(directory: string): Promise<boolean> {
 		if (!this._config.relayRoots) {
 			return true;
 		}
@@ -2350,7 +2381,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			if (uri.scheme !== 'file') {
 				return false;
 			}
-			const path = realpathSync(uri.fsPath);
+			const path = await realpath(uri.fsPath);
 			return this._config.relayRoots.some(root => {
 				const pathFromRoot = relative(root, path);
 				return !pathFromRoot.startsWith('..') && !isAbsolute(pathFromRoot);
