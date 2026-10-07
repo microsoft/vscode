@@ -3742,131 +3742,6 @@ export class AgentService extends Disposable implements IAgentService {
 		return this._inFlightRegisteredSessions;
 	}
 
-	private async _recoverChatSelectionCorruption(entries: readonly IRegisteredSession[]): Promise<readonly IRegisteredSession[]> {
-		const bySession = new Map(entries.map(entry => [entry.session.toString(), entry]));
-		const phantomsByParent = new Map<string, IRegisteredSession[]>();
-		for (const entry of entries) {
-			const resource = entry.session;
-			if (entry.source !== 'restore' || resource.scheme !== 'copilotcli' || resource.authority || resource.query || !resource.fragment) {
-				continue;
-			}
-			const parent = resource.with({ fragment: '' }).toString();
-			const parentEntry = bySession.get(parent);
-			if (!parentEntry || parentEntry.external || parentEntry.provider !== entry.provider) {
-				continue;
-			}
-			const phantoms = phantomsByParent.get(parent) ?? [];
-			phantoms.push(entry);
-			phantomsByParent.set(parent, phantoms);
-		}
-		const removed = new Set<string>();
-		for (const [parentKey, phantoms] of phantomsByParent) {
-			const parent = URI.parse(parentKey);
-			await this._chatCatalogMutationSequencer.queue(parentKey, async () => {
-				let recovered: Awaited<ReturnType<AgentHostPeerChatStore['recoverChatSelectionCorruption']>>;
-				try {
-					recovered = await this._peerChatStore.recoverChatSelectionCorruption(parent, phantoms.map(entry => entry.session.fragment));
-				} catch (error) {
-					this._logService.error(error, `[AgentService] Failed to recover peer chats for ${parentKey}; preserving registrations`);
-					return;
-				}
-				if (!recovered) {
-					return;
-				}
-				this._checkedRecoveredSessionProjections.delete(parentKey);
-				if (this._stateManager.getSessionState(parentKey)) {
-					await this._restorePeerChatsFromCatalog(parent, recovered.entries);
-					await this._persistOrderedListVisibleSessionState(parent, {});
-				}
-				await this._markCatalogPayloadDirty(parentKey);
-				for (const phantom of phantoms) {
-					if (!recovered.verifiedPhantomChatIds.includes(phantom.session.fragment)) {
-						continue;
-					}
-					await this._sessionRegistry.unregister(phantom.session);
-					this._stateManager.removeSession(phantom.session.toString());
-					removed.add(phantom.session.toString());
-				}
-			});
-		}
-		return entries.filter(entry => !removed.has(entry.session.toString()));
-	}
-
-	private readonly _checkedRecoveredSessionProjections = new Set<string>();
-
-	private async _refreshRecoveredSessionProjection(registered: IRegisteredSession, result: AgentHostCatalogListResult): Promise<AgentHostCatalogListResult> {
-		const session = registered.session;
-		const sessionKey = session.toString();
-		if (!result.eligible || registered.external || session.scheme !== 'copilotcli' || session.authority || session.query || session.fragment || this._checkedRecoveredSessionProjections.has(sessionKey)) {
-			return result;
-		}
-		return this._chatCatalogMutationSequencer.queue(sessionKey, async () => {
-			const catalog = await this._orchestratorDatabase.getSessionChatCatalog(sessionKey);
-			const projectedPeers = result.data.chats.filter(chat => chat.kind === 'peer');
-			if (!catalog || (catalog.chats.length === projectedPeers.length && catalog.chats.every((chat, index) => chat.chat === projectedPeers[index].uri.toString()))) {
-				this._checkedRecoveredSessionProjections.add(sessionKey);
-				return result;
-			}
-			let completed: boolean;
-			try {
-				completed = await this._peerChatStore.hasCompletedChatSelectionRecovery(session);
-			} catch (error) {
-				this._logService.error(error, `[AgentService] Failed to read peer-chat recovery completion for ${sessionKey}; preserving projection`);
-				return result;
-			}
-			if (!completed) {
-				this._checkedRecoveredSessionProjections.add(sessionKey);
-				return result;
-			}
-			const synchronized = await this._catalogSyncService.synchronizeWithFactory(session, async database => {
-				const latest = await this._catalogListReader.read(registered);
-				if (!latest.eligible) {
-					throw new Error(`Cannot refresh recovered session projection for ${sessionKey}`);
-				}
-				const peers = await this._peerChatStore.tryRead(session, false);
-				if (!peers) {
-					throw new Error(`Missing recovered chat catalogue for ${sessionKey}`);
-				}
-				const data = latest.data;
-				return this._catalogSourceResolver.buildCatalogSyncRequest(session, {
-					modifiedTime: data.modifiedTime,
-					title: data.summary,
-					status: latest.metadata.status ?? SessionStatus.Idle,
-					project: data.project ? { uri: data.project.uri.toString(), displayName: data.project.displayName } : undefined,
-					workingDirectories: data.workingDirectories.map(directory => directory.toString()),
-					changes: data.changes,
-					meta: data._meta,
-					chats: [
-						...data.chats.filter(chat => chat.kind === 'default').map(chat => ({
-							uri: chat.uri.toString(),
-							kind: 'default' as const,
-							title: chat.summary,
-							workingDirectories: chat.workingDirectories?.map(directory => directory.toString()),
-						})),
-						...peers.map(peer => ({
-							uri: peer.uri,
-							kind: 'peer' as const,
-							origin: peer.origin,
-							archived: peer.archived,
-							isRead: peer.isRead,
-							inheritedTurnId: peer.inheritedTurnId,
-							workingDirectories: peer.workingDirectories,
-						})),
-					],
-				}, {}, true, database);
-			});
-			if (synchronized.status !== 'acknowledged') {
-				throw new Error(`Recovered session projection remains pending for ${sessionKey}: ${synchronized.reason}`);
-			}
-			const refreshed = await this._catalogListReader.read(registered);
-			if (!refreshed.eligible) {
-				throw new Error(`Recovered session projection is unreadable for ${sessionKey}`);
-			}
-			this._checkedRecoveredSessionProjections.add(sessionKey);
-			return refreshed;
-		});
-	}
-
 	private async _advanceSessionModifiedTime(session: URI, modifiedTime: number, invalidate = true): Promise<void> {
 		if (!Number.isFinite(modifiedTime)) {
 			return;
@@ -4145,9 +4020,6 @@ export class AgentService extends Disposable implements IAgentService {
 			await this._awaitInitialProviderMigration();
 			allRegistered = await this._listRegisteredSessions();
 		}
-		if (allRegistered.some(entry => entry.source === 'restore' && entry.session.scheme === 'copilotcli' && !!entry.session.fragment)) {
-			allRegistered = await this._recoverChatSelectionCorruption(allRegistered);
-		}
 		// External sessions that the current mode hides outright are dropped
 		// before any provider or database read. On a large catalogue these are
 		// most of the registry, and each one otherwise costs a provider metadata
@@ -4176,21 +4048,10 @@ export class AgentService extends Disposable implements IAgentService {
 		if (centralRead.bulkReadError) {
 			this._reportCatalogBulkReadFailure(centralRead);
 		}
-		const centralResults = [...centralRead.results];
-		const recoveryProjectionCandidates = catalogCandidates.map((registered, index) => ({ registered, index }))
-			.filter(({ registered, index }) => centralResults[index].eligible && !registered.external
-				&& registered.session.scheme === 'copilotcli' && !registered.session.authority && !registered.session.query && !registered.session.fragment
-				&& !this._checkedRecoveredSessionProjections.has(registered.session.toString()));
-		if (recoveryProjectionCandidates.length > 0) {
-			const projectionLimiter = new Limiter<void>(4);
-			await Promise.all(recoveryProjectionCandidates.map(({ registered, index }) => projectionLimiter.queue(async () => {
-				centralResults[index] = await this._refreshRecoveredSessionProjection(registered, centralResults[index]);
-			})));
-		}
 		const catalogResults = catalogCandidates.map((registeredSession, index) => {
 			return {
 				registeredSession,
-				central: centralResults[index],
+				central: centralRead.results[index],
 			};
 		});
 		const providersWithEligibleCatalogs = new Set(catalogResults

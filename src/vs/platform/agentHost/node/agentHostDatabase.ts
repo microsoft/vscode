@@ -374,8 +374,6 @@ export interface IAgentHostDatabase extends IDisposable {
 	getSessionChatCatalog(session: string): Promise<IAgentHostDatabaseSessionChatCatalog | undefined>;
 	/** Replaces authoritative peer-chat membership when the session exists and its revision still matches. */
 	replaceSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number | undefined): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult>;
-	/** Recovers membership without adding a chat already owned by another authoritative catalogue. */
-	recoverSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult>;
 	/** Acknowledges the exact central revision written to the downgrade-compatibility mirror. */
 	markSessionChatCatalogLegacyMirrored(session: string, expectedRevision: number, payload?: string): Promise<boolean>;
 	/** Records the legacy payload used as the next three-way merge base without acknowledging a central revision. */
@@ -1691,14 +1689,6 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 	}
 
 	async replaceSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number | undefined): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult> {
-		return this._replaceSessionChatCatalog(session, chats, expectedRevision, false);
-	}
-
-	async recoverSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult> {
-		return this._replaceSessionChatCatalog(session, chats, expectedRevision, true);
-	}
-
-	private async _replaceSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number | undefined, recovering: boolean): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult> {
 		this._validateSessionChats(chats);
 		if (expectedRevision !== undefined && (!Number.isSafeInteger(expectedRevision) || expectedRevision <= 0)) {
 			throw new Error('Expected session chat catalog revision must be a positive safe integer');
@@ -1727,19 +1717,9 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					return { status: 'conflict' };
 				}
 				if (current?.authority_version === 2) {
-					const result = await this._replaceNormalizedPeers(database, session, chats, current, recovering);
+					const result = await this._replaceNormalizedPeers(database, session, chats, current);
 					await exec(database, 'COMMIT');
 					return result;
-				}
-				if (recovering) {
-					const foreign = await all(database, `SELECT DISTINCT chat_uri FROM session_chats
-						WHERE session_uri <> ? AND chat_uri NOT IN
-						(SELECT chat_uri FROM session_chats WHERE session_uri = ?)`, [session, session]);
-					const foreignUris = new Set(foreign.map(row => row.chat_uri as string));
-					chats = chats.filter(chat => !foreignUris.has(chat.chat)).map((chat, order) => ({ ...chat, order }));
-					if (chats.length > AGENT_HOST_CATALOG_CHILD_LIMIT - 1) {
-						throw new Error(`Peer-chat recovery exceeds the catalog limit for ${session}`);
-					}
 				}
 				const revision = (currentRevision ?? 0) + 1;
 				if (!Number.isSafeInteger(revision)) {
@@ -2115,7 +2095,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					if (!header) {
 						throw new Error(`Missing normalized catalog header for ${session}`);
 					}
-					const updated = await this._replaceNormalizedPeers(database, session, mutation.chats, header, false);
+					const updated = await this._replaceNormalizedPeers(database, session, mutation.chats, header);
 					if (updated.status !== 'applied') {
 						await exec(database, 'ROLLBACK');
 						return updated;
@@ -2475,6 +2455,18 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		}
 	}
 
+	private async _projectNormalizedPeersToLegacy(database: Database, session: string): Promise<void> {
+		await run(database, 'DELETE FROM session_chats WHERE session_uri = ?', [session]);
+		await run(database, `INSERT INTO session_chats
+			(session_uri, chat_uri, chat_order, provider_data, origin, inherited_turn_id, is_read, archived)
+			SELECT c.owner_session_uri, c.chat_uri, ROW_NUMBER() OVER (ORDER BY c.chat_order) - 1,
+				c.provider_data, c.origin, c.inherited_turn_id, c.is_read, c.archived
+			FROM chats_v2 c JOIN session_chat_catalogs h ON h.session_uri = c.owner_session_uri
+			WHERE c.owner_session_uri = ? AND c.tombstoned = 0 AND c.chat_order IS NOT NULL
+				AND h.authority_version = 2 AND c.chat_uri <> h.default_chat_uri
+			ORDER BY c.chat_order`, [session]);
+	}
+
 	private _validateChatV2Input(chat: IAgentHostDatabaseChatV2NormalizationChat): void {
 		validateChatV2String(chat.chat, true);
 		if (chat.storageResource !== undefined) {
@@ -2529,6 +2521,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				this._validateWriteBoundary(validate);
 			}
 		}
+		await this._projectNormalizedPeersToLegacy(database, session);
 	}
 
 	private async _insertChatV2(database: Database, session: string, chat: IAgentHostDatabaseChatV2NormalizationChat): Promise<void> {
@@ -2574,7 +2567,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		if (unavailable) {
 			return { status: unavailable };
 		}
-		const header = await get(database, 'SELECT revision, authority_version FROM session_chat_catalogs WHERE session_uri = ?', [session]);
+		const header = await get(database, 'SELECT revision, authority_version, default_chat_uri FROM session_chat_catalogs WHERE session_uri = ?', [session]);
 		if (header?.authority_version !== 2 || row.ownership_revision !== expected.ownershipRevision || row.metadata_revision !== expected.metadataRevision) {
 			return { status: 'conflict' };
 		}
@@ -2604,6 +2597,11 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		this._validateWriteBoundary(validate);
 		const revision = this._nextRevision(header.revision as number);
 		await run(database, 'UPDATE session_chat_catalogs SET revision = ? WHERE session_uri = ?', [revision, session]);
+		if (row.chat_order !== null && chat !== header.default_chat_uri
+			&& (patch.providerData !== undefined || patch.origin !== undefined || patch.inheritedTurnId !== undefined
+				|| patch.isRead !== undefined || patch.archived !== undefined)) {
+			await this._projectNormalizedPeersToLegacy(database, session);
+		}
 		this._validateWriteBoundary(validate);
 		return { status: 'applied', catalogRevision: revision };
 	}
@@ -2687,20 +2685,13 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		};
 	}
 
-	private async _replaceNormalizedPeers(database: Database, session: string, chats: readonly IAgentHostDatabaseSessionChat[], header: Record<string, unknown>, recovering: boolean): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult> {
+	private async _replaceNormalizedPeers(database: Database, session: string, chats: readonly IAgentHostDatabaseSessionChat[], header: Record<string, unknown>): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult> {
 		const rows = await all(database, 'SELECT * FROM chats_v2 WHERE owner_session_uri = ? AND tombstoned = 0', [session]);
 		const defaultChat = rows.find(row => row.chat_uri === header.default_chat_uri);
 		if (!defaultChat || defaultChat.chat_order === null) {
 			throw new Error(`Normalized catalog has no visible default chat: ${session}`);
 		}
 		const existing = new Map(rows.filter(row => row.chat_order !== null && row.chat_uri !== defaultChat.chat_uri).map(row => [row.chat_uri as string, row]));
-		if (recovering) {
-			const actual = [...existing.values()].sort((a, b) => (a.chat_order as number) - (b.chat_order as number))
-				.map((row, order) => ({ ...this._toLegacyChat(row), order }));
-			return stableStringify(chats) === stableStringify(actual)
-				? { status: 'applied', revision: header.revision as number }
-				: { status: 'conflict' };
-		}
 		const retained: IAgentHostDatabaseSessionChat[] = [];
 		for (const chat of chats) {
 			if (chat.origin !== undefined) {
@@ -2782,6 +2773,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			}
 		}
 		await run(database, 'UPDATE session_chat_catalogs SET revision = ? WHERE session_uri = ?', [revision, session]);
+		await this._projectNormalizedPeersToLegacy(database, session);
 		return { status: 'applied', revision };
 	}
 

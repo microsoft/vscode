@@ -509,10 +509,17 @@ export class SessionChatInputToolbar extends Disposable {
 		const pullRequestRefs = derivedOpts<readonly IGitHubPullRequestRef[]>({ owner: this, equalsFn: structuralEquals }, reader => gitHubReferences.read(reader).pullRequests);
 		const agentMergeConfiguration = derived(this, reader => {
 			const session = this._session.read(reader);
-			// The pull requests are this chat's folder's, so is their Agent Merge.
 			return session ? getSessionAgentMergeConfigurationObservable(session, sessionsProvidersService, this._configurationService, this._chat.read(reader)).read(reader) : undefined;
 		});
-		const pullRequestPresentation = this._register(new SessionPullRequestPresentationModel(pullRequestRefs, agentMergeConfiguration, gitHubService));
+		const agentMergeApplies = (ref: IGitHubPullRequestRef, reader: IReader) => {
+			const session = this._session.read(reader);
+			const workspace = this._chat.read(reader)?.workspace?.read(reader) ?? session?.workspace.read(reader);
+			return workspace?.folders.some(folder => {
+				const gitHubInfo = folder.gitRepository?.gitHubInfo.read(reader);
+				return gitHubInfo?.owner.toLowerCase() === ref.owner.toLowerCase() && gitHubInfo.repo.toLowerCase() === ref.repo.toLowerCase();
+			}) === true;
+		};
+		const pullRequestPresentation = this._register(new SessionPullRequestPresentationModel(pullRequestRefs, agentMergeConfiguration, gitHubService, agentMergeApplies));
 		const artifactActions = (session: IActiveSession, reader: IReader): IRecordedArtifactActions => {
 			const artifactsById = new Map((session.artifacts?.read(reader) ?? []).map(artifact => [artifact.id, artifact]));
 			return {
