@@ -540,7 +540,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 
 	test('emits every bounded MCP source kind and omits unknown provenance', () => {
 		setupSession();
-		const sources = ['user', 'workspace', 'builtin', 'managed'] as const;
+		const sources = ['user', 'workspace', 'builtin', 'managed', 'account'] as const;
 		stateManager.setSessionCustomizations(sessionKey, [
 			...sources.map(source => ({
 				type: CustomizationType.McpServer,
@@ -575,6 +575,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			{ toolId: 'workspace', mcpSourceKind: 'workspace' },
 			{ toolId: 'builtin', mcpSourceKind: 'builtin' },
 			{ toolId: 'managed', mcpSourceKind: 'managed' },
+			{ toolId: 'account', mcpSourceKind: 'account' },
 			{ toolId: 'unknown', mcpSourceKind: undefined },
 		];
 		assert.deepStrictEqual({
