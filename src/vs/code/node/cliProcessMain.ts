@@ -69,6 +69,7 @@ import { AllowedExtensionsService } from '../../platform/extensionManagement/com
 import { McpManagementCli } from '../../platform/mcp/common/mcpManagementCli.js';
 import { IExtensionGalleryManifestService } from '../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { ExtensionGalleryManifestService } from '../../platform/extensionManagement/common/extensionGalleryManifestService.js';
+import { ExtensionGalleryAuthorizationService, IExtensionGalleryAuthorizationService } from '../../platform/extensionManagement/common/extensionGalleryAuthorization.js';
 import { IAllowedMcpServersService, IMcpGalleryService, IMcpManagementService } from '../../platform/mcp/common/mcpManagement.js';
 import { McpManagementService } from '../../platform/mcp/node/mcpManagementService.js';
 import { IMcpResourceScannerService, McpResourceScannerService } from '../../platform/mcp/common/mcpResourceScannerService.js';
@@ -233,6 +234,7 @@ class CliMain extends Disposable {
 		services.set(IExtensionSignatureVerificationService, new SyncDescriptor(ExtensionSignatureVerificationService, undefined, true));
 		services.set(IAllowedExtensionsService, new SyncDescriptor(AllowedExtensionsService, undefined, true));
 		services.set(INativeServerExtensionManagementService, new SyncDescriptor(ExtensionManagementService, undefined, true));
+		services.set(IExtensionGalleryAuthorizationService, new SyncDescriptor(ExtensionGalleryAuthorizationService));
 		services.set(IExtensionGalleryManifestService, new SyncDescriptor(ExtensionGalleryManifestService));
 		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryServiceWithNoStorageService, undefined, true));
 

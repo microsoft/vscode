@@ -12,12 +12,14 @@ import { IFileService } from '../../files/common/files.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IProductService } from '../../product/common/productService.js';
 import { getServiceMachineId } from '../../externalServices/common/serviceMachineId.js';
+import { resolveMarketplaceAuthorizationHeaders } from '../../externalServices/common/marketplace.js';
 import { IStorageService } from '../../storage/common/storage.js';
 import { TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import { getTelemetryLevel, supportsTelemetry } from '../../telemetry/common/telemetryUtils.js';
 import { RemoteAuthorities } from '../../../base/common/network.js';
 import { TargetPlatform } from '../../extensions/common/extensions.js';
 import { ExtensionGalleryResourceType, getExtensionGalleryManifestResourceUri, IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../extensionManagement/common/extensionGalleryManifest.js';
+import { IExtensionGalleryAuthorizationService } from '../../extensionManagement/common/extensionGalleryAuthorization.js';
 import { ILogService } from '../../log/common/log.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 
@@ -80,6 +82,7 @@ export abstract class AbstractExtensionResourceLoaderService extends Disposable 
 		private readonly _environmentService: IEnvironmentService,
 		private readonly _configurationService: IConfigurationService,
 		private readonly _extensionGalleryManifestService: IExtensionGalleryManifestService,
+		private readonly _extensionGalleryAuthorizationService: IExtensionGalleryAuthorizationService,
 		protected readonly _logService: ILogService,
 	) {
 		super();
@@ -132,7 +135,7 @@ export abstract class AbstractExtensionResourceLoaderService extends Disposable 
 		return !!this._extensionGalleryAuthority && this._extensionGalleryAuthority === this._getExtensionGalleryAuthority(uri);
 	}
 
-	protected async getExtensionGalleryRequestHeaders(): Promise<Record<string, string>> {
+	protected async getExtensionGalleryRequestHeaders(resource: URI): Promise<Record<string, string>> {
 		const headers: Record<string, string> = {
 			'X-Client-Name': `${this._productService.applicationName}${isWeb ? '-web' : ''}`,
 			'X-Client-Version': this._productService.version
@@ -143,6 +146,7 @@ export abstract class AbstractExtensionResourceLoaderService extends Disposable 
 		if (this._productService.commit) {
 			headers['X-Client-Commit'] = this._productService.commit;
 		}
+		Object.assign(headers, await resolveMarketplaceAuthorizationHeaders(resource.toString(true), this._extensionGalleryAuthorizationService));
 		return headers;
 	}
 

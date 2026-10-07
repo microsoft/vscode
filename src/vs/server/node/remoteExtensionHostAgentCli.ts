@@ -53,6 +53,7 @@ import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from '../../base/
 import { AllowedExtensionsService } from '../../platform/extensionManagement/common/allowedExtensionsService.js';
 import { IExtensionGalleryManifestService } from '../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { ExtensionGalleryManifestService } from '../../platform/extensionManagement/common/extensionGalleryManifestService.js';
+import { ExtensionGalleryAuthorizationService, IExtensionGalleryAuthorizationService } from '../../platform/extensionManagement/common/extensionGalleryAuthorization.js';
 
 class CliMain extends Disposable {
 
@@ -134,6 +135,7 @@ class CliMain extends Disposable {
 		services.set(IRequestService, new SyncDescriptor(RequestService, ['remote']));
 		services.set(IDownloadService, new SyncDescriptor(DownloadService));
 		services.set(ITelemetryService, NullTelemetryService);
+		services.set(IExtensionGalleryAuthorizationService, new SyncDescriptor(ExtensionGalleryAuthorizationService));
 		services.set(IExtensionGalleryManifestService, new SyncDescriptor(ExtensionGalleryManifestService));
 		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryServiceWithNoStorageService));
 		services.set(IExtensionsProfileScannerService, new SyncDescriptor(ExtensionsProfileScannerService));

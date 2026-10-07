@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
-import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { refineServiceDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IExtensionGalleryAuthorizationService } from '../../../../platform/extensionManagement/common/extensionGalleryAuthorization.js';
 
 /** `accessToken` is only carried when the provider authenticates with a bearer. */
 export interface IExtensionGalleryAccount {
@@ -33,22 +34,36 @@ export interface IExtensionGalleryAccountProvider {
 	/** Never prompts. Check {@link accountStatus} for whether the account may actually be used. */
 	getAccount(): Promise<IExtensionGalleryAccount | undefined>;
 
+	/** Discovers and silently resolves the bearer required by an authentication challenge. */
+	getMarketplaceAccessToken(serviceIndexUrl: string, wwwAuthenticate: string | undefined): Promise<string | undefined>;
+
 	/** Interactive. The provider owns account selection and how the session is obtained. */
 	signIn(): Promise<void>;
 }
 
-export const IExtensionGalleryAccountService = createDecorator<IExtensionGalleryAccountService>('extensionGalleryAccountService');
+export const IExtensionGalleryAccountService = refineServiceDecorator<IExtensionGalleryAuthorizationService, IExtensionGalleryAccountService>(IExtensionGalleryAuthorizationService);
 
-/** Identity and entitlement for the Private Marketplace. Knows nothing about URLs or HTTP. */
-export interface IExtensionGalleryAccountService {
+export interface IExtensionGalleryAccessResult {
+	readonly status: ExtensionGalleryAccountStatus;
+	readonly authorizationRevision?: number;
+}
+
+/** Identity, entitlement, and authentication for the Private Marketplace. */
+export interface IExtensionGalleryAccountService extends IExtensionGalleryAuthorizationService {
 	readonly _serviceBrand: undefined;
 
 	readonly accountStatus: ExtensionGalleryAccountStatus;
 	readonly onDidChangeAccountStatus: Event<ExtensionGalleryAccountStatus>;
 	readonly onDidChangeAccount: Event<void>;
 
-	/** Never prompts. Check {@link accountStatus} for whether the account may actually be used. */
-	getAccount(): Promise<IExtensionGalleryAccount | undefined>;
+	/** Resolves the account verdict and publishes the authorization that request services may use. */
+	resolveMarketplaceAccess(serviceIndexUrl: string): Promise<IExtensionGalleryAccessResult>;
+
+	/** Publishes replacement authorization for a rejected request, returning its revision when available. */
+	negotiateMarketplaceAccess(serviceIndexUrl: string, wwwAuthenticate?: string): Promise<number | undefined>;
+
+	/** Clears the reported authorization if it is still current. */
+	clearMarketplaceAuthorization(serviceIndexUrl: string, authorizationRevision: number): Promise<void>;
 
 	/** Interactive sign-in for whichever provider the deployment configured. */
 	signIn(): Promise<void>;

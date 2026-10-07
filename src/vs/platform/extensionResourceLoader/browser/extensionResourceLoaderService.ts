@@ -14,6 +14,7 @@ import { ILogService } from '../../log/common/log.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { AbstractExtensionResourceLoaderService, IExtensionResourceLoaderService } from '../common/extensionResourceLoader.js';
 import { IExtensionGalleryManifestService } from '../../extensionManagement/common/extensionGalleryManifest.js';
+import { IExtensionGalleryAuthorizationService } from '../../extensionManagement/common/extensionGalleryAuthorization.js';
 
 class ExtensionResourceLoaderService extends AbstractExtensionResourceLoaderService {
 
@@ -26,9 +27,10 @@ class ExtensionResourceLoaderService extends AbstractExtensionResourceLoaderServ
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IExtensionGalleryManifestService extensionGalleryManifestService: IExtensionGalleryManifestService,
+		@IExtensionGalleryAuthorizationService extensionGalleryAuthorizationService: IExtensionGalleryAuthorizationService,
 		@ILogService logService: ILogService,
 	) {
-		super(fileService, storageService, productService, environmentService, configurationService, extensionGalleryManifestService, logService);
+		super(fileService, storageService, productService, environmentService, configurationService, extensionGalleryManifestService, extensionGalleryAuthorizationService, logService);
 	}
 
 	async readExtensionResource(uri: URI): Promise<string> {
@@ -41,7 +43,7 @@ class ExtensionResourceLoaderService extends AbstractExtensionResourceLoaderServ
 
 		const requestInit: RequestInit = {};
 		if (await this.isExtensionGalleryResource(uri)) {
-			requestInit.headers = await this.getExtensionGalleryRequestHeaders();
+			requestInit.headers = await this.getExtensionGalleryRequestHeaders(uri);
 			requestInit.mode = 'cors'; /* set mode to cors so that above headers are always passed */
 		}
 
