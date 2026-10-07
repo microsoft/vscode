@@ -1826,12 +1826,20 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	private async _resolveModel(session: ICodexSession): Promise<ModelSelection> {
-		const selected = await this._resolveRestoredModel(session.model);
-		if (selected) {
-			session.model = selected;
-			return selected;
+		while (true) {
+			const requested = session.model;
+			const selected = await this._resolveRestoredModel(requested);
+			// Prewarm can await discovery while a turn selects another model or
+			// configuration. Resolve that selection instead of overwriting it.
+			if (session.model !== requested) {
+				continue;
+			}
+			if (selected) {
+				session.model = selected;
+				return selected;
+			}
+			throw new Error('Codex has no available models.');
 		}
-		throw new Error('Codex has no available models.');
 	}
 
 	private _createModelConfigSchema(
