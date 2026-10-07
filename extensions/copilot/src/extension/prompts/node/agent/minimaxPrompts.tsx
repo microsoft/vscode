@@ -26,12 +26,6 @@ class DefaultMinimaxAgentPrompt extends PromptElement<DefaultAgentPromptProps> {
 				<br />
 				Follow the user's requirements carefully &amp; to the letter.<br />
 				<br />
-				Follow Microsoft content policies.<br />
-				<br />
-				Avoid content that violates copyrights.<br />
-				<br />
-				If you are asked to generate content that is harmful, hateful, racist, sexist, lewd, or violent, only respond with "Sorry, I can't assist with that."<br />
-				<br />
 				Keep your answers short and impersonal.
 			</Tag>
 
