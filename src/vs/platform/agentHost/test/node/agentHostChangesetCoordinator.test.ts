@@ -843,6 +843,24 @@ suite('ChangesetSessionCoordinator', () => {
 		});
 	});
 
+	test('subscription registry reports every membership change without duplicate notifications', () => {
+		const subscriptions = disposables.add(new AgentHostChangesetSubscriptionService());
+		const session = AgentSession.uri('mock', 'membership').toString();
+		const first = buildSessionChangesetUri(session);
+		const second = buildUncommittedChangesetUri(session);
+		const observed: string[][] = [];
+		disposables.add(subscriptions.onDidChangeSessionSubscriptions(owner => { observed.push([...subscriptions.getSessionSubscriptions(owner)]); }));
+
+		subscriptions.addSubscription(session, first);
+		subscriptions.addSubscription(session, first);
+		subscriptions.addSubscription(session, second);
+		subscriptions.removeSubscription(session, second);
+		subscriptions.removeSubscription(session, second);
+		subscriptions.clearSessionSubscriptions(session);
+
+		assert.deepStrictEqual(observed, [[first], [first, second], [first], []]);
+	});
+
 	test('subscribes chat-owned Session Changes and refreshes them without watching files', async () => {
 		const session = AgentSession.uri('mock', 'chat-session-changes').toString();
 		const chat = buildChatUri(session, 'peer');

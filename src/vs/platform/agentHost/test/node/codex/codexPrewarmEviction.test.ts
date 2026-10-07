@@ -2422,6 +2422,39 @@ suite('CodexAgent prewarm eviction', () => {
 		peer.exit();
 	});
 
+	for (const changeModelId of [true, false]) {
+		test(`background model resolution preserves a concurrent ${changeModelId ? 'model' : 'model configuration'} change`, async () => {
+			const agent = await createAgent(disposables);
+			agent['_schedulePrewarm'] = () => { };
+			const alternateModel = toCodexModelSelectionId('vscode-proxy', 'gpt-alternate');
+			agent['_models'].set([
+				...agent.models.get(),
+				{ provider: 'codex', id: alternateModel, name: 'GPT Alternate', supportsVision: false },
+			], undefined);
+			const created = await createSession(agent, { model: { id: COPILOT_TEST_MODEL } });
+			const chat = defaultChatOf(created.session);
+			const context = chatContext(created.session, chat);
+			const entry = agent['_sessions'].get(AgentSession.id(created.session))!;
+			const refresh = new DeferredPromise<void>();
+			agent['_modelsRefreshPromise'] = refresh.p;
+
+			// The first turn can change the selection while prewarm waits for discovery.
+			const resolving = agent['_resolveModel'](entry);
+			const selected = { id: changeModelId ? alternateModel : COPILOT_TEST_MODEL, config: { thinkingLevel: 'high' } };
+			await agent.chats.changeModel(chat, selected, context);
+			agent['_modelsRefreshPromise'] = undefined;
+			await refresh.complete();
+
+			assert.deepStrictEqual({
+				resolved: await resolving,
+				current: agent.chats.getModel?.(chat, context),
+			}, {
+				resolved: selected,
+				current: selected,
+			});
+		});
+	}
+
 	test('changing the model of an idle-released chat persists the new selection', async () => {
 		const agent = await createAgent(disposables);
 		agent['_schedulePrewarm'] = () => { };

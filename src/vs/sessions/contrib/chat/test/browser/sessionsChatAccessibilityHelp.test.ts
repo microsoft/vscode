@@ -29,7 +29,6 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
-import { TABBED_MODEL_PICKER_SETTING_ID } from '../../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerWidget.js';
 import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING } from '../../browser/responseSelectionSideChatController.js';
 import { SESSION_ARCHIVE_NUDGE_SETTING } from '../../browser/sessionArchiveNudge.js';
 import { SessionComparisonAccessibleView, SessionsChatAccessibilityHelp } from '../../browser/sessionsChatAccessibilityHelp.js';
@@ -687,13 +686,10 @@ suite('SessionsChatAccessibilityHelp', () => {
 		const disabledProvider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
 		const disabledContent = disabledProvider.provideContent();
 		await configuration.setUserConfiguration(COMPARE_AGENTS_ENABLED_SETTING, true);
-		const pickerDisabledContent = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
-		await configuration.setUserConfiguration(TABBED_MODEL_PICKER_SETTING_ID, true);
 		const enabledProvider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
 
 		assert.deepStrictEqual({
 			disabled: disabledContent.includes('activate Compare Models'),
-			pickerDisabled: pickerDisabledContent.includes('activate Compare Models'),
 			enabled: enabledProvider.provideContent().includes('activate Compare Models'),
 			repeated: enabledProvider.provideContent().includes('choose one model and set Number of Runs from two to ten'),
 			optionalJudge: enabledProvider.provideContent().includes('run attempts without review'),
@@ -724,7 +720,6 @@ suite('SessionsChatAccessibilityHelp', () => {
 			customSynthesis: enabledProvider.provideContent().includes('activate Custom Synthesis to reveal a decision table'),
 		}, {
 			disabled: false,
-			pickerDisabled: false,
 			enabled: true, repeated: true, optionalJudge: true, optionalSynthesizer: true, done: true,
 			configRefresh: true,
 			cancelSetup: true,

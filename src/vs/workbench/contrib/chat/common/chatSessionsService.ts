@@ -462,6 +462,8 @@ export interface IChatSession extends IDisposable {
 
 	readonly progressObs?: IObservable<IChatProgress[]>;
 	readonly isCompleteObs?: IObservable<boolean>;
+	/** Active shells across all turns, or undefined when the provider does not report them. */
+	readonly backgroundShellCount?: IObservable<number | undefined>;
 	readonly isReadOnly?: IObservable<boolean>;
 	/** Temporarily prevents sending while keeping the draft visible and editable. */
 	readonly isInputBlocked?: IObservable<boolean>;

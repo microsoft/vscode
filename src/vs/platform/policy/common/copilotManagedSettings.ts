@@ -92,6 +92,18 @@ export const COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY = 'sandbox.userPolicy.network.al
 /** Managed-settings key that restricts local-network access from the sandbox. */
 export const COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY = 'sandbox.userPolicy.network.allowLocalNetwork';
 
+/** Managed-settings key that supplies the sandbox's network allowlist. */
+export const COPILOT_SANDBOX_ALLOWED_HOSTS_KEY = 'sandbox.userPolicy.network.allowedHosts';
+
+/** Managed-settings key that supplies writable sandbox paths. */
+export const COPILOT_SANDBOX_READWRITE_PATHS_KEY = 'sandbox.userPolicy.filesystem.readwritePaths';
+
+/** Managed-settings key that supplies read-only sandbox paths. */
+export const COPILOT_SANDBOX_READONLY_PATHS_KEY = 'sandbox.userPolicy.filesystem.readonlyPaths';
+
+/** Managed-settings key that supplies denied sandbox paths. */
+export const COPILOT_SANDBOX_DENIED_PATHS_KEY = 'sandbox.userPolicy.filesystem.deniedPaths';
+
 /** Managed-settings key that restricts developer tool access from the sandbox. */
 export const COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY = 'sandbox.allowDevToolAccess';
 
@@ -114,6 +126,10 @@ export const MANAGED_SETTINGS_CONTROL_DEFINITIONS: IManagedSettingsPolicyDefinit
 	[COPILOT_SANDBOX_ALLOW_BYPASS_KEY]: { type: 'boolean' },
 	[COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY]: { type: 'boolean' },
 	[COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY]: { type: 'boolean' },
+	[COPILOT_SANDBOX_ALLOWED_HOSTS_KEY]: { type: 'string' },
+	[COPILOT_SANDBOX_READWRITE_PATHS_KEY]: { type: 'string' },
+	[COPILOT_SANDBOX_READONLY_PATHS_KEY]: { type: 'string' },
+	[COPILOT_SANDBOX_DENIED_PATHS_KEY]: { type: 'string' },
 	[COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY]: { type: 'boolean' },
 	[COPILOT_AUTO_TIER_KEY]: { type: 'string' },
 	// Observe these only for whole-block source selection; Local does not implement their capture semantics.
@@ -618,6 +634,22 @@ function encodeExtraMarketplaces(value: unknown, onWarn?: (msg: string) => void)
 }
 
 const STRUCTURED_MANAGED_SETTINGS: readonly IStructuredManagedSetting[] = [
+	{
+		key: COPILOT_SANDBOX_ALLOWED_HOSTS_KEY,
+		encode: encodeArray,
+	},
+	{
+		key: COPILOT_SANDBOX_READWRITE_PATHS_KEY,
+		encode: encodeArray,
+	},
+	{
+		key: COPILOT_SANDBOX_READONLY_PATHS_KEY,
+		encode: encodeArray,
+	},
+	{
+		key: COPILOT_SANDBOX_DENIED_PATHS_KEY,
+		encode: encodeArray,
+	},
 	{
 		key: COPILOT_AUTO_TIER_KEY,
 		encode: value => value,

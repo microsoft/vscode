@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DeferredPromise, disposableTimeout } from '../../../base/common/async.js';
+import type { CancellationToken } from '../../../base/common/cancellation.js';
 import { Emitter, Event, Relay } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
@@ -155,6 +156,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	declare readonly _serviceBrand: undefined;
 
 	readonly clientId = generateUuid();
+	readonly clientConnectionKind = AgentHostClientConnectionKind.Local;
 	get resourceUris() { return this._protocolClient?.resourceUris ?? identityAgentHostResourceUriMapper; }
 
 	private readonly _clientStore = this._register(new MutableDisposable<DisposableStore>());
@@ -235,7 +237,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 			this._startupTelemetry = this._register(this._instantiationService.createInstance(
 				AgentHostStartupTelemetry,
 				getAgentHostClientType(this._clientInfo),
-				AgentHostClientConnectionKind.Local,
+				this.clientConnectionKind,
 				() => StopWatch.create(true),
 				(callback, timeoutMs) => disposableTimeout(callback, timeoutMs),
 			));
@@ -275,7 +277,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return new AgentHostIpcChannelTransport(
 			getDelayedChannel(clientPromise.then(client => client.getChannel(AgentHostIpcChannels.Protocol))),
 			this._ahpLogger,
-			AgentHostClientConnectionKind.Local,
+			this.clientConnectionKind,
 		);
 	}
 
@@ -404,6 +406,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction): void {
 		this._requireClient().dispatch(channel, action);
+	}
+
+	dispatchConfirmed<T>(channel: string, subscription: IAgentSubscription<T>, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction, token: CancellationToken): Promise<ActionEnvelope> {
+		return this._requireClient().dispatchConfirmed(channel, subscription, action, token);
 	}
 
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {

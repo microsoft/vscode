@@ -322,13 +322,6 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 			agentsWindow: { default: true },
 		},
-		'chat.experimentalModelPicker': {
-			type: 'boolean',
-			description: nls.localize('chat.experimentalModelPicker', "When enabled, the model picker uses provider tabs and a model details page for information and configuration. Open details from a model's information button or the thinking effort and context readout in the chat input."),
-			default: false,
-			tags: ['experimental'],
-			experiment: { mode: 'auto' },
-		},
 		[ChatConfiguration.ExperimentalModePermissionsPicker]: {
 			type: 'boolean',
 			description: nls.localize('chat.experimentalModePermissionsPicker', "Shows mode and permissions in a combined picker with expandable permission choices for Copilot Agent Host sessions."),
@@ -1746,7 +1739,13 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', 'advanced'],
 		},
 		[AgentHostHydraFusionEnabledSettingId]: {
-			type: 'boolean',
+			type: ['boolean', 'string'],
+			enum: [true, false, 'v2'],
+			enumDescriptions: [
+				nls.localize('chat.copilot.hydraFusion.enabled.true', "Make HydraFusion available."),
+				nls.localize('chat.copilot.hydraFusion.enabled.false', "Do not make HydraFusion available."),
+				nls.localize('chat.copilot.hydraFusion.enabled.v2', "Make HydraFusion v2 available, which plans with per-step reasoning effort and a wider set of models."),
+			],
 			markdownDescription: nls.localize('chat.copilot.hydraFusion.enabled', "When enabled, makes the experimental HydraFusion model available to local Copilot Agent Host sessions. Changing this setting restarts the local Copilot runtime."),
 			default: true,
 			experiment: { mode: 'startup' },

@@ -9,7 +9,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import type { ISessionCatalogSyncAcknowledgement, ISessionCatalogSyncPendingSnapshot, SessionCatalogSyncWriteResult } from '../../common/sessionDataService.js';
+import type { ISessionCatalogSyncAcknowledgement, ISessionCatalogSyncPendingSnapshot, SessionCatalogSyncTransitionResult, SessionCatalogSyncWriteResult, SessionCatalogSyncWriteValidator } from '../../common/sessionDataService.js';
 import { META_GIT_STATE } from '../../common/agentHostGitStateService.js';
 import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, AgentHostCatalogData, encodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
 import { AgentHostCatalogSyncService, replayPendingCatalogSnapshot } from '../../node/agentHostCatalogSyncService.js';
@@ -53,7 +53,7 @@ class RecordingSessionDatabase extends TestSessionDatabase {
 		super();
 	}
 
-	override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<SessionCatalogSyncWriteResult> {
+	override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot, validate?: SessionCatalogSyncWriteValidator): Promise<SessionCatalogSyncWriteResult> {
 		const persisted = JSON.parse(snapshot.payload).data;
 		this.calls.push(`local:${snapshot.sourceRevision}:${persisted.summary}`);
 		this.writes.push({ metadata: { ...values }, title: persisted.summary, chatTitle: persisted.chats[0].summary });
@@ -66,12 +66,12 @@ class RecordingSessionDatabase extends TestSessionDatabase {
 			this.blockFirstWrite = undefined;
 			await blocker;
 		}
-		return super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot);
+		return super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot, validate);
 	}
 
-	override async transitionMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, expectedSessionGeneration: string, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<boolean> {
+	override async transitionMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, expectedSessionGeneration: string, snapshot: ISessionCatalogSyncPendingSnapshot, validate?: SessionCatalogSyncWriteValidator): Promise<SessionCatalogSyncTransitionResult> {
 		this.calls.push(`transition:${expectedSessionGeneration}:${snapshot.sessionGeneration}`);
-		return super.transitionMetadataValuesAndCatalogSyncSnapshot(values, expectedSessionGeneration, snapshot);
+		return super.transitionMetadataValuesAndCatalogSyncSnapshot(values, expectedSessionGeneration, snapshot, validate);
 	}
 
 	override async acknowledgeCatalogSyncSnapshot(acknowledgement: ISessionCatalogSyncAcknowledgement): Promise<boolean> {

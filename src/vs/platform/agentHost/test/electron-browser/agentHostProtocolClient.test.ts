@@ -6,6 +6,7 @@
 import assert from 'assert';
 import sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -90,7 +91,7 @@ const syncTestConfigurationNode = {
 		},
 	},
 };
-import type { Implementation } from '../../common/state/protocol/common/commands.js';
+import type { DispatchActionParams, Implementation } from '../../common/state/protocol/common/commands.js';
 import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from '../../common/agentHostClientInfo.js';
 import { AgentHostSessionUrisCapabilityMetaKey } from '../../common/meta/agentHostSessionUrisMeta.js';
 import { AgentHostClientConnectionKind } from '../../common/agentHostTelemetry.js';
@@ -432,6 +433,165 @@ suite('AgentHostProtocolClient', () => {
 		await connectPromise;
 	}
 
+	suite('confirmed dispatch', () => {
+		const channel = 'session-store://tenant/sessions/draft?generation%3D2';
+		const action = { type: ActionType.SessionConfigChanged, config: { isolation: 'worktree' } } as const;
+
+		async function createSubscribedClient(initialized = true) {
+			const { client, transport } = createClient();
+			await connectClient(client, transport);
+			const ref = disposables.add(client.getSubscription<SessionState>(StateComponents.Session, URI.parse(channel), 'confirmed dispatch test'));
+			await flushMicrotasks();
+			const request = transport.sentMessages.findLast((message): message is JsonRpcRequest => hasKey(message, { method: true, id: true }) && message.method === 'subscribe' && (message.params as { channel: string }).channel === channel);
+			assert.ok(request);
+			const snapshot = {
+				resource: channel, fromSeq: 0,
+				state: createSessionState({
+					resource: channel, provider: 'third-party', title: 'Draft', status: SessionStatus.Idle,
+					createdAt: '2026-10-02T00:00:00.000Z', modifiedAt: '2026-10-02T00:00:00.000Z',
+				}),
+			};
+			const initialize = async () => {
+				transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: { snapshot } });
+				await flushMicrotasks();
+			};
+			if (initialized) {
+				await initialize();
+			}
+			return { client, transport, ref, initialize, request };
+		}
+
+		function getDispatch(transport: TestProtocolTransport): DispatchActionParams | undefined {
+			const message = transport.sentMessages.findLast((message): message is JsonRpcNotification => hasKey(message, { method: true }) && message.method === 'dispatchAction' && (message.params as DispatchActionParams).channel === channel);
+			return message?.params as DispatchActionParams | undefined;
+		}
+
+		function echo(client: AgentHostProtocolClient, transport: TestProtocolTransport, dispatch: DispatchActionParams, overrides: Partial<ActionEnvelope> = {}): ActionEnvelope {
+			const envelope: ActionEnvelope = {
+				channel, action: dispatch.action, serverSeq: dispatch.clientSeq,
+				origin: { clientId: client.clientId, clientSeq: dispatch.clientSeq },
+				...overrides,
+			};
+			transport.fireMessage({ jsonrpc: '2.0', method: 'action', params: envelope });
+			return envelope;
+		}
+
+		test('waits for the held snapshot before dispatching and preserves opaque host identity', async () => {
+			const { client, transport, ref, initialize } = await createSubscribedClient(false);
+			const confirmed = client.dispatchConfirmed(channel, ref.object, action, CancellationToken.None);
+			assert.strictEqual(getDispatch(transport), undefined);
+			await initialize();
+			const dispatch = getDispatch(transport);
+			assert.ok(dispatch);
+			const envelope = echo(client, transport, dispatch);
+			assert.deepStrictEqual({ dispatch, confirmed: await confirmed }, {
+				dispatch: { channel, clientSeq: dispatch.clientSeq, action }, confirmed: envelope,
+			});
+		});
+
+		for (const rejectionReason of [undefined, 'Configuration was rejected']) {
+			test(`returns the matching ${rejectionReason ? 'rejection' : 'acceptance'} and ignores unrelated echoes`, async () => {
+				const { client, transport, ref } = await createSubscribedClient();
+				let settled = false;
+				const confirmed = client.dispatchConfirmed(channel, ref.object, action, CancellationToken.None).then(result => { settled = true; return result; });
+				const dispatch = getDispatch(transport);
+				assert.ok(dispatch);
+				echo(client, transport, dispatch, { origin: { clientId: 'other-client', clientSeq: dispatch.clientSeq } });
+				echo(client, transport, dispatch, { origin: { clientId: client.clientId, clientSeq: dispatch.clientSeq + 1 } });
+				echo(client, transport, dispatch, { channel: 'session-store:/other' });
+				await flushMicrotasks();
+				assert.strictEqual(settled, false);
+				const envelope = echo(client, transport, dispatch, { rejectionReason });
+				assert.deepStrictEqual(await confirmed, envelope);
+			});
+		}
+
+		test('correlates simultaneous dispatches acknowledged out of order', async () => {
+			const { client, transport, ref } = await createSubscribedClient();
+			const first = client.dispatchConfirmed(channel, ref.object, action, CancellationToken.None);
+			const firstDispatch = getDispatch(transport);
+			assert.ok(firstDispatch);
+			const second = client.dispatchConfirmed(channel, ref.object, { ...action, config: { isolation: 'folder' } }, CancellationToken.None);
+			const secondDispatch = getDispatch(transport);
+			assert.ok(secondDispatch);
+			const secondEnvelope = echo(client, transport, secondDispatch, { rejectionReason: 'Rejected' });
+			const firstEnvelope = echo(client, transport, firstDispatch);
+			assert.deepStrictEqual(await Promise.all([first, second]), [firstEnvelope, secondEnvelope]);
+		});
+
+		test('rejects a subscription belonging to another channel without dispatching', async () => {
+			const { client, transport } = await createSubscribedClient();
+			await assert.rejects(client.dispatchConfirmed(channel, client.rootState, action, CancellationToken.None), /No matching held subscription/);
+			assert.strictEqual(getDispatch(transport), undefined);
+		});
+
+		test('propagates subscription failure without sending a config action', async () => {
+			const { client, transport, ref, request } = await createSubscribedClient(false);
+			const failure = assert.rejects(client.dispatchConfirmed(channel, ref.object, action, CancellationToken.None), /Session not found/);
+			transport.fireMessage({ jsonrpc: '2.0', id: request.id, error: { code: AhpErrorCodes.NotFound, message: 'Session not found' } });
+			await failure;
+			assert.strictEqual(getDispatch(transport), undefined);
+		});
+
+		for (const dispose of [false, true]) {
+			test(`rejects pending and subsequent confirmations on ${dispose ? 'disposal' : 'transport loss'}`, async () => {
+				const { client, transport, ref } = await createSubscribedClient();
+				const failure = assert.rejects(client.dispatchConfirmed(channel, ref.object, action, CancellationToken.None), /connection|transport/i);
+				if (dispose) {
+					client.dispose();
+				} else {
+					transport.fireClose();
+				}
+				await failure;
+				await assert.rejects(client.dispatchConfirmed(channel, ref.object, action, CancellationToken.None), /connection|transport/i);
+			});
+		}
+
+		for (const initialized of [false, true]) {
+			test(`waits for cancellation, not a timeout, during a stalled ${initialized ? 'acknowledgement' : 'subscription'}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const { client, transport, ref, initialize } = await createSubscribedClient(initialized);
+				const cancellation = disposables.add(new CancellationTokenSource());
+				const started = Date.now();
+				const confirmed = client.dispatchConfirmed(channel, ref.object, action, cancellation.token);
+				let settled = false;
+				void confirmed.then(() => { settled = true; }, () => { settled = true; });
+				for (let i = 0; i < 12; i++) {
+					transport.fireData();
+					await timeout(5_000);
+				}
+				assert.deepStrictEqual({ settled, elapsed: Date.now() - started }, { settled: false, elapsed: 60_000 });
+				const failure = assert.rejects(confirmed, error => error instanceof CancellationError);
+				cancellation.cancel();
+				await failure;
+				if (!initialized) {
+					await initialize();
+					assert.strictEqual(getDispatch(transport), undefined);
+				}
+			}));
+		}
+
+		test('does not dispatch when the token is already cancelled', async () => {
+			const { client, transport, ref } = await createSubscribedClient();
+			await assert.rejects(client.dispatchConfirmed(channel, ref.object, action, CancellationToken.Cancelled), error => error instanceof CancellationError);
+			assert.strictEqual(getDispatch(transport), undefined);
+		});
+
+		test('propagates synchronous send failure and releases its confirmation listeners', async () => {
+			const { client, transport, ref } = await createSubscribedClient();
+			const stub = sinon.stub(transport, 'send').throws(new Error('send failed'));
+			try {
+				await assert.rejects(client.dispatchConfirmed(channel, ref.object, action, CancellationToken.None), /send failed/);
+			} finally {
+				stub.restore();
+			}
+			const confirmed = client.dispatchConfirmed(channel, ref.object, action, CancellationToken.None);
+			const dispatch = getDispatch(transport);
+			assert.ok(dispatch);
+			const envelope = echo(client, transport, dispatch);
+			assert.deepStrictEqual(await confirmed, envelope);
+		});
+	});
+
 	test('creation addressing negotiates native host skew without requiring an extension on conforming hosts', async () => {
 		const results = [];
 		for (const provider of ['copilotcli', 'codex', 'claude']) {
@@ -666,6 +826,20 @@ suite('AgentHostProtocolClient', () => {
 		assert.deepStrictEqual(findRootConfigValue(transport.sentMessages, AgentHostWorkspaceTrustConfigKey), { enabled: false, trustedUris: [] });
 	});
 
+	test('exposes client-owned connection kind independently of host identity', async () => {
+		const kinds = [undefined, AgentHostClientConnectionKind.WebPubSub, AgentHostClientConnectionKind.MissionControl, AgentHostClientConnectionKind.SSH];
+		const actual = [];
+		for (const kind of kinds) {
+			const transport = disposables.add(new TestProtocolTransport(kind));
+			const { client } = createClient(transport);
+			const beforeConnect = client.clientConnectionKind;
+			await connectClient(client, transport, { 'vscode.clientConnectionKind': 'private-host-name' });
+			transport.fireClose();
+			actual.push([beforeConnect, client.clientConnectionKind]);
+		}
+		assert.deepStrictEqual(actual, kinds.map(kind => [kind, kind]));
+	});
+
 	test('initialize sends the local client telemetry identity only for usage telemetry', async () => {
 		const transport = disposables.add(new TestProtocolTransport(AgentHostClientConnectionKind.RemoteExtensionHost));
 		const { client } = createClientForIdentity('test.example:1234', transport, createPermissionService(), undefined, new NullLogService(), new TestConfigurationService(), undefined, agentsWindowAgentHostClientInfo, new TestClientIdentityTelemetryService());
@@ -816,7 +990,7 @@ suite('AgentHostProtocolClient', () => {
 			workingDirectories: [toAgentHostUri(URI.file('/home/user/.copilot/chats/quick-1'), agentHostAuthority('test.example:1234'))],
 			chats: [
 				{ chat: 'agent-chat://copilotcli/quick-1/default', summary: 'Quick Chat', kind: 'default', origin: undefined },
-				{ chat: 'agent-chat://copilotcli/quick-1/peer', summary: 'Peer Chat', kind: 'peer', origin: undefined, interactivity: ChatInteractivity.Hidden, archived: true, isRead: false },
+				{ chat: 'agent-chat://copilotcli/quick-1/peer', summary: 'Peer Chat', kind: 'peer', origin: undefined, interactivity: ChatInteractivity.Hidden, archived: true, status: SessionStatus.Idle | SessionStatus.IsArchived, isRead: false },
 			],
 		}]);
 	});
