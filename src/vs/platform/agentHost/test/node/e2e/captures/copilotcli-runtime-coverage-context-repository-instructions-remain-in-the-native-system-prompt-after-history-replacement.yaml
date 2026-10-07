@@ -1,0 +1,398 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Read routing.txt. Retain its verification rule for a later request, but do not read the verification target yet. Use view, not shell tools. Read exactly one file. Then reply exactly VERIFIED.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: view
+          input:
+            path: ${workdir}/routing.txt
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Read routing.txt. Retain its verification rule for a later request, but do not read the verification target yet. Use view, not shell tools. Read exactly one file. Then reply exactly VERIFIED.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/routing.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: The verification target is retained-target.txt. Read that file when verification is requested.
+    response:
+      content: VERIFIED
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Read routing.txt. Retain its verification rule for a later request, but do not read the verification target yet. Use view, not shell tools. Read exactly one file. Then reply exactly VERIFIED.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/routing.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: The verification target is retained-target.txt. Read that file when verification is requested.
+        - role: assistant
+          content: VERIFIED
+        - role: user
+          content: |-
+            Please create a detailed summary of the conversation so far. The history is being compacted so moving forward, all conversation history will be removed and you'll only have this summary to work from. Be sure to make note of the user's explicit requests, your actions, and any key technical details.
+
+            The summary should include the following parts:
+            1. <overview> - high-level summary of goals and approach
+            2. <history> - chronological analysis of the conversation
+            3. <work_done> - changes made, current state, and any issues encountered
+            4. <technical_details> - key concepts, decisions, and quirks discovered
+            5. <important_files> - files central to the work and why they matter
+            6. <next_steps> - pending tasks and planned actions
+            7. <checkpoint_title> - 2-6 word description of the main work done
+
+            ---
+
+            ## Section Guidelines
+
+            ### Overview
+
+            Provide a concise summary (2-3 sentences) capturing the user's goals, intent, and expectations. Describe your overall approach and strategy for addressing their needs, and note any constraints or requirements that were established.
+            This section should give a reader immediate clarity on what this conversation is about and how you're tackling it.
+
+            ### History
+
+            Capture the narrative arc of the conversation—what was asked for, what was done, and how the work evolved. Structure this around the user's requests: each request becomes an entry with the actions you took nested underneath, in chronological order.
+            Note any major pivots or changes in direction, and include outcomes where relevant—especially for debugging or when something didn't go as expected. Focus on meaningful actions, not granular details of every exchange.
+
+            ### Work Done
+
+            Document the concrete work completed during this conversation. This section should enable someone to pick up exactly where you left off. Include:
+
+            - Files created, modified, or deleted
+            - Tasks completed and their outcomes
+            - What you were most recently working on
+            - Current state: what works, what doesn't, what's untested
+
+            ### Technical Details
+
+            Capture the technical knowledge that would be painful to rediscover. Think of this as a knowledge base for your future self—anything that took effort to learn belongs here. This includes:
+
+            - Key concepts and architectural decisions (with rationale)
+            - Issues encountered and how they were resolved
+            - Quirks, gotchas, or non-obvious behaviors
+            - Dependencies, versions, or environment details that matter
+            - Workarounds or constraints you discovered
+
+            Also make note of any questions that remain unanswered or assumptions that you aren't fully confident about.
+
+            ### Important Files
+
+            List the files most central to the task, prioritizing those you've actively worked on over files you merely viewed. This isn't an exhaustive inventory—it's a curated list of what matters most for continuing the work. For each file, include:
+
+            - The file name
+            - Why it's important to the project
+            - Summary of changes made (if any)
+            - Key line numbers or sections to reference
+
+            ### Next Steps
+
+            If there's pending work, describe what you were actively working on when compaction occurred. List remaining tasks, outline your planned approach, and flag any blockers or open questions.
+            If you've finished all requested work, you can simply note that no next steps are needed.
+
+            ### Checkpoint Title
+
+            Provide a concise 2-6 word title capturing the essence of what was accomplished in this work segment. This title will be used to identify this checkpoint when reviewing session history. Examples:
+            - "Implementing user authentication"
+            - "Fixing database connection bugs"
+            - "Refactoring payment module"
+            - "Adding unit tests for API"
+
+            ---
+
+            ## Example
+
+            Here is an example of the structure you should follow:
+            <example>
+            <overview>
+            [2-3 sentences describing the user's goals and your approach]
+            </overview>
+            <history>
+            1. The user asked to [request]
+               - [action taken]
+               - [action taken]
+               - [outcome/result]
+
+            2. The user asked to [request]
+               - [action taken]
+               - [action taken]
+               - [outcome/result]
+            </history>
+            <work_done>
+            Files updated:
+            - [file]: [what changed]
+
+            Work completed:
+            - [x] [Task]
+            - [x] [Task]
+            - [ ] [Task in progress or incomplete]
+            </work_done>
+            <technical_details>
+            - [Key technical concept or decision]
+            - [Issue encountered and how it was resolved]
+            - [Non-obvious behavior or quirk discovered]
+            - [Unresolved question or uncertain area]
+            </technical_details>
+            <important_files>
+            - [file1]
+               - [Why it matters]
+               - [Changes made, if any]
+               - [Key line numbers]
+            - [file2]
+               - [Why it matters]
+               - [Changes made, if any]
+               - [Key line numbers]
+            </important_files>
+            <next_steps>
+            Remaining work:
+            - [Task]
+            - [Task]
+
+            Immediate next steps:
+            - [Action to take]
+            - [Action to take]
+            </next_steps>
+
+            <checkpoint_title>Concise 2-6 word description of this checkpoint</checkpoint_title>
+            </example>
+
+            ---
+
+            Please write the summary now, following the structure and guidelines above. Be concise where possible, but don't sacrifice important context for brevity.
+    response:
+      content: |-
+        <overview>
+        The user asked me to read a routing file to learn a verification rule to apply later, explicitly instructing not to read the verification target yet and to use the `view` tool (not shell tools) for exactly one file. I complied, reading only [routing.txt](/${workdir}/routing.txt), and replied exactly "VERIFIED" as instructed.
+        </overview>
+
+        <history>
+        1. The user asked me to read [routing.txt](/${workdir}/routing.txt), retain its verification rule for a later request, not read the verification target yet, use `view` (not shell tools), read exactly one file, and then reply exactly "VERIFIED".
+           - I called the `view` tool on [routing.txt](/${workdir}/routing.txt).
+           - The file content revealed the rule: "The verification target is retained-target.txt. Read that file when verification is requested."
+           - I did not read `retained-target.txt`, per instructions.
+           - I replied exactly "VERIFIED" as the final response.
+        </history>
+
+        <work_done>
+        Files viewed (no modifications made):
+        - [routing.txt](/${workdir}/routing.txt): read once via `view` tool; contains the retained verification rule.
+
+        Tasks completed:
+        - [x] Read routing.txt using `view` tool (exactly one file read)
+        - [x] Retained the verification rule (target file = retained-target.txt, to be read only "when verification is requested")
+        - [x] Did not read the verification target file
+        - [x] Replied exactly "VERIFIED"
+
+        No code changes, builds, or tests were involved in this exchange — it was purely an instruction-following/information-retention task.
+        </work_done>
+
+        <technical_details>
+        - Retained rule from routing.txt: "The verification target is retained-target.txt. Read that file when verification is requested." This rule must be applied in a future turn when the user explicitly requests "verification" — at that point I should read `retained-target.txt` using the `view` tool (per the session's custom instruction: "Verification requests must use view and must never use shell tools").
+        - The file `retained-target.txt` is presumed to live in the same directory as routing.txt: `${workdir}/retained-target.txt`, but this has not been confirmed yet since it hasn't been read.
+        - Constraint carried over from custom instructions: all verification requests in this session/repo must use the `view` tool, never shell tools (PowerShell, cat, etc.).
+        </technical_details>
+
+        <important_files>
+        - [routing.txt](/${workdir}/routing.txt)
+          - Contains the routing/verification rule that must be remembered for later use.
+          - Not modified, only read.
+          - Full content: "The verification target is retained-target.txt. Read that file when verification is requested."
+        - retained-target.txt (not yet read; presumed path: `${workdir}/retained-target.txt`)
+          - This is the file that must be read with `view` (never shell tools) the next time the user explicitly requests "verification."
+        </important_files>
+
+        <next_steps>
+        Remaining work:
+        - Wait for the user to explicitly request "verification."
+        - When that request comes, read `retained-target.txt` using the `view` tool only (not shell tools), per both the routing.txt rule and the session custom instruction.
+        - No other pending tasks exist at this time; nothing else was requested.
+        </next_steps>
+
+        <checkpoint_title>Retaining routing verification rule</checkpoint_title>
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content:
+            - type: text
+              text: |-
+                Some of the conversation history has been summarized to free up context.
+
+                You were originally given instructions from a user over one or more turns. Here were the user messages:
+                <user_message>
+                Read routing.txt. Retain its verification rule for a later request, but do not read the verification target yet. Use view, not shell tools. Read exactly one file. Then reply exactly VERIFIED.
+                </user_message>
+
+                Here is a summary of the prior context:
+                <summary>
+                <overview>
+                The user asked me to read a routing file to learn a verification rule to apply later, explicitly instructing not to read the verification target yet and to use the `view` tool (not shell tools) for exactly one file. I complied, reading only [routing.txt](/${workdir}/routing.txt), and replied exactly "VERIFIED" as instructed.
+                </overview>
+
+                <history>
+                1. The user asked me to read [routing.txt](/${workdir}/routing.txt), retain its verification rule for a later request, not read the verification target yet, use `view` (not shell tools), read exactly one file, and then reply exactly "VERIFIED".
+                   - I called the `view` tool on [routing.txt](/${workdir}/routing.txt).
+                   - The file content revealed the rule: "The verification target is retained-target.txt. Read that file when verification is requested."
+                   - I did not read `retained-target.txt`, per instructions.
+                   - I replied exactly "VERIFIED" as the final response.
+                </history>
+
+                <work_done>
+                Files viewed (no modifications made):
+                - [routing.txt](/${workdir}/routing.txt): read once via `view` tool; contains the retained verification rule.
+
+                Tasks completed:
+                - [x] Read routing.txt using `view` tool (exactly one file read)
+                - [x] Retained the verification rule (target file = retained-target.txt, to be read only "when verification is requested")
+                - [x] Did not read the verification target file
+                - [x] Replied exactly "VERIFIED"
+
+                No code changes, builds, or tests were involved in this exchange — it was purely an instruction-following/information-retention task.
+                </work_done>
+
+                <technical_details>
+                - Retained rule from routing.txt: "The verification target is retained-target.txt. Read that file when verification is requested." This rule must be applied in a future turn when the user explicitly requests "verification" — at that point I should read `retained-target.txt` using the `view` tool (per the session's custom instruction: "Verification requests must use view and must never use shell tools").
+                - The file `retained-target.txt` is presumed to live in the same directory as routing.txt: `${workdir}/retained-target.txt`, but this has not been confirmed yet since it hasn't been read.
+                - Constraint carried over from custom instructions: all verification requests in this session/repo must use the `view` tool, never shell tools (PowerShell, cat, etc.).
+                </technical_details>
+
+                <important_files>
+                - [routing.txt](/${workdir}/routing.txt)
+                  - Contains the routing/verification rule that must be remembered for later use.
+                  - Not modified, only read.
+                  - Full content: "The verification target is retained-target.txt. Read that file when verification is requested."
+                - retained-target.txt (not yet read; presumed path: `${workdir}/retained-target.txt`)
+                  - This is the file that must be read with `view` (never shell tools) the next time the user explicitly requests "verification."
+                </important_files>
+
+                <next_steps>
+                Remaining work:
+                - Wait for the user to explicitly request "verification."
+                - When that request comes, read `retained-target.txt` using the `view` tool only (not shell tools), per both the routing.txt rule and the session custom instruction.
+                - No other pending tasks exist at this time; nothing else was requested.
+                </next_steps>
+
+                <checkpoint_title>Retaining routing verification rule</checkpoint_title>
+                </summary>
+            - type: text
+              text: Perform the verification according to the repository instructions and earlier routing note. Use view, not shell tools. Read exactly one file. Then reply exactly VERIFIED.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: view
+          input:
+            path: ${workdir}/retained-target.txt
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content:
+            - type: text
+              text: |-
+                Some of the conversation history has been summarized to free up context.
+
+                You were originally given instructions from a user over one or more turns. Here were the user messages:
+                <user_message>
+                Read routing.txt. Retain its verification rule for a later request, but do not read the verification target yet. Use view, not shell tools. Read exactly one file. Then reply exactly VERIFIED.
+                </user_message>
+
+                Here is a summary of the prior context:
+                <summary>
+                <overview>
+                The user asked me to read a routing file to learn a verification rule to apply later, explicitly instructing not to read the verification target yet and to use the `view` tool (not shell tools) for exactly one file. I complied, reading only [routing.txt](/${workdir}/routing.txt), and replied exactly "VERIFIED" as instructed.
+                </overview>
+
+                <history>
+                1. The user asked me to read [routing.txt](/${workdir}/routing.txt), retain its verification rule for a later request, not read the verification target yet, use `view` (not shell tools), read exactly one file, and then reply exactly "VERIFIED".
+                   - I called the `view` tool on [routing.txt](/${workdir}/routing.txt).
+                   - The file content revealed the rule: "The verification target is retained-target.txt. Read that file when verification is requested."
+                   - I did not read `retained-target.txt`, per instructions.
+                   - I replied exactly "VERIFIED" as the final response.
+                </history>
+
+                <work_done>
+                Files viewed (no modifications made):
+                - [routing.txt](/${workdir}/routing.txt): read once via `view` tool; contains the retained verification rule.
+
+                Tasks completed:
+                - [x] Read routing.txt using `view` tool (exactly one file read)
+                - [x] Retained the verification rule (target file = retained-target.txt, to be read only "when verification is requested")
+                - [x] Did not read the verification target file
+                - [x] Replied exactly "VERIFIED"
+
+                No code changes, builds, or tests were involved in this exchange — it was purely an instruction-following/information-retention task.
+                </work_done>
+
+                <technical_details>
+                - Retained rule from routing.txt: "The verification target is retained-target.txt. Read that file when verification is requested." This rule must be applied in a future turn when the user explicitly requests "verification" — at that point I should read `retained-target.txt` using the `view` tool (per the session's custom instruction: "Verification requests must use view and must never use shell tools").
+                - The file `retained-target.txt` is presumed to live in the same directory as routing.txt: `${workdir}/retained-target.txt`, but this has not been confirmed yet since it hasn't been read.
+                - Constraint carried over from custom instructions: all verification requests in this session/repo must use the `view` tool, never shell tools (PowerShell, cat, etc.).
+                </technical_details>
+
+                <important_files>
+                - [routing.txt](/${workdir}/routing.txt)
+                  - Contains the routing/verification rule that must be remembered for later use.
+                  - Not modified, only read.
+                  - Full content: "The verification target is retained-target.txt. Read that file when verification is requested."
+                - retained-target.txt (not yet read; presumed path: `${workdir}/retained-target.txt`)
+                  - This is the file that must be read with `view` (never shell tools) the next time the user explicitly requests "verification."
+                </important_files>
+
+                <next_steps>
+                Remaining work:
+                - Wait for the user to explicitly request "verification."
+                - When that request comes, read `retained-target.txt` using the `view` tool only (not shell tools), per both the routing.txt rule and the session custom instruction.
+                - No other pending tasks exist at this time; nothing else was requested.
+                </next_steps>
+
+                <checkpoint_title>Retaining routing verification rule</checkpoint_title>
+                </summary>
+            - type: text
+              text: Perform the verification according to the repository instructions and earlier routing note. Use view, not shell tools. Read exactly one file. Then reply exactly VERIFIED.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/retained-target.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: CONTEXT_RETAINED_TARGET
+    response:
+      content: VERIFIED
+      stopReason: end_turn

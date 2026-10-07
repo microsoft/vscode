@@ -1,0 +1,79 @@
+version: 1
+dialect: responses
+exchanges:
+  - method: POST
+    path: /responses
+    response:
+      status: 200
+      headers:
+        content-type: text/event-stream
+      body: |+
+        event: response.created
+        data: {"type":"response.created","sequence_number":0,"response":{"id":"resp_resilience_partial","object":"response","model":"gpt-5.6-sol","status":"in_progress","output":[],"error":null,"incomplete_details":null,"usage":null}}
+
+        event: response.incomplete
+        data: {"type":"response.incomplete","sequence_number":1,"response":{"id":"resp_resilience_partial","object":"response","model":"gpt-5.6-sol","status":"incomplete","error":null,"incomplete_details":{"reason":"max_output_tokens"},"output":[{"type":"message","id":"msg_resilience_partial","role":"assistant","status":"incomplete","phase":"final_answer","content":[{"type":"output_text","text":"RESILIENCE_PARTIAL","annotations":[]}]}],"usage":{"input_tokens":7,"output_tokens":3,"total_tokens":10}}}
+
+  - request:
+      model: gpt-5.6-sol
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly TRANSPORT_READY. Do not call any tools.
+        - role: assistant
+          content: RESILIENCE_PARTIAL
+        - role: user
+          content: Please continue from where you left off.
+    response:
+      content: TRANSPORT_READY
+      stopReason: end_turn
+  - request:
+      model: gpt-5.6-sol
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly TRANSPORT_READY. Do not call any tools.
+        - role: assistant
+          content: RESILIENCE_PARTIAL
+        - role: user
+          content: Please continue from where you left off.
+        - role: assistant
+          content: TRANSPORT_READY
+        - role: user
+          content: Call view exactly once on "${workdir}/recovery.txt". Do not use other tools. Reply exactly RECOVERY_READ.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: view
+          input:
+            path: ${workdir}/recovery.txt
+      stopReason: tool_use
+  - request:
+      model: gpt-5.6-sol
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly TRANSPORT_READY. Do not call any tools.
+        - role: assistant
+          content: RESILIENCE_PARTIAL
+        - role: user
+          content: Please continue from where you left off.
+        - role: assistant
+          content: TRANSPORT_READY
+        - role: user
+          content: Call view exactly once on "${workdir}/recovery.txt". Do not use other tools. Reply exactly RECOVERY_READ.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/recovery.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: LOCAL_TRANSPORT_RECOVERY
+    response:
+      content: RECOVERY_READ
+      stopReason: end_turn

@@ -1,0 +1,383 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Read routing.txt. Retain its verification rule for a later request, but do not read the verification target yet. Use view, not shell tools. Read exactly one file. Then reply exactly VERIFIED.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: view
+          input:
+            path: ${workdir}/routing.txt
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Read routing.txt. Retain its verification rule for a later request, but do not read the verification target yet. Use view, not shell tools. Read exactly one file. Then reply exactly VERIFIED.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/routing.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: The verification target is retained-target.txt. Read that file when verification is requested.
+    response:
+      content: VERIFIED
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Read routing.txt. Retain its verification rule for a later request, but do not read the verification target yet. Use view, not shell tools. Read exactly one file. Then reply exactly VERIFIED.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/routing.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: The verification target is retained-target.txt. Read that file when verification is requested.
+        - role: assistant
+          content: VERIFIED
+        - role: user
+          content: Read discarded-routing.txt and replace the earlier verification rule with this new rule. Use view, not shell tools. Read exactly one file. Then reply exactly VERIFIED.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: view
+          input:
+            path: ${workdir}/discarded-routing.txt
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Read routing.txt. Retain its verification rule for a later request, but do not read the verification target yet. Use view, not shell tools. Read exactly one file. Then reply exactly VERIFIED.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/routing.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: The verification target is retained-target.txt. Read that file when verification is requested.
+        - role: assistant
+          content: VERIFIED
+        - role: user
+          content: Read discarded-routing.txt and replace the earlier verification rule with this new rule. Use view, not shell tools. Read exactly one file. Then reply exactly VERIFIED.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/discarded-routing.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: 'CONTEXT_DISCARDED_RULE: the new verification target is discarded-target.txt.'
+    response:
+      content: VERIFIED
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Read routing.txt. Retain its verification rule for a later request, but do not read the verification target yet. Use view, not shell tools. Read exactly one file. Then reply exactly VERIFIED.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/routing.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: The verification target is retained-target.txt. Read that file when verification is requested.
+        - role: assistant
+          content: VERIFIED
+        - role: user
+          content: Read discarded-routing.txt and replace the earlier verification rule with this new rule. Use view, not shell tools. Read exactly one file. Then reply exactly VERIFIED.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/discarded-routing.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: 'CONTEXT_DISCARDED_RULE: the new verification target is discarded-target.txt.'
+        - role: assistant
+          content: VERIFIED
+        - role: user
+          content: |-
+            Please create a detailed summary of the conversation so far. The history is being compacted so moving forward, all conversation history will be removed and you'll only have this summary to work from. Be sure to make note of the user's explicit requests, your actions, and any key technical details.
+
+            The summary should include the following parts:
+            1. <overview> - high-level summary of goals and approach
+            2. <history> - chronological analysis of the conversation
+            3. <work_done> - changes made, current state, and any issues encountered
+            4. <technical_details> - key concepts, decisions, and quirks discovered
+            5. <important_files> - files central to the work and why they matter
+            6. <next_steps> - pending tasks and planned actions
+            7. <checkpoint_title> - 2-6 word description of the main work done
+
+            ---
+
+            ## Section Guidelines
+
+            ### Overview
+
+            Provide a concise summary (2-3 sentences) capturing the user's goals, intent, and expectations. Describe your overall approach and strategy for addressing their needs, and note any constraints or requirements that were established.
+            This section should give a reader immediate clarity on what this conversation is about and how you're tackling it.
+
+            ### History
+
+            Capture the narrative arc of the conversation—what was asked for, what was done, and how the work evolved. Structure this around the user's requests: each request becomes an entry with the actions you took nested underneath, in chronological order.
+            Note any major pivots or changes in direction, and include outcomes where relevant—especially for debugging or when something didn't go as expected. Focus on meaningful actions, not granular details of every exchange.
+
+            ### Work Done
+
+            Document the concrete work completed during this conversation. This section should enable someone to pick up exactly where you left off. Include:
+
+            - Files created, modified, or deleted
+            - Tasks completed and their outcomes
+            - What you were most recently working on
+            - Current state: what works, what doesn't, what's untested
+
+            ### Technical Details
+
+            Capture the technical knowledge that would be painful to rediscover. Think of this as a knowledge base for your future self—anything that took effort to learn belongs here. This includes:
+
+            - Key concepts and architectural decisions (with rationale)
+            - Issues encountered and how they were resolved
+            - Quirks, gotchas, or non-obvious behaviors
+            - Dependencies, versions, or environment details that matter
+            - Workarounds or constraints you discovered
+
+            Also make note of any questions that remain unanswered or assumptions that you aren't fully confident about.
+
+            ### Important Files
+
+            List the files most central to the task, prioritizing those you've actively worked on over files you merely viewed. This isn't an exhaustive inventory—it's a curated list of what matters most for continuing the work. For each file, include:
+
+            - The file name
+            - Why it's important to the project
+            - Summary of changes made (if any)
+            - Key line numbers or sections to reference
+
+            ### Next Steps
+
+            If there's pending work, describe what you were actively working on when compaction occurred. List remaining tasks, outline your planned approach, and flag any blockers or open questions.
+            If you've finished all requested work, you can simply note that no next steps are needed.
+
+            ### Checkpoint Title
+
+            Provide a concise 2-6 word title capturing the essence of what was accomplished in this work segment. This title will be used to identify this checkpoint when reviewing session history. Examples:
+            - "Implementing user authentication"
+            - "Fixing database connection bugs"
+            - "Refactoring payment module"
+            - "Adding unit tests for API"
+
+            ---
+
+            ## Example
+
+            Here is an example of the structure you should follow:
+            <example>
+            <overview>
+            [2-3 sentences describing the user's goals and your approach]
+            </overview>
+            <history>
+            1. The user asked to [request]
+               - [action taken]
+               - [action taken]
+               - [outcome/result]
+
+            2. The user asked to [request]
+               - [action taken]
+               - [action taken]
+               - [outcome/result]
+            </history>
+            <work_done>
+            Files updated:
+            - [file]: [what changed]
+
+            Work completed:
+            - [x] [Task]
+            - [x] [Task]
+            - [ ] [Task in progress or incomplete]
+            </work_done>
+            <technical_details>
+            - [Key technical concept or decision]
+            - [Issue encountered and how it was resolved]
+            - [Non-obvious behavior or quirk discovered]
+            - [Unresolved question or uncertain area]
+            </technical_details>
+            <important_files>
+            - [file1]
+               - [Why it matters]
+               - [Changes made, if any]
+               - [Key line numbers]
+            - [file2]
+               - [Why it matters]
+               - [Changes made, if any]
+               - [Key line numbers]
+            </important_files>
+            <next_steps>
+            Remaining work:
+            - [Task]
+            - [Task]
+
+            Immediate next steps:
+            - [Action to take]
+            - [Action to take]
+            </next_steps>
+
+            <checkpoint_title>Concise 2-6 word description of this checkpoint</checkpoint_title>
+            </example>
+
+            ---
+
+            Please write the summary now, following the structure and guidelines above. Be concise where possible, but don't sacrifice important context for brevity.
+    response:
+      content: |-
+        <overview>
+        This conversation involved two sequential instructions to read specific routing files using the `view` tool (not shell tools), each reading exactly one file, with the goal of establishing/updating a "verification rule" that determines which target file to read when a future "verification" request is made. No actual verification target file has been read yet — only the rule-defining files have been read.
+        </overview>
+
+        <history>
+        1. The user asked to read `routing.txt`, retain its verification rule for a later request, but not yet read the verification target, reading exactly one file via `view`, then reply exactly "VERIFIED".
+           - Viewed `routing.txt`, which stated: "The verification target is retained-target.txt. Read that file when verification is requested."
+           - Replied exactly "VERIFIED" as instructed.
+
+        2. The user asked to read `discarded-routing.txt` and replace the earlier verification rule with this new rule, again reading exactly one file via `view`, then reply exactly "VERIFIED".
+           - Viewed `discarded-routing.txt`, which stated: "CONTEXT_DISCARDED_RULE: the new verification target is discarded-target.txt."
+           - Replied exactly "VERIFIED" as instructed.
+           - Per the instruction, this new rule replaces the earlier one — the current active verification target is now `discarded-target.txt` (superseding `retained-target.txt`).
+
+        3. The user then requested this conversation summary due to context compaction.
+        </history>
+
+        <work_done>
+        Files read (via `view` tool only, no shell commands used):
+        - `${workdir}/routing.txt` — established original rule pointing to `retained-target.txt` (since superseded).
+        - `${workdir}/discarded-routing.txt` — established replacement rule pointing to `discarded-target.txt` (this is now the active/current rule).
+
+        No files were created, modified, or deleted. No verification target file has been opened yet — that action is explicitly deferred until a future "verification requested" instruction.
+        </work_done>
+
+        <technical_details>
+        - Current active verification rule: when verification is requested, read `discarded-target.txt` (this superseded the earlier rule which pointed to `retained-target.txt`).
+        - Constraint: when a "read X and reply VERIFIED" instruction is given, must use the `view` tool (not shell/powershell), read exactly one file, and respond with the literal text "VERIFIED" with no additional commentary.
+        - Files are located under `${workdir}/`.
+        - No verification target file (`retained-target.txt` or `discarded-target.txt`) has actually been opened/read yet — this is intentionally deferred per explicit user instruction, pending a future request that actually asks for "verification."
+        </technical_details>
+
+        <important_files>
+        - `routing.txt` (in the ahp-runtime-context-HfoeAd folder) — originally defined the verification rule (target: `retained-target.txt`); now superseded, read-only, no edits made.
+        - `discarded-routing.txt` (same folder) — defines the current, active verification rule (target: `discarded-target.txt`); read-only, no edits made.
+        - `discarded-target.txt` (not yet read) — this is the file to open when a future request explicitly asks for verification, per the latest rule.
+        </important_files>
+
+        <next_steps>
+        - Await a future user request that asks for "verification." At that point, read exactly one file — `discarded-target.txt` (per the current/active rule) — using the `view` tool, and respond appropriately based on further instructions given at that time.
+        - No other pending tasks exist currently.
+        </next_steps>
+
+        <checkpoint_title>Tracking verification routing rules</checkpoint_title>
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Read routing.txt. Retain its verification rule for a later request, but do not read the verification target yet. Use view, not shell tools. Read exactly one file. Then reply exactly VERIFIED.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/routing.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: The verification target is retained-target.txt. Read that file when verification is requested.
+        - role: assistant
+          content: VERIFIED
+        - role: user
+          content: Perform the verification from the retained routing note. Use view, not shell tools. Read exactly one file. Then reply exactly VERIFIED.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_2
+          name: view
+          input:
+            path: ${workdir}/retained-target.txt
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Read routing.txt. Retain its verification rule for a later request, but do not read the verification target yet. Use view, not shell tools. Read exactly one file. Then reply exactly VERIFIED.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/routing.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: The verification target is retained-target.txt. Read that file when verification is requested.
+        - role: assistant
+          content: VERIFIED
+        - role: user
+          content: Perform the verification from the retained routing note. Use view, not shell tools. Read exactly one file. Then reply exactly VERIFIED.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/retained-target.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_2
+              content: CONTEXT_RETAINED_TARGET
+    response:
+      content: VERIFIED
+      stopReason: end_turn

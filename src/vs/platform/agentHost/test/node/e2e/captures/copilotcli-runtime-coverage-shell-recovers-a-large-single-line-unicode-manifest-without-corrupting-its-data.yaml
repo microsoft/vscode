@@ -1,0 +1,108 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. The session is already in the absolute working directory "${workdir}". All relative paths refer to it. Do not prepend cd, append checks, or add command prefixes, wrappers, pipelines, or extra arguments. Execute each command exactly as written, including any directory change explicitly provided in that command. Run `node manifest.cjs` with powershell. Use the full-output file path returned by that tool, then run `node recover.cjs "<full-output-file-path>"` with powershell. Do not rerun manifest.cjs or edit either script.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: ${shell}
+          input:
+            command: node manifest.cjs
+            description: Run manifest.cjs script
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. The session is already in the absolute working directory "${workdir}". All relative paths refer to it. Do not prepend cd, append checks, or add command prefixes, wrappers, pipelines, or extra arguments. Execute each command exactly as written, including any directory change explicitly provided in that command. Run `node manifest.cjs` with powershell. Use the full-output file path returned by that tool, then run `node recover.cjs "<full-output-file-path>"` with powershell. Do not rerun manifest.cjs or edit either script.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: powershell
+              input:
+                command: node manifest.cjs
+                description: Run manifest.cjs script
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Output too large to read at once (637.5 KB). Saved to: ${saved_output_0}
+                Consider using tools like grep (for searching), head/tail (for viewing start/end), view with view_range (for specific sections), or jq (for JSON) to examine portions of the output.
+
+                Preview (first 500 chars):
+                {"kind":"build-manifest","rows":[{"index":0,"label":"雪🙂-0","payload":"zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"},{"index":1,"label":"雪🙂-1","payload":"zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"},{"index":2,"label":"雪🙂-2","payload":"zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"},{"index":3,"label":"雪🙂-3","payload":"zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz
+                <shellId: 0 completed with exit code 0>
+    response:
+      content:
+        - type: text
+          text: manifest.cjs produced its output as a saved file (output was too large for inline display). Now I'll feed that exact path into recover.cjs.
+        - type: tool_use
+          id: toolcall_1
+          name: ${shell}
+          input:
+            command: node recover.cjs "${saved_output_0}"
+            description: Run recover.cjs with manifest output file path
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. The session is already in the absolute working directory "${workdir}". All relative paths refer to it. Do not prepend cd, append checks, or add command prefixes, wrappers, pipelines, or extra arguments. Execute each command exactly as written, including any directory change explicitly provided in that command. Run `node manifest.cjs` with powershell. Use the full-output file path returned by that tool, then run `node recover.cjs "<full-output-file-path>"` with powershell. Do not rerun manifest.cjs or edit either script.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: powershell
+              input:
+                command: node manifest.cjs
+                description: Run manifest.cjs script
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Output too large to read at once (637.5 KB). Saved to: ${saved_output_0}
+                Consider using tools like grep (for searching), head/tail (for viewing start/end), view with view_range (for specific sections), or jq (for JSON) to examine portions of the output.
+
+                Preview (first 500 chars):
+                {"kind":"build-manifest","rows":[{"index":0,"label":"雪🙂-0","payload":"zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"},{"index":1,"label":"雪🙂-1","payload":"zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"},{"index":2,"label":"雪🙂-2","payload":"zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"},{"index":3,"label":"雪🙂-3","payload":"zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz
+                <shellId: 0 completed with exit code 0>
+        - role: assistant
+          content:
+            - type: text
+              text: manifest.cjs produced its output as a saved file (output was too large for inline display). Now I'll feed that exact path into recover.cjs.
+            - type: tool_use
+              name: powershell
+              input:
+                command: node recover.cjs "${saved_output_0}"
+                description: Run recover.cjs with manifest output file path
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: |-
+                MANIFEST_RECOVERED:{"count":5000,"first":"雪🙂-0","last":"雪🙂-4999"}
+                <shellId: 1 completed with exit code 0>
+    response:
+      content: |-
+        Both commands ran as specified:
+
+        1. `node manifest.cjs` → output exceeded inline limits and was saved to `${saved_output_0}`
+        2. `node recover.cjs "<that path>"` → produced:
+
+        ```
+        MANIFEST_RECOVERED:{"count":5000,"first":"雪🙂-0","last":"雪🙂-4999"}
+        ```
+
+        Recovery confirmed all 5000 manifest rows, from `雪🙂-0` to `雪🙂-4999`.
+      stopReason: end_turn

@@ -75,6 +75,7 @@ interface IOptions {
 	readonly jobs: number;
 	readonly write: boolean;
 	readonly skipTranspile: boolean;
+	readonly acceptFailed: boolean;
 }
 
 function record(value: unknown, label: string): JsonObject {
@@ -117,7 +118,7 @@ function parseArguments(args: readonly string[]): IOptions {
 	const valueFlags = ['mode', 'build-info', 'run-dir', 'source', 'llvm-tools', 'published-package', 'metrics', 'native-summary', 'status', 'profdata', 'suite', 'grep', 'jobs'];
 	for (let index = 0; index < args.length; index++) {
 		const argument = args[index];
-		if (['--write', '--skip-transpile'].includes(argument)) {
+		if (['--write', '--skip-transpile', '--accept-failed'].includes(argument)) {
 			booleans.add(argument);
 			continue;
 		}
@@ -154,6 +155,9 @@ function parseArguments(args: readonly string[]): IOptions {
 	if (booleans.has('--write') && mode === 'collect') {
 		throw new Error('collect mode cannot write tracked stats');
 	}
+	if (booleans.has('--accept-failed') && (mode === 'collect' || mode === 'import-existing' || (mode === 'report' && !booleans.has('--write')))) {
+		throw new Error('--accept-failed requires a full run or report --write');
+	}
 	const jobs = Number(values.get('jobs') ?? 2);
 	if (!Number.isInteger(jobs) || jobs < 1 || jobs > 4) {
 		throw new Error('--jobs must be between 1 and 4');
@@ -176,6 +180,7 @@ function parseArguments(args: readonly string[]): IOptions {
 		status: optionalPath('status'), profdata: optionalPath('profdata'),
 		profiles, v8Directories, suite: suite as SuiteId | undefined, grep: values.get('grep'), jobs,
 		write: booleans.has('--write'), skipTranspile: booleans.has('--skip-transpile'),
+		acceptFailed: booleans.has('--accept-failed'),
 	};
 }
 
@@ -322,6 +327,7 @@ function validateStatus(value: JsonObject): IRunStatus {
 	if (!Array.isArray(value.suites) || (value.selection !== 'full' && value.selection !== 'focused')) {
 		throw new Error('Run status requires selection and suites');
 	}
+
 	const suites: ISuiteResult[] = value.suites.map(item => {
 		const entry = record(item, 'suite result');
 		const suite = text(entry.suite, 'suite');
@@ -343,6 +349,12 @@ function validateStatus(value: JsonObject): IRunStatus {
 		throw new Error(`Run status must be ${status}, not ${String(value.status)}`);
 	}
 	return { status, selection: value.selection, suites: suiteIds.flatMap(id => suites.filter(item => item.suite === id)) };
+}
+
+function canWriteMeasurement(status: IRunStatus, acceptFailed: boolean): boolean {
+	return status.status === 'passed' || (acceptFailed && status.status === 'failed' && status.selection === 'full'
+		&& status.suites.length === suiteIds.length
+		&& status.suites.every(item => item.suite === 'prompts' ? item.passing + item.pending > 0 : item.passing > 0));
 }
 
 function importStatus(metrics: JsonObject): IRunStatus {
@@ -517,7 +529,7 @@ function exportNative(build: IBuild, options: IOptions, environment: NodeJS.Proc
 			throw new Error('Native mapping diagnostics failed');
 		}
 		const diagnostics = readFileSync(diagnosticStderr, 'utf8').split(/\r?\n/).filter(line => line.includes('hash-mismatch:'));
-		if (diagnostics.length === 0 || diagnostics.some(line => !line.includes('hash = 0x0') || !/Cs[A-Za-z0-9]+_(?:7tracing|11flatbuffers|12aho_corasick|6memchr)/.test(line))) {
+		if (diagnostics.length === 0 || diagnostics.some(line => !line.includes('hash = 0x0') || !/Cs[A-Za-z0-9]+_(?:7tracing|11flatbuffers|12aho_corasick|6memchr|11markup5ever)/.test(line))) {
 			throw new Error('LLVM mapping mismatch is not one of the documented excluded hash-zero dependencies');
 		}
 	}
@@ -699,8 +711,9 @@ function main(): void {
 			'  --run-dir <empty-dir>      Isolated output (default: .build/copilot-runtime-coverage/runs/<unique>)',
 			'  --source <checkout> --llvm-tools <dir> --published-package <package.json>',
 			'  --jobs <1..4> --skip-transpile',
+			'  --accept-failed           Explicitly track a complete failed attempt; status and exit code stay failed',
 			'No runtime build, clone, dependency install, snapshot update or recording is performed.',
-			'Report mode --write requires a full passing status. Import mode --write deliberately preserves failures.',
+			'Report mode --write requires a full passing status unless --accept-failed is explicit. Import mode preserves failures.',
 		].join('\n'));
 		return;
 	}
@@ -755,7 +768,7 @@ function main(): void {
 		writeJson(join(options.runDirectory, 'copilot-runtime.json'), stats, true);
 		writeJson(join(options.runDirectory, 'run-status.json'), status);
 		if (options.mode === 'run' || options.write) {
-			if (options.mode !== 'import-existing' && status.status !== 'passed') {
+			if (options.mode !== 'import-existing' && !canWriteMeasurement(status, options.acceptFailed)) {
 				throw new Error(`Measurement is ${status.status}; previous tracked stats retained (diagnostic report is available)`);
 			}
 			writeJson(statsPath, stats, true);
@@ -779,4 +792,4 @@ if (require.main === module) {
 	}
 }
 
-module.exports = { normalizeNative, validateStatus, parseArguments, withEntrypointOverride, parseSuiteOutput, assertHistoricalMetrics, sameIdentity, wrapperSummary, validateRunEnvironment };
+module.exports = { normalizeNative, validateStatus, canWriteMeasurement, parseArguments, withEntrypointOverride, parseSuiteOutput, assertHistoricalMetrics, sameIdentity, wrapperSummary, validateRunEnvironment };

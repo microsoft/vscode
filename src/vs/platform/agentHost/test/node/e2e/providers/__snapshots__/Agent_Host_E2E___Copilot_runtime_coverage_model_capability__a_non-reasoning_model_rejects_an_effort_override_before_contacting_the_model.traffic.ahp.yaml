@@ -1,0 +1,61 @@
+version: 1
+rounds:
+  - clientToServer:
+      - channel: ${chat_0}
+        action:
+          type: chat/turnStarted
+          turnId: ${turn_0}
+          message:
+            text: Do not use tools. Reply exactly CAPABILITY_COMPLETE.
+            origin:
+              kind: user
+            model:
+              id: claude-haiku-4.5
+      - method: subscribe
+      - method: subscribe
+      - method: subscribe
+      - channel: ${session_0}
+        action:
+          type: root/configChanged
+    serverToClient:
+      - channel: ${session_0}
+        action:
+          type: root/activeSessionsChanged
+      - channel: ${chat_0}
+        action:
+          type: chat/turnStarted
+          turnId: ${turn_0}
+          message:
+            text: Do not use tools. Reply exactly CAPABILITY_COMPLETE.
+            origin:
+              kind: user
+            model:
+              id: claude-haiku-4.5
+      - channel: ${session_1}
+        action:
+          type: session/titleChanged
+      - channel: ${session_0}
+        action:
+          type: root/activeSessionsChanged
+      - channel: ${chat_0}
+        action:
+          type: chat/error
+          turnId: ${turn_0}
+          part:
+            kind: error
+            error:
+              errorType: sendFailed
+              message: 'Error: Request session.create failed with message: Model ''claude-haiku-4.5'' does not support reasoning effort configuration. Use models.list to check which models support reasoning effort.'
+      - channel: ${session_1}
+        action:
+          type: session/creationFailed
+      - method: root/sessionAdded
+      - responseTo: subscribe
+        result: success
+      - responseTo: subscribe
+        result: success
+      - responseTo: subscribe
+        result: success
+      - channel: ${session_0}
+        action:
+          type: root/configChanged

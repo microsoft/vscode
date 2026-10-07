@@ -1,0 +1,42 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Use powershell to run this exact command in the existing working directory, without cd, wrappers, or extra commands: "node managed-shell-deny.cjs". Call only the named tool exactly once. Do not retry, use a fallback, or call any other tool. If access is denied, report it without trying again. Work only with the specified synthetic fixture. Then reply exactly MANAGED_CHECK_COMPLETE.'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: ${shell}
+          input:
+            command: node managed-shell-deny.cjs
+            description: Run node managed-shell-deny.cjs script
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Use powershell to run this exact command in the existing working directory, without cd, wrappers, or extra commands: "node managed-shell-deny.cjs". Call only the named tool exactly once. Do not retry, use a fallback, or call any other tool. If access is denied, report it without trying again. Work only with the specified synthetic fixture. Then reply exactly MANAGED_CHECK_COMPLETE.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: powershell
+              input:
+                command: node managed-shell-deny.cjs
+                description: Run node managed-shell-deny.cjs script
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Permission to run this tool was denied due to the following rules: `Shell(node managed-shell-deny.cjs *)`'
+    response:
+      content: |-
+        Access denied: the command `node managed-shell-deny.cjs` was blocked by rule `Shell(node managed-shell-deny.cjs *)`.
+
+        MANAGED_CHECK_COMPLETE
+      stopReason: end_turn

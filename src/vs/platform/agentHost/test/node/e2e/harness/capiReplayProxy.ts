@@ -38,11 +38,12 @@ import type * as https from 'https';
 import { createRequire } from 'module';
 import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
-import { basename, dirname } from '../../../../../../base/common/path.js';
+import { basename, dirname, join } from '../../../../../../base/common/path.js';
+import { toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { isWindows } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { aggregateAnthropicSse, anthropicMessageToSse, ANTHROPIC_MESSAGES_PATH, aggregateResponsesSse, responsesMessageToSse, RESPONSES_PATH, summarizeResponsesRequest, deserializeAnthropicContent, serializeAnthropicContent, summarizeAnthropicRequest, type AnthropicContentBlock, type IAnthropicMessage, type IReadableAnthropicRequest } from './capiWireCodec.js';
-import { getAncillaryStub } from './capiStubs.js';
+import { getAncillaryStub, type IStubResponse } from './capiStubs.js';
 import { findPosixOnlyCommands, formatPosixCommandError, getRecordedShellCommand, type IRecordedCommand } from './posixCommandLint.js';
 import { formatModelRequestMismatch, modelRequestsMatch, projectModelRequest } from './modelRequestProjection.js';
 import { expandShellToolName, normalizeShellToolNameForCapture } from './shellToolNames.js';
@@ -60,7 +61,7 @@ const yamlModule = nodeRequire('js-yaml') as { load(input: string): unknown; dum
  * cache miss (reusing a stale turn could spin the agent loop forever), whereas
  * idempotent endpoints (`/models`, token) may be safely re-served. */
 const MODEL_ENDPOINTS = new Set(['/chat/completions', '/responses', '/v1/messages']);
-const STORED_RESPONSE_HEADERS = new Set(['content-type']);
+const STORED_RESPONSE_HEADERS = new Set(['content-type', 'retry-after', 'retry-after-ms', 'x-should-retry']);
 
 const WORKDIR_PLACEHOLDER = '${workdir}';
 const HOMEDIR_PLACEHOLDER = '${homedir}';
@@ -261,6 +262,12 @@ export class CapiReplayProxy {
 	private readonly _requestMismatches: string[] = [];
 	private readonly _replayPlaceholderValues = new Map<string, string>();
 	private readonly _replayPluginDirectories = new Set<string>();
+	private readonly _fixtureUrls = new Map<string, { readonly url: string }>();
+	private readonly _fixtureUrlNormalizations = new Map<string, string>();
+	private readonly _savedOutputPlaceholders = new Map<string, string>();
+	private readonly _ancillaryResponses = new Map<string, IStubResponse>();
+	private readonly _observedAncillaryRequests: { readonly method: string; readonly path: string; readonly body: string }[] = [];
+	private readonly _syntheticSessionTokens = new Set<string>();
 	private _modelTurnCount = 0;
 	private _workingDirectory: string | undefined;
 	private _recordingModelResponse: { readonly response: ICapiReplayResponse; readonly path?: string } | undefined;
@@ -375,12 +382,74 @@ export class CapiReplayProxy {
 		this._requestMismatches.length = 0;
 		this._replayPlaceholderValues.clear();
 		this._replayPluginDirectories.clear();
+		this._fixtureUrls.clear();
+		this._fixtureUrlNormalizations.clear();
+		this._savedOutputPlaceholders.clear();
+		this._ancillaryResponses.clear();
+		this._observedAncillaryRequests.length = 0;
+		this._syntheticSessionTokens.clear();
 		this._modelTurnCount = 0;
 		this._loadFixture();
 	}
 
 	setWorkingDirectory(workingDirectory: string): void {
 		this._workingDirectory = workingDirectory;
+	}
+
+	registerFixtureUrl(name: string, url: string): IDisposable {
+		if (!/^[a-z][a-z0-9_]*$/.test(name)) {
+			throw new Error('[capi-replay] fixture URL names must be lowercase identifiers');
+		}
+		const parsed = new URL(url);
+		if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+			throw new Error('[capi-replay] fixture URLs must use HTTP or HTTPS');
+		}
+		const placeholder = `\${url_${name}}`;
+		if (this._fixtureUrls.has(placeholder)) {
+			throw new Error(`[capi-replay] fixture URL already registered: ${name}`);
+		}
+		const binding = { url };
+		this._fixtureUrls.set(placeholder, binding);
+		this._fixtureUrlNormalizations.set(url, placeholder);
+		return toDisposable(() => {
+			if (this._fixtureUrls.get(placeholder) === binding) {
+				this._fixtureUrls.delete(placeholder);
+			}
+		});
+	}
+
+	setAncillaryResponse(method: string, path: string, response: IStubResponse, syntheticSessionToken?: string): IDisposable {
+		if ((method === 'POST' && MODEL_ENDPOINTS.has(path)) || !getAncillaryStub(method, path)) {
+			throw new Error(`[capi-replay] response overrides require a recognized ancillary endpoint: ${method} ${path}`);
+		}
+		if (!Number.isInteger(response.status) || response.status < 200 || response.status > 599) {
+			throw new Error('[capi-replay] ancillary responses require a valid HTTP response status');
+		}
+		const key = `${method} ${path}`;
+		if (this._ancillaryResponses.has(key)) {
+			throw new Error(`[capi-replay] ancillary response already registered: ${key}`);
+		}
+		if (syntheticSessionToken !== undefined) {
+			if (!syntheticSessionToken || method !== 'POST' || !['/auto', '/models/session', '/models/session/intent'].includes(path)) {
+				throw new Error('[capi-replay] synthetic session tokens require an Auto routing response');
+			}
+			const parsed: unknown = JSON.parse(response.body);
+			if (!isRecord(parsed) || parsed.session_token !== syntheticSessionToken) {
+				throw new Error('[capi-replay] synthetic session token must exactly match the routing response');
+			}
+			this._syntheticSessionTokens.add(syntheticSessionToken);
+		}
+		const value = { ...response, headers: { ...response.headers } };
+		this._ancillaryResponses.set(key, value);
+		return toDisposable(() => {
+			if (this._ancillaryResponses.get(key) === value) {
+				this._ancillaryResponses.delete(key);
+			}
+		});
+	}
+
+	get observedAncillaryRequests(): readonly { readonly method: string; readonly path: string; readonly body: string }[] {
+		return this._observedAncillaryRequests;
 	}
 
 	setRecordingModelResponse(response: ICapiReplayResponse, path?: string): void {
@@ -477,13 +546,22 @@ export class CapiReplayProxy {
 		req.on('error', () => this._fail(res, 'request stream error'));
 	}
 
+	private _ancillaryResponse(method: string, path: string, body: string): IStubResponse | undefined {
+		const stub = getAncillaryStub(method, path, body);
+		if (!stub) {
+			return undefined;
+		}
+		this._observedAncillaryRequests.push({ method, path, body: this._normalize(body) });
+		return this._ancillaryResponses.get(`${method} ${path}`) ?? stub;
+	}
+
 	private _replay(req: http.IncomingMessage, body: string, res: http.ServerResponse): void {
 		const method = req.method ?? 'GET';
 		const path = new URL(req.url ?? '/', 'http://localhost').pathname;
 
 		// Ancillary bootstrap endpoints are never recorded — serve them from
 		// hardcoded stubs (keeps identity/model-catalog out of fixtures).
-		const stub = getAncillaryStub(method, path, body);
+		const stub = this._ancillaryResponse(method, path, body);
 		if (stub) {
 			res.writeHead(stub.status, { ...stub.headers });
 			res.end(replaceAll(stub.body, CAPI_PLACEHOLDER, this.url));
@@ -510,6 +588,21 @@ export class CapiReplayProxy {
 		if (!item) {
 			this._cacheMisses.push(`${key} (call #${(bucket?.index ?? 0) + 1}) — no recorded response`);
 			this._fail(res, `no recorded response for ${key}`);
+			return;
+		}
+		const capturedResponse = item.kind === 'turn' ? JSON.stringify(item.message) : item.response.body;
+		const unboundUrl = [...capturedResponse.matchAll(/\$\{url_[a-z][a-z0-9_]*\}/g)]
+			.find(match => !this._fixtureUrls.has(match[0]))?.[0];
+		if (unboundUrl) {
+			this._cacheMisses.push(`${key}: unbound fixture URL ${unboundUrl}`);
+			this._fail(res, `unbound fixture URL ${unboundUrl}`);
+			return;
+		}
+		const unboundOutput = [...capturedResponse.matchAll(/\$\{saved_output_\d+\}/g)]
+			.find(match => !this._replayPlaceholderValues.has(match[0]))?.[0];
+		if (unboundOutput) {
+			this._cacheMisses.push(`${key}: unbound saved output ${unboundOutput}`);
+			this._fail(res, `unbound saved output ${unboundOutput}`);
 			return;
 		}
 
@@ -572,7 +665,7 @@ export class CapiReplayProxy {
 	private _record(req: http.IncomingMessage, body: string, res: http.ServerResponse): void {
 		const method = req.method ?? 'GET';
 		const path = new URL(req.url ?? '/', 'http://localhost').pathname;
-		const stub = getAncillaryStub(method, path, body);
+		const stub = this._ancillaryResponse(method, path, body);
 		if (stub) {
 			res.writeHead(stub.status, { ...stub.headers });
 			res.end(replaceAll(stub.body, CAPI_PLACEHOLDER, this.url));
@@ -607,6 +700,10 @@ export class CapiReplayProxy {
 		forwardHeaders.host = upstream.host;
 		delete forwardHeaders['connection'];
 		delete forwardHeaders['content-length'];
+		const sessionToken = forwardHeaders['copilot-session-token'];
+		if (method === 'POST' && MODEL_ENDPOINTS.has(path) && typeof sessionToken === 'string' && this._syntheticSessionTokens.has(sessionToken)) {
+			delete forwardHeaders['copilot-session-token'];
+		}
 
 		const upstreamReq = transport.request(
 			{
@@ -930,6 +1027,33 @@ export class CapiReplayProxy {
 
 	private _normalize(text: string): string {
 		let result = text;
+		for (const [url, placeholder] of [...this._fixtureUrlNormalizations].sort(([left], [right]) => right.length - left.length)) {
+			result = replaceAll(result, url, placeholder);
+		}
+		const tempDirectories = new Set([tmpdir()]);
+		try {
+			tempDirectories.add(realpathSync.native(tmpdir()));
+		} catch {
+			// The platform temp directory can disappear during teardown.
+		}
+		for (const directory of tempDirectories) {
+			const prefixes = new Set([directory, this._options.userName ? scrubUserName(directory, this._options.userName) : directory]);
+			for (const prefix of prefixes) {
+				const prefixPattern = prefix.split(isWindows ? /[\\/]+/ : '/').map(escapeRegExpCharacters).join(isWindows ? String.raw`[\\/]+` : '/');
+				const pattern = new RegExp(prefixPattern + String.raw`[\\/]+(?<name>(?:\d+-copilot-tool-output-[A-Za-z0-9_-]+|copilot-tool-output(?:-original)?-[A-Za-z0-9_-]+)\.txt)(?=$|[^\w.])`, isWindows ? 'gi' : 'g');
+				result = result.replace(pattern, (_match: string, name: string) => {
+					let placeholder = this._savedOutputPlaceholders.get(name);
+					if (!placeholder) {
+						placeholder = `\${saved_output_${this._savedOutputPlaceholders.size}}`;
+						this._savedOutputPlaceholders.set(name, placeholder);
+					}
+					if (this._isReplaying) {
+						this._replayPlaceholderValues.set(placeholder, join(directory, name).replaceAll('\\', '/'));
+					}
+					return placeholder;
+				});
+			}
+		}
 		if (this._workingDirectory) {
 			const workDirs = new Set([this._workingDirectory]);
 			try {
@@ -940,12 +1064,6 @@ export class CapiReplayProxy {
 			for (const workDir of [...workDirs].sort((a, b) => b.length - a.length)) {
 				result = replacePath(result, workDir, WORKDIR_PLACEHOLDER, this._options.userName);
 			}
-		}
-		const tempDirectories = new Set([tmpdir()]);
-		try {
-			tempDirectories.add(realpathSync.native(tmpdir()));
-		} catch {
-			// The platform temp directory can disappear during teardown.
 		}
 		for (const tempDirectory of [...tempDirectories].sort((a, b) => b.length - a.length)) {
 			result = replaceTemporaryWorkspacePaths(result, tempDirectory, WORKDIR_PLACEHOLDER, this._options.userName);
@@ -1046,6 +1164,13 @@ export class CapiReplayProxy {
 		for (const [placeholder, value] of this._replayPlaceholderValues) {
 			result = replaceAll(result, placeholder, value);
 		}
+		for (const [placeholder, binding] of this._fixtureUrls) {
+			result = replaceAll(result, placeholder, binding.url);
+		}
+		const unbound = /\$\{url_[a-z][a-z0-9_]*\}/.exec(result)?.[0];
+		if (unbound) {
+			throw new Error(`[capi-replay] unbound fixture URL: ${unbound}`);
+		}
 		return result;
 	}
 }
@@ -1070,6 +1195,8 @@ function captureReplayPlaceholderValues(recorded: unknown, observed: unknown, va
 }
 
 function captureReplayPlaceholderValuesFromString(recorded: string, observed: string, values: Map<string, string>): void {
+	recorded = normalizePlaceholderPathSeparators(recorded);
+	observed = normalizePlaceholderPathSeparators(observed);
 	const placeholders: string[] = [];
 	let pattern = '^';
 	let offset = 0;

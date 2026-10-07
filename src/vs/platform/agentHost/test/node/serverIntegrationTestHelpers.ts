@@ -628,6 +628,10 @@ export class TestProtocolClient {
 		this._ahpSnapshot.setNormalization(normalization);
 	}
 
+	setAhpSnapshotFixtureUrl(name: string, url: string): void {
+		this._ahpSnapshot.setFixtureUrl(name, url);
+	}
+
 	setWorkingDirectory(workingDirectory: string): void {
 		this._setWorkingDirectory?.(workingDirectory);
 	}

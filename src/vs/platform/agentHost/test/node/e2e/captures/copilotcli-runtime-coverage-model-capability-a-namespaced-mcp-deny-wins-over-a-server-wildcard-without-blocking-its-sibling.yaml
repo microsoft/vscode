@@ -1,0 +1,43 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call the capability_read tool from capability-probe exactly once with tag "CAPABILITY_INPUT" and options {"count":2,"label":null}. Do not use other tools. Then reply CAPABILITY_COMPLETE.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: capability-probe-capability_read
+          input:
+            tag: CAPABILITY_INPUT
+            options:
+              count: 2
+              label: null
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call the capability_read tool from capability-probe exactly once with tag "CAPABILITY_INPUT" and options {"count":2,"label":null}. Do not use other tools. Then reply CAPABILITY_COMPLETE.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: capability-probe-capability_read
+              input:
+                tag: CAPABILITY_INPUT
+                options:
+                  count: 2
+                  label: null
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: CAPABILITY_MCP_RESULT
+    response:
+      content: CAPABILITY_COMPLETE
+      stopReason: end_turn

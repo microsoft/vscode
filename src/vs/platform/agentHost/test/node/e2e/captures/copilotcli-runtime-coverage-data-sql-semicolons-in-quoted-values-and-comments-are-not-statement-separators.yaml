@@ -1,0 +1,58 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: |-
+            Call sql exactly once with database "session", description "Check runtime data", and this exact query. Do not use other tools. Then reply exactly DATA_CHECKED.
+            CREATE TABLE quoted_values (value TEXT); /* a; comment */ INSERT INTO quoted_values VALUES ('FIRST;SECOND'), ('it''s;quoted'); SELECT value FROM quoted_values ORDER BY value;
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: sql
+          input:
+            description: Check runtime data
+            query: CREATE TABLE quoted_values (value TEXT); /* a; comment */ INSERT INTO quoted_values VALUES ('FIRST;SECOND'), ('it''s;quoted'); SELECT value FROM quoted_values ORDER BY value;
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: |-
+            Call sql exactly once with database "session", description "Check runtime data", and this exact query. Do not use other tools. Then reply exactly DATA_CHECKED.
+            CREATE TABLE quoted_values (value TEXT); /* a; comment */ INSERT INTO quoted_values VALUES ('FIRST;SECOND'), ('it''s;quoted'); SELECT value FROM quoted_values ORDER BY value;
+        - role: assistant
+          content:
+            - type: tool_use
+              name: sql
+              input:
+                description: Check runtime data
+                query: CREATE TABLE quoted_values (value TEXT); /* a; comment */ INSERT INTO quoted_values VALUES ('FIRST;SECOND'), ('it''s;quoted'); SELECT value FROM quoted_values ORDER BY value;
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Executed 3 statement(s):
+
+                1. CREATE
+                   Schema operation completed successfully.
+
+                2. /*
+                   Query executed successfully. Rows affected: 2.
+
+                3. SELECT
+                   2 row(s) returned:
+                   
+                   | value |
+                   | --- |
+                   | FIRST;SECOND |
+                   | it's;quoted |
+    response:
+      content: DATA_CHECKED
+      stopReason: end_turn

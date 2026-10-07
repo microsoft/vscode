@@ -1,0 +1,25 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly HOOK_REPLACED_PROMPT. Do not use any tools.
+    response:
+      content: HOOK_REPLACED_PROMPT
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly HOOK_REPLACED_PROMPT. Do not use any tools.
+        - role: assistant
+          content: HOOK_REPLACED_PROMPT
+        - role: user
+          content: Reply exactly HOOK_REPLACED_PROMPT. Do not use any tools.
+    response:
+      content: HOOK_REPLACED_PROMPT
+      stopReason: end_turn

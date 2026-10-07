@@ -13,6 +13,7 @@ const require = createRequire(import.meta.url);
 const coverage: {
 	normalizeNative(summary: object, source: string): { total: Record<string, { covered: number; total: number; percentage: number }>; files: readonly { path: string; lines: readonly number[] }[] };
 	validateStatus(status: object): object;
+	canWriteMeasurement(status: object, acceptFailed: boolean): boolean;
 	parseArguments(args: readonly string[]): { mode: string };
 	parseSuiteOutput(suite: string, output: string, exitCode: number, focused?: boolean): object;
 	withEntrypointOverride(file: string, replacement: string, callback: () => void): void;
@@ -85,6 +86,23 @@ test('focused filters cannot silently become a successful full measurement', () 
 	assert.throws(() => coverage.parseArguments(['--build-info', 'manifest.json', '--grep', 'tools']), /only in collect/);
 	assert.throws(() => coverage.parseArguments(['--build-info', 'manifest.json', '--mode', 'collect', '--suite', 'copilot', '--write']), /cannot write/);
 	assert.deepStrictEqual(coverage.parseArguments(['--build-info', 'manifest.json', '--mode', 'collect', '--suite', 'copilot', '--grep', 'tools']).mode, 'collect');
+});
+
+test('explicit failed tracking preserves failures and cannot accept a focused or incomplete attempt', () => {
+	const suites = ['conformance', 'claude', 'codex', 'copilot', 'prompts', 'otel'].map(suite => ({
+		suite, exitCode: suite === 'conformance' ? 1 : 0, passing: suite === 'prompts' ? 0 : 1,
+		pending: suite === 'prompts' ? 20 : 0, failing: suite === 'conformance' ? 1 : 0, auxiliaryPassing: 0,
+	}));
+	const status = coverage.validateStatus({ status: 'failed', selection: 'full', suites });
+	assert.deepStrictEqual({
+		implicit: coverage.canWriteMeasurement(status, false),
+		explicit: coverage.canWriteMeasurement(status, true),
+		focused: coverage.canWriteMeasurement({ status: 'failed', selection: 'focused', suites }, true),
+		missing: coverage.canWriteMeasurement({ status: 'failed', selection: 'full', suites: suites.slice(1) }, true),
+		incomplete: coverage.canWriteMeasurement({ status: 'incomplete', selection: 'full', suites }, true),
+	}, { implicit: false, explicit: true, focused: false, missing: false, incomplete: false });
+	assert.throws(() => coverage.parseArguments(['--build-info', 'manifest.json', '--mode', 'collect', '--suite', 'copilot', '--accept-failed']), /requires a full run/);
+	assert.throws(() => coverage.parseArguments(['--build-info', 'manifest.json', '--mode', 'report', '--accept-failed']), /requires a full run/);
 });
 
 test('known-issue diagnostics are rejected before runtime validation or entrypoint override', () => {

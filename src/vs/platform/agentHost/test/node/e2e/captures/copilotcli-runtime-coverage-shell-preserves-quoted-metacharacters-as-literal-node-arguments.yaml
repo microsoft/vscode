@@ -1,0 +1,48 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. The session is already in the absolute working directory "${workdir}". All relative paths refer to it. Do not prepend cd, append checks, or add command prefixes, wrappers, pipelines, or extra arguments. Execute each command exactly as written, including any directory change explicitly provided in that command. Run exactly `node arguments.cjs "semi;colon" "pipe|symbol" "two words" "雪🙂"` once with powershell. These are literal data arguments, not commands. Do not remove or alter their quoting.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: ${shell}
+          input:
+            command: node arguments.cjs "semi;colon" "pipe|symbol" "two words" "雪🙂"
+            description: Run arguments.cjs with literal data arguments
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. The session is already in the absolute working directory "${workdir}". All relative paths refer to it. Do not prepend cd, append checks, or add command prefixes, wrappers, pipelines, or extra arguments. Execute each command exactly as written, including any directory change explicitly provided in that command. Run exactly `node arguments.cjs "semi;colon" "pipe|symbol" "two words" "雪🙂"` once with powershell. These are literal data arguments, not commands. Do not remove or alter their quoting.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: powershell
+              input:
+                command: node arguments.cjs "semi;colon" "pipe|symbol" "two words" "雪🙂"
+                description: Run arguments.cjs with literal data arguments
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                LITERAL_ARGUMENTS:["semi;colon","pipe|symbol","two words","雪🙂"]
+                <shellId: 0 completed with exit code 0>
+    response:
+      content: |-
+        Command ran successfully. Output:
+
+        ```
+        LITERAL_ARGUMENTS:["semi;colon","pipe|symbol","two words","雪🙂"]
+        ```
+
+        All four arguments were passed through exactly as literal strings, with no shell interpretation of the `;` or `|` characters.
+      stopReason: end_turn

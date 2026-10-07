@@ -1,0 +1,49 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. The session is already in the absolute working directory "${workdir}". All relative paths refer to it. Do not prepend cd, append checks, or add command prefixes, wrappers, pipelines, or extra arguments. Execute each command exactly as written, including any directory change explicitly provided in that command. Run exactly `node --run build` with powershell. This invokes the local package.json build script. Do not install anything.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: ${shell}
+          input:
+            command: node --run build
+            description: Run build script via node --run
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. The session is already in the absolute working directory "${workdir}". All relative paths refer to it. Do not prepend cd, append checks, or add command prefixes, wrappers, pipelines, or extra arguments. Execute each command exactly as written, including any directory change explicitly provided in that command. Run exactly `node --run build` with powershell. This invokes the local package.json build script. Do not install anything.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: powershell
+              input:
+                command: node --run build
+                description: Run build script via node --run
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Shell output was automatically compacted. Compacted output below. Original at C:\Users\${user}\AppData\Local\Temp\original-output-1791264215188-f75e5a077d184dd19bf82a053d31d5d5.txt; only use if exact omitted lines are needed.
+
+                BUILD_WARNING: optional source maps were not requested
+                Building module 127/128
+                BUILD_SUCCESS:128
+
+                <shellId: 0 completed with exit code 0>
+    response:
+      content: |-
+        Build completed successfully.
+
+        **Result:** `node --run build` ran the package.json `build` script in the given working directory and finished with `BUILD_SUCCESS:128` (128/128 modules built), exit code 0.
+      stopReason: end_turn

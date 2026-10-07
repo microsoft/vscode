@@ -1,0 +1,342 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. The session is already in the absolute working directory "${workdir}". All relative paths refer to it. Do not prepend cd, append checks, or add command prefixes, wrappers, pipelines, or extra arguments. Execute each command exactly as written, including any directory change explicitly provided in that command. Run exactly `node --test --test-reporter=tap matrix.test.cjs` once with powershell. Report the test summary.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: ${shell}
+          input:
+            command: node --test --test-reporter=tap matrix.test.cjs
+            description: Run node test matrix with tap reporter
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. The session is already in the absolute working directory "${workdir}". All relative paths refer to it. Do not prepend cd, append checks, or add command prefixes, wrappers, pipelines, or extra arguments. Execute each command exactly as written, including any directory change explicitly provided in that command. Run exactly `node --test --test-reporter=tap matrix.test.cjs` once with powershell. Report the test summary.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: powershell
+              input:
+                command: node --test --test-reporter=tap matrix.test.cjs
+                description: Run node test matrix with tap reporter
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                TAP version 13
+                # Subtest: serialization case 0
+                ok 1 - serialization case 0
+                  ---
+                  duration_ms: 3.2746
+                  type: 'test'
+                  ...
+                # Subtest: serialization case 1
+                ok 2 - serialization case 1
+                  ---
+                  duration_ms: 0.777
+                  type: 'test'
+                  ...
+                # Subtest: serialization case 2
+                ok 3 - serialization case 2
+                  ---
+                  duration_ms: 0.7135
+                  type: 'test'
+                  ...
+                # Subtest: serialization case 3
+                ok 4 - serialization case 3
+                  ---
+                  duration_ms: 0.842
+                  type: 'test'
+                  ...
+                # Subtest: serialization case 4
+                ok 5 - serialization case 4
+                  ---
+                  duration_ms: 0.8351
+                  type: 'test'
+                  ...
+                # Subtest: serialization case 5
+                ok 6 - serialization case 5
+                  ---
+                  duration_ms: 0.824
+                  type: 'test'
+                  ...
+                # Subtest: serialization case 6
+                ok 7 - serialization case 6
+                  ---
+                  duration_ms: 0.8145
+                  type: 'test'
+                  ...
+                # Subtest: serialization case 7
+                ok 8 - serialization case 7
+                  ---
+                  duration_ms: 0.7319
+                  type: 'test'
+                  ...
+                # Subtest: serialization case 8
+                ok 9 - serialization case 8
+                  ---
+                  duration_ms: 0.8889
+                  type: 'test'
+                  ...
+                # Subtest: serialization case 9
+                ok 10 - serialization case 9
+                  ---
+                  duration_ms: 0.8075
+                  type: 'test'
+                  ...
+                # Subtest: serialization case 10
+                ok 11 - serialization case 10
+                  ---
+                  duration_ms: 1.5467
+                  type: 'test'
+                  ...
+                # Subtest: serialization case 11
+                ok 12 - serialization case 11
+                  ---
+                  duration_ms: 0.6363
+                  type: 'test'
+                  ...
+                # Subtest: serialization case 12
+                ok 13 - serialization case 12
+                  ---
+                  duration_ms: 0.7099
+                  type: 'test'
+                  ...
+                # Subtest: serialization case 13
+                ok 14 - serialization case 13
+                  ---
+                  duration_ms: 0.6168
+                  type: 'test'
+                  ...
+                # Subtest: serialization case 14
+                ok 15 - serialization case 14
+                  ---
+                  duration_ms: 0.5527
+                  type: 'test'
+                  ...
+                # Subtest: serialization case 15
+                ok 16 - serialization case 15
+                  ---
+                  duration_ms: 0.8171
+                  type: 'test'
+                  ...
+                # Subtest: serialization case 16
+                ok 17 - serialization case 16
+                  ---
+                  duration_ms: 0.5885
+                  type: 'test'
+                  ...
+                # Subtest: serialization case 17
+                ok 18 - serialization case 17
+                  ---
+                  duration_ms: 0.5471
+                  type: 'test'
+                  ...
+                # Subtest: serialization case 18
+                ok 19 - serialization case 18
+                  ---
+                  duration_ms: 0.5837
+                  type: 'test'
+                  ...
+                # Subtest: serialization case 19
+                ok 20 - serialization case 19
+                  ---
+                  duration_ms: 0.6119
+                  type: 'test'
+                  ...
+                # Subtest: serialization case 20
+                ok 21 - serialization case 20
+                  ---
+                  duration_ms: 0.5663
+                  type: 'test'
+                  ...
+                # Subtest: serialization case 21
+                ok 22 - serialization case 21
+                  ---
+                  duration_ms: 0.6833
+                  type: 'test'
+                  ...
+                # Subtest: serialization case 22
+                ok 23 - serialization case 22
+                  ---
+                  duration_ms: 0.6398
+                  type: 'test'
+                  ...
+                # Subtest: serialization case 23
+                ok 24 - serialization case 23
+                  ---
+                  duration_ms: 0.6553
+                  type: 'test'
+                  ...
+                # Subtest: serialization case 24
+                ok 25 - serialization case 24
+                  ---
+                  duration_ms: 0.6655
+                  type: 'test'
+                  ...
+                # Subtest: serialization case 25
+                ok 26 - serialization case 25
+                  ---
+                  duration_ms: 0.6033
+                  type: 'test'
+                  ...
+                # Subtest: serialization case 26
+                ok 27 - serialization case 26
+                  ---
+                  duration_ms: 0.5969
+                  type: 'test'
+                  ...
+                # Subtest: serialization case 27
+                ok 28 - serialization case 27
+                  ---
+                  duration_ms: 0.6546
+                  type: 'test'
+                  ...
+                # Subtest: serialization case 28
+                ok 29 - serialization case 28
+                  ---
+                  duration_ms: 0.6439
+                  type: 'test'
+                  ...
+                # Subtest: serialization case 29
+                ok 30 - serialization case 29
+                  ---
+                  duration_ms: 0.5917
+                  type: 'test'
+                  ...
+                # Subtest: serialization case 30
+                ok 31 - serialization case 30
+                  ---
+                  duration_ms: 0.7336
+                  type: 'test'
+                  ...
+                # Subtest: serialization case 31
+                ok 32 - serialization case 31
+                  ---
+                  duration_ms: 0.6027
+                  type: 'test'
+                  ...
+                # Subtest: serialization case 32
+                ok 33 - serialization case 32
+                  ---
+                  duration_ms: 0.5348
+                  type: 'test'
+                  ...
+                # Subtest: serialization case 33
+                ok 34 - serialization case 33
+                  ---
+                  duration_ms: 0.6836
+                  type: 'test'
+                  ...
+                # Subtest: serialization case 34
+                ok 35 - serialization case 34
+                  ---
+                  duration_ms: 0.6947
+                  type: 'test'
+                  ...
+                # Subtest: serialization case 35
+                ok 36 - serialization case 35
+                  ---
+                  duration_ms: 0.6272
+                  type: 'test'
+                  ...
+                # Subtest: serialization case 36
+                ok 37 - serialization case 36
+                  ---
+                  duration_ms: 0.768
+                  type: 'test'
+                  ...
+                # Subtest: serialization case 37
+                ok 38 - serialization case 37
+                  ---
+                  duration_ms: 0.6259
+                  type: 'test'
+                  ...
+                # Subtest: serialization case 38
+                ok 39 - serialization case 38
+                  ---
+                  duration_ms: 0.5811
+                  type: 'test'
+                  ...
+                # Subtest: serialization case 39
+                ok 40 - serialization case 39
+                  ---
+                  duration_ms: 0.5881
+                  type: 'test'
+                  ...
+                # Subtest: serialization case 40
+                ok 41 - serialization case 40
+                  ---
+                  duration_ms: 0.6046
+                  type: 'test'
+                  ...
+                # Subtest: serialization case 41
+                ok 42 - serialization case 41
+                  ---
+                  duration_ms: 0.564
+                  type: 'test'
+                  ...
+                # Subtest: serialization case 42
+                ok 43 - serialization case 42
+                  ---
+                  duration_ms: 0.5952
+                  type: 'test'
+                  ...
+                # Subtest: serialization case 43
+                ok 44 - serialization case 43
+                  ---
+                  duration_ms: 0.6215
+                  type: 'test'
+                  ...
+                # Subtest: serialization case 44
+                ok 45 - serialization case 44
+                  ---
+                  duration_ms: 0.5979
+                  type: 'test'
+                  ...
+                # Subtest: serialization case 45
+                ok 46 - serialization case 45
+                  ---
+                  duration_ms: 0.7358
+                  type: 'test'
+                  ...
+                # Subtest: serialization case 46
+                ok 47 - serialization case 46
+                  ---
+                  duration_ms: 0.7728
+                  type: 'test'
+                  ...
+                # Subtest: serialization case 47
+                ok 48 - serialization case 47
+                  ---
+                  duration_ms: 0.5343
+                  type: 'test'
+                  ...
+                1..48
+                # tests 48
+                # suites 0
+                # pass 48
+                # fail 0
+                # cancelled 0
+                # skipped 0
+                # todo 0
+                # duration_ms 168.5658
+                <shellId: 0 completed with exit code 0>
+    response:
+      content: |-
+        All 48 "serialization case" tests passed, 0 failed, 0 skipped — exit code 0.
+
+        **Summary:** `tests 48`, `pass 48`, `fail 0`, `cancelled 0`, `skipped 0`, `todo 0`, `duration_ms 168.5658`
+      stopReason: end_turn

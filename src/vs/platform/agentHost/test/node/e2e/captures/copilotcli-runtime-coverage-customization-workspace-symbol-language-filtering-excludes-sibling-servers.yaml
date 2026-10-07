@@ -1,0 +1,45 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'The workspace is ${workdir}. Call lsp exactly once with these parameters: {"operation":"workspaceSymbol","query":"Runtime","language":"runtime-primary"}. Do not call other tools. After the tool finishes, reply exactly RUNTIME_LSP_DONE.'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: lsp
+          input:
+            operation: workspaceSymbol
+            query: Runtime
+            language: runtime-primary
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'The workspace is ${workdir}. Call lsp exactly once with these parameters: {"operation":"workspaceSymbol","query":"Runtime","language":"runtime-primary"}. Do not call other tools. After the tool finishes, reply exactly RUNTIME_LSP_DONE.'
+        - role: assistant
+          content:
+            - type: tool_use
+              name: lsp
+              input:
+                operation: workspaceSymbol
+                query: Runtime
+                language: runtime-primary
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Found 2 symbol(s) matching "Runtime" (searched: runtime-primary):
+
+                RuntimeWorkspace_primary (function) in RuntimeContainer - ${workdir}/fixture.rtlang:1:1
+                RuntimeUnresolved_primary (class) - ${workdir}/reference.rtlang
+    response:
+      content: RUNTIME_LSP_DONE
+      stopReason: end_turn

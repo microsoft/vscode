@@ -1,0 +1,162 @@
+version: 1
+rounds:
+  - clientToServer:
+      - channel: ${session_0}
+        action:
+          type: session/activeClientSet
+          activeClient:
+            clientId: runtime-model-capability-client
+            tools:
+              - name: capability_client
+                description: Returns CAPABILITY_RESULT for capability_client.
+                inputSchema:
+                  type: object
+                  properties:
+                    tag:
+                      type: string
+                      enum:
+                        - CAPABILITY_INPUT
+                    options:
+                      type: object
+                      properties:
+                        count:
+                          type: integer
+                          minimum: 1
+                          maximum: 3
+                        label:
+                          type:
+                            - string
+                            - 'null'
+                      required:
+                        - count
+                        - label
+                      additionalProperties: false
+                  required:
+                    - tag
+                    - options
+      - method: subscribe
+      - responseTo: resourceResolve
+        result: success
+      - responseTo: resourceList
+        result: success
+      - responseTo: resourceResolve
+        result: success
+      - responseTo: resourceList
+        result: success
+      - responseTo: resourceRead
+        result: success
+      - responseTo: resourceRead
+        result: success
+      - responseTo: resourceRead
+        result: success
+      - method: subscribe
+      - channel: ${chat_0}
+        action:
+          type: chat/turnStarted
+          turnId: ${turn_0}
+          message:
+            text: Do not use tools. Reply exactly CAPABILITY_COMPLETE.
+            origin:
+              kind: user
+            model:
+              id: claude-sonnet-5
+      - method: subscribe
+      - method: subscribe
+      - method: subscribe
+      - channel: ${session_1}
+        action:
+          type: root/configChanged
+    serverToClient:
+      - channel: ${session_0}
+        action:
+          type: session/activeClientSet
+          activeClient:
+            clientId: runtime-model-capability-client
+            tools:
+              - name: capability_client
+                description: Returns CAPABILITY_RESULT for capability_client.
+                inputSchema:
+                  type: object
+                  properties:
+                    tag:
+                      type: string
+                      enum:
+                        - CAPABILITY_INPUT
+                    options:
+                      type: object
+                      properties:
+                        count:
+                          type: integer
+                          minimum: 1
+                          maximum: 3
+                        label:
+                          type:
+                            - string
+                            - 'null'
+                      required:
+                        - count
+                        - label
+                      additionalProperties: false
+                  required:
+                    - tag
+                    - options
+      - responseTo: subscribe
+        result: success
+      - method: resourceResolve
+      - method: resourceList
+      - method: resourceResolve
+      - method: resourceList
+      - method: resourceRead
+      - method: resourceRead
+      - method: resourceRead
+      - responseTo: subscribe
+        result: success
+      - channel: ${session_1}
+        action:
+          type: root/activeSessionsChanged
+      - channel: ${chat_0}
+        action:
+          type: chat/turnStarted
+          turnId: ${turn_0}
+          message:
+            text: Do not use tools. Reply exactly CAPABILITY_COMPLETE.
+            origin:
+              kind: user
+            model:
+              id: claude-sonnet-5
+      - channel: ${session_0}
+        action:
+          type: session/titleChanged
+      - method: root/sessionAdded
+      - channel: ${session_0}
+        action:
+          type: session/ready
+      - channel: ${session_0}
+        action:
+          type: session/mcpServerStateChanged
+      - channel: ${session_0}
+        action:
+          type: session/mcpServerStateChanged
+      - channel: ${chat_0}
+        action:
+          type: chat/responsePart
+          turnId: ${turn_0}
+          part:
+            kind: markdown
+            content: CAPABILITY_COMPLETE
+      - channel: ${session_1}
+        action:
+          type: root/activeSessionsChanged
+      - channel: ${chat_0}
+        action:
+          type: chat/turnComplete
+          turnId: ${turn_0}
+      - responseTo: subscribe
+        result: success
+      - responseTo: subscribe
+        result: success
+      - responseTo: subscribe
+        result: success
+      - channel: ${session_1}
+        action:
+          type: root/configChanged

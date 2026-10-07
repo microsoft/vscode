@@ -1,0 +1,168 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.6-sol
+      system: ${system}
+      messages:
+        - role: user
+          content: |-
+            Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. The session is already in the absolute working directory "${workdir}". All relative paths refer to it. Do not prepend cd, append checks, or add command prefixes, wrappers, pipelines, or extra arguments. Execute each command exactly as written, including any directory change explicitly provided in that command. Call apply_patch exactly once with this exact patch. Then run exactly `npm --offline test` with powershell. Do not substitute a different editing tool or modify contract.test.cjs.
+            *** Begin Patch
+            *** Update File: old-name.cjs
+            *** Move to: new-name.cjs
+            @@
+            -exports.label = "before";
+            +exports.label = "after";
+            *** Delete File: obsolete.txt
+            *** End Patch
+    response:
+      content:
+        - type: text
+          text: I’ll apply the exact rename/update/delete patch, then run the specified offline test command unchanged.
+        - type: tool_use
+          id: toolcall_0
+          name: apply_patch
+          format: custom
+          input: |
+            *** Begin Patch
+            *** Update File: old-name.cjs
+            *** Move to: new-name.cjs
+            @@
+            -exports.label = "before";
+            +exports.label = "after";
+            *** Delete File: obsolete.txt
+            *** End Patch
+      stopReason: tool_use
+  - request:
+      model: gpt-5.6-sol
+      system: ${system}
+      messages:
+        - role: user
+          content: |-
+            Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. The session is already in the absolute working directory "${workdir}". All relative paths refer to it. Do not prepend cd, append checks, or add command prefixes, wrappers, pipelines, or extra arguments. Execute each command exactly as written, including any directory change explicitly provided in that command. Call apply_patch exactly once with this exact patch. Then run exactly `npm --offline test` with powershell. Do not substitute a different editing tool or modify contract.test.cjs.
+            *** Begin Patch
+            *** Update File: old-name.cjs
+            *** Move to: new-name.cjs
+            @@
+            -exports.label = "before";
+            +exports.label = "after";
+            *** Delete File: obsolete.txt
+            *** End Patch
+        - role: assistant
+          content: I’ll apply the exact rename/update/delete patch, then run the specified offline test command unchanged.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: apply_patch
+              format: custom
+              input: |
+                *** Begin Patch
+                *** Update File: old-name.cjs
+                *** Move to: new-name.cjs
+                @@
+                -exports.label = "before";
+                +exports.label = "after";
+                *** Delete File: obsolete.txt
+                *** End Patch
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Modified 1 file(s): ${workdir}/new-name.cjs
+                Deleted 1 file(s): ${workdir}/obsolete.txt
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: ${shell}
+          input:
+            command: npm --offline test
+            description: Run exact offline test command
+            mode: sync
+            initial_wait: 120
+      stopReason: tool_use
+  - request:
+      model: gpt-5.6-sol
+      system: ${system}
+      messages:
+        - role: user
+          content: |-
+            Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. The session is already in the absolute working directory "${workdir}". All relative paths refer to it. Do not prepend cd, append checks, or add command prefixes, wrappers, pipelines, or extra arguments. Execute each command exactly as written, including any directory change explicitly provided in that command. Call apply_patch exactly once with this exact patch. Then run exactly `npm --offline test` with powershell. Do not substitute a different editing tool or modify contract.test.cjs.
+            *** Begin Patch
+            *** Update File: old-name.cjs
+            *** Move to: new-name.cjs
+            @@
+            -exports.label = "before";
+            +exports.label = "after";
+            *** Delete File: obsolete.txt
+            *** End Patch
+        - role: assistant
+          content: I’ll apply the exact rename/update/delete patch, then run the specified offline test command unchanged.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: apply_patch
+              format: custom
+              input: |
+                *** Begin Patch
+                *** Update File: old-name.cjs
+                *** Move to: new-name.cjs
+                @@
+                -exports.label = "before";
+                +exports.label = "after";
+                *** Delete File: obsolete.txt
+                *** End Patch
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Modified 1 file(s): ${workdir}/new-name.cjs
+                Deleted 1 file(s): ${workdir}/obsolete.txt
+        - role: assistant
+          content:
+            - type: tool_use
+              name: powershell
+              input:
+                command: npm --offline test
+                description: Run exact offline test command
+                mode: sync
+                initial_wait: 120
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: |-
+                > runtime-shell-fixture@1.0.0 test
+                > node --test --test-reporter=tap contract.test.cjs
+
+                TAP version 13
+                # Subtest: renamed module contract
+                ok 1 - renamed module contract
+                  ---
+                  duration_ms: 3.9015
+                  type: 'test'
+                  ...
+                1..1
+                # tests 1
+                # suites 0
+                # pass 1
+                # fail 0
+                # cancelled 0
+                # skipped 0
+                # todo 0
+                # duration_ms 111.5743
+                <shellId: 0 completed with exit code 0>
+    response:
+      content: |-
+        Applied the exact patch:
+
+        - Renamed `old-name.cjs` to `new-name.cjs`
+        - Changed label from `"before"` to `"after"`
+        - Deleted `obsolete.txt`
+        - Left `contract.test.cjs` unchanged
+
+        `npm --offline test` passed: **1 test, 0 failures**.
+      stopReason: end_turn

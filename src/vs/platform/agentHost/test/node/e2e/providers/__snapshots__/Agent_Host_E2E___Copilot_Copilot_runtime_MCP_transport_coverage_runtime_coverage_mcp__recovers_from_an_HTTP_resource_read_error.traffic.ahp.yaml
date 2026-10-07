@@ -1,0 +1,64 @@
+version: 1
+rounds:
+  - clientToServer:
+      - channel: ${chat_0}
+        action:
+          type: chat/turnStarted
+          turnId: ${turn_0}
+          message:
+            text: Call coverage_probe exactly once with {"tag":"bootstrap"}. Do not retry it, call other tools, run commands, or change the arguments. Afterwards reply exactly MCP_TURN_DONE.
+            origin:
+              kind: user
+      - method: subscribe
+      - method: resources/read
+      - method: resources/read
+      - method: subscribe
+    serverToClient:
+      - channel: ${chat_0}
+        action:
+          type: chat/turnStarted
+          turnId: ${turn_0}
+          message:
+            text: Call coverage_probe exactly once with {"tag":"bootstrap"}. Do not retry it, call other tools, run commands, or change the arguments. Afterwards reply exactly MCP_TURN_DONE.
+            origin:
+              kind: user
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallStart
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_0}
+          toolName: runtime-transport-coverage_probe
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallComplete
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_0}
+          result:
+            success: true
+      - channel: ${chat_0}
+        action:
+          type: chat/responsePart
+          turnId: ${turn_0}
+          part:
+            kind: markdown
+            content: MCP_TURN_DONE
+      - channel: ${chat_0}
+        action:
+          type: chat/turnComplete
+          turnId: ${turn_0}
+      - responseTo: subscribe
+        result: success
+      - responseTo: resources/read
+        error:
+          code: -32603
+          message: |-
+            Error: Request session.mcp.apps.readResource failed with message: MCP resources/read failed for runtime-transport (coverage://fixture/missing): MCP error -32602: MCP error -32602: RUNTIME_MCP_RESOURCE_NOT_FOUND
+                at handleResponse (${homedir}\code\vscode.worktrees\end-to-end-tests-code-coverage\node_modules\vscode-jsonrpc\lib\common\connection.js:565:48)
+                at handleMessage (${homedir}\code\vscode.worktrees\end-to-end-tests-code-coverage\node_modules\vscode-jsonrpc\lib\common\connection.js:345:13)
+                at processMessageQueue (${homedir}\code\vscode.worktrees\end-to-end-tests-code-coverage\node_modules\vscode-jsonrpc\lib\common\connection.js:362:17)
+                at Immediate.<anonymous> (${homedir}\code\vscode.worktrees\end-to-end-tests-code-coverage\node_modules\vscode-jsonrpc\lib\common\connection.js:334:13)
+                at process.processImmediate (node:internal/timers:574:21)
+      - responseTo: resources/read
+        result: success
+      - responseTo: subscribe
+        result: success

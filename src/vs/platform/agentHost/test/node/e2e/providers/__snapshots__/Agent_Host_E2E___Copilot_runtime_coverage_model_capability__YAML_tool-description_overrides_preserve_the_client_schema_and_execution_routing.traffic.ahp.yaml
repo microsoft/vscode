@@ -1,0 +1,156 @@
+version: 1
+rounds:
+  - clientToServer:
+      - channel: ${session_0}
+        action:
+          type: session/activeClientSet
+          activeClient:
+            clientId: runtime-model-capability-client
+            tools:
+              - name: capability_client
+                description: ORIGINAL_CAPABILITY_DESCRIPTION
+                inputSchema:
+                  type: object
+                  properties:
+                    tag:
+                      type: string
+                      enum:
+                        - CAPABILITY_INPUT
+                    options:
+                      type: object
+                      properties:
+                        count:
+                          type: integer
+                          minimum: 1
+                          maximum: 3
+                        label:
+                          type:
+                            - string
+                            - 'null'
+                      required:
+                        - count
+                        - label
+                      additionalProperties: false
+                  required:
+                    - tag
+                    - options
+      - channel: ${chat_0}
+        action:
+          type: chat/turnStarted
+          turnId: ${turn_0}
+          message:
+            text: Call capability_client exactly once with tag "CAPABILITY_INPUT" and options {"count":2,"label":null}. Then reply CAPABILITY_COMPLETE.
+            origin:
+              kind: user
+            model:
+              id: claude-sonnet-5
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallComplete
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_0}
+          result:
+            success: true
+      - method: subscribe
+      - method: subscribe
+      - method: subscribe
+      - channel: ${session_1}
+        action:
+          type: root/configChanged
+    serverToClient:
+      - channel: ${session_0}
+        action:
+          type: session/activeClientSet
+          activeClient:
+            clientId: runtime-model-capability-client
+            tools:
+              - name: capability_client
+                description: ORIGINAL_CAPABILITY_DESCRIPTION
+                inputSchema:
+                  type: object
+                  properties:
+                    tag:
+                      type: string
+                      enum:
+                        - CAPABILITY_INPUT
+                    options:
+                      type: object
+                      properties:
+                        count:
+                          type: integer
+                          minimum: 1
+                          maximum: 3
+                        label:
+                          type:
+                            - string
+                            - 'null'
+                      required:
+                        - count
+                        - label
+                      additionalProperties: false
+                  required:
+                    - tag
+                    - options
+      - channel: ${session_1}
+        action:
+          type: root/activeSessionsChanged
+      - channel: ${chat_0}
+        action:
+          type: chat/turnStarted
+          turnId: ${turn_0}
+          message:
+            text: Call capability_client exactly once with tag "CAPABILITY_INPUT" and options {"count":2,"label":null}. Then reply CAPABILITY_COMPLETE.
+            origin:
+              kind: user
+            model:
+              id: claude-sonnet-5
+      - channel: ${session_0}
+        action:
+          type: session/titleChanged
+      - method: root/sessionAdded
+      - channel: ${session_0}
+        action:
+          type: session/ready
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallStart
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_0}
+          toolName: capability_client
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallComplete
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_0}
+          result:
+            success: true
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallComplete
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_0}
+          result:
+            success: true
+      - channel: ${chat_0}
+        action:
+          type: chat/responsePart
+          turnId: ${turn_0}
+          part:
+            kind: markdown
+            content: CAPABILITY_COMPLETE
+      - channel: ${session_1}
+        action:
+          type: root/activeSessionsChanged
+      - channel: ${chat_0}
+        action:
+          type: chat/turnComplete
+          turnId: ${turn_0}
+      - responseTo: subscribe
+        result: success
+      - responseTo: subscribe
+        result: success
+      - responseTo: subscribe
+        result: success
+      - channel: ${session_1}
+        action:
+          type: root/configChanged

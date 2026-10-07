@@ -164,6 +164,16 @@ exchanges:
 
   UUID placeholders are rebound dynamically during replay. The proxy aligns each recorded request with the live request, learns the fresh UUID corresponding to `${uuid_N}`, normalizes the request before comparison, and expands later model tool arguments with the learned value. Bindings are cleared whenever the shared proxy switches fixtures.
 
+Local fixture servers can register an ephemeral base URL through `context.registerFixtureUrl(name, url)`. Captures use `${url_name}` and replay binds it to the current server address, including model-generated tool arguments. Register the returned disposable immediately, keep it alive until the turn drains, and dispose it with the fixture server. Bindings reset between tests; an unbound URL placeholder fails replay rather than reaching a stale address.
+
+Provider-managed spill files under the OS temporary directory use `${saved_output_N}` references. The proxy recognizes their generated filenames, normalizes the whole path rather than just its UUID, and rebinds it from the live tool result before replaying a model request to read that file. This preserves saved-output recovery without freezing a timestamp, process ID, or temporary path. References reset between fixtures and fail explicitly if no live output has supplied the binding.
+
+Tests that require a provider environment override register it by exact title with `context.registerTestEnvironment(title, environment)`. The lease recycles the shared server when overrides change and restores the default environment for the next ordinary test. Do not mutate the test process's environment to configure a shared provider.
+
+An ancillary routing scenario can use `context.setAncillaryResponse(method, path, response)` to replace an already recognized bootstrap response for that test. Own the returned disposable and inspect `observedAncillaryRequests` to assert selection or caching behavior. Model endpoints cannot be overridden this way: their turns retain normal recording and strict replay. Overrides and observations reset between fixtures.
+
+Auto-routing responses that mint a synthetic session token pass that exact token as the fourth argument. The proxy validates it against the response body, and excludes only that marked `Copilot-Session-Token` from live model forwarding during recording. Primary authentication and genuine session tokens are preserved; the runtime still receives and caches the synthetic token during both record and replay. Marked tokens remain recognized until the fixture ends so cached follow-up turns can be recorded.
+
 ---
 
 ## Asserting the model request
@@ -303,6 +313,7 @@ npm run test-copilot-runtime-e2e-coverage -- `
 The output directory must be empty and under this worktree's `.build/`; it is never cleared automatically. Each run isolates native and V8 profiles, logs, merged `.profdata`, and diagnostic reports. Only the CLI platform `index.js` entrypoint is temporarily replaced by an import of the verified source build; its original bytes are backed up exclusively and restored in `finally`. Avoid other Copilot processes during the override. If the workflow itself is forcibly killed, restore `index.js` from its sibling `index.js.copilot-runtime-coverage-backup` before any dependency operation. Never restore dependencies while an override is active.
 
 Successful full runs atomically rewrite the compact tracked summary. Failed tests, teardown, reporting, or normalization keep it untouched and retain `.build/` diagnostics. Rejected recording, live-model, snapshot-update, known-issue diagnostic (`AGENT_HOST_RUN_KNOWN_ISSUES`), and suite-skip flags cannot change the measured suite scope or turn a run green. Supplemental formatting/registry checks are reported separately from prompt/OTel behavior.
+To deliberately track a complete failed attempt, pass `--accept-failed` to a full run or to `--mode report --write`. Every suite must have completed with real test results. The tracked status remains `failed`, the command still exits unsuccessfully, and focused or incomplete attempts cannot be accepted. Rejected recording, live-model, snapshot-update, known-issue diagnostic (`AGENT_HOST_RUN_KNOWN_ISSUES`), and suite-skip flags cannot change the measured suite scope or turn a run green. Supplemental formatting/registry checks are reported separately from prompt/OTel behavior.
 
 #### Focused discovery, then aggregate (not a final measurement)
 
@@ -538,7 +549,7 @@ Codex multiple chats, provider-backed forks, side chats, Plan-mode input, input 
 
 - `GET /models` — a curated stub catalog (keeps unreleased models out of fixtures).
 - `GET /responses` — the SDK's WebSocket transport probe; returns `400` so it falls back to recorded `POST /responses` turns.
-- `POST /models/session`, `POST /models/session/intent` — auto-mode selection. Deliberately answered with a `500 + x-should-retry:false` so the SDK falls back to the configured model (auto-mode isn't wanted in replay). Not counted as a cache miss.
+- `POST /auto`, `POST /models/session`, `POST /models/session/intent` — auto-mode routing and token bootstrap, not model turns. By default they return `500 + x-should-retry:false` so the SDK falls back to the configured model. Auto-selection tests scope a response override to their own fixture window. Not counted as a cache miss.
 - `/copilot_internal/*token*`, `/copilot_internal/*user*` — fake token + generic user/identity.
 - `GET /copilot/mcp_registry` — enterprise MCP registry policy. The Copilot CLI fetches this only when the developer has local MCP servers configured (`~/.copilot/mcp-config.json`) on an org/enterprise plan, so whether it's called varies per machine. Served as an empty registry (`{ mcp_registries: [] }`) so a developer's local MCP config never breaks replay (issue #325248).
 - `POST /mcp`, `POST /mcp/readonly`, and the subsequent GitHub MCP OAuth metadata probes — built-in GitHub MCP bootstrap. These suites do not exercise GitHub MCP tools, so replay returns `404` instead of recording ancillary traffic or changing the fixture's model-visible tool inventory.

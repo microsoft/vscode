@@ -1,0 +1,113 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Call powershell to run this exact command in the existing working directory: "echo DIAGNOSTICS_BLOCKED". Call only that named tool exactly once, without retries, fallbacks, wrappers, or any other tool. Use only the specified synthetic fixture. After success or refusal, reply exactly DIAGNOSTICS_COMPLETE.'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: ${shell}
+          input:
+            command: echo DIAGNOSTICS_BLOCKED
+            description: Echo diagnostic test string
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Call powershell to run this exact command in the existing working directory: "echo DIAGNOSTICS_BLOCKED". Call only that named tool exactly once, without retries, fallbacks, wrappers, or any other tool. Use only the specified synthetic fixture. After success or refusal, reply exactly DIAGNOSTICS_COMPLETE.'
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: powershell
+              input:
+                command: echo DIAGNOSTICS_BLOCKED
+                description: Echo diagnostic test string
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Permission to run this tool was denied due to the following rules: `Shell(echo DIAGNOSTICS_BLOCKED *)`'
+    response:
+      content: DIAGNOSTICS_COMPLETE
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Call powershell to run this exact command in the existing working directory: "echo DIAGNOSTICS_BLOCKED". Call only that named tool exactly once, without retries, fallbacks, wrappers, or any other tool. Use only the specified synthetic fixture. After success or refusal, reply exactly DIAGNOSTICS_COMPLETE.'
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: powershell
+              input:
+                command: echo DIAGNOSTICS_BLOCKED
+                description: Echo diagnostic test string
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Permission to run this tool was denied due to the following rules: `Shell(echo DIAGNOSTICS_BLOCKED *)`'
+        - role: assistant
+          content: DIAGNOSTICS_COMPLETE
+        - role: user
+          content: 'Call powershell to run this exact command in the existing working directory: "echo DIAGNOSTICS_BLOCKED_SUFFIX". Call only that named tool exactly once, without retries, fallbacks, wrappers, or any other tool. Use only the specified synthetic fixture. After success or refusal, reply exactly DIAGNOSTICS_COMPLETE.'
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: ${shell}
+          input:
+            command: echo DIAGNOSTICS_BLOCKED_SUFFIX
+            description: Echo diagnostic test string
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Call powershell to run this exact command in the existing working directory: "echo DIAGNOSTICS_BLOCKED". Call only that named tool exactly once, without retries, fallbacks, wrappers, or any other tool. Use only the specified synthetic fixture. After success or refusal, reply exactly DIAGNOSTICS_COMPLETE.'
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: powershell
+              input:
+                command: echo DIAGNOSTICS_BLOCKED
+                description: Echo diagnostic test string
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Permission to run this tool was denied due to the following rules: `Shell(echo DIAGNOSTICS_BLOCKED *)`'
+        - role: assistant
+          content: DIAGNOSTICS_COMPLETE
+        - role: user
+          content: 'Call powershell to run this exact command in the existing working directory: "echo DIAGNOSTICS_BLOCKED_SUFFIX". Call only that named tool exactly once, without retries, fallbacks, wrappers, or any other tool. Use only the specified synthetic fixture. After success or refusal, reply exactly DIAGNOSTICS_COMPLETE.'
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: powershell
+              input:
+                command: echo DIAGNOSTICS_BLOCKED_SUFFIX
+                description: Echo diagnostic test string
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: |-
+                DIAGNOSTICS_BLOCKED_SUFFIX
+                <shellId: 1 completed with exit code 0>
+    response:
+      content: DIAGNOSTICS_COMPLETE
+      stopReason: end_turn

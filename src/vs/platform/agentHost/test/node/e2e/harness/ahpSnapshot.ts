@@ -91,9 +91,14 @@ export class AhpSnapshotRecorder {
 	private readonly _messages: ICapturedAhpMessage[] = [];
 	private readonly _roundStarts: number[] = [];
 	private _normalization: IAhpSnapshotNormalization | undefined;
+	private readonly _fixtureUrls = new Map<string, string>();
 
 	setNormalization(normalization: IAhpSnapshotNormalization): void {
 		this._normalization = normalization;
+	}
+
+	setFixtureUrl(name: string, url: string): void {
+		this._fixtureUrls.set(url, `\${url_${name}}`);
 	}
 
 	record(direction: AhpSnapshotDirection, message: object): void {
@@ -188,7 +193,11 @@ export class AhpSnapshotRecorder {
 			normalizeSnapshotObjects(round.clientToServer, this._normalization);
 			normalizeSnapshotObjects(round.serverToClient, this._normalization);
 		}
-		return serializeFixture({ version: 1, rounds });
+		let serialized = serializeFixture({ version: 1, rounds });
+		for (const [url, placeholder] of [...this._fixtureUrls].sort(([left], [right]) => right.length - left.length)) {
+			serialized = serialized.replaceAll(url, placeholder);
+		}
+		return serialized;
 	}
 }
 

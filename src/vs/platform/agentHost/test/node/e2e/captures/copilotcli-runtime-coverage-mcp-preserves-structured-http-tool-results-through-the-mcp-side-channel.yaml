@@ -1,0 +1,57 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly MCP_TRANSPORT_READY. Do not call tools or run commands.
+    response:
+      content: MCP_TRANSPORT_READY
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly MCP_TRANSPORT_READY. Do not call tools or run commands.
+        - role: assistant
+          content: MCP_TRANSPORT_READY
+        - role: user
+          content: Call coverage_probe exactly once with {"tag":"bootstrap"}. Do not retry it, call other tools, run commands, or change the arguments. Afterwards reply exactly MCP_TURN_DONE.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: runtime-transport-coverage_probe
+          input:
+            tag: bootstrap
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly MCP_TRANSPORT_READY. Do not call tools or run commands.
+        - role: assistant
+          content: MCP_TRANSPORT_READY
+        - role: user
+          content: Call coverage_probe exactly once with {"tag":"bootstrap"}. Do not retry it, call other tools, run commands, or change the arguments. Afterwards reply exactly MCP_TURN_DONE.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: runtime-transport-coverage_probe
+              input:
+                tag: bootstrap
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                RUNTIME_MCP_STRUCTURED
+
+                {"marker":"RUNTIME_MCP_STRUCTURED","count":3,"items":[null,2,"λ"]}
+    response:
+      content: MCP_TURN_DONE
+      stopReason: end_turn
