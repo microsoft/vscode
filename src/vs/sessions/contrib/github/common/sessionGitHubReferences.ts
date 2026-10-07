@@ -42,10 +42,6 @@ function dedupeByLink<T extends { readonly uri: URI }>(refs: readonly T[]): read
 	});
 }
 
-function isSameRepository(first: { readonly owner: string; readonly repo: string }, second: { readonly owner: string; readonly repo: string }): boolean {
-	return first.owner.toLowerCase() === second.owner.toLowerCase() && first.repo.toLowerCase() === second.repo.toLowerCase();
-}
-
 function mergeGitHubReferences<T extends IGitHubIssueRef>(recorded: readonly T[], associated: readonly T[], merge: (recorded: T, associated: T) => T): readonly T[] {
 	const uniqueRecorded = dedupeByLink(recorded);
 	const recordedLinks = new Set(uniqueRecorded.map(ref => linkKey(ref.uri.toString())));
@@ -70,7 +66,6 @@ export function getSessionGitHubReferences(session: ISession | undefined, reader
 		? chatWorkspace.folders.map(folder => folder.gitRepository?.gitHubInfo.read(reader)).filter(isDefined)
 		: [];
 	const gitHubInfo = chatWorkspace ? folderGitHubInfos[0] : session?.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
-	const chatRepositories = chatWorkspace && folderGitHubInfos.length > 0 ? folderGitHubInfos : undefined;
 	const artifacts = (session?.artifacts?.read(reader) ?? []).filter(artifact => !chat || !artifact.chat || isEqual(artifact.chat, chat.resource));
 	const restrictPullRequestsToChat = !!chat && !autoAssociatePullRequests;
 	const chatPullRequestArtifacts = artifacts.filter(artifact => artifact.kind === SessionArtifactKind.PullRequest && artifact.isArtifact && parseGitHubArtifactLink(artifact)
@@ -108,9 +103,7 @@ export function getSessionGitHubReferences(session: ISession | undefined, reader
 			recordedReferenceId: artifact.id,
 		};
 		if (artifact.kind === SessionArtifactKind.PullRequest) {
-			if (!chatRepositories || chatRepositories.some(repository => isSameRepository(ref, repository))) {
-				pullRequests.push({ ...ref, createdByThisSession: true });
-			}
+			pullRequests.push({ ...ref, createdByThisSession: true });
 		} else {
 			issues.push(ref);
 		}

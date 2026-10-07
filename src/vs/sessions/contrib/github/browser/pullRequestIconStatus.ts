@@ -34,6 +34,7 @@ export class SessionPullRequestPresentationModel extends Disposable {
 		pullRequestRefs: IObservable<readonly IGitHubPullRequestRef[]>,
 		agentMergeConfiguration: IObservable<ISessionAgentMergeConfiguration | undefined>,
 		gitHubService: IGitHubService,
+		agentMergeApplies: (ref: IGitHubPullRequestRef, reader: IReaderWithStore) => boolean = () => true,
 	) {
 		super();
 
@@ -52,7 +53,7 @@ export class SessionPullRequestPresentationModel extends Disposable {
 				pullRequest,
 				status,
 				ciStatus,
-				icon: icon ? getAgentMergeAwarePullRequestIcon(icon, agentMergeConfiguration.read(reader), status) : undefined,
+				icon: icon ? getAgentMergeAwarePullRequestIcon(icon, agentMergeApplies(ref, reader) ? agentMergeConfiguration.read(reader) : undefined, status) : undefined,
 			};
 		}));
 		this.icon = derived(this, reader => {
