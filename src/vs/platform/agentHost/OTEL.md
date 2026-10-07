@@ -8,6 +8,13 @@ Product startup telemetry and its host-lifetime correlation ID are documented in
 [`PERFORMANCE.md`](PERFORMANCE.md). They use the existing usage-telemetry consent,
 not the OTel exporter or its configuration.
 
+Product telemetry event `agentHost.userMessageSent` includes `isOtelEnabled`, a boolean
+recording resolved Agent Host OTel configuration at submission, not SDK initialization
+or successful export. It is stored as `Measures["isotelenabled"]` in Kusto. Join error
+events to admitted turns by machine, session, chat, and turn identifiers to calculate
+OTel-scoped failure rates. Unmatched errors and absent fields on older builds are
+unknown, not disabled; a host restart or resume can change configuration after submission.
+
 Host-wide diagnostic logs can be subscribed to over local Agent Host ingress, but are not advertised on Mission Control relay connections. Those logs must not contend with session operations on the bounded relay publisher. This is separate from provider-native OTel logs and their configured exporter destinations.
 
 <!-- (Written by Copilot) -->

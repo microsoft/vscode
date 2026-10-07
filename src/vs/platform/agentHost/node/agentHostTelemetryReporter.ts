@@ -171,6 +171,7 @@ type IAgentHostWorkspaceSnapshotClassification = {
 
 export interface IAgentHostUserMessageSentEvent extends IAgentHostCopilotSkuTelemetry {
 	provider: string;
+	isOtelEnabled: boolean;
 	hostLaunchKind: AgentHostLaunchKind;
 	initiatorClientId: string | undefined;
 	initiatorClientType: AgentHostClientType;
@@ -194,6 +195,7 @@ export interface IAgentHostUserMessageSentEvent extends IAgentHostCopilotSkuTele
 
 export type IAgentHostUserMessageSentClassification = IAgentHostCopilotSkuClassification & {
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
+	isOtelEnabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the resolved Agent Host configuration enables OTel.' };
 	hostLaunchKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the agent host process was launched by the VS Code main process or VS Code CLI.' };
 	initiatorClientId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The opaque AHP client identifier that initiated the message.' };
 	initiatorClientType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of AHP client that initiated the message.' };
@@ -1204,6 +1206,7 @@ export class AgentHostTelemetryReporter {
 		this._telemetryService.publicLog2<IAgentHostUserMessageSentEvent, IAgentHostUserMessageSentClassification>('agentHost.userMessageSent', {
 			...copilotSku,
 			provider,
+			isOtelEnabled: this._otelService.enabled,
 			hostLaunchKind: clientContext.hostLaunchKind,
 			initiatorClientId: clientId,
 			initiatorClientType: clientContext.clientType,
