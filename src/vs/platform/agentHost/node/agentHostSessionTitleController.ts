@@ -15,6 +15,7 @@ import { ActionType } from '../common/state/sessionActions.js';
 import { buildDefaultChatUri, isAhpChatChannel, isDefaultChatUri, TurnState, type Turn, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { buildConversationContext, renderResponseMarkdown, truncateMiddle } from '../common/agentHostConversationContext.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
+import type { IAgentHostPeerChatPersistenceService } from './agentHostPeerChatStore.js';
 import type { GitHubIssueOrPullRequest } from '../../github/common/githubQueryService.js';
 import type { IAgentHostGitHubService } from './agentHostGitHubService.js';
 import { ICopilotApiService, type ICopilotUtilityChatMessage } from './shared/copilotApiService.js';
@@ -85,6 +86,8 @@ interface ITitlePromptContext {
 
 export interface IAgentHostSessionTitleControllerOptions {
 	readonly sessionDataService: ISessionDataService;
+	readonly persistMetadata?: (resource: ProtocolURI, values: Readonly<Record<string, string>>) => Promise<void>;
+	readonly readNormalizedChat?: IAgentHostPeerChatPersistenceService['readNormalizedChat'];
 	readonly queueCatalogSync?: (session: ProtocolURI, metadataOverrides: Readonly<Record<string, string>>) => void;
 	readonly persistSurfacedSessionTitle?: (session: ProtocolURI, title: string) => Promise<void>;
 	readonly getGitHubCopilotToken?: () => string | undefined;
@@ -897,6 +900,10 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 	}
 
 	private _persistSessionFlag(session: ProtocolURI, key: string, value: string): void {
+		if (this._options.persistMetadata && (key === SESSION_CUSTOM_TITLE_KEY || key === SESSION_CUSTOM_TITLE_SOURCE_KEY || key.startsWith('customChatTitle:') || key.startsWith('customChatTitleSource:'))) {
+			void this._options.persistMetadata(session, { [key]: value }).catch(error => this._logService.warn(`[AgentHostSessionTitleController] Failed to persist ${key}`, error));
+			return;
+		}
 		persistSessionMetadata(this._options.sessionDataService, this._logService, session, key, value);
 	}
 
@@ -1007,10 +1014,16 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 				if (typeof seed.title !== 'string' || typeof seed.turnIndex !== 'number' || !Number.isSafeInteger(seed.turnIndex) || seed.turnIndex < 0) {
 					return;
 				}
-				const [title, source] = await Promise.all([
-					ref.object.getMetadata(independentChat ? customChatTitleMetadataKey(independentChat) : SESSION_CUSTOM_TITLE_KEY),
-					ref.object.getMetadata(independentChat ? customChatTitleSourceMetadataKey(independentChat) : SESSION_CUSTOM_TITLE_SOURCE_KEY),
-				]);
+				const normalized = await this._options.readNormalizedChat?.(URI.parse(channel), URI.parse(chatChannel));
+				if (normalized?.normalized && !normalized.chat) {
+					throw new Error(`Missing normalized chat during deferred title restoration: ${chatChannel}`);
+				}
+				const [title, source] = normalized?.normalized
+					? [normalized.chat?.metadata?.summary, normalized.chat?.metadata?.titleSource]
+					: await Promise.all([
+						ref.object.getMetadata(independentChat ? customChatTitleMetadataKey(independentChat) : SESSION_CUSTOM_TITLE_KEY),
+						ref.object.getMetadata(independentChat ? customChatTitleSourceMetadataKey(independentChat) : SESSION_CUSTOM_TITLE_SOURCE_KEY),
+					]);
 				const key = independentChat ?? channel;
 				if (this._store.isDisposed || this._restoringDeferredSeeds.get(chatChannel) !== restore || this._titleGenerationStrategies.get(channel) !== 'deferred' || this._lastAppliedTitle.has(key) || this._renamedTitles.has(key) || this._deferredRefinementStarted.has(key)) {
 					return;

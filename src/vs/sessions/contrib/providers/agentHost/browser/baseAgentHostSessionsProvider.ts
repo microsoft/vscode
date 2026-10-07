@@ -7709,7 +7709,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return true;
 	}
 
-	protected _adoptCachedSessionMeta(meta: IAgentSessionMetadata): IAgentSessionMetadata {
+	/** Allows providers to migrate or reject cached metadata before constructing adapters. */
+	protected _adoptCachedSessionMeta(meta: IAgentSessionMetadata): IAgentSessionMetadata | undefined {
 		return this._adoptSessionMeta(meta);
 	}
 
@@ -7728,6 +7729,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				continue;
 			}
 			const meta = this._adoptCachedSessionMeta(deserialized);
+			if (!meta) {
+				this._cacheDirty = true;
+				continue;
+			}
 			const rawId = meta.session.toString();
 			if (this._sessionCache.has(rawId)) {
 				continue;

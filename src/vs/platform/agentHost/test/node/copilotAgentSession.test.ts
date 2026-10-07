@@ -88,7 +88,8 @@ import { buildCopilotSystemNotification, getCopilotSubagentDisplayNames } from '
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpToolRoutingEnabledConfigKey } from '../../common/agentHostSchema.js';
-import { CopilotCliConfigKey } from '../../common/copilotCliConfig.js';
+import { AgentHostHydraFusionEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey } from '../../common/copilotCliConfig.js';
+import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/common/experimentTriggerTestUtils.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
 import { AgentHostSandboxConfigKey, AgentHostSandboxKey } from '../../common/sandboxConfigSchema.js';
@@ -609,13 +610,22 @@ class MockCopilotSession {
 			},
 		},
 		mcp: {
-			list: async (options?: { startServers?: boolean }) => {
+			list: async () => {
+				this.mcpMaterializingListCalls++;
+				throw new Error('Session inventory must not materialize MCP servers');
+			},
+			listConfigured: async (): ReturnType<CopilotSession['rpc']['mcp']['listConfigured']> => {
 				this.mcpListCalls++;
-				this.mcpListOptions.push(options);
 				if (this.mcpListError !== undefined) {
 					throw this.mcpListError;
 				}
-				const result = this.mcpListResult;
+				const result = this.mcpConfiguredListResult ?? {
+					servers: this.mcpListResult.servers.map(({ status, error, ...server }) => ({
+						...server,
+						enabled: status !== 'disabled' && status !== 'not_configured',
+						live: { status, error },
+					})),
+				};
 				await this.mcpListGates.shift();
 				return result;
 			},
@@ -760,8 +770,9 @@ class MockCopilotSession {
 	readonly shellInitScriptUpdates: unknown[] = [];
 
 	mcpListResult: Awaited<ReturnType<CopilotSession['rpc']['mcp']['list']>> = { servers: [] };
+	mcpConfiguredListResult: Awaited<ReturnType<CopilotSession['rpc']['mcp']['listConfigured']>> | undefined;
 	mcpListCalls = 0;
-	mcpListOptions: Array<{ startServers?: boolean } | undefined> = [];
+	mcpMaterializingListCalls = 0;
 	mcpListGates: Promise<void>[] = [];
 	mcpListError: unknown = undefined;
 	mcpEnableError: unknown = undefined;
@@ -1295,6 +1306,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		rejectSessionSandboxChange: (_session, _values, _origin, message) => { sandboxResults.push(message); },
 		updateSessionConfig: (session, patch) => { sessionConfigUpdates.push({ session, patch }); },
 		getRootValue: ((_schema: unknown, key: string) => rootValues[key]) as IAgentConfigurationService['getRootValue'],
+		getRootConfigValues: () => rootValues,
 		updateRootConfig: () => { /* no-op */ },
 		persistRootConfig: () => { /* no-op */ },
 		whenIdle: async () => { /* no-op */ },
@@ -1620,6 +1632,45 @@ suite('CopilotAgentSession', () => {
 				data: [{ uri: terminal, data: 'tick 1\n' }, { uri: terminal, data: 'tick 2\n' }],
 				finalized: [{ uri: terminal, exitCode: 0 }],
 				disposed: [],
+			});
+		});
+
+		test('appends shell output chunks for an attached shell instead of its rolling snapshots', async () => {
+			const { session, mockSession, waitForSignal, terminalManager } = await createAgentSession(disposables);
+			session.resetTurnState('turn-chunks');
+			const terminal = defaultNonPtyShellTerminalUri('tc-chunks');
+			const logLine = `[main] request served from vscode-file://vscode-app/out/vs/code/electron-main/main.js ${'x'.repeat(80)}\n`;
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-chunks',
+				toolName: 'bash',
+				arguments: { command: 'npm run serve', description: 'Serve', mode: 'async' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			mockSession.fire('tool.shell_output', { toolCallId: 'tc-chunks', text: 'listening\n', sequence: 0 } as SessionEventPayload<'tool.shell_output'>['data']);
+			mockSession.fire('tool.execution_partial_result', { toolCallId: 'tc-chunks', partialOutput: 'listening\n' } as SessionEventPayload<'tool.execution_partial_result'>['data']);
+			mockSession.backgroundTasks = [shell('chunks')];
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-chunks',
+				success: true,
+				result: { content: '<command started in background with shellId: chunks>' },
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+			await waitForSignal(signal => isAction(signal, ActionType.ChatBackgroundWorkSet));
+			mockSession.fire('tool.shell_output', { toolCallId: 'tc-chunks', text: logLine, sequence: 1, stream: 'stderr' } as SessionEventPayload<'tool.shell_output'>['data']);
+			// Once output spills to a file, a snapshot carries only the output's last 128 characters.
+			mockSession.fire('tool.execution_partial_result', { toolCallId: 'tc-chunks', partialOutput: logLine.slice(-128) } as SessionEventPayload<'tool.execution_partial_result'>['data']);
+			mockSession.fire('system.notification', {
+				content: '<system_notification>\nShell command completed\n</system_notification>',
+				kind: { type: 'shell_completed', shellId: 'chunks', exitCode: 0, description: 'npm run serve' },
+			} as SessionEventPayload<'system.notification'>['data']);
+			mockSession.fire('tool.shell_output', { toolCallId: 'tc-chunks', text: 'late\n', sequence: 2 } as SessionEventPayload<'tool.shell_output'>['data']);
+
+			assert.deepStrictEqual({
+				data: terminalManager.outputTerminalData,
+				resets: terminalManager.outputTerminalResets,
+				finalized: terminalManager.outputTerminalsFinalized,
+			}, {
+				data: [{ uri: terminal, data: 'listening\n' }, { uri: terminal, data: logLine }],
+				resets: [],
+				finalized: [{ uri: terminal, exitCode: 0 }],
 			});
 		});
 
@@ -6573,6 +6624,7 @@ suite('CopilotAgentSession', () => {
 			predictedLabel: 'needs_reasoning',
 			confidence: 0.93,
 			candidateModels: ['claude-opus-4.8', 'claude-sonnet-4.6'],
+			selectionReason: 'Auto selected claude-opus-4.8 for its fit to your request because of high reasoning needs.',
 		};
 
 		session.resetTurnState('turn-before-auto');
@@ -10288,6 +10340,61 @@ suite('CopilotAgentSession', () => {
 		});
 
 		for (const platform of ['linux', 'darwin', 'win32'] as const) {
+			test(`per-request sandbox: skips extra read grants under managed readonly paths on ${platform}`, async () => {
+				const sandboxPolicy: { enabled: boolean; readonlyPaths?: string[] } = { enabled: true };
+				const { session, mockSession } = await createAgentSession(disposables, {
+					platform,
+					sandboxPolicy,
+					rootValues: {
+						[AgentHostSandboxConfigKey.Sandbox]: {
+							[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On,
+							[AgentHostSandboxKey.UserConfiguredPaths]: { readonlyPaths: ['local-reference'] },
+						},
+					},
+				});
+				const paths = [];
+				for (const [index, managed] of [undefined, ['managed-reference'], [], undefined].entries()) {
+					sandboxPolicy.readonlyPaths = managed;
+					await session.send('hello', undefined, `turn-${index}`);
+					const applied = mockSession.sandboxConfigUpdates.at(-1) as SandboxConfig;
+					paths.push(applied.userPolicy?.filesystem?.readonlyPaths);
+				}
+				const attachmentsPath = platform === 'win32' ? TEST_SESSION_ATTACHMENTS_DIR.replace(/\//g, '\\') : TEST_SESSION_ATTACHMENTS_DIR;
+				assert.deepStrictEqual(paths, [
+					['local-reference', attachmentsPath],
+					['managed-reference'],
+					undefined,
+					['local-reference', attachmentsPath],
+				]);
+			});
+
+			test(`per-request sandbox: local outbound denial wins over managed permission on ${platform}`, async () => {
+				const { session, mockSession } = await createAgentSession(disposables, {
+					platform,
+					sandboxPolicy: { enabled: true, allowOutbound: true },
+					rootValues: {
+						[AgentHostSandboxConfigKey.Sandbox]: {
+							[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On,
+							[AgentHostSandboxKey.AllowNetwork]: false,
+						},
+					},
+				});
+
+				await session.send('hello', undefined, 'turn-1');
+
+				const attachmentsPath = platform === 'win32' ? TEST_SESSION_ATTACHMENTS_DIR.replace(/\//g, '\\') : TEST_SESSION_ATTACHMENTS_DIR;
+				assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), {
+					enabled: true,
+					addCurrentWorkingDirectory: true,
+					allowBypass: false,
+					auth: { git: true, gh: true },
+					userPolicy: {
+						filesystem: { readonlyPaths: [attachmentsPath] },
+						network: { allowOutbound: false },
+					},
+				});
+			});
+
 			test(`per-request sandbox: sends managed outbound denial and keeps local bypass false on ${platform}`, async () => {
 				const sandboxPolicy = { enabled: true, allowBypass: true, allowOutbound: false };
 				const { session, mockSession } = await createAgentSession(disposables, {
@@ -10316,13 +10423,14 @@ suite('CopilotAgentSession', () => {
 				[AgentHostSandboxKey.SandboxMcpServers, true],
 				[AgentHostSandboxKey.SandboxLspServers, true],
 				[AgentHostSandboxKey.AllowDevToolAccess, false],
+				[AgentHostSandboxKey.AddCurrentWorkingDirectory, false],
 				[AgentHostSandboxKey.AllowLocalNetwork, false],
 				[AgentHostSandboxKey.AuthenticateGit, false],
 				[AgentHostSandboxKey.AuthenticateGh, false],
 			] as const) {
 				test(`per-request sandbox: enforces ${key} and restores local choices on ${platform}`, async () => {
 					for (const local of [false, true]) {
-						const sandboxPolicy: { enabled: boolean; sandboxMcpServers?: boolean; sandboxLspServers?: boolean; allowDevToolAccess?: boolean; allowLocalNetwork?: boolean; authenticateGit?: boolean; authenticateGh?: boolean } = { enabled: true };
+						const sandboxPolicy: { enabled: boolean; sandboxMcpServers?: boolean; sandboxLspServers?: boolean; allowDevToolAccess?: boolean; addCurrentWorkingDirectory?: boolean; allowLocalNetwork?: boolean; authenticateGit?: boolean; authenticateGh?: boolean } = { enabled: true };
 						const { session, mockSession } = await createAgentSession(disposables, {
 							platform,
 							sandboxPolicy,
@@ -14238,6 +14346,47 @@ Use the attached image as context.
 				]);
 			});
 		}
+
+		test('reports the HydraFusion v2 experiment trigger when a route starts, in both arms', async () => {
+			const treatment = `config.${AgentHostHydraFusionEnabledSettingId}`;
+			const results: Record<string, { beforeRoute: readonly string[]; afterRoute: readonly string[] }> = {};
+			for (const v2 of [true, false]) {
+				const telemetryService = new TestExperimentTriggerTelemetryService();
+				const { session, mockSession } = await createAgentSession(disposables, {
+					telemetryService,
+					rootValues: { [CopilotCliConfigKey.HydraFusion]: true, [CopilotCliConfigKey.HydraFusionV2]: v2, [CopilotCliVSCodeAssignmentContextKey]: 'assignment-context' },
+				});
+				session.resetTurnState('fusion-turn');
+				const beforeRoute = [...telemetryService.triggers];
+				mockSession.fire('session.fusion_route_started', fusionTestData.routeStarted);
+				mockSession.fire('session.fusion_route_started', fusionTestData.routeStarted);
+				results[v2 ? 'v2' : 'v1'] = { beforeRoute, afterRoute: telemetryService.triggers };
+			}
+
+			assert.deepStrictEqual(results, {
+				v2: { beforeRoute: [], afterRoute: [treatment] },
+				v1: { beforeRoute: [], afterRoute: [treatment] },
+			});
+		});
+
+		test('holds the HydraFusion v2 experiment trigger until the assignment context arrives', async () => {
+			const telemetryService = new TestExperimentTriggerTelemetryService();
+			const { session, mockSession, setRootValue, fireRootConfigChange } = await createAgentSession(disposables, {
+				telemetryService,
+				rootValues: { [CopilotCliConfigKey.HydraFusion]: true },
+			});
+			session.resetTurnState('fusion-turn');
+			mockSession.fire('session.fusion_route_started', fusionTestData.routeStarted);
+			const beforeContext = [...telemetryService.triggers];
+			setRootValue(CopilotCliVSCodeAssignmentContextKey, 'assignment-context');
+			fireRootConfigChange();
+			await timeout(0);
+
+			assert.deepStrictEqual({ beforeContext, afterContext: telemetryService.triggers }, {
+				beforeContext: [],
+				afterContext: [`config.${AgentHostHydraFusionEnabledSettingId}`],
+			});
+		});
 
 		test('Fusion phase events surface milestones and clear live activity on completion', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
@@ -19851,8 +20000,98 @@ Use the attached image as context.
 
 			await timeout(0);
 
-			assert.deepStrictEqual(mockSession.mcpListOptions, [{ startServers: false }]);
+			assert.deepStrictEqual({
+				configuredListCalls: mockSession.mcpListCalls,
+				materializingListCalls: mockSession.mcpMaterializingListCalls,
+			}, { configuredListCalls: 1, materializingListCalls: 0 });
 		});
+
+		test('publishes cold configured servers without claiming readiness or fetching tools', async () => {
+			const { session, mockSession } = await createAgentSession(disposables, {
+				resolveCustomizationEnablement: target => ({
+					kind: 'resolved',
+					enablement: [{ kind: CustomizationEnablementKind.Session, enabled: target.name !== 'disabled' }],
+					enabled: target.name !== 'disabled',
+					workingDirectory: { kind: 'workspaceless' },
+				}),
+				configureMockSession: mock => {
+					mock.mcpConfiguredListResult = {
+						servers: [
+							{ name: 'sleepy', enabled: true, source: 'user' },
+							{ name: 'disabled', enabled: false, source: 'workspace' },
+							{ name: 'plugin-server', enabled: true, source: 'plugin', sourcePlugin: 'acme', sourcePluginVersion: '1.0.0' },
+						]
+					};
+				},
+			});
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				servers: session.topLevelMcpCustomizations().map(server => ({
+					name: server.name,
+					enabled: isCustomizationEnabled(server),
+					state: server.state,
+					source: readMcpServerSource(server),
+					plugin: readMcpServerSourcePlugin(server),
+				})),
+				listCalls: mockSession.mcpMaterializingListCalls,
+				toolCalls: mockSession.mcpListToolsCalls,
+				enableCalls: mockSession.mcpEnableCalls,
+			}, {
+				servers: [
+					{ name: 'sleepy', enabled: true, state: { kind: McpServerStatus.Stopped }, source: 'user', plugin: undefined },
+					{ name: 'disabled', enabled: false, state: { kind: McpServerStatus.Stopped }, source: 'workspace', plugin: undefined },
+					{ name: 'plugin-server', enabled: true, state: { kind: McpServerStatus.Stopped }, source: 'plugin', plugin: 'acme' },
+				],
+				listCalls: 0,
+				toolCalls: [],
+				enableCalls: [],
+			});
+		});
+
+		for (const liveStatus of [undefined, 'stopped', 'not_configured'] as const) {
+			for (const enabled of [false, true]) {
+				for (const desired of [false, true]) {
+					test(`reconciles configured enablement ${enabled} with desired ${desired} and live status ${liveStatus}`, async () => {
+						const serverName = 'sleepy';
+						const id = 'mcp-top-level:copilotcli:test-session-1:sleepy';
+						const { session, mockSession } = await createAgentSession(disposables, {
+							sessionCustomizations: () => [{
+								type: CustomizationType.McpServer, id, uri: id, name: serverName,
+								state: { kind: McpServerStatus.Stopped },
+							}],
+							resolveCustomizationEnablement: () => ({
+								kind: 'resolved',
+								enablement: [{ kind: CustomizationEnablementKind.Session, enabled: desired }],
+								enabled: desired,
+								workingDirectory: { kind: 'workspaceless' },
+							}),
+							configureMockSession: mock => {
+								mock.mcpConfiguredListResult = {
+									servers: [{
+										name: serverName, enabled, live: liveStatus ? { status: liveStatus } : undefined,
+									}]
+								};
+							},
+						});
+
+						await session.send('reconcile sleepy');
+
+						assert.deepStrictEqual({
+							enable: mockSession.mcpEnableCalls,
+							disable: mockSession.mcpDisableCalls,
+							materializingListCalls: mockSession.mcpMaterializingListCalls,
+							toolCalls: mockSession.mcpListToolsCalls,
+						}, {
+							enable: desired && !enabled ? [{ serverName }] : [],
+							disable: !desired && enabled ? [{ serverName }] : [],
+							materializingListCalls: 0,
+							toolCalls: [],
+						});
+					});
+				}
+			}
+		}
 
 		test('does not enable a server while its customization resolution is pending', async () => {
 			const serverName = 'azure';
@@ -19940,12 +20179,14 @@ Use the attached image as context.
 			assert.deepStrictEqual({
 				staleControllerState,
 				disableCalls: mockSession.mcpDisableCalls,
-				nonStartingListCalls: mockSession.mcpListOptions.filter(options => options?.startServers === false).length,
+				nonStartingListCalls: mockSession.mcpListCalls,
+				materializingListCalls: mockSession.mcpMaterializingListCalls,
 				sendRequests: mockSession.sendRequests,
 			}, {
 				staleControllerState: { kind: McpServerStatus.Stopped },
 				disableCalls: [{ serverName }],
 				nonStartingListCalls: 3,
+				materializingListCalls: 0,
 				sendRequests: [],
 			});
 
@@ -19993,12 +20234,14 @@ Use the attached image as context.
 			assert.deepStrictEqual({
 				staleControllerState,
 				enableCalls: mockSession.mcpEnableCalls,
-				nonStartingListCalls: mockSession.mcpListOptions.filter(options => options?.startServers === false).length,
+				nonStartingListCalls: mockSession.mcpListCalls,
+				materializingListCalls: mockSession.mcpMaterializingListCalls,
 				sendRequests: mockSession.sendRequests,
 			}, {
 				staleControllerState: { kind: McpServerStatus.Ready },
 				enableCalls: [{ serverName }],
 				nonStartingListCalls: 3,
+				materializingListCalls: 0,
 				sendRequests: [],
 			});
 
@@ -21666,7 +21909,7 @@ Use the attached image as context.
 			assert.deepStrictEqual(action.customization.state, { kind: McpServerStatus.Starting });
 		});
 
-		test('seeds inventory from rpc.mcp.list at subscription time', async () => {
+		test('seeds inventory from rpc.mcp.listConfigured at subscription time', async () => {
 			const { signals, waitForSignal } = await createAgentSession(disposables, {
 				configureMockSession: m => {
 					m.mcpListResult = {
@@ -22206,7 +22449,7 @@ Use the attached image as context.
 			});
 		});
 
-		test('logs a warning and continues when rpc.mcp.list rejects', async () => {
+		test('logs a warning and continues when rpc.mcp.listConfigured rejects', async () => {
 			const logService = new CapturingLogService();
 			const { mockSession, waitForSignal } = await createAgentSession(disposables, {
 				logService,

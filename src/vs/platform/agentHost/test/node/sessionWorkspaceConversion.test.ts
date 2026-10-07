@@ -173,7 +173,11 @@ suite('SessionWorkspaceConversionService', () => {
 		disposables.add({ dispose: () => agent.dispose() });
 		const providerService = createTestAgentHostProviderService(() => agent);
 		const trustRequests: { clientId: string; workspace: string; trustedParent?: string }[] = [];
+		const connectedClientIds = new Set<string>();
 		const clientConnections = new class extends mock<IAgentHostClientConnectionService>() {
+			override isClientConnected(clientId: string): boolean {
+				return connectedClientIds.has(clientId);
+			}
 			override async requestWorkspaceTrust(clientId: string, request: { readonly workspace: string; readonly trustedParent?: string }): Promise<boolean> {
 				trustRequests.push({ clientId, ...request });
 				return requestWorkspaceTrust(clientId, request);
@@ -267,7 +271,7 @@ suite('SessionWorkspaceConversionService', () => {
 			workingDirectories: [scratch.toString()],
 			_meta: withSessionWorkspaceless(undefined, true),
 		});
-		return { service, stateManager, configurationService, sessionDataService, database, agent, session, chat, scratch, continuations, outcomeKindsAtContinuation, deferredContinuations, failedContinuations, trustRequests, refreshedServerTools, serverToolHost, gitRefreshes };
+		return { service, stateManager, configurationService, sessionDataService, database, agent, session, chat, scratch, continuations, outcomeKindsAtContinuation, deferredContinuations, failedContinuations, trustRequests, connectedClientIds, refreshedServerTools, serverToolHost, gitRefreshes };
 	}
 
 	function setSessionConfig(harness: ReturnType<typeof createHarness>, values: Record<string, unknown>): void {
@@ -1383,6 +1387,45 @@ suite('SessionWorkspaceConversionService', () => {
 			scheduled: harness.service.requestSessionWorkspaceUpdate(harness.chat, 'turn-1', harness.scratch, false, 'client-1'),
 			pending: harness.service.isPending(harness.chat.toString()),
 		}, { scheduled: true, pending: true });
+	});
+
+	test('workspace tool uses the sole connected active client when the turn initiator is unavailable', async () => {
+		const harness = createHarness();
+		const destination = URI.file('/workspace/project');
+		harness.connectedClientIds.add('client-1');
+		harness.stateManager.dispatchServerAction(harness.session.toString(), {
+			type: ActionType.SessionActiveClientSet,
+			activeClient: { clientId: 'client-1', tools: [] },
+		});
+		startTurn(harness.stateManager, harness.chat);
+		const scheduled = harness.service.requestSessionWorkspaceUpdate(harness.chat, 'turn-1', destination, false);
+		completeTurn(harness.stateManager, harness.chat);
+		await updateSessionWorkspace(harness);
+		assert.deepStrictEqual({
+			scheduled,
+			pending: harness.service.isPending(harness.chat.toString()),
+			trustRequests: harness.trustRequests,
+		}, {
+			scheduled: true,
+			pending: false,
+			trustRequests: [{ clientId: 'client-1', workspace: destination.toString() }],
+		});
+	});
+
+	test('workspace tool does not choose between multiple connected active clients', () => {
+		const harness = createHarness();
+		for (const clientId of ['client-1', 'client-2']) {
+			harness.connectedClientIds.add(clientId);
+			harness.stateManager.dispatchServerAction(harness.session.toString(), {
+				type: ActionType.SessionActiveClientSet,
+				activeClient: { clientId, tools: [] },
+			});
+		}
+		startTurn(harness.stateManager, harness.chat);
+		assert.throws(
+			() => harness.service.requestSessionWorkspaceUpdate(harness.chat, 'turn-1', URI.file('/workspace/project'), false),
+			/turn initiated by a connected VS Code client/
+		);
 	});
 
 	test('workspace tool can leave an existing worktree and retains its ownership', async () => {

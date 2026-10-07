@@ -3167,7 +3167,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					...sendOptions,
 					queue: ChatRequestQueueKind.Steering,
 					isSystemInitiated: true,
-					systemInitiatedLabel: localize('terminalAssessingOutput', "{0} may need input", commandDisplay),
+					systemInitiatedLabel: localize('terminalAssessingOutput', "{0} may need attention", commandDisplay),
 					terminalExecutionId: termId,
 				}).catch(e => {
 					this._logService.warn(`RunInTerminalTool: Failed to send input-needed notification for terminal ${termId}`, e);

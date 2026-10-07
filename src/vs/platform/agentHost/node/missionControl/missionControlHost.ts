@@ -11,6 +11,8 @@ import { INativeEnvironmentService } from '../../../environment/common/environme
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
+import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
+import { formatConnectionDiagnosticError, getConnectionDiagnosticError, type IConnectionDiagnosticEvent } from '../../common/connectionDiagnostics.js';
 import { IAgentService } from '../../common/agentService.js';
 import type { AgentHostLaunchKind } from '../../common/agentHostTelemetry.js';
 import type { AgentHostClientFileSystemProvider } from '../../common/agentHostClientFileSystemProvider.js';
@@ -34,6 +36,24 @@ interface IMissionControlHostOptions {
 	readonly trackProtocolHandler: (handler: ProtocolServerHandler) => IDisposable;
 }
 
+type MissionControlOperationEvent = {
+	operation: 'configure' | 'checkIn' | 'register' | 'heartbeat' | 'token' | 'signingKeys' | 'relay' | 'relayDisconnected';
+	outcome: 'succeeded' | 'failed' | 'info';
+	durationMs: number | undefined;
+	statusCode: number | undefined;
+	hostLaunchKind: AgentHostLaunchKind;
+};
+
+export type MissionControlOperationClassification = {
+	owner: 'roblourens';
+	comment: 'Mission Control host registration and relay health; routine successful heartbeats are excluded.';
+	operation: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Bounded registration, heartbeat, token, signing key, relay establishment or unexpected relay loss operation.' };
+	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Operation success or failure, or an unexpected relay loss (info).' };
+	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Operation milliseconds, or ready relay milliseconds before an unexpected loss.' };
+	statusCode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'HTTP status on failed requests, when available. No response content.' };
+	hostLaunchKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the native Agent Host was launched.' };
+};
+
 export function getMissionControlEnvironmentName(product: IProductService, machineName = hostname()): string {
 	const applicationName = product.quality === 'stable' ? 'VS Code'
 		: product.quality === 'insider' ? 'VS Code Insiders'
@@ -56,6 +76,7 @@ export class MissionControlHost extends Disposable {
 		@INativeEnvironmentService environmentService: INativeEnvironmentService,
 		@IProductService productService: IProductService,
 		@ILogService private readonly _logService: ILogService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
@@ -64,7 +85,8 @@ export class MissionControlHost extends Disposable {
 			name: getMissionControlEnvironmentName(productService),
 			fetch: (input, init) => proxyResolver.fetch(input, init),
 			attach: (relay, roots, getRoots) => this._attachRelay(relay, roots, getRoots),
-			onError: error => this._logService.error('[AgentHost] Mission Control failure', error),
+			onError: error => this._logService.error(`[AgentHost] Mission Control failure: ${formatConnectionDiagnosticError(getConnectionDiagnosticError(error))}`),
+			onDiagnostic: event => this._reportOperation(event),
 			getSessionCount: async () => (await this._agentService.listSessions()).length,
 			getRemoteControlPolicy: () => this._readRemoteControlPolicy(),
 			onReady: environmentId => this._logService.info(`[AgentHost] Mission Control ready; environmentId=${environmentId}`),
@@ -72,6 +94,38 @@ export class MissionControlHost extends Disposable {
 			onDidChangeIdentityAuthority: gitHubEndpoints.onDidChange,
 			createMirror: environmentId => this._createMirror(environmentId),
 		}));
+	}
+
+	private _reportOperation(event: IConnectionDiagnosticEvent): void {
+		switch (event.phase) {
+			case 'configure':
+			case 'checkIn':
+			case 'register':
+			case 'heartbeat':
+			case 'token':
+			case 'signingKeys':
+			case 'relay':
+			case 'relayDisconnected': {
+				if (event.outcome === 'started' || ((event.phase === 'heartbeat' || event.phase === 'checkIn') && event.outcome === 'succeeded')) {
+					return;
+				}
+				this._telemetryService.publicLog2<MissionControlOperationEvent, MissionControlOperationClassification>('agentHost.missionControlOperation', {
+					operation: event.phase,
+					outcome: event.outcome,
+					durationMs: event.durationMs,
+					statusCode: event.error?.status,
+					hostLaunchKind: this._options.hostLaunchKind,
+				});
+				const message = `[AgentHost] Mission Control ${event.phase} ${event.outcome}; durationMs=${event.durationMs ?? 'unknown'}`;
+				if (event.error) {
+					this._logService.warn(`${message}: ${formatConnectionDiagnosticError(event.error)}`);
+				} else if (event.phase === 'relayDisconnected') {
+					this._logService.warn(message);
+				} else {
+					this._logService.info(message);
+				}
+			}
+		}
 	}
 
 	private _readRemoteControlPolicy(): Promise<Record<string, unknown> | undefined> {

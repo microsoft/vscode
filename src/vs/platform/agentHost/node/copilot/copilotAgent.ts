@@ -1138,6 +1138,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusion) === true;
 	}
 
+	private _isHydraFusionV2Enabled(): boolean {
+		return this._isHydraFusionEnabled() && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusionV2) === true;
+	}
+
 	private _isLocalMemoryEnabled(): boolean {
 		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Memory) === true
 			&& this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.LocalMemory) === true;
@@ -1215,6 +1219,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._isClaudeAdvisorEnabled(),
 			this._isTgrepEnabled(),
 			this._isHydraFusionEnabled(),
+			this._isHydraFusionV2Enabled(),
 			this._isLocalMemoryEnabled(),
 			this._getSkillCharBudget(),
 			this._getCopilotSdkLogLevelSetting(),

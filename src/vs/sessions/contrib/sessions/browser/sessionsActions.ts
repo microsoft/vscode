@@ -181,7 +181,7 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 				}
 			};
 
-			appendSessions(localize('sessionsPickerNeedsInput', "needs input"), sessionGroups.needsInput);
+			appendSessions(localize('sessionsPickerNeedsInput', "needs attention"), sessionGroups.needsInput);
 			appendSessions(localize('sessionsPickerUnread', "unread"), sessionGroups.unread);
 			appendSessions(localize('recentlyOpened', "recently opened"), sessionGroups.recent);
 			appendSessions(localize('otherSessions', "other sessions"), sessionGroups.other);

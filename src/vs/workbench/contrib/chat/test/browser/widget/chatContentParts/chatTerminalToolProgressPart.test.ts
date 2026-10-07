@@ -27,6 +27,7 @@ import { TestInstantiationService } from '../../../../../../../platform/instanti
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IAccessibleViewService } from '../../../../../../../platform/accessibility/browser/accessibleView.js';
+import { AGENT_HOST_TERMINAL_MAX_CONTENT_LENGTH } from '../../../../../../../platform/agentHost/common/terminalConstants.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { TerminalCapabilityStore } from '../../../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
@@ -1055,6 +1056,18 @@ suite('ChatTerminalToolProgressPart full output', () => {
 	});
 });
 
+suite('ChatTerminalToolProgressPart output scrollback', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('keeps all the output an Agent Host output terminal retains scrollable', async () => {
+		const harness = await createTerminalFullOutputHarness(store);
+		const { part } = harness.createPart({ mode: 'plain' });
+		await harness.expand(part, 'plain');
+
+		assert.strictEqual(harness.raw(part).options.scrollback, AGENT_HOST_TERMINAL_MAX_CONTENT_LENGTH);
+	});
+});
+
 suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -1323,6 +1336,7 @@ suite('ChatTerminalToolOutputSection layout', () => {
 			() => options?.source,
 			() => output,
 			() => 'echo test',
+			() => undefined,
 			() => undefined,
 			() => options?.isRunning?.() ?? false,
 			() => fullOutputAction,

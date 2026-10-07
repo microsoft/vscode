@@ -501,7 +501,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		}));
 
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (this._state.kind !== AgentHostClientState.Connected || this._transport.clientConnectionKind === AgentHostClientConnectionKind.WebPubSub) {
+			if (this._state.kind !== AgentHostClientState.Connected || this._isWebPubSubRelay()) {
 				return;
 			}
 			const patch: Record<string, unknown> = {};
@@ -1274,7 +1274,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 * settings contributed by an extension rather than by core.
 	 */
 	private _forwardClientConfig(includeManagedSettings = true): void {
-		if (this._transport.clientConnectionKind === AgentHostClientConnectionKind.WebPubSub) {
+		if (this._isWebPubSubRelay()) {
 			return;
 		}
 		this._dispatchRootConfig(resolveAgentHostConfigurationSyncPatch(this._configurationService, getAgentHostConfigurationSyncTarget(this._resourceIdentity)));
@@ -1679,7 +1679,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	}
 
 	private _refreshRelayRootSnapshot(): Promise<void> {
-		if (this._transport.clientConnectionKind !== AgentHostClientConnectionKind.WebPubSub) {
+		if (!this._isWebPubSubRelay()) {
 			return Promise.resolve();
 		}
 		if (this._relayRootRefresh?.transport === this._transport) {
@@ -2445,7 +2445,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 	/** Merge a patch into the agent host's root configuration. */
 	private _dispatchRootConfig(config: Record<string, unknown>): void {
-		if (this._transport.clientConnectionKind === AgentHostClientConnectionKind.WebPubSub) {
+		if (this._isWebPubSubRelay()) {
 			return;
 		}
 		this.dispatchAction(ROOT_STATE_URI, {
@@ -2474,7 +2474,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	}
 
 	private _updateManagedSettingsPermissions(sendDuringReconnect = false): void {
-		if (this._transport.clientConnectionKind === AgentHostClientConnectionKind.WebPubSub) {
+		if (this._isWebPubSubRelay()) {
 			return;
 		}
 		const permissions = this._resourceIdentity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY
@@ -2632,7 +2632,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private _startRelayKeepAlive(meta: Record<string, unknown> | undefined): void {
 		this._relayKeepAliveTimer.cancel();
 		const window = readRelayKeepAliveTimeout({ _meta: meta });
-		if (this._transport.clientConnectionKind !== AgentHostClientConnectionKind.WebPubSub
+		if (!this._isWebPubSubRelay()
 			|| window === undefined) {
 			return;
 		}
@@ -2657,8 +2657,14 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		if (!this._canCheckLiveness()) {
 			return;
 		}
+
 		this._pingTimer.cancelAndSet(() => this._onPingTimer(), PING_INTERVAL_MS);
 		this._closeTimer.cancelAndSet(() => this._onCloseTimer(), PING_INTERVAL_MS + LIVENESS_TIMEOUT_MS);
+	}
+
+	private _isWebPubSubRelay(): boolean {
+		return this._transport.clientConnectionKind === AgentHostClientConnectionKind.WebPubSub
+			|| this._transport.clientConnectionKind === AgentHostClientConnectionKind.MissionControl;
 	}
 
 	private _cancelLivenessTimers(): void {

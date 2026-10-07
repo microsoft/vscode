@@ -30,13 +30,13 @@
 	width: 100%;
 	max-width: var(--session-view-centered-content-max-width, 950px);
 	margin: 0 auto;
-	padding: 0 var(--session-view-content-horizontal-padding, var(--vscode-spacing-size320));
+	padding: 0 var(--session-view-content-horizontal-padding, var(--vscode-spacing-size240));
 	box-sizing: border-box;
 }
 
 .session-view.grid-layout .session-header-bar > .chat-composite-bar-header {
 	max-width: none;
-	padding: 0 var(--session-view-content-horizontal-padding, var(--vscode-spacing-size320));
+	padding: 0 var(--session-view-content-horizontal-padding, var(--vscode-spacing-size240));
 }
 
 /* Tabs host: the chat tab strip, shown only when the session has multiple chats. */

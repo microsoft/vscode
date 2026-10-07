@@ -1185,6 +1185,19 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 
 	// -- Browse --------------------------------------------------------------
 
+	private _folderBrowseUri(): URI {
+		if (this._defaultDirectory) {
+			return agentHostUri(this._connectionAuthority, this._defaultDirectory);
+		}
+		for (const session of this.getSessions()) {
+			const root = session.workspace.get()?.folders[0]?.root;
+			if (root) {
+				return root;
+			}
+		}
+		return agentHostUri(this._connectionAuthority, '/');
+	}
+
 	private async _browseForFolder(): Promise<ISessionWorkspace | undefined> {
 		// Establish connection on demand if a hook is provided (e.g. tunnel relay)
 		if (!this._connection && this._connectOnDemand) {
@@ -1201,7 +1214,10 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 			return undefined;
 		}
 
-		const defaultUri = agentHostUri(this._connectionAuthority, this._defaultDirectory ?? '/');
+		if (!this._defaultDirectory && this.getSessions().length === 0) {
+			await this._refreshSessions();
+		}
+		const defaultUri = this._folderBrowseUri();
 
 		try {
 			const selected = await this._fileDialogService.showOpenDialog({
@@ -1215,8 +1231,8 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 			if (selected?.[0]) {
 				return this._buildWorkspaceFromUri(selected[0]);
 			}
-		} catch {
-			// dialog was cancelled or failed
+		} catch (err) {
+			this._notificationService.error(localize('browseRemoteFolderFailed', "Failed to browse folders on '{0}': {1}", this.label, err instanceof Error ? err.message : String(err)));
 		}
 		return undefined;
 	}
@@ -1253,7 +1269,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 			return [];
 		}
 
-		const rootAgentHostUri = agentHostUri(this._connectionAuthority, this._defaultDirectory ?? '/');
+		const rootAgentHostUri = this._folderBrowseUri();
 
 		// Parse path navigation out of the query. Anything before the
 		// last `/` is a relative directory we descend into; the part

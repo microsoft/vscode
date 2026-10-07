@@ -10,6 +10,7 @@ import { hash } from '../../../../base/common/hash.js';
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../../telemetry/common/telemetryUtils.js';
 import { createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
+import { NullAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentSession } from '../../common/agent.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { toAgentMergeMessageMeta } from '../../common/meta/agentMergeMessageMeta.js';
@@ -81,6 +82,19 @@ suite('AgentHostTelemetryReporter', () => {
 	const chat = buildDefaultChatUri(session);
 	const tools: ToolDefinition[] = [{ name: 'grep' }, { name: 'edit' }];
 	const userMessage: Message = { text: 'hello', origin: { kind: MessageKind.User } };
+
+	for (const enabled of [false, true]) {
+		test(`reports resolved OTel enablement (${enabled}) on admitted messages`, () => {
+			const service = new TestRestrictedTelemetryService();
+			const reporter = new AgentHostTelemetryReporter(service, { ...NullAgentHostOTelService, enabled, diagnosticsEnabled: !enabled });
+			reporter.userMessageSent('copilotcli', undefined, createUnknownAgentHostClientTelemetryContext(AgentHostClientType.EditorWindow), session, 'turn', undefined, 'direct', userMessage, false);
+
+			assert.deepStrictEqual(service.standardEvents
+				.map(event => ({ eventName: event.eventName, isOtelEnabled: event.data?.isOtelEnabled })), [
+				{ eventName: 'agentHost.userMessageSent', isOtelEnabled: enabled },
+			]);
+		});
+	}
 
 	test('bounds canvas provenance without exposing unknown source strings', () => {
 		const service = new TestRestrictedTelemetryService();
@@ -288,6 +302,7 @@ suite('AgentHostTelemetryReporter', () => {
 			eventName: 'agentHost.userMessageSent',
 			data: {
 				provider: 'copilotcli',
+				isOtelEnabled: false,
 				hostLaunchKind: 'unknown',
 				initiatorClientId: 'client-1',
 				initiatorClientType: 'editor_window',

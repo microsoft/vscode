@@ -1955,6 +1955,7 @@ suite('Sessions - Chat View', () => {
 		workbench.style.setProperty('--vscode-cornerRadius-medium', '6px');
 		workbench.style.setProperty('--vscode-spacing-size80', '8px');
 		workbench.style.setProperty('--vscode-spacing-size120', '12px');
+		workbench.style.setProperty('--vscode-spacing-size240', '24px');
 		workbench.style.setProperty('--vscode-spacing-size320', '32px');
 		const part = dom.append(workbench, dom.$('.part.sessionspart.has-chat-background'));
 		const chatView = dom.append(part, dom.$('.chat-view'));
@@ -1974,6 +1975,7 @@ suite('Sessions - Chat View', () => {
 			highContrastWorkbench.style.setProperty('--vscode-cornerRadius-medium', '6px');
 			highContrastWorkbench.style.setProperty('--vscode-spacing-size80', '8px');
 			highContrastWorkbench.style.setProperty('--vscode-spacing-size120', '12px');
+			highContrastWorkbench.style.setProperty('--vscode-spacing-size240', '24px');
 			highContrastWorkbench.style.setProperty('--vscode-spacing-size320', '32px');
 			highContrastWorkbench.style.setProperty('--vscode-strokeThickness', '1px');
 			highContrastWorkbench.style.setProperty('--vscode-contrastBorder', '#ff0000');
@@ -2023,19 +2025,19 @@ suite('Sessions - Chat View', () => {
 			responseBorderStyle: 'none',
 			responseBoxShadow: 'none',
 			responseOverflow: 'visible',
-			responsePadding: '8px 44px',
+			responsePadding: '8px 36px',
 			bubbleBackgroundColor: 'rgb(248, 248, 248)',
 			bubbleBackgroundImage: 'none',
 			bubbleBorderRadius: '6px',
-			bubbleInset: '0px 32px',
-			backgroundContentHorizontalPadding: 88,
-			plainContentHorizontalPadding: 64,
+			bubbleInset: '0px 24px',
+			backgroundContentHorizontalPadding: 72,
+			plainContentHorizontalPadding: 48,
 			valueBackgroundColor: 'rgba(0, 0, 0, 0)',
 			footerBackgroundColor: 'rgba(0, 0, 0, 0)',
 			plainResponseBackgroundColor: 'rgba(0, 0, 0, 0)',
 			plainResponseBackgroundImage: 'none',
 			plainResponseBorderStyle: 'none',
-			plainResponsePadding: '0px 32px',
+			plainResponsePadding: '0px 24px',
 			highContrastDarkBubbleBorder: '1px solid rgb(255, 0, 0)',
 			highContrastLightBubbleBorder: '1px solid rgb(255, 0, 0)',
 		});

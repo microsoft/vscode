@@ -6994,6 +6994,28 @@ suite('AgentHostChatContribution', () => {
 			]);
 		}));
 
+		test('Auto selection reason is carried onto the live resolution part', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const languageModels = new Map<string, ILanguageModelChatMetadata>([
+				['agent-host-copilot:gpt-5.4-mini', upcastPartial<ILanguageModelChatMetadata>({ name: 'GPT-5.4 mini' })],
+			]);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { languageModels });
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			const reason = 'Auto selected gpt-5.4-mini based on combined routing signals.';
+
+			fire({
+				type: 'chat/usage',
+				session,
+				turnId,
+				usage: { model: 'gpt-5.4-mini', _meta: { autoModeResolved: { chosenModel: 'gpt-5.4-mini', selectionReason: reason } } },
+			} as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			assert.deepStrictEqual(collected.flat().filter(part => part.kind === 'autoModeResolution'), [
+				{ kind: 'autoModeResolution', resolved: { id: 'gpt-5.4-mini', name: 'GPT-5.4 mini', reason } },
+			]);
+		}));
+
 		test('Auto routing shows an unresolved part until the router answers', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const languageModels = new Map<string, ILanguageModelChatMetadata>([
 				['agent-host-copilot:auto', upcastPartial<ILanguageModelChatMetadata>({ name: 'Auto' })],
