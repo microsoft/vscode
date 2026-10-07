@@ -117,7 +117,7 @@ steps:
             $AppNameShort = $AppProductJson.nameShort
             $env:INTEGRATION_TEST_ELECTRON_PATH = "$AppRoot\$AppNameShort.exe"
             $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\test\vscode-server-win32-$(VSCODE_ARCH)"
-            exec { .\scripts\test-integration.bat --build --tfs "Integration Tests" }
+            exec { pwsh -NoLogo -NoProfile -File build/azure-pipelines/common/codex-flake-repro.ps1 }
           env:
             VSCODE_SKIP_PRELAUNCH: '1'
           displayName: 🧪 Run integration tests (Electron)
