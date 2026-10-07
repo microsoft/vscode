@@ -394,7 +394,7 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 				|| !callId
 				|| seen.has(callId)
 				|| pending.calls.get(callId) !== kind
-				|| (item.output !== undefined && typeof item.output !== 'string')
+				|| (item.output !== undefined && typeof item.output !== 'string' && !Array.isArray(item.output))
 			) {
 				return undefined;
 			}

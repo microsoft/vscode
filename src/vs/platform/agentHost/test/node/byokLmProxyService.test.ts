@@ -415,6 +415,62 @@ suite('ByokLmProxyService', () => {
 		});
 	});
 
+	test('recovers a tool continuation with image output', async () => {
+		const captured: IByokLmChatRequest[] = [];
+		const initialInput = [{ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'View the image.' }] }];
+		const toolOutput = {
+			type: 'function_call_output',
+			call_id: 'call_1',
+			output: [
+				{ type: 'input_text', text: 'Image contents:' },
+				{ type: 'input_image', image_url: 'data:image/png;base64,iVBORw0KGgo=' },
+			],
+		};
+		const replayedInput = [
+			...initialInput,
+			{ type: 'function_call', call_id: 'call_1', name: 'view', arguments: '{}' },
+			toolOutput,
+		];
+
+		await withProxy(
+			async request => {
+				captured.push(request);
+				return captured.length === 1
+					? { responseId: 'resp_provider_1', output: [{ type: 'function_call', callId: 'call_1', name: 'view', argumentsJson: '{}' }] }
+					: { output: [{ type: 'message', content: [{ type: 'text', text: 'done' }] }] };
+			},
+			async handle => {
+				for (const input of [initialInput, replayedInput]) {
+					const response = await fetch(responsesUrl(handle, 'acme'), {
+						method: 'POST',
+						headers: authHeaders(handle),
+						body: JSON.stringify({ model: 'm', input }),
+					});
+					assert.strictEqual(response.status, 200);
+					await response.text();
+				}
+			},
+		);
+
+		assert.deepStrictEqual({
+			previousResponseId: captured[1]?.previousResponseId,
+			input: captured[1]?.input,
+		}, {
+			previousResponseId: 'resp_provider_1',
+			input: [
+				{
+					type: 'function_call_output',
+					callId: 'call_1',
+					output: 'Image contents:',
+					content: [
+						{ type: 'text', text: 'Image contents:' },
+						{ type: 'image', mimeType: 'image/png', data: 'iVBORw0KGgo=' },
+					],
+				},
+			],
+		});
+	});
+
 	test('consumes an explicit continuation only after a successful bridge result', async () => {
 		const captured: IByokLmChatRequest[] = [];
 		const output = { type: 'function_call_output', call_id: 'call_1', output: 'done' };
