@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { execFileSync } from 'child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, truncateSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { retry } from '../../../../../../base/common/async.js';
 import { basename, dirname, join } from '../../../../../../base/common/path.js';
@@ -310,12 +310,15 @@ export function defineCopilotRuntimeCustomizationCoverageTests(context: IAgentHo
 	}
 
 	function watcherTest(title: string, run: () => Promise<void>): void {
-		context.registerTestEnvironment(title, { COPILOT_EXP_COPILOT_SWE_AGENT_LSP_FILE_WATCHER: 'true' });
+		context.registerTestEnvironment(title, {
+			COPILOT_EXP_COPILOT_SWE_AGENT_LSP_FILE_WATCHER: 'true',
+			COPILOT_FEATURE_FLAGS: 'copilot_swe_agent_lsp_file_watcher',
+		});
 		customizationTest(title, run);
 	}
 
 	function fixtureRoot(): { root: string; workspace: string; plugin: string } {
-		const root = mkdtempSync(join(tmpdir(), 'ahp-coverage-runtime-customization-'));
+		const root = realpathSync(mkdtempSync(join(tmpdir(), 'ahp-coverage-runtime-customization-')));
 		context.tempDirs.push(root);
 		const workspace = join(root, 'workspace');
 		const plugin = join(root, 'plugin');
@@ -430,6 +433,12 @@ export function defineCopilotRuntimeCustomizationCoverageTests(context: IAgentHo
 		return readFileSync(trace, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line) as ILspTrace);
 	}
 
+	function overwriteFile(file: string, content: string): void {
+		// Avoid O_CREAT so FSEvents does not classify an existing-file edit as another creation.
+		writeFileSync(file, content, { flag: 'r+' });
+		truncateSync(file, Buffer.byteLength(content));
+	}
+
 	async function runLsp(fixture: Awaited<ReturnType<typeof lspFixture>>, input: ILspInput, expected: readonly RegExp[], success = true, turnId = 'runtime-lsp', clientSeq = 2): Promise<void> {
 		const { file, ...parameters } = input;
 		const fileInstruction = file ? `Set the file parameter to this exact absolute path: ${join(fixture.workspace, file)}. ` : '';
@@ -476,17 +485,26 @@ export function defineCopilotRuntimeCustomizationCoverageTests(context: IAgentHo
 		assert.deepStrictEqual(messages(fixture.trace).find(message => message.method === 'initialize')?.params?.capabilities?.workspace?.didChangeWatchedFiles,
 			{ dynamicRegistration: true, relativePatternSupport: true });
 		assertWatchReply(fixture, 1);
+		const seed = join(fixture.watchDirectory, 'seed.rtlang');
+		await mutateWatchedFile(fixture, seed, 2, () => overwriteFile(seed, 'RUNTIME_WATCH_SEED\n'));
 		return fixture;
 	}
 
-	async function waitWatchChange(fixture: Awaited<ReturnType<typeof lspFixture>>, file: string, type: number): Promise<void> {
+	async function waitWatchChange(fixture: Awaited<ReturnType<typeof lspFixture>>, file: string, type: number, after: number): Promise<void> {
 		const expectedPath = canonicalFilePath(file);
 		await retry(async () => {
-			assert.ok(messages(fixture.trace).some(message => message.direction === 'clientToServer'
-				&& message.method === 'workspace/didChangeWatchedFiles'
-				&& message.params?.changes?.some(change => canonicalFilePath(URI.parse(change.uri).fsPath) === expectedPath && change.type === type)),
-				`Expected LSP watched-file change ${type} for ${file}`);
+			const changes = messages(fixture.trace).slice(after)
+				.filter(message => message.direction === 'clientToServer' && message.method === 'workspace/didChangeWatchedFiles')
+				.flatMap(message => message.params?.changes ?? []);
+			assert.ok(changes.some(change => canonicalFilePath(URI.parse(change.uri).fsPath) === expectedPath && change.type === type),
+				`Expected LSP watched-file change ${type} for ${file}; observed ${JSON.stringify(changes)}`);
 		}, 100, 100);
+	}
+
+	async function mutateWatchedFile(fixture: Awaited<ReturnType<typeof lspFixture>>, file: string, type: number, mutate: () => void): Promise<void> {
+		const after = messages(fixture.trace).length;
+		mutate();
+		await waitWatchChange(fixture, file, type, after);
 	}
 
 	async function controlWatch(fixture: Awaited<ReturnType<typeof lspFixture>>, control: ILspWatchControl, sequence: number, errorCode?: number): Promise<void> {
@@ -675,13 +693,13 @@ export function defineCopilotRuntimeCustomizationCoverageTests(context: IAgentHo
 
 	watcherTest('runtime coverage customization: watcher default kinds deliver create change and delete events', async () => {
 		const fixture = await watcherFixture();
-		const file = join(fixture.workspace, 'watch-lifecycle.rtlang');
-		writeFileSync(file, 'RUNTIME_WATCH_CREATED\n');
-		await waitWatchChange(fixture, file, 1);
-		writeFileSync(file, 'RUNTIME_WATCH_CHANGED\n');
-		await waitWatchChange(fixture, file, 2);
-		rmSync(file);
-		await waitWatchChange(fixture, file, 3);
+		const created = join(fixture.workspace, 'watch-lifecycle.rtlang');
+		const changed = join(fixture.workspace, 'definition.rtlang');
+		const deleted = join(fixture.workspace, 'reference.rtlang');
+		// Separate paths prevent FSEvents from coalescing a short-lived file's create and delete.
+		await mutateWatchedFile(fixture, created, 1, () => writeFileSync(created, 'RUNTIME_WATCH_CREATED\n'));
+		await mutateWatchedFile(fixture, changed, 2, () => overwriteFile(changed, 'RUNTIME_WATCH_CHANGED\n'));
+		await mutateWatchedFile(fixture, deleted, 3, () => rmSync(deleted));
 		const trace = messages(fixture.trace);
 		const acknowledgement = trace.findIndex(message => message.id === 'runtime-watch-1' && message.direction === 'clientToServer');
 		const notification = trace.findIndex(message => message.method === 'workspace/didChangeWatchedFiles');
@@ -692,8 +710,7 @@ export function defineCopilotRuntimeCustomizationCoverageTests(context: IAgentHo
 	watcherTest('runtime coverage customization: watcher relative patterns preserve Unicode paths and document text', async () => {
 		const fixture = await watcherFixture('relative');
 		const file = join(fixture.watchDirectory, 'café😀.rtlang');
-		writeFileSync(file, 'β😀\nRUNTIME_WATCH_UNICODE_AFTER\n');
-		await waitWatchChange(fixture, file, 2);
+		await mutateWatchedFile(fixture, file, 2, () => overwriteFile(file, 'β😀\nRUNTIME_WATCH_UNICODE_AFTER\n'));
 		await runLsp(fixture, { operation: 'hover', file: join('watched space Ω', 'café😀.rtlang'), line: 1, character: 1 },
 			[/RUNTIME_DOCUMENT:β😀\nRUNTIME_WATCH_UNICODE_AFTER/, /RUNTIME_WATCH_READY/], true, 'watch-unicode-document', 100);
 		assert.deepStrictEqual(messages(fixture.trace).filter(message => message.method === 'textDocument/didOpen')
@@ -705,8 +722,7 @@ export function defineCopilotRuntimeCustomizationCoverageTests(context: IAgentHo
 		const fixture = await watcherFixture('overlap');
 		const file = join(fixture.watchDirectory, 'nested', 'child.rtlang');
 		await controlWatch(fixture, { method: 'client/unregisterCapability', unregisterIds: ['runtime-parent'] }, 2);
-		writeFileSync(file, 'RUNTIME_WATCH_RETAINED_CHILD\n');
-		await waitWatchChange(fixture, file, 2);
+		await mutateWatchedFile(fixture, file, 2, () => overwriteFile(file, 'RUNTIME_WATCH_RETAINED_CHILD\n'));
 		await runLsp(fixture, { operation: 'hover', file: join('watched', 'nested', 'child.rtlang'), line: 1, character: 1 },
 			[/RUNTIME_DOCUMENT:RUNTIME_WATCH_RETAINED_CHILD/, /RUNTIME_WATCH_READY/], true, 'watch-retained-child', 300);
 		assert.strictEqual(messages(fixture.trace).filter(message => message.event === 'spawn').length, 1);
@@ -720,11 +736,11 @@ export function defineCopilotRuntimeCustomizationCoverageTests(context: IAgentHo
 			registrations: [{ id: 'runtime-renewed', watchers: [{ globPattern: '**/*.rtlang', kind: 2 }] }],
 		}, 3);
 		const file = join(fixture.workspace, 'fixture.rtlang');
-		writeFileSync(file, '😀 renewed\nRUNTIME_WATCH_RENEWED\n');
-		await waitWatchChange(fixture, file, 2);
+		const after = messages(fixture.trace).length;
+		await mutateWatchedFile(fixture, file, 2, () => overwriteFile(file, '😀 renewed\nRUNTIME_WATCH_RENEWED\n'));
 		const trace = messages(fixture.trace);
 		const acknowledgement = trace.findIndex(message => message.id === 'runtime-watch-3' && message.direction === 'clientToServer');
-		const notification = trace.findIndex(message => message.method === 'workspace/didChangeWatchedFiles');
+		const notification = trace.findIndex((message, index) => index >= after && message.method === 'workspace/didChangeWatchedFiles');
 		assert.ok(acknowledgement >= 0 && notification > acknowledgement);
 		await runLsp(fixture, { operation: 'hover', file: 'fixture.rtlang', line: 1, character: 4 },
 			[/RUNTIME_DOCUMENT:😀 renewed\nRUNTIME_WATCH_RENEWED/, /RUNTIME_WATCH_READY/], true, 'watch-renewed-document', 400);
@@ -738,13 +754,12 @@ export function defineCopilotRuntimeCustomizationCoverageTests(context: IAgentHo
 		}, 2, -32602);
 		assert.match(watchReplies(fixture).find(message => message.id === 'runtime-watch-2')!.error!.message,
 			/file-watch registration id 'runtime-root' is already registered/);
-		const file = join(fixture.workspace, 'watch-mask.rtlang');
-		writeFileSync(file, 'RUNTIME_WATCH_MASK_CREATED\n');
-		await waitWatchChange(fixture, file, 1);
-		writeFileSync(file, 'RUNTIME_WATCH_MASK_CHANGED\n');
-		await waitWatchChange(fixture, file, 2);
-		rmSync(file);
-		await waitWatchChange(fixture, file, 3);
+		const created = join(fixture.workspace, 'watch-mask.rtlang');
+		const changed = join(fixture.workspace, 'definition.rtlang');
+		const deleted = join(fixture.workspace, 'reference.rtlang');
+		await mutateWatchedFile(fixture, created, 1, () => writeFileSync(created, 'RUNTIME_WATCH_MASK_CREATED\n'));
+		await mutateWatchedFile(fixture, changed, 2, () => overwriteFile(changed, 'RUNTIME_WATCH_MASK_CHANGED\n'));
+		await mutateWatchedFile(fixture, deleted, 3, () => rmSync(deleted));
 		await runLsp(fixture, { operation: 'hover', file: 'fixture.rtlang', line: 1, character: 4 }, [/RUNTIME_WATCH_READY/], true, 'watch-mask-complete', 300);
 		assert.strictEqual(messages(fixture.trace).filter(message => message.event === 'spawn').length, 1);
 	});
@@ -752,10 +767,11 @@ export function defineCopilotRuntimeCustomizationCoverageTests(context: IAgentHo
 	watcherTest('runtime coverage customization: watcher directory moves expand descendant deletion and creation events', async () => {
 		const fixture = await watcherFixture();
 		const destination = join(fixture.workspace, 'moved-watched');
+		const after = messages(fixture.trace).length;
 		renameSync(fixture.watchDirectory, destination);
 		for (const relative of ['seed.rtlang', join('nested', 'child.rtlang'), 'café😀.rtlang']) {
-			await waitWatchChange(fixture, join(fixture.watchDirectory, relative), 3);
-			await waitWatchChange(fixture, join(destination, relative), 1);
+			await waitWatchChange(fixture, join(fixture.watchDirectory, relative), 3, after);
+			await waitWatchChange(fixture, join(destination, relative), 1, after);
 		}
 		await runLsp(fixture, { operation: 'hover', file: join('moved-watched', 'nested', 'child.rtlang'), line: 1, character: 1 },
 			[/RUNTIME_DOCUMENT:RUNTIME_WATCH_CHILD/, /RUNTIME_WATCH_READY/], true, 'watch-moved-document', 100);
@@ -773,8 +789,7 @@ export function defineCopilotRuntimeCustomizationCoverageTests(context: IAgentHo
 		}, 2, -32602);
 		assert.match(watchReplies(fixture).find(message => message.id === 'runtime-watch-2')!.error!.message, /encoded separators/);
 		const file = join(fixture.workspace, 'reference.rtlang');
-		writeFileSync(file, 'RUNTIME_WATCH_AFTER_INVALID_REGISTRATION\n');
-		await waitWatchChange(fixture, file, 2);
+		await mutateWatchedFile(fixture, file, 2, () => overwriteFile(file, 'RUNTIME_WATCH_AFTER_INVALID_REGISTRATION\n'));
 		await runLsp(fixture, { operation: 'hover', file: 'reference.rtlang', line: 1, character: 1 },
 			[/RUNTIME_DOCUMENT:RUNTIME_WATCH_AFTER_INVALID_REGISTRATION/, /RUNTIME_WATCH_READY/], true, 'watch-after-invalid-registration', 300);
 	});
@@ -782,12 +797,12 @@ export function defineCopilotRuntimeCustomizationCoverageTests(context: IAgentHo
 	watcherTest('runtime coverage customization: watcher newly created nested directories become recursively watched', async () => {
 		const fixture = await watcherFixture();
 		const directory = join(fixture.workspace, 'watch-new-parent', 'new-child');
-		mkdirSync(directory, { recursive: true });
 		const file = join(directory, 'arrived.rtlang');
-		writeFileSync(file, 'RUNTIME_WATCH_NESTED_CREATED\n');
-		await waitWatchChange(fixture, file, 1);
-		writeFileSync(file, 'RUNTIME_WATCH_NESTED_CHANGED\n');
-		await waitWatchChange(fixture, file, 2);
+		await mutateWatchedFile(fixture, file, 1, () => {
+			mkdirSync(directory, { recursive: true });
+			writeFileSync(file, 'RUNTIME_WATCH_NESTED_CREATED\n');
+		});
+		await mutateWatchedFile(fixture, file, 2, () => overwriteFile(file, 'RUNTIME_WATCH_NESTED_CHANGED\n'));
 		await runLsp(fixture, { operation: 'hover', file: join('watch-new-parent', 'new-child', 'arrived.rtlang'), line: 1, character: 1 },
 			[/RUNTIME_DOCUMENT:RUNTIME_WATCH_NESTED_CHANGED/, /RUNTIME_WATCH_READY/], true, 'watch-new-nested-document', 100);
 	});

@@ -6,7 +6,7 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. The session is already in the absolute working directory "${workdir}". All relative paths refer to it. Do not prepend cd, append checks, or add command prefixes, wrappers, pipelines, or extra arguments. Execute each command exactly as written, including any directory change explicitly provided in that command. Run exactly `cd "nested project"; node check.cjs` synchronously with powershell. Then use a fresh powershell call to run exactly `node root.cjs`. Do not put either command in a wrapper script.
+          content: Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. The session is already in the absolute working directory "${workdir}". All relative paths refer to it. Do not prepend cd, append checks, or add command prefixes, wrappers, pipelines, or extra arguments. Execute each command exactly as written, including any directory change explicitly provided in that command. Run exactly `cd "nested project"; node check.cjs` synchronously with the shell tool. Then use a fresh shell call to run exactly `node root.cjs`. Do not put either command in a wrapper script.
     response:
       content:
         - type: tool_use
@@ -21,7 +21,7 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. The session is already in the absolute working directory "${workdir}". All relative paths refer to it. Do not prepend cd, append checks, or add command prefixes, wrappers, pipelines, or extra arguments. Execute each command exactly as written, including any directory change explicitly provided in that command. Run exactly `cd "nested project"; node check.cjs` synchronously with powershell. Then use a fresh powershell call to run exactly `node root.cjs`. Do not put either command in a wrapper script.
+          content: Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. The session is already in the absolute working directory "${workdir}". All relative paths refer to it. Do not prepend cd, append checks, or add command prefixes, wrappers, pipelines, or extra arguments. Execute each command exactly as written, including any directory change explicitly provided in that command. Run exactly `cd "nested project"; node check.cjs` synchronously with the shell tool. Then use a fresh shell call to run exactly `node root.cjs`. Do not put either command in a wrapper script.
         - role: assistant
           content:
             - type: thinking
@@ -44,14 +44,14 @@ exchanges:
           name: ${shell}
           input:
             command: node root.cjs
-            description: Run root.cjs in current working directory
+            description: Run root.cjs in session working directory
       stopReason: tool_use
   - request:
       model: claude-sonnet-5
       system: ${system}
       messages:
         - role: user
-          content: Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. The session is already in the absolute working directory "${workdir}". All relative paths refer to it. Do not prepend cd, append checks, or add command prefixes, wrappers, pipelines, or extra arguments. Execute each command exactly as written, including any directory change explicitly provided in that command. Run exactly `cd "nested project"; node check.cjs` synchronously with powershell. Then use a fresh powershell call to run exactly `node root.cjs`. Do not put either command in a wrapper script.
+          content: Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. The session is already in the absolute working directory "${workdir}". All relative paths refer to it. Do not prepend cd, append checks, or add command prefixes, wrappers, pipelines, or extra arguments. Execute each command exactly as written, including any directory change explicitly provided in that command. Run exactly `cd "nested project"; node check.cjs` synchronously with the shell tool. Then use a fresh shell call to run exactly `node root.cjs`. Do not put either command in a wrapper script.
         - role: assistant
           content:
             - type: thinking
@@ -73,7 +73,7 @@ exchanges:
               name: powershell
               input:
                 command: node root.cjs
-                description: Run root.cjs in current working directory
+                description: Run root.cjs in session working directory
         - role: user
           content:
             - type: tool_result
@@ -83,8 +83,10 @@ exchanges:
                 <shellId: 1 completed with exit code 0>
     response:
       content: |-
-        Both commands ran as specified, each in its own fresh PowerShell session:
+        Both commands ran exactly as specified, each in a fresh shell call:
 
         1. `cd "nested project"; node check.cjs` → output: `NESTED_DIRECTORY`
-        2. `node root.cjs` (in the original working directory, since each shell call starts fresh) → output: `ROOT_DIRECTORY`
+        2. `node root.cjs` (fresh shell, back in the base working directory) → output: `ROOT_DIRECTORY`
+
+        This confirms each shell call starts fresh in the session's working directory and the `cd` from the first command did not persist into the second.
       stopReason: end_turn

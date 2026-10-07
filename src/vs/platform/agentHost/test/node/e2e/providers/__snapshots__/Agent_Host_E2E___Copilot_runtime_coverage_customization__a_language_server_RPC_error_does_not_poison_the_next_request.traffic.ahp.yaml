@@ -6,7 +6,7 @@ rounds:
           type: chat/turnStarted
           turnId: ${turn_0}
           message:
-            text: 'The workspace is ${homedir}\AppData\Local\Temp\ahp-coverage-runtime-customization-${temp}\workspace. Call lsp exactly once with these parameters: {"operation":"documentSymbol"}. Set the file parameter to this exact absolute path: ${homedir}\AppData\Local\Temp\ahp-coverage-runtime-customization-${temp}\workspace\fixture.rtlang. Do not call other tools. After the tool finishes, reply exactly RUNTIME_LSP_DONE.'
+            text: 'The workspace is ${workdir}. Call lsp exactly once with these parameters: {"operation":"documentSymbol"}. Set the file parameter to this exact absolute path: ${workdir}/fixture.rtlang. Do not call other tools. After the tool finishes, reply exactly RUNTIME_LSP_DONE.'
             origin:
               kind: user
       - channel: ${chat_0}
@@ -14,7 +14,7 @@ rounds:
           type: chat/turnStarted
           turnId: ${turn_1}
           message:
-            text: 'The workspace is ${homedir}\AppData\Local\Temp\ahp-coverage-runtime-customization-${temp}\workspace. Call lsp exactly once with these parameters: {"operation":"documentSymbol"}. Set the file parameter to this exact absolute path: ${homedir}\AppData\Local\Temp\ahp-coverage-runtime-customization-${temp}\workspace\fixture.rtlang. Do not call other tools. After the tool finishes, reply exactly RUNTIME_LSP_DONE.'
+            text: 'The workspace is ${workdir}. Call lsp exactly once with these parameters: {"operation":"documentSymbol"}. Set the file parameter to this exact absolute path: ${workdir}/fixture.rtlang. Do not call other tools. After the tool finishes, reply exactly RUNTIME_LSP_DONE.'
             origin:
               kind: user
     serverToClient:
@@ -23,7 +23,7 @@ rounds:
           type: chat/turnStarted
           turnId: ${turn_0}
           message:
-            text: 'The workspace is ${homedir}\AppData\Local\Temp\ahp-coverage-runtime-customization-${temp}\workspace. Call lsp exactly once with these parameters: {"operation":"documentSymbol"}. Set the file parameter to this exact absolute path: ${homedir}\AppData\Local\Temp\ahp-coverage-runtime-customization-${temp}\workspace\fixture.rtlang. Do not call other tools. After the tool finishes, reply exactly RUNTIME_LSP_DONE.'
+            text: 'The workspace is ${workdir}. Call lsp exactly once with these parameters: {"operation":"documentSymbol"}. Set the file parameter to this exact absolute path: ${workdir}/fixture.rtlang. Do not call other tools. After the tool finishes, reply exactly RUNTIME_LSP_DONE.'
             origin:
               kind: user
       - channel: ${session_0}
@@ -33,6 +33,9 @@ rounds:
       - channel: ${session_0}
         action:
           type: session/ready
+      - channel: ${chat_0}
+        action:
+          type: chat/changesetsChanged
       - channel: ${chat_0}
         action:
           type: chat/toolCallStart
@@ -59,10 +62,13 @@ rounds:
           turnId: ${turn_0}
       - channel: ${chat_0}
         action:
+          type: chat/isReadChanged
+      - channel: ${chat_0}
+        action:
           type: chat/turnStarted
           turnId: ${turn_1}
           message:
-            text: 'The workspace is ${homedir}\AppData\Local\Temp\ahp-coverage-runtime-customization-${temp}\workspace. Call lsp exactly once with these parameters: {"operation":"documentSymbol"}. Set the file parameter to this exact absolute path: ${homedir}\AppData\Local\Temp\ahp-coverage-runtime-customization-${temp}\workspace\fixture.rtlang. Do not call other tools. After the tool finishes, reply exactly RUNTIME_LSP_DONE.'
+            text: 'The workspace is ${workdir}. Call lsp exactly once with these parameters: {"operation":"documentSymbol"}. Set the file parameter to this exact absolute path: ${workdir}/fixture.rtlang. Do not call other tools. After the tool finishes, reply exactly RUNTIME_LSP_DONE.'
             origin:
               kind: user
       - channel: ${chat_0}
@@ -89,3 +95,6 @@ rounds:
         action:
           type: chat/turnComplete
           turnId: ${turn_1}
+      - channel: ${chat_0}
+        action:
+          type: chat/isReadChanged

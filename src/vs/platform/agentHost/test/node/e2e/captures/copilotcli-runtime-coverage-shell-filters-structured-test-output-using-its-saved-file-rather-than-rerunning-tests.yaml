@@ -6,7 +6,7 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. The session is already in the absolute working directory "${workdir}". All relative paths refer to it. Do not prepend cd, append checks, or add command prefixes, wrappers, pipelines, or extra arguments. Execute each command exactly as written, including any directory change explicitly provided in that command. Run `node report.cjs` exactly once with powershell. This is a local test runner JSON report. Run `node filter.cjs "<full-output-file-path>"` with powershell, using the saved file named by the first result. Do not edit the scripts or regenerate the report.
+          content: Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. The session is already in the absolute working directory "${workdir}". All relative paths refer to it. Do not prepend cd, append checks, or add command prefixes, wrappers, pipelines, or extra arguments. Execute each command exactly as written, including any directory change explicitly provided in that command. Run `node report.cjs` exactly once with the shell tool. This is a local test runner JSON report. Run `node filter.cjs "<full-output-file-path>"` with the shell tool, using the saved file named by the first result. Do not edit the scripts or regenerate the report.
     response:
       content:
         - type: tool_use
@@ -14,14 +14,14 @@ exchanges:
           name: ${shell}
           input:
             command: node report.cjs
-            description: Run local test runner JSON report
+            description: Run the test report generator script
       stopReason: tool_use
   - request:
       model: claude-sonnet-5
       system: ${system}
       messages:
         - role: user
-          content: Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. The session is already in the absolute working directory "${workdir}". All relative paths refer to it. Do not prepend cd, append checks, or add command prefixes, wrappers, pipelines, or extra arguments. Execute each command exactly as written, including any directory change explicitly provided in that command. Run `node report.cjs` exactly once with powershell. This is a local test runner JSON report. Run `node filter.cjs "<full-output-file-path>"` with powershell, using the saved file named by the first result. Do not edit the scripts or regenerate the report.
+          content: Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. The session is already in the absolute working directory "${workdir}". All relative paths refer to it. Do not prepend cd, append checks, or add command prefixes, wrappers, pipelines, or extra arguments. Execute each command exactly as written, including any directory change explicitly provided in that command. Run `node report.cjs` exactly once with the shell tool. This is a local test runner JSON report. Run `node filter.cjs "<full-output-file-path>"` with the shell tool, using the saved file named by the first result. Do not edit the scripts or regenerate the report.
         - role: assistant
           content:
             - type: thinking
@@ -29,7 +29,7 @@ exchanges:
               name: powershell
               input:
                 command: node report.cjs
-                description: Run local test runner JSON report
+                description: Run the test report generator script
         - role: user
           content:
             - type: tool_result
@@ -47,20 +47,20 @@ exchanges:
     response:
       content:
         - type: text
-          text: The report output was saved to a file. Now running the filter command with that saved file path.
+          text: The report saved its output to `${saved_output_0}`. Now running the filter script against that file.
         - type: tool_use
           id: toolcall_1
           name: ${shell}
           input:
             command: node filter.cjs "${saved_output_0}"
-            description: Run filter.cjs on saved report output file
+            description: Run filter script on saved report output file
       stopReason: tool_use
   - request:
       model: claude-sonnet-5
       system: ${system}
       messages:
         - role: user
-          content: Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. The session is already in the absolute working directory "${workdir}". All relative paths refer to it. Do not prepend cd, append checks, or add command prefixes, wrappers, pipelines, or extra arguments. Execute each command exactly as written, including any directory change explicitly provided in that command. Run `node report.cjs` exactly once with powershell. This is a local test runner JSON report. Run `node filter.cjs "<full-output-file-path>"` with powershell, using the saved file named by the first result. Do not edit the scripts or regenerate the report.
+          content: Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. The session is already in the absolute working directory "${workdir}". All relative paths refer to it. Do not prepend cd, append checks, or add command prefixes, wrappers, pipelines, or extra arguments. Execute each command exactly as written, including any directory change explicitly provided in that command. Run `node report.cjs` exactly once with the shell tool. This is a local test runner JSON report. Run `node filter.cjs "<full-output-file-path>"` with the shell tool, using the saved file named by the first result. Do not edit the scripts or regenerate the report.
         - role: assistant
           content:
             - type: thinking
@@ -68,7 +68,7 @@ exchanges:
               name: powershell
               input:
                 command: node report.cjs
-                description: Run local test runner JSON report
+                description: Run the test report generator script
         - role: user
           content:
             - type: tool_result
@@ -86,12 +86,12 @@ exchanges:
         - role: assistant
           content:
             - type: text
-              text: The report output was saved to a file. Now running the filter command with that saved file path.
+              text: The report saved its output to `${saved_output_0}`. Now running the filter script against that file.
             - type: tool_use
               name: powershell
               input:
                 command: node filter.cjs "${saved_output_0}"
-                description: Run filter.cjs on saved report output file
+                description: Run filter script on saved report output file
         - role: user
           content:
             - type: tool_result
@@ -101,14 +101,14 @@ exchanges:
                 <shellId: 1 completed with exit code 0>
     response:
       content: |-
-        Both commands completed as requested:
+        Both commands ran successfully:
 
-        1. `node report.cjs` — produced 631.7 KB of JSON test output, auto-saved to `${saved_output_0}`
-        2. `node filter.cjs "<that file path>"` — result:
+        1. **`node report.cjs`** — produced a large JSON-lines test report (631.7 KB), auto-saved to `${saved_output_0}`.
+        2. **`node filter.cjs "<that file path>"`** — processed it and returned:
 
         ```
         TEST_REPORT_FILTERED:{"total":4500,"failures":[{"test":"case-2718","details":"REPORT_FAILURE: expected UTF-8 roundtrip"}]}
         ```
 
-        Summary: out of 4500 total test cases, there was **1 failure** — `case-2718`, with details `REPORT_FAILURE: expected UTF-8 roundtrip`.
+        Summary: out of 4500 test cases, there was **1 failure** — `case-2718`, with details `REPORT_FAILURE: expected UTF-8 roundtrip`.
       stopReason: end_turn

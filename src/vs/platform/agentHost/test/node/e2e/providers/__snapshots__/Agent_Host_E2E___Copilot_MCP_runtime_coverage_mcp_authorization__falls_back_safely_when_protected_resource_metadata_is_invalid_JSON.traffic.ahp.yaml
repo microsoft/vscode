@@ -18,12 +18,6 @@ rounds:
             text: Call authorization_probe exactly once with {"tag":"metadata-invalid-json"}. Do not retry it or call other tools. Afterwards reply exactly MCP_AUTH_DONE.
             origin:
               kind: user
-      - channel: ${session_0}
-        action:
-          type: session/mcpServerStateChanged
-      - channel: ${session_0}
-        action:
-          type: session/mcpServerStateChanged
       - channel: ${chat_0}
         action:
           type: chat/toolCallStart
@@ -48,3 +42,6 @@ rounds:
         action:
           type: chat/turnComplete
           turnId: ${turn_0}
+      - channel: ${chat_0}
+        action:
+          type: chat/isReadChanged

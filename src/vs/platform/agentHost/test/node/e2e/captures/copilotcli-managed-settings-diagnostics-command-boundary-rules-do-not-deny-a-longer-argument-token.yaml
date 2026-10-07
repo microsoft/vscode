@@ -6,7 +6,7 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: 'Call powershell to run this exact command in the existing working directory: "echo DIAGNOSTICS_BLOCKED". Call only that named tool exactly once, without retries, fallbacks, wrappers, or any other tool. Use only the specified synthetic fixture. After success or refusal, reply exactly DIAGNOSTICS_COMPLETE.'
+          content: 'Call the shell tool to run this exact command in the existing working directory: "echo DIAGNOSTICS_BLOCKED". Call only that named tool exactly once, without retries, fallbacks, wrappers, or any other tool. Use only the specified synthetic fixture. After success or refusal, reply exactly DIAGNOSTICS_COMPLETE.'
     response:
       content:
         - type: tool_use
@@ -14,22 +14,21 @@ exchanges:
           name: ${shell}
           input:
             command: echo DIAGNOSTICS_BLOCKED
-            description: Echo diagnostic test string
+            description: Echo diagnostics blocked marker
       stopReason: tool_use
   - request:
       model: claude-sonnet-5
       system: ${system}
       messages:
         - role: user
-          content: 'Call powershell to run this exact command in the existing working directory: "echo DIAGNOSTICS_BLOCKED". Call only that named tool exactly once, without retries, fallbacks, wrappers, or any other tool. Use only the specified synthetic fixture. After success or refusal, reply exactly DIAGNOSTICS_COMPLETE.'
+          content: 'Call the shell tool to run this exact command in the existing working directory: "echo DIAGNOSTICS_BLOCKED". Call only that named tool exactly once, without retries, fallbacks, wrappers, or any other tool. Use only the specified synthetic fixture. After success or refusal, reply exactly DIAGNOSTICS_COMPLETE.'
         - role: assistant
           content:
-            - type: thinking
             - type: tool_use
               name: powershell
               input:
                 command: echo DIAGNOSTICS_BLOCKED
-                description: Echo diagnostic test string
+                description: Echo diagnostics blocked marker
         - role: user
           content:
             - type: tool_result
@@ -43,15 +42,14 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: 'Call powershell to run this exact command in the existing working directory: "echo DIAGNOSTICS_BLOCKED". Call only that named tool exactly once, without retries, fallbacks, wrappers, or any other tool. Use only the specified synthetic fixture. After success or refusal, reply exactly DIAGNOSTICS_COMPLETE.'
+          content: 'Call the shell tool to run this exact command in the existing working directory: "echo DIAGNOSTICS_BLOCKED". Call only that named tool exactly once, without retries, fallbacks, wrappers, or any other tool. Use only the specified synthetic fixture. After success or refusal, reply exactly DIAGNOSTICS_COMPLETE.'
         - role: assistant
           content:
-            - type: thinking
             - type: tool_use
               name: powershell
               input:
                 command: echo DIAGNOSTICS_BLOCKED
-                description: Echo diagnostic test string
+                description: Echo diagnostics blocked marker
         - role: user
           content:
             - type: tool_result
@@ -60,7 +58,7 @@ exchanges:
         - role: assistant
           content: DIAGNOSTICS_COMPLETE
         - role: user
-          content: 'Call powershell to run this exact command in the existing working directory: "echo DIAGNOSTICS_BLOCKED_SUFFIX". Call only that named tool exactly once, without retries, fallbacks, wrappers, or any other tool. Use only the specified synthetic fixture. After success or refusal, reply exactly DIAGNOSTICS_COMPLETE.'
+          content: 'Call the shell tool to run this exact command in the existing working directory: "echo DIAGNOSTICS_BLOCKED_SUFFIX". Call only that named tool exactly once, without retries, fallbacks, wrappers, or any other tool. Use only the specified synthetic fixture. After success or refusal, reply exactly DIAGNOSTICS_COMPLETE.'
     response:
       content:
         - type: tool_use
@@ -68,22 +66,21 @@ exchanges:
           name: ${shell}
           input:
             command: echo DIAGNOSTICS_BLOCKED_SUFFIX
-            description: Echo diagnostic test string
+            description: Echo diagnostics blocked suffix marker
       stopReason: tool_use
   - request:
       model: claude-sonnet-5
       system: ${system}
       messages:
         - role: user
-          content: 'Call powershell to run this exact command in the existing working directory: "echo DIAGNOSTICS_BLOCKED". Call only that named tool exactly once, without retries, fallbacks, wrappers, or any other tool. Use only the specified synthetic fixture. After success or refusal, reply exactly DIAGNOSTICS_COMPLETE.'
+          content: 'Call the shell tool to run this exact command in the existing working directory: "echo DIAGNOSTICS_BLOCKED". Call only that named tool exactly once, without retries, fallbacks, wrappers, or any other tool. Use only the specified synthetic fixture. After success or refusal, reply exactly DIAGNOSTICS_COMPLETE.'
         - role: assistant
           content:
-            - type: thinking
             - type: tool_use
               name: powershell
               input:
                 command: echo DIAGNOSTICS_BLOCKED
-                description: Echo diagnostic test string
+                description: Echo diagnostics blocked marker
         - role: user
           content:
             - type: tool_result
@@ -92,15 +89,14 @@ exchanges:
         - role: assistant
           content: DIAGNOSTICS_COMPLETE
         - role: user
-          content: 'Call powershell to run this exact command in the existing working directory: "echo DIAGNOSTICS_BLOCKED_SUFFIX". Call only that named tool exactly once, without retries, fallbacks, wrappers, or any other tool. Use only the specified synthetic fixture. After success or refusal, reply exactly DIAGNOSTICS_COMPLETE.'
+          content: 'Call the shell tool to run this exact command in the existing working directory: "echo DIAGNOSTICS_BLOCKED_SUFFIX". Call only that named tool exactly once, without retries, fallbacks, wrappers, or any other tool. Use only the specified synthetic fixture. After success or refusal, reply exactly DIAGNOSTICS_COMPLETE.'
         - role: assistant
           content:
-            - type: thinking
             - type: tool_use
               name: powershell
               input:
                 command: echo DIAGNOSTICS_BLOCKED_SUFFIX
-                description: Echo diagnostic test string
+                description: Echo diagnostics blocked suffix marker
         - role: user
           content:
             - type: tool_result

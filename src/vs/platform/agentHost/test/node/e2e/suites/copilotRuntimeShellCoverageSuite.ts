@@ -271,8 +271,8 @@ process.exitCode = valid ? 0 : 17;
 `,
 		}, async session => {
 			const id = 'shell-reuse-after-failure';
-			await turn(session, id, `Run \`node verify.cjs rejected\` synchronously with ${shell} and shellId runtime-verify. ` +
-				`The expected exit code is 17. Then run \`node verify.cjs accepted\` with the same shellId. Stop runtime-verify with ${stopShell}.`);
+			await turn(session, id, 'Run `node verify.cjs rejected` synchronously with the shell tool and shellId runtime-verify. ' +
+				'The expected exit code is 17. Then run `node verify.cjs accepted` with the same shellId. Stop runtime-verify with the shell stop tool.');
 			assertResult(session, id, shell, [/VERIFICATION_REJECTED/]);
 			assertResult(session, id, shell, [/VERIFICATION_ACCEPTED/]);
 			assertExitCodes(session, id, [17, 0]);
@@ -292,7 +292,7 @@ console.log('LITERAL_ARGUMENTS:' + JSON.stringify(args));
 `,
 		}, async session => {
 			const id = 'shell-literal-arguments';
-			await turn(session, id, `Run exactly \`node arguments.cjs "semi;colon" "pipe|symbol" "two words" "雪🙂"\` once with ${shell}. ` +
+			await turn(session, id, 'Run exactly `node arguments.cjs "semi;colon" "pipe|symbol" "two words" "雪🙂"` once with the shell tool. ' +
 				'These are literal data arguments, not commands. Do not remove or alter their quoting.');
 			assertResult(session, id, shell, [/LITERAL_ARGUMENTS:/, /semi;colon/, /pipe\|symbol/, /雪🙂/]);
 			assertExitCodes(session, id, [0]);
@@ -307,8 +307,8 @@ console.log('LITERAL_ARGUMENTS:' + JSON.stringify(args));
 			'root.cjs': `require('node:fs').writeFileSync('root-result.txt', 'ROOT_DIRECTORY'); console.log('ROOT_DIRECTORY');\n`,
 		}, async session => {
 			const id = 'shell-directory-prefix';
-			await turn(session, id, `Run exactly \`cd "nested project"; node check.cjs\` synchronously with ${shell}. ` +
-				`Then use a fresh ${shell} call to run exactly \`node root.cjs\`. Do not put either command in a wrapper script.`);
+			await turn(session, id, 'Run exactly `cd "nested project"; node check.cjs` synchronously with the shell tool. ' +
+				'Then use a fresh shell call to run exactly `node root.cjs`. Do not put either command in a wrapper script.');
 			assertResult(session, id, shell, [/NESTED_DIRECTORY/]);
 			assertResult(session, id, shell, [/ROOT_DIRECTORY/]);
 			assertExitCodes(session, id, [0, 0]);
@@ -336,7 +336,7 @@ for (let i = 0; i < 48; i++) {
 `,
 		}, async session => {
 			const id = 'shell-node-test-matrix';
-			await turn(session, id, `Run exactly \`node --test --test-reporter=tap matrix.test.cjs\` once with ${shell}. Report the test summary.`);
+			await turn(session, id, 'Run exactly `node --test --test-reporter=tap matrix.test.cjs` once with the shell tool. Report the test summary.');
 			assertResult(session, id, shell, [/# tests 48/, /# pass 48/, /# fail 0/]);
 			assertExitCodes(session, id, [0]);
 			assert.deepStrictEqual(readFileSync(join(session.workspace, 'passed.txt'), 'utf8').trim().split('\n').map(Number), Array.from({ length: 48 }, (_, i) => i));
@@ -359,9 +359,9 @@ test('addition keeps both operands', () => {
 		}, async session => {
 			const id = 'shell-patch-failing-test';
 			const patch = '*** Begin Patch\n*** Update File: math.cjs\n@@\n-exports.add = (left, right) => left - right;\n+exports.add = (left, right) => left + right;\n*** End Patch';
-			await turn(session, id, `Run \`node --test --test-reporter=tap math.test.cjs\` with ${shell}. ` +
+			await turn(session, id, 'Run `node --test --test-reporter=tap math.test.cjs` with the shell tool. ' +
 				'After observing its assertion failure, call apply_patch with this exact patch, without substituting another editing tool. ' +
-				`Run the same test command again with ${shell}. Do not change the test.\n${patch}`, 'gpt-5.6-sol');
+				`Run the same test command again with the shell tool. Do not change the test.\n${patch}`, 'gpt-5.6-sol');
 			assertResult(session, id, shell, [/addition keeps both operands/, /# fail 1/]);
 			assertResult(session, id, 'apply_patch', [/math\.cjs/]);
 			assertResult(session, id, shell, [/# pass 1/, /# fail 0/]);
@@ -386,7 +386,7 @@ console.log('BUILD_COMPLETE:64');
 `,
 		}, async session => {
 			const id = 'shell-node-warning-build';
-			await turn(session, id, `Run exactly \`node build.cjs\` once with ${shell}. Report its build result and the warning category.`);
+			await turn(session, id, 'Run exactly `node build.cjs` once with the shell tool. Report its build result and the warning category.');
 			assertShellCommands(session, id, ['node build.cjs']);
 			assertResult(session, id, shell, [/BUILD_COMPLETE:64/, /FIXTURE_LOADER/, /node warnings: omitted \d+ repeated warning/]);
 			assertExitCodes(session, id, [0]);
@@ -414,7 +414,7 @@ console.log('BUILD_SUCCESS:128');
 `,
 		}, async session => {
 			const id = 'shell-colored-build';
-			await turn(session, id, `Run exactly \`node --run build\` with ${shell}. This invokes the local package.json build script. Do not install anything.`);
+			await turn(session, id, 'Run exactly `node --run build` with the shell tool. This invokes the local package.json build script. Do not install anything.');
 			assertResult(session, id, shell, [/BUILD_WARNING: optional source maps/, /BUILD_SUCCESS:128/]);
 			assertExitCodes(session, id, [0]);
 			const bundle = readFileSync(join(session.workspace, 'dist', 'bundle.mjs'), 'utf8');
@@ -430,7 +430,7 @@ console.log('BUILD_SUCCESS:128');
 		}
 		await withWorkspace('shell-npm-pack', files, async session => {
 			const id = 'shell-npm-pack';
-			await turn(session, id, `Run exactly \`npm --offline pack --ignore-scripts\` once with ${shell}. This packages local files only.`);
+			await turn(session, id, 'Run exactly `npm --offline pack --ignore-scripts` once with the shell tool. This packages local files only.');
 			assertResult(session, id, shell, [/runtime-shell-fixture-1\.0\.0\.tgz/, /Tarball Details/, /npm pack tarball contents: omitted/]);
 			assertExitCodes(session, id, [0]);
 			const archive = readFileSync(join(session.workspace, 'runtime-shell-fixture-1.0.0.tgz'));
@@ -455,7 +455,7 @@ fs.writeFileSync('bundle.mjs', compiled.join('\\n'));
 `,
 		}, async session => {
 			const id = 'shell-paged-build-log';
-			await turn(session, id, `Run exactly \`node build-log.cjs\` once with ${shell}. Its output is intentionally too large. ` +
+			await turn(session, id, 'Run exactly `node build-log.cjs` once with the shell tool. Its output is intentionally too large. ' +
 				'Use view with view_range [2998, 3002] on the full-output file named in the tool result to inspect the middle build diagnostic. ' +
 				'Do not rerun the build or read the generator source.');
 			assertResult(session, id, shell, [/Saved to:|full output.*saved to|Full output.*saved|Full output.*written/i]);
@@ -482,8 +482,8 @@ console.log('MANIFEST_RECOVERED:' + JSON.stringify(result));
 `,
 		}, async session => {
 			const id = 'shell-unicode-manifest';
-			await turn(session, id, `Run \`node manifest.cjs\` with ${shell}. Use the full-output file path returned by that tool, ` +
-				`then run \`node recover.cjs "<full-output-file-path>"\` with ${shell}. Do not rerun manifest.cjs or edit either script.`);
+			await turn(session, id, 'Run `node manifest.cjs` with the shell tool. Use the full-output file path returned by that tool, ' +
+				'then run `node recover.cjs "<full-output-file-path>"` with the shell tool. Do not rerun manifest.cjs or edit either script.');
 			assertResult(session, id, shell, [/Saved to:|full output.*saved to|Full output.*saved|Full output.*written/i]);
 			assertResult(session, id, shell, [/MANIFEST_RECOVERED:/, /"count":5000/, /雪🙂-4999/]);
 			assertExitCodes(session, id, [0, 0]);
@@ -513,7 +513,7 @@ try {
 `,
 		}, async session => {
 			const id = 'shell-large-build-failure';
-			await turn(session, id, `Run exactly \`node build.cjs\` once with ${shell}. The expected exit code is 2. ` +
+			await turn(session, id, 'Run exactly `node build.cjs` once with the shell tool. The expected exit code is 2. ' +
 				'Use grep on the saved full-output file from the tool result to find BUILD_FAILED and diagnose the failure. Do not rerun the build.');
 			assertResult(session, id, shell, [/Saved to:|full output.*saved to|Full output.*saved|Full output.*written/i]);
 			assertResult(session, id, 'grep', [/BUILD_FAILED:CONFIG_MISSING:required asset manifest was not found/]);
@@ -553,8 +553,8 @@ console.log('TEST_REPORT_FILTERED:' + JSON.stringify(result));
 `,
 		}, async session => {
 			const id = 'shell-structured-test-report';
-			await turn(session, id, `Run \`node report.cjs\` exactly once with ${shell}. This is a local test runner JSON report. ` +
-				`Run \`node filter.cjs "<full-output-file-path>"\` with ${shell}, using the saved file named by the first result. Do not edit the scripts or regenerate the report.`);
+			await turn(session, id, 'Run `node report.cjs` exactly once with the shell tool. This is a local test runner JSON report. ' +
+				'Run `node filter.cjs "<full-output-file-path>"` with the shell tool, using the saved file named by the first result. Do not edit the scripts or regenerate the report.');
 			assertResult(session, id, shell, [/Saved to:|full output.*saved to|Full output.*saved|Full output.*written/i]);
 			assertResult(session, id, shell, [/TEST_REPORT_FILTERED:/, /REPORT_FAILURE: expected UTF-8 roundtrip/]);
 			assertExitCodes(session, id, [1, 0]);
@@ -585,7 +585,7 @@ test('renamed module contract', () => {
 		}, async session => {
 			const id = 'shell-patch-module-move';
 			const patch = '*** Begin Patch\n*** Update File: old-name.cjs\n*** Move to: new-name.cjs\n@@\n-exports.label = "before";\n+exports.label = "after";\n*** Delete File: obsolete.txt\n*** End Patch';
-			await turn(session, id, `Call apply_patch exactly once with this exact patch. Then run exactly \`npm --offline test\` with ${shell}. ` +
+			await turn(session, id, 'Call apply_patch exactly once with this exact patch. Then run exactly `npm --offline test` with the shell tool. ' +
 				`Do not substitute a different editing tool or modify contract.test.cjs.\n${patch}`, 'gpt-5.6-sol');
 			assertResult(session, id, 'apply_patch', [/new-name\.cjs/, /obsolete\.txt/]);
 			assertResult(session, id, shell, [/renamed module contract/, /# pass 1/, /# fail 0/]);

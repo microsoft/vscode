@@ -11,6 +11,7 @@ rounds:
               kind: user
       - method: authenticate
       - method: authenticate
+      - method: authenticate
     serverToClient:
       - channel: ${chat_0}
         action:
@@ -20,12 +21,6 @@ rounds:
             text: Call authorization_probe exactly once with {"tag":"step-up-authorized"}. Do not retry it or call other tools. Afterwards reply exactly MCP_AUTH_DONE.
             origin:
               kind: user
-      - channel: ${session_0}
-        action:
-          type: session/mcpServerStateChanged
-      - channel: ${session_0}
-        action:
-          type: session/mcpServerStateChanged
       - channel: ${chat_0}
         action:
           type: chat/toolCallStart
@@ -42,6 +37,10 @@ rounds:
         error:
           code: -32007
           message: 'Authentication failed for resource: ${url_mcp_auth}/mcp'
+      - responseTo: authenticate
+        error:
+          code: -32007
+          message: 'Authentication failed for resource: ${url_mcp_auth}/mcp'
       - channel: ${chat_0}
         action:
           type: chat/toolCallAuthResolved
@@ -53,6 +52,15 @@ rounds:
       - channel: ${session_0}
         action:
           type: session/mcpServerStateChanged
+      - channel: ${session_0}
+        action:
+          type: session/customizationToggled
+      - channel: ${session_0}
+        action:
+          type: session/mcpServerStateChanged
+      - channel: ${session_0}
+        action:
+          type: session/customizationToggled
       - channel: ${session_0}
         action:
           type: session/mcpServerStateChanged
@@ -74,3 +82,6 @@ rounds:
         action:
           type: chat/turnComplete
           turnId: ${turn_0}
+      - channel: ${chat_0}
+        action:
+          type: chat/isReadChanged

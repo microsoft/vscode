@@ -654,11 +654,17 @@ function normalizeSnapshotText(value: string, normalization: IAhpSnapshotNormali
 	// character.
 	normalized = normalized.replaceAll('\r\n', '\n').replaceAll('\\r\\n', '\\n');
 	for (const workDir of [...workDirs].sort((a, b) => b.length - a.length)) {
-		normalized = normalized
-			.replaceAll(JSON.stringify(workDir).slice(1, -1), '${workdir}')
-			.replaceAll(workDir, '${workdir}')
-			.replaceAll(URI.file(workDir).toString(), '${workdir}');
+		const paths = new Set([workDir, workDir.replaceAll('\\', '/'), URI.file(workDir).toString()]);
+		for (const path of [...paths]) {
+			paths.add(JSON.stringify(path).slice(1, -1));
+		}
+		for (const path of [...paths].sort((a, b) => b.length - a.length)) {
+			normalized = win32.isAbsolute(workDir)
+				? normalized.replace(new RegExp(escapeRegExpCharacters(path), 'gi'), '${workdir}')
+				: normalized.replaceAll(path, '${workdir}');
+		}
 	}
+	normalized = normalized.replace(/\$\{workdir\}(?:[\\/][^\s"'`]*)?/g, path => path.replace(/\\+/g, '/'));
 	normalized = normalized.replaceAll('/private${workdir}', '${workdir}');
 	const tempRoots = new Set([...workDirs].flatMap(workDir => [dirname(workDir), win32.dirname(workDir)]).filter(root => root !== '.'));
 	for (const tempRoot of tempRoots) {

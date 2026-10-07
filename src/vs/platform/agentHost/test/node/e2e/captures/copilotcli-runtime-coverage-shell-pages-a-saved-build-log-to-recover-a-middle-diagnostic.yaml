@@ -6,7 +6,7 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. The session is already in the absolute working directory "${workdir}". All relative paths refer to it. Do not prepend cd, append checks, or add command prefixes, wrappers, pipelines, or extra arguments. Execute each command exactly as written, including any directory change explicitly provided in that command. Run exactly `node build-log.cjs` once with powershell. Its output is intentionally too large. Use view with view_range [2998, 3002] on the full-output file named in the tool result to inspect the middle build diagnostic. Do not rerun the build or read the generator source.
+          content: Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. The session is already in the absolute working directory "${workdir}". All relative paths refer to it. Do not prepend cd, append checks, or add command prefixes, wrappers, pipelines, or extra arguments. Execute each command exactly as written, including any directory change explicitly provided in that command. Run exactly `node build-log.cjs` once with the shell tool. Its output is intentionally too large. Use view with view_range [2998, 3002] on the full-output file named in the tool result to inspect the middle build diagnostic. Do not rerun the build or read the generator source.
     response:
       content:
         - type: tool_use
@@ -21,7 +21,7 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. The session is already in the absolute working directory "${workdir}". All relative paths refer to it. Do not prepend cd, append checks, or add command prefixes, wrappers, pipelines, or extra arguments. Execute each command exactly as written, including any directory change explicitly provided in that command. Run exactly `node build-log.cjs` once with powershell. Its output is intentionally too large. Use view with view_range [2998, 3002] on the full-output file named in the tool result to inspect the middle build diagnostic. Do not rerun the build or read the generator source.
+          content: Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. The session is already in the absolute working directory "${workdir}". All relative paths refer to it. Do not prepend cd, append checks, or add command prefixes, wrappers, pipelines, or extra arguments. Execute each command exactly as written, including any directory change explicitly provided in that command. Run exactly `node build-log.cjs` once with the shell tool. Its output is intentionally too large. Use view with view_range [2998, 3002] on the full-output file named in the tool result to inspect the middle build diagnostic. Do not rerun the build or read the generator source.
         - role: assistant
           content:
             - type: thinking
@@ -61,7 +61,7 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. The session is already in the absolute working directory "${workdir}". All relative paths refer to it. Do not prepend cd, append checks, or add command prefixes, wrappers, pipelines, or extra arguments. Execute each command exactly as written, including any directory change explicitly provided in that command. Run exactly `node build-log.cjs` once with powershell. Its output is intentionally too large. Use view with view_range [2998, 3002] on the full-output file named in the tool result to inspect the middle build diagnostic. Do not rerun the build or read the generator source.
+          content: Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. The session is already in the absolute working directory "${workdir}". All relative paths refer to it. Do not prepend cd, append checks, or add command prefixes, wrappers, pipelines, or extra arguments. Execute each command exactly as written, including any directory change explicitly provided in that command. Run exactly `node build-log.cjs` once with the shell tool. Its output is intentionally too large. Use view with view_range [2998, 3002] on the full-output file named in the tool result to inspect the middle build diagnostic. Do not rerun the build or read the generator source.
         - role: assistant
           content:
             - type: thinking
@@ -106,7 +106,7 @@ exchanges:
                 built module-3002 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
     response:
       content: |-
-        The middle build diagnostic (line 3000) reads:
+        Ran `node build-log.cjs` once; its large output was saved to a temp file, and I inspected lines 2998–3002 with `view`. The middle build diagnostic:
 
         ```
         BUILD_DIAGNOSTIC:3000:missing optional map for module-2999

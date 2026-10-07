@@ -207,6 +207,10 @@ Provider-managed spill files under the OS temporary directory use `${saved_outpu
 
 Tests that require a provider environment override register it by exact title with `context.registerTestEnvironment(title, environment)`. The lease recycles the shared server when overrides change and restores the default environment for the next ordinary test. Do not mutate the test process's environment to configure a shared provider.
 
+Cross-platform prompts refer to native shell tools by role, such as "the shell tool" or "the shell stop tool", rather than interpolating `powershell` or `bash`. Tool-call names are mapped to platform-neutral fixture placeholders, but ordinary prompt text remains asserted verbatim. Keep commands portable and assert the actual shell tool and external side effects separately.
+
+Managed bypass restrictions reject Allow All, while advisory assisted approval retains normal permission prompts. Managed asks must still require human, one-time approval under assisted mode, including repeated requests for the same file.
+
 An ancillary routing scenario can use `context.setAncillaryResponse(method, path, response)` to replace an already recognized bootstrap response for that test. Own the returned disposable and inspect `observedAncillaryRequests` to assert selection or caching behavior. Model endpoints cannot be overridden this way: their turns retain normal recording and strict replay. Overrides and observations reset between fixtures.
 
 Auto-routing responses that mint a synthetic session token pass that exact token as the fourth argument. The proxy validates it against the response body, and excludes only that marked `Copilot-Session-Token` from live model forwarding during recording. Primary authentication and genuine session tokens are preserved; the runtime still receives and caches the synthetic token during both record and replay. Marked tokens remain recognized until the fixture ends so cached follow-up turns can be recorded.

@@ -415,7 +415,7 @@ function defineManagedSettingsTests(context: IAgentHostE2ETestContext): void {
 							new_str: changedContent,
 						})}.`, options),
 					shell: (command, options) => execute(shellName,
-						`Use ${shellName} to run this exact command in the existing working directory, without cd, wrappers, or extra commands: ${JSON.stringify(command)}.`, options),
+						`Use the shell tool to run this exact command in the existing working directory, without cd, wrappers, or extra commands: ${JSON.stringify(command)}.`, options),
 					fetch: (server, options) => {
 						if (!servers.includes(server)) {
 							servers.push(server);
@@ -653,16 +653,26 @@ function defineManagedSettingsTests(context: IAgentHostE2ETestContext): void {
 		assertSuccessful(turn);
 	});
 
-	for (const [level, mode] of [['autoApprove', 'allow-all'], ['assisted', 'assisted']] as const) {
-		managedTest(`bypass lock rejects ${mode} escalation instead of silently changing mode`, {
-			disableBypassPermissionsMode: 'disable',
-		}, async scenario => {
-			await scenario.setSessionConfig({ [SessionConfigKey.AutoApprove]: level });
-			await scenario.rejectedTurn(/managed|enterprise|rejected permission mode/i);
-			await scenario.setSessionConfig({ [SessionConfigKey.AutoApprove]: 'default' });
-			assertSuccessful(await scenario.read('public.txt'));
-		});
-	}
+	managedTest('bypass lock rejects allow-all escalation instead of silently changing mode', {
+		disableBypassPermissionsMode: 'disable',
+	}, async scenario => {
+		await scenario.setSessionConfig({ [SessionConfigKey.AutoApprove]: 'autoApprove' });
+		await scenario.rejectedTurn(/managed|enterprise|rejected permission mode/i);
+		await scenario.setSessionConfig({ [SessionConfigKey.AutoApprove]: 'default' });
+		assertSuccessful(await scenario.read('public.txt'));
+	});
+
+	managedTest('bypass lock keeps assisted managed read approval human and one-time', {
+		...askRead,
+		disableBypassPermissionsMode: 'disable',
+	}, async scenario => {
+		await scenario.setSessionConfig({ [SessionConfigKey.AutoApprove]: 'assisted' });
+		for (let index = 0; index < 2; index++) {
+			const turn = await scenario.read('protected.txt', { managedAsk: true });
+			assertManagedAsk(turn);
+			assertSuccessful(turn);
+		}
+	});
 
 	managedTest('distinct initialized clients union independent restrictions', denyRead, async scenario => {
 		const peer = await scenario.connect('managed-settings-peer');

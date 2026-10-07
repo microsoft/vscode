@@ -1402,5 +1402,5 @@ function filterRecordedResponseHeaders(headers: Readonly<Record<string, string>>
 	return Object.fromEntries(Object.entries(headers).filter(([key, value]) =>
 		STORED_RESPONSE_HEADERS.has(key.toLowerCase())
 		// Absolute Retry-After dates expire; relative delays preserve replay behavior.
-		|| (key.toLowerCase() === 'retry-after' && /^\d+$/.test(value))));
+		&& (key.toLowerCase() !== 'retry-after' || /^\d+$/.test(value))));
 }

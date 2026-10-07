@@ -15,6 +15,23 @@ suite('AhpSnapshotRecorder', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('normalizes workspace path casing and separators in text and embedded JSON across platforms', () => {
+		const serialize = (workingDirectory: string, path: string) => {
+			const recorder = new AhpSnapshotRecorder();
+			recorder.setNormalization({ workingDirectory, homeDirectory: 'unused-home', userName: 'unused-user' });
+			recorder.record('s2c', {
+				id: 1,
+				error: { code: -32602, message: `Workspace ${path}; file ${path}\\fixture.rtlang; input ${JSON.stringify({ path: `${path}\\fixture.rtlang` })}` },
+			});
+			return recorder.serialize();
+		};
+		assert.deepStrictEqual([
+			serialize('c:\\Temp\\workspace', 'C:\\Temp\\workspace'),
+			serialize('c:\\Temp\\workspace', 'C:/Temp/workspace'),
+			serialize('/tmp/workspace', '/tmp/workspace'),
+		], Array(3).fill(serialize('/tmp/workspace', '/tmp/workspace')));
+	});
+
 	test('normalizes only registered fixture URLs in error results and retains them across message clears', () => {
 		const recorder = new AhpSnapshotRecorder();
 		recorder.setFixtureUrl('auth', 'http://127.0.0.1:43123');

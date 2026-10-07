@@ -325,7 +325,7 @@ function defineDiagnosticsTests(context: IAgentHostE2ETestContext): void {
 						old_str: readFileSync(filePath(), 'utf8'),
 						new_str: editedContent,
 					})}.`),
-					shell: command => turn(shellName, `Call ${shellName} to run this exact command in the existing working directory: ${JSON.stringify(command)}.`),
+					shell: command => turn(shellName, `Call the shell tool to run this exact command in the existing working directory: ${JSON.stringify(command)}.`),
 					http: async name => {
 						const server = store.add(new DiagnosticHttpFixture());
 						servers.push(server);

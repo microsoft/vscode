@@ -6,7 +6,7 @@ rounds:
           type: chat/turnStarted
           turnId: ${turn_0}
           message:
-            text: The workspace is ${homedir}\AppData\Local\Temp\ahp-coverage-runtime-customization-${temp}\workspace. Invoke the runtime-left skill exactly once and read the reference from its absolute skill base directory, not the workspace. Follow its instructions. Do not use shell tools.
+            text: The workspace is ${workdir}. Invoke the runtime-left skill exactly once and read the reference from its absolute skill base directory, not the workspace. Follow its instructions. Do not use shell tools.
             origin:
               kind: user
       - channel: ${chat_0}
@@ -14,7 +14,7 @@ rounds:
           type: chat/turnStarted
           turnId: ${turn_1}
           message:
-            text: The workspace is ${homedir}\AppData\Local\Temp\ahp-coverage-runtime-customization-${temp}\workspace. Invoke the runtime-right skill exactly once and read the reference from its absolute skill base directory, not the workspace. Follow its instructions. Do not use shell tools.
+            text: The workspace is ${workdir}. Invoke the runtime-right skill exactly once and read the reference from its absolute skill base directory, not the workspace. Follow its instructions. Do not use shell tools.
             origin:
               kind: user
     serverToClient:
@@ -23,7 +23,7 @@ rounds:
           type: chat/turnStarted
           turnId: ${turn_0}
           message:
-            text: The workspace is ${homedir}\AppData\Local\Temp\ahp-coverage-runtime-customization-${temp}\workspace. Invoke the runtime-left skill exactly once and read the reference from its absolute skill base directory, not the workspace. Follow its instructions. Do not use shell tools.
+            text: The workspace is ${workdir}. Invoke the runtime-left skill exactly once and read the reference from its absolute skill base directory, not the workspace. Follow its instructions. Do not use shell tools.
             origin:
               kind: user
       - channel: ${session_0}
@@ -33,6 +33,9 @@ rounds:
       - channel: ${session_0}
         action:
           type: session/ready
+      - channel: ${chat_0}
+        action:
+          type: chat/changesetsChanged
       - channel: ${chat_0}
         action:
           type: chat/toolCallStart
@@ -72,10 +75,13 @@ rounds:
           turnId: ${turn_0}
       - channel: ${chat_0}
         action:
+          type: chat/isReadChanged
+      - channel: ${chat_0}
+        action:
           type: chat/turnStarted
           turnId: ${turn_1}
           message:
-            text: The workspace is ${homedir}\AppData\Local\Temp\ahp-coverage-runtime-customization-${temp}\workspace. Invoke the runtime-right skill exactly once and read the reference from its absolute skill base directory, not the workspace. Follow its instructions. Do not use shell tools.
+            text: The workspace is ${workdir}. Invoke the runtime-right skill exactly once and read the reference from its absolute skill base directory, not the workspace. Follow its instructions. Do not use shell tools.
             origin:
               kind: user
       - channel: ${chat_0}
@@ -115,3 +121,6 @@ rounds:
         action:
           type: chat/turnComplete
           turnId: ${turn_1}
+      - channel: ${chat_0}
+        action:
+          type: chat/isReadChanged

@@ -275,7 +275,8 @@ export function defineCopilotRuntimeMcpAuthorizationCoverageTests(context: IAgen
 	if (context.tier !== 'parity' || context.config.provider !== 'copilotcli') {
 		return;
 	}
-	suite('Copilot runtime MCP authorization coverage', () => {
+	// Keep the generated snapshot paths within Windows checkout limits.
+	suite('MCP', () => {
 		ensureNoDisposablesAreLeakedInTestSuite();
 		defineAuthorizationTests(context);
 	});
@@ -549,14 +550,18 @@ function defineAuthorizationTests(context: IAgentHostE2ETestContext): void {
 			reason: auth.reason, required: auth.requiredScopes,
 			supported: auth.resource.scopes_supported, calls: scenario.fixture.calls,
 		}, {
-			reason: McpAuthRequiredReason.InsufficientScope, required: ['fixture.write'],
+			reason: McpAuthRequiredReason.InsufficientScope, required: ['fixture.read', 'fixture.write'],
 			supported: ['fixture.read', 'fixture.write', 'fixture.admin'], calls: [],
 		});
 		await assert.rejects(scenario.authenticate(auth, replacementToken, ['fixture.read']), {
 			code: AHP_AUTH_REQUIRED,
 			message: `Authentication failed for resource: ${auth.resource.resource}`,
 		});
-		await scenario.authenticate(auth, replacementToken, ['fixture.write']);
+		await assert.rejects(scenario.authenticate(auth, replacementToken, ['fixture.write']), {
+			code: AHP_AUTH_REQUIRED,
+			message: `Authentication failed for resource: ${auth.resource.resource}`,
+		});
+		await scenario.authenticate(auth, replacementToken, ['fixture.read', 'fixture.write']);
 		await turn.completed;
 		assertToolCallCompleteText(context.client, {
 			channel: buildDefaultChatUri(scenario.sessionUri), turnId: 'step-up-authorized',

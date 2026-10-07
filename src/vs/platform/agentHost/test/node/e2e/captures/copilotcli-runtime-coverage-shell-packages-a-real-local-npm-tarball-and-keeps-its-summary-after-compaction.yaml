@@ -6,7 +6,7 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. The session is already in the absolute working directory "${workdir}". All relative paths refer to it. Do not prepend cd, append checks, or add command prefixes, wrappers, pipelines, or extra arguments. Execute each command exactly as written, including any directory change explicitly provided in that command. Run exactly `npm --offline pack --ignore-scripts` once with powershell. This packages local files only.
+          content: Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. The session is already in the absolute working directory "${workdir}". All relative paths refer to it. Do not prepend cd, append checks, or add command prefixes, wrappers, pipelines, or extra arguments. Execute each command exactly as written, including any directory change explicitly provided in that command. Run exactly `npm --offline pack --ignore-scripts` once with the shell tool. This packages local files only.
     response:
       content:
         - type: tool_use
@@ -21,7 +21,7 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. The session is already in the absolute working directory "${workdir}". All relative paths refer to it. Do not prepend cd, append checks, or add command prefixes, wrappers, pipelines, or extra arguments. Execute each command exactly as written, including any directory change explicitly provided in that command. Run exactly `npm --offline pack --ignore-scripts` once with powershell. This packages local files only.
+          content: Work only in this synthetic workspace. Do not install dependencies, use the network, or modify any other directory. Use the exact commands given. The session is already in the absolute working directory "${workdir}". All relative paths refer to it. Do not prepend cd, append checks, or add command prefixes, wrappers, pipelines, or extra arguments. Execute each command exactly as written, including any directory change explicitly provided in that command. Run exactly `npm --offline pack --ignore-scripts` once with the shell tool. This packages local files only.
         - role: assistant
           content:
             - type: tool_use
@@ -34,7 +34,7 @@ exchanges:
             - type: tool_result
               tool_use_id: toolcall_0
               content: |-
-                Shell output was automatically compacted. Compacted output below. Original at C:\Users\${user}\AppData\Local\Temp\original-output-1791264511300-741bb0ef040744cfb6f3f62ba3e394fd.txt; only use if exact omitted lines are needed.
+                Shell output was automatically compacted. Compacted output below. Original at ${shell_output_0}; only use if exact omitted lines are needed.
 
                 npm notice
                 npm notice package: runtime-shell-fixture@1.0.0
@@ -57,13 +57,11 @@ exchanges:
       content: |-
         The command completed successfully.
 
-        `npm --offline pack --ignore-scripts` ran in the workspace and produced:
+        `npm --offline pack --ignore-scripts` produced the tarball:
 
-        - Package: `runtime-shell-fixture@1.0.0`
-        - Tarball: `runtime-shell-fixture-1.0.0.tgz`
-        - Package size: 1.9 kB (unpacked: 3.7 kB)
-        - Total files: 181
-        - Shasum: `9b120b2ec1ea053e6207ab6f9f829b841dd7a526`
-
-        The tarball was created in the working directory with exit code 0.
+        - **Package**: `runtime-shell-fixture@1.0.0`
+        - **Filename**: `runtime-shell-fixture-1.0.0.tgz`
+        - **Package size**: 1.9 kB (unpacked: 3.7 kB)
+        - **Total files**: 181
+        - **shasum**: `9b120b2ec1ea053e6207ab6f9f829b841dd7a526`
       stopReason: end_turn
