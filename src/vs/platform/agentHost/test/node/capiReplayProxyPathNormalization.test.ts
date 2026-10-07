@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mkdtempSync, readFileSync, rmSync } from 'fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir, userInfo } from 'os';
 import { join, posix, win32 } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -396,6 +396,102 @@ suite('CapiReplayProxy path normalization', () => {
 	test('binds copied plugin paths from live requests and resets bindings between fixtures', async () => {
 		await assertCopiedPluginPathReplay(posix);
 		await assertCopiedPluginPathReplay(win32);
+	});
+
+	test('normalizes compacted shell output paths and rebinds them from live requests', async () => {
+		const directory = mkdtempSync(join(tmpdir(), 'capi-replay-shell-output-'));
+		const fixturePath = join(directory, 'capture.yaml');
+		const homeDir = '/tmp/host-home';
+		const workDir = '/tmp/workspace';
+		const paths = [
+			'/tmp/with spaces/original-output-1234567890123-0123456789abcdef0123456789abcdef.txt',
+			'C:\\Users\\test user\\Temp\\original-output-1234567890124-abcdef0123456789abcdef0123456789.txt',
+			`${homeDir}/output/original-output-1234567890125-0123456789abcdef0123456789abcdef.txt`,
+			`${workDir}/output/original-output-1234567890126-abcdef0123456789abcdef0123456789.txt`,
+		];
+		const request = (path: string) => JSON.stringify({
+			model: 'claude-sonnet-5',
+			system: 'system',
+			messages: [{ role: 'user', content: `Original at ${path}; only use if exact omitted lines are needed.` }],
+		});
+		const recorder = new CapiReplayProxy({
+			fixturePath,
+			mode: 'record',
+			recordingModelResponse: {
+				status: 200,
+				headers: { 'content-type': 'text/event-stream' },
+				body: anthropicMessageToSse({
+					content: [{ type: 'tool_use', id: 'toolu_1', name: 'view', input: { path: paths[0] } }],
+					stopReason: 'tool_use',
+				}),
+			},
+		});
+		try {
+			await (await fetch(`${await recorder.start()}/v1/messages`, { method: 'POST', body: request(paths[0]) })).text();
+			await recorder.stop();
+			const fixture = readFileSync(fixturePath, 'utf8');
+			assert.ok(fixture.includes('${shell_output_0}') && !fixture.includes('original-output-'));
+			const replay = new CapiReplayProxy({ fixturePath, mode: 'replay', homeDir, workDir, userName: 'test user' });
+			try {
+				const url = await replay.start();
+				for (const path of paths) {
+					replay.resetForReplay(fixturePath);
+					const response = await fetch(`${url}/v1/messages`, { method: 'POST', body: request(path) });
+					const content = aggregateAnthropicSse(await response.text())?.content;
+					assert.deepStrictEqual(content?.map(block => block.type === 'tool_use' ? block.input : undefined), [{ path }]);
+					replay.assertNoReplayMismatches();
+				}
+			} finally {
+				await replay.stop();
+			}
+		} finally {
+			await recorder.stop();
+			rmSync(directory, { recursive: true, force: true });
+		}
+	});
+
+	test('expands workdir file URI placeholders as file URIs', async () => {
+		const directory = mkdtempSync(join(tmpdir(), 'capi-replay-workdir-uri-'));
+		const fixturePath = join(directory, 'capture.yaml');
+		const workDir = 'C:\\Temp\\workspace folder';
+		writeFileSync(fixturePath, [
+			'version: 1',
+			'dialect: anthropic',
+			'exchanges:',
+			'  - request:',
+			'      model: claude-sonnet-5',
+			'      system: ${system}',
+			'      messages:',
+			'        - role: user',
+			'          content: attach',
+			'    response:',
+			'      content:',
+			'        - type: tool_use',
+			'          id: toolu_1',
+			'          name: set_workspace',
+			'          input:',
+			'            workspaceFolder: file://${workdir}',
+			'      stopReason: tool_use',
+		].join('\n'));
+		const replay = new CapiReplayProxy({ fixturePath, mode: 'replay', workDir });
+		try {
+			const response = await fetch(`${await replay.start()}/v1/messages`, {
+				method: 'POST',
+				body: JSON.stringify({
+					model: 'claude-sonnet-5',
+					system: 'system',
+					messages: [{ role: 'user', content: 'attach' }],
+				}),
+			});
+			const content = aggregateAnthropicSse(await response.text())?.content;
+			assert.deepStrictEqual(content?.map(block => block.type === 'tool_use' ? block.input : undefined), [{
+				workspaceFolder: URI.file(workDir).toString(),
+			}]);
+			replay.assertNoReplayMismatches();
+		} finally {
+			await replay.stop();
+			rmSync(directory, { recursive: true, force: true });
+		}
 	});
 
 	test('normalizes truncated harness workspaces from session titles', async () => {

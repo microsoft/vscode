@@ -21,6 +21,7 @@ export const AGENTS_VOICE_CONNECTING = new RawContextKey<boolean>('agentsVoiceCo
 export const AGENTS_VOICE_RECONNECTING = new RawContextKey<boolean>('agentsVoiceReconnecting', false);
 export const AGENTS_VOICE_LISTENING = new RawContextKey<boolean>('agentsVoiceListening', false);
 export const AGENTS_VOICE_MUTED = new RawContextKey<boolean>('agentsVoiceMuted', false);
+export const AGENTS_VOICE_TOGGLE_MUTE_COMMAND_ID = 'agentsVoice.toggleMute';
 /**
  * True when the current Copilot entitlement permits Voice Mode. This is a single
  * key set imperatively from `IChatEntitlementService` (see

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { GitHubPRFetcher, computeMergeability } from '../../browser/fetchers/githubPRFetcher.js';
@@ -22,6 +22,7 @@ class MockApiClient {
 	private _responses: unknown[] = [];
 	private _nextError: Error | undefined;
 	readonly requestCalls: { method: string; path: string; body?: unknown }[] = [];
+	readonly requestOptions: (IGitHubApiRequestOptions | undefined)[] = [];
 	readonly graphqlCalls: { query: string; variables?: Record<string, unknown>; options?: Pick<IGitHubApiRequestOptions, 'token' | 'createAuthenticationSession'> }[] = [];
 
 	setNextResponse(data: unknown): void {
@@ -43,6 +44,7 @@ class MockApiClient {
 
 	async request<T>(_method: string, _path: string, _callSite: string, _options?: IGitHubApiRequestOptions): Promise<{ data: T | undefined; statusCode: number; etag?: string }> {
 		this.requestCalls.push({ method: _method, path: _path, body: _options?.data });
+		this.requestOptions.push(_options);
 		if (this._nextError) {
 			throw this._nextError;
 		}
@@ -224,6 +226,57 @@ suite('GitHubRepositoryFetcher', () => {
 			() => fetcher.getRepository('owner', 'nonexistent'),
 			(err: Error) => err instanceof GitHubApiError && (err as GitHubApiError).statusCode === 404,
 		);
+	});
+
+	test('lists accessible repositories in server-provided recent order without prompting', async () => {
+		const token = store.add(new CancellationTokenSource()).token;
+		mockApi.setNextResponse([
+			{ name: 'recent', full_name: 'owner/recent', owner: { login: 'owner' }, default_branch: 'main', private: true, description: null },
+			{ name: 'older', full_name: 'owner/older', owner: { login: 'owner' }, default_branch: 'main', private: false, description: 'Older repository' },
+		]);
+
+		assert.deepStrictEqual({
+			repositories: await fetcher.getRepositories('', token),
+			path: mockApi.requestCalls[0].path,
+			options: mockApi.requestOptions[0],
+		}, {
+			repositories: [
+				{ owner: 'owner', name: 'recent', fullName: 'owner/recent', defaultBranch: 'main', isPrivate: true, description: '' },
+				{ owner: 'owner', name: 'older', fullName: 'owner/older', defaultBranch: 'main', isPrivate: false, description: 'Older repository' },
+			],
+			path: '/user/repos?per_page=100&sort=updated&affiliation=owner,collaborator,organization_member',
+			options: { token, createAuthenticationSession: false, authenticationScopes: ['repo'] },
+		});
+	});
+
+	test('scopes repository searches to the user and organizations, including private repositories and forks', async () => {
+		const token = store.add(new CancellationTokenSource()).token;
+		mockApi.setResponses(
+			{ login: 'owner' },
+			[{ login: 'microsoft' }],
+			{ items: [{ name: 'repo', full_name: 'owner/repo', owner: { login: 'owner' }, default_branch: 'main', private: true, description: null }] },
+		);
+
+		assert.deepStrictEqual({
+			repositories: await fetcher.getRepositories(' repo language:TypeScript ', token),
+			paths: mockApi.requestCalls.map(call => call.path),
+			options: mockApi.requestOptions,
+		}, {
+			repositories: [{ owner: 'owner', name: 'repo', fullName: 'owner/repo', defaultBranch: 'main', isPrivate: true, description: '' }],
+			paths: [
+				'/user',
+				'/user/orgs?per_page=100',
+				'/search/repositories?q=repo%20language%3ATypeScript%20in%3Aname%20fork%3Atrue%20user%3Aowner%20org%3Amicrosoft&sort=updated&per_page=100',
+			],
+			options: Array.from({ length: 3 }, () => ({ token, createAuthenticationSession: false, authenticationScopes: ['repo'] })),
+		});
+	});
+
+	test('does not fall back to an unscoped search when account information is missing', async () => {
+		mockApi.setResponses(undefined, []);
+
+		await assert.rejects(fetcher.getRepositories('vscode', CancellationToken.None), /GitHub did not return an account/);
+		assert.deepStrictEqual(mockApi.requestCalls.map(call => call.path), ['/user', '/user/orgs?per_page=100']);
 	});
 });
 

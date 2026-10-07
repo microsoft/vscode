@@ -6,26 +6,58 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AgentSession } from '../../common/agent.js';
+import { CODEX_SESSION_MODEL_META_KEY } from '../../common/meta/codexSessionModel.js';
 import { readSessionArtifacts, SESSION_META_ARTIFACTS_KEY } from '../../common/sessionArtifacts.js';
-import { isSessionStatusArchived, isSessionStatusRead, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionFolderPickerDecision, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY } from '../../common/state/sessionState.js';
+import { ChatInteractivity } from '../../common/state/protocol/state.js';
+import { buildChatUri, buildSubagentChatUri, isSessionStatusArchived, isSessionStatusRead, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionFolderPickerDecision, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY } from '../../common/state/sessionState.js';
 import { AgentHostCatalogListReader } from '../../node/agentHostCatalogListReader.js';
 import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, encodeAgentHostCatalogPayload, type AgentHostCatalogData } from '../../node/agentHostCatalogProjection.js';
-import { AgentHostDatabase, type IAgentHostDatabaseSessionV2 } from '../../node/agentHostDatabase.js';
+import { AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT, AgentHostDatabase, type IAgentHostDatabaseCatalogSnapshotEntry, type IAgentHostDatabaseSessionV2 } from '../../node/agentHostDatabase.js';
 import type { IRegisteredSession } from '../../node/agentSessionRegistry.js';
+import { readTestSessionListCatalogs } from './chatMetadataTestHelpers.js';
 
 class TestCatalogDatabase extends AgentHostDatabase {
+	override readSessionListCatalogs(sessions: readonly string[]): ReturnType<AgentHostDatabase['readSessionListCatalogs']> {
+		return readTestSessionListCatalogs(this, sessions);
+	}
 	catalog: IAgentHostDatabaseSessionV2 | undefined;
 	readError: Error | undefined;
+	batchReadError: Error | undefined;
+	readonly singleReadErrors = new Map<string, Error>();
+	singleReads = 0;
+	batchReads = 0;
+	batchSessions: readonly string[] | undefined;
+	snapshot: readonly IAgentHostDatabaseCatalogSnapshotEntry[] = [];
+	snapshotSessions: readonly string[] | undefined;
+	readonly snapshotBatches: (readonly string[] | undefined)[] = [];
 
 	constructor() {
 		super(':memory:');
 	}
 
-	override async getSessionV2(): Promise<IAgentHostDatabaseSessionV2 | undefined> {
-		if (this.readError) {
-			throw this.readError;
+	override async getSessionV2(session: string): Promise<IAgentHostDatabaseSessionV2 | undefined> {
+		this.singleReads++;
+		const error = this.readError ?? this.singleReadErrors.get(session);
+		if (error) {
+			throw error;
 		}
-		return this.catalog;
+		return this.catalog?.session === session ? this.catalog : undefined;
+	}
+
+	override async listSessionsV2(sessions?: readonly string[]): Promise<readonly IAgentHostDatabaseSessionV2[]> {
+		this.batchReads++;
+		this.batchSessions = sessions;
+		const error = this.readError ?? this.batchReadError;
+		if (error) {
+			throw error;
+		}
+		return this.catalog && (!sessions || sessions.includes(this.catalog.session)) ? [this.catalog] : [];
+	}
+
+	override async readCatalogSnapshot(sessions?: readonly string[]): Promise<readonly IAgentHostDatabaseCatalogSnapshotEntry[]> {
+		this.snapshotSessions = sessions;
+		this.snapshotBatches.push(sessions);
+		return this.snapshot;
 	}
 }
 
@@ -50,6 +82,7 @@ suite('AgentHostCatalogListReader', () => {
 		workingDirectories: ['file:///workspace', 'file:///other'],
 		changes: { additions: 4, deletions: 2, files: 3 },
 		_meta: {
+			[CODEX_SESSION_MODEL_META_KEY]: { id: '@provider=openai:gpt-5.6-sol' },
 			[SESSION_META_MULTI_ROOT_KEY]: { workspaceFile: 'file:///workspace/project.code-workspace' },
 			[SESSION_META_FOLDER_PICKER_KEY]: { hidden: true, primary: 'file:///workspace' },
 			[SESSION_META_GITHUB_KEY]: { owner: 'microsoft', repo: 'vscode', pullRequestUrls: ['https://github.com/microsoft/vscode/pull/1'] },
@@ -58,6 +91,8 @@ suite('AgentHostCatalogListReader', () => {
 				branchName: 'feature',
 				baseBranchName: 'main',
 				upstreamBranchName: 'origin/feature',
+				defaultBranchName: 'main',
+				defaultRemoteBranchName: 'origin/main',
 				incomingChanges: 1,
 				outgoingChanges: 2,
 				uncommittedChanges: 3,
@@ -77,8 +112,8 @@ suite('AgentHostCatalogListReader', () => {
 			[SESSION_META_EHCLI_ADOPTABLE_KEY]: true,
 		},
 		chats: [
-			{ uri: `${session.toString()}/chat/default`, order: 0, kind: 'default', summary: 'Catalog title', titleSource: 'user' },
-			{ uri: `${session.toString()}/chat/peer`, order: 1, kind: 'peer', summary: 'Peer title', titleSource: 'agent', origin: { kind: 'fork', chat: `${session.toString()}/chat/default`, turnId: 'turn-1' } },
+			{ uri: `${session.toString()}/chat/default`, order: 0, kind: 'default', summary: 'Catalog title', titleSource: 'user', isRead: true },
+			{ uri: `${session.toString()}/chat/peer`, order: 1, kind: 'peer', summary: 'Peer title', titleSource: 'agent', origin: { kind: 'fork', chat: `${session.toString()}/chat/default`, turnId: 'turn-1' }, interactivity: ChatInteractivity.Hidden, archived: true, isRead: false },
 		],
 	};
 
@@ -129,17 +164,20 @@ suite('AgentHostCatalogListReader', () => {
 			project: result.metadata.project && { uri: result.metadata.project.uri.toString(), displayName: result.metadata.project.displayName },
 			workingDirectories: result.metadata.workingDirectories?.map(directory => directory.toString()),
 			changes: result.metadata.changes,
+			model: result.metadata.model,
 			external: readSessionExternal(result.metadata._meta),
 			workspaceless: readSessionWorkspaceless(result.metadata._meta),
 			ehcliAdoptable: readSessionEhcliAdoptable(result.metadata._meta),
 			multiRoot: readSessionMultiRootMetadata(result.metadata._meta),
 			folderPicker: readSessionFolderPickerDecision(result.metadata._meta),
-			github: readSessionGitHubState(result.metadata._meta),
+			github: readSessionGitHubState(result.metadata._meta, 'file:///workspace'),
+			legacyGitHub: result.metadata._meta?.[SESSION_META_GITHUB_KEY],
 			git: readSessionGitState(result.metadata._meta),
 			sourceControl: readSessionSourceControlState(result.metadata._meta),
 			artifacts: readSessionArtifacts(result.metadata._meta),
 			creationReference: readSessionCreationReference(result.metadata._meta),
-			chats: result.data.chats.map(chat => ({ ...chat, uri: chat.uri.toString() })),
+			metadataChats: result.metadata.chats?.map(chat => ({ ...chat, chat: chat.chat.toString() })),
+			catalogChats: result.data.chats.map(chat => ({ ...chat, uri: chat.uri.toString() })),
 		}, {
 			session: session.toString(),
 			startTime: 100,
@@ -150,17 +188,222 @@ suite('AgentHostCatalogListReader', () => {
 			project: { uri: 'file:///workspace', displayName: 'Workspace' },
 			workingDirectories: ['file:///workspace', 'file:///other'],
 			changes: data.changes,
+			model: { id: '@provider=openai:gpt-5.6-sol' },
 			external: true,
 			workspaceless: true,
 			ehcliAdoptable: true,
 			multiRoot: data._meta?.[SESSION_META_MULTI_ROOT_KEY],
 			folderPicker: data._meta?.[SESSION_META_FOLDER_PICKER_KEY],
+			// Payloads written by earlier versions are migrated to the session folder.
 			github: data._meta?.[SESSION_META_GITHUB_KEY],
+			legacyGitHub: undefined,
 			git: data._meta?.[SESSION_META_GIT_KEY],
 			sourceControl: data._meta?.[SESSION_META_SOURCE_CONTROL_KEY],
 			artifacts: data._meta?.[SESSION_META_ARTIFACTS_KEY],
 			creationReference: data._meta?.[SESSION_META_CREATED_BY_SESSION_KEY],
-			chats: data.chats,
+			metadataChats: data.chats.map(chat => ({
+				chat: chat.uri,
+				summary: chat.summary,
+				kind: chat.kind,
+				origin: chat.origin,
+				...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
+				...(chat.archived === true ? { archived: true } : {}),
+				...(chat.isRead !== undefined ? { isRead: chat.isRead } : {}),
+			})),
+			catalogChats: data.chats,
+		});
+	});
+
+	test('reads activated chat summaries in bulk without consulting stale payload chats or provider detail', async () => {
+		const database = createDatabase();
+		const stableChat = 'agent-chat://copilot/original-owner/chat/stable';
+		database.snapshot = [{
+			session: session.toString(),
+			authorityVersion: 2,
+			identity: { ...registered, session: session.toString() },
+			isChatBacking: false,
+			provisional: false,
+			header: {
+				session: session.toString(),
+				revision: 7,
+				authorityVersion: 2,
+				defaultChatUri: stableChat,
+				sessionGeneration: 'incarnation',
+			},
+			chats: [{
+				chat: stableChat,
+				order: 0,
+				ownerSession: session.toString(),
+				ownershipRevision: 1,
+				metadataRevision: 3,
+				isRead: false,
+				archived: true,
+				workingDirectories: ['file:///second', 'file:///first'],
+				metadata: { summary: 'Central chat', titleSource: 'user', changes: { files: 0 } },
+			}, {
+				chat: 'agent-chat://copilot/private',
+				ownerSession: session.toString(),
+				ownershipRevision: 1,
+				metadataRevision: 0,
+				parentChat: stableChat,
+				metadata: { interactivity: ChatInteractivity.Hidden },
+			}],
+		}];
+		database.getChatV2ProviderDetail = async () => {
+			throw new Error('Listing must not load provider detail');
+		};
+		const result = await new AgentHostCatalogListReader(database).readMany([registered]);
+		const first = result.results[0];
+		assert.deepStrictEqual({
+			sessions: database.snapshotSessions,
+			sessionTitle: first.eligible ? first.metadata.summary : undefined,
+			chats: first.eligible ? first.data.chats.map(chat => ({
+				uri: chat.uri.toString(),
+				kind: chat.kind,
+				title: chat.summary,
+				isRead: chat.isRead,
+				archived: chat.archived,
+				directories: chat.workingDirectories,
+				changes: chat.changes,
+			})) : undefined,
+		}, {
+			sessions: [session.toString()],
+			sessionTitle: 'Catalog title',
+			chats: [{
+				uri: stableChat,
+				kind: 'default',
+				title: 'Central chat',
+				isRead: false,
+				archived: true,
+				directories: ['file:///second', 'file:///first'],
+				changes: { files: 0 },
+			}],
+		});
+	});
+
+	test('bounds large normalized snapshot reads without per-session queries', async () => {
+		const database = createDatabase();
+		const registrations = Array.from({ length: AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT + 1 }, (_, index) => ({
+			...registered,
+			session: AgentSession.uri('copilot', `bounded-${index}`),
+		}));
+		const result = await new AgentHostCatalogListReader(database).readMany(registrations);
+		assert.deepStrictEqual({
+			batchSizes: database.snapshotBatches.map(batch => batch?.length),
+			sessions: database.snapshotBatches.flatMap(batch => batch ?? []),
+			resultCount: result.results.length,
+			singleReads: database.singleReads,
+		}, {
+			batchSizes: [AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT, 1],
+			sessions: registrations.map(entry => entry.session.toString()),
+			resultCount: registrations.length,
+			singleReads: 0,
+		});
+	});
+
+	test('reads multiple registered sessions with one catalog query', async () => {
+		const database = createDatabase();
+		const missing: IRegisteredSession = {
+			...registered,
+			session: AgentSession.uri('copilot', 'missing'),
+		};
+
+		const { results } = await new AgentHostCatalogListReader(database).readMany([registered, missing]);
+
+		assert.deepStrictEqual({
+			eligible: results.map(result => result.eligible),
+			singleReads: database.singleReads,
+			batchReads: database.batchReads,
+			batchSessions: database.batchSessions,
+		}, {
+			eligible: [true, false],
+			singleReads: 0,
+			batchReads: 1,
+			batchSessions: [registered.session.toString(), missing.session.toString()],
+		});
+	});
+
+	test('skips the catalog query for an empty candidate list', async () => {
+		const database = createDatabase();
+
+		const result = await new AgentHostCatalogListReader(database).readMany([]);
+
+		assert.deepStrictEqual({
+			result,
+			singleReads: database.singleReads,
+			batchReads: database.batchReads,
+		}, {
+			result: { results: [] },
+			singleReads: 0,
+			batchReads: 0,
+		});
+	});
+
+	test('recovers individual rows with bounded reads when the bulk query fails', async () => {
+		const database = createDatabase();
+		const missing: IRegisteredSession = {
+			...registered,
+			session: AgentSession.uri('copilot', 'missing'),
+		};
+		const failed: IRegisteredSession = {
+			...registered,
+			session: AgentSession.uri('copilot', 'failed'),
+		};
+		database.batchReadError = new Error('bulk failed');
+		database.singleReadErrors.set(failed.session.toString(), new Error('row failed'));
+
+		const result = await new AgentHostCatalogListReader(database).readMany([registered, missing, failed]);
+
+		assert.deepStrictEqual({
+			eligible: result.results.map(entry => entry.eligible),
+			errors: result.results.map(entry => entry.eligible || entry.chatBacking ? undefined : entry.error?.message),
+			bulkReadError: result.bulkReadError?.message,
+			fallbackReadCount: result.bulkReadError ? result.fallbackReadCount : undefined,
+			fallbackRecoveredRowCount: result.bulkReadError ? result.fallbackRecoveredRowCount : undefined,
+			fallbackReadFailureCount: result.bulkReadError ? result.fallbackReadFailureCount : undefined,
+			singleReads: database.singleReads,
+			batchReads: database.batchReads,
+		}, {
+			eligible: [true, false, false],
+			errors: [undefined, undefined, 'row failed'],
+			bulkReadError: 'bulk failed',
+			fallbackReadCount: 3,
+			fallbackRecoveredRowCount: 1,
+			fallbackReadFailureCount: 1,
+			singleReads: 3,
+			batchReads: 1,
+		});
+	});
+
+	test('omits reserved subagent and tool-origin channels from list metadata and catalog data', async () => {
+		const subagentChat = buildSubagentChatUri(session, 'tool-call');
+		const toolChat = buildChatUri(session, 'spawned-tool');
+		const result = await new AgentHostCatalogListReader(createDatabase({
+			...data,
+			chats: [
+				...data.chats,
+				{ uri: subagentChat, order: data.chats.length, kind: 'peer', summary: 'Explore', titleSource: 'agent' },
+				{
+					uri: toolChat,
+					order: data.chats.length + 1,
+					kind: 'peer',
+					summary: 'Spawned Tool',
+					titleSource: 'agent',
+					origin: { kind: 'tool', chat: `${session.toString()}/chat/default`, toolCallId: 'tool-call' },
+				},
+			],
+		})).read(registered);
+		assert.strictEqual(result.eligible, true);
+		if (!result.eligible) {
+			return;
+		}
+
+		assert.deepStrictEqual({
+			metadataChats: result.metadata.chats?.map(chat => chat.chat.toString()),
+			catalogChats: result.data.chats.map(chat => chat.uri.toString()),
+		}, {
+			metadataChats: data.chats.map(chat => chat.uri),
+			catalogChats: data.chats.map(chat => chat.uri),
 		});
 	});
 

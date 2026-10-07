@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { raceCancellationError } from '../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { CancellationError } from '../../../../../base/common/errors.js';
-import { Emitter, Event } from '../../../../../base/common/event.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { isEqualOrParent, relativePath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -15,10 +15,11 @@ import { IAgentConnection } from '../../../../../platform/agentHost/common/agent
 import { supportsAgentHostDetachedWorktrees } from '../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { withAgentDevContainerWorktreeMetadata } from '../../../../../platform/agentHost/common/meta/agentDevContainerWorktreeMeta.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { findDevContainerSample, getDevContainerSampleUrl } from '../../../../../platform/agentHost/common/devContainerSamples.js';
 import { AgentCustomization } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { ILanguageModelChatMetadata } from '../../../../../workbench/contrib/chat/common/languageModels.js';
-import { isAgentHostProvider, IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
+import { isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ChatModelSource, ISession } from '../../../../services/sessions/common/session.js';
@@ -57,6 +58,7 @@ function findEquivalentAgent(selectedAgentUri: string, sourceWorkspace: URI, tar
 export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHostSessionsProvider {
 	private readonly _devContainerAvailableDrafts = new Set<string>();
 	private readonly _devContainerDrafts = new Set<string>();
+	private readonly _requiredDevContainerDrafts = new Set<string>();
 	private readonly _pendingDevContainerEnablement = new Set<string>();
 	private readonly _devContainerAvailability = new Map<string, Promise<void>>();
 	private readonly _devContainerAvailabilityListener = this._register(new MutableDisposable());
@@ -88,6 +90,9 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 
 	override createNewSession(workspaceUri: URI, sessionTypeId: string, options?: ISessionsProviderCreateSessionOptions): ISession {
 		const session = super.createNewSession(workspaceUri, sessionTypeId, options);
+		if (findDevContainerSample(workspaceUri)) {
+			this.preferDevContainer(session.sessionId, { required: true });
+		}
 		this._resolveDevContainerAvailability(session.sessionId, workspaceUri);
 		return session;
 	}
@@ -106,16 +111,20 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 		try {
 			const available = await this.isDevContainerWorkspaceAvailable(workspaceUri);
 			if (!available || !this._getNewSession(sessionId)) {
-				this._pendingDevContainerEnablement.delete(sessionId);
+				if (this._pendingDevContainerEnablement.delete(sessionId)) {
+					this._onDidChangeSessionConfig.fire(sessionId);
+				}
 				return;
 			}
 			this._devContainerAvailableDrafts.add(sessionId);
-			if (this._pendingDevContainerEnablement.delete(sessionId)) {
+			if (this._pendingDevContainerEnablement.delete(sessionId) || this._requiredDevContainerDrafts.has(sessionId)) {
 				this._enableDevContainer(sessionId);
 			}
 			this._onDidChangeSessionConfig.fire(sessionId);
 		} catch (error) {
-			this._pendingDevContainerEnablement.delete(sessionId);
+			if (this._pendingDevContainerEnablement.delete(sessionId)) {
+				this._onDidChangeSessionConfig.fire(sessionId);
+			}
 			this._logService.warn(`[${this.id}] Failed to resolve Dev Container availability for ${workspaceUri.toString()}`, error);
 		}
 	}
@@ -129,24 +138,35 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 	}
 
 	isDevContainerEnabled(sessionId: string): boolean {
-		return this._devContainerDrafts.has(sessionId);
+		return this._devContainerDrafts.has(sessionId) || this._requiredDevContainerDrafts.has(sessionId);
 	}
 
-	preferDevContainer(sessionId: string): void {
+	isDevContainerRequested(sessionId: string): boolean {
+		return this.isDevContainerEnabled(sessionId) || this._pendingDevContainerEnablement.has(sessionId);
+	}
+
+	preferDevContainer(sessionId: string, options?: { readonly required?: boolean }): void {
 		if (!this._getNewSession(sessionId)) {
 			throw new Error(`Cannot configure unknown new session '${sessionId}'.`);
 		}
+		if (options?.required) {
+			this._requiredDevContainerDrafts.add(sessionId);
+		}
 		if (this._devContainerAvailableDrafts.has(sessionId)) {
 			this._enableDevContainer(sessionId);
-			this._onDidChangeSessionConfig.fire(sessionId);
 		} else {
 			this._pendingDevContainerEnablement.add(sessionId);
 		}
+		this._onDidChangeSessionConfig.fire(sessionId);
 	}
 
 	setDevContainerEnabled(sessionId: string, enabled: boolean): void {
 		if (!this._getNewSession(sessionId)) {
 			throw new Error(`Cannot configure unknown new session '${sessionId}'.`);
+		}
+		const workspace = this._getNewSession(sessionId)?.session.workspace.get()?.uri;
+		if (!enabled && workspace && findDevContainerSample(workspace)) {
+			throw new Error(localize('devContainerSample.containerRequired', "Dev Container samples must run in a container."));
 		}
 		if (enabled && !this._devContainerAvailableDrafts.has(sessionId)) {
 			throw new Error(`Cannot enable Dev Container execution for unavailable session '${sessionId}'.`);
@@ -156,6 +176,7 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 			this._enableDevContainer(sessionId);
 		} else {
 			this._devContainerDrafts.delete(sessionId);
+			this._requiredDevContainerDrafts.delete(sessionId);
 			this._pendingDevContainerEnablement.delete(sessionId);
 		}
 		this._onDidChangeSessionConfig.fire(sessionId);
@@ -163,11 +184,12 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 
 	private _enableDevContainer(sessionId: string): void {
 		this._devContainerDrafts.add(sessionId);
-		if (this._baseConfigurationService.getValue<boolean>(DevContainerWorktreeEnabledSettingId) === true) {
+		const workspace = this._getNewSession(sessionId)?.session.workspace.get()?.uri;
+		if (this._baseConfigurationService.getValue<boolean>(DevContainerWorktreeEnabledSettingId) === true && !(workspace && findDevContainerSample(workspace))) {
 			return;
 		}
 		const normalizeIsolation = (async () => {
-			await this._waitForSessionConfigResolution(this, sessionId, CancellationToken.None);
+			await this.whenSessionConfigResolved(sessionId, CancellationToken.None);
 			if (!this._devContainerDrafts.has(sessionId) || !this._getNewSession(sessionId)) {
 				return;
 			}
@@ -179,22 +201,59 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 	}
 
 	override startNewSessionRequest(sessionId: string, activity?: string): IDisposable {
-		return super.startNewSessionRequest(sessionId, activity ?? (this._devContainerDrafts.has(sessionId)
-			? localize('devContainerAgentHost.starting', "Starting Dev Container...")
+		return super.startNewSessionRequest(sessionId, activity ?? (this.isDevContainerEnabled(sessionId)
+			? localize('devContainerAgentHost.starting', "Starting Dev Container")
 			: undefined));
 	}
 
 	async prepareNewSession(sessionId: string, token: CancellationToken, query: string): Promise<IPreparedNewSession> {
-		const availability = this._devContainerAvailability.get(sessionId);
-		if (availability && this._pendingDevContainerEnablement.has(sessionId)) {
-			await raceCancellationError(availability, token);
-		}
 		const draft = this._getNewSession(sessionId);
 		if (!draft) {
 			throw new Error(`Cannot prepare unknown new session '${sessionId}'.`);
 		}
-		if (!this._devContainerDrafts.has(sessionId)) {
+		const workspaceUri = draft.session.workspace.get()?.folders[0]?.root;
+		if (workspaceUri && this._requiredDevContainerDrafts.has(sessionId) && !this.isDevContainerAvailable(sessionId) && !this._devContainerAvailability.has(sessionId)) {
+			this._resolveDevContainerAvailability(sessionId, workspaceUri);
+		}
+		const availability = this._devContainerAvailability.get(sessionId);
+		const awaitingAvailability = availability && (this._pendingDevContainerEnablement.has(sessionId) || this._requiredDevContainerDrafts.has(sessionId));
+		if (!awaitingAvailability && !this.isDevContainerEnabled(sessionId)) {
 			return { session: draft.session };
+		}
+		const preparation = new CancellationTokenSource(token);
+		const cancel = () => preparation.cancel();
+		const progress = (message: string, showLog = draft.preparationProgress.get()?.showLog) => {
+			draft.preparationProgress.set({
+				message,
+				showLog,
+				cancel,
+			}, undefined);
+		};
+		progress(localize('devContainerAgentHost.preparing', "Preparing Dev Container"));
+		try {
+			if (awaitingAvailability) {
+				await raceCancellationError(availability, preparation.token);
+			}
+			if (preparation.token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			if (this._requiredDevContainerDrafts.has(sessionId) && !this.isDevContainerAvailable(sessionId)) {
+				throw new Error(localize('devContainerAgentHost.requiredUnavailable', "The selected Dev Container is not available. Restore its configuration and connection, or explicitly select the host workspace to continue without a container."));
+			}
+			if (!this._devContainerDrafts.has(sessionId)) {
+				return { session: draft.session };
+			}
+			return await this._prepareDevContainerSession(sessionId, preparation.token, query, progress);
+		} finally {
+			draft.preparationProgress.set(undefined, undefined);
+			preparation.dispose();
+		}
+	}
+
+	private async _prepareDevContainerSession(sessionId: string, token: CancellationToken, query: string, progress: (message: string, showLog?: () => void) => void): Promise<IPreparedNewSession> {
+		const draft = this._getNewSession(sessionId);
+		if (!draft) {
+			throw new Error(`Cannot prepare unknown new session '${sessionId}'.`);
 		}
 		const support = this._devContainerSupport;
 		if (!support) {
@@ -204,9 +263,12 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 		if (!sourceWorkspace) {
 			throw new Error(localize('devContainerAgentHost.workspaceRequired', "Dev Container sessions require a workspace."));
 		}
+		const sample = findDevContainerSample(sourceWorkspace);
 		const trusted = await support.trustRequestService.requestResourcesTrust({
 			uri: sourceWorkspace,
-			message: localize('devContainerAgentHost.trustFolder', "Starting the Dev Container can run lifecycle commands from this workspace."),
+			message: sample
+				? localize('devContainerSample.trust', "Starting this sample clones {0} into a Docker volume and runs its Dev Container lifecycle commands.", getDevContainerSampleUrl(sample))
+				: localize('devContainerAgentHost.trustFolder', "Starting the Dev Container can run lifecycle commands from this workspace."),
 		});
 		if (!trusted) {
 			throw new WorkspaceNotTrustedError();
@@ -214,12 +276,16 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
-		await this._waitForSessionConfigResolution(this, sessionId, token);
-		const sourceConfig = this.getSessionConfig(sessionId);
+		await raceCancellationError(draft.waitForConfigurationReady(), token);
+		const sourceConfig = await this.whenSessionConfigResolved(sessionId, token);
 		let devContainerWorkspace = sourceWorkspace;
 		let detachedWorktree: { readonly handle: string; readonly worktree: URI; readonly connection: IAgentConnection } | undefined;
-		if (sourceConfig?.values[SessionConfigKey.Isolation] === 'worktree') {
-			await draft.waitForEagerCreate();
+		if (!sample && sourceConfig.values[SessionConfigKey.Isolation] === 'worktree') {
+			progress(localize('devContainerAgentHost.preparingWorktree', "Preparing worktree for Dev Container"));
+			await raceCancellationError(draft.waitForEagerCreate(), token);
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
 			const connection = this.connection;
 			if (!connection || !supportsAgentHostDetachedWorktrees(connection.initializeResult.get()) || !connection.createDetachedWorktree || !connection.claimDetachedWorktree || !connection.deleteDetachedWorktree) {
 				throw new Error(localize('devContainerAgentHost.worktreePreparationUnsupported', "The source Agent Host does not support preparing a worktree for a Dev Container."));
@@ -239,6 +305,9 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 
 		let target: Awaited<ReturnType<IDevContainerAgentHostService['connect']>>;
 		try {
+			progress(localize('devContainerAgentHost.starting', "Starting Dev Container"), () => {
+				void support.service.showLog(devContainerWorkspace).catch(onUnexpectedError);
+			});
 			target = await support.service.connect(devContainerWorkspace, token);
 		} catch (error) {
 			if (detachedWorktree) {
@@ -248,6 +317,7 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 		}
 		let deleteReplacement: (() => void) | undefined;
 		try {
+			progress(localize('devContainerAgentHost.initializing', "Initializing Agent Host session"));
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
@@ -262,43 +332,49 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 			if (!targetSessionType) {
 				throw new Error(localize('devContainerAgentHost.noAgents', "The Dev Container Agent Host did not advertise any agents."));
 			}
-			const replacement = targetProvider.createNewSession(target.workspaceUri, targetSessionType.id, {
-				metadata: detachedWorktree ? withAgentDevContainerWorktreeMetadata(undefined, detachedWorktree.handle) : undefined,
-			});
-			const discardReplacement = () => targetProvider.deleteNewSession(replacement.sessionId);
-			deleteReplacement = discardReplacement;
-			if (detachedWorktree) {
-				await detachedWorktree.connection.claimDetachedWorktree!(detachedWorktree.handle);
-			}
-			await this._waitForSessionConfigResolution(targetProvider, replacement.sessionId, token);
-			if (detachedWorktree) {
-				await targetProvider.setSessionConfigValue(replacement.sessionId, SessionConfigKey.Isolation, 'folder');
-				await this._waitForSessionConfigResolution(targetProvider, replacement.sessionId, token);
-			}
-			const targetConfig = targetProvider.getSessionConfig(replacement.sessionId);
-			if (sourceConfig) {
-				for (const [property, value] of Object.entries(sourceConfig.values)) {
-					if (detachedWorktree && property === SessionConfigKey.Isolation) {
-						continue;
-					}
-					const targetProperty = targetConfig?.schema.properties[property];
-					if (!targetProperty || targetProperty.readOnly) {
-						continue;
-					}
-					await targetProvider.setSessionConfigValue(replacement.sessionId, property, value);
-				}
-			}
 			const sourceChat = draft.session.mainChat.get();
-			const replacementChat = replacement.mainChat.get();
 			const modelId = sourceChat.modelId.get();
 			const sourceModelSnapshot = this.getModelsSnapshot(sessionId, modelId);
 			const sourceModel = sourceModelSnapshot.models.find(model => model.identifier === modelId)
 				?? (sourceModelSnapshot.desiredModelResolution.kind === 'available' ? sourceModelSnapshot.desiredModelResolution.model : undefined);
 			const targetModel = sourceModel
-				? targetProvider.getModelsSnapshot(replacement.sessionId).models.find(model => isSameLogicalModel(sourceModel.metadata, model.metadata))
+				? targetProvider.getModelsSnapshotForCreation?.(target.workspaceUri, targetSessionType.id)?.models.find(model => isSameLogicalModel(sourceModel.metadata, model.metadata))
 				: undefined;
-			if (targetModel) {
-				targetProvider.setModel(replacement.sessionId, replacementChat.resource, targetModel.identifier, sourceChat.modelSource.get() ?? ChatModelSource.CarriedOver);
+			const modelConfiguration = draft.modelConfiguration.captureModelConfiguration(modelId);
+			const replacement = targetProvider.createNewSession(target.workspaceUri, targetSessionType.id, {
+				metadata: detachedWorktree ? withAgentDevContainerWorktreeMetadata(undefined, detachedWorktree.handle) : undefined,
+				...(targetModel ? {
+					modelId: targetModel.identifier,
+					...(modelConfiguration !== undefined ? { modelConfiguration } : {}),
+				} : {}),
+			});
+			const discardReplacement = () => targetProvider.deleteNewSession(replacement.sessionId);
+			deleteReplacement = discardReplacement;
+			const replacementToken = targetProvider.getNewSessionCancellationToken(replacement.sessionId);
+			if (detachedWorktree) {
+				await detachedWorktree.connection.claimDetachedWorktree!(detachedWorktree.handle);
+			}
+			let targetConfig = await targetProvider.whenSessionConfigResolved(replacement.sessionId, token);
+			if (detachedWorktree || (sample && targetConfig.schema.properties[SessionConfigKey.Isolation])) {
+				await raceCancellationError(targetProvider.setSessionConfigValue(replacement.sessionId, SessionConfigKey.Isolation, 'folder'), replacementToken);
+				targetConfig = await targetProvider.whenSessionConfigResolved(replacement.sessionId, token);
+			}
+			for (const [property, value] of Object.entries(sourceConfig.values)) {
+				if ((detachedWorktree || sample) && property === SessionConfigKey.Isolation) {
+					continue;
+				}
+				const targetProperty = targetConfig.schema.properties[property];
+				if (!targetProperty || targetProperty.readOnly) {
+					continue;
+				}
+				await raceCancellationError(targetProvider.setSessionConfigValue(replacement.sessionId, property, value), replacementToken);
+			}
+			const replacementChat = replacement.mainChat.get();
+			const resolvedTargetModel = targetModel ?? (sourceModel
+				? targetProvider.getModelsSnapshot(replacement.sessionId).models.find(model => isSameLogicalModel(sourceModel.metadata, model.metadata))
+				: undefined);
+			if (resolvedTargetModel) {
+				targetProvider.setModel(replacement.sessionId, replacementChat.resource, resolvedTargetModel.identifier, sourceChat.modelSource.get() ?? ChatModelSource.CarriedOver);
 			}
 			const selectedAgentUri = sourceChat.mode.get()?.id;
 			const targetAgents = selectedAgentUri ? targetProvider.getCustomAgents(replacement.sessionId) : [];
@@ -309,7 +385,7 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 			if (targetAgent) {
 				targetProvider.setAgent?.(replacement.sessionId, { uri: targetAgent.uri, name: targetAgent.name });
 			}
-			if (token.isCancellationRequested) {
+			if (token.isCancellationRequested || replacementToken.isCancellationRequested) {
 				throw new CancellationError();
 			}
 			return {
@@ -346,19 +422,11 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 		}
 	}
 
-	private async _waitForSessionConfigResolution(provider: IAgentHostSessionsProvider, sessionId: string, token: CancellationToken): Promise<void> {
-		if (token.isCancellationRequested) {
-			throw new CancellationError();
-		}
-		while (provider.isSessionConfigResolving(sessionId).get()) {
-			await raceCancellationError(Event.toPromise(Event.filter(provider.onDidChangeSessionConfig, changedSessionId => changedSessionId === sessionId)), token);
-		}
-	}
-
 	override deleteNewSession(sessionId: string): void {
 		this._devContainerAvailability.delete(sessionId);
 		this._devContainerAvailableDrafts.delete(sessionId);
 		this._devContainerDrafts.delete(sessionId);
+		this._requiredDevContainerDrafts.delete(sessionId);
 		this._pendingDevContainerEnablement.delete(sessionId);
 		super.deleteNewSession(sessionId);
 	}
@@ -367,6 +435,7 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 		this._devContainerAvailability.clear();
 		this._devContainerAvailableDrafts.clear();
 		this._devContainerDrafts.clear();
+		this._requiredDevContainerDrafts.clear();
 		this._pendingDevContainerEnablement.clear();
 		super._disposeAllNewSessions();
 	}

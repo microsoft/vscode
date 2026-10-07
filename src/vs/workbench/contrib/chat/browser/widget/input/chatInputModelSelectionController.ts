@@ -18,6 +18,7 @@
  * they do while waiting: Workbench chat shows a stand-in, since being wrong costs a repaint, while
  * the Agents Window waits, since it writes through to a backend.
  */
+import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
@@ -69,6 +70,8 @@ export class ChatInputModelSelectionController extends Disposable {
 
 	private readonly _currentModel = observableValue<ILanguageModelChatMetadataAndIdentifier | undefined>(this, undefined);
 	readonly currentModel: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined> = this._currentModel;
+	private readonly _onDidChangeUserSelectedModel = this._register(new Emitter<{ readonly fromModelId: string; readonly toModelId: string }>());
+	readonly onDidChangeUserSelectedModel = this._onDidChangeUserSelectedModel.event;
 	private _selectionReason: ModelSelectionReason | undefined;
 	private _pendingProgrammaticSelection: IPendingProgrammaticSelection | undefined;
 
@@ -139,6 +142,9 @@ export class ChatInputModelSelectionController extends Disposable {
 			}
 			this._diagnostics.report('explicit-selection-failed', { model: model.identifier, error: String(error) }, 'error');
 			throw error;
+		}
+		if (previousModel && previousModel.identifier !== model.identifier) {
+			this._onDidChangeUserSelectedModel.fire({ fromModelId: previousModel.identifier, toModelId: model.identifier });
 		}
 	}
 

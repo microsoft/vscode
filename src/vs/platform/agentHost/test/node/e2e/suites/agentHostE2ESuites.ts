@@ -19,11 +19,16 @@ import { defineFileOperationsTests } from './fileOperationsSuite.js';
 import { defineHostFeaturesTests } from './hostFeaturesSuite.js';
 import { defineMultiChatTests } from './multiChatSuite.js';
 import { defineMcpPluginTests } from './mcpPluginSuite.js';
+import { defineMcpSideChannelTests } from './mcpSideChannelSuite.js';
+import { defineProviderCheckpointTests } from './providerCheckpointSuite.js';
+import { defineProviderErrorTests } from './providerErrorSuite.js';
 import { defineCopilotRuntimeMcpTests } from './copilotRuntimeMcpSuite.js';
 import { defineStateOperationsTests } from './stateOperationsSuite.js';
 import { defineSubagentTests } from './subagentSuite.js';
 import { defineTurnLifecycleTests } from './turnLifecycleSuite.js';
 import { defineWorkspaceTests } from './workspaceSuite.js';
+import { defineWorkingDirectoriesTests } from './workingDirectoriesSuite.js';
+import { defineWorkspaceConversionTests } from './workspaceConversionSuite.js';
 import { defineCopilotCoverageTests } from './copilotCoverageSuite.js';
 import { defineCopilotRuntimeToolsTests } from './copilotRuntimeToolsSuite.js';
 import { defineCopilotRuntimeDataCoverageTests } from './copilotRuntimeDataCoverageSuite.js';
@@ -45,6 +50,7 @@ import { defineCopilotRuntimeManagedDiagnosticsCoverageTests } from './copilotRu
 import { defineManagementExtensionTests } from './managementExtensionsSuite.js';
 import { defineAutomationsTests } from './automationsSuite.js';
 import { defineDetachedWorktreeTests } from './detachedWorktreeSuite.js';
+import { defineTerminalResilienceTests } from './terminalResilienceSuite.js';
 import type { AgentHostE2ETier, IAgentHostE2ETestContext } from './e2eTestContext.js';
 
 const isLinux = process.platform === 'linux';
@@ -170,7 +176,7 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 			// into the next, unrelated test.
 			const failed = this.currentTest?.state === 'failed';
 			if (failed) {
-				// Surface the Copilot runtime's own logs for a hang/timeout before
+				// Surface host/provider diagnostics for a hang or crash before
 				// the server is restarted and its temp home is eventually removed.
 				lease.dumpRuntimeLogsOnFailure(this.currentTest?.title ?? 'unknown');
 			}
@@ -180,17 +186,15 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 			} catch (error) {
 				errors.push(error instanceof Error ? error : new Error(String(error)));
 			}
-			try {
-				await removeTempDirs(tempDirs);
-			} catch (error) {
-				errors.push(error instanceof Error ? error : new Error(String(error)));
-			}
+			// Provider subprocesses can retain workspace handles until suite teardown stops the lease.
 			if (errors.length > 0) {
 				throw new AggregateError(errors, `Failed to dispose Agent Host E2E test resources: ${errors.map(error => error.message).join('; ')}`);
 			}
 		});
 
 		defineAutomationsTests(context);
+		defineWorkingDirectoriesTests(context);
+		defineWorkspaceConversionTests(context);
 
 		// Suites that contain only conformance-tier scenarios.
 		if (options.tier === 'conformance') {
@@ -201,6 +205,7 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 			defineAnnotationsTests(context);
 			defineProtocolContractTests(context);
 			defineDetachedWorktreeTests(context);
+			defineTerminalResilienceTests(context);
 		}
 
 		// Suites that contain only parity-tier scenarios.
@@ -238,6 +243,9 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 		defineMultiChatTests(context);
 		defineChangesetTests(context);
 		defineMcpPluginTests(context);
+		defineMcpSideChannelTests(context);
+		defineProviderCheckpointTests(context);
+		defineProviderErrorTests(context);
 		defineServerToolsTests(context);
 		defineCustomizationDiscoveryTests(context);
 		defineSessionPersistenceTests(context);

@@ -13,10 +13,10 @@
  *
  * Resource identities:
  * - chat UI resource: `agent-host-PROVIDER:/untitled-<uuid>` before first Send.
- * - backend resource: an opaque `PROVIDER:/<uuid>` for provisional state.
+ * - backend resource: the negotiated host resource for provisional state.
  * - real chat resource: `agent-host-PROVIDER:/<uuid>` after
  *   `chatServiceImpl.acceptInput` calls `createNewChatSessionItem`.
- * - real backend resource: `PROVIDER:/<uuid>` after `tryRebind`.
+ * - real backend resource: a new negotiated host resource after `tryRebind`.
  *
  * Required flow:
  * 1. `AgentHostChatInputPicker` calls `getOrCreate(untitled, provider, cwd)`.
@@ -57,6 +57,7 @@ import { autorun } from '../../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
+import { newAgentHostSessionUri } from '../../../../../../platform/agentHost/common/agentHostSessionIdentity.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { KNOWN_MODE_VALUES, SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
@@ -642,7 +643,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 	}
 
 	private _newProvisionalUri(provider: string): URI {
-		return URI.from({ scheme: provider, path: `/${generateUuid()}` });
+		return newAgentHostSessionUri(provider, generateUuid(), this._agentHostService.initializeResult.get());
 	}
 
 	/**
@@ -767,7 +768,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				return undefined;
 			}
 
-			const newBackendSession = this._toBackendUri(newSessionResource, provider);
+			let newBackendSession = this._toBackendUri(newSessionResource, provider);
 			// Imports materialize eagerly, so carry their history and model into the rebound session.
 			const imported = this._importConversationStore.take(newSessionResource);
 
@@ -822,6 +823,10 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 						this._restoreImportedConversation(newSessionResource, imported);
 						throw new Error(`Cannot safely retry rebound session ${newBackendSession.toString()} until its stale candidate is retired`);
 					}
+					if (newBackendSession.scheme === 'ahp-session') {
+						// Disposal permanently retires a standard session identity.
+						newBackendSession = this._toBackendUri(newSessionResource.with({ path: `/${generateUuid()}` }), provider);
+					}
 					continue;
 				}
 
@@ -831,7 +836,15 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				newEntry.usesWorkspaceRootSet = oldEntry.usesWorkspaceRootSet;
 				this._updateActiveClientScope(newEntry);
 				newEntry.generation = { backendSession: created, workingDirectory: targetWorkingDirectory, workingDirectories: targetWorkingDirectories };
-				this._entries.set(newSessionResource, newEntry);
+				const boundResource = newSessionResource.with({ path: created.path });
+				this._entries.set(boundResource, newEntry);
+				if (!isEqual(boundResource, newSessionResource)) {
+					const metadata = this._sessionCreationMetadata.get(newSessionResource);
+					if (metadata) {
+						this._sessionCreationMetadata.set(boundResource, metadata);
+						this._sessionCreationMetadata.delete(newSessionResource);
+					}
+				}
 				this._publishActiveClient(newEntry);
 				this._entries.delete(oldSessionResource);
 				oldEntry.disposed = true;
@@ -840,7 +853,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				this._resolvedConfigRequestSeq.delete(oldSessionResource);
 				this._rebound.add(oldSessionResource);
 				// Notify only the real resource; notifying the old URI can recreate an orphan while the widget still uses it.
-				this._onDidChange.fire(newSessionResource);
+				this._onDidChange.fire(boundResource);
 
 				if (oldGeneration) {
 					// The temporary generation is in-memory only, so disposal is best-effort.
@@ -962,7 +975,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 	 */
 	private _toBackendUri(sessionResource: URI, provider: string): URI {
 		const rawId = sessionResource.path.replace(/^\//, '');
-		return URI.from({ scheme: provider, path: `/${rawId}` });
+		return newAgentHostSessionUri(provider, rawId, this._agentHostService.initializeResult.get());
 	}
 
 	getResolvedConfig(sessionResource: URI): ResolveSessionConfigResult | undefined {

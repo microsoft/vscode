@@ -76,6 +76,8 @@ interface IAhpSnapshotClient {
 export interface IAhpSnapshotOptions {
 	readonly profile?: 'protocol' | 'behavior';
 	readonly ignoredActionTypes?: readonly ActionType[];
+	/** Server action types whose cross-channel interleaving is canonicalized while preserving per-channel order. */
+	readonly orderIndependentActionTypes?: readonly ActionType[];
 	/** Provider tool names whose completion success is omitted before snapshot name normalization. */
 	readonly omitToolCallSuccessForToolNames?: readonly string[];
 }
@@ -126,6 +128,7 @@ export class AhpSnapshotRecorder {
 		const responseParts = new Map<string, { content: string }>();
 		const roundStarts = this._roundStarts.length > 0 ? this._roundStarts : [0];
 		const rounds = roundStarts.map(() => ({ clientToServer: [] as object[], serverToClient: [] as object[] }));
+		const orderIndependentActionTypes = new Set<string>(options.orderIndependentActionTypes ?? []);
 		let roundIndex = 0;
 
 		for (let messageIndex = 0; messageIndex < this._messages.length; messageIndex++) {
@@ -189,7 +192,7 @@ export class AhpSnapshotRecorder {
 		}
 
 		for (const round of rounds) {
-			round.serverToClient = dropReasoning(round.serverToClient);
+			round.serverToClient = canonicalizeActionInterleaving(dropReasoning(round.serverToClient), orderIndependentActionTypes);
 			normalizeSnapshotObjects(round.clientToServer, this._normalization);
 			normalizeSnapshotObjects(round.serverToClient, this._normalization);
 		}
@@ -209,6 +212,19 @@ export async function assertRecordedAhpSnapshot(test: Mocha.Runnable, client: IA
 		return;
 	}
 	await assertSnapshot(actual, { name: 'traffic', extension: 'ahp.yaml' });
+}
+
+export async function waitForChatUnreadAfterTurn(client: Pick<IAhpSnapshotClient, 'waitForNotification'>, chat: string, afterServerSeq: number): Promise<void> {
+	await client.waitForNotification(notification => {
+		if (notification.method !== 'action') {
+			return false;
+		}
+		const envelope = notification.params as ActionEnvelope;
+		return envelope.channel === chat
+			&& envelope.serverSeq > afterServerSeq
+			&& envelope.action.type === ActionType.ChatIsReadChanged
+			&& !envelope.action.isRead;
+	}, 90_000);
 }
 
 /** Loads client actions from an AHP snapshot, dispatches them, and asserts the resulting traffic. */
@@ -476,6 +492,42 @@ function dropReasoning(actions: object[]): object[] {
 		return action?.type !== ActionType.ChatReasoning
 			&& !(action?.type === ActionType.ChatResponsePart && action.part?.kind === ResponsePartKind.Reasoning);
 	});
+}
+
+function canonicalizeActionInterleaving(entries: object[], actionTypes: ReadonlySet<string>): object[] {
+	if (actionTypes.size === 0) {
+		return entries;
+	}
+
+	const participatingChannels = new Set(entries.filter(entry => hasActionType(entry, actionTypes)).map(entry => actionChannel(entry)));
+	const channelCounts = new Map<string, number>();
+	const canonicalEntries: Array<{ entry: object; channel: string; channelIndex: number }> = [];
+	for (const entry of entries) {
+		const channel = actionChannel(entry);
+		if (!channel || !participatingChannels.has(channel)) {
+			continue;
+		}
+		const channelIndex = channelCounts.get(channel) ?? 0;
+		channelCounts.set(channel, channelIndex + 1);
+		canonicalEntries.push({ entry, channel, channelIndex });
+	}
+	canonicalEntries.sort((a, b) => a.channel < b.channel ? -1 : a.channel > b.channel ? 1 : a.channelIndex - b.channelIndex);
+
+	let nextCanonicalEntry = 0;
+	return entries.map(entry => {
+		const channel = actionChannel(entry);
+		return channel && participatingChannels.has(channel) ? canonicalEntries[nextCanonicalEntry++].entry : entry;
+	});
+}
+
+function hasActionType(entry: object, actionTypes: ReadonlySet<string>): boolean {
+	const action = asRecord(asRecord(entry)?.action);
+	return typeof action?.type === 'string' && actionTypes.has(action.type);
+}
+
+function actionChannel(entry: object): string | undefined {
+	const entryRecord = asRecord(entry);
+	return asRecord(entryRecord?.action) && typeof entryRecord?.channel === 'string' ? entryRecord.channel : undefined;
 }
 
 /**
@@ -904,8 +956,11 @@ function readStringArray(value: unknown, name: string): string[] {
 	return value;
 }
 
-async function waitForFinalServerMessage(client: IAhpSnapshotClient, entries: readonly IAhpSnapshotEntry[], seenNotifications: Set<object>, bindings: Map<string, string>): Promise<void> {
-	const finalEntry = entries.at(-1);
+export async function waitForFinalServerMessage(client: Pick<IAhpSnapshotClient, 'waitForNotification' | 'takeReplayError'>, entries: readonly IAhpSnapshotEntry[], seenNotifications: Set<object>, bindings: Map<string, string>): Promise<void> {
+	const lastEntry = entries.at(-1);
+	const finalEntry = lastEntry?.action?.type === ActionType.ChatIsReadChanged
+		? entries.findLast(entry => entry.channel === lastEntry.channel && entry.action?.type === ActionType.ChatTurnComplete) ?? lastEntry
+		: lastEntry;
 	if (!finalEntry) {
 		throw new Error('[ahp-snapshot] serverToClient must not be empty');
 	}
@@ -927,6 +982,7 @@ async function waitForFinalServerMessage(client: IAhpSnapshotClient, entries: re
 				return finalTurnId === undefined || action.turnId === finalTurnId;
 			}
 			return action.type === finalActionType
+				&& (action.type !== ActionType.ChatIsReadChanged || !action.isRead)
 				&& (finalTurnId === undefined || (action as { turnId?: string }).turnId === finalTurnId);
 		}
 		return candidate.method === finalEntry.method;
@@ -940,6 +996,10 @@ async function waitForFinalServerMessage(client: IAhpSnapshotClient, entries: re
 				throw replayError;
 			}
 			throw new Error(`[ahp-snapshot] round failed before ${finalActionType}: ${action.part.error.errorType}: ${action.part.error.message}`);
+		}
+		if (action.type === ActionType.ChatTurnComplete) {
+			const envelope = notification.params as ActionEnvelope;
+			await waitForChatUnreadAfterTurn(client, envelope.channel, envelope.serverSeq);
 		}
 	}
 }

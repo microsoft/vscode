@@ -75,8 +75,12 @@ export interface IChangesetOperationHandler {
  * changeset state, or the working directory URI.
  */
 export interface IChangesetOperationContext {
-	/** String form of the session URI that owns the changeset. */
+	/** String form of the containing session URI. */
 	readonly sessionKey: string;
+	/** Resource that owns the changeset. */
+	readonly ownerKey?: string;
+	/** Session or chat whose workspace and Git state back the changeset. */
+	readonly sourceKey?: string;
 	/** Expanded changeset URI whose operations are being computed. */
 	readonly changesetUri: URI;
 	/** Well-known changeset kind for {@link changesetUri}. */
@@ -147,6 +151,15 @@ export interface IAgentHostChangesetOperationService extends IDisposable {
 	 * Without Git state, clears cached operations but defers initial publication.
 	 */
 	updateOperations(sessionKey: string, changeset?: string, gitState?: ISessionGitState, gitHubState?: ISessionGitHubState): void;
+	/**
+	 * Coalesces an event-driven refresh of the operation owners related to a
+	 * session, chat, or folder resource.
+	 */
+	scheduleRelatedOperationsUpdate(resourceKey: string): void;
+	/**
+	 * Coalesces an event-driven refresh of one exact changeset owner.
+	 */
+	scheduleOwnerOperationsUpdate(ownerKey: string): void;
 
 	/**
 	 * Returns the operations that should be advertised for the given changeset, or

@@ -27,6 +27,7 @@ suite('ManageTodoListTool model override', () => {
 		['gpt-6', true],
 		['gpt-6-preview', true],
 		['gpt-6.1', true],
+		['testing-for-latest-prompt', false],
 		['gpt-4.1', false],
 		[undefined, false],
 	] as const)('uses the plan description for %s: %s', (family, supported) => {

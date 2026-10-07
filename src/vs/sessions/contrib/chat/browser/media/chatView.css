@@ -46,8 +46,11 @@
 	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder);
 }
 
+/* The new-session composer's bottom row takes the same surface from chatWidget.css.
+ * It has no chat list to set `--vscode-chat-list-background`, so it must fall back
+ * to the opaque session view rather than `button.secondaryBackground`, which is
+ * transparent in the default dark themes. */
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .chat-secondary-toolbar .action-label,
-.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .new-chat-widget-container .new-chat-bottom-container .action-label,
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .chat-context-usage-widget {
 	background-color: var(--vscode-chat-list-background, var(--vscode-button-secondaryBackground));
 	background-image: linear-gradient(var(--vscode-button-secondaryBackground), var(--vscode-button-secondaryBackground));
@@ -57,15 +60,12 @@
 }
 
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .chat-secondary-toolbar .action-label:not(.agent-host-mode-permissions-trigger):hover,
-.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .new-chat-widget-container .new-chat-bottom-container .action-label:not(.agent-host-mode-permissions-trigger):hover,
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .chat-context-usage-widget:hover {
 	background-image: linear-gradient(var(--vscode-button-secondaryHoverBackground), var(--vscode-button-secondaryHoverBackground));
 }
 
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .chat-secondary-toolbar .action-label.agent-host-mode-permissions-trigger:hover,
-.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .chat-secondary-toolbar .action-label.agent-host-mode-permissions-trigger[data-mode-permissions-picker-open='true'],
-.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .new-chat-widget-container .new-chat-bottom-container .action-label.agent-host-mode-permissions-trigger:hover,
-.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .new-chat-widget-container .new-chat-bottom-container .action-label.agent-host-mode-permissions-trigger[data-mode-permissions-picker-open='true'] {
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .chat-view .interactive-session .chat-secondary-toolbar .action-label.agent-host-mode-permissions-trigger[data-mode-permissions-picker-open='true'] {
 	background-image: linear-gradient(var(--vscode-button-secondaryHoverBackground), var(--vscode-button-secondaryHoverBackground));
 }
 
@@ -255,7 +255,7 @@
 
 /* ---- Chat Input ---- */
 
-.agent-sessions-workbench .interactive-session .chat-input-container {
+.monaco-workbench.agent-sessions-workbench .interactive-session .chat-input-container {
 	border-color: var(--vscode-agentsChatInput-border) !important;
 	background-color: var(--vscode-agentsChatInput-background);
 	color: var(--vscode-agentsChatInput-foreground);
@@ -296,21 +296,17 @@
 	padding: var(--vscode-spacing-size80) 0 var(--vscode-spacing-size40);
 }
 
+/* The single-row composer has no secondary toolbar row for the timestamp to share. */
+.agent-sessions-workbench:not(.phone-layout) .chat-view-chat.experimental-session-composer .interactive-request.editing .chat-request-timestamp-container {
+	margin-top: 0;
+}
+
 .agent-sessions-workbench .interactive-session .chat-input-toolbars .chat-sessionPicker-container {
 	display: none;
 }
 
-.monaco-workbench.agent-sessions-workbench .interactive-session .chat-input-picker-item > .action-label:focus,
-.monaco-workbench.agent-sessions-workbench .interactive-session .sessions-chat-picker-slot > .action-label:focus,
-.monaco-workbench.agent-sessions-workbench .interactive-session .agent-host-chat-input-picker-slot > .action-label:focus {
-	outline: none;
-}
-
-.monaco-workbench.agent-sessions-workbench .interactive-session .chat-input-picker-item > .action-label:focus-visible,
-.monaco-workbench.agent-sessions-workbench .interactive-session .sessions-chat-picker-slot > .action-label:focus-visible,
-.monaco-workbench.agent-sessions-workbench .interactive-session .agent-host-chat-input-picker-slot > .action-label:focus-visible {
-	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+.agent-sessions-workbench:not(.phone-layout) .interactive-session .chat-input-toolbars {
+	column-gap: var(--vscode-spacing-size80);
 }
 
 .agent-sessions-workbench .interactive-session .compact-picker .sessions-chat-dropdown-label {

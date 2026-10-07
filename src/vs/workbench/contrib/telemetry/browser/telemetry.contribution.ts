@@ -285,7 +285,7 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 	}
 }
 
-class ConfigurationTelemetryContribution extends Disposable implements IWorkbenchContribution {
+export class ConfigurationTelemetryContribution extends Disposable implements IWorkbenchContribution {
 
 	private readonly configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
@@ -297,6 +297,9 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 		super();
 
 		const { user, workspace } = configurationService.keys();
+		for (const setting of configurationService.getConfigurationData()?.application.keys ?? []) {
+			this.reportTelemetry(setting, ConfigurationTarget.APPLICATION);
+		}
 		for (const setting of user) {
 			this.reportTelemetry(setting, ConfigurationTarget.USER_LOCAL);
 		}
@@ -308,9 +311,10 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 	/**
 	 * Report value of a setting only if it is an enum, boolean, or number or an array of those.
 	 */
-	private getValueToReport(key: string, target: ConfigurationTarget.USER_LOCAL | ConfigurationTarget.WORKSPACE): string | undefined {
-		const inpsectData = this.configurationService.inspect(key);
-		const value = target === ConfigurationTarget.USER_LOCAL ? inpsectData.user?.value : inpsectData.workspace?.value;
+	private getValueToReport(key: string, target: ConfigurationTarget.APPLICATION | ConfigurationTarget.USER_LOCAL | ConfigurationTarget.WORKSPACE): string | undefined {
+		const inspectData = this.configurationService.inspect(key);
+		const value = target === ConfigurationTarget.APPLICATION ? inspectData.application?.value
+			: target === ConfigurationTarget.USER_LOCAL ? inspectData.user?.value : inspectData.workspace?.value;
 		if (isNumber(value) || isBoolean(value)) {
 			return value.toString();
 		}
@@ -330,7 +334,7 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 		return undefined;
 	}
 
-	private reportTelemetry(key: string, target: ConfigurationTarget.USER_LOCAL | ConfigurationTarget.WORKSPACE): void {
+	private reportTelemetry(key: string, target: ConfigurationTarget.APPLICATION | ConfigurationTarget.USER_LOCAL | ConfigurationTarget.WORKSPACE): void {
 		type UpdatedSettingEvent = {
 			settingValue: string | undefined;
 			source: string;
@@ -355,6 +359,24 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
 					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
 				}>('workbench.experimental.modernUI', { settingValue: this.getValueToReport(key, target), source });
+				return;
+
+			case LayoutSettings.MODERN_UI_FROSTED_GLASS:
+				this.telemetryService.publicLog2<UpdatedSettingEvent, {
+					owner: 'mrleemurray';
+					comment: 'Tracks whether the user explicitly enables or disables Modern UI frosted glass overlays.';
+					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The explicitly configured enablement value, serialized as a string.' };
+					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The configuration scope containing the explicit setting.' };
+				}>('workbench.modernUIFrostedGlass', { settingValue: this.getValueToReport(key, target), source });
+				return;
+
+			case LayoutSettings.MODERN_UI_FROSTED_GLASS_OPACITY:
+				this.telemetryService.publicLog2<UpdatedSettingEvent, {
+					owner: 'mrleemurray';
+					comment: 'Tracks the background tint opacity explicitly chosen for Modern UI frosted glass overlays.';
+					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The configured background tint percentage, serialized as a string.' };
+					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The configuration scope containing the explicit setting.' };
+				}>('workbench.modernUIFrostedGlassOpacity', { settingValue: this.getValueToReport(key, target), source });
 				return;
 
 			case LayoutSettings.MODERN_UI_DENSITY:

@@ -6,32 +6,38 @@
 import assert from 'assert';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
+import { DisposableStore, IReference } from '../../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
 import { constObservable } from '../../../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../../base/common/uri.js';
+import { mock, mockObject, upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
+import { ConfirmResult, IDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
 import { IAgentHostConnectionsService } from '../../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { IAgentConnection } from '../../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentSubscription } from '../../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { NullTelemetryService } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { IProgressService } from '../../../../../../../platform/progress/common/progress.js';
 import { IStorageService } from '../../../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../../../../platform/workspace/common/workspace.js';
 import { isResourceEditorInput } from '../../../../../../common/editor.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
+import { IEditorGroup } from '../../../../../../services/editor/common/editorGroupsService.js';
 import { clearChatEditor } from '../../../../browser/actions/chatClear.js';
 import { ChatEditorInput, ChatEditorInputSerializer } from '../../../../browser/widgetHosts/editor/chatEditorInput.js';
 import { IChatEditorOptions } from '../../../../browser/widgetHosts/editor/chatEditor.js';
 import { IAgentHostEnablementService } from '../../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IChatService, IChatSessionStartOptions } from '../../../../common/chatService/chatService.js';
 import { IChatSessionsService, localChatSessionType, SessionType } from '../../../../common/chatSessionsService.js';
-import { ChatAgentLocation, SessionTypeSelectionReason } from '../../../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, SessionTypeSelectionReason } from '../../../../common/constants.js';
+import { IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../../common/editing/chatEditingService.js';
 import { IChatModel } from '../../../../common/model/chatModel.js';
 import { getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../../../../common/model/chatUri.js';
 import { MockChatSessionsService } from '../../../common/mockChatSessionsService.js';
@@ -40,6 +46,144 @@ import { TestContextService, TestStorageService } from '../../../../../../test/c
 suite('ChatEditorInput', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const throws of [false, true]) {
+		test(`reports migration restore resolution ${throws ? 'errors' : 'missing models'}`, async () => {
+			const events: { name: string; data: unknown; error: boolean }[] = [];
+			const telemetry = new class extends mock<ITelemetryService>() {
+				override publicLog2<E, C>(name: string, data?: E): void {
+					if (name === 'agentHost.legacyCopilotCliMigrationOpen') {
+						events.push({ name, data, error: false });
+					}
+				}
+				override publicLogError2<E, C>(name: string, data?: E): void {
+					events.push({ name, data, error: true });
+				}
+			};
+			const connection = new class extends mock<IAgentConnection>() {
+				override getSubscription<T>(): IReference<IAgentSubscription<T>> {
+					return { object: upcastPartial<IAgentSubscription<T>>({ value: {} as T }), dispose() { } };
+				}
+			};
+			const input = disposables.add(new ChatEditorInput(
+				URI.parse('copilotcli:/sess-abc'), {},
+				upcastPartial<IChatService>({
+					acquireOrLoadSession: async () => {
+						if (throws) {
+							throw new Error('load failed');
+						}
+						return undefined;
+					},
+				}),
+				upcastPartial<IDialogService>({}),
+				new TestConfigurationService({ [ChatConfiguration.MigrateLegacyCopilotCliSessions]: true }),
+				upcastPartial<IChatSessionsService>({}),
+				upcastPartial<IInstantiationService>({}),
+				upcastPartial<IStorageService>({}),
+				new NullLogService(),
+				new TestContextService(),
+				upcastPartial<IAgentHostEnablementService>({}),
+				upcastPartial<IAgentHostConnectionsService>({ ambientConnection: connection }),
+				telemetry,
+				upcastPartial<IProgressService>({ withProgress: (_options, task) => task({ report() { } }) }),
+			));
+			assert.deepStrictEqual({ resolved: await input.resolve(), events }, {
+				resolved: null,
+				events: [{
+					name: 'agentHost.legacyCopilotCliMigrationOpen', error: throws,
+					data: {
+						source: 'restore', surfaced: false,
+						migrationSessionId: '6a27283bcdda2b8d8ca87884c1ae452dcded34fc',
+						reason: throws ? 'resolveFailed' : 'sessionNotSurfaced',
+						errorCode: undefined, errorMessage: throws ? 'load failed' : undefined,
+					},
+				}],
+			});
+		});
+	}
+
+	function createInputWithPendingEdits(willKeepAlive: boolean) {
+		const sessionResource = LocalChatSessionUri.forSession('pending-edits');
+		const model = upcastPartial<IChatModel>({
+			sessionResource,
+			onDidDispose: Event.None,
+			onDidChange: Event.None,
+			willKeepAlive,
+			editingSession: upcastPartial<IChatEditingSession>({
+				entries: constObservable([upcastPartial<IModifiedFileEntry>({
+					state: constObservable(ModifiedFileEntryState.Modified),
+				})]),
+			}),
+		});
+		const prompt = mockObject<IDialogService>()().prompt.resolves({ result: false });
+		const input = disposables.add(new ChatEditorInput(
+			sessionResource, {},
+			upcastPartial<IChatService>({ acquireExistingSession: () => ({ object: model, dispose() { } }) }),
+			upcastPartial<IDialogService>({ prompt }),
+			upcastPartial<IConfigurationService>({}),
+			upcastPartial<IChatSessionsService>({}),
+			upcastPartial<IInstantiationService>({}),
+			upcastPartial<IStorageService>({}),
+			new NullLogService(),
+			new TestContextService(),
+			upcastPartial<IAgentHostEnablementService>({}),
+			upcastPartial<IAgentHostConnectionsService>({}),
+			NullTelemetryService,
+			upcastPartial<IProgressService>({}),
+		));
+		input.updateModel(model);
+		return { input, prompt };
+	}
+
+	test('background-kept editing sessions do not require close confirmation', async () => {
+		const { input, prompt } = createInputWithPendingEdits(true);
+		assert.deepStrictEqual({
+			showConfirm: input.showConfirm(),
+			confirmation: await input.confirm([]),
+			prompts: prompt.callCount,
+		}, { showConfirm: false, confirmation: ConfirmResult.SAVE, prompts: 0 });
+	});
+
+	for (const closeResult of [true, false, 'error'] as const) {
+		test(`move confirmation suppression is scoped when close returns ${closeResult}`, async () => {
+			const { input, prompt } = createInputWithPendingEdits(false);
+			const before = input.showConfirm();
+			let during: { showConfirm: boolean; confirmation: ConfirmResult } | undefined;
+			const error = new Error('Unable to close the editor');
+			const group = upcastPartial<IEditorGroup>({
+				async closeEditor() {
+					during = { showConfirm: input.showConfirm(), confirmation: await input.confirm([]) };
+					if (closeResult === 'error') {
+						throw error;
+					}
+					return closeResult;
+				},
+			});
+
+			let moved: boolean | undefined;
+			if (closeResult === 'error') {
+				await assert.rejects(input.closeForMove(group), error);
+			} else {
+				moved = await input.closeForMove(group);
+			}
+
+			assert.deepStrictEqual({
+				before,
+				during,
+				after: input.showConfirm(),
+				normalConfirmation: await input.confirm([]),
+				prompts: prompt.callCount,
+				moved,
+			}, {
+				before: true,
+				during: { showConfirm: false, confirmation: ConfirmResult.SAVE },
+				after: true,
+				normalConfirmation: ConfirmResult.CANCEL,
+				prompts: 1,
+				moved: closeResult === 'error' ? undefined : closeResult,
+			});
+		});
+	}
 
 	test('explicit local session type starts local session for generic editor URI', async () => {
 		const sessionResource = LocalChatSessionUri.forSession('explicit-local');

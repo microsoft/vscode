@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { ISettableObservable, derived, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -21,7 +22,7 @@ import { workbenchInstantiationService } from '../../../../../test/browser/workb
 import { ChatAgentLocation } from '../../../common/constants.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
+import { ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 
 function makeToolInvocationPart(options: {
 	state: IChatToolInvocation.State;
@@ -100,6 +101,15 @@ function mockModelWithResponse(model: TestChatModel, parts: IChatProgressRespons
 		response: { value: parts, getMarkdown: () => '', getFinalResponse: () => '', toString: () => '' } satisfies IResponse,
 		onDidChange: Event.None,
 		isPendingConfirmation: model.requestNeedsInput.map(info => info ? { startedWaitingAt: 0, detail: info.detail } : undefined),
+		pendingToolInvocations: derived(reader => parts.filter((part): part is IChatToolInvocation => {
+			if (part.kind !== 'toolInvocation') {
+				return false;
+			}
+			const state = part.state.read(reader);
+			return state.type === IChatToolInvocation.StateKind.WaitingForConfirmation
+				|| state.type === IChatToolInvocation.StateKind.WaitingForPostApproval
+				|| state.type === IChatToolInvocation.StateKind.WaitingForAuthentication;
+		})),
 	});
 	model.setRequest(upcastPartial<IChatRequestModel>({ id: 'request', response }));
 }
@@ -130,6 +140,7 @@ suite('AgentSessionApprovalModel', () => {
 
 	teardown(() => {
 		disposables.clear();
+		sinon.restore();
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -576,6 +587,80 @@ suite('AgentSessionApprovalModel', () => {
 			choiceState: IChatToolInvocation.StateKind.WaitingForConfirmation,
 			remainingApproval: undefined,
 		});
+	});
+
+	test('skips hidden tools while a non-tool confirmation is the first pending part', () => {
+		const approvalModel = createModel();
+		const chatModel = addLiveChatModel();
+		const response = chatModel.addRequest({ text: 'Start work', parts: [] }, { variables: [] }, 0).response!;
+		response.updateContent({ kind: 'confirmation', title: 'First question', message: '', data: undefined });
+		const hidden = pendingSubagentTool('hidden');
+		hidden.presentation = ToolInvocationPresentation.Hidden;
+		response.updateContent(hidden);
+		response.updateContent(pendingSubagentTool('visible'));
+		const approval = getApproval(approvalModel, chatModel);
+		approval?.confirm();
+
+		assert.deepStrictEqual({
+			detail: response.isPendingConfirmation.get()?.detail,
+			approval: approval?.label,
+			remainingApproval: getApproval(approvalModel, chatModel)?.label,
+			hiddenState: hidden.state.get().type,
+		}, {
+			detail: 'First question',
+			approval: 'visible',
+			remainingApproval: undefined,
+			hiddenState: IChatToolInvocation.StateKind.WaitingForConfirmation,
+		});
+	});
+
+	test('does not approve tools hidden by an undo stop or a finalized response view', () => {
+		const approvalModel = createModel();
+		const chatModel = addLiveChatModel();
+		const request = chatModel.addRequest({ text: 'Start work', parts: [] }, { variables: [] }, 0);
+		const response = request.response!;
+		response.updateContent(pendingSubagentTool('before-undo'));
+		response.addUndoStop({ kind: 'undoStop', id: 'stop' });
+		response.updateContent(pendingSubagentTool('after-undo'));
+		response.shouldBeRemovedOnSend = { requestId: request.id, afterUndoStop: 'stop' };
+		const before = getApproval(approvalModel, chatModel);
+		before?.confirm();
+		const afterUndo = getApproval(approvalModel, chatModel)?.label;
+		response.finalizeUndoState();
+		response.setResult({});
+
+		assert.deepStrictEqual({
+			before: before?.label,
+			afterUndo,
+			afterFinalizing: getApproval(approvalModel, chatModel)?.label,
+		}, { before: 'before-undo', afterUndo: undefined, afterFinalizing: undefined });
+	});
+
+	test('reuses pending tool references without reading the response history while streaming', () => {
+		const approvalModel = createModel();
+		const chatModel = addLiveChatModel();
+		const response = chatModel.addRequest({ text: 'Start work', parts: [] }, { variables: [] }, 0).response!;
+		for (let i = 0; i < 1000; i++) {
+			response.updateContent({ kind: 'warning', content: new MarkdownString('History') }, true);
+		}
+		response.setResult({});
+		const historyReads = sinon.spy(response.response, 'value', ['get']).get;
+		const tool = pendingSubagentTool('approval');
+		response.updateContent(tool);
+		const firstApproval = getApproval(approvalModel, chatModel);
+		for (let i = 0; i < 100; i++) {
+			response.updateContent({ kind: 'markdownContent', content: new MarkdownString('token ') });
+		}
+		const stableApproval = firstApproval === getApproval(approvalModel, chatModel);
+		tool.toolSpecificData = makeTerminalToolData({ commandLine: { original: 'updated command' } });
+		tool.notifyToolSpecificDataChanged();
+
+		assert.deepStrictEqual({
+			historyReads: historyReads.callCount,
+			first: firstApproval?.label,
+			stableApproval,
+			updated: getApproval(approvalModel, chatModel)?.label,
+		}, { historyReads: 0, first: 'approval', stableApproval: true, updated: 'updated command' });
 	});
 
 	test('handles model added after approval model is created', () => {

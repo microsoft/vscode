@@ -25,7 +25,7 @@ import { MockContextKeyService, MockKeybindingService } from '../../../../../pla
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
-import { AGENTS_VOICE_CONNECTED, AGENTS_VOICE_ENTITLED } from '../../../agentsVoice/common/agentsVoice.js';
+import { AGENTS_VOICE_CONNECTED, AGENTS_VOICE_ENTITLED, AGENTS_VOICE_TOGGLE_MUTE_COMMAND_ID } from '../../../agentsVoice/common/agentsVoice.js';
 import { IMicCaptureService } from '../../browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../browser/voiceClient/ttsPlaybackService.js';
 import { IVoiceSessionController } from '../../browser/voiceClient/voiceSessionController.js';
@@ -133,7 +133,7 @@ suite('VoiceInputModeActionViewItem', () => {
 
 	teardown(() => sinon.restore());
 
-	test('touch activates Voice power and mute exactly once', () => {
+	test('touch activates Voice power and mute exactly once and context menus configure the current action', () => {
 		const ignoredTargets = new Set<HTMLElement>();
 		sinon.stub(Gesture, 'ignoreTarget').callsFake(element => {
 			ignoredTargets.add(element);
@@ -164,6 +164,7 @@ suite('VoiceInputModeActionViewItem', () => {
 		const isMuted = observableValue('isMuted', false);
 		let voicePowerCount = 0;
 		let muteCount = 0;
+		let contextMenuActionIds: string[] = [];
 		const voiceSessionController = upcastPartial<IVoiceSessionController>({
 			isConnected,
 			isConnecting: observableValue('isConnecting', false),
@@ -191,7 +192,11 @@ suite('VoiceInputModeActionViewItem', () => {
 			upcastPartial<ICommandService>({ executeCommand: async () => undefined }),
 			new TestConfigurationService(),
 			new MockKeybindingService() as IKeybindingService,
-			upcastPartial<IContextMenuService>({}),
+			upcastPartial<IContextMenuService>({
+				showContextMenu: delegate => {
+					contextMenuActionIds = delegate.getActions!().map(action => action.id);
+				},
+			}),
 			NullHoverService as IHoverService,
 			upcastPartial<IMicCaptureService>({ analyserNode: undefined }),
 			upcastPartial<ITtsPlaybackService>({ analyserNode: undefined }),
@@ -211,9 +216,31 @@ suite('VoiceInputModeActionViewItem', () => {
 				button.click();
 			}
 		};
+		const configureKeybindingAction = (selector: string) => {
+			container.querySelector<HTMLButtonElement>(selector)!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+			return contextMenuActionIds[0];
+		};
+
+		const connectedVoiceAction = configureKeybindingAction('.chat-voice-input-mode-cell.voice');
+		const listenAction = configureKeybindingAction('.chat-voice-input-mode-cell.listen');
+		const muteAction = configureKeybindingAction('.chat-voice-input-mode-cell.mute');
+		isConnected.set(false, undefined);
+		const disconnectedVoiceAction = configureKeybindingAction('.chat-voice-input-mode-cell.voice');
+		isConnected.set(true, undefined);
+
 		touch('.chat-voice-input-mode-cell.voice');
 		touch('.chat-voice-input-mode-cell.mute');
 
-		assert.deepStrictEqual({ voicePowerCount, muteCount }, { voicePowerCount: 1, muteCount: 1 });
+		assert.deepStrictEqual(
+			{ voicePowerCount, muteCount, connectedVoiceAction, disconnectedVoiceAction, listenAction, muteAction },
+			{
+				voicePowerCount: 1,
+				muteCount: 1,
+				connectedVoiceAction: 'configureKeybinding/agentsVoice.disconnect',
+				disconnectedVoiceAction: 'configureKeybinding/agentsVoice.startVoiceInChat',
+				listenAction: 'configureKeybinding/workbench.action.chat.voiceInputMode.holdToTalk',
+				muteAction: `configureKeybinding/${AGENTS_VOICE_TOGGLE_MUTE_COMMAND_ID}`,
+			},
+		);
 	});
 });

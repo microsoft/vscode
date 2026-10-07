@@ -23,14 +23,19 @@ export class CopilotGitHubSessionCredentials {
 	private constructor(
 		private _staticToken: string | undefined,
 		private readonly _provider: CopilotGitHubCredentials | undefined,
+		private readonly _useClientAuthentication: boolean,
 	) { }
 
 	static fromToken(token: string | undefined): CopilotGitHubSessionCredentials {
-		return new CopilotGitHubSessionCredentials(token, undefined);
+		return new CopilotGitHubSessionCredentials(token, undefined, false);
+	}
+
+	static fromClientAuthentication(token: string | undefined): CopilotGitHubSessionCredentials {
+		return new CopilotGitHubSessionCredentials(token, undefined, true);
 	}
 
 	static fromProvider(provider: CopilotGitHubCredentials): CopilotGitHubSessionCredentials {
-		return new CopilotGitHubSessionCredentials(undefined, provider);
+		return new CopilotGitHubSessionCredentials(undefined, provider, false);
 	}
 
 	get usesStaticToken(): boolean {
@@ -44,7 +49,7 @@ export class CopilotGitHubSessionCredentials {
 	get sdkSessionOptions(): CopilotGitHubSdkSessionOptions {
 		return this._provider
 			? { gitHubTokenProvider: this._provider.tokenProvider }
-			: { gitHubToken: this._staticToken };
+			: { gitHubToken: this._useClientAuthentication ? undefined : this._staticToken };
 	}
 
 	isCurrentToken(token: string): boolean {

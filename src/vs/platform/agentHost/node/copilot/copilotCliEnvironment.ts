@@ -7,12 +7,28 @@ import { AiAgentEnvValue, AiAgentEnvVar } from '../../../chat/common/aiAgentEnv.
 import { isWindows } from '../../../../base/common/platform.js';
 import { DEFAULT_COPILOT_SKILL_CHAR_BUDGET } from '../../common/copilotCliConfig.js';
 
-export function createCopilotCliEnvironment(environment: NodeJS.ProcessEnv = process.env, omittedKeys: readonly string[] = [], claudeAdvisorEnabled = false, hydraFusionEnabled = false, skillCharBudget = DEFAULT_COPILOT_SKILL_CHAR_BUDGET): Record<string, string | undefined> {
+const HYDRAFUSION_ENV_KEYS = new Set(['HYDRAFUSION', 'HYDRAFUSION_ROLLOUT']);
+const ENABLED_FEATURE_FLAGS_ENV_KEY = 'COPILOT_CLI_ENABLED_FEATURE_FLAGS';
+
+export function createCopilotCliEnvironment(environment: NodeJS.ProcessEnv = process.env, omittedKeys: readonly string[] = [], claudeAdvisorEnabled = false, skillCharBudget = DEFAULT_COPILOT_SKILL_CHAR_BUDGET): Record<string, string | undefined> {
 	const normalizedOmittedKeys = new Set(omittedKeys.map(key => isWindows ? key.toLowerCase() : key));
 	const env: Record<string, string | undefined> = {};
 	for (const [key, value] of Object.entries(environment)) {
-		if (!normalizedOmittedKeys.has(isWindows ? key.toLowerCase() : key)) {
+		const normalizedKey = isWindows ? key.toUpperCase() : key;
+		if (!normalizedOmittedKeys.has(isWindows ? key.toLowerCase() : key) && !HYDRAFUSION_ENV_KEYS.has(normalizedKey)) {
 			env[key] = value;
+		}
+	}
+	const enabledFeatureFlagsKey = Object.keys(env).find(key => (isWindows ? key.toUpperCase() : key) === ENABLED_FEATURE_FLAGS_ENV_KEY);
+	if (enabledFeatureFlagsKey) {
+		const enabledFeatureFlags = env[enabledFeatureFlagsKey]
+			?.split(',')
+			.map(flag => flag.trim())
+			.filter(flag => flag.length > 0 && !HYDRAFUSION_ENV_KEYS.has(flag.toUpperCase()));
+		if (enabledFeatureFlags?.length) {
+			env[enabledFeatureFlagsKey] = enabledFeatureFlags.join(',');
+		} else {
+			delete env[enabledFeatureFlagsKey];
 		}
 	}
 	env['ELECTRON_RUN_AS_NODE'] = '1';
@@ -35,7 +51,5 @@ export function createCopilotCliEnvironment(environment: NodeJS.ProcessEnv = pro
 	env['AUTO_APPROVAL'] = 'true';
 	env['SKILL_CHAR_BUDGET'] = String(skillCharBudget);
 	env['ANTHROPIC_ADVISOR'] = String(claudeAdvisorEnabled);
-	env['HYDRAFUSION'] = String(hydraFusionEnabled);
-	env['HYDRAFUSION_ROLLOUT'] = String(hydraFusionEnabled);
 	return env;
 }

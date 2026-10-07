@@ -4,10 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Event } from '../../../../../../../base/common/event.js';
+import { MarshalledId } from '../../../../../../../base/common/marshallingIds.js';
+import { Schemas } from '../../../../../../../base/common/network.js';
+import { URI } from '../../../../../../../base/common/uri.js';
+import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MenuWorkbenchToolBar } from '../../../../../../../platform/actions/browser/toolbar.js';
 import { ChatViewTitleControl } from '../../../../browser/widgetHosts/viewPane/chatViewTitleControl.js';
+import { IChatModel } from '../../../../common/model/chatModel.js';
 
 class TestResizeObserver implements ResizeObserver {
 	static instance: TestResizeObserver | undefined;
@@ -50,7 +56,7 @@ suite('ChatViewTitleControl', () => {
 		const control = disposables.add(instantiationService.createInstance(
 			ChatViewTitleControl,
 			container,
-			{ focusChat: () => { } },
+			{ focusChat: () => { }, getInputUri: () => undefined },
 			TestResizeObserver
 		));
 		const resizeObserver = TestResizeObserver.instance;
@@ -70,6 +76,29 @@ suite('ChatViewTitleControl', () => {
 			height: 0,
 			observedHeights: [22, 0],
 			observedBox: 'border-box'
+		});
+	});
+
+	test('forwards the originating input URI alongside the session in toolbar contexts', () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const toolbar = { context: undefined, dispose: () => { } };
+		instantiationService.stubInstance(MenuWorkbenchToolBar, toolbar);
+		const firstInput = URI.from({ scheme: Schemas.vscodeChatInput, path: '/first' });
+		const secondInput = URI.from({ scheme: Schemas.vscodeChatInput, path: '/second' });
+		let inputUri = firstInput;
+		const control = disposables.add(instantiationService.createInstance(ChatViewTitleControl, document.createElement('div'), {
+			focusChat: () => { },
+			getInputUri: () => inputUri,
+		}, TestResizeObserver));
+		const sessionResource = URI.parse('agent-host-copilotcli:/untitled-session');
+		const model = upcastPartial<IChatModel>({ sessionResource, title: 'Draft', onDidChange: Event.None });
+		control.update(model);
+		const firstContext = toolbar.context;
+		inputUri = secondInput;
+		control.update(model);
+		assert.deepStrictEqual({ firstContext, secondContext: toolbar.context }, {
+			firstContext: { $mid: MarshalledId.ChatViewContext, sessionResource, inputUri: firstInput },
+			secondContext: { $mid: MarshalledId.ChatViewContext, sessionResource, inputUri: secondInput },
 		});
 	});
 });

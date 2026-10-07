@@ -10,7 +10,7 @@ import * as path from 'path';
 import { Application, ApplicationOptions, Logger, Quality } from '../../../../automation';
 import { createApp, dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, getMockLlmServerUrl, installAppAfterHandler, installDiagnosticsHandler, MockLlmServer, suiteCrashPath, suiteLogsPath } from '../../utils';
 import { shellEchoResponseMatcher, shellEchoScenario } from '../chat/shellScenarios';
-import { createRemoteDevContainerFixture, getTunnelSmokeTestAvailability, IRemoteDevContainerFixture, RemoteDevContainerTransport } from './remoteDevContainerFixtures';
+import { createRemoteDevContainerFixture, getDevContainerCliInstallCommand, getTunnelSmokeTestAvailability, IRemoteDevContainerFixture, RemoteDevContainerTransport } from './remoteDevContainerFixtures';
 
 // Selector for the send button in the Agents Window new-session homepage.
 // Kept in sync with `SEND_BUTTON_ENABLED` in `test/automation/src/agentsWindow.ts`
@@ -45,7 +45,7 @@ const AGENT_HOST_REPLACEMENT_SCENARIO_ID = 'smoke-agent-host-session-replacement
 const AGENT_HOST_REPLACEMENT_REPLY = 'MOCKED_AGENT_HOST_REPLACEMENT_RESPONSE';
 const DEV_CONTAINER_SCENARIO_ID = 'smoke-dev-container-agent-host';
 
-function prepareDevContainerWorkspace(workspacePath: string, port: number): void {
+function prepareDevContainerWorkspace(workspacePath: string, port: number, options: ApplicationOptions): void {
 	const configDirectory = path.join(workspacePath, '.devcontainer');
 	const mockServerUrl = `http://vscode-smoke.test:${port}`;
 	fs.mkdirSync(configDirectory, { recursive: true });
@@ -61,22 +61,23 @@ function prepareDevContainerWorkspace(workspacePath: string, port: number): void
 			VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE: mockServerUrl,
 			VSCODE_SMOKE_TEST_PROXY_HEADER: process.env.VSCODE_SMOKE_TEST_PROXY_HEADER ?? 'dev-container',
 		},
-		postCreateCommand: [
-			'set -e',
-			'case "$(uname -m)" in x86_64) cli_arch=x64 ;; aarch64|arm64) cli_arch=arm64 ;; *) exit 1 ;; esac',
-			'mkdir -p ~/.vscode-cli-insider',
-			'curl -fsSL "https://update.code.visualstudio.com/latest/cli-linux-${cli_arch}/insider" | tar xz -C ~/.vscode-cli-insider',
-			'chmod +x ~/.vscode-cli-insider/code-insiders',
-		].join(' && '),
+		postCreateCommand: getDevContainerCliInstallCommand(options.codePath),
 	}, null, 2));
 }
 
 function cleanupDevContainerWorkspace(workspacePath: string): void {
 	fs.rmSync(path.join(workspacePath, '.devcontainer'), { recursive: true, force: true });
-	const containerIds = cp.execFileSync('docker', ['ps', '-aq', '--filter', `label=devcontainer.local_folder=${workspacePath}`], { encoding: 'utf8' }).trim().split(/\s+/).filter(Boolean);
+	removeDevContainer(workspacePath);
+}
+
+function removeDevContainer(workspacePath: string): number {
+	// URI.fsPath normalizes the Windows drive letter in the container label.
+	const labeledPath = process.platform === 'win32' ? workspacePath.replace(/^[A-Z]:/, drive => drive.toLowerCase()) : workspacePath;
+	const containerIds = cp.execFileSync('docker', ['ps', '-aq', '--filter', `label=devcontainer.local_folder=${labeledPath}`], { encoding: 'utf8' }).trim().split(/\s+/).filter(Boolean);
 	if (containerIds.length > 0) {
 		cp.execFileSync('docker', ['rm', '--force', ...containerIds], { stdio: 'pipe' });
 	}
+	return containerIds.length;
 }
 
 const AGENT_HOST_SDK_SANDBOX_SCENARIO_ID = 'smoke-hello-agent-host-sdk-sandbox';
@@ -218,7 +219,7 @@ export function setup(logger: Logger, quality: Quality) {
 				'chat.agentHost.devContainer.worktree.enabled': false,
 				'chat.remoteAgentHostsEnabled': true,
 			},
-			prepareWorkspace: workspacePath => prepareDevContainerWorkspace(workspacePath, devContainer.mockServer.port),
+			prepareWorkspace: (workspacePath, options) => prepareDevContainerWorkspace(workspacePath, devContainer.mockServer.port, options),
 			cleanupWorkspace: cleanupDevContainerWorkspace,
 		});
 
@@ -231,9 +232,16 @@ export function setup(logger: Logger, quality: Quality) {
 				await app.workbench.agentsWindow.waitForNewSessionView();
 				await app.workbench.agentsWindow.selectSessionType('Copilot');
 				await app.workbench.agentsWindow.selectDevContainer();
-				await app.workbench.agentsWindow.submitNewSessionPrompt(`start Dev Container [scenario:${DEV_CONTAINER_SCENARIO_ID}]`, 1_800);
+				const prompt = `start Dev Container [scenario:${DEV_CONTAINER_SCENARIO_ID}]`;
+				await app.workbench.agentsWindow.submitNewSessionPrompt(prompt, 1_800);
+				await app.workbench.agentsWindow.waitForSessionPreparation(prompt);
+				await app.workbench.agentsWindow.showSessionPreparationLog();
+				await app.workbench.agentsWindow.cancelSessionPreparation(prompt);
+				await app.workbench.agentsWindow.retrySessionPreparation();
+				await app.workbench.agentsWindow.waitForSessionPreparation(prompt);
 				await app.workbench.agentsWindow.waitForActiveSessionView(5 * 60 * 1000);
 				const text = await app.workbench.agentsWindow.waitForAssistantText('OK', 2 * 60 * 1000);
+				await app.workbench.agentsWindow.verifyInputEnabledAfterPreparation();
 				logger.log(`Agents Window (Dev Container AgentHost) response: ${text}`);
 				assert.ok(
 					devContainer.mockServer.requestCount() > requestsBefore,
@@ -254,6 +262,22 @@ export function setup(logger: Logger, quality: Quality) {
 					30_000,
 				);
 				assert.match(rendererLogs, /\[AgentHost\] _invokeAgent called for resource: remote-devcontainer__/);
+
+				await app.workbench.agentsWindow.startNewSession();
+				await app.workbench.agentsWindow.selectDevContainer();
+				await app.workbench.agentsWindow.selectSessionType('Copilot');
+				assert.strictEqual(removeDevContainer(app.workspacePathOrFolder), 1, 'Expected to remove the fixture container');
+				await waitForLogContent(
+					() => readRendererLogs(devContainer.logsPath),
+					/\[RemoteAgentHostProtocol\] Reconnecting to devcontainer:/,
+					30_000,
+				);
+				const requestsBeforeReconnect = devContainer.mockServer.requestCount();
+				const reconnectPrompt = `join reconnecting Dev Container [scenario:${DEV_CONTAINER_SCENARIO_ID}]`;
+				await app.workbench.agentsWindow.submitNewSessionPrompt(reconnectPrompt, 1_800);
+				await app.workbench.agentsWindow.waitForSessionPreparation(reconnectPrompt);
+				await app.workbench.agentsWindow.waitForAssistantText('OK', 5 * 60 * 1000);
+				assert.ok(devContainer.mockServer.requestCount() > requestsBeforeReconnect, 'Expected a request after joining the automatic reconnect');
 			} catch (error) {
 				logger.log(`Agents Window (Dev Container AgentHost) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
 				await dumpFailureDiagnostics(app, logger, 'Agents Window (Dev Container AgentHost)', { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
@@ -262,18 +286,26 @@ export function setup(logger: Logger, quality: Quality) {
 		});
 	});
 
-	for (const transport of ['ssh', 'tunnel'] as const) {
-		const label = transport === 'ssh' ? 'SSH' : 'Tunnel';
+	for (const transport of ['ssh', 'tunnel', 'wsl'] as const) {
+		const label = transport === 'ssh' ? 'SSH' : transport === 'wsl' ? 'WSL' : 'Tunnel';
 		const isCI = !!process.env.CI || !!process.env.TF_BUILD;
-		const supportedPlatform = process.platform !== 'win32' && (!isCI || process.platform === 'linux');
-		const tunnelRequested = transport === 'ssh' || !!process.env.VSCODE_SMOKE_TEST_TUNNEL_TOKEN;
-		const enabled = runDevContainerSuite && supportedPlatform && tunnelRequested;
+		const required = transport === 'wsl' && process.env.VSCODE_SMOKE_TEST_WSL_REQUIRED === '1';
+		const supportedPlatform = transport === 'wsl' ? process.platform === 'win32' : process.platform !== 'win32' && (!isCI || process.platform === 'linux');
+		const requested = transport === 'ssh' || (transport === 'wsl' ? !!process.env.VSCODE_SMOKE_TEST_WSL_DISTRO : !!process.env.VSCODE_SMOKE_TEST_TUNNEL_TOKEN);
+		const enabled = runDevContainerSuite && (required || (supportedPlatform && requested));
 		if (!enabled) {
-			logger.log(`Skipping Agents Window (${label} Dev Container AgentHost): ${!runDevContainerSuite ? 'not supported on Exploration builds' : !supportedPlatform ? 'requires macOS/Linux locally or Linux CI' : 'set VSCODE_SMOKE_TEST_TUNNEL_TOKEN to enable the real tunnel fixture'}`);
+			logger.log(`Skipping Agents Window (${label} Dev Container AgentHost): ${!runDevContainerSuite ? 'not supported on Exploration builds' : !supportedPlatform ? 'unsupported platform' : transport === 'wsl' ? 'set VSCODE_SMOKE_TEST_WSL_DISTRO to enable the WSL fixture' : 'set VSCODE_SMOKE_TEST_TUNNEL_TOKEN to enable the real tunnel fixture'}`);
 		}
 		(enabled ? describe : describe.skip)(`Agents Window (${label} Dev Container AgentHost)`, () => {
-			installDockerPrerequisite(logger, process.platform === 'linux' || transport === 'tunnel');
+			if (transport !== 'wsl') {
+				installDockerPrerequisite(logger, process.platform === 'linux' || transport === 'tunnel');
+			}
 			before(() => {
+				if (required) {
+					assert.ok(supportedPlatform, 'Required WSL smoke tests need Windows.');
+					assert.ok(process.env.VSCODE_SMOKE_TEST_WSL_DISTRO, 'Required WSL smoke tests need VSCODE_SMOKE_TEST_WSL_DISTRO from successful provisioning.');
+					assert.ok(process.env.VSCODE_SMOKE_TEST_WSL_SERVER_PATH, 'Required WSL smoke tests need VSCODE_SMOKE_TEST_WSL_SERVER_PATH from successful provisioning.');
+				}
 				if (transport === 'tunnel') {
 					const availability = getTunnelSmokeTestAvailability();
 					assert.ok(availability.available, availability.reason);
@@ -291,7 +323,7 @@ export function setup(logger: Logger, quality: Quality) {
 					'chat.agentHost.devContainer.worktree.enabled': false,
 					'chat.remoteAgentHostsEnabled': true,
 				},
-				prepareWorkspace: workspacePath => prepareDevContainerWorkspace(workspacePath, context.mockServer.port),
+				prepareWorkspace: (workspacePath, options) => prepareDevContainerWorkspace(workspacePath, context.mockServer.port, options),
 				cleanupWorkspace: cleanupDevContainerWorkspace,
 			});
 
@@ -300,7 +332,7 @@ export function setup(logger: Logger, quality: Quality) {
 				const app = this.app as Application;
 				const fixture = context.remoteFixture;
 				assert.ok(fixture, 'Expected the remote connection fixture');
-				const workspacePath = app.workspacePathOrFolder;
+				const workspacePath = fixture.workspacePath ?? app.workspacePathOrFolder;
 				const workspaceLabel = `${path.basename(workspacePath)} [${fixture.name}]`;
 				const prompt = `start ${label} Dev Container [scenario:${scenario}]`;
 				try {
@@ -308,22 +340,41 @@ export function setup(logger: Logger, quality: Quality) {
 					if (transport === 'ssh') {
 						assert.ok(fixture.ssh);
 						await app.workbench.agentsWindow.connectSSHHost({ ...fixture.ssh, name: fixture.name }, workspacePath);
+					} else if (transport === 'wsl') {
+						await app.workbench.agentsWindow.connectWSLHost(fixture.name, workspacePath);
 					} else {
 						await app.workbench.agentsWindow.connectTunnelHost(fixture.name, workspacePath);
 					}
-					await app.workbench.agentsWindow.selectSessionType(`Copilot [${fixture.name}]`);
+					await app.workbench.agentsWindow.selectSessionType('Copilot', { providerLabel: fixture.name });
 					await app.workbench.agentsWindow.selectDevContainer(workspaceLabel);
 					const requestsBefore = context.mockServer.requestCount();
 					await app.workbench.agentsWindow.submitNewSessionPrompt(prompt, 1_800);
+					await app.workbench.agentsWindow.waitForSessionPreparation(prompt);
 					await app.workbench.agentsWindow.waitForActiveSessionView(5 * 60 * 1000);
 					await app.workbench.agentsWindow.waitForAssistantText(reply, 2 * 60 * 1000);
 					assert.ok(context.mockServer.requestCount() > requestsBefore, 'Expected a new request at the mock LLM server');
 					await assertRemoteDevContainerRouting(context.logsPath, transport, workspacePath, reply);
+					await fixture.verifyMockServerRouting?.();
 					await app.workbench.agentsWindow.startNewSession();
 					await app.workbench.agentsWindow.activateSessionByLabel([prompt, reply], reply, 60_000);
 					await app.workbench.agentsWindow.waitForAssistantText(reply);
 				} catch (error) {
 					logger.log(`Agents Window (${label} Dev Container) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+					if (fixture.dumpConnectionDiagnostics) {
+						let uiState: string;
+						try {
+							uiState = await app.workbench.agentsWindow.getRemoteConnectionDiagnostics();
+						} catch (diagnosticError) {
+							uiState = `UI state unavailable: ${diagnosticError instanceof Error ? diagnosticError.message : String(diagnosticError)}`;
+						}
+						try {
+							await fixture.dumpConnectionDiagnostics(uiState);
+						} catch (diagnosticError) {
+							const message = `Agents Window (${label} Dev Container) connection diagnostics failed: ${diagnosticError instanceof Error ? diagnosticError.message : String(diagnosticError)}`;
+							logger.log(message);
+							console.error(message);
+						}
+					}
 					await dumpFailureDiagnostics(app, logger, `Agents Window (${label} Dev Container)`, { sendButtonSelector: AGENTS_SEND_BUTTON_SELECTOR });
 					throw error;
 				}
@@ -349,10 +400,7 @@ export function setup(logger: Logger, quality: Quality) {
 				// customTerminalTool intentionally OFF (default) — the SDK runs
 				// the shell tool, and the AgentHost is expected to forward
 				// `chat.agent.sandbox.*` into the SDK so commands still run
-				// sandboxed. The SDK-sandbox gate defaults to 'off'; set it
-				// to 'on' explicitly so the test exercises the SDK sandbox
-				// override path.
-				'chat.agentHost.sdkSandbox.enabled': 'on',
+				// sandboxed.
 				'chat.agent.sandbox.enabled': 'on',
 			},
 		});
@@ -661,7 +709,7 @@ function setupAgentHostSuite(logger: Logger, config: {
 	readonly registerScenarios: (api: { ScenarioBuilder: any; registerScenario: (id: string, scenario: unknown) => void }) => void;
 	readonly settings: Record<string, unknown>;
 	readonly remoteTransport?: RemoteDevContainerTransport;
-	readonly prepareWorkspace?: (workspacePath: string) => Promise<void> | void;
+	readonly prepareWorkspace?: (workspacePath: string, options: ApplicationOptions) => Promise<void> | void;
 	readonly cleanupWorkspace?: (workspacePath: string) => Promise<void> | void;
 }): IAgentHostSuiteContext {
 	let mockServer: MockLlmServer;
@@ -701,7 +749,7 @@ function setupAgentHostSuite(logger: Logger, config: {
 		logsPath = defaultOptions.logsPath;
 		workspacePath = defaultOptions.workspacePath;
 		assert.ok(workspacePath, 'Expected an Agents Window smoke workspace');
-		await config.prepareWorkspace?.(workspacePath);
+		await config.prepareWorkspace?.(workspacePath, defaultOptions);
 		if (config.remoteTransport) {
 			assert.ok(defaultOptions.userDataDir, 'Expected an isolated smoke user-data directory');
 			fixtureDataPath = fs.mkdtempSync(path.join(path.dirname(defaultOptions.userDataDir), 'remote-devcontainer-'));

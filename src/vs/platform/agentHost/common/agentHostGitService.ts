@@ -14,7 +14,7 @@ import { ISessionFileDiff, ISessionGitState } from './state/sessionState.js';
  * Provider-agnostic session-database metadata key under which agents
  * persist the branch they want git-driven diffs anchored to. Read by
  * {@link IAgentHostChangesetService} when computing per-session file diffs; absent
- * value means the diff falls back to anchoring at HEAD.
+ * or cleared value falls back to the detected base branch, then HEAD.
  */
 export const META_DIFF_BASE_BRANCH = 'agentHost.diffBaseBranch';
 
@@ -28,7 +28,7 @@ export const META_DIFF_BASE_BRANCH = 'agentHost.diffBaseBranch';
  * pick the same base branch.
  */
 export function resolveDiffBaseBranchName(persistedBaseBranch: string | undefined, sessionGitStateBaseBranch: string | undefined): string | undefined {
-	const branchName = persistedBaseBranch ?? sessionGitStateBaseBranch;
+	const branchName = persistedBaseBranch || sessionGitStateBaseBranch;
 	if (!branchName) {
 		return undefined;
 	}
@@ -216,14 +216,20 @@ export interface IAddWorktreeOptions {
 	readonly commitish: string;
 	readonly newBranchName?: string;
 	readonly track: boolean;
-	readonly preferRemoteBranch?: boolean;
 	readonly onProgress?: (progress: IWorktreeFileProgress) => void;
+}
+
+/** A remote a repository fetches from. */
+export interface IGitRemote {
+	readonly name: string;
+	readonly url: string;
 }
 
 export interface IAgentHostGitService {
 	readonly _serviceBrand: undefined;
 	getCurrentBranch(workingDirectory: URI): Promise<string | undefined>;
-	getCurrentBranchName?(workingDirectory: URI): Promise<string | undefined>;
+	/** With `throwOnError`, only a successful detached-HEAD lookup returns `undefined`. */
+	getCurrentBranchName?(workingDirectory: URI, options?: { readonly throwOnError?: boolean }): Promise<string | undefined>;
 	getDefaultBranch(workingDirectory: URI): Promise<IDefaultBranch | undefined>;
 	getRefs(workingDirectory: URI, query?: IRefQuery): Promise<GitRef[]>;
 	getBranches(workingDirectory: URI, query?: IRefQuery): Promise<Branch[]>;
@@ -240,12 +246,21 @@ export interface IAgentHostGitService {
 	 */
 	addWorktree(repositoryRoot: URI, options: IAddWorktreeOptions): Promise<void>;
 	/**
-	 * Copies the git-ignored files matching `globs` into the worktree.
-	 * `onProgress` counts the individual files covered, but only fires as whole
-	 * entries finish — a wholly-ignored directory such as `node_modules` is
-	 * copied as one recursive unit, so its files all land in a single step.
+	 * Copies the git-ignored files matching `patterns` into the worktree.
+	 * `patterns` use `.gitignore` syntax, relative to `repositoryRoot`, and are
+	 * matched by git itself. `sessionId` scopes the temporary files used while
+	 * matching. `onProgress` counts the individual files covered, but only
+	 * fires as whole entries finish — a wholly-ignored directory such as
+	 * `node_modules` is copied as one recursive unit, so its files all land in
+	 * a single step.
 	 */
-	copyWorktreeIncludeFiles(repositoryRoot: URI, worktree: URI, globs: readonly string[], onProgress?: (progress: IWorktreeFileProgress) => void): Promise<void>;
+	copyWorktreeIncludeFiles(repositoryRoot: URI, worktree: URI, patterns: readonly string[], sessionId: string, onProgress?: (progress: IWorktreeFileProgress) => void, excludedFolders?: readonly string[]): Promise<void>;
+	/**
+	 * Symlinks git-ignored folders matching `patterns` from `repositoryRoot`
+	 * into the worktree. `patterns` use `.gitignore` syntax and are matched by
+	 * git itself. `sessionId` scopes the temporary files used while matching.
+	 */
+	symlinkWorktreeFolders(repositoryRoot: URI, worktree: URI, patterns: readonly string[], sessionId: string): Promise<readonly string[]>;
 	/**
 	 * Adds a worktree for an existing branch (no `-b`). Used when restoring
 	 * a worktree whose branch was preserved (e.g. unarchiving a session
@@ -303,6 +318,9 @@ export interface IAgentHostGitService {
 	 */
 	hasUpstream(workingDirectory: URI, branchName: string): Promise<boolean>;
 
+	/** Fetches the selected remote branch without changing the working tree; defaults to a five-second timeout. */
+	fetch(workingDirectory: URI, branch: IRemoteBranch, options?: { readonly timeout?: number }): Promise<void>;
+
 	/**
 	 * Fetches the latest changes from the remote (`origin` unless
 	 * {@link IPullOptions.remote} overrides it) and integrates them into the
@@ -330,6 +348,8 @@ export interface IAgentHostGitService {
 	getSessionGitState(workingDirectory: URI, baseBranchName?: string): Promise<ISessionGitState | undefined>;
 	/** Returns fetch remote URLs with the preferred remote, then `origin`, first. */
 	getFetchRemoteUrls(workingDirectory: URI, preferredRemote?: string): Promise<readonly string[] | undefined>;
+	/** Returns the repository's fetch remotes in `git remote -v` order. */
+	getFetchRemotes(workingDirectory: URI): Promise<readonly IGitRemote[] | undefined>;
 	/** Returns repo-relative untracked file paths. */
 	getUntrackedPaths(workingDirectory: URI): Promise<readonly string[] | undefined>;
 
@@ -407,10 +427,11 @@ export interface IAgentHostGitService {
 	/**
 	 * Lists refs matching `pattern` (a `git for-each-ref` glob such as
 	 * `refs/sessions/<id>/*`) with their resolved commit OIDs. Returns an empty
-	 * array when none match. Optional: implementations that don't support raw
+	 * array when none match. Set `throwOnError` to distinguish a failed lookup
+	 * from an empty result. Optional: implementations that don't support raw
 	 * ref enumeration may omit it.
 	 */
-	listRefNamesWithOids?(repositoryRoot: URI, pattern: string): Promise<Array<{ readonly ref: string; readonly oid: string }>>;
+	listRefNamesWithOids?(repositoryRoot: URI, pattern: string, options?: { readonly throwOnError?: boolean }): Promise<Array<{ readonly ref: string; readonly oid: string }>>;
 
 	/**
 	 * Builds a new tree from `baseTreeOid` in which the single repo-relative
@@ -480,12 +501,6 @@ export function parseUpstreamBranchName(upstreamBranchName: string | undefined):
 	};
 }
 
-export function getBranchCompletions(branches: readonly string[], options?: { readonly currentBranch?: string; readonly defaultBranch?: string; readonly query?: string; readonly limit?: number }): string[] {
-	const normalizedQuery = options?.query?.toLowerCase();
-	const filtered = normalizedQuery
-		? branches.filter(branch => branch.toLowerCase().includes(normalizedQuery))
-		: [...branches];
-
-	filtered.sort((a, b) => getBranchPriority(a, options?.currentBranch, options?.defaultBranch) - getBranchPriority(b, options?.currentBranch, options?.defaultBranch));
-	return options?.limit ? filtered.slice(0, options.limit) : filtered;
+export function getBranchCompletions(branches: readonly string[], options?: { readonly currentBranch?: string; readonly defaultBranch?: string }): string[] {
+	return [...branches].sort((a, b) => getBranchPriority(a, options?.currentBranch, options?.defaultBranch) - getBranchPriority(b, options?.currentBranch, options?.defaultBranch));
 }

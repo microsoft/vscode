@@ -58,6 +58,11 @@
 	height: 100%;
 	width: 100%;
 	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size160) var(--vscode-spacing-size160);
+	overflow-x: hidden;
+	overflow-y: auto;
+	scrollbar-width: none;
+	touch-action: pan-y;
+	overscroll-behavior-y: contain;
 	overflow-wrap: anywhere;
 	user-select: text;
 	-webkit-user-select: text;

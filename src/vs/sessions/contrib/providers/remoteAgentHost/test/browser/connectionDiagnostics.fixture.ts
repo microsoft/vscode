@@ -10,7 +10,7 @@ import { Disposable, toDisposable } from '../../../../../../base/common/lifecycl
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IChatEntitlementService } from '../../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureCondition } from '../../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { IAgentHostFilterService } from '../../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { IConnectionDiagnosticsService, IConnectionDiagnosticsSnapshot, ShowConnectionDiagnosticsCommandId } from '../../browser/connectionDiagnostics.js';
 import { showConnectionDiagnosticsSheet } from '../../browser/connectionDiagnosticsReport.js';
@@ -91,7 +91,7 @@ const snapshot: IConnectionDiagnosticsSnapshot = {
 	].join('\n'),
 };
 
-function renderReport(context: ComponentFixtureContext, width: number, expandClient = false): void {
+async function renderReport(context: ComponentFixtureContext, width: number, expandClient = false): Promise<void> {
 	const { container, disposableStore, theme } = context;
 	container.classList.add('monaco-workbench');
 	container.style.width = `${width}px`;
@@ -162,6 +162,11 @@ function renderReport(context: ComponentFixtureContext, width: number, expandCli
 						target.click();
 					}
 				}
+				const content = api.sheet.querySelector<HTMLElement>('.connection-diagnostics-content')!;
+				const style = dom.getWindow(content).getComputedStyle(content);
+				if (content.scrollHeight <= content.clientHeight || style.overflowY !== 'auto' || style.touchAction !== 'pan-y') {
+					throw new Error('Expanded diagnostics must overflow a native vertical touch scroll container.');
+				}
 			}
 			const header = api.sheet.querySelector<HTMLElement>('.mobile-picker-sheet-title-row')!;
 			const headerBounds = header.getBoundingClientRect();
@@ -175,6 +180,19 @@ function renderReport(context: ComponentFixtureContext, width: number, expandCli
 			return Disposable.None;
 		},
 	});
+	let previousLayout: string | undefined;
+	await waitForFixtureCondition(() => {
+		const content = container.querySelector<HTMLElement>('.connection-diagnostics-content');
+		const scrollable = container.querySelector<HTMLElement>('.connection-diagnostics-scrollable');
+		if (!content || !scrollable || content.clientHeight === 0) {
+			return false;
+		}
+		const layout = JSON.stringify([content.clientHeight, content.scrollHeight, content.scrollTop, scrollable.clientHeight]);
+		const unchanged = layout === previousLayout;
+		previousLayout = layout;
+		const scrollbarWillHide = !scrollable.matches(':hover') && scrollable.querySelector('.scrollbar.visible');
+		return unchanged && !scrollbarWillHide;
+	}, 'Connection diagnostics fixture did not settle its layout and scrollbar');
 }
 
 function renderEmptyPicker(context: ComponentFixtureContext): void {
@@ -203,7 +221,7 @@ function renderEmptyPicker(context: ComponentFixtureContext): void {
 				override async executeCommand<T>(id: string): Promise<T> {
 					if (id === ShowConnectionDiagnosticsCommandId) {
 						dom.clearNode(container);
-						renderReport(context, 390);
+						await renderReport(context, 390);
 					}
 					return undefined as T;
 				}
@@ -216,10 +234,19 @@ function renderEmptyPicker(context: ComponentFixtureContext): void {
 	trigger.querySelector<HTMLElement>('.agent-host-filter-dropdown')!.click();
 }
 
+function defineReportFixture(width: number, expandClient = false): ReturnType<typeof defineComponentFixture> {
+	return defineComponentFixture({
+		deferPaint: true,
+		virtualTime: { enabled: false },
+		render: context => renderReport(context, width, expandClient),
+	});
+}
+
 export default defineThemedFixtureGroup({ path: 'sessions/connectionDiagnostics/' }, {
-	MobileDismissedDiscovery: defineComponentFixture({ render: context => renderReport(context, 390) }),
-	NarrowDismissedDiscovery: defineComponentFixture({ render: context => renderReport(context, 320) }),
-	DesktopDismissedDiscovery: defineComponentFixture({ render: context => renderReport(context, 720) }),
-	ClientExpanded: defineComponentFixture({ render: context => renderReport(context, 390, true) }),
+	MobileDismissedDiscovery: defineReportFixture(390),
+	NarrowDismissedDiscovery: defineReportFixture(320),
+	DesktopDismissedDiscovery: defineReportFixture(720),
+	ClientExpanded: defineReportFixture(390, true),
+	NarrowClientExpanded: defineReportFixture(320, true),
 	EmptyHostPicker: defineComponentFixture({ render: renderEmptyPicker }),
 });

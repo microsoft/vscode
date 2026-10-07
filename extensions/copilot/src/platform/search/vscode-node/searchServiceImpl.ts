@@ -19,20 +19,6 @@ export class SearchServiceImpl extends BaseSearchServiceImpl {
 		super();
 	}
 
-	override async findFilesWithDefaultExcludes(include: vscode.GlobPattern, maxResults: 1, token: vscode.CancellationToken): Promise<vscode.Uri | undefined>;
-	override async findFilesWithDefaultExcludes(include: vscode.GlobPattern, maxResults: number | undefined, token: vscode.CancellationToken): Promise<vscode.Uri[]>;
-	override async findFilesWithDefaultExcludes(include: vscode.GlobPattern, maxResults: 1 | number | undefined, token: vscode.CancellationToken): Promise<vscode.Uri | vscode.Uri[] | undefined> {
-		const copilotIgnoreExclude = await this._ignoreService.asMinimatchPattern();
-		const results = await this._findFilesWithDefaultExcludesAndExcludes(include, copilotIgnoreExclude, maxResults, token);
-		if (!results) {
-			return results;
-		} else if (Array.isArray(results)) {
-			return await filterIngoredResources(this._ignoreService, results);
-		} else {
-			return await this._ignoreService.isCopilotIgnored(results) ? undefined : results;
-		}
-	}
-
 	@LogExecTime(self => self._logService, 'SearchServiceImpl::findFiles')
 	override async findFiles(filePattern: vscode.GlobPattern | vscode.GlobPattern[], options?: vscode.FindFiles2Options | undefined, token?: vscode.CancellationToken | undefined): Promise<vscode.Uri[]> {
 		const copilotIgnoreExclude = await this._ignoreService.asMinimatchPattern();

@@ -148,7 +148,7 @@ export function defineCopilotRuntimeAutoCoverageTests(context: IAgentHostE2ETest
 
 	async function withSession(
 		run: (session: IAutoTestSession) => Promise<void>,
-		settings: { readonly tiers?: boolean; readonly override?: string } = {},
+		settings: { readonly override?: string } = {},
 	): Promise<void> {
 		const store = new DisposableStore();
 		const errors: Error[] = [];
@@ -163,11 +163,9 @@ export function defineCopilotRuntimeAutoCoverageTests(context: IAgentHostE2ETest
 				const root = await context.client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
 				const values = (root.snapshot!.state as RootState).config?.values;
 				originalConfig = {
-					[CopilotCliConfigKey.AutoModeTiers]: values?.[CopilotCliConfigKey.AutoModeTiers] ?? false,
 					[CopilotCliConfigKey.AutoModeTierOverride]: values?.[CopilotCliConfigKey.AutoModeTierOverride] ?? '',
 				};
 				await setRootConfig({
-					[CopilotCliConfigKey.AutoModeTiers]: settings.tiers ?? false,
 					[CopilotCliConfigKey.AutoModeTierOverride]: settings.override ?? '',
 				});
 			};
@@ -427,22 +425,10 @@ export function defineCopilotRuntimeAutoCoverageTests(context: IAgentHostE2ETest
 				tiers: ['efficiency', 'balance', 'intelligence'],
 				routing: { modern: 3, legacy: 0, intent: 0 },
 			});
-		}, { tiers: true });
-	});
-
-	test('runtime coverage auto: a disabled picker does not send its stored preference to the router', async function () {
-		this.timeout(180_000);
-		await withSession(async session => {
-			selectModern(session, sonnet);
-			await turn(session, 'auto-picker-disabled', { ...session.autoModel, config: { tier: 'efficiency' } }, sonnet);
-			assert.deepStrictEqual({
-				tiers: requests(session).map(request => request.tier ?? null),
-				routing: routingCounts(session),
-			}, { tiers: [null], routing: { modern: 1, legacy: 0, intent: 0 } });
 		});
 	});
 
-	test('runtime coverage auto: a shared override wins with the picker disabled and normalizes the retired max alias', async function () {
+	test('runtime coverage auto: a shared override wins over the picker and normalizes the retired max alias', async function () {
 		this.timeout(180_000);
 		await withSession(async session => {
 			selectModern(session, opus);

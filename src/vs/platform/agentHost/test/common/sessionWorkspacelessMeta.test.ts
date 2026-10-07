@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { parseSessionMultiRootMetadata, readSessionMultiRootMetadata, readSessionWorkspaceless, SESSION_META_MULTI_ROOT_KEY, SESSION_META_WORKSPACELESS_KEY, withSessionGitHubState, withSessionMultiRootMetadata, withSessionWorkspaceless } from '../../common/state/sessionState.js';
+import { parseSessionMultiRootMetadata, readSessionMultiRootMetadata, readSessionWorkspaceless, SESSION_META_MULTI_ROOT_KEY, SESSION_META_WORKSPACELESS_KEY, withSessionGitHubStateInput, withSessionMultiRootMetadata, withSessionWorkspaceless } from '../../common/state/sessionState.js';
 
 suite('Session workspace-less meta', () => {
 
@@ -46,7 +46,7 @@ suite('Session workspace-less meta', () => {
 	});
 
 	test('withSessionWorkspaceless round-trips the marker and preserves other slots', () => {
-		const withOther = withSessionGitHubState(undefined, { owner: 'octo' });
+		const withOther = withSessionGitHubStateInput(undefined, { owner: 'octo' });
 		const tagged = withSessionWorkspaceless(withOther, true);
 
 		assert.strictEqual(readSessionWorkspaceless(tagged), true);

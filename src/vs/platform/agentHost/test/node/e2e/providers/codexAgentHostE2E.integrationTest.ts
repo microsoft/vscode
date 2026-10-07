@@ -8,7 +8,7 @@
  */
 
 import assert from 'assert';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'fs';
+import { mkdirSync, mkdtempSync, realpathSync, statSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -17,8 +17,8 @@ import { AgentHostCodexMultiRootEnabledConfigKey } from '../../../../common/agen
 import { SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
-import { buildDefaultChatUri, ROOT_STATE_URI } from '../../../../common/state/sessionState.js';
-import { AgentHostE2EServerLease, dispatchTurn, removeTempDirs, resolveGitHubToken, startBackgroundApprovalLoop } from '../harness/agentHostE2ETestHarness.js';
+import { buildDefaultChatUri, CustomizationLoadStatus, CustomizationType, ROOT_STATE_URI, type DirectoryCustomization, type SessionState } from '../../../../common/state/sessionState.js';
+import { AgentHostE2EServerLease, createRealSession, dispatchTurn, driveTurnToCompletion, removeTempDirs, resolveGitHubToken, startBackgroundApprovalLoop } from '../harness/agentHostE2ETestHarness.js';
 import { defineAgentHostE2ETests } from '../suites/agentHostE2ESuites.js';
 import { getActionEnvelope, isActionNotification, TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
 import { CODEX_CONFIG } from './codexTestConfiguration.js';
@@ -53,20 +53,62 @@ defineAgentHostE2ETests(CODEX_CONFIG);
 			throw new Error('Agent Host E2E server lease was not initialized.');
 		}
 		const failed = this.currentTest?.state === 'failed';
-		const errors: Error[] = [];
-		try {
-			await lease.release(createdSessions, failed);
-		} catch (error) {
-			errors.push(error instanceof Error ? error : new Error(String(error)));
-		}
-		try {
-			await removeTempDirs(tempDirs);
-		} catch (error) {
-			errors.push(error instanceof Error ? error : new Error(String(error)));
-		}
-		if (errors.length > 0) {
-			throw new AggregateError(errors, `Failed to dispose Codex-specific E2E test resources: ${errors.map(error => error.message).join('; ')}`);
-		}
+		await lease.release(createdSessions, failed);
+	});
+
+	test('invalid workspace skills retain their paths and validation diagnostics', async function () {
+		this.timeout(120_000);
+
+		const workspace = realpathSync(mkdtempSync(join(tmpdir(), 'ahp-codex-invalid-skills-')));
+		tempDirs.push(workspace);
+		mkdirSync(join(workspace, '.git'));
+		const names = ['missing-description-one', 'missing-description-two'];
+		const skillUris = names.map(name => {
+			const directory = join(workspace, '.agents', 'skills', name);
+			mkdirSync(directory, { recursive: true });
+			const path = join(directory, 'SKILL.md');
+			writeFileSync(path, `---\nname: ${name}\n---\nThis skill intentionally has no description.\n`);
+			return URI.file(path).toString();
+		});
+		const sessionUri = await createRealSession(client, CODEX_CONFIG, 'codex-invalid-skills', createdSessions, URI.file(workspace));
+		await driveTurnToCompletion(client, sessionUri, 'turn-invalid-skills', 'Reply exactly "READY".', 1);
+
+		const fileIdentity = (uri: string) => {
+			const stat = statSync(URI.parse(uri).fsPath);
+			return { device: stat.dev, inode: stat.ino };
+		};
+		await client.waitForNotification(n => {
+			if (!isActionNotification(n, ActionType.SessionCustomizationUpdated)) {
+				return false;
+			}
+			const { channel, action } = getActionEnvelope(n);
+			return channel === sessionUri
+				&& action.type === ActionType.SessionCustomizationUpdated
+				&& action.customization.type === CustomizationType.Directory
+				&& action.customization.children?.some(child => names.includes(child.name)) === true;
+		}, 30_000);
+		const result = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+		const containers = ((result.snapshot!.state as SessionState).customizations ?? [])
+			.filter((customization): customization is DirectoryCustomization =>
+				customization.type === CustomizationType.Directory
+				&& customization.children?.some(child => names.includes(child.name)) === true);
+
+		assert.deepStrictEqual(containers.map(container => ({
+			enabled: container.enabled,
+			writable: container.writable,
+			load: container.load,
+			children: container.children?.map(child => ({
+				type: child.type,
+				name: child.name,
+				file: fileIdentity(child.uri),
+				enabled: child.type === CustomizationType.Skill ? child.enabled : undefined,
+			})),
+		})), [{
+			enabled: false,
+			writable: false,
+			load: { kind: CustomizationLoadStatus.Error, message: 'missing field `description`' },
+			children: names.map((name, index) => ({ type: CustomizationType.Skill, name, file: fileIdentity(skillUris[index]), enabled: false })),
+		}]);
 	});
 
 	(portableShellToolReplayEnabled ? test : test.skip)('secondary workspace skill reaches the Codex model request', async function () {
@@ -175,6 +217,19 @@ defineAgentHostE2ETests(CODEX_CONFIG);
 
 	suiteTeardown(async function () {
 		this.timeout(120_000);
-		await lease?.dispose();
+		const errors: Error[] = [];
+		try {
+			await lease?.dispose();
+		} catch (error) {
+			errors.push(error instanceof Error ? error : new Error(String(error)));
+		}
+		try {
+			await removeTempDirs(tempDirs);
+		} catch (error) {
+			errors.push(error instanceof Error ? error : new Error(String(error)));
+		}
+		if (errors.length > 0) {
+			throw new AggregateError(errors, `Failed to dispose Codex-specific E2E suite resources: ${errors.map(error => error.message).join('; ')}`);
+		}
 	});
 });

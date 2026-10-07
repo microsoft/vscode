@@ -167,15 +167,17 @@ suite('sessionTurnFileChangesEqual', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('includes workspace classification in equality', () => {
+	test('includes workspace classification and rename origin in equality', () => {
 		const uri = URI.file('/a.txt');
 		const inside: ISessionTurnFileChange = { uri, modifiedUri: uri, insertions: 1, deletions: 0, isOutsideWorkspace: false };
 		const outside: ISessionTurnFileChange = { ...inside, isOutsideWorkspace: true };
+		const renamed: ISessionTurnFileChange = { ...inside, renamedFromUri: URI.file('/old-a.txt') };
 
 		assert.deepStrictEqual([
 			sessionTurnFileChangesEqual([inside], [{ ...inside }]),
 			sessionTurnFileChangesEqual([inside], [outside]),
-		], [true, false]);
+			sessionTurnFileChangesEqual([inside], [renamed]),
+		], [true, false, false]);
 	});
 });
 

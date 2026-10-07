@@ -8,7 +8,7 @@ exchanges:
         - role: user
           content: Do not use tools. Reply exactly ROUTED.
     response:
-      content: ROUTED
+      content: ROUTED.
       stopReason: end_turn
   - request:
       model: claude-sonnet-5
@@ -17,11 +17,11 @@ exchanges:
         - role: user
           content: Do not use tools. Reply exactly ROUTED.
         - role: assistant
-          content: ROUTED
+          content: ROUTED.
         - role: user
           content: Do not use tools. Reply exactly ROUTED.
     response:
-      content: ROUTED
+      content: ROUTED.
       stopReason: end_turn
   - request:
       model: claude-opus-4.6
@@ -30,11 +30,11 @@ exchanges:
         - role: user
           content: Do not use tools. Reply exactly ROUTED.
         - role: assistant
-          content: ROUTED
+          content: ROUTED.
         - role: user
           content: Do not use tools. Reply exactly ROUTED.
         - role: assistant
-          content: ROUTED
+          content: ROUTED.
         - role: user
           content: |-
             <tools_changed_notice>
@@ -43,5 +43,5 @@ exchanges:
 
             Do not use tools. Reply exactly ROUTED.
     response:
-      content: ROUTED
+      content: ROUTED.
       stopReason: end_turn

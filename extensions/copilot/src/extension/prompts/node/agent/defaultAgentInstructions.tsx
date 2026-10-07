@@ -6,7 +6,7 @@
 import { BasePromptElementProps, PromptElement, PromptSizing } from '@vscode/prompt-tsx';
 import type { LanguageModelToolInformation } from 'vscode';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
-import { isGpt5PlusFamily, isGpt6Family } from '../../../../platform/endpoint/common/chatModelCapabilities';
+import { isGpt5PlusFamily, isGpt6Family, isHiddenModelI } from '../../../../platform/endpoint/common/chatModelCapabilities';
 import { IChatEndpoint } from '../../../../platform/networking/common/networking';
 import { IPromptPathRepresentationService } from '../../../../platform/prompts/common/promptPathRepresentationService';
 import { IExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
@@ -480,12 +480,12 @@ export class ApplyPatchInstructions extends PromptElement<DefaultAgentPromptProp
 	}
 
 	async render(state: void, sizing: PromptSizing) {
-		const isGpt5OrGpt6 = isGpt5PlusFamily(this.props.modelFamily) || (this.props.modelFamily !== undefined && isGpt6Family(this.props.modelFamily));
-		const useSimpleInstructions = isGpt5OrGpt6 && this.configurationService.getExperimentBasedConfig(ConfigKey.Advanced.Gpt5AlternativePatch, this._experimentationService);
+		const supportsModernPatchInstructions = isGpt5PlusFamily(this.props.modelFamily) || (this.props.modelFamily !== undefined && (isGpt6Family(this.props.modelFamily) || isHiddenModelI(this.props.modelFamily)));
+		const useSimpleInstructions = supportsModernPatchInstructions && this.configurationService.getExperimentBasedConfig(ConfigKey.Advanced.Gpt5AlternativePatch, this._experimentationService);
 
 		return <Tag name='applyPatchInstructions'>
 			To edit files in the workspace, use the {ToolName.ApplyPatch} tool. If you have issues with it, you should first try to fix your patch and continue using {ToolName.ApplyPatch}. {this.props.tools[ToolName.EditFile] && <>If you are stuck, you can fall back on the {ToolName.EditFile} tool, but {ToolName.ApplyPatch} is much faster and is the preferred tool.</>}<br />
-			{isGpt5OrGpt6 && <>Prefer the smallest set of changes needed to satisfy the task. Avoid reformatting unrelated code; preserve existing style and public APIs unless the task requires changes. When practical, complete all edits for a file within a single message.<br /></>}
+			{supportsModernPatchInstructions && <>Prefer the smallest set of changes needed to satisfy the task. Avoid reformatting unrelated code; preserve existing style and public APIs unless the task requires changes. When practical, complete all edits for a file within a single message.<br /></>}
 			{!useSimpleInstructions && <>
 				The tool call requires both `input`, a string representing the patch to apply, and `explanation`, a short description of what the patch aims to achieve. The input follows a special format. For each snippet of code that needs to be changed, repeat the following:<br />
 				<ApplyPatchFormatInstructions /><br />

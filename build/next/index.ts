@@ -15,14 +15,14 @@ import { convertPrivateFields, adjustSourceMap, type ConvertPrivateFieldsResult 
 import { rewriteSourceMappingURL } from './source-map-url.ts';
 import { getVersion } from '../lib/getVersion.ts';
 import { getGitCommitDate } from '../lib/date.ts';
+import { getBootstrapEntryPointsForTarget, type BuildTarget } from '../lib/esbuild.ts';
 import product from '../../product.json' with { type: 'json' };
 import packageJson from '../../package.json' with { type: 'json' };
-import { useEsbuildTranspile } from '../buildConfig.ts';
 import { isWebExtension, type IScannedBuiltinExtension } from '../lib/extensions.ts';
 import { runBuildFast } from './build-fast.ts';
-import { bundleDevTunnelsWeb } from './devTunnelsWeb.ts';
+import { bundleDevTunnelsWeb, devTunnelsWebOutDir } from './devTunnelsWeb.ts';
 import { copyFile, mapWithConcurrency, MAX_CONCURRENT_FILE_OPERATIONS, transpileFile } from './transpile.ts';
-import { copyResources, type BuildTarget } from './resources.ts';
+import { copyResources } from './resources.ts';
 import { optimizeSvgFiles } from './svg.ts';
 import { getBundleOptions } from './bundle.ts';
 import { compileStandaloneFiles } from './standalone.ts';
@@ -38,7 +38,7 @@ const commit = getVersion(REPO_ROOT);
 const quality = (product as { quality?: string }).quality;
 const version = (quality && quality !== 'stable') ? `${packageJson.version}-${quality}` : packageJson.version;
 
-// CLI: build-fast [--force] | transpile [--watch] | bundle [--minify] [--nls] [--out <dir>]
+// CLI: build-fast [--force] [--client-only] | transpile [--watch] | bundle [--minify] [--nls] [--out <dir>]
 const command = process.argv[2];
 
 function getArgValue(name: string): string | undefined {
@@ -56,6 +56,7 @@ const options = {
 	manglePrivates: process.argv.includes('--mangle-privates'),
 	excludeTests: process.argv.includes('--exclude-tests'),
 	force: process.argv.includes('--force'),
+	clientOnly: process.argv.includes('--client-only'),
 	out: getArgValue('--out'),
 	target: getArgValue('--target') ?? 'desktop', // 'desktop' | 'server' | 'server-web' | 'web'
 	sourceMapBaseUrl: getArgValue('--source-map-base-url'),
@@ -66,7 +67,7 @@ const OUT_DIR = 'out';
 const OUT_VSCODE_DIR = 'out-vscode';
 
 // ============================================================================
-// Entry Points (from build/buildfile.ts)
+// Entry Points
 // ============================================================================
 
 // Extension host bundles are excluded from private field mangling because they
@@ -105,6 +106,7 @@ const desktopEntryPoints = [
 	'vs/platform/files/node/watcher/watcherMain',
 	'vs/platform/localTranscription/node/localTranscriptionMain',
 	'vs/platform/terminal/node/ptyHostMain',
+	'vs/platform/sandbox/node/mxcMain',
 	'vs/platform/agentHost/node/agentHostMain',
 	'vs/platform/agentHost/node/diffWorkerMain',
 	'vs/workbench/api/node/extensionHostProcess',
@@ -134,21 +136,9 @@ const serverEntryPoints = [
 	'vs/workbench/api/node/extensionHostProcess',
 	'vs/platform/files/node/watcher/watcherMain',
 	'vs/platform/terminal/node/ptyHostMain',
+	'vs/platform/sandbox/node/mxcMain',
 	'vs/platform/agentHost/node/agentHostMain',
 	'vs/platform/agentHost/node/diffWorkerMain',
-];
-
-// Bootstrap files per target
-const bootstrapEntryPointsDesktop = [
-	'main',
-	'cli',
-	'bootstrap-fork',
-];
-
-const bootstrapEntryPointsServer = [
-	'server-main',
-	'server-cli',
-	'bootstrap-fork',
 ];
 
 /**
@@ -181,23 +171,6 @@ function getEntryPointsForTarget(target: BuildTarget): string[] {
 				'vs/workbench/workbench.web.main.internal', // web workbench only (no browser shell)
 				...keyboardMapEntryPoints,
 			];
-		default:
-			throw new Error(`Unknown target: ${target}`);
-	}
-}
-
-/**
- * Get bootstrap entry points for a build target.
- */
-function getBootstrapEntryPointsForTarget(target: BuildTarget): string[] {
-	switch (target) {
-		case 'desktop':
-			return bootstrapEntryPointsDesktop;
-		case 'server':
-		case 'server-web':
-			return bootstrapEntryPointsServer;
-		case 'web':
-			return []; // Web has no bootstrap files (served by external server)
 		default:
 			throw new Error(`Unknown target: ${target}`);
 	}
@@ -360,6 +333,18 @@ function cssExternalPlugin(): esbuild.Plugin {
 		name: 'css-external',
 		setup(build) {
 			build.onResolve({ filter: /\.css$/ }, (args) => ({
+				path: args.path,
+				external: true,
+			}));
+		},
+	};
+}
+
+function mainImplExternalPlugin(): esbuild.Plugin {
+	return {
+		name: 'main-impl-external',
+		setup(build) {
+			build.onResolve({ filter: /^\.\/mainImpl\.js$/ }, args => ({
 				path: args.path,
 				external: true,
 			}));
@@ -550,14 +535,12 @@ async function bundle(outDir: string, doMinify: boolean, doNls: boolean, doMangl
 	// Bundle bootstrap files (with minimist inlined) directly from TypeScript source
 	for (const entry of bootstrapEntryPoints) {
 		const entryPath = path.join(REPO_ROOT, SRC_DIR, `${entry}.ts`);
-		if (!fs.existsSync(entryPath)) {
-			console.log(`[bundle] Skipping ${entry} (not found)`);
-			continue;
-		}
-
 		const outPath = path.join(REPO_ROOT, outDir, `${entry}.js`);
 
 		const bootstrapPlugins: esbuild.Plugin[] = [inlineMinimistPlugin(), contentMapperPlugin];
+		if (entry === 'main') {
+			bootstrapPlugins.push(mainImplExternalPlugin());
+		}
 		if (doNls) {
 			bootstrapPlugins.unshift(nlsPlugin({
 				baseDir: path.join(REPO_ROOT, SRC_DIR),
@@ -716,7 +699,8 @@ async function bundle(outDir: string, doMinify: boolean, doNls: boolean, doMangl
 	if (allEntryPoints.includes(sessionsWebEntryPoint)) {
 		await bundleDevTunnelsWeb({
 			minify: doMinify,
-			outDir: path.join(outDir, 'vs', 'sessions', 'contrib', 'providers', 'remoteAgentHost', 'browser'),
+			outDir: path.join(outDir, devTunnelsWebOutDir),
+			sourceMapBaseUrl: sourceMapBaseUrl ? `${sourceMapBaseUrl}/${devTunnelsWebOutDir}` : undefined,
 		});
 	}
 
@@ -731,14 +715,6 @@ async function bundle(outDir: string, doMinify: boolean, doNls: boolean, doMangl
 // ============================================================================
 
 async function watch(): Promise<void> {
-	if (!useEsbuildTranspile) {
-		console.log('Starting transpilation...');
-		console.log('Finished transpilation with 0 errors after 0 ms');
-		console.log('[watch] esbuild transpile disabled (useEsbuildTranspile=false). Keeping process alive as no-op.');
-		await new Promise(() => { }); // keep alive
-		return;
-	}
-
 	console.log('Starting transpilation...');
 
 	const outDir = OUT_DIR;
@@ -851,7 +827,8 @@ Commands:
 	bundle             Bundle entry points into optimized bundles
 
 Options for 'build-fast':
-	--force            Ignore incremental state and rebuild all lanes
+	--force            Ignore incremental state and rebuild selected lanes
+	--client-only      Only refresh client output; skip extensions and Copilot
 
 Options for 'transpile':
 	--watch            Watch for changes and rebuild incrementally
@@ -868,6 +845,7 @@ Options for 'bundle':
 
 Examples:
 	npx tsx build/next/index.ts build-fast
+	npx tsx build/next/index.ts build-fast --client-only
 	npx tsx build/next/index.ts build-fast --force
 	npx tsx build/next/index.ts transpile
 	npx tsx build/next/index.ts transpile --watch
@@ -887,7 +865,7 @@ async function main(): Promise<void> {
 	try {
 		switch (command) {
 			case 'build-fast':
-				await runBuildFast(REPO_ROOT, options.force);
+				await runBuildFast(REPO_ROOT, options.force, options.clientOnly);
 				break;
 			case 'transpile':
 				if (options.watch) {

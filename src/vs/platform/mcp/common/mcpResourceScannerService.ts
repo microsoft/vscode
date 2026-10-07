@@ -20,6 +20,8 @@ import { FileOperationError, FileOperationResult, IFileContent, IFileService, to
 import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
+import { toCopilotMcpServerConfiguration } from './mcpCopilotConfiguration.js';
+import { getCopilotGlobalMcpConfigurationError, parseCopilotGlobalMcpConfiguration } from './mcpCopilotGlobalConfiguration.js';
 import { IInstallableMcpServer } from './mcpManagement.js';
 import { ICommonMcpServerConfiguration, IMcpSandboxConfiguration, IMcpServerConfiguration, IMcpServerVariable, IMcpStdioServerConfiguration, McpServerType } from './mcpPlatformTypes.js';
 import { getWorkspaceRootMcpConfigurationError, McpResourceFormat, parseWorkspaceRootMcpConfiguration } from './mcpWorkspaceConfiguration.js';
@@ -71,6 +73,9 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 		if (format === McpResourceFormat.WorkspaceRoot) {
 			return this.withWorkspaceRootMcpServers(mcpResource);
 		}
+		if (format === McpResourceFormat.CopilotGlobal) {
+			return this.withCopilotGlobalMcpServers(mcpResource);
+		}
 		return this.withProfileMcpServers(mcpResource, target);
 	}
 
@@ -88,6 +93,22 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 						throw new Error(localize('reservedWorkspaceRootMcpServerName', "To add a server named 'mcpServers', first wrap the existing servers in an 'mcpServers' object in .mcp.json."));
 					}
 					content = this.editWorkspaceRootMcpServer(content, wrapped, name, config);
+				}
+				return content;
+			});
+			return;
+		}
+		if (format === McpResourceFormat.CopilotGlobal) {
+			const copilotServers = servers.map(server => {
+				const error = getCopilotGlobalMcpConfigurationError(server);
+				if (error) {
+					throw new Error(localize('invalidCopilotGlobalMcpServerForWrite', "Cannot add Copilot Global MCP server '{0}': {1}", server.name, error));
+				}
+				return { name: server.name, config: toCopilotMcpServerConfiguration(server.config) };
+			});
+			await this.withCopilotGlobalMcpServers(mcpResource, content => {
+				for (const { name, config } of copilotServers) {
+					content = this.editJsonProperty(content, ['mcpServers', name], config);
 				}
 				return content;
 			});
@@ -112,10 +133,22 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 		if (format === McpResourceFormat.WorkspaceRoot) {
 			throw new Error(localize('unsupportedWorkspaceRootMcpSandbox', "Sandbox configuration is not supported in .mcp.json. Use .vscode/mcp.json instead."));
 		}
+		if (format === McpResourceFormat.CopilotGlobal) {
+			throw new Error(localize('unsupportedCopilotGlobalMcpSandbox', "Sandbox configuration is not supported in Copilot Global MCP configuration."));
+		}
 		await this.withProfileMcpServers(mcpResource, target, updateFn);
 	}
 
 	async removeMcpServers(serverNames: string[], mcpResource: URI, target?: McpResourceTarget, format = McpResourceFormat.Vscode): Promise<void> {
+		if (format === McpResourceFormat.CopilotGlobal) {
+			await this.withCopilotGlobalMcpServers(mcpResource, content => {
+				for (const name of serverNames) {
+					content = this.editJsonProperty(content, ['mcpServers', name], undefined);
+				}
+				return content;
+			});
+			return;
+		}
 		if (format === McpResourceFormat.WorkspaceRoot) {
 			await this.withWorkspaceRootMcpServers(mcpResource, (content, wrapped) => {
 				for (const name of serverNames) {
@@ -136,6 +169,29 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 	}
 
 	private withWorkspaceRootMcpServers(mcpResource: URI, update?: (content: string, wrapped: boolean) => string): Promise<IScannedMcpServers> {
+		return this.withSharedMcpServersFile(
+			mcpResource,
+			parseWorkspaceRootMcpConfiguration,
+			localize('workspaceRootMcpConfigurationChanged', "The .mcp.json file changed while updating MCP servers. Please try again."),
+			update && ((content, { wrapped }) => update(content, wrapped)),
+		);
+	}
+
+	private withCopilotGlobalMcpServers(mcpResource: URI, update?: (content: string) => string): Promise<IScannedMcpServers> {
+		return this.withSharedMcpServersFile(
+			mcpResource,
+			content => ({ servers: parseCopilotGlobalMcpConfiguration(content) }),
+			localize('copilotGlobalMcpConfigurationChanged', "The Copilot Global MCP configuration changed while updating servers. Please try again."),
+			update,
+		);
+	}
+
+	private withSharedMcpServersFile<T extends { readonly servers: Record<string, IMcpServerConfiguration> }>(
+		mcpResource: URI,
+		parseServers: (content: string) => T,
+		changedMessage: string,
+		update: ((content: string, parsed: T) => string) | undefined,
+	): Promise<IScannedMcpServers> {
 		return this.getResourceAccessQueue(this.uriIdentityService.asCanonicalUri(mcpResource)).queue(async () => {
 			let file: IFileContent | undefined;
 			try {
@@ -146,27 +202,32 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 				}
 			}
 			const content = file?.value.toString() ?? '{\n\t"mcpServers": {}\n}\n';
-			const parsed = parseWorkspaceRootMcpConfiguration(content);
-			const updated = update?.(content, parsed.wrapped) ?? content;
+			let parsed = parseServers(content);
+			const updated = update?.(content, parsed) ?? content;
 			if (updated !== content) {
+				parsed = parseServers(updated);
 				if (file) {
 					const current = await this.fileService.readFile(mcpResource);
 					if (current.value.toString() !== content) {
-						throw new FileOperationError(localize('workspaceRootMcpConfigurationChanged', "The .mcp.json file changed while updating MCP servers. Please try again."), FileOperationResult.FILE_MODIFIED_SINCE);
+						throw new FileOperationError(changedMessage, FileOperationResult.FILE_MODIFIED_SINCE);
 					}
 					await this.fileService.writeFile(mcpResource, VSBuffer.fromString(updated), { etag: current.etag, mtime: current.mtime });
 				} else {
 					await this.fileService.createFile(mcpResource, VSBuffer.fromString(updated), { overwrite: false });
 				}
 			}
-			return { servers: parseWorkspaceRootMcpConfiguration(updated).servers };
+			return { servers: parsed.servers };
 		});
 	}
 
 	private editWorkspaceRootMcpServer(content: string, wrapped: boolean, name: string, config: IMcpServerConfiguration | undefined): string {
+		return this.editJsonProperty(content, wrapped ? ['mcpServers', name] : [name], config);
+	}
+
+	private editJsonProperty(content: string, path: (string | number)[], value: unknown): string {
 		const indentation = /^(?<indentation>[ \t]+)"/m.exec(content)?.groups?.indentation;
 		const insertSpaces = indentation !== undefined && !indentation.includes('\t');
-		return applyEdits(content, setProperty(content, wrapped ? ['mcpServers', name] : [name], config, {
+		return applyEdits(content, setProperty(content, path, value, {
 			insertSpaces,
 			tabSize: insertSpaces ? indentation.length : 1,
 			eol: content.includes('\r\n') ? '\r\n' : '\n',

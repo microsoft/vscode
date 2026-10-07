@@ -14,15 +14,38 @@ import { TestContextService, TestStorageService } from '../../../common/workbenc
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { MainStatusbarPart } from '../../../../browser/parts/statusbar/statusbarPart.js';
 import { LayoutSettings } from '../../../../services/layout/browser/layoutService.js';
-import { TestContextMenuService, TestHostService, TestLayoutService } from '../../workbenchTestServices.js';
+import { TestContextMenuService, TestHostService, TestLayoutService, workbenchInstantiationService } from '../../workbenchTestServices.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { STATUS_BAR_BACKGROUND, STATUS_BAR_INACTIVE_BACKGROUND, STATUS_BAR_NO_FOLDER_BACKGROUND } from '../../../../common/theme.js';
 import { WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { IManagedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
+import { $ } from '../../../../../base/browser/dom.js';
+import { StatusbarEntryItem } from '../../../../browser/parts/statusbar/statusbarItem.js';
+import { ShowTooltipCommand } from '../../../../services/statusbar/browser/statusbar.js';
 
 suite('StatusbarPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('forwards tooltip onDidShow through native status entry updates', () => {
+		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
+		let options: IManagedHoverOptions | undefined;
+		instantiationService.stub(IHoverService, {
+			setupManagedHover: (_delegate, _target, _content, initialOptions) => {
+				options = initialOptions;
+				return { dispose() { }, show() { }, hide() { }, update: (_content, updatedOptions) => { options = updatedOptions; } };
+			},
+		});
+		const onDidShow = () => { };
+		const entry = { name: 'Status', text: '$(copilot)', ariaLabel: 'Status', command: ShowTooltipCommand };
+		const item = store.add(instantiationService.createInstance(StatusbarEntryItem, $('div'), {
+			...entry, tooltip: { content: 'Sale', commands: [], onDidShow },
+		}, { delay: 0, showHover: () => undefined }));
+		const callback = options?.onDidShow;
+		item.update({ ...entry, tooltip: 'Normal status' });
+		assert.deepStrictEqual({ callback, restoredOptions: options }, { callback: onDidShow, restoredOptions: undefined });
+	});
 
 	class TestMainStatusbarPart extends MainStatusbarPart {
 		updateStylesCalls = 0;

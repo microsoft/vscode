@@ -9,7 +9,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IAutomationSessionTemplate } from '../../../../workbench/contrib/chat/common/automations/automation.js';
-import { IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection } from './session.js';
+import { IChat, ISession, ISessionCreationReference, ISessionType, ISessionWorkspace, ISideChatSelection } from './session.js';
 import { IAutomationSessionConfiguration, IDeleteChatOptions, ISessionConfigurationSnapshot, ISendRequestOptions as ISessionsProviderSendRequestOptions, type SessionResourceResolveReason } from './sessionsProvider.js';
 
 /** Raised when unattended session creation targets a workspace that requires trust. */
@@ -75,12 +75,21 @@ export interface ICreateNewSessionOptions {
 	readonly sessionTypeId?: string;
 	/** Initial provider metadata to associate with the session. */
 	readonly metadata?: Record<string, unknown>;
+	/** Session that created this session, when it should be presented as a child. */
+	readonly createdBySession?: ISessionCreationReference;
 	/**
 	 * Optional model identifier to apply to the new session via
 	 * {@link ISessionsProvider.setModel}. If the provider throws, the
 	 * stranded draft is disposed and the error propagates.
 	 */
 	readonly modelId?: string;
+	/**
+	 * Optional model-specific primitive values to scope to this session.
+	 * Requires {@link modelId} and provider support.
+	 */
+	readonly modelConfiguration?: Readonly<Record<string, string | number | boolean | null>>;
+	/** Provider-owned permission option applied before the first request. */
+	readonly permissionId?: string;
 	/**
 	 * Optional chat mode identifier (typically a value from `ChatModeKind`)
 	 * to apply via {@link ISessionsProvider.setMode}. Skipped if the
@@ -110,20 +119,17 @@ export interface ICreateNewSessionOptions {
 	 */
 	readonly branch?: string;
 	/**
-	 * Optional branch tracking preference to apply via
-	 * {@link ISessionsProvider.setWorktreeBranchTrack}. This is intended for
-	 * programmatic session creation and is not surfaced in the new-session UI.
+	 * Optional URL of a pull request in the workspace's repository. The session
+	 * is created from it, so it is associated with the pull request from the
+	 * start; the agent host checks the pull request out into an isolated
+	 * worktree, so it supersedes {@link isolationMode} and {@link branch}.
 	 */
-	readonly worktreeBranchTrack?: boolean;
-	/**
-	 * Whether to create a generated worktree branch from {@link branch}.
-	 */
-	readonly worktreeCreateNewBranch?: boolean;
+	readonly pullRequestUrl?: string;
 	/**
 	 * Invoked after the provider creates the provisional session, before its
-	 * configuration and first request are applied.
+	 * configuration and first request are applied. Asynchronous preparation is awaited.
 	 */
-	readonly onSessionCreated?: (session: ISession) => void;
+	readonly onSessionCreated?: (session: ISession) => void | Promise<void>;
 }
 
 /**
@@ -171,6 +177,12 @@ export interface IToggleSessionStickinessEvent {
 	readonly session: ISession;
 	/** The session's stickiness state after the toggle. */
 	readonly sticky: boolean;
+}
+
+export interface IChatDeletedEvent {
+	readonly session: ISession;
+	readonly sessionResource: URI;
+	readonly chatResource: URI;
 }
 
 /**
@@ -224,11 +236,12 @@ export interface IRecentlyOpenedSessions {
 	readonly other: ISession[];
 }
 
-/**
- * An active session item extends IChatSessionItem with repository information.
- * - For agent session items: repository is the workingDirectory from metadata
- * - For new sessions: repository comes from the session option with id 'repository'
- */
+/** Controls automatic read transitions for an active main chat. */
+export interface IMarkSessionReadOptions {
+	/** Preserve a user-requested unread state until the active chat advances. */
+	readonly preserveExplicitUnread?: boolean;
+}
+
 export interface ISessionsManagementService {
 	readonly _serviceBrand: undefined;
 
@@ -243,6 +256,9 @@ export interface ISessionsManagementService {
 	 * Get new sessions whose first request is still being prepared or sent.
 	 */
 	getInFlightNewSessionRequests(): readonly ISession[];
+
+	/** The submitted input while a new session is being prepared, without committing chat history. */
+	getInFlightNewSessionRequest(resource: URI): Pick<ISendRequestOptions, 'query' | 'attachedContext'> | undefined;
 
 	/**
 	 * Get a session by its resource URI.
@@ -262,6 +278,12 @@ export interface ISessionsManagementService {
 	 * Get the session and chat that own the given chat resource URI.
 	 */
 	getSessionForChatResource(resource: URI): { session: ISession; chat: IChat } | undefined;
+
+	/**
+	 * Returns an opaque provider-owned target for reading a chat through the
+	 * provider's session-context tool.
+	 */
+	getSessionContextReference(resource: URI): string | undefined;
 
 	/**
 	 * Get all session types from all registered providers, deduplicated by
@@ -346,7 +368,7 @@ export interface ISessionsManagementService {
 	/** Fires after a session was successfully deleted via {@link deleteSession}. */
 	readonly onDidDeleteSession: Event<ISession>;
 	/** Fires after a chat was successfully deleted via {@link deleteChat}. */
-	readonly onDidDeleteChat: Event<ISession>;
+	readonly onDidDeleteChat: Event<IChatDeletedEvent>;
 	/** Fires after a chat was successfully renamed via {@link renameChat}. */
 	readonly onDidRenameChat: Event<ISession>;
 	/** Fires after a session was successfully renamed via {@link renameSession}. */
@@ -362,8 +384,8 @@ export interface ISessionsManagementService {
 	 */
 	readonly onDidDiscardNewSession: Event<ISession>;
 	/**
-	 * Fires when {@link createNewSession} replaces the current in-progress
-	 * draft with another new-session draft (New Session → New Session).
+	 * Fires when an in-progress draft is replaced before sending,
+	 * either by {@link createNewSession} or new-session preparation.
 	 * Draft graduation uses {@link onDidReplaceSession} instead.
 	 */
 	readonly onDidReplaceNewDraftSession: Event<{ readonly from: ISession; readonly to: ISession }>;
@@ -533,8 +555,20 @@ export interface ISessionsManagementService {
 	/** Archive a session. */
 	archiveSession(session: ISession): Promise<void>;
 
+	/** Permanently imports an external session through its provider without sending a message. */
+	importSession(session: ISession): Promise<void>;
+
+	/** Returns the current on-disk size of the session's isolated worktree. */
+	getSessionWorktreeDiskUsage?(session: ISession): Promise<number | undefined>;
+
 	/** Unarchive a session. */
 	unarchiveSession(session: ISession): Promise<void>;
+
+	/** Archive a chat independently of its owning session. */
+	archiveChat(session: ISession, chat: IChat): Promise<void>;
+
+	/** Unarchive a chat independently of its owning session. */
+	unarchiveChat(session: ISession, chat: IChat): Promise<void>;
 
 	/**
 	 * Mark a session as read or unread through its provider, which owns and
@@ -542,10 +576,13 @@ export interface ISessionsManagementService {
 	 */
 	setSessionReadState(session: ISession, isRead: boolean): Promise<void>;
 
-	/** Mark a session as read through its provider. */
-	markRead(session: ISession): Promise<void>;
+	/** Mark a chat as read through its provider when it supports independent chat read state. */
+	markChatRead(session: ISession, chat: IChat): Promise<boolean | void>;
 
-	/** Mark a session as unread through its provider. */
+	/** Mark the session's main chat as read through its provider. */
+	markRead(session: ISession, options?: IMarkSessionReadOptions): Promise<boolean | void>;
+
+	/** Mark the session's main chat as unread through its provider. */
 	markUnread(session: ISession): Promise<void>;
 
 	/** Mark all of the given sessions as read through their providers. */
@@ -563,8 +600,8 @@ export interface ISessionsManagementService {
 	 */
 	deleteSessions(sessions: readonly ISession[]): Promise<void>;
 
-	/** Delete a single chat from a session by its URI. */
-	deleteChat(session: ISession, chatUri: URI, options?: IDeleteChatOptions): Promise<void>;
+	/** Delete a single chat from a session by its URI, returning whether it was deleted. */
+	deleteChat(session: ISession, chatUri: URI, options?: IDeleteChatOptions): Promise<boolean>;
 
 	/** Rename a chat within a session. */
 	renameChat(session: ISession, chatUri: URI, title: string): Promise<void>;

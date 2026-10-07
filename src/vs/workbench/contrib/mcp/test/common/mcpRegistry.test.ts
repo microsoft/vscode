@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import { timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -257,6 +257,10 @@ suite('Workbench - MCP - Registry', () => {
 		};
 	});
 
+	teardown(() => {
+		sinon.restore();
+	});
+
 	test('registerCollection adds collection to registry', () => {
 		const disposable = registry.registerCollection(testCollection);
 		store.add(disposable);
@@ -328,6 +332,94 @@ suite('Workbench - MCP - Registry', () => {
 
 		disposable.dispose();
 		assert.strictEqual(registry.delegates.get().length, 0);
+	});
+
+	for (const removed of ['collection', 'definition'] as const) {
+		for (const duringLoad of [false, true]) {
+			test(`resolveConnection skips a removed ${removed} ${duringLoad ? 'during lazy loading' : 'before resolution'}`, async () => {
+				const loaded = new DeferredPromise<void>();
+				const resolveLaunch = sinon.stub().resolves(baseDefinition.launch);
+				const resolveInputs = sinon.spy(testConfigResolverService, 'resolveWithInteraction');
+				const delegate = new TestMcpHostDelegate();
+				const substituteVariables = sinon.spy(delegate, 'substituteVariables');
+				store.add(registry.registerDelegate(delegate));
+				testCollection.serverDefinitions.set([baseDefinition], undefined);
+				const collection: McpCollectionDefinition = {
+					...testCollection,
+					resolveServerLanch: resolveLaunch,
+					lazy: duringLoad ? { isCached: true, load: () => loaded.p } : undefined,
+				};
+				const registration = store.add(registry.registerCollection(collection));
+				const resolve = () => registry.resolveConnection({ collectionRef: collection, definitionRef: baseDefinition, logger, trustNonceBearer, taskManager });
+				const pending = duringLoad ? resolve() : undefined;
+
+				if (removed === 'collection') {
+					registration.dispose();
+				} else {
+					testCollection.serverDefinitions.set([], undefined);
+				}
+				await loaded.complete();
+
+				const connection = await (pending ?? resolve());
+				if (connection) {
+					store.add(connection);
+				}
+				assert.deepStrictEqual({
+					connection,
+					launchResolutions: resolveLaunch.callCount,
+					variableSubstitutions: substituteVariables.callCount,
+					inputResolutions: resolveInputs.callCount,
+					sandboxLaunches: testMcpSandboxService.callCount,
+				}, {
+					connection: undefined,
+					launchResolutions: 0,
+					variableSubstitutions: 0,
+					inputResolutions: 0,
+					sandboxLaunches: 0,
+				});
+			});
+		}
+	}
+
+	test('resolveConnection still rejects a lazy loading error', async () => {
+		const error = new Error('Failed to load the MCP collection');
+		const collection: McpCollectionDefinition = {
+			...testCollection,
+			lazy: { isCached: true, load: async () => { throw error; } },
+		};
+		store.add(registry.registerCollection(collection));
+
+		await assert.rejects(
+			registry.resolveConnection({ collectionRef: collection, definitionRef: baseDefinition, logger, trustNonceBearer, taskManager }),
+			error,
+		);
+	});
+
+	test('resolveConnection still rejects a missing delegate', async () => {
+		testCollection.serverDefinitions.set([baseDefinition], undefined);
+		store.add(registry.registerCollection(testCollection));
+
+		await assert.rejects(
+			registry.resolveConnection({ collectionRef: testCollection, definitionRef: baseDefinition, logger, trustNonceBearer, taskManager }),
+			/No delegate found that can handle the connection/,
+		);
+	});
+
+	test('resolveConnection still rejects an enterprise customization restriction', async () => {
+		testCollection.serverDefinitions.set([baseDefinition], undefined);
+		store.add(registry.registerCollection(testCollection));
+		await configurationService.setUserConfiguration(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, true);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set([COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG]),
+			change: { keys: [COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG], overrides: [] },
+			affectsConfiguration: key => key === COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG,
+		});
+
+		await assert.rejects(
+			registry.resolveConnection({ collectionRef: testCollection, definitionRef: baseDefinition, logger, trustNonceBearer, taskManager }),
+			/MCP collection test-collection is blocked by enterprise customization policy/,
+		);
 	});
 
 	test('resolveConnection creates connection with resolved variables and memorizes them until cleared', async () => {
@@ -406,6 +498,38 @@ suite('Workbench - MCP - Registry', () => {
 		} : { type: launch.type }, {
 			isUri: true,
 			url: 'https://mcp.example.com/mcp',
+		});
+		connection.dispose();
+	});
+
+	test('resolveConnection resolves variables in HTTP URIs', async () => {
+		const definition: McpServerDefinition = {
+			...baseDefinition,
+			launch: {
+				type: McpServerTransportType.HTTP,
+				uri: URI.parse('https://${input:testInteractive}.example.com/mcp'),
+				headers: [],
+			},
+			variableReplacement: {
+				section: 'mcp',
+				target: ConfigurationTarget.WORKSPACE,
+			}
+		};
+
+		const delegate = new TestMcpHostDelegate();
+		store.add(registry.registerDelegate(delegate));
+		testCollection.serverDefinitions.set([definition], undefined);
+		store.add(registry.registerCollection(testCollection));
+
+		const connection = await registry.resolveConnection({ collectionRef: testCollection, definitionRef: definition, logger, trustNonceBearer, taskManager }) as McpServerConnection;
+		const launch = connection.launchDefinition;
+
+		assert.deepStrictEqual(launch.type === McpServerTransportType.HTTP ? {
+			isUri: URI.isUri(launch.uri),
+			url: launch.uri.toString(true),
+		} : { type: launch.type }, {
+			isUri: true,
+			url: 'https://interactivevalue0.example.com/mcp',
 		});
 		connection.dispose();
 	});

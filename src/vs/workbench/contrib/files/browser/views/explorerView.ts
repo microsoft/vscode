@@ -5,6 +5,7 @@
 
 import * as nls from '../../../../../nls.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { Sequencer } from '../../../../../base/common/async.js';
 import * as perf from '../../../../../base/common/performance.js';
 import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from '../../../../../base/common/actions.js';
 import { memoize } from '../../../../../base/common/decorators.js';
@@ -202,7 +203,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	private viewHasSomeCollapsibleRootItem: IContextKey<boolean>;
 	private viewVisibleContextKey: IContextKey<boolean>;
 
-	private setTreeInputPromise: Promise<void> | undefined;
+	private readonly setTreeInputSequencer = new Sequencer();
 	private horizontalScrolling: boolean | undefined;
 
 	private dragHandler!: DelayedDragHandler;
@@ -236,7 +237,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		@IClipboardService private clipboardService: IClipboardService,
 		@IFileService private readonly fileService: IFileService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@ICommandService private readonly commandService: ICommandService,
+		@ICommandService protected readonly commandService: ICommandService,
 		@IOpenerService openerService: IOpenerService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService
@@ -560,7 +561,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 				}
 				return true;
 			},
-			autoExpandSingleChildren: true,
+			autoExpandCompressedChildren: true,
 			expandOnlyOnTwistieClick: (e: unknown) => {
 				if (e instanceof ExplorerItem) {
 					if (e.hasNests) {
@@ -832,14 +833,13 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		return DOM.getLargestChildWidth(parentNode, childNodes);
 	}
 
-	async setTreeInput(): Promise<void> {
-		if (!this.isBodyVisible()) {
-			return Promise.resolve(undefined);
-		}
+	setTreeInput(): Promise<void> {
+		return this.setTreeInputSequencer.queue(() => this.doSetTreeInput());
+	}
 
-		// Wait for the last execution to complete before executing
-		if (this.setTreeInputPromise) {
-			await this.setTreeInputPromise;
+	private async doSetTreeInput(): Promise<void> {
+		if (!this.isBodyVisible()) {
+			return;
 		}
 
 		const initialInputSetup = !this.tree.getInput();
@@ -864,7 +864,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		}
 
 		const previousInput = this.tree.getInput();
-		const promise = this.setTreeInputPromise = this.tree.setInput(input, viewState).then(async () => {
+		const promise = this.tree.setInput(input, viewState).then(async () => {
 			if (Array.isArray(input)) {
 				if (!viewState || previousInput instanceof ExplorerItem) {
 					// There is no view state for this workspace (we transitioned from a folder workspace?), expand up to five roots.
@@ -917,9 +917,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		}
 
 		// If something is refreshing the explorer, we must await it or else a selection race condition can occur
-		if (this.setTreeInputPromise) {
-			await this.setTreeInputPromise;
-		}
+		await this.setTreeInputSequencer.queue(() => Promise.resolve());
 
 		// Expand all stats in the parent chain.
 		let item: ExplorerItem | null = this.explorerService.findClosestRoot(resource);

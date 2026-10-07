@@ -6,10 +6,11 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
-import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { parse } from '../../../../../../base/common/jsonc.js';
 import { Schemas } from '../../../../../../base/common/network.js';
+import { sep } from '../../../../../../base/common/path.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -18,9 +19,12 @@ import { IFileWriteOptions, IStat } from '../../../../../../platform/files/commo
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { IWorkspaceFolderData } from '../../../../../../platform/workspace/common/workspace.js';
+import { AbstractVariableResolverService } from '../../../../../services/configurationResolver/common/variableResolver.js';
 import { McpServerCustomizationMigrator } from '../../../browser/aiCustomization/mcpServerCustomizationMigration.js';
-import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerEnablementState, AgentHostMcpServerSourceKind, IAgentHostMcpServerSupport, IAgentHostMcpServerSupportSnapshot } from '../../../browser/agentSessions/agentHost/agentHostMcpServerSupport.js';
+import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerEnablementState, AgentHostMcpServerSourceKind, AgentHostMcpSupportReason, IAgentHostMcpServerSupport, IAgentHostMcpServerSupportSnapshot } from '../../../browser/agentSessions/agentHost/agentHostMcpServerSupport.js';
 import { CustomizationMigrationType, IMcpServerCustomizationMigrationCandidate, McpServerCustomizationMigrationFailureReason } from '../../../common/promptSyntax/service/customizationMigrationService.js';
+import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 
 class SourceWriteFailingProvider extends InMemoryFileSystemProvider {
 	sourceUri: URI | undefined;
@@ -126,19 +130,6 @@ class ResolveFailingProvider extends InMemoryFileSystemProvider {
 	}
 }
 
-class CrossRootConflictProvider extends InMemoryFileSystemProvider {
-	triggerUri: URI | undefined;
-	conflictingUri: URI | undefined;
-
-	override async writeFile(resource: URI, content: Uint8Array, options: IFileWriteOptions): Promise<void> {
-		await super.writeFile(resource, content, options);
-		if (this.triggerUri && this.conflictingUri && isEqual(resource, this.triggerUri)) {
-			this.triggerUri = undefined;
-			await super.writeFile(this.conflictingUri, VSBuffer.fromString('{"mcpServers":{"demo":{"command":"other"}}}').buffer, options);
-		}
-	}
-}
-
 class InterleavedMigrationProvider extends InMemoryFileSystemProvider {
 	resource: URI | undefined;
 	afterWrite: (() => Promise<void>) | undefined;
@@ -153,6 +144,23 @@ class InterleavedMigrationProvider extends InMemoryFileSystemProvider {
 	}
 }
 
+class TestConfigurationResolverService extends AbstractVariableResolverService {
+	constructor(folders: readonly IWorkspaceFolderData[] = []) {
+		super({
+			getFolderUri: name => folders.find(folder => folder.name === name)?.uri,
+			getWorkspaceFolderCount: () => folders.length,
+			getConfigurationValue: () => undefined,
+			getAppRoot: () => undefined,
+			getExecPath: () => undefined,
+			getFilePath: () => undefined,
+			getSelectedText: () => undefined,
+			getLineNumber: () => undefined,
+			getColumnNumber: () => undefined,
+			getExtension: async () => undefined,
+		});
+	}
+}
+
 suite('McpServerCustomizationMigration', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -163,13 +171,14 @@ suite('McpServerCustomizationMigration', () => {
 		return fileService;
 	}
 
-	function createMigrator(fileService: FileService): McpServerCustomizationMigrator {
-		return new McpServerCustomizationMigrator(fileService, new NullLogService());
+	function createMigrator(fileService: FileService, folders: readonly IWorkspaceFolderData[] = []): McpServerCustomizationMigrator {
+		return new McpServerCustomizationMigrator(fileService, new NullLogService(), new TestConfigurationResolverService(folders));
 	}
 
 	function candidate(root: URI, name: string, projectedConfiguration: IMcpServerConfiguration = { type: McpServerType.LOCAL, command: 'node' }): IMcpServerCustomizationMigrationCandidate {
 		return {
 			type: CustomizationMigrationType.McpServers,
+			storage: PromptsStorage.local,
 			id: `mcp.config.ws0.${name}`,
 			name,
 			sourceUri: URI.joinPath(root, '.vscode', 'mcp.json'),
@@ -202,6 +211,191 @@ suite('McpServerCustomizationMigration', () => {
 		};
 	}
 
+	function userCandidate(name = 'demo'): IMcpServerCustomizationMigrationCandidate {
+		return {
+			...candidate(URI.file('/unused'), name),
+			storage: PromptsStorage.user,
+			sourceUri: URI.file('/profile/mcp.json'),
+			targetUri: URI.file('/custom-copilot-home/mcp-config.json'),
+		};
+	}
+
+	for (const remote of [false, true]) {
+		test(`plans and migrates ${remote ? 'remote' : 'local'} user servers without a workspace`, async () => {
+			const fileService = createFileService();
+			if (remote) {
+				store.add(fileService.registerProvider(Schemas.vscodeRemote, store.add(new InMemoryFileSystemProvider())));
+			}
+			const base = userCandidate();
+			const sourceUri = remote ? base.sourceUri.with({ scheme: Schemas.vscodeRemote, authority: 'ssh-remote+test' }) : base.sourceUri;
+			const targetUri = remote ? base.targetUri.with({ scheme: Schemas.vscodeRemote, authority: 'ssh-remote+test' }) : base.targetUri;
+			await fileService.writeFile(sourceUri, VSBuffer.fromString(`{
+				// Keep unrelated settings and servers.
+				"inputs": [{"id": "secret", "type": "promptString"}],
+				"servers": {
+					"demo": {"command": "node"},
+					"http": {"url": "https://example.com", "headers": {"X-Test": "value"}},
+					"unselected": {"command": "other"},
+					"workspace": {"command": "\${workspaceFolder}/server"},
+					"input": {"command": "\${input:secret}"}
+				}
+			}`));
+			const snapshot: IAgentHostMcpServerSupportSnapshot = {
+				servers: ['demo', 'http', 'unselected', 'workspace', 'input'].map(name => {
+					const server = support(URI.file('/unused'), name);
+					return {
+						...server,
+						source: { ...server.source, kind: remote ? AgentHostMcpServerSourceKind.RemoteUser : AgentHostMcpServerSourceKind.UserProfile, collectionUri: sourceUri, remoteAuthority: remote ? sourceUri.authority : null },
+						enablement: { enabled: false, state: AgentHostMcpServerEnablementState.DisabledProfile },
+						projectedConfiguration: name === 'http'
+							? { type: McpServerType.REMOTE, url: 'https://example.com', headers: { 'X-Test': 'value' } }
+							: { type: McpServerType.LOCAL, command: name === 'unselected' ? 'other' : 'node' },
+					};
+				}),
+				discoveryComplete: true,
+				coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+			};
+			const migrator = createMigrator(fileService);
+			const plan = await migrator.createPlan(snapshot, [], CancellationToken.None, targetUri);
+			const result = await migrator.migrate(plan.candidates.filter(candidate => candidate.name !== 'unselected'), { userTarget: targetUri });
+
+			assert.deepStrictEqual({
+				candidates: plan.candidates.map(candidate => [candidate.name, candidate.storage, candidate.targetUri.toString()]),
+				exclusions: plan.exclusions.map(exclusion => [exclusion.name, exclusion.storage, exclusion.reason]),
+				result,
+				source: parse((await fileService.readFile(sourceUri)).value.toString()),
+				target: JSON.parse((await fileService.readFile(targetUri)).value.toString()),
+			}, {
+				candidates: ['demo', 'http', 'unselected'].map(name => [name, PromptsStorage.user, targetUri.toString()]),
+				exclusions: ['workspace', 'input'].map(name => [name, PromptsStorage.user, McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration]),
+				result: { migratedCount: 2, failures: [] },
+				source: {
+					inputs: [{ id: 'secret', type: 'promptString' }],
+					servers: { unselected: { command: 'other' }, workspace: { command: '${workspaceFolder}/server' }, input: { command: '${input:secret}' } },
+				},
+				target: {
+					mcpServers: {
+						demo: { type: 'local', command: 'node', args: [], tools: ['*'] },
+						http: { type: 'http', url: 'https://example.com', headers: { 'X-Test': 'value' }, tools: ['*'] },
+					},
+				},
+			});
+		});
+	}
+
+	test('does not offer user migrations without a destination on the source machine', async () => {
+		const fileService = createFileService();
+		const server = support(URI.file('/unused'), 'demo');
+		const snapshot: IAgentHostMcpServerSupportSnapshot = {
+			servers: [{ ...server, source: { ...server.source, kind: AgentHostMcpServerSourceKind.UserProfile, collectionUri: userCandidate().sourceUri } }],
+			discoveryComplete: true,
+			coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+		};
+		const plans = await Promise.all([undefined, URI.parse('vscode-remote://ssh-remote+test/home/test/.copilot/mcp-config.json')]
+			.map(target => createMigrator(fileService).createPlan(snapshot, [], CancellationToken.None, target)));
+		assert.deepStrictEqual(plans, [{ candidates: [], exclusions: [] }, { candidates: [], exclusions: [] }]);
+	});
+
+	test('rejects null-valued environment variables for user migrations', async () => {
+		const fileService = createFileService();
+		const selected = userCandidate();
+		const projectedConfiguration: IMcpServerConfiguration = { type: McpServerType.LOCAL, command: 'node', env: { REMOVE_ME: null } };
+		await fileService.writeFile(selected.sourceUri, VSBuffer.fromString('{"servers":{"demo":{"command":"node","env":{"REMOVE_ME":null}}}}'));
+		const server = support(URI.file('/unused'), selected.name, { projectedConfiguration });
+		const snapshot: IAgentHostMcpServerSupportSnapshot = {
+			servers: [{
+				...server,
+				source: { ...server.source, kind: AgentHostMcpServerSourceKind.UserProfile, collectionUri: selected.sourceUri },
+			}],
+			discoveryComplete: true,
+			coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+		};
+		const migrator = createMigrator(fileService);
+		const plan = await migrator.createPlan(snapshot, [], CancellationToken.None, selected.targetUri);
+		const result = await migrator.migrate([{ ...selected, projectedConfiguration }], { userTarget: selected.targetUri });
+
+		assert.deepStrictEqual({
+			candidates: plan.candidates,
+			exclusions: plan.exclusions.map(exclusion => exclusion.reason),
+			result: { migratedCount: result.migratedCount, failures: result.failures.map(failure => failure.reason) },
+			source: parse((await fileService.readFile(selected.sourceUri)).value.toString()),
+			targetExists: await fileService.exists(selected.targetUri),
+		}, {
+			candidates: [],
+			exclusions: [McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration],
+			result: { migratedCount: 0, failures: [McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration] },
+			source: { servers: { demo: { command: 'node', env: { REMOVE_ME: null } } } },
+			targetExists: false,
+		});
+	});
+
+	for (const target of [
+		{ content: '{"metadata":true}', reason: undefined },
+		{ content: '{"mcpServers":{"demo":{"type":"local","command":"node"}},"metadata":true}', reason: undefined },
+		{ content: '{"mcpServers":{"demo":{"type":"local","command":"node","tools":["read"]}}}', reason: McpServerCustomizationMigrationFailureReason.TargetConflict },
+		{ content: '{"mcpServers":{"demo":{"type":"local","command":"other"}}}', reason: McpServerCustomizationMigrationFailureReason.TargetConflict },
+		{ content: '{"mcpServers":{},}', reason: McpServerCustomizationMigrationFailureReason.InvalidTarget },
+		{ content: '{"mcpServers":null}', reason: McpServerCustomizationMigrationFailureReason.InvalidTarget },
+	]) {
+		test(`preserves Copilot-owned configuration when migrating into ${target.content}`, async () => {
+			const fileService = createFileService();
+			const selected = userCandidate();
+			const original = '{"servers":{"demo":{"command":"node"}}}';
+			await fileService.writeFile(selected.sourceUri, VSBuffer.fromString(original));
+			await fileService.writeFile(selected.targetUri, VSBuffer.fromString(target.content));
+
+			const result = await createMigrator(fileService).migrate([selected], { userTarget: selected.targetUri });
+			assert.deepStrictEqual({
+				migrated: result.migratedCount,
+				failures: result.failures.map(failure => failure.reason),
+				source: parse((await fileService.readFile(selected.sourceUri)).value.toString()),
+				target: target.reason ? (await fileService.readFile(selected.targetUri)).value.toString() : JSON.parse((await fileService.readFile(selected.targetUri)).value.toString()).metadata,
+			}, {
+				migrated: target.reason ? 0 : 1,
+				failures: target.reason ? [target.reason] : [],
+				source: target.reason ? parse(original) : { servers: {} },
+				target: target.reason ? target.content : true,
+			});
+		});
+	}
+
+	test('rejects user destinations not supplied by the current host', async () => {
+		const selected = userCandidate();
+		const result = await createMigrator(createFileService()).migrate([selected], { userTarget: URI.file('/other/mcp-config.json') });
+		assert.deepStrictEqual(result.failures.map(failure => failure.reason), [McpServerCustomizationMigrationFailureReason.InconsistentTarget]);
+	});
+
+	test('rolls back a user migration if removing the source fails', async () => {
+		const provider = new SourceWriteFailingProvider();
+		const fileService = createFileService(provider);
+		const selected = userCandidate();
+		const source = '{"servers":{"demo":{"command":"node"}}}';
+		const target = '{"mcpServers":{},"metadata":true}';
+		await fileService.writeFile(selected.sourceUri, VSBuffer.fromString(source));
+		await fileService.writeFile(selected.targetUri, VSBuffer.fromString(target));
+		provider.sourceUri = selected.sourceUri;
+		provider.failSourceWrite = true;
+
+		const result = await createMigrator(fileService).migrate([selected], { userTarget: selected.targetUri });
+		assert.deepStrictEqual({
+			migrated: result.migratedCount,
+			failures: result.failures.map(failure => failure.reason),
+			source: (await fileService.readFile(selected.sourceUri)).value.toString(),
+			target: (await fileService.readFile(selected.targetUri)).value.toString(),
+		}, { migrated: 0, failures: [McpServerCustomizationMigrationFailureReason.WriteFailed], source, target });
+	});
+
+	test('keeps workspace and user servers with the same name in their respective scopes', async () => {
+		const fileService = createFileService();
+		const workspace = candidate(URI.file('/workspace'), 'demo');
+		const user = userCandidate();
+		for (const selected of [workspace, user]) {
+			await fileService.writeFile(selected.sourceUri, VSBuffer.fromString('{"servers":{"demo":{"command":"node"}}}'));
+		}
+		const result = await createMigrator(fileService).migrate([workspace, user], { userTarget: user.targetUri });
+		assert.deepStrictEqual(result, { migratedCount: 2, failures: [] });
+	});
+
 	for (const cancelBeforeReading of [true, false]) {
 		test(`stops cancelled planning ${cancelBeforeReading ? 'before' : 'during'} source reads`, async () => {
 			const roots = [URI.file('/first'), URI.file('/second')];
@@ -232,7 +426,7 @@ suite('McpServerCustomizationMigration', () => {
 		});
 	}
 
-	test('plans only enabled, applicable, fully supported and exactly representable workspace-folder servers', async () => {
+	test('plans applicable, supported and exactly representable workspace-folder servers regardless of enablement', async () => {
 		const root = URI.file('/plan');
 		const fileService = createFileService();
 		await fileService.writeFile(URI.joinPath(root, '.vscode', 'mcp.json'), VSBuffer.fromString(`{
@@ -242,16 +436,21 @@ suite('McpServerCustomizationMigration', () => {
 				"metadata": { "type": "stdio", "command": "node", "version": "1" },
 				"cwd": { "type": "stdio", "command": "node", "cwd": "/tmp" },
 				"sse": { "type": "http", "transport": "sse", "url": "https://example.com" },
+				"nullEnv": { "type": "stdio", "command": "node", "env": { "REMOVE_ME": null } },
 				"disabled": { "type": "stdio", "command": "node" }
 			}
 		}`));
 		const snapshot: IAgentHostMcpServerSupportSnapshot = {
 			servers: [
 				support(root, 'eligible'),
-				support(root, 'variable', { projectedConfiguration: { type: McpServerType.LOCAL, command: '/plan/server' } }),
-				support(root, 'metadata'),
+				support(root, 'variable', { projectedConfiguration: { type: McpServerType.LOCAL, command: `${root.fsPath}/server` } }),
+				support(root, 'metadata', { compatibility: { kind: 'partiallySupported', reasons: [AgentHostMcpSupportReason.ServerVersionNotPortable] } }),
 				support(root, 'cwd', { projectedConfiguration: { type: McpServerType.LOCAL, command: 'node', cwd: '/tmp' } }),
-				support(root, 'sse', { projectedConfiguration: { type: McpServerType.REMOTE, transport: 'sse', url: 'https://example.com' } }),
+				support(root, 'sse', {
+					compatibility: { kind: 'partiallySupported', reasons: [AgentHostMcpSupportReason.SseTransportNotPortable] },
+					projectedConfiguration: { type: McpServerType.REMOTE, transport: 'sse', url: 'https://example.com' },
+				}),
+				support(root, 'nullEnv', { projectedConfiguration: { type: McpServerType.LOCAL, command: 'node', env: { REMOVE_ME: null } } }),
 				support(root, 'disabled', { enablement: { enabled: false, state: AgentHostMcpServerEnablementState.DisabledWorkspace } }),
 				support(URI.file('/outside'), 'outside'),
 			],
@@ -265,14 +464,296 @@ suite('McpServerCustomizationMigration', () => {
 			candidates: plan.candidates.map(item => item.name),
 			exclusions: plan.exclusions.map(item => [item.name, item.reason]),
 		}, {
-			candidates: ['eligible'],
+			candidates: ['eligible', 'variable', 'metadata', 'disabled'],
 			exclusions: [
-				['variable', McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration],
-				['metadata', McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration],
 				['cwd', McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration],
 				['sse', McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration],
-				['disabled', McpServerCustomizationMigrationFailureReason.NoLongerEligible],
+				['nullEnv', McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration],
 			],
+		});
+	});
+
+	for (const storage of [PromptsStorage.local, PromptsStorage.user] as const) {
+		for (const type of [McpServerType.LOCAL, McpServerType.REMOTE]) {
+			test(`plans and removes warned properties for ${storage} ${type} servers`, async () => {
+				const root = URI.file('/removals');
+				const selected = storage === PromptsStorage.user ? userCandidate() : candidate(root, 'demo');
+				const projectedConfiguration: IMcpServerConfiguration = type === McpServerType.LOCAL
+					? { type, command: 'node', args: ['server@1.0.0'], env: { PORT: 3000 } }
+					: { type, url: 'https://example.com/v1', headers: { 'X-Test': 'value' } };
+				const properties = [
+					{ gallery: true },
+					{ gallery: false },
+					{ gallery: 'https://registry.example' },
+					{ version: '1.0.0' },
+					{ dev: { watch: '${input:watch}', debug: { type: 'node' } } },
+					{ dev: { debug: { type: 'debugpy', debugpyPath: '${command:debugpy}' } } },
+					{ gallery: true, version: '1.0.0', dev: {} },
+					...(type === McpServerType.LOCAL ? [{ sandboxEnabled: true }, { sandboxEnabled: false }] : []),
+				];
+				const fileService = createFileService();
+				const unselected = { command: 'other', sandboxEnabled: true };
+				const sandbox = { network: { allowedDomains: ['example.com'] } };
+				const inputs = [{ id: 'watch', type: 'promptString' }];
+				await fileService.writeFile(selected.sourceUri, VSBuffer.fromString(JSON.stringify({
+					sandbox,
+					inputs,
+					servers: {
+						...Object.fromEntries(properties.map((removed, index) => [`server${index}`, { ...projectedConfiguration, ...removed }])),
+						unselected,
+					},
+				})));
+				const snapshot: IAgentHostMcpServerSupportSnapshot = {
+					servers: properties.map((_, index) => {
+						const server = support(root, `server${index}`, {
+							projectedConfiguration,
+							compatibility: { kind: 'partiallySupported', reasons: [AgentHostMcpSupportReason.DevelopmentModeIgnored] },
+						});
+						return {
+							...server,
+							source: { ...server.source, collectionUri: selected.sourceUri, kind: storage === PromptsStorage.user ? AgentHostMcpServerSourceKind.UserProfile : AgentHostMcpServerSourceKind.VscodeWorkspaceFolder },
+						};
+					}),
+					discoveryComplete: true,
+					coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+				};
+				const migrator = createMigrator(fileService);
+				const plan = await migrator.createPlan(snapshot, [root], CancellationToken.None, selected.targetUri);
+				const result = await migrator.migrate(plan.candidates, { userTarget: selected.targetUri });
+				const targetConfiguration = type === McpServerType.LOCAL
+					? { type: 'local', command: 'node', args: ['server@1.0.0'], env: { PORT: '3000' }, tools: ['*'] }
+					: { type: 'http', url: 'https://example.com/v1', headers: { 'X-Test': 'value' }, tools: ['*'] };
+
+				assert.deepStrictEqual({
+					removals: plan.candidates.map(candidate => candidate.removedProperties),
+					exclusions: plan.exclusions,
+					result,
+					source: parse((await fileService.readFile(selected.sourceUri)).value.toString()),
+					target: parse((await fileService.readFile(selected.targetUri)).value.toString()),
+				}, {
+					removals: properties,
+					exclusions: [],
+					result: { migratedCount: properties.length, failures: [] },
+					source: { sandbox, inputs, servers: { unselected } },
+					target: { mcpServers: Object.fromEntries(properties.map((_, index) => [`server${index}`, targetConfiguration])) },
+				});
+			});
+		}
+	}
+
+	test('keeps other unsupported properties blocked even with removable metadata', async () => {
+		const root = URI.file('/unsupported');
+		const fileService = createFileService();
+		const configurations: IMcpServerConfiguration[] = [
+			{ type: McpServerType.LOCAL, command: 'node', envFile: '.env' },
+			{ type: McpServerType.LOCAL, command: 'node', cwd: '/tmp' },
+			{ type: McpServerType.LOCAL, command: 'node', env: { SECRET: null } },
+			{ type: McpServerType.LOCAL, command: 'node', args: ['${input:secret}'] },
+			{ type: McpServerType.REMOTE, url: 'https://example.com', oauth: { clientId: 'required' } },
+			{ type: McpServerType.REMOTE, url: 'https://example.com', transport: 'sse' },
+		];
+		await fileService.writeFile(URI.joinPath(root, '.vscode', 'mcp.json'), VSBuffer.fromString(JSON.stringify({
+			servers: Object.fromEntries(configurations.map((configuration, index) => [`server${index}`, { ...configuration, gallery: true }])),
+		})));
+		const plan = await createMigrator(fileService).createPlan({
+			servers: configurations.map((projectedConfiguration, index) => support(root, `server${index}`, { projectedConfiguration })),
+			discoveryComplete: true,
+			coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+		}, [root]);
+		assert.deepStrictEqual({
+			candidates: plan.candidates,
+			reasons: plan.exclusions.map(exclusion => exclusion.reason),
+		}, {
+			candidates: [],
+			reasons: configurations.map(() => McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration),
+		});
+	});
+
+	test('rejects new, changed, or unconfirmed property removals before writing', async () => {
+		const root = URI.file('/stale-removals');
+		const fileService = createFileService();
+		const selected = candidate(root, 'demo');
+		const changes = [
+			{ before: undefined, after: { gallery: true } },
+			{ before: { gallery: true }, after: { gallery: 'https://registry.example' } },
+			{ before: { version: '1' }, after: { version: '2' } },
+			{ before: { dev: {} }, after: { dev: { watch: '*.ts' } } },
+			{ before: { sandboxEnabled: false }, after: { sandboxEnabled: true } },
+			{ before: { sandboxEnabled: true }, after: {} },
+		];
+		const results = [];
+		for (const { before, after } of changes) {
+			const content = JSON.stringify({ servers: { demo: { command: 'node', ...after } } });
+			await fileService.writeFile(selected.sourceUri, VSBuffer.fromString(content));
+			const result = await createMigrator(fileService).migrate([{ ...selected, removedProperties: before }]);
+			results.push({
+				migratedCount: result.migratedCount,
+				reasons: result.failures.map(failure => failure.reason),
+				sourceUnchanged: (await fileService.readFile(selected.sourceUri)).value.toString() === content,
+				targetExists: await fileService.exists(selected.targetUri),
+			});
+		}
+		assert.deepStrictEqual(results, changes.map(() => ({
+			migratedCount: 0,
+			reasons: [McpServerCustomizationMigrationFailureReason.SourceChanged],
+			sourceUnchanged: true,
+			targetExists: false,
+		})));
+	});
+
+	test('restores removed properties when the source write fails', async () => {
+		const root = URI.file('/rollback-removals');
+		const provider = new SourceWriteFailingProvider();
+		const fileService = createFileService(provider);
+		const selected = { ...candidate(root, 'demo'), removedProperties: { gallery: true, version: '1', dev: { watch: '*.ts' }, sandboxEnabled: true } };
+		const source = JSON.stringify({ servers: { demo: { command: 'node', ...selected.removedProperties } } });
+		const target = '{"mcpServers":{}}';
+		await fileService.writeFile(selected.sourceUri, VSBuffer.fromString(source));
+		await fileService.writeFile(selected.targetUri, VSBuffer.fromString(target));
+		provider.sourceUri = selected.sourceUri;
+		provider.failSourceWrite = true;
+
+		const result = await createMigrator(fileService).migrate([selected]);
+		assert.deepStrictEqual({
+			migratedCount: result.migratedCount,
+			reasons: result.failures.map(failure => failure.reason),
+			source: (await fileService.readFile(selected.sourceUri)).value.toString(),
+			target: (await fileService.readFile(selected.targetUri)).value.toString(),
+		}, {
+			migratedCount: 0,
+			reasons: [McpServerCustomizationMigrationFailureReason.WriteFailed],
+			source,
+			target,
+		});
+	});
+
+	test('resolves portable workspace and path variables while rejecting other interpolation', async () => {
+		const first = URI.file('/workspace/first');
+		const second = URI.file('/workspace/second');
+		const fileService = createFileService();
+		await fileService.writeFile(URI.joinPath(first, '.vscode', 'mcp.json'), VSBuffer.fromString(`{
+			"servers": {
+				"portable": {
+					"type": "stdio",
+					"command": "\${workspaceFolder}\${pathSeparator}server.js",
+					"args": [
+						"\${cwd}/argument",
+						"\${workspaceFolder:backend}/\${workspaceFolderBasename:backend}",
+						"\${workspaceFolderBasename}",
+						"\${/}",
+						"\${workspaceRoot}/\${workspaceRootFolderName}",
+						"\${cwd:backend}"
+					]
+				},
+				"environment": { "type": "stdio", "command": "\${env:COMMAND}" },
+				"unknownRoot": { "type": "stdio", "command": "\${workspaceFolder:missing}/server.js" }
+			}
+		}`));
+		const projectedConfiguration: IMcpServerConfiguration = {
+			type: McpServerType.LOCAL,
+			command: `${first.fsPath}${sep}server.js`,
+			args: [
+				`${first.fsPath}/argument`,
+				`${second.fsPath}/second`,
+				'first',
+				sep,
+				`${first.fsPath}/first`,
+				second.fsPath,
+			],
+		};
+		const snapshot: IAgentHostMcpServerSupportSnapshot = {
+			servers: [
+				support(first, 'portable', { projectedConfiguration }),
+				support(first, 'environment', { projectedConfiguration: { type: McpServerType.LOCAL, command: 'node' } }),
+				support(first, 'unknownRoot', { projectedConfiguration: { type: McpServerType.LOCAL, command: '/workspace/missing/server.js' } }),
+			],
+			discoveryComplete: true,
+			coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+		};
+
+		const folders: IWorkspaceFolderData[] = [
+			{ uri: first, name: 'frontend', index: 0 },
+			{ uri: second, name: 'backend', index: 1 },
+		];
+		const plan = await createMigrator(fileService, folders).createPlan(snapshot, [first, second]);
+		const result = await createMigrator(fileService, folders).migrate(plan.candidates);
+
+		assert.deepStrictEqual({
+			candidates: plan.candidates.map(candidate => candidate.name),
+			exclusions: plan.exclusions.map(exclusion => [exclusion.name, exclusion.reason]),
+			result,
+			source: parse((await fileService.readFile(URI.joinPath(first, '.vscode', 'mcp.json'))).value.toString()),
+			target: parse((await fileService.readFile(URI.joinPath(first, '.mcp.json'))).value.toString()),
+		}, {
+			candidates: ['portable'],
+			exclusions: [
+				['environment', McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration],
+				['unknownRoot', McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration],
+			],
+			result: { migratedCount: 1, failures: [] },
+			source: {
+				servers: {
+					environment: { type: 'stdio', command: '${env:COMMAND}' },
+					unknownRoot: { type: 'stdio', command: '${workspaceFolder:missing}/server.js' },
+				},
+			},
+			target: {
+				mcpServers: {
+					portable: {
+						type: 'local',
+						command: projectedConfiguration.command,
+						args: [...projectedConfiguration.args!],
+						tools: ['*'],
+					},
+				},
+			},
+		});
+	});
+
+	test('accepts the target representation after resolving portable source variables', async () => {
+		const root = URI.file('/existing-variable-target');
+		const sourceUri = URI.joinPath(root, '.vscode', 'mcp.json');
+		const targetUri = URI.joinPath(root, '.mcp.json');
+		const fileService = createFileService();
+		await fileService.writeFile(sourceUri, VSBuffer.fromString('{"servers":{"server":{"command":"${workspaceFolder}/server.js"}}}'));
+		const projectedConfiguration: IMcpServerConfiguration = { type: McpServerType.LOCAL, command: `${root.fsPath}/server.js` };
+		await fileService.writeFile(targetUri, VSBuffer.fromString(`{"mcpServers":{"server":{"type":"local","command":${JSON.stringify(projectedConfiguration.command)},"args":[],"tools":["*"]}}}`));
+		const migrator = createMigrator(fileService, [{ uri: root, name: 'custom-name', index: 0 }]);
+
+		const result = await migrator.migrate([candidate(root, 'server', projectedConfiguration)]);
+
+		assert.deepStrictEqual({
+			result,
+			source: parse((await fileService.readFile(sourceUri)).value.toString()),
+			target: parse((await fileService.readFile(targetUri)).value.toString()),
+		}, {
+			result: { migratedCount: 1, failures: [] },
+			source: { servers: {} },
+			target: { mcpServers: { server: { type: 'local', command: projectedConfiguration.command, args: [], tools: ['*'] } } },
+		});
+	});
+
+	test('migrates every server from a source with a trailing comma', async () => {
+		const root = URI.file('/trailing-comma');
+		const sourceUri = URI.joinPath(root, '.vscode', 'mcp.json');
+		const fileService = createFileService();
+		await fileService.writeFile(sourceUri, VSBuffer.fromString('{\n  "servers": {\n    "first": { "command": "node" },\n    "second": { "command": "node" },\n  }\n}\n'));
+
+		const result = await createMigrator(fileService).migrate([candidate(root, 'first'), candidate(root, 'second')]);
+
+		assert.deepStrictEqual({
+			result,
+			source: (await fileService.readFile(sourceUri)).value.toString(),
+			target: parse((await fileService.readFile(URI.joinPath(root, '.mcp.json'))).value.toString()),
+		}, {
+			result: { migratedCount: 2, failures: [] },
+			source: '{\n  "servers": {\n  }\n}\n',
+			target: {
+				mcpServers: {
+					first: { type: 'local', command: 'node', args: [], tools: ['*'] },
+					second: { type: 'local', command: 'node', args: [], tools: ['*'] },
+				},
+			},
 		});
 	});
 
@@ -301,7 +782,7 @@ suite('McpServerCustomizationMigration', () => {
 		}, {
 			result: { migratedCount: 1, failures: [] },
 			source: { servers: { unselected: { type: 'stdio', command: 'other' } } },
-			target: { mcpServers: { existing: { type: 'stdio', command: 'existing' }, selected: { type: 'stdio', command: 'node' } } },
+			target: { mcpServers: { existing: { type: 'stdio', command: 'existing' }, selected: { type: 'local', command: 'node', args: [], tools: ['*'] } } },
 			commentPreserved: true,
 		});
 	});
@@ -312,7 +793,7 @@ suite('McpServerCustomizationMigration', () => {
 		const targetUri = URI.joinPath(root, '.mcp.json');
 		const fileService = createFileService();
 		await fileService.writeFile(sourceUri, VSBuffer.fromString('{"servers":{"equivalent":{"command":"node","args":[]},"conflict":{"command":"node"}}}'));
-		await fileService.writeFile(targetUri, VSBuffer.fromString('{"mcpServers":{"equivalent":{"type":"stdio","command":"node"},"conflict":{"type":"stdio","command":"other"}}}'));
+		await fileService.writeFile(targetUri, VSBuffer.fromString('{"mcpServers":{"equivalent":{"type":"local","command":"node","args":[],"tools":["*"]},"conflict":{"type":"local","command":"other","args":[],"tools":["*"]}}}'));
 
 		const result = await createMigrator(fileService).migrate([
 			candidate(root, 'equivalent'),
@@ -352,7 +833,7 @@ suite('McpServerCustomizationMigration', () => {
 				override info(message: string): void { messages.push(message); }
 			}();
 
-			const result = await new McpServerCustomizationMigrator(firstWindow, logService).migrate([selected]);
+			const result = await new McpServerCustomizationMigrator(firstWindow, logService, new TestConfigurationResolverService()).migrate([selected]);
 
 			assert.deepStrictEqual({
 				result,
@@ -364,7 +845,7 @@ suite('McpServerCustomizationMigration', () => {
 				result: { migratedCount: 1, failures: [] },
 				peerMigratedCount: 1,
 				source: { servers: {} },
-				target: { mcpServers: { server: { type: 'stdio', command: 'node' } } },
+				target: { mcpServers: { server: { type: 'local', command: 'node', args: [], tools: ['*'] } } },
 				messages: [`[MCP Customization Migration] Concurrent migration already completed for ${selected.sourceUri.toString()}; retaining ${selected.targetUri.toString()}.`],
 			});
 		});
@@ -402,7 +883,7 @@ suite('McpServerCustomizationMigration', () => {
 				failures: [McpServerCustomizationMigrationFailureReason.RollbackFailed, McpServerCustomizationMigrationFailureReason.RollbackFailed],
 				peerMigratedCount: cause === 'context change' ? 2 : 1,
 				source: { servers: cause === 'context change' ? {} : { second: { command: 'node' } } },
-				target: { mcpServers: { first: { type: 'stdio', command: 'node' }, second: { type: 'stdio', command: 'node' } } },
+				target: { mcpServers: { first: { type: 'local', command: 'node', args: [], tools: ['*'] }, second: { type: 'local', command: 'node', args: [], tools: ['*'] } } },
 			});
 		});
 	}
@@ -416,7 +897,7 @@ suite('McpServerCustomizationMigration', () => {
 		const secondWindow = store.add(new FileService(new NullLogService()));
 		store.add(secondWindow.registerProvider(Schemas.file, provider));
 		await firstWindow.writeFile(first.sourceUri, VSBuffer.fromString('{"servers":{"first":{"command":"node"},"second":{"command":"node"}}}'));
-		const targetContent = '{"mcpServers":{"first":{"command":"node"}}}';
+		const targetContent = '{"mcpServers":{"first":{"type":"local","command":"node","args":[],"tools":["*"]}}}';
 		await firstWindow.writeFile(first.targetUri, VSBuffer.fromString(targetContent));
 		provider.resource = first.targetUri;
 		provider.afterWrite = async () => { await createMigrator(secondWindow).migrate([first]); };
@@ -521,7 +1002,7 @@ suite('McpServerCustomizationMigration', () => {
 			result: { migratedCount: 1, failures: [] },
 			target: {
 				existing: { command: 'existing' },
-				server: { type: 'stdio', command: 'node' },
+				server: { type: 'local', command: 'node', args: [], tools: ['*'] },
 			},
 			commentPreserved: true,
 		});
@@ -546,7 +1027,7 @@ suite('McpServerCustomizationMigration', () => {
 		}, {
 			failures: [McpServerCustomizationMigrationFailureReason.RollbackFailed],
 			source: { servers: { server: { command: 'node' } } },
-			target: { mcpServers: { server: { type: 'stdio', command: 'node' } } },
+			target: { mcpServers: { server: { type: 'local', command: 'node', args: [], tools: ['*'] } } },
 		});
 	});
 
@@ -595,7 +1076,7 @@ suite('McpServerCustomizationMigration', () => {
 		}, {
 			failures: [McpServerCustomizationMigrationFailureReason.RollbackFailed],
 			source: { servers: { server: { command: 'changed' }, concurrent: { command: 'other' } } },
-			target: { mcpServers: { existing: { command: 'existing' }, server: { type: 'stdio', command: 'node' } } },
+			target: { mcpServers: { existing: { command: 'existing' }, server: { type: 'local', command: 'node', args: [], tools: ['*'] } } },
 		});
 	});
 
@@ -724,7 +1205,7 @@ suite('McpServerCustomizationMigration', () => {
 		}, {
 			failures: [McpServerCustomizationMigrationFailureReason.RollbackFailed],
 			source: { servers: { server: { command: 'node' } } },
-			target: { mcpServers: { server: { type: 'stdio', command: 'node' } } },
+			target: { mcpServers: { server: { type: 'local', command: 'node', args: [], tools: ['*'] } } },
 		});
 	});
 
@@ -744,151 +1225,109 @@ suite('McpServerCustomizationMigration', () => {
 	});
 
 	for (const location of ['destination', 'source'] as const) {
-		test(`rejects and logs a server name already present in another root's ${location}`, async () => {
+		test(`migrates a server whose name is also present in another root's ${location}`, async () => {
 			const primary = URI.file('/primary');
 			const secondary = URI.file('/secondary');
 			const selected = candidate(secondary, 'demo');
-			const conflictingUri = location === 'destination'
+			const otherRootUri = location === 'destination'
 				? URI.joinPath(primary, '.mcp.json')
 				: URI.joinPath(primary, '.vscode', 'mcp.json');
 			const fileService = createFileService();
-			const sourceContent = '{"servers":{"demo":{"command":"node"}}}';
-			const conflictingContent = location === 'destination'
+			const otherRootContent = location === 'destination'
 				? '{"mcpServers":{"demo":{"command":"other"}}}'
 				: '{"servers":{"demo":{"command":"other"}}}';
-			await fileService.writeFile(selected.sourceUri, VSBuffer.fromString(sourceContent));
-			await fileService.writeFile(conflictingUri, VSBuffer.fromString(conflictingContent));
-			const warnings: string[] = [];
-			const logService = new class extends NullLogService {
-				override warn(message: string): void { warnings.push(message); }
-			}();
+			await fileService.writeFile(selected.sourceUri, VSBuffer.fromString('{"servers":{"demo":{"command":"node"}}}'));
+			await fileService.writeFile(otherRootUri, VSBuffer.fromString(otherRootContent));
 
-			const result = await new McpServerCustomizationMigrator(fileService, logService).migrate([selected], { roots: [primary, secondary] });
+			const result = await createMigrator(fileService).migrate([selected]);
 
 			assert.deepStrictEqual({
-				migratedCount: result.migratedCount,
-				failures: result.failures.map(failure => ({ name: failure.name, reason: failure.reason, conflictingUri: failure.conflictingUri?.toString() })),
-				source: (await fileService.readFile(selected.sourceUri)).value.toString(),
-				conflict: (await fileService.readFile(conflictingUri)).value.toString(),
-				targetExists: await fileService.exists(selected.targetUri),
-				warnings,
+				result,
+				source: parse((await fileService.readFile(selected.sourceUri)).value.toString()),
+				target: parse((await fileService.readFile(selected.targetUri)).value.toString()),
+				otherRoot: (await fileService.readFile(otherRootUri)).value.toString(),
 			}, {
-				migratedCount: 0,
-				failures: [{ name: 'demo', reason: McpServerCustomizationMigrationFailureReason.CrossRootConflict, conflictingUri: conflictingUri.toString() }],
-				source: sourceContent,
-				conflict: conflictingContent,
-				targetExists: false,
-				warnings: [`[MCP Customization Migration] Rejected 'demo' from ${selected.sourceUri.toString()}: reason=crossRootConflict, conflictingUri=${conflictingUri.toString()}`],
+				result: { migratedCount: 1, failures: [] },
+				source: { servers: {} },
+				target: { mcpServers: { demo: { type: 'local', command: 'node', args: [], tools: ['*'] } } },
+				otherRoot: otherRootContent,
 			});
 		});
 	}
 
-	test('rejects all same-name selections across roots while migrating unrelated servers', async () => {
-		const primary = URI.file('/primary');
-		const secondary = URI.file('/secondary');
-		const first = candidate(primary, 'demo');
-		const second = candidate(secondary, 'demo');
-		const unique = candidate(primary, 'unique');
+	test('plans and migrates same-name servers from every root into each root\'s own destination', async () => {
+		const roots = [URI.file('/root-one'), URI.file('/root-two')];
 		const fileService = createFileService();
-		await fileService.writeFile(first.sourceUri, VSBuffer.fromString('{"servers":{"demo":{"command":"node"},"unique":{"command":"node"}}}'));
-		await fileService.writeFile(second.sourceUri, VSBuffer.fromString('{"servers":{"demo":{"command":"node"}}}'));
+		for (const root of roots) {
+			await fileService.writeFile(URI.joinPath(root, '.vscode', 'mcp.json'), VSBuffer.fromString(`{
+				"servers": {
+					"migrate-me": { "type": "stdio", "command": "npx", "args": ["-y", "@modelcontextprotocol/server-everything"] },
+					"leave-me": { "type": "stdio", "command": "npx", "args": ["-y", "@modelcontextprotocol/server-everything"] },
+				}
+			}`));
+		}
+		const projectedConfiguration: IMcpServerConfiguration = { type: McpServerType.LOCAL, command: 'npx', args: ['-y', '@modelcontextprotocol/server-everything'] };
+		const supportFor = (root: URI, index: number, name: string): IAgentHostMcpServerSupport => {
+			const server = support(root, name, { id: `mcp.config.ws${index}.${name}`, collectionId: `mcp.config.ws${index}`, projectedConfiguration });
+			// The client registers only the last folder's same-named server; the other one is shadowed.
+			return index === 0
+				? { ...server, enablement: { enabled: false, state: AgentHostMcpServerEnablementState.DisabledNotRegistered }, delivery: AgentHostMcpServerDelivery.NotDelivered, shadowedBy: `mcp.config.ws1.${name}` }
+				: server;
+		};
+		const snapshot: IAgentHostMcpServerSupportSnapshot = {
+			servers: roots.flatMap((root, index) => [supportFor(root, index, 'migrate-me'), supportFor(root, index, 'leave-me')]),
+			discoveryComplete: true,
+			coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+		};
+		const migrator = createMigrator(fileService);
 
-		const warnings: string[] = [];
-		const logService = new class extends NullLogService {
-			override warn(message: string): void { warnings.push(message); }
-		}();
-		const result = await new McpServerCustomizationMigrator(fileService, logService).migrate([first, second, unique], { roots: [primary, secondary] });
+		const plan = await migrator.createPlan(snapshot, roots);
+		const result = await migrator.migrate(plan.candidates.filter(candidate => candidate.name === 'migrate-me'));
 
+		const expectedTarget = { mcpServers: { 'migrate-me': { type: 'local', command: 'npx', args: ['-y', '@modelcontextprotocol/server-everything'], tools: ['*'] } } };
+		const expectedSource = { servers: { 'leave-me': { type: 'stdio', command: 'npx', args: ['-y', '@modelcontextprotocol/server-everything'] } } };
 		assert.deepStrictEqual({
-			migratedCount: result.migratedCount,
-			failures: result.failures.map(failure => [failure.sourceUri.toString(), failure.reason, failure.conflictingUri?.toString()]),
-			primarySource: parse((await fileService.readFile(first.sourceUri)).value.toString()),
-			secondarySource: parse((await fileService.readFile(second.sourceUri)).value.toString()),
-			primaryTarget: parse((await fileService.readFile(first.targetUri)).value.toString()),
-			secondaryTargetExists: await fileService.exists(second.targetUri),
-			warnings,
+			candidates: plan.candidates.map(candidate => [candidate.id, candidate.targetUri.toString()]),
+			exclusions: plan.exclusions,
+			result,
+			files: await Promise.all(roots.map(async root => ({
+				source: parse((await fileService.readFile(URI.joinPath(root, '.vscode', 'mcp.json'))).value.toString()),
+				target: parse((await fileService.readFile(URI.joinPath(root, '.mcp.json'))).value.toString()),
+			}))),
 		}, {
-			migratedCount: 1,
-			failures: [
-				[first.sourceUri.toString(), McpServerCustomizationMigrationFailureReason.CrossRootConflict, second.sourceUri.toString()],
-				[second.sourceUri.toString(), McpServerCustomizationMigrationFailureReason.CrossRootConflict, first.sourceUri.toString()],
+			candidates: [
+				['mcp.config.ws0.migrate-me', URI.joinPath(roots[0], '.mcp.json').toString()],
+				['mcp.config.ws0.leave-me', URI.joinPath(roots[0], '.mcp.json').toString()],
+				['mcp.config.ws1.migrate-me', URI.joinPath(roots[1], '.mcp.json').toString()],
+				['mcp.config.ws1.leave-me', URI.joinPath(roots[1], '.mcp.json').toString()],
 			],
-			primarySource: { servers: { demo: { command: 'node' } } },
-			secondarySource: { servers: { demo: { command: 'node' } } },
-			primaryTarget: { mcpServers: { unique: { type: 'stdio', command: 'node' } } },
-			secondaryTargetExists: false,
-			warnings: [
-				`[MCP Customization Migration] Rejected 'demo' from ${first.sourceUri.toString()}: reason=crossRootConflict, conflictingUri=${second.sourceUri.toString()}`,
-				`[MCP Customization Migration] Rejected 'demo' from ${second.sourceUri.toString()}: reason=crossRootConflict, conflictingUri=${first.sourceUri.toString()}`,
+			exclusions: [],
+			result: { migratedCount: 2, failures: [] },
+			files: [
+				{ source: expectedSource, target: expectedTarget },
+				{ source: expectedSource, target: expectedTarget },
 			],
 		});
 	});
 
-	test('does not count a cross-root rejection again when another candidate fails to write', async () => {
-		const primary = URI.file('/primary');
-		const secondary = URI.file('/secondary');
-		const duplicate = candidate(primary, 'demo');
-		const unique = candidate(primary, 'unique');
-		const conflictingUri = URI.joinPath(secondary, '.vscode', 'mcp.json');
-		const provider = new SourceWriteFailingProvider();
-		const fileService = createFileService(provider);
-		const sourceContent = '{"servers":{"demo":{"command":"node"},"unique":{"command":"node"}}}';
-		const targetContent = '{"mcpServers":{}}';
-		await fileService.writeFile(duplicate.sourceUri, VSBuffer.fromString(sourceContent));
-		await fileService.writeFile(duplicate.targetUri, VSBuffer.fromString(targetContent));
-		await fileService.writeFile(conflictingUri, VSBuffer.fromString('{"servers":{"demo":{"command":"other"}}}'));
-		provider.sourceUri = duplicate.sourceUri;
-		provider.failSourceWrite = true;
+	test('does not plan an unregistered server that is not shadowed by another root', async () => {
+		const root = URI.file('/unregistered');
+		const fileService = createFileService();
+		await fileService.writeFile(URI.joinPath(root, '.vscode', 'mcp.json'), VSBuffer.fromString('{"servers":{"demo":{"command":"node"}}}'));
+		const snapshot: IAgentHostMcpServerSupportSnapshot = {
+			servers: [support(root, 'demo', { enablement: { enabled: false, state: AgentHostMcpServerEnablementState.DisabledNotRegistered }, delivery: AgentHostMcpServerDelivery.NotDelivered })],
+			discoveryComplete: true,
+			coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+		};
 
-		const result = await createMigrator(fileService).migrate([duplicate, unique], { roots: [primary, secondary] });
+		const plan = await createMigrator(fileService).createPlan(snapshot, [root]);
 
 		assert.deepStrictEqual({
-			migratedCount: result.migratedCount,
-			failures: result.failures.map(failure => [failure.name, failure.reason]),
-			source: (await fileService.readFile(duplicate.sourceUri)).value.toString(),
-			target: (await fileService.readFile(duplicate.targetUri)).value.toString(),
+			candidates: plan.candidates.length,
+			exclusions: plan.exclusions.map(exclusion => [exclusion.name, exclusion.reason]),
 		}, {
-			migratedCount: 0,
-			failures: [
-				['demo', McpServerCustomizationMigrationFailureReason.CrossRootConflict],
-				['unique', McpServerCustomizationMigrationFailureReason.WriteFailed],
-			],
-			source: sourceContent,
-			target: targetContent,
+			candidates: 0,
+			exclusions: [['demo', McpServerCustomizationMigrationFailureReason.NoLongerEligible]],
 		});
 	});
-
-	for (const phase of ['target', 'source'] as const) {
-		test(`rolls back when a cross-root name conflict appears during the ${phase} write`, async () => {
-			const primary = URI.file('/primary');
-			const secondary = URI.file('/secondary');
-			const selected = candidate(secondary, 'demo');
-			const conflictingUri = URI.joinPath(primary, '.mcp.json');
-			const provider = new CrossRootConflictProvider();
-			const fileService = createFileService(provider);
-			const sourceContent = '{"servers":{"demo":{"command":"node"}}}';
-			const targetContent = '{"mcpServers":{}}';
-			await fileService.writeFile(selected.sourceUri, VSBuffer.fromString(sourceContent));
-			await fileService.writeFile(selected.targetUri, VSBuffer.fromString(targetContent));
-			await fileService.writeFile(conflictingUri, VSBuffer.fromString(targetContent));
-			provider.triggerUri = phase === 'target' ? selected.targetUri : selected.sourceUri;
-			provider.conflictingUri = conflictingUri;
-
-			const result = await createMigrator(fileService).migrate([selected], { roots: [primary, secondary] });
-
-			assert.deepStrictEqual({
-				migratedCount: result.migratedCount,
-				failures: result.failures.map(failure => [failure.reason, failure.conflictingUri?.toString()]),
-				source: (await fileService.readFile(selected.sourceUri)).value.toString(),
-				target: (await fileService.readFile(selected.targetUri)).value.toString(),
-				conflict: parse((await fileService.readFile(conflictingUri)).value.toString()),
-			}, {
-				migratedCount: 0,
-				failures: [[McpServerCustomizationMigrationFailureReason.CrossRootConflict, conflictingUri.toString()]],
-				source: sourceContent,
-				target: targetContent,
-				conflict: { mcpServers: { demo: { command: 'other' } } },
-			});
-		});
-	}
 });

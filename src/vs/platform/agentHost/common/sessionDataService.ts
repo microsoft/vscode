@@ -8,12 +8,15 @@ import { extUriBiasedIgnorePathCase, normalizePath } from '../../../base/common/
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { Event } from '../../../base/common/event.js';
+import { getLargeFileConfirmationLimit } from '../../files/common/files.js';
 import type { FileEditKind, Message } from './state/sessionState.js';
 
 export const ISessionDataService = createDecorator<ISessionDataService>('sessionDataService');
 
 /** Filename of the per-session SQLite database. */
 export const SESSION_DB_FILENAME = 'session.db';
+
+export const MAX_TERMINAL_OUTPUT_BYTES = getLargeFileConfirmationLimit('agent-host');
 
 /**
  * Subdirectory under a session's data directory that holds snapshotted
@@ -83,24 +86,21 @@ export interface IReviewedFileRecord {
 
 // ---- Session database ---------------------------------------------------
 
-/**
- * A host-injected ("local") turn: a completed protocol `Turn` the agent SDK
- * never saw — e.g. the `/rename` acknowledgement or a `!command` terminal run.
- * These are persisted separately from SDK turns so they survive reload, and are
- * interleaved back into the SDK-derived turns on restore.
- */
-export interface ILocalTurnRecord {
-	/** The local turn's id (matches the payload `Turn.id`). */
+/** A host-persisted turn that is absent from the provider transcript. */
+export interface IPersistedTurnRecord {
+	/** Whether this is host-local or a provider turn that failed before persistence. */
+	kind: 'local' | 'failed';
+	/** The turn's id (matches the payload `Turn.id`). */
 	turnId: string;
-	/** The chat this local turn belongs to (its channel URI string). */
+	/** The chat this turn belongs to (its channel URI string). */
 	chatUri: string;
 	/**
 	 * Id of the preceding concrete (SDK-backed) turn this local turn is
 	 * anchored after, or `undefined` when it precedes any real turn.
 	 */
 	anchorTurnId: string | undefined;
-	/** Monotonic ordering among local turns (used to interleave on restore). */
-	seq: number;
+	/** Monotonic ordering among host-persisted turns (used to restore them). */
+	seq?: number;
 	/** JSON-serialized protocol `Turn`. */
 	payload: string;
 }
@@ -186,6 +186,12 @@ export interface ISessionDatabase extends IDisposable {
 	 * Observes event ID writes submitted before this read.
 	 */
 	getFirstTurnEventId(): Promise<string | undefined>;
+
+	/**
+	 * Returns whether the session database contains any persisted conversation
+	 * turn, including host-injected local turns.
+	 */
+	hasConversationTurns(): Promise<boolean>;
 
 	/**
 	 * Persists the JSON-serialized {@link UsageInfo} reported for a turn.
@@ -282,24 +288,24 @@ export interface ISessionDatabase extends IDisposable {
 	 */
 	deleteAllTurns(): Promise<void>;
 
-	// ---- Local (host-injected) turns -------------------------------------
+	// ---- Host-persisted turns --------------------------------------------
 
 	/**
-	 * Persist a host-injected local turn (e.g. `/rename` or `!command`).
+	 * Persist a host turn missing from the provider transcript.
 	 * Replaces any existing record with the same `turnId`.
 	 */
-	insertLocalTurn(record: ILocalTurnRecord): Promise<void>;
+	insertPersistedTurn(record: IPersistedTurnRecord): Promise<void>;
 
 	/**
-	 * Retrieve all persisted local turns in this session, in `seq` order.
-	 * Callers filter by {@link ILocalTurnRecord.chatUri} for a given chat.
+	 * Retrieve all host-persisted turns in this session, in `seq` order.
+	 * Callers filter by {@link IPersistedTurnRecord.chatUri} and `kind`.
 	 */
-	getLocalTurns(): Promise<ILocalTurnRecord[]>;
+	getPersistedTurns(): Promise<Array<IPersistedTurnRecord & { seq: number }>>;
 
 	/**
-	 * Delete the local turns with the given ids. Ids not present are ignored.
+	 * Delete host-persisted turns with the given ids. Ids not present are ignored.
 	 */
-	deleteLocalTurns(turnIds: readonly string[]): Promise<void>;
+	deletePersistedTurns(turnIds: readonly string[]): Promise<void>;
 
 	/**
 	 * Store a file-edit snapshot (metadata + content) for a tool invocation
@@ -336,6 +342,28 @@ export interface ISessionDatabase extends IDisposable {
 	 * Returns `undefined` if no edit exists for the given key.
 	 */
 	readFileEditContent(toolCallId: string, filePath: string): Promise<IFileEditContent | undefined>;
+
+	/**
+	 * Store terminal output for a tool invocation within an existing turn.
+	 * Replaces any output already stored for the same tool call.
+	 */
+	storeTerminalOutput(turnId: string, toolCallId: string, content: Uint8Array): Promise<void>;
+
+	/**
+	 * Delete terminal output for a tool invocation.
+	 */
+	deleteTerminalOutput(toolCallId: string): Promise<void>;
+
+	/**
+	 * Return the stored terminal output size in bytes without loading its content.
+	 */
+	getTerminalOutputSize(toolCallId: string): Promise<number | undefined>;
+
+	/**
+	 * Read terminal output for a tool invocation.
+	 * Returns `undefined` if no output exists for the given tool call.
+	 */
+	readTerminalOutput(toolCallId: string): Promise<Uint8Array | undefined>;
 
 	// ---- Session metadata ------------------------------------------------
 

@@ -9,6 +9,7 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostConnectionsService, IAgentHostSessionSchemeAlias } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { ActionType, type IIsArchivedChangedAction, type IIsReadChangedAction, type INotification, type SessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { readSessionMatchesByProjectRoot, readSessionMultiRootMetadata, SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceContextService, type IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
@@ -21,6 +22,7 @@ import { Schemas } from '../../../../../../base/common/network.js';
 export interface IAgentHostSessionListConnection {
 	readonly onDidNotification: Event<INotification>;
 	listSessions(): Promise<IAgentSessionMetadata[]>;
+	disposeChat(chat: URI): Promise<void>;
 	disposeSession(session: URI): Promise<void>;
 	dispatch(channel: string, action: SessionAction): void;
 }
@@ -32,6 +34,8 @@ export interface IAgentHostSessionListEntry {
 	readonly provider: string;
 	readonly rawId: string;
 	readonly summary: SessionSummary;
+	/** Discovery is provisional and must not replace a snapshot already obtained from the host. */
+	readonly fromDiscovery?: boolean;
 	/**
 	 * Whether {@link summary}'s status came from the host. `listSessions()`
 	 * metadata carries no status for a cold session that has never been marked
@@ -95,8 +99,10 @@ export class AgentHostSessionListStore extends Disposable {
 
 	constructor(
 		private readonly _connection: IAgentHostSessionListConnection,
+		private readonly _options: { readonly filterToWorkspace?: boolean; readonly sessionSchemeAlias?: IAgentHostSessionSchemeAlias; readonly connectionAuthority?: string } = {},
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@ILogService private readonly _logService: ILogService,
+		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
 	) {
 		super();
 
@@ -106,6 +112,9 @@ export class AgentHostSessionListStore extends Disposable {
 		// folders changes, since filtering depends on it. The agent host itself
 		// doesn't know which workspace this VS Code window has open.
 		this._register(this._workspaceContextService.onDidChangeWorkspaceFolders(() => {
+			if (this._options.filterToWorkspace === false) {
+				return;
+			}
 			this._cacheValid = false;
 			this._filterEntriesToWorkspace();
 			void this.refresh(CancellationToken.None);
@@ -114,6 +123,31 @@ export class AgentHostSessionListStore extends Disposable {
 
 	getSessions(provider: string): readonly IAgentHostSessionListEntry[] {
 		return [...this._entries.values()].filter(entry => entry.provider === provider);
+	}
+
+	seedSessions(sessions: readonly IAgentSessionMetadata[]): void {
+		const addedOrUpdated: IAgentHostSessionListEntry[] = [];
+		for (const session of sessions) {
+			const entry = this._makeEntryFromMetadata(session);
+			if (entry && this._isSessionInWorkspace(entry)) {
+				const existing = this._entries.get(this._key(entry.provider, entry.rawId));
+				if (existing && (!existing.fromDiscovery || Date.parse(entry.summary.modifiedAt) < Date.parse(existing.summary.modifiedAt))) {
+					continue;
+				}
+				const seed = {
+					...entry,
+					summary: { ...entry.summary, status: session.status ?? existing?.summary.status ?? entry.summary.status },
+					fromDiscovery: true,
+					statusKnown: false,
+				};
+				this._entries.set(this._key(seed.provider, seed.rawId), seed);
+				addedOrUpdated.push(seed);
+			}
+		}
+		if (addedOrUpdated.length) {
+			this._mutationGeneration++;
+			this._onDidChangeSessions.fire({ addedOrUpdated });
+		}
 	}
 
 	/** Record a session created locally before the backend has announced it. */
@@ -136,8 +170,29 @@ export class AgentHostSessionListStore extends Disposable {
 		this._mutationGeneration++;
 	}
 
+	private _providerForSession(session: URI | string, provider?: string): string | undefined {
+		const resource = typeof session === 'string' ? session : session.toString();
+		provider ??= [...this._entries.values()].find(entry => entry.summary.resource === resource)?.provider;
+		const scheme = AgentSession.provider(session);
+		const alias = this._options.sessionSchemeAlias;
+		return provider ?? (alias && URI.parse(resource).scheme === alias.backend ? alias.ui : scheme);
+	}
+
+	private _sessionUri(provider: string, rawId: string): URI {
+		const entry = this._entries.get(this._key(provider, rawId));
+		if (entry) {
+			return URI.parse(entry.summary.resource);
+		}
+		const alias = this._options.sessionSchemeAlias;
+		return AgentSession.uri(alias && provider === alias.ui ? alias.backend : provider, rawId);
+	}
+
 	async disposeSession(provider: string, rawId: string): Promise<void> {
-		await this._connection.disposeSession(AgentSession.uri(provider, rawId));
+		await this._connection.disposeSession(this._sessionUri(provider, rawId));
+	}
+
+	async disposeChat(chat: URI): Promise<void> {
+		await this._connection.disposeChat(chat);
 	}
 
 	setSessionArchived(provider: string, rawId: string, archived: boolean): void {
@@ -160,7 +215,7 @@ export class AgentHostSessionListStore extends Disposable {
 	 * uncached session still dispatches; the summary notification seeds the entry.
 	 */
 	private _setSessionFlag(provider: string, rawId: string, flag: SessionStatus, set: boolean, action: IIsArchivedChangedAction | IIsReadChangedAction): void {
-		const session = AgentSession.uri(provider, rawId);
+		const session = this._sessionUri(provider, rawId);
 		const key = this._key(provider, rawId);
 		const cached = this._entries.get(key);
 		let updated: IAgentHostSessionListEntry | undefined;
@@ -228,7 +283,11 @@ export class AgentHostSessionListStore extends Disposable {
 		let sessions: IAgentSessionMetadata[];
 		try {
 			sessions = await this._connection.listSessions();
-		} catch {
+		} catch (error) {
+			this._logService.warn('[AgentHostSessionList] Failed to refresh sessions', error);
+			return;
+		}
+		if (token.isCancellationRequested || this._store.isDisposed) {
 			return;
 		}
 
@@ -293,13 +352,13 @@ export class AgentHostSessionListStore extends Disposable {
 			this._pendingNewSessions.delete(key);
 			this._onDidChangeSessions.fire({ addedOrUpdated: [entry] });
 		} else if (notification.type === 'root/sessionRemoved') {
-			const provider = AgentSession.provider(notification.session);
+			const provider = this._providerForSession(notification.session);
 			if (!provider) {
 				return;
 			}
 			this.removeSession(provider, AgentSession.id(notification.session));
 		} else if (notification.type === 'root/sessionSummaryChanged') {
-			const provider = AgentSession.provider(notification.session);
+			const provider = this._providerForSession(notification.session);
 			if (!provider) {
 				return;
 			}
@@ -334,12 +393,13 @@ export class AgentHostSessionListStore extends Disposable {
 	}
 
 	private _makeEntryFromMetadata(session: IAgentSessionMetadata): IAgentHostSessionListEntry | undefined {
-		const provider = AgentSession.provider(session.session);
+		const provider = this._providerForSession(session.session, session.provider);
 		if (!provider) {
 			return undefined;
 		}
 
 		const rawId = AgentSession.id(session.session);
+		this._connectionsService.registerSessionResource(session.session, this._options.connectionAuthority, provider);
 
 		return {
 			provider,
@@ -355,6 +415,13 @@ export class AgentHostSessionListStore extends Disposable {
 				modifiedAt: new Date(session.modifiedTime).toISOString(),
 				changes: session.changes,
 				workingDirectories: session.workingDirectories?.map(d => d.toString()),
+				chats: session.chats?.map(chat => ({
+					resource: chat.chat.toString(),
+					title: chat.summary ?? '',
+					origin: chat.origin,
+					...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
+				})),
+				defaultChat: session.chats?.find(chat => chat.kind === 'default')?.chat.toString(),
 				// The repository root a worktree-isolated session belongs to; the
 				// workspace filter matches on it because the worktree itself lives
 				// outside the repository folder.
@@ -368,10 +435,11 @@ export class AgentHostSessionListStore extends Disposable {
 	}
 
 	private _makeEntryFromSummary(summary: SessionSummary): IAgentHostSessionListEntry | undefined {
-		const provider = summary.provider || AgentSession.provider(summary.resource);
+		const provider = this._providerForSession(summary.resource, summary.provider);
 		if (!provider) {
 			return undefined;
 		}
+		this._connectionsService.registerSessionResource(URI.parse(summary.resource), this._options.connectionAuthority, provider);
 		return {
 			provider,
 			rawId: AgentSession.id(summary.resource),
@@ -382,6 +450,9 @@ export class AgentHostSessionListStore extends Disposable {
 
 	/** Uses workspace-file provenance for multi-root workspaces and path containment otherwise. */
 	private _isSessionInWorkspace(entry: IAgentHostSessionListEntry): boolean {
+		if (this._options.filterToWorkspace === false) {
+			return true;
+		}
 		const inWorkspace = this._computeSessionInWorkspace(entry);
 		// A legacy session is matched by its repository root, which must be a local
 		// path; a remote project (e.g. an `https://` repo URL) silently matches
@@ -464,7 +535,7 @@ export class AgentHostSessionListStore extends Disposable {
 		return {
 			provider: entry.provider,
 			rawId: entry.rawId,
-			session: AgentSession.uri(entry.provider, entry.rawId),
+			session: URI.parse(entry.summary.resource),
 		};
 	}
 

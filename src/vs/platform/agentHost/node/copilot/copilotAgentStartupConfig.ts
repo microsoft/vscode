@@ -12,13 +12,19 @@ export class CopilotAgentStartupConfig {
 		readonly sessionSync: boolean,
 		readonly rubberDuck: boolean,
 		readonly claudeAdvisor: boolean,
+		readonly tgrep: boolean,
 		readonly hydraFusion: boolean,
+		/** Session `featureFlags` are not reapplied when a resident SDK session resumes, so the in-repo memory flag needs a restart. */
+		readonly localMemory: boolean,
 		readonly skillCharBudget: number,
 		readonly copilotSdkLogLevel: CopilotSdkLogLevelSetting,
+		readonly runtimePath: string | undefined,
 		readonly enterpriseHost: string | undefined,
 		readonly systemProxy: boolean,
 		readonly githubMcpServer: boolean,
+		readonly copilotConnectors: boolean,
 		readonly managedSettingsPermissions: IAgentHostManagedSettingsPermissions,
+		readonly localIndexEnabled: boolean,
 	) { }
 
 	equals(other: CopilotAgentStartupConfig): boolean {

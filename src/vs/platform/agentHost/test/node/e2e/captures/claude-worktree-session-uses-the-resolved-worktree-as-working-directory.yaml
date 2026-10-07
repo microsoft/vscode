@@ -2,7 +2,7 @@ version: 1
 dialect: anthropic
 exchanges:
   - request:
-      model: claude-opus-4.8
+      model: claude-opus-5.5
       system: ${system}
       messages:
         - role: user
@@ -11,7 +11,7 @@ exchanges:
       content: ${workdir}.worktrees/what-is-your-current-working-directory-reply-wit
       stopReason: end_turn
   - request:
-      model: claude-opus-4.8
+      model: claude-opus-5.5
       system: ${system}
       messages:
         - role: user
@@ -27,10 +27,10 @@ exchanges:
           name: Bash
           input:
             command: node -e "console.log(process.cwd())"
-            description: Print Node.js current working directory
+            description: Print Node's current working directory
       stopReason: tool_use
   - request:
-      model: claude-opus-4.8
+      model: claude-opus-5.5
       system: ${system}
       messages:
         - role: user
@@ -41,17 +41,19 @@ exchanges:
           content: 'Run exactly this shell command, with no modifications, in the session current working directory: `node -e "console.log(process.cwd())"`. Do not specify a working-directory override.'
         - role: assistant
           content:
-            - type: thinking
             - type: tool_use
               name: Bash
               input:
                 command: node -e "console.log(process.cwd())"
-                description: Print Node.js current working directory
+                description: Print Node's current working directory
         - role: user
           content:
             - type: tool_result
               tool_use_id: toolcall_0
               content: ${workdir}.worktrees/what-is-your-current-working-directory-reply-wit
     response:
-      content: ${workdir}.worktrees/what-is-your-current-working-directory-reply-wit
+      content: |-
+        The command printed this path, which is the same working directory I gave you earlier:
+
+        `${workdir}.worktrees/what-is-your-current-working-directory-reply-wit`
       stopReason: end_turn

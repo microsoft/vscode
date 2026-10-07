@@ -159,6 +159,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/opener",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/output",
 			"project": "vscode-workbench"
 		},
@@ -435,6 +439,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/services/github",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/history",
 			"project": "vscode-workbench"
 		},
@@ -669,6 +677,10 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/openAgentsWindow",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/accountMenu",
 			"project": "vscode-sessions"
 		},
@@ -694,6 +706,10 @@
 		},
 		{
 			"name": "vs/sessions/contrib/changes",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/canvases",
 			"project": "vscode-sessions"
 		},
 		{
@@ -757,7 +773,15 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/remoteSessions",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/sessions",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/sessionComparison",
 			"project": "vscode-sessions"
 		},
 		{

@@ -34,7 +34,7 @@ import { IAiEditTelemetryService } from '../../../editTelemetry/browser/telemetr
 import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { ChatEditKind, IModifiedEntryTelemetryInfo, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ISnapshotEntry, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
-import { IChatResponseModel } from '../../common/model/chatModel.js';
+import { IChatEditMetadata, IChatResponseModel } from '../../common/model/chatModel.js';
 import { ChatEditingCodeEditorIntegration } from './chatEditingCodeEditorIntegration.js';
 import { AbstractChatEditingModifiedFileEntry } from './chatEditingModifiedFileEntry.js';
 import { ChatEditingTextModelChangeService } from './chatEditingTextModelChangeService.js';
@@ -238,9 +238,9 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		return new SingleModelEditStackElement(label, 'chat.edit', this.modifiedModel, null);
 	}
 
-	async acceptAgentEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel | undefined): Promise<void> {
+	async acceptAgentEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel | undefined, metadata: IChatEditMetadata): Promise<void> {
 
-		const result = await this._textModelChangeService.acceptAgentEdits(resource, textEdits, isLastEdits, responseModel);
+		const result = await this._textModelChangeService.acceptAgentEdits(resource, textEdits, isLastEdits, responseModel, metadata);
 
 		transaction((tx) => {
 			this._waitsForLastEdits.set(!isLastEdits, tx);

@@ -188,6 +188,7 @@ export class EditTelemetryReportEditArcForChatOrInlineChatSender extends Disposa
 						$$requestId: false,
 						$$languageId: false,
 						$modelId: false,
+						$autoTier: false,
 					}),
 					extensionId: data.props.$extensionId,
 					extensionVersion: data.props.$extensionVersion,
