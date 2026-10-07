@@ -14,6 +14,8 @@ export class CopilotAgentStartupConfig {
 		readonly claudeAdvisor: boolean,
 		readonly tgrep: boolean,
 		readonly hydraFusion: boolean,
+		/** Like {@link localMemory}, a resumed resident SDK session keeps its original plan version until restart. */
+		readonly hydraFusionV2: boolean,
 		/** Session `featureFlags` are not reapplied when a resident SDK session resumes, so the in-repo memory flag needs a restart. */
 		readonly localMemory: boolean,
 		readonly skillCharBudget: number,
