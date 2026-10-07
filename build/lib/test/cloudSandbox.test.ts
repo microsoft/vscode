@@ -324,6 +324,86 @@ suite('Cloud Sandbox install setup', () => {
 		});
 	}
 
+	for (const unusable of ['missing', 'non-executable']) {
+		test(`validates cached npx before replacing any host executable (${unusable})`, t => {
+			const root = fixture(t);
+			const bin = path.join(root, '.local/share/vscode-cloud-sandbox/node-v24.18.0-linux-x64/bin');
+			fs.mkdirSync(bin, { recursive: true });
+			for (const executable of ['node', 'npm']) {
+				fs.writeFileSync(path.join(bin, executable), '', { mode: 0o755 });
+			}
+			if (unusable === 'non-executable') {
+				fs.writeFileSync(path.join(bin, 'npx'), '', { mode: 0o644 });
+			}
+			const options = {
+				root, home: root, platform: 'linux' as const, arch: 'x64', nodeVersion: '26.0.0',
+				env: { GITHUB_ENVIRONMENT_ID: 'environment', PATH: path.join(root, 'host-bin') },
+				run: (command: string) => command === 'dpkg-query' ? installedPackages : 'v24.18.0\n',
+			};
+			assert.throws(() => prepareCloudSandbox(options), unusable === 'missing' ? /ENOENT/ : /EACCES/);
+			assert.deepStrictEqual(['node', 'npm', 'npx'].map(executable => ({
+				link: fs.lstatSync(path.join(root, 'host-bin', executable)).isSymbolicLink(),
+				data: fs.readFileSync(path.join(root, 'host-bin', executable), 'utf8'),
+			})), Array.from({ length: 3 }, () => ({ link: false, data: '' })));
+
+			fs.writeFileSync(path.join(bin, 'npx'), '');
+			fs.chmodSync(path.join(bin, 'npx'), 0o755);
+			assert.equal(prepareCloudSandbox(options), path.join(bin, 'node'));
+		});
+	}
+
+	test('selects node, npm and npx from their independently resolved PATH directories', t => {
+		const root = fixture(t);
+		const earlierBin = path.join(root, 'earlier-bin');
+		fs.mkdirSync(earlierBin);
+		for (const executable of ['npm', 'npx']) {
+			fs.writeFileSync(path.join(earlierBin, executable), '', { mode: 0o755 });
+		}
+		const bin = path.join(root, '.local/share/vscode-cloud-sandbox/node-v24.18.0-linux-x64/bin');
+		fs.mkdirSync(bin, { recursive: true });
+		for (const executable of ['node', 'npm', 'npx']) {
+			fs.writeFileSync(path.join(bin, executable), '', { mode: 0o755 });
+		}
+		const options = {
+			root, home: root, platform: 'linux' as const, arch: 'x64', nodeVersion: '26.0.0',
+			env: { GITHUB_ENVIRONMENT_ID: 'environment', PATH: `${earlierBin}${path.delimiter}${path.join(root, 'host-bin')}` },
+			run: (command: string) => command === 'dpkg-query' ? installedPackages : 'v24.18.0\n',
+		};
+		assert.equal(prepareCloudSandbox(options), path.join(bin, 'node'));
+		// A retry already running the downloaded Node must repair other PATH tools too.
+		fs.unlinkSync(path.join(earlierBin, 'npx'));
+		fs.writeFileSync(path.join(earlierBin, 'npx'), '', { mode: 0o755 });
+		assert.equal(prepareCloudSandbox({ ...options, nodeVersion: '24.18.0', nodeExecutable: path.join(bin, 'node') }), path.join(bin, 'node'));
+		assert.deepStrictEqual({
+			node: fs.readlinkSync(path.join(root, 'host-bin/node')),
+			npm: fs.readlinkSync(path.join(earlierBin, 'npm')),
+			npx: fs.readlinkSync(path.join(earlierBin, 'npx')),
+		}, {
+			node: path.join(bin, 'node'),
+			npm: path.join(bin, 'npm'),
+			npx: path.join(bin, 'npx'),
+		});
+	});
+
+	test('creates missing npm and npx alongside the selected host Node executable', t => {
+		const root = fixture(t);
+		const bin = path.join(root, '.local/share/vscode-cloud-sandbox/node-v24.18.0-linux-x64/bin');
+		fs.mkdirSync(bin, { recursive: true });
+		for (const executable of ['node', 'npm', 'npx']) {
+			fs.writeFileSync(path.join(bin, executable), '', { mode: 0o755 });
+		}
+		for (const executable of ['npm', 'npx']) {
+			fs.unlinkSync(path.join(root, 'host-bin', executable));
+		}
+		prepareCloudSandbox({
+			root, home: root, platform: 'linux', arch: 'x64', nodeVersion: '26.0.0',
+			env: { GITHUB_ENVIRONMENT_ID: 'environment', PATH: path.join(root, 'host-bin') },
+			run: command => command === 'dpkg-query' ? installedPackages : 'v24.18.0\n',
+		});
+		assert.deepStrictEqual(['node', 'npm', 'npx'].map(executable => fs.readlinkSync(path.join(root, 'host-bin', executable))),
+			['node', 'npm', 'npx'].map(executable => path.join(bin, executable)));
+	});
+
 	test('rejects a bad Node checksum and removes partial downloads', t => {
 		const root = fixture(t);
 		assert.throws(() => prepareCloudSandbox({

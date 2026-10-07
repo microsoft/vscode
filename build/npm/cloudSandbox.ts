@@ -91,16 +91,16 @@ export function prepareCloudSandbox(overrides: Partial<SandboxSetupOptions> = {}
 
 	const required = requiredVersion.split('.').map(Number);
 	const current = nodeVersion.split('.').map(Number);
-	if (current[0] === required[0] && (current[1] > required[1] || (current[1] === required[1] && current[2] >= required[2]))) {
+	const directory = path.join(home, '.local', 'share', 'vscode-cloud-sandbox');
+	const nodeDirectory = path.join(directory, `node-v${requiredVersion}-linux-${arch}`);
+	const node = path.join(nodeDirectory, 'bin', 'node');
+	if (options.nodeExecutable !== node && current[0] === required[0] && (current[1] > required[1] || (current[1] === required[1] && current[2] >= required[2]))) {
 		return options.nodeExecutable;
 	}
 
 	const archiveName = `node-v${requiredVersion}-linux-${arch}.tar.xz`;
 	const baseURL = `https://nodejs.org/dist/v${requiredVersion}`;
-	const directory = path.join(home, '.local', 'share', 'vscode-cloud-sandbox');
-	const nodeDirectory = path.join(directory, `node-v${requiredVersion}-linux-${arch}`);
 	fs.mkdirSync(directory, { recursive: true });
-	const node = path.join(nodeDirectory, 'bin', 'node');
 	if (!fs.existsSync(node) || run(node, ['--version'], true).trim() !== `v${requiredVersion}`) {
 		const temporaryDirectory = fs.mkdtempSync(path.join(directory, 'download-'));
 		try {
@@ -127,31 +127,37 @@ export function prepareCloudSandbox(overrides: Partial<SandboxSetupOptions> = {}
 		}
 	}
 
-	const binDirectory = options.env.PATH?.split(path.delimiter).find(directory => {
+	const executables = ['node', 'npm', 'npx'];
+	for (const executable of executables) {
+		fs.accessSync(path.join(nodeDirectory, 'bin', executable), fs.constants.X_OK);
+	}
+	const resolveBinDirectory = (executable: string) => options.env.PATH?.split(path.delimiter).find(directory => {
 		if (!path.isAbsolute(directory)) {
 			return false;
 		}
 		try {
-			fs.accessSync(path.join(directory, 'node'), fs.constants.X_OK);
+			fs.accessSync(path.join(directory, executable), fs.constants.X_OK);
 			return true;
 		} catch (error) {
-			if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+			const code = (error as NodeJS.ErrnoException).code;
+			if (code === 'ENOENT' || code === 'EACCES') {
 				return false;
 			}
 			throw error;
 		}
 	});
+	const binDirectory = resolveBinDirectory('node');
 	if (!binDirectory) {
 		throw new Error('Cloud Sandbox setup: cannot find the existing Node.js executable on PATH.');
 	}
-	for (const executable of ['node', 'npm', 'npx']) {
+	for (const executable of executables) {
 		const target = path.join(nodeDirectory, 'bin', executable);
-		fs.accessSync(target, fs.constants.X_OK);
-		const destination = path.join(binDirectory, executable);
+		const destinationDirectory = resolveBinDirectory(executable) ?? binDirectory;
+		const destination = path.join(destinationDirectory, executable);
 		if (destination === target) {
 			continue;
 		}
-		const temporaryLink = path.join(binDirectory, `.${executable}-vscode-cloud-${process.pid}`);
+		const temporaryLink = path.join(destinationDirectory, `.${executable}-vscode-cloud-${process.pid}`);
 		fs.symlinkSync(target, temporaryLink);
 		try {
 			fs.renameSync(temporaryLink, destination);
