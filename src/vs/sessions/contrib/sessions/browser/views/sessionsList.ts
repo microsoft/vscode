@@ -2188,6 +2188,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		private readonly customizationMigrationsAvailable: IObservable<boolean> = constObservable(false),
 		readonly templateId = SessionSectionRenderer.TEMPLATE_ID,
 		readonly rowClassName?: string,
+		private readonly onboardingEvents: { readonly onDidActivateNewSession: Event<void> } = { onDidActivateNewSession: Event.None },
 	) { }
 
 	renderTemplate(container: HTMLElement): ISessionSectionTemplate {
@@ -2303,6 +2304,9 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		}
 		if (element.id === NEW_SESSION_SECTION_ID) {
 			template.container.classList.add('session-section-new-session');
+			template.elementDisposables.add(markOnboardingTarget(template.container, 'sessions.newSession.button', {
+				onDidActivate: this.onboardingEvents.onDidActivateNewSession,
+			}));
 			template.keybindingHint.classList.add('visible');
 			const updateKeybinding = () => template.keybindingLabel.set(this.keybindingService.lookupKeybinding(NEW_SESSION_ACTION_ID, this.contextKeyService));
 			updateKeybinding();
@@ -3577,6 +3581,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	readonly onDidUpdate: Event<void> = this._onDidUpdate.event;
 	private readonly _onDidOpenSession = this._register(new Emitter<URI>());
 	readonly onDidOpenSession = this._onDidOpenSession.event;
+	private readonly _onDidActivateNewSession = this._register(new Emitter<void>());
 
 	private readonly _onDidChangeFindOpenState = this._register(new Emitter<boolean>());
 	readonly onDidChangeFindOpenState: Event<boolean> = this._onDidChangeFindOpenState.event;
@@ -3801,6 +3806,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			customizationMigrationsAvailable,
 			templateId,
 			rowClassName,
+			{ onDidActivateNewSession: this._onDidActivateNewSession.event },
 		);
 		const sectionRenderer = createSectionRenderer(undefined, 'session-list-section-row');
 		const shortcutSectionRenderer = createSectionRenderer(SESSION_SHORTCUT_SECTION_TEMPLATE_ID, 'session-list-shortcut-row');
@@ -4744,6 +4750,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.navigationList.setSelection([]);
 		switch (section.id) {
 			case NEW_SESSION_SECTION_ID:
+				this._onDidActivateNewSession.fire();
 				logSessionsInteraction(this.telemetryService, 'newSession', 'sidebar');
 				await this.commandService.executeCommand(NEW_SESSION_ACTION_ID, sideBySide ? { toSide: true } : undefined);
 				if (this.options.navigationContainer && DOM.isAncestorOfActiveElement(this.options.navigationContainer)) {

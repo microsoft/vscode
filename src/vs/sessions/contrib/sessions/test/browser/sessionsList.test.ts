@@ -11,7 +11,7 @@ import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { findOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
+import { findOnboardingTarget, markOnboardingTarget, resolveOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ExtUri } from '../../../../../base/common/resources.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -42,7 +42,7 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { createUSLayoutResolvedKeybinding } from '../../../../../platform/keybinding/test/common/keybindingsTestUtils.js';
 import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
+import { WorkbenchList, WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { IOpenerService, OpenExternalOptions, OpenInternalOptions } from '../../../../../platform/opener/common/opener.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -333,6 +333,66 @@ suite('Sessions - SessionsList', () => {
 				},
 			});
 		});
+
+		for (const activation of ['click', 'keyboard'] as const) {
+			test(`exposes the New Session navigation row as an onboarding target with ${activation} activation`, async () => {
+				const harness = createListHarness(disposables, []);
+				const container = harness.createContainer();
+				const headerButton = mainWindow.document.createElement('button');
+				headerButton.textContent = 'New';
+				headerButton.style.display = 'none';
+				harness.store.add(markOnboardingTarget(headerButton, 'sessions.newSession.button'));
+				const navigationContainer = mainWindow.document.createElement('div');
+				const listContainer = mainWindow.document.createElement('div');
+				container.append(headerButton, navigationContainer, listContainer);
+				let showNavigationShortcuts = true;
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, listContainer, {
+					grouping: () => SessionsGrouping.Date,
+					sorting: () => SessionsSorting.Created,
+					showNavigationShortcuts: () => showNavigationShortcuts,
+					navigationContainer,
+					onSessionOpen: () => { },
+				}));
+				list.layout(300, 400);
+
+				const target = resolveOnboardingTarget(mainWindow, 'sessions.newSession.button');
+				assert.ok(target?.onDidActivate);
+				const targetsNavigationRow = target.element === navigationContainer.querySelector('.session-section-new-session');
+				let activations = 0;
+				harness.store.add(target.onDidActivate(() => activations++));
+				if (activation === 'click') {
+					target.element.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+				} else {
+					const navigation = Reflect.get(list, 'navigationList') as WorkbenchList<ISessionSection>;
+					navigation.setFocus([0]);
+					navigation.domFocus();
+					navigation.setSelection([0], new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13 }));
+				}
+				await timeout(0);
+
+				showNavigationShortcuts = false;
+				list.updateNavigationVisibility();
+				const targetAfterRemoval = resolveOnboardingTarget(mainWindow, 'sessions.newSession.button');
+				const markerAfterRemoval = target.element.hasAttribute('data-onboarding-id');
+				headerButton.style.display = '';
+
+				assert.deepStrictEqual({
+					targetsNavigationRow,
+					activations,
+					commands: harness.commandService.calls,
+					targetAfterRemoval,
+					markerAfterRemoval,
+					targetsHeader: resolveOnboardingTarget(mainWindow, 'sessions.newSession.button')?.element === headerButton,
+				}, {
+					targetsNavigationRow: true,
+					activations: 1,
+					commands: [{ commandId: NEW_SESSION_ACTION_ID, args: [undefined] }],
+					targetAfterRemoval: undefined,
+					markerAfterRemoval: false,
+					targetsHeader: true,
+				});
+			});
+		}
 
 		test('switches the navigation treatment without disturbing Find focus', async () => {
 			const commands: string[] = [];
