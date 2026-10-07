@@ -37,6 +37,7 @@ import { TestRemoteAgentService } from '../../../../test/browser/workbenchTestSe
 
 class TestRemoteAgentConnection extends Disposable implements IRemoteAgentConnection {
 	readonly remoteAuthority = 'ssh-remote+test';
+	readonly isConnected = true;
 	readonly onReconnecting = Event.None;
 	readonly onDidStateChange = Event.None as Event<PersistentConnectionEvent>;
 

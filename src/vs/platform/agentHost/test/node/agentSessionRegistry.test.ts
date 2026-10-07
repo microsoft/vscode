@@ -14,8 +14,18 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { AgentSession } from '../../common/agent.js';
 import { AgentHostDatabase, AgentHostDatabaseSessionChatCatalogReplaceResult, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabase, IAgentHostDatabaseExternalUpdate, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSession, IAgentHostDatabaseSessionChat, IAgentHostDatabaseSessionChatCatalog, IAgentHostDatabaseSessionsV2Exclusion, IAgentHostDatabaseSessionOptions, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Envelope, IAgentHostDatabaseSessionV2Receipt } from '../../node/agentHostDatabase.js';
 import { AgentSessionRegistry } from '../../node/agentSessionRegistry.js';
+import { listTestLegacyChatCatalogSessions, readTestChatV2, readTestSessionListCatalogs } from './chatMetadataTestHelpers.js';
 
 class TestAgentHostDatabase implements IAgentHostDatabase {
+	listLegacyChatCatalogSessions(sessions: readonly string[]): ReturnType<IAgentHostDatabase['listLegacyChatCatalogSessions']> {
+		return listTestLegacyChatCatalogSessions(this, sessions);
+	}
+	readChatV2(session: string, chat: string): ReturnType<IAgentHostDatabase['readChatV2']> {
+		return readTestChatV2(this, session, chat);
+	}
+	readSessionListCatalogs(sessions: readonly string[]): ReturnType<IAgentHostDatabase['readSessionListCatalogs']> {
+		return readTestSessionListCatalogs(this, sessions);
+	}
 	declare readonly _serviceBrand: undefined;
 
 	readonly sessions = new Map<string, IAgentHostDatabaseSession>();
@@ -304,6 +314,20 @@ class TestAgentHostDatabase implements IAgentHostDatabase {
 	async markSessionsV2PayloadsDirty(): Promise<void> { }
 	async markSessionV2PayloadClean(): Promise<boolean> { return false; }
 	async upsertSessionV2(_envelope: IAgentHostDatabaseSessionV2Envelope, _expectedSessionGeneration: string | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult> { return 'missingSession'; }
+	upsertSessionV2FromChatCatalog(...[envelope, expectedSessionGeneration]: Parameters<IAgentHostDatabase['upsertSessionV2FromChatCatalog']>): ReturnType<IAgentHostDatabase['upsertSessionV2FromChatCatalog']> {
+		return this.upsertSessionV2(envelope, expectedSessionGeneration);
+	}
+	async readCatalogSnapshot(...[sessions]: Parameters<IAgentHostDatabase['readCatalogSnapshot']>): ReturnType<IAgentHostDatabase['readCatalogSnapshot']> {
+		return (await this.listSessionV2Registrations()).filter(identity => sessions === undefined || sessions.includes(identity.session)).map(identity => ({
+			session: identity.session, authorityVersion: 1 as const, identity, isChatBacking: false, provisional: this.provisionalSessions.has(identity.session), chats: [],
+		}));
+	}
+	async getChatV2ProviderDetail(..._args: Parameters<IAgentHostDatabase['getChatV2ProviderDetail']>): ReturnType<IAgentHostDatabase['getChatV2ProviderDetail']> { return undefined; }
+	async ensureChatCatalogV2(..._args: Parameters<IAgentHostDatabase['ensureChatCatalogV2']>): ReturnType<IAgentHostDatabase['ensureChatCatalogV2']> { return { status: 'notReady' }; }
+	async registerChatCatalogV2(..._args: Parameters<IAgentHostDatabase['registerChatCatalogV2']>): ReturnType<IAgentHostDatabase['registerChatCatalogV2']> { return { status: 'notReady' }; }
+	async updateChatV2Metadata(..._args: Parameters<IAgentHostDatabase['updateChatV2Metadata']>): ReturnType<IAgentHostDatabase['updateChatV2Metadata']> { return { status: 'notReady' }; }
+	async insertPrivateChatV2(..._args: Parameters<IAgentHostDatabase['insertPrivateChatV2']>): ReturnType<IAgentHostDatabase['insertPrivateChatV2']> { return { status: 'notReady' }; }
+	async removePrivateChatV2(..._args: Parameters<IAgentHostDatabase['removePrivateChatV2']>): ReturnType<IAgentHostDatabase['removePrivateChatV2']> { return { status: 'notReady' }; }
 	async getSessionChatCatalog(_session: string): Promise<IAgentHostDatabaseSessionChatCatalog | undefined> { return undefined; }
 	async replaceSessionChatCatalog(_session: string, _chats: readonly IAgentHostDatabaseSessionChat[], _expectedRevision: number | undefined): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult> { return { status: 'applied', revision: 1 }; }
 	async recoverSessionChatCatalog(_session: string, _chats: readonly IAgentHostDatabaseSessionChat[], _expectedRevision: number): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult> { return { status: 'applied', revision: 1 }; }

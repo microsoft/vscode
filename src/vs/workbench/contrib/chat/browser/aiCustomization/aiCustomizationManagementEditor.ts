@@ -1252,6 +1252,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.editorDisposables.add(this.toolsListWidget.onDidSelectExtension(extension => {
 				this.showEmbeddedToolDetail(extension);
 			}));
+			this.editorDisposables.add(this.toolsListWidget.onDidSelectServer(server => {
+				this.showEmbeddedMcpDetail(server);
+			}));
+			this.editorDisposables.add(this.toolsListWidget.onDidRequestShowPlugin(item => {
+				this.showPluginDetail(item);
+			}));
 		}
 
 		for (const section of this.workspaceService.managementSections) {

@@ -7,7 +7,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IChannel, IServerChannel, getDelayedChannel, IPCLogger } from '../../../../base/parts/ipc/common/ipc.js';
 import { Client } from '../../../../base/parts/ipc/common/ipc.net.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
-import { connectRemoteAgentManagement, IConnectionOptions, ManagementPersistentConnection, PersistentConnectionEvent } from '../../../../platform/remote/common/remoteAgentConnection.js';
+import { ConnectionGainEvent, connectRemoteAgentManagement, IConnectionOptions, ManagementPersistentConnection, PersistentConnectionEvent } from '../../../../platform/remote/common/remoteAgentConnection.js';
 import { IExtensionHostExitInfo, IRemoteAgentConnection, IRemoteAgentService } from './remoteAgentService.js';
 import { IRemoteAuthorityResolverService } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
 import { RemoteAgentConnectionContext, IRemoteAgentEnvironment } from '../../../../platform/remote/common/remoteAgentEnvironment.js';
@@ -157,6 +157,10 @@ class RemoteAgentConnection extends Disposable implements IRemoteAgentConnection
 	private _connection: Promise<Client<RemoteAgentConnectionContext>> | null;
 	private _managementConnection: ManagementPersistentConnection | null = null;
 
+	get isConnected(): boolean {
+		return this._managementConnection?.isConnected ?? false;
+	}
+
 	private _initialConnectionMs: number | undefined;
 
 	constructor(
@@ -254,6 +258,9 @@ class RemoteAgentConnection extends Disposable implements IRemoteAgentConnection
 			return connection.protocol.drain();
 		};
 		this._register(connection.onDidStateChange(e => this._onDidStateChange.fire(e)));
+		if (connection.isConnected) {
+			this._onDidStateChange.fire(new ConnectionGainEvent(connection.reconnectionToken, 0, 0));
+		}
 		return connection.client;
 	}
 }

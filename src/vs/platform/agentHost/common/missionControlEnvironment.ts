@@ -9,7 +9,6 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IMissionControlEnvironment } from './cloudSandboxAgentHost.js';
 
 export interface IMissionControlHost extends IMissionControlEnvironment {
-	readonly hidden?: boolean;
 	readonly displayName?: string;
 }
 
@@ -25,7 +24,5 @@ export interface IMissionControlEnvironmentService {
 	refresh(token: CancellationToken): Promise<void>;
 	connect(id: string, token: CancellationToken): Promise<void>;
 	disconnect(id: string): Promise<void>;
-	hide(id: string): Promise<void>;
-	restore(id: string): void;
 	setDisplayName(id: string, name: string | undefined): void;
 }

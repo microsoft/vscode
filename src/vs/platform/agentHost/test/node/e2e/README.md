@@ -234,6 +234,9 @@ Runner, coverage, Windows launch support, and the Linux mount wrapper live under
 Replay is the default — no setup, no token:
 
 ```bash
+# Refresh client output when running from local sources without an existing build task.
+npm run build-fast -- --client-only
+
 # Run conformance and all provider suites in parallel.
 npm run test-agent-host-e2e
 
@@ -243,6 +246,8 @@ npm run test-agent-host-e2e -- --jobs 2
 # Run one provider.
 ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts
 ```
+
+The complete-suite runner reuses Electron when its installed version matches the repository configuration and the platform's executable is present (and executable on POSIX). Missing or incompatible installations are refreshed. `VSCODE_FORCE_PRELAUNCH=1` forces a refresh; `VSCODE_SKIP_PRELAUNCH=1` explicitly bypasses preparation and takes precedence over the force flag. Output refresh and Electron preparation do not type-check the sources.
 
 The complete-suite runner starts one test process per entrypoint and runs up to five concurrently, including the separate Copilot OTel suite. `AGENT_HOST_E2E_JOBS` or `--jobs` can lower the worker count. Each process's output is printed as one block when it completes, and any Mocha failure details are repeated after the final suite summary so failures remain easy to find. Recording and snapshot-update modes remain per-provider commands so they never make concurrent writes or real CAPI requests.
 
@@ -618,6 +623,14 @@ Keep asserting the real tool result: the replayed assistant text can report the 
 When a test times out waiting for a notification and it is **not** platform-specific local execution (above), the failure is usually inside the bundled provider SDK/CLI. Every failed test tails the Agent Host process log into the test output before its temporary user-data directory is removed; look for the `[agent-host-e2e] # …` lines, including provider stderr and pipeline errors. For the **Copilot** provider, the harness additionally tails the most recent Copilot runtime (`@github/copilot` CLI) `process-*.log`, which records startup, auth, model requests, and the turn lifecycle. A turn that started but never produced a model response, a panic, or an out-of-order / protocol error points at the SDK/CLI. Re-record after an SDK bump if the fixture is stale; otherwise treat it as a genuine regression. The Copilot runtime runs at `--log trace` in this harness, and its full logs live under the server's temp home (`${homeDir}/.copilot/logs`) until the suite tears down.
 
 The parallel runner samples Linux CPU, I/O, and memory pressure plus CPU, memory, and disk counters every five seconds from outside the host processes. Samples are published under `.build/logs/integration-tests/agent-host-resources-<pid>.jsonl`; timestamps correlate with host phase logs. Resource pressure supports a contention hypothesis but does not establish which operation stalled.
+
+### Session disposal times out
+
+Correlate the protocol request with `[AgentService] disposeSession` trace records. Each cleanup operation has an `operationId`, a `stage` logged before its await, and cumulative `elapsedMs`. The last stage without a following stage identifies the pending cleanup boundary; `complete` is emitted only after successful cleanup. A request with no stage record may still be waiting for an in-flight residency release.
+
+Follow the pending boundary into its owning service or provider runtime before classifying the failure. A completed turn or failed automation run does not establish that session cleanup is finished, and a delayed disposal response alone does not distinguish a product race from worker resource contention.
+
+For a catalog drain, correlate `catalogStateWrite` iteration records with `[AgentHostCatalogSync]` records for the same session. Catalog queue records separate `queueWaitMs` from `executionMs`; synchronization stages identify whether local receipt access, central catalog access, or acknowledgement is pending. These timings include nested queues and native I/O, so a slow database stage alone does not prove filesystem or worker-pool contention.
 
 ### Replayed text is doubled (`VALUEVALUE`)
 

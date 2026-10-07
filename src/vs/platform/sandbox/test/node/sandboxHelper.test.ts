@@ -4,11 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, strictEqual } from 'assert';
+import type { ContainerRequest } from '@microsoft/mxc-sdk/v1';
+import { isWindows } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { SandboxHelperService } from '../../node/sandboxHelper.js';
 
 suite('SandboxHelperService', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('builds a V1 container request without a caller-selected wire version', async () => {
+		const policy = {
+			filesystem: { readonlyPaths: ['C:\\tools'], deniedPaths: ['C:\\secret'] },
+			network: { egress: { default: 'deny' as const }, ingress: { default: 'deny' as const } },
+			ui: { disable: false, clipboard: 'none' as const, allowInputInjection: false },
+		};
+		const request: ContainerRequest | undefined = await new SandboxHelperService().buildWindowsMxcSandboxPayload('echo hello', policy, 'C:\\workspace', 'test-container');
+
+		deepStrictEqual(request, isWindows ? {
+			...policy,
+			command: 'echo hello',
+			workingDirectory: 'C:\\workspace',
+			containerName: 'test-container',
+			containment: { type: 'process' },
+		} : undefined);
+	});
 
 	test('does not inspect sandbox dependencies on non-Linux platforms', async () => {
 		let findCalled = false;

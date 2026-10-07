@@ -38,7 +38,7 @@ import { ILifecycleService } from '../../../../services/lifecycle/common/lifecyc
 import { IAgentSessionsModel } from '../../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../browser/agentSessions/agentSessionsService.js';
 import { IChatWidget, IChatWidgetService } from '../../browser/chat.js';
-import { ChatInputNotificationActionKind, IChatInputNotification, IChatInputNotificationService } from '../../browser/widget/input/chatInputNotificationService.js';
+import { ChatInputNotificationActionKind, IChatInputNotification, IChatInputNotificationContext, IChatInputNotificationService } from '../../browser/widget/input/chatInputNotificationService.js';
 import { ChatEditorInput } from '../../browser/widgetHosts/editor/chatEditorInput.js';
 import { agentsWindowInvitationScenarios, getAgentsWindowInvitationTreatment } from '../../common/agentsWindowInvitation.js';
 import { AgentsWindowUsage } from '../../common/agentsWindowUsage.js';
@@ -47,6 +47,7 @@ import { IChatSessionsService, SessionType } from '../../common/chatSessionsServ
 import { ChatAgentLocation, ChatConfiguration } from '../../common/constants.js';
 import { IChatChangeEvent, IChatModel, IChatPendingRequest, IChatRequestModel, IChatRequestNeedsInputInfo } from '../../common/model/chatModel.js';
 import { IChatViewModel } from '../../common/model/chatViewModel.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
 import { AgentsWindowInvitationContribution } from '../../electron-browser/agentSessions/agentsWindowInvitation.js';
 import { AgentHostEditorActivity, IAgentHostEditorActivityService } from '../../electron-browser/agentSessions/agentHostEditorActivity.js';
 
@@ -137,11 +138,23 @@ suite('AgentsWindowInvitation', () => {
 			onDidRemoveWidget: removed.event,
 			onDidChangeWidgetVisibility: Event.None,
 		}));
+		const notificationContext = (): IChatInputNotificationContext => {
+			const resource = focusedWidget?.viewModel?.sessionResource;
+			return {
+				inputUri: focusedWidget?.inputPart.inputUri,
+				sessionType: resource ? getChatSessionType(resource) : undefined,
+				sessionResource: resource,
+				deferredNotificationsEnabled: true,
+				isTransientChat: false,
+				sessionStarted: focusedWidget?.viewModel?.model.hasRequests ?? false,
+				modelState: { currentModel: undefined, models: [] },
+			};
+		};
 		instantiation.stub(IChatInputNotificationService, upcastPartial<IChatInputNotificationService>({
 			setNotification: value => {
 				notification = value;
 				if (autoShow) {
-					value.onDidShow?.();
+					value.onDidShow?.(notificationContext());
 				}
 			},
 			deleteNotification: () => { notification = undefined; },
@@ -225,7 +238,7 @@ suite('AgentsWindowInvitation', () => {
 				const editor = store.add(instantiation.createInstance(ChatEditorInput, resource, {}));
 				closed.fire({ editor, groupId: 1, context, index: 0, sticky: false });
 			},
-			show: () => { autoShow = true; notification?.onDidShow?.(); },
+			show: () => { autoShow = true; notification?.onDidShow?.(notificationContext()); },
 			refetch: async () => { refetched.fire(); await timeout(0); },
 			configure: async (key: string, value: boolean) => {
 				await configuration.setUserConfiguration(key, value);

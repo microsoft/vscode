@@ -76,7 +76,6 @@ function mergeTriggers(a: IReconcileTrigger, b: IReconcileTrigger): IReconcileTr
 	};
 }
 
-/** Accumulated reconcile intents scoped to the session (`sessionKey`) they were queued for. */
 interface IPendingReconcile {
 	readonly sessionKey: string | undefined;
 	readonly target: IManagedTabsTarget;
@@ -98,7 +97,7 @@ interface IPendingReconcile {
 export class DesktopDockedTabsCoordinator extends Disposable {
 
 	/** Non-docked editors closed (as reopenable inputs + tab index) while the editor area is hidden. */
-	private _collapsedEditors: { readonly editor: IUntypedEditorInput; readonly index: number }[] | undefined;
+	private readonly _collapsedEditorsByOwner = new Map<string | undefined, { readonly editor: IUntypedEditorInput; readonly index: number }[]>();
 	private readonly _sequencer = new Sequencer();
 
 	private _generation = 0;
@@ -241,7 +240,8 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 			}
 
 			if (visible) {
-				this._queue(() => this._restoreCollapsedTabs());
+				const ownerKey = this._ownerKeyString();
+				this._queue(() => this._restoreCollapsedTabs(ownerKey));
 				return;
 			}
 
@@ -249,12 +249,17 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 			if (this._ctx.togglingSidePane) {
 				return;
 			}
-			if (this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
-				this._queue(() => this._collapseNonManagedTabs());
-			}
+			this._queueCollapseIfDetailsOnly();
 		}));
 
-		this._register(this._ctx.onDidEndSessionLayoutRestore(() => this._queueCollapseIfDetailsOnly()));
+		this._register(this._ctx.onDidEndSessionLayoutRestore(() => {
+			if (this._ctx.chatLayoutActive() && this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+				const ownerKey = this._ownerKeyString();
+				this._queue(() => this._restoreCollapsedTabs(ownerKey));
+			} else {
+				this._queueCollapseIfDetailsOnly();
+			}
+		}));
 		this._register(mainEditorsChanged(() => {
 			if (!this._ctx.isRestoringSessionLayout) {
 				this._queueCollapseIfDetailsOnly();
@@ -268,8 +273,17 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 		return resource && this._sessionChangesService.getSessionResource(resource) ? resource : undefined;
 	}
 
+	private _ownerKeyString(): string | undefined {
+		const session = this._sessionsService.activeSession.get();
+		if (!session) {
+			return undefined;
+		}
+		const ownerKey = this._ctx.chatLayoutActive() ? this._ctx.ownerKeyFor(session) : undefined;
+		return (ownerKey ?? session.resource).toString();
+	}
+
 	prepareWorkingSetRestore(hasSavedWorkingSet: boolean): void {
-		const sessionKey = this._sessionsService.activeSession.get()?.resource.toString();
+		const sessionKey = this._ownerKeyString();
 		this._preserveMissingFilesForSessionKey = hasSavedWorkingSet && this._filesTabDismissed ? sessionKey : undefined;
 	}
 
@@ -282,7 +296,7 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 
 	/** Queues a reconcile for the active session, merging `trigger` with any not-yet-applied pending intents for that session. */
 	queueReconcile(target: IManagedTabsTarget, trigger: IReconcileTrigger): void {
-		const sessionKey = this._sessionsService.activeSession.get()?.resource.toString();
+		const sessionKey = this._ownerKeyString();
 		// Accumulate intents only within the same session; a session switch drops the previous
 		// session's pending intents (and takes the latest target).
 		const mergedTrigger = this._pending && this._pending.sessionKey === sessionKey
@@ -310,7 +324,25 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 		// Bump the generation before super.dispose() so queued/in-flight reconciles bail at their next checkpoint.
 		this._generation++;
 		this._pending = undefined;
+		this._collapsedEditorsByOwner.clear();
 		super.dispose();
+	}
+
+	remapOwnerKey(oldKey: URI, newKey: URI): void {
+		if (isEqual(oldKey, newKey)) {
+			return;
+		}
+		const captured = this._collapsedEditorsByOwner.get(oldKey.toString());
+		if (captured) {
+			this._collapsedEditorsByOwner.set(newKey.toString(), captured);
+			this._collapsedEditorsByOwner.delete(oldKey.toString());
+		}
+	}
+
+	forgetOwnerKeys(keys: readonly URI[]): void {
+		for (const key of keys) {
+			this._collapsedEditorsByOwner.delete(key.toString());
+		}
 	}
 
 	/** Queues coordinator-owned work, dropping tasks and failures that outlive disposal. */
@@ -368,7 +400,7 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 				return;
 			}
 			this._updateFilesEditors(group, target.workspace);
-			const sessionKey = this._sessionsService.activeSession.get()?.resource.toString();
+			const sessionKey = this._ownerKeyString();
 			const preserveMissingFiles = !!trigger.workingSetRestored && this._preserveMissingFilesForSessionKey === sessionKey;
 			if (preserveMissingFiles) {
 				await this._removeFilesTab(group);
@@ -429,11 +461,13 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 		}
 	}
 
-	/** On a session change, drop editors captured while the previous session's editor area was hidden so they are not reopened here. */
+	/** Legacy session switches discard collapsed inputs; chat-owned inputs survive until their owner is removed. */
 	private _resetCollapsedEditorsOnSessionChange(): void {
-		const sessionKey = this._sessionsService.activeSession.get()?.resource.toString();
+		const sessionKey = this._ownerKeyString();
 		if (sessionKey !== this._lastSyncedSessionKey) {
-			this._collapsedEditors = undefined;
+			if (!this._ctx.chatLayoutActive() && !this._ctx.chatLayoutSuspended()) {
+				this._collapsedEditorsByOwner.clear();
+			}
 			this._lastSyncedSessionKey = sessionKey;
 		}
 	}
@@ -562,13 +596,18 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 
 	private _queueCollapseIfDetailsOnly(): void {
 		if (!this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow) && this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
-			this._queue(() => this._collapseNonManagedTabs());
+			const ownerKey = this._ownerKeyString();
+			this._queue(() => this._collapseNonManagedTabs(ownerKey));
 		}
 	}
 
-	private async _collapseNonManagedTabs(): Promise<void> {
+	private async _collapseNonManagedTabs(ownerKey: string | undefined): Promise<void> {
+		if (this._ctx.isRestoringSessionLayout || this._ctx.chatLayoutSuspended() || this._ctx.togglingSidePane || ownerKey !== this._ownerKeyString()
+			|| this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow) || !this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
+			return;
+		}
 		const group = this._editorGroupsService.mainPart.activeGroup;
-		const captured: { editor: IUntypedEditorInput; index: number }[] = [...(this._collapsedEditors ?? [])];
+		const captured: { editor: IUntypedEditorInput; index: number }[] = [...(this._collapsedEditorsByOwner.get(ownerKey) ?? [])];
 		const toClose: EditorInput[] = [];
 		group.editors.forEach((editor, index) => {
 			if (editor instanceof DockedEditorInput || this.getChangesEditorResource(editor)) {
@@ -586,7 +625,7 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 			return;
 		}
 
-		this._collapsedEditors = captured;
+		this._collapsedEditorsByOwner.set(ownerKey, captured);
 		const suppressEditorPartAutoVisibility = this._layoutService.suppressEditorPartAutoVisibility();
 		try {
 			await this._editorService.closeEditors(toClose.map(editor => ({ groupId: group.id, editor })), { preserveFocus: true });
@@ -595,9 +634,13 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 		}
 	}
 
-	private async _restoreCollapsedTabs(): Promise<void> {
-		const captured = this._collapsedEditors;
-		this._collapsedEditors = undefined;
+	private async _restoreCollapsedTabs(ownerKey: string | undefined): Promise<void> {
+		if (this._ctx.isRestoringSessionLayout || this._ctx.chatLayoutSuspended() || ownerKey !== this._ownerKeyString()
+			|| !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+			return;
+		}
+		const captured = this._collapsedEditorsByOwner.get(ownerKey);
+		this._collapsedEditorsByOwner.delete(ownerKey);
 		if (!captured || captured.length === 0) {
 			return;
 		}

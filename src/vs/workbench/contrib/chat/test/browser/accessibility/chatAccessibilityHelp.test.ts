@@ -31,6 +31,17 @@ suite('Chat Accessibility Help', () => {
 		assert.ok(help.includes('use /sandbox policy to view the effective sandbox policy. In the response, use Tab to focus Open Sandbox Policy and Enter to open the formatted report.'));
 	});
 
+	for (const isSessionsWindow of [false, true]) {
+		test(`documents the remote BYOK warning only in the editor (isSessionsWindow: ${isSessionsWindow})`, () => {
+			const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), false, isSessionsWindow);
+			assert.deepStrictEqual({
+				keyboard: help.includes('Use Tab to reach Dismiss notification or Don\'t Show Again, then Enter or Space to activate it.'),
+				oncePerWindow: help.includes('The warning does not repeat in other chats in the same window.'),
+				persistence: help.includes('Don\'t Show Again permanently hides this warning for your profile, including when new models are added.'),
+			}, { keyboard: !isSessionsWindow, oncePerWindow: !isSessionsWindow, persistence: !isSessionsWindow });
+		});
+	}
+
 	test('documents generated image previews and saving', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({

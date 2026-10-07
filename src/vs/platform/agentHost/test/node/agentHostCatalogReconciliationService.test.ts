@@ -13,6 +13,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import type { ISessionDataService } from '../../common/sessionDataService.js';
 import { AgentHostCatalogReconciliationService, AgentHostCatalogReconciliationSourceResult, CATALOG_VERIFICATION_VERSION, IAgentHostCatalogReconciliationOptions } from '../../node/agentHostCatalogReconciliationService.js';
 import { AgentHostCatalogSyncService } from '../../node/agentHostCatalogSyncService.js';
+import { chatCatalogV2ToCatalogChats } from '../../node/agentHostCatalogSourceResolver.js';
 import { AgentHostCatalogData, AGENT_HOST_CATALOG_PAYLOAD_VERSION, encodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
 import { AgentHostDatabase, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Envelope } from '../../node/agentHostDatabase.js';
 import type { IRegisteredSession } from '../../node/agentSessionRegistry.js';
@@ -228,6 +229,139 @@ suite('AgentHostCatalogReconciliationService', () => {
 			)),
 		};
 	}
+
+	test('reprojects an obsolete pending aggregate from current normalized chats', async () => {
+		const harness = await createHarness(['a']);
+		const session = registered('a').session;
+		const initial = catalogData('a');
+		await harness.sync.synchronize(session, { data: initial, legacyMetadata: {} });
+		const source = await harness.central.getSessionV2(session.toString());
+		if (!source) {
+			throw new Error('Expected a persisted catalog');
+		}
+		await harness.central.markSessionV2PayloadClean(session.toString(), source.payloadDirty);
+		const activation = await harness.central.ensureChatCatalogV2(session.toString(), {
+			sessionGeneration: source.sessionGeneration,
+			sourceRevision: source.sourceRevision,
+			payloadHash: source.payloadHash,
+			catalogRevision: 0,
+		}, {
+			defaultChat: { chat: initial.chats[0].uri, order: 0 },
+			peers: [],
+			privateDescendants: [],
+		});
+		if (activation.status !== 'applied') {
+			throw new Error(`Expected activation, got ${activation.status}`);
+		}
+		const [snapshot] = await harness.central.readCatalogSnapshot([session.toString()]);
+		const chat = snapshot.chats[0];
+		await harness.central.updateChatV2Metadata(chat.chat, chat, { metadata: { ...chat.metadata, summary: 'Current chat' } });
+		const stale = encodeAgentHostCatalogPayload({ ...initial, summary: 'Obsolete aggregate' });
+		if (!stale.ok) {
+			throw new Error(stale.error);
+		}
+		await requiredLocal(harness.locals, session).setMetadataValuesAndCatalogSyncSnapshot({}, {
+			sessionGeneration: source.sessionGeneration,
+			sourceRevision: 1,
+			projectionVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
+			payload: stale.value.payload,
+			payloadHash: stale.value.payloadHash,
+			state: 'pending',
+		});
+		let resolutions = 0;
+		const service = harness.createService(async () => {
+			resolutions++;
+			const [current] = await harness.central.readCatalogSnapshot([session.toString()]);
+			if (!current.header) {
+				throw new Error('Expected the current normalized header');
+			}
+			return {
+				status: 'available',
+				request: {
+					data: { ...initial, summary: 'Latest aggregate', chats: chatCatalogV2ToCatalogChats(current) },
+					legacyMetadata: {},
+					chatCatalogRevision: current.header.revision,
+				},
+			};
+		});
+		const report = await service.runPass();
+		const stored = await harness.central.getSessionV2(session.toString());
+		assert.deepStrictEqual({
+			outcomes: report.outcomes,
+			resolutions,
+			summary: stored && summaryOf(stored.payload),
+			chat: (await harness.central.readCatalogSnapshot([session.toString()]))[0].chats[0].metadata?.summary,
+			pending: (await requiredLocal(harness.locals, session).getCatalogSyncSnapshot())?.state,
+		}, {
+			outcomes: [{ session: session.toString(), status: 'succeeded', reason: 'synchronized', sourceRevision: 2 }],
+			resolutions: 1,
+			summary: 'Latest aggregate',
+			chat: 'Current chat',
+			pending: 'acknowledged',
+		});
+	});
+
+	test('schedules bounded chat conversion independently of provider availability and resumes its cursor', async () => {
+		const harness = await createHarness(['a', 'b', 'c']);
+		const migrated: string[] = [];
+		const options: IAgentHostCatalogReconciliationOptions = {
+			batchSize: 2,
+			isSourceAvailable: () => false,
+			migrateChatCatalog: async (session, token) => {
+				assert.strictEqual(token.isCancellationRequested, false);
+				migrated.push(session.toString());
+			},
+		};
+		await harness.createService(async () => {
+			throw new Error('Chat conversion must not resolve a provider');
+		}, options).runPass();
+		await harness.createService(async () => {
+			throw new Error('Chat conversion must not resolve a provider');
+		}, options).runPass();
+		assert.deepStrictEqual({
+			migrated,
+			databaseOpens: harness.getDatabaseOpenAttempts(),
+		}, {
+			migrated: ['agenthost:a', 'agenthost:b', 'agenthost:c', 'agenthost:a'],
+			databaseOpens: 0,
+		});
+	});
+
+	test('damaged normalized private metadata and a failed conversion do not block healthy repair or migration progress', async () => {
+		const harness = await createHarness(['a', 'b', 'c']);
+		await harness.central.registerChatCatalogV2('agenthost:a', {
+			defaultChat: { chat: 'agenthost-chat:a/default', order: 0 },
+			peers: [],
+			privateDescendants: [{ chat: 'chat://damaged-private' }],
+		});
+		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Corrupt persisted production metadata, not the reader.
+		const raw = await harness.central['_ensureDatabase']();
+		await new Promise<void>((resolve, reject) => raw.run(
+			'UPDATE chats_v2 SET metadata_hash = ? WHERE chat_uri = ?',
+			['damaged', 'chat://damaged-private'],
+			error => error ? reject(error) : resolve(),
+		));
+		await assert.rejects(harness.central.readCatalogSnapshot(['agenthost:a']), /metadata hash mismatch/);
+		const migrated: string[] = [];
+		const storage = new TestStorageService();
+		const service = harness.createService(undefined, {
+			batchSize: 2,
+			migrateChatCatalog: async session => {
+				migrated.push(session.toString());
+				if (session.toString() === 'agenthost:b') {
+					throw new Error('Conversion failed for this owner');
+				}
+			},
+		}, storage);
+		const firstPass = await service.runPass();
+		await service.runPass();
+		assert.deepStrictEqual({
+			migrated,
+			healthyOutcome: firstPass.outcomes.find(outcome => outcome.session === 'agenthost:b')?.status,
+			repaired: (await harness.central.getSessionV2('agenthost:b'))?.verified,
+			migrationCursor: storage.get('agentHost.catalogReconciliation.chatMigrationCursor'),
+		}, { migrated: ['agenthost:b', 'agenthost:c'], healthyOutcome: 'succeeded', repaired: true, migrationCursor: 'agenthost:a' });
+	});
 
 	test('opens and re-projects dirty rows once, then skips clean rows before session.db', async () => {
 		const harness = await createHarness(['one']);

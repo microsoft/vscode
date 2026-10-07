@@ -42,7 +42,7 @@ import { ChatSourceKind } from '../common/state/protocol/channels-chat/commands.
 import type { CommandMap } from '../common/state/protocol/messages.js';
 import { ActionEnvelope, ActionType, INotification, isAnnotationsAction, isAutomationAction, isAutomationRunAction, isChangesetAction, isChatAction, isSessionAction, isTerminalAction } from '../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
-import { negotiateProtocolVersion } from '../common/state/protocol/version/negotiation.js';
+import { getAgentHostSupportedProtocolVersions, negotiateAgentHostProtocolVersion } from '../common/agentHostProtocolCompatibility.js';
 import { VSCODE_UPGRADE_METHOD, type UnsupportedProtocolVersionErrorDataEx } from '../common/state/protocolUpgrade.js';
 import { getAgentHostManagementSocketPath, requestAgentHostUpgrade } from './agentHostUpgradeChannel.js';
 import {
@@ -675,10 +675,11 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		const offered = Array.isArray(params.protocolVersions) ? params.protocolVersions : [];
 		this._logService.info(`[ProtocolServer] Initialize: clientId=${params.clientId}, protocolVersions=[${offered.join(', ')}]`);
 
-		const negotiated = negotiateProtocolVersion(offered, PROTOCOL_VERSION);
+		const negotiated = negotiateAgentHostProtocolVersion(offered);
 		if (!negotiated) {
+			const supportedVersions = getAgentHostSupportedProtocolVersions();
 			const data: UnsupportedProtocolVersionErrorDataEx = {
-				supportedVersions: [`^${PROTOCOL_VERSION}`],
+				supportedVersions,
 				// Only advertise the in-band upgrade method when the agent
 				// host was spawned by a VS Code CLI that is listening for
 				// management requests (presence of the env var). Otherwise
@@ -690,7 +691,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			};
 			throw new ProtocolError(
 				AHP_UNSUPPORTED_PROTOCOL_VERSION,
-				`Client offered protocol versions [${offered.join(', ')}], none of which are compatible with this server's version ${PROTOCOL_VERSION} (server accepts ^${PROTOCOL_VERSION}).`,
+				`Client offered protocol versions [${offered.join(', ')}], none of which are compatible with this server's version ${PROTOCOL_VERSION} (server accepts ${supportedVersions.join(', ')}).`,
 				data,
 			);
 		}
@@ -1540,7 +1541,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	private _createClientTelemetryContext(clientInfo: Implementation | undefined, meta: Record<string, unknown> | undefined, transport: IProtocolTransport, fallbackConnectionKind = AgentHostClientConnectionKind.Unknown): IAgentHostClientTelemetryContext {
-		const connectionKind = readClientConnectionKind(meta);
+		const connectionKind = transport.clientConnectionKind ?? readClientConnectionKind(meta);
 		const machineId = readClientMachineId(meta);
 		const devDeviceId = readClientDevDeviceId(meta);
 		return {
@@ -1749,6 +1750,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			if (createdSession.toString() !== URI.parse(params.channel).toString()) {
 				this._logService.warn(`[ProtocolServer] createSession: provider returned URI ${createdSession.toString()} but client requested ${params.channel}`);
 			}
+			this._telemetryReporter.sessionCreated(this._stateManager.getSessionSummary(createdSession.toString())?.provider ?? params.provider, _client.telemetryContext);
 			return null;
 		},
 		disposeSession: async (_client, params) => {

@@ -825,7 +825,7 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 					connectorCalls,
 					connectorDisplayName: connectorDisplayNames.get('connector-mail'),
 				}, {
-					featureFlags: { CONNECTORS: true, TGREP: false, CONTENT_EXCLUSION: true, MANAGED_MCP_SERVERS: true },
+					featureFlags: { CONNECTORS: true, TGREP: false, CONTENT_EXCLUSION: true, copilot_swe_agent_memory_in_repo_store: false, MANAGED_MCP_SERVERS: true },
 					connectorCalls: ['capabilities', 'auth', 'accounts', 'reconcile:account-1:true', ...(reconcileError ? ['status'] : [])],
 					connectorDisplayName: 'Work IQ Mail',
 				});
@@ -908,7 +908,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 			ask: ['Shell'],
 		};
 		const logService = new CapturingLogService();
-		const launcher = createTestLauncher(managedSettingsPermissions, { [AgentHostCanvasesEnabledConfigKey]: true }, logService);
+		const launcher = createTestLauncher(managedSettingsPermissions, { [AgentHostCanvasesEnabledConfigKey]: true, memory: true, localMemory: true }, logService);
 		const pluginDir = URI.file('/tmp/synced-customizations');
 		const syntheticPluginDir = URI.file('/tmp/vscode-synced-customizations');
 		const skillUri = URI.joinPath(pluginDir, 'skills', 'user-skill', 'SKILL.md');
@@ -1015,6 +1015,8 @@ suite('CopilotSessionLauncher shared session config', () => {
 				createExtensionSdkPath: createConfigs[0].extensionSdkPath?.replaceAll('\\', '/').endsWith('/copilot-sdk'),
 				createToolNames: createConfigs[0].tools?.map(tool => tool.name),
 				createExcludedTools: createConfigs[0].excludedTools,
+				createMemory: createConfigs[0].memory,
+				createLocalMemoryStore: createConfigs[0].featureFlags?.copilot_swe_agent_memory_in_repo_store,
 				resumeClientName: resumeConfigs[0].clientName,
 				resumeGitHubMcpToolConfig: resumeConfigs[0].githubMcpToolConfig,
 				resumePluginDirectories: resumeConfigs[0].pluginDirectories,
@@ -1034,6 +1036,10 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumeExtensionSdkPath: resumeConfigs[0].extensionSdkPath?.replaceAll('\\', '/').endsWith('/copilot-sdk'),
 				resumeToolNames: resumeConfigs[0].tools?.map(tool => tool.name),
 				resumeExcludedTools: resumeConfigs[0].excludedTools,
+				resumeMemory: resumeConfigs[0].memory,
+				resumeLocalMemoryStore: resumeConfigs[0].featureFlags?.copilot_swe_agent_memory_in_repo_store,
+				ephemeralMemory: createConfigs[1].memory,
+				ephemeralLocalMemoryStore: createConfigs[1].featureFlags?.copilot_swe_agent_memory_in_repo_store,
 				ephemeralMcpServers: createConfigs[1].mcpServers,
 				ephemeralEnableSessionStore: createConfigs[1].enableSessionStore,
 				ephemeralMcpOAuthTokenStorage: createConfigs[1].mcpOAuthTokenStorage,
@@ -1075,7 +1081,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				createHasExitPlanHandler: true,
 				createLargeOutput: { maxSizeBytes: 8192 },
 				createManagedSettings: { permissions: managedSettingsPermissions },
-				createFeatureFlags: { CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true },
+				createFeatureFlags: { CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true, copilot_swe_agent_memory_in_repo_store: true },
 				createStreaming: true,
 				createEnableSessionStore: true,
 				createRequestExtensions: true,
@@ -1083,6 +1089,8 @@ suite('CopilotSessionLauncher shared session config', () => {
 				createExtensionSdkPath: true,
 				createToolNames: [CopilotExtensionsReloadToolName],
 				createExcludedTools: [...disabledWorkflowTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
+				createMemory: { enabled: true },
+				createLocalMemoryStore: true,
 				resumeClientName: 'vscode-agent-host',
 				resumeGitHubMcpToolConfig: { disableFormDeferral: true },
 				resumePluginDirectories: [pluginDir.fsPath, syntheticPluginDir.fsPath],
@@ -1101,7 +1109,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumeHasExitPlanHandler: true,
 				resumeLargeOutput: { maxSizeBytes: 8192 },
 				resumeManagedSettings: { permissions: managedSettingsPermissions },
-				resumeFeatureFlags: { CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true },
+				resumeFeatureFlags: { CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true, copilot_swe_agent_memory_in_repo_store: true },
 				resumeStreaming: true,
 				resumeEnableSessionStore: true,
 				resumeRequestExtensions: true,
@@ -1109,6 +1117,10 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumeExtensionSdkPath: true,
 				resumeToolNames: [CopilotExtensionsReloadToolName],
 				resumeExcludedTools: [...disabledWorkflowTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
+				resumeMemory: { enabled: true },
+				resumeLocalMemoryStore: true,
+				ephemeralMemory: { enabled: false },
+				ephemeralLocalMemoryStore: false,
 				ephemeralMcpServers: {},
 				ephemeralEnableSessionStore: false,
 				ephemeralMcpOAuthTokenStorage: 'in-memory',
@@ -1976,7 +1988,7 @@ suite('CopilotSessionLauncher resume config', () => {
 		model: ModelSelection | undefined,
 		snapshot: CopilotSessionLaunchPlan['snapshot'] = { tools: [], plugins: [], mcpServers: {} },
 		createClientSdkTools: ICopilotSessionRuntime['createClientSdkTools'] = () => [],
-	): Promise<{ model?: string; reasoningEffort?: string; contextTier?: string; availableTools?: string[]; excludedTools?: string[]; modelCapabilities?: Record<string, unknown>; toolSearch?: { enabled: boolean }; enableExperimentalMode?: boolean; featureFlags?: Record<string, boolean> }> {
+	): Promise<{ model?: string; reasoningEffort?: string; contextTier?: string; availableTools?: string[]; excludedTools?: string[]; modelCapabilities?: Record<string, unknown>; toolSearch?: { enabled: boolean }; enableExperimentalMode?: boolean; featureFlags?: Record<string, boolean>; memory?: { enabled: boolean } }> {
 		const plan = {
 			kind: 'resume',
 			client: { createSession: async () => { throw new Error('unused'); }, resumeSession: async () => { throw new Error('unused'); } },
@@ -1991,7 +2003,7 @@ suite('CopilotSessionLauncher resume config', () => {
 			fallback: { model },
 		};
 		const runtime = { createClientSdkTools, createServerSdkTools: () => [] };
-		return (launcher as unknown as { _buildSessionConfig(plan: unknown, runtime: unknown, onManagedSettingsResolved: () => void): Promise<{ model?: string; reasoningEffort?: string; contextTier?: string; availableTools?: string[]; excludedTools?: string[]; modelCapabilities?: Record<string, unknown>; toolSearch?: { enabled: boolean }; enableExperimentalMode?: boolean; featureFlags?: Record<string, boolean> }> })._buildSessionConfig(plan, runtime, () => { });
+		return (launcher as unknown as { _buildSessionConfig(plan: unknown, runtime: unknown, onManagedSettingsResolved: () => void): Promise<{ model?: string; reasoningEffort?: string; contextTier?: string; availableTools?: string[]; excludedTools?: string[]; modelCapabilities?: Record<string, unknown>; toolSearch?: { enabled: boolean }; enableExperimentalMode?: boolean; featureFlags?: Record<string, boolean>; memory?: { enabled: boolean } }> })._buildSessionConfig(plan, runtime, () => { });
 	}
 
 	test('excludes native dynamic workflow tools even when explicitly allowlisted', async () => {
@@ -2031,14 +2043,15 @@ suite('CopilotSessionLauncher resume config', () => {
 				CONNECTORS: false,
 				TGREP: false,
 				CONTENT_EXCLUSION: true,
+				copilot_swe_agent_memory_in_repo_store: false,
 				HYDRAFUSION: true,
 				HYDRAFUSION_ROLLOUT: true,
 			},
 			disabledExperimentalMode: undefined,
-			disabledFeatureFlags: { CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true },
+			disabledFeatureFlags: { CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true, copilot_swe_agent_memory_in_repo_store: false },
 			defaultExperimentalMode: undefined,
-			defaultFeatureFlags: { CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true },
-			connectorFeatureFlags: { CONNECTORS: true, TGREP: false, CONTENT_EXCLUSION: true, MANAGED_MCP_SERVERS: true },
+			defaultFeatureFlags: { CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true, copilot_swe_agent_memory_in_repo_store: false },
+			connectorFeatureFlags: { CONNECTORS: true, TGREP: false, CONTENT_EXCLUSION: true, copilot_swe_agent_memory_in_repo_store: false, MANAGED_MCP_SERVERS: true },
 		});
 	});
 
@@ -2051,8 +2064,30 @@ suite('CopilotSessionLauncher resume config', () => {
 			disabled: disabled.featureFlags,
 			enabled: enabled.featureFlags,
 		}, {
-			disabled: { CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true },
-			enabled: { CONNECTORS: false, TGREP: true, CONTENT_EXCLUSION: true },
+			disabled: { CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true, copilot_swe_agent_memory_in_repo_store: false },
+			enabled: { CONNECTORS: false, TGREP: true, CONTENT_EXCLUSION: true, copilot_swe_agent_memory_in_repo_store: false },
+		});
+	});
+
+	test('explicitly disables Copilot Memory and the local store unless opted in', async () => {
+		const store = disposables.add(new DisposableStore());
+		const configs = {
+			cloud: await buildResumeConfig(createLauncher(store, { memory: true }), { id: 'gpt-5' }),
+			local: await buildResumeConfig(createLauncher(store, { memory: true, localMemory: true }), { id: 'gpt-5' }),
+			localWithoutMemory: await buildResumeConfig(createLauncher(store, { memory: false, localMemory: true }), { id: 'gpt-5' }),
+			disabled: await buildResumeConfig(createLauncher(store, { memory: false }), { id: 'gpt-5' }),
+			notOptedIn: await buildResumeConfig(createLauncher(store, {}), { id: 'gpt-5' }),
+		};
+
+		assert.deepStrictEqual(Object.fromEntries(Object.entries(configs).map(([name, config]) => [name, {
+			memory: config.memory,
+			localStore: config.featureFlags?.copilot_swe_agent_memory_in_repo_store,
+		}])), {
+			cloud: { memory: { enabled: true }, localStore: false },
+			local: { memory: { enabled: true }, localStore: true },
+			localWithoutMemory: { memory: { enabled: false }, localStore: false },
+			disabled: { memory: { enabled: false }, localStore: false },
+			notOptedIn: { memory: { enabled: false }, localStore: false },
 		});
 	});
 
