@@ -10797,7 +10797,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private async _registerRestoredSubagentSummaries(agent: IAgent, parentSession: URI, turns: readonly Turn[]): Promise<void> {
 		const parentSessionStr = parentSession.toString();
-		const parentChat = buildDefaultChatUri(parentSession);
+		const parentChat = this._defaultChatUri(parentSession);
 		const discovered = new Map<string, { title: string; toolCallId: string }>();
 		for (const turn of turns) {
 			for (const part of turn.responseParts) {

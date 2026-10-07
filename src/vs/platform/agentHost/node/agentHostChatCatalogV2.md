@@ -59,7 +59,8 @@ queued SELECT. It validates the visible default and the requested row's metadata
 and directories without decoding sibling or private rows. Title hydration and
 deferred-title restoration use this lookup rather than repeated full snapshots.
 Historical subagents discovered from restored parent tool results are registered
-as private rows before title hydration, retaining their parent edge and imported
+as private rows before title hydration, retaining their authoritative physical-default
+parent edge and imported
 legacy custom title. Existing normalized metadata remains authoritative; child
 transcripts stay lazy and private rows never enter public peer ordering.
 

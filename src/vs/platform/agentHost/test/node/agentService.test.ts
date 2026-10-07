@@ -20755,6 +20755,51 @@ suite('AgentService (node dispatcher)', () => {
 			}
 		});
 
+		test('restored historical subagents retain an advertised physical default parent', async () => {
+			const session = URI.parse('ahp-session:/historical-advertised-default');
+			const physical = buildChatUri(session, 'physical-default');
+			const child = buildSubagentChatUri(session.toString(), 'historical-task');
+			const database = disposables.add(new AgentHostDatabase(':memory:'));
+			await database.registerSessionV2(session.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			await database.updateSessionV2External([{ session: session.toString(), external: false }]);
+			await database.registerChatCatalogV2(session.toString(), {
+				defaultChat: { chat: physical, order: 0, providerData: 'physical-backing' },
+				peers: [], privateDescendants: [],
+			});
+			class HistoricalAgent extends MockAgent {
+				override async getChatMetadata(chat: URI): Promise<IAgentChatMetadata> {
+					return { chat, startTime: 1, modifiedTime: 1, summary: 'Owner' };
+				}
+				override async materializeChat(): Promise<void> { }
+			}
+			const agent = disposables.add(new HistoricalAgent('copilot'));
+			agent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'user', content: 'Delegate', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'assistant', content: '', toolRequests: [{ toolCallId: 'historical-task', name: 'task' }] },
+				{ type: 'tool_start', session, toolCallId: 'historical-task', toolName: 'task', displayName: 'Task', invocationMessage: 'Delegating', toolKind: 'subagent', subagentDescription: 'Historical Worker', subagentAgentName: 'explore' },
+				{ type: 'subagent_started', session, toolCallId: 'historical-task', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore' },
+				{ type: 'tool_complete', session, toolCallId: 'historical-task', result: { success: true, pastTenseMessage: 'Delegated', content: [] } },
+			];
+			const svc = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database,
+			));
+			registerTestAgentProvider(svc, agent);
+			await svc.restoreSession(session);
+			const row = (await database.readChatV2(session.toString(), child)).chat;
+			assert.deepStrictEqual({
+				physical: getStateManager(svc).getDefaultChatUri(session.toString()),
+				parent: row?.parentChat,
+				origin: row?.origin,
+				publicOrder: row?.order,
+			}, {
+				physical,
+				parent: physical,
+				origin: JSON.stringify({ kind: ChatOriginKind.Tool, chat: physical, toolCallId: 'historical-task' }),
+				publicOrder: undefined,
+			});
+		});
+
 		test('legacy subagent reconstruction replaces only a generic restored title', async () => {
 			registerTestAgentProvider(service, copilotAgent);
 			const parent = await service.createSession({ provider: 'copilot' });
