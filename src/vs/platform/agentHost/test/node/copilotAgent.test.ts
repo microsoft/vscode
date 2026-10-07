@@ -1556,7 +1556,7 @@ suite('CopilotAgent', () => {
 					initializeSession(session: string): Promise<void>;
 					resolve(session: string, target: { readonly name: string }): { kind: 'resolved'; enablement: readonly [{ kind: CustomizationEnablementKind.Session; enabled: boolean }]; enabled: boolean; workingDirectory: { kind: 'workspaceless' } };
 				};
-			}, session: URI, sessionId: string, snapshot: { readonly mcpServers: Record<string, unknown> }): Promise<readonly string[]>;
+			}, session: URI, snapshot: { readonly mcpServers: Record<string, unknown> }): Promise<readonly string[]>;
 			_rootMcpCustomizations(this: { readonly id: string; readonly _isGitHubMcpServerEnabled: () => boolean }, sessionId: string, mcpServers: Record<string, unknown>, additionalServerNames?: Iterable<string>): readonly Customization[];
 		};
 		const result = await copilotAgentPrototype._disabledRootMcpServers.call({
@@ -1571,7 +1571,7 @@ suite('CopilotAgent', () => {
 					return { kind: 'resolved', enablement: [{ kind: CustomizationEnablementKind.Session, enabled }], enabled, workingDirectory: { kind: 'workspaceless' } };
 				},
 			},
-		}, AgentSession.uri('copilotcli', 'session'), 'sdk-session', { mcpServers: {} });
+		}, AgentSession.uri('copilotcli', 'session'), { mcpServers: {} });
 
 		assert.deepStrictEqual({ initializedSession, result }, {
 			initializedSession: AgentSession.uri('copilotcli', 'session').toString(),
@@ -1608,7 +1608,7 @@ suite('CopilotAgent', () => {
 			const session = URI.parse('ahp-session:/context7-launch');
 			try {
 				await agent.authenticate('https://api.github.com', 'github-token');
-				const disabled = await agent['_disabledRootMcpServers'](session, 'sdk-context7', { tools: [], plugins: [], mcpServers: {} });
+				const disabled = await agent['_disabledRootMcpServers'](session, { tools: [], plugins: [], mcpServers: {} });
 				assert.deepStrictEqual({ initializedSession, disabled }, {
 					initializedSession: session.toString(),
 					disabled: ['context7'],
@@ -1618,6 +1618,56 @@ suite('CopilotAgent', () => {
 			}
 		});
 	}
+
+	test('launch uses the owning AHP customization identity for session-scoped MCP disablement with an independent SDK backing', async () => {
+		const client = new TestCopilotClient([]);
+		client.mcpConfigListResult = { servers: { context7: { type: 'http', url: 'https://mcp.example.com/context7' } } };
+		let launchConfig: SessionConfig | undefined;
+		client.createSession = async config => {
+			launchConfig = config;
+			return new MockCopilotSession() as unknown as CopilotSession;
+		};
+		const { agent, instantiationService, stateManager } = createTestAgentContext(disposables, {
+			copilotClient: client,
+			sessionDataService: disposables.add(new TestSessionDataService()),
+			useRealCustomizationEnablementService: true,
+			rootConfig: { [AgentHostGitHubMcpServerEnabledConfigKey]: false },
+		});
+		const session = URI.parse('ahp-session:/context7-launch');
+		const id = 'mcp-top-level:copilotcli:context7-launch:context7';
+		const now = new Date().toISOString();
+		stateManager.createSession({
+			resource: session.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle,
+			createdAt: now, modifiedAt: now, workingDirectories: ['file:///workspace'],
+		});
+		const enablementService = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostCustomizationEnablementService));
+		try {
+			await agent.authenticate('https://api.github.com', 'github-token');
+			await enablementService.initializeSession(session.toString());
+			enablementService.setEnablement(session.toString(), {
+				id, type: CustomizationType.McpServer, name: 'context7', source: URI.parse(id),
+			}, CustomizationEnablementKind.Session, false);
+			await enablementService.whenIdle();
+			const chat = defaultChatUri(session);
+			const result = await agent.chats.createChat(chat, exactChatContext(session, chat, session), {
+				workingDirectories: [URI.file('/workspace')],
+				deferBacking: false,
+			});
+			assert.ok(result);
+
+			assert.deepStrictEqual({
+				session: session.toString(),
+				separateBacking: result.backingSession !== undefined && AgentSession.id(result.backingSession) !== AgentSession.id(session),
+				disabledMcpServers: launchConfig?.disabledMcpServers,
+			}, {
+				session: 'ahp-session:/context7-launch',
+				separateBacking: true,
+				disabledMcpServers: ['context7'],
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
 
 	suite('MCP authentication during session initialization', () => {
 		test('standard host sessions reserve independent Copilot backing IDs without changing their address', async () => {

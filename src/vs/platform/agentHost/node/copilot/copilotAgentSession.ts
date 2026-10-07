@@ -1485,8 +1485,8 @@ export class CopilotAgentSession extends Disposable {
 
 		this._appliedSnapshot = options.clientSnapshot ?? { tools: [], plugins: [], mcpServers: {} };
 		this._declaredMcpServerNames = new Set([
-			...getMcpServerCustomizations(this._hostCustomizations()).map(server => server.name),
 			...Object.keys(this._appliedSnapshot.mcpServers),
+			...this._appliedSnapshot.plugins.flatMap(plugin => plugin.mcpServers.map(server => server.name)),
 		]);
 		if (this._mcpToolRoutingEnabled) {
 			this._initializeMcpRoutingServers();
