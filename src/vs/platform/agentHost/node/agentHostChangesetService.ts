@@ -10,6 +10,7 @@ import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../base/common/lifecycle.js';
 import { isObject } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
+import { IAgentHostPeerChatPersistenceService } from './agentHostPeerChatStore.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import {
@@ -221,6 +222,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IAgentHostGitStateService private readonly _gitStateService: IAgentHostGitStateService,
 		@IAgentHostWorktreeIsolation worktree: IAgentHostWorktreeIsolation,
+		@IAgentHostPeerChatPersistenceService private readonly _chatPersistence: IAgentHostPeerChatPersistenceService,
 	) {
 		super();
 		this._worktree = worktree;
@@ -1571,7 +1573,10 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			return;
 		}
 		if (this._stateManager.setChatSummaryChanges(chat, summary)) {
-			this._persistSessionFlag(containingSessionUri(chat), getChatChangesSummaryMetadataKey(chat), JSON.stringify(summary));
+			const session = containingSessionUri(chat);
+			void this._chatPersistence.persistMetadata(URI.parse(session), URI.parse(session), {
+				[getChatChangesSummaryMetadataKey(chat)]: JSON.stringify(summary),
+			}).catch(error => this._logService.warn(`[AgentHostChangesetService] Failed to persist chat changes for ${chat}`, error));
 		}
 	}
 
