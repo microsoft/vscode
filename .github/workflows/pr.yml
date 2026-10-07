@@ -144,6 +144,36 @@ jobs:
       unit_tests: false
       integration_tests: false
 
+  agent-host-e2e-changes:
+    name: Detect Agent Host E2E Changes
+    runs-on: ubuntu-24.04
+    outputs:
+      affected: ${{ steps.detect.outputs.affected }}
+    steps:
+      - name: Checkout microsoft/vscode
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: .github/actions/detect-agent-host-e2e-changes
+
+      - name: Detect Agent Host E2E changes
+        id: detect
+        uses: ./.github/actions/detect-agent-host-e2e-changes
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  linux-agent-host-e2e-tests:
+    name: Linux
+    needs: agent-host-e2e-changes
+    uses: ./.github/workflows/pr-linux-test.yml
+    with:
+      job_name: Agent-Host-E2E
+      electron_tests: true
+      unit_tests: false
+      integration_tests: false
+      smoke_tests: false
+      agent_host_e2e_tests: true
+      skip: ${{ needs.agent-host-e2e-changes.outputs.affected == 'false' }}
+
   linux-browser-tests:
     name: Linux
     uses: ./.github/workflows/pr-linux-test.yml
@@ -185,6 +215,19 @@ jobs:
       unit_tests: false
       integration_tests: false
 
+  macos-agent-host-e2e-tests:
+    name: macOS
+    needs: agent-host-e2e-changes
+    uses: ./.github/workflows/pr-darwin-test.yml
+    with:
+      job_name: Agent-Host-E2E
+      electron_tests: true
+      unit_tests: false
+      integration_tests: false
+      smoke_tests: false
+      agent_host_e2e_tests: true
+      skip: ${{ needs.agent-host-e2e-changes.outputs.affected == 'false' }}
+
   macos-browser-tests:
     name: macOS
     uses: ./.github/workflows/pr-darwin-test.yml
@@ -225,6 +268,23 @@ jobs:
       electron_tests: true
       unit_tests: false
       integration_tests: false
+      # WSL2 Dev Container smoke tests need nested virtualization (1ES image)
+      self_hosted: true
+
+  windows-agent-host-e2e-tests:
+    name: Windows
+    needs: agent-host-e2e-changes
+    uses: ./.github/workflows/pr-win32-test.yml
+    with:
+      job_name: Agent-Host-E2E
+      electron_tests: true
+      unit_tests: false
+      integration_tests: false
+      smoke_tests: false
+      agent_host_e2e_tests: true
+      skip: ${{ needs.agent-host-e2e-changes.outputs.affected == 'false' }}
+      # Six parallel suites; CPU-bound on the 4 vCPU hosted runner
+      self_hosted: true
 
   windows-browser-tests:
     name: Windows
@@ -242,7 +302,7 @@ jobs:
 
   copilot-check-test-cache:
     name: Copilot - Check Test Cache
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=copilot-check-test-cache-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    runs-on: ubuntu-22.04
     permissions:
       contents: read
       pull-requests: read
@@ -287,7 +347,7 @@ jobs:
 
   copilot-check-telemetry:
     name: Copilot - Check Telemetry
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=copilot-check-telemetry-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    runs-on: ubuntu-22.04
     permissions:
       contents: read
     steps:
