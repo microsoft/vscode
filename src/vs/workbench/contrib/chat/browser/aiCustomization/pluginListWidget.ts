@@ -57,6 +57,8 @@ import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { asTreeRenderer, customizationTreeStyles, getCustomizationTreeContentHeight, ICustomizationTreeGroup } from './customizationTree.js';
 import { CustomizationToggle } from './customizationToggle.js';
 import { affectsCustomizationDiscoveryAvailability, isCustomizationDiscoveryAvailable } from './customizationMarketplaceConfiguration.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { getAICustomizationWorkspaceGroupForResource, getAICustomizationWorkspaceGroups, isAICustomizationWorkspaceGroupKey } from './aiCustomizationWorkspaceGroups.js';
 
 const $ = DOM.$;
 
@@ -820,6 +822,7 @@ export class PluginListWidget extends Disposable {
 		@ICustomizationMarketplaceService private readonly customizationMarketplaceService: ICustomizationMarketplaceService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ICustomizationMarketplaceInstallService private readonly marketplaceInstallService: ICustomizationMarketplaceInstallService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
 		this.element = $('.mcp-list-widget.plugin-list-widget'); // reuse MCP shell, add plugin-specific row styling
@@ -849,6 +852,7 @@ export class PluginListWidget extends Disposable {
 		if (this.customizationMarketplaceService.onDidChangeSources) {
 			this._register(this.customizationMarketplaceService.onDidChangeSources(() => void this.refresh()));
 		}
+		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => this.renderPluginTree()));
 		this._register({
 			dispose: () => {
 				this.delayedFilter.cancel();
@@ -1393,7 +1397,24 @@ export class PluginListWidget extends Disposable {
 		}
 
 		const partitionedInstalledItems = partitionInstalledPluginItemsByScope(this.installedItems);
-		const workspaceEntries = partitionedInstalledItems.workspace.map(item => ({ type: 'plugin-item' as const, item }));
+		const workspaceGroups = getAICustomizationWorkspaceGroups(this.workspaceContextService);
+		const workspaceDefinitions = workspaceGroups.length > 0
+			? workspaceGroups.map(group => ({
+				id: group.key,
+				label: group.label,
+				description: localize('workspacePluginsGroupDescription', "Plugins included or excluded specifically for this workspace."),
+				icon: Codicon.folder,
+				children: partitionedInstalledItems.workspace
+					.filter(item => getAICustomizationWorkspaceGroupForResource(item.plugin.uri, this.workspaceContextService)?.key === group.key)
+					.map(item => ({ type: 'plugin-item' as const, item })),
+			}))
+			: [{
+				id: 'workspace',
+				label: localize('workspacePluginsGroup', "Workspace"),
+				description: localize('workspacePluginsGroupDescription', "Plugins included or excluded specifically for this workspace."),
+				icon: Codicon.folder,
+				children: partitionedInstalledItems.workspace.map(item => ({ type: 'plugin-item' as const, item })),
+			}];
 		const userEntries = partitionedInstalledItems.user.map(item => ({ type: 'plugin-item' as const, item }));
 		const installedNames = new Set(this.installedItems.map(item => item.name.toLowerCase()));
 		const remoteEntries = this.remoteItems
@@ -1411,13 +1432,7 @@ export class PluginListWidget extends Disposable {
 				icon: Codicon.account,
 				children: userEntries,
 			},
-			{
-				id: 'workspace',
-				label: localize('workspacePluginsGroup', "Workspace"),
-				description: localize('workspacePluginsGroupDescription', "Plugins included or excluded specifically for this workspace."),
-				icon: Codicon.folder,
-				children: workspaceEntries,
-			},
+			...workspaceDefinitions,
 			{
 				id: 'remote',
 				label: localize('remotePluginsSection', "Remote Session"),
@@ -1434,7 +1449,7 @@ export class PluginListWidget extends Disposable {
 			},
 		].filter(group => group.id === 'available'
 			? showLegacyMarketplace
-			: group.id === 'user' || group.id === 'workspace' || group.children.length > 0);
+			: group.id === 'user' || group.id === 'workspace' || workspaceGroups.some(workspace => workspace.key === group.id) || group.children.length > 0);
 
 		this.currentTreeGroups = definitions.map((group, index): ICustomizationTreeGroup<IPluginListEntry> => {
 			const element: IPluginGroupHeaderEntry = {
@@ -1473,7 +1488,7 @@ export class PluginListWidget extends Disposable {
 
 	private renderPluginTreeGroupActions(entry: IPluginGroupHeaderEntry, container: HTMLElement, disposables: DisposableStore): void {
 		const actions = DOM.append(container, $('.plugin-card-section-actions'));
-		if (entry.group === 'user' || entry.group === 'workspace') {
+		if (entry.group === 'user' || entry.group === 'workspace' || isAICustomizationWorkspaceGroupKey(entry.group)) {
 			if (this.pluginMarketplaceService.installedPlugins.get().length > 0) {
 				this.renderPluginUpdateAction(actions, disposables);
 			}

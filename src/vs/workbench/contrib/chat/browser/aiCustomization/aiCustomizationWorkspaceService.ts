@@ -77,7 +77,7 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 		// No-op in core VS Code.
 	}
 
-	async generateCustomization(type: PromptsType): Promise<void> {
+	async generateCustomization(type: PromptsType, workspaceFolder?: URI): Promise<void> {
 		const commandIds: Partial<Record<PromptsType, string>> = {
 			[PromptsType.agent]: GENERATE_AGENT_COMMAND_ID,
 			[PromptsType.skill]: GENERATE_SKILL_COMMAND_ID,
@@ -87,7 +87,7 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 		};
 		const commandId = commandIds[type];
 		if (commandId) {
-			await this.commandService.executeCommand(commandId);
+			await this.commandService.executeCommand(commandId, workspaceFolder);
 		}
 	}
 }

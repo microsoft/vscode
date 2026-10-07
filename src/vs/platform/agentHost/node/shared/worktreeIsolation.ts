@@ -1014,7 +1014,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 
 		onProgress?.(buildWorktreeProgressText(WorktreeCreationPhase.Starting));
 
-		const checkoutRoot = await this._gitService.getRepositoryRoot(workingDirectory);
+		const checkoutRoot = await this._gitService.getRepositoryRoot(workingDirectory, { refreshIfNone: true });
 		if (!checkoutRoot) {
 			return workingDirectory;
 		}
@@ -1101,7 +1101,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		}
 
 		onProgress?.(buildWorktreeProgressText(WorktreeCreationPhase.Starting));
-		const checkoutRoot = await this._gitService.getRepositoryRoot(workingDirectory);
+		const checkoutRoot = await this._gitService.getRepositoryRoot(workingDirectory, { refreshIfNone: true });
 		if (!checkoutRoot) {
 			throw new Error(localize('agentHost.pullRequest.notGitRepository', "The workspace folder '{0}' is not a Git repository.", workingDirectory.fsPath));
 		}
@@ -1753,7 +1753,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 	}
 
 	private async _readGitInfo(workingDirectory: URI): Promise<IIsolationGitInfo | undefined> {
-		const repositoryRoot = await this._gitService.getRepositoryRoot(workingDirectory);
+		const repositoryRoot = await this._gitService.getRepositoryRoot(workingDirectory, { refreshIfNone: true });
 		if (!repositoryRoot) {
 			return undefined;
 		}
