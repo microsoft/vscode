@@ -2457,14 +2457,16 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 
 	private async _projectNormalizedPeersToLegacy(database: Database, session: string): Promise<void> {
 		await run(database, 'DELETE FROM session_chats WHERE session_uri = ?', [session]);
-		await run(database, `INSERT INTO session_chats
+		const insertSql = `INSERT INTO session_chats
 			(session_uri, chat_uri, chat_order, provider_data, origin, inherited_turn_id, is_read, archived)
 			SELECT c.owner_session_uri, c.chat_uri, ROW_NUMBER() OVER (ORDER BY c.chat_order) - 1,
 				c.provider_data, c.origin, c.inherited_turn_id, c.is_read, c.archived
 			FROM chats_v2 c JOIN session_chat_catalogs h ON h.session_uri = c.owner_session_uri
 			WHERE c.owner_session_uri = ? AND c.tombstoned = 0 AND c.chat_order IS NOT NULL
 				AND h.authority_version = 2 AND c.chat_uri <> h.default_chat_uri
-			ORDER BY c.chat_order`, [session]);
+			ORDER BY c.chat_order`;
+		await run(database, insertSql, [session]);
+		await this._onDidRunStatement?.(insertSql);
 	}
 
 	private _validateChatV2Input(chat: IAgentHostDatabaseChatV2NormalizationChat): void {
@@ -2522,6 +2524,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			}
 		}
 		await this._projectNormalizedPeersToLegacy(database, session);
+		this._validateWriteBoundary(validate);
 	}
 
 	private async _insertChatV2(database: Database, session: string, chat: IAgentHostDatabaseChatV2NormalizationChat): Promise<void> {

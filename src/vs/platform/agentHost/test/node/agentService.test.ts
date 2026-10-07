@@ -21853,6 +21853,82 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('does not activate restored subagents after its owner is reloaded during legacy projection', async () => {
+			const session = AgentSession.uri('copilot', 'removed-restored-subagent-legacy-projection');
+			const sessionKey = session.toString();
+			const defaultChat = buildDefaultChatUri(session);
+			const child = buildSubagentChatUri(sessionKey, 'historical-task');
+			const projectionStarted = new DeferredPromise<void>();
+			const releaseProjection = new DeferredPromise<void>();
+			let blockProjection = false;
+			const database = disposables.add(new AgentHostDatabase(':memory:', async sql => {
+				if (blockProjection && sql.startsWith('INSERT INTO session_chats')) {
+					blockProjection = false;
+					projectionStarted.complete();
+					await releaseProjection.p;
+				}
+			}));
+			await database.registerRuntimeSession(sessionKey, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			assert.strictEqual(await database.upsertSessionV2(catalogEnvelope(session, {
+				modifiedTime: 1,
+				summary: 'Owner',
+				isRead: false,
+				isArchived: false,
+				workingDirectories: [],
+				chats: [{ uri: defaultChat, order: 0, kind: 'default', summary: 'Owner' }],
+			}, 'generation', 1), undefined), 'applied');
+			const legacyCatalog = await database.getSessionChatCatalog(sessionKey);
+			blockProjection = true;
+			const backing = createPerSessionDataService();
+			backing.database(session);
+			const agent = disposables.add(new MockAgent('copilot'));
+			const svc = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, backing.service, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database,
+			));
+			const stateManager = getStateManager(svc);
+			const now = new Date().toISOString();
+			const restoreOwner = (title: string) => stateManager.restoreSession({
+				resource: sessionKey,
+				provider: agent.id,
+				title,
+				status: SessionStatus.Idle,
+				createdAt: now,
+				modifiedAt: now,
+			}, []);
+			restoreOwner('Old Owner');
+			const internals = svc as unknown as {
+				_catalogSyncSuppressedSessions: Set<string>;
+				_catalogReconciliationService: { runPass(): Promise<void> };
+				_restoredSubagentAdmissionRetries: Map<string, { run(): Promise<void> }>;
+				_queueRestoredSubagentAdmissionRetry(agent: IAgent, parentSession: URI, turns: readonly Turn[]): void;
+			};
+			internals._catalogSyncSuppressedSessions.add(sessionKey);
+			internals._catalogReconciliationService.runPass = async () => { };
+			internals._queueRestoredSubagentAdmissionRetry(agent, session, [restoredSubagentTurn(session, 'historical-task', 'Old Historical Worker')]);
+			assert.strictEqual(await raceTimeout(projectionStarted.p.then(() => true), 1000, () => false), true, 'Legacy projection did not start');
+			const pendingRetry = internals._restoredSubagentAdmissionRetries.get(sessionKey)?.run();
+			assert.ok(pendingRetry);
+
+			stateManager.removeSession(sessionKey);
+			restoreOwner('Reloaded Owner');
+			releaseProjection.complete();
+			await pendingRetry;
+
+			const snapshot = (await database.readCatalogSnapshot([sessionKey]))[0];
+			assert.deepStrictEqual({
+				authority: snapshot.authorityVersion,
+				persistedChild: (await database.readChatV2(sessionKey, child)).chat,
+				legacyCatalog: await database.getSessionChatCatalog(sessionKey),
+				publishedChild: stateManager.getSessionState(sessionKey)?.chats.some(chat => chat.resource === child),
+			}, {
+				authority: 1,
+				persistedChild: undefined,
+				legacyCatalog,
+				publishedChild: false,
+			});
+		});
+
 		for (const ownerState of ['tombstoned', 'retired'] as const) {
 			test(`does not admit a restored historical subagent for a ${ownerState} owner`, async () => {
 				const session = AgentSession.uri('copilot', `${ownerState}-historical-subagent`);
