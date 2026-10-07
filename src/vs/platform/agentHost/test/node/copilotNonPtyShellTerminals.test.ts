@@ -304,6 +304,24 @@ suite('NonPtyShellTerminalStreams', () => {
 			strictEqual(channelContent(), 'Compiling\nwarning\n done\n');
 		});
 
+		test('strips an escape sequence that spans chunks of the same stream', () => {
+			streams.track('chunk-7', 'shell');
+			streams.appendChunk('chunk-7', { text: 'status: \x1b[3', sequence: 0 });
+			streams.appendChunk('chunk-7', { text: 'note\n', sequence: 1, stream: 'stderr' });
+			streams.appendChunk('chunk-7', { text: '2mok\x1b[0', sequence: 2 });
+			streams.appendChunk('chunk-7', { text: 'm\n', sequence: 3 });
+
+			strictEqual(channelContent(), 'status: \nnote\nok\n');
+		});
+
+		test('keeps a line open after a bare carriage return, so another stream starts a new line', () => {
+			streams.track('chunk-8', 'shell');
+			streams.appendChunk('chunk-8', { text: 'progress 50%\r', sequence: 0 });
+			streams.appendChunk('chunk-8', { text: 'warning\n', sequence: 1, stream: 'stderr' });
+
+			strictEqual(channelContent(), 'progress 50%\r\nwarning\n');
+		});
+
 		test('keeps using snapshots when it never saw the call\'s first chunk', () => {
 			streams.track('chunk-3', 'shell');
 			const late = streams.appendChunk('chunk-3', { text: 'late\n', sequence: 3 });
