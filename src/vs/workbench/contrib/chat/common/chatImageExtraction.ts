@@ -6,13 +6,15 @@
 import { decodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { getExtensionForMimeType, getMediaMime } from '../../../../base/common/mime.js';
+import { IReader } from '../../../../base/common/observable.js';
+import { getComparisonKey } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { isLocation } from '../../../../editor/common/languages.js';
 import { IChatResponseViewModel, IChatRequestViewModel, isRequestVM } from './model/chatViewModel.js';
-import { ChatResponseResource } from './model/chatModel.js';
-import { IChatContentInlineReference, IChatToolInvocation, IChatToolInvocationSerialized, IToolResultOutputDetailsSerialized } from './chatService/chatService.js';
-import { isToolResultInputOutputDetails, isToolResultOutputDetails, IToolResultOutputDetails } from './tools/languageModelToolsService.js';
+import { ChatResponseResource, getAttachableImageExtension, IResponse } from './model/chatModel.js';
+import { IChatContentInlineReference, IChatToolInvocation, IChatToolInvocationSerialized, IToolResultOutputDetailsSerialized, ToolConfirmKind } from './chatService/chatService.js';
+import { isToolResultInputOutputDetails, isToolResultOutputDetails, IToolResultInputOutputDetails, IToolResultOutputDetails, ToolInputOutputBase } from './tools/languageModelToolsService.js';
 import { getExplicitFileOrImageAttachmentSummary, type IChatRequestVariableEntry, isImageVariableEntry } from './attachments/chatVariableEntries.js';
 
 export interface IChatExtractedImage {
@@ -20,7 +22,7 @@ export interface IChatExtractedImage {
 	readonly uri: URI;
 	readonly name: string;
 	readonly mimeType: string;
-	readonly data: VSBuffer;
+	readonly data?: VSBuffer;
 	readonly source: string;
 	readonly caption: string | IMarkdownString | undefined;
 }
@@ -29,6 +31,61 @@ export interface IChatExtractedImageCollection {
 	readonly id: string;
 	readonly title: string;
 	readonly images: IChatExtractedImage[];
+}
+
+interface IChatToolOutputImage {
+	readonly uri: URI;
+	readonly mimeType: string;
+	readonly index: number;
+	readonly base64Value?: string;
+	readonly audience?: ToolInputOutputBase['audience'];
+}
+
+export function getToolResultImageResources(details: IToolResultInputOutputDetails | undefined, sessionResource: URI, toolCallId: string, name = 'file'): IChatToolOutputImage[] {
+	const images: IChatToolOutputImage[] = [];
+	for (const [index, output] of details?.output.entries() ?? []) {
+		if (!output.mimeType?.startsWith('image/') || output.type === 'embed' && output.isText) {
+			continue;
+		}
+		const imageExtension = getAttachableImageExtension(output.mimeType === 'image/jpg' ? 'image/jpeg' : output.mimeType);
+		const extension = imageExtension ? `.${imageExtension}` : getExtensionForMimeType(output.mimeType) ?? '';
+		images.push({
+			uri: output.type === 'ref' ? output.uri : ChatResponseResource.createUri(sessionResource, toolCallId, index, `${name}${extension}`),
+			mimeType: output.mimeType,
+			index,
+			base64Value: output.type === 'embed' ? output.value : undefined,
+			audience: output.audience,
+		});
+	}
+	return images;
+}
+
+/** Lists successful generated images without loading or decoding their bytes. */
+export function getGeneratedImageResources(response: IResponse, sessionResource: URI, reader?: IReader): (IChatToolOutputImage & { readonly toolCallId: string })[] {
+	const images: (IChatToolOutputImage & { readonly toolCallId: string })[] = [];
+	for (const part of response.value) {
+		if (part.kind !== 'toolInvocation' && part.kind !== 'toolInvocationSerialized') {
+			continue;
+		}
+		if (!IChatToolInvocation.isComplete(part, reader) || part.toolSpecificData?.kind !== 'generatedImage' || IChatToolInvocation.resultError(part, reader)) {
+			continue;
+		}
+		const confirmation = IChatToolInvocation.executionConfirmedOrDenied(part, reader);
+		if (confirmation?.type === ToolConfirmKind.Denied || confirmation?.type === ToolConfirmKind.Skipped) {
+			continue;
+		}
+		const details = IChatToolInvocation.resultDetails(part, reader);
+		if (isToolResultInputOutputDetails(details) && !details.isError) {
+			images.push(...getToolResultImageResources(details, sessionResource, part.toolCallId, 'generated-image').map(image => ({ ...image, toolCallId: part.toolCallId })));
+		}
+	}
+	return images;
+}
+
+/** Embedded image names are presentation only; the tool and output index identify their bytes. */
+export function getChatImageResourceComparisonKey(resource: URI): string {
+	const parsed = ChatResponseResource.parseUri(resource);
+	return getComparisonKey(parsed ? ChatResponseResource.createUri(parsed.sessionResource, parsed.toolCallId, parsed.index) : resource);
 }
 
 /**
@@ -73,10 +130,10 @@ export function extractImagesFromToolInvocationOutputDetails(toolInvocation: ICh
 	const resultDetails = IChatToolInvocation.resultDetails(toolInvocation);
 
 	const caption = toolInvocation.pastTenseMessage ?? toolInvocation.invocationMessage;
-	const pushImage = (mimeType: string, data: VSBuffer, outputIndex: number) => {
+	const pushImage = (mimeType: string, data: VSBuffer | undefined, outputIndex: number, resource?: URI) => {
 		const ext = getExtensionForMimeType(mimeType);
 		const permalinkBasename = ext ? `file${ext}` : 'file.bin';
-		const uri = ChatResponseResource.createUri(sessionResource, toolInvocation.toolCallId, outputIndex, permalinkBasename);
+		const uri = resource ?? ChatResponseResource.createUri(sessionResource, toolInvocation.toolCallId, outputIndex, permalinkBasename);
 		images.push({
 			id: `${toolInvocation.toolCallId}_${outputIndex}`,
 			uri,
@@ -89,11 +146,8 @@ export function extractImagesFromToolInvocationOutputDetails(toolInvocation: ICh
 	};
 
 	if (isToolResultInputOutputDetails(resultDetails)) {
-		for (let i = 0; i < resultDetails.output.length; i++) {
-			const outputItem = resultDetails.output[i];
-			if (outputItem.type === 'embed' && outputItem.mimeType?.startsWith('image/') && !outputItem.isText) {
-				pushImage(outputItem.mimeType, decodeBase64(outputItem.value), i);
-			}
+		for (const image of getToolResultImageResources(resultDetails, sessionResource, toolInvocation.toolCallId)) {
+			pushImage(image.mimeType, image.base64Value === undefined ? undefined : decodeBase64(image.base64Value), image.index, image.uri);
 		}
 	}
 	else if (isToolResultOutputDetails(resultDetails)) {
@@ -234,18 +288,19 @@ export function extractImagesFromChatVariables(
 			continue;
 		}
 		const buffer = coerceImageBuffer(variable.value);
-		if (!buffer) {
+		const reference = variable.references?.[0]?.reference;
+		const resource = URI.isUri(reference) ? reference : URI.isUri(variable.value) ? variable.value : undefined;
+		if (!buffer && !resource) {
 			continue;
 		}
 		const mimeType = variable.mimeType ?? getMediaMime(variable.name) ?? 'image/png';
-		const uri = variable.references?.[0]?.reference;
-		const imageUri = URI.isUri(uri) ? uri : URI.from({ scheme: 'data', path: `${variable.id}/${encodeURIComponent(variable.name)}` });
+		const imageUri = resource ?? URI.from({ scheme: 'data', path: `${variable.id}/${encodeURIComponent(variable.name)}` });
 		images.push({
 			id: imageUri.toString(),
 			uri: imageUri,
 			name: variable.name,
 			mimeType,
-			data: VSBuffer.wrap(buffer),
+			data: buffer ? VSBuffer.wrap(buffer) : undefined,
 			source: localize('chatImageExtraction.userAttachment', "Attachment"),
 			caption: undefined,
 		});

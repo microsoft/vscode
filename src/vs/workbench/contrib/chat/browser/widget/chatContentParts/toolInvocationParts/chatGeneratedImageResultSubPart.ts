@@ -6,11 +6,11 @@
 import * as dom from '../../../../../../../base/browser/dom.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
 import { ResourceMap } from '../../../../../../../base/common/map.js';
-import { getExtensionForMimeType } from '../../../../../../../base/common/mime.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
-import { ChatResponseResource, IChatProgressResponseContent } from '../../../../common/model/chatModel.js';
+import { getChatImageResourceComparisonKey, getToolResultImageResources } from '../../../../common/chatImageExtraction.js';
+import { IChatProgressResponseContent } from '../../../../common/model/chatModel.js';
 import { IChatRendererContent } from '../../../../common/model/chatViewModel.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails } from '../../../../common/tools/languageModelToolsService.js';
 import { type IChatCodeBlockInfo } from '../../../chat.js';
@@ -25,29 +25,13 @@ export function getGeneratedImageResultParts(
 	sessionResource: URI,
 	toolCallId: string,
 ): IChatCollapsibleIODataPart[] {
-	if (!details) {
-		return [];
-	}
-
-	const parts: IChatCollapsibleIODataPart[] = [];
-	for (let index = 0; index < details.output.length; index++) {
-		const output = details.output[index];
-		if (!output.mimeType?.startsWith('image/')) {
-			continue;
-		}
-		if (output.type === 'ref') {
-			parts.push({ kind: 'data', uri: output.uri, mimeType: output.mimeType, audience: output.audience });
-			continue;
-		}
-		if (output.isText) {
-			continue;
-		}
-
-		const extension = getExtensionForMimeType(output.mimeType) ?? '';
-		const uri = ChatResponseResource.createUri(sessionResource, toolCallId, index, `generated-image${extension}`);
-		parts.push({ kind: 'data', base64Value: output.value, mimeType: output.mimeType, uri, audience: output.audience });
-	}
-	return parts;
+	return getToolResultImageResources(details, sessionResource, toolCallId, 'generated-image').map(image => ({
+		kind: 'data',
+		uri: image.uri,
+		mimeType: image.mimeType,
+		...(image.base64Value !== undefined ? { base64Value: image.base64Value } : {}),
+		audience: image.audience,
+	}));
 }
 
 function getGeneratedImageResultDetails(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): IToolResultInputOutputDetails | undefined {
@@ -141,12 +125,7 @@ export class ChatGeneratedImageResultSubPart extends BaseChatToolInvocationSubPa
 			: getGeneratedImageResultPartsFromContent(context.content, context.element.sessionResource);
 		let imageDimensions = ChatGeneratedImageResultSubPart.imageDimensions.get(context.element);
 		if (!imageDimensions) {
-			imageDimensions = new ResourceMap<dom.IDimension>(resource => {
-				const parsed = ChatResponseResource.parseUri(resource);
-				return parsed
-					? ChatResponseResource.createUri(parsed.sessionResource, parsed.toolCallId, parsed.index).toString()
-					: resource.toString();
-			});
+			imageDimensions = new ResourceMap<dom.IDimension>(getChatImageResourceComparisonKey);
 			ChatGeneratedImageResultSubPart.imageDimensions.set(context.element, imageDimensions);
 		}
 		const resourceGroup = this._register(instantiationService.createInstance(ChatResourceGroupWidget, parts, {

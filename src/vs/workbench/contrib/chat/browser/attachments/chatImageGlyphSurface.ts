@@ -10,7 +10,7 @@ import { IAccessibilityService } from '../../../../../platform/accessibility/com
 import { descriptionForeground, focusBorder, foreground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { isHighContrast } from '../../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
-import { bandProfile, clamp01, easeInOutCubic, flash, getLoadingWave, hash, ILoadingWave, ImageSamples, ITextureFrame, ITextureReveal, ITextureRevealOptions, placeWave, RevealPace, smoothstep, stageAt, steerLoadingWave, twinkle, waveIntensity, wavePeriod, waveRipple } from './chatImageTextures.js';
+import { bandProfile, clamp01, easeInOutCubic, flash, getLoadingWave, hash, ILoadingWave, ImageSamples, ITextureFrame, ITextureReveal, ITextureRevealOptions, ITextureRevealTiming, placeWave, RevealPace, smoothstep, stageAt, twinkle, waveIntensity, wavePeriod, waveRipple } from './chatImageTextures.js';
 
 const glyphs = ['0', '1', '·', ':', '=', '+', '*', '#'];
 const firstCrestGlyph = 2;
@@ -26,11 +26,6 @@ const message = 'happy_coding!';
 const messageBits = [...message].map(character => character.charCodeAt(0).toString(2).padStart(8, '0')).join('');
 const openLength = 900;
 const passLength = 1500;
-
-function resizeLength(fromWidth: number, toWidth: number): number {
-	const change = Math.abs(toWidth - fromWidth);
-	return change < 1 ? 0 : Math.min(600, 360 + change * 1.25);
-}
 
 /** The greeting repeats left-to-right across rows of the glyph grid. */
 export function getGlyphMessageBit(column: number, row: number, columns: number): number {
@@ -87,8 +82,11 @@ export class GlyphSurface extends Disposable {
 		this._register(accessibilityService.onDidChangeReducedMotion(() => this.refresh()));
 	}
 
-	getRevealLength(fromWidth: number, toWidth: number): number {
-		return 4500 + resizeLength(fromWidth, toWidth);
+	getRevealTiming(fromWidth: number, loadingTime: number): ITextureRevealTiming {
+		const wave = getLoadingWave(fromWidth, loadingTime);
+		const speed = (fromWidth + wave.tail * 1.3) / wavePeriod;
+		const loadingEnd = this.showingBand && speed > 0 ? Math.max(0, (fromWidth + wave.tail * wakeLength - wave.head) / speed) : 0;
+		return { loadingTime, loadingEnd, pace: new RevealPace(loadingEnd + 4500) };
 	}
 
 	get showingBand(): boolean {
@@ -99,10 +97,7 @@ export class GlyphSurface extends Disposable {
 		if (this.active) {
 			return;
 		}
-		const length = this.getRevealLength(options.fromWidth, options.samples.width);
-		this.canvas.style.width = `${options.samples.width}px`;
-		this.canvas.style.height = `${options.samples.height}px`;
-		this.active = { options, pace: new RevealPace(length), loadingTime: Date.now() * 2, clock: this.canvas.animate([], { duration: options.duration }) };
+		this.active = { options, clock: this.canvas.animate([], { duration: options.duration }) };
 		this.prepareReveal(this.active);
 		this.update();
 	}
@@ -129,7 +124,8 @@ export class GlyphSurface extends Disposable {
 		}
 		const animated = !this.accessibilityService.isMotionReduced() && !isHighContrast(this.themeService.getColorTheme().type);
 		if (active) {
-			const time = active.pace.virtualAt(clamp01(Number(active.clock.currentTime ?? 0) / active.options.duration) * active.pace.duration);
+			const pace = active.options.timing.pace;
+			const time = pace.virtualAt(clamp01(Number(active.clock.currentTime ?? 0) / active.options.duration) * pace.duration);
 			const frame = this.paintReveal(active, time);
 			this.canvas.style.opacity = String(frame.textureOpacity);
 			active.options.onFrame(frame);
@@ -168,12 +164,14 @@ export class GlyphSurface extends Disposable {
 	}
 
 	private prepareReveal(reveal: ITextureReveal): void {
-		const { samples, fromWidth, continuing } = reveal.options;
+		const { samples, fromWidth, fromHeight, timing } = reveal.options;
 		this.measure();
 		const width = Math.max(samples.width, Math.round(fromWidth));
+		const height = Math.max(samples.height, Math.round(fromHeight));
 		this.canvas.style.width = `${width}px`;
+		this.canvas.style.height = `${height}px`;
 		this.canvas.width = Math.round(width * this.pixelRatio);
-		this.canvas.height = Math.round(samples.height * this.pixelRatio);
+		this.canvas.height = Math.round(height * this.pixelRatio);
 		this.overlay = dom.$<HTMLCanvasElement>('canvas');
 		this.overlay.width = this.canvas.width;
 		this.overlay.height = this.canvas.height;
@@ -182,7 +180,7 @@ export class GlyphSurface extends Disposable {
 		samples.cells(this.cellSize);
 		samples.cells(this.cellSize / 2);
 		samples.paletteIndices(this.cellSize / 2);
-		this.gridX = this.gridOffset(continuing ? fromWidth : samples.width);
+		this.gridX = this.gridOffset(timing.loadingEnd > 0 ? fromWidth : samples.width);
 	}
 
 	private paintReveal(reveal: ITextureReveal, time: number): ITextureFrame {
@@ -209,18 +207,17 @@ export class GlyphSurface extends Disposable {
 	}
 
 	private paintResolve(reveal: ITextureReveal, time: number, context: CanvasRenderingContext2D, overlay: CanvasRenderingContext2D, coarse: IGlyphAtlas, fine: IGlyphAtlas): ITextureFrame {
-		const { samples, fromWidth } = reveal.options;
+		const { samples, fromWidth, fromHeight, timing } = reveal.options;
 		const { width, height } = samples;
 		const size = this.cellSize;
-		const from = Math.min(height, reveal.options.fromHeight);
-		const resize = resizeLength(fromWidth, width);
-		const frameWidth = fromWidth + (width - fromWidth) * (resize ? easeInOutCubic(time / resize) : 1);
-		const frameHeight = from + (height - from) * easeInOutCubic((time - resize) / openLength);
-		const opening = time - resize;
-		const loadingTime = reveal.loadingTime + time;
-		const loading = steerLoadingWave(reveal, frameWidth, time, resize + openLength, 1 / passLength);
-		const seed = Math.floor(reveal.loadingTime / wavePeriod) + 1;
-		const wave = opening >= openLength ? placeWave((opening - openLength) / passLength, width, seed, width * 0.5) : undefined;
+		const opening = time - timing.loadingEnd;
+		const resize = easeInOutCubic(opening / openLength);
+		const frameWidth = fromWidth + (width - fromWidth) * resize;
+		const frameHeight = fromHeight + (height - fromHeight) * resize;
+		const loadingTime = timing.loadingTime + Math.min(time, timing.loadingEnd);
+		const seed = Math.floor(timing.loadingTime / wavePeriod);
+		const loading = time < timing.loadingEnd ? placeWave(loadingTime / wavePeriod - seed, fromWidth, seed) : undefined;
+		const wave = opening >= openLength ? placeWave((opening - openLength) / passLength, width, seed + 1, width * 0.5) : undefined;
 		const offsetX = this.gridX;
 		const imageColumns = Math.floor((width - offsetX) / size);
 		const columns = Math.ceil((frameWidth - offsetX) / size);

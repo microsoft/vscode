@@ -96,24 +96,6 @@ export function stageAt(time: number, times: ArrayLike<number>): number {
 	return stage;
 }
 
-/**
- * A monotone cubic from 0 to 1 whose slopes at either end come as close to the requested ones as
- * monotony allows, for steering a moving wave between two speeds without it backing up.
- */
-function steer(value: number, startSlope: number, endSlope: number): number {
-	let start = Math.max(0, startSlope);
-	let end = Math.max(0, endSlope);
-	const norm = Math.hypot(start, end);
-	if (norm > 3) {
-		start *= 3 / norm;
-		end *= 3 / norm;
-	}
-	const amount = clamp01(value);
-	const squared = amount * amount;
-	const cubed = squared * amount;
-	return (cubed - 2 * squared + amount) * start + (3 * squared - 2 * cubed) + (cubed - squared) * end;
-}
-
 /** A comet-like wave sweeping a band from left to right, in CSS pixels. */
 export interface ILoadingWave {
 	/** Position of the brightest point. */
@@ -429,8 +411,7 @@ export interface ITextureRevealOptions {
 	readonly fromWidth: number;
 	/** Height of the loading indicator that the frame grows from, in CSS pixels. */
 	readonly fromHeight: number;
-	/** Whether this surface's own loading band was showing, so that the reveal carries its wave on. */
-	readonly continuing: boolean;
+	readonly timing: ITextureRevealTiming;
 	/** Real milliseconds the reveal takes. */
 	readonly duration: number;
 	readonly onFrame: (frame: ITextureFrame) => void;
@@ -439,26 +420,16 @@ export interface ITextureRevealOptions {
 /** A texture reveal in progress. */
 export interface ITextureReveal {
 	readonly options: ITextureRevealOptions;
-	/** How the reveal's real time maps to the transition's virtual time. */
-	readonly pace: RevealPace;
-	/** The virtual loading time when the reveal began, so that a continuing wave keeps its phase. */
-	readonly loadingTime: number;
 	/** A keyframe-less animation whose time is the reveal's clock, so that the reveal can be paused and sought. */
 	readonly clock: Animation;
 }
 
-/**
- * Returns the loading wave of a reveal, sped up or slowed down so that it leaves the band `until`
- * virtual milliseconds into the reveal while moving at `endSpeed` sweeps per millisecond, the speed
- * of the sweep that follows it. Returns undefined when there is no wave left to show.
- */
-export function steerLoadingWave(reveal: ITextureReveal, width: number, time: number, until: number, endSpeed: number): ILoadingWave | undefined {
-	const sweeps = reveal.loadingTime / wavePeriod;
-	const seed = Math.floor(sweeps);
-	const start = sweeps - seed;
-	if (!reveal.options.continuing || time >= until) {
-		return undefined;
-	}
-	const remaining = 1 - start;
-	return placeWave(start + remaining * steer(time / until, until / wavePeriod / remaining, until * endSpeed / remaining), width, seed);
+/** One timeline for finishing the current loading sweep, resizing, and revealing the image. */
+export interface ITextureRevealTiming {
+	/** How the reveal's real time maps to the transition's virtual time. */
+	readonly pace: RevealPace;
+	/** The virtual loading time when the reveal began, so that a continuing wave keeps its phase. */
+	readonly loadingTime: number;
+	/** Virtual milliseconds until the last loading wave's wake has left the band. */
+	readonly loadingEnd: number;
 }

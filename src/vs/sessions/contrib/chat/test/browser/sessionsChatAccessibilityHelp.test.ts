@@ -456,6 +456,9 @@ suite('SessionsChatAccessibilityHelp', () => {
 
 		assert.deepStrictEqual({
 			recordedArtifactsAndReferences: content.includes('Recorded artifacts and references'),
+			generatedImages: content.includes('Generated images from this chat automatically appear in the Generated Images section of the Artifacts pill'),
+			imageNavigation: content.includes('use the Left and Right Arrow keys to browse generated images and user attachments'),
+			transcriptImages: content.includes('Images shown from the transcript do not offer Remove from Session unless they were also recorded as artifacts'),
 			singleItemActions: content.includes('pill hover actions or context menu'),
 			copyActions: content.includes('its context menu offers the item\'s copy actions'),
 			persistence: content.includes('waits for persistence'),
@@ -463,6 +466,9 @@ suite('SessionsChatAccessibilityHelp', () => {
 			immediateRemoval: content.includes('Removal is immediate'),
 		}, {
 			recordedArtifactsAndReferences: true,
+			generatedImages: true,
+			imageNavigation: true,
+			transcriptImages: true,
 			singleItemActions: true,
 			copyActions: true,
 			persistence: true,

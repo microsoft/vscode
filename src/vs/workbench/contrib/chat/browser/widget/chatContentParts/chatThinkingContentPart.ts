@@ -2569,7 +2569,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 
 		const parts: IChatCollapsibleIODataPart[] = extractedImages.map(image => ({
 			kind: 'data',
-			value: image.data.buffer,
+			value: image.data?.buffer,
 			mimeType: image.mimeType,
 			uri: image.uri,
 		}));
