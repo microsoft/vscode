@@ -626,7 +626,13 @@ interface IMcpLifecycleLogInfo {
 	readonly pluginVersion?: string;
 }
 
-type McpServer = Awaited<ReturnType<CopilotSession['rpc']['mcp']['list']>>['servers'][number] & { enabled?: boolean };
+type ConfiguredMcpServer = Awaited<ReturnType<CopilotSession['rpc']['mcp']['listConfigured']>>['servers'][number];
+type McpServer = Awaited<ReturnType<CopilotSession['rpc']['mcp']['list']>>['servers'][number] & Partial<Pick<ConfiguredMcpServer, 'enabled' | 'live'>>;
+
+/** Live enablement takes precedence over configuration, which is unchanged by runtime toggles. */
+function getEffectiveMcpServerEnablement(enabled: boolean | undefined, status: SdkMcpServerStatus | undefined): boolean {
+	return status !== undefined ? status !== 'disabled' && status !== 'not_configured' : enabled ?? true;
+}
 
 class DirectUsageAccumulator {
 	private readonly _tokenTotalsByModel = new Map<string, Mutable<ITurnTokenTotal>>();
@@ -4830,7 +4836,7 @@ export class CopilotAgentSession extends Disposable {
 		if (desiredEnablement.size === 0) {
 			return;
 		}
-		const observedEnablement = new Map(servers.map(server => [server.name, server.enabled] as const));
+		const observedEnablement = new Map(servers.map(server => [server.name, getEffectiveMcpServerEnablement(server.enabled, server.live?.status)] as const));
 		let changed = false;
 		for (const [serverName, desired] of desiredEnablement) {
 			const enabled = observedEnablement.get(serverName);
@@ -8087,7 +8093,7 @@ export class CopilotAgentSession extends Disposable {
 			displayName: this._mcpServerDisplayNames.get(server.name),
 			state: this._translateSdkMcpStatus(server.name, server.status, server.error, hasPendingAuthentication),
 			...(server.status === 'pending' && !hasPendingAuthentication ? { allowAuthRequiredToStarting: true } : {}),
-			enabled: server.enabled ?? (server.status !== 'disabled' && server.status !== 'not_configured'),
+			enabled: getEffectiveMcpServerEnablement(server.enabled, server.enabled === undefined ? server.status : server.live?.status),
 		};
 	}
 

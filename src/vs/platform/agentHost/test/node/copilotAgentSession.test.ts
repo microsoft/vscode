@@ -20071,7 +20071,7 @@ Use the attached image as context.
 			});
 		});
 
-		for (const liveStatus of [undefined, 'stopped', 'not_configured'] as const) {
+		for (const liveStatus of [undefined, 'disabled', 'not_configured', 'stopped', 'connected', 'pending', 'needs-auth', 'failed'] as const) {
 			for (const enabled of [false, true]) {
 				for (const desired of [false, true]) {
 					test(`reconciles configured enablement ${enabled} with desired ${desired} and live status ${liveStatus}`, async () => {
@@ -20097,22 +20097,108 @@ Use the attached image as context.
 							},
 						});
 
+						const runtimeEnabled = liveStatus === undefined ? enabled : liveStatus !== 'disabled' && liveStatus !== 'not_configured';
 						await session.send('reconcile sleepy');
 
 						assert.deepStrictEqual({
 							enable: mockSession.mcpEnableCalls,
 							disable: mockSession.mcpDisableCalls,
 							materializingListCalls: mockSession.mcpMaterializingListCalls,
-							toolCalls: mockSession.mcpListToolsCalls,
 						}, {
-							enable: desired && !enabled ? [{ serverName }] : [],
-							disable: !desired && enabled ? [{ serverName }] : [],
+							enable: desired && !runtimeEnabled ? [{ serverName }] : [],
+							disable: !desired && runtimeEnabled ? [{ serverName }] : [],
 							materializingListCalls: 0,
-							toolCalls: [],
 						});
 					});
 				}
 			}
+		}
+
+		for (const configuredEnabled of [true, false]) {
+			test(`reconciles warm runtime toggles without changing configured enablement ${configuredEnabled}`, async () => {
+				const serverName = 'component-explorer';
+				const id = 'mcp-top-level:copilotcli:test-session-1:component-explorer';
+				let desired = configuredEnabled;
+				const initialStatus = configuredEnabled ? 'connected' : 'disabled';
+				const toggledStatus = configuredEnabled ? 'disabled' : 'connected';
+				const toggleGate = new DeferredPromise<void>();
+				const { session, mockSession, signals } = await createAgentSession(disposables, {
+					sessionCustomizations: () => [{
+						type: CustomizationType.McpServer, id, uri: id, name: serverName,
+						state: { kind: McpServerStatus.Stopped },
+					}],
+					resolveCustomizationEnablement: () => ({
+						kind: 'resolved',
+						enablement: [{ kind: CustomizationEnablementKind.Global, enabled: desired }],
+						enabled: desired,
+						workingDirectory: { kind: 'workspaceless' },
+					}),
+					configureMockSession: mock => {
+						mock.mcpConfiguredListResult = {
+							servers: [{ name: serverName, enabled: configuredEnabled, live: { status: initialStatus } }],
+						};
+						if (configuredEnabled) {
+							mock.mcpDisableGate = toggleGate.p;
+						} else {
+							mock.mcpEnableGate = toggleGate.p;
+						}
+					},
+				});
+				await timeout(0);
+				mockSession.fire('session.mcp_server_status_changed', { serverName, status: initialStatus });
+
+				desired = !configuredEnabled;
+				const sending = session.send('toggle warm server');
+				await timeout(0);
+				mockSession.mcpConfiguredListResult = {
+					servers: [{ name: serverName, enabled: configuredEnabled, live: { status: toggledStatus } }],
+				};
+				mockSession.fire('session.mcp_server_status_changed', { serverName, status: toggledStatus });
+				toggleGate.complete();
+				await sending;
+				await timeout(0);
+
+				mockSession.fire('session.mcp_servers_loaded', { servers: [{ name: serverName, status: initialStatus }] });
+				await timeout(0);
+				mockSession.fire('session.mcp_server_status_changed', { serverName, status: toggledStatus });
+				await session.send('keep runtime enablement');
+				const unchangedCalls = { enable: [...mockSession.mcpEnableCalls], disable: [...mockSession.mcpDisableCalls] };
+
+				desired = configuredEnabled;
+				mockSession.fire('session.mcp_server_status_changed', { serverName, status: toggledStatus });
+				const restoreGate = new DeferredPromise<void>();
+				if (configuredEnabled) {
+					mockSession.mcpEnableGate = restoreGate.p;
+				} else {
+					mockSession.mcpDisableGate = restoreGate.p;
+				}
+				const restoring = session.send('restore runtime enablement');
+				await timeout(0);
+				mockSession.mcpConfiguredListResult = {
+					servers: [{ name: serverName, enabled: configuredEnabled, live: { status: initialStatus } }],
+				};
+				mockSession.fire('session.mcp_server_status_changed', { serverName, status: initialStatus });
+				restoreGate.complete();
+				await restoring;
+				await timeout(0);
+
+				assert.deepStrictEqual({
+					unchangedCalls,
+					enable: mockSession.mcpEnableCalls,
+					disable: mockSession.mcpDisableCalls,
+					toggles: getActions(signals).filter(action => action.type === ActionType.SessionCustomizationToggled),
+					materializingListCalls: mockSession.mcpMaterializingListCalls,
+				}, {
+					unchangedCalls: {
+						enable: configuredEnabled ? [] : [{ serverName }],
+						disable: configuredEnabled ? [{ serverName }] : [],
+					},
+					enable: [{ serverName }],
+					disable: [{ serverName }],
+					toggles: [],
+					materializingListCalls: 0,
+				});
+			});
 		}
 
 		test('does not enable a server while its customization resolution is pending', async () => {
