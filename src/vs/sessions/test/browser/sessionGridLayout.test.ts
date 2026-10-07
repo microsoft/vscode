@@ -8,9 +8,9 @@ import { addDisposableListener } from '../../../base/browser/dom.js';
 import { Direction, ISerializedGrid, IView } from '../../../base/browser/ui/grid/grid.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { Event } from '../../../base/common/event.js';
-import { toDisposable } from '../../../base/common/lifecycle.js';
+import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
-import { ISessionGridEntry, SessionGridLayout } from '../../browser/parts/sessionGridLayout.js';
+import { ISessionGridEntry, ISessionGridView, SessionGridLayout } from '../../browser/parts/sessionGridLayout.js';
 import { getSessionDropDirection } from '../../browser/parts/sessionDropTarget.js';
 import { ISessionGridState, isSessionGridState, projectSessionGrid } from '../../services/sessions/browser/sessionGridState.js';
 import '../../browser/media/workbench.css';
@@ -19,7 +19,7 @@ import '../../browser/parts/media/chatCompositeBar.css';
 suite('Sessions - Grid Layout', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	class View implements IView {
+	class View implements ISessionGridView {
 		readonly element = document.createElement('input');
 		readonly minimumWidth = 80;
 		readonly minimumHeight = 80;
@@ -28,12 +28,26 @@ suite('Sessions - Grid Layout', () => {
 		readonly onDidChange = Event.None;
 		visible = true;
 		size = { width: 0, height: 0 };
-		layout(width: number, height: number): void { this.size = { width, height }; }
-		setVisible(visible: boolean): void { this.visible = visible; }
+		onLayoutContainer: (() => void) | undefined;
+		onLayoutContents: (() => void) | undefined;
+		onVisibilityChange: ((visible: boolean) => void) | undefined;
+		layout(width: number, height: number): void {
+			this.layoutContainer(width, height);
+			this.layoutContents();
+		}
+		layoutContainer(width: number, height: number): void {
+			this.size = { width, height };
+			this.onLayoutContainer?.();
+		}
+		layoutContents(): void { this.onLayoutContents?.(); }
+		setVisible(visible: boolean): void {
+			this.visible = visible;
+			this.onVisibilityChange?.(visible);
+		}
 	}
 
-	function harness() {
-		const grid = store.add(new SessionGridLayout());
+	function harness(scheduleLayout?: (callback: () => void) => IDisposable) {
+		const grid = store.add(new SessionGridLayout(scheduleLayout));
 		document.body.appendChild(grid.element);
 		store.add(toDisposable(() => grid.element.remove()));
 		const a = { id: 'a', view: new View() };
@@ -48,6 +62,101 @@ suite('Sessions - Grid Layout', () => {
 	function sizes(grid: SessionGridLayout) {
 		return grid.order.map(id => ({ id, ...grid.getSize(id) }));
 	}
+
+	test('commits every leaf geometry before child layout and ignores unchanged allocations', () => {
+		const { grid, a, b } = harness();
+		const operations: string[] = [];
+		for (const entry of [a, b]) {
+			entry.view.onLayoutContainer = () => operations.push(`geometry ${entry.id}`);
+			entry.view.onLayoutContents = () => operations.push(`contents ${entry.id}`);
+		}
+		grid.layout(1400, 700, 0, 0, false);
+		grid.layout(1400, 700, 0, 0, false);
+		assert.deepStrictEqual(operations, ['geometry a', 'geometry b', 'contents a', 'contents b']);
+	});
+
+	test('coalesces direct grid allocations into one cancellable frame using the latest dimensions', () => {
+		const frames = new Set<() => void>();
+		const { grid, a } = harness(callback => {
+			frames.add(callback);
+			return toDisposable(() => frames.delete(callback));
+		});
+		const leaves = Reflect.get(grid, 'leaves') as ReadonlyMap<string, IView>;
+		const leaf = leaves.get('a')!;
+		const layouts: { width: number; height: number }[] = [];
+		a.view.onLayoutContents = () => layouts.push(a.view.size);
+		leaf.layout(450, 650, 0, 0);
+		leaf.layout(500, 700, 0, 0);
+		const beforeFrame = { frames: frames.size, layouts: layouts.length, size: a.view.size };
+		[...frames][0]();
+		leaf.layout(500, 700, 0, 0);
+		[...frames][0]();
+		leaf.layout(600, 800, 0, 0);
+		const cancelled = [...frames][0];
+		grid.dispose();
+		cancelled();
+		leaf.layout(700, 900, 0, 0);
+		assert.deepStrictEqual({ beforeFrame, layouts, frames: frames.size }, {
+			beforeFrame: { frames: 1, layouts: 0, size: { width: 400, height: 600 } },
+			layouts: [{ width: 500, height: 700 }],
+			frames: 0,
+		});
+	});
+
+	test('reentrant geometry changes settle before child reads and keep the latest allocation', () => {
+		const { grid, a, b } = harness();
+		const layouts: { id: string; width: number; height: number }[] = [];
+		a.view.onLayoutContainer = () => {
+			a.view.onLayoutContainer = undefined;
+			grid.layout(1500, 750, 0, 0, false);
+		};
+		for (const entry of [a, b]) {
+			entry.view.onLayoutContents = () => layouts.push({ id: entry.id, ...entry.view.size });
+		}
+		grid.layout(1300, 650, 0, 0, false);
+		assert.deepStrictEqual(layouts, sizes(grid));
+	});
+
+	test('reentrant child invalidations do not lay out siblings at superseded dimensions', () => {
+		const { grid, a, b } = harness();
+		const layouts: { id: string; width: number; height: number }[] = [];
+		a.view.onLayoutContents = () => {
+			a.view.onLayoutContents = () => layouts.push({ id: 'a', ...a.view.size });
+			grid.layout(1500, 750, 0, 0, false);
+		};
+		b.view.onLayoutContents = () => layouts.push({ id: 'b', ...b.view.size });
+		grid.layout(1300, 650, 0, 0, false);
+		assert.deepStrictEqual(layouts, sizes(grid));
+	});
+
+	test('removed leaves receive no pending geometry or child work', () => {
+		const { grid, a, b } = harness();
+		const operations: string[] = [];
+		a.view.onLayoutContainer = () => {
+			a.view.onLayoutContainer = undefined;
+			grid.reconcile([a], 'a');
+		};
+		b.view.onLayoutContainer = () => operations.push('geometry');
+		b.view.onLayoutContents = () => operations.push('contents');
+		grid.layout(1300, 650, 0, 0, false);
+		assert.deepStrictEqual({ order: grid.order, operations }, { order: ['a'], operations: [] });
+	});
+
+	test('a view removed by its visibility notification receives no subsequent child layout', () => {
+		const { grid, a, b } = harness();
+		grid.toggleMaximized('b');
+		let layouts = 0;
+		a.view.onLayoutContents = () => layouts++;
+		a.view.onVisibilityChange = visible => {
+			if (visible) {
+				grid.reconcile([b], 'b');
+			}
+		};
+		grid.toggleMaximized('b');
+		assert.deepStrictEqual({ layouts, remaining: sizes(grid) }, {
+			layouts: 0, remaining: [{ id: 'b', width: 1200, height: 600 }],
+		});
+	});
 
 	test('only exposed session-grid corners use the native connected-tabs radius', () => {
 		const root = document.createElement('div');
@@ -70,10 +179,12 @@ suite('Sessions - Grid Layout', () => {
 					minimumWidth: 80, maximumWidth: Number.POSITIVE_INFINITY,
 					minimumHeight: 80, maximumHeight: Number.POSITIVE_INFINITY,
 					onDidChange: Event.None,
-					layout: (width, height) => {
+					layout: () => { },
+					layoutContainer: (width, height) => {
 						element.style.width = `${width}px`;
 						element.style.height = `${height}px`;
 					},
+					layoutContents: () => { },
 				},
 			};
 		};

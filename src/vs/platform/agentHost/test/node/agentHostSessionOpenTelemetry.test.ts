@@ -13,7 +13,7 @@ import { TestInstantiationService } from '../../../instantiation/test/common/ins
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentSession, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, type IAgent } from '../../common/agent.js';
-import { buildDefaultChatUri } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { AgentHostSessionOpenTelemetry, AgentHostSessionSubscribeTimeoutMs } from '../../node/agentHostSessionOpenTelemetry.js';
 
@@ -35,12 +35,12 @@ suite('AgentHostSessionOpenTelemetry', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const session = AgentSession.uri('copilotcli', 'session');
 	const defaultChat = URI.parse(buildDefaultChatUri(session));
-	const createService = (telemetryService: TestTelemetryService, providers: readonly string[] = ['copilotcli']) => {
+	const createService = (telemetryService: TestTelemetryService, providers: readonly string[] = ['copilotcli'], associations: ReadonlyMap<string, string> = new Map()) => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ITelemetryService, telemetryService);
 		instantiationService.stub(IAgentHostProviderService, {
 			getProviderForSession: session => {
-				const provider = AgentSession.provider(session);
+				const provider = associations.get(session.toString()) ?? AgentSession.provider(session);
 				if (!provider || !providers.includes(provider)) {
 					return undefined;
 				}
@@ -231,6 +231,39 @@ suite('AgentHostSessionOpenTelemetry', () => {
 			],
 		});
 	});
+
+	for (const provider of ['copilotcli', 'copilot', 'claude', 'codex', 'future']) {
+		test(`subscription telemetry preserves ${provider} across legacy and standard session URIs`, async () => {
+			await runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const events = [];
+				for (const scheme of [provider, 'ahp-session']) {
+					const resource = AgentSession.uri(scheme, 'session');
+					const telemetryService = new TestTelemetryService();
+					const service = createService(telemetryService, [provider], new Map([[resource.toString(), provider]]));
+					for (const channel of [resource, URI.parse(buildDefaultChatUri(resource)), URI.parse(buildChatUri(resource, 'peer'))]) {
+						await service.withSubscription(channel, async telemetry => telemetry.setServedFromMemory(true));
+					}
+					events.push(telemetryService.events.map(event => ({
+						name: event.name,
+						provider: event.data.provider,
+						channel: event.data.channel,
+						outcome: event.data.outcome,
+						sdkResumeOutcome: event.data.sdkResumeOutcome,
+						sdkResumeAttemptCount: event.data.sdkResumeAttemptCount,
+					})));
+				}
+				const expected = ['session', 'defaultChat', 'chat'].map(channel => ({
+					name: 'agentHost.sessionSubscribe',
+					provider,
+					channel,
+					outcome: 'success',
+					sdkResumeOutcome: provider === 'copilotcli' ? 'notStarted' : undefined,
+					sdkResumeAttemptCount: provider === 'copilotcli' ? 0 : undefined,
+				}));
+				assert.deepStrictEqual(events, [expected, expected]);
+			});
+		});
+	}
 
 	test('emits a bounded timeout', async () => {
 		await runWithFakedTimers({ useFakeTimers: true }, async () => {

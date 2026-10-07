@@ -476,31 +476,31 @@
 
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:not(.close-action-off):hover > .tab-actions,
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:not(.close-action-off) > .tab-actions:focus-within {
-	background-color: var(--modern-ui-editor-tab-action-hover-background);
+	background-color: var(--modern-ui-editor-tab-action-overlay-background, var(--modern-ui-editor-tab-action-hover-background));
 	pointer-events: auto;
 }
 
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container:not(.active) > .title .tabs-container > .tab:not(.close-action-off):hover > .tab-actions,
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container:not(.active) > .title .tabs-container > .tab:not(.close-action-off) > .tab-actions:focus-within {
-	background-color: var(--modern-ui-editor-tab-action-unfocused-hover-background);
+	background-color: var(--modern-ui-editor-tab-action-overlay-background, var(--modern-ui-editor-tab-action-unfocused-hover-background));
 }
 
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active:not(.close-action-off):hover > .tab-actions,
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active:not(.close-action-off) > .tab-actions:focus-within {
-	background-color: var(--modern-ui-editor-tab-action-active-background);
+	background-color: var(--modern-ui-editor-tab-action-overlay-background, var(--modern-ui-editor-tab-action-active-background));
 }
 
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container:not(.active) > .title .tabs-container > .tab.active:not(.close-action-off):hover > .tab-actions,
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container:not(.active) > .title .tabs-container > .tab.active:not(.close-action-off) > .tab-actions:focus-within {
-	background-color: var(--modern-ui-editor-tab-action-unfocused-active-background);
+	background-color: var(--modern-ui-editor-tab-action-overlay-background, var(--modern-ui-editor-tab-action-unfocused-active-background));
 }
 
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active:not(.close-action-off):hover > .tab-actions {
-	background-color: var(--modern-ui-editor-tab-action-active-hover-background);
+	background-color: var(--modern-ui-editor-tab-action-overlay-background, var(--modern-ui-editor-tab-action-active-hover-background));
 }
 
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container:not(.active) > .title .tabs-container > .tab.active:not(.close-action-off):hover > .tab-actions {
-	background-color: var(--modern-ui-editor-tab-action-unfocused-active-hover-background);
+	background-color: var(--modern-ui-editor-tab-action-overlay-background, var(--modern-ui-editor-tab-action-unfocused-active-hover-background));
 }
 
 .modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active:not(.tab-actions-left):not(.close-action-off):hover > .tab-actions::before,
@@ -542,7 +542,31 @@
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.selected:not(.active):not(.close-action-off):hover > .tab-actions,
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.selected:not(.active):not(.close-action-off) > .tab-actions:focus-within {
 	--tab-border-top-color: var(--vscode-tab-selectedBorderTop);
-	background-color: var(--vscode-modernEditorTab-selectedActionBackground);
+	background-color: var(--modern-ui-editor-tab-action-overlay-background, var(--vscode-modernEditorTab-selectedActionBackground));
+}
+
+.modern-ui-tabs .part.editor .title:is(.tab-actions-reserve-space, .connected-tabs-labels) {
+	--modern-ui-editor-tab-action-overlay-background: transparent;
+}
+
+.modern-ui-tabs .part.editor .tabs-container > .tab {
+	--modern-ui-editor-tab-action-button-background: var(--modern-ui-editor-tab-custom-action-hover-background, var(--vscode-toolbar-hoverBackground));
+}
+
+.modern-ui-tabs .part.editor .tabs-container > .tab.active {
+	--modern-ui-editor-tab-action-button-background: var(--modern-ui-editor-tab-custom-action-active-background, var(--vscode-toolbar-hoverBackground));
+}
+
+.modern-ui-tabs .part.editor .tabs-container > .tab.active:hover {
+	--modern-ui-editor-tab-action-button-background: var(--modern-ui-editor-tab-custom-action-active-hover-background, var(--vscode-toolbar-hoverBackground));
+}
+
+.modern-ui-tabs .part.editor .tabs-container > .tab.selected:not(.active) {
+	--modern-ui-editor-tab-action-button-background: var(--modern-ui-editor-tab-custom-action-selected-background, var(--vscode-toolbar-hoverBackground));
+}
+
+.modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .title:is(.tab-actions-reserve-space, .connected-tabs-labels) .tab-actions .action-label:not(.disabled):is(:hover, :focus) {
+	background-color: var(--modern-ui-editor-tab-action-button-background);
 }
 
 .modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title .tabs-container > .tab.selected:not(.active):not(.tab-actions-left):not(.close-action-off):hover > .tab-actions::before,
@@ -801,7 +825,7 @@
 
 :is(.hc-black, .hc-light).modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:hover > .tab-actions,
 :is(.hc-black, .hc-light).modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab > .tab-actions:focus-within {
-	background-color: var(--modern-ui-connected-tab-action-background, var(--vscode-editorGroupHeader-tabsBackground, var(--vscode-editor-background))) !important;
+	background-color: var(--modern-ui-editor-tab-action-overlay-background, var(--modern-ui-connected-tab-action-background, var(--vscode-editorGroupHeader-tabsBackground, var(--vscode-editor-background)))) !important;
 }
 
 :is(.hc-black, .hc-light).modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab > .tab-actions .action-label {
@@ -890,7 +914,7 @@
 	display: none;
 }
 
-:is(.hc-black, .hc-light).modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title:not(.tab-actions-reserve-space) .tabs-and-actions-container .tabs-container > .tab:not(.dirty):not(.sticky):not(:hover) > .tab-actions .action-label:not(:focus) {
+:is(.hc-black, .hc-light).modern-ui-tabs.monaco-workbench:not(.modern-ui-connected-editor-tabs) .part.editor > .content .editor-group-container > .title:not(.tab-actions-reserve-space) .tabs-and-actions-container .tabs-container > .tab:not(.dirty):not(.sticky):not(:hover) > .tab-actions .action-label:not(:focus) {
 	opacity: 0 !important;
 }
 
@@ -899,6 +923,14 @@
 :is(.hc-black, .hc-light).modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab:hover > .tab-actions .action-label,
 :is(.hc-black, .hc-light).modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container .tabs-container > .tab > .tab-actions .action-label:focus {
 	opacity: 1 !important;
+}
+
+:is(.hc-black, .hc-light).modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container.active > .title.tabs .tabs-container > .tab.active:not(.close-action-off) > .tab-actions .action-label {
+	opacity: 1;
+}
+
+:is(.hc-black, .hc-light).modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container:not(.active) > .title.tabs .tabs-container > .tab.active:not(.close-action-off) > .tab-actions .action-label {
+	opacity: 0.5;
 }
 
 :is(.hc-black, .hc-light).modern-ui-tabs.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item,

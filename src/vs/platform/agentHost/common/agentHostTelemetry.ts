@@ -23,6 +23,7 @@ export const enum AgentHostClientConnectionKind {
 	WSL = 'wsl',
 	RemoteExtensionHost = 'remote_extension_host',
 	WebPubSub = 'web_pub_sub',
+	MissionControl = 'mission_control',
 	Unknown = 'unknown',
 }
 
@@ -127,6 +128,8 @@ export interface ICodexAccountTelemetryContext {
 	readonly chatgptPlanTier?: 'free' | 'go' | 'plus' | 'pro' | 'business' | 'enterprise' | 'edu' | 'unknown';
 	readonly chatgptWeeklyQuotaState: 'available' | 'unavailable' | 'missing' | 'nonWeekly' | 'stale' | 'expired' | 'invalid';
 	readonly chatgptWeeklyUsedPercentBucket?: number;
+	readonly chatgptFiveHourQuotaState: 'available' | 'unavailable' | 'missing' | 'stale' | 'expired' | 'invalid';
+	readonly chatgptFiveHourUsedPercentBucket?: number;
 }
 
 export type CodexModelProvider = 'openai' | 'copilot' | 'other' | 'unknown';
@@ -183,6 +186,7 @@ export function readClientConnectionKind(meta: Record<string, unknown> | undefin
 		case AgentHostClientConnectionKind.WSL:
 		case AgentHostClientConnectionKind.RemoteExtensionHost:
 		case AgentHostClientConnectionKind.WebPubSub:
+		case AgentHostClientConnectionKind.MissionControl:
 			return value;
 		default:
 			return AgentHostClientConnectionKind.Unknown;

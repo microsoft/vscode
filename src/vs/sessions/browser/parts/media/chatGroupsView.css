@@ -16,6 +16,7 @@
 .chat-group-view {
 	position: relative;
 	overflow: hidden;
+	contain: paint;
 	background-color: var(--session-view-background);
 	color: var(--session-view-foreground);
 }

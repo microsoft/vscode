@@ -31,6 +31,7 @@ import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSetting
 import { Separator, SubmenuAction } from '../../../../../base/common/actions.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -86,7 +87,6 @@ import { SessionsArchiveActionsContribution } from '../../browser/views/sessions
 import { renderSessionsHeader } from '../../browser/views/sessionsView.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../../github/common/types.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../browser/automationsConstants.js';
-import { AUTOMATIONS_NEW_BADGE_STYLE_SETTING, type AutomationsNewBadgeStyle } from '../../browser/automationsNewBadge.js';
 import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../../sessionComparison/common/sessionComparison.js';
 import { BlockedSessionReason, BlockedSessions } from '../../../blockedSessions/browser/blockedSessions.js';
 import { NEW_SESSION_ACTION_ID } from '../../../chat/common/constants.js';
@@ -108,7 +108,8 @@ function createSession(id: string, opts: {
 	const createdAt = opts.createdAt ?? new Date();
 	const updatedAt = opts.updatedAt ?? createdAt;
 	const isArchived = observableValue(`isArchived-${id}`, opts.isArchived ?? false);
-	const mainChat = upcastPartial<IChat>({ updatedAt: constObservable(updatedAt), changes: constObservable([]), changesets: constObservable([]) });
+	const isRead = observableValue(`isRead-${id}`, opts.isRead ?? true);
+	const mainChat = upcastPartial<IChat>({ updatedAt: constObservable(updatedAt), isRead, changes: constObservable([]), changesets: constObservable([]) });
 	return {
 		sessionId: id,
 		resource: opts.resource ?? URI.parse(`session://${id}`),
@@ -137,7 +138,7 @@ function createSession(id: string, opts: {
 		mode: observableValue(`mode-${id}`, undefined),
 		loading: observableValue(`loading-${id}`, false),
 		isArchived,
-		isRead: observableValue(`isRead-${id}`, opts.isRead ?? true),
+		isRead,
 		description: observableValue(`description-${id}`, undefined),
 		lastTurnEnd: observableValue(`lastTurnEnd-${id}`, undefined),
 		chats: observableValue<readonly IChat[]>(`chats-${id}`, []),
@@ -175,7 +176,6 @@ suite('Sessions - SessionsList', () => {
 				contextKeyService,
 				automationService,
 				constObservable([]),
-				constObservable(undefined),
 				new class extends mock<IUriIdentityService>() {
 					override readonly extUri = new ExtUri(() => true);
 				},
@@ -232,7 +232,6 @@ suite('Sessions - SessionsList', () => {
 				contextKeyService,
 				automationService,
 				constObservable([]),
-				constObservable(undefined),
 				new class extends mock<IUriIdentityService>() {
 					override readonly extUri = new ExtUri(() => true);
 				},
@@ -257,189 +256,13 @@ suite('Sessions - SessionsList', () => {
 			assert.deepStrictEqual({
 				watchIcon: !!container.querySelector('.session-section-icon.codicon-watch'),
 				spinnerParent: spinner?.parentElement?.className,
+				newBadge: !!container.querySelector('.session-section-new-badge'),
 				trailingStatusIndicator: !!container.querySelector('.session-section-status-indicator'),
 			}, {
 				watchIcon: false,
 				spinnerParent: 'session-section-icon',
+				newBadge: false,
 				trailingStatusIndicator: false,
-			});
-		});
-
-		test('renders new badge presentations only on the Automations section when templates are recycled', () => {
-			const instantiationService = disposables.add(new TestInstantiationService());
-			instantiationService.stubInstance(MenuWorkbenchToolBar, new class extends mock<MenuWorkbenchToolBar>() {
-				override set context(_context: unknown) { }
-				override dispose(): void { }
-			});
-			instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
-				override isMotionReduced(): boolean { return false; }
-			}());
-			instantiationService.stub(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
-				override getStatusIcon(_status: SessionStatus, isRead: boolean) {
-					return isRead ? Codicon.circleSmallFilled : Codicon.circleFilled;
-				}
-			});
-			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
-			const runs = observableValue<readonly IAutomationRun[]>(disposables, []);
-			const badgePresentation = observableValue<AutomationsNewBadgeStyle | undefined>(disposables, 'outline');
-			const automationService = new class extends mock<IAutomationService>() {
-				override readonly runs = runs;
-			};
-			const renderer = new SessionSectionRenderer(
-				true,
-				() => { },
-				constObservable(true),
-				constObservable(new Set<string>()),
-				noHeaderStatusTrigger,
-				instantiationService,
-				contextKeyService,
-				automationService,
-				constObservable([]),
-				badgePresentation,
-				new class extends mock<IUriIdentityService>() {
-					override readonly extUri = new ExtUri(() => true);
-				},
-				new class extends mock<ICustomViewService>() {
-					override readonly activeCustomView = constObservable(undefined);
-				},
-				new class extends mock<IMenuService>() { },
-				noKeybindingService,
-				constObservable(false),
-			);
-			const container = document.createElement('div');
-			const template = renderer.renderTemplate(container);
-			disposables.add(template.disposables);
-
-			renderer.renderElement(upcastPartial<Parameters<SessionSectionRenderer['renderElement']>[0]>({
-				element: { id: 'automations', label: 'Automations', sessions: [] },
-				collapsible: false,
-				collapsed: false,
-			}), 0, template);
-			const getPresentationSnapshot = () => ({
-				badgeText: template.newBadge.textContent,
-				badgeDisplay: template.newBadge.style.display,
-				badgeAriaHidden: template.newBadge.getAttribute('aria-hidden'),
-				hasOutlineBadge: template.newBadge.classList.contains('session-section-new-badge-outline'),
-				hasUnreadDot: !!container.querySelector('.session-section-icon > .codicon-circle-filled:not([data-icon-fading-out="1"])'),
-				hasSpinner: !!container.querySelector('.session-section-icon > .monaco-pixel-spinner:not([data-icon-fading-out="1"])'),
-				hasCalendar: template.icon.classList.contains('codicon-calendar'),
-			});
-			const outline = getPresentationSnapshot();
-
-			badgePresentation.set('unread', undefined);
-			const unread = getPresentationSnapshot();
-
-			runs.set([upcastPartial<IAutomationRun>({ status: 'running' })], undefined);
-			const running = getPresentationSnapshot();
-
-			runs.set([], undefined);
-			const unreadRestored = getPresentationSnapshot();
-
-			badgePresentation.set(undefined, undefined);
-			const dismissed = getPresentationSnapshot();
-
-			renderer.renderElement(upcastPartial<Parameters<SessionSectionRenderer['renderElement']>[0]>({
-				element: { id: 'workspace:test', label: 'Test', sessions: [] },
-				collapsible: true,
-				collapsed: false,
-			}), 0, template);
-
-			assert.deepStrictEqual({
-				outline,
-				unread,
-				running,
-				unreadRestored,
-				dismissed,
-				recycledDisplay: template.newBadge.style.display,
-				recycledShortcutClass: template.container.classList.contains('session-section-shortcut'),
-			}, {
-				outline: {
-					badgeText: 'New',
-					badgeDisplay: 'inline-flex',
-					badgeAriaHidden: 'true',
-					hasOutlineBadge: true,
-					hasUnreadDot: false,
-					hasSpinner: false,
-					hasCalendar: true,
-				},
-				unread: {
-					badgeText: 'New',
-					badgeDisplay: 'none',
-					badgeAriaHidden: 'true',
-					hasOutlineBadge: false,
-					hasUnreadDot: true,
-					hasSpinner: false,
-					hasCalendar: false,
-				},
-				running: {
-					badgeText: 'New',
-					badgeDisplay: 'none',
-					badgeAriaHidden: 'true',
-					hasOutlineBadge: false,
-					hasUnreadDot: false,
-					hasSpinner: true,
-					hasCalendar: false,
-				},
-				unreadRestored: {
-					badgeText: 'New',
-					badgeDisplay: 'none',
-					badgeAriaHidden: 'true',
-					hasOutlineBadge: false,
-					hasUnreadDot: true,
-					hasSpinner: false,
-					hasCalendar: false,
-				},
-				dismissed: {
-					badgeText: 'New',
-					badgeDisplay: 'none',
-					badgeAriaHidden: 'true',
-					hasOutlineBadge: false,
-					hasUnreadDot: false,
-					hasSpinner: false,
-					hasCalendar: true,
-				},
-				recycledDisplay: 'none',
-				recycledShortcutClass: false,
-			});
-		});
-
-		test('updates the Automations row accessible label when the new badge is dismissed', async () => {
-			const activeCustomView = observableValue<ICustomViewDescriptor | undefined>(disposables, undefined);
-			const harness = createListHarness(disposables, [], instantiationService => {
-				ChatAutomationsEnabledContext.bindTo(instantiationService.get(IContextKeyService)).set(true);
-				void (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(AUTOMATIONS_NEW_BADGE_STYLE_SETTING, 'unread');
-				instantiationService.stub(IAutomationService, new class extends mock<IAutomationService>() {
-					override readonly automations = constObservable([]);
-					override readonly runs = constObservable([]);
-					override readonly catalogueState = constObservable('ready' as const);
-				});
-				instantiationService.stub(ICustomViewService, new class extends mock<ICustomViewService>() {
-					override readonly activeCustomView = activeCustomView;
-				});
-			});
-			const container = harness.createContainer();
-			const navigationContainer = mainWindow.document.createElement('div');
-			const listContainer = mainWindow.document.createElement('div');
-			container.append(navigationContainer, listContainer);
-			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, listContainer, {
-				grouping: () => SessionsGrouping.Date,
-				sorting: () => SessionsSorting.Created,
-				navigationContainer,
-				onSessionOpen: () => { },
-			}));
-			list.layout(300, 400);
-			await list.resetAutomationsNewBadge();
-			const row = navigationContainer.querySelector<HTMLElement>('.monaco-list-row');
-			const before = row?.getAttribute('aria-label');
-
-			activeCustomView.set(upcastPartial<ICustomViewDescriptor>({ id: AUTOMATIONS_CUSTOM_VIEW_ID }), undefined);
-
-			assert.deepStrictEqual({
-				before,
-				after: row?.getAttribute('aria-label'),
-			}, {
-				before: 'Automations, new feature',
-				after: 'Automations',
 			});
 		});
 
@@ -512,6 +335,7 @@ suite('Sessions - SessionsList', () => {
 		});
 
 		test('switches the navigation treatment without disturbing Find focus', async () => {
+			const commands: string[] = [];
 			const activeEditorChanged = disposables.add(new Emitter<void>());
 			const keybindingsChanged = disposables.add(new Emitter<void>());
 			const editorState: { activeEditor?: AICustomizationManagementEditorInput } = {};
@@ -526,6 +350,12 @@ suite('Sessions - SessionsList', () => {
 			};
 			let newSessionKeybinding = createNewSessionKeybinding(KeyMod.CtrlCmd | KeyCode.KeyN);
 			const harness = createListHarness(disposables, [], instantiationService => {
+				instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+					override async executeCommand<R>(commandId: string): Promise<R | undefined> {
+						commands.push(commandId);
+						return undefined;
+					}
+				});
 				ChatAutomationsEnabledContext.bindTo(instantiationService.get(IContextKeyService)).set(true);
 				instantiationService.stub(IAutomationService, new class extends mock<IAutomationService>() {
 					override readonly automations = constObservable([]);
@@ -631,7 +461,12 @@ suite('Sessions - SessionsList', () => {
 			list.focusAutomations();
 			await timeout(350);
 			const controlNavigationLabels = Array.from(navigationContainer.querySelectorAll('.session-section-shortcut .session-section-label'), element => element.textContent);
+			const controlTreeShortcuts = Array.from(listContainer.querySelectorAll('.session-section-shortcut .session-section-label'), element => element.textContent);
 			const controlAutomationsFocused = list.isAutomationsFocused();
+			const controlAutomationsRow = listContainer.querySelector<HTMLElement>('.session-section-shortcut');
+			assert.ok(controlAutomationsRow);
+			controlAutomationsRow.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+			await Promise.resolve();
 
 			assert.deepStrictEqual({
 				findInput,
@@ -653,7 +488,9 @@ suite('Sessions - SessionsList', () => {
 				navigationUsesList: navigationContainer.querySelector('.monaco-list') !== null && navigationContainer.querySelector('[role="tree"]') === null,
 				sessionsUseTree: listContainer.querySelector('[role="tree"]') !== null,
 				controlNavigationLabels,
+				controlTreeShortcuts,
 				controlAutomationsFocused,
+				commands,
 				newSessionKeybindingLookupUsesViewContext: keybindingLookupContexts.length >= 2
 					&& keybindingLookupContexts.every(context => context === harness.instantiationService.get(IContextKeyService)),
 			}, {
@@ -688,8 +525,10 @@ suite('Sessions - SessionsList', () => {
 				stableFindHeaderUnmoved: true,
 				navigationUsesList: true,
 				sessionsUseTree: true,
-				controlNavigationLabels: ['Automations'],
+				controlNavigationLabels: [],
+				controlTreeShortcuts: ['Automations'],
 				controlAutomationsFocused: true,
+				commands: ['sessionsView.manageAutomations'],
 				newSessionKeybindingLookupUsesViewContext: true,
 			});
 		});
@@ -922,7 +761,6 @@ suite('Sessions - SessionsList', () => {
 				new class extends mock<IContextKeyService>() { },
 				automationService,
 				automationSessions,
-				constObservable(undefined),
 				uriIdentityService,
 				new class extends mock<ICustomViewService>() { },
 				new class extends mock<IMenuService>() { },
@@ -994,7 +832,6 @@ suite('Sessions - SessionsList', () => {
 				new class extends mock<IContextKeyService>() { },
 				automationService,
 				constObservable([runningSession, needsInputSession]),
-				constObservable(undefined),
 				uriIdentityService,
 				new class extends mock<ICustomViewService>() { },
 				new class extends mock<IMenuService>() { },
@@ -1159,6 +996,31 @@ suite('Sessions - SessionsList', () => {
 			assert.ok(header, `Expected section ${label}`);
 			return header;
 		}
+
+		test('derives collapsed section unread state from its chats', () => {
+			const built = buildTestSession({
+				id: 'section-chat-read-state',
+				title: 'Main chat',
+				workspace: 'Workspace',
+				isRead: false,
+				mainChatIsRead: true,
+				chats: [{ id: 'peer', title: 'Peer chat', isRead: false }],
+			});
+			const { list, container } = renderList([built.session]);
+			list.collapseAllSections();
+
+			const peerUnread = unreadSections(container);
+			built.chats.get('peer')?.isRead.set(true, undefined);
+			const chatsRead = unreadSections(container);
+			built.mainChat.isRead.set(false, undefined);
+			const mainUnread = unreadSections(container);
+
+			assert.deepStrictEqual({ peerUnread, chatsRead, mainUnread }, {
+				peerUnread: ['Workspace'],
+				chatsRead: [],
+				mainUnread: ['Workspace'],
+			});
+		});
 
 		test('reports the experiment trigger where a header could show a status, whether or not the setting shows it', () => {
 			const trigger = [`config.${SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING}`];
@@ -1698,7 +1560,7 @@ suite('Sessions - SessionsList', () => {
 				const container = harness.createContainer();
 				harness.instantiationService.stub(IMenuService, harness.store.add(harness.instantiationService.createInstance(MenuService)));
 				renderSessionsHeader(container, false, harness.instantiationService, harness.store.add(new ContextKeyService(harness.instantiationService.get(IConfigurationService))), harness.store, () => list.reportArchivedFilterShown());
-				const filter = container.querySelector<HTMLElement>('a.action-label.codicon-settings[aria-haspopup="true"]');
+				const filter = container.querySelector<HTMLElement>('a.action-label[aria-label="Filter Sessions"][aria-haspopup="true"]');
 				const beforeShow = [...triggers];
 				filter?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
 				return { found: !!filter, beforeShow, afterShow: triggers };
@@ -2413,7 +2275,7 @@ suite('Sessions - SessionsList', () => {
 			title: constObservable('Fix the redirect loop'),
 			isQuickChat: constObservable(false),
 			worktreePending: constObservable(false),
-			mainChat: constObservable(upcastPartial<IChat>({ updatedAt: constObservable(new Date()), changes: constObservable([]), changesets: constObservable([]) })),
+			mainChat: constObservable(upcastPartial<IChat>({ updatedAt: constObservable(new Date()), isRead: constObservable(true), changes: constObservable([]), changesets: constObservable([]) })),
 			workspace: constObservable({
 				uri: root,
 				label: 'vscode',
@@ -2867,12 +2729,12 @@ suite('Sessions - SessionsList', () => {
 					.map(row => row.classList.contains('session-comparison-attempt')),
 				statusIconDisplays: [...container.querySelectorAll<HTMLElement>('.session-item .session-icon > .codicon')]
 					.map(icon => mainWindow.getComputedStyle(icon).display),
-				comparisonControlDisplay: mainWindow.getComputedStyle(container.querySelector<HTMLElement>('.session-comparison-archive')!).display,
+				comparisonControls: container.querySelectorAll('.session-comparison-archive').length,
 			}, {
 				connectors: [undefined, undefined, undefined],
 				comparisonAttempts: [false, false, false],
 				statusIconDisplays: ['flex', 'flex', 'flex'],
-				comparisonControlDisplay: 'none',
+				comparisonControls: 0,
 			});
 		});
 
@@ -3281,13 +3143,13 @@ suite('Sessions - SessionsList', () => {
 				summary: comparison?.querySelector('.session-group-description')?.textContent,
 				comparisonGroups: container.querySelectorAll('.session-comparison-group').length,
 				sessionRows: container.querySelectorAll('.session-item').length,
-				archiveDisplay: archive ? mainWindow.getComputedStyle(archive).display : undefined,
+				customArchiveButton: !!archive,
 			}, {
 				title: 'Improve the picker',
 				summary: 'Comparison · Starting attempts · 1 of 2 ready',
 				comparisonGroups: 1,
 				sessionRows: 0,
-				archiveDisplay: 'none',
+				customArchiveButton: false,
 			});
 		});
 
@@ -3308,57 +3170,25 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('archives complete comparison membership including pinned and filtered input waits', async () => {
-			const { attempt1, attempt2, judge, synthesis, container, harness, list } = renderComparison(undefined, 'all', new Set(['attempt-2']));
+		test('uses the group toolbar instead of a custom comparison archive button', () => {
+			const { attempt1, attempt2, judge, synthesis, container, list } = renderComparison(undefined, 'all', new Set(['attempt-2']));
 			attempt1.status.set(SessionStatus.Completed, undefined);
 			attempt2.status.set(SessionStatus.NeedsInput, undefined);
 			judge.status.set(SessionStatus.NeedsInput, undefined);
 			synthesis.status.set(SessionStatus.Completed, undefined);
 			list.filters.setExcluded({ kind: 'application', environment: 'local', id: 'github/cli' }, true);
-			const archive = container.querySelector<HTMLButtonElement>('.session-comparison-group .session-comparison-archive');
 			assert.deepStrictEqual({
-				hidden: archive?.hidden,
-				display: archive ? mainWindow.getComputedStyle(archive).display : undefined,
-				ariaLabel: archive?.getAttribute('aria-label'),
-				checkIcon: archive?.querySelector('.codicon-check') !== null,
+				customArchiveButtons: container.querySelectorAll('.session-comparison-archive').length,
+				toolbars: container.querySelectorAll('.session-comparison-group .session-section-toolbar .monaco-toolbar').length,
 				stopButtons: container.querySelectorAll('.session-comparison-stop-all, .session-comparison-participant-stop').length,
 				sessionRows: [...container.querySelectorAll('.session-item')].map(row => row.querySelector('.session-title')?.textContent),
 			}, {
-				hidden: false,
-				display: 'flex',
-				ariaLabel: 'Archive Comparison',
-				checkIcon: true,
+				customArchiveButtons: 0,
+				toolbars: 1,
 				stopButtons: 0,
 				sessionRows: ['Synthesis', 'Copilot · Claude Opus 5'],
 			});
 
-			archive?.click();
-			await timeout(0);
-			assert.deepStrictEqual({
-				archived: harness.managementService.archived.map(session => session.sessionId).sort(),
-				archivedComparisonIds: harness.archivedComparisonIds,
-				deletedGroupIds: harness.deletedGroupIds,
-			}, {
-				archived: ['attempt-1', 'attempt-2', 'judge', 'synthesis'],
-				archivedComparisonIds: ['comparison-1'],
-				deletedGroupIds: [group.id],
-			});
-		});
-
-		test('keeps the comparison when a participant session could not be archived', async () => {
-			const { container, harness } = renderComparison(undefined, 'attempt1');
-			container.querySelector<HTMLButtonElement>('.session-comparison-group .session-comparison-archive')?.click();
-			await timeout(0);
-
-			assert.deepStrictEqual({
-				archived: harness.managementService.archived.map(session => session.sessionId).sort(),
-				archivedComparisonIds: harness.archivedComparisonIds,
-				deletedGroupIds: harness.deletedGroupIds,
-			}, {
-				archived: ['attempt-1', 'judge', 'synthesis'],
-				archivedComparisonIds: [],
-				deletedGroupIds: [],
-			});
 		});
 
 		test('allows regrouping sessions from archived comparisons while retaining history lookup', () => {
@@ -4174,12 +4004,14 @@ suite('Sessions - SessionsList', () => {
 		function createChat(title: string, origin?: ChatOriginKind, interactivity = ChatInteractivity.Full, status = SessionStatus.Completed, updatedAt: IObservable<Date | undefined> = constObservable(new Date())): IChat {
 			return upcastPartial<IChat>({
 				resource: URI.parse(`test-chat://${title.replaceAll(' ', '-')}`),
+				createdAt: updatedAt.get() ?? new Date(0),
 				workspace: constObservable(undefined),
 				title: constObservable(title),
 				updatedAt,
 				status: constObservable(status),
 				description: constObservable(undefined),
 				isArchived: constObservable(false),
+				isRead: constObservable(true),
 				changes: constObservable([]),
 				changesets: constObservable([]),
 				interactivity: constObservable(interactivity),
@@ -4209,6 +4041,7 @@ suite('Sessions - SessionsList', () => {
 			expandChats = true,
 			compact = false,
 			configure?: (instantiationService: TestInstantiationService) => void,
+			sorting = SessionsSorting.Created,
 		): { readonly container: HTMLElement; readonly list: SessionsList; readonly managementService: TestSessionsManagementService } {
 			const harness = createListHarness(disposables, [session], instantiationService => {
 				if (enableMotion) {
@@ -4221,15 +4054,13 @@ suite('Sessions - SessionsList', () => {
 			const container = harness.createContainer();
 			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
 				grouping: () => SessionsGrouping.Date,
-				sorting: () => SessionsSorting.Created,
+				sorting: () => sorting,
 				compact: () => compact,
 				onSessionOpen: () => { },
 				onChatOpen,
 			}));
 			list.layout(300, 400);
-			if (expandChats) {
-				setSessionChatsExpanded(container, true);
-			}
+			setSessionChatsExpanded(container, expandChats);
 			return { container, list, managementService: harness.managementService };
 		}
 
@@ -4240,6 +4071,158 @@ suite('Sessions - SessionsList', () => {
 		function chatRowTitles(container: HTMLElement): string[] {
 			return [...container.querySelectorAll<HTMLElement>('.session-chat-title')].map(element => element.textContent ?? '');
 		}
+
+		test('orders nested sessions by updated time when updated ordering is selected', async () => {
+			const main = createChat('Main chat');
+			const firstUpdatedAt = observableValue<Date | undefined>('first-updated-at', new Date('2024-01-01'));
+			const first = { ...createChat('First chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.Completed, firstUpdatedAt), createdAt: new Date('2024-01-03') };
+			const second = { ...createChat('Second chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.Completed, constObservable(new Date('2024-01-02'))), createdAt: new Date('2024-01-02') };
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, first, second]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const { container } = renderSessionChatsList(session, undefined, false, true, false, undefined, SessionsSorting.Updated);
+			const snapshot = () => [...container.querySelectorAll<HTMLElement>('.session-chat-item')].map(item => ({
+				title: item.querySelector('.session-chat-title')?.textContent,
+				last: item.classList.contains('last-chat'),
+			}));
+			const initial = snapshot();
+
+			firstUpdatedAt.set(new Date('2024-01-04'), undefined);
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+
+			assert.deepStrictEqual({
+				initial,
+				updated: snapshot(),
+			}, {
+				initial: [
+					{ title: 'Second chat', last: false },
+					{ title: 'First chat', last: true },
+				],
+				updated: [
+					{ title: 'First chat', last: false },
+					{ title: 'Second chat', last: true },
+				],
+			});
+		});
+
+		test('observes updated ordering after archived nested sessions are shown', async () => {
+			const main = createChat('Main chat');
+			const archivedUpdatedAt = observableValue<Date | undefined>('archived-updated-at', new Date('2024-01-01'));
+			const archived = {
+				...createChat('Archived chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.Completed, archivedUpdatedAt),
+				createdAt: new Date('2024-01-01'),
+				isArchived: constObservable(true),
+			};
+			const visible = {
+				...createChat('Visible chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.Completed, constObservable(new Date('2024-01-02'))),
+				createdAt: new Date('2024-01-02'),
+			};
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, archived, visible]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const { container, list } = renderSessionChatsList(session, undefined, false, true, false, undefined, SessionsSorting.Updated);
+			const initiallyVisible = chatRowTitles(container);
+
+			list.setExcludeArchived(false);
+			const archivedShown = chatRowTitles(container);
+			archivedUpdatedAt.set(new Date('2024-01-03'), undefined);
+			await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+
+			assert.deepStrictEqual({
+				initiallyVisible,
+				archivedShown,
+				updated: chatRowTitles(container),
+			}, {
+				initiallyVisible: ['Visible chat'],
+				archivedShown: ['Visible chat', 'Archived chat'],
+				updated: ['Archived chat', 'Visible chat'],
+			});
+		});
+
+		test('renders the exact main chat read state whether collapsed or expanded', () => {
+			const built = buildTestSession({
+				id: 'chat-read-state',
+				title: 'Main chat',
+				isRead: false,
+				mainChatIsRead: true,
+				chats: [{ id: 'peer', title: 'Peer chat', isRead: false }],
+			});
+			const { container } = renderSessionChatsList(built.session, undefined, false, false);
+			const mainItem = container.querySelector<HTMLElement>('.session-item');
+			const snapshot = () => ({
+				mainUnread: mainItem?.classList.contains('unread'),
+				mainAriaLabel: mainItem?.closest('.monaco-list-row')?.getAttribute('aria-label'),
+				peerUnread: container.querySelector<HTMLElement>('.session-chat-item')?.classList.contains('unread'),
+				peerAriaLabel: container.querySelector<HTMLElement>('.session-chat-item')?.closest('.monaco-list-row')?.getAttribute('aria-label'),
+			});
+
+			const collapsed = snapshot();
+			setSessionChatsExpanded(container, true);
+			const expanded = snapshot();
+			setSessionChatsExpanded(container, false);
+			const recollapsed = snapshot();
+			built.mainChat.isRead.set(false, undefined);
+			const mainUnread = snapshot();
+			built.chats.get('peer')?.isRead.set(true, undefined);
+			const peerRead = snapshot();
+			built.isRead.set(true, undefined);
+			const sessionRead = snapshot();
+			setSessionChatsExpanded(container, true);
+			const expandedMainUnread = snapshot();
+
+			assert.deepStrictEqual({ collapsed, expanded, recollapsed, mainUnread, peerRead, sessionRead, expandedMainUnread }, {
+				collapsed: {
+					mainUnread: false,
+					mainAriaLabel: 'Main chat, updated now, State: Completed',
+					peerUnread: undefined,
+					peerAriaLabel: undefined,
+				},
+				expanded: {
+					mainUnread: false,
+					mainAriaLabel: 'Main chat, updated now, State: Completed',
+					peerUnread: true,
+					peerAriaLabel: 'Peer chat, chat, updated now, State: Completed, unread',
+				},
+				recollapsed: {
+					mainUnread: false,
+					mainAriaLabel: 'Main chat, updated now, State: Completed',
+					peerUnread: undefined,
+					peerAriaLabel: undefined,
+				},
+				mainUnread: {
+					mainUnread: true,
+					mainAriaLabel: 'Main chat, updated now, State: Completed, unread',
+					peerUnread: undefined,
+					peerAriaLabel: undefined,
+				},
+				peerRead: {
+					mainUnread: true,
+					mainAriaLabel: 'Main chat, updated now, State: Completed, unread',
+					peerUnread: undefined,
+					peerAriaLabel: undefined,
+				},
+				sessionRead: {
+					mainUnread: true,
+					mainAriaLabel: 'Main chat, updated now, State: Completed, unread',
+					peerUnread: undefined,
+					peerAriaLabel: undefined,
+				},
+				expandedMainUnread: {
+					mainUnread: true,
+					mainAriaLabel: 'Main chat, updated now, State: Completed, unread',
+					peerUnread: false,
+					peerAriaLabel: 'Peer chat, chat, updated now, State: Completed',
+				},
+			});
+		});
 
 		test('matches the main chat row vertical layout in compact and regular views', () => {
 			const main = createChat('Main chat');
@@ -4398,6 +4381,7 @@ suite('Sessions - SessionsList', () => {
 				updatedAt: constObservable(new Date()),
 				status,
 				isArchived: constObservable(false),
+				isRead: constObservable(true),
 				changes: constObservable([]),
 				changesets: constObservable([]),
 				interactivity: constObservable(ChatInteractivity.Full),
@@ -4589,7 +4573,7 @@ suite('Sessions - SessionsList', () => {
 			const container = harness.createContainer();
 			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
 				grouping: () => SessionsGrouping.Date,
-				sorting: () => SessionsSorting.Created,
+				sorting: () => SessionsSorting.Updated,
 				onSessionOpen: () => { },
 			}));
 			list.layout(120, 400);
@@ -5457,6 +5441,7 @@ suite('Sessions - SessionsList', () => {
 				updatedAt: constObservable(new Date()),
 				status: mainStatus,
 				isArchived: constObservable(false),
+				isRead: constObservable(true),
 				changes: constObservable([]),
 				changesets: constObservable([]),
 				interactivity: constObservable(ChatInteractivity.Full),
@@ -5531,6 +5516,7 @@ suite('Sessions - SessionsList', () => {
 				status: observableFromEvent(disposables, childStatusEmitter.event, () => SessionStatus.InProgress),
 				description: constObservable(undefined),
 				isArchived: constObservable(false),
+				isRead: constObservable(true),
 				interactivity: constObservable(ChatInteractivity.Full),
 				origin: { kind: ChatOriginKind.User },
 			});
@@ -5789,6 +5775,7 @@ suite('Sessions - SessionsList', () => {
 				updatedAt: constObservable(new Date()),
 				status: mainStatus,
 				isArchived: constObservable(false),
+				isRead: constObservable(true),
 				changes: constObservable([]),
 				changesets: constObservable([]),
 				interactivity: constObservable(ChatInteractivity.Full),
@@ -7025,7 +7012,7 @@ suite('Sessions - SessionsList', () => {
 					badge: undefined,
 					time: undefined,
 					hasDiff: false,
-					ariaLabel: 'Investigate failure, updated now',
+					ariaLabel: 'Investigate failure, updated now, unread',
 				},
 				regular: {
 					usesStandardRowHeight: true,
@@ -7037,7 +7024,7 @@ suite('Sessions - SessionsList', () => {
 					badge: 'No workspace',
 					time: 'now',
 					hasDiff: false,
-					ariaLabel: 'Investigate failure, chat, updated now',
+					ariaLabel: 'Investigate failure, chat, updated now, unread',
 				},
 			});
 		});
@@ -7050,6 +7037,7 @@ suite('Sessions - SessionsList', () => {
 				updatedAt: constObservable(new Date()),
 				status: constObservable(SessionStatus.Completed),
 				isArchived: constObservable(false),
+				isRead: constObservable(true),
 				changes: constObservable([]),
 				changesets: constObservable([]),
 				interactivity: constObservable(ChatInteractivity.Full),
@@ -7528,6 +7516,56 @@ suite('Sessions - SessionsList', () => {
 			assert.deepStrictEqual({ opened, markedRead: harness.managementService.readSessions.length }, {
 				opened: [session.resource.toString()],
 				markedRead: 1,
+			});
+		});
+
+		test('opening an expanded main chat does not mark the parent session read', async () => {
+			const base = createTestSession('Unread multi-chat', { isRead: false }).session;
+			const main = base.mainChat.get();
+			const peer: IChat = {
+				...main,
+				resource: URI.parse('test-chat://peer'),
+				workspace: constObservable(undefined),
+				title: constObservable('Peer chat'),
+				updatedAt: constObservable(new Date()),
+				status: constObservable(SessionStatus.Completed),
+				isArchived: constObservable(false),
+				isRead: constObservable(true),
+				changes: constObservable([]),
+				changesets: constObservable([]),
+				interactivity: constObservable(ChatInteractivity.Full),
+				origin: { kind: ChatOriginKind.User },
+			};
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, peer]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const harness = createListHarness(disposables, [session]);
+			const container = harness.createContainer();
+			const opened: string[] = [];
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: resource => {
+					opened.push(resource.toString());
+				},
+			}));
+			list.layout(300, 400);
+			const row = findSessionRow(container, 'Unread multi-chat');
+			const twistie = row.querySelector<HTMLElement>('.session-chat-twistie');
+			assert.ok(twistie);
+			if (row.getAttribute('aria-expanded') !== 'true') {
+				twistie.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+			}
+
+			clickRow(row);
+			await settle();
+
+			assert.deepStrictEqual({ opened, markedRead: harness.managementService.readSessions.length }, {
+				opened: [session.resource.toString()],
+				markedRead: 0,
 			});
 		});
 

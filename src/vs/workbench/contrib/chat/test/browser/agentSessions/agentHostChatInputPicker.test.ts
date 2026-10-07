@@ -22,7 +22,7 @@ import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService, IAgentHostS
 import { remoteAgentHostSessionTypeId } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { toAgentHostBackendSessionUri } from '../../../browser/agentSessions/agentHost/agentHostSessionUri.js';
+import { getLocalAgentHostSessionProvider, toAgentHostBackendSessionUri } from '../../../browser/agentSessions/agentHost/agentHostSessionUri.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -111,7 +111,6 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			}
 		}({
 			[ChatConfiguration.ExperimentalModePermissionsPicker]: combined,
-			[ChatConfiguration.PermissionsSandboxToggleEnabled]: true,
 			[ChatConfiguration.GlobalAutoApprove]: false,
 		});
 		store.add(configuration.onDidChangeConfigurationEmitter);
@@ -199,16 +198,22 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			}
 		});
 		const sessionResolutions = new Map<string, IAgentHostSessionResolution>();
+		const resolveIdentity = (sessionResource: URI) => {
+			const known = sessionResolutions.get(sessionResource.toString());
+			const provider = getLocalAgentHostSessionProvider(sessionResource);
+			return known ?? (provider ? { backendSession: sessionResource.with({ scheme: provider, fragment: '' }), connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY } : undefined);
+		};
 		instantiationService.stub(IAgentHostConnectionsService, {
 			ambientConnection: connection,
 			onDidChangeSessionResolution: Event.None,
+			resolveSessionResourceIdentity: resolveIdentity,
 			resolveSessionResource: sessionResource => {
 				const resolution = sessionResolutions.get(sessionResource.toString());
 				if (resolution) {
 					return resolution;
 				}
-				const backendSession = toAgentHostBackendSessionUri(sessionResource);
-				return backendSession ? { connection, backendSession, connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY } : undefined;
+				const identity = resolveIdentity(sessionResource);
+				return identity ? { ...identity, connection } : undefined;
 			},
 		});
 		instantiationService.set(IActionWidgetService, actionWidget);
@@ -303,7 +308,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			hover: 'Effective permissions: manual. Requested permissions: allow-all.',
 			standaloneHidden: 'none',
 			dispatches: [{ type: ActionType.SessionConfigChanged, config: { approvalMode: 'assisted' } }],
-			refreshes: [{ mode: 'interactive', approvalMode: 'assisted' }],
+			refreshes: [{ mode: 'interactive', approvalMode: 'assisted', effectiveApprovalMode: 'manual', availableApprovalModes: ['manual', 'assisted'] }],
 		});
 	});
 
@@ -319,6 +324,24 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		}, {
 			hidden: 'none', generic: ['autoApprove'],
 		});
+	});
+
+	test('never exposes the pull request URL as a generic config chip', () => {
+		const property = { type: 'string' as const, title: 'Pull Request', readOnly: true, sessionMutable: true };
+		const schemas = [
+			property,
+			{ ...property, enum: ['https://github.com/microsoft/vscode/pull/42'] },
+			{ ...property, enumDynamic: true },
+		];
+
+		assert.deepStrictEqual(schemas.map(schema => ({
+			draft: isGenericConfigPickerProperty(SessionConfigKey.PullRequestUrl, schema, false),
+			started: isGenericConfigPickerProperty(SessionConfigKey.PullRequestUrl, schema, true),
+		})), [
+			{ draft: false, started: false },
+			{ draft: false, started: false },
+			{ draft: false, started: false },
+		]);
 	});
 
 	test('native base-branch completions and selections retain baseBranch rather than the new branch name', async () => {
@@ -456,9 +479,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			const checked = toggle.checked;
 			toggle.onChange(!checked);
 			await timeout(0);
-			await configuration.setUserConfiguration(ChatConfiguration.PermissionsSandboxToggleEnabled, false);
-			const hiddenWhenDisabled = permissionPicker['_getSandboxStandaloneToggle']() === undefined;
-			await configuration.setUserConfiguration(ChatConfiguration.PermissionsSandboxToggleEnabled, true);
+			const visibleWithoutFeatureSetting = permissionPicker['_getSandboxStandaloneToggle']() !== undefined;
 			delete config.schema.properties[SessionConfigKey.SandboxEnabled];
 
 			assert.deepStrictEqual({
@@ -467,7 +488,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 				remoteRequests: remote.diagnosticsRequests,
 				remoteWrites: remote.writes,
 				localWrites: dispatches,
-				hiddenWhenDisabled,
+				visibleWithoutFeatureSetting,
 				hiddenWithoutSchema: permissionPicker['_getSandboxStandaloneToggle']() === undefined,
 			}, {
 				checked: false,
@@ -475,7 +496,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 				remoteRequests: 0,
 				remoteWrites: [{ channel: backendSession.toString(), action: { type: ActionType.SessionConfigChanged, config: { [SessionConfigKey.SandboxEnabled]: checked ? 'off' : 'on' } } }],
 				localWrites: [],
-				hiddenWhenDisabled: true,
+				visibleWithoutFeatureSetting: true,
 				hiddenWithoutSchema: true,
 			});
 		});
@@ -527,7 +548,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		const bypassAllowed = read();
 		managedSandboxAllowsBypass.set(false, undefined);
 		const resource = widget.viewModel!.sessionResource;
-		const state = setSession(resource, toAgentHostBackendSessionUri(resource)!, instantiationService.get(IAgentHostService));
+		const state = setSession(resource, toAgentHostBackendSessionUri(resource, instantiationService.get(IAgentHostConnectionsService))!, instantiationService.get(IAgentHostService));
 		const running = read();
 		await permissionPicker['_showPicker'](dom.$('div'));
 		const toggle = actionWidget.items.find(item => item.standaloneToggle)!.standaloneToggle!;
@@ -585,7 +606,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		const { permissionPicker, sandboxReady, setSession, config, configuration, widget, instantiationService } = setup(false);
 		await sandboxReady();
 		const resource = widget.viewModel!.sessionResource;
-		const state = setSession(resource, toAgentHostBackendSessionUri(resource)!, instantiationService.get(IAgentHostService));
+		const state = setSession(resource, toAgentHostBackendSessionUri(resource, instantiationService.get(IAgentHostConnectionsService))!, instantiationService.get(IAgentHostService));
 		await configuration.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, 'off');
 		delete config.values[SessionConfigKey.SandboxEnabled];
 		state._meta = withSessionSandboxState(undefined, { enabled: true });
@@ -1347,7 +1368,6 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 			}
 		}();
 		store.add(configurationService.onDidChangeConfigurationEmitter);
-		await configurationService.setUserConfiguration(ChatConfiguration.PermissionsSandboxToggleEnabled, true);
 		const managedSandboxEnforced = observableValue('managedSandboxEnforced', false);
 		let allowBypass: boolean | undefined;
 		const managedSettingsChanged = store.add(new Emitter<void>());
@@ -1422,9 +1442,13 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 			new class extends mock<IAgentHostConnectionsService>() {
 				override readonly ambientConnection = connection;
 				override readonly onDidChangeSessionResolution = Event.None;
+				override resolveSessionResourceIdentity(sessionResource: URI) {
+					const provider = getLocalAgentHostSessionProvider(sessionResource);
+					return provider ? { backendSession: sessionResource.with({ scheme: provider, fragment: '' }), connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY } : undefined;
+				}
 				override resolveSessionResource(sessionResource: URI) {
-					const backendSession = toAgentHostBackendSessionUri(sessionResource);
-					return backendSession ? { connection, backendSession, connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY } : undefined;
+					const identity = this.resolveSessionResourceIdentity(sessionResource);
+					return identity ? { ...identity, connection } : undefined;
 				}
 			}(),
 			new class extends mock<IWorkbenchEnvironmentService>() {

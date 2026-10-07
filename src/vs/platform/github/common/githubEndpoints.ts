@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../base/common/uri.js';
+import { GitHubRequestError } from './githubTypes.js';
 
 /** GitHub endpoints derived from an optional Enterprise base URI, with no trailing slashes. */
 export interface IGitHubEndpoints {
 	/** REST API base (e.g. `https://api.github.com`). */
 	readonly apiBaseUri: string;
+	/** Raw-content base when known; custom hosts may configure it explicitly. */
+	readonly rawBaseUri?: string;
 	/** GraphQL endpoint (distinct from `apiBaseUri` for on-prem: `/api/graphql`, not `/api/v3/graphql`). */
 	readonly graphQlUri: string;
 	/** OAuth authorization server URI. */
@@ -26,6 +29,7 @@ export const GITHUB_DOT_COM_COPILOT_API_BASE_URI = 'https://api.githubcopilot.co
 /** Canonical github.com endpoints, used when no enterprise URI is configured. */
 const GITHUB_DOT_COM_ENDPOINTS: IGitHubEndpoints = {
 	apiBaseUri: 'https://api.github.com',
+	rawBaseUri: 'https://raw.githubusercontent.com',
 	graphQlUri: 'https://api.github.com/graphql',
 	oauthServer: 'https://github.com/login/oauth',
 	enterpriseHost: undefined,
@@ -81,4 +85,18 @@ export function gitHubMcpServerUrl(copilotApiBaseUri: string | undefined): strin
 	} catch {
 		return undefined;
 	}
+}
+
+/** Resolves an API-relative read path and rejects URLs that escape the configured GitHub API endpoint. */
+export function resolveReadApiUrl(apiBaseUri: string, path: string): { url: URL; apiBasePath: string } {
+	if (typeof path !== 'string' || !path.startsWith('/') || path.startsWith('//') || path.includes('\\')) {
+		throw new GitHubRequestError('GitHub reads require an API-relative path', 'validation');
+	}
+	const url = new URL(`${apiBaseUri}${path}`);
+	const endpoint = new URL(apiBaseUri);
+	const apiBasePath = `${endpoint.pathname.replace(/\/+$/, '')}/`;
+	if (url.origin !== endpoint.origin || !url.pathname.startsWith(apiBasePath) || url.username || url.password || url.hash) {
+		throw new GitHubRequestError('GitHub read escaped its API endpoint', 'validation');
+	}
+	return { url, apiBasePath };
 }

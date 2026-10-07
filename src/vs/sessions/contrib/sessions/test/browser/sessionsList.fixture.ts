@@ -10,7 +10,6 @@ import { ComponentFixtureContext, defineThemedFixtureGroup } from '../../../../.
 import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { createSessionArchiveTour } from '../../../onboardingTours/browser/tours/sessionArchiveTour.js';
-import { AUTOMATIONS_NEW_BADGE_STYLE_SETTING } from '../../browser/automationsNewBadge.js';
 import { SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsGrouping } from '../../browser/views/sessionsList.js';
 import { defineSessionsListFixture, ISessionsListFixture, ISessionsListFixtureGroup, ISessionsListFixtureSession } from './sessionsListFixtureUtils.js';
 
@@ -357,6 +356,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		view: { height: 380 },
 		interaction: { focused: { group: 'release' } },
 	}, {
+		deferPaint: true,
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast'],
 		expectedVisualDescriptions: ['The Release work group header has keyboard focus, shown with a focus outline, a chevron in place of the group icon, and its New Session and Archive All actions.'],
@@ -716,66 +716,20 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 
 	//#region Header
 
-	SessionsList_AutomationsNewBadge: defineSessionsListFixture({
-		sessions: [],
-		header: { automations: true },
-	}, {
-		labels: { kind: 'screenshot', blocksCi: true },
-		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['The Sessions header has an outlined New button. Directly below it, the Automations row has a smaller right-aligned outlined NEW capsule that reads as a non-interactive feature badge rather than a second button.'],
-	}),
-	SessionsList_AutomationsNewBadge_Accent: defineSessionsListFixture({
-		sessions: [],
-		header: { automations: true },
-		settings: { [AUTOMATIONS_NEW_BADGE_STYLE_SETTING]: 'accent' },
-	}, {
-		labels: { kind: 'screenshot', blocksCi: true },
-		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['The Automations row has a compact right-aligned NEW pill using the prominent activity badge colors, while the larger outlined New button remains visually distinct in the Sessions header.'],
-	}),
-	SessionsList_AutomationsNewBadge_Soft: defineSessionsListFixture({
-		sessions: [],
-		header: { automations: true },
-		settings: { [AUTOMATIONS_NEW_BADGE_STYLE_SETTING]: 'soft' },
-	}, {
-		labels: { kind: 'screenshot', blocksCi: true },
-		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['The Automations row has a compact right-aligned NEW pill with a subtle neutral fill, while the larger outlined New button remains visually distinct in the Sessions header.'],
-	}),
-	SessionsList_AutomationsNewBadge_Unread: defineSessionsListFixture({
-		sessions: [],
-		header: { automations: true },
-		settings: { [AUTOMATIONS_NEW_BADGE_STYLE_SETTING]: 'unread' },
-	}, {
-		labels: { kind: 'screenshot', blocksCi: true },
-		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['The Automations row uses the standard filled blue unread indicator in its leading icon slot to signal the new feature and does not show a trailing NEW capsule, while the Sessions header retains its outlined New button.'],
-	}),
-	SessionsList_AutomationsNewBadge_Narrow: defineSessionsListFixture({
-		sessions: [],
-		view: { width: 170 },
-		header: { automations: true },
-	}, {
-		labels: { kind: 'screenshot', blocksCi: true },
-		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['At the 170px minimum sidebar width, the Automations label remains readable and the outlined NEW capsule stays right-aligned without changing the row height.'],
-	}),
-	SessionsList_AutomationsNewBadge_Running: defineSessionsListFixture({
-		sessions: [],
-		header: { automations: true, automationRunStatus: 'running' },
-	}, {
-		labels: { kind: 'screenshot', blocksCi: true },
-		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['The Automations row shows its running status icon and the outlined NEW capsule together without overlap or layout shift.'],
-	}),
 	SessionsList_CustomizationsNavigationTreatment: defineSessionsListFixture({
 		sessions: [{ id: 'treatment', title: 'Validate the customizations experiment', workspace: 'vscode', minutesAgo: 5 }],
 		header: { navigationShortcuts: true, customizationsCount: 8 },
-		settings: { [AUTOMATIONS_NEW_BADGE_STYLE_SETTING]: 'outline' },
 	}, {
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['New Session, Automations, and Customizations appear as three full-width navigation rows above the Sessions header. The session tree starts after the header and contains only session sections. New Session has a plus icon and its platform keybinding aligned on the right, Automations has a compact right-aligned NEW capsule, and Customizations has no total-count badge.'],
+		expectedVisualDescriptions: ['New Session, Automations, and Customizations appear as three inset navigation rows above the Sessions header. The hovered New Session row uses the same horizontal inset and rounded control-tier corners as the session row below. New Session has a plus icon and its platform keybinding aligned on the right, Automations has a calendar icon, and Customizations has no total-count badge.'],
+		afterRender: fixture => {
+			const newSessionRow = fixture.container.querySelector('.session-section-new-session')?.closest<HTMLElement>('.monaco-list-row');
+			if (!newSessionRow) {
+				throw new Error('Expected the New Session navigation row.');
+			}
+			newSessionRow.classList.add('hovered');
+		},
 	}),
 	SessionsList_CustomizationsMigrationsAvailable: defineSessionsListFixture({
 		sessions: [{ id: 'migrations', title: 'Move instructions into the new format', workspace: 'vscode', minutesAgo: 5 }],

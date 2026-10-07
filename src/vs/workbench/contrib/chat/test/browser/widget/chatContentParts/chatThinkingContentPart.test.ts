@@ -202,6 +202,16 @@ suite('ChatThinkingContentPart', () => {
 		});
 	});
 
+	test('resolves known tool icons when a provider supplies only the generic tool icon', () => {
+		const tools = ['read', 'read_file', 'view', 'search', 'rg', 'glob', 'terminal', 'bash', 'powershell', 'custom_tool'];
+		const icons = [Codicon.book, Codicon.book, Codicon.book, Codicon.search, Codicon.search, Codicon.search, Codicon.terminal, Codicon.terminal, Codicon.terminal, Codicon.tools];
+		assert.deepStrictEqual({
+			inferred: tools.map(toolId => getToolInvocationIcon(toolId)),
+			generic: tools.map(toolId => getToolInvocationIcon(toolId, { icon: Codicon.tools })),
+			custom: getToolInvocationIcon('read_file', { icon: Codicon.beaker }),
+		}, { inferred: icons, generic: icons, custom: Codicon.beaker });
+	});
+
 	test('uses the MCP icon instead of registered or inferred tool icons', () => {
 		const source: ToolDataSource = { type: 'mcp', label: 'Reference', serverLabel: 'Reference', collectionId: 'reference', definitionId: 'reference', instructions: '' };
 		assert.deepStrictEqual({
@@ -316,14 +326,36 @@ suite('ChatThinkingContentPart', () => {
 			});
 		});
 
-		test('visibility changes preserve generated chain summaries', () => {
+		test('visibility changes ignore generated chain summaries', () => {
 			const part = createToolChain();
 			const first = appendVisibilityControlledTool(part, 'first', true);
 			appendVisibilityControlledTool(part, 'second', true);
 			first.tool.generatedTitle = 'Reviewed the renderer';
 			part.finalizeTitleIfDefault();
 			first.isVisible.set(false, undefined);
-			assert.strictEqual(part.domNode.querySelector(':scope > .chat-used-context-label .monaco-button')?.textContent, 'Reviewed the renderer');
+			assert.strictEqual(part.domNode.querySelector(':scope > .chat-used-context-label .monaco-button')?.textContent, 'Finished with 1 step');
+		});
+
+		test('does not generate titles for tool chains', () => {
+			mockConfigurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, true);
+			let modelSelections = 0;
+			mockLanguageModelsService.selectLanguageModels = async () => {
+				modelSelections++;
+				return ['utility'];
+			};
+			const part = createToolChain();
+			appendVisibilityControlledTool(part, 'first', true);
+			appendVisibilityControlledTool(part, 'second', true);
+
+			part.finalizeTitleIfDefault();
+
+			assert.deepStrictEqual({
+				title: part.domNode.querySelector(':scope > .chat-used-context-label .monaco-button')?.textContent,
+				modelSelections,
+			}, {
+				title: 'Finished with 2 steps',
+				modelSelections: 0,
+			});
 		});
 
 		for (const verbosity of [undefined, ChatProgressVerbosity.Compact, ChatProgressVerbosity.Verbose]) {
@@ -358,7 +390,7 @@ suite('ChatThinkingContentPart', () => {
 			assert.deepStrictEqual({ beforeExpanding, afterCollapsing: getAnimations.callCount }, { beforeExpanding: 0, afterCollapsing: 1 });
 		});
 
-		test('restores a generated summary without materializing its tools', async () => {
+		test('uses the step count instead of a generated summary without materializing its tools', async () => {
 			const part = createToolChain(true);
 			const tool = new ChatToolInvocation(
 				{ invocationMessage: 'Read renderer', pastTenseMessage: 'Read renderer' },
@@ -384,9 +416,9 @@ suite('ChatThinkingContentPart', () => {
 				expanded,
 				collapsed: { expanded: button.ariaExpanded, materialized, label: button.ariaLabel },
 			}, {
-				restored: { expanded: 'false', title: 'Reviewed the progress renderer', materialized: 0 },
+				restored: { expanded: 'false', title: 'Finished with 1 step', materialized: 0 },
 				expanded: { expanded: 'true', materialized: 1 },
-				collapsed: { expanded: 'false', materialized: 1, label: 'Reviewed the progress renderer' },
+				collapsed: { expanded: 'false', materialized: 1, label: 'Finished with 1 step' },
 			});
 		});
 
@@ -1782,10 +1814,29 @@ suite('ChatThinkingContentPart', () => {
 			const part = createPersistentReasoning(createThinkingPart('**Evaluating code**\n\n**Reviewing build processes**'));
 			part.finalizeTitleIfDefault();
 			assert.deepStrictEqual({ ...snapshot(part), modelSelections }, {
-				title: 'Finished with 1 step',
-				ariaLabel: 'Finished with 1 step',
+				title: 'Finished thinking',
+				ariaLabel: 'Finished thinking',
 				body: ['Evaluating code', 'Reviewing build processes'],
 				modelSelections: 0,
+			});
+		});
+
+		test('uses a generic title when reasoning title generation fails', async () => {
+			let modelSelections = 0;
+			mockLanguageModelsService.selectLanguageModels = async () => {
+				modelSelections++;
+				return [];
+			};
+			const part = createPersistentReasoning(createThinkingPart('Consider how to update the progress renderer.'));
+
+			part.finalizeTitleIfDefault();
+			await timeout(0);
+
+			assert.deepStrictEqual({ ...snapshot(part), modelSelections }, {
+				title: 'Finished thinking',
+				ariaLabel: 'Finished thinking',
+				body: ['Consider how to update the progress renderer.'],
+				modelSelections: 1,
 			});
 		});
 	});

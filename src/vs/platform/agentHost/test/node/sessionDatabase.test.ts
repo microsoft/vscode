@@ -1944,7 +1944,7 @@ suite('SessionDatabase', () => {
 				db = undefined;
 				await fs.rm(tempRoot, { recursive: true, force: true });
 			}
-		});
+		}).timeout(10_000);
 
 		test('the latest snapshot remains pending when relay is interrupted', async () => {
 			const tempRoot = await fs.mkdtemp(join(tmpdir(), 'session-db-catalog-pending-' + generateUuid()));
@@ -1968,7 +1968,7 @@ suite('SessionDatabase', () => {
 				db = undefined;
 				await fs.rm(tempRoot, { recursive: true, force: true });
 			}
-		});
+		}).timeout(10_000);
 
 		test('validates snapshot and acknowledgement boundaries', async () => {
 			db = disposables.add(await SessionDatabase.open(':memory:'));

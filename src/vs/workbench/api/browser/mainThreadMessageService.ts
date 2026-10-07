@@ -15,6 +15,7 @@ import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { legacyExtensionLinkParsing } from '../../../platform/notification/common/notificationLegacy.js';
+import { extensionNotificationTelemetry, NotificationActionTelemetryId, withNotificationActionTelemetry } from '../../../platform/notification/common/notificationTelemetry.js';
 
 @extHostNamedCustomer(MainContext.MainThreadMessageService)
 export class MainThreadMessageService implements MainThreadMessageServiceShape {
@@ -56,7 +57,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 
 		return new Promise<number | undefined>(resolve => {
 
-			const primaryActions: IAction[] = commands.map(command => toAction({
+			const primaryActions: IAction[] = commands.map(command => withNotificationActionTelemetry(toAction({
 				id: `_extension_message_handle_${command.handle}`,
 				label: command.title,
 				enabled: true,
@@ -64,7 +65,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 					resolve(command.handle);
 					return Promise.resolve();
 				}
-			}));
+			}), { extensionButtonIndex: command.handle }));
 
 			let source: string | INotificationSource | undefined;
 			let sourceIsUrgent = false;
@@ -82,16 +83,17 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 
 			const secondaryActions: IAction[] = [];
 			if (options.source) {
-				secondaryActions.push(toAction({
+				secondaryActions.push(withNotificationActionTelemetry(toAction({
 					id: options.source.identifier.value,
 					label: nls.localize('manageExtension', "Manage Extension"),
 					run: () => {
 						return this._commandService.executeCommand('_extensions.manage', options.source!.identifier.value);
 					}
-				}));
+				}), NotificationActionTelemetryId.ManageExtension));
 			}
 
 			const messageHandle = this._notificationService.notify({
+				telemetry: extensionNotificationTelemetry(options.source?.identifier.value, 'message'),
 				severity,
 				message,
 				legacyExtensionLinkParsing,

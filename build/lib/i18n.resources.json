@@ -159,6 +159,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/opener",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/output",
 			"project": "vscode-workbench"
 		},

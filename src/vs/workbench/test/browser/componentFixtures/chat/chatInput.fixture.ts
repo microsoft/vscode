@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { assert } from '../../../../../base/common/assert.js';
 import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { observableValue } from '../../../../../base/common/observable.js';
@@ -299,6 +300,26 @@ export default defineThemedFixtureGroup({ path: 'chat/input/' }, {
 	VoiceModeListening: defineComponentFixture({ render: context => renderChatInput(context, { voiceControl: 'voiceListening' }) }),
 	VoiceModeSpeaking: defineComponentFixture({ render: context => renderChatInput(context, { voiceControl: 'voiceSpeaking' }) }),
 	VoiceModeDisconnect: defineComponentFixture({ render: context => renderChatInput(context, { voiceControl: 'voiceDisconnect' }) }),
+	// The segmented voice pill at the chat view's minimum width: the pickers
+	// collapse into the overflow menu so the send button and the voice pill stay
+	// inside the input (#331228).
+	NarrowWithVoiceInputMode: defineComponentFixture({
+		virtualTime: { enabled: false },
+		render: async context => {
+			await renderChatInput(context, { voiceInputMode: true, width: 150 });
+			const inputContainer = context.container.querySelector<HTMLElement>('.chat-input-container');
+			const inputToolbar = context.container.querySelector<HTMLElement>('.chat-input-toolbar');
+			const submit = context.container.querySelector<HTMLElement>('.chat-execute-toolbar .chat-submit-button');
+			assert(!!inputContainer && !!inputToolbar && !!submit && submit.checkVisibility());
+			const submitOverflow = submit.getBoundingClientRect().right - inputContainer.getBoundingClientRect().right;
+			assert(submitOverflow <= 0, `The send button must not overflow the chat input, got ${submitOverflow}px of overflow.`);
+			const inputToolbarRight = inputToolbar.getBoundingClientRect().right;
+			for (const item of inputToolbar.querySelectorAll<HTMLElement>('.action-item')) {
+				assert(item.getBoundingClientRect().right <= inputToolbarRight + 1, 'Input toolbar actions must move into the overflow menu instead of being clipped.');
+			}
+			assert(!!inputToolbar.querySelector('.monaco-action-bar.has-overflow'), 'The collapsed pickers must stay reachable from the overflow menu.');
+		},
+	}),
 
 	// Where the pet lands, with and without a notice docked above the input (#332570).
 	WithPet: defineComponentFixture({ render: context => renderChatInput(context, { pet: true }) }),

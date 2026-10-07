@@ -54,7 +54,7 @@ import { openChatTurnFile, previewKind } from '../../widget/chatTurnPills.js';
 import { openChatFileChanges } from '../../editorChatResponseFileChangesService.js';
 import { ChatInputPills, StandardChatInputPillSources } from '../../chatInputPills.js';
 import { SessionBackgroundShellsControl } from '../../sessionBackgroundShellsControl.js';
-import { createSessionPullRequestPillData } from '../../sessionPullRequestPill.js';
+import { createSessionPullRequestPillData, type IChatPullRequestPillEntry } from '../../sessionPullRequestPill.js';
 import { SessionCustomizations } from '../../sessionCustomizations.js';
 import { createSessionSubagentsPillData, type IChatSubagentPillEntry } from '../../sessionSubagentsPill.js';
 import { AgentHostBackgroundShellOutputs } from './agentHostBackgroundShells.js';
@@ -62,6 +62,8 @@ import { agentHostChangesetFileToEntryDiff } from './agentHostResponseFileChange
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { GitHubCommitResolver } from '../../../../github/browser/githubCommitResolver.js';
 import { createCommitResourceHover, createIssueResourceHover, createPullRequestResourceHover, getIssueResourceStatus, getPullRequestChecksStatusLabel, getPullRequestResourceStatus, type GitHubChecksStatus, type IGitHubIssueHoverModel, type IGitHubPullRequestHoverModel } from '../../../../github/browser/githubResourceHover.js';
+import { getLazyGitHubResourcePresentation, LazyGitHubResourceResolver, parseGitHubReferenceTarget as parseLazyGitHubReferenceTarget } from '../../../../github/browser/lazyGitHubResourceHover.js';
+import { GitHubResourceHoverCache } from '../../../../github/browser/githubResourceHoverCache.js';
 
 const artifactIcons: ReadonlyMap<SessionArtifactType, ThemeIcon> = new Map([
 	[SessionArtifactType.PullRequest, Codicon.gitPullRequest],
@@ -511,9 +513,10 @@ export class AgentHostSessionInputPills extends Disposable {
 
 	private readonly _browserChanged = observableSignal(this);
 	private readonly _browserListeners = this._register(new MutableDisposable<DisposableStore>());
-	private readonly _pullRequestHoverCache = new Map<string, { element: HTMLElement; tabbableElements: readonly HTMLElement[] }>();
+	private readonly _pullRequestHoverCache = this._register(new GitHubResourceHoverCache());
 	private readonly _issueHoverCache = new Map<string, { element: HTMLElement; tabbableElements: readonly HTMLElement[] }>();
 	private readonly _gitHubReferenceResolver: AgentHostGitHubReferenceResolver;
+	private readonly _lazyGitHubResourceResolver: LazyGitHubResourceResolver;
 
 	constructor(
 		private readonly _widget: ChatWidget,
@@ -533,6 +536,7 @@ export class AgentHostSessionInputPills extends Disposable {
 	) {
 		super();
 		this._gitHubReferenceResolver = this._register(instantiationService.createInstance(AgentHostGitHubReferenceResolver));
+		this._lazyGitHubResourceResolver = this._register(instantiationService.createInstance(LazyGitHubResourceResolver));
 		const gitHubCommitResolver = this._register(instantiationService.createInstance(GitHubCommitResolver));
 
 		const sessionResource = observableFromEvent(this, this._widget.onDidChangeViewModel, () => this._widget.viewModel?.sessionResource);
@@ -653,21 +657,21 @@ export class AgentHostSessionInputPills extends Disposable {
 		const gitHubState = derived(this, reader => readSessionFolderGitHubState(sessionState.read(reader)));
 		this._register(autorun(reader => {
 			const currentMetadata = metadata.read(reader);
-			for (const [cache, links] of [
-				[this._issueHoverCache, currentMetadata.issueUrls],
-				[this._pullRequestHoverCache, currentMetadata.pullRequestUrls],
-			] as const) {
-				const retained = new Set(links.map(linkKey));
-				for (const key of cache.keys()) {
-					if (!retained.has(key)) {
-						cache.delete(key);
-					}
+			this._pullRequestHoverCache.retain(new Set(currentMetadata.pullRequestUrls.map(linkKey)), sessionResource.read(reader)?.toString());
+			const retainedIssues = new Set(currentMetadata.issueUrls.map(linkKey));
+			for (const key of this._issueHoverCache.keys()) {
+				if (!retainedIssues.has(key)) {
+					this._issueHoverCache.delete(key);
 				}
 			}
 			this._gitHubReferenceResolver.retain(
 				currentMetadata.issueUrls.map(link => parseUri(link)).filter(isDefined).map(resource => parseGitHubReferenceTarget(resource, 'issue')).filter(isDefined),
 				currentMetadata.pullRequestUrls.map(link => parseUri(link)).filter(isDefined).map(resource => parseGitHubReferenceTarget(resource, 'pullRequest')).filter(isDefined),
 			);
+			this._lazyGitHubResourceResolver.retain(currentMetadata.references.flatMap(artifact => {
+				const resource = artifact.isGitHub === true && artifact.link ? parseUri(artifact.link) : undefined;
+				return resource ? [{ identity: artifact, resource }] : [];
+			}));
 			gitHubCommitResolver.retain([...currentMetadata.artifacts, ...currentMetadata.references]
 				.flatMap(artifact => artifact.type === SessionArtifactType.Commit && artifact.link ? [parseUri(artifact.link)] : [])
 				.filter(isDefined)
@@ -900,7 +904,7 @@ export class AgentHostSessionInputPills extends Disposable {
 					})
 					: undefined;
 			const createDropdownHover = createHover ? () => {
-				const cache = kind === 'pullRequest' ? this._pullRequestHoverCache : this._issueHoverCache;
+				const cache = this._issueHoverCache;
 				const key = linkKey(link);
 				const hover = createHover('compact');
 				const cached = cache.get(key);
@@ -928,7 +932,7 @@ export class AgentHostSessionInputPills extends Disposable {
 			const checksDescription = pullRequestDetails
 				? getPullRequestChecksStatusLabel(pullRequestDetails.pullRequest, pullRequestDetails.checksStatus)
 				: undefined;
-			return {
+			const entry: IChatPullRequestPillEntry = {
 				id: linkKey(link),
 				label: liveTitle ?? label,
 				...((pullRequestDetails || issue) && number ? { badge: `#${number}`, className: 'chat-pill-github-reference' } : {}),
@@ -957,6 +961,10 @@ export class AgentHostSessionInputPills extends Disposable {
 				} : {}),
 				open: () => this._openExternal(resource),
 			};
+			return kind === 'pullRequest' && target ? {
+				...entry,
+				...this._pullRequestHoverCache.get(linkKey(link), entry, createHover),
+			} : entry;
 		}).filter(isDefined);
 		const title = kind === 'pullRequest'
 			? localize('agentHostSessionPills.pullRequests.section', "Pull Requests")
@@ -1074,9 +1082,34 @@ export class AgentHostSessionInputPills extends Disposable {
 							run: () => this._clipboardService.writeText(link.toString(true)),
 						}), chatPillCopyUrlHoverLabel)
 						: undefined;
+			const gitHubKind = !artifact.isArtifact && artifact.isGitHub === true
+				? artifact.type === SessionArtifactType.PullRequest
+					? 'pullRequest'
+					: artifact.type === SessionArtifactType.Issue
+						? 'issue'
+						: undefined
+				: undefined;
+			const gitHubTarget = gitHubKind ? parseLazyGitHubReferenceTarget(link, gitHubKind) : undefined;
+			const richHover = gitHubKind && gitHubTarget ? this._lazyGitHubResourceResolver.createHover(artifact, {
+				kind: gitHubKind,
+				target: gitHubTarget,
+				resource: link,
+				onDidClickRepository: () => this._openExternal(URI.parse(`https://github.com/${gitHubTarget.owner}/${gitHubTarget.repo}`)),
+				onDidClickReference: () => this._openExternal(link),
+				onDidClickBaseBranch: branch => { void this._clipboardService.writeText(branch); },
+				onDidClickHeadBranch: branch => { void this._clipboardService.writeText(branch); },
+			}) : undefined;
+			const gitHubPresentation = gitHubKind && gitHubTarget
+				? gitHubKind === 'issue'
+					? getLazyGitHubResourcePresentation(gitHubKind, gitHubTarget, this._lazyGitHubResourceResolver.getIssueState(gitHubTarget).read(reader), link.toString(true), issue => issue.title)
+					: getLazyGitHubResourcePresentation(gitHubKind, gitHubTarget, this._lazyGitHubResourceResolver.getPullRequestState(gitHubTarget).read(reader), link.toString(true), details => details.pullRequest.title)
+				: undefined;
+			const displayLabel = gitHubPresentation?.label ?? label;
 			return {
 				id: artifact.id,
-				label,
+				label: displayLabel,
+				...(gitHubPresentation?.badge ? { badge: gitHubPresentation.badge } : {}),
+				...(gitHubPresentation?.className ? { className: gitHubPresentation.className } : {}),
 				icon,
 				...(copyAction ? { toolbarActions: [copyAction] } : {}),
 				...((artifact.type === SessionArtifactType.Commit && (artifact.commitHash || commit?.sha)) ? {
@@ -1087,7 +1120,8 @@ export class AgentHostSessionInputPills extends Disposable {
 						run: () => this._clipboardService.writeText(artifact.commitHash ?? commit!.sha),
 					}), chatPillCopyHashHoverLabel)],
 				} : {}),
-				...getChatPillResourceLocation(link, label),
+				...getChatPillResourceLocation(link, displayLabel),
+				...richHover,
 				...(createCommitDropdownHover && createCommitHover ? {
 					hover: { content: createCommitDropdownHover, expandable: true, showIndicator: false, tabThroughPanel: true, getTabbableElements: () => hoverTabbableElements, contentOwnsPadding: true },
 					pillHover: { element: () => createCommitHover('default').element, contentOwnsPadding: true },

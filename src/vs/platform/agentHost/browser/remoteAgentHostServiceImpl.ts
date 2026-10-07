@@ -207,6 +207,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		return [...this._pendingConnects.values()].filter(attempt => configured.has(attempt.info.address)).map(attempt => attempt.info);
 	}
 	private readonly _names = new Map<string, string>();
+	private readonly _displayNameOwners = new Map<string, { readonly name: IObservable<string | undefined>; readonly setName: (name: string | undefined) => void }>();
 	private readonly _tokens = new Map<string, string | undefined>();
 	private readonly _operatingSystems = new Map<string, OperatingSystem>();
 	private readonly _pendingConnectionWaits = new Map<string, DeferredPromise<IRemoteAgentHostConnectionInfo>>();
@@ -278,10 +279,19 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 	}
 
 	getDisplayNameOverride(address: string): string | undefined {
+		const owner = this._displayNameOwners.get(normalizeRemoteAgentHostAddress(address));
+		if (owner) {
+			return owner.name.get();
+		}
 		return this._storageService.get(`${DISPLAY_NAME_STORAGE_PREFIX}${normalizeRemoteAgentHostAddress(address)}`, StorageScope.APPLICATION);
 	}
 
 	setDisplayName(address: string, name: string | undefined): void {
+		const owner = this._displayNameOwners.get(normalizeRemoteAgentHostAddress(address));
+		if (owner) {
+			owner.setName(name?.trim() || undefined);
+			return;
+		}
 		const key = `${DISPLAY_NAME_STORAGE_PREFIX}${normalizeRemoteAgentHostAddress(address)}`;
 		const displayName = name?.trim();
 		if (displayName) {
@@ -289,6 +299,33 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		} else {
 			this._storageService.remove(key, StorageScope.APPLICATION);
 		}
+	}
+
+	registerDisplayName(address: string, name: IObservable<string | undefined>, setName: (name: string | undefined) => void): IDisposable {
+		address = normalizeRemoteAgentHostAddress(address);
+		if (this._displayNameOwners.has(address)) {
+			throw new Error('A display-name owner is already registered for this host.');
+		}
+		const owner = { name, setName };
+		this._displayNameOwners.set(address, owner);
+		const update = () => {
+			const defaultName = this._names.get(address);
+			if (defaultName !== undefined) {
+				this._updateHostLabelFormatter(address, defaultName);
+			}
+			this._onDidChangeDisplayName.fire(address);
+		};
+		const observer = autorun(reader => {
+			name.read(reader);
+			update();
+		});
+		return toDisposable(() => {
+			observer.dispose();
+			if (this._displayNameOwners.get(address) === owner) {
+				this._displayNameOwners.delete(address);
+				update();
+			}
+		});
 	}
 
 	private _entryAddress(entry: IRemoteAgentHostEntry): string {

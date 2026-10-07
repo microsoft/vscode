@@ -34,14 +34,14 @@ export const enum AgentSandboxSettingId {
 	AgentSandboxAllowUnsandboxedCommands = 'chat.agent.sandbox.allowUnsandboxedCommands',
 	AgentSandboxMcpServers = 'chat.agent.sandbox.mcpServers',
 	AgentSandboxLspServers = 'chat.agent.sandbox.lspServers',
+	AgentSandboxAuthenticateGit = 'chat.agent.sandbox.credentials.authenticategit',
+	AgentSandboxAuthenticateGh = 'chat.agent.sandbox.credentials.authenticategh',
 	AgentSandboxAllowDevToolAccess = 'chat.agent.sandbox.fileSystem.allowDevToolAccess',
 	AgentSandboxUserConfiguredPaths = 'chat.agent.sandbox.fileSystem.userConfiguredPaths',
 	AgentSandboxRetryWithAllowNetworkRequests = 'chat.agent.sandbox.retryWithAllowNetworkRequests',
-	AgentSandboxAllowAutoApprove = 'chat.agent.sandbox.allowAutoApprove',
 	AgentSandboxLinuxFileSystem = 'chat.agent.sandbox.fileSystem.linux',
 	AgentSandboxMacFileSystem = 'chat.agent.sandbox.fileSystem.mac',
 	AgentSandboxWindowsFileSystem = 'chat.agent.sandbox.fileSystem.windows',
-	AgentSandboxWindowsSchemaVersion = 'chat.agent.sandbox.advanced.windows.schemaVersion',
 	AgentSandboxAdvancedRuntime = 'chat.agent.sandbox.advanced.runtime',
 }
 
