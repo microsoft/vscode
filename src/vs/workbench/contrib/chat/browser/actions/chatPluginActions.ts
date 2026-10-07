@@ -218,7 +218,6 @@ export class ManagePluginMarketplacesAction extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 		const configurationService = accessor.get(IConfigurationService);
 		const pluginRepositoryService = accessor.get(IAgentPluginRepositoryService);
-		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 		const commandService = accessor.get(ICommandService);
 		const fileService = accessor.get(IFileService);
 		const notificationService = accessor.get(INotificationService);
@@ -247,6 +246,7 @@ export class ManagePluginMarketplacesAction extends Action2 {
 						policyCanonicalIds.has(reference.canonicalId) ? localize('managedMarketplace', "Managed by Enterprise Policy") : undefined,
 					].filter((description): description is string => description !== undefined);
 					return {
+						id: reference.canonicalId,
 						label: reference.displayLabel,
 						description: descriptions.join(', ') || undefined,
 						detail: reference.kind === MarketplaceReferenceKind.LocalFileUri
@@ -283,15 +283,16 @@ export class ManagePluginMarketplacesAction extends Action2 {
 			if (!ref) {
 				return;
 			}
-			const actionItems: IQuickPickItem[] = [
-				{ id: 'showPlugins', label: localize('showPlugins', "Show Plugins") },
-			];
+			const actionItems: IQuickPickItem[] = [];
 			const repoUri = pluginRepositoryService.getRepositoryUri(ref);
 			if (await fileService.exists(repoUri)) {
 				actionItems.push({ id: 'openDirectory', label: localize('openMarketplaceDirectory', "Open Folder") });
 			}
 			if (!selected.managedByPolicy) {
 				actionItems.push({ id: 'removeMarketplace', label: localize('removeMarketplace', "Remove Marketplace") });
+			}
+			if (actionItems.length === 0) {
+				return;
 			}
 
 			const action = await quickInputService.pick(actionItems, {
@@ -303,9 +304,6 @@ export class ManagePluginMarketplacesAction extends Action2 {
 			}
 
 			switch (action.id) {
-				case 'showPlugins':
-					extensionsWorkbenchService.openSearch(`@agentPlugins ${ref.displayLabel}`);
-					return;
 				case 'openDirectory':
 					await commandService.executeCommand('revealFileInOS', repoUri);
 					return;

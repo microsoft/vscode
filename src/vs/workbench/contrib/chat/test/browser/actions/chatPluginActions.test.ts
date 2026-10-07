@@ -14,10 +14,10 @@ import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { INotification, INotificationHandle, INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IInputOptions, IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { IExtensionsWorkbenchService } from '../../../../extensions/common/extensions.js';
 import { ManagePluginMarketplacesAction } from '../../../browser/actions/chatPluginActions.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IAgentPluginRepositoryService } from '../../../common/plugins/agentPluginRepositoryService.js';
+import { parseMarketplaceReference } from '../../../common/plugins/pluginMarketplaceService.js';
 
 suite('ManagePluginMarketplacesAction', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -71,9 +71,10 @@ suite('ManagePluginMarketplacesAction', () => {
 		instantiationService.stub(IAgentPluginRepositoryService, new class extends mock<IAgentPluginRepositoryService>() {
 			override getRepositoryUri(): URI { return URI.file('/marketplace'); }
 		}());
-		instantiationService.stub(IExtensionsWorkbenchService, new class extends mock<IExtensionsWorkbenchService>() { });
 		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() { });
-		instantiationService.stub(IFileService, new class extends mock<IFileService>() { });
+		instantiationService.stub(IFileService, new class extends mock<IFileService>() {
+			override async exists(): Promise<boolean> { return false; }
+		}());
 		instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
 			override notify(notification: INotification): INotificationHandle {
 				notifications.push(notification);
@@ -107,7 +108,7 @@ suite('ManagePluginMarketplacesAction', () => {
 			firstPick: [
 				{ id: 'addMarketplace', label: '$(add) Add Marketplace...', type: 'item' },
 				{ id: undefined, label: 'Configured Marketplaces', type: 'separator' },
-				{ id: undefined, label: 'github/awesome-copilot#marketplace', type: 'item' },
+				{ id: parseMarketplaceReference('github/awesome-copilot#marketplace')!.canonicalId, label: 'github/awesome-copilot#marketplace', type: 'item' },
 			],
 			input: {
 				title: 'Add Plugin Marketplace',
@@ -120,6 +121,22 @@ suite('ManagePluginMarketplacesAction', () => {
 			}],
 			notifications: [],
 		});
+	});
+
+	test('offers only management actions for a configured marketplace', async () => {
+		const marketplace = parseMarketplaceReference('anthropics/claude-code')!;
+		const fixture = createFixture({
+			[ChatConfiguration.PluginMarketplaces]: [marketplace.rawValue],
+			[ChatConfiguration.ExtraMarketplaces]: {},
+			[ChatConfiguration.StrictMarketplaces]: null,
+		});
+		fixture.quickInputService.pickIds.push(marketplace.canonicalId, undefined);
+
+		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
+
+		assert.deepStrictEqual(fixture.quickInputService.pickSnapshots[1], [
+			{ id: 'removeMarketplace', label: 'Remove Marketplace', type: 'item' },
+		]);
 	});
 
 	test('rejects marketplaces blocked by strict enterprise policy', async () => {
