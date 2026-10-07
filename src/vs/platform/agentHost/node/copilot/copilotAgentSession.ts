@@ -1051,6 +1051,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _observedUsageEventIds = new Set<string>();
 	private _resumingTurnAwaitingProviderStart: CopilotTurn | undefined;
 	private _abortingTurn: CopilotTurn | undefined;
+	private _awaitingRootErrorIdle = false;
 	private _developmentRecoverableError: { readonly turnId: string; remainingFailures: number; readonly totalFailures: number } | undefined;
 	private readonly _developmentErrorInjectionEnabled: boolean;
 	private _dropLateRootTurnEvents = false;
@@ -7167,6 +7168,10 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onIdle(async e => {
 			this._logService.info(`[Copilot:${sessionId}] Session idle`);
+			const followsRootError = !e.agentId && this._awaitingRootErrorIdle;
+			if (!e.agentId) {
+				this._awaitingRootErrorIdle = false;
+			}
 			const abortingTurn = this._abortingTurn;
 			this._abortingTurn = undefined;
 			if (e.data.aborted) {
@@ -7185,6 +7190,10 @@ export class CopilotAgentSession extends Disposable {
 			this._clearActivity();
 			const turn = this._currentTurn.value;
 			if (!turn) {
+				return;
+			}
+			if (followsRootError) {
+				this._logService.trace(`[Copilot:${sessionId}] Ignoring terminal idle from the failed turn while replacement turn ${turn.id} is active`);
 				return;
 			}
 			// An abort drives the loop to idle. That terminal idle must never
@@ -7222,10 +7231,6 @@ export class CopilotAgentSession extends Disposable {
 				this._logService.trace(`[Copilot:${sessionId}] Ignoring idle from the failed execution while resumed turn ${turn.id} awaits provider start`);
 				return;
 			}
-			// Only a `running` turn is completed by a normal idle. A `pending`
-			// turn here means the SDK went idle before emitting any event for it
-			// (a degenerate no-op send); complete it defensively so the session
-			// does not hang.
 			if (turn.hasPendingToolCompletions) {
 				const abortToken = this._abortToken;
 				await turn.drainToolCompletions();
@@ -7368,6 +7373,9 @@ export class CopilotAgentSession extends Disposable {
 			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
 			if (turn) {
 				this._reportToolCallDetails(turn, 'failed');
+			}
+			if (!e.agentId) {
+				this._awaitingRootErrorIdle = true;
 			}
 			this._emitAction({
 				type: ActionType.ChatError,
@@ -8976,6 +8984,7 @@ export class CopilotAgentSession extends Disposable {
 			turn?.markRunning();
 			if (!e.agentId) {
 				this._dropLateRootTurnEvents = false;
+				this._awaitingRootErrorIdle = false;
 				if (this._resumingTurnAwaitingProviderStart === turn) {
 					this._resumingTurnAwaitingProviderStart = undefined;
 				}
