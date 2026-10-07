@@ -18,7 +18,7 @@ const $ = DOM.$;
  */
 export interface IChatDebugEditorOptions extends IEditorOptions {
 	readonly sessionResource?: URI;
-	readonly viewHint?: 'home' | 'overview' | 'logs' | 'flowchart' | 'cache' | 'wirelog';
+	readonly viewHint?: 'home' | 'overview' | 'logs' | 'sessionTimeline' | 'flowchart' | 'cache' | 'wirelog';
 	/** When set, automatically applies this text as the log filter. */
 	readonly filter?: string;
 }
@@ -27,6 +27,7 @@ export const enum ViewState {
 	Home = 'home',
 	Overview = 'overview',
 	Logs = 'logs',
+	SessionTimeline = 'sessionTimeline',
 	FlowChart = 'flowchart',
 	CacheExplorer = 'cache',
 	WireLog = 'wirelog',
