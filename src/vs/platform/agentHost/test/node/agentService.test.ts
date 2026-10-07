@@ -19981,6 +19981,7 @@ suite('AgentService (node dispatcher)', () => {
 				// Summary publication precedes the queued default-chat and catalog writes.
 				await localService.whenCatalogReconciliationIdle();
 
+				assert.ok(changed.type === 'root/sessionSummaryChanged');
 				assert.deepStrictEqual({
 					id,
 					persistedSession: await db.getMetadata(AH_META_IS_READ_DB_KEY),
