@@ -894,6 +894,13 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		telemetry.setFetchStartedAt();
 		logContext.setFetchStartTime();
 
+		const requestOptions: OptionalChatRequestParams = { temperature: 0, stream: true, prediction };
+		if (!this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderUsePrediction, this.expService)
+			&& !this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderUseMaxTokens, this.expService)) {
+			// An explicit undefined overrides the shared fetcher's default and is omitted from JSON.
+			requestOptions.max_tokens = undefined;
+		}
+
 		// we must not await this promise because we want to stream edits as they come in
 		const fetchResultPromise = endpoint.makeChatRequest2(
 			{
@@ -915,11 +922,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 				},
 				location: ChatLocation.Other,
 				source: undefined,
-				requestOptions: {
-					temperature: 0,
-					stream: true,
-					prediction,
-				} satisfies OptionalChatRequestParams,
+				requestOptions,
 				userInitiatedRequest: undefined,
 				telemetryProperties: {
 					requestId,
