@@ -14,7 +14,7 @@ import { DocumentId } from '../../../../platform/inlineEdits/common/dataTypes/do
 import { Edits } from '../../../../platform/inlineEdits/common/dataTypes/edit';
 import { ImportChanges } from '../../../../platform/inlineEdits/common/dataTypes/importFilteringOptions';
 import { LanguageId } from '../../../../platform/inlineEdits/common/dataTypes/languageId';
-import { AggressivenessLevel, DEFAULT_OPTIONS, EarlyDivergenceCancellationMode, LanguageContextLanguages, LintOptionShowCode, LintOptionWarning, ModelConfiguration, PatchModelPrediction, PromptingStrategy, ResponseFormat } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { AggressivenessLevel, AggressivenessSetting, applyStrategyConfig, DEFAULT_OPTIONS, EarlyDivergenceCancellationMode, LanguageContextLanguages, LintOptionShowCode, LintOptionWarning, ModelConfiguration, PatchModelPrediction, PromptingStrategy, ResponseFormat } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { InlineEditRequestLogContext } from '../../../../platform/inlineEdits/common/inlineEditLogContext';
 import { IInlineEditsModelService } from '../../../../platform/inlineEdits/common/inlineEditsModelService';
 import { NoNextEditReason, StatelessNextEditDocument, StatelessNextEditRequest, StreamedEdit, WithStatelessProviderTelemetry } from '../../../../platform/inlineEdits/common/statelessNextEditProvider';
@@ -173,6 +173,7 @@ describe('pickSystemPrompt', () => {
 		PromptingStrategy.PatchBased02WithRecentLineNumbers,
 		PromptingStrategy.PatchBased02Unified,
 		PromptingStrategy.PatchBased02UnifiedEagerness,
+		PromptingStrategy.PatchBased02UnifiedEagernessLowMedium,
 		PromptingStrategy.PatchBased02WithoutRecentLineNumbers,
 		PromptingStrategy.Xtab275,
 		PromptingStrategy.XtabAggressiveness,
@@ -2085,6 +2086,48 @@ describe('XtabProvider integration', () => {
 	// ========================================================================
 
 	describe('debounce behavior', () => {
+		it.each([
+			[AggressivenessSetting.Low, '<|aggression|>low<|/aggression|>', []],
+			[AggressivenessSetting.Medium, undefined, []],
+			[AggressivenessSetting.Default, undefined, []],
+			[AggressivenessSetting.High, undefined, [[17]]],
+		] as const)('uses low/medium prompting and high timing for user eagerness=%s', async (setting, tag, debounceCalls) => {
+			mockModelService.setSelectedConfig(applyStrategyConfig({
+				modelName: 'test-model',
+				promptingStrategy: PromptingStrategy.PatchBased02UnifiedEagernessLowMedium,
+				includeTagsInCurrentFile: false,
+				lintOptions: undefined,
+			}));
+			await configService.setConfig(ConfigKey.Advanced.InlineEditsAggressiveness, setting);
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsXtabAggressivenessLevel, AggressivenessLevel.Medium);
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsAggressivenessHighDebounceMs, 17);
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsAggressivenessLowMinResponseTimeMs, 23);
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsAggressivenessMediumMinResponseTimeMs, 29);
+			const setBaseDebounceTime = vi.spyOn(DelaySession.prototype, 'setBaseDebounceTime');
+			const setExpectedTotalTime = vi.spyOn(DelaySession.prototype, 'setExpectedTotalTime');
+			try {
+				const lines = ['const x = 1;', 'const y = 2;'];
+				streamingFetcher.setStreamingLines([]);
+				const gen = createProvider().provideNextEdit(createRequestWithEdit(lines, { insertionOffset: 3 }), createMockLogger(), createLogContext(), CancellationToken.None);
+				const result = await AsyncIterUtils.drainUntilReturn(gen);
+				const userMessage = streamingFetcher.capturedOptions[0]?.messages.find(message => message.role === Raw.ChatRole.User);
+				expect({
+					result: result.v instanceof NoNextEditReason.NoSuggestions,
+					tag: userMessage && getMessageText(userMessage).match(/<\|aggression\|>.*?<\|\/aggression\|>/)?.[0],
+					debounceCalls: setBaseDebounceTime.mock.calls,
+					minResponseCalls: setExpectedTotalTime.mock.calls,
+				}).toEqual({
+					result: true,
+					tag,
+					debounceCalls,
+					minResponseCalls: [],
+				});
+			} finally {
+				setBaseDebounceTime.mockRestore();
+				setExpectedTotalTime.mockRestore();
+			}
+		});
+
 		it('does not change timing for a non-aggressiveness strategy when user eagerness is default', async () => {
 			mockModelService.setSelectedConfig({ promptingStrategy: PromptingStrategy.Xtab275 });
 			const setBaseDebounceTime = vi.spyOn(DelaySession.prototype, 'setBaseDebounceTime');
