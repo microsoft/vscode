@@ -60,9 +60,22 @@ an edit already being applied is undone through the normal undo command.
 Diagnostics from all registered collections are rendered using the code editor's
 squiggle geometry and severity theme colors. Hints use its three-dot marker.
 Document and diagnostic changes refresh the overlays; hovering a marked range
-shows the message, source, and code. Enable `markdown.validate.enabled` for the
-built-in Markdown validator. Other extensions can publish diagnostics without
-any rich-editor-specific API.
+shows the message, source, and code. Other extensions can publish diagnostics
+without any rich-editor-specific API.
+
+**Pull-diagnostics follow-up:** the currently installed `vscode-languageclient`
+9.x does not treat custom-editor tabs as visible. The built-in Markdown validator
+therefore does not request diagnostics for a rich-editor-only tab, even with
+`markdown.validate.enabled` enabled. Opening the same document in a text-editor
+tab in the same window allows the client to publish diagnostics, which the rich
+editor can then display. Other pull-based providers likewise need a client that
+recognizes custom tabs.
+
+Upgrade the Markdown extension to `vscode-languageclient` 10.1.2 or later, whose
+visibility tracking includes `TabInputCustom`, and validate both desktop and
+browser language features. Until that follow-up, this integration displays
+published diagnostic collections but does not add a separate Markdown-only
+pull loop or duplicate the validator.
 
 Press **Ctrl+Space**, or run **Markdown Editor: Trigger Suggest**, to query the
 existing completion providers. Typing also requests suggestions when
