@@ -104,29 +104,32 @@ async fn main() -> Result<(), std::convert::Infallible> {
 				serve_web::serve_web(context!(), sw_args).await
 			}
 
-			Some(args::Commands::Agent(agent_args)) => match agent_args.subcommand {
-				Some(args::AgentSubcommand::Ps(ps_args)) => {
-					agent_ps::agent_ps(context!(), ps_args).await
+			Some(args::Commands::Agent(agent_args)) => match agent_args
+				.subcommand
+				.unwrap_or(args::AgentSubcommand::Host(agent_args.host_args))
+			{
+				args::AgentSubcommand::Ps(ps_args) => agent_ps::agent_ps(context!(), ps_args).await,
+				args::AgentSubcommand::Host(ah_args) if ah_args.tunnel => {
+					tunnels::serve(context_no_logger(), ah_args.into()).await
 				}
-				Some(args::AgentSubcommand::Host(ah_args)) => {
+				args::AgentSubcommand::Host(ah_args) => {
 					agent_host::agent_host(context!(), ah_args).await
 				}
-				Some(args::AgentSubcommand::Stop(stop_args)) => {
+				args::AgentSubcommand::Stop(stop_args) => {
 					agent_stop::agent_stop(context!(), stop_args).await
 				}
-				Some(args::AgentSubcommand::Kill(kill_args)) => {
+				args::AgentSubcommand::Kill(kill_args) => {
 					agent_kill::agent_kill(context!(), kill_args).await
 				}
-				Some(args::AgentSubcommand::Logs(logs_args)) => {
+				args::AgentSubcommand::Logs(logs_args) => {
 					agent_logs::agent_logs(context!(), logs_args).await
 				}
-				Some(args::AgentSubcommand::Endpoints(endpoints_args)) => {
+				args::AgentSubcommand::Endpoints(endpoints_args) => {
 					agent_endpoints::agent_endpoints(context!(), endpoints_args).await
 				}
-				Some(args::AgentSubcommand::Relay(relay_args)) => {
+				args::AgentSubcommand::Relay(relay_args) => {
 					agent_relay::agent_relay(context!(), relay_args).await
 				}
-				None => agent_host::agent_host(context!(), agent_args.host_args).await,
 			},
 
 			Some(args::Commands::Tunnel(mut tunnel_args)) => match tunnel_args.subcommand.take() {

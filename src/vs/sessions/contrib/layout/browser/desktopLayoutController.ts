@@ -4,10 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from '../../../../base/common/event.js';
+import { IReader } from '../../../../base/common/observable.js';
 import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
 import { IEditorWorkingSet } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { LifecyclePhase } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
+import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { DesktopChangesEditorTransitionContext } from '../../../common/contextkeys.js';
+import { ISidePaneState } from '../../../browser/workbench.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { BaseLayoutController } from './baseSessionLayoutController.js';
 import { IDesktopLayoutContext } from './desktop/desktopLayoutStrategy.js';
@@ -15,12 +19,16 @@ import { DesktopDetailPanelCoordinator } from './desktop/desktopDetailPanelCoord
 import { DesktopDockedTabsCoordinator } from './desktop/desktopDockedTabsCoordinator.js';
 import { DesktopDraftSessionStrategy } from './desktop/desktopDraftSessionStrategy.js';
 import { DesktopExistingSessionStrategy } from './desktop/desktopExistingSessionStrategy.js';
+import { DesktopOwnerCompositionStore } from './desktop/desktopOwnerCompositionStore.js';
 import { DesktopVisibilityProfileStore } from './desktop/desktopVisibilityProfileStore.js';
 
 export { TOGGLE_DETAILS_COMMAND_ID } from './desktop/desktopExistingSessionStrategy.js';
 
 /** Storage key for per-session desktop layout state. */
 const DESKTOP_LAYOUT_STATE_KEY = 'sessions.singlePane.layoutState';
+const DESKTOP_CHAT_LAYOUT_STATE_KEY = 'sessions.singlePane.chatLayoutState';
+const DESKTOP_SHARED_CHAT_LAYOUT_STATE_KEY = 'sessions.singlePane.sharedChatLayoutState';
+const SHARED_EXISTING_VISIBILITY_KEY = URI.from({ scheme: 'vscode-chat-layout-visibility', path: '/existing' });
 
 type ChangesEditorTransitionPhase = 'idle' | 'awaitingWorkingSet' | 'restoringWorkingSet' | 'reconciling';
 
@@ -48,16 +56,49 @@ export class DesktopLayoutController extends BaseLayoutController {
 	private _context: IDesktopLayoutContext | undefined;
 	private _existingSession: DesktopExistingSessionStrategy | undefined;
 	private _managedTabs: DesktopDockedTabsCoordinator | undefined;
+	protected _compositionStore: DesktopOwnerCompositionStore | undefined;
 	private _changesEditorTransitionPhase: ChangesEditorTransitionPhase = 'idle';
 	private _onDidChangeChangesEditorTransition: Emitter<void> | undefined;
 	private readonly _changesEditorTransitionContextKey = DesktopChangesEditorTransitionContext.bindTo(this._contextKeyService);
 
 	protected override get _layoutStateStorageKey(): string {
-		return DESKTOP_LAYOUT_STATE_KEY;
+		if (this._sharedChatLayout) {
+			return DESKTOP_SHARED_CHAT_LAYOUT_STATE_KEY;
+		}
+		return this._chatLayoutEnabled ? DESKTOP_CHAT_LAYOUT_STATE_KEY : DESKTOP_LAYOUT_STATE_KEY;
+	}
+
+	private get _sharedChatLayout(): boolean {
+		return this._chatLayoutEnabled && this._layoutService.chatLayoutPresentation.configured === 'chat-shared';
+	}
+
+	private _compositionKeyFor(session: IActiveSession, reader?: IReader): URI | undefined {
+		const ownerKey = this._ownerKeyFor(session, reader);
+		return ownerKey && this._sharedChatLayout && session.isCreated.read(reader)
+			&& !session.isQuickChat?.read(reader) && session.activeChat.read(reader).workspace.read(reader)
+			? SHARED_EXISTING_VISIBILITY_KEY : ownerKey;
+	}
+
+	protected override _panelVisibilityKeyFor(session: IActiveSession, reader?: IReader): URI | undefined {
+		return this._compositionKeyFor(session, reader);
+	}
+
+	protected override _defaultPanelVisibility(key: URI): boolean {
+		const visible = this._layoutService.isVisible(Parts.PANEL_PART);
+		this._panelVisibilityBySession.set(key, visible);
+		return visible;
+	}
+
+	protected override get _isLayoutStateVersioned(): boolean {
+		return this._chatLayoutEnabled;
 	}
 
 	protected override get _legacyWorkingSetsStorageKey(): string | undefined {
 		return undefined;
+	}
+
+	protected override get _legacyLayoutStateStorageKey(): string | undefined {
+		return this._chatLayoutEnabled ? DESKTOP_LAYOUT_STATE_KEY : undefined;
 	}
 
 	private get _ctx(): IDesktopLayoutContext {
@@ -81,6 +122,12 @@ export class DesktopLayoutController extends BaseLayoutController {
 						that._setChangesEditorTransitionPhase('idle');
 					}
 				},
+				chatLayoutActive: reader => that._chatLayoutActive(reader),
+				chatLayoutSuspended: reader => that._chatLayoutSuspended(reader),
+				get sharedChatLayout() { return that._sharedChatLayout; },
+				ownerKeyFor: (session, reader) => that._ownerKeyFor(session, reader),
+				compositionKeyFor: (session, reader) => that._compositionKeyFor(session, reader),
+				get compositionStore() { return that._compositionStore!; },
 			};
 		}
 		return this._context;
@@ -90,7 +137,9 @@ export class DesktopLayoutController extends BaseLayoutController {
 
 	protected override _registerViewStateManagement(): void {
 		this._register(toDisposable(() => this._changesEditorTransitionContextKey.reset()));
-		const visibilityStore = this._instantiationService.createInstance(DesktopVisibilityProfileStore);
+		this._compositionStore = this._instantiationService.createInstance(DesktopOwnerCompositionStore, this._sharedChatLayout);
+		this._registerPersistedOwnerKeys(this._compositionStore.ownerKeys);
+		const visibilityStore = this._instantiationService.createInstance(DesktopVisibilityProfileStore, this._sharedChatLayout);
 		const detailPanel = this._register(this._instantiationService.createInstance(DesktopDetailPanelCoordinator));
 
 		this._existingSession = this._register(this._instantiationService.createInstance(DesktopExistingSessionStrategy, this._ctx, visibilityStore, detailPanel));
@@ -129,6 +178,10 @@ export class DesktopLayoutController extends BaseLayoutController {
 		return this._existingSession?.toggleDetails() ?? false;
 	}
 
+	protected preHideComposition(ownerKey: URI): ISidePaneState | undefined {
+		return this._compositionStore?.getPreHide(ownerKey);
+	}
+
 	// --- Base hooks ---
 
 	/**
@@ -149,13 +202,16 @@ export class DesktopLayoutController extends BaseLayoutController {
 		return false;
 	}
 
-	/**
-	 * Governs the panel at the workbench level (like the side pane). Flipping this
-	 * single gate off makes the base remember the panel's *view* per session instead
-	 * (defaulting to the Terminal).
-	 */
 	protected override get _isPanelVisibilityPerSession(): boolean {
-		return false;
+		return this._chatLayoutEnabled;
+	}
+
+	protected override get _isPanelVisibilityPersisted(): boolean {
+		return this._chatLayoutEnabled;
+	}
+
+	protected override get _isPanelViewPerSession(): boolean {
+		return true;
 	}
 
 	protected override _shouldRevealEditorPartOnApply(_editorPartHidden: boolean, _isModal: boolean): boolean {
@@ -193,5 +249,15 @@ export class DesktopLayoutController extends BaseLayoutController {
 		if ((previousPhase === 'idle') !== (phase === 'idle')) {
 			this._onDidChangeChangesEditorTransition?.fire();
 		}
+	}
+
+	protected override _onOwnerKeyRemapped(oldKey: URI, newKey: URI): void {
+		this._compositionStore?.remap(oldKey, newKey);
+		this._managedTabs?.remapOwnerKey(oldKey, newKey);
+	}
+
+	protected override _onOwnerKeysForgotten(keys: readonly URI[]): void {
+		this._compositionStore?.forget(keys);
+		this._managedTabs?.forgetOwnerKeys(keys);
 	}
 }

@@ -12,7 +12,7 @@ import { Disposable, DisposableStore, IDisposable, DisposableMap, IReference, Mu
 import { Schemas } from '../../../../../base/common/network.js';
 import { deepClone } from '../../../../../base/common/objects.js';
 import { isWeb } from '../../../../../base/common/platform.js';
-import { autorun, constObservable, derived, IObservable, ISettableObservable, ITransaction, observableFromPromise, observableValue, observableValueOpts, transaction } from '../../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, ISettableObservable, ITransaction, observableFromPromise, observableValue, observableValueOpts, transaction } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -58,7 +58,8 @@ import { IPullRequestIconCache } from '../../../github/browser/pullRequestIconCa
 import { arrayEquals, structuralEquals } from '../../../../../base/common/equals.js';
 import { createChangesets } from './copilotChatSessionsChangesets.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { isCloudSandboxEnabled } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CloudSandboxEnabledSettingId, isCloudSandboxEnabled } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { getWorkbenchContribution } from '../../../../../workbench/common/contributions.js';
 import { CLOUD_SANDBOX_CREATION_PROVIDER_ID, CloudSandboxAgentHostContribution, type ICloudSandboxProvisionedSession } from '../../remoteAgentHost/browser/cloudSandboxAgentHostContribution.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -86,8 +87,6 @@ export const CopilotSandboxSessionType: ISessionType = {
 	authRequirement: SessionTypeAuthRequirement.GitHub,
 };
 
-/** Remembers the cloud sandbox choice across new sessions. */
-const STORAGE_KEY_USE_SANDBOX = 'sessions.cloudSandboxPicker.useSandbox';
 const STORAGE_KEY_CREATED_BY_SESSIONS = 'sessions.copilotChat.createdBySessions';
 
 interface IStoredSessionCreationReference {
@@ -157,14 +156,6 @@ export interface ICopilotChatSession {
 	readonly isExternal?: IObservable<boolean>;
 
 	readonly initialAutomationSessionConfiguration?: IAutomationSessionConfiguration;
-
-	/**
-	 * For new cloud sessions: whether the session should run in a GitHub-managed sandbox the
-	 * client drives over the Agent Host Protocol, instead of the server-run cloud agent. Always
-	 * `undefined` for sessions that have no such choice.
-	 */
-	readonly useSandbox: IObservable<boolean | undefined>;
-	setUseSandbox(useSandbox: boolean): void;
 
 	setModelId(modelId: string | undefined, source: ChatModelSource): void;
 
@@ -311,9 +302,6 @@ export class RemoteNewSession extends Disposable implements ICopilotChatSession 
 	readonly description: IObservable<IMarkdownString | undefined> = constObservable(undefined);
 	readonly lastTurnEnd: IObservable<Date | undefined> = constObservable(undefined);
 	readonly gitHubInfo: IObservable<IGitHubInfo | undefined> = constObservable(undefined);
-	private readonly _useSandbox = observableValue<boolean | undefined>(this, false);
-	readonly useSandbox: IObservable<boolean | undefined> = this._useSandbox;
-
 	readonly mainChat: ISettableObservable<IChat>;
 
 	// -- New session configuration fields --
@@ -360,7 +348,6 @@ export class RemoteNewSession extends Disposable implements ICopilotChatSession 
 		readonly initialAutomationSessionConfiguration: IAutomationSessionConfiguration | undefined,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IStorageService private readonly storageService: IStorageService,
 		@ILanguageModelsService languageModelsService: ILanguageModelsService,
 	) {
 		super();
@@ -370,8 +357,6 @@ export class RemoteNewSession extends Disposable implements ICopilotChatSession 
 		this.sessionType = target;
 		this.icon = target === CopilotSandboxSessionType.id ? CopilotSandboxSessionType.icon : CopilotCloudSessionType.icon;
 		this.createdAt = new Date();
-		this._useSandbox.set(storageService.getBoolean(STORAGE_KEY_USE_SANDBOX, StorageScope.PROFILE, false), undefined);
-
 		this._updateWhenClauseKeys();
 		this._register(this.chatSessionsService.onDidChangeOptionGroups(() => {
 			this._updateWhenClauseKeys();
@@ -395,21 +380,6 @@ export class RemoteNewSession extends Disposable implements ICopilotChatSession 
 	}
 
 	// -- New session configuration methods --
-
-	setUseSandbox(useSandbox: boolean): void {
-		if (this._useSandbox.get() === useSandbox) {
-			return;
-		}
-		this._useSandbox.set(useSandbox, undefined);
-		this.storageService.store(STORAGE_KEY_USE_SANDBOX, useSandbox, StorageScope.PROFILE, StorageTarget.MACHINE);
-	}
-
-	observeSandbox(onChange: () => void): void {
-		this._register(autorun(reader => {
-			this.useSandbox.read(reader);
-			onChange();
-		}));
-	}
 
 	setModelId(modelId: string | undefined, source: ChatModelSource): void {
 		this._modelId = modelId;
@@ -662,9 +632,6 @@ class AgentSessionAdapter implements ICopilotChatSession {
 	private readonly _artifacts: ISettableObservable<readonly ISessionArtifact[]>;
 	readonly artifacts: IObservable<readonly ISessionArtifact[]>;
 
-	/** Where a committed session runs is already decided; the choice only exists before the first send. */
-	readonly useSandbox: IObservable<boolean | undefined> = constObservable(undefined);
-
 	readonly mainChat: ISettableObservable<IChat>;
 
 	constructor(
@@ -783,9 +750,6 @@ class AgentSessionAdapter implements ICopilotChatSession {
 		this.mainChat = observableValue<IChat>(this, buildChatFromSession(this));
 	}
 
-	setUseSandbox(useSandbox: boolean): void {
-		// Where a committed session runs is already decided.
-	}
 	setModelId(modelId: string | undefined, source: ChatModelSource): void {
 		transaction(tx => {
 			this._modelSource.set(modelId ? source : undefined, tx);
@@ -1172,6 +1136,15 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			event => event.affectsConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING),
 		)(() => this._onDidChangeSessionTypes.fire()));
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
+			if (event.affectsConfiguration(CloudSandboxEnabledSettingId) || event.affectsConfiguration(RemoteAgentHostsEnabledSettingId)) {
+				if (this._newSessions.size > 0 && this._usesSandbox()) {
+					this._getSandboxCatalog().load();
+				}
+				for (const sessionId of this._newSessions.keys()) {
+					this._onDidChangeSessionConfig.fire(sessionId);
+				}
+				this._onDidChangeSandboxModels.fire();
+			}
 			if (event.affectsConfiguration(ChatConfiguration.DefaultConfiguration) || event.affectsConfiguration(ChatConfiguration.GlobalAutoApprove)) {
 				for (const [sessionId, config] of this._sandboxConfigs) {
 					const refreshed = createCloudSandboxSessionConfig(this.configurationService);
@@ -1389,13 +1362,11 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		const session = this.instantiationService.createInstance(RemoteNewSession, resource, cloudWorkspace, target, this.id, automationConfiguration);
 		session.setCreatedBySession(options?.createdBySession);
 		this._newSessions.set(session.sessionId, session);
-		session.observeSandbox(() => {
-			if (this._isSandboxDraft(session)) {
-				this._getSandboxCatalog().load();
-			}
-			this._onDidChangeSessionConfig.fire(session.sessionId);
-			this._onDidChangeSandboxModels.fire();
-		});
+		if (this._usesSandbox()) {
+			this._getSandboxCatalog().load();
+		}
+		this._onDidChangeSessionConfig.fire(session.sessionId);
+		this._onDidChangeSandboxModels.fire();
 		try {
 			this._applyAutomationSessionConfiguration(session, automationConfiguration);
 			return this._chatToSession(session);
@@ -1486,7 +1457,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 	getModelsSnapshot(sessionId: string, desiredModelId?: string): ISessionModelsSnapshot {
 		const draft = this._newSessions.get(sessionId);
-		if (draft && this._isSandboxDraft(draft)) {
+		if (draft && this._usesSandbox()) {
 			return this._sandboxModelsSnapshot(desiredModelId);
 		}
 		const session = this.getSession(sessionId);
@@ -1516,11 +1487,11 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	}
 
 	getModelsSnapshotForCreation(_workspaceUri: URI, sessionTypeId: string, desiredModelId?: string): ISessionModelsSnapshot {
-		if (this.providerMode === 'sandbox') {
-			return this._sandboxModelsSnapshot(desiredModelId);
-		}
-		if (sessionTypeId !== CopilotCloudSessionType.id) {
+		if (this.providerMode !== 'sandbox' && sessionTypeId !== CopilotCloudSessionType.id) {
 			return { models: [], desiredModelResolution: resolveModelIdentifier([], desiredModelId, true), modelTarget: undefined };
+		}
+		if (this._usesSandbox()) {
+			return this._sandboxModelsSnapshot(desiredModelId);
 		}
 		const group = this.chatSessionsService.getOptionGroupsForSessionType(AgentSessionProviders.Cloud)?.find(candidate => isModelOptionGroup(candidate));
 		const models = group?.items.map((item): ILanguageModelChatMetadataAndIdentifier => this._toSyntheticModel(item)) ?? [];
@@ -1533,7 +1504,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 	getModelPickerOptions(sessionId: string): ISessionModelPickerOptions {
 		const draft = this._newSessions.get(sessionId);
-		if (draft && this._isSandboxDraft(draft)) {
+		if (draft && this._usesSandbox()) {
 			return { useGroupedModelPicker: true, showFeatured: false, showUnavailableFeatured: false, showManageModelsAction: false, showAutoModel: false };
 		}
 
@@ -1552,8 +1523,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		};
 	}
 
-	private _isSandboxDraft(session: RemoteNewSession): boolean {
-		return this.providerMode === 'sandbox' || (session.useSandbox.get() === true && isCloudSandboxEnabled(this.configurationService));
+	private _usesSandbox(): boolean {
+		return this.providerMode === 'sandbox' || isCloudSandboxEnabled(this.configurationService);
 	}
 
 	private _getSandboxCatalog(): CloudSandboxModels {
@@ -1573,7 +1544,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 	getSessionConfig(sessionId: string): ResolveSessionConfigResult | undefined {
 		const session = this._newSessions.get(sessionId);
-		if (!session || !this._isSandboxDraft(session)) {
+		if (!session || !this._usesSandbox()) {
 			return undefined;
 		}
 		let config = this._sandboxConfigs.get(sessionId);
@@ -1765,14 +1736,10 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 	startNewSessionRequest(sessionId: string): IDisposable | undefined {
 		const session = this._newSessions.get(sessionId);
-		if (!session || !this._usesSandbox(session)) {
+		if (!session || !this._usesSandbox()) {
 			return undefined;
 		}
 		return session.startPreparation();
-	}
-
-	private _usesSandbox(session: RemoteNewSession): boolean {
-		return this.providerMode === 'sandbox' || !!session.useSandbox.get() && !!session.repoNwo && isCloudSandboxEnabled(this.configurationService);
 	}
 
 	async createNewChat(sessionId: string, _prompt?: string): Promise<IChat> {
@@ -1780,7 +1747,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		if (!session) {
 			throw new Error(`[CopilotChatSessionsProvider] Session '${sessionId}' does not support multiple chats`);
 		}
-		if (!this._usesSandbox(session)) {
+		if (!this._usesSandbox()) {
 			(await this._createChatSession(session.resource, session)).dispose();
 		}
 		const newChat = this._withChangesets(buildChatFromSession(session), session.workspace);
@@ -2002,15 +1969,10 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			if (!this.uriIdentityService.extUri.isEqual(newSession.mainChat.get().resource, chatResource)) {
 				throw new Error('Chat resource does not match the main chat of the current new session');
 			}
-			if (this.providerMode === 'sandbox') {
+			if (this._usesSandbox()) {
 				if (!newSession.repoNwo || !isCloudSandboxEnabled(this.configurationService) || this.configurationService.getValue<boolean>(ChatAIDisabledSettingId)) {
 					throw new Error(localize('sandbox.unavailable', "GitHub sandbox creation is no longer available. Enable the feature and choose a repository to try again."));
 				}
-				return this._sendFirstChatToSandbox(newSession, newSession.repoNwo, options);
-			}
-			// `useSandbox` is persisted, so it can outlive the setting being turned off. Re-check
-			// rather than trust it: falling back to the cloud agent beats a send that must fail.
-			if (newSession.useSandbox.get() && newSession.repoNwo && isCloudSandboxEnabled(this.configurationService)) {
 				return this._sendFirstChatToSandbox(newSession, newSession.repoNwo, options);
 			}
 			return this._sendFirstChat(newSession, chatResource, options);

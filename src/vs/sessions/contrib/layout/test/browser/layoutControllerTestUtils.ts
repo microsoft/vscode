@@ -29,8 +29,9 @@ import { IViewsService } from '../../../../../workbench/services/views/common/vi
 import { IDecorationsService } from '../../../../../workbench/services/decorations/common/decorations.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { GroupModelChangeKind, IEditorWillOpenEvent, IUntypedEditorInput, isResourceEditorInput } from '../../../../../workbench/common/editor.js';
-import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, IChatDeletedEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { SESSIONS_LAYOUT_SCOPE_SETTING, ChatLayoutMode, ChatLayoutPresentation } from '../../../../common/chatLayout.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService, ISidePaneToggleEvent } from '../../../../browser/workbench.js';
 import { ChatInteractivity, IChat, ISession, ISessionChangeset, ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionChangesService, SessionChangesService } from '../../../changes/browser/sessionChangesService.js';
@@ -144,6 +145,35 @@ export function makeSession(resource: URI, opts?: {
 	};
 }
 
+export function addPeerChat(session: IActiveSession, resource: URI, opts?: { readonly title?: string }): IChat {
+	const mainChat = session.mainChat.get();
+	const chat: IChat = {
+		resource,
+		createdAt: new Date(),
+		workspace: mainChat.workspace,
+		title: observableValue('title', opts?.title ?? 'Peer'),
+		updatedAt: observableValue('updatedAt', new Date()),
+		status: observableValue('status', SessionStatus.Completed),
+		checkpoints: observableValue('checkpoints', undefined),
+		changes: observableValue('changes', []),
+		changesets: constObservable([]),
+		modelId: observableValue('modelId', undefined),
+		modelSource: observableValue('modelSource', undefined),
+		mode: observableValue('mode', undefined),
+		isArchived: observableValue('isArchived', false),
+		isRead: observableValue('isRead', true),
+		interactivity: observableValue('interactivity', ChatInteractivity.Full),
+		lastTurnEnd: observableValue('lastTurnEnd', undefined),
+		description: observableValue('description', undefined),
+	};
+	(session.chats as ISettableObservable<readonly IChat[]>).set([...session.chats.get(), chat], undefined);
+	return chat;
+}
+
+export function setActiveChat(session: IActiveSession, chat: IChat): void {
+	(session.activeChat as ISettableObservable<IChat>).set(chat, undefined);
+}
+
 export interface ICreateOptions {
 	readonly useModal?: 'off' | 'some' | 'all';
 	readonly workspaceFolders?: readonly { readonly uri: URI }[];
@@ -167,6 +197,7 @@ export interface ICreateOptions {
 	readonly activateAux?: boolean;
 	/** When true, the layout service reports desktop layout (drives base desktop branches). */
 	readonly desktopLayout?: boolean;
+	readonly chatLayoutMode?: ChatLayoutMode;
 }
 
 /**
@@ -182,6 +213,10 @@ export interface ITestLayoutHarness {
 	visibleSessionsObs: ISettableObservable<readonly (IActiveSession | undefined)[]>;
 	onDidChangeSessions: Emitter<ISessionsChangeEvent>;
 	onDidReplaceSession: Emitter<{ readonly from: ISession; readonly to: ISession }>;
+	onDidDeleteChat: Emitter<IChatDeletedEvent>;
+	onDidReplaceNewDraftSession: Emitter<{ readonly from: ISession; readonly to: ISession }>;
+	readonly chatLayoutPresentation: ChatLayoutPresentation;
+	chatLayoutIsPhoneObs: ISettableObservable<boolean>;
 	onDidChangePartVisibility: Emitter<IPartVisibilityChangeEvent>;
 	onWillToggleSidePane: Emitter<void>;
 	onDidToggleSidePane: Emitter<ISidePaneToggleEvent>;
@@ -237,8 +272,10 @@ export interface ITestLayoutHarness {
 	editorGroupsHaveContent: boolean;
 	/** Records every `applyWorkingSet` call made by the controller. */
 	applyWorkingSetCalls: (IEditorWorkingSet | 'empty')[];
-	/** Records the name of every `saveWorkingSet` call made by the controller. */
 	saveWorkingSetCalls: string[];
+	deleteWorkingSetCalls: string[];
+	workspaceFolders: { readonly uri: URI }[];
+	onDidChangeWorkspaceFolders: Emitter<void>;
 	/**
 	 * Optional callback invoked synchronously during `applyWorkingSet`, allowing
 	 * tests to simulate external visibility changes (e.g. the desktop detail
@@ -279,6 +316,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 
 	const configService = new TestConfigurationService();
 	configService.setUserConfiguration('workbench.editor.useModal', options.useModal ?? 'all');
+	configService.setUserConfiguration(SESSIONS_LAYOUT_SCOPE_SETTING, options.chatLayoutMode ?? 'session-shared');
 	instaService.stub(IConfigurationService, configService);
 	const contextKeyService = store.add(new MockContextKeyService());
 	instaService.stub(IContextKeyService, contextKeyService);
@@ -286,6 +324,9 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		override publicLog2(): void { }
 	});
 	instaService.stub(ILogService, store.add(new NullLogService()));
+
+	const chatLayoutIsPhoneObs = observableValue<boolean>('chatLayoutIsPhone', false);
+	const chatLayoutPresentation = store.add(new ChatLayoutPresentation(configService, options.desktopLayout ?? false, chatLayoutIsPhoneObs));
 
 	const harness: ITestLayoutHarness = {
 		instaService,
@@ -295,6 +336,10 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		visibleSessionsObs: observableValue<readonly (IActiveSession | undefined)[]>('visibleSessions', []),
 		onDidChangeSessions: store.add(new Emitter<ISessionsChangeEvent>()),
 		onDidReplaceSession: store.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>()),
+		onDidDeleteChat: store.add(new Emitter<IChatDeletedEvent>()),
+		onDidReplaceNewDraftSession: store.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>()),
+		chatLayoutPresentation,
+		chatLayoutIsPhoneObs,
 		onDidChangePartVisibility: store.add(new Emitter<IPartVisibilityChangeEvent>()),
 		onWillToggleSidePane: store.add(new Emitter<void>()),
 		onDidToggleSidePane: store.add(new Emitter<ISidePaneToggleEvent>()),
@@ -346,6 +391,9 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		editorGroupsHaveContent: true,
 		applyWorkingSetCalls: [],
 		saveWorkingSetCalls: [],
+		deleteWorkingSetCalls: [],
+		workspaceFolders: options.workspaceFolders ? [...options.workspaceFolders] : [],
+		onDidChangeWorkspaceFolders: store.add(new Emitter<void>()),
 		openChangesEditorCalls: [],
 		sessionChangesService: store.add(new SessionChangesService(new class extends mock<IEditorService>() { }, instaService, new class extends mock<IAgentWorkbenchLayoutService>() {
 			override get agentWorkbenchLayout(): AgentWorkbenchLayout { return options.desktopLayout ? AgentWorkbenchLayout.Desktop : AgentWorkbenchLayout.Mobile; }
@@ -403,6 +451,8 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 	instaService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 		override readonly onDidChangeSessions = harness.onDidChangeSessions.event;
 		override readonly onDidReplaceSession = harness.onDidReplaceSession.event;
+		override readonly onDidDeleteChat = harness.onDidDeleteChat.event;
+		override readonly onDidReplaceNewDraftSession = harness.onDidReplaceNewDraftSession.event;
 		override getSessions() { return []; }
 	});
 	instaService.stub(ISessionsService, new class extends mock<ISessionsService>() {
@@ -505,6 +555,25 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 				this.toggleSidePane();
 			}
 		}
+		captureSidePaneComposition(): SidePaneComposition {
+			return { editor: this.isVisible(Parts.EDITOR_PART), auxiliaryBar: this.isVisible(Parts.AUXILIARYBAR_PART) };
+		}
+		restoreSidePaneComposition(composition: SidePaneComposition): void {
+			const before = this.captureSidePaneComposition();
+			if (before.editor === composition.editor && before.auxiliaryBar === composition.auxiliaryBar) {
+				return;
+			}
+			const suppression = this.suppressEditorPartAutoVisibility();
+			try {
+				this.setPartHidden(!composition.editor, Parts.EDITOR_PART);
+				this.setPartHidden(!composition.auxiliaryBar, Parts.AUXILIARYBAR_PART);
+			} finally {
+				suppression.dispose();
+			}
+			if (!before.editor && !before.auxiliaryBar && (composition.editor || composition.auxiliaryBar)) {
+				harness.onDidRevealSidePane.fire();
+			}
+		}
 		toggleSidePane(): boolean {
 			harness.toggleSidePaneCalls++;
 			const getState = () => {
@@ -547,6 +616,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 			return this.isSidePaneVisible();
 		}
 		get agentWorkbenchLayout(): AgentWorkbenchLayout { return options.desktopLayout ? AgentWorkbenchLayout.Desktop : AgentWorkbenchLayout.Mobile; }
+		get chatLayoutPresentation() { return harness.chatLayoutPresentation; }
 		readonly onDidChangeEditorMaximized = harness.onDidChangeEditorMaximized.event;
 		override readonly onDidLayoutMainContainer = harness.onDidLayoutMainContainer.event;
 		override get mainContainerDimension(): IDimension { return { width: harness.mainContainerWidth, height: 1000 }; }
@@ -688,6 +758,8 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		}
 	});
 
+	const workingSetContents = new Map<string, { readonly resources: URI[]; readonly activeResource: URI | undefined }>();
+
 	instaService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
 		override get mainPart() {
 			const groups = this.groups;
@@ -706,9 +778,20 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 				onWillCloseEditor: harness.onWillCloseEditor.event,
 			}] as unknown as IEditorGroupsService['groups'];
 		}
-		override saveWorkingSet(name: string): IEditorWorkingSet { harness.saveWorkingSetCalls.push(name); return { id: name, name }; }
+		override saveWorkingSet(name: string): IEditorWorkingSet {
+			harness.saveWorkingSetCalls.push(name);
+			const resources = harness.activeGroupEditors.map(editor => editor.resource).filter((resource): resource is URI => resource !== undefined);
+			workingSetContents.set(name, { resources, activeResource: harness.activeEditorInput?.resource });
+			return { id: name, name };
+		}
 		override async applyWorkingSet(workingSet: IEditorWorkingSet | 'empty') {
 			harness.applyWorkingSetCalls.push(workingSet);
+			const contents = workingSet === 'empty' ? { resources: [], activeResource: undefined } : workingSetContents.get(workingSet.id);
+			if (contents) {
+				harness.activeGroupEditors = contents.resources.map(resource => store.add(new TestStubEditorInput(resource)));
+				harness.activeEditorInput = contents.activeResource ? harness.activeGroupEditors.find(editor => isEqual(editor.resource, contents.activeResource)) : undefined;
+				harness.onDidEditorsChange.fire();
+			}
 			harness.onApplyWorkingSet?.(workingSet);
 			return true;
 		}
@@ -724,12 +807,14 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 			update();
 			return registrations;
 		}
-		override deleteWorkingSet() { }
+		override deleteWorkingSet(workingSet: IEditorWorkingSet) {
+			harness.deleteWorkingSetCalls.push(workingSet.id);
+		}
 	});
 
 	instaService.stub(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
-		override readonly onDidChangeWorkspaceFolders = Event.None;
-		override getWorkspace(): IWorkspace { return { id: 'test', folders: (options.workspaceFolders ?? []) as IWorkspace['folders'] }; }
+		override get onDidChangeWorkspaceFolders() { return Event.map(harness.onDidChangeWorkspaceFolders.event, () => ({ added: [], removed: [], changed: [] })); }
+		override getWorkspace(): IWorkspace { return { id: 'test', folders: harness.workspaceFolders as IWorkspace['folders'] }; }
 	});
 
 	return harness;

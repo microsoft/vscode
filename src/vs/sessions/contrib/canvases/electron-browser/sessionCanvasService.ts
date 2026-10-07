@@ -15,7 +15,7 @@ import { IEditorService } from '../../../../workbench/services/editor/common/edi
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISession, ISessionCanvas } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { getSessionCanvasReferenceKey, ISessionCanvasReference, ISessionCanvasReopenTarget, ISessionCanvasService, ISessionCanvasTarget, SessionCanvasInput } from '../common/sessionCanvas.js';
+import { createSessionCanvasReference, getSessionCanvasReferenceKey, ISessionCanvasReference, ISessionCanvasReopenTarget, ISessionCanvasService, ISessionCanvasTarget, SessionCanvasInput } from '../common/sessionCanvas.js';
 
 export class SessionCanvasService extends Disposable implements ISessionCanvasService {
 
@@ -77,12 +77,7 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 
 			if (activeSession && activeChat && enabled && supported) {
 				for (const canvas of canvases ?? []) {
-					const reference: ISessionCanvasReference = {
-						providerId: activeSession.providerId,
-						session: activeSession.resource,
-						chat: activeChat.resource,
-						canvas: canvas.resource,
-					};
+					const reference = createSessionCanvasReference(activeSession, activeChat, canvas);
 					const input = this._getOrCreateInput(reference, canvas);
 					const key = getSessionCanvasReferenceKey(reference);
 					activeKeys.add(key);
@@ -130,17 +125,25 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 		return this.enabled.read(reader) && this.getTarget(reference, reader) !== undefined;
 	}
 
-	async reopenCanvas(reference: ISessionCanvasReference): Promise<void> {
-		const key = getSessionCanvasReferenceKey(reference);
-		const reopenable = this.reopenableCanvases.get().find(candidate => getSessionCanvasReferenceKey(candidate.reference) === key);
-		if (!reopenable) {
+	async revealCanvas(reference: ISessionCanvasReference): Promise<void> {
+		const target = this.enabled.get() ? this.getTarget(reference) : undefined;
+		if (target?.canvas.source === undefined) {
 			return;
 		}
 
-		const input = this._getOrCreateInput(reference, reopenable.canvas);
-		input.setCanvas(reopenable.canvas);
+		const key = getSessionCanvasReferenceKey(reference);
+		const input = this._getOrCreateInput(reference, target.canvas);
+		input.setCanvas(target.canvas);
 		this._deleteDismissed(key);
 		await this._openInput(key, input);
+	}
+
+	async reopenCanvas(reference: ISessionCanvasReference): Promise<void> {
+		const key = getSessionCanvasReferenceKey(reference);
+		if (!this._dismissed.has(key)) {
+			return;
+		}
+		await this.revealCanvas(reference);
 	}
 
 	private async _openInput(key: string, input: SessionCanvasInput): Promise<void> {

@@ -35,10 +35,8 @@ export const enum SessionConfigKey {
 	WorktreeIncludeFiles = 'worktreeIncludeFiles',
 	/** `'worktreeSymlinkFolders'` — host-owned `.gitignore`-syntax patterns for git-ignored folders symlinked into a new worktree. */
 	WorktreeSymlinkFolders = 'worktreeSymlinkFolders',
-	/** `'worktreeBranchTrack'` — host-owned branch tracking preference for programmatic session creation. */
-	WorktreeBranchTrack = 'worktreeBranchTrack',
-	/** `'worktreeCreateNewBranch'` — host-owned choice to create a branch instead of checking out the selected branch. */
-	WorktreeCreateNewBranch = 'worktreeCreateNewBranch',
+	/** `'pullRequestUrl'` — host-owned pull request the session is created from; implies worktree isolation. */
+	PullRequestUrl = 'pullRequestUrl',
 	/** `'agentMerge'` — client-owned Agent Merge enablement and session overrides. */
 	AgentMerge = 'agentMerge',
 	/** `'agentMerge.controller'` — host-owned Agent Merge lifecycle state. */
@@ -54,6 +52,12 @@ export const enum SessionConfigKey {
 }
 
 export type SessionSandboxEnabled = 'default' | 'on' | 'off';
+
+/** Returns the {@link SessionConfigKey.PullRequestUrl} a session is created from, if any. */
+export function getSessionPullRequestUrl(values: Readonly<Record<string, unknown>> | undefined): string | undefined {
+	const value = values?.[SessionConfigKey.PullRequestUrl];
+	return typeof value === 'string' ? value : undefined;
+}
 
 /**
  * The set of enum values the unified permission picker *tolerates* for the
@@ -96,14 +100,12 @@ export function getPersistedSessionConfigValues(values: Record<string, unknown>,
 
 const automationDefinitionOwnedConfigKeys = [
 	SessionConfigKey.Permissions,
-	SessionConfigKey.SandboxEnabled,
 	SessionConfigKey.Isolation,
 	SessionConfigKey.Branch,
 	SessionConfigKey.WorktreeBranchPrefix,
 	SessionConfigKey.WorktreeIncludeFiles,
 	SessionConfigKey.WorktreeSymlinkFolders,
-	SessionConfigKey.WorktreeBranchTrack,
-	SessionConfigKey.WorktreeCreateNewBranch,
+	SessionConfigKey.PullRequestUrl,
 	SessionConfigKey.AgentMerge,
 	SessionConfigKey.AgentMergeController,
 	SessionConfigKey.AgentMergeFolders,
@@ -111,7 +113,10 @@ const automationDefinitionOwnedConfigKeys = [
 	SessionConfigKey.AgentMergeInjectedConfiguration,
 ] as const;
 
-/** Removes values owned by a concrete session or target rather than a reusable Automation template. */
+/**
+ * Removes values owned by a concrete session or target rather than a reusable Automation template.
+ * Sandbox selection stays so a saved preference survives reopening, and managed policy can still force it on at run time.
+ */
 export function omitAutomationSessionTemplateConfigValues<T>(values: Record<string, T>): Record<string, T> {
 	const result = omitTransientSessionConfigValues(values);
 	for (const key of automationDefinitionOwnedConfigKeys) {
