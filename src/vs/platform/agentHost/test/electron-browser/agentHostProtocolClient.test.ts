@@ -1920,7 +1920,7 @@ suite('AgentHostProtocolClient', () => {
 	});
 
 	for (const kind of [AgentHostClientConnectionKind.WebPubSub, AgentHostClientConnectionKind.MissionControl]) {
-		test(`relay ${kind} does not advertise managed permission forwarding or send client policy`, async () => {
+		test(`relay ${kind} is not local and does not send client policy`, async () => {
 			const transport = disposables.add(new TestProtocolTransport(kind));
 			const trust = createWorkspaceTrustServices();
 			const policyService = new NullPolicyService();
@@ -1932,13 +1932,13 @@ suite('AgentHostProtocolClient', () => {
 			));
 			await connectClient(client, transport);
 			assert.deepStrictEqual({
-				forwards: client.forwardsClientManagedSettings,
+				isLocal: client.isLocal,
 				policyMessages: transport.sentMessages.filter(message => hasKey(message, { method: true }) && (
 					message.method === 'setClientManagedSettingsPermissions'
 					|| message.method === 'dispatchAction'
 					&& (message.params as ITestRootConfigNotificationParams | undefined)?.action?.config?.['autoApprovePolicyIsManaged'] !== undefined
 				)),
-			}, { forwards: false, policyMessages: [] });
+			}, { isLocal: false, policyMessages: [] });
 		});
 	}
 
@@ -1971,54 +1971,87 @@ suite('AgentHostProtocolClient', () => {
 		});
 	});
 
-	for (const identity of [LOCAL_AGENT_HOST_RESOURCE_IDENTITY, 'remote.example:1234'] as const) {
-		for (const source of [PolicyValueSource.NativeMdm, PolicyValueSource.FileManagedSettings, PolicyValueSource.ServerManagedSettings]) {
-			test(`preserves legacy false alongside ${source} and forwards only mode bans remotely (${String(identity)})`, async () => {
-				class SourcePolicyService extends AbstractPolicyService {
-					constructor(source: PolicyValueSource) {
-						super();
-						this.policyDefinitions = { ChatToolsAutoApprove: { type: 'boolean' } };
-						this.updatePolicyValue('ChatToolsAutoApprove', false, source);
-					}
-					clear(): void {
-						this.updatePolicyValue('ChatToolsAutoApprove', undefined);
-						this._onDidChange.fire(['ChatToolsAutoApprove']);
-					}
-					protected async _updatePolicyDefinitions(): Promise<void> { }
+	for (const source of [PolicyValueSource.NativeMdm, PolicyValueSource.FileManagedSettings, PolicyValueSource.ServerManagedSettings]) {
+		test(`preserves legacy false alongside ${source} on the local host`, async () => {
+			class SourcePolicyService extends AbstractPolicyService {
+				constructor(source: PolicyValueSource) {
+					super();
+					this.policyDefinitions = { ChatToolsAutoApprove: { type: 'boolean' } };
+					this.updatePolicyValue('ChatToolsAutoApprove', false, source);
 				}
-				const device = disposables.add(new SourcePolicyService(PolicyValueSource.Device));
-				const managed = disposables.add(new SourcePolicyService(source));
-				const policy = disposables.add(new MultiplexPolicyService([device, managed], new NullLogService()));
-				const configuration = new ManagedPermissionsConfigurationService({});
-				configuration.setEligibleForAutoApprovalPolicy({ fetch: false });
-				const transport = disposables.add(new TestProtocolTransport());
-				const trust = createWorkspaceTrustServices();
-				const client = disposables.add(new AgentHostProtocolClient(
-					identity, transport, undefined, new NullLogService(), createPermissionService(),
-					configuration, NullTelemetryService, workspaceTrustEnablementService, trust.management, trust.request, policy,
-				));
-				await connectClient(client, transport);
-				const notification = (permissions: object) => ({ jsonrpc: '2.0', method: 'setClientManagedSettingsPermissions', params: { permissions } });
-				const both = {
-					provenance: findRootConfigValue(transport.sentMessages, 'autoApprovePolicyIsManaged'),
-					restrictions: findLastManagedSettingsNotification(transport.sentMessages),
-				};
-				transport.sentMessages.length = 0;
-				device.clear();
-				const managedOnly = {
-					provenance: findRootConfigValue(transport.sentMessages, 'autoApprovePolicyIsManaged'),
-					restrictions: findLastManagedSettingsNotification(transport.sentMessages),
-				};
-				configuration.clearGlobalAutoApprovePolicy();
-				managed.clear();
-				fireConfigurationChange(configuration, GLOBAL_AUTO_APPROVE_SETTING_ID);
-				assert.deepStrictEqual({ both, managedOnly, removed: findLastManagedSettingsNotification(transport.sentMessages) }, {
-					both: { provenance: false, restrictions: notification({ disableBypassPermissionsMode: 'disable', disableAssistedPermissionsMode: true }) },
-					managedOnly: { provenance: true, restrictions: notification({ disableBypassPermissionsMode: 'disable' }) },
-					removed: notification(identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY ? { disableBypassPermissionsMode: 'disable' } : {}),
-				});
+				clear(): void {
+					this.updatePolicyValue('ChatToolsAutoApprove', undefined);
+					this._onDidChange.fire(['ChatToolsAutoApprove']);
+				}
+				protected async _updatePolicyDefinitions(): Promise<void> { }
+			}
+			const device = disposables.add(new SourcePolicyService(PolicyValueSource.Device));
+			const managed = disposables.add(new SourcePolicyService(source));
+			const policy = disposables.add(new MultiplexPolicyService([device, managed], new NullLogService()));
+			const configuration = new ManagedPermissionsConfigurationService({});
+			configuration.setEligibleForAutoApprovalPolicy({ fetch: false });
+			const transport = disposables.add(new TestProtocolTransport());
+			const trust = createWorkspaceTrustServices();
+			const client = disposables.add(new AgentHostProtocolClient(
+				LOCAL_AGENT_HOST_RESOURCE_IDENTITY, transport, undefined, new NullLogService(), createPermissionService(),
+				configuration, NullTelemetryService, workspaceTrustEnablementService, trust.management, trust.request, policy,
+			));
+			await connectClient(client, transport);
+			const notification = (permissions: object) => ({ jsonrpc: '2.0', method: 'setClientManagedSettingsPermissions', params: { permissions } });
+			const both = {
+				provenance: findRootConfigValue(transport.sentMessages, 'autoApprovePolicyIsManaged'),
+				restrictions: findLastManagedSettingsNotification(transport.sentMessages),
+			};
+			transport.sentMessages.length = 0;
+			device.clear();
+			const managedOnly = {
+				provenance: findRootConfigValue(transport.sentMessages, 'autoApprovePolicyIsManaged'),
+				restrictions: findLastManagedSettingsNotification(transport.sentMessages),
+			};
+			configuration.clearGlobalAutoApprovePolicy();
+			managed.clear();
+			fireConfigurationChange(configuration, GLOBAL_AUTO_APPROVE_SETTING_ID);
+			assert.deepStrictEqual({ both, managedOnly, removed: findLastManagedSettingsNotification(transport.sentMessages) }, {
+				both: { provenance: false, restrictions: notification({ disableBypassPermissionsMode: 'disable', disableAssistedPermissionsMode: true }) },
+				managedOnly: { provenance: true, restrictions: notification({ disableBypassPermissionsMode: 'disable' }) },
+				removed: notification({ disableBypassPermissionsMode: 'disable' }),
 			});
-		}
+		});
+	}
+
+	for (const kind of [undefined, AgentHostClientConnectionKind.RemoteExtensionHost, AgentHostClientConnectionKind.DevTunnel]) {
+		test(`remote ${kind ?? 'direct'} retains legacy restriction without receiving client managed permissions`, async () => {
+			const configuration = new ManagedPermissionsConfigurationService({});
+			configuration.setEligibleForAutoApprovalPolicy({ fetch: false });
+			const transport = disposables.add(new TestProtocolTransport(kind));
+			const trust = createWorkspaceTrustServices();
+			const policy = new NullPolicyService();
+			policy.getPolicyValueSource = () => PolicyValueSource.NativeMdm;
+			const client = disposables.add(new AgentHostProtocolClient(
+				'remote.example:1234', transport, undefined, new NullLogService(), createPermissionService(),
+				configuration, NullTelemetryService, workspaceTrustEnablementService, trust.management, trust.request, policy,
+			));
+			await connectClient(client, transport);
+			const snapshot = () => ({
+				isLocal: client.isLocal,
+				restricted: findRootConfigValue(transport.sentMessages, 'autoApprovePolicyRestricted'),
+				managed: findOptionalRootConfigValue(transport.sentMessages, 'autoApprovePolicyIsManaged'),
+				permissions: findLastManagedSettingsNotification(transport.sentMessages),
+			});
+			const initial = snapshot();
+			transport.sentMessages.length = 0;
+			configuration.clearGlobalAutoApprovePolicy();
+			fireConfigurationChange(configuration, GLOBAL_AUTO_APPROVE_SETTING_ID);
+			const unchangedRemote = {
+				isLocal: false,
+				managed: undefined,
+				permissions: { jsonrpc: '2.0', method: 'setClientManagedSettingsPermissions', params: { permissions: {} } },
+			};
+			assert.deepStrictEqual({ initial, updated: snapshot() }, {
+				initial: { ...unchangedRemote, restricted: true },
+				updated: { ...unchangedRemote, restricted: false },
+			});
+		});
 	}
 
 	test('forwards and clears legacy managed permissions for the local host', async () => {

@@ -36,18 +36,20 @@ Do not add a VS Code `policy:` merely to mirror runtime policy. Do not add a Git
 `permissions.disableAssistedPermissionsMode` and `permissions.disableBypassPermissionsMode`
 independently restrict Assisted and Allow All. The former is sticky true across
 managed sources. The latter must not be projected into a blanket Manual-only
-restriction for Copilot Agent Host. An explicit legacy `ChatToolsAutoApprove=false`
+restriction for local Copilot Agent Host. An explicit legacy `ChatToolsAutoApprove=false`
 device policy still forces Manual; preserve its provenance when bridging it.
 If several policy services contribute the same false value, retain all effective
 sources: a managed source must not hide a simultaneous legacy device restriction.
-Forward only these mode bans to remote Copilot hosts, not unrelated local
-tool/path bridge rules. Web PubSub and Mission Control relay connections do not
-forward client policy; their client controls retain the legacy Manual clamp.
-Only connections that explicitly forward managed restrictions may relax it.
+Client-managed permission contributions and managed-policy relaxation are local
+only. Remote hosts retain their existing client-side Manual clamp and default
+seeding; do not forward new mode bans or managed-policy provenance to them.
+Use the connection's explicit local identity, not its ambient status: the
+ambient host in a remote editor window is itself remote. Remote managed-mode
+integration remains unaddressed.
 
 `permissions.defaultMode` is a new-session default, not a restriction. The runtime
 composes defaults restrictively and owns startup, fallback, and resume behavior.
-Do not materialize the displayed Manual fallback as an explicit host selection.
+On the local connection, do not materialize the displayed Manual fallback as an explicit host selection.
 Only explicit `chat.defaultConfiguration.approvals` values and remembered user
 choices override the runtime default; the setting's schema default does not.
 Keep requested session configuration separate from read-only effective and

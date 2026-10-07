@@ -182,7 +182,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			override error(message: string | Error): void { logErrors.push(message); }
 		}()));
 		const connection = instantiationService.stub(IAgentHostService, {
-			forwardsClientManagedSettings: true,
+			isLocal: true,
 			onAgentHostStart: onAgentHostStart.event,
 			getNetworkDiagnosticsInfo: () => {
 				diagnosticsRequests++;
@@ -454,6 +454,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 
 	function createRemoteConnection(getHostInfo: () => Promise<IAgentHostNetworkDiagnosticsInfo>) {
 		return new class extends mock<IAgentConnection>() {
+			override readonly isLocal = false;
 			diagnosticsRequests = 0;
 			readonly writes: { channel: string; action: Parameters<IAgentConnection['dispatch']>[1] }[] = [];
 			override getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> {
@@ -925,22 +926,6 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 	test('the combined picker gate controls the inline permissions layout', async () => {
 		const states = [];
 		for (const combined of [false, true]) {
-			test(`relay MDM restriction stays Manual-only with experimental picker ${combined}`, async () => {
-				const rig = setup(combined);
-				rig.configuration.policyRestricted = true;
-				rig.policyService.getPolicyValueSource = () => PolicyValueSource.NativeMdm;
-				const connection = Object.assign(createRemoteConnection(async () => ({ version: '1', os: 'linux', arch: 'x64', proxySettings: {}, proxyEnv: {}, endpoints: [] })), { forwardsClientManagedSettings: false });
-				rig.setSession(URI.from({ scheme: remoteAgentHostSessionTypeId('relay', 'copilotcli'), path: '/session' }), URI.parse('copilotcli:/relay'), connection);
-				const picker = rig.modePicker['_isModePickerCombined']() ? rig.modePicker : rig.permissionPicker;
-				await picker['_showPicker'](document.createElement('div'));
-				const disabled = rig.actionWidget.items.filter(item => ['Assisted permissions', 'Allow all'].includes(item.label ?? '')).map(item => ({ disabled: item.disabled, explained: !!item.detail && !!item.hover }));
-				await rig.actionWidget.select('Allow all');
-				assert.deepStrictEqual({ disabled, writes: connection.writes.map(write => write.action) }, {
-					disabled: [{ disabled: true, explained: true }, { disabled: true, explained: true }],
-					writes: [{ type: ActionType.SessionConfigChanged, config: { autoApprove: 'default' } }],
-				});
-			});
-
 			const { modePicker, modeContainer, permissionContainer, actionWidget } = setup(combined);
 			await modePicker['_showPicker'](modeContainer.querySelector<HTMLElement>('.action-label')!, true);
 			states.push({
@@ -958,6 +943,22 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 	});
 
 	for (const combined of [false, true]) {
+		test(`remote MDM restriction stays Manual-only with experimental picker ${combined}`, async () => {
+			const rig = setup(combined);
+			rig.configuration.policyRestricted = true;
+			rig.policyService.getPolicyValueSource = () => PolicyValueSource.NativeMdm;
+			const connection = createRemoteConnection(async () => ({ version: '1', os: 'linux', arch: 'x64', proxySettings: {}, proxyEnv: {}, endpoints: [] }));
+			rig.setSession(URI.from({ scheme: remoteAgentHostSessionTypeId('remote', 'copilotcli'), path: '/session' }), URI.parse('copilotcli:/remote'), connection);
+			const picker = rig.modePicker['_isModePickerCombined']() ? rig.modePicker : rig.permissionPicker;
+			await picker['_showPicker'](document.createElement('div'));
+			const disabled = rig.actionWidget.items.filter(item => ['Assisted permissions', 'Allow all'].includes(item.label ?? '')).map(item => ({ disabled: item.disabled, explained: !!item.detail && !!item.hover }));
+			await rig.actionWidget.select('Allow all');
+			assert.deepStrictEqual({ disabled, writes: connection.writes.map(write => write.action) }, {
+				disabled: [{ disabled: true, explained: true }, { disabled: true, explained: true }],
+				writes: [{ type: ActionType.SessionConfigChanged, config: { autoApprove: 'default' } }],
+			});
+		});
+
 		for (const { unavailable, remote } of (['assisted', 'autoApprove'] as const).flatMap(unavailable => [{ unavailable, remote: false }, { unavailable, remote: true }])) {
 			test(`independent managed ${unavailable} restriction and effective default (experimental flag ${combined}, ${remote ? 'remote' : 'local'})`, async () => {
 				const { modePicker, permissionPicker, config, actionWidget, dispatches, setSession } = setup(combined);

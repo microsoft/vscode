@@ -75,7 +75,7 @@ import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent, WorkbenchState 
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { ChatConfiguration, type IChatDefaultConfiguration } from '../../../common/constants.js';
-import { getExplicitAgentHostPermissionDefault, isAutoApprovePolicyRestricted } from '../../../common/agentHostConfigPolicy.js';
+import { getAgentHostPermissionDefault, isAutoApprovePolicyRestricted } from '../../../common/agentHostConfigPolicy.js';
 import { IPolicyService } from '../../../../../../platform/policy/common/policy.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
@@ -1115,9 +1115,9 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		const config: Record<string, unknown> = { [SessionConfigKey.Isolation]: 'folder' };
 
 		const configuredDefaults = this._configurationService.getValue<IChatDefaultConfiguration>(ChatConfiguration.DefaultConfiguration);
-		const configuredApprovals = getExplicitAgentHostPermissionDefault(this._configurationService);
+		const configuredApprovals = getAgentHostPermissionDefault(this._configurationService, this._agentHostService.isLocal);
 		if (configuredApprovals) {
-			const policyRestricted = isAutoApprovePolicyRestricted(this._configurationService, this._policyService, this._agentHostService.forwardsClientManagedSettings);
+			const policyRestricted = isAutoApprovePolicyRestricted(this._configurationService, this._policyService, this._agentHostService.isLocal);
 			// Bypass and (legacy) Autopilot auto-approve at least some tool
 			// calls, so clamp anything but Default under policy.
 			config[SessionConfigKey.AutoApprove] = policyRestricted && configuredApprovals !== 'default' ? 'default' : configuredApprovals;

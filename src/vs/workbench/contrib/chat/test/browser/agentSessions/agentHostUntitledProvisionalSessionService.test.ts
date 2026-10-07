@@ -16,7 +16,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { IPolicyService, NullPolicyService } from '../../../../../../platform/policy/common/policy.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -49,6 +49,7 @@ interface IDispatchedAction {
 }
 
 class MockAgentHostService extends mock<IAgentHostService>() {
+	override isLocal = true;
 	declare readonly _serviceBrand: undefined;
 	override readonly clientId = 'test-client';
 	override readonly initializeResult = observableValue<InitializeResult | undefined>(this, {
@@ -303,6 +304,18 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		await provisional.getOrCreate(untitledChatUri('explicit'), 'copilotcli', undefined);
 		assert.deepStrictEqual(agentHost.createCalls.map(call => call.config?.autoApprove), [undefined, 'default']);
 	});
+
+	for (const isLocal of [true, false]) {
+		test(`defers schema Manual only when the ambient connection is local (${isLocal})`, async () => {
+			agentHost.isLocal = isLocal;
+			configurationService.inspect = <T>(key: string): IConfigurationValue<T> => {
+				const value = key === ChatConfiguration.DefaultConfiguration ? { approvals: 'manual' } as T : undefined;
+				return { value, defaultValue: value };
+			};
+			await provisional.getOrCreate(untitledChatUri('schema-default'), 'copilotcli', undefined);
+			assert.deepStrictEqual(agentHost.createCalls.map(call => call.config?.autoApprove), [isLocal ? undefined : 'default']);
+		});
+	}
 
 	test('getOrCreate creates one backend provisional and returns the same URI on repeat calls', async () => {
 		agentHost.resolveQueue = [];

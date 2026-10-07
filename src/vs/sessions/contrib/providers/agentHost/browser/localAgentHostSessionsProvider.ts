@@ -154,9 +154,9 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 		@ISessionsRecentWorkspacesService recentWorkspacesService: ISessionsRecentWorkspacesService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
-		@IPolicyService policyService: IPolicyService,
+		@IPolicyService protected override readonly _policyService: IPolicyService,
 	) {
-		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsService, activeClientService, storageService, dialogService, workspaceTrustManagementService, recentWorkspacesService, uriIdentityService, policyService);
+		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsService, activeClientService, storageService, dialogService, workspaceTrustManagementService, recentWorkspacesService, uriIdentityService);
 		this.initializeDevContainerSupport(devContainerAgentHostService, sessionsProvidersService, workspaceTrustRequestService);
 		const automations = this._register(instantiationService.createInstance(ReconnectableAgentHostAutomationStore, this.id, {
 			toHost: resource => resource,

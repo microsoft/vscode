@@ -286,18 +286,18 @@ suite('AgentSessionSettingsFileSystemProvider (editor-window per-session adapter
 		assert.deepStrictEqual(action.config, { autoApprove: 'default', mode: 'b' });
 	});
 
-	for (const forwarded of [true, false]) {
-		test(`managed policy config edits require a forwarding connection (${forwarded})`, async () => {
+	for (const isLocal of [true, false]) {
+		test(`managed policy config edits require a local connection (${isLocal})`, async () => {
 			const policyService = new NullPolicyService();
 			policyService.getPolicyValueSource = () => PolicyValueSource.NativeMdm;
 			const { fs, uri, agentHostService } = createHarness(makeSessionState({
 				autoApprove: { type: 'string', title: 'Permissions', sessionMutable: true, enum: ['default', 'assisted'] },
 				mode: { type: 'string', title: 'Mode', sessionMutable: true, enum: ['interactive', 'plan'] },
 			}, { autoApprove: 'default', mode: 'interactive' }), createPolicyRestrictedConfigurationService(), policyService);
-			Object.assign(agentHostService, { forwardsClientManagedSettings: forwarded });
+			Object.assign(agentHostService, { isLocal });
 			await fs.writeFile(uri, VSBuffer.fromString('{ "autoApprove": "assisted", "mode": "plan" }').buffer, { create: false, overwrite: true, unlock: false, atomic: false });
 			assert.deepStrictEqual(agentHostService.dispatchedActions.map(entry => entry.action), [
-				{ type: ActionType.SessionConfigChanged, config: { autoApprove: forwarded ? 'assisted' : 'default', mode: 'plan' }, replace: true },
+				{ type: ActionType.SessionConfigChanged, config: { autoApprove: isLocal ? 'assisted' : 'default', mode: 'plan' }, replace: true },
 			]);
 		});
 	}

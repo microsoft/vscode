@@ -852,7 +852,7 @@ export class AgentHostChatInputPicker extends Disposable {
 			const available = getAvailableSessionApprovalValues(approval, context.configSchema, context.values);
 			items = items.map(item => ({ ...item, disabled: !available.includes(writeSessionApprovalLevel(approval, item.value) ?? '') }));
 		}
-		const policyRestricted = isAutoApprovePolicyRestricted(this._configurationService, this._policyService, context?.connection.forwardsClientManagedSettings);
+		const policyRestricted = isAutoApprovePolicyRestricted(this._configurationService, this._policyService, context?.connection.isLocal);
 		const actionItems = toActionItems(this._generic ? '' : property, items, value, policyRestricted, this._generic ? undefined : this._getSandboxStandaloneToggle(property));
 		const permissionsLearnMoreUrl = this._generic ? undefined : getPermissionsLearnMoreUrl(property);
 		if (permissionsLearnMoreUrl) {
@@ -938,11 +938,11 @@ export class AgentHostChatInputPicker extends Disposable {
 						return [];
 					}
 					if (branches) {
-						return toActionItems(this._generic ? '' : this._property, filterBranchPickerItems(branches, query), refreshed.value, isAutoApprovePolicyRestricted(this._configurationService, this._policyService, refreshed.connection.forwardsClientManagedSettings), this._getSandboxStandaloneToggle(), query);
+						return toActionItems(this._generic ? '' : this._property, filterBranchPickerItems(branches, query), refreshed.value, isAutoApprovePolicyRestricted(this._configurationService, this._policyService, refreshed.connection.isLocal), this._getSandboxStandaloneToggle(), query);
 					}
 					return this._filterDelayer.trigger(async () => {
 						const items = await this._getItems(refreshed.schema, query);
-						return toActionItems(this._generic ? '' : this._property, items, refreshed.value, isAutoApprovePolicyRestricted(this._configurationService, this._policyService, refreshed.connection.forwardsClientManagedSettings), this._getSandboxStandaloneToggle());
+						return toActionItems(this._generic ? '' : this._property, items, refreshed.value, isAutoApprovePolicyRestricted(this._configurationService, this._policyService, refreshed.connection.isLocal), this._getSandboxStandaloneToggle());
 					});
 				}
 				: undefined,
@@ -1173,13 +1173,13 @@ export class AgentHostChatInputPicker extends Disposable {
 		const workingDirectory = this._readWorkingDirectory();
 		const approval = property === SessionConfigKey.AutoApprove ? getSessionApprovalProperty(ctx.configSchema) : undefined;
 		const approvalValue = approval?.key === SessionConfigKey.AutoApprove
-			? normalizeSessionConfigValue(SessionConfigKey.AutoApprove, value, isAutoApprovePolicyRestricted(this._configurationService, this._policyService, connection.forwardsClientManagedSettings))
+			? normalizeSessionConfigValue(SessionConfigKey.AutoApprove, value, isAutoApprovePolicyRestricted(this._configurationService, this._policyService, connection.isLocal))
 			: value;
 		const normalizedValue = ctx.schema.type === 'boolean'
 			? value === 'true'
 			: this._generic ? value
 				: approval ? writeSessionApprovalLevel(approval, approvalValue)
-					: normalizeSessionConfigValue(ctx.key, value, isAutoApprovePolicyRestricted(this._configurationService, this._policyService, connection.forwardsClientManagedSettings));
+					: normalizeSessionConfigValue(ctx.key, value, isAutoApprovePolicyRestricted(this._configurationService, this._policyService, connection.isLocal));
 		validateSessionConfigWrite(ctx.configSchema, ctx.values, ctx.key, normalizedValue, isUntitledChatSession(sessionResource));
 		const partial = { [ctx.key]: normalizedValue };
 		const nextConfig = filterSessionConfigValues(ctx.configSchema, { ...this._readCurrentValues(), ...partial });

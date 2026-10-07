@@ -53,7 +53,7 @@ import { ITelemetryService, TelemetryLevel, TELEMETRY_CRASH_REPORTER_SETTING_ID,
 import { getTelemetryLevel } from '../../telemetry/common/telemetryUtils.js';
 import { AgentHostAutoApprovePolicyIsManagedConfigKey, AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostWorkspaceTrustConfigKey, getAgentHostTerminalAutoApproveRulesConfig, GLOBAL_AUTO_APPROVE_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 import { formatAgentHostConfigurationSyncValueForLog, getAgentHostConfigurationSyncEntries, getAgentHostConfigurationSyncTarget, resolveAgentHostConfigurationSyncPatch, resolveAgentHostConfigurationSyncValue } from '../common/agentHostConfigurationSync.js';
-import { isManagedAutoApprovePolicy, managedPermissionsConfigurationIds, resolveManagedPermissionModeRestrictions, resolveManagedSettingsPermissions, type IAgentHostManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
+import { isManagedAutoApprovePolicy, managedPermissionsConfigurationIds, resolveManagedSettingsPermissions, type IAgentHostManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
 import { IPolicyService } from '../../policy/common/policy.js';
 import { AgentHostClientConnectionKind, toAgentHostClientMeta } from '../common/agentHostTelemetry.js';
 import type { OtlpExportLogsParams } from '../common/state/protocol/channels-otlp/notifications.js';
@@ -423,8 +423,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return this._clientId;
 	}
 
-	get forwardsClientManagedSettings(): boolean {
-		return !this._isWebPubSubRelay();
+	get isLocal(): boolean {
+		return this._resourceIdentity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY;
 	}
 
 	get address(): string {
@@ -474,7 +474,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		this._address = identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY ? AMBIENT_AGENT_HOST_AUTHORITY : identity;
 		this._clientId = options?.clientId ?? generateUuid();
 		this._register(this._policyService.onDidChange(names => {
-			if (names.includes('ChatToolsAutoApprove')) {
+			if (this.isLocal && names.includes('ChatToolsAutoApprove')) {
 				this._updateAutoApprovePolicyRestriction();
 				void this._updateManagedSettingsPermissions();
 			}
@@ -1305,7 +1305,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		const policyRestricted = this._configurationService.inspect<boolean>(GLOBAL_AUTO_APPROVE_SETTING_ID)?.policyValue === false;
 		this._dispatchRootConfig({
 			[AgentHostAutoApprovePolicyRestrictedConfigKey]: policyRestricted,
-			[AgentHostAutoApprovePolicyIsManagedConfigKey]: policyRestricted && isManagedAutoApprovePolicy(this._policyService),
+			...(this.isLocal ? { [AgentHostAutoApprovePolicyIsManagedConfigKey]: policyRestricted && isManagedAutoApprovePolicy(this._policyService) } : {}),
 		});
 	}
 
@@ -2492,9 +2492,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		if (this._isWebPubSubRelay()) {
 			return;
 		}
-		const permissions = this._resourceIdentity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY
+		const permissions = this.isLocal
 			? resolveManagedSettingsPermissions(this._configurationService, this._policyService)
-			: resolveManagedPermissionModeRestrictions(this._configurationService, this._policyService);
+			: {};
 		this._sendExtensionNotification('setClientManagedSettingsPermissions', { permissions }, sendDuringReconnect);
 	}
 

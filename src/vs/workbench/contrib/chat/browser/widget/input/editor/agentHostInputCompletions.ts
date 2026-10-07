@@ -191,7 +191,7 @@ export class AgentHostInputCompletions extends AgentHostInputCompletionsBase<ICh
 					// than offering an item that would warn then clamp to Default.
 					const sessionResource = widget.viewModel?.model.sessionResource;
 					const connection = sessionResource ? this._connectionsService.resolveSessionResource(sessionResource)?.connection : undefined;
-					if (isPolicyBlockedCompletionAction(action, this._configurationService, this._policyService, connection?.forwardsClientManagedSettings)) {
+					if (isPolicyBlockedCompletionAction(action, this._configurationService, this._policyService, connection?.isLocal)) {
 						return undefined;
 					}
 					// Config-action completion (permission/mode toggle). Keep-text

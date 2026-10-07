@@ -16,7 +16,6 @@ import { basename, dirname, isEqual } from '../../../../../base/common/resources
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { IPolicyService } from '../../../../../platform/policy/common/policy.js';
 import { agentHostUri } from '../../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority, type AgentHostUriMapper, fromAgentHostUri, normalizeRemoteAgentHostAddress, toAgentHostContentUri, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
@@ -297,9 +296,8 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		@IAgentHostSessionWorkingDirectoryResolver workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver,
 		@IRemoteAgentHostAuthenticationService remoteAuthenticationService: IRemoteAgentHostAuthenticationService,
 		@INewSessionComposerService private readonly _newSessionComposerService: INewSessionComposerService,
-		@IPolicyService policyService: IPolicyService,
 	) {
-		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsService, activeClientService, storageService, dialogService, workspaceTrustManagementService, recentWorkspacesService, uriIdentityService, policyService);
+		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsService, activeClientService, storageService, dialogService, workspaceTrustManagementService, recentWorkspacesService, uriIdentityService);
 
 		this._connectionAuthority = agentHostAuthority(config.address);
 		const authenticationPending = this._register(remoteAuthenticationService.acquire(config.address)).object;

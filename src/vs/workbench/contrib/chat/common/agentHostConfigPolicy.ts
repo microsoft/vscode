@@ -11,9 +11,12 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY } from '../../../../platform/policy/common/copilotManagedSettings.js';
 import { ChatConfiguration, ChatPermissionLevel, getChatPermissionLevelFromDefaultConfiguration, IChatDefaultConfiguration } from './constants.js';
 
-/** Schema defaults describe the picker, not an explicit host startup choice. */
-export function getExplicitAgentHostPermissionDefault(configurationService: IConfigurationService): ChatPermissionLevel | undefined {
+/** Only the local host defers an unconfigured approval default to runtime policy. */
+export function getAgentHostPermissionDefault(configurationService: IConfigurationService, isLocal = false): ChatPermissionLevel | undefined {
 	const inspected = configurationService.inspect<IChatDefaultConfiguration>(ChatConfiguration.DefaultConfiguration);
+	if (!isLocal) {
+		return getChatPermissionLevelFromDefaultConfiguration(inspected.value?.approvals);
+	}
 	const configured = [
 		inspected.policyValue, inspected.workspaceFolderValue, inspected.workspaceValue,
 		inspected.userRemoteValue, inspected.userLocalValue, inspected.userValue, inspected.applicationValue,
@@ -25,9 +28,9 @@ export function autoApprovePolicyValue(policyData: IPolicyData): false | undefin
 	return policyData.managedSettings?.[COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY] === 'disable' ? false : undefined;
 }
 
-export function isAutoApprovePolicyRestricted(configurationService: IConfigurationService, policyService?: IPolicyService, forwardsClientManagedSettings = false): boolean {
+export function isAutoApprovePolicyRestricted(configurationService: IConfigurationService, policyService?: IPolicyService, isLocal = false): boolean {
 	return configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false
-		&& (!forwardsClientManagedSettings || !isManagedAutoApprovePolicy(policyService));
+		&& (!isLocal || !isManagedAutoApprovePolicy(policyService));
 }
 
 export function isAutoApproveValuePolicyRestricted(value: unknown, policyRestricted: boolean): boolean {

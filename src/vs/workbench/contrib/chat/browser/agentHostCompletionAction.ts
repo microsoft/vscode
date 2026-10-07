@@ -77,9 +77,9 @@ function getElevatedAutoApproveLevel(value: string | undefined): ChatPermissionL
  * The node producer cannot see the (client-side) policy, so this gating lives on
  * the client, mirroring how the permission pickers disable elevated levels.
  */
-export function isPolicyBlockedCompletionAction(action: IAgentHostCompletionAction, configurationService: IConfigurationService, policyService?: IPolicyService, forwardsClientManagedSettings = false): boolean {
+export function isPolicyBlockedCompletionAction(action: IAgentHostCompletionAction, configurationService: IConfigurationService, policyService?: IPolicyService, isLocal = false): boolean {
 	return getElevatedAutoApproveLevel(action.applyConfig?.[SessionConfigKey.AutoApprove]) !== undefined
 		&& (action.applyConfig?.[SessionConfigKey.AutoApprove] === 'autoApprove'
 			? isAutoApprovePolicyRestricted(configurationService)
-			: isAutoApprovePolicyRestricted(configurationService, policyService, forwardsClientManagedSettings));
+			: isAutoApprovePolicyRestricted(configurationService, policyService, isLocal));
 }

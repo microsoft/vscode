@@ -91,12 +91,12 @@ suite('applyAgentHostCompletionAction', () => {
 	});
 
 	suite('isPolicyBlockedCompletionAction', () => {
-		test('managed Assisted relaxation requires policy forwarding, unlike relay connections', () => {
+		test('managed Assisted relaxation applies only to local connections', () => {
 			const configuration = new PolicyTestConfigurationService(false);
 			const policy = new NullPolicyService();
 			policy.getPolicyValueSource = () => PolicyValueSource.NativeMdm;
-			assert.deepStrictEqual([true, false, undefined].map(forwarded =>
-				['assisted', 'autoApprove'].map(autoApprove => isPolicyBlockedCompletionAction({ applyConfig: { autoApprove } }, configuration, policy, forwarded))
+			assert.deepStrictEqual([true, false, undefined].map(isLocal =>
+				['assisted', 'autoApprove'].map(autoApprove => isPolicyBlockedCompletionAction({ applyConfig: { autoApprove } }, configuration, policy, isLocal))
 			), [[false, true], [true, true], [true, true]]);
 		});
 

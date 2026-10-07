@@ -57,7 +57,7 @@ export async function applyAgentHostSessionConfigChange(
 	}
 
 	const { agentHostService, connectionsService, provisionalService, workingDirectoryResolver, workspaceContextService, configurationService } = services;
-	const policyRestricted = isAutoApprovePolicyRestricted(configurationService, services.policyService, agentHostService.forwardsClientManagedSettings);
+	const policyRestricted = isAutoApprovePolicyRestricted(configurationService, services.policyService, agentHostService.isLocal);
 	const partial: Record<string, string> = { ...config };
 	const autoApprove = partial[SessionConfigKey.AutoApprove];
 	if (autoApprove !== undefined) {

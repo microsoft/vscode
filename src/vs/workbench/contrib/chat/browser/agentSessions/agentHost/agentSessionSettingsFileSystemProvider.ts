@@ -175,7 +175,7 @@ export class AgentSessionSettingsFileSystemProvider extends AbstractAgentHostCon
 			return;
 		}
 
-		const policyRestricted = isAutoApprovePolicyRestricted(this._configurationService, this._policyService, this._agentHostService.forwardsClientManagedSettings);
+		const policyRestricted = isAutoApprovePolicyRestricted(this._configurationService, this._policyService, this._agentHostService.isLocal);
 		const nextValues: Record<string, unknown> = {};
 		for (const [key, schema] of Object.entries(current.schema.properties)) {
 			if (sessionSettingsPropertyFilter(key, schema)) {

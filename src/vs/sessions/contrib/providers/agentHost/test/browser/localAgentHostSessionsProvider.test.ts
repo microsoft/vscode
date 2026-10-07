@@ -118,6 +118,7 @@ function createVSCodeSessionConfigSchema(overrides: SessionConfigSchema['propert
 }
 
 class MockAgentHostService extends mock<IAgentHostService>() {
+	override isLocal = true;
 	declare readonly _serviceBrand: undefined;
 
 	private _onDidAction = new Emitter<ActionEnvelope>();
@@ -6552,21 +6553,21 @@ suite('LocalAgentHostSessionsProvider', () => {
 		]);
 	});
 
-	for (const forwarded of [true, false]) {
-		test(`managed policy relaxation in Agents requires a forwarding connection (${forwarded})`, async () => {
+	for (const isLocal of [true, false]) {
+		test(`managed policy relaxation in Agents requires a local connection (${isLocal})`, async () => {
 			class ManagedPolicyProvider extends LocalAgentHostSessionsProvider {
 				protected override readonly _policyService = new class extends NullPolicyService {
 					override getPolicyValueSource() { return PolicyValueSource.NativeMdm; }
 				}();
 			}
-			Object.assign(agentHost, { forwardsClientManagedSettings: forwarded });
+			agentHost.isLocal = isLocal;
 			const provider = createProvider(disposables, agentHost, undefined, {
 				configurationService: createPolicyRestrictedConfigurationService(), providerCtor: ManagedPolicyProvider,
 			});
 			const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
 			await provider.whenSessionConfigResolved(session.sessionId, CancellationToken.None);
 			await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.AutoApprove, 'assisted');
-			assert.strictEqual(agentHost.resolveSessionConfigRequests.at(-1)?.config?.autoApprove, forwarded ? 'assisted' : 'default');
+			assert.strictEqual(agentHost.resolveSessionConfigRequests.at(-1)?.config?.autoApprove, isLocal ? 'assisted' : 'default');
 		});
 	}
 
@@ -7526,12 +7527,17 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(agentHost.resolveSessionConfigRequests.at(-1)?.config?.mode, undefined);
 	});
 
-	test('createNewSession does not turn schema Manual into explicit startup intent', async () => {
-		const provider = createProvider(disposables, agentHost, undefined, { configurationService: createSchemaDefaultConfigurationService() });
-		provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
-		await timeout(0);
-		assert.deepStrictEqual(agentHost.resolveSessionConfigRequests.at(-1)?.config, { mode: 'interactive', isolation: 'worktree' });
-	});
+	for (const isLocal of [true, false]) {
+		test(`createNewSession defers schema Manual only on the local host (${isLocal})`, async () => {
+			agentHost.isLocal = isLocal;
+			const provider = createProvider(disposables, agentHost, undefined, { configurationService: createSchemaDefaultConfigurationService() });
+			provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+			await timeout(0);
+			assert.deepStrictEqual(agentHost.resolveSessionConfigRequests.at(-1)?.config, {
+				mode: 'interactive', isolation: 'worktree', ...(!isLocal ? { autoApprove: 'default' } : {}),
+			});
+		});
+	}
 
 	test('createNewSession seeds remembered mode/approvals when chat.defaultConfiguration is at its schema default', async () => {
 		const storageService = disposables.add(new InMemoryStorageService());

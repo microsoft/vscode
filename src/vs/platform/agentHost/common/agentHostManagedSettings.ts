@@ -41,11 +41,10 @@
  *   eligible (all `true`, or empty) expresses no restriction and contributes
  *   nothing. Replace this with a per-tool translation once the grammar gains a
  *   tool-name family.
- * - **Local rules, cross-host mode bans.** Tool/path rules remain local.
- *   Remote Copilot hosts receive only the independent permission-mode bans
- *   from the client's auto-approval policy. Other agents do not consume
- *   managed settings and remain governed by the root-config path (see
- *   `AgentHostAutoApprovePolicyRestrictedConfigKey`).
+ * - **Local only.** Remote hosts retain the existing root-config restriction;
+ *   client-managed permission contributions are sent only to the local host.
+ *   Other agents do not consume managed settings and remain governed by the
+ *   root-config path (see `AgentHostAutoApprovePolicyRestrictedConfigKey`).
  *
  * New enterprise controls belong directly in the SDK's managed-settings
  * contract; this table exists only so settings that predate it keep working.
@@ -74,14 +73,6 @@ export function isManagedAutoApprovePolicy(policyService: IPolicyService | undef
 	const sources = policyService?.getPolicyValueSources('ChatToolsAutoApprove') ?? [];
 	return sources.length > 0 && sources.every(source => source === PolicyValueSource.NativeMdm || source === PolicyValueSource.FileManagedSettings
 		|| source === PolicyValueSource.ServerManagedSettings || source === PolicyValueSource.MixedManagedSettings);
-}
-
-/** Mode bans apply to every connected host; local tool/path rules do not. */
-export function resolveManagedPermissionModeRestrictions(configurationService: IConfigurationService, policyService?: IPolicyService): IAgentHostManagedSettingsPermissions {
-	return configurationService.inspect<boolean>(GLOBAL_AUTO_APPROVE_SETTING_ID).policyValue === false ? {
-		disableBypassPermissionsMode: 'disable',
-		...(!isManagedAutoApprovePolicy(policyService) ? { disableAssistedPermissionsMode: true } : {}),
-	} : {};
 }
 
 interface IManagedPermissionsSettingMapping {
@@ -319,9 +310,12 @@ export function resolveManagedSettingsPermissions(configurationService: IConfigu
 		contribution.ask?.forEach(rule => ask.add(rule));
 	}
 
-	const permissions = resolveManagedPermissionModeRestrictions(configurationService, policyService);
+	const permissions: IAgentHostManagedSettingsPermissions = {};
 	if (disableBypassPermissionsMode) {
 		permissions.disableBypassPermissionsMode = disableBypassPermissionsMode;
+	}
+	if (configurationService.inspect<boolean>(GLOBAL_AUTO_APPROVE_SETTING_ID).policyValue === false && !isManagedAutoApprovePolicy(policyService)) {
+		permissions.disableAssistedPermissionsMode = true;
 	}
 	if (deny.size > 0) {
 		permissions.deny = [...deny];
