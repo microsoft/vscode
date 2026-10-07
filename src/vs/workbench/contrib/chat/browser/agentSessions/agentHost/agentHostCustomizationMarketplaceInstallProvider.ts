@@ -16,7 +16,7 @@ import { localize } from '../../../../../../nls.js';
 import { IAgentCustomizationInstallation, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview } from '../../../../../../platform/agentHost/common/agent.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
-import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceResource, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceResource, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
@@ -37,6 +37,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 	private readonly catalogAssociations = new Map<string, ICustomizationMarketplaceResource>();
 	private knownInstallationIds = new Set<string>();
 	private pendingCatalogInstall: { readonly resource: ICustomizationMarketplaceResource; readonly previousIds: ReadonlySet<string> } | undefined;
+	private catalogAuthenticationRequired = false;
 	readonly onDidChange: Event<void>;
 
 	constructor(
@@ -76,6 +77,23 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		return undefined;
 	}
 
+	getRecoveryAction(): ICustomizationMarketplaceSourceRecoveryAction | undefined {
+		if (!this.catalogAuthenticationRequired) {
+			return undefined;
+		}
+		return {
+			label: localize('agentHost.customizationSearch.signIn', "Sign In"),
+			kind: 'signIn',
+			run: async token => {
+				if (!await this.resolveAuthentication()) {
+					throw new CancellationError();
+				}
+				this.throwIfCancelled(token);
+				this.catalogAuthenticationRequired = false;
+			},
+		};
+	}
+
 	async query(sessionResource: URI, options: ICustomizationMarketplaceSourceQuery, token: CancellationToken): Promise<ICustomizationMarketplaceSourcePage | undefined> {
 		this.throwIfCancelled(token);
 		const query = options.query?.trim() ?? '';
@@ -94,17 +112,10 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 			limit: options.pageSize ?? 30,
 			cursor: options.cursor,
 		});
-		let result = await search();
+		const result = await search();
 		this.throwIfCancelled(token);
-		if (result.kind === 'unavailable' && result.reason === 'authentication') {
-			if (!await this.resolveAuthentication()) {
-				throw new CancellationError();
-			}
-			this.throwIfCancelled(token);
-			result = await search();
-			this.throwIfCancelled(token);
-		}
 		if (result.kind === 'unavailable') {
+			this.catalogAuthenticationRequired = result.reason === 'authentication';
 			switch (result.reason) {
 				case 'authentication':
 					throw new Error(localize('agentHost.customizationSearch.authenticationRequired', "Sign in to Copilot to search the GitHub Feed."));
@@ -114,6 +125,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 					throw new Error(localize('agentHost.customizationSearch.unsupported', "The active Copilot runtime does not support GitHub Feed search."));
 			}
 		}
+		this.catalogAuthenticationRequired = false;
 		return {
 			items: result.items.map(item => {
 				if (item.unavailableMessage) {

@@ -26,7 +26,7 @@ import { isAgentBuiltinCustomizationUri } from '../../../../platform/agentHost/c
 import { CustomizationEnablementKind } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import type { IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationResult, McpServerCustomizationMigration } from './promptSyntax/service/customizationMigrationService.js';
 import type { ICustomizationMarketplaceInstallProvider } from './customizationMarketplaceInstallService.js';
-import type { ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from '../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import type { ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 
 
 export const ICustomizationHarnessService = createDecorator<ICustomizationHarnessService>('customizationHarnessService');
@@ -104,6 +104,8 @@ export interface ICustomizationMarketplaceSearchProvider {
 	 * allowing the workbench to use its compatibility catalog transport.
 	 */
 	query(sessionResource: URI, options: ICustomizationMarketplaceSourceQuery, token: CancellationToken): Promise<ICustomizationMarketplaceSourcePage | undefined>;
+	/** Optional explicit recovery for the provider's current source failure. */
+	getRecoveryAction?(): ICustomizationMarketplaceSourceRecoveryAction | undefined;
 }
 
 /**

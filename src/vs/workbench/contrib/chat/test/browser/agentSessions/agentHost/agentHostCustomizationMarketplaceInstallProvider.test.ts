@@ -170,7 +170,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		});
 	});
 
-	test('authenticates and retries SDK catalog search instead of returning an empty page', async () => {
+	test('offers explicit sign-in before retrying SDK catalog search', async () => {
 		let authenticationRequests = 0;
 		let searchRequests = 0;
 		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
@@ -215,13 +215,26 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			new NullLogService(),
 		));
 
+		await assert.rejects(
+			provider.query(URI.parse('agent-host-copilotcli:/frontend-session'), { query: 'figma' }, CancellationToken.None),
+			/Sign in to Copilot/,
+		);
+		const recovery = provider.getRecoveryAction();
+		const beforeSignIn = { authenticationRequests, searchRequests, recovery: recovery && { label: recovery.label, kind: recovery.kind } };
+		await recovery?.run(CancellationToken.None);
 		const page = await provider.query(URI.parse('agent-host-copilotcli:/frontend-session'), { query: 'figma' }, CancellationToken.None);
 
 		assert.deepStrictEqual({
+			beforeSignIn,
 			authenticationRequests,
 			searchRequests,
 			items: page?.items.map(item => item.displayName),
 		}, {
+			beforeSignIn: {
+				authenticationRequests: 0,
+				searchRequests: 1,
+				recovery: { label: 'Sign In', kind: 'signIn' },
+			},
 			authenticationRequests: 1,
 			searchRequests: 2,
 			items: ['Figma MCP Server'],

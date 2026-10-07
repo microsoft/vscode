@@ -384,6 +384,40 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		});
 	});
 
+	test('GitHub Feed exposes only the active harness recovery action', async () => {
+		const configuration = createConfiguration([CustomizationMarketplaceSources.AgentFinderPublicFeed.id]);
+		const recoveries: CancellationToken[] = [];
+		const harnessProvider: ICustomizationMarketplaceSearchProvider = {
+			async query() { return { items: [] }; },
+			getRecoveryAction() {
+				return {
+					label: 'Sign In',
+					kind: 'signIn',
+					async run(token) { recoveries.push(token); },
+				};
+			},
+		};
+		const service = createService(
+			configuration,
+			new class extends mock<ICustomizationMarketplaceService>() { }(),
+			new class extends mock<ICopilotConnectorsService>() { }(),
+			harnessProvider,
+		);
+
+		const action = service.getSourceRecoveryAction(CustomizationMarketplaceSources.AgentFinderPublicFeed.id);
+		await action?.run(CancellationToken.None);
+
+		assert.deepStrictEqual({
+			label: action?.label,
+			kind: action?.kind,
+			recoveries,
+		}, {
+			label: 'Sign In',
+			kind: 'signIn',
+			recoveries: [CancellationToken.None],
+		});
+	});
+
 
 	test('uses the active harness catalog provider instead of the platform public feed', async () => {
 		const configuration = createConfiguration([CustomizationMarketplaceSources.AgentFinderPublicFeed.id]);

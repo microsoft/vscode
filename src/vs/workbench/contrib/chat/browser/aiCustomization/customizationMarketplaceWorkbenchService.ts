@@ -128,6 +128,9 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 	}
 
 	getSourceRecoveryAction(sourceId: string): ICustomizationMarketplaceSourceRecoveryAction | undefined {
+		if (sourceId === CustomizationMarketplaceSources.AgentFinderPublicFeed.id) {
+			return this.harnessService.getActiveDescriptor().marketplaceSearchProvider?.getRecoveryAction?.();
+		}
 		if (sourceId !== CustomizationMarketplaceSources.CopilotConnectors.id ||
 			this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled) !== true ||
 			!this.copilotConnectorsService.authorizationRequired) {
