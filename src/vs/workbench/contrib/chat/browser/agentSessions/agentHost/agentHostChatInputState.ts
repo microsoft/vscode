@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { status } from '../../../../../../base/browser/ui/aria/aria.js';
 import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -63,6 +64,7 @@ export class AgentHostChatInputState extends Disposable {
 			this._pending = Promise.resolve().then(async () => {
 				try {
 					if (!this._store.isDisposed) {
+						status(localize('agentHost.checkingConversation', "Checking whether this conversation is available…"));
 						await this._refresh();
 						this._retryError.set(undefined, undefined);
 					}
@@ -97,7 +99,7 @@ export class AgentHostChatInputState extends Disposable {
 		const notification: IChatInputNotification = {
 			id: this._notificationId,
 			telemetryId: 'agentHost.chatInput',
-			severity: locked || checking ? ChatInputNotificationSeverity.Info : ChatInputNotificationSeverity.Error,
+			severity: ChatInputNotificationSeverity.Error,
 			icon: locked || checking ? Codicon.lock : undefined,
 			message: checking ? localize('agentHost.checkingConversationTitle', "Checking Conversation") : locked ? localize('agentHost.conversationInUse', "This chat is open in another app") : localize('agentHost.conversationUnavailable', "Conversation Unavailable"),
 			description: checking

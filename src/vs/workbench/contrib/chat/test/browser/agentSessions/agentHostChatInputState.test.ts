@@ -4,7 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { $, append } from '../../../../../../base/browser/dom.js';
+import { setARIAContainer } from '../../../../../../base/browser/ui/aria/aria.js';
+import { mainWindow } from '../../../../../../base/browser/window.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -68,7 +72,34 @@ suite('AgentHostChatInputState', () => {
 		await pending.complete();
 		await retry;
 		assert.deepStrictEqual({ immediately, checking, after: [...notices.notices.values()], blocked: state.isInputBlocked.get(), updates: notices.updates, severity: before.severity }, {
-			immediately: [before], checking: [before], after: [before], blocked: true, updates: 1, severity: ChatInputNotificationSeverity.Info,
+			immediately: [before], checking: [before], after: [before], blocked: true, updates: 1, severity: ChatInputNotificationSeverity.Error,
+		});
+	});
+
+	test('announces each started retry without repeating announcements for coalesced retries', async () => {
+		const ariaHost = append(mainWindow.document.body, $('div'));
+		store.add(toDisposable(() => ariaHost.remove()));
+		setARIAContainer(ariaHost);
+		const announcements = () => [...ariaHost.querySelectorAll('.monaco-status')].map(element => element.textContent);
+		const notices = new Notifications();
+		const input = observableValue<AgentChatInputState | undefined>('input', locked);
+		const pending = new DeferredPromise<void>();
+		const state = store.add(new AgentHostChatInputState(resource, input, () => pending.p, notices));
+		const retry = state.retry();
+		await Promise.resolve();
+		const started = announcements();
+		const coalesced = state.retry() === retry;
+		await Promise.resolve();
+		const whilePending = announcements();
+		await pending.complete();
+		await retry;
+		await state.retry();
+		assert.deepStrictEqual({ started, coalesced, whilePending, nextRetry: announcements(), updates: notices.updates }, {
+			started: ['Checking whether this conversation is available…', ''],
+			coalesced: true,
+			whilePending: ['Checking whether this conversation is available…', ''],
+			nextRetry: ['', 'Checking whether this conversation is available…'],
+			updates: 1,
 		});
 	});
 
@@ -85,7 +116,7 @@ suite('AgentHostChatInputState', () => {
 		});
 	});
 
-	test('shows an informational notification for the initial check and a lock', () => {
+	test('keeps error severity for the initial check and a lock', () => {
 		const notices = new Notifications();
 		const input = observableValue<AgentChatInputState | undefined>('input', { kind: 'checking' });
 		const state = store.add(new AgentHostChatInputState(resource, input, async () => { assert.fail('No request expected'); }, notices));
@@ -96,8 +127,8 @@ suite('AgentHostChatInputState', () => {
 		const checking = snapshot();
 		input.set(locked, undefined);
 		assert.deepStrictEqual({ checking, locked: snapshot() }, {
-			checking: { message: 'Checking Conversation', severity: ChatInputNotificationSeverity.Info, actions: [], blocked: true },
-			locked: { message: 'This chat is open in another app', severity: ChatInputNotificationSeverity.Info, actions: ['Retry'], blocked: true },
+			checking: { message: 'Checking Conversation', severity: ChatInputNotificationSeverity.Error, actions: [], blocked: true },
+			locked: { message: 'This chat is open in another app', severity: ChatInputNotificationSeverity.Error, actions: ['Retry'], blocked: true },
 		});
 	});
 
