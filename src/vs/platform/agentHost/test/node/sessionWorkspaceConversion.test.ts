@@ -1389,18 +1389,27 @@ suite('SessionWorkspaceConversionService', () => {
 		}, { scheduled: true, pending: true });
 	});
 
-	test('workspace tool uses the sole connected active client when the turn initiator is unavailable', () => {
+	test('workspace tool uses the sole connected active client when the turn initiator is unavailable', async () => {
 		const harness = createHarness();
+		const destination = URI.file('/workspace/project');
 		harness.connectedClientIds.add('client-1');
 		harness.stateManager.dispatchServerAction(harness.session.toString(), {
 			type: ActionType.SessionActiveClientSet,
 			activeClient: { clientId: 'client-1', tools: [] },
 		});
 		startTurn(harness.stateManager, harness.chat);
+		const scheduled = harness.service.requestSessionWorkspaceUpdate(harness.chat, 'turn-1', destination, false);
+		completeTurn(harness.stateManager, harness.chat);
+		await updateSessionWorkspace(harness);
 		assert.deepStrictEqual({
-			scheduled: harness.service.requestSessionWorkspaceUpdate(harness.chat, 'turn-1', URI.file('/workspace/project'), false),
+			scheduled,
 			pending: harness.service.isPending(harness.chat.toString()),
-		}, { scheduled: true, pending: true });
+			trustRequests: harness.trustRequests,
+		}, {
+			scheduled: true,
+			pending: false,
+			trustRequests: [{ clientId: 'client-1', workspace: destination.toString() }],
+		});
 	});
 
 	test('workspace tool does not choose between multiple connected active clients', () => {
