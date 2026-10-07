@@ -2515,16 +2515,25 @@ export class AgentService extends Disposable implements IAgentService {
 		token: CancellationToken,
 		mutation?: Parameters<typeof migrateChatCatalogV2>[3],
 		catalogOverrideFactory?: () => Promise<{ readonly chats: readonly ICatalogChat[]; readonly metadataFallbacks: Readonly<Record<string, string>> } | undefined>,
+		lifetimeValidator?: () => boolean,
 	): Promise<Awaited<ReturnType<typeof migrateChatCatalogV2>> | undefined> {
-		if (token.isCancellationRequested || !this._isSessionCatalogEnabled()) {
+		if (token.isCancellationRequested || !this._isSessionCatalogEnabled() || lifetimeValidator && !lifetimeValidator()) {
 			return;
 		}
 		await this._peerChatStore.reconcileLegacy(session);
+		if (lifetimeValidator && !lifetimeValidator()) {
+			return;
+		}
+		const validateLifetime = lifetimeValidator ? async (): Promise<void> => {
+			if (!lifetimeValidator()) {
+				throw new Error(`Chat catalog migration lifetime ended for ${session.toString()}`);
+			}
+		} : undefined;
 		let restorePayloadDirty = false;
 		try {
 			return await this._catalogSyncService.runMigrationExclusive(session, async (database, synchronize) => {
 				return this._peerChatStore.runExclusive(session, async () => {
-					if (token.isCancellationRequested) {
+					if (token.isCancellationRequested || lifetimeValidator && !lifetimeValidator()) {
 						return;
 					}
 					const catalogOverride = await catalogOverrideFactory?.();
@@ -2543,7 +2552,7 @@ export class AgentService extends Disposable implements IAgentService {
 								database,
 								undefined,
 								catalogOverride.metadataFallbacks,
-							));
+							), validateLifetime, lifetimeValidator);
 							if (synchronized.status === 'pending') {
 								this._catalogReconciliationService.schedule();
 								throw new Error(`Failed to stage restored chat catalog for ${session.toString()}: ${synchronized.reason}`);
@@ -2555,7 +2564,7 @@ export class AgentService extends Disposable implements IAgentService {
 							restorePayloadDirty = previousDirtyRevision !== undefined && previousDirtyRevision > 0;
 						}
 					}
-					const result = await migrateChatCatalogV2(this._orchestratorDatabase, this._sessionDataService, session, mutation);
+					const result = await migrateChatCatalogV2(this._orchestratorDatabase, this._sessionDataService, session, mutation, lifetimeValidator);
 					if (result.status === 'notReady') {
 						await this._markCatalogPayloadDirty(session.toString());
 					} else if (result.status === 'applied' || result.status === 'replayed') {
@@ -11009,7 +11018,7 @@ export class AgentService extends Disposable implements IAgentService {
 				parentChat,
 				origin: JSON.stringify(child.origin),
 				metadata: { interactivity: ChatInteractivity.Hidden },
-			}, true);
+			}, true, isCurrent);
 			const { title } = await this._chatContributions.hydrateChat({
 				session: parentSessionStr,
 				chat: child.chatUri,
@@ -11020,60 +11029,74 @@ export class AgentService extends Disposable implements IAgentService {
 			child.title = title ?? child.title;
 		}
 		if (!normalized.normalized && this._isSessionCatalogEnabled() && restored.length > 0) {
-			const result = await this._migrateChatCatalog(parentSession, CancellationToken.None, undefined, async () => {
+			let result: Awaited<ReturnType<typeof migrateChatCatalogV2>> | undefined;
+			try {
+				result = await this._migrateChatCatalog(parentSession, CancellationToken.None, undefined, async () => {
+					if (!isCurrent()) {
+						return;
+					}
+					const state = this._stateManager.getSessionState(parentSessionStr);
+					if (!state) {
+						throw new Error(`Missing restored owner state for ${parentSessionStr}`);
+					}
+					const source = await this._orchestratorDatabase.getSessionV2(parentSessionStr);
+					if (!isCurrent()) {
+						return;
+					}
+					const decoded = source && decodeAgentHostCatalogPayload(source.payload);
+					if (!decoded || !decoded.ok) {
+						throw new Error(`Missing restored catalog source for ${parentSessionStr}`);
+					}
+					const metadataFallbacks: Record<string, string> = {};
+					const chats = new Map<string, ICatalogChat>();
+					for (const chat of decoded.value.data.chats) {
+						if (chat.summary !== undefined) {
+							metadataFallbacks[customChatTitleMetadataKey(chat.uri)] = chat.summary;
+						}
+						if (chat.titleSource !== undefined) {
+							metadataFallbacks[customChatTitleSourceMetadataKey(chat.uri)] = chat.titleSource;
+						}
+						chats.set(chat.uri, {
+							uri: chat.uri,
+							kind: chat.kind,
+							title: chat.summary,
+							origin: fromCatalogChatOrigin(chat.origin),
+							interactivity: chat.interactivity,
+							archived: chat.archived,
+							isRead: chat.isRead,
+							inheritedTurnId: chat.inheritedTurnId,
+							workingDirectories: chat.workingDirectories,
+							changes: chat.changes,
+						});
+					}
+					for (const chat of this._catalogChatsFromState(state, parentChat)) {
+						chats.set(chat.uri, chat);
+					}
+					for (const child of restored) {
+						const existing = chats.get(child.chatUri);
+						chats.set(child.chatUri, {
+							...existing,
+							uri: child.chatUri,
+							kind: 'peer',
+							title: existing?.title || child.title,
+							origin: child.origin,
+							interactivity: ChatInteractivity.Hidden,
+						});
+					}
+					if (!isCurrent()) {
+						return;
+					}
+					return {
+						chats: [...chats.values()],
+						metadataFallbacks,
+					};
+				}, isCurrent);
+			} catch (error) {
 				if (!isCurrent()) {
 					return;
 				}
-				const state = this._stateManager.getSessionState(parentSessionStr);
-				if (!state) {
-					throw new Error(`Missing restored owner state for ${parentSessionStr}`);
-				}
-				const source = await this._orchestratorDatabase.getSessionV2(parentSessionStr);
-				const decoded = source && decodeAgentHostCatalogPayload(source.payload);
-				if (!decoded || !decoded.ok) {
-					throw new Error(`Missing restored catalog source for ${parentSessionStr}`);
-				}
-				const metadataFallbacks: Record<string, string> = {};
-				const chats = new Map<string, ICatalogChat>();
-				for (const chat of decoded.value.data.chats) {
-					if (chat.summary !== undefined) {
-						metadataFallbacks[customChatTitleMetadataKey(chat.uri)] = chat.summary;
-					}
-					if (chat.titleSource !== undefined) {
-						metadataFallbacks[customChatTitleSourceMetadataKey(chat.uri)] = chat.titleSource;
-					}
-					chats.set(chat.uri, {
-						uri: chat.uri,
-						kind: chat.kind,
-						title: chat.summary,
-						origin: fromCatalogChatOrigin(chat.origin),
-						interactivity: chat.interactivity,
-						archived: chat.archived,
-						isRead: chat.isRead,
-						inheritedTurnId: chat.inheritedTurnId,
-						workingDirectories: chat.workingDirectories,
-						changes: chat.changes,
-					});
-				}
-				for (const chat of this._catalogChatsFromState(state, parentChat)) {
-					chats.set(chat.uri, chat);
-				}
-				for (const child of restored) {
-					const existing = chats.get(child.chatUri);
-					chats.set(child.chatUri, {
-						...existing,
-						uri: child.chatUri,
-						kind: 'peer',
-						title: existing?.title || child.title,
-						origin: child.origin,
-						interactivity: ChatInteractivity.Hidden,
-					});
-				}
-				return {
-					chats: [...chats.values()],
-					metadataFallbacks,
-				};
-			});
+				throw error;
+			}
 			if (!isCurrent()) {
 				return;
 			}
@@ -11089,7 +11112,7 @@ export class AgentService extends Disposable implements IAgentService {
 					parentChat,
 					origin: JSON.stringify(child.origin),
 					metadata: { interactivity: ChatInteractivity.Hidden },
-				}, true);
+				}, true, isCurrent);
 			}
 		}
 		for (const child of restored) {

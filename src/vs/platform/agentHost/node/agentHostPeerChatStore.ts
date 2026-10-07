@@ -112,9 +112,12 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		return tracked;
 	}
 
-	persistPrivateChat(session: URI, chat: IAgentHostDatabaseChatV2NormalizationChat, restore = false): Promise<void> {
+	persistPrivateChat(session: URI, chat: IAgentHostDatabaseChatV2NormalizationChat, restore = false, validate?: () => boolean): Promise<void> {
 		return this._enqueue(session, async () => {
 			while (true) {
+				if (validate && !validate()) {
+					return;
+				}
 				const [snapshot] = await this._database.readCatalogSnapshot([session.toString()]);
 				if (snapshot?.authorityVersion !== 2) {
 					return;
@@ -160,8 +163,11 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 						...(chat.origin !== undefined ? { origin: chat.origin } : {}),
 						...(chat.workingDirectories !== undefined ? { workingDirectories: chat.workingDirectories } : {}),
 						metadata: { ...existing.metadata, ...metadata, interactivity: ChatInteractivity.Hidden },
-					})
-					: await this._database.insertPrivateChatV2(session.toString(), { ...chat, metadata }, snapshot.header.revision);
+					}, validate)
+					: await this._database.insertPrivateChatV2(session.toString(), { ...chat, metadata }, snapshot.header.revision, validate);
+				if (result.status === 'cancelled') {
+					return;
+				}
 				if (result.status === 'conflict') {
 					const [current] = await this._database.readCatalogSnapshot([session.toString()]);
 					if (current?.header?.revision === snapshot.header.revision) {
