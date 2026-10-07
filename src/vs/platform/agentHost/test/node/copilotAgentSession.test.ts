@@ -17244,7 +17244,7 @@ Use the attached image as context.
 					title: question.title,
 					message: question.message,
 					options: question.kind === ChatInputQuestionKind.SingleSelect || question.kind === ChatInputQuestionKind.MultiSelect ? question.options : undefined,
-					defaultValue: question.kind === ChatInputQuestionKind.Text ? question.defaultValue : undefined,
+					defaultValue: question.kind === ChatInputQuestionKind.Text || question.kind === ChatInputQuestionKind.Number || question.kind === ChatInputQuestionKind.Integer ? question.defaultValue : undefined,
 				})),
 				result: await resultPromise,
 			}, {
@@ -17257,7 +17257,7 @@ Use the attached image as context.
 					{ id: 'features', kind: ChatInputQuestionKind.MultiSelect, required: false, title: 'features', message: 'features', options: [{ id: 'logs', label: 'logs' }, { id: 'metrics', label: 'metrics' }], defaultValue: undefined },
 					{ id: 'tags', kind: ChatInputQuestionKind.MultiSelect, required: false, title: 'tags', message: 'tags', options: [{ id: 'web', label: 'Web' }, { id: 'api', label: 'API' }], defaultValue: undefined },
 					{ id: 'confirm', kind: ChatInputQuestionKind.SingleSelect, required: false, title: 'confirm', message: 'confirm', options: [{ id: 'true', label: 'True' }, { id: 'false', label: 'False' }], defaultValue: undefined },
-					{ id: 'replicas', kind: ChatInputQuestionKind.Text, required: false, title: 'replicas', message: 'replicas', options: undefined, defaultValue: '3' },
+					{ id: 'replicas', kind: ChatInputQuestionKind.Integer, required: false, title: 'replicas', message: 'replicas', options: undefined, defaultValue: 3 },
 					{ id: 'name', kind: ChatInputQuestionKind.Text, required: false, title: 'name', message: 'name', options: undefined, defaultValue: 'deployment' },
 				],
 				result: {

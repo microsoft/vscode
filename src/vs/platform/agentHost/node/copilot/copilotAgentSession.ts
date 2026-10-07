@@ -350,6 +350,7 @@ function elicitationFieldToQuestion(fieldName: string, field: ElicitationSchemaF
 	switch (field.type) {
 		case 'boolean':
 			if (isAskUser) {
+				// Boolean questions disable freeform input, but ask_user permits replies beyond True/False.
 				return {
 					...base,
 					kind: ChatInputQuestionKind.SingleSelect,
@@ -363,9 +364,6 @@ function elicitationFieldToQuestion(fieldName: string, field: ElicitationSchemaF
 			return { ...base, kind: ChatInputQuestionKind.Boolean, defaultValue: field.default };
 		case 'integer':
 		case 'number':
-			if (isAskUser) {
-				return { ...base, kind: ChatInputQuestionKind.Text, defaultValue: field.default === undefined ? undefined : String(field.default) };
-			}
 			return {
 				...base,
 				kind: field.type === 'integer' ? ChatInputQuestionKind.Integer : ChatInputQuestionKind.Number,
