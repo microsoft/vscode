@@ -58,6 +58,8 @@ import { IAICustomizationListItem } from './aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel, ItemsModelSection } from './aiCustomizationItemsModel.js';
 import { asTreeRenderer, customizationTreeStyles, getCustomizationTreeContentHeight, ICustomizationTreeGroup } from './customizationTree.js';
 import { affectsCustomizationDiscoveryAvailability, isCustomizationDiscoveryAvailable } from './customizationMarketplaceConfiguration.js';
+import { getAICustomizationWorkspaceGroupForResource, getAICustomizationWorkspaceGroups, isAICustomizationWorkspaceGroupKey } from './aiCustomizationWorkspaceGroups.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 
 export { truncateToFirstLine } from './aiCustomizationListWidgetUtils.js';
 
@@ -613,7 +615,7 @@ interface ICreateAction {
 	readonly tooltip?: string;
 	readonly kind?: 'generate';
 	readonly target?: 'workspace' | 'user';
-	run(): void;
+	run(workspaceFolder?: URI): void;
 }
 
 interface ICustomizationItemGroup {
@@ -622,6 +624,7 @@ interface ICustomizationItemGroup {
 	readonly icon: ThemeIcon;
 	readonly description: string;
 	readonly items: IAICustomizationListItem[];
+	readonly workspaceFolder?: URI;
 }
 
 /**
@@ -648,6 +651,14 @@ export function getCustomizationItemAriaLabel(item: IAICustomizationListItem): s
 	const accessibleSecondaryText = [secondaryText, statusLabel, item.statusMessage].filter(Boolean).join('. ');
 	const nameAndDescription = accessibleSecondaryText ? localize('itemAriaLabel', "{0}. {1}", displayName, accessibleSecondaryText) : displayName;
 	return item.disabled ? localize('itemAriaLabelDisabled', "{0}, disabled", nameAndDescription) : nameAndDescription;
+}
+
+export function getMultiRootWorkspaceRelativeFilename(item: IAICustomizationListItem, workspaceContextService: IWorkspaceContextService, labelService: ILabelService): string {
+	if (getAICustomizationWorkspaceGroups(workspaceContextService).length === 0 ||
+		!getAICustomizationWorkspaceGroupForResource(item.uri, workspaceContextService)) {
+		return item.filename;
+	}
+	return labelService.getUriLabel(item.uri, { relative: true, noPrefix: true });
 }
 
 export class AICustomizationListWidget extends Disposable {
@@ -697,11 +708,11 @@ export class AICustomizationListWidget extends Disposable {
 	private readonly _onDidChangeItemCount = this._register(new Emitter<number>());
 	readonly onDidChangeItemCount: Event<number> = this._onDidChangeItemCount.event;
 
-	private readonly _onDidRequestCreate = this._register(new Emitter<PromptsType>());
-	readonly onDidRequestCreate: Event<PromptsType> = this._onDidRequestCreate.event;
+	private readonly _onDidRequestCreate = this._register(new Emitter<{ type: PromptsType; workspaceFolder?: URI }>());
+	readonly onDidRequestCreate: Event<{ type: PromptsType; workspaceFolder?: URI }> = this._onDidRequestCreate.event;
 
-	private readonly _onDidRequestCreateManual = this._register(new Emitter<{ type: PromptsType; target: 'local' | 'user' | 'workspace-root'; rootFileName?: string }>());
-	readonly onDidRequestCreateManual: Event<{ type: PromptsType; target: 'local' | 'user' | 'workspace-root'; rootFileName?: string }> = this._onDidRequestCreateManual.event;
+	private readonly _onDidRequestCreateManual = this._register(new Emitter<{ type: PromptsType; target: 'local' | 'user' | 'workspace-root'; rootFileName?: string; workspaceFolder?: URI }>());
+	readonly onDidRequestCreateManual: Event<{ type: PromptsType; target: 'local' | 'user' | 'workspace-root'; rootFileName?: string; workspaceFolder?: URI }> = this._onDidRequestCreateManual.event;
 
 	private readonly _onDidRequestBrowse = this._register(new Emitter<void>());
 	readonly onDidRequestBrowse: Event<void> = this._onDidRequestBrowse.event;
@@ -726,6 +737,7 @@ export class AICustomizationListWidget extends Disposable {
 		@ICustomizationMarketplaceService private readonly marketplaceService: ICustomizationMarketplaceService,
 		@IAICustomizationItemsModel private readonly itemsModel: IAICustomizationItemsModel,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
 		this.element = $('.ai-customization-list-widget');
@@ -756,6 +768,7 @@ export class AICustomizationListWidget extends Disposable {
 				}
 			}));
 		}
+		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => this.filterItems()));
 	}
 
 	private create(): void {
@@ -1057,7 +1070,7 @@ export class AICustomizationListWidget extends Disposable {
 		if (loadId === this._sectionLoadId) {
 			this.sectionLoading = false;
 			this.filterItems();
-			this.announceItemCount(this.applySearchFilter(this.allItems).length);
+			this.announceItemCount(this.applySearchFilter(this.getItemsForDisplay(this.allItems)).length);
 		}
 	}
 
@@ -1204,7 +1217,7 @@ export class AICustomizationListWidget extends Disposable {
 				label: override.label ?? localize('newCustomization', "New {0}", typeLabel),
 				enabled: true,
 				target: 'workspace',
-				run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'workspace-root' }); },
+				run: workspaceFolder => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'workspace-root', workspaceFolder }); },
 			});
 			addedTargets.add('workspace-root');
 		}
@@ -1217,7 +1230,7 @@ export class AICustomizationListWidget extends Disposable {
 					tooltip: localize('generateCustomizationWithAI', "Generate {0} with AI", typeLabel),
 					enabled: true,
 					kind: 'generate',
-					run: () => { this._onDidRequestCreate.fire(promptType); },
+					run: workspaceFolder => { this._onDidRequestCreate.fire({ type: promptType, workspaceFolder }); },
 				});
 			}
 			if (hasWorkspace) {
@@ -1226,7 +1239,7 @@ export class AICustomizationListWidget extends Disposable {
 					compactLabel: localize('newHook', "New Hook"),
 					enabled: true,
 					target: 'workspace',
-					run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'local' }); },
+					run: workspaceFolder => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'local', workspaceFolder }); },
 				});
 			}
 			actions.push({
@@ -1250,7 +1263,7 @@ export class AICustomizationListWidget extends Disposable {
 					tooltip: localize('generateCustomizationWithAI', "Generate {0} with AI", typeLabel),
 					enabled: true,
 					kind: 'generate',
-					run: () => { this._onDidRequestCreate.fire(promptType); },
+					run: workspaceFolder => { this._onDidRequestCreate.fire({ type: promptType, workspaceFolder }); },
 				});
 			} else if (hasWorkspace) {
 				// Sessions or non-local harness with workspace: workspace is primary
@@ -1259,7 +1272,7 @@ export class AICustomizationListWidget extends Disposable {
 					compactLabel: localize('newCustomization', "New {0}", createTypeLabel),
 					enabled: true,
 					target: 'workspace',
-					run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'local' }); },
+					run: workspaceFolder => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'local', workspaceFolder }); },
 				});
 				addedTargets.add('workspace');
 			} else {
@@ -1282,7 +1295,7 @@ export class AICustomizationListWidget extends Disposable {
 				compactLabel: localize('newCustomization', "New {0}", createTypeLabel),
 				enabled: true,
 				target: 'workspace',
-				run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'local' }); },
+				run: workspaceFolder => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'local', workspaceFolder }); },
 			});
 		}
 
@@ -1303,7 +1316,7 @@ export class AICustomizationListWidget extends Disposable {
 					label: localize('newCustomizationFile', "New {0}", fileName),
 					enabled: true,
 					target: 'workspace',
-					run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'workspace-root', rootFileName: fileName }); },
+					run: workspaceFolder => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'workspace-root', rootFileName: fileName, workspaceFolder }); },
 				});
 			}
 		}
@@ -1439,6 +1452,21 @@ export class AICustomizationListWidget extends Disposable {
 		return matched;
 	}
 
+	private getItemsForDisplay(items: readonly IAICustomizationListItem[]): IAICustomizationListItem[] {
+		const isMultiRoot = getAICustomizationWorkspaceGroups(this.workspaceContextService).length > 0;
+		if (!isMultiRoot) {
+			return [...items];
+		}
+
+		return items.map(item => {
+			if (!isAICustomizationWorkspaceGroupKey(this.getItemGroupKey(item, isMultiRoot))) {
+				return item;
+			}
+			const filename = getMultiRootWorkspaceRelativeFilename(item, this.workspaceContextService, this.labelService);
+			return filename === item.filename ? item : { ...item, filename };
+		});
+	}
+
 	/**
 	 * Builds grouped display entries from items assigned to groups.
 	 * Empty groups are omitted. Collapsed groups show only their header.
@@ -1511,16 +1539,19 @@ export class AICustomizationListWidget extends Disposable {
 	 * Groups items by normalized storage/groupKey.
 	 */
 	private groupMatchedItems(matchedItems: IAICustomizationListItem[]): void {
+		const workspaceGroups = getAICustomizationWorkspaceGroups(this.workspaceContextService);
 		const groups: ICustomizationItemGroup[] = [
 			{ groupKey: PromptsStorage.user, label: localize('userGroup', "User"), icon: userIcon, description: localize('userGroupDescription', "Customizations stored locally on your machine in a central location. Private to you and available across all projects."), items: [] },
-			{ groupKey: PromptsStorage.local, label: localize('workspaceGroup', "Workspace"), icon: workspaceIcon, description: localize('workspaceGroupDescription', "Customizations stored as files in your project folder and shared with your team via version control."), items: [] },
+			...(workspaceGroups.length > 0
+				? workspaceGroups.map(group => ({ groupKey: group.key, label: group.label, icon: workspaceIcon, description: localize('workspaceGroupDescription', "Customizations stored as files in your project folder and shared with your team via version control."), items: [], workspaceFolder: group.uri }))
+				: [{ groupKey: PromptsStorage.local, label: localize('workspaceGroup', "Workspace"), icon: workspaceIcon, description: localize('workspaceGroupDescription', "Customizations stored as files in your project folder and shared with your team via version control."), items: [] }]),
 			{ groupKey: PromptsStorage.plugin, label: localize('pluginGroup', "Plugins"), icon: pluginIcon, description: localize('pluginGroupDescription', "Read-only customizations provided by installed plugins."), items: [] },
 			{ groupKey: PromptsStorage.extension, label: localize('extensionGroup', "Extensions"), icon: extensionIcon, description: localize('extensionGroupDescription', "Read-only customizations provided by installed extensions."), items: [] },
 			{ groupKey: PromptsStorage.builtIn, label: localize('builtinGroup', "Built-in"), icon: builtinIcon, description: localize('builtinGroupDescription', "Built-in customizations shipped with the application."), items: [] },
 		];
 
 		for (const item of matchedItems) {
-			const key = this.getItemGroupKey(item);
+			const key = this.getItemGroupKey(item, workspaceGroups.length > 0);
 			let group = groups.find(g => g.groupKey === key);
 			if (!group) {
 				// Dynamically create a group for unknown groupKeys from providers
@@ -1565,7 +1596,11 @@ export class AICustomizationListWidget extends Disposable {
 		this.buildGroupedEntries(groups);
 		if (this.usesCustomizationTreePresentation()) {
 			const isFiltering = !!this.searchQuery.trim();
-			const alwaysVisibleGroupKeys = new Set(getAlwaysVisibleCustomizationGroupKeys(this.currentSection, isFiltering));
+			const alwaysVisibleGroupKeys = new Set(isFiltering
+				? []
+				: workspaceGroups.length > 0
+					? [...workspaceGroups.map(group => group.key), PromptsStorage.user]
+					: getAlwaysVisibleCustomizationGroupKeys(this.currentSection, false));
 			const visibleGroups = groups.filter(group => group.items.length > 0 || alwaysVisibleGroupKeys.has(group.groupKey));
 			const treeGroups = visibleGroups.map((group, index): ICustomizationTreeGroup<IListEntry> => {
 				const element: IGroupHeaderEntry = {
@@ -1594,10 +1629,14 @@ export class AICustomizationListWidget extends Disposable {
 		}
 	}
 
-	private getItemGroupKey(item: IAICustomizationListItem): string {
-		return this.currentSection === AICustomizationManagementSection.Instructions
+	private getItemGroupKey(item: IAICustomizationListItem, isMultiRoot: boolean): string {
+		const key = this.currentSection === AICustomizationManagementSection.Instructions
 			? item.source
 			: item.groupKey ?? item.source ?? AICustomizationSources.local;
+		if (key !== PromptsStorage.local || !isMultiRoot) {
+			return key;
+		}
+		return getAICustomizationWorkspaceGroupForResource(item.uri, this.workspaceContextService)?.key ?? key;
 	}
 
 	private usesCustomizationTreePresentation(): boolean {
@@ -1605,11 +1644,12 @@ export class AICustomizationListWidget extends Disposable {
 	}
 
 	private renderTreeGroupActions(entry: IGroupHeaderEntry, container: HTMLElement, disposables: DisposableStore): void {
-		if (entry.groupKey !== PromptsStorage.local && entry.groupKey !== PromptsStorage.user) {
+		if (entry.groupKey !== PromptsStorage.local && entry.groupKey !== PromptsStorage.user && !isAICustomizationWorkspaceGroupKey(entry.groupKey)) {
 			return;
 		}
 		const actions = DOM.append(container, $('.plugin-card-section-actions'));
-		this.renderTargetedCreateActions(actions, entry.groupKey, disposables);
+		const workspaceFolder = getAICustomizationWorkspaceGroups(this.workspaceContextService).find(group => group.key === entry.groupKey)?.uri;
+		this.renderTargetedCreateActions(actions, entry.groupKey, disposables, workspaceFolder);
 		if (entry.groupKey === PromptsStorage.user &&
 			this.currentSection === AICustomizationManagementSection.Skills &&
 			isCustomizationDiscoveryAvailable(this.configurationService, this.marketplaceService)) {
@@ -1631,8 +1671,9 @@ export class AICustomizationListWidget extends Disposable {
 		}
 	}
 
-	private renderTargetedCreateActions(container: HTMLElement, groupKey: string, disposables: DisposableStore): void {
-		const target = groupKey === PromptsStorage.local ? 'workspace' : 'user';
+	private renderTargetedCreateActions(container: HTMLElement, groupKey: string, disposables: DisposableStore, workspaceFolder?: URI): void {
+		const workspaceGroup = groupKey === PromptsStorage.local || isAICustomizationWorkspaceGroupKey(groupKey);
+		const target = workspaceGroup ? 'workspace' : 'user';
 		const hasWorkspace = this.hasActiveWorkspace();
 		const actions = this.buildCreateActions().filter(action =>
 			action.target === target
@@ -1659,7 +1700,7 @@ export class AICustomizationListWidget extends Disposable {
 		button.element.classList.add('customization-create-action', 'plugin-card-ghost-button', 'plugin-card-icon-button');
 		button.icon = Codicon.add;
 		button.enabled = primary.enabled;
-		disposables.add(button.onDidClick(() => primary.run()));
+		disposables.add(button.onDidClick(() => primary.run(workspaceFolder)));
 
 		const generateAction = actions.find(action => action.kind === 'generate');
 		if (generateAction && generateAction !== primary) {
@@ -1677,12 +1718,12 @@ export class AICustomizationListWidget extends Disposable {
 			generateButton.element.classList.add('customization-generate-action', 'plugin-card-ghost-button');
 			generateButton.label = generateAction.label;
 			generateButton.enabled = generateAction.enabled;
-			disposables.add(generateButton.onDidClick(() => generateAction.run()));
+			disposables.add(generateButton.onDidClick(() => generateAction.run(workspaceFolder)));
 		}
 
 		const secondaryActions = actions.filter(action => action !== primary && action !== generateAction);
 		if (secondaryActions.length > 0) {
-			const moreLabel = localize('moreCreateActions', "More creation actions for {0}", groupKey === PromptsStorage.local ? localize('workspace', "Workspace") : localize('user', "User"));
+			const moreLabel = localize('moreCreateActions', "More creation actions for {0}", workspaceGroup ? localize('workspace', "Workspace") : localize('user', "User"));
 			const more = disposables.add(new Button(container, {
 				...getButtonStyles({
 					buttonSecondaryBackground: undefined,
@@ -1696,7 +1737,7 @@ export class AICustomizationListWidget extends Disposable {
 			}));
 			more.element.classList.add('plugin-card-icon-button', 'plugin-card-ghost-button', 'customization-create-more-action');
 			more.icon = Codicon.ellipsis;
-			disposables.add(more.onDidClick(() => this.showCreateActionsMenu(secondaryActions, more.element)));
+			disposables.add(more.onDidClick(() => this.showCreateActionsMenu(secondaryActions, more.element, workspaceFolder)));
 		}
 	}
 
@@ -1704,14 +1745,14 @@ export class AICustomizationListWidget extends Disposable {
 		return getTargetedCreateActionLabel(action.label, action.compactLabel);
 	}
 
-	private showCreateActionsMenu(createActions: readonly ICreateAction[], anchor: HTMLElement): void {
+	private showCreateActionsMenu(createActions: readonly ICreateAction[], anchor: HTMLElement, workspaceFolder?: URI): void {
 		const disposables = new DisposableStore();
 		const actions = createActions.map((action, index) => disposables.add(new Action(
 			`customization.create.${index}`,
 			action.label.replace(/^\$\([^)]+\)\s*/, ''),
 			undefined,
 			action.enabled,
-			() => action.run(),
+			() => action.run(workspaceFolder),
 		)));
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
@@ -1724,7 +1765,7 @@ export class AICustomizationListWidget extends Disposable {
 	 * Filters items based on the current search query and builds grouped display entries.
 	 */
 	private filterItems(): number {
-		const matchedItems = this.applySearchFilter(this.allItems);
+		const matchedItems = this.applySearchFilter(this.getItemsForDisplay(this.allItems));
 		this.groupMatchedItems(matchedItems);
 
 		return this.usesCustomizationTreePresentation() ? this.getDisplayedItemCount() : matchedItems.length;
