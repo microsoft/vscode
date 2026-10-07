@@ -401,6 +401,10 @@ suite('Sessions - SessionsList', () => {
 					navigation.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, shiftKey: true, bubbles: true, cancelable: true }));
 					assert.strictEqual(mainWindow.document.activeElement, next);
 					next.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, bubbles: true, cancelable: true }));
+					// Hidden Electron windows update activeElement without emitting native focus events.
+					if (!mainWindow.document.hasFocus()) {
+						navigation.dispatchEvent(new FocusEvent('focus'));
+					}
 					harness.instantiationService.invokeFunction(CommandsRegistry.getCommand('list.select')!.handler);
 				}
 				const outcome = (await result).outcome;
