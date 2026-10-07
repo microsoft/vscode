@@ -40,9 +40,9 @@ The Task API does not report which client started a task, so the Copilot extensi
 
 ## Cloud automation read cache
 
-`GitHubCloudAutomationStore` owns a provider-local, explicitly refreshed cache of user-owned GitHub cloud automation definitions. Discovery is limited to Agents Window recent workspaces and explicitly registered GitHub.com repositories, with private/internal visibility verified before listing. Only account-scoped repository references persist in profile-local machine storage; definitions stay in memory, and account changes or disposal cancel pending reads and clear the cache.
+`GitHubCloudAutomationStore` owns a provider-local, explicitly refreshed cache of user-owned GitHub cloud automation definitions. It acquires the current account's authorization through `IWorkbenchGitHubService` and a cloud-configured client lease for that same authorization; the shared `client.automations` domain owns requests, paging and response validation. Discovery is limited to Agents Window recent workspaces and explicitly registered GitHub.com repositories, with private/internal visibility verified before listing. Only account-scoped repository references persist in profile-local machine storage; definitions stay in memory, and account/grant changes or disposal cancel pending reads and clear the cache.
 
-Refresh failures retain the affected repository's last successful definitions while reporting an error; successful repositories still update. The cache does not implement the shared Automation mutation/run contract or initiate requests on construction, observation, or account changes.
+Refresh failures, including incomplete paginated results, retain the affected repository's last successful definitions while reporting an error; successful repositories still update. The cache does not implement the shared Automation mutation/run contract or initiate requests on construction, observation, or account changes.
 
 ## Request lifecycle
 

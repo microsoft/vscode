@@ -3,27 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
-import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isObject } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { COPILOT_INTEGRATION_ID } from '../../../../../platform/endpoint/common/licenseAgreement.js';
+import { GitHubAutomation, IGitHubAutomations } from '../../../../../platform/github/common/cloud/automation.js';
+import { AccountHandle } from '../../../../../platform/github/common/types.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { AutomationCatalogueState } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { IWorkbenchGitHubService } from '../../../../../workbench/services/github/common/githubService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../services/sessions/common/session.js';
-import { CloudAutomationApiClient, ICloudAutomationDefinition, ICloudAutomationRepository } from './cloudAutomationApiClient.js';
 
 const REPOSITORIES_STORAGE_KEY = 'cloudAutomations.repositories';
+type ICloudAutomationRepository = NonNullable<GitHubAutomation['repository']>;
 
 export interface ICloudAutomationEntry {
 	readonly repository: ICloudAutomationRepository;
-	readonly definition: ICloudAutomationDefinition;
+	readonly definition: GitHubAutomation;
 }
 
 /** Provider-local read cache. Construction and account changes never initiate network requests. */
@@ -32,12 +35,12 @@ export class GitHubCloudAutomationStore extends Disposable {
 	readonly entries: IObservable<readonly ICloudAutomationEntry[]> = this.cachedEntries;
 	private readonly state = observableValue<AutomationCatalogueState>(this, 'ready');
 	readonly catalogueState: IObservable<AutomationCatalogueState> = this.state;
-	private readonly lifetime = this._register(new MutableDisposable<CancellationTokenSource>());
+	private lifetime = new AbortController();
 	private refreshPromise: Promise<void> | undefined;
 
 	constructor(
 		private readonly resolveRepositoryUri: (workspace: URI) => URI | undefined,
-		private readonly api: CloudAutomationApiClient,
+		@IWorkbenchGitHubService private readonly gitHubService: IWorkbenchGitHubService,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ILogService private readonly logService: ILogService,
@@ -45,20 +48,25 @@ export class GitHubCloudAutomationStore extends Disposable {
 	) {
 		super();
 		this._register(defaultAccountService.onDidChangeDefaultAccount(() => this.reset()));
+		this._register(gitHubService.onDidChangeDefaultClient(() => this.reset()));
 		this.reset();
 	}
 
 	/** Remembers an eligible repository for subsequent explicit refreshes; no definitions are fetched. */
 	async registerRepository(workspace: URI): Promise<void> {
 		const account = this.requireAccount();
-		const token = this.lifetime.value!.token;
+		const signal = this.lifetime.signal;
 		const repository = this.resolveRepository(workspace);
 		if (!repository) {
 			throw new Error(localize('cloudAutomations.repositoryRequired', "Select a GitHub.com repository for this cloud automation."));
 		}
-		await this.api.requirePrivateRepository(account.accountName, repository, token);
-		this.assertCurrent(account, token);
-		this.rememberRepositories(account.accountName, [repository]);
+		await this.withAutomations(account, signal, async (api, identity, signal) => {
+			if (!await api.isPrivateRepository({ ...identity, owner: repository.owner, repo: repository.name }, signal)) {
+				throw new Error(localize('cloudAutomations.privateRepositoryRequired', "Cloud automations currently require a private GitHub repository."));
+			}
+			this.assertCurrent(account, signal);
+			this.rememberRepositories(account.accountName, [repository]);
+		});
 	}
 
 	async refresh(): Promise<void> {
@@ -66,14 +74,14 @@ export class GitHubCloudAutomationStore extends Disposable {
 		if (this.refreshPromise) {
 			return this.refreshPromise;
 		}
-		const token = this.lifetime.value!.token;
+		const signal = this.lifetime.signal;
 		this.state.set('loading', undefined);
-		const refresh = this.refreshRepositories(account, token);
+		const refresh = this.withAutomations(account, signal, (api, identity, signal) => this.refreshRepositories(account, signal, api, identity));
 		this.refreshPromise = refresh;
 		try {
 			await refresh;
 		} catch (error) {
-			if (!token.isCancellationRequested && !this._store.isDisposed) {
+			if (!signal.aborted && !this._store.isDisposed) {
 				this.state.set('error', undefined);
 				this.logService.warn('[CloudAutomations] Failed to refresh repositories', error);
 			}
@@ -85,7 +93,30 @@ export class GitHubCloudAutomationStore extends Disposable {
 		}
 	}
 
-	private async refreshRepositories(account: IDefaultAccount, token: CancellationToken): Promise<void> {
+	private async withAutomations<T>(account: IDefaultAccount, signal: AbortSignal, task: (api: IGitHubAutomations, identity: AccountHandle, signal: AbortSignal) => Promise<T>): Promise<T> {
+		const store = new DisposableStore();
+		try {
+			const selected = store.add(await this.gitHubService.acquireDefaultAccountClient(signal)).object;
+			this.assertCurrent(account, signal);
+			if (selected.endpoint.getApiBaseUri() !== 'https://api.github.com') {
+				throw new Error(localize('cloudAutomations.dotcomRequired', "Cloud automations require a GitHub.com account."));
+			}
+			const client = store.add(this.gitHubService.acquireClient({
+				authorization: selected.authorization,
+				apiBaseUri: selected.endpoint.getApiBaseUri(),
+				graphQlUri: selected.endpoint.getGraphQlUri(),
+				cloud: { apiBaseUri: 'https://api.githubcopilot.com/agents', integrationId: COPILOT_INTEGRATION_ID },
+			})).object;
+			const credential = await client.credentials.getCredential(signal);
+			const operationSignal = AbortSignal.any([signal, credential.signal]);
+			this.assertCurrent(account, operationSignal);
+			return await task(client.automations, credential.account, operationSignal);
+		} finally {
+			store.dispose();
+		}
+	}
+
+	private async refreshRepositories(account: IDefaultAccount, signal: AbortSignal, api: IGitHubAutomations, identity: AccountHandle): Promise<void> {
 		const repositories = this.readRepositories(account.accountName);
 		const errors: unknown[] = [];
 		for (const recent of this.recentWorkspacesService.getRecentWorkspaces(false)) {
@@ -109,19 +140,23 @@ export class GitHubCloudAutomationStore extends Disposable {
 		const eligible: ICloudAutomationRepository[] = [];
 		for (const [key, repository] of repositories) {
 			try {
-				this.assertCurrent(account, token);
-				if (!await this.api.isPrivateRepository(account.accountName, repository, token)) {
-					this.assertCurrent(account, token);
+				this.assertCurrent(account, signal);
+				const ref = { ...identity, owner: repository.owner, repo: repository.name };
+				if (!await api.isPrivateRepository(ref, signal)) {
+					this.assertCurrent(account, signal);
 					snapshot.delete(key);
 					continue;
 				}
-				this.assertCurrent(account, token);
+				this.assertCurrent(account, signal);
 				eligible.push(repository);
-				const definitions = await this.api.list(account.accountName, repository, token);
-				this.assertCurrent(account, token);
-				snapshot.set(key, definitions.map(definition => ({ repository, definition })));
+				const definitions = await api.list(ref, signal, { ownership: 'user' });
+				this.assertCurrent(account, signal);
+				if (!definitions.complete) {
+					throw new Error(localize('cloudAutomations.catalogueLimit', "This repository has more cloud automations than can be loaded. Its catalogue is incomplete."));
+				}
+				snapshot.set(key, definitions.items.map(definition => ({ repository, definition })));
 			} catch (error) {
-				this.assertCurrent(account, token);
+				this.assertCurrent(account, signal);
 				if (isCancellationError(error)) {
 					throw error;
 				}
@@ -129,7 +164,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 				errors.push(error);
 			}
 		}
-		this.assertCurrent(account, token);
+		this.assertCurrent(account, signal);
 		this.rememberRepositories(account.accountName, eligible);
 		transaction(tx => {
 			this.cachedEntries.set([...snapshot.values()].flat(), tx);
@@ -141,8 +176,8 @@ export class GitHubCloudAutomationStore extends Disposable {
 	}
 
 	private reset(): void {
-		this.lifetime.value?.cancel();
-		this.lifetime.value = new CancellationTokenSource();
+		this.lifetime.abort(new CancellationError());
+		this.lifetime = new AbortController();
 		this.refreshPromise = undefined;
 		const account = this.defaultAccountService.currentDefaultAccount;
 		transaction(tx => {
@@ -152,7 +187,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 	}
 
 	override dispose(): void {
-		this.lifetime.value?.cancel();
+		this.lifetime.abort(new CancellationError());
 		super.dispose();
 		transaction(tx => {
 			this.cachedEntries.set([], tx);
@@ -171,9 +206,9 @@ export class GitHubCloudAutomationStore extends Disposable {
 		return account;
 	}
 
-	private assertCurrent(account: IDefaultAccount, token: CancellationToken): void {
+	private assertCurrent(account: IDefaultAccount, signal: AbortSignal): void {
 		const current = this.defaultAccountService.currentDefaultAccount;
-		if (token.isCancellationRequested || this._store.isDisposed || current?.accountName !== account.accountName
+		if (signal.aborted || this._store.isDisposed || current?.accountName !== account.accountName
 			|| current.sessionId !== account.sessionId || current.authenticationProvider.id !== account.authenticationProvider.id
 			|| current.enterprise !== account.enterprise) {
 			throw new CancellationError();
