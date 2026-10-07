@@ -10,7 +10,8 @@ import { Event } from '../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IViewDescriptorService } from '../../../common/views.js';
-import { ITerminalInstanceService, ITerminalService } from '../../../contrib/terminal/browser/terminal.js';
+import { ITerminalGroupService, ITerminalInstanceService, ITerminalService } from '../../../contrib/terminal/browser/terminal.js';
+import { TerminalGroupService } from '../../../contrib/terminal/browser/terminalGroupService.js';
 import { TerminalInstanceService } from '../../../contrib/terminal/browser/terminalInstanceService.js';
 import { TerminalService } from '../../../contrib/terminal/browser/terminalService.js';
 import { ITerminalProfileService } from '../../../contrib/terminal/common/terminal.js';
@@ -18,6 +19,7 @@ import { TestViewDescriptorService } from '../../../contrib/terminal/test/browse
 import { ITerminalLinkProviderService } from '../../../contrib/terminalContrib/links/browser/links.js';
 import { ITerminalQuickFixService } from '../../../contrib/terminalContrib/quickFix/browser/quickFix.js';
 import { ITerminalCompletionService } from '../../../contrib/terminalContrib/suggest/browser/terminalCompletionService.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { TestTerminalProfileService, workbenchInstantiationService } from '../../../test/browser/workbenchTestServices.js';
 import { MainThreadTerminalService } from '../../browser/mainThreadTerminalService.js';
 import { ExtHostTerminalServiceShape } from '../../common/extHost.protocol.js';
@@ -28,9 +30,10 @@ suite('MainThreadTerminalService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let service: MainThreadTerminalService;
 	let terminals: TerminalService;
+	let groups: TerminalGroupService;
 	let input: string[];
 
-	setup(() => {
+	setup(async () => {
 		input = [];
 		const instantiationService = workbenchInstantiationService({
 			configurationService: () => new TestConfigurationService({
@@ -51,12 +54,15 @@ suite('MainThreadTerminalService', () => {
 			})
 		}, store);
 		instantiationService.stub(IViewDescriptorService, new TestViewDescriptorService());
+		instantiationService.stub(IViewsService, { isViewVisible: () => false });
 		instantiationService.set(ITerminalProfileService, new class extends TestTerminalProfileService {
 			override async getContributedDefaultProfile() { return undefined; }
 			override refreshAvailableProfiles() { }
 			override getDefaultProfileName() { return undefined; }
 		});
 		instantiationService.set(ITerminalInstanceService, store.add(instantiationService.createInstance(TerminalInstanceService)));
+		groups = store.add(instantiationService.createInstance(TerminalGroupService));
+		instantiationService.set(ITerminalGroupService, groups);
 		terminals = store.add(instantiationService.createInstance(TerminalService));
 		terminals.registerProcessSupport(true);
 		instantiationService.set(ITerminalService, terminals);
@@ -71,6 +77,8 @@ suite('MainThreadTerminalService', () => {
 			},
 			$acceptProcessInput: (_id, data) => input.push(data)
 		})));
+		// TerminalService initializes its editor styles asynchronously, even when the test skips.
+		await timeout(0);
 	});
 
 	test('releases the launch request after an API terminal closes', async function () {
@@ -132,5 +140,25 @@ suite('MainThreadTerminalService', () => {
 		} finally {
 			terminal.dispose();
 		}
+	});
+
+	test('a terminal removed from its group still releases its extension identifier', async () => {
+		await service.$createTerminal('detached-terminal', { name: 'Detached', shellPath: '/test-shell' });
+		const terminal = terminals.instances[0];
+		try {
+			groups.getGroupForInstance(terminal)!.removeInstance(terminal);
+			terminal.dispose();
+			await service.$show('detached-terminal', false);
+			assert.strictEqual(terminals.instances.length, 0);
+		} finally {
+			terminal.dispose();
+		}
+	});
+
+	test('a terminal closed during creation releases its extension identifier', async () => {
+		store.add(terminals.onDidChangeInstances(() => terminals.instances[0]?.dispose()));
+		await service.$createTerminal('early-closed-terminal', { name: 'Early close', shellPath: '/test-shell', hideFromUser: true });
+		await service.$show('early-closed-terminal', false);
+		assert.strictEqual(terminals.instances.length, 0);
 	});
 });

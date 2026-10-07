@@ -172,7 +172,15 @@ export class MainThreadTerminalService extends Disposable implements MainThreadT
 			r(terminal);
 		});
 		this._extHostTerminals.set(extHostTerminalId, terminal);
-		await terminal;
+		const terminalInstance = await terminal;
+		if (terminalInstance.isDisposed) {
+			this._extHostTerminals.delete(extHostTerminalId);
+			return;
+		}
+		const disposeListener = this._register(terminalInstance.onDisposed(() => {
+			this._extHostTerminals.delete(extHostTerminalId);
+			this._store.delete(disposeListener);
+		}));
 	}
 
 	private async _deserializeParentTerminal(location?: TerminalLocation | TerminalEditorLocationOptions | { parentTerminal: ExtHostTerminalIdentifier } | { splitActiveTerminal: boolean; location?: TerminalLocation }): Promise<TerminalLocation | TerminalEditorLocationOptions | { parentTerminal: ITerminalInstance } | { splitActiveTerminal: boolean } | undefined> {
@@ -380,10 +388,6 @@ export class MainThreadTerminalService extends Disposable implements MainThreadT
 	}
 
 	private _onTerminalDisposed(terminalInstance: ITerminalInstance): void {
-		const extHostTerminalId = terminalInstance.shellLaunchConfig.extHostTerminalId;
-		if (extHostTerminalId !== undefined) {
-			this._extHostTerminals.delete(extHostTerminalId);
-		}
 		this._proxy.$acceptTerminalClosed(terminalInstance.instanceId, terminalInstance.exitCode, terminalInstance.exitReason ?? TerminalExitReason.Unknown);
 		this._terminalProcessProxies.deleteAndDispose(terminalInstance.instanceId);
 	}
