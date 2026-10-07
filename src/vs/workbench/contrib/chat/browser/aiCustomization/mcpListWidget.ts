@@ -1285,7 +1285,7 @@ function getMcpEntryLabelWithSource(element: IMcpInstalledEntry, labelService: I
  * workspace level the host does not locate.
  */
 export function getActiveSessionServerProvenance(server: AgentHostMcpServer, agentLabel: string): IMcpServerProvenance | undefined {
-	if (server.hostConfiguration && server.source !== 'builtin' && server.source !== 'managed') {
+	if (server.hostConfiguration && server.source !== 'builtin' && server.source !== 'managed' && server.source !== 'account') {
 		return { label: localize('mcpSourceAgentHost', "Agent host configuration") };
 	}
 	switch (server.source) {
@@ -1296,6 +1296,7 @@ export function getActiveSessionServerProvenance(server: AgentHostMcpServer, age
 					: localize('mcpSourceBuiltin', "Built-in: {0}", agentLabel),
 			};
 		case 'managed':
+		case 'account':
 			return { label: localize('mcpSourceManaged', "Managed by {0}", agentLabel) };
 		case 'plugin':
 			return server.sourcePluginName ? { label: localize('fromPlugin', "Plugin: {0}", server.sourcePluginName) } : undefined;
@@ -1322,6 +1323,7 @@ export function getActiveSessionServerDefinitionUnavailable(server: AgentHostMcp
 				...(settingId ? { settingId } : {}),
 			};
 		case 'managed':
+		case 'account':
 			return {
 				message: localize('mcpDefinitionManaged', "{0} manages this server, so its definition can't be viewed or edited.", agentLabel),
 				...(settingId ? { settingId } : {}),
