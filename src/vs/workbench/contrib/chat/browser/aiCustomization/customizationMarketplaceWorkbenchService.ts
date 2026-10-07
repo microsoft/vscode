@@ -105,9 +105,9 @@ export class CustomizationMarketplaceWorkbenchService implements ICustomizationM
 		if (!this.service || this.serviceSignature !== signature) {
 			this.serviceSignature = signature;
 			this.service = new CustomizationMarketplaceService([
-			...pluginProviders,
-			...platformProviders,
-			createLazyCustomizationMarketplaceProvider(CustomizationMarketplaceSources.CopilotConnectors.id, () => new CopilotConnectorsMarketplaceProvider(this.copilotConnectorsService, this.configurationService)),
+				...pluginProviders,
+				...platformProviders,
+				createLazyCustomizationMarketplaceProvider(CustomizationMarketplaceSources.CopilotConnectors.id, () => new CopilotConnectorsMarketplaceProvider(this.copilotConnectorsService, this.configurationService)),
 			]);
 		}
 		return this.service;
