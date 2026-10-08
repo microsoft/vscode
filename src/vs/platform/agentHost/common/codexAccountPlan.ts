@@ -11,6 +11,7 @@ const chatgptPlanTiers = {
 	plus: 'plus',
 	pro: 'pro',
 	prolite: 'pro',
+	promax: 'pro',
 	team: 'business',
 	self_serve_business_prolite: 'business',
 	self_serve_business_usage_based: 'business',

@@ -18,7 +18,7 @@ suite('Codex continuation eligibility', () => {
 	const now = 1_000_000_000;
 	const account = (overrides: Partial<ICodexAccountInfo> = {}): ICodexAccountInfo => ({ status: 'signedIn', planType: 'plus', observedAt: now, rateLimits: [{ usedPercent: 90, windowDurationMins: 300, resetsAt: now / 1000 + 60 }], ...overrides });
 
-	for (const plan of ['go', 'plus', 'pro', 'prolite', 'team', 'business', 'enterprise', 'edu', 'edu_plus', 'self_serve_business_usage_based']) {
+	for (const plan of ['go', 'plus', 'pro', 'prolite', 'promax', 'team', 'business', 'enterprise', 'edu', 'edu_plus', 'self_serve_business_usage_based']) {
 		test(`accepts paid ChatGPT plan ${plan}`, () => assert.strictEqual(getCodexTriggeringLimits(account({ planType: plan }), now).length, 1));
 	}
 	for (const plan of ['free', 'unknown', 'future-plan', undefined]) {
