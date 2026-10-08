@@ -1968,18 +1968,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}));
 	}
 
-	async listSessionCanvases(session: URI): Promise<readonly IAgentCanvasInfo[]> {
-		const liveSession = this._findSessionChat(session);
-		if (!liveSession) {
-			throw new Error('Canvas inventory requires a live Copilot session. Start or resume the session and try again.');
+	async listSessionCanvases(session: URI, chat?: URI): Promise<readonly IAgentCanvasInfo[]> {
+		const liveSession = chat ? this._findChatByUri(chat) : this._findSessionChat(session);
+		if (!liveSession || !isEqual(liveSession.ownerSessionUri, session)) {
+			throw new Error('Canvas inventory requires a live Copilot chat. Start or resume the chat and try again.');
 		}
 		return liveSession.listCanvases();
 	}
 
-	async openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest): Promise<void> {
-		const liveSession = this._findSessionChat(session);
-		if (!liveSession) {
-			throw new Error('Opening a canvas requires a live Copilot session. Start or resume the session and try again.');
+	async openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat?: URI): Promise<void> {
+		const liveSession = chat ? this._findChatByUri(chat) : this._findSessionChat(session);
+		if (!liveSession || !isEqual(liveSession.ownerSessionUri, session)) {
+			throw new Error('Opening a canvas requires a live Copilot chat. Start or resume the chat and try again.');
 		}
 		await liveSession.openCanvas(request);
 	}

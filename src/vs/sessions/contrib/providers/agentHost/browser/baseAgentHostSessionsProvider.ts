@@ -6315,28 +6315,33 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 	}
 
-	async listCanvases(sessionId: string): Promise<readonly ISessionCanvasDefinition[]> {
+	async listCanvases(sessionId: string, chatResource: URI): Promise<readonly ISessionCanvasDefinition[]> {
 		const rawId = this._sessionKeyFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		const connection = this.connection;
-		if (!cached || !connection?.listSessionCanvases) {
+		const backendChat = this.getBackendChatResource(chatResource);
+		if (!cached || !backendChat || !connection?.listSessionCanvases) {
 			return [];
 		}
-		return (await connection.listSessionCanvases(cached.backendUri)).map(canvas => this._toSessionCanvasDefinition(canvas));
+		return (await connection.listSessionCanvases(cached.backendUri, backendChat)).map(canvas => this._toSessionCanvasDefinition(canvas));
 	}
 
-	async openCanvas(sessionId: string, canvas: ISessionCanvasDefinition, instanceId: string): Promise<void> {
+	async openCanvas(sessionId: string, chatResource: URI, canvas: ISessionCanvasDefinition, instanceId: string): Promise<void> {
 		const rawId = this._sessionKeyFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		const connection = this.connection;
-		if (!cached || !connection?.openSessionCanvas) {
+		const backendChat = this.getBackendChatResource(chatResource);
+		if (!cached || !backendChat) {
+			throw new Error(localize('canvasChatNotFound', "The chat could not be found."));
+		}
+		if (!connection?.openSessionCanvas) {
 			throw new Error(localize('openCanvasUnavailable', "Opening canvases is unavailable for this session."));
 		}
 		await connection.openSessionCanvas(cached.backendUri, {
 			canvasId: canvas.canvasId,
 			extensionId: canvas.extensionId,
 			instanceId,
-		});
+		}, backendChat);
 	}
 
 	private _toSessionCanvasDefinition(canvas: IAgentCanvasInfo): ISessionCanvasDefinition {

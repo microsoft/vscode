@@ -612,11 +612,11 @@ export interface ISessionsManagementService {
 	/** Remove a recorded artifact through its owning provider. */
 	removeSessionArtifact(session: ISession, artifactId: string): Promise<void>;
 
-	/** List canvas types registered in one live session. */
-	listCanvases(session: ISession): Promise<readonly ISessionCanvasDefinition[]>;
+	/** List canvas types registered in one live chat. */
+	listCanvases(session: ISession, chat: IChat): Promise<readonly ISessionCanvasDefinition[]>;
 
 	/** Open or focus one stable instance of a registered canvas type. */
-	openCanvas(session: ISession, canvas: ISessionCanvasDefinition, instanceId: string): Promise<void>;
+	openCanvas(session: ISession, chat: IChat, canvas: ISessionCanvasDefinition, instanceId: string): Promise<void>;
 }
 
 export const ISessionsManagementService = createDecorator<ISessionsManagementService>('sessionsManagementService');

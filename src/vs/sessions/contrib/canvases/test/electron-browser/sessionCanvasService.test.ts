@@ -33,7 +33,7 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { IChat, ISessionCanvas, ISessionCanvasDefinition, ISessionCapabilities } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, IChatDeletedEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionEditorWorkingSetOwner, SessionEditorWorkingSetService } from '../../../layout/common/sessionEditorWorkingSet.js';
-import { REVEAL_SESSION_CANVAS_COMMAND_ID, SessionCanvasInput } from '../../common/sessionCanvas.js';
+import { getSessionCanvasDefinitionInstanceId, REVEAL_SESSION_CANVAS_COMMAND_ID, SessionCanvasInput } from '../../common/sessionCanvas.js';
 import { OPEN_SESSION_CANVAS_COMMAND_ID, registerSessionCanvasActions, REOPEN_SESSION_CANVAS_COMMAND_ID } from '../../electron-browser/sessionCanvasActions.js';
 import { SessionCanvasService } from '../../electron-browser/sessionCanvasService.js';
 
@@ -67,13 +67,18 @@ suite('SessionCanvasService', () => {
 		const sessionsService = upcastPartial<ISessionsService>({ activeSession });
 		const sessionChanges = store.add(new Emitter<ISessionsChangeEvent>());
 		const chatDeleted = store.add(new Emitter<IChatDeletedEvent>());
-		const openedCanvasDefinitions: Array<{ canvas: ISessionCanvasDefinition; instanceId: string }> = [];
+		const listedCanvasChats: URI[] = [];
+		const openedCanvasDefinitions: Array<{ chat: URI; canvas: ISessionCanvasDefinition; instanceId: string }> = [];
+		let currentCanvasDefinitions = canvasDefinitions;
 		const sessionsManagementService = upcastPartial<ISessionsManagementService>({
 			onDidChangeSessions: sessionChanges.event,
 			onDidDeleteChat: chatDeleted.event,
-			listCanvases: async () => canvasDefinitions,
-			openCanvas: async (_session, definition, instanceId) => {
-				openedCanvasDefinitions.push({ canvas: definition, instanceId });
+			listCanvases: async (_session, targetChat) => {
+				listedCanvasChats.push(targetChat.resource);
+				return currentCanvasDefinitions;
+			},
+			openCanvas: async (_session, targetChat, definition, instanceId) => {
+				openedCanvasDefinitions.push({ chat: targetChat.resource, canvas: definition, instanceId });
 			},
 		});
 		const opened: SessionCanvasInput[] = [];
@@ -136,7 +141,8 @@ suite('SessionCanvasService', () => {
 		const setFindEditorsHandler = (handler: (resource: URI) => readonly IEditorIdentifier[]) => findEditorsHandler = handler;
 		const setCloseEditorsHandler = (handler: () => Promise<void>) => closeEditorsHandler = handler;
 		const setCreateBrowserModelHandler = (handler: (url: string, openSource: string | undefined) => Promise<IBrowserViewModel>) => createBrowserModelHandler = handler;
-		return { activeChat, activeSession, canvas, canvasService, canvases, chat, chatDeleted, chats, closeSettled, editorWorkingSetService, isArchived, opened, openedCanvasDefinitions, openOptions, openSettled, session, sessionChanges, get closeCount() { return closeCount; }, setCanvasesEnabled, setCloseEditorsHandler, setCreateBrowserModelHandler, setFindEditorsHandler, setOpenEditorHandler };
+		const setCanvasDefinitions = (definitions: readonly ISessionCanvasDefinition[]) => currentCanvasDefinitions = definitions;
+		return { activeChat, activeSession, canvas, canvasService, canvases, chat, chatDeleted, chats, closeSettled, editorWorkingSetService, isArchived, listedCanvasChats, opened, openedCanvasDefinitions, openOptions, openSettled, session, sessionChanges, get closeCount() { return closeCount; }, setCanvasDefinitions, setCanvasesEnabled, setCloseEditorsHandler, setCreateBrowserModelHandler, setFindEditorsHandler, setOpenEditorHandler };
 	}
 
 	function owner(session: IActiveSession, chatResource?: URI): ISessionEditorWorkingSetOwner {
@@ -455,6 +461,7 @@ suite('SessionCanvasService', () => {
 			titles: items.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value),
 			groups: items.map(item => item.group),
 			opened: harness.openedCanvasDefinitions.map(entry => ({
+				chat: entry.chat.toString(),
 				extensionId: entry.canvas.extensionId,
 				canvasId: entry.canvas.canvasId,
 				instanceId: entry.instanceId,
@@ -462,7 +469,73 @@ suite('SessionCanvasService', () => {
 		}, {
 			titles: ['Counter (Project Counter)', 'Counter (User Counter)'],
 			groups: ['1_available', '1_available'],
-			opened: [{ extensionId: 'user:counter', canvasId: 'main', instanceId: 'user-counter-main' }],
+			opened: [{
+				chat: 'agent-host-chat:/session/main',
+				extensionId: 'user:counter',
+				canvasId: 'main',
+				instanceId: getSessionCanvasDefinitionInstanceId(definitions[0]),
+			}],
+		});
+	});
+
+	test('refreshes registered canvases when live canvas membership is republished', async () => {
+		const first: ISessionCanvasDefinition = {
+			canvasId: 'first',
+			extensionId: 'user:first',
+			extensionSource: 'user',
+			displayName: 'First',
+			description: 'First canvas.',
+		};
+		const second: ISessionCanvasDefinition = {
+			canvasId: 'second',
+			extensionId: 'user:second',
+			extensionSource: 'user',
+			displayName: 'Second',
+			description: 'Second canvas.',
+		};
+		const harness = createHarness(true, [], [first]);
+		await harness.canvasService.refreshAvailableCanvases();
+		const callsBeforeRegistryChange = harness.listedCanvasChats.length;
+		harness.setCanvasDefinitions([second]);
+
+		harness.canvases.set([], undefined);
+		await Promise.resolve();
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			available: harness.canvasService.availableCanvases.get().map(canvas => canvas.canvasId),
+			refreshChats: harness.listedCanvasChats.slice(callsBeforeRegistryChange).map(resource => resource.toString()),
+		}, {
+			available: ['second'],
+			refreshChats: ['agent-host-chat:/session/main'],
+		});
+	});
+
+	test('lists and opens registered canvases for the focused peer chat', async () => {
+		const definition: ISessionCanvasDefinition = {
+			canvasId: 'peer',
+			extensionId: 'project:peer',
+			extensionSource: 'project',
+			displayName: 'Peer Canvas',
+			description: 'Peer chat canvas.',
+		};
+		const harness = createHarness(true, [], [definition]);
+		const peerCanvases = observableValue<readonly ISessionCanvas[] | undefined>('peerCanvases', []);
+		const peer = upcastPartial<IChat>({
+			resource: URI.parse('agent-host-chat:/session/peer'),
+			canvases: peerCanvases,
+		});
+
+		harness.activeChat.set(peer, undefined);
+		await harness.canvasService.refreshAvailableCanvases();
+		await harness.canvasService.openCanvas(definition);
+
+		assert.deepStrictEqual({
+			listedChat: harness.listedCanvasChats.at(-1)?.toString(),
+			openedChat: harness.openedCanvasDefinitions.at(-1)?.chat.toString(),
+		}, {
+			listedChat: 'agent-host-chat:/session/peer',
+			openedChat: 'agent-host-chat:/session/peer',
 		});
 	});
 
@@ -476,7 +549,7 @@ suite('SessionCanvasService', () => {
 		};
 		const existing: ISessionCanvas = {
 			resource: URI.parse('agent-host-canvas:/counter'),
-			instanceId: 'user-counter-main',
+			instanceId: getSessionCanvasDefinitionInstanceId(definition),
 			title: 'Counter',
 			source: URI.parse('https://example.test/counter'),
 		};

@@ -518,12 +518,12 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().uninstallPlugin(provider, request);
 	}
 
-	listSessionCanvases(session: URI): Promise<readonly IAgentCanvasInfo[]> {
-		return this._getManagementService().listSessionCanvases(session);
+	listSessionCanvases(session: URI, chat?: URI): Promise<readonly IAgentCanvasInfo[]> {
+		return this._getManagementService().listSessionCanvases(session, chat);
 	}
 
-	openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest): Promise<void> {
-		return this._getManagementService().openSessionCanvas(session, request);
+	openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat?: URI): Promise<void> {
+		return this._getManagementService().openSessionCanvas(session, request, chat);
 	}
 
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {

@@ -853,8 +853,8 @@ export interface IAgentHostManagementService {
 	refreshCopilotConnectorSessions(): Promise<void>;
 	/** Local-only bridge for provider-owned plugin uninstall transactions. */
 	uninstallPlugin(provider: AgentProvider, request: IAgentPluginUninstallRequest): Promise<void>;
-	listSessionCanvases(session: URI): Promise<readonly IAgentCanvasInfo[]>;
-	openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest): Promise<void>;
+	listSessionCanvases(session: URI, chat?: URI): Promise<readonly IAgentCanvasInfo[]>;
+	openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat?: URI): Promise<void>;
 	shutdown(): Promise<void>;
 	getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo>;
 	getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]>;
@@ -906,8 +906,8 @@ export interface IAgentService {
 	reconcileDetachedWorktrees?(scope: string, activeHandles: readonly string[]): Promise<void>;
 	refreshCopilotConnectorSessions?(): Promise<void>;
 	uninstallPlugin?(provider: AgentProvider, request: IAgentPluginUninstallRequest): Promise<void>;
-	listSessionCanvases?(session: URI): Promise<readonly IAgentCanvasInfo[]>;
-	openSessionCanvas?(session: URI, request: IAgentCanvasOpenRequest): Promise<void>;
+	listSessionCanvases?(session: URI, chat?: URI): Promise<readonly IAgentCanvasInfo[]>;
+	openSessionCanvas?(session: URI, request: IAgentCanvasOpenRequest, chat?: URI): Promise<void>;
 
 	/**
 	 * Create an additional chat within an existing session. Spins up the
@@ -1241,8 +1241,8 @@ export interface IAgentConnection {
 	setDetachedWorktreeArchived?(handle: string, archived: boolean): Promise<void>;
 	deleteDetachedWorktree?(handle: string): Promise<void>;
 	reconcileDetachedWorktrees?(scope: string, activeHandles: readonly string[]): Promise<void>;
-	listSessionCanvases?(session: URI): Promise<readonly IAgentCanvasInfo[]>;
-	openSessionCanvas?(session: URI, request: IAgentCanvasOpenRequest): Promise<void>;
+	listSessionCanvases?(session: URI, chat?: URI): Promise<readonly IAgentCanvasInfo[]>;
+	openSessionCanvas?(session: URI, request: IAgentCanvasOpenRequest, chat?: URI): Promise<void>;
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult>;
 	sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult>;
 	completions(params: CompletionsParams): Promise<CompletionsResult>;

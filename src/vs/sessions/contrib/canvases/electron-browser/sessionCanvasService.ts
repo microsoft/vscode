@@ -103,14 +103,16 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 		});
 		this._register(autorun(reader => {
 			const session = this.sessionsService.activeSession.read(reader);
+			const chat = session?.activeChat.read(reader);
+			chat?.canvases?.read(reader);
 			const supported = this.enabled.read(reader) && session?.capabilities.read(reader).supportsCanvases === true;
 			const request = ++this._availableCanvasesRequest;
-			if (!session || !supported) {
+			if (!session || !chat || !supported) {
 				this.availableCanvases.set([], undefined);
 				return;
 			}
 			this.availableCanvases.set([], undefined);
-			void this._loadAvailableCanvases(session, request);
+			void this._loadAvailableCanvases(session, chat, request);
 		}));
 		this._register(sessionsManagementService.onDidChangeSessions(event => {
 			const archived = event.changed.filter(session => session.isArchived.read(undefined));
@@ -233,7 +235,7 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 			this.availableCanvases.set([], undefined);
 			return;
 		}
-		await this._loadAvailableCanvases(session, request);
+		await this._loadAvailableCanvases(session, session.activeChat.get(), request);
 	}
 
 	async openCanvas(canvas: ISessionCanvasDefinition): Promise<void> {
@@ -248,7 +250,7 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 			await this.revealCanvas(createSessionCanvasReference(session, chat, existing));
 			return;
 		}
-		await this.sessionsManagementService.openCanvas(session, canvas, instanceId);
+		await this.sessionsManagementService.openCanvas(session, chat, canvas, instanceId);
 	}
 
 	async revealCanvas(reference: ISessionCanvasReference): Promise<void> {
@@ -267,10 +269,10 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 		await this._openInput(key, input);
 	}
 
-	private async _loadAvailableCanvases(session: IActiveSession, request: number): Promise<void> {
+	private async _loadAvailableCanvases(session: IActiveSession, chat: IChat, request: number): Promise<void> {
 		try {
-			const canvases = await this.sessionsManagementService.listCanvases(session);
-			if (this._store.isDisposed || request !== this._availableCanvasesRequest || this.sessionsService.activeSession.get() !== session || !this.enabled.get()) {
+			const canvases = await this.sessionsManagementService.listCanvases(session, chat);
+			if (this._store.isDisposed || request !== this._availableCanvasesRequest || this.sessionsService.activeSession.get() !== session || session.activeChat.get() !== chat || !this.enabled.get()) {
 				return;
 			}
 			this.availableCanvases.set(
@@ -280,7 +282,7 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 				undefined,
 			);
 		} catch (error) {
-			if (this._store.isDisposed || request !== this._availableCanvasesRequest || this.sessionsService.activeSession.get() !== session) {
+			if (this._store.isDisposed || request !== this._availableCanvasesRequest || this.sessionsService.activeSession.get() !== session || session.activeChat.get() !== chat) {
 				return;
 			}
 			this.availableCanvases.set([], undefined);

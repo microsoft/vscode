@@ -5336,20 +5336,20 @@ export class AgentService extends Disposable implements IAgentService {
 		await provider.uninstallPlugin(request);
 	}
 
-	async listSessionCanvases(session: URI): Promise<readonly IAgentCanvasInfo[]> {
+	async listSessionCanvases(session: URI, chat?: URI): Promise<readonly IAgentCanvasInfo[]> {
 		const provider = this._providerService.getProviderForSession(session);
 		if (!provider?.listSessionCanvases) {
 			throw new Error(`Canvas inventory is unavailable for session '${session.toString()}'.`);
 		}
-		return provider.listSessionCanvases(session);
+		return provider.listSessionCanvases(session, chat);
 	}
 
-	async openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest): Promise<void> {
+	async openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat?: URI): Promise<void> {
 		const provider = this._providerService.getProviderForSession(session);
 		if (!provider?.openSessionCanvas) {
 			throw new Error(`Opening canvases is unavailable for session '${session.toString()}'.`);
 		}
-		await provider.openSessionCanvas(session, request);
+		await provider.openSessionCanvas(session, request, chat);
 	}
 
 	async createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void> {

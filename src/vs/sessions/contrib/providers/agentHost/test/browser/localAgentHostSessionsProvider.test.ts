@@ -21,7 +21,7 @@ import { extUriIgnorePathCase, isEqual } from '../../../../../../base/common/res
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { AgentSession, CODEX_AGENT_PROVIDER_ID, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
+import { AgentSession, CODEX_AGENT_PROVIDER_ID, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
 import { agentSdkSetupStatusKey } from '../../../../../../platform/agentHost/common/agentSdkSetup.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AgentHostCodexAgentEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -165,11 +165,21 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	public deletedDetachedWorktrees: string[] = [];
 	public removedArtifacts: { session: URI; artifactId: string }[] = [];
 	public importedSessions: URI[] = [];
+	public canvasDefinitions: readonly IAgentCanvasInfo[] = [];
+	public canvasListRequests: { session: URI; chat: URI | undefined }[] = [];
+	public canvasOpenRequests: { session: URI; chat: URI | undefined; request: IAgentCanvasOpenRequest }[] = [];
 	override async importSession(session: URI): Promise<void> {
 		this.importedSessions.push(session);
 	}
 	override async removeSessionArtifact(session: URI, artifactId: string): Promise<void> {
 		this.removedArtifacts.push({ session, artifactId });
+	}
+	override async listSessionCanvases(session: URI, chat?: URI): Promise<readonly IAgentCanvasInfo[]> {
+		this.canvasListRequests.push({ session, chat });
+		return this.canvasDefinitions;
+	}
+	override async openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat?: URI): Promise<void> {
+		this.canvasOpenRequests.push({ session, chat, request });
 	}
 	get rootStateListenerCount(): number { return this._rootStateListenerCount; }
 
@@ -3512,6 +3522,95 @@ suite('LocalAgentHostSessionsProvider', () => {
 			peerChat: URI.parse(peerBackend).toString(),
 			missingPeer: undefined,
 			notHydrated: undefined,
+		});
+	});
+
+	test('canvas operations target the focused host-supplied backend chat URI', async () => {
+		agentHost.addSession(createSession('chat-canvas-route', { summary: 'Canvas Route' }));
+		const provider = createProvider(disposables, agentHost);
+		await timeout(0);
+		const session = provider.getSessions().find(candidate => candidate.title.get() === 'Canvas Route');
+		assert.ok(session);
+		const backendSession = AgentSession.uri('copilotcli', 'backend-canvas-route').toString();
+		const defaultBackend = buildDefaultChatUri(backendSession);
+		const peerBackend = buildChatUri(backendSession, 'peer-1');
+		const state: SessionState = {
+			provider: 'copilotcli',
+			title: 'Canvas Route',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [
+				{ resource: defaultBackend, title: 'Default', status: ProtocolSessionStatus.Idle, modifiedAt: '2025-01-01T00:00:00.000Z' } satisfies ChatSummary,
+				{ resource: peerBackend, title: 'Peer', status: ProtocolSessionStatus.Idle, modifiedAt: '2025-01-01T00:00:00.000Z' } satisfies ChatSummary,
+			],
+			defaultChat: defaultBackend,
+		};
+		provider.getSessionConfig(session.sessionId);
+		agentHost.setSessionState('chat-canvas-route', 'copilotcli', state);
+		const peer = session.chats.get().find(chat => chat.resource.fragment === 'peer-1');
+		assert.ok(peer);
+		agentHost.canvasDefinitions = [{
+			canvasId: 'preview',
+			extensionId: 'project:preview',
+			extensionSource: 'project',
+			displayName: 'Preview',
+			description: 'Preview.',
+			requiresInput: false,
+			actionCount: 0,
+		}];
+		assert.deepStrictEqual({
+			backendChat: provider.getBackendChatResource(peer.resource)?.toString(),
+			hasList: typeof agentHost.listSessionCanvases,
+			hasOpen: typeof agentHost.openSessionCanvas,
+		}, {
+			backendChat: peerBackend,
+			hasList: 'function',
+			hasOpen: 'function',
+		});
+
+		const canvases = await provider.listCanvases(session.sessionId, peer.resource);
+		assert.deepStrictEqual({
+			canvases,
+			backendChat: provider.getBackendChatResource(peer.resource)?.toString(),
+			hasOpen: typeof agentHost.openSessionCanvas,
+		}, {
+			canvases: [{
+				canvasId: 'preview',
+				extensionId: 'project:preview',
+				extensionSource: 'project',
+				displayName: 'Preview',
+				description: 'Preview.',
+			}],
+			backendChat: peerBackend,
+			hasOpen: 'function',
+		});
+		await provider.openCanvas(session.sessionId, peer.resource, canvases[0], 'project-preview');
+
+		assert.deepStrictEqual({
+			list: agentHost.canvasListRequests.map(request => ({
+				session: request.session.toString(),
+				chat: request.chat?.toString(),
+			})),
+			open: agentHost.canvasOpenRequests.map(({ session, chat, request }) => ({
+				session: session.toString(),
+				chat: chat?.toString(),
+				request,
+			})),
+		}, {
+			list: [{
+				session: AgentSession.uri('copilotcli', 'chat-canvas-route').toString(),
+				chat: peerBackend,
+			}],
+			open: [{
+				session: AgentSession.uri('copilotcli', 'chat-canvas-route').toString(),
+				chat: peerBackend,
+				request: {
+					canvasId: 'preview',
+					extensionId: 'project:preview',
+					instanceId: 'project-preview',
+				},
+			}],
 		});
 	});
 

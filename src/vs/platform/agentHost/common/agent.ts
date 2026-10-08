@@ -1350,11 +1350,11 @@ export interface IAgent {
 	/** Uninstall a plugin through the provider that owns its installation state. */
 	uninstallPlugin?(request: IAgentPluginUninstallRequest): Promise<void>;
 
-	/** List canvas declarations available to one initialized provider session. */
-	listSessionCanvases?(session: URI): Promise<readonly IAgentCanvasInfo[]>;
+	/** List canvas declarations available to one initialized provider chat. */
+	listSessionCanvases?(session: URI, chat?: URI): Promise<readonly IAgentCanvasInfo[]>;
 
-	/** Open or focus one canvas instance in an initialized provider session. */
-	openSessionCanvas?(session: URI, request: IAgentCanvasOpenRequest): Promise<void>;
+	/** Open or focus one canvas instance in an initialized provider chat. */
+	openSessionCanvas?(session: URI, request: IAgentCanvasOpenRequest, chat?: URI): Promise<void>;
 
 	/** Capture the current account without allowing a later account to relabel an in-flight turn. */
 	getTelemetryContext?(): IAgentTelemetryContext;

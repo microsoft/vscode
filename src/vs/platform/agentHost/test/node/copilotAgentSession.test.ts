@@ -2651,6 +2651,18 @@ suite('CopilotAgentSession', () => {
 		session.dispose();
 	});
 
+	test('republishes live canvas membership when the registry changes', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+
+		mockSession.fire('session.canvas.registry_changed', { canvases: [] });
+
+		assert.deepStrictEqual(
+			getActions(signals).filter(action => action.type === ActionType.ChatCanvasesChanged),
+			[{ type: ActionType.ChatCanvasesChanged, canvases: undefined }],
+		);
+		session.dispose();
+	});
+
 	test('projects live canvas channels after resume and clears unavailable sources', async () => {
 		const telemetryService = new CapturingTelemetryService();
 		const { session, mockSession, signals } = await createAgentSession(disposables, {

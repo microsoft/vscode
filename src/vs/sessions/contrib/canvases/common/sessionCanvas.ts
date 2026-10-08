@@ -113,12 +113,20 @@ const CANVAS_INSTANCE_ID_MAX_LENGTH = 128;
 
 export function getSessionCanvasDefinitionInstanceId(canvas: ISessionCanvasDefinition): string {
 	const raw = `${canvas.extensionId}-${canvas.canvasId}`;
-	const instanceId = raw
+	const normalized = raw
 		.replace(/[^A-Za-z0-9._-]+/g, '-')
 		.replace(/^[._-]+/, '')
-		.slice(0, CANVAS_INSTANCE_ID_MAX_LENGTH)
 		.replace(/[._-]+$/, '');
-	return instanceId || `canvas-${(hash(raw) >>> 0).toString(36)}`;
+	if (normalized === raw && normalized.length <= CANVAS_INSTANCE_ID_MAX_LENGTH) {
+		return normalized;
+	}
+
+	const hashSuffix = `-${(hash(raw) >>> 0).toString(16).padStart(8, '0')}`;
+	const base = normalized
+		.slice(0, CANVAS_INSTANCE_ID_MAX_LENGTH - hashSuffix.length)
+		.replace(/[._-]+$/, '')
+		|| 'canvas';
+	return `${base}${hashSuffix}`;
 }
 
 export interface ISessionCanvasTarget {

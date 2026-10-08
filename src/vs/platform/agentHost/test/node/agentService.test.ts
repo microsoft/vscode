@@ -2792,8 +2792,8 @@ suite('AgentService (node dispatcher)', () => {
 		test('lists and opens canvases through the owning provider', async () => {
 			const calls: unknown[] = [];
 			const provider: IAgent = copilotAgent;
-			provider.listSessionCanvases = async session => {
-				calls.push(['list', session.toString()]);
+			provider.listSessionCanvases = async (session, chat) => {
+				calls.push(['list', session.toString(), chat?.toString()]);
 				return [{
 					canvasId: 'preview',
 					extensionId: 'project:preview',
@@ -2804,19 +2804,20 @@ suite('AgentService (node dispatcher)', () => {
 					actionCount: 0,
 				}];
 			};
-			provider.openSessionCanvas = async (session, request) => {
-				calls.push(['open', session.toString(), request]);
+			provider.openSessionCanvas = async (session, request, chat) => {
+				calls.push(['open', session.toString(), chat?.toString(), request]);
 			};
 			registerTestAgentProvider(service, provider);
 			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService());
 			const session = AgentSession.uri('copilot', 'canvas-session');
+			const chat = URI.parse(buildDefaultChatUri(session.toString()));
 
-			const canvases = await managementService.listSessionCanvases(session);
+			const canvases = await managementService.listSessionCanvases(session, chat);
 			await managementService.openSessionCanvas(session, {
 				canvasId: 'preview',
 				extensionId: 'project:preview',
 				instanceId: 'project-preview-preview',
-			});
+			}, chat);
 
 			assert.deepStrictEqual({
 				canvases,
@@ -2832,8 +2833,8 @@ suite('AgentService (node dispatcher)', () => {
 					actionCount: 0,
 				}],
 				calls: [
-					['list', 'copilot:/canvas-session'],
-					['open', 'copilot:/canvas-session', {
+					['list', 'copilot:/canvas-session', chat.toString()],
+					['open', 'copilot:/canvas-session', chat.toString(), {
 						canvasId: 'preview',
 						extensionId: 'project:preview',
 						instanceId: 'project-preview-preview',

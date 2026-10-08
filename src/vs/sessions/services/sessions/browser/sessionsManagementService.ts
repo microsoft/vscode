@@ -1436,20 +1436,20 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this._onDidRenameSession.fire(session);
 	}
 
-	async listCanvases(session: ISession): Promise<readonly ISessionCanvasDefinition[]> {
+	async listCanvases(session: ISession, chat: IChat): Promise<readonly ISessionCanvasDefinition[]> {
 		const provider = this._getProvider(session);
 		if (!session.capabilities.get().supportsCanvases || !provider?.listCanvases) {
 			return [];
 		}
-		return provider.listCanvases(session.sessionId);
+		return provider.listCanvases(session.sessionId, chat.resource);
 	}
 
-	async openCanvas(session: ISession, canvas: ISessionCanvasDefinition, instanceId: string): Promise<void> {
+	async openCanvas(session: ISession, chat: IChat, canvas: ISessionCanvasDefinition, instanceId: string): Promise<void> {
 		const provider = this._getProvider(session);
 		if (!session.capabilities.get().supportsCanvases || !provider?.openCanvas) {
 			throw new Error(localize('sessions.openCanvas.unsupported', "Opening canvases is not supported for this session."));
 		}
-		await provider.openCanvas(session.sessionId, canvas, instanceId);
+		await provider.openCanvas(session.sessionId, chat.resource, canvas, instanceId);
 	}
 
 	async removeSessionArtifact(session: ISession, artifactId: string): Promise<void> {
