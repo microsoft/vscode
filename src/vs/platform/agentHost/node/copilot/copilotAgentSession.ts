@@ -78,7 +78,7 @@ import { allowCopilotSdkExecution, restoreDeferredCopilotSdkExecution } from './
 import { getCopilotSdkToolResourceUri } from './copilotSdkMeta.js';
 import { isAutoModel } from './modelIdentifiers.js';
 import { applySandboxConfig, clientToolNamesFromSnapshot, isMcpServerExplicitlyProjected, mergeByokSessionConfig, toSessionConfigMcpServers, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
-import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, NON_DEFERRED_CLIENT_TOOL_NAMES, RUNTIME_TOOL_SEARCH_TOOL_NAME } from './toolSearchDeferral.js';
+import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, NON_DEFERRED_CLIENT_TOOL_NAMES, RUNTIME_TOOL_SEARCH_TOOL_NAME, searchToolsWithoutClient } from './toolSearchDeferral.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { AgentHostTelemetryReporter, toInitiatorTelemetry, type IAgentHostEventClassification, type IAgentHostEventTelemetry, type ICanvasExtensionsReadyEvent } from '../agentHostTelemetryReporter.js';
 import { AgentHostRepoInfoTelemetry } from '../agentHostRepoInfoTelemetry.js';
@@ -2835,10 +2835,14 @@ export class CopilotAgentSession extends Disposable {
 					overridesBuiltInTool: true,
 					defer: 'never',
 					skipPermission: true,
-					handler: this._guarded(async (_args: Record<string, unknown>, invocation) => {
+					handler: this._guarded(async (args: Record<string, unknown>, invocation) => {
 						try {
 							this._surfaceUnobservedClientToolStart(invocation);
 							const candidates = this._toToolSearchCandidates(invocation.availableTools);
+							const tracked = this._activeToolCalls.get(invocation.toolCallId);
+							if (tracked && !tracked.contributor) {
+								return this._searchToolsOnHost(args, candidates);
+							}
 							const clientResult = await this._pendingClientToolCalls.registerAndFire(
 								invocation.toolCallId,
 								() => this._emitToolSearchReady(invocation.toolCallId, candidates),
@@ -2993,6 +2997,17 @@ export class CopilotAgentSession extends Disposable {
 
 	private _toolSearchFailure(message: string): ToolResultObject {
 		return { textResultForLlm: message, resultType: 'failure', error: message, toolReferences: [] };
+	}
+
+	private _searchToolsOnHost(args: Record<string, unknown>, candidates: readonly IToolSearchCandidate[]): ToolResultObject {
+		const query = isString(args.query) ? args.query.trim() : '';
+		if (!query) {
+			return this._toolSearchFailure('Error: query parameter is required');
+		}
+		const hostCandidates = candidates.filter(candidate => !this._clientToolNames.has(candidate.name));
+		const { toolNames, textResultForLlm } = searchToolsWithoutClient(query, hostCandidates);
+		this._logService.info(`[Copilot:${this.sessionId}] tool_search override: no connected client, matched [${toolNames.join(', ')}] among ${hostCandidates.length} host-runnable deferred tools`);
+		return { textResultForLlm, resultType: 'success', toolReferences: [...toolNames] };
 	}
 
 	private _toToolSearchResult(clientResult: ToolResultObject, availableTools: readonly CurrentToolMetadata[] | undefined): ToolResultObject {
@@ -7064,7 +7079,7 @@ export class CopilotAgentSession extends Disposable {
 			// server-side disconnect timeout fires. We emit the completion
 			// ourselves and drop the active-tool entry so the SDK's own
 			// tool.execution_complete for this id is suppressed.
-			if (isClientTool && !contributor) {
+			if (isClientTool && !contributor && !isToolSearch) {
 				this._logService.warn(`[Copilot:${sessionId}] Client tool '${e.data.toolName}' started with no connected client; failing it immediately.`);
 				this._reportToolApprovalIfNoPermission(e.data.toolCallId);
 				this._toolApprovalRecords.delete(e.data.toolCallId);
