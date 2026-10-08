@@ -145,7 +145,7 @@ export type AgentHostDatabaseSessionChatCatalogReplaceResult =
 	| { readonly status: 'applied'; readonly revision: number }
 	| { readonly status: 'conflict' | 'missingSession' | 'tombstoned' };
 
-export type AgentHostDatabaseSessionV2UpsertResult = 'applied' | 'replayed' | 'stale' | 'conflict' | 'generationMismatch' | 'missingSession' | 'tombstoned';
+export type AgentHostDatabaseSessionV2UpsertResult = 'applied' | 'replayed' | 'stale' | 'conflict' | 'generationMismatch' | 'missingSession' | 'tombstoned' | 'cancelled';
 
 export interface IAgentHostDatabaseChatV2NormalizationChat {
 	readonly chat: string;
@@ -233,7 +233,9 @@ export type IAgentHostDatabaseChatV2Mutation =
 
 export type AgentHostDatabaseChatV2WriteResult =
 	| { readonly status: 'applied' | 'replayed'; readonly catalogRevision: number }
-	| { readonly status: 'conflict' | 'notReady' | 'missingSession' | 'tombstoned' | 'alreadyNormalized' };
+	| { readonly status: 'conflict' | 'notReady' | 'missingSession' | 'tombstoned' | 'alreadyNormalized' | 'cancelled' };
+
+class AgentHostDatabaseWriteCancelledError extends Error { }
 
 export const IAgentHostDatabase = createDecorator<IAgentHostDatabase>('agentHostDatabase');
 export const AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT = 400;
@@ -352,9 +354,9 @@ export interface IAgentHostDatabase extends IDisposable {
 	markSessionsV2PayloadsDirty(sessions: readonly string[]): Promise<void>;
 	/** Clears a dirty marker only when no newer mutation superseded it. */
 	markSessionV2PayloadClean(session: string, expectedDirty: number): Promise<boolean>;
-	upsertSessionV2(envelope: IAgentHostDatabaseSessionV2Envelope, expectedSessionGeneration: string | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult>;
+	upsertSessionV2(envelope: IAgentHostDatabaseSessionV2Envelope, expectedSessionGeneration: string | undefined, validate?: () => boolean): Promise<AgentHostDatabaseSessionV2UpsertResult>;
 	/** Writes session aggregates only after comparing their public chat projection with normalized authority. */
-	upsertSessionV2FromChatCatalog(envelope: IAgentHostDatabaseSessionV2Envelope, expectedSessionGeneration: string | undefined, expectedCatalogRevision: number): Promise<AgentHostDatabaseSessionV2UpsertResult>;
+	upsertSessionV2FromChatCatalog(envelope: IAgentHostDatabaseSessionV2Envelope, expectedSessionGeneration: string | undefined, expectedCatalogRevision: number, validate?: () => boolean): Promise<AgentHostDatabaseSessionV2UpsertResult>;
 	readCatalogSnapshot(sessions?: readonly string[]): Promise<readonly IAgentHostDatabaseCatalogSnapshotEntry[]>;
 	/** Selects live legacy owners eligible for migration without reading chat metadata. */
 	listLegacyChatCatalogSessions(sessions: readonly string[]): Promise<readonly string[]>;
@@ -362,18 +364,16 @@ export interface IAgentHostDatabase extends IDisposable {
 	readChatV2(session: string, chat: string): Promise<{ readonly normalized: boolean; readonly chat?: IAgentHostDatabaseChatV2 }>;
 	getChatV2ProviderDetail(chat: string): Promise<IAgentHostDatabaseChatV2ProviderDetail | undefined>;
 	/** Activates verified legacy input and optionally mutates it in the same central transaction. */
-	ensureChatCatalogV2(session: string, expected: IAgentHostDatabaseChatV2NormalizationExpectation, candidate: IAgentHostDatabaseChatV2NormalizationCandidate, mutation?: IAgentHostDatabaseChatV2Mutation): Promise<AgentHostDatabaseChatV2WriteResult>;
+	ensureChatCatalogV2(session: string, expected: IAgentHostDatabaseChatV2NormalizationExpectation, candidate: IAgentHostDatabaseChatV2NormalizationCandidate, mutation?: IAgentHostDatabaseChatV2Mutation, validate?: () => boolean): Promise<AgentHostDatabaseChatV2WriteResult>;
 	/** Writes a new unverified session's complete catalog directly to normalized authority. */
 	registerChatCatalogV2(session: string, candidate: IAgentHostDatabaseChatV2NormalizationCandidate): Promise<AgentHostDatabaseChatV2WriteResult>;
-	updateChatV2Metadata(chat: string, expected: IAgentHostDatabaseChatV2Revision, patch: IAgentHostDatabaseChatV2Patch): Promise<AgentHostDatabaseChatV2WriteResult>;
-	insertPrivateChatV2(session: string, chat: IAgentHostDatabaseChatV2NormalizationChat, expectedCatalogRevision: number): Promise<AgentHostDatabaseChatV2WriteResult>;
+	updateChatV2Metadata(chat: string, expected: IAgentHostDatabaseChatV2Revision, patch: IAgentHostDatabaseChatV2Patch, validate?: () => boolean): Promise<AgentHostDatabaseChatV2WriteResult>;
+	insertPrivateChatV2(session: string, chat: IAgentHostDatabaseChatV2NormalizationChat, expectedCatalogRevision: number, validate?: () => boolean): Promise<AgentHostDatabaseChatV2WriteResult>;
 	removePrivateChatV2(session: string, chat: string, expectedCatalogRevision: number): Promise<AgentHostDatabaseChatV2WriteResult>;
 	/** Reads authoritative peer-chat membership. `undefined` means legacy import has not completed. */
 	getSessionChatCatalog(session: string): Promise<IAgentHostDatabaseSessionChatCatalog | undefined>;
 	/** Replaces authoritative peer-chat membership when the session exists and its revision still matches. */
 	replaceSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number | undefined): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult>;
-	/** Recovers membership without adding a chat already owned by another authoritative catalogue. */
-	recoverSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult>;
 	/** Acknowledges the exact central revision written to the downgrade-compatibility mirror. */
 	markSessionChatCatalogLegacyMirrored(session: string, expectedRevision: number, payload?: string): Promise<boolean>;
 	/** Records the legacy payload used as the next three-way merge base without acknowledging a central revision. */
@@ -703,7 +703,10 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 	private _closed: Promise<void> | true | undefined;
 	private readonly _transactionSequencer = new Sequencer();
 
-	constructor(private readonly _path: string) { }
+	constructor(
+		private readonly _path: string,
+		private readonly _onDidRunStatement?: (sql: string) => Promise<void>,
+	) { }
 
 	async registerSession(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
 		const { provider, startTime, modifiedTime = startTime, source } = sessionOptions;
@@ -1686,14 +1689,6 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 	}
 
 	async replaceSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number | undefined): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult> {
-		return this._replaceSessionChatCatalog(session, chats, expectedRevision, false);
-	}
-
-	async recoverSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult> {
-		return this._replaceSessionChatCatalog(session, chats, expectedRevision, true);
-	}
-
-	private async _replaceSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number | undefined, recovering: boolean): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult> {
 		this._validateSessionChats(chats);
 		if (expectedRevision !== undefined && (!Number.isSafeInteger(expectedRevision) || expectedRevision <= 0)) {
 			throw new Error('Expected session chat catalog revision must be a positive safe integer');
@@ -1722,19 +1717,9 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					return { status: 'conflict' };
 				}
 				if (current?.authority_version === 2) {
-					const result = await this._replaceNormalizedPeers(database, session, chats, current, recovering);
+					const result = await this._replaceNormalizedPeers(database, session, chats, current);
 					await exec(database, 'COMMIT');
 					return result;
-				}
-				if (recovering) {
-					const foreign = await all(database, `SELECT DISTINCT chat_uri FROM session_chats
-						WHERE session_uri <> ? AND chat_uri NOT IN
-						(SELECT chat_uri FROM session_chats WHERE session_uri = ?)`, [session, session]);
-					const foreignUris = new Set(foreign.map(row => row.chat_uri as string));
-					chats = chats.filter(chat => !foreignUris.has(chat.chat)).map((chat, order) => ({ ...chat, order }));
-					if (chats.length > AGENT_HOST_CATALOG_CHILD_LIMIT - 1) {
-						throw new Error(`Peer-chat recovery exceeds the catalog limit for ${session}`);
-					}
 				}
 				const revision = (currentRevision ?? 0) + 1;
 				if (!Number.isSafeInteger(revision)) {
@@ -1820,16 +1805,16 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		});
 	}
 
-	async upsertSessionV2(envelope: IAgentHostDatabaseSessionV2Envelope, expectedSessionGeneration: string | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult> {
-		return this._upsertSessionV2(envelope, expectedSessionGeneration);
+	async upsertSessionV2(envelope: IAgentHostDatabaseSessionV2Envelope, expectedSessionGeneration: string | undefined, validate?: () => boolean): Promise<AgentHostDatabaseSessionV2UpsertResult> {
+		return this._upsertSessionV2(envelope, expectedSessionGeneration, undefined, validate);
 	}
 
-	async upsertSessionV2FromChatCatalog(envelope: IAgentHostDatabaseSessionV2Envelope, expectedSessionGeneration: string | undefined, expectedCatalogRevision: number): Promise<AgentHostDatabaseSessionV2UpsertResult> {
+	async upsertSessionV2FromChatCatalog(envelope: IAgentHostDatabaseSessionV2Envelope, expectedSessionGeneration: string | undefined, expectedCatalogRevision: number, validate?: () => boolean): Promise<AgentHostDatabaseSessionV2UpsertResult> {
 		this._validateRevision(expectedCatalogRevision);
-		return this._upsertSessionV2(envelope, expectedSessionGeneration, expectedCatalogRevision);
+		return this._upsertSessionV2(envelope, expectedSessionGeneration, expectedCatalogRevision, validate);
 	}
 
-	private async _upsertSessionV2(envelope: IAgentHostDatabaseSessionV2Envelope, expectedSessionGeneration: string | undefined, expectedCatalogRevision?: number): Promise<AgentHostDatabaseSessionV2UpsertResult> {
+	private async _upsertSessionV2(envelope: IAgentHostDatabaseSessionV2Envelope, expectedSessionGeneration: string | undefined, expectedCatalogRevision?: number, validate?: () => boolean): Promise<AgentHostDatabaseSessionV2UpsertResult> {
 		const isChatBacking = this._validateSessionV2Envelope(envelope);
 		return this._transactionSequencer.queue(async () => {
 			const database = await this._ensureDatabase();
@@ -1886,6 +1871,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					}
 				}
 
+				this._validateWriteBoundary(validate);
 				await run(database, `INSERT INTO sessions_v2 (
 				session_uri, provider, start_time, modified_time, external, registration_source,
 				session_generation, source_revision, payload_version, payload_hash, verified, payload, is_chat_backing
@@ -1916,9 +1902,14 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					envelope.payload,
 					isChatBacking ? 1 : 0,
 				]);
+				this._validateWriteBoundary(validate);
 				await exec(database, 'COMMIT');
 				return 'applied';
 			} catch (error) {
+				if (error instanceof AgentHostDatabaseWriteCancelledError) {
+					await exec(database, 'ROLLBACK');
+					return 'cancelled';
+				}
 				return this._rollback(database, error, `Failed to upsert sessions_v2 row for ${envelope.session}`);
 			}
 		});
@@ -2075,7 +2066,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		});
 	}
 
-	async ensureChatCatalogV2(session: string, expected: IAgentHostDatabaseChatV2NormalizationExpectation, candidate: IAgentHostDatabaseChatV2NormalizationCandidate, mutation?: IAgentHostDatabaseChatV2Mutation): Promise<AgentHostDatabaseChatV2WriteResult> {
+	async ensureChatCatalogV2(session: string, expected: IAgentHostDatabaseChatV2NormalizationExpectation, candidate: IAgentHostDatabaseChatV2NormalizationCandidate, mutation?: IAgentHostDatabaseChatV2Mutation, validate?: () => boolean): Promise<AgentHostDatabaseChatV2WriteResult> {
 		this._validateChatV2Candidate(candidate);
 		this._validateRevision(expected.catalogRevision);
 		this._validateRevision(expected.sourceRevision);
@@ -2089,7 +2080,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			const database = await this._ensureDatabase();
 			await exec(database, 'BEGIN IMMEDIATE');
 			try {
-				const result = await this._normalizeChatCatalog(database, session, expected, candidate);
+				const result = await this._normalizeChatCatalog(database, session, expected, candidate, validate);
 				if (result.status !== 'applied' && result.status !== 'replayed') {
 					await exec(database, 'ROLLBACK');
 					return result;
@@ -2104,7 +2095,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					if (!header) {
 						throw new Error(`Missing normalized catalog header for ${session}`);
 					}
-					const updated = await this._replaceNormalizedPeers(database, session, mutation.chats, header, false);
+					const updated = await this._replaceNormalizedPeers(database, session, mutation.chats, header);
 					if (updated.status !== 'applied') {
 						await exec(database, 'ROLLBACK');
 						return updated;
@@ -2112,7 +2103,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					await exec(database, 'COMMIT');
 					return { status: 'applied', catalogRevision: updated.revision };
 				} else if (mutation) {
-					const updated = await this._updateChatV2(database, mutation.chat, mutation.expected, mutation.patch, session);
+					const updated = await this._updateChatV2(database, mutation.chat, mutation.expected, mutation.patch, session, validate);
 					if (updated.status !== 'applied') {
 						await exec(database, 'ROLLBACK');
 						return updated;
@@ -2123,6 +2114,10 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				await exec(database, 'COMMIT');
 				return result;
 			} catch (error) {
+				if (error instanceof AgentHostDatabaseWriteCancelledError) {
+					await exec(database, 'ROLLBACK');
+					return { status: 'cancelled' };
+				}
 				return this._rollback(database, error, `Failed to activate chat catalog for ${session}`);
 			}
 		});
@@ -2157,33 +2152,37 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		});
 	}
 
-	async updateChatV2Metadata(chat: string, expected: IAgentHostDatabaseChatV2Revision, patch: IAgentHostDatabaseChatV2Patch): Promise<AgentHostDatabaseChatV2WriteResult> {
+	async updateChatV2Metadata(chat: string, expected: IAgentHostDatabaseChatV2Revision, patch: IAgentHostDatabaseChatV2Patch, validate?: () => boolean): Promise<AgentHostDatabaseChatV2WriteResult> {
 		this._validateChatV2Patch(expected, patch);
 		return this._transactionSequencer.queue(async () => {
 			const database = await this._ensureDatabase();
 			await exec(database, 'BEGIN IMMEDIATE');
 			try {
-				const result = await this._updateChatV2(database, chat, expected, patch);
+				const result = await this._updateChatV2(database, chat, expected, patch, undefined, validate);
 				await exec(database, 'COMMIT');
 				return result;
 			} catch (error) {
+				if (error instanceof AgentHostDatabaseWriteCancelledError) {
+					await exec(database, 'ROLLBACK');
+					return { status: 'cancelled' };
+				}
 				return this._rollback(database, error, `Failed to update chat ${chat}`);
 			}
 		});
 	}
 
-	async insertPrivateChatV2(session: string, chat: IAgentHostDatabaseChatV2NormalizationChat, expectedCatalogRevision: number): Promise<AgentHostDatabaseChatV2WriteResult> {
+	async insertPrivateChatV2(session: string, chat: IAgentHostDatabaseChatV2NormalizationChat, expectedCatalogRevision: number, validate?: () => boolean): Promise<AgentHostDatabaseChatV2WriteResult> {
 		if (chat.order !== undefined || chat.metadata?.interactivity !== ChatInteractivity.Hidden) {
 			throw new Error('Private insertion requires no ordering slot and explicit Hidden interactivity');
 		}
-		return this._mutatePrivateChatV2(session, chat.chat, expectedCatalogRevision, chat);
+		return this._mutatePrivateChatV2(session, chat.chat, expectedCatalogRevision, chat, validate);
 	}
 
 	async removePrivateChatV2(session: string, chat: string, expectedCatalogRevision: number): Promise<AgentHostDatabaseChatV2WriteResult> {
 		return this._mutatePrivateChatV2(session, chat, expectedCatalogRevision);
 	}
 
-	private async _mutatePrivateChatV2(session: string, chat: string, expectedCatalogRevision: number, insertion?: IAgentHostDatabaseChatV2NormalizationChat): Promise<AgentHostDatabaseChatV2WriteResult> {
+	private async _mutatePrivateChatV2(session: string, chat: string, expectedCatalogRevision: number, insertion?: IAgentHostDatabaseChatV2NormalizationChat, validate?: () => boolean): Promise<AgentHostDatabaseChatV2WriteResult> {
 		this._validateRevision(expectedCatalogRevision);
 		validateChatV2String(chat, true);
 		return this._transactionSequencer.queue(async () => {
@@ -2233,7 +2232,9 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					if (rows.length === AGENT_HOST_CATALOG_CHILD_LIMIT) {
 						throw new Error('Chat catalog exceeds the limit');
 					}
+					this._validateWriteBoundary(validate);
 					await this._insertChatV2(database, session, insertion);
+					this._validateWriteBoundary(validate);
 				} else {
 					if (!existing) {
 						await exec(database, 'COMMIT');
@@ -2258,10 +2259,17 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					}
 				}
 				const revision = this._nextRevision(expectedCatalogRevision);
-				await run(database, 'UPDATE session_chat_catalogs SET revision = ? WHERE session_uri = ?', [revision, session]);
+				const updateRevisionSql = 'UPDATE session_chat_catalogs SET revision = ? WHERE session_uri = ?';
+				await run(database, updateRevisionSql, [revision, session]);
+				await this._onDidRunStatement?.(updateRevisionSql);
+				this._validateWriteBoundary(validate);
 				await exec(database, 'COMMIT');
 				return { status: 'applied', catalogRevision: revision };
 			} catch (error) {
+				if (error instanceof AgentHostDatabaseWriteCancelledError) {
+					await exec(database, 'ROLLBACK');
+					return { status: 'cancelled' };
+				}
 				return this._rollback(database, error, `Failed to mutate private chat ${chat}`);
 			}
 		});
@@ -2276,7 +2284,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		return row ? undefined : 'missingSession';
 	}
 
-	private async _normalizeChatCatalog(database: Database, session: string, expected: IAgentHostDatabaseChatV2NormalizationExpectation, candidate: IAgentHostDatabaseChatV2NormalizationCandidate): Promise<AgentHostDatabaseChatV2WriteResult> {
+	private async _normalizeChatCatalog(database: Database, session: string, expected: IAgentHostDatabaseChatV2NormalizationExpectation, candidate: IAgentHostDatabaseChatV2NormalizationCandidate, validate?: () => boolean): Promise<AgentHostDatabaseChatV2WriteResult> {
 		const unavailable = await this._chatCatalogUnavailable(database, session);
 		if (unavailable) {
 			return { status: unavailable };
@@ -2389,7 +2397,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		};
 		this._validateChatV2Candidate(normalized);
 		const revision = this._nextRevision(expected.catalogRevision);
-		await this._insertChatV2Catalog(database, session, normalized, revision, expected);
+		await this._insertChatV2Catalog(database, session, normalized, revision, expected, validate);
 		return { status: 'applied', catalogRevision: revision };
 	}
 
@@ -2447,6 +2455,20 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		}
 	}
 
+	private async _projectNormalizedPeersToLegacy(database: Database, session: string): Promise<void> {
+		await run(database, 'DELETE FROM session_chats WHERE session_uri = ?', [session]);
+		const insertSql = `INSERT INTO session_chats
+			(session_uri, chat_uri, chat_order, provider_data, origin, inherited_turn_id, is_read, archived)
+			SELECT c.owner_session_uri, c.chat_uri, ROW_NUMBER() OVER (ORDER BY c.chat_order) - 1,
+				c.provider_data, c.origin, c.inherited_turn_id, c.is_read, c.archived
+			FROM chats_v2 c JOIN session_chat_catalogs h ON h.session_uri = c.owner_session_uri
+			WHERE c.owner_session_uri = ? AND c.tombstoned = 0 AND c.chat_order IS NOT NULL
+				AND h.authority_version = 2 AND c.chat_uri <> h.default_chat_uri
+			ORDER BY c.chat_order`;
+		await run(database, insertSql, [session]);
+		await this._onDidRunStatement?.(insertSql);
+	}
+
 	private _validateChatV2Input(chat: IAgentHostDatabaseChatV2NormalizationChat): void {
 		validateChatV2String(chat.chat, true);
 		if (chat.storageResource !== undefined) {
@@ -2471,20 +2493,23 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		}
 	}
 
-	private async _insertChatV2Catalog(database: Database, session: string, candidate: IAgentHostDatabaseChatV2NormalizationCandidate, revision: number, expected?: IAgentHostDatabaseChatV2NormalizationExpectation): Promise<void> {
+	private async _insertChatV2Catalog(database: Database, session: string, candidate: IAgentHostDatabaseChatV2NormalizationCandidate, revision: number, expected?: IAgentHostDatabaseChatV2NormalizationExpectation, validate?: () => boolean): Promise<void> {
 		for (const chat of [candidate.defaultChat, ...candidate.peers, ...candidate.privateDescendants]) {
 			if (await get(database, 'SELECT 1 FROM chats_v2 WHERE chat_uri = ?', [chat.chat])) {
 				throw new Error(`Chat identity is already registered: ${chat.chat}`);
 			}
 		}
+		this._validateWriteBoundary(validate);
 		await run(database, `INSERT INTO session_chat_catalogs (session_uri, revision, authority_version, default_chat_uri,
 			session_generation, normalization_source_revision, normalization_payload_hash) VALUES (?, ?, 2, ?, ?, ?, ?)
 			ON CONFLICT(session_uri) DO UPDATE SET revision = excluded.revision, authority_version = 2,
 				default_chat_uri = excluded.default_chat_uri, session_generation = excluded.session_generation,
 				normalization_source_revision = excluded.normalization_source_revision, normalization_payload_hash = excluded.normalization_payload_hash`,
 			[session, revision, candidate.defaultChat.chat, expected?.sessionGeneration ?? null, expected?.sourceRevision ?? null, expected?.payloadHash ?? null]);
+		this._validateWriteBoundary(validate);
 		for (const chat of [candidate.defaultChat, ...candidate.peers, ...candidate.privateDescendants]) {
 			await this._insertChatV2(database, session, chat);
+			this._validateWriteBoundary(validate);
 		}
 		for (const deleted of candidate.deletedChats ?? []) {
 			const current = await get(database, 'SELECT tombstoned FROM chats_v2 WHERE chat_uri = ?', [deleted.chat]);
@@ -2495,8 +2520,11 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				const metadata = encodeChatV2Metadata({});
 				await run(database, `INSERT INTO chats_v2 (chat_uri, owner_session_uri, metadata, metadata_hash, tombstoned, ownership_revision)
 					VALUES (?, ?, ?, ?, 1, 1)`, [deleted.chat, session, metadata, hashChatV2Metadata(metadata)]);
+				this._validateWriteBoundary(validate);
 			}
 		}
+		await this._projectNormalizedPeersToLegacy(database, session);
+		this._validateWriteBoundary(validate);
 	}
 
 	private async _insertChatV2(database: Database, session: string, chat: IAgentHostDatabaseChatV2NormalizationChat): Promise<void> {
@@ -2532,7 +2560,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		}
 	}
 
-	private async _updateChatV2(database: Database, chat: string, expected: IAgentHostDatabaseChatV2Revision, patch: IAgentHostDatabaseChatV2Patch, expectedOwner?: string): Promise<AgentHostDatabaseChatV2WriteResult> {
+	private async _updateChatV2(database: Database, chat: string, expected: IAgentHostDatabaseChatV2Revision, patch: IAgentHostDatabaseChatV2Patch, expectedOwner?: string, validate?: () => boolean): Promise<AgentHostDatabaseChatV2WriteResult> {
 		const row = await get(database, 'SELECT * FROM chats_v2 WHERE chat_uri = ? AND tombstoned = 0', [chat]);
 		if (!row || expectedOwner !== undefined && row.owner_session_uri !== expectedOwner) {
 			return { status: 'conflict' };
@@ -2542,7 +2570,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		if (unavailable) {
 			return { status: unavailable };
 		}
-		const header = await get(database, 'SELECT revision, authority_version FROM session_chat_catalogs WHERE session_uri = ?', [session]);
+		const header = await get(database, 'SELECT revision, authority_version, default_chat_uri FROM session_chat_catalogs WHERE session_uri = ?', [session]);
 		if (header?.authority_version !== 2 || row.ownership_revision !== expected.ownershipRevision || row.metadata_revision !== expected.metadataRevision) {
 			return { status: 'conflict' };
 		}
@@ -2555,6 +2583,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			await this._validatePrivateChatV2Parent(database, session, chat, patch.parentChat);
 		}
 		const payload = encodeChatV2Metadata(metadata);
+		this._validateWriteBoundary(validate);
 		await run(database, `UPDATE chats_v2 SET metadata = ?, metadata_hash = ?, metadata_revision = ?,
 			provider_data = ?, origin = ?, working_directories = ?, parent_chat = ?, is_read = ?, archived = ?, inherited_turn_id = ?
 			WHERE chat_uri = ?`, [
@@ -2568,9 +2597,22 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			patch.inheritedTurnId === undefined ? row.inherited_turn_id : patch.inheritedTurnId,
 			chat,
 		]);
+		this._validateWriteBoundary(validate);
 		const revision = this._nextRevision(header.revision as number);
 		await run(database, 'UPDATE session_chat_catalogs SET revision = ? WHERE session_uri = ?', [revision, session]);
+		if (row.chat_order !== null && chat !== header.default_chat_uri
+			&& (patch.providerData !== undefined || patch.origin !== undefined || patch.inheritedTurnId !== undefined
+				|| patch.isRead !== undefined || patch.archived !== undefined)) {
+			await this._projectNormalizedPeersToLegacy(database, session);
+		}
+		this._validateWriteBoundary(validate);
 		return { status: 'applied', catalogRevision: revision };
+	}
+
+	private _validateWriteBoundary(validate: (() => boolean) | undefined): void {
+		if (validate && !validate()) {
+			throw new AgentHostDatabaseWriteCancelledError();
+		}
 	}
 
 	private async _validatePrivateChatV2Parent(database: Database, session: string, chat: string, parent: string | undefined): Promise<void> {
@@ -2646,20 +2688,13 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		};
 	}
 
-	private async _replaceNormalizedPeers(database: Database, session: string, chats: readonly IAgentHostDatabaseSessionChat[], header: Record<string, unknown>, recovering: boolean): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult> {
+	private async _replaceNormalizedPeers(database: Database, session: string, chats: readonly IAgentHostDatabaseSessionChat[], header: Record<string, unknown>): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult> {
 		const rows = await all(database, 'SELECT * FROM chats_v2 WHERE owner_session_uri = ? AND tombstoned = 0', [session]);
 		const defaultChat = rows.find(row => row.chat_uri === header.default_chat_uri);
 		if (!defaultChat || defaultChat.chat_order === null) {
 			throw new Error(`Normalized catalog has no visible default chat: ${session}`);
 		}
 		const existing = new Map(rows.filter(row => row.chat_order !== null && row.chat_uri !== defaultChat.chat_uri).map(row => [row.chat_uri as string, row]));
-		if (recovering) {
-			const actual = [...existing.values()].sort((a, b) => (a.chat_order as number) - (b.chat_order as number))
-				.map((row, order) => ({ ...this._toLegacyChat(row), order }));
-			return stableStringify(chats) === stableStringify(actual)
-				? { status: 'applied', revision: header.revision as number }
-				: { status: 'conflict' };
-		}
 		const retained: IAgentHostDatabaseSessionChat[] = [];
 		for (const chat of chats) {
 			if (chat.origin !== undefined) {
@@ -2741,6 +2776,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			}
 		}
 		await run(database, 'UPDATE session_chat_catalogs SET revision = ? WHERE session_uri = ?', [revision, session]);
+		await this._projectNormalizedPeersToLegacy(database, session);
 		return { status: 'applied', revision };
 	}
 

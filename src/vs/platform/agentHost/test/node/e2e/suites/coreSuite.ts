@@ -262,8 +262,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 		await assertRecordedAhpSnapshot(this.test!, context.client, behaviorSnapshot);
 	});
 
-	// Quarantined on Codex Linux: https://github.com/microsoft/vscode/issues/338152
-	(modelSwitchTarget && (config.provider !== 'codex' || !context.isLinux) ? test : test.skip)('client-selected model is used for the turn', async function () {
+	(modelSwitchTarget ? test : test.skip)('client-selected model is used for the turn', async function () {
 		this.timeout(180_000);
 		assert.ok(modelSwitchTarget);
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-model-switch-'));

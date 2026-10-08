@@ -193,6 +193,8 @@ The managed customization controls are complementary:
 
 `strictPluginOnlyCustomization` does not replace strict marketplace enforcement. Hardened deployments apply both controls when plugin source and standalone customization provenance must both be constrained.
 
+In Copilot Agent Host sessions, the runtime reads `strictPluginOnlyCustomization` from Copilot managed settings, including its array form, and applies it to the customizations it discovers. The user and workspace skills and agents that VS Code forwards (for example, from configured skill locations), and every MCP server it forwards (for example, from VS Code's `mcp.json` or an extension), are bundled separately from other synced content. The host passes them through the SDK's `skillDirectories`, `customAgents`, and session `mcpServers` instead of `pluginDirectories`, so the runtime treats them as standalone customizations rather than plugin content. Extension and built-in skills and agents stay in the synced plugin, matching the workbench lockdown, which blocks only standalone prompt files.
+
 ### Storage (ApplicationScope, MachineTarget)
 | Key | Description |
 |-----|-------------|

@@ -148,7 +148,7 @@ function createMockProvider(id: string, opts?: {
 		renameChat: async () => { },
 		renameSession: async () => { },
 		getModelsSnapshot: () => ({ models: [], desiredModelResolution: { kind: 'notRequested' as const }, modelTarget: undefined }),
-		getModelPickerOptions: () => ({ useGroupedModelPicker: true, showFeatured: true, showUnavailableFeatured: false, showManageModelsAction: false }),
+		getModelPickerOptions: () => ({ showUnavailableFeatured: false, showManageModelsAction: false }),
 		onDidChangeModels: Event.None,
 		setModel: () => { },
 		archiveSession: async () => { },

@@ -192,7 +192,7 @@ export class AhpSnapshotRecorder {
 				}
 				projected = {
 					responseTo: method ?? `request-${message.id}`,
-					...(message.error ? { error: { code: message.error.code, message: message.error.message } } : { result: 'success' }),
+					...(message.error ? { error: { code: message.error.code, message: normalizeRpcErrorMessage(message.error.message) } } : { result: 'success' }),
 				};
 			} else {
 				projected = { message: 'unparsed' };
@@ -215,6 +215,10 @@ export class AhpSnapshotRecorder {
 }
 
 /** Records code-driven AHP traffic during snapshot updates and asserts it during replay. */
+function normalizeRpcErrorMessage(message: string): string {
+	return message.replace(/\r\n/g, '\n').split('\n').filter(line => !/^[ \t]+at .+(?::\d+:\d+\)?|<anonymous>\)?)$/.test(line)).join('\n').trimEnd();
+}
+
 export async function assertRecordedAhpSnapshot(test: Mocha.Runnable, client: IAhpSnapshotClient, options?: IAhpSnapshotOptions): Promise<void> {
 	const actual = client.serializeAhpSnapshot(options);
 	if (UPDATE_AHP_SNAPSHOTS || UPDATE_ALL_SNAPSHOTS) {

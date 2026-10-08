@@ -14,6 +14,8 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IApplicationBadge, INativeHostService } from '../../../../platform/native/common/native.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import product from '../../../../platform/product/common/product.js';
+import { logSettingExperimentTrigger } from '../../../../platform/telemetry/common/experimentTrigger.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IColorTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND } from '../../../../workbench/common/theme.js';
@@ -49,6 +51,7 @@ export class SessionsApplicationBadge extends Disposable implements IWorkbenchCo
 	private readonly _enabled: IObservable<boolean>;
 	private readonly _sessions: IObservable<readonly ISession[]>;
 	private readonly _colorTheme: IObservable<IColorTheme>;
+	private readonly _eligibleCount: IObservable<number>;
 	private readonly _count: IObservable<number>;
 	private readonly _blockedSessions: BlockedSessions;
 
@@ -57,6 +60,7 @@ export class SessionsApplicationBadge extends Disposable implements IWorkbenchCo
 		@INativeHostService private readonly _nativeHostService: INativeHostService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IThemeService private readonly _themeService: IThemeService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
@@ -69,11 +73,7 @@ export class SessionsApplicationBadge extends Disposable implements IWorkbenchCo
 
 		this._colorTheme = observableFromEvent(this, this._themeService.onDidColorThemeChange, () => this._themeService.getColorTheme());
 
-		this._count = derived(this, reader => {
-			if (!this._enabled.read(reader)) {
-				return 0;
-			}
-
+		this._eligibleCount = derived(this, reader => {
 			const options = badgeOptions.read(reader);
 			const ciFailingSessionIds = options.ciFailing
 				? new Set(this._blockedSessions.failingCISessions.read(reader).map(session => session.sessionId))
@@ -93,6 +93,14 @@ export class SessionsApplicationBadge extends Disposable implements IWorkbenchCo
 
 			return count;
 		});
+
+		this._count = derived(this, reader => this._enabled.read(reader) ? this._eligibleCount.read(reader) : 0);
+
+		this._register(autorun(reader => {
+			if (this._eligibleCount.read(reader) > 0) {
+				logSettingExperimentTrigger(this._telemetryService, SESSIONS_APPLICATION_BADGE_SETTING);
+			}
+		}));
 
 		this._register(autorun(reader => {
 			const count = this._count.read(reader);

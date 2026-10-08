@@ -330,7 +330,7 @@ suite('Sessions - ChatGroupsView', () => {
 	test('aligns transcript overlays with full-width split chats', () => {
 		const workbench = mainWindow.document.createElement('div');
 		workbench.classList.add('agent-sessions-workbench');
-		workbench.style.setProperty('--session-view-content-horizontal-padding', '32px');
+		workbench.style.setProperty('--session-view-content-horizontal-padding', '24px');
 		const sessionsPart = mainWindow.document.createElement('div');
 		sessionsPart.classList.add('part', 'sessionspart');
 		const groups = mainWindow.document.createElement('div');
@@ -355,7 +355,7 @@ suite('Sessions - ChatGroupsView', () => {
 			scrollDownRight: mainWindow.getComputedStyle(scrollDown).right,
 			transcriptContextMaxWidth: mainWindow.getComputedStyle(transcriptContext).maxWidth,
 		}, {
-			scrollDownRight: '32px',
+			scrollDownRight: '24px',
 			transcriptContextMaxWidth: 'none',
 		});
 	});

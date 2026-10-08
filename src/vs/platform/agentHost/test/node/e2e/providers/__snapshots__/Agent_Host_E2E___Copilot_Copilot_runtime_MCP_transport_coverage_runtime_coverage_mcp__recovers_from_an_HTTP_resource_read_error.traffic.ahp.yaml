@@ -50,13 +50,6 @@ rounds:
       - responseTo: resources/read
         error:
           code: -32603
-          message: |-
-            Error: Request session.mcp.apps.readResource failed with message: MCP resources/read failed for runtime-transport (coverage://fixture/missing): MCP error -32602: MCP error -32602: RUNTIME_MCP_RESOURCE_NOT_FOUND
-                at handleResponse (${homedir}\code\vscode.worktrees\end-to-end-tests-code-coverage\node_modules\vscode-jsonrpc\lib\common\connection.js:565:48)
-                at handleMessage (${homedir}\code\vscode.worktrees\end-to-end-tests-code-coverage\node_modules\vscode-jsonrpc\lib\common\connection.js:345:13)
-                at Object.handleMessage (file:///C:/Users/${user}/code/vscode.worktrees/end-to-end-tests-code-coverage/node_modules/@github/copilot-sdk/dist/client.js:61:13)
-                at processMessageQueue (${homedir}\code\vscode.worktrees\end-to-end-tests-code-coverage\node_modules\vscode-jsonrpc\lib\common\connection.js:359:33)
-                at Immediate.<anonymous> (${homedir}\code\vscode.worktrees\end-to-end-tests-code-coverage\node_modules\vscode-jsonrpc\lib\common\connection.js:334:13)
-                at process.processImmediate (node:internal/timers:574:21)
+          message: 'Error: Request session.mcp.apps.readResource failed with message: MCP resources/read failed for runtime-transport (coverage://fixture/missing): MCP error -32602: MCP error -32602: RUNTIME_MCP_RESOURCE_NOT_FOUND'
       - responseTo: resources/read
         result: success

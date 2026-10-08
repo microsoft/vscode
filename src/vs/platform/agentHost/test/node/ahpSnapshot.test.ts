@@ -126,6 +126,24 @@ suite('AhpSnapshotRecorder', () => {
 		}, { subscribe: false, resourceRead: false, authenticate: true, error: true });
 	});
 
+	test('preserves RPC error codes and multiline diagnostics without runtime stack locations', () => {
+		const recorder = new AhpSnapshotRecorder();
+		recorder.record('c2s', { id: 1, method: 'resources/read', params: {} });
+		recorder.record('s2c', {
+			id: 1,
+			error: {
+				code: -32603,
+				message: 'Expected resource error\nat the requested boundary\n    at handleMessage (C:\\runtime\\connection.js:15:4)\n    at processTicks (node:internal/process/task_queues:21:6)',
+			},
+		});
+		const snapshot = recorder.serialize();
+		assert.deepStrictEqual({
+			code: snapshot.includes('code: -32603'),
+			message: snapshot.includes('Expected resource error') && snapshot.includes('at the requested boundary'),
+			stack: snapshot.includes('connection.js') || snapshot.includes('processTicks'),
+		}, { code: true, message: true, stack: false });
+	});
+
 	test('waits for an unread action on the completed chat after the turn outcome', async () => {
 		const unread = new DeferredPromise<AhpNotification>();
 		const chat = 'ahp-chat://session/chat';

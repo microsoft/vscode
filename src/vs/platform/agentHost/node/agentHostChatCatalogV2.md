@@ -19,6 +19,28 @@ record the verified source receipt. No separate flag on each legacy chat row is
 needed. Retained legacy rows are not authoritative after activation and must not
 be merged into V2 reads or used as a fallback.
 
+Normalized activation, direct registration and public peer membership mutations
+also replace `session_chats` with a one-way SQL projection in the same central
+transaction. It contains live visible peers only, excludes the exact physical
+default and private descendants, and compacts peer order independently of the
+default's slot. Removing a peer tombstones its V2 identity and private closure;
+the projection removes its legacy membership row. Representable peer read/archive,
+provider, origin and inherited-turn updates refresh the same projection.
+Projection failure rolls back the authoritative mutation. It does not advance
+the header a second time or acknowledge a backing-store mirror.
+
+This is a migration-only compatibility projection, not a second authority or
+bidirectional synchronization. Legacy writes are never imported after cutover.
+An older writer can still change legacy membership and the shared header revision;
+normal V2 revision checks reject stale requests, and a later public mutation
+rebuilds the projection from V2. The projection does not update legacy backing
+membership JSON or its mirror acknowledgement, titles, pinned directories, or
+provider transcripts. Session aggregate publication remains separate and can lag.
+Default-only sessions have no projected peer rows; their existing runtime
+registration bridge records both session registries, and deletion removes both.
+These SQL facts do not establish full older-app read/write or downgrade safety,
+or compatibility with ownership changes and opaque chat addressing.
+
 Table removal is deferred until a separately approved cleanup milestone, after
 remaining migration, consumer and recovery dependencies have been audited.
 Successful activation alone never authorizes dropping the old table.
@@ -228,11 +250,8 @@ inherited fields use `null` to clear. Interactivity cannot change a chat's
 visible/private role. Only private chats can be reparented, within the live
 owner catalog, without cycles.
 
-Existing `getSessionChatCatalog`, `replaceSessionChatCatalog` and
-`recoverSessionChatCatalog` dispatch to normalized peers after cutover.
-Terminal recovery returns `conflict` for any divergent candidate; an exact
-complete normalized peer snapshot acknowledges the unchanged revision without
-re-importing rows.
+Existing `getSessionChatCatalog` and `replaceSessionChatCatalog` dispatch to
+normalized peers after cutover.
 They preserve the default pointer, private descendants and bounded metadata;
 removing a peer tombstones its owned private closure atomically. Reordering
 does not change ownership epochs. Session deletion/unregistration/exclusion

@@ -3362,6 +3362,7 @@ suite('ChatService', () => {
 			readonly isCompleteObs?: ISettableObservable<boolean>;
 			readonly isReadOnly?: ISettableObservable<boolean>;
 			readonly isInputBlocked?: ISettableObservable<boolean>;
+			readonly backgroundShellCount?: ISettableObservable<number | undefined>;
 			readonly interruptActiveResponseCallback?: () => Promise<boolean>;
 			readonly onDidStartServerRequest?: Event<IChatSessionServerRequest>;
 			readonly onDidChangeHistory?: Event<readonly IChatSessionHistoryItem[]>;
@@ -3385,6 +3386,7 @@ suite('ChatService', () => {
 				isCompleteObs: opts.isCompleteObs,
 				isReadOnly: opts.isReadOnly,
 				isInputBlocked: opts.isInputBlocked,
+				backgroundShellCount: opts.backgroundShellCount,
 				interruptActiveResponseCallback: opts.interruptActiveResponseCallback,
 				onDidStartServerRequest: opts.onDidStartServerRequest,
 				onDidChangeHistory: opts.onDidChangeHistory,
@@ -4024,6 +4026,21 @@ suite('ChatService', () => {
 				states: [true, false],
 				sendResult: { kind: 'rejected', reason: 'Session is read-only' },
 			});
+		});
+
+		test('contributed session background shell count stays live on the chat model', async () => {
+			const backgroundShellCount = observableValue<number | undefined>('backgroundShellCount', undefined);
+			const { resource } = setupRemoteProvider({ backgroundShellCount });
+			const service = createChatService();
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			const states = [ref.object.backgroundShellCount?.get()];
+			for (const count of [1, 2, 0]) {
+				backgroundShellCount.set(count, undefined);
+				states.push(ref.object.backgroundShellCount?.get());
+			}
+			assert.deepStrictEqual(states, [undefined, 1, 2, 0]);
 		});
 
 		test('blocked input rejects send, queue and resend without modifying the transcript', async () => {

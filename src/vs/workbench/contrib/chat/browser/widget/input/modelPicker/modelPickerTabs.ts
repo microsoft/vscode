@@ -24,6 +24,8 @@ const PROVIDER_DESTINATION_PREFIX = 'provider:';
 export interface IModelPickerProviderPlaceholder {
 	readonly vendor: string;
 	readonly label: string;
+	/** Shown in place of the provider's icon when the reason is not specific to it, e.g. Restricted Mode. */
+	readonly icon?: ThemeIcon;
 	/** Why there are no models, shown under the provider name. */
 	readonly message: string;
 	/** Optional call to action, e.g. "Sign in". */

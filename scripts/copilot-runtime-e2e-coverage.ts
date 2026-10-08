@@ -607,7 +607,7 @@ function runSupplemental(suite: SuiteId, grep: string | undefined, options: IOpt
 	const args = ['--run', file, ...(grep ? ['--grep', grep] : [])];
 	const output = join(options.runDirectory, `${suite}.stdout.log`);
 	const code = process.platform === 'win32'
-		? runLogged(join(process.env['SYSTEMROOT'] ?? 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'), ['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', join(repoRoot, 'scripts', 'test-agent-host-e2e-child.ps1'), testScript, ...args], environment, output, join(options.runDirectory, `${suite}.stderr.log`))
+		? runLogged(join(process.env['SYSTEMROOT'] ?? 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'), ['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', join(repoRoot, 'test', 'integration', 'agentHost', 'child.ps1'), testScript, ...args], environment, output, join(options.runDirectory, `${suite}.stderr.log`))
 		: runLogged(testScript, args, environment, output, join(options.runDirectory, `${suite}.stderr.log`));
 	return parseSuiteOutput(suite, readFileSync(output, 'utf8'), code, grep !== undefined);
 }
@@ -675,7 +675,7 @@ function executeTests(build: IBuild, options: IOptions, environment: NodeJS.Proc
 			results.push(runSupplemental(options.suite!, options.grep, options, testEnvironment));
 		} else {
 			const output = join(options.runDirectory, 'full.stdout.log');
-			const code = runLogged(process.execPath, [join(repoRoot, 'scripts', 'test-agent-host-e2e.ts'), '--jobs', String(options.jobs)], testEnvironment, output, join(options.runDirectory, 'full.stderr.log'));
+			const code = runLogged(process.execPath, [join(repoRoot, 'test', 'integration', 'agentHost', 'runner.ts'), '--jobs', String(options.jobs), '--storage', 'disk'], testEnvironment, output, join(options.runDirectory, 'full.stderr.log'));
 			const log = readFileSync(output, 'utf8');
 			const labels: Record<string, SuiteId> = { Conformance: 'conformance', Claude: 'claude', Codex: 'codex', Copilot: 'copilot' };
 			for (const [label, suite] of Object.entries(labels)) {

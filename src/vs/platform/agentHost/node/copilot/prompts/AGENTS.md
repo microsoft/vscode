@@ -23,6 +23,8 @@ The per-model prompt override supports the same fields and precedence as the Cop
 
 > **Launch-time freeze.** The SDK accepts a system message only at session create/resume; there is no mid-session update. The prompt is resolved once per (re)launch and any tool-gated content reflects the tool set at that moment. A change to the session's tools/plugins is part of the launcher's restart snapshot, so it re-launches and recomputes; an in-flight turn keeps the prompt it launched with.
 
+> **Prompt-cache layout.** The runtime, not this folder, decides how the rendered prompt is cut into cache blocks. By default it splits after `</environment_limitations>`, so everything after that line (tool instructions, the host `content`, the session folder) is in one block that differs in every session. `chat.copilot.stabilityOrderedPrompt.enabled` (off by default) sends the `STABILITY_ORDERED_SYSTEM_PROMPT_V2` feature flag. With it, the runtime regroups the sections into a global block, a repository block and a per-session block, so new sessions with the same tools and workspace reuse the first two. That moves the per-session sections (environment, host `content`, session folder, commit trailer) to the end of the prompt. Check model behavior before turning it on. The runtime classifies `customize` overrides by section and falls back to the default split when it cannot attribute one. Overrides of `runtime_instructions` or `last_instructions` always go in the per-session block, so keep fixed guidance in other sections. See microsoft/vscode#339643.
+
 There are two ways to customize, and a model can use both at once.
 
 ## Lever 1 — universal, all models (`toolInstructions.ts`)

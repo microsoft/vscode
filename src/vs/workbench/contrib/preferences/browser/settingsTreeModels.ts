@@ -361,7 +361,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		this.defaultValueSource = this.setting.nonLanguageSpecificDefaultValueSource;
 
 		// Runtime restrictions affect presentation only; they are not VS Code configuration policies.
-		const policyValue = this.managedSettingsPresentationService.getValue(this.setting.key) ?? inspected.policyValue;
+		const policyValue = this.managedSettingsPresentationService.getValue(this.setting.key, inspected.value) ?? inspected.policyValue;
 		this.hasPolicyValue = policyValue !== undefined;
 		if (this.hasPolicyValue) {
 			isConfigured = false; // The user did not manually configure the setting themselves.

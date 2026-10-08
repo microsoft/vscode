@@ -237,3 +237,7 @@ The boolean travels from `keybindings.json` to `ResolvedKeybindingItem`:
   reconcile, and are surfaced to the user as a warning.
 - Keep `selectSystemWideKeybindings` pure — it is the primary unit-tested seam for renderer
   eligibility logic.
+- Commands run by system-wide keybindings usually execute while VS Code is inactive or hidden, and
+  `onTrigger` does not focus any window. A command that surfaces UI must focus its window with
+  `FocusMode.Force` (as `workbench.action.focusWindow` and Open Agents Window do), because
+  `FocusMode.Transfer` is a no-op for a hidden app on macOS.
