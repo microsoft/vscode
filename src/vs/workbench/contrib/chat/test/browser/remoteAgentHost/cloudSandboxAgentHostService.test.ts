@@ -32,6 +32,7 @@ import { IRemoteAgentHostConnectionFactory, IRemoteAgentHostConnectionInfo, IRem
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import { IPowerService } from '../../../../../services/power/common/powerService.js';
 import { isWeb } from '../../../../../../base/common/platform.js';
 import { IConnectionDiagnosticEvent } from '../../../../../../platform/agentHost/common/connectionDiagnostics.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -98,6 +99,12 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 		override publicLog2(eventName: string, data?: ITelemetryData): void { events.push({ eventName, data }); }
 	}()));
 	instantiationService.stub(ICloudSandboxTelemetryService, telemetry);
+	const powerSuspend = store.add(new Emitter<void>());
+	const powerResume = store.add(new Emitter<void>());
+	instantiationService.stub(IPowerService, new class extends mock<IPowerService>() {
+		override readonly onDidSuspend = powerSuspend.event;
+		override readonly onDidResume = powerResume.event;
+	}());
 
 	const configurationService = new TestConfigurationService();
 	configurationService.setUserConfiguration(CloudSandboxEnabledSettingId, true);
@@ -191,6 +198,8 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 		requestCalls: () => calls,
 		requests,
 		events,
+		powerSuspend,
+		powerResume,
 		setReconnectResult: (value: CloudSandboxConnectResult | Error | Promise<CloudSandboxConnectResult>) => { reconnectResult = value; },
 		entries: () => factory?.entries.get() ?? [],
 		changeAccount(value: string | undefined): void { account = value; accountChanged.fire(value); },
@@ -278,7 +287,11 @@ suite('CloudSandboxAgentHostService', () => {
 		const options = call.args[3] as IAgentHostProtocolClientOptions;
 		assert.ok(options.prepareReconnect);
 		assert.ok(options.resolveInitialAuthentication);
-		assert.strictEqual(options.reconnectPolicy?.maxElapsedTimeMs, 120_000);
+		assert.deepStrictEqual({
+			budget: options.reconnectPolicy?.maxElapsedTimeMs,
+			suspend: options.onDidSuspend === fixture.powerSuspend.event,
+			resume: options.onDidResume === fixture.powerResume.event,
+		}, { budget: 120_000, suspend: true, resume: true });
 		fixture.setReconnectResult({ kind: 'token', token: { ...clientToken(undefined), access_token: 'fresh-ticket' } });
 		await options.prepareReconnect();
 		const makeTransport = call.args[2] as () => IProtocolTransport;
@@ -548,9 +561,9 @@ suite('CloudSandboxAgentHostService', () => {
 		);
 		await fixture.prepareReconnect();
 		await fixture.redial();
-		await assert.rejects(fixture.prepareReconnect(), /waiting to retry/);
+		const recovery = fixture.prepareReconnect();
 		await timeout(30_000);
-		await fixture.prepareReconnect();
+		await recovery;
 		await fixture.finish();
 
 		assert.deepStrictEqual(fixture.refreshTimes.map(time => time - start), [0, 30_000]);
@@ -602,9 +615,9 @@ suite('CloudSandboxAgentHostService', () => {
 			fixture.setState('connected');
 			await fixture.prepareReconnect();
 			await fixture.prepareReconnect();
-			await assert.rejects(fixture.prepareAuthentication(), /waiting to retry/);
+			const authenticating = fixture.prepareAuthentication();
 			await timeout(30_000);
-			await fixture.prepareAuthentication();
+			await authenticating;
 			const authentication = await fixture.resolveAuthentication();
 
 			assert.deepStrictEqual({ token: authentication?.token, refreshes }, {
@@ -682,8 +695,9 @@ suite('CloudSandboxAgentHostService', () => {
 		await timeout(180_001);
 		const callsBeforeReplacement = fixture.refreshCalls();
 		await fixture.redial();
-		await assert.rejects(fixture.prepareReconnect(), /waiting to retry/);
+		const recovery = assert.rejects(fixture.prepareReconnect(), /stopped|usable future expiry/);
 		await timeout(90_000);
+		await recovery;
 		await assert.rejects(fixture.prepareReconnect(), /stopped/);
 		await fixture.redial();
 		await assert.rejects(fixture.prepareReconnect(), /stopped/);
@@ -703,14 +717,21 @@ suite('CloudSandboxAgentHostService', () => {
 
 	test('preserves the refresh backoff deadline across automatic client replacement', () => runWithFakedTimers({}, async () => {
 		const start = Date.now();
-		const fixture = await createRecoveryFixture(async () => { throw new CloudSandboxRequestError(503, 'unavailable'); });
+		let refreshes = 0;
+		const fixture = await createRecoveryFixture(async () => {
+			if (++refreshes === 1) {
+				throw new CloudSandboxRequestError(503, 'unavailable');
+			}
+			return { kind: 'token', token: clientToken('copilot-sealed.v1.key.refreshed') };
+		});
 		await assert.rejects(fixture.prepareReconnect(), /usable future expiry/);
 		await timeout(10_000);
 		await fixture.redial();
-		await assert.rejects(fixture.prepareReconnect(), /waiting to retry/);
+		const recovery = fixture.prepareReconnect();
 		await timeout(19_999);
 		const callsBeforeRetry = fixture.refreshCalls();
 		await timeout(2);
+		await recovery;
 		await fixture.finish();
 		await timeout(60_000);
 

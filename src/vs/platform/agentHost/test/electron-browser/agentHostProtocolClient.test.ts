@@ -3445,7 +3445,7 @@ suite('AgentHostProtocolClient', () => {
 		 * client plus a `transports` array recording each transport handed
 		 * out, so tests can drive handshake/reconnect interactions.
 		 */
-		function createFactoryClient(permissionService = createPermissionService(), clientInfo?: Implementation, telemetryService: ITelemetryService = NullTelemetryService, reconnectPolicy?: IRemoteAgentHostReconnectPolicy, loadEstimator?: { hasHighLoad(): boolean }, prepareReconnect?: () => Promise<void>, authentication?: Pick<IAgentHostProtocolClientOptions, 'prepareAuthentication' | 'resolveInitialAuthentication'>): { client: AgentHostProtocolClient; transports: TestClientProtocolTransport[]; configurationService: TestConfigurationService } {
+		function createFactoryClient(permissionService = createPermissionService(), clientInfo?: Implementation, telemetryService: ITelemetryService = NullTelemetryService, reconnectPolicy?: IRemoteAgentHostReconnectPolicy, loadEstimator?: { hasHighLoad(): boolean }, prepareReconnect?: () => Promise<void>, authentication?: Pick<IAgentHostProtocolClientOptions, 'prepareAuthentication' | 'resolveInitialAuthentication'>, power?: { onDidSuspend: Event<void>; onDidResume: Event<void> }): { client: AgentHostProtocolClient; transports: TestClientProtocolTransport[]; configurationService: TestConfigurationService } {
 			const transports: TestClientProtocolTransport[] = [];
 			const factory = () => {
 				const t = disposables.add(new TestClientProtocolTransport());
@@ -3455,7 +3455,7 @@ suite('AgentHostProtocolClient', () => {
 			const workspaceTrust = createWorkspaceTrustServices();
 			const configurationService = new TestConfigurationService();
 			const client = disposables.add(new AgentHostProtocolClient(
-				'test.example:1234', factory, clientInfo !== undefined || reconnectPolicy !== undefined || loadEstimator !== undefined || prepareReconnect !== undefined || authentication !== undefined ? { clientInfo, reconnectPolicy, loadEstimator, prepareReconnect, ...authentication } : undefined, new NullLogService(), permissionService, configurationService, telemetryService, workspaceTrustEnablementService, workspaceTrust.management, workspaceTrust.request,
+				'test.example:1234', factory, clientInfo !== undefined || reconnectPolicy !== undefined || loadEstimator !== undefined || prepareReconnect !== undefined || authentication !== undefined || power !== undefined ? { clientInfo, reconnectPolicy, loadEstimator, prepareReconnect, ...authentication, ...power } : undefined, new NullLogService(), permissionService, configurationService, telemetryService, workspaceTrustEnablementService, workspaceTrust.management, workspaceTrust.request,
 			));
 			return { client, transports, configurationService };
 		}
@@ -3691,6 +3691,80 @@ suite('AgentHostProtocolClient', () => {
 				});
 			}));
 		}
+
+		for (const recover of [false, true]) {
+			test(`OS sleep does not consume the recovery budget (${recover ? 'network resumes' : 'network stays unavailable'})`, async () => {
+				const clock = sinon.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+				try {
+					const suspend = disposables.add(new Emitter<void>());
+					const resume = disposables.add(new Emitter<void>());
+					const policy: IRemoteAgentHostReconnectPolicy = {
+						autoRestore: true, initialDelayMs: 10, maxDelayMs: 10, maxAttempts: 10, maxElapsedTimeMs: 100,
+					};
+					const { client, transports } = createFactoryClient(undefined, undefined, undefined, policy, { hasHighLoad: () => false }, undefined, undefined,
+						{ onDidSuspend: suspend.event, onDidResume: resume.event });
+					await completeHandshake(transports[0], client.connect());
+					transports[0].fireClose();
+					await clock.tickAsync(40);
+					suspend.fire();
+					clock.setSystemTime(Date.now() + 600_000);
+					resume.fire();
+					await clock.tickAsync(20);
+					suspend.fire();
+					clock.setSystemTime(Date.now() + 600_000);
+					resume.fire();
+					resume.fire();
+					const stateAfterWake = client.connectionState;
+					if (recover) {
+						transports[1].connectDeferred.complete();
+						await flushMicrotasks();
+						const reconnect = findRequest(transports[1], 'reconnect')!;
+						assert.ok(reconnect, 'replacement transport must get a chance to recover after wake');
+						transports[1].fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+					}
+					await clock.tickAsync(39);
+					const stateBeforeDeadline = client.connectionState;
+					await clock.tickAsync(1);
+					assert.deepStrictEqual({ stateAfterWake, stateBeforeDeadline, stateAtDeadline: client.connectionState, transports: transports.length }, {
+						stateAfterWake: AgentHostClientState.Reconnecting,
+						stateBeforeDeadline: recover ? AgentHostClientState.Connected : AgentHostClientState.Reconnecting,
+						stateAtDeadline: recover ? AgentHostClientState.Connected : AgentHostClientState.Closed,
+						transports: 2,
+					});
+					client.dispose();
+				} finally {
+					clock.restore();
+				}
+			});
+		}
+
+		test('recovery begun during OS sleep gets its bounded budget on resume', async () => {
+			const clock = sinon.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+			try {
+				const suspend = disposables.add(new Emitter<void>());
+				const resume = disposables.add(new Emitter<void>());
+				const policy: IRemoteAgentHostReconnectPolicy = {
+					autoRestore: true, initialDelayMs: 10, maxDelayMs: 10, maxAttempts: 10, maxElapsedTimeMs: 100,
+				};
+				const { client, transports } = createFactoryClient(undefined, undefined, undefined, policy, { hasHighLoad: () => false }, undefined, undefined,
+					{ onDidSuspend: suspend.event, onDidResume: resume.event });
+				await completeHandshake(transports[0], client.connect());
+				resume.fire();
+				suspend.fire();
+				transports[0].fireClose();
+				clock.setSystemTime(Date.now() + 600_000);
+				resume.fire();
+				await clock.tickAsync(99);
+				const stateBeforeDeadline = client.connectionState;
+				await clock.tickAsync(1);
+				assert.deepStrictEqual({ stateBeforeDeadline, stateAtDeadline: client.connectionState, transports: transports.length }, {
+					stateBeforeDeadline: AgentHostClientState.Reconnecting, stateAtDeadline: AgentHostClientState.Closed, transports: 2,
+				});
+				client.dispose();
+			} finally {
+				clock.restore();
+			}
+		});
 
 		test('failed attempts and immediate retries do not restart the recovery deadline', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const policy: IRemoteAgentHostReconnectPolicy = {
