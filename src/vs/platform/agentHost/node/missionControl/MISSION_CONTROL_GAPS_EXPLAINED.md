@@ -13,8 +13,8 @@ This is a plain-language companion to the [security requirements](./MISSION_CONT
 | Gap | One-line summary | `copilotd` has it? | Copilot app has it? | Suggested priority |
 | --- | --- | --- | --- | --- |
 | [S30 Per-session sharing opt-out](#s30-per-session-sharing-opt-out) | Turning Mission Control on uploads *every* session; you can't keep one private. | Yes | Yes | High |
-| [S04 Credential expiry](#s04-credential-expiry) | A remote device keeps access after its GitHub token expires or is revoked. Fix in review: [#340411](https://github.com/microsoft/vscode/pull/340411). | Yes, mostly | Yes (via `copilotd`) | High |
-| [S17/S28 Local policy and limits](#s17s28-local-policy-and-limits) | Nothing on your machine limits what Mission Control can ask it to do. | Yes (opt-in) | Available but not turned on | Medium |
+| [S04 Credential expiry](#s04-credential-expiry) | GitHub's reported expiry is now enforced ([#340411](https://github.com/microsoft/vscode/pull/340411)); revocation before that deadline, and tokens with no deadline, aren't detected. | Same limits | Same limits (via `copilotd`) | Medium |
+| [S17/S28 Local policy and limits](#s17s28-local-policy-and-limits) | VS Code lacks configurable host-local policies and quotas for remote work. | Yes (opt-in) | Available but not turned on | Medium |
 | [S15 GitHub Enterprise endpoints](#s15-github-enterprise-endpoints) | Enterprise accounts aren't supported, and one path sends a github.com token to the enterprise server. | Yes | Yes | Medium (fix the token bug now) |
 | [S03 Per-device credentials](#s03-per-device-credentials) | All connected devices share one credential pool instead of each using its own. | Yes | Yes (via `copilotd`) | Low–medium |
 | [S08 Connection binding](#s08-connection-binding) | A captured sign-in message could be replayed. | Off by default | Off for this machine; on for SSH hosts | Low |
@@ -46,7 +46,7 @@ You need a handful of terms to follow the rest of this document.
 - **Web PubSub (WPS).** An Azure message relay. Remote devices and your Agent Host never connect directly; both connect *out* to WPS, and WPS forwards messages between them. Because MC and WPS sit in the middle, they can see whatever isn't encrypted.
 - **AHP (Agent Host Protocol).** The message format both local windows and remote devices use to list sessions, send prompts, read files, open terminals, and so on.
 - **Lane.** One remote device's connection through the relay. Each lane has to prove who it is before it can do anything.
-- **Sealed token.** When a remote device signs in, it encrypts its GitHub token so that only your Agent Host can decrypt it. MC and WPS just pass along an opaque blob.
+- **Sealed token.** When a remote device signs in, it encrypts its GitHub token so that only your Agent Host can decrypt it. The WPS relay just passes along an opaque blob. MC usually does too, with one exception: when MC re-encrypts a token on a client's behalf ("broker resealing", see S07 in the requirements), MC sees the plaintext token.
 - **Signed control message.** Some instructions come from MC itself, for example "a new device wants to connect". MC digitally signs these so the Agent Host can tell they're genuine.
 - **Session mirror.** A copy of your session activity that the Agent Host uploads to MC so remote devices can see history.
 
@@ -64,7 +64,7 @@ What a remote device can do: once it proves it is the same GitHub user as the ma
 
 - sessions you started locally in a VS Code window, not just ones started remotely;
 - sessions from every agent provider, not just Copilot;
-- older sessions, as soon as they produce any new activity.
+- older sessions: the AHP conversation mirror starts publishing them as soon as they produce any new activity, but the SDK metadata source also replays retained metadata for sessions already loaded when sharing starts, *without* any new activity ([missionControlSdkEventSource.ts](./missionControlSdkEventSource.ts)). An idle sensitive session that's loaded is therefore not guaranteed to stay unpublished.
 
 The only exclusion is new, empty drafts: they aren't mirrored until their first message.
 
@@ -90,46 +90,52 @@ Note that the Copilot SDK already has its own `remoteSession: 'export'` option f
 
 ## S04: Credential expiry
 
-> **In short:** On `main`, a remote device keeps access after its GitHub token expires or is revoked. The fix is in review in [#340411](https://github.com/microsoft/vscode/pull/340411), which matches what `copilotd` (and so the Copilot app) does. **Priority: high — land #340411.**
+> **In short:** Implemented in [#340411](https://github.com/microsoft/vscode/pull/340411): a remote device loses access when its token reaches the expiry time GitHub reported. Revocation before that time, and tokens GitHub gives no expiry for, are still not detected. `copilotd` has the same limits. **Priority: medium — the remaining gap is revocation.**
 
-**What it is.** When GitHub issues a token, it can say when that token expires, using the `GitHub-Authentication-Token-Expiration` response header. The requirement is that once that time passes, or the token is revoked, the connection stops being treated as signed in. The host then tells that device "please sign in again" with an AHP `auth/required` notification.
+**What it is.** When GitHub validates a token, it can report when that token expires, using the `GitHub-Authentication-Token-Expiration` response header. The requirement is that once that time passes, the connection stops being treated as signed in. The host then tells that device "please sign in again" with an AHP `auth/required` notification. A stronger version of the requirement also covers tokens that are revoked early.
 
-**Why it's needed.** A remote lane is checked once, when it connects. After that it stays trusted until it disconnects. So if you sign out on your phone, revoke a token in GitHub settings, or the token simply expires, that phone may keep steering your machine, and since lanes can open terminals, that means keeping shell access. Expiry is how a revocation actually takes effect.
+**Why it's needed.** A remote lane is checked once, when it connects. Without an expiry, it stays trusted until it disconnects. Since lanes can open terminals, that means a stale credential can keep shell access. Enforcing expiry puts an upper bound on how long one sign-in lasts.
 
-**Where VS Code is.** On `main`, not implemented. The host checks the remote device's identity against GitHub ([missionControlAuthentication.ts](./missionControlAuthentication.ts)) but ignores the expiry header, so the lane stays authorized until it reconnects or closes. The *client* side already handles an "expired, please re-authenticate" notification (see `cloudSandboxConnectionCustomization.ts`), so only the host side is missing.
+**Where VS Code is.** Implemented for GitHub's reported expiry ([#340411](https://github.com/microsoft/vscode/pull/340411)):
 
-Draft PR [#340411](https://github.com/microsoft/vscode/pull/340411) implements the host side:
-
-- **Reading the deadline.** It reads the deadline from GitHub's header and rejects malformed or already-passed deadlines.
-- **At the deadline.** It drops the lane's subscriptions and active-client/tool ownership, rejects requests still waiting for the client, and sends exactly one `auth/required` (reason `expired`) to that lane.
+- **Reading the deadline.** Identity validation reads GitHub's header ([missionControlAuthentication.ts](./missionControlAuthentication.ts)) and rejects malformed or already-passed deadlines.
+- **At the deadline.** The host drops the lane's subscriptions and active-client/tool ownership, rejects requests still waiting for the client, and sends exactly one `auth/required` (reason `expired`) to that lane. The device must sign in again and resubscribe.
 - **Late results.** Requests that were already in flight can't return protected results after expiry.
 - **Scope.** It applies only to Mission Control lanes.
 
-After it merges, the remaining limits match upstream: no early-renewal warning, and provider work that already started isn't rolled back.
+What it does **not** do:
 
-**Upstream.** Mostly implemented. It reads the header, refuses new protected work after the deadline, and sends `auth/required` to the one affected connection. Two parts are still open upstream: renewing *before* expiry, and cutting off things that are already subscribed.
+- **Revocation isn't detected.** If you sign out on your phone or revoke the token in GitHub settings, the lane keeps access until the recorded deadline or until it disconnects. The host doesn't re-check the token with GitHub in between.
+- **No deadline, no expiry.** If GitHub doesn't send the header for a token, no deadline is invented, so that lane never expires on its own.
+- **Started work isn't rolled back,** and there's no warning before expiry.
 
-**Copilot app.** Yes. The app's hosting is the `copilotd` 0.9.4 binary, and the expiry watcher (`credential_expiry.rs`) is present in 0.9.4. The app gets this behaviour without doing anything itself.
+**Upstream.** `copilotd` reads the header, fails new protected work closed after the deadline, and sends `auth/required` to the one affected connection. It also treats a missing header as "no deadline". Its design calls for reacting when GitHub reports a revocation, but like VS Code it learns that only when a later GitHub call is rejected. Renewing *before* expiry, and ending existing subscriptions at expiry, are still open upstream. On that last point VS Code now does more than `copilotd`.
 
-**What VS Code needs to do.** Review and merge [#340411](https://github.com/microsoft/vscode/pull/340411), which covers:
+**Copilot app.** Same as `copilotd`. The app's hosting is the `copilotd` 0.9.4 binary, and the expiry watcher (`credential_expiry.rs`) is present in 0.9.4.
 
-1. Recording the expiry from GitHub's response headers when validating a lane's token.
-2. Checking that deadline before protected actions and when awaited work returns.
-3. Revoking the lane at the deadline and sending `auth/required` (reason `expired`) to *that* lane only, exactly once.
+**What VS Code would need to do.** For the remaining gaps:
 
-Two things still won't be covered after it lands: a mixed local + Mission Control provider setup hasn't been tested against the live service, and there's no warning before expiry.
+1. Periodically re-validate each lane's token with GitHub (or check on sensitive actions), and treat a rejection as a revocation: revoke the lane and send `auth/required`.
+2. Decide on a maximum lane lifetime for tokens without a reported expiry.
+3. Optionally, warn clients before expiry so they can renew without interruption.
 
-**Priority: high.** The impact is a revoked device keeping access to a machine with a shell. The fix exists; it needs to land.
+**Priority: medium.** Ordinary expiry is now enforced. The remaining exposure is a revoked or signed-out device keeping access until its deadline, or forever for tokens without one. Upstream doesn't handle that either, but it's the case that matters most if a token is stolen.
 
 ## S17/S28: Local policy and limits
 
-> **In short:** Nothing on your machine limits what Mission Control can ask it to do. `copilotd` supports local rules, but the Copilot app doesn't turn them on either. **Priority: medium.**
+> **In short:** VS Code lacks configurable host-local policies and quotas for remote work. It already enforces owner authentication, workspace grants, and fixed transport limits, but you can't add rules such as "only these repos" or "at most N sessions". `copilotd` supports such rules, but the Copilot app doesn't turn them on either. **Priority: medium.**
 
 **What it is.** Rules that live on *your* machine and that Mission Control cannot override. For example: "only allow these repos", "never more than 3 active sessions", "at most 5 new sessions a minute". A separate, smaller part is reporting your organization's device policy to MC; that part is done.
 
 **Why it's needed.** The upstream design treats MC as "a peer, not a trusted controller". If MC were compromised or buggy, your machine should still refuse things you never allowed. This matters more because MC can see a remote device's GitHub token at one point in the flow (when it re-encrypts it for your host). So a compromised MC could, in principle, connect as you.
 
-**Where VS Code is.** We have fixed technical limits that protect against flooding: number of lanes, message sizes, queue sizes ([missionControlProtocolServer.ts](./missionControlProtocolServer.ts)). There is no user- or admin-configurable policy about *what* remote clients may do.
+**Where VS Code is.** The host already limits remote work in fixed ways:
+
+- remote devices must authenticate as the owner (S01);
+- file and terminal access is limited to granted workspace folders (S21);
+- lane counts, message sizes and queue sizes are capped to prevent flooding (S28, [missionControlProtocolServer.ts](./missionControlProtocolServer.ts)).
+
+What's missing is *configurable* policy: there's no user- or admin-set rule about which repos, session types or how many sessions remote clients may use.
 
 **Upstream.** Implemented, but opt-in. Allowed session types, allowed and denied repos, maximum active sessions, and a spawn-rate limit can all be set from flags or a policy file. The local policy always wins over anything MC sends.
 
