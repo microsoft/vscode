@@ -183,14 +183,16 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		});
 	});
 
-	test('plugin-only Discover does not query the public feed', async () => {
+	test('strict marketplace policy does not query the public feed', async () => {
 		const configuration = new TestConfigurationService();
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, true);
+		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, true);
 		await configuration.setUserConfiguration(ChatConfiguration.PluginsEnabled, true);
+		await configuration.setUserConfiguration(ChatConfiguration.StrictMarketplaces, [{ source: 'github', repo: 'owner/catalog' }]);
 		const customReference = parseMarketplaceReference('owner/catalog')!;
-		const defaultReference = parseMarketplaceReference('github/awesome-copilot#marketplace')!;
 		let platformCalls = 0;
+		let githubFeedCalls = 0;
 		const pluginCalls: string[] = [];
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IConfigurationService, configuration);
@@ -203,35 +205,39 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		}());
 		instantiationService.stub(IPluginMarketplaceService, new class extends mock<IPluginMarketplaceService>() {
 			override readonly onDidChangeMarketplaces = Event.None;
-			override getMarketplaceReferences() { return [customReference, defaultReference]; }
+			override getMarketplaceReferences() { return [customReference]; }
 			override async queryMarketplacePlugins(options: IPluginMarketplaceQuery) {
-				const reference = options.marketplaceIds.has(defaultReference.canonicalId) ? defaultReference : customReference;
-				pluginCalls.push(reference.canonicalId);
+				pluginCalls.push(customReference.canonicalId);
 				return {
 					items: [{
-						name: reference === customReference ? 'Review' : 'Built-in', description: 'Code review', version: '1', source: 'review',
+						name: 'Review', description: 'Code review', version: '1', source: 'review',
 						sourceDescriptor: { kind: PluginSourceKind.RelativePath as const, path: 'review' },
-						marketplace: reference.displayLabel, marketplaceReference: reference, marketplaceType: MarketplaceType.Copilot,
+						marketplace: customReference.displayLabel, marketplaceReference: customReference, marketplaceType: MarketplaceType.Copilot,
 					}],
 					total: 1,
 					errors: [],
 				};
 			}
 		}());
-		registerConnectorService(instantiationService);
+		registerConnectorService(instantiationService, {
+			async query() {
+				githubFeedCalls++;
+				return { items: [] };
+			},
+		});
 		const service = store.add(instantiationService.createInstance(CustomizationMarketplaceWorkbenchService));
 		const page = await service.query({}, CancellationToken.None);
 		const customSourceId = getPluginCustomizationMarketplaceSourceId(customReference);
-		const defaultSourceId = getPluginCustomizationMarketplaceSourceId(defaultReference);
 		assert.deepStrictEqual({
 			sources: service.sources.map(source => source.id),
 			items: page.items.map(item => [item.sourceId, item.displayName]),
-			platformCalls, pluginCalls,
+			platformCalls, githubFeedCalls, pluginCalls,
 		}, {
-			sources: [customSourceId, defaultSourceId, CustomizationMarketplaceSources.McpGallery.id, CustomizationMarketplaceSources.CopilotConnectors.id],
-			items: [[customSourceId, 'Review'], [defaultSourceId, 'Built-in']],
+			sources: [customSourceId, CustomizationMarketplaceSources.McpGallery.id, CustomizationMarketplaceSources.CopilotConnectors.id],
+			items: [[customSourceId, 'Review']],
 			platformCalls: 1,
-			pluginCalls: [customReference.canonicalId, defaultReference.canonicalId],
+			githubFeedCalls: 0,
+			pluginCalls: [customReference.canonicalId],
 		});
 	});
 
@@ -830,6 +836,45 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			sourceIds: [...new Set(fresh.items.map(item => item.sourceId))],
 			additionalConnectorCalls: fixture.connectorCalls.length - callsBefore,
 		}, { sourceIds: ['agentFinder'], additionalConnectorCalls: 0 });
+	});
+
+
+	test('activating strict marketplace policy cancels an in-flight public feed query', async () => {
+		const configuration = createConfiguration(['agentFinder']);
+		const publicResponse = new DeferredPromise<ICustomizationMarketplaceSourcePage>();
+		const tokens: CancellationToken[] = [];
+		let publicCalls = 0;
+		const harnessProvider: ICustomizationMarketplaceSearchProvider = {
+			query(_session, _options, token) {
+				publicCalls++;
+				tokens.push(token);
+				return publicResponse.p;
+			},
+		};
+		const service = createService(configuration, new class extends mock<ICustomizationMarketplaceService>() {
+			override readonly sources = [CustomizationMarketplaceSources.McpGallery];
+			override async query() { return { items: [] }; }
+		}(), new class extends mock<ICopilotConnectorsService>() { }(), harnessProvider);
+		const pending = service.query({ sourceIds: [CustomizationMarketplaceSources.AgentFinderPublicFeed.id] }, CancellationToken.None);
+		const cancelled = assert.rejects(pending, isCancellationError);
+		await configuration.setUserConfiguration(ChatConfiguration.StrictMarketplaces, []);
+		configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+			override affectsConfiguration(section: string): boolean { return section === ChatConfiguration.StrictMarketplaces; }
+		}());
+		await cancelled;
+		await publicResponse.complete({ items: [] });
+		await assert.rejects(service.query({}, CancellationToken.None), isCancellationError);
+		assert.deepStrictEqual({
+			publicCalls,
+			tokensCancelled: tokens.map(token => token.isCancellationRequested),
+			sources: service.sources.map(source => source.id),
+			listening: configuration.onDidChangeConfigurationEmitter.hasListeners(),
+		}, {
+			publicCalls: 1,
+			tokensCancelled: [true],
+			sources: [CustomizationMarketplaceSources.McpGallery.id, CustomizationMarketplaceSources.CopilotConnectors.id],
+			listening: false,
+		});
 	});
 
 
