@@ -44,7 +44,7 @@ New native allocations negotiate standard `ahp-session` resources with a separat
 
 ### Web PubSub receive capabilities
 
-VS Code clients publish the transport control `{"kind":"capabilities","accepts":["batch"]}` to the configured `to_host` group after joining their receive groups, and wait for its relay acknowledgement before initializing AHP. They re-advertise after each successful AHP initialization or reconnect response, before delivering that response to the protocol client, so a replacement host lane can establish receive support. Rejected, timed-out, or unwritable capability publications fail the connection through normal relay error handling.
+VS Code clients publish the transport control `{"kind":"capabilities","accepts":["batch"]}` to the configured `to_host` group after joining their receive groups, and wait for its relay acknowledgement before initializing AHP. The socket/group-join timeout ends when the joins complete; capability publication then has its own 30-second acknowledgement deadline. They re-advertise after each successful AHP initialization or reconnect response, before delivering that response to the protocol client, so a replacement host lane can establish receive support. Rejected, timed-out, or unwritable capability publications fail the connection through normal relay error handling.
 
 The declaration permits a supporting peer to send bounded, ordered transport batches toward VS Code; it does not enable client outbound batching or prove that the peer has processed the declaration. Individual messages and chunks remain supported. These controls are not AHP messages or JSON-RPC batches and are not emitted on direct WebSocket or local IPC connections.
 

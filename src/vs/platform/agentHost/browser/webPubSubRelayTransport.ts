@@ -193,7 +193,7 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 			const ws = factory(this._options.url, RELIABLE_JSON_SUBPROTOCOL);
 			this._ws = ws;
 
-			// Handshake-scoped disposables (timeout timer). Cleared once connected or failed.
+			// Capability publications own their acknowledgement deadline after the group joins.
 			const handshakeStore = new DisposableStore();
 
 			const settleReject = (err: Error) => {
@@ -210,6 +210,12 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 				this._logService.info(`${this._logContext()} relay ready; joinedGroups=${this._options.joinGroups.length}`);
 				this._startObserving();
 				resolve();
+			};
+
+			const onGroupsJoined = () => {
+				handshakeStore.dispose();
+				this._initialCapabilitiesAckId = this._ackId + 1;
+				this._advertiseReceiveCapabilities(settleReject);
 			};
 
 			this._rejectConnect = settleReject;
@@ -233,7 +239,7 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 					this._reportProtocolError('invalid JSON', err);
 					return;
 				}
-				this._handleHandshakeFrame(frame, settleResolve, settleReject);
+				this._handleHandshakeFrame(frame, onGroupsJoined, settleResolve, settleReject);
 			};
 
 			ws.onerror = () => {
@@ -251,7 +257,7 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 	 * Handle a frame received during the connect handshake: the WPS `connected`
 	 * system event, joinGroup acks, or (defensively) early payload frames.
 	 */
-	private _handleHandshakeFrame(frame: Record<string, unknown>, onConnected: () => void, onFail: (err: Error) => void): void {
+	private _handleHandshakeFrame(frame: Record<string, unknown>, onGroupsJoined: () => void, onConnected: () => void, onFail: (err: Error) => void): void {
 		if (this._closed) {
 			return;
 		}
@@ -262,7 +268,7 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 				this._sendRaw({ type: 'joinGroup', group, ackId });
 			}
 			if (this._pendingJoinAcks.size === 0) {
-				this._publishInitialCapabilities(onFail);
+				onGroupsJoined();
 			}
 			return;
 		}
@@ -284,17 +290,12 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 				return;
 			}
 			if (this._pendingJoinAcks.size === 0) {
-				this._publishInitialCapabilities(onFail);
+				onGroupsJoined();
 			}
 			return;
 		}
 
 		this._handleInboundFrame(frame, onFail);
-	}
-
-	private _publishInitialCapabilities(onFail: (err: Error) => void): void {
-		this._initialCapabilitiesAckId = this._ackId + 1;
-		this._advertiseReceiveCapabilities(onFail);
 	}
 
 	private _advertiseReceiveCapabilities(onFail: (err: Error) => void): void {

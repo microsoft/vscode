@@ -269,6 +269,39 @@ suite('WebPubSubRelayTransport', () => {
 		]);
 	});
 
+	for (const acknowledged of [true, false]) {
+		test(`${acknowledged ? 'accepts' : 'times out'} capability publication using its full deadline after slow socket and group joins`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const fake = new FakeWebSocket();
+			fake.acknowledgeCapabilities = false;
+			const errors: string[] = [];
+			const transport = createTransport(fake, { onProtocolError: error => errors.push(String(error)) });
+			const connected = transport.connect();
+			await timeout(20_000);
+			fake.emit({ type: 'system', event: 'connected' });
+			await timeout(9000);
+			for (const join of fake.sentOfType('joinGroup')) {
+				fake.emit({ type: 'ack', ackId: join['ackId'], success: true });
+			}
+			await timeout(2000);
+			assert.deepStrictEqual({ open: transport.isOpen, closed: fake.closed, errors }, { open: false, closed: false, errors: [] });
+			if (acknowledged) {
+				fake.emit({ type: 'ack', ackId: 3, success: true });
+				await connected;
+				assert.deepStrictEqual({ open: transport.isOpen, closed: fake.closed, errors }, { open: true, closed: false, errors: [] });
+			} else {
+				const rejected = assert.rejects(connected, /WPS publish acknowledgement timed out/);
+				await timeout(27_999);
+				assert.strictEqual(fake.closed, false);
+				await timeout(1);
+				await rejected;
+				assert.deepStrictEqual({ closed: fake.closed, errors, closedAt: Date.now() }, {
+					closed: true, errors: ['Error: WPS publish acknowledgement timed out'], closedAt: 59_000,
+				});
+			}
+			transport.dispose();
+		}));
+	}
+
 	for (const failure of ['rejection', 'timeout', 'write'] as const) {
 		test(`rejects initial capability publication on ${failure}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const fake = new FakeWebSocket();
@@ -284,12 +317,12 @@ suite('WebPubSubRelayTransport', () => {
 			if (failure === 'rejection') {
 				fake.emit({ type: 'ack', ackId: 3, success: false, error: { name: 'Forbidden' } });
 			}
-			await assert.rejects(connected, failure === 'rejection' ? /WPS publish failed/ : failure === 'write' ? /Failed to publish WPS receive capabilities/ : /WPS handshake timed out/);
+			await assert.rejects(connected, failure === 'rejection' ? /WPS publish failed/ : failure === 'write' ? /Failed to publish WPS receive capabilities/ : /WPS publish acknowledgement timed out/);
 			fake.emit({ type: 'ack', ackId: 3, success: true });
 			assert.deepStrictEqual({ open: transport.isOpen, closed: fake.closed, errors }, {
 				open: false,
 				closed: true,
-				errors: failure === 'timeout' ? [] : [failure === 'rejection' ? 'Error: WPS publish failed' : 'Error: Failed to publish WPS receive capabilities'],
+				errors: [failure === 'timeout' ? 'Error: WPS publish acknowledgement timed out' : failure === 'rejection' ? 'Error: WPS publish failed' : 'Error: Failed to publish WPS receive capabilities'],
 			});
 		}));
 	}
