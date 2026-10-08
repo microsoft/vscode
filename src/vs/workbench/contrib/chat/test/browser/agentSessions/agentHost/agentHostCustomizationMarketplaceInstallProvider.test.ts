@@ -15,6 +15,7 @@ import { IAgentCustomizationInstallation } from '../../../../../../../platform/a
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentHostService } from '../../../../../../../platform/agentHost/common/agentService.js';
 import { CustomizationMarketplaceRecoveryGroup } from '../../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceSources } from '../../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
 import { NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { AgentHostCustomizationMarketplaceInstallProvider } from '../../../../browser/agentSessions/agentHost/agentHostCustomizationMarketplaceInstallProvider.js';
@@ -36,7 +37,19 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				override readonly onAgentHostExit = Event.None;
 				override async listCustomizationInstallations(provider: string, session: URI) {
 					calls.push({ provider, session: session.toString() });
-					return [];
+					return [{
+						installationId: 'figma-installation',
+						kind: 'mcp' as const,
+						mediaType: 'application/mcp-server+json',
+						catalogue: {
+							resourceId: 'urn:air:api.mcp.github.com:com.figma.mcp:mcp',
+							displayName: 'Figma MCP Server',
+							description: 'Use Figma design context.',
+							source: 'agentfinder.github.com',
+						},
+						serverName: 'com.figma.mcp/mcp',
+						state: 'installed' as const,
+					}];
 				}
 			}(),
 			new class extends mock<IAgentHostConnectionsService>() {
@@ -47,6 +60,9 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			}(),
 			new class extends mock<IAgentHostCustomizationService>() {
 				override readonly onDidChangeCustomizations = Event.None;
+				override getMcpServers() {
+					return [];
+				}
 			}(),
 			new class extends mock<IAgentPluginService>() {
 				override readonly plugins = observableValue<readonly IAgentPlugin[]>('plugins', []);
@@ -59,7 +75,29 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 
 		assert.deepStrictEqual({ calls, installations }, {
 			calls: [{ provider: 'copilotcli', session: backendSession.toString() }],
-			installations: [],
+			installations: [{
+				installationId: 'figma-installation',
+				resource: {
+					sourceId: CustomizationMarketplaceSources.AgentFinderPublicFeed.id,
+					identifier: 'urn:air:api.mcp.github.com:com.figma.mcp:mcp',
+					displayName: 'Figma MCP Server',
+					description: 'Use Figma design context.',
+					mediaType: 'application/mcp-server+json',
+					tags: [],
+					capabilities: [],
+					representativeQueries: [],
+					version: undefined,
+					externalUrl: undefined,
+					url: undefined,
+					publisher: undefined,
+					publisherUrl: undefined,
+					icon: URI.parse('https://avatars.githubusercontent.com/u/5155369?v=4'),
+				},
+				state: {
+					kind: 'installed',
+					target: { kind: 'mcp', id: undefined, name: 'com.figma.mcp/mcp' },
+				},
+			}],
 		});
 	});
 

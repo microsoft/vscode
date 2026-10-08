@@ -229,8 +229,8 @@ const githubMcpRegistryOwnerAvatars = new Map<string, string>([
 	['uk.sadiqoon/sakh', 'https://avatars.githubusercontent.com/u/278950795?v=4'],
 ]);
 
-export function getGitHubMcpRegistryIcon(itemUrl: string | undefined): URI | undefined {
-	const identity = getGitHubMcpRegistryIdentity(itemUrl);
+export function getGitHubMcpRegistryIcon(itemUrl: string | undefined, resourceId?: string): URI | undefined {
+	const identity = getGitHubMcpRegistryIdentity(itemUrl) ?? getGitHubMcpRegistryResourceIdentity(resourceId);
 	const avatar = identity ? githubMcpRegistryOwnerAvatars.get(identity.toLowerCase()) : undefined;
 	return avatar ? URI.parse(avatar) : undefined;
 }
@@ -254,4 +254,9 @@ export function getGitHubMcpRegistryIdentity(itemUrl: string | undefined): strin
 	} catch {
 		return undefined;
 	}
+}
+
+export function getGitHubMcpRegistryResourceIdentity(resourceId: string | undefined): string | undefined {
+	const match = /^urn:air:api\.mcp\.github\.com:(?<namespace>[A-Za-z0-9._-]+):(?<name>[A-Za-z0-9._-]+(?::[A-Za-z0-9._-]+)*)$/u.exec(resourceId ?? '');
+	return match?.groups ? `${match.groups.namespace}/${match.groups.name.replaceAll(':', '/')}` : undefined;
 }

@@ -372,7 +372,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 	private toMarketplaceResource(installation: IAgentCustomizationInstallation): ICustomizationMarketplaceResource {
 		const catalogue = installation.catalogue;
 		const publisher = getGitHubPublisher(catalogue?.publisher);
-		const registryIcon = installation.kind === 'mcp' ? getGitHubMcpRegistryIcon(catalogue?.itemUrl) : undefined;
+		const registryIcon = installation.kind === 'mcp' ? getGitHubMcpRegistryIcon(catalogue?.itemUrl, catalogue?.resourceId) : undefined;
 		return {
 			sourceId: this.getSourceId(catalogue?.source),
 			identifier: catalogue?.resourceId ?? catalogue?.itemUrl ?? installation.installationId,
@@ -442,8 +442,12 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		if (!source) {
 			return CustomizationMarketplaceSources.AgentFinderPublicFeed.id;
 		}
+		if (source === 'agentfinder.github.com') {
+			return CustomizationMarketplaceSources.AgentFinderPublicFeed.id;
+		}
 		try {
-			return URI.parse(source).authority === 'agentfinder.github.com'
+			const sourceUri = URI.parse(source);
+			return (sourceUri.authority || sourceUri.path) === 'agentfinder.github.com'
 				? CustomizationMarketplaceSources.AgentFinderPublicFeed.id
 				: source;
 		} catch {
