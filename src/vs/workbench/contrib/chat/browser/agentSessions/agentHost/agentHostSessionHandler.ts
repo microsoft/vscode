@@ -4390,6 +4390,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		// Reuse the invocation whenever a tool enters confirmation to avoid duplicate cards.
 		let previousStatus: ToolCallStatus | undefined = initial.status;
+		let silentAuthenticationAttempted = false;
 		store.add(autorun(reader => {
 			const tc = part$.read(reader).toolCall;
 			const status = tc.status;
@@ -4433,12 +4434,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						},
 					}, opts.chatURI);
 				};
-				if (invocation.state.read(undefined).type === IChatToolInvocation.StateKind.WaitingForAuthentication) {
-					invocation.setAuthenticationRequired(toolCallAuthenticationServer(tc, opts.sessionResource.authority, this._toolAuthenticationServerName(tc, opts)), onCancelAuthentication);
-				} else if (priorStatus !== ToolCallStatus.AuthRequired) {
-					// Try silent authentication first so an expired token that is
-					// renewed automatically does not flash the authentication UI.
-					// Show the UI afterwards only if the tool is still waiting.
+				const showAuthentication = (toolCall: ToolCallState & { status: ToolCallStatus.AuthRequired }) => invocation.setAuthenticationRequired(toolCallAuthenticationServer(toolCall, opts.sessionResource.authority, this._toolAuthenticationServerName(toolCall, opts)), onCancelAuthentication);
+				if (!silentAuthenticationAttempted) {
+					// Try silent authentication once per tool call so an expired token
+					// that is renewed automatically does not flash the authentication UI.
+					// A later challenge means the silent credential was rejected, so it
+					// shows the UI directly instead of retrying silently.
+					silentAuthenticationAttempted = true;
 					const server = toolCallAuthenticationServer(tc, opts.sessionResource.authority);
 					const serverName = this._customizationService.getMcpServers(opts.sessionResource).find(candidate => candidate.id === server.id)?.name ?? server.name;
 					this._autoAuthenticateMcpServer(opts.sessionResource, { ...server, name: serverName }).then(() => {
@@ -4446,8 +4448,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						if (store.isDisposed || current.status !== ToolCallStatus.AuthRequired || IChatToolInvocation.isComplete(invocation)) {
 							return;
 						}
-						invocation.setAuthenticationRequired(toolCallAuthenticationServer(current, opts.sessionResource.authority, this._toolAuthenticationServerName(current, opts)), onCancelAuthentication);
+						showAuthentication(current);
 					});
+				} else if (priorStatus !== ToolCallStatus.AuthRequired || invocation.state.read(undefined).type === IChatToolInvocation.StateKind.WaitingForAuthentication) {
+					showAuthentication(tc);
 				}
 			} else if (status === ToolCallStatus.Running || status === ToolCallStatus.PendingResultConfirmation) {
 				if (priorStatus === ToolCallStatus.AuthRequired) {

@@ -2616,9 +2616,11 @@ suite('AgentHostClientTools', () => {
 		 * Renders a running MCP tool call in an observed turn, then pauses it for
 		 * authentication. `sessions` are the remembered accounts the silent
 		 * authentication attempt can reuse. Like the real host, a forwarded token
-		 * resolves the tool call's pending authentication.
+		 * resolves the tool call's pending authentication. With
+		 * `challengeBeforeRender`, the tool call is already waiting for
+		 * authentication when the chat is first rendered, as after a reconnect.
 		 */
-		async function renderMcpToolCallRequiringAuthentication(sessions: AuthenticationSession[]) {
+		async function renderMcpToolCallRequiringAuthentication(sessions: AuthenticationSession[], challengeBeforeRender = false) {
 			const { handler, connection, instantiationService } = createHandlerWithMocks(disposables, []);
 			const sessionResource = URI.parse('agent-host-copilot:/session-1');
 			const chatURI = URI.parse(buildDefaultChatUri(AgentSession.uri('copilot', 'session-1').toString()));
@@ -2639,6 +2641,16 @@ suite('AgentHostClientTools', () => {
 					toolCallId: 'mcp-call-1',
 				} as ChatAction);
 				return { authenticated: true };
+			};
+			const challenge = async () => {
+				connection.applySessionAction(chatURI, {
+					type: ActionType.ChatToolCallAuthRequired,
+					turnId: 'turn-1',
+					toolCallId: 'mcp-call-1',
+					auth: { reason: McpAuthRequiredReason.Required, resource: { resource: 'https://mcp.notion.com/mcp', authorization_servers: ['https://auth.notion.com'] } },
+				} as ChatAction);
+				await timeout(0);
+				await timeout(0);
 			};
 
 			connection.applySessionAction(chatURI, {
@@ -2663,6 +2675,9 @@ suite('AgentHostClientTools', () => {
 				toolInput: '{}',
 				confirmed: ToolCallConfirmationReason.NotNeeded,
 			} as ChatAction);
+			if (challengeBeforeRender) {
+				await challenge();
+			}
 			const session = await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
 			await timeout(0);
 
@@ -2674,25 +2689,22 @@ suite('AgentHostClientTools', () => {
 				stateKinds.push(invocation.state.read(reader).type);
 			}));
 
-			connection.applySessionAction(chatURI, {
-				type: ActionType.ChatToolCallAuthRequired,
-				turnId: 'turn-1',
-				toolCallId: 'mcp-call-1',
-				auth: { reason: McpAuthRequiredReason.Required, resource: { resource: 'https://mcp.notion.com/mcp', authorization_servers: ['https://auth.notion.com'] } },
-			} as ChatAction);
-			await timeout(0);
-			await timeout(0);
+			if (!challengeBeforeRender) {
+				await challenge();
+			}
 
-			return { invocation, stateKinds, authenticateRequests, sessionResource };
+			return { invocation, stateKinds, authenticateRequests, sessionResource, challenge };
 		}
 
+		const rememberedNotionSession: AuthenticationSession = {
+			id: 'notion-session',
+			accessToken: 'notion-token',
+			account: { id: 'notion-account', label: 'Notion Account' },
+			scopes: [],
+		};
+
 		test('does not show authentication UI when silent MCP authentication resolves the tool call', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { stateKinds, authenticateRequests } = await renderMcpToolCallRequiringAuthentication([{
-				id: 'notion-session',
-				accessToken: 'notion-token',
-				account: { id: 'notion-account', label: 'Notion Account' },
-				scopes: [],
-			}]);
+			const { stateKinds, authenticateRequests } = await renderMcpToolCallRequiringAuthentication([rememberedNotionSession]);
 
 			assert.deepStrictEqual({
 				showedAuthentication: stateKinds.includes(IChatToolInvocation.StateKind.WaitingForAuthentication),
@@ -2715,6 +2727,34 @@ suite('AgentHostClientTools', () => {
 				state: IChatToolInvocation.StateKind.WaitingForAuthentication,
 				server: { id: `${sessionResource.authority}/notion-mcp`, resource: 'https://mcp.notion.com/mcp' },
 				authenticateRequests: [],
+			});
+		}));
+
+		test('shows authentication UI when the server rejects the silently supplied credential', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { invocation, authenticateRequests, challenge } = await renderMcpToolCallRequiringAuthentication([rememberedNotionSession]);
+
+			// The server challenges again after the silent token resolved the first challenge.
+			await challenge();
+
+			assert.deepStrictEqual({
+				state: invocation.state.get().type,
+				authenticateRequests: authenticateRequests.length,
+			}, {
+				state: IChatToolInvocation.StateKind.WaitingForAuthentication,
+				authenticateRequests: 1,
+			});
+		}));
+
+		test('silently authenticates a tool call that already required authentication when rendered', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { invocation, authenticateRequests } = await renderMcpToolCallRequiringAuthentication([rememberedNotionSession], true);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				state: invocation.state.get().type,
+				authenticateRequests: authenticateRequests.length,
+			}, {
+				state: IChatToolInvocation.StateKind.Executing,
+				authenticateRequests: 1,
 			});
 		}));
 
