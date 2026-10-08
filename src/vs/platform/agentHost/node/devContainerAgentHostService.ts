@@ -1089,7 +1089,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 						this._gitCredentialRelays.deleteAndDispose(connectionId);
 					}
 				}));
-				await relay.ready;
+				await raceCancellationError(relay.ready, tokenSource.token);
 				if (tokenSource.token.isCancellationRequested || !this._connections.has(connectionId)) {
 					throw new CancellationError();
 				}
@@ -1115,6 +1115,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			}
 		} finally {
 			this._gitCredentialRequests.delete(requestId);
+			await response.complete(false);
 		}
 	}
 

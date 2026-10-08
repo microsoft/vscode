@@ -101,6 +101,8 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 	private readonly _secondRenameFinished = new DeferredPromise<void>();
 	gitCredentialEnvironment: NodeJS.ProcessEnv | undefined;
 	gitCredentialProcess: ChildProcessWithoutNullStreams | undefined;
+	gitCredentialArgs: readonly string[] | undefined;
+	readonly gitCredentialProcessStarted = new DeferredPromise<ChildProcessWithoutNullStreams>();
 	readonly hostCredentialInputs: string[] = [];
 
 	constructor(
@@ -275,7 +277,8 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 		if (!this.gitCredentialEnvironment) {
 			return super._spawnDevContainer(args, environment);
 		}
-		this.gitCredentialProcess = spawn(process.execPath, [...getDevContainerGitCredentialRelayArgs()], { env: this.gitCredentialEnvironment, stdio: 'pipe' });
+		this.gitCredentialProcess = spawn(process.execPath, [...(this.gitCredentialArgs ?? getDevContainerGitCredentialRelayArgs())], { env: this.gitCredentialEnvironment, stdio: 'pipe' });
+		void this.gitCredentialProcessStarted.complete(this.gitCredentialProcess);
 		return this.gitCredentialProcess;
 	}
 
@@ -378,6 +381,43 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 
 suite('Dev Container Agent Host Main Service', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('disconnect releases queued container operations even when the credential process never becomes ready', async () => {
+		const service = store.add(new TestDevContainerAgentHostMainService());
+		service.gitCredentialEnvironment = { ...process.env, ELECTRON_RUN_AS_NODE: '1' };
+		service.gitCredentialArgs = ['-e', 'process.stdin.resume(); setInterval(() => {}, 1000);'];
+		const config = { connectionId: 'credentials', workspaceFolder: '/workspace', name: 'Project' };
+		await service.connect(config);
+		const configuring = service.setGitCredentialForwarding(config.connectionId, true);
+		const rejected = assert.rejects(configuring, CancellationError);
+		const child = await service.gitCredentialProcessStarted.p;
+		try {
+			await service.disconnect(config.connectionId);
+			await rejected;
+			const processStillAlive = child.exitCode === null;
+			const stopped = await service.stopContainer(config.workspaceFolder);
+			assert.deepStrictEqual({ processStillAlive, stopped }, { processStillAlive: true, stopped: true });
+		} finally {
+			const closed = once(child, 'close');
+			child.kill();
+			await closed;
+		}
+	});
+
+	test('canceled permission requests release their timeout immediately', async () => {
+		const firedTimers: number[] = [];
+		const elapsed = await runWithFakedTimers({ onHistory: history => firedTimers.push(...history.map(event => event.time)) }, async () => {
+			const service = store.add(new TestDevContainerAgentHostMainService());
+			const tokenSource = store.add(new CancellationTokenSource());
+			const start = Date.now();
+			const request = service.requestGitCredentialPermission('connection', tokenSource.token);
+			const rejected = assert.rejects(request, CancellationError);
+			tokenSource.cancel();
+			await rejected;
+			return Date.now() - start;
+		});
+		assert.deepStrictEqual({ elapsed, firedTimers }, { elapsed: 0, firedTimers: [] });
+	});
 
 	test('host credential reads wait for permission on each real helper request', async () => {
 		const directory = await mkdtemp(join(tmpdir(), 'vscode-git-permission-test-'));

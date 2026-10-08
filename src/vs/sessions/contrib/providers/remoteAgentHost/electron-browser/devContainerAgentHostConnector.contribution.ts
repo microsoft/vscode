@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
+import { CancellationError, getErrorMessage, isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { StringSHA1 } from '../../../../../base/common/hash.js';
 import { basename, getComparisonKey } from '../../../../../base/common/resources.js';
@@ -28,7 +28,7 @@ import { NonReconnectableTransportError } from '../../../../../platform/agentHos
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ISharedProcessService } from '../../../../../platform/ipc/electron-browser/services.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { supportsAgentHostDevContainerGitCredentials } from '../../../../../platform/agentHost/common/meta/agentHostDevContainersMeta.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
@@ -43,6 +43,7 @@ import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { devContainerSourcePath, getDevContainerSourceEntry, resolveDevContainerSourceConnection } from '../browser/devContainerSource.js';
 import { DevContainerGitCredentialForwarding } from '../browser/devContainerGitCredentialForwarding.js';
+import { IChatInputNotificationService } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationService.js';
 
 type DevContainerEnvironmentEvent = {
 	dockerAvailable: boolean;
@@ -338,10 +339,11 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 		@IFileService private readonly _fileService: IFileService,
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
-		@IDialogService dialogService: IDialogService,
+		@IChatInputNotificationService notificationService: IChatInputNotificationService,
+		@IAgentHostConnectionsService connectionsService: IAgentHostConnectionsService,
 	) {
 		super();
-		this._gitCredentialForwarding = this._register(new DevContainerGitCredentialForwarding(_configurationService, dialogService, _logService));
+		this._gitCredentialForwarding = this._register(new DevContainerGitCredentialForwarding(_configurationService, notificationService, connectionsService, _logService));
 		this._mainService = ProxyChannel.toService<IDevContainerAgentHostMainService>(
 			sharedProcessService.getChannel(DEV_CONTAINER_AGENT_HOST_CHANNEL),
 		);
@@ -417,7 +419,7 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 				let allowed = false;
 				try {
 					ensureDevContainerAgentHostsEnabled(this._configurationService);
-					allowed = await this._gitCredentialForwarding.request(workspaceUri, containerKey, requestTokenSource.token);
+					allowed = await this._gitCredentialForwarding.request(workspaceUri, containerKey, address, requestTokenSource.token);
 				} catch (error) {
 					if (!isCancellationError(error)) {
 						this._logService.error('[DevContainerAgentHost] Failed to request Git credential permission', error);
@@ -444,7 +446,16 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 						return;
 					}
 				}
-				await mainService.setGitCredentialForwarding(id, enabled);
+				try {
+					await mainService.setGitCredentialForwarding(id, enabled);
+				} catch (error) {
+					if (!enabled || isCancellationError(error)) {
+						throw error;
+					}
+					this._logService.warn('[DevContainerAgentHost] Git credential forwarding is unavailable', error);
+					this._outputService.getChannel(getDevContainerOutputChannel(workspaceUri))?.append(
+						localize('devContainerGitCredentials.setupFailed', "Git credential forwarding is unavailable for this container: {0}\n", getErrorMessage(error)));
+				}
 			}));
 			return registration;
 		};

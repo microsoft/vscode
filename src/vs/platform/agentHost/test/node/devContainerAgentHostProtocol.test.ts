@@ -47,30 +47,30 @@ suite('DevContainerAgentHostProtocol', () => {
 			forwarding: [{ connectionId: service.connects[0].connectionId, enabled: true }],
 			capabilities: [false, false, false, true, false],
 		});
+	});
 
-		test('round-trips deferred permission through the remote client without exposing another transport requests', async () => {
-			const service = store.add(new MockDevContainerService());
-			const protocol = store.add(new DevContainerAgentHostProtocol(async () => true, (method, params) => {
-				client.handleNotification(method, params);
-			}, service, new NullLogService()));
-			const client = store.add(new DevContainerAgentHostProtocolClient(async <M extends keyof IAgentHostExtensionCommandMap>(method: M, params: IAgentHostExtensionCommandMap[M]['params']) =>
-				await protocol.handleRequest(method, params) as IAgentHostExtensionCommandMap[M]['result']));
-			const requests: object[] = [];
-			store.add(client.onDidRequestGitCredentials(request => requests.push(request)));
-			await client.connect(config);
-			const internalConnectionId = service.connects[0].connectionId;
-			service.gitCredentialRequest.fire({ connectionId: 'unrelated', requestId: 'hidden' });
-			service.gitCredentialRequest.fire({ connectionId: internalConnectionId, requestId: 'pending' });
-			await client.respondToGitCredentialRequest(config.connectionId, 'pending', true);
-			await assert.rejects(protocol.handleRequest(DevContainerRespondToGitCredentialRequestExtensionMethod, { connectionId: 'unrelated', requestId: 'pending', allowed: true })!, { code: AhpErrorCodes.NotFound });
-			await assert.rejects(protocol.handleRequest(DevContainerRespondToGitCredentialRequestExtensionMethod, { connectionId: config.connectionId, requestId: 'pending', allowed: 'on' })!, { code: JsonRpcErrorCodes.InvalidParams });
-			assert.throws(() => client.handleNotification(DevContainerGitCredentialRequestNotification, { connectionId: config.connectionId, requestId: false }), /Invalid/);
-			await client.disconnect(config.connectionId);
-			client.handleNotification(DevContainerGitCredentialRequestNotification, { connectionId: config.connectionId, requestId: 'stale' });
-			assert.deepStrictEqual({ requests, responses: service.gitCredentialResponses }, {
-				requests: [{ connectionId: config.connectionId, requestId: 'pending' }],
-				responses: [{ connectionId: internalConnectionId, requestId: 'pending', allowed: true }],
-			});
+	test('round-trips deferred permission through the remote client without exposing another transport requests', async () => {
+		const service = store.add(new MockDevContainerService());
+		const protocol = store.add(new DevContainerAgentHostProtocol(async () => true, (method, params) => {
+			client.handleNotification(method, params);
+		}, service, new NullLogService()));
+		const client = store.add(new DevContainerAgentHostProtocolClient(async <M extends keyof IAgentHostExtensionCommandMap>(method: M, params: IAgentHostExtensionCommandMap[M]['params']) =>
+			await protocol.handleRequest(method, params) as IAgentHostExtensionCommandMap[M]['result']));
+		const requests: object[] = [];
+		store.add(client.onDidRequestGitCredentials(request => requests.push(request)));
+		await client.connect(config);
+		const internalConnectionId = service.connects[0].connectionId;
+		service.gitCredentialRequest.fire({ connectionId: 'unrelated', requestId: 'hidden' });
+		service.gitCredentialRequest.fire({ connectionId: internalConnectionId, requestId: 'pending' });
+		await client.respondToGitCredentialRequest(config.connectionId, 'pending', true);
+		await assert.rejects(protocol.handleRequest(DevContainerRespondToGitCredentialRequestExtensionMethod, { connectionId: 'unrelated', requestId: 'pending', allowed: true })!, { code: AhpErrorCodes.NotFound });
+		await assert.rejects(protocol.handleRequest(DevContainerRespondToGitCredentialRequestExtensionMethod, { connectionId: config.connectionId, requestId: 'pending', allowed: 'on' })!, { code: JsonRpcErrorCodes.InvalidParams });
+		assert.throws(() => client.handleNotification(DevContainerGitCredentialRequestNotification, { connectionId: config.connectionId, requestId: false }), /Invalid/);
+		await client.disconnect(config.connectionId);
+		client.handleNotification(DevContainerGitCredentialRequestNotification, { connectionId: config.connectionId, requestId: 'stale' });
+		assert.deepStrictEqual({ requests, responses: service.gitCredentialResponses }, {
+			requests: [{ connectionId: config.connectionId, requestId: 'pending' }],
+			responses: [{ connectionId: internalConnectionId, requestId: 'pending', allowed: true }],
 		});
 	});
 

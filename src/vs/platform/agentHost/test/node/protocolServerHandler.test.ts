@@ -537,6 +537,7 @@ suite('ProtocolServerHandler', () => {
 				'vscode.removeSessionArtifact': true,
 				'vscode.importSession': true,
 				'vscode.devContainers': true,
+				'vscode.devContainers.gitCredentials': true,
 			},
 		});
 	});

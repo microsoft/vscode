@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
@@ -18,11 +19,12 @@ import { IDevContainerAgentHostConfig, IDevContainerAgentHostMainService } from 
 import { MockDevContainerService } from '../../../../../../platform/agentHost/test/common/mockDevContainerService.js';
 import { devContainerSamples, devContainerSampleUri, IDevContainerSampleSource } from '../../../../../../platform/agentHost/common/devContainerSamples.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { getEntryAddress, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../../platform/configuration/common/configurationRegistry.js';
 import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
-import { IDialogService, IConfirmationResult } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -31,6 +33,7 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IOutputChannel, IOutputService } from '../../../../../../workbench/services/output/common/output.js';
+import { ChatInputNotificationActionKind, IChatInputNotification, IChatInputNotificationService } from '../../../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationService.js';
 import { DevContainerAgentHostEnabledSettingId, DevContainerGitCredentialForwardingSettingId, DevContainerIdleTimeoutSettingId, DevContainerSamplesEnabledSettingId, DevContainerWorktreeEnabledSettingId } from '../../../../../common/devContainerAgentHostService.js';
 import { WorkspaceHistoryLoadState } from '../../../../../common/workspaceSelection.js';
 import { ISessionFolder, ISessionWorkspace } from '../../../../../services/sessions/common/session.js';
@@ -63,10 +66,11 @@ suite('Dev Container Agent Host Connector', () => {
 		});
 	});
 
-	test('the shared-process connector starts without a dialog and responds only after the first lookup is approved', async () => {
-		const answer = new DeferredPromise<IConfirmationResult>();
+	test('the shared-process connector starts without an approval notice and responds only after a lookup is approved', async () => {
 		const responses = new DeferredPromise<void>();
-		let prompts = 0;
+		const approvalShown = new DeferredPromise<void>();
+		const notices: IChatInputNotification[] = [];
+		const instantiationService = store.add(new TestInstantiationService());
 		const service = store.add(new class extends MockDevContainerService {
 			override async respondToGitCredentialRequest(connectionId: string, requestId: string, allowed: boolean): Promise<void> {
 				await super.respondToGitCredentialRequest(connectionId, requestId, allowed);
@@ -89,7 +93,7 @@ suite('Dev Container Agent Host Connector', () => {
 					};
 				}
 			}(),
-			store.add(new TestInstantiationService()),
+			instantiationService,
 			new NullLogService(),
 			configuration,
 			new class extends mock<IEnvironmentService>() { }(),
@@ -99,29 +103,95 @@ suite('Dev Container Agent Host Connector', () => {
 			new class extends mock<IFileService>() { }(),
 			new class extends mock<IRemoteAgentHostService>() { }(),
 			new class extends mock<ISessionsProvidersService>() { }(),
-			new class extends mock<IDialogService>() {
-				override confirm(): Promise<IConfirmationResult> { prompts++; return answer.p; }
+			new class extends mock<IChatInputNotificationService>() {
+				override setNotification(notification: IChatInputNotification): void { notices.push(notification); void approvalShown.complete(); }
+				override deleteNotification(): void { }
+				override refresh(): void { }
 			}(),
+			new class extends mock<IAgentHostConnectionsService>() { override readonly onDidChangeSessionResolution = Event.None; }(),
 		));
 		const connection = await connector.createConnection(URI.file('/project'), 'devcontainer:test', CancellationToken.None);
 		store.add(connection.transportDisposable!);
-		const startupPrompts = prompts;
+		const startupNotices = notices.length;
 		const connectionId = service.connects[0].connectionId;
 		service.gitCredentialRequest.fire({ connectionId, requestId: 'first' });
 		service.gitCredentialRequest.fire({ connectionId, requestId: 'second' });
+		await approvalShown.p;
 		const responsesBeforeApproval = service.gitCredentialResponses.length;
-		await answer.complete({ confirmed: true });
+		const action = notices[0].actions[0];
+		if (action.kind !== ChatInputNotificationActionKind.Command) { assert.fail('Expected an approval command'); }
+		const command = CommandsRegistry.getCommand(action.commandId);
+		assert.ok(command);
+		instantiationService.invokeFunction(command.handler);
 		await responses.p;
 		assert.deepStrictEqual({
-			startupPrompts, prompts, responsesBeforeApproval,
+			startupNotices, notices: notices.length, responsesBeforeApproval,
 			helper: service.gitCredentialForwarding.map(request => request.enabled),
 			responses: service.gitCredentialResponses.map(({ requestId, allowed }) => ({ requestId, allowed })),
 		}, {
-			startupPrompts: 0, prompts: 1, responsesBeforeApproval: 0,
+			startupNotices: 0, notices: 1, responsesBeforeApproval: 0,
 			helper: [true],
 			responses: [{ requestId: 'first', allowed: true }, { requestId: 'second', allowed: true }],
 		});
 	});
+
+	for (const failure of [new Error('Git is not installed'), new Error('Global Git config is read-only'), new CancellationError()]) {
+		test(`handles Git credential helper setup failure: ${failure.message}`, async () => {
+			const output: string[] = [];
+			const warnings: string[] = [];
+			const service = store.add(new class extends MockDevContainerService {
+				override async setGitCredentialForwarding(): Promise<void> { throw failure; }
+			}());
+			const configuration = new TestConfigurationService({
+				[DevContainerAgentHostEnabledSettingId]: true,
+				[RemoteAgentHostsEnabledSettingId]: true,
+				[DevContainerGitCredentialForwardingSettingId]: 'prompt',
+			});
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			const connector = store.add(new DevContainerAgentHostConnector(
+				new class extends mock<ISharedProcessService>() {
+					override getChannel(): IChannel {
+						const channel = ProxyChannel.fromService(service, store.add(new DisposableStore()));
+						return {
+							listen: (event, arg) => channel.listen(undefined, event, arg),
+							call: (command, arg) => channel.call(undefined, command, arg),
+						};
+					}
+				}(),
+				store.add(new TestInstantiationService()),
+				new class extends NullLogService { override warn(message: string): void { warnings.push(message); } }(),
+				configuration,
+				new class extends mock<IEnvironmentService>() { }(),
+				new class extends mock<IOutputService>() {
+					override getChannel(): IOutputChannel {
+						return new class extends mock<IOutputChannel>() { override append(message: string): void { output.push(message); } }();
+					}
+				}(),
+				new class extends mock<IFileService>() { }(),
+				new class extends mock<IRemoteAgentHostService>() { }(),
+				new class extends mock<ISessionsProvidersService>() { }(),
+				new class extends mock<IChatInputNotificationService>() { }(),
+				new class extends mock<IAgentHostConnectionsService>() { override readonly onDidChangeSessionResolution = Event.None; }(),
+			));
+			const connecting = connector.createConnection(URI.file('/project'), 'devcontainer:test', CancellationToken.None);
+			if (failure instanceof CancellationError) {
+				await assert.rejects(connecting, CancellationError);
+				assert.deepStrictEqual({ warnings, disconnected: service.disconnects.length }, { warnings: [], disconnected: 1 });
+			} else {
+				const connection = await connecting;
+				store.add(connection.transportDisposable!);
+				assert.deepStrictEqual({
+					connected: connection.address,
+					warnings,
+					reported: output.some(message => message.includes('Git credential forwarding is unavailable')),
+				}, {
+					connected: 'devcontainer:test',
+					warnings: ['[DevContainerAgentHost] Git credential forwarding is unavailable'],
+					reported: true,
+				});
+			}
+		});
+	}
 
 	test('sample setting is application scoped, experiment controlled, and off by default', () => {
 		assert.deepStrictEqual({
@@ -188,7 +258,8 @@ suite('Dev Container Agent Host Connector', () => {
 			}(),
 			new class extends mock<IRemoteAgentHostService>() { }(),
 			new class extends mock<ISessionsProvidersService>() { }(),
-			new class extends mock<IDialogService>() { }(),
+			new class extends mock<IChatInputNotificationService>() { }(),
+			new class extends mock<IAgentHostConnectionsService>() { override readonly onDidChangeSessionResolution = Event.None; }(),
 		));
 		const source = devContainerSampleUri(devContainerSamples[0]);
 		await connector.isAvailable(source);
@@ -462,6 +533,8 @@ suite('Dev Container Agent Host Connector', () => {
 				}
 				override readonly devContainerService = remoteService;
 			}();
+			const configuration = new TestConfigurationService({ [DevContainerAgentHostEnabledSettingId]: true, [RemoteAgentHostsEnabledSettingId]: true, [DevContainerGitCredentialForwardingSettingId]: 'off' });
+			store.add(configuration.onDidChangeConfigurationEmitter);
 			const connector = store.add(new DevContainerAgentHostConnector(
 				new class extends mock<ISharedProcessService>() {
 					override getChannel(): IChannel {
@@ -472,7 +545,7 @@ suite('Dev Container Agent Host Connector', () => {
 				}(),
 				store.add(new TestInstantiationService()),
 				new class extends mock<ILogService>() { }(),
-				new TestConfigurationService({ [DevContainerAgentHostEnabledSettingId]: true, [RemoteAgentHostsEnabledSettingId]: true, [DevContainerGitCredentialForwardingSettingId]: 'off' }),
+				configuration,
 				new class extends mock<IEnvironmentService>() { }(),
 				new class extends mock<IOutputService>() {
 					override getChannel(id: string): IOutputChannel {
@@ -496,7 +569,8 @@ suite('Dev Container Agent Host Connector', () => {
 					override getConnection(): IAgentConnection { return connection; }
 				}(),
 				new class extends mock<ISessionsProvidersService>() { }(),
-				new class extends mock<IDialogService>() { }(),
+				new class extends mock<IChatInputNotificationService>() { }(),
+				new class extends mock<IAgentHostConnectionsService>() { override readonly onDidChangeSessionResolution = Event.None; }(),
 			));
 			const available = await connector.isAvailable(workspaceUri);
 			supported = false;
@@ -528,6 +602,8 @@ suite('Dev Container Agent Host Connector', () => {
 				disconnected: 1,
 				lifecycleOperations: ['stop:/remote/project', 'remove:/remote/project'],
 			});
+			await configuration.setUserConfiguration(DevContainerGitCredentialForwardingSettingId, 'prompt');
+			await assert.rejects(connector.createConnection(workspaceUri, 'devcontainer:test', CancellationToken.None), /does not support Git credential forwarding/);
 		});
 	}
 
@@ -721,7 +797,8 @@ suite('Dev Container Agent Host Connector', () => {
 			new class extends mock<IFileService>() { }(),
 			new class extends mock<IRemoteAgentHostService>() { }(),
 			new class extends mock<ISessionsProvidersService>() { }(),
-			new class extends mock<IDialogService>() { }(),
+			new class extends mock<IChatInputNotificationService>() { }(),
+			new class extends mock<IAgentHostConnectionsService>() { override readonly onDidChangeSessionResolution = Event.None; }(),
 		));
 
 		await assert.rejects(

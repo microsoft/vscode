@@ -321,6 +321,8 @@ export function setup(logger: Logger, quality: Quality) {
 				settings: {
 					'chat.agentHost.devContainer.enabled': true,
 					'chat.agentHost.devContainer.worktree.enabled': false,
+					// Published source hosts can predate credential-forwarding support.
+					'chat.agentHost.devContainer.gitCredentialForwarding': 'off',
 					'chat.remoteAgentHostsEnabled': true,
 				},
 				prepareWorkspace: (workspacePath, options) => prepareDevContainerWorkspace(workspacePath, context.mockServer.port, options),
