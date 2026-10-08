@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
 import { h } from '../../../../../base/browser/dom.js';
 import { Disposable, IDisposable, markAsSingleton } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
@@ -163,6 +164,20 @@ export class ContinueChatInSessionAction extends Action2 {
 	}
 }
 
+type ChatEnterprisePolicyRecoveryEvent = {
+	action: 'migrate' | 'newChat';
+	location: 'panel' | 'editor';
+	outcome: 'started' | 'succeeded' | 'failed' | 'cancelled';
+};
+
+type ChatEnterprisePolicyRecoveryClassification = {
+	owner: 'rwoll';
+	comment: 'Tracks attempts and outcomes of the enterprise policy recovery action from Local to Copilot.';
+	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the action migrates a conversation or opens a new chat with an unsent draft.' };
+	location: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether recovery was initiated from the chat panel or an editor.' };
+	outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A started attempt or its success, failure, or cancellation outcome. Concurrent duplicate invocations are counted once.' };
+};
+
 export class ContinueChatInCopilotAction extends Action2 {
 	private readonly pending = new ResourceMap<Promise<void>>();
 
@@ -191,14 +206,22 @@ export class ContinueChatInCopilotAction extends Action2 {
 			return pending;
 		}
 		const sessionsService = accessor.get(IAgentSessionsService);
-		if (widget.viewModel.model.requestInProgress.get()) {
-			throw new Error(localize('chat.continueInCopilot.inProgress', "Stop the current request before continuing in Copilot."));
-		}
-		const turns = importedTurnsFromChatModel(widget.viewModel.model);
+		const telemetryService = accessor.get(ITelemetryService);
+		const sourceModel = widget.viewModel.model;
+		const turns = importedTurnsFromChatModel(sourceModel);
 		const input = widget.getInputState();
 		const draft = { inputText: widget.getInput(), attachments: input?.attachments ?? [], selections: input?.selections ?? [] };
 		const sidebar = isIChatViewViewContext(widget.viewContext);
+		const logOutcome = (outcome: ChatEnterprisePolicyRecoveryEvent['outcome']) => telemetryService.publicLog2<ChatEnterprisePolicyRecoveryEvent, ChatEnterprisePolicyRecoveryClassification>('chat.enterprisePolicyRecovery', {
+			action: turns.length ? 'migrate' : 'newChat',
+			location: sidebar ? 'panel' : 'editor',
+			outcome,
+		});
+		logOutcome('started');
 		const work = (async () => {
+			if (sourceModel.requestInProgress.get()) {
+				throw new Error(localize('chat.continueInCopilot.inProgress', "Stop the current request before continuing in Copilot."));
+			}
 			let sourceSession = sessionsService.getSession(context.sessionResource);
 			if (turns.length && !sourceSession) {
 				await sessionsService.model.resolve(getChatSessionType(context.sessionResource));
@@ -232,6 +255,10 @@ export class ContinueChatInCopilotAction extends Action2 {
 		this.pending.set(context.sessionResource, work);
 		try {
 			await work;
+			logOutcome('succeeded');
+		} catch (error) {
+			logOutcome(isCancellationError(error) ? 'cancelled' : 'failed');
+			throw error;
 		} finally {
 			this.pending.delete(context.sessionResource);
 		}

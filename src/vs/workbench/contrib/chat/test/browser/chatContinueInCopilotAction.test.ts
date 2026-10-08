@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
@@ -16,6 +17,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProgressService } from '../../../../../platform/progress/common/progress.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
@@ -41,7 +43,7 @@ suite('Continue in Copilot policy recovery', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	for (const sidebar of [false, true]) {
-		for (const scenario of ['local', SessionType.AgentHostClaude, SessionType.AgentHostCodex, 'empty', 'unavailable', 'prepare-failed', 'import-failed', 'import-missing', 'open-failed', 'open-cancelled', 'double-click', 'archived', 'unresolved-history', 'missing-history']) {
+		for (const scenario of ['local', SessionType.AgentHostClaude, SessionType.AgentHostCodex, 'empty', 'unavailable', 'prepare-failed', 'import-failed', 'import-missing', 'open-failed', 'open-cancelled', 'double-click', 'archived', 'unresolved-history', 'missing-history', 'cancelled', 'in-progress']) {
 			test(`preserves draft and does not send for ${scenario} in ${sidebar ? 'panel' : 'editor'}`, async () => {
 				const services = store.add(new TestInstantiationService());
 				const imports = new AgentHostImportConversationStore();
@@ -54,7 +56,7 @@ suite('Continue in Copilot policy recovery', () => {
 						entireResponse: upcastPartial<IChatResponseModel['entireResponse']>({ value: [{ kind: 'markdownContent', content: new MarkdownString('Original answer') }] }),
 					}),
 				});
-				const model = upcastPartial<IChatModel>({ sessionResource: source, getRequests: () => scenario === 'empty' ? [] : [request], requestInProgress: constObservable(false) });
+				const model = upcastPartial<IChatModel>({ sessionResource: source, getRequests: () => scenario === 'empty' ? [] : [request], requestInProgress: constObservable(scenario === 'in-progress') });
 				const attachment = { kind: 'file' as const, id: 'file', name: 'example.txt', value: URI.file('/workspace/example.txt') };
 				const widget = upcastPartial<IChatWidget>({
 					viewModel: upcastPartial<ChatViewModel>({ sessionResource: source, model }),
@@ -69,6 +71,12 @@ suite('Continue in Copilot policy recovery', () => {
 				let imported: IAgentHostImportConversation | undefined;
 				let draft: Partial<IChatModelInputState> | undefined;
 				const preparation: string[] = [];
+				const telemetry: { event: string; data: object | undefined }[] = [];
+				const assertTelemetry = (outcome: 'succeeded' | 'failed' | 'cancelled') => assert.deepStrictEqual(telemetry, ['started', outcome].map(outcome => ({
+					event: 'chat.enterprisePolicyRecovery',
+					data: { action: scenario === 'empty' ? 'newChat' : 'migrate', location: sidebar ? 'panel' : 'editor', outcome },
+				})));
+				services.stub(ITelemetryService, { publicLog2: (event, data) => { telemetry.push({ event, data }); } });
 				let archived = scenario === 'archived';
 				let historyResolved = scenario !== 'unresolved-history';
 				const openStarted = new DeferredPromise<void>();
@@ -104,7 +112,12 @@ suite('Continue in Copilot policy recovery', () => {
 					sendRequest: async () => assert.fail('Policy recovery must not send a request'),
 				});
 				services.stub(IChatSessionsService, {
-					canResolveChatSession: async () => scenario !== 'unavailable',
+					canResolveChatSession: async () => {
+						if (scenario === 'cancelled') {
+							throw new CancellationError();
+						}
+						return scenario !== 'unavailable';
+					},
 					createNewChatSessionItem: async (_type, request) => {
 						preparation.push('import');
 						assert.strictEqual(request.prompt, '');
@@ -167,7 +180,7 @@ suite('Continue in Copilot policy recovery', () => {
 					}
 					await duplicate;
 				}
-				if (scenario === 'unavailable' || scenario === 'prepare-failed' || scenario === 'import-failed' || scenario === 'import-missing' || scenario === 'open-failed' || scenario === 'open-cancelled' || scenario === 'archived' || scenario === 'missing-history') {
+				if (scenario === 'unavailable' || scenario === 'prepare-failed' || scenario === 'import-failed' || scenario === 'import-missing' || scenario === 'open-failed' || scenario === 'open-cancelled' || scenario === 'archived' || scenario === 'missing-history' || scenario === 'cancelled' || scenario === 'in-progress') {
 					const error = scenario === 'unavailable' ? /organization requires the new Copilot experience/
 						: scenario === 'prepare-failed' ? /Couldn't start Copilot/
 							: scenario === 'import-missing' ? /Start a new Copilot chat instead/
@@ -175,16 +188,20 @@ suite('Continue in Copilot policy recovery', () => {
 									: scenario === 'open-cancelled' ? /Couldn't open the Copilot conversation/
 										: scenario === 'archived' ? /This chat is archived/
 											: scenario === 'missing-history' ? /Couldn't find this conversation in chat history/
-												: /Import rejected/;
+												: scenario === 'cancelled' ? /Canceled/
+													: scenario === 'in-progress' ? /Stop the current request/
+														: /Import rejected/;
 					await assert.rejects(run, error);
+					assertTelemetry(scenario === 'cancelled' ? 'cancelled' : 'failed');
 					assert.deepStrictEqual({ target, draft: widget.getInput(), history: model.getRequests().length, preparation, archived }, {
 						target: undefined, draft: 'Unsent follow-up', history: 1, archived: scenario === 'archived',
-						preparation: scenario === 'unavailable' || scenario === 'archived' || scenario === 'missing-history' ? [] : scenario === 'prepare-failed' ? ['prepare', 'release draft']
+						preparation: scenario === 'unavailable' || scenario === 'archived' || scenario === 'missing-history' || scenario === 'cancelled' || scenario === 'in-progress' ? [] : scenario === 'prepare-failed' ? ['prepare', 'release draft']
 							: scenario === 'open-failed' || scenario === 'open-cancelled' ? ['prepare', 'import', 'release draft', 'open'] : ['prepare', 'import', 'release draft'],
 					});
 					return;
 				}
 				await run;
+				assertTelemetry('succeeded');
 				assert.deepStrictEqual({
 					target: target && getChatSessionType(target),
 					history: imported?.turns.map(turn => ({ text: turn.message.text, response: turn.responseParts.map(part => part.kind === 'markdown' ? { kind: part.kind, content: part.content } : part) })),
