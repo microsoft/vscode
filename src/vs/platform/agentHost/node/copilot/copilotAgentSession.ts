@@ -2749,9 +2749,6 @@ export class CopilotAgentSession extends Disposable {
 								invocation.toolCallId,
 								() => this._emitToolSearchReady(invocation.toolCallId, candidates),
 							);
-							if (clientResult.resultType !== 'success' && !this._resolveClientToolOwner(CLIENT_TOOL_SEARCH_REFERENCE_NAME)) {
-								return this._searchToolsOnHost(args, candidates);
-							}
 							return this._toToolSearchResult(clientResult, invocation.availableTools);
 						} catch (error) {
 							this._logService.error(error, `[Copilot:${this.sessionId}] Failed in tool-search handler: toolCallId=${invocation.toolCallId}`);
