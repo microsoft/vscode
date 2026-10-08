@@ -121,6 +121,34 @@ suite('AgentHostSandboxToggle', () => {
 		});
 	});
 
+	for (const checked of [false, true]) {
+		test(`unsupported container guidance reflects sandboxing ${checked ? 'on' : 'off'}`, () => {
+			const toggle = createAgentHostSandboxToggle(() => ({
+				provider: 'copilotcli', sessionEnabled: checked, globalEnabled: true, managedEnabled: false, allowsBypass: false,
+				devContainerSandboxSupported: false,
+			}), () => { })!;
+			assert.deepStrictEqual({ checked: toggle.checked, disabled: toggle.disabled, title: toggle.title }, {
+				checked,
+				disabled: !checked,
+				title: checked
+					? 'Sandboxing is requested for this session, but this Dev Container was started without the required Docker options. Recreate it with sandboxing enabled, or turn sandboxing off for this session if your organization permits it.'
+					: 'This Dev Container was started without the Docker options required for sandboxing. Recreate it with sandboxing enabled to use this option.',
+			});
+		});
+	}
+
+	test('refreshes unsupported container guidance after turning sandboxing off', () => {
+		const state = {
+			provider: 'copilotcli', sessionEnabled: true, globalEnabled: true, managedEnabled: false, allowsBypass: false,
+			devContainerSandboxSupported: false,
+		};
+		const previous = createAgentHostSandboxToggle(() => state, enabled => { state.sessionEnabled = enabled; })!;
+		previous.onChange(false);
+		const current = createAgentHostSandboxToggle(() => state, () => { })!;
+		assert.strictEqual(equalsAgentHostSandboxTogglePresentation(previous, current), false);
+		assert.strictEqual(current.title, 'This Dev Container was started without the Docker options required for sandboxing. Recreate it with sandboxing enabled to use this option.');
+	});
+
 	test('an unsupported container does not permit opting out of a managed requirement', () => {
 		const writes: boolean[] = [];
 		const toggle = createAgentHostSandboxToggle(() => ({

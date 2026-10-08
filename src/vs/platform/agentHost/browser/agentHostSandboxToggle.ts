@@ -52,7 +52,9 @@ export function createAgentHostSandboxToggle(readState: () => IAgentHostSandboxT
 			: localize('agentHostSandboxToggle.label', "Sandboxing for terminal"),
 		showInfoIcon: state.devContainer,
 		title: state.devContainerSandboxSupported === false
-			? localize('agentHostSandboxToggle.devContainerUnavailableTitle', "This Dev Container was started without the Docker options required for sandboxing. Recreate it with sandboxing enabled to use this option, or turn sandboxing off for this session if your organization permits it.")
+			? checked
+				? localize('agentHostSandboxToggle.devContainerUnavailableEnabledTitle', "Sandboxing is requested for this session, but this Dev Container was started without the required Docker options. Recreate it with sandboxing enabled, or turn sandboxing off for this session if your organization permits it.")
+				: localize('agentHostSandboxToggle.devContainerUnavailableTitle', "This Dev Container was started without the Docker options required for sandboxing. Recreate it with sandboxing enabled to use this option.")
 			: state.devContainer
 				? localize('agentHostSandboxToggle.devContainerTitle', "Start the Dev Container with the Docker options needed for terminal sandboxing: unconfined seccomp, AppArmor and system paths, and access to /dev/net/tun. This relaxes the outer container's isolation; terminal commands still run inside their own sandbox.")
 				: state.managedEnabled
