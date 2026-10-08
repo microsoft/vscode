@@ -157,12 +157,12 @@ suite('SessionsChatAccessibilityHelp', () => {
 				discoveryHelp: content.includes('choose Environments to discover your environments'),
 				refreshHelp: content.includes('Tab reaches Refresh Environments.'),
 				hiddenHelp: content.includes('Hide in This Profile') || content.includes('Restore Host'),
-				missionControl: content.includes('Mission Control'),
+				githubEnvironment: content.includes('GitHub environment'),
 				sharingKeyboard: content.includes('Enter or Space to enable or disable sharing'),
 				backendSetting: content.includes('chat.agentHost.remoteConnections'),
 			}, {
 				discoveryHelp: enabled, refreshHelp: enabled, hiddenHelp: false,
-				missionControl: !hidden && !aiDisabled, sharingKeyboard: !hidden && !aiDisabled, backendSetting: !hidden && !aiDisabled,
+				githubEnvironment: !hidden && !aiDisabled, sharingKeyboard: !hidden && !aiDisabled, backendSetting: !hidden && !aiDisabled,
 			});
 		});
 	}

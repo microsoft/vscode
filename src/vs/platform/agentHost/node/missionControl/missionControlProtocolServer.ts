@@ -22,6 +22,7 @@ import type { AuthenticateParams } from '../../common/agent.js';
 import { MissionControlSessionMirror, type MissionControlMirrorEvent } from './missionControlSessionMirror.js';
 import { AuthRequiredReason } from '../../common/state/protocol/common/notifications.js';
 import { ROOT_STATE_URI } from '../../common/state/sessionState.js';
+import type { AhpJsonlLogger } from '../../common/ahpJsonlLogger.js';
 
 export interface IMissionControlSocket {
 	send(data: string): void;
@@ -76,9 +77,11 @@ class MissionControlLane extends Disposable implements IProtocolTransport {
 	readonly generation = newConnectionGeneration();
 	lastReceived = Date.now();
 	get isClosed(): boolean { return this._closed; }
+	private readonly _ahpLogger: AhpJsonlLogger | undefined;
 
-	constructor(readonly clientId: string, readonly passive: boolean, private readonly _publish: (group: string, message: unknown, generation: number) => void, private readonly _prefix: string, private readonly _authentication?: MissionControlAuthentication, private readonly _rehandshake?: (lane: MissionControlLane, message: object) => void, private readonly _didClose?: (lane: MissionControlLane) => void) {
+	constructor(readonly clientId: string, readonly passive: boolean, private readonly _publish: (group: string, message: unknown, generation: number) => void, private readonly _prefix: string, private readonly _authentication?: MissionControlAuthentication, private readonly _rehandshake?: (lane: MissionControlLane, message: object) => void, private readonly _didClose?: (lane: MissionControlLane) => void, createAhpLogger?: (clientId: string, generation: number) => AhpJsonlLogger) {
 		super();
+		this._ahpLogger = createAhpLogger ? this._register(createAhpLogger(clientId, this.generation)) : undefined;
 		if (_authentication) {
 			this._register(_authentication);
 			this.relayCaptureAuthorization = () => _authentication.captureAuthorization();
@@ -97,6 +100,7 @@ class MissionControlLane extends Disposable implements IProtocolTransport {
 		this.lastReceived = Date.now();
 		const request = message as { id?: unknown; method?: unknown; params?: { clientId?: unknown } };
 		if ((request.method === 'initialize' || request.method === 'reconnect') && request.params?.clientId !== this.clientId) {
+			this._ahpLogger?.log(message, 'c2s');
 			this.dispose();
 			return;
 		}
@@ -108,6 +112,7 @@ class MissionControlLane extends Disposable implements IProtocolTransport {
 			this._handshakeId = typeof request.id === 'number' || typeof request.id === 'string' ? request.id : undefined;
 			this._authentication?.beginHandshake();
 		}
+		this._ahpLogger?.log(message, 'c2s');
 		if (!this._authentication && (request.method === 'authenticate' || request.method === 'resourceRequest' || request.method === 'dispatchAction' || request.method === 'setClientManagedSettingsPermissions')) {
 			this.dispose();
 			return;
@@ -140,6 +145,7 @@ class MissionControlLane extends Disposable implements IProtocolTransport {
 			this._handshakeId = undefined;
 		}
 		try {
+			this._ahpLogger?.log(message, 's2c');
 			this._publish(`${this._prefix}.${response ? 'to-client' : 'broadcast'}`, message, this.generation);
 		} catch (error) {
 			this.dispose();
@@ -203,6 +209,7 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 		private readonly _authenticationFactory?: () => MissionControlAuthentication,
 		readonly rootMeta?: Record<string, unknown>,
 		private readonly _mirror?: MissionControlSessionMirror,
+		private readonly _createAhpLogger?: (clientId: string, generation: number) => AhpJsonlLogger,
 	) {
 		super();
 		parseGroupName(_bootstrap.groups.control, { expected: { uid: _owner, eid: _environment } });
@@ -506,7 +513,7 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 					return;
 				}
 			}
-		});
+		}, this._createAhpLogger);
 		this._lanes.set(clientId, lane);
 		return lane;
 	}

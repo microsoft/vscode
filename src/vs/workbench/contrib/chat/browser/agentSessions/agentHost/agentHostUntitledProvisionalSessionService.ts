@@ -179,6 +179,9 @@ export interface IAgentHostUntitledProvisionalSessionService {
 	 */
 	disposeSession(sessionResource: URI): Promise<void>;
 
+	/** Relinquishes provisional ownership of a materialized session without deleting its backend. */
+	releaseSession(sessionResource: URI): void;
+
 	/**
 	 * Latest workbench-side re-resolved config (schema + values) for a chat
 	 * session, if any. Populated after a value change so dependent properties
@@ -976,18 +979,31 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		return work;
 	}
 
-	disposeSession(sessionResource: URI): Promise<void> {
+	private _removeEntry(sessionResource: URI): IEntry | undefined {
 		const entry = this._entries.get(sessionResource);
 		this._resolvedConfigs.delete(sessionResource);
 		this._resolvedConfigRequestSeq.delete(sessionResource);
+		this._resolvedConfigConnections.delete(sessionResource);
 		this._sessionCreationMetadata.delete(sessionResource);
 		if (!entry) {
-			return Promise.resolve();
+			return undefined;
 		}
 		entry.disposed = true;
 		entry.lifetime.dispose();
 		this._entries.delete(sessionResource);
 		this._onDidChange.fire(sessionResource);
+		return entry;
+	}
+
+	releaseSession(sessionResource: URI): void {
+		this._removeEntry(sessionResource);
+	}
+
+	disposeSession(sessionResource: URI): Promise<void> {
+		const entry = this._removeEntry(sessionResource);
+		if (!entry) {
+			return Promise.resolve();
+		}
 		return this._queue(sessionResource, async () => {
 			if (entry.generation) {
 				await this._disposeBackend(entry.generation.backendSession, 'provisional generation');

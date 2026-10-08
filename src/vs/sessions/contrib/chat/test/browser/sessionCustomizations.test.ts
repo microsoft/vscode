@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { isMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { buildSessionCustomizationSections } from '../../../../../workbench/contrib/chat/browser/sessionCustomizations.js';
@@ -63,7 +62,8 @@ suite('Session Customizations', () => {
 			const content = entry.hover?.content;
 			return {
 				ariaDescription: entry.ariaDescription,
-				content: isMarkdownString(content) ? content.value : undefined,
+				content: content instanceof HTMLElement ? content.textContent : undefined,
+				sharedShell: content instanceof HTMLElement && content.classList.contains('chat-pill-hover-content'),
 			};
 		};
 
@@ -72,9 +72,9 @@ suite('Session Customizations', () => {
 			multipleFolders: hover({ ...customization('c2', SessionCustomizationKind.Instruction, 'instructions'), uri: URI.file('/work/server/.github/instructions/review.md') }, multipleFolders),
 			outside: hover({ ...customization('c3', SessionCustomizationKind.Prompt, 'global'), uri: outside }, singleFolder),
 		}, {
-			singleFolder: { ariaDescription: 'c1.md', content: 'c1.md' },
-			multipleFolders: { ariaDescription: 'server/.github/instructions/review.md', content: 'server/.github/instructions/review.md' },
-			outside: { ariaDescription: outside.fsPath, content: new MarkdownString().appendText(outside.fsPath).value },
+			singleFolder: { ariaDescription: 'c1.md', content: 'c1.md', sharedShell: true },
+			multipleFolders: { ariaDescription: 'server/.github/instructions/review.md', content: 'server/.github/instructions/review.md', sharedShell: true },
+			outside: { ariaDescription: outside.fsPath, content: outside.fsPath, sharedShell: true },
 		});
 	});
 
