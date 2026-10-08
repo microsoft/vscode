@@ -90,6 +90,8 @@ suite('Chat Accessibility Help', () => {
 		test(`documents Copilot introduction and Agents Window invitation behavior in ${type}`, () => {
 			const help = getAccessibilityHelpText(type, new MockKeybindingService(), false);
 			assert.deepStrictEqual({
+				preserveSessions: help.includes('without changing its active or visible sessions, unless the action explicitly requests a session or New Session'),
+				preserveNewSessionDraft: help.includes('Revealing New Session preserves any unsent draft'),
 				introductionModes: help.includes('when the session starts or after the first request is submitted'),
 				introductionPersists: help.includes('sending messages does not dismiss it'),
 				introductionActions: help.includes('let us know, Learn More, Got it!, or Not Helpful'),
@@ -111,6 +113,8 @@ suite('Chat Accessibility Help', () => {
 				input: help.includes('temporarily hidden while the session needs attention'),
 				hiddenInAgents: !getAccessibilityHelpText(type, new MockKeybindingService(), false, true).includes('new Copilot harness chat'),
 			}, {
+				preserveSessions: true,
+				preserveNewSessionDraft: true,
 				introductionModes: true,
 				introductionPersists: true,
 				introductionActions: true,

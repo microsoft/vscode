@@ -1582,6 +1582,109 @@ suite('LanguageModels - Per-Model Configuration with multiple same-vendor groups
 	});
 });
 
+suite('LanguageModels - Duplicate configuration-only groups', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const vendor = 'agent-host-copilotcli';
+	const modelId = `${vendor}:test-model`;
+	let service: LanguageModelsService;
+	let groups: ILanguageModelsProviderGroup[];
+
+	setup(async () => {
+		const onDidChangeGroups = disposables.add(new Emitter<readonly ILanguageModelsProviderGroup[]>());
+		groups = [
+			{ vendor, name: 'Copilot CLI', settings: { 'test-model': { thinkingLevel: 'max' }, other: { thinkingLevel: 'high' } } },
+			{ vendor, name: 'Copilot', settings: { 'test-model': { thinkingLevel: 'medium', contextSize: 272000 } } },
+			{ vendor: 'other-vendor', name: 'Other', settings: { 'test-model': { thinkingLevel: 'high' } } },
+		];
+		service = disposables.add(new LanguageModelsService(
+			new class extends mock<IExtensionService>() { },
+			new NullLogService(),
+			disposables.add(new TestStorageService()),
+			disposables.add(new MockContextKeyService()),
+			new class extends mock<ILanguageModelsConfigurationService>() {
+				override onDidChangeLanguageModelGroups = onDidChangeGroups.event;
+				override getLanguageModelsProviderGroups() { return groups; }
+				override async updateLanguageModelsProviderGroup(from: ILanguageModelsProviderGroup, to: ILanguageModelsProviderGroup): Promise<ILanguageModelsProviderGroup> {
+					groups = groups.map(group => group === from ? to : group);
+					onDidChangeGroups.fire([to]);
+					return to;
+				}
+				override async removeLanguageModelsProviderGroup(toRemove: ILanguageModelsProviderGroup): Promise<void> {
+					groups = groups.filter(group => group !== toRemove);
+					onDidChangeGroups.fire([toRemove]);
+				}
+			},
+			new class extends mock<IQuickInputService>() { },
+			disposables.add(new TestSecretStorageService()),
+			new class extends mock<IProductService>() { override readonly version = '1.100.0'; },
+			new class extends mock<IRequestService>() { },
+			new TestNotificationService(),
+			NullOpenerService,
+			NullTelemetryService,
+		));
+		service.deltaLanguageModelChatProviderDescriptors([
+			{ vendor, displayName: 'Copilot', configuration: undefined, managementCommand: undefined, when: undefined },
+		], []);
+		disposables.add(service.registerLanguageModelProvider(vendor, {
+			onDidChange: Event.None,
+			provideLanguageModelChatInfo: async () => [{
+				identifier: modelId,
+				metadata: {
+					extension: nullExtensionDescription.identifier,
+					name: 'Test Model', vendor, id: 'test-model', family: 'test-model', version: '1.0',
+					maxInputTokens: 272000, maxOutputTokens: 32000, isDefaultForLocation: {},
+					configurationSchema: {
+						properties: {
+							thinkingLevel: { type: 'string', default: 'medium' },
+							contextSize: { type: 'number', default: 272000 },
+						},
+					},
+				},
+			}],
+			sendChatRequest: async () => { throw new Error(); },
+			provideTokenCount: async () => { throw new Error(); },
+		}));
+		await service.selectLanguageModels({ vendor });
+	});
+
+	test('each edit survives a catalogue refresh and preserves the other parameter', async () => {
+		const configurations = [];
+		for (const values of [
+			{ thinkingLevel: 'max' },
+			{ contextSize: 1050000 },
+			{ thinkingLevel: 'high' },
+			{ contextSize: 272000 },
+			{ thinkingLevel: 'medium' },
+		]) {
+			await service.setModelConfiguration(modelId, values);
+			await service.selectLanguageModels({ vendor });
+			configurations.push(service.getModelConfiguration(modelId));
+		}
+		assert.deepStrictEqual(configurations, [
+			{ thinkingLevel: 'max', contextSize: 272000 },
+			{ thinkingLevel: 'max', contextSize: 1050000 },
+			{ thinkingLevel: 'high', contextSize: 1050000 },
+			{ thinkingLevel: 'high', contextSize: 272000 },
+			{ thinkingLevel: 'medium', contextSize: 272000 },
+		]);
+	});
+
+	test('reset removes shadowed preferences without removing other models or vendors', async () => {
+		await service.setModelConfiguration(modelId, { thinkingLevel: 'medium', contextSize: 272000 });
+		await service.selectLanguageModels({ vendor });
+		assert.deepStrictEqual({
+			configuration: service.getModelConfiguration(modelId),
+			groups,
+		}, {
+			configuration: { thinkingLevel: 'medium', contextSize: 272000 },
+			groups: [
+				{ vendor, name: 'Copilot CLI', settings: { other: { thinkingLevel: 'high' } } },
+				{ vendor: 'other-vendor', name: 'Other', settings: { 'test-model': { thinkingLevel: 'high' } } },
+			],
+		});
+	});
+});
+
 suite('LanguageModels - Provider Group Management', function () {
 
 	class TestInputBox extends mock<IInputBox>() {

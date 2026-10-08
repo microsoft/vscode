@@ -13,7 +13,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
 import { IRequestContext, type IHeaders, type IRequestOptions } from '../../../../../../base/parts/request/common/request.js';
-import { CLOUD_SANDBOX_AGENT_SLUG, CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID, type ICloudSandboxClientToken } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CLOUD_SANDBOX_AGENT_SLUG, CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID, CloudSandboxAuthenticationRequiredError, type ICloudSandboxClientToken } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { SessionStatus } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { COPILOT_INTEGRATION_ID } from '../../../../../../platform/endpoint/common/licenseAgreement.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -1938,7 +1938,7 @@ suite('CloudSandboxApiService session creation', () => {
 		});
 	});
 
-	test('omits the repository when it is not supplied', async () => {
+	test('uses account compute scope when no repository is supplied', async () => {
 		const { service, calls } = createServiceForCreate(store, {
 			id: 'task-2',
 			sessions: [{ id: 'sess-2', environment_id: 'env-2' }],
@@ -1949,8 +1949,66 @@ suite('CloudSandboxApiService session creation', () => {
 		assert.deepStrictEqual(calls[0].body, {
 			environment_id: CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID,
 			prompt: 'hello',
+			compute: { scope: 'a' },
 		});
 	});
+
+	test('pairs repo-less compute scope with the account authorizing each request', async () => {
+		const calls: Pick<ICreateCall, 'body' | 'headers'>[] = [];
+		let authenticationRequests = 0;
+		const { service } = createService(store, {
+			tasks: [], repositories: new Map(),
+			authenticationSessions: async () => {
+				const login = ++authenticationRequests === 1 ? 'octocat' : 'mona';
+				return [{
+					id: `session-${login}`,
+					accessToken: `token-${login}`,
+					account: { id: String(authenticationRequests), label: login },
+					scopes: [],
+				}];
+			},
+			onRequest: (_url, _token, options) => {
+				calls.push({ body: JSON.parse(options.data ?? ''), headers: options.headers ?? {} });
+				return jsonResponse({ id: 'task-1', sessions: [{ id: 'sess-1', environment_id: 'env-1' }] });
+			},
+		});
+
+		await service.createSession({ prompt: 'hello' }, CancellationToken.None);
+		await service.createSession({ prompt: 'hello' }, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			authenticationRequests,
+			requests: calls.map(call => ({ body: call.body, authorization: call.headers.Authorization })),
+		}, {
+			authenticationRequests: 2,
+			requests: ['octocat', 'mona'].map(login => ({
+				body: {
+					environment_id: CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID,
+					prompt: 'hello',
+					compute: { scope: login },
+				},
+				authorization: `Bearer token-${login}`,
+			})),
+		});
+	});
+
+	test('requires authentication before creating a repo-less sandbox', async () => {
+		const { service, requestedUrls } = createService(store, {
+			tasks: [], repositories: new Map(), authenticationSessions: async () => [],
+		});
+
+		await assert.rejects(service.createSession({ prompt: 'hello' }, CancellationToken.None), CloudSandboxAuthenticationRequiredError);
+		assert.deepStrictEqual(requestedUrls, []);
+	});
+
+	for (const repoNwo of ['', 'octocat', '/repo', 'octocat/']) {
+		test(`rejects an invalid repository instead of provisioning a repo-less sandbox: '${repoNwo}'`, async () => {
+			const { service, requestedUrls } = createService(store, { tasks: [], repositories: new Map() });
+
+			await assert.rejects(service.createSession({ repoNwo, prompt: 'hello' }, CancellationToken.None), /owner\/name/);
+			assert.deepStrictEqual(requestedUrls, []);
+		});
+	}
 
 	test('throws when Mission Control binds no session to the created task', async () => {
 		// A task with no bound session has nothing for the relay to address, so this must not be

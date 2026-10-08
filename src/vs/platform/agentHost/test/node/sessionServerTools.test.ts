@@ -413,6 +413,35 @@ suite('SessionServerTools', () => {
 		}
 	});
 
+	test('rename_chat loads eagerly only for active agent title generation', () => {
+		const stateManager = new AgentHostStateManager(new NullLogService());
+		try {
+			const strategies = ['utility', 'activeAgent', 'agentReview', 'deferred'] as const;
+			for (const strategy of strategies) {
+				stateManager.createSession({
+					resource: `copilot:/${strategy}`, provider: 'copilot', title: 'Session', status: SessionStatus.Idle,
+					createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
+				});
+			}
+			const host = new AgentServerToolHost(stateManager, [createSessionServerToolGroup(createAccessor({
+				getAutomaticTitleGenerationStrategy: session => strategies.find(strategy => session === `copilot:/${strategy}`) ?? 'utility',
+			}))]);
+			const renameChat = (session: string) => {
+				host.advertise(session);
+				const definition = host.getDefinitionsForSession(session).find(tool => tool.name === SessionServerToolName.RenameChat);
+				return definition ? { deferLoading: definition.deferLoading } : 'absent';
+			};
+			assert.deepStrictEqual(Object.fromEntries(strategies.map(strategy => [strategy, renameChat(`copilot:/${strategy}`)])), {
+				utility: 'absent',
+				activeAgent: { deferLoading: false },
+				agentReview: { deferLoading: true },
+				deferred: { deferLoading: true },
+			});
+		} finally {
+			stateManager.dispose();
+		}
+	});
+
 	test('set_workspace deferral follows whether the session is workspaceless', () => {
 		const stateManager = new AgentHostStateManager(new NullLogService());
 		const workspacelessSession = 'copilot:/workspaceless';
