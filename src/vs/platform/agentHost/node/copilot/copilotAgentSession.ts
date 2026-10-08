@@ -76,7 +76,7 @@ import { allowCopilotSdkExecution, restoreDeferredCopilotSdkExecution } from './
 import { getCopilotSdkToolResourceUri } from './copilotSdkMeta.js';
 import { isAutoModel } from './modelIdentifiers.js';
 import { applySandboxConfig, clientToolNamesFromSnapshot, isMcpServerExplicitlyProjected, mergeByokSessionConfig, toSessionConfigMcpServers, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
-import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, NON_DEFERRED_CLIENT_TOOL_NAMES, RUNTIME_TOOL_SEARCH_TOOL_NAME, rankToolSearchCandidates } from './toolSearchDeferral.js';
+import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, NON_DEFERRED_CLIENT_TOOL_NAMES, RUNTIME_TOOL_SEARCH_TOOL_NAME, searchToolsWithoutClient } from './toolSearchDeferral.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
 import { AgentHostTelemetryReporter, toInitiatorTelemetry, type IAgentHostEventClassification, type IAgentHostEventTelemetry, type ICanvasExtensionsReadyEvent } from '../agentHostTelemetryReporter.js';
 import { AgentHostRepoInfoTelemetry } from '../agentHostRepoInfoTelemetry.js';
@@ -2743,7 +2743,7 @@ export class CopilotAgentSession extends Disposable {
 							const candidates = this._toToolSearchCandidates(invocation.availableTools);
 							const tracked = this._activeToolCalls.get(invocation.toolCallId);
 							if (tracked && !tracked.contributor) {
-								return this._searchToolsOnHost(args, candidates, invocation.availableTools);
+								return this._searchToolsOnHost(args, candidates);
 							}
 							const clientResult = await this._pendingClientToolCalls.registerAndFire(
 								invocation.toolCallId,
@@ -2903,16 +2903,19 @@ export class CopilotAgentSession extends Disposable {
 
 	/**
 	 * Tool search normally runs on a client, but the tools it gates include
-	 * server and MCP tools that need none. Rank on the host when no client is
-	 * reachable so those stay loadable, e.g. for autonomous Agent Merge turns.
+	 * server and MCP tools that need none. When no client is reachable, e.g.
+	 * for autonomous Agent Merge turns, load the host-runnable tools the query
+	 * names instead of failing the search.
 	 */
-	private _searchToolsOnHost(args: Record<string, unknown>, candidates: readonly IToolSearchCandidate[], availableTools: readonly CurrentToolMetadata[] | undefined): ToolResultObject {
+	private _searchToolsOnHost(args: Record<string, unknown>, candidates: readonly IToolSearchCandidate[]): ToolResultObject {
 		const query = isString(args.query) ? args.query.trim() : '';
 		if (!query) {
 			return this._toolSearchFailure('Error: query parameter is required');
 		}
-		this._logService.info(`[Copilot:${this.sessionId}] tool_search override: no connected client, ranking ${candidates.length} deferred tools on the host`);
-		return this._toToolSearchResult({ textResultForLlm: JSON.stringify(rankToolSearchCandidates(query, candidates)), resultType: 'success' }, availableTools);
+		const hostCandidates = candidates.filter(candidate => !this._clientToolNames.has(candidate.name));
+		const { toolNames, textResultForLlm } = searchToolsWithoutClient(query, hostCandidates);
+		this._logService.info(`[Copilot:${this.sessionId}] tool_search override: no connected client, matched [${toolNames.join(', ')}] among ${hostCandidates.length} host-runnable deferred tools`);
+		return { textResultForLlm, resultType: 'success', toolReferences: [...toolNames] };
 	}
 
 	private _toToolSearchResult(clientResult: ToolResultObject, availableTools: readonly CurrentToolMetadata[] | undefined): ToolResultObject {

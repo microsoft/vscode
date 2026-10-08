@@ -18274,9 +18274,12 @@ Use the attached image as context.
 			await handlerPromise;
 		});
 
-		test('tool search ranks deferred tools on the host once its client disconnects', async () => {
+		test('tool search loads host-runnable tools named in the query once its client disconnects', async () => {
 			const toolSearchSnapshot: IActiveClientSnapshot = {
-				tools: [{ name: 'toolSearch', description: 'Search tools', inputSchema: { type: 'object', properties: { query: { type: 'string' } } } }],
+				tools: [
+					{ name: 'toolSearch', description: 'Search tools', inputSchema: { type: 'object', properties: { query: { type: 'string' } } } },
+					{ name: 'screenshotPage', description: 'Capture an image of the browser page', inputSchema: { type: 'object', properties: {} } },
+				],
 				plugins: [],
 				mcpServers: {},
 			};
@@ -18288,41 +18291,51 @@ Use the attached image as context.
 				modelId: 'claude-opus-4.8',
 				rootValues: { [CopilotCliConfigKey.ToolSearchEnabled]: true },
 			});
-			const [override] = runtime.createClientSdkTools(true);
+			const override = runtime.createClientSdkTools(true).find(tool => tool.name === 'tool_search_tool')!;
 			// The SDK session keeps its launch-time tools after the client leaves.
 			activeClientToolSet.delete('tool-search-client');
-
-			const query = 'readAgentMergeCI rerunAgentMergeWorkflow';
-			mockSession.fire('tool.execution_start', {
-				toolCallId: 'tc-tool-search',
-				toolName: 'tool_search_tool',
-				arguments: { query },
-			} as SessionEventPayload<'tool.execution_start'>['data']);
-			const result = await invokeClientToolHandler(override, 'tc-tool-search', { query }, [
+			const availableTools = [
 				{ name: 'list_sessions', description: 'List agent sessions', deferLoading: true },
 				{ name: 'readAgentMergeCI', description: 'Read CI diagnostics', deferLoading: true },
 				{ name: 'rerunAgentMergeWorkflow', description: 'Rerun a GitHub Actions workflow', deferLoading: true },
+				{ name: 'screenshotPage', description: 'Capture an image of the browser page', deferLoading: true },
 				{ name: 'read_file', description: 'Reads a file', deferLoading: false },
-			]);
-			mockSession.fire('tool.execution_complete', {
-				toolCallId: 'tc-tool-search',
-				success: true,
-				result: { content: result.textResultForLlm },
-			} as SessionEventPayload<'tool.execution_complete'>['data']);
+			];
 
-			const complete = getActions(signals).find(action => action.type === ActionType.ChatToolCallComplete) as ChatToolCallCompleteAction | undefined;
+			const search = async (toolCallId: string, query: string) => {
+				mockSession.fire('tool.execution_start', {
+					toolCallId,
+					toolName: 'tool_search_tool',
+					arguments: { query },
+				} as SessionEventPayload<'tool.execution_start'>['data']);
+				const result = await invokeClientToolHandler(override, toolCallId, { query }, availableTools);
+				mockSession.fire('tool.execution_complete', {
+					toolCallId,
+					success: true,
+					result: { content: result.textResultForLlm },
+				} as SessionEventPayload<'tool.execution_complete'>['data']);
+				return { resultType: result.resultType, textResultForLlm: result.textResultForLlm, toolReferences: result.toolReferences };
+			};
+
+			const preamble = 'No client is connected, so tool search only matches exact tool names and client tools are unavailable.';
 			assert.deepStrictEqual({
-				actions: getActions(signals).map(action => action.type).filter(type => type === ActionType.ChatToolCallStart || type === ActionType.ChatToolCallReady || type === ActionType.ChatToolCallComplete),
-				success: complete?.result.success,
-				resultType: result.resultType,
-				textResultForLlm: result.textResultForLlm,
-				toolReferences: result.toolReferences,
+				named: await search('tc-named', 'readAgentMergeCI rerunAgentMergeWorkflow screenshotPage'),
+				vague: await search('tc-vague', 'rerun the failed CI checks'),
+				completions: getActions(signals)
+					.filter((action): action is ChatToolCallCompleteAction => action.type === ActionType.ChatToolCallComplete)
+					.map(action => action.result.success),
 			}, {
-				actions: [ActionType.ChatToolCallStart, ActionType.ChatToolCallReady, ActionType.ChatToolCallComplete],
-				success: true,
-				resultType: 'success',
-				textResultForLlm: '["readAgentMergeCI","rerunAgentMergeWorkflow"]',
-				toolReferences: ['readAgentMergeCI', 'rerunAgentMergeWorkflow'],
+				named: {
+					resultType: 'success',
+					textResultForLlm: `${preamble} Loaded: readAgentMergeCI, rerunAgentMergeWorkflow.`,
+					toolReferences: ['readAgentMergeCI', 'rerunAgentMergeWorkflow'],
+				},
+				vague: {
+					resultType: 'success',
+					textResultForLlm: `${preamble} No tool name matched. Search again with the exact name of one of these tools: list_sessions, readAgentMergeCI, rerunAgentMergeWorkflow.`,
+					toolReferences: [],
+				},
+				completions: [true, true],
 			});
 		});
 
