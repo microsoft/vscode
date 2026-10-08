@@ -34,7 +34,8 @@ import { IVoiceSessionController } from '../../../../workbench/contrib/chat/brow
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../../workbench/common/theme.js';
 import { ChatContentMarkdownRenderer } from '../../../../workbench/contrib/chat/browser/widget/chatContentMarkdownRenderer.js';
-import { chatPersistentContentVisibleClass, ChatWidget, SESSIONS_CHAT_ITEM_HORIZONTAL_PADDING } from '../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
+import { chatPersistentContentVisibleClass, ChatWidget } from '../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
+import { SESSIONS_CHAT_CONTENT_HORIZONTAL_PADDING } from '../../../../workbench/contrib/chat/browser/widget/chatOptions.js';
 import { setModelPreservingInputTypedWhileLoading } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatModelReference, IChatService, ResponseModelState } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { isChatTranscriptContextVariableEntry, IChatRequestTranscriptContextVariableEntry, IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
@@ -85,7 +86,7 @@ export const EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE = 28;
  * The background increment must match the response's `--vscode-spacing-size120` padding on both sides.
  */
 export function getSessionChatItemHorizontalPadding(hasBackground: boolean): number {
-	return SESSIONS_CHAT_ITEM_HORIZONTAL_PADDING + (hasBackground ? SESSION_CHAT_RESPONSE_INTERNAL_HORIZONTAL_PADDING * 2 : 0);
+	return SESSIONS_CHAT_CONTENT_HORIZONTAL_PADDING + (hasBackground ? SESSION_CHAT_RESPONSE_INTERNAL_HORIZONTAL_PADDING * 2 : 0);
 }
 
 export function shouldShowSessionChatTip(sessionStatus: SessionStatus | undefined): boolean {
@@ -513,6 +514,14 @@ export class ChatView extends AbstractChatView {
 	}
 
 	private _setupTranscriptPreparationProgress(chatModel: IObservable<IChatModel | undefined>): void {
+		const hiddenResponseProgress = derived(this, reader => {
+			const request = chatModel.read(reader)?.lastRequestObs.read(reader);
+			const response = request?.isRequestHiddenFromTranscript ? request.response : undefined;
+			return response ? observableFromEvent(this, response.onDidChange, () => {
+				const progress = response.response.value.filter(part => part.kind === 'progressMessage').at(-1);
+				return progress ? renderAsPlaintext(progress.content) : undefined;
+			}) : constObservable(undefined);
+		});
 		let lastPreparationMessage: string | undefined;
 		let lastPreparationModel: ChatModel | undefined;
 		this._register(autorun(reader => {
@@ -563,7 +572,8 @@ export class ChatView extends AbstractChatView {
 				showProgress = shouldShowTranscriptPreparationProgress(requestCount, visibleRequestCount, hiddenRequestIncomplete);
 			}
 			const showCompletion = shouldShowTranscriptPreparationCompletion(requestCount, visibleRequestCount, hiddenRequestState, readyMessage);
-			const progress = preparation?.message ?? (showCompletion ? readyMessage : getTranscriptProgress(showProgress, activity));
+			const responseProgress = hiddenResponseProgress.read(reader).read(reader);
+			const progress = preparation?.message ?? (showCompletion ? readyMessage : getTranscriptProgress(showProgress, responseProgress ?? activity));
 			this._widget.setTranscriptProgress(progress, progress, preparation
 				? { detail: preparation.showLog ? { label: localize('sessionPreparation.showLog', "Show Log"), run: preparation.showLog } : undefined, onCancel: preparation.cancel, inTranscript: !!preparationModel }
 				: showCompletion ? { complete: true } : undefined);
@@ -933,7 +943,8 @@ export class ChatView extends AbstractChatView {
 			return;
 		}
 		const { width, height } = this._lastLayout;
-		const widgetTop = this._widgetContainer.offsetTop;
+		// Only the external-session banner precedes the widget in normal flow.
+		const widgetTop = this._externalSessionBanner.domNode.classList.contains('hidden') ? 0 : this._widgetContainer.offsetTop;
 		const widgetHeight = Math.max(0, height - widgetTop);
 		const progressContainer = Array.from(this.element.children).find(element => element.classList.contains('monaco-progress-container'));
 		if (isHTMLElement(progressContainer)) {

@@ -57,7 +57,7 @@ import { ResolveSessionConfigResult, type SessionConfigPropertySchema, type Sess
 import { AgentCustomization, ChangesSummary, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type CanvasReference, type CanvasState, type ChatOrigin, type ClientPluginCustomization, Customization, CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, McpServerStatus, MessageKind, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, type SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { isActionKnownToVersion } from '../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { ActionType, isChatAction, isSessionAction, NotificationType, type SessionSummaryChanges } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isChatInSessionReadAggregate, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionCreationReference, readSessionEhcliAdoptable, readFolderGitHubState, readFolderScopeGitState, readSessionExternal, parseSessionGitHubData, readSessionGitHubData, readSessionGitState, readWorkingDirectoryKey, readWorkingDirectoryKeys, readWorkingDirectoryScopeId, readWorkingDirectoryScopeIds, withMigratedSessionGitHubState, withSessionGitHubData, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionMeta, SessionSourceControlOutcome, StateComponents, withSessionCreationReference, withSessionExternal, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ChatState, type ChatSummary, type ISessionCreationReference as IProtocolSessionCreationReference, type ISessionGitHubState, type ISessionGitState, type ISessionMultiRootMetadata } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isChatInSessionReadAggregate, isDefaultChatUri, isSessionChatArchived, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionCreationReference, readSessionEhcliAdoptable, readFolderGitHubState, readFolderScopeGitState, readSessionExternal, parseSessionGitHubData, readSessionGitHubData, readSessionGitState, readWorkingDirectoryKey, readWorkingDirectoryKeys, readWorkingDirectoryScopeId, readWorkingDirectoryScopeIds, withMigratedSessionGitHubState, withSessionGitHubData, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionMeta, SessionSourceControlOutcome, StateComponents, withSessionCreationReference, withSessionExternal, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ChatState, type ChatSummary, type ISessionCreationReference as IProtocolSessionCreationReference, type ISessionGitHubState, type ISessionGitState, type ISessionMultiRootMetadata } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
@@ -260,6 +260,8 @@ interface ISerializedSessionMetadata {
 		readonly archived?: boolean;
 		readonly isRead?: boolean;
 		readonly changes?: ChangesSummary;
+		readonly modifiedTime?: number;
+		readonly workingDirectories?: readonly string[];
 	}[];
 	/** Session folder's GitHub state, written by earlier versions; migrated on read. */
 	readonly github?: ISessionGitHubState;
@@ -309,6 +311,7 @@ function serializeMetadata(meta: IAgentSessionMetadata, discovery?: IAgentHostSe
 		status: meta.status !== undefined ? meta.status & SESSION_STATUS_FLAG_MASK : undefined,
 		project: meta.project ? { uri: meta.project.uri.toString(), displayName: meta.project.displayName } : undefined,
 		changes: meta.changes,
+		// Chat activity status is live state and is intentionally not persisted (see SESSION_STATUS_FLAG_MASK).
 		chats: meta.chats?.map(chat => ({
 			chat: chat.chat.toString(),
 			summary: chat.summary,
@@ -318,6 +321,8 @@ function serializeMetadata(meta: IAgentSessionMetadata, discovery?: IAgentHostSe
 			...(chat.archived === true ? { archived: true } : {}),
 			isRead: chat.isRead,
 			...(chat.changes !== undefined ? { changes: chat.changes } : {}),
+			...(chat.modifiedTime !== undefined ? { modifiedTime: chat.modifiedTime } : {}),
+			...(chat.workingDirectories !== undefined ? { workingDirectories: chat.workingDirectories } : {}),
 		})),
 		githubData: gitHubData.size > 0 ? Object.fromEntries(gitHubData) : undefined,
 		workingDirectoryKeys: workingDirectoryKeys.size > 0 ? Object.fromEntries(workingDirectoryKeys) : undefined,
@@ -412,6 +417,8 @@ function deserializeMetadata(raw: ISerializedSessionMetadata): IAgentSessionMeta
 				...(chat.archived === true ? { archived: true } : {}),
 				isRead: chat.isRead,
 				...(chat.changes !== undefined ? { changes: chat.changes } : {}),
+				...(typeof chat.modifiedTime === 'number' ? { modifiedTime: chat.modifiedTime } : {}),
+				...(Array.isArray(chat.workingDirectories) && chat.workingDirectories.every(directory => typeof directory === 'string') ? { workingDirectories: chat.workingDirectories } : {}),
 			})),
 			...(_meta ? { _meta } : {}),
 		};
@@ -428,10 +435,11 @@ function chatMetadataFromSummary(summary: Pick<SessionSummary, 'chats' | 'defaul
 		origin: chat.origin,
 		...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
 		...(chat.status !== undefined ? {
+			status: chat.status,
 			archived: isSessionStatusArchived(chat.status),
 			isRead: isSessionStatusRead(chat.status),
 		} : {}),
-		...(chat.archived === true ? { archived: true } : {}),
+		...(isSessionChatArchived(chat) ? { archived: true } : {}),
 		...(chat.changes !== undefined ? { changes: chat.changes } : {}),
 	}));
 }
@@ -1113,7 +1121,7 @@ class AdditionalChat extends Disposable {
 			workspace: this._withDetails(workspace),
 			title: this._withDetails(this._title),
 			updatedAt: this._withDetails(this._updatedAt),
-			status: this._withDetails(toPresentedSessionStatus(this, status, connectionStatus)),
+			status: toPresentedSessionStatus(this, status, connectionStatus),
 			changes: createChangesObservable(changesets),
 			changesets,
 			// Catalog-backed, so session lists can read it without acquiring chat details.
@@ -1170,18 +1178,35 @@ class AdditionalChat extends Disposable {
 		});
 	}
 
-	updateCatalogMetadata(title: string | undefined, interactivity: ProtocolChatInteractivity | undefined, archived: boolean | undefined, isRead: boolean | undefined, changes: ChangesSummary | undefined, tx?: ITransaction): void {
-		this._title.set(title || localize('newChatTab', "New Chat"), tx);
-		this._interactivity.set(toChatInteractivity(interactivity), tx);
-		this._isArchived.set(archived === true, tx);
-		if (isRead !== undefined) {
-			this._isRead.set(isRead, tx);
+	/**
+	 * Applies lightweight catalog metadata from a session listing, root summary
+	 * update, or the persisted cache. Fields the source does not carry keep
+	 * their last known values.
+	 */
+	updateCatalogMetadata(metadata: IAgentSessionChatMetadata, tx?: ITransaction): void {
+		this._title.set(metadata.summary || localize('newChatTab', "New Chat"), tx);
+		this._interactivity.set(toChatInteractivity(metadata.interactivity), tx);
+		this._isArchived.set(metadata.archived === true, tx);
+		if (metadata.isRead !== undefined) {
+			this._isRead.set(metadata.isRead, tx);
 		}
-		this._setChangesSummary(changes, tx);
+		if (metadata.status !== undefined) {
+			this._status.set(mapProtocolStatus(metadata.status), tx);
+		}
+		if (metadata.modifiedTime !== undefined) {
+			const modifiedAt = new Date(metadata.modifiedTime);
+			this._updatedAt.set(modifiedAt, tx);
+			this._lastTurnEnd.set(modifiedAt, tx);
+		}
+		if (metadata.workingDirectories !== undefined) {
+			this._workingDirectories.set(metadata.workingDirectories, tx);
+		}
+		this._setChangesSummary(metadata.changes, tx);
 	}
 
 	toMetadata(): IAgentSessionChatMetadata {
 		const changes = this._changesSummary.get();
+		const workingDirectories = this._workingDirectories.get();
 		return {
 			chat: this.backendUri,
 			summary: this._title.get(),
@@ -1197,6 +1222,8 @@ class AdditionalChat extends Disposable {
 					files: changes.files,
 				}
 			} : {}),
+			modifiedTime: this._updatedAt.get()?.getTime(),
+			...(workingDirectories !== undefined ? { workingDirectories } : {}),
 		};
 	}
 
@@ -1792,6 +1819,9 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		if (defaultChat?.changes) {
 			this._defaultChatChangesSummary.set(toSessionChangesSummary(defaultChat.changes), tx);
 		}
+		if (defaultChat?.workingDirectories !== undefined) {
+			this._defaultChatWorkingDirectories.set(defaultChat.workingDirectories, tx);
+		}
 
 		const peerIds = chats
 			.filter(chat => chat.kind === 'peer')
@@ -1800,11 +1830,21 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		const supportsChatReadState = this._supportsChatReadState.get();
 		this._hasMultipleChats.set(hasMultipleChats, tx);
 		if (!hasMultipleChats) {
+			this._defaultChatStatusOverride.set(undefined, tx);
 			this._defaultChatIsReadOverride.set(undefined, tx);
-		} else if (defaultChat?.isRead !== undefined) {
-			this._defaultChatIsReadOverride.set(defaultChat.isRead, tx);
-		} else if (!supportsChatReadState && this._defaultChatIsReadOverride.get() === undefined) {
-			this._defaultChatIsReadOverride.set(false, tx);
+		} else {
+			// Multiple chats: the default chat shows its own catalog status and time, not the session aggregate.
+			if (defaultChat?.status !== undefined) {
+				this._defaultChatStatusOverride.set(mapProtocolStatus(defaultChat.status), tx);
+			}
+			if (defaultChat?.modifiedTime !== undefined) {
+				this._defaultChatUpdatedAt.set(new Date(defaultChat.modifiedTime), tx);
+			}
+			if (defaultChat?.isRead !== undefined) {
+				this._defaultChatIsReadOverride.set(defaultChat.isRead, tx);
+			} else if (!supportsChatReadState && this._defaultChatIsReadOverride.get() === undefined) {
+				this._defaultChatIsReadOverride.set(false, tx);
+			}
 		}
 		const survivingPeers = new Set(peerIds);
 		const chatOutputResources = new ResourceSet(chats.map(chat => chat.chat));
@@ -1830,17 +1870,19 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 					resource: chat.chat.toString(),
 					title: chat.summary ?? '',
 					status: withSessionStatusFlag(
-						withSessionStatusFlag(ProtocolSessionStatus.Idle, ProtocolSessionStatus.IsArchived, chat.archived === true),
+						withSessionStatusFlag(chat.status ?? ProtocolSessionStatus.Idle, ProtocolSessionStatus.IsArchived, chat.archived === true),
 						ProtocolSessionStatus.IsRead,
 						chat.isRead ?? supportsChatReadState,
 					),
 					origin: chat.origin,
 					interactivity: chat.interactivity,
 					...(chat.changes !== undefined ? { changes: chat.changes } : {}),
+					...(chat.modifiedTime !== undefined ? { modifiedAt: new Date(chat.modifiedTime).toISOString() } : {}),
+					...(chat.workingDirectories !== undefined ? { workingDirectories: [...chat.workingDirectories] } : {}),
 				});
 				this._additionalChats.set(chatId, entry);
 			} else {
-				entry.updateCatalogMetadata(chat.summary, chat.interactivity, chat.archived, chat.isRead, chat.changes, tx);
+				entry.updateCatalogMetadata(chat, tx);
 			}
 			ordered.push(entry.chat);
 		}
@@ -1894,6 +1936,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		}
 		const defaultMetadata = chats?.find(chat => chat.kind === 'default');
 		const defaultChat = defaultMetadata?.chat ?? this._defaultChatBackendUri.get();
+		const defaultUpdatedAt = this._hasMultipleChats.get() ? this._defaultChatUpdatedAt.get() : undefined;
+		const defaultWorkingDirectories = this._defaultChatWorkingDirectories.get();
 		const currentDefaultMetadata: IAgentSessionChatMetadata | undefined = defaultChat ? {
 			...defaultMetadata,
 			chat: defaultChat,
@@ -1902,6 +1946,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			interactivity: toProtocolChatInteractivity(this._defaultChatInteractivity.get()),
 			archived: this._defaultChat.isArchived.get(),
 			isRead: this._defaultChat.isRead.get(),
+			...(defaultUpdatedAt ? { modifiedTime: defaultUpdatedAt.getTime() } : {}),
+			...(defaultWorkingDirectories !== undefined ? { workingDirectories: defaultWorkingDirectories } : {}),
 		} : undefined;
 		const result: IAgentSessionChatMetadata[] = [];
 		for (const chat of this._chatsObs.get()) {
@@ -2920,6 +2966,8 @@ interface INewSessionConstructionContext {
 	readonly initialConfigValues?: Record<string, unknown>;
 	readonly resolveInitialPermissionConfig?: (config: ResolveSessionConfigResult) => Record<string, unknown>;
 	readonly initialModeId?: string;
+	/** Pull request the backend session is created from; requires a host that supports pull request sessions. */
+	readonly initialPullRequestUrl?: string;
 	/** Provider-owned Automation values restored before the first configuration resolution. */
 	readonly initialSessionTemplate?: IAutomationSessionTemplate;
 	/** Model selected specifically for this draft. */
@@ -3089,6 +3137,7 @@ class NewSession extends Disposable {
 	private readonly _initialSessionTemplate: IAutomationSessionTemplate | undefined;
 	private readonly _resolveInitialPermissionConfig: INewSessionConstructionContext['resolveInitialPermissionConfig'];
 	private readonly _initialModeId: string | undefined;
+	private readonly _initialPullRequestUrl: string | undefined;
 	readonly modelConfiguration: AutomationModelConfiguration;
 	get initialMetadata(): Record<string, unknown> | undefined { return this._initialMetadata; }
 
@@ -3132,6 +3181,7 @@ class NewSession extends Disposable {
 		this._initialSessionTemplate = initialSessionTemplate;
 		this._resolveInitialPermissionConfig = ctx.resolveInitialPermissionConfig;
 		this._initialModeId = ctx.initialModeId;
+		this._initialPullRequestUrl = ctx.initialPullRequestUrl;
 
 		const resource = URI.from({ scheme: ctx.resourceScheme, path: `/${generateUuid()}` });
 		this._isActiveSessionObs = derived(this, reader => isEqual(sessionsService.activeSession.read(reader)?.resource, resource));
@@ -3369,6 +3419,11 @@ class NewSession extends Disposable {
 		);
 	}
 
+	/** Whether the backend session may only be created with the resolved initial permissions, mode, or pull request. */
+	private get _requiresResolvedInitialConfig(): boolean {
+		return !!this._resolveInitialPermissionConfig || !!this._initialModeId || !!this._initialPullRequestUrl;
+	}
+
 	async waitForConfigurationReady(): Promise<void> {
 		while (this._configOperation || this._configResolution) {
 			if (this._configOperation) {
@@ -3377,7 +3432,7 @@ class NewSession extends Disposable {
 				await this.waitForConfigResolution();
 			}
 		}
-		if ((this._resolveInitialPermissionConfig || this._initialModeId) && !this._hasResolvedConfig) {
+		if (this._requiresResolvedInitialConfig && !this._hasResolvedConfig) {
 			throw this._initialConfigError ?? new Error(localize('agentHost.initialConfigFailed', "The initial session configuration could not be resolved."));
 		}
 	}
@@ -3494,6 +3549,10 @@ class NewSession extends Disposable {
 						throw new Error(localize('agentHost.initialModeRejected', "The selected session mode '{0}' could not be applied.", this._initialModeId));
 					}
 				}
+				// Hosts that support pull request sessions always advertise the property.
+				if (!this._hasResolvedConfig && this._initialPullRequestUrl && result.values[SessionConfigKey.PullRequestUrl] !== this._initialPullRequestUrl) {
+					throw new Error(localize('agentHost.pullRequestSessionsUnsupported', "This agent host does not support creating sessions from pull requests."));
+				}
 				this._initialConfigError = undefined;
 				this._hasResolvedConfig = true;
 			}
@@ -3509,7 +3568,7 @@ class NewSession extends Disposable {
 			this._config = undefined;
 			this._unresolvedConfigValues = values;
 			this._syncWorktreePending();
-			if ((this._resolveInitialPermissionConfig || this._initialModeId) && !this._hasResolvedConfig) {
+			if (this._requiresResolvedInitialConfig && !this._hasResolvedConfig) {
 				this._initialConfigError = error instanceof Error ? error : new Error(getErrorMessage(error));
 				this._logService.error(`[${this._providerId}] Failed to resolve initial session configuration`, error);
 			}
@@ -3612,7 +3671,7 @@ class NewSession extends Disposable {
 			let createdWithActiveClient: SessionActiveClient | undefined;
 
 			try {
-				if (this._resolveInitialPermissionConfig || this._initialModeId) {
+				if (this._requiresResolvedInitialConfig) {
 					await this.waitForConfigurationReady();
 				}
 				await this._activeClientScope.whenResolved();
@@ -4735,6 +4794,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			options?.modelConfiguration,
 			options?.permissionId,
 			options?.modeId,
+			options?.pullRequestUrl,
 		);
 	}
 
@@ -4792,6 +4852,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		initialModelConfiguration?: Readonly<Record<string, string | number | boolean | null>>,
 		initialPermissionId?: string,
 		initialModeId?: string,
+		initialPullRequestUrl?: string,
 	): ISession {
 		// Tear-down of superseded drafts is handled by the management layer
 		// (it calls `deleteNewSession` on the previous pending session). Each
@@ -4822,6 +4883,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			...baseInitialConfigValues,
 			...permissionConfig,
 			...(initialModeId ? { [SessionConfigKey.Mode]: initialModeId } : {}),
+			...(initialPullRequestUrl ? { [SessionConfigKey.PullRequestUrl]: initialPullRequestUrl } : {}),
 		};
 		const activeClientScope = this._activeClientService.acquireScope(resourceScheme, workspace?.folders.map(folder => folder.root).filter(uri => !findDevContainerSample(uri)) ?? []);
 		let newSession: NewSession;
@@ -4838,6 +4900,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				logService: this._logService,
 				initialConfigValues,
 				initialModeId,
+				initialPullRequestUrl,
 				resolveInitialPermissionConfig: initialPermissionId ? config => {
 					const permissions = getAgentHostSessionPermissionConfig(sessionType.id, initialPermissionId, isAutoApprovePolicyRestricted(this._baseConfigurationService), true, config);
 					if (!permissions) {
@@ -5787,31 +5850,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				values[workspace.isolation.key] = value;
 			}
 		}
-		for (const [key, value] of [
-			[SessionConfigKey.WorktreeBranchTrack, configuration.worktreeBranchTrack],
-			[SessionConfigKey.WorktreeCreateNewBranch, configuration.worktreeCreateNewBranch],
-		] as const) {
-			if (value !== undefined) {
-				if (config.schema.properties[key]) {
-					values[key] = value;
-				} else {
-					this._logService.warn(`[${this.id}] Host does not advertise repository configuration '${key}'; retaining the host default.`);
-				}
-			}
-		}
 		if (configuration.branch) {
 			values[workspace.baseBranchKey] = configuration.branch;
 		}
 		const unsetProperties = configuration.isolationMode && !configuration.branch ? [workspace.baseBranchKey] : undefined;
 		await this._setTransientNewSessionConfigValues(sessionId, values, false, unsetProperties);
-	}
-
-	async setWorktreeBranchTrack(sessionId: string, enabled: boolean): Promise<void> {
-		await this._setTransientNewSessionConfigValue(sessionId, SessionConfigKey.WorktreeBranchTrack, enabled);
-	}
-
-	async setWorktreeCreateNewBranch(sessionId: string, enabled: boolean): Promise<void> {
-		await this._setTransientNewSessionConfigValue(sessionId, SessionConfigKey.WorktreeCreateNewBranch, enabled);
 	}
 
 	async setBranch(sessionId: string, branch: string): Promise<void> {
@@ -5991,8 +6034,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const resourceScheme = this._resolveSessionResourceScheme(sessionId);
 		const showAutoModel = !resourceScheme || this._chatSessionsService.supportsAutoModelForSessionType(resourceScheme);
 		return {
-			useGroupedModelPicker: true,
-			showFeatured: true,
 			showUnavailableFeatured: true,
 			showManageModelsAction: true,
 			showAutoModel,
@@ -6231,6 +6272,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			id: customizationId,
 			enablement: [...enablement],
 		});
+	}
+
+	async handleMcpRequest(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown> {
+		const connection = this.connection;
+		if (!connection) {
+			throw new Error('Cannot send an MCP request without an agent host connection.');
+		}
+		return connection.handleMcpRequest(channel, method, params);
 	}
 
 	getFeedbackAnnotationsChannel(sessionId: string): { readonly connection: IAgentConnection; readonly annotationsUri: URI } | undefined {
@@ -7704,7 +7753,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return true;
 	}
 
-	protected _adoptCachedSessionMeta(meta: IAgentSessionMetadata): IAgentSessionMetadata {
+	/** Allows providers to migrate or reject cached metadata before constructing adapters. */
+	protected _adoptCachedSessionMeta(meta: IAgentSessionMetadata): IAgentSessionMetadata | undefined {
 		return this._adoptSessionMeta(meta);
 	}
 
@@ -7723,6 +7773,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				continue;
 			}
 			const meta = this._adoptCachedSessionMeta(deserialized);
+			if (!meta) {
+				this._cacheDirty = true;
+				continue;
+			}
 			const rawId = meta.session.toString();
 			if (this._sessionCache.has(rawId)) {
 				continue;

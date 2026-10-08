@@ -21,10 +21,10 @@ Capability skips are tracked separately from suspected bugs. A provider that doe
 An administrator can disable identity capture while the runtime inherits an explicit `user.name` resource attribute. The native runtime removes `process.user.name` and `host.name`, but the inherited `user.name` still reaches the managed collector. This scenario concerns native Copilot export, not the separate Agent Host metadata pipeline.
 
 - Test: `managed identity denial removes inherited identity from native spans`.
-- Scope: Copilot runtime `1.0.92-4`, strict replay on all platforms.
+- Scope: Copilot runtime `1.0.94-3`; reproduced in local strict replay on macOS. The expected-failure marker remains enabled on all platforms.
 - Expected: managed `telemetry.capture.identity=false` removes all three identity attributes from native spans and events despite local opt-in and inherited resource attributes.
-- Observed: three native spans retain `user.name=synthetic-account`.
-- Tracking: the [bundled runtime's identity-resource predicate](https://github.com/github/copilot-agent-runtime/blob/f4385f4f118c567aa0178776aeb45e296e9e6733/src/runtime/src/otel/sdk.rs#L1945) includes only `process.user.name` and `host.name`. Stephen Toub introduced this predicate on September 14, 2026, in [github/copilot-agent-runtime#19723](https://github.com/github/copilot-agent-runtime/pull/19723). No upstream issue was filed by this task.
+- Observed: native spans still retain `user.name=synthetic-account` with SDK `1.0.18-preview.3` / runtime `1.0.94-3`. The runtime's identity-resource predicate still includes only `process.user.name` and `host.name`.
+- Tracking: the [bundled runtime's identity-resource predicate](https://github.com/github/copilot-agent-runtime/blob/d8cd60bc89ed3ae60cc37d7877021ac49bd52492/src/runtime/src/otel/sdk.rs#L2003) includes only `process.user.name` and `host.name`. Stephen Toub introduced this predicate on September 14, 2026, in [github/copilot-agent-runtime#19723](https://github.com/github/copilot-agent-runtime/pull/19723). No upstream issue was filed by this task.
 - Gate: a strict expected-failure marker accepts only the identity-redaction assertion. An unexpected pass fails and requires removing the marker. Recording skips the case to preserve its complete existing fixture.
 - Reproduce:
 
@@ -92,27 +92,16 @@ Starting two Codex chats in the same empty workspace can fail before the first p
     --grep "server tool: list_sessions.*archived"
   ```
 
-### Codex context and model-selection flakes
+### Codex context snapshot flake
 
-Responses are correct, but session notifications intermittently differ from the snapshot and the observed model is `gpt-5.3-codex` instead of `gpt-5.6-terra`. Both tests pass on unchanged retries; see [#338152](https://github.com/microsoft/vscode/issues/338152).
+Responses are correct, but session notifications intermittently differ from the snapshot. The test passes on unchanged retries; see [#338152](https://github.com/microsoft/vscode/issues/338152).
 
 - `retains context across consecutive turns`: skipped for Codex on Linux/macOS.
-- `client-selected model is used for the turn`: skipped for Codex on Linux.
-- Gates: `coreSuite.ts`. Remove only these gates to reproduce in strict replay; re-enable after repeated clean runs on affected platforms.
+- Gate: `coreSuite.ts`. Remove only this gate to reproduce in strict replay; re-enable after diagnosing the failure and repeated clean runs on affected platforms.
 
 ```bash
 ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
-  --grep "retains context across consecutive turns|client-selected model is used for the turn"
-```
-
-### Codex changeset aggregation flake on Windows
-
-The session's combined changes sometimes omit edits from one of its two chats, failing `session changeset aggregates provider edits from default and peer chats`. Unchanged retries pass; this does not establish lost files. See [#338153](https://github.com/microsoft/vscode/issues/338153).
-
-- Gate: Codex/Windows only in `changesetSuite.ts`. Remove it to reproduce in strict replay; re-enable after repeated clean Windows runs include both chats' edits.
-
-```bat
-scripts\test-integration.bat --run src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts --grep "session changeset aggregates provider edits from default and peer chats"
+  --grep "retains context across consecutive turns"
 ```
 
 ### Binary writes to client-hosted files are corrupted

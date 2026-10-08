@@ -6,8 +6,10 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, observableValue, type IReader } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -23,6 +25,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { GitHubCommit } from '../../../../../platform/github/common/githubQueryService.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import type { IChatPillEntry } from '../../../../../workbench/browser/chatPills.js';
+import { ChatPillHoverCache } from '../../../../../workbench/browser/chatPillHover.js';
 import { IWorkbenchGitHubService } from '../../../../../workbench/services/github/common/githubService.js';
 import { buildSessionArtifactSections, sessionArtifactLocationText, SessionArtifacts, type ISessionArtifactActions } from '../../browser/sessionArtifacts.js';
 import { type IChat, type IGitHubInfo, type ISessionArtifact, type ISessionWorkspace, SessionArtifactKind } from '../../../../services/sessions/common/session.js';
@@ -52,6 +55,7 @@ suite('Session Artifacts', () => {
 
 	function createPresentation(entries: readonly ISessionArtifact[], info?: IGitHubInfo, commit?: GitHubCommit, getCommit?: ISessionsGitHubService['getCommit'], fromChat = false, workbenchGitHubService?: IWorkbenchGitHubService) {
 		const artifacts = observableValue('artifacts', entries);
+		const loading = observableValue('loading', false);
 		const removed: string[] = [];
 		const errors: string[] = [];
 		const telemetryEvents: { readonly name: string | undefined; readonly data: unknown }[] = [];
@@ -75,6 +79,7 @@ suite('Session Artifacts', () => {
 		const session = observableValue<IActiveSession | undefined>('session', new class extends mock<IActiveSession>() {
 			override readonly sessionId = 'provider:session';
 			override readonly artifacts = artifacts;
+			override readonly loading = loading;
 			override readonly capabilities = constObservable({ supportsMultipleChats: false, supportsRemoveArtifacts: true });
 			override readonly workspace = workspace;
 		}());
@@ -118,7 +123,7 @@ suite('Session Artifacts', () => {
 				}
 			}(),
 		));
-		return { presentation, session, artifacts, workspace, gitHubInfo, removed, errors, telemetryEvents, setRemovalError: (error: Error | undefined) => { removalError = error; } };
+		return { presentation, session, artifacts, loading, workspace, gitHubInfo, removed, errors, telemetryEvents, setRemovalError: (error: Error | undefined) => { removalError = error; } };
 	}
 
 	function visibleEntries(presentation: SessionArtifacts, reader?: IReader) {
@@ -169,9 +174,9 @@ suite('Session Artifacts', () => {
 				tooltip: entry.tooltip,
 			};
 		}), [
-			{ label: 'PR #12', ariaLabel: 'Open PR #12', ariaDescription: pullRequestLink.toString(true), hover: pullRequestLink.toString(true), hoverClassName: 'chat-pill-location-hover', panelClassName: 'chat-pill-location-hover-panel', tooltip: pullRequestLink.toString(true) },
-			{ label: 'report.md', ariaLabel: 'Open report.md', ariaDescription: '~/artifacts/report.md', hover: '~/artifacts/report.md', hoverClassName: 'chat-pill-location-hover', panelClassName: 'chat-pill-location-hover-panel', tooltip: '~/artifacts/report.md' },
-			{ label: 'Resource', ariaLabel: 'Open Resource', ariaDescription: resourceUri.toString(true), hover: resourceUri.toString(true), hoverClassName: 'chat-pill-location-hover', panelClassName: 'chat-pill-location-hover-panel', tooltip: resourceUri.toString(true) },
+			{ label: 'PR #12', ariaLabel: 'Open PR #12', ariaDescription: pullRequestLink.toString(true), hover: pullRequestLink.toString(true), hoverClassName: 'chat-pill-hover-content chat-pill-location-hover compact', panelClassName: 'chat-pill-hover-panel', tooltip: pullRequestLink.toString(true) },
+			{ label: 'report.md', ariaLabel: 'Open report.md', ariaDescription: '~/artifacts/report.md', hover: '~/artifacts/report.md', hoverClassName: 'chat-pill-hover-content chat-pill-location-hover compact', panelClassName: 'chat-pill-hover-panel', tooltip: '~/artifacts/report.md' },
+			{ label: 'Resource', ariaLabel: 'Open Resource', ariaDescription: resourceUri.toString(true), hover: resourceUri.toString(true), hoverClassName: 'chat-pill-hover-content chat-pill-location-hover compact', panelClassName: 'chat-pill-hover-panel', tooltip: resourceUri.toString(true) },
 		]);
 	});
 
@@ -322,14 +327,14 @@ suite('Session Artifacts', () => {
 			acquisitions: 0,
 			sectionTitle: 'Pull Requests',
 			entryId: 'reference',
-			entryLabel: 'Pull Request #1',
+			entryLabel: 'Related pull request',
 			hasDropdownHover: true,
 			hasPillHover: true,
 			hasPrefetch: true,
 		});
 	});
 
-	test('uses reference URLs as labels when GitHub metadata fails', async () => {
+	test('keeps recorded reference labels and leading IDs when GitHub metadata fails', async () => {
 		const links = [
 			URI.parse('https://github.com/microsoft/vscode/pull/1'),
 			URI.parse('https://github.com/microsoft/vscode/issues/2'),
@@ -346,18 +351,40 @@ suite('Session Artifacts', () => {
 		}
 		await timeout(0);
 		assert.deepStrictEqual(presentation.referenceSections.get().flatMap(section => section.entries.map(entry => ({
-			label: entry.label, description: entry.ariaDescription,
-		}))), links.map(link => ({ label: link.toString(true), description: undefined })));
+			label: entry.label, badge: entry.badge, badgeBeforeLabel: entry.badgeBeforeLabel,
+		}))), links.map((_, index) => ({ label: 'Related item', badge: `#${index + 1}`, badgeBeforeLabel: true })));
 	});
 
-	test('lists recorded pull requests from other repositories as artifacts when resolving for a chat', () => {
+	test('warms newly recorded references without fetching initial or loading history', async () => {
+		let acquisitions = 0;
+		const reference = (id: string): ISessionArtifact => ({
+			id, kind: SessionArtifactKind.Issue, label: id, isArtifact: false, isGitHub: true,
+			link: URI.parse(`https://github.com/microsoft/vscode/issues/${id}`),
+		});
+		const { artifacts, loading } = createPresentation([reference('1')], undefined, undefined, undefined, false, upcastPartial<IWorkbenchGitHubService>({
+			onDidChangeDefaultClient: Event.None,
+			acquireDefaultAccountClient: async () => { acquisitions++; throw new Error('offline'); },
+		}));
+		await timeout(0);
+		const initial = acquisitions;
+		loading.set(true, undefined);
+		artifacts.set([reference('1'), reference('2')], undefined);
+		loading.set(false, undefined);
+		await timeout(0);
+		const restored = acquisitions;
+		artifacts.set([reference('1'), reference('2'), reference('3')], undefined);
+		await timeout(0);
+		assert.deepStrictEqual({ initial, restored, newReference: acquisitions }, { initial: 0, restored: 0, newReference: 1 });
+	});
+
+	test('promotes recorded pull requests from other repositories when resolving for a chat', () => {
 		const { presentation } = createPresentation([
 			{ id: 'own-repo-pr', kind: SessionArtifactKind.PullRequest, label: 'Own repo', isArtifact: true, isGitHub: true, link: URI.parse('https://github.com/owner/repo/pull/1') },
 			{ id: 'other-repo-pr', kind: SessionArtifactKind.PullRequest, label: 'Other repo', isArtifact: true, isGitHub: true, link: URI.parse('https://github.com/other/project/pull/9') },
 		], { owner: 'owner', repo: 'repo' }, undefined, undefined, true);
 
 		assert.deepStrictEqual(visibleEntries(presentation), {
-			artifacts: ['other-repo-pr'],
+			artifacts: [],
 			references: [],
 		});
 	});
@@ -548,10 +575,58 @@ suite('Session Artifacts', () => {
 			label: 'Authoritative subject',
 			actionLabels: ['Copy Commit URL'],
 			hoverActionLabels: ['Copy Commit Hash'],
-			hoverClassName: 'sessions-commit-hover compact',
+			hoverClassName: 'chat-pill-hover-content sessions-commit-hover compact',
 			hoverText: 'microsoft/vscodeon Sep 22Authoritative subject @abc123Detailed commit body@octocat committed this change',
 			opened: ['commit'],
 			copied: ['abc123', link.toString(true)],
+		});
+	});
+
+	test('keeps commit hover controls stable through rebuilding and refreshes callbacks on reopening', () => {
+		const cache = disposables.add(new ChatPillHoverCache());
+		const opened: string[] = [];
+		const link = URI.parse('https://github.com/microsoft/vscode/commit/abc123');
+		const artifact: ISessionArtifact = { id: 'commit', kind: SessionArtifactKind.Commit, label: 'Commit', isArtifact: false, link, commitHash: 'abc123' };
+		const commits = new Map<string, GitHubCommit>([['commit', {
+			sha: 'abc123', message: 'Authoritative subject', url: link.toString(),
+			author: { login: 'octocat' }, committedAt: '2026-09-22T12:00:00Z',
+		}]]);
+		const build = (scope: string) => buildSessionArtifactSections(
+			[artifact], { ...actions, openExternal: () => opened.push(scope) },
+			labelService, true, new Set(), commits, undefined, undefined, cache,
+		)[0].entries[0].hover!;
+		const render = (hover: NonNullable<IChatPillEntry['hover']>) => {
+			const content = typeof hover.content === 'function' ? hover.content() : undefined;
+			assert.ok(content instanceof HTMLElement);
+			return content;
+		};
+		cache.retain(new Set(['commit']), 'session-1');
+		const first = build('old');
+		const content = render(first);
+		mainWindow.document.body.appendChild(content);
+		disposables.add(toDisposable(() => content.remove()));
+		const control = first.getTabbableElements?.()[0]!;
+		control.focus();
+		const updated = build('new');
+		const whileOpen = {
+			sameContent: render(updated) === content,
+			sameControl: updated.getTabbableElements?.()[0] === control,
+			focusPreserved: mainWindow.document.activeElement === control,
+			controls: updated.getTabbableElements?.().length,
+		};
+		content.remove();
+		render(updated);
+		updated.getTabbableElements?.()[0].click();
+		cache.retain(new Set(['commit']), 'session-2');
+		const otherSession = build('other session');
+		render(otherSession);
+		otherSession.getTabbableElements?.()[0].click();
+		assert.deepStrictEqual({
+			whileOpen, reopenedControls: updated.getTabbableElements?.().length,
+			scopeEvicted: updated !== otherSession, opened,
+		}, {
+			whileOpen: { sameContent: true, sameControl: true, focusPreserved: true, controls: 2 },
+			reopenedControls: 2, scopeEvicted: true, opened: ['new', 'other session'],
 		});
 	});
 
@@ -583,7 +658,7 @@ suite('Session Artifacts', () => {
 			label: 'Resolved commit subject',
 			rowActions: ['Copy Commit URL'],
 			hoverActions: ['Copy Commit Hash'],
-			hoverClassName: 'sessions-commit-hover compact',
+			hoverClassName: 'chat-pill-hover-content sessions-commit-hover compact',
 			hoverText: 'microsoft/vscodeon Sep 22Resolved commit subject @abc123Resolved commit body@octocat committed this change',
 		});
 	});

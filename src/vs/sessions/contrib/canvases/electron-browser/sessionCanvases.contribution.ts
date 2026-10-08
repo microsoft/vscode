@@ -12,14 +12,15 @@ import { SyncDescriptor } from '../../../../platform/instantiation/common/descri
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../../workbench/browser/editor.js';
-import { EditorExtensions } from '../../../../workbench/common/editor.js';
+import { EditorExtensions, IEditorFactoryRegistry } from '../../../../workbench/common/editor.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { ISessionCanvasService, SessionCanvasInput } from '../common/sessionCanvas.js';
-import { registerSessionCanvasAddTabActions } from './sessionCanvasActions.js';
+import { registerSessionCanvasActions } from './sessionCanvasActions.js';
 import { SessionCanvasEditor, SessionCanvasFocusedContext } from './sessionCanvasEditor.js';
 import { SessionCanvasService } from './sessionCanvasService.js';
+import { SessionCanvasSerializer } from './sessionCanvasSerializer.js';
 
 registerSingleton(ISessionCanvasService, SessionCanvasService, InstantiationType.Delayed);
 
@@ -27,6 +28,7 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	EditorPaneDescriptor.create(SessionCanvasEditor, SessionCanvasInput.EDITOR_ID, localize('canvas.editor', "Canvas")),
 	[new SyncDescriptor(SessionCanvasInput)],
 );
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(SessionCanvasInput.ID, SessionCanvasSerializer);
 
 class SessionCanvasesContribution extends Disposable implements IWorkbenchContribution {
 
@@ -36,7 +38,7 @@ class SessionCanvasesContribution extends Disposable implements IWorkbenchContri
 		@ISessionCanvasService canvasService: ISessionCanvasService,
 	) {
 		super();
-		this._register(registerSessionCanvasAddTabActions(canvasService));
+		this._register(registerSessionCanvasActions(canvasService));
 		for (const type of [AccessibleViewType.Help, AccessibleViewType.View]) {
 			this._register(AccessibleViewRegistry.register({
 				type,

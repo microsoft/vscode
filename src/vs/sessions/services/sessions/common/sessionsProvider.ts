@@ -15,7 +15,7 @@ import { IChatSendRequestOptions } from '../../../../workbench/contrib/chat/comm
 import { ILanguageModelChatMetadataAndIdentifier, type IModelConfigurationAccess } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { ModelIdentifierResolution } from '../../../../workbench/contrib/chat/common/modelSelection.js';
 import { IAutomationSessionTemplate } from '../../../../workbench/contrib/chat/common/automations/automation.js';
-import { AutomationUnavailableReasonCode, IAutomationStore } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationUnavailableReasonCode, IAutomationProviderConfiguration, IAutomationStore } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatModelSource, IChat, ISession, ISessionCreationReference, ISessionEnvironment, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection } from './session.js';
 
 /**
@@ -93,6 +93,12 @@ export interface ISessionsProviderCreateSessionOptions {
 	readonly permissionId?: string;
 	/** Initial chat mode applied before the provider creates the draft session. */
 	readonly modeId?: string;
+	/**
+	 * Pull request the session is created from. The provider creates the backend
+	 * session with it, so the session is associated with the pull request from
+	 * the start; it implies worktree isolation.
+	 */
+	readonly pullRequestUrl?: string;
 	/** Complete Automation state for providers that also own compatibility projections. */
 	readonly automationConfiguration?: IAutomationSessionConfiguration;
 }
@@ -116,8 +122,6 @@ export interface IAutomationSessionConfiguration {
 /** Programmatic worktree settings applied together before a new session starts. */
 export interface ISessionWorktreeConfiguration {
 	readonly isolationMode?: string;
-	readonly worktreeBranchTrack?: boolean;
-	readonly worktreeCreateNewBranch?: boolean;
 	readonly branch?: string;
 }
 
@@ -128,10 +132,6 @@ export interface ISessionWorktreeConfiguration {
  * the provider or session type.
  */
 export interface ISessionModelPickerOptions {
-	/** Whether to group models by vendor/family in the picker. */
-	readonly useGroupedModelPicker: boolean;
-	/** Whether to surface featured models. */
-	readonly showFeatured: boolean;
 	/** Whether to surface featured models that are currently unavailable. */
 	readonly showUnavailableFeatured: boolean;
 	/** Whether to offer the "Manage Models" action in the picker. */
@@ -159,6 +159,9 @@ export interface ISessionModelsSnapshot {
  * Unlike the aggregate IAutomationService, creation eligibility needs no provider ID because ownership is implicit.
  */
 export interface ISessionsProviderAutomations extends IAutomationStore {
+	readonly configuration?: IAutomationProviderConfiguration;
+	/** Disabled providers are excluded from the aggregate catalogue and routing. */
+	readonly enabled?: IObservable<boolean>;
 	/** Whether this provider accepts new definitions; existing definitions may independently allow updates. */
 	readonly canCreateAutomation: IObservable<boolean>;
 	/** Explanation and recovery guidance for provider unavailability, when present. */
@@ -480,16 +483,6 @@ export interface ISessionsProvider {
 	 * Apply programmatic worktree settings to a new session as one operation.
 	 */
 	setWorktreeConfiguration?(sessionId: string, configuration: ISessionWorktreeConfiguration): Promise<void>;
-
-	/**
-	 * Set whether the worktree branch tracks its upstream for a session.
-	 * @param sessionId The ID of the session.
-	 * @param enabled Whether branch tracking is enabled.
-	 */
-	setWorktreeBranchTrack?(sessionId: string, enabled: boolean): Promise<void>;
-
-	/** Set whether the worktree creates a new branch for a session. */
-	setWorktreeCreateNewBranch?(sessionId: string, enabled: boolean): Promise<void>;
 
 	/**
 	 * Set the git branch for a session.

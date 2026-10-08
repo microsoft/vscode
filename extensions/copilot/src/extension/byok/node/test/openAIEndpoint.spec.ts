@@ -598,6 +598,37 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 			expect(response.type === ChatFetchResponseType.Failed && response.reason).toBe('{"code":0,"message":"something broke","metadata":{"code":"server_error"}}');
 		});
 
+		it('sends full history instead of a post-marker slice when the stateful marker is not a Responses ID', () => {
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				modelMetadata,
+				'test-api-key',
+				'https://api.openai.com/v1/responses');
+			const messages: Raw.ChatMessage[] = [
+				{
+					role: Raw.ChatRole.User,
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'before marker' }]
+				},
+				createStatefulMarkerMessage(modelMetadata.id, 'gen-not-a-responses-id'),
+				{
+					role: Raw.ChatRole.User,
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'after marker' }]
+				}
+			];
+
+			const body = endpoint.createRequestBody({
+				...createTestOptions(messages),
+				ignoreStatefulMarker: false,
+			});
+
+			expect({
+				previousResponseId: body.previous_response_id,
+				inputCount: body.input?.length,
+			}).toEqual({
+				previousResponseId: undefined,
+				inputCount: 2,
+			});
+		});
+
 		it('keeps store and marker reuse disabled for ordinary OpenAI BYOK ZDR Responses requests', () => {
 			const endpoint = instaService.createInstance(OpenAIEndpoint,
 				{

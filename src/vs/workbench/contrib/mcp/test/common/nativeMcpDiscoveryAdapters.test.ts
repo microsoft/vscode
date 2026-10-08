@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Event } from '../../../../../base/common/event.js';
+import { equals } from '../../../../../base/common/objects.js';
 import { Platform } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -17,7 +18,7 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { INativeMcpDiscoveryData } from '../../../../../platform/mcp/common/nativeMcpDiscoveryHelper.js';
 import { IMcpRegistry } from '../../common/mcpRegistryTypes.js';
 import { NativeFilesystemMcpDiscovery } from '../../common/discovery/nativeMcpDiscoveryAbstract.js';
-import { claudeConfigToServerDefinition } from '../../common/discovery/nativeMcpDiscoveryAdapters.js';
+import { claudeConfigToServerDefinition, ClaudeDesktopMpcDiscoveryAdapter, CopilotMpcDiscoveryAdapter, CursorDesktopMpcDiscoveryAdapter, WindsurfDesktopMpcDiscoveryAdapter } from '../../common/discovery/nativeMcpDiscoveryAdapters.js';
 import { ExternalDiscoverySource, mcpDiscoverySection } from '../../common/mcpConfiguration.js';
 import { McpServerTransportType } from '../../common/mcpTypes.js';
 
@@ -214,6 +215,31 @@ suite('MCP Discovery - nativeMcpDiscoveryAdapters', () => {
 		}, {
 			cwd: cwd.fsPath,
 			defaultCwd: undefined,
+		});
+	});
+
+	test('expands environment variables only from the Copilot user configuration', async () => {
+		const contents = VSBuffer.fromString(JSON.stringify({
+			mcpServers: {
+				local: { command: '${TOOLS}/server', env: { API_KEY: '${API_KEY}' } },
+				remote: { url: 'https://${HOST}/mcp', headers: { Authorization: 'Bearer ${TOKEN}' } },
+			},
+		}));
+		const details: INativeMcpDiscoveryData = { platform: Platform.Linux, homedir: URI.file('/home/test') };
+		const adapters = [
+			new ClaudeDesktopMpcDiscoveryAdapter(null),
+			new CopilotMpcDiscoveryAdapter(null),
+			new CursorDesktopMpcDiscoveryAdapter(null),
+			new WindsurfDesktopMpcDiscoveryAdapter(null),
+		];
+		const definitions = await Promise.all(adapters.map(adapter => adapter.adaptFile(contents, details)));
+		assert.deepStrictEqual({
+			expansions: definitions.map(defs => defs?.map(definition => definition.environmentVariableExpansion)),
+			// Trust decisions stay keyed to the unexpanded launch.
+			copilotNoncesMatchClaude: equals(definitions[1]?.map(definition => definition.cacheNonce), definitions[0]?.map(definition => definition.cacheNonce)),
+		}, {
+			expansions: adapters.map(adapter => adapter instanceof CopilotMpcDiscoveryAdapter ? [{}, { url: 'https://${HOST}/mcp' }] : [undefined, undefined]),
+			copilotNoncesMatchClaude: true,
 		});
 	});
 });

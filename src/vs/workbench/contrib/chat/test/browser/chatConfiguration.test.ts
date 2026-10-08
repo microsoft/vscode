@@ -37,6 +37,39 @@ suite('Chat configuration', () => {
 		assert.deepStrictEqual(registeredAgentSessionsSettings, [true, true, true]);
 	});
 
+	for (const [key, value, expected] of [
+		[ChatConfiguration.AgentsParallelWorkBannerEnabled, false, false],
+		[ChatConfiguration.AgentsParallelWorkBannerEnabled, true, true],
+		[ChatConfiguration.AgentsHandoffTipMode, 'hidden', false],
+		[ChatConfiguration.AgentsHandoffTipMode, 'default', true],
+		[ChatConfiguration.AgentsHandoffTipMode, 'custom', true],
+		[ChatConfiguration.AgentsHandoffTipMode, 'noFolder', true],
+	] as const) {
+		test(`migrates the explicit invitation preference ${key}=${value}`, async () => {
+			const migration = migrations.find(migration => migration.key === key);
+			assert.deepStrictEqual({ application: migration?.includeApplication, result: await migration?.migrateFn(value, () => undefined) }, {
+				application: true,
+				result: [[key, { value: undefined }], [ChatConfiguration.AgentsWindowBannerEnabled, { value: expected }]],
+			});
+		});
+	}
+
+	for (const key of [ChatConfiguration.AgentsParallelWorkBannerEnabled, ChatConfiguration.AgentsHandoffTipMode]) {
+		test(`preserves either legacy opt-out and any explicit unified preference when migrating ${key}`, async () => {
+			const migration = migrations.find(migration => migration.key === key);
+			const value = key === ChatConfiguration.AgentsHandoffTipMode ? 'default' : true;
+			const optOut = await migration?.migrateFn(value, setting => setting === ChatConfiguration.AgentsHandoffTipMode ? 'hidden' : setting === ChatConfiguration.AgentsParallelWorkBannerEnabled ? false : undefined);
+			const enabled = await migration?.migrateFn(value, setting => setting === ChatConfiguration.AgentsWindowBannerEnabled ? true : undefined);
+			const disabled = await migration?.migrateFn(value, setting => setting === ChatConfiguration.AgentsWindowBannerEnabled ? false : undefined);
+			assert.deepStrictEqual({ optOut, enabled, disabled, absent: await migration?.migrateFn(undefined, () => undefined) }, {
+				optOut: [[key, { value: undefined }], [ChatConfiguration.AgentsWindowBannerEnabled, { value: false }]],
+				enabled: [[key, { value: undefined }]],
+				disabled: [[key, { value: undefined }]],
+				absent: [],
+			});
+		});
+	}
+
 	test('enables the unified workspace picker by default while allowing experiment overrides', () => {
 		assert.deepStrictEqual({
 			type: unifiedWorkspacePickerSetting.type,
@@ -207,5 +240,29 @@ suite('Chat configuration', () => {
 		assert.deepStrictEqual(await legacyAutoDeleteArchivedMigration?.migrateFn(15, () => 30), [
 			['chat.agentSessions.autoDeleteArchivedMergedSessionsAfterDays', { value: undefined }],
 		]);
+	});
+
+	test('migrates the legacy title generation settings to one strategy without overwriting it', async () => {
+		const deferredSetting = 'chat.agentHost.experimental.deferredTitleGeneration';
+		const activeAgentSetting = 'chat.agentHost.experimental.activeAgentTitleGeneration';
+		const strategySetting = 'chat.agentHost.experimental.titleGeneration';
+		const deferredMigration = migrations.find(migration => migration.key === deferredSetting);
+		const activeAgentMigration = migrations.find(migration => migration.key === activeAgentSetting);
+
+		assert.deepStrictEqual({
+			application: [deferredMigration?.includeApplication, activeAgentMigration?.includeApplication],
+			deferredOn: await deferredMigration?.migrateFn(true, () => undefined),
+			deferredOff: await deferredMigration?.migrateFn(false, () => undefined),
+			activeAgentOff: await activeAgentMigration?.migrateFn(false, () => undefined),
+			activeAgentOffWithDeferredOn: await activeAgentMigration?.migrateFn(false, setting => setting === deferredSetting ? true : undefined),
+			activeAgentOnWithStrategySet: await activeAgentMigration?.migrateFn(true, setting => setting === strategySetting ? 'agentReview' : undefined),
+		}, {
+			application: [true, true],
+			deferredOn: [[deferredSetting, { value: undefined }], [strategySetting, { value: 'agentReview' }]],
+			deferredOff: [[deferredSetting, { value: undefined }]],
+			activeAgentOff: [[activeAgentSetting, { value: undefined }], [strategySetting, { value: 'utility' }]],
+			activeAgentOffWithDeferredOn: [[activeAgentSetting, { value: undefined }], [strategySetting, { value: 'agentReview' }]],
+			activeAgentOnWithStrategySet: [[activeAgentSetting, { value: undefined }]],
+		});
 	});
 });

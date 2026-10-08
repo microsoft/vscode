@@ -132,6 +132,7 @@ export const EditSources = {
 
 	agentHostChatApplyEdits(data: {
 		modelId: string | undefined;
+		autoTier?: string;
 		sessionId: string;
 		chatSessionId?: string;
 		requestId: string;
@@ -139,6 +140,7 @@ export const EditSources = {
 	}) {
 		return EditSources.chatApplyEdits({
 			modelId: data.modelId,
+			autoTier: data.autoTier,
 			sessionId: data.sessionId,
 			chatSessionId: data.chatSessionId,
 			requestId: data.requestId,

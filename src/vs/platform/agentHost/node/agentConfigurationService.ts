@@ -472,6 +472,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		}
 
 		try {
+			// eslint-disable-next-line local/code-no-sync-fs -- TODO: load configuration before service construction; dependent services read root settings immediately and must not initialize from defaults pending I/O.
 			const raw = fs.readFileSync(this._rootConfigResource.fsPath, 'utf8');
 			const parsed = JSON.parse(raw) as Record<string, unknown>;
 			return {

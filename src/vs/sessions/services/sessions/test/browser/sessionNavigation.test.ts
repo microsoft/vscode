@@ -5,17 +5,20 @@
 
 import assert from 'assert';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { AbstractCustomView } from '../../../customView/browser/customView.js';
+import { CustomViewService, ICustomViewService } from '../../../customView/browser/customViewService.js';
 import { IActiveSession, ICreateNewSessionOptions, IProviderSessionType, IRecentlyOpenedSessions, ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { ChatInteractivity, IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection, SessionStatus } from '../../common/session.js';
 import { SessionsNavigation } from '../../browser/sessionNavigation.js';
-import { SessionsRecencyHistory } from '../../browser/sessionsRecencyHistory.js';
+import { getRecencyEntryKey, SessionsRecencyHistory } from '../../browser/sessionsRecencyHistory.js';
 import { Event } from '../../../../../base/common/event.js';
 import { ISendRequestOptions } from '../../common/sessionsProvider.js';
 
@@ -124,6 +127,8 @@ class MockSessionStore implements ISessionsManagementService {
 	get lastOpenedChatResource(): URI | undefined { return this._openedChatResource; }
 	get lastOpenedNewSession(): boolean { return this._openedNewSession; }
 
+	constructor(private readonly customViewService: ICustomViewService) { }
+
 	setActiveSession(session: ISession | undefined, chat?: IChat): void {
 		if (session) {
 			const activeChat = chat ?? session.chats.get()[0] ?? stubChat;
@@ -201,16 +206,21 @@ class MockSessionStore implements ISessionsManagementService {
 		this._openedNewSession = false;
 		const session = this._sessions.get(sessionResource.toString());
 		if (session) {
-			this.setActiveSession(session);
+			transaction(tx => {
+				this.customViewService.hideCustomView(tx);
+				this.setActiveSession(session);
+			});
 		}
 	}
 
-	openNewSession(): ISession | undefined {
+	async openNewSession(): Promise<void> {
 		this._openedNewSession = true;
 		this._openedResource = undefined;
 		this._openedChatResource = undefined;
-		this.setActiveSession(undefined);
-		return undefined;
+		transaction(tx => {
+			this.customViewService.hideCustomView(tx);
+			this.setActiveSession(undefined);
+		});
 	}
 
 	async openChat(session: ISession, chatUri: URI): Promise<void> {
@@ -219,7 +229,10 @@ class MockSessionStore implements ISessionsManagementService {
 		this._openedNewSession = false;
 		const chat = session.chats.get().find(c => c.resource.toString() === chatUri.toString());
 		if (chat) {
-			this.setActiveSession(session, chat);
+			transaction(tx => {
+				this.customViewService.hideCustomView(tx);
+				this.setActiveSession(session, chat);
+			});
 		}
 	}
 	restoreVisibleSessions(): Promise<void> { throw new Error('not implemented'); }
@@ -273,19 +286,24 @@ suite('SessionsNavigation', () => {
 	let store: MockSessionStore;
 	let nav: SessionsNavigation;
 	let contextKeyService: MockContextKeyService;
+	let customViewService: CustomViewService;
+	let storageService: InMemoryStorageService;
+	let recency: SessionsRecencyHistory;
 
 	setup(() => {
 		const disposables = ds.add(new DisposableStore());
-		store = new MockSessionStore();
 
 		contextKeyService = disposables.add(new MockContextKeyService());
 
-		const storageService = disposables.add(new InMemoryStorageService());
-		const recency = disposables.add(new SessionsRecencyHistory(storageService, new NullLogService()));
+		storageService = disposables.add(new InMemoryStorageService());
+		customViewService = disposables.add(new CustomViewService(new NullLogService(), storageService));
+		store = new MockSessionStore(customViewService);
+		recency = disposables.add(new SessionsRecencyHistory(storageService, new NullLogService()));
 
 		nav = disposables.add(new SessionsNavigation(
 			store,
 			store.activeSession,
+			customViewService,
 			store,
 			recency,
 			contextKeyService,
@@ -299,6 +317,30 @@ suite('SessionsNavigation', () => {
 
 	function canGoForward(): boolean {
 		return contextKeyService.getContextKeyValue('sessionsCanGoForward') ?? false;
+	}
+
+	function registerCustomView(id: string) {
+		return ds.add(customViewService.registerCustomView({
+			id,
+			ctor: new SyncDescriptor(class extends AbstractCustomView {
+				readonly title = constObservable('Custom View');
+				render(_container: HTMLElement): void { }
+				layout(_width: number, _height: number): void { }
+			}),
+		}));
+	}
+
+	async function navigate(direction: 'back' | 'forward', count: number): Promise<string[]> {
+		const destinations: string[] = [];
+		for (let i = 0; i < count; i++) {
+			if (direction === 'back') {
+				await nav.goBack();
+			} else {
+				await nav.goForward();
+			}
+			destinations.push(customViewService.activeCustomView.get()?.id ?? store.activeSession.get()?.sessionId ?? 'newSession');
+		}
+		return destinations;
 	}
 
 	test('initially cannot go back or forward', () => {
@@ -331,7 +373,7 @@ suite('SessionsNavigation', () => {
 		await nav.goBack();
 
 		assert.strictEqual(store.lastOpenedResource?.toString(), s1.resource.toString());
-		assert.strictEqual(canGoBack(), false);
+		assert.strictEqual(canGoBack(), true);
 		assert.strictEqual(canGoForward(), true);
 	});
 
@@ -410,8 +452,274 @@ suite('SessionsNavigation', () => {
 		await nav.goBack();
 		assert.strictEqual(store.lastOpenedResource?.toString(), s2.resource.toString());
 
-		// No further back
+		await nav.goBack();
+		assert.strictEqual(store.lastOpenedNewSession, true);
 		assert.strictEqual(canGoBack(), false);
+	});
+
+	test('the initial new-session view can be revisited in both directions', async () => {
+		const session = stubSession('s1');
+		store.addSession(session);
+		store.setActiveSession(session);
+
+		const back = await navigate('back', 1);
+		const atNewSession = { back: canGoBack(), forward: canGoForward() };
+		const forward = await navigate('forward', 1);
+
+		assert.deepStrictEqual({ back, atNewSession, forward, canGoForward: canGoForward() }, {
+			back: ['newSession'],
+			atNewSession: { back: false, forward: true },
+			forward: ['s1'],
+			canGoForward: false,
+		});
+	});
+
+	test('reopening new-session moves its only entry to the most recent position', async () => {
+		const s1 = stubSession('s1');
+		const s2 = stubSession('s2');
+		store.addSession(s1);
+		store.addSession(s2);
+
+		await store.openSession(s1.resource);
+		await store.openNewSession();
+		await store.openSession(s2.resource);
+		await nav.goBack();
+		await nav.goForward();
+		await store.openNewSession();
+
+		const back = await navigate('back', 2);
+		const atOldest = { back: canGoBack(), forward: canGoForward() };
+		const forward = await navigate('forward', 2);
+
+		assert.deepStrictEqual({ back, atOldest, forward, canGoForward: canGoForward() }, {
+			back: ['s2', 's1'],
+			atOldest: { back: false, forward: true },
+			forward: ['s2', 'newSession'],
+			canGoForward: false,
+		});
+	});
+
+	test('custom views participate in back and forward navigation alongside sessions', async () => {
+		const s1 = stubSession('s1');
+		const s2 = stubSession('s2');
+		store.addSession(s1);
+		store.addSession(s2);
+		registerCustomView('automations');
+
+		await store.openSession(s1.resource);
+		customViewService.showCustomView('automations');
+		await store.openSession(s2.resource);
+
+		const back = await navigate('back', 3);
+		const atOldest = { back: canGoBack(), forward: canGoForward() };
+		const forward = await navigate('forward', 3);
+
+		assert.deepStrictEqual({ back, atOldest, forward, canGoForward: canGoForward() }, {
+			back: ['automations', 's1', 'newSession'],
+			atOldest: { back: false, forward: true },
+			forward: ['s1', 'automations', 's2'],
+			canGoForward: false,
+		});
+	});
+
+	test('each custom view retains only its most recent opening', async () => {
+		const s1 = stubSession('s1');
+		const s2 = stubSession('s2');
+		store.addSession(s1);
+		store.addSession(s2);
+		registerCustomView('automations');
+		registerCustomView('other');
+
+		await store.openSession(s1.resource);
+		customViewService.showCustomView('automations');
+		await store.openSession(s2.resource);
+		customViewService.showCustomView('other');
+		customViewService.showCustomView('automations');
+
+		const back = await navigate('back', 4);
+		const canGoFurtherBack = canGoBack();
+		const forward = await navigate('forward', 4);
+
+		assert.deepStrictEqual({ back, canGoFurtherBack, forward, canGoForward: canGoForward() }, {
+			back: ['other', 's2', 's1', 'newSession'],
+			canGoFurtherBack: false,
+			forward: ['s1', 's2', 'other', 'automations'],
+			canGoForward: false,
+		});
+	});
+
+	test('opening a custom view after going back preserves the existing MRU order', async () => {
+		const s1 = stubSession('s1');
+		const s2 = stubSession('s2');
+		store.addSession(s1);
+		store.addSession(s2);
+		registerCustomView('automations');
+
+		await store.openSession(s1.resource);
+		await store.openSession(s2.resource);
+		await nav.goBack();
+		customViewService.showCustomView('automations');
+
+		assert.deepStrictEqual(await navigate('back', 3), ['s2', 's1', 'newSession']);
+	});
+
+	test('new-session and custom views are navigable without a created session', async () => {
+		registerCustomView('automations');
+		customViewService.showCustomView('automations');
+		const back = await navigate('back', 1);
+		const forward = await navigate('forward', 1);
+		await store.openNewSession();
+		const reopenedBack = await navigate('back', 1);
+
+		assert.deepStrictEqual({ back, forward, reopenedBack, canGoBack: canGoBack() }, {
+			back: ['newSession'],
+			forward: ['automations'],
+			reopenedBack: ['automations'],
+			canGoBack: false,
+		});
+	});
+
+	test('background session changes do not move a custom view in history', async () => {
+		const s1 = stubSession('s1');
+		const s2 = stubSession('s2');
+		store.addSession(s1);
+		store.addSession(s2);
+		registerCustomView('automations');
+
+		await store.openSession(s1.resource);
+		customViewService.showCustomView('automations');
+		await store.openSession(s2.resource);
+		await nav.goBack();
+		store.setActiveSession(undefined);
+
+		assert.deepStrictEqual({
+			activeView: customViewService.activeCustomView.get()?.id,
+			forward: await navigate('forward', 1),
+			back: await navigate('back', 2),
+		}, {
+			activeView: 'automations',
+			forward: ['s2'],
+			back: ['automations', 's1'],
+		});
+	});
+
+	for (const direction of ['back', 'forward'] as const) {
+		test(`unregistered custom views are skipped when navigating ${direction}`, async () => {
+			const s1 = stubSession('s1');
+			const s2 = stubSession('s2');
+			store.addSession(s1);
+			store.addSession(s2);
+			const registration = registerCustomView('automations');
+
+			await store.openSession(s1.resource);
+			customViewService.showCustomView('automations');
+			await store.openSession(s2.resource);
+			if (direction === 'forward') {
+				await navigate('back', 2);
+			}
+			registration.dispose();
+
+			assert.deepStrictEqual({
+				destinations: await navigate(direction, 1),
+				customViews: recency.entries.filter(entry => entry.kind === 'customView'),
+			}, {
+				destinations: [direction === 'back' ? 's1' : 's2'],
+				customViews: [],
+			});
+		});
+	}
+
+	test('missing sessions are skipped without consuming a navigation step', async () => {
+		const s1 = stubSession('s1');
+		const s2 = stubSession('s2');
+		store.addSession(s1);
+		store.addSession(s2);
+
+		store.setActiveSession(s1);
+		store.setActiveSession(stubSession('missing'));
+		store.setActiveSession(s2);
+
+		assert.deepStrictEqual(await navigate('back', 1), ['s1']);
+	});
+
+	test('only session entries are persisted, in the existing recency format', async () => {
+		const s1 = stubSession('s1');
+		const s2 = stubSession('s2');
+		store.addSession(s1);
+		store.addSession(s2);
+		registerCustomView('automations');
+
+		await store.openSession(s1.resource);
+		customViewService.showCustomView('automations');
+		await store.openNewSession();
+		await store.openSession(s2.resource);
+		const restored = ds.add(new SessionsRecencyHistory(storageService, new NullLogService()));
+
+		assert.deepStrictEqual(restored.entries.map(entry => entry.kind === 'session' ? {
+			kind: entry.kind,
+			session: entry.sessionResource.toString(),
+			chat: entry.chatResource?.toString(),
+		} : entry), [
+			{ kind: 'session', session: s2.resource.toString(), chat: stubChat.resource.toString() },
+			{ kind: 'session', session: s1.resource.toString(), chat: stubChat.resource.toString() },
+		]);
+	});
+
+	test('singleton views preserve all 50 restored session entries', () => {
+		const sessions = Array.from({ length: 50 }, (_, index) => ({
+			kind: 'session' as const,
+			sessionResource: URI.parse(`test:///session-${index}`),
+			chatResource: URI.parse(`test:///chat-${index}`),
+		}));
+		for (const entry of sessions) {
+			recency.markOpened(entry);
+		}
+		const restored = ds.add(new SessionsRecencyHistory(storageService, new NullLogService()));
+		restored.markOpened({ kind: 'newSession' });
+		restored.markOpened({ kind: 'customView', id: 'automations' });
+		restored.markOpened({ kind: 'customView', id: 'settings' });
+		restored.markOpened({ kind: 'newSession' });
+		const reloaded = ds.add(new SessionsRecencyHistory(storageService, new NullLogService()));
+		const expectedSessions = [...sessions].reverse().map(getRecencyEntryKey);
+
+		assert.deepStrictEqual({
+			navigation: restored.entries.map(getRecencyEntryKey),
+			persisted: reloaded.entries.map(getRecencyEntryKey),
+		}, {
+			navigation: [
+				'newSession',
+				'customView:settings',
+				'customView:automations',
+				...expectedSessions,
+			],
+			persisted: expectedSessions,
+		});
+	});
+
+	test('the 50-session cap evicts only the oldest session entry', () => {
+		const sessions = Array.from({ length: 51 }, (_, index) => ({
+			kind: 'session' as const,
+			sessionResource: URI.parse(`test:///session-${index}`),
+			chatResource: URI.parse(`test:///chat-${index}`),
+		}));
+		recency.markOpened({ kind: 'customView', id: 'automations' });
+		for (const entry of sessions) {
+			recency.markOpened(entry);
+		}
+		const restored = ds.add(new SessionsRecencyHistory(storageService, new NullLogService()));
+		const expectedSessions = sessions.slice(1).reverse().map(getRecencyEntryKey);
+
+		assert.deepStrictEqual({
+			navigation: recency.entries.map(getRecencyEntryKey),
+			persisted: restored.entries.map(getRecencyEntryKey),
+		}, {
+			navigation: [
+				...expectedSessions,
+				'customView:automations',
+				'newSession',
+			],
+			persisted: expectedSessions,
+		});
 	});
 
 	test('navigating to new-session view after a session enables go back', async () => {
@@ -441,8 +749,7 @@ suite('SessionsNavigation', () => {
 		store.setActiveSession(s1);
 		store.setActiveSession(s1); // duplicate
 
-		// Only one entry for s1, cannot go back
-		assert.strictEqual(canGoBack(), false);
+		assert.deepStrictEqual(recency.entries.map(entry => entry.kind), ['session', 'newSession']);
 	});
 
 	test('removed sessions are cleaned from history', async () => {
@@ -465,26 +772,25 @@ suite('SessionsNavigation', () => {
 		assert.strictEqual(store.lastOpenedResource?.toString(), s1.resource.toString());
 	});
 
-	test('untitled (new) session is not recorded in history and does not enable go back', () => {
+	test('untitled sessions share the new-session view entry', () => {
 		const pending = stubSession('pending', SessionStatus.Untitled);
 		store.addSession(pending);
-		store.setActiveSession(pending); // untitled on startup — must not be recorded or set beyondHistory
+		store.setActiveSession(pending);
 
 		assert.strictEqual(canGoBack(), false);
 
-		// Opening a real session: history is [s1], cannot go back
 		const s1 = stubSession('s1');
 		store.addSession(s1);
 		store.setActiveSession(s1);
 
-		assert.strictEqual(canGoBack(), false);
+		assert.strictEqual(canGoBack(), true);
 
 		// Opening a second real session: history is [s1, s2], can go back
 		const s2 = stubSession('s2');
 		store.addSession(s2);
 		store.setActiveSession(s2);
 
-		assert.strictEqual(canGoBack(), true);
+		assert.deepStrictEqual(recency.entries.map(entry => entry.kind), ['session', 'session', 'newSession']);
 	});
 
 	test('go to new-session, goBack, go to new-session again still enables back', async () => {
@@ -512,11 +818,14 @@ suite('SessionsNavigation', () => {
 		store.addSession(s1);
 
 		store.setActiveSession(s1, chatA);
-		assert.strictEqual(canGoBack(), false);
 
 		// Switch to chat B within the same session
 		store.setActiveChat(chatB);
-		assert.strictEqual(canGoBack(), true, 'back enabled after switching chat within session');
+		assert.deepStrictEqual(recency.entries, [
+			{ kind: 'session', sessionResource: s1.resource, chatResource: chatB.resource },
+			{ kind: 'session', sessionResource: s1.resource, chatResource: chatA.resource },
+			{ kind: 'newSession' },
+		]);
 	});
 
 	test('goBack restores previous chat within a session', async () => {
@@ -569,7 +878,10 @@ suite('SessionsNavigation', () => {
 		store.addSession(s1);
 
 		store.setActiveSession(s1, chatUntitled);
-		assert.strictEqual(canGoBack(), false, 'untitled chat produces a session-only entry, no second entry');
+		assert.deepStrictEqual(recency.entries, [
+			{ kind: 'session', sessionResource: s1.resource, chatResource: undefined },
+			{ kind: 'newSession' },
+		]);
 	});
 
 	test('goBack falls back to openSession when chat was deleted', async () => {

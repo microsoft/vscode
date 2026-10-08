@@ -196,6 +196,16 @@ export interface IAgentSessionChatMetadata {
 	/** Exact chat read state when known; absence means the provider did not supply it. */
 	readonly isRead?: boolean;
 	readonly changes?: ChangesSummary;
+	/**
+	 * The chat's live status from the session catalog, including activity bits.
+	 * Absence means the host did not supply it. Clients must not persist the
+	 * activity bits, which are only valid while connected.
+	 */
+	readonly status?: SessionStatus;
+	/** Last known modification time of the chat (ms since epoch); client-cache only. */
+	readonly modifiedTime?: number;
+	/** Last known host-side working directories of the chat (protocol URI strings); client-cache only. */
+	readonly workingDirectories?: readonly string[];
 }
 
 export interface IAgentSessionMetadata extends Omit<IAgentChatMetadata, 'chat'> {
@@ -536,7 +546,7 @@ export interface IAgentChatContext {
 	readonly customizations?: readonly Customization[];
 	/** Per-operation host instructions that providers add to model context without persisting as user content. */
 	readonly hostInstructions?: readonly string[];
-	/** Records provider stage timing for the turn being sent; supplied only for a send. */
+	/** Records provider timing for the current send or resumed execution. */
 	readonly sendStageRecorder?: IAgentProviderSendStageRecorder;
 	/** Whether the current turn is an automated Agent Merge repair turn. */
 	readonly agentMergeTurn?: boolean;
@@ -1262,6 +1272,14 @@ export interface IAgentChatAdoptionResult {
 	readonly worktree?: IAgentAdoptedWorktree;
 	/** Diagnostic reason behind {@link adopted}. */
 	readonly reason?: AgentChatAdoptionReason;
+	/** Bounded provenance evidence; a missing marker alone does not prove an external session. */
+	readonly diagnostics?: {
+		readonly markerStatus: 'valid' | 'missing' | 'invalid' | 'readError';
+		readonly provenance: 'legacy' | 'external' | 'unknown';
+		readonly markerFromCache: boolean;
+		readonly errorCode?: string;
+		readonly errorMessage?: string;
+	};
 }
 
 /** Identifies the client that submitted a pending message. */
@@ -1273,6 +1291,12 @@ export interface IAgentPendingMessageSender {
 /** Account-scoped telemetry metadata; captured contexts become empty when their credentials are superseded. */
 export interface IAgentTelemetryContext {
 	readonly copilotSku: string | undefined;
+}
+
+export interface IAgentSessionPlan {
+	readonly plan: { readonly exists: boolean; readonly content: string | null; readonly path: string | null };
+	readonly todos: readonly { readonly id: string | null; readonly title: string | null; readonly status: string | null; readonly description: string | null }[];
+	readonly dependencies: readonly { readonly todoId: string; readonly dependsOn: string }[];
 }
 
 /**
@@ -1306,6 +1330,12 @@ export interface IAgent {
 
 	/** Capture the current account without allowing a later account to relabel an in-flight turn. */
 	getTelemetryContext?(): IAgentTelemetryContext;
+
+	/** Reads the owning session's provider-native plan and structured todos. */
+	getSessionPlan?(session: URI): Promise<IAgentSessionPlan>;
+
+	/** Applies a legacy boolean approval selection through the provider's runtime permission policy. */
+	setSessionApproveAll?(session: URI, enabled: boolean): Promise<void>;
 
 	// ---- Chat lifecycle and progress ----------------------------------------
 
