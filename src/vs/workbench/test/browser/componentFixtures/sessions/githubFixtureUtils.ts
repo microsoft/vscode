@@ -176,6 +176,8 @@ export function createFixturePullRequestIconCache(): IPullRequestIconCache {
 
 interface IFixtureGitHubResources {
 	readonly delayMs?: number;
+	readonly beforeRefresh?: () => Promise<void>;
+	readonly onDidRefresh?: () => void;
 	readonly pullRequests?: readonly PullRequestCore[];
 	readonly issues?: readonly GitHubIssue[];
 }
@@ -187,10 +189,12 @@ export function createFixtureWorkbenchGitHubService(resources: IFixtureGitHubRes
 	const pullRequestStates = new Map<number, ReturnType<typeof observableValue<PullRequestSnapshot>>>();
 
 	const refresh = async (apply: () => void): Promise<void> => {
+		await resources.beforeRefresh?.();
 		if (resources.delayMs) {
 			await timeout(resources.delayMs);
 		}
 		apply();
+		resources.onDidRefresh?.();
 	};
 	const client = new class extends mock<IGitHubClient>() {
 		override readonly credentials = upcastGitHubCredentials();

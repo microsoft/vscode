@@ -137,6 +137,7 @@ export function createMockSession(spec: ISessionSpec): IMockSessionAndChat {
 		override readonly providerId = spec.providerId ?? LOCAL_AGENT_HOST_PROVIDER_ID;
 		override readonly chats = constObservable([chat, ...subagents]);
 		override readonly status = constObservable(spec.status ?? SessionStatus.InProgress);
+		override readonly loading = constObservable(false);
 		override readonly isArchived = constObservable(false);
 		override readonly isRead = constObservable(true);
 		override readonly capabilities: IObservable<ISessionCapabilities> = constObservable({ supportsMultipleChats: false, supportsRemoveArtifacts: spec.removableArtifacts });

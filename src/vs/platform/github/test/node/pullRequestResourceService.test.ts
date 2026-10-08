@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -64,8 +64,13 @@ interface IQueryCall {
 class TestPullRequestQueryService implements IPullRequestQuery {
 
 	readonly calls: IQueryCall[] = [];
+	readonly promotions: { readonly signal: AbortSignal; readonly priority: PullRequestSubscriptionOptions['priority'] }[] = [];
 	readonly handlers = new Map<PullRequestFragment, (call: IQueryCall) => Promise<PullRequestFragmentResult> | PullRequestFragmentResult>();
 	headSha = 'head-1';
+
+	promote(signal: AbortSignal, priority: PullRequestSubscriptionOptions['priority']): void {
+		this.promotions.push({ signal, priority });
+	}
 
 	async fetch(
 		fragment: PullRequestFragment,
@@ -75,7 +80,7 @@ class TestPullRequestQueryService implements IPullRequestQuery {
 		_credential: GitHubCredential,
 		signal: AbortSignal,
 	): Promise<PullRequestFragmentResult> {
-		const call = { fragment, ref: requestRef, options, signal };
+		const call = { fragment, ref: requestRef, options: { ...options }, signal };
 		this.calls.push(call);
 		const handler = this.handlers.get(fragment);
 		if (handler) {
@@ -165,6 +170,41 @@ suite('PullRequestResourceService', () => {
 		const queries = new TestPullRequestQueryService();
 		const service = disposables.add(new PullRequestResourceService(clock, policy, credentials, queries, new NullLogService()));
 		return { clock, credentials, queries, service };
+	}
+
+	for (const phase of ['credentials', 'query'] as const) {
+		test(`preserves interactive promotion while waiting for ${phase}`, async () => {
+			const { credentials, queries, service } = setup();
+			const credentialReady = new DeferredPromise<void>();
+			const response = new DeferredPromise<PullRequestFragmentResult>();
+			if (phase === 'credentials') {
+				credentials.getCredential = async () => {
+					await credentialReady.p;
+					return credentials.credential;
+				};
+			}
+			queries.handlers.set('core', () => response.p);
+			const subscription = service.subscribePullRequest(ref, { priority: 'background', core: true });
+			const pending = subscription.refresh('core');
+			await timeout(0);
+			subscription.update({ priority: 'interactive', core: true });
+			credentialReady.complete();
+			await timeout(0);
+			const duringFetch = {
+				calls: queries.calls.map(call => ({ fragment: call.fragment, priority: call.options.priority })),
+				promotions: queries.promotions.map(promotion => ({
+					priority: promotion.priority,
+					matchesRequest: promotion.signal === queries.calls[0]?.signal,
+				})),
+			};
+			response.complete({ fragment: 'core', value: core('head-1'), complete: true });
+			await pending;
+			subscription.dispose();
+			assert.deepStrictEqual(duringFetch, {
+				calls: [{ fragment: 'core', priority: phase === 'credentials' ? 'interactive' : 'background' }],
+				promotions: phase === 'query' ? [{ priority: 'interactive', matchesRequest: true }] : [],
+			});
+		});
 	}
 
 	test('shares resources while keeping fragment priority and polling independent', async () => {

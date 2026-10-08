@@ -12,6 +12,7 @@ import { derived, IObservable, observableFromEvent } from '../../../../base/comm
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import type { IChatPillEntry, IChatPillSection } from '../../../browser/chatPills.js';
+import { createChatPillHoverElement } from '../../../browser/chatPillHover.js';
 import type { ChatBackgroundShellOutput, IChatBackgroundShell } from '../common/sessionChatPills.js';
 import { BackgroundShellOutputView } from './sessionBackgroundShellOutputView.js';
 import './media/sessionBackgroundShells.css';
@@ -42,7 +43,7 @@ interface IShellDetails {
 }
 
 function createShellDetails(): IShellDetails {
-	const element = $('.chat-pill-location-hover');
+	const element = createChatPillHoverElement('chat-pill-location-hover', 'compact');
 	const output = new MutableDisposable<BackgroundShellOutputView>();
 	return {
 		element,
@@ -159,7 +160,8 @@ export class SessionBackgroundShellsControl extends Disposable {
 				disposable: output ? content.releaseOutput : undefined,
 				expandable: true,
 				alignToParentBottom: true,
-				panelClassName: 'chat-pill-location-hover-panel',
+				panelClassName: 'chat-pill-hover-panel',
+				contentOwnsPadding: true,
 			},
 			open: () => { },
 		};
