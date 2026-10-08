@@ -7733,6 +7733,50 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(agentHost.dispatchedActions.filter(dispatch => dispatch.action.type === ActionType.SessionActiveClientSet).length, 1);
 	});
 
+	test('republishes the active client after the host removes it', async () => {
+		const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+		const visibleSessions = observableValue<readonly (IActiveSession | undefined)[]>('visibleSessions', []);
+		const activeClient = {
+			tools: [],
+			customizations: [{
+				type: CustomizationType.Plugin,
+				id: 'file:///customizations/test',
+				uri: 'file:///customizations/test',
+				name: 'Test Customization',
+			}],
+		} satisfies Omit<SessionActiveClient, 'clientId'>;
+		const publishedActiveClient = { clientId: agentHost.clientId, ...activeClient };
+		const state = (activeClients: SessionActiveClient[]): SessionState => ({
+			provider: 'copilotcli',
+			title: 'Active client removal',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients,
+			chats: [],
+		});
+		agentHost.addSession(createSession('active-client-removal'));
+		agentHost.setSessionState('active-client-removal', 'copilotcli', state([]));
+		const provider = createProvider(disposables, agentHost, undefined, { activeSession, visibleSessions, activeClient });
+		provider.getSessions();
+		await timeout(0);
+		agentHost.dispatchedActions.length = 0;
+		const resource = URI.from({ scheme: 'agent-host-copilotcli', path: '/active-client-removal' });
+		const selectedSession = {
+			providerId: provider.id,
+			sessionId: `${provider.id}:${resource.toString()}`,
+			resource,
+		} as IActiveSession;
+		visibleSessions.set([selectedSession], undefined);
+		activeSession.set(selectedSession, undefined);
+		await timeout(0);
+
+		agentHost.setSessionState('active-client-removal', 'copilotcli', state([publishedActiveClient]));
+		agentHost.setSessionState('active-client-removal', 'copilotcli', state([]));
+		await timeout(0);
+
+		assert.strictEqual(agentHost.dispatchedActions.filter(dispatch => dispatch.action.type === ActionType.SessionActiveClientSet).length, 2);
+	});
+
 	test('quick chat excludes its host scratch directory from the active client customization scope', async () => {
 		const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
 		const scopeRoots: string[][] = [];

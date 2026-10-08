@@ -510,8 +510,16 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		this._register(this.onDidAction(envelope => {
 			this._subscriptionManager.receiveEnvelope(envelope);
 			if (envelope.action.type === ActionType.SessionActiveClientSet) {
-				this._lastActiveClientDispatches.set(this._activeClientDispatchKey(envelope.channel, envelope.action.activeClient.clientId), stableStringify(envelope.action.activeClient));
-			} else if (envelope.action.type === ActionType.SessionActiveClientRemoved) {
+				const key = this._activeClientDispatchKey(envelope.channel, envelope.action.activeClient.clientId);
+				const serialized = stableStringify(envelope.action.activeClient);
+				if (envelope.rejectionReason) {
+					if (this._lastActiveClientDispatches.get(key) === serialized) {
+						this._lastActiveClientDispatches.delete(key);
+					}
+				} else {
+					this._lastActiveClientDispatches.set(key, serialized);
+				}
+			} else if (envelope.action.type === ActionType.SessionActiveClientRemoved && !envelope.rejectionReason) {
 				this._lastActiveClientDispatches.delete(this._activeClientDispatchKey(envelope.channel, envelope.action.clientId));
 			}
 		}));

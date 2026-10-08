@@ -499,6 +499,31 @@ suite('AgentHostProtocolClient', () => {
 			).length, 1);
 		});
 
+		test('allows an active client publication to be retried after rejection', async () => {
+			const { client, transport } = await createSubscribedClient();
+			const action: SessionActiveClientSetAction = {
+				type: ActionType.SessionActiveClientSet,
+				activeClient: {
+					clientId: client.clientId,
+					tools: [],
+					customizations: [],
+				},
+			};
+
+			client.dispatch(channel, action);
+			const dispatch = getDispatch(transport);
+			assert.ok(dispatch);
+			echo(client, transport, dispatch, { rejectionReason: 'Publication rejected' });
+			client.dispatch(channel, action);
+
+			assert.strictEqual(transport.sentMessages.filter(message =>
+				hasKey(message, { method: true })
+				&& message.method === 'dispatchAction'
+				&& (message.params as DispatchActionParams).channel === channel
+				&& (message.params as DispatchActionParams).action.type === ActionType.SessionActiveClientSet
+			).length, 2);
+		});
+
 		test('waits for the held snapshot before dispatching and preserves opaque host identity', async () => {
 			const { client, transport, ref, initialize } = await createSubscribedClient(false);
 			const confirmed = client.dispatchConfirmed(channel, ref.object, action, CancellationToken.None);

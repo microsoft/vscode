@@ -7493,6 +7493,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 */
 	private _applySessionStateUpdate(sessionId: string, state: SessionState): void {
 		const previous = this._lastSessionStates.get(sessionId);
+		const lastPublished = this._lastPublishedActiveClient;
+		const publishedClientRemoved = lastPublished?.sessionId === sessionId
+			&& previous?.activeClients.some(client => client.clientId === lastPublished.activeClient.clientId)
+			&& !state.activeClients.some(client => client.clientId === lastPublished.activeClient.clientId);
+		if (publishedClientRemoved) {
+			this._lastPublishedActiveClient = undefined;
+		}
 		// Any folder's Agent Merge settings, including those written by earlier versions.
 		const agentMergeSettings = () => [...readAgentMergeFolderStates(this._getAgentMergeValues(sessionId), '').entries()]
 			.map(([key, folderState]) => ({ key, enabled: folderState.enabled, overrides: folderState.overrides }));
@@ -7522,7 +7529,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (agentMergeSettingsChanged) {
 			this._onDidChangeAgentMergeSessionState.fire(sessionId);
 		}
-
+		if (publishedClientRemoved) {
+			this._syncActiveClient();
+		}
 	}
 
 	/**
@@ -8165,6 +8174,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._observedAgentMergeSessionStates.delete(stateOwner.sessionId);
 		this._agentMergeFolders.delete(stateOwner.sessionId);
 		this._lastSessionStates.delete(stateOwner.sessionId);
+		if (this._lastPublishedActiveClient?.sessionId === stateOwner.sessionId) {
+			this._lastPublishedActiveClient = undefined;
+		}
 		return cached;
 	}
 
