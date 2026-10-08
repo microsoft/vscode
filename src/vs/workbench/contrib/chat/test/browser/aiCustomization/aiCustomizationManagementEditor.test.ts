@@ -205,10 +205,12 @@ suite('aiCustomizationManagementEditor', () => {
 		migrationShortcutContainer: HTMLElement | undefined;
 		migrationShortcutButton: HTMLButtonElement | undefined;
 		migrationShortcutCount: HTMLElement | undefined;
+		migrationDashboard: { element: HTMLElement } | undefined;
 		layoutSidebar(width: number, height: number): void;
 		updateSidebarMigrationShortcut(): void;
 		startCustomizationMigration(categoryId?: CustomizationMigrationCategoryId, migrationFlowId?: string): Promise<void>;
 		showCustomizationMigrationDashboard(): void;
+		getMigrationAccessibilityContent(): string | undefined;
 		storageService: IStorageService;
 		workspaceService: {
 			activeProjectRoot: ISettableObservable<URI | undefined>;
@@ -390,6 +392,7 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.knownMcpServerMigrationItems = new Set();
 		editor.recentlyMigratedCustomizationItems = new Set();
 		editor.migrationFlowId = undefined;
+		editor.migrationDashboard = undefined;
 		editor.editorDisplayMode = 'preview';
 		editor.currentCustomizationDetail = false;
 		editor.currentEditingUri = undefined;
@@ -2359,7 +2362,13 @@ suite('aiCustomizationManagementEditor', () => {
 			label: '.github',
 			source: PromptsStorage.local,
 		});
-		editor.dialogService = { confirm: async () => ({ confirmed: true }) };
+		const confirmations: IConfirmation[] = [];
+		editor.dialogService = {
+			confirm: async confirmation => {
+				confirmations.push(confirmation);
+				return { confirmed: true };
+			},
+		};
 		editor.runCustomizationMigration = async () => {
 			editor.migrationFlowId = 'new-migration-flow-id';
 			return {
@@ -2388,13 +2397,43 @@ suite('aiCustomizationManagementEditor', () => {
 			dashboardShown,
 			migrationCompleted,
 			notifications,
+			confirmationDetails: confirmations.map(confirmation => confirmation.detail),
 			remainingCandidates: editor.getMigrationCandidates(getCustomizationMigrationCategory(CustomizationMigrationCategoryId.PromptFiles)),
 		}, {
 			dashboardShown: 1,
 			migrationCompleted: [[CustomizationMigrationType.PromptFiles, 1, 1, 0, [], 'migration-flow-id']],
 			notifications: ['Converted 1 prompt files to skills.'],
+			confirmationDetails: [
+				'This converts 1 workspace prompt files into skills.\n\nUnsupported prompt-only headers are removed. Converted skills set disable-model-invocation: true, so the agent will not load them automatically; invoke them manually with /name.\n\nPlanned changes:\n• review.prompt.md\n  From: /workspace/.github/prompts/review.prompt.md\n  Destination: .github/skills',
+			],
 			remainingCandidates: [],
 		});
+		editor.editorPreviewDisposables.dispose();
+	});
+
+	test('includes prompt-to-skill consequences in migration Accessible View content', () => {
+		const editor = createTestEditor(undefined, createConfigurationServiceStub({
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
+		}));
+		const prompt: MigratableConfiguration = {
+			uri: URI.file('/workspace/.github/prompts/review.prompt.md'),
+			name: 'Review',
+			storage: PromptsStorage.local,
+			type: PromptsType.prompt,
+			source: PromptFileSource.GitHubWorkspace,
+		};
+		editor.setCustomizationsToMigrate(new Map([[CustomizationMigrationCategoryId.PromptFiles, [prompt]]]), new Map());
+		editor.viewMode = 'migration';
+		const dashboard = document.body.appendChild(document.createElement('div'));
+		const focusedElement = dashboard.appendChild(document.createElement('button'));
+		editor.migrationDashboard = { element: dashboard };
+		focusedElement.focus();
+
+		assert.strictEqual(
+			editor.getMigrationAccessibilityContent(),
+			'Customization migrations\n\nConvert Prompt to Skills (Workspace): 1 prompt. High risk. Unsupported prompt-only headers are removed. Converted skills set disable-model-invocation: true, so the agent will not load them automatically; invoke them manually with /name.\nReview, selected, source /workspace/.github/prompts/review.prompt.md. Migration changes: Unsupported prompt-only headers are removed. Converted skills set disable-model-invocation: true, so the agent will not load them automatically; invoke them manually with /name.',
+		);
+		dashboard.remove();
 		editor.editorPreviewDisposables.dispose();
 	});
 

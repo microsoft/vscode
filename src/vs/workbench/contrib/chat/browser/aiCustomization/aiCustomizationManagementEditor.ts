@@ -2327,8 +2327,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private getHomepageMigrationCategory(id: CustomizationMigrationCategoryId, candidates: readonly CustomizationMigrationCandidate[], storage: PromptsStorage): ICustomizationMigrationDashboardCategory {
 		const count = candidates.length;
 		const scopeLabel = storage === PromptsStorage.local ? localize('migrationWorkspaceScope', "Workspace") : localize('migrationUserScope', "User");
+		const category = getCustomizationMigrationCategory(id);
 		const items = candidates.map((candidate, index) => {
-			const category = getCustomizationMigrationCategory(id);
 			const sourceUri = isMcpServerCustomizationMigrationCandidate(candidate) ? candidate.sourceUri : candidate.uri;
 			return {
 				id: `${id}:${storage}:candidate:${index}:${sourceUri.toString()}`,
@@ -2350,7 +2350,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 				return {
 					id, count,
 					label: this.getMigrationDashboardCategoryLabel(id),
-					description: localize('migrationChecklistPromptsDescription', "Convert reusable prompt files into skills so agents can discover and run them as supported customizations."),
+					description: category.preMigrationConsequences ?? '',
 					countLabel: count === 1 ? localize('migrationChecklistOnePrompt', "1 prompt") : localize('migrationChecklistPromptsCount', "{0} prompts", count),
 					highRisk: true,
 					migrateDisabled: this.customizationMigrationInProgress || selectedCount === 0,

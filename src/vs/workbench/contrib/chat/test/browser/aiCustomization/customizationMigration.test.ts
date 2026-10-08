@@ -130,6 +130,38 @@ suite('customizationMigration', () => {
 		});
 	});
 
+	test('explains prompt-to-skill metadata loss and invocation behavior before migration', () => {
+		const category = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.PromptFiles);
+		const workspacePrompt: MigratableConfiguration = {
+			uri: URI.file('/workspace/.github/prompts/review.prompt.md'),
+			storage: PromptsStorage.local,
+			type: PromptsType.prompt,
+			source: PromptFileSource.GitHubWorkspace,
+		};
+		const userPrompt: MigratableConfiguration = {
+			...workspacePrompt,
+			uri: URI.file('/user-data/prompts/release.prompt.md'),
+			storage: PromptsStorage.user,
+			source: PromptFileSource.UserData,
+		};
+		const consequences = 'Unsupported prompt-only headers are removed. Converted skills set disable-model-invocation: true, so the agent will not load them automatically; invoke them manually with /name.';
+
+		assert.deepStrictEqual({
+			consequences: category.preMigrationConsequences,
+			candidateWarnings: category.getCandidateWarnings?.(workspacePrompt, 'Copilot'),
+			confirmation: category.getConfirmation([workspacePrompt, userPrompt], 'Copilot'),
+		}, {
+			consequences,
+			candidateWarnings: [consequences],
+			confirmation: {
+				message: 'Convert prompt files to skills?',
+				detail: `This converts 1 workspace prompt files and 1 user prompt files into skills.\n\n${consequences}`,
+				primaryButton: 'Convert to Skills',
+				deleteOriginalsLabel: 'Delete original prompt files after migration',
+			},
+		});
+	});
+
 	test('builds an agent prompt from discovered sources and harness-reported targets', () => {
 		const recoveryBundleFolder = URI.file('/recovery/vscode-customization-migration');
 		const prompt = createCustomizationMigrationAgentPrompt(

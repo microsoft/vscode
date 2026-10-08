@@ -82,7 +82,13 @@ suite('CustomizationMigrationDashboard', () => {
 							id: CustomizationMigrationCategoryId.PromptFiles, label: 'Convert Prompt to Skills', description: 'Convert prompts to skills.', count: 1, selectedCount: 1, countLabel: '1 prompt', highRisk: true,
 							destinationLabel: '.github/skills',
 							destinationAriaLabel: 'Change destination for workspace prompt migrations',
-							items: [{ id: 'workspace-prompt', label: 'Build', scopeLabel: 'Workspace', sourceLabel: '.github/prompts/build.prompt.md' }],
+							items: [{
+								id: 'workspace-prompt',
+								label: 'Build',
+								scopeLabel: 'Workspace',
+								sourceLabel: '.github/prompts/build.prompt.md',
+								changesLabel: 'Unsupported prompt-only headers are removed. Converted skills set disable-model-invocation: true, so the agent will not load them automatically; invoke them manually with /name.',
+							}],
 						},
 						{
 							id: CustomizationMigrationCategoryId.McpServers, label: 'MCP Servers', description: 'Move supported servers.', count: 1, selectedCount: 1, countLabel: '1 server',
@@ -150,7 +156,10 @@ suite('CustomizationMigrationDashboard', () => {
 			counts: ['1', '2', '1', '2', '1'],
 			items: ['Build', 'Release', 'Triage', 'Postgres', 'Planner', 'Review', 'Team rules'],
 			sources: ['.github/prompts/build.prompt.md', '~/.copilot/prompts/release.prompt.md', '~/.copilot/prompts/triage.prompt.md', '.vscode/mcp.json', '~/.copilot/agents/planner.agent.md', '~/.copilot/instructions/review.instructions.md', 'team/rules.instructions.md'],
-			changes: ['The gallery property will be removed.'],
+			changes: [
+				'Unsupported prompt-only headers are removed. Converted skills set disable-model-invocation: true, so the agent will not load them automatically; invoke them manually with /name.',
+				'The gallery property will be removed.',
+			],
 			checklistCopy: false,
 			intro: 'Some of your agent customizations need an update to keep working. Use Migrate to have VS Code update selected customizations, or Migrate with Agent for a guided migration in chat. Agent migration uses credits.',
 			agentButtonInTitleRow: true,
