@@ -43,17 +43,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		this.enabled.read(reader) && this.catalogueState.read(reader) === 'ready' && this.store.read(reader)?.mutationUncertain.read(reader) === false);
 	readonly automations = derived(this, reader => (this.store.read(reader)?.entries.read(reader) ?? []).map(entry => this.toAutomation(entry)));
 	readonly runs = derived(this, reader => (this.store.read(reader)?.history.read(reader) ?? []).map(entry => this.toRun(entry)).filter(run => run !== undefined));
-	readonly configuration: IAutomationProviderConfiguration = {
-		sessionTypes: [this.sessionTypeId],
-		description: localize('cloudAutomations.description', "Runs even when your computer is off, triggered on a schedule."),
-		timeZone: 'UTC',
-		targetChangeDisabledReason: localize('cloudAutomations.targetImmutable', "The repository and provider cannot be changed for an existing cloud automation. Duplicate this automation to use another target."),
-		tools: derived(this, reader => toToolCatalog(this.store.read(reader)?.toolCatalog.read(reader), !!this.store.read(reader))),
-		loadTools: () => this.store.get()?.loadTools(),
-		pickWorkspace: token => this.pickWorkspace(token),
-		getWorkspaceTarget: workspace => derived(reader => this.store.read(reader)?.getWorkspaceTarget(workspace).read(reader)
-			?? { disabledReason: localize('cloudAutomations.targetUnavailable', "Cloud automations are unavailable.") }),
-	};
+	readonly configuration: IAutomationProviderConfiguration;
 
 	constructor(
 		private readonly providerId: string,
@@ -68,6 +58,17 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		@IWorkbenchGitHubService workbenchGitHubService: IWorkbenchGitHubService,
 	) {
 		super();
+		this.configuration = {
+			sessionTypes: [sessionTypeId],
+			description: localize('cloudAutomations.description', "Runs even when your computer is off, triggered on a schedule."),
+			timeZone: 'UTC',
+			targetChangeDisabledReason: localize('cloudAutomations.targetImmutable', "The repository and provider cannot be changed for an existing cloud automation. Duplicate this automation to use another target."),
+			tools: derived(this, reader => toToolCatalog(this.store.read(reader)?.toolCatalog.read(reader), !!this.store.read(reader))),
+			loadTools: () => this.store.get()?.loadTools(),
+			pickWorkspace: token => this.pickWorkspace(token),
+			getWorkspaceTarget: workspace => derived(reader => this.store.read(reader)?.getWorkspaceTarget(workspace).read(reader)
+				?? { disabledReason: localize('cloudAutomations.targetUnavailable', "Cloud automations are unavailable.") }),
+		};
 		const configurationChanged = observableSignalFromEvent(this, configurationService.onDidChangeConfiguration);
 		const sentimentChanged = observableSignalFromEvent(this, entitlementService.onDidChangeSentiment);
 		const accountChanged = observableSignalFromEvent(this, defaultAccountService.onDidChangeDefaultAccount);
