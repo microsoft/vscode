@@ -1075,6 +1075,9 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	private readonly _onDidChangeSessionTypes = this._register(new Emitter<void>());
 	readonly onDidChangeSessionTypes: Event<void> = this._onDidChangeSessionTypes.event;
 
+	private readonly _onDidChangeCapabilities = this._register(new Emitter<void>());
+	readonly onDidChangeCapabilities: Event<void> = this._onDidChangeCapabilities.event;
+
 	private readonly _onDidChangeSessions = this._register(new Emitter<ISessionChangeEvent>());
 	readonly onDidChangeSessions: Event<ISessionChangeEvent> = this._onDidChangeSessions.event;
 
@@ -1147,6 +1150,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			const sandboxChanged = event.affectsConfiguration(CloudSandboxEnabledSettingId) || event.affectsConfiguration(RemoteAgentHostsEnabledSettingId);
 			if (sandboxChanged || event.affectsConfiguration(ChatAIDisabledSettingId)) {
 				this._onDidChangeSessionTypes.fire();
+				this._onDidChangeCapabilities.fire();
 			}
 			if (sandboxChanged) {
 				if (this._newSessions.size > 0 && this._usesSandbox()) {

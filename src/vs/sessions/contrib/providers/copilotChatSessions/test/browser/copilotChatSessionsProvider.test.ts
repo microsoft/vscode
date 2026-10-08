@@ -2802,8 +2802,12 @@ suite('CopilotChatSessionsProvider', () => {
 						onGetChatSession: () => assert.fail('Repo-less chats must not fall back to an extension Cloud session'),
 					});
 					const draft = provider.createQuickChat(sessionTypeId);
-					const availability = [provider.supportsQuickChats];
-					disposables.add(provider.onDidChangeSessionTypes(() => availability.push(provider.supportsQuickChats)));
+					const availability = {
+						sessionTypes: [provider.supportsQuickChats],
+						capabilities: [provider.supportsQuickChats],
+					};
+					disposables.add(provider.onDidChangeSessionTypes(() => availability.sessionTypes.push(provider.supportsQuickChats)));
+					disposables.add(provider.onDidChangeCapabilities(() => availability.capabilities.push(provider.supportsQuickChats)));
 					await configurationService.setUserConfiguration(setting, disabledValue);
 					configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
 						affectsConfiguration: key => key === setting,
@@ -2818,7 +2822,10 @@ suite('CopilotChatSessionsProvider', () => {
 						affectsConfiguration: key => key === setting,
 					}));
 					assert.deepStrictEqual({ availability, provisionRequests, cloudSends }, {
-						availability: [true, false, true],
+						availability: {
+							sessionTypes: [true, false, true],
+							capabilities: [true, false, true],
+						},
 						provisionRequests: [],
 						cloudSends: [],
 					});
