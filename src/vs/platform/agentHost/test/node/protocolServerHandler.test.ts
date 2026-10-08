@@ -6380,6 +6380,24 @@ suite('ProtocolServerHandler', () => {
 			}, { clients: [clientId], statuses: [ToolCallStatus.Completed, ToolCallStatus.Completed], routing: [false, false] });
 		});
 
+		for (const initialSubscriptions of [undefined, []]) {
+			test(`grace-record initialization releases all routes with ${initialSubscriptions ? 'empty' : 'absent'} initial subscriptions`, async () => {
+				createSessionWithClientTools();
+				const unpublishedChat = buildChatUri(sessionUri, 'unpublished');
+				const previous = disposables.add(connectClient(clientId, [sessionUri, defaultChatUri, peerChatUri, unpublishedChat]));
+				await handler.whenIdle();
+				previous.simulateClose();
+				disposables.add(connectClient(clientId, initialSubscriptions));
+				await handler.whenIdle();
+
+				assert.deepStrictEqual({
+					clients: stateManager.getSessionState(sessionUri)?.activeClients.map(client => client.clientId),
+					statuses: toolStatuses(),
+					routing: [defaultChatUri, peerChatUri, unpublishedChat].map(chat => agentService.clientChatSubscriptions.filter(subscription => subscription.chat === chat).at(-1)?.subscribed),
+				}, { clients: [], statuses: [ToolCallStatus.Completed, ToolCallStatus.Completed], routing: [false, false, false] });
+			});
+		}
+
 		for (const retainedChannel of [ROOT_STATE_URI, sessionUri, defaultChatUri, peerChatUri]) {
 			test(`failed initialization releases restored chat routing with ${retainedChannel} retained on another connection`, async () => {
 				createSessionWithClientTools();

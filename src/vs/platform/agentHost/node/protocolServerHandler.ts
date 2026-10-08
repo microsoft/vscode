@@ -767,9 +767,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 						snapshots.push(snapshot);
 					}
 				}
-				if (previousRecord?.state === 'grace') {
-					this._reconcileActiveClientSubscriptions(client, true, previousRecord.chatSubscriptions);
-				}
+			}
+			if (previousRecord?.state === 'grace') {
+				this._reconcileActiveClientSubscriptions(client, true, previousRecord.chatSubscriptions);
 			}
 
 			client.telemetryConnectionActive = true;
