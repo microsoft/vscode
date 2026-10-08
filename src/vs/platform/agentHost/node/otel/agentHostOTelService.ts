@@ -29,7 +29,7 @@ import { OTelSqliteStore } from '../../../otel/node/sqlite/otelSqliteStore.js';
 import { AgentHostOTelSpansDbSubPath } from '../../common/agentService.js';
 import { AgentHostComparisonAttemptCountAttribute, AgentHostComparisonAttemptIndexAttribute, AgentHostComparisonIdAttribute, AgentHostComparisonRoleAttribute, AgentHostOTelServiceName, AgentHostOTelServiceNamespace, AgentHostSessionSpanName, AgentHostSessionTitleAttribute, AgentHostSessionTitleSpanName, AgentHostSessionUriAttribute, IAgentHostNativeOTelConfig, IAgentHostOTelService, IAgentHostTraceContext } from '../../common/otel/agentHostOTelService.js';
 import { IAgentSessionComparisonMetadata } from '../../common/state/sessionState.js';
-import { AgentHostFirstResponseSpanName, AgentHostTurnTimingSpanName, agentHostTimingAttributes, type IAgentHostFirstResponseDiagnostic, type IAgentHostTurnTimingDiagnostic } from '../../common/otel/agentHostTiming.js';
+import { AgentHostFirstResponseSpanName, AgentHostTurnTimingSpanName, AgentHostProviderTimingSpanName, agentHostTimingAttributes, type IAgentHostFirstResponseDiagnostic, type IAgentHostTurnTimingDiagnostic } from '../../common/otel/agentHostTiming.js';
 
 /** Sub-path under the user data directory where the span DB lives. */
 const SPANS_DB_SUBPATH = AgentHostOTelSpansDbSubPath;
@@ -320,11 +320,31 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 	}
 
 	emitTurnTiming(diagnostic: IAgentHostTurnTimingDiagnostic): void {
-		this._emitTimingDiagnostic(AgentHostTurnTimingSpanName, diagnostic, 'host');
+		if (!this.diagnosticsEnabled || this._store.isDisposed) {
+			return;
+		}
+		const turnSpan = this._createTimingDiagnostic(AgentHostTurnTimingSpanName, diagnostic, 'host');
+		if (!turnSpan) {
+			return;
+		}
+		const spans = [turnSpan];
+		for (const providerTiming of diagnostic.providerTimings ?? []) {
+			const span = this._createTimingDiagnostic(AgentHostProviderTimingSpanName, { ...diagnostic, providerTiming }, 'host');
+			if (span) {
+				spans.push(span);
+			}
+		}
+		this._queueSyntheticSpans(spans);
 	}
 
 	emitFirstResponse(diagnostic: IAgentHostFirstResponseDiagnostic): void {
-		this._emitTimingDiagnostic(AgentHostFirstResponseSpanName, diagnostic, 'renderer');
+		if (!this.diagnosticsEnabled || this._store.isDisposed) {
+			return;
+		}
+		const span = this._createTimingDiagnostic(AgentHostFirstResponseSpanName, diagnostic, 'renderer');
+		if (span) {
+			this._queueSyntheticSpan(span);
+		}
 	}
 
 	emitUserInteraction(timing: IChatUserInteractionTiming): void {
@@ -345,17 +365,14 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 		});
 	}
 
-	private _emitTimingDiagnostic(name: string, diagnostic: IAgentHostTurnTimingDiagnostic | IAgentHostFirstResponseDiagnostic, source: 'host' | 'renderer'): void {
-		if (!this.diagnosticsEnabled || this._store.isDisposed) {
-			return;
-		}
+	private _createTimingDiagnostic(name: string, diagnostic: IAgentHostTurnTimingDiagnostic | IAgentHostFirstResponseDiagnostic, source: 'host' | 'renderer'): ICompletedSpanData | undefined {
 		const attributes = agentHostTimingAttributes(diagnostic, source);
 		if (!attributes) {
 			this._logService.warn('[agentHost.otel] skipped timing diagnostic with invalid join identifiers');
 			return;
 		}
 		const now = Date.now();
-		this._queueSyntheticSpan({
+		return {
 			name,
 			traceId: generateUuid().replaceAll('-', ''),
 			spanId: generateUuid().replaceAll('-', '').slice(0, 16),
@@ -364,7 +381,7 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 			status: { code: SpanStatusCode.OK },
 			attributes: { ...this._hostResourceAttributes, ...attributes },
 			events: [],
-		});
+		};
 	}
 
 	async getSdkTelemetryConfig(): Promise<TelemetryConfig | undefined> {
@@ -615,12 +632,16 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 	}
 
 	private _queueSyntheticSpan(span: ICompletedSpanData): void {
+		this._queueSyntheticSpans([span]);
+	}
+
+	private _queueSyntheticSpans(spans: ICompletedSpanData[]): void {
 		this._metadataExportQueue = this._metadataExportQueue
-			.then(() => this._emitSyntheticSpan(span))
+			.then(() => this._emitSyntheticSpans(spans))
 			.catch(err => this._logService.warn('[agentHost.otel] failed to emit metadata span', err));
 	}
 
-	private async _emitSyntheticSpan(span: ICompletedSpanData): Promise<void> {
+	private async _emitSyntheticSpans(spans: ICompletedSpanData[]): Promise<void> {
 		if (this._store.isDisposed) {
 			return;
 		}
@@ -633,15 +654,17 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 			}
 		}
 
-		try {
-			this._spanStore?.insertSpan(span);
-		} catch (err) {
-			this._logService.warn('[agentHost.otel] failed to persist metadata span', err);
+		for (const span of spans) {
+			try {
+				this._spanStore?.insertSpan(span);
+			} catch (err) {
+				this._logService.warn('[agentHost.otel] failed to persist metadata span', err);
+			}
 		}
-		const result = { spans: [span], rejected: 0, errors: [] };
+		const result = { spans, rejected: 0, errors: [] };
 		this._forwarder?.forwardSpans?.(result);
 		if (this._canForwardSyntheticSpan()) {
-			this._forwarder?.forwardRaw?.(this._encodeOtlpSpan(span), 'application/json');
+			this._forwarder?.forwardRaw?.(this._encodeOtlpSpans(spans), 'application/json');
 		}
 	}
 
@@ -670,24 +693,15 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 			|| (this._config.exporterType === 'otlp-http' && this._config.otlpProtocol !== 'http/protobuf');
 	}
 
-	private _encodeOtlpSpan(span: ICompletedSpanData): Buffer {
+	private _encodeOtlpSpans(spans: readonly ICompletedSpanData[]): Buffer {
 		const resourceAttributeKeys = new Set(Object.keys(this._hostResourceAttributes));
-		const attributes = Object.entries(span.attributes)
-			.filter(([key]) => !resourceAttributeKeys.has(key) || key === GenAiAttr.CONVERSATION_ID || key.startsWith('vscode.agent_host.'))
-			.map(([key, value]) => ({
-				key,
-				value: typeof value === 'string' ? { stringValue: value }
-					: typeof value === 'number' ? { doubleValue: value }
-						: typeof value === 'boolean' ? { boolValue: value }
-							: { arrayValue: { values: value.map(item => ({ stringValue: item })) } },
-			}));
 		const resourceAttributes = Object.entries(this._hostResourceAttributes).map(([key, value]) => ({ key, value: { stringValue: value } }));
 		return Buffer.from(JSON.stringify({
 			resourceSpans: [{
 				...(resourceAttributes.length ? { resource: { attributes: resourceAttributes } } : {}),
 				scopeSpans: [{
 					scope: { name: this._config.sourceName ?? 'vscode.agent-host' },
-					spans: [{
+					spans: spans.map(span => ({
 						traceId: span.traceId,
 						spanId: span.spanId,
 						...(span.parentSpanId ? { parentSpanId: span.parentSpanId } : {}),
@@ -695,9 +709,17 @@ export class AgentHostOTelService extends Disposable implements IAgentHostOTelSe
 						kind: 1,
 						startTimeUnixNano: `${span.startTime}000000`,
 						endTimeUnixNano: `${span.endTime}000000`,
-						attributes,
+						attributes: Object.entries(span.attributes)
+							.filter(([key]) => !resourceAttributeKeys.has(key) || key === GenAiAttr.CONVERSATION_ID || key.startsWith('vscode.agent_host.'))
+							.map(([key, value]) => ({
+								key,
+								value: typeof value === 'string' ? { stringValue: value }
+									: typeof value === 'number' ? { doubleValue: value }
+										: typeof value === 'boolean' ? { boolValue: value }
+											: { arrayValue: { values: value.map(item => ({ stringValue: item })) } },
+							})),
 						status: { code: 1 },
-					}],
+					})),
 				}],
 			}],
 		}), 'utf8');
