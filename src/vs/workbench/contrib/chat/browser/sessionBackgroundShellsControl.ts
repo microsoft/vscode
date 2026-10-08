@@ -18,6 +18,7 @@ import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import type { IChatPillEntry, IChatPillSection } from '../../../browser/chatPills.js';
+import { createChatPillHoverElement } from '../../../browser/chatPillHover.js';
 import type { ChatBackgroundShellOutput, IChatBackgroundShell } from '../common/sessionChatPills.js';
 import { BackgroundShellOutputView } from './sessionBackgroundShellOutputView.js';
 import './media/sessionBackgroundShells.css';
@@ -175,7 +176,8 @@ export class SessionBackgroundShellsControl extends Disposable {
 				disposable: output ? content.releaseOutput : undefined,
 				expandable: true,
 				alignToParentBottom: true,
-				panelClassName: 'chat-pill-location-hover-panel',
+				panelClassName: 'chat-pill-hover-panel',
+				contentOwnsPadding: true,
 			},
 			open: () => { },
 		};
@@ -183,7 +185,7 @@ export class SessionBackgroundShellsControl extends Disposable {
 
 	private _createDetails(): IShellDetails {
 		const store = new DisposableStore();
-		const element = $('.chat-pill-location-hover');
+		const element = createChatPillHoverElement('chat-pill-location-hover', 'compact');
 		const title = append(element, $('.chat-background-shell-title'));
 		const summary = append(element, $('div'));
 		const commandRow = append(element, $('.chat-background-shell-command'));
