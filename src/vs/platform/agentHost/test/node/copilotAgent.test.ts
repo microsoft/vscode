@@ -951,6 +951,10 @@ class MockCopilotSession {
 		permissions: {
 			setMode: async ({ mode }: { mode: PermissionMode }) => ({ success: true, mode }),
 		},
+		plan: {
+			read: async (): Promise<Awaited<ReturnType<CopilotSession['rpc']['plan']['read']>>> => ({ exists: false, content: null, path: null }),
+			readSqlTodosWithDependencies: async (): Promise<Awaited<ReturnType<CopilotSession['rpc']['plan']['readSqlTodosWithDependencies']>>> => ({ rows: [], dependencies: [] }),
+		},
 		provider: {
 			sync: async ({ models }: { models?: readonly { provider: string; id: string }[] }) => {
 				this.registeredByokModels = new Set((models ?? []).map(m => `${m.provider}/${m.id}`));
@@ -15410,6 +15414,104 @@ suite('CopilotAgent', () => {
 					result: 'srv/tools/call',
 					staleRejected: true,
 				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('Copilot host plan reads preserve the wire shape and structured dependency edges', async () => {
+			const { agent, instantiationService } = createTestAgentContext(disposables, { sessionDataService: disposables.add(new TestSessionDataService()) });
+			const mockSession = new MockCopilotSession();
+			mockSession.rpc.plan.read = async () => ({ exists: true, content: '# Plan', path: '/plan.md' });
+			mockSession.rpc.plan.readSqlTodosWithDependencies = async () => ({
+				rows: [{ id: 'first', title: 'First', status: 'done', description: 'Prepare' }, { id: 'second' }],
+				dependencies: [{ todoId: 'second', dependsOn: 'first' }],
+			});
+			const created = createAgentSessionThroughAgent(agent, instantiationService, { mockSession });
+			try {
+				await created.session.initializeSession();
+				setLiveChatStub(agent, created.session.sessionId, created.session, created.session.chatChannelUri);
+				assert.deepStrictEqual(await agent.getSessionPlan(created.session.resourceUri), {
+					plan: { exists: true, content: '# Plan', path: '/plan.md' },
+					todos: [
+						{ id: 'first', title: 'First', status: 'done', description: 'Prepare' },
+						{ id: 'second', title: null, status: null, description: null },
+					],
+					dependencies: [{ todoId: 'second', dependsOn: 'first' }],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('Copilot host approval toggle applies the runtime mode before publishing the selection', async () => {
+			const { agent, instantiationService, configurationService, stateManager } = createTestAgentContext(disposables, { sessionDataService: disposables.add(new TestSessionDataService()) });
+			const mockSession = new MockCopilotSession();
+			const created = createAgentSessionThroughAgent(agent, instantiationService, { mockSession });
+			try {
+				const now = new Date().toISOString();
+				stateManager.createSession({ resource: created.session.resourceUri.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle, createdAt: now, modifiedAt: now });
+				stateManager.setSessionConfig(created.session.resourceUri.toString(), { schema: { type: 'object', properties: {} }, values: { autoApprove: 'default' } });
+				await created.session.initializeSession();
+				setLiveChatStub(agent, created.session.sessionId, created.session, created.session.chatChannelUri);
+				const calls: string[] = [];
+				mockSession.rpc.permissions.setMode = async ({ mode }) => { calls.push(mode); return { success: true, mode }; };
+				await agent.setSessionApproveAll(created.session.resourceUri, true);
+				const enabled = configurationService.getSessionConfigValues(created.session.resourceUri.toString())?.autoApprove;
+				await agent.setSessionApproveAll(created.session.resourceUri, false);
+				assert.deepStrictEqual({ calls, enabled, disabled: configurationService.getSessionConfigValues(created.session.resourceUri.toString())?.autoApprove }, {
+					calls: ['allow-all', 'manual'], enabled: 'autoApprove', disabled: 'default',
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('Copilot host approval refusal does not publish an unapplied allow-all selection', async () => {
+			const { agent, instantiationService, configurationService, stateManager } = createTestAgentContext(disposables, { sessionDataService: disposables.add(new TestSessionDataService()) });
+			const mockSession = new MockCopilotSession();
+			const created = createAgentSessionThroughAgent(agent, instantiationService, { mockSession });
+			try {
+				const now = new Date().toISOString();
+				stateManager.createSession({ resource: created.session.resourceUri.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle, createdAt: now, modifiedAt: now });
+				stateManager.setSessionConfig(created.session.resourceUri.toString(), { schema: { type: 'object', properties: {} }, values: { autoApprove: 'default' } });
+				await created.session.initializeSession();
+				setLiveChatStub(agent, created.session.sessionId, created.session, created.session.chatChannelUri);
+				configurationService.updateSessionConfig(created.session.resourceUri.toString(), { autoApprove: 'default' });
+				mockSession.rpc.permissions.setMode = async ({ mode }) => ({ success: false, mode });
+				await assert.rejects(agent.setSessionApproveAll(created.session.resourceUri, true), /SDK rejected permission mode/);
+				assert.strictEqual(configurationService.getSessionConfigValues(created.session.resourceUri.toString())?.autoApprove, 'default');
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('Copilot host approval toggles reject non-live runtimes without publishing a selection', async () => {
+			const { agent, configurationService, stateManager } = createTestAgentContext(disposables);
+			try {
+				const session = URI.parse('ahp-session:/deferred-copilot-session');
+				const now = new Date().toISOString();
+				stateManager.createSession({ resource: session.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle, createdAt: now, modifiedAt: now });
+				stateManager.setSessionConfig(session.toString(), { schema: { type: 'object', properties: {} }, values: { autoApprove: 'default' } });
+				const changes: Record<string, unknown>[] = [];
+				disposables.add(configurationService.onDidSessionConfigChange(event => changes.push(event.config)));
+				for (const enabled of [true, false]) {
+					await assert.rejects(agent.setSessionApproveAll(session, enabled), /requires a live Copilot session/);
+				}
+				assert.deepStrictEqual({ changes, selection: configurationService.getSessionConfigValues(session.toString())?.autoApprove }, {
+					changes: [], selection: 'default',
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('Copilot host approval toggle respects the host policy restriction', async () => {
+			const { agent, configurationService } = createTestAgentContext(disposables, { rootConfig: { [AgentHostAutoApprovePolicyRestrictedConfigKey]: true } });
+			try {
+				const session = URI.parse('ahp-session:/opaque-provider-session');
+				await assert.rejects(agent.setSessionApproveAll(session, true), /restricted by policy/);
+				assert.strictEqual(configurationService.getSessionConfigValues(session.toString())?.autoApprove, undefined);
 			} finally {
 				await disposeAgent(agent);
 			}
