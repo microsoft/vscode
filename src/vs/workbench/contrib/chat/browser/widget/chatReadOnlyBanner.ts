@@ -72,7 +72,7 @@ export class ChatReadOnlyBanner extends Disposable {
 		this.actionLink.link = { label: action?.label ?? '', href: '#', title: action?.tooltip };
 	}
 
-	private async runAction(): Promise<void> {
+	async runAction(): Promise<void> {
 		if (!this.action || this.running) {
 			return;
 		}
