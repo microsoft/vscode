@@ -15,20 +15,6 @@ const unclassifiedRestResource = '<unclassified-rest>';
 /** Interprets GitHub quota headers and GraphQL feedback using shared cooldown storage. */
 export class GitHubRateLimitCoordinator extends CooldownState {
 
-	/** Agents quotas are independent of REST/GraphQL; successful Retry-After responses can mean waking. */
-	updateFromAgentsResponse(account: RequestAccount, response: Response, responseBody?: string): void {
-		if (!classifyGitHubHttpRateLimit(response, responseBody)) {
-			return;
-		}
-		const now = this._scheduler.now();
-		const delay = (parseRetryAfter(response.headers.get('retry-after'), now, true) ?? 0) * 1000;
-		const key = this._key(account, 'agents');
-		this._states.set(key, {
-			blockedUntil: Math.max(this._states.get(key)?.blockedUntil ?? 0, now + (delay > 0 ? delay : unhintedRateLimitCooldown)),
-		});
-		this._onDidChange.fire();
-	}
-
 	/** Adds REST admission waits without changing the bucket-specific identity cooldown checks. */
 	getRequestDelay(account: RequestAccount, resource: string): number {
 		let delay = super.getDelay(account, resource);
@@ -89,6 +75,16 @@ export class GitHubRateLimitCoordinator extends CooldownState {
 				? Math.max(previousBlockedUntil, blockedUntil ?? 0) : blockedUntil,
 		});
 		this._onDidChange.fire();
+	}
+
+	/** Mission Control uses refusal/service hints, not GitHub REST counters or successful polling hints. */
+	updateFromAgentsResponse(account: RequestAccount, response: Response, responseBody?: string): void {
+		const retryAfter = parseRetryAfter(response.headers.get('retry-after'), this._scheduler.now(), true);
+		if (classifyGitHubHttpRateLimit(response, responseBody)) {
+			this.updateCooldown(account, 'agents', retryAfter !== undefined && retryAfter > 0 ? retryAfter * 1000 : unhintedRateLimitCooldown);
+		} else if (response.status >= 500 && retryAfter !== undefined) {
+			this.updateCooldown(account, 'agents', retryAfter * 1000);
+		}
 	}
 
 	updateFromGraphQL(account: RequestAccount, rateLimit: { readonly limit?: number; readonly remaining?: number; readonly used?: number; readonly resetAt?: string } | undefined): void {

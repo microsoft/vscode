@@ -9,13 +9,14 @@ import { hasKey } from '../../../base/common/types.js';
 import { ILogService } from '../../log/common/log.js';
 import { cancelResponseBody, parseResponseJson, readBoundedResponse } from './responseReader.js';
 import { IInFlightOperation, OperationWaiters } from './operationWaiters.js';
-import { GitHubGraphQLError, GitHubRequestError, GitHubRequestRateLimitError, GitHubRequestTimeoutError } from './githubTypes.js';
+import { GitHubGraphQLError, GitHubRequestError, GitHubRequestRateLimitError, GitHubRequestTimeoutError, GitHubResponseMetadata } from './githubTypes.js';
 import { AccountHandle, AnonymousAccount, BootstrapAccount, RequestFetch, RequestAccount, RequestContext, RequestErrorKind, RequestKind, RequestOptions, RequestPriority, RequestOutcome, requestOutcome, RequestError, RequestTimeoutError, RequestRateLimitError } from './types.js';
 import { classifyGitHubHttpRateLimit, getGitHubRestResource, GitHubRateLimitCoordinator } from './githubRateLimitCoordinator.js';
 import { GitHubRequestMetadata } from './githubRequestMetadata.js';
 import { RequestQueue, RequestQueueOptions } from './requestQueue.js';
 import { IRequestScheduler, schedulerDelay, systemRequestScheduler } from './scheduler.js';
 import { GitHubRequestTelemetry } from './githubRequestTelemetry.js';
+import { parseRetryAfter } from './httpHeaders.js';
 
 export type FetchFunction = RequestFetch;
 export { GitHubRequestError } from './githubTypes.js';
@@ -35,32 +36,36 @@ export interface GitHubRestRequest extends RequestOptions {
 	readonly url: string;
 	readonly body?: object;
 	readonly accept?: string;
+	/** Null omits the GitHub REST default for APIs with a different version contract. */
 	readonly apiVersion?: string | null;
-	readonly contentType?: 'application/json' | 'application/merge-patch+json';
-	readonly agents?: {
-		readonly integrationId: string;
-		/** Credential-minting GETs are writes, not cacheable or replayable reads. */
-		readonly credential?: boolean;
-		readonly responseBody?: 'none';
-		readonly onDispatch?: () => void;
-	};
+	readonly integrationId?: string;
+	/** Mission Control cooldowns are independent of GitHub REST quota buckets. */
+	readonly rateLimitResource?: 'agents';
 	readonly representationVersion?: number;
 	readonly etag?: boolean;
 	readonly unconditional?: boolean;
 	readonly priority?: RequestPriority;
+	readonly retry?: false;
+	readonly coalesce?: false;
+	readonly followRedirects?: false;
+	/** Discard successful acknowledgement bodies instead of parsing them as JSON. */
+	readonly responseBody?: 'none';
+	/** Physical dispatch evidence for unshared operations whose outcome may be uncertain. */
+	readonly onDidDispatch?: () => void;
 }
 
-export interface GitHubRestResponse<T> {
+export interface GitHubRestResponse<T> extends GitHubResponseMetadata {
 	readonly data: T | undefined;
 	readonly statusCode: number;
+	/** Original success status when a 304 revalidates a cached response. */
+	readonly revalidatedStatusCode?: number;
 	readonly etag?: string;
 	readonly finalUrl: string;
 	readonly link?: string;
-	readonly retryAfter?: string;
 	readonly observedAt: number;
 }
 
-export type GitHubAnonymousReadOptions = Omit<GitHubRestRequest, 'method' | 'url' | 'body' | 'agents' | 'contentType'>;
+export type GitHubAnonymousReadOptions = Omit<GitHubRestRequest, 'method' | 'url' | 'body'>;
 
 export interface GitHubBootstrapReadOptions extends GitHubAnonymousReadOptions {
 	/** Propagates a queued server cooldown to independently budgeted discovery waiters. */
@@ -93,6 +98,7 @@ interface IRestCacheEntry {
 	readonly accountKey: string;
 	readonly etag: string;
 	readonly body: string;
+	readonly statusCode: number;
 	readonly finalUrl: string;
 	readonly fetchedAt: number;
 	readonly link?: string;
@@ -175,9 +181,9 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 	private async _rest<T>(account: RequestAccount, token: string | undefined, request: GitHubRestRequest, signal: AbortSignal, anonymousApiBasePath?: string, onBlockedUntil?: (time: number) => void): Promise<GitHubRestResponse<T>> {
 		signal.throwIfAborted();
 		const deadline = this._deadline(request);
-		const finalUrl = request.agents ? request.url : this._redirects.get(request.url) ?? request.url;
+		const finalUrl = request.followRedirects === false ? request.url : this._redirects.get(request.url) ?? request.url;
 		const cacheKey = this._restCacheKey(account, request, finalUrl);
-		if (request.method !== 'GET' || request.agents?.credential) {
+		if (request.method !== 'GET' || request.coalesce === false || request.onDidDispatch) {
 			return this._executeRest<T>(account, token, request, signal, cacheKey, anonymousApiBasePath);
 		}
 
@@ -201,7 +207,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			this._inFlight.set(coalescingKey, shared);
 			const created = shared;
 			const updateCooldown = () => created.waiters.setBlockedUntil(this._queue.isPending(controller.signal)
-				? this._scheduler.now() + this._rateLimits.getRequestDelay(account, request.agents ? 'agents' : getGitHubRestResource(this._redirects.get(request.url) ?? request.url)) : 0);
+				? this._scheduler.now() + this._rateLimits.getRequestDelay(account, request.rateLimitResource ?? getGitHubRestResource(finalUrl)) : 0);
 			const cooldownListener = account.kind === 'bootstrap' ? this._rateLimits.onDidChange(updateCooldown) : undefined;
 			if (cooldownListener) {
 				updateCooldown();
@@ -588,12 +594,11 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 		anonymousApiBasePath?: string,
 		onAdmitted?: () => void,
 	): Promise<GitHubRestResponse<T>> {
-		const read = request.method === 'GET' && !request.agents?.credential;
-		const resource = request.agents ? 'agents' : getGitHubRestResource(this._redirects.get(request.url) ?? request.url);
-		const priority = request.priority ?? (read ? 'interactive' : 'mutation');
+		const priority = request.priority ?? (request.method === 'GET' ? 'interactive' : 'mutation');
 		const operation = `${request.method} ${formatRequestUrl(request.url)}`;
+		const resource = request.rateLimitResource ?? getGitHubRestResource(request.followRedirects === false ? request.url : this._redirects.get(request.url) ?? request.url);
 		return this._logRequest('REST', operation, account, priority, signal, () => this._enqueueWithRateLimit(account, resource, priority, signal, async (signal, onDispatch) => {
-			const cached = read && request.etag !== false && !request.unconditional ? this._restCache.get(cacheKey) : undefined;
+			const cached = request.etag !== false && !request.unconditional ? this._restCache.get(cacheKey) : undefined;
 			if (cached) {
 				this._logService?.trace(`[GitHubTransport] Using cached ETag for ${operation}`);
 			}
@@ -603,8 +608,8 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			if (request.apiVersion !== null) {
 				headers['X-GitHub-Api-Version'] = request.apiVersion ?? defaultApiVersion;
 			}
-			if (request.agents) {
-				headers['Copilot-Integration-Id'] = request.agents.integrationId;
+			if (request.integrationId !== undefined) {
+				headers['Copilot-Integration-Id'] = request.integrationId;
 			}
 			if (account.kind !== 'anonymous') {
 				headers['Authorization'] = `Bearer ${token}`;
@@ -613,32 +618,34 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 				headers['If-None-Match'] = cached.etag;
 			}
 			if (request.body !== undefined) {
-				headers['Content-Type'] = request.contentType ?? 'application/json';
+				headers['Content-Type'] = 'application/json';
 			}
-			const response = await this._fetchRestWithRedirects(account, request.url, {
+			const response = await this._fetchRestWithRedirects(account, request, {
 				method: request.method,
 				cache: 'no-store',
 				headers,
 				body: request.body === undefined ? undefined : JSON.stringify(request.body),
 				signal,
 				redirect: 'manual',
-				...(account.kind === 'anonymous' || account.kind === 'bootstrap' || request.agents ? { credentials: 'omit', referrerPolicy: 'no-referrer' } as const : {}),
-			}, read, request.caller, () => {
+				...(account.kind === 'anonymous' || account.kind === 'bootstrap' || request.rateLimitResource === 'agents' ? { credentials: 'omit', referrerPolicy: 'no-referrer' } as const : {}),
+			}, () => {
 				onDispatch();
-				request.agents?.onDispatch?.();
-			}, anonymousApiBasePath, request.agents !== undefined);
+				request.onDidDispatch?.();
+			}, anonymousApiBasePath);
 			this._logService?.trace(`[GitHubTransport] REST ${operation} returned HTTP ${response.status}`);
-			const finalUrl = response.url || (request.agents ? request.url : this._redirects.get(request.url)) || request.url;
-			let body = '';
-			if (request.agents && response.ok && (request.agents.responseBody === 'none' || request.agents.credential && response.status === 202)) {
+			const finalUrl = response.url || (request.followRedirects === false ? request.url : this._redirects.get(request.url) ?? request.url);
+			let body: string;
+			if (response.ok && request.responseBody === 'none') {
 				if (response.body) {
 					cancelResponseBody(response.body, this._logService);
 				}
+				body = '';
 			} else {
-				body = await this._readResponse(account, response, signal, request.agents ? resource : getGitHubRestResource(finalUrl));
+				body = await this._readResponse(account, response, signal, request.rateLimitResource ?? getGitHubRestResource(finalUrl));
 			}
 			signal.throwIfAborted();
-			this._logRateLimit(account, request.agents ? resource : response.headers.get('x-ratelimit-resource') ?? resource);
+			const metadata = this._responseMetadata(response);
+			this._logRateLimit(account, request.rateLimitResource ?? response.headers.get('x-ratelimit-resource') ?? resource);
 			if (response.status === 304) {
 				if (!cached) {
 					throw new GitHubRequestError('GitHub returned 304 without a cached representation', 'malformedResponse', 304);
@@ -659,8 +666,10 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 				});
 				this._logService?.trace(`[GitHubTransport] Reused cached representation for ${operation}`);
 				return {
+					...metadata,
 					data: this._parseJson<T>(cached.body, 'Cached GitHub response was not valid JSON'),
 					statusCode: 304,
+					revalidatedStatusCode: cached.statusCode,
 					etag: revalidatedEtag,
 					finalUrl: cached.finalUrl,
 					link: revalidatedLink,
@@ -668,9 +677,6 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 				};
 			}
 			if (!response.ok) {
-				if (request.agents) {
-					throw new GitHubRequestError(`GitHub cloud API request failed (HTTP ${response.status})`, classifyHttpError(response, body), response.status);
-				}
 				const requestUrl = new URL(request.url);
 				const route = `${requestUrl.pathname.replace(/^\//, '')}${requestUrl.search}`;
 				throw this._httpError(`GitHub API request failed: ${request.method} ${route}`, response, body);
@@ -678,12 +684,13 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			const responseEtag = response.headers.get('etag') ?? undefined;
 			const representationVersion = request.representationVersion ?? 1;
 			const finalCacheKey = this._restCacheKey(account, request, finalUrl);
-			if (read && request.etag !== false) {
-				if (responseEtag) {
+			if (request.method === 'GET' && request.etag !== false && request.responseBody !== 'none') {
+				if (responseEtag && !/\bno-store\b/i.test(response.headers.get('cache-control') ?? '')) {
 					const entry: IRestCacheEntry = {
 						accountKey: RequestQueue.accountKey(account),
 						etag: responseEtag,
 						body,
+						statusCode: response.status,
 						finalUrl,
 						fetchedAt: this._scheduler.now(),
 						link: response.headers.get('link') ?? undefined,
@@ -701,12 +708,12 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 				}
 			}
 			return {
+				...metadata,
 				data: body ? this._parseJson<T>(body, 'GitHub response was not valid JSON') : undefined,
 				statusCode: response.status,
 				etag: responseEtag,
 				finalUrl,
 				link: response.headers.get('link') ?? undefined,
-				retryAfter: response.headers.get('retry-after') ?? undefined,
 				observedAt: this._scheduler.now(),
 			};
 		}, request, 'rest', onAdmitted));
@@ -735,15 +742,13 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 		});
 	}
 
-	private async _fetchRestWithRedirects(account: RequestAccount, initialUrl: string, init: RequestInit & { signal: AbortSignal; headers: Record<string, string> }, retry: boolean, caller: string | undefined, onDispatch: () => void, anonymousApiBasePath?: string, agents = false): Promise<Response> {
-		let url = agents ? initialUrl : this._redirects.get(initialUrl) ?? initialUrl;
+	private async _fetchRestWithRedirects(account: RequestAccount, request: GitHubRestRequest, init: RequestInit & { signal: AbortSignal; headers: Record<string, string> }, onDispatch: () => void, anonymousApiBasePath?: string): Promise<Response> {
+		const initialUrl = request.url;
+		let url = request.followRedirects === false ? initialUrl : this._redirects.get(initialUrl) ?? initialUrl;
 		const initialOrigin = new URL(url).origin;
 		for (let redirectCount = 0; redirectCount <= maximumRedirects; redirectCount++) {
-			const response = await this._fetchWithRetry(account, agents ? 'agents' : getGitHubRestResource(url), url, init, retry, caller, onDispatch);
-			if (agents) {
-				return response;
-			}
-			if (![301, 302, 307, 308].includes(response.status)) {
+			const response = await this._fetchWithRetry(account, request.rateLimitResource ?? getGitHubRestResource(url), url, init, request.method === 'GET' && request.retry !== false, request.caller, onDispatch);
+			if (request.followRedirects === false || ![301, 302, 307, 308].includes(response.status)) {
 				if (url !== initialUrl) {
 					this._redirects.set(initialUrl, url);
 				}
@@ -778,7 +783,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 				throw account.kind === 'bootstrap' ? new GitHubRequestRateLimitError(cooldown)
 					: new GitHubRequestError('GitHub request is rate limited', 'rateLimit');
 			}
-			const headers = { ...init.headers, ...(resource === 'agents' ? undefined : this._options.requestMetadata?.getHeaders(url, caller, attempt > 0)) };
+			const headers = { ...init.headers, ...this._options.requestMetadata?.getHeaders(url, caller, attempt > 0) };
 			try {
 				onDispatch();
 				this._telemetry?.recordWireAttempt(attempt > 0, init.headers['If-None-Match'] !== undefined);
@@ -790,7 +795,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 					}
 					throw init.signal.reason;
 				}
-				this._updateRateLimits(account, response, undefined, resource);
+				this._updateRateLimits(account, response, resource);
 				if (retry && attempt === 0 && response.status >= 500 && this._rateLimits.getRequestDelay(account, resource) === 0) {
 					if (response.body) {
 						cancelResponseBody(response.body, this._logService);
@@ -811,7 +816,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 				}
 			}
 		}
-		throw new GitHubRequestError(resource === 'agents' ? 'GitHub cloud network request failed' : `GitHub network request failed: ${String(failure)}`, 'network');
+		throw new GitHubRequestError(`GitHub network request failed: ${String(failure)}`, 'network');
 	}
 
 	private async _readResponse(account: RequestAccount, response: Response, signal: AbortSignal, resource: string): Promise<string> {
@@ -821,14 +826,14 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 		if (response.status === 403 && classifyHttpError(response, body) === 'rateLimit') {
 			this._telemetry?.record('rateLimitedResponses');
 		}
-		this._updateRateLimits(account, response, body, resource);
+		this._updateRateLimits(account, response, resource, body);
 		if (result.truncated && response.ok) {
 			throw new GitHubRequestError('GitHub response exceeded its byte limit', 'responseTooLarge', response.status);
 		}
 		return body;
 	}
 
-	private _updateRateLimits(account: RequestAccount, response: Response, body: string | undefined, resource: string): void {
+	private _updateRateLimits(account: RequestAccount, response: Response, resource: string, body?: string): void {
 		if (resource === 'agents') {
 			this._rateLimits.updateFromAgentsResponse(account, response, body);
 		} else {
@@ -859,8 +864,10 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			url,
 			request.accept ?? 'application/vnd.github+json',
 			request.apiVersion === null ? '' : request.apiVersion ?? defaultApiVersion,
+			request.integrationId ?? '',
+			request.rateLimitResource ?? '',
+			request.responseBody ?? 'json',
 			request.representationVersion ?? 1,
-			request.agents?.integrationId ?? '',
 		].join('\x00');
 	}
 
@@ -869,6 +876,8 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			this._restCacheKey(account, request, url),
 			request.etag === false ? 'etag-disabled' : 'etag-enabled',
 			request.unconditional === true ? 'unconditional' : 'conditional',
+			request.retry === false ? 'no-retry' : 'retry',
+			request.followRedirects === false ? 'no-redirects' : 'redirects',
 		].join('\x00');
 	}
 
@@ -887,7 +896,15 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 	private _httpError(prefix: string, response: Response, body: string): GitHubRequestError {
 		const detail = formatErrorBody(body);
 		const message = `${prefix} - ${response.status} ${response.statusText}${detail ? ` - ${detail}` : ''}`;
-		return new GitHubRequestError(message, classifyHttpError(response, body), response.status, body, undefined, response.statusText);
+		return new GitHubRequestError(message, classifyHttpError(response, body), response.status, body, undefined, response.statusText, this._responseMetadata(response));
+	}
+
+	private _responseMetadata(response: Response): GitHubResponseMetadata {
+		return {
+			serverDate: response.headers.get('date') ?? undefined,
+			requestId: response.headers.get('x-github-request-id') ?? response.headers.get('x-request-id') ?? undefined,
+			retryAfterSeconds: parseRetryAfter(response.headers.get('retry-after'), this._scheduler.now(), true),
+		};
 	}
 
 	private _parseJson<T>(body: string, message: string): T {
