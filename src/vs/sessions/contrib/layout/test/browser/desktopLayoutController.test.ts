@@ -2617,6 +2617,47 @@ suite('DesktopLayoutController', () => {
 		});
 	});
 
+	test('[desktop] retains a registered live editor when a Details-only collapse hides the editor area', async () => {
+		createDesktopController({ activateAux: true });
+		await settle();
+
+		harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
+		await settle();
+
+		const liveResource = URI.parse('session-canvas:/live');
+		const liveEditor = store.add(new TestStubEditorInput(liveResource, { nonRestorable: true }));
+		store.add(harness.editorWorkingSetService.registerEditorToRetain(liveEditor));
+		harness.activeGroupEditors.splice(1, 0, liveEditor);
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: true });
+		await settle();
+
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		harness.partVisibility.set(Parts.EDITOR_PART, false);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: false });
+		await settle();
+		const retainedWhileHidden = harness.activeGroupEditors.includes(liveEditor);
+		const closedWhileHidden = harness.closedEditors.includes(liveEditor);
+
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: true });
+		await settle();
+
+		assert.deepStrictEqual({
+			retainedWhileHidden,
+			closedWhileHidden,
+			retainedAfterReveal: harness.activeGroupEditors.includes(liveEditor),
+			reopened: harness.openedEditors.some(editor => isResourceEditorInput(editor) && isEqual(editor.resource, liveResource)),
+			filesTabKept: hasFilesTab(),
+		}, {
+			retainedWhileHidden: true,
+			closedWhileHidden: false,
+			retainedAfterReveal: true,
+			reopened: false,
+			filesTabKept: true,
+		});
+	});
+
 	test('[desktop] does NOT close editors when the whole side pane is closed (editor + aux hidden)', async () => {
 		createDesktopController({ activateAux: true });
 		await settle();
