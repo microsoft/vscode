@@ -16,42 +16,6 @@ When a valid E2E scenario exposes a gap:
 
 Capability skips are tracked separately from suspected bugs. A provider that does not advertise a capability is expected to skip positive-path tests for that capability.
 
-### Published Copilot SDK does not yet prepare managed plugins for Agent Host sessions
-
-An organization administrator can require plugins through managed settings. Agent Host users should see strict and non-strict admission behavior, automatic installation and updates, failure warnings, retries, and withdrawal enforcement before the affected message runs. The published SDK currently resolves the policy but does not contact the configured marketplace or activate the required plugin, so those workflows cannot proceed.
-
-- Tests: the ten managed-policy cases in `Agent Host E2E — Copilot managed plugin lifecycle`.
-- Scope: `@github/copilot-sdk@1.0.18-preview.4` / runtime `1.0.94-4`, strict empty replay, all platforms.
-- Expected: strict policy waits for policy and required plugin preparation; non-strict policy lets unresolved work proceed but gates later messages on active preparation; installed plugins are reused; missing, partial, multi-plugin, update, failure/retry, and withdrawal scenarios preserve the requested lifecycle.
-- Observed: policy resolution completes, but the runtime makes no request to the test marketplace and `/env` reports no installed plugin.
-- Upstream: the core lifecycle merged in [github/copilot-agent-runtime#24246](https://github.com/github/copilot-agent-runtime/pull/24246). Structured progress is tracked by [github/copilot-agent-runtime#25300](https://github.com/github/copilot-agent-runtime/pull/25300).
-- Gate: each case uses a strict expected-failure marker that accepts only `Managed plugin lifecycle did not prepare the required plugin`. Setup, replay, transport, projection, scenario-specific assertion, cleanup, and unexpected-pass failures remain failures.
-- Reproduce:
-
-  ```bash
-  ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/providers/copilotManagedSettingsAgentHostE2E.integrationTest.ts \
-    --grep "Copilot managed plugin lifecycle"
-  ```
-
-### Published Copilot SDK does not auto-install trusted repository plugins
-
-A trusted repository can recommend a missing marketplace plugin in `.github/copilot/settings.json`. Agent Host should continue the first message without managed-policy warnings, install the plugin best-effort, and make it available to a later message.
-
-- Test: `trusted repository plugin installs best-effort without managed-policy activity`.
-- Scope: `@github/copilot-sdk@1.0.18-preview.4` / runtime `1.0.94-4`, strict empty replay, all platforms.
-- Expected: the trusted repository requirement installs without managed-policy admission or warning UI, and a later `/env` reports the plugin's skill.
-- Observed: messages continue, but the runtime makes no marketplace request and the plugin never becomes available.
-- Upstream: [github/copilot-agent-runtime#25331](https://github.com/github/copilot-agent-runtime/pull/25331).
-- Gate: a strict expected-failure marker accepts only `Repository plugin preparation did not install the configured plugin`. Setup, trust, replay, transport, managed-activity leakage, cleanup, and unexpected-pass failures remain failures.
-- Reproduce:
-
-  ```bash
-  ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/providers/copilotManagedSettingsAgentHostE2E.integrationTest.ts \
-    --grep "trusted repository plugin installs"
-  ```
-
 ### Copilot managed identity denial retains an inherited account resource attribute
 
 An administrator can disable identity capture while the runtime inherits an explicit `user.name` resource attribute. The native runtime removes `process.user.name` and `host.name`, but the inherited `user.name` still reaches the managed collector. This scenario concerns native Copilot export, not the separate Agent Host metadata pipeline.

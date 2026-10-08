@@ -6,7 +6,6 @@
 import assert from 'assert';
 import { mkdtempSync, readFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
-import { DeferredPromise } from '../../../../base/common/async.js';
 import { join } from '../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { CapiReplayProxy } from './e2e/harness/capiReplayProxy.js';
@@ -26,17 +25,9 @@ suite('CapiReplayProxy', () => {
 				try {
 					const url = await proxy.start();
 					const readPolicy = async () => (await fetch(`${url}/copilot_internal/managed_settings`)).json();
-					const requestStarted = new DeferredPromise<void>();
-					const releaseResponse = new DeferredPromise<void>();
-					proxy.setManagedSettings(policy, async () => {
-						requestStarted.complete();
-						await releaseResponse.p;
-					});
-					const pendingFirst = readPolicy();
-					await requestStarted.p;
+					proxy.setManagedSettings(policy);
+					const first = await readPolicy();
 					proxy.setManagedSettings({ telemetry: { enabled: false } });
-					releaseResponse.complete();
-					const first = await pendingFirst;
 					const second = await readPolicy();
 					assert.deepStrictEqual({ first, second, requests: proxy.managedSettingsRequestCount }, {
 						first: policy,

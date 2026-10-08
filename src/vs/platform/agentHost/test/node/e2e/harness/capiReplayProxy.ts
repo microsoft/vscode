@@ -271,7 +271,6 @@ export class CapiReplayProxy {
 	private _workingDirectory: string | undefined;
 	private _recordingModelResponse: { readonly response: ICapiReplayResponse; readonly path?: string } | undefined;
 	private _managedSettingsBody = '{}';
-	private _beforeManagedSettingsResponse: (() => Promise<void>) | undefined;
 	private _managedSettingsRequestCount = 0;
 
 	/**
@@ -392,14 +391,12 @@ export class CapiReplayProxy {
 		this._replayPluginDirectories.clear();
 		this._modelTurnCount = 0;
 		this._managedSettingsBody = '{}';
-		this._beforeManagedSettingsResponse = undefined;
 		this._managedSettingsRequestCount = 0;
 		this._loadFixture();
 	}
 
-	setManagedSettings(settings: Readonly<Record<string, unknown>>, beforeResponse?: () => Promise<void>): void {
+	setManagedSettings(settings: Readonly<Record<string, unknown>>): void {
 		this._managedSettingsBody = JSON.stringify(settings);
-		this._beforeManagedSettingsResponse = beforeResponse;
 	}
 
 	get managedSettingsRequestCount(): number {
@@ -497,15 +494,8 @@ export class CapiReplayProxy {
 			const body = Buffer.concat(chunks).toString('utf8');
 			if (req.method === 'GET' && new URL(req.url ?? '/', 'http://localhost').pathname === '/copilot_internal/managed_settings') {
 				this._managedSettingsRequestCount++;
-				const responseBody = this._managedSettingsBody;
-				const beforeResponse = this._beforeManagedSettingsResponse;
-				void (async () => {
-					await beforeResponse?.();
-					if (!res.destroyed) {
-						res.writeHead(200, { 'content-type': 'application/json' });
-						res.end(responseBody);
-					}
-				})().catch(error => this._fail(res, `managed settings response failed: ${error instanceof Error ? error.message : String(error)}`));
+				res.writeHead(200, { 'content-type': 'application/json' });
+				res.end(this._managedSettingsBody);
 				return;
 			}
 			if (this._isReplaying) {
