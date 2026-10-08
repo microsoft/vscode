@@ -108,6 +108,7 @@ export class ElectronServiceConfigurationProvider extends BaseServiceConfigurati
 	}
 
 	private validatePath(nodePath: string | null): string | null {
+		// eslint-disable-next-line local/code-no-sync-fs -- TODO: await executable validation before publishing configuration; synchronous consumers otherwise could launch the configured Node path before it is validated.
 		if (nodePath && (!fs.existsSync(nodePath) || fs.lstatSync(nodePath).isDirectory())) {
 			vscode.window.showWarningMessage(getSafeNotificationMessage(
 				vscode.l10n.t("The path {0} doesn\'t point to a valid Node installation to run TS Server. Falling back to bundled Node.", nodePath),
