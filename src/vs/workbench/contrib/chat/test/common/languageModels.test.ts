@@ -880,6 +880,92 @@ suite('LanguageModels - Model Change Events', function () {
 		assert.deepStrictEqual(changes, [{ vendor: 'test-vendor', models: [], groups: 0, resolved: false }]);
 	});
 
+	for (const outcome of ['resolve', 'reject']) {
+		test(`does not restore models when discovery ${outcome}s after provider disposal`, async function () {
+			const started = new DeferredPromise<void>();
+			const discovery = new DeferredPromise<ILanguageModelChatMetadataAndIdentifier[]>();
+			const registration = disposables.add(languageModelsService.registerLanguageModelProvider('test-vendor', {
+				onDidChange: Event.None,
+				provideLanguageModelChatInfo: () => {
+					started.complete();
+					return discovery.p;
+				},
+				sendChatRequest: async () => { throw new Error(); },
+				provideTokenCount: async () => 0
+			}));
+			const changes: string[] = [];
+			disposables.add(languageModelsService.onDidChangeLanguageModels(vendor => changes.push(vendor)));
+			const resolution = languageModelsService.selectLanguageModels({ vendor: 'test-vendor' });
+			await started.p;
+			registration.dispose();
+			if (outcome === 'resolve') {
+				await discovery.complete([{
+					identifier: 'test-vendor/model',
+					metadata: {
+						extension: nullExtensionDescription.identifier,
+						name: 'Model', vendor: 'test-vendor', family: 'family', version: '1', id: 'model',
+						maxInputTokens: 100, maxOutputTokens: 100, isDefaultForLocation: {}
+					}
+				}]);
+			} else {
+				await discovery.error(new Error('Discovery failed'));
+			}
+
+			assert.deepStrictEqual({
+				selected: await resolution,
+				models: languageModelsService.getLanguageModelIds(),
+				groups: languageModelsService.getLanguageModelGroups('test-vendor'),
+				resolved: languageModelsService.hasResolvedVendor('test-vendor'),
+				changes
+			}, { selected: [], models: [], groups: [], resolved: false, changes: ['test-vendor'] });
+		});
+	}
+
+	test('ignores pending and queued discovery from a replaced provider', async function () {
+		const started = new DeferredPromise<void>();
+		const discovery = new DeferredPromise<ILanguageModelChatMetadataAndIdentifier[]>();
+		const models: ILanguageModelChatMetadataAndIdentifier[] = [{
+			identifier: 'test-vendor/model',
+			metadata: {
+				extension: nullExtensionDescription.identifier,
+				name: 'Model', vendor: 'test-vendor', family: 'family', version: '1', id: 'model',
+				maxInputTokens: 100, maxOutputTokens: 100, isDefaultForLocation: {}
+			}
+		}];
+		let oldProviderCalls = 0;
+		const registration = disposables.add(languageModelsService.registerLanguageModelProvider('test-vendor', {
+			onDidChange: Event.None,
+			provideLanguageModelChatInfo: () => {
+				oldProviderCalls++;
+				started.complete();
+				return discovery.p;
+			},
+			sendChatRequest: async () => { throw new Error(); },
+			provideTokenCount: async () => 0
+		}));
+		const changes: string[][] = [];
+		disposables.add(languageModelsService.onDidChangeLanguageModels(() => changes.push(languageModelsService.getLanguageModelIds())));
+		const pendingResolution = languageModelsService.selectLanguageModels({ vendor: 'test-vendor' });
+		await started.p;
+		const queuedResolution = languageModelsService.selectLanguageModels({ vendor: 'test-vendor' });
+		registration.dispose();
+		disposables.add(languageModelsService.registerLanguageModelProvider('test-vendor', {
+			onDidChange: Event.None,
+			provideLanguageModelChatInfo: async () => models,
+			sendChatRequest: async () => { throw new Error(); },
+			provideTokenCount: async () => 0
+		}));
+		const replacementResolution = languageModelsService.selectLanguageModels({ vendor: 'test-vendor' });
+		await discovery.complete(models.map(model => ({ ...model, identifier: 'test-vendor/stale-model' })));
+		await Promise.all([pendingResolution, queuedResolution, replacementResolution]);
+
+		assert.deepStrictEqual({ oldProviderCalls, changes, models: languageModelsService.getLanguageModelIds() }, {
+			oldProviderCalls: 1,
+			changes: [[], ['test-vendor/model']],
+			models: ['test-vendor/model']
+		});
+	});
+
 	test('provider disposal preserves other models and only notifies once', async function () {
 		languageModelsService.deltaLanguageModelChatProviderDescriptors([
 			{ vendor: 'other-vendor', displayName: 'Other Vendor', configuration: undefined, managementCommand: undefined, when: undefined }

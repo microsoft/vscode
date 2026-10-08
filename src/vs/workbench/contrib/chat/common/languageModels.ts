@@ -1305,6 +1305,9 @@ export class LanguageModelsService implements ILanguageModelsService {
 		}
 
 		return this._resolveLMSequencer.queue(vendorId, async () => {
+			if (this._providers.get(vendorId) !== provider) {
+				return;
+			}
 
 			const allModels: ILanguageModelChatMetadataAndIdentifier[] = [];
 			const languageModelsGroups: ILanguageModelsGroup[] = [];
@@ -1403,6 +1406,10 @@ export class LanguageModelsService implements ILanguageModelsService {
 						}
 					});
 				}
+			}
+
+			if (this._providers.get(vendorId) !== provider) {
+				return;
 			}
 
 			const wasResolved = this._modelsGroups.has(vendorId);
