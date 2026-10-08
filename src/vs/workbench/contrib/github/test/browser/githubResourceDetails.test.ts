@@ -24,10 +24,37 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IWorkbenchGitHubService } from '../../../../services/github/common/githubService.js';
 import { getChatPillLocationHover } from '../../../../browser/chatPills.js';
 import { createGitHubResourceDetailsHover, getGitHubResourceDetailsPresentation, GitHubResourceDetailsResolver, parseGitHubReferenceTarget } from '../../browser/githubResourceDetails.js';
-import { createIssueResourceHover, IGitHubIssueHoverModel, IGitHubPullRequestHoverModel } from '../../browser/githubResourceHover.js';
+import { createIssueResourceHover, createPullRequestResourceHover, IGitHubIssueHoverModel, IGitHubPullRequestHoverModel } from '../../browser/githubResourceHover.js';
 
 suite('GitHubResourceDetails', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('declares one polite atomic status region for issue and pull request cards', () => {
+		const common = {
+			owner: 'microsoft', repo: 'vscode', number: 1, density: 'compact' as const,
+			repositoryHref: 'https://github.com/microsoft/vscode',
+			referenceHref: 'https://github.com/microsoft/vscode/issues/1',
+		};
+		const issue = createIssueResourceHover({
+			...common, issue: {
+				title: 'Issue', body: '', state: 'open', author: { login: 'author' },
+			}
+		});
+		const pullRequest = createPullRequestResourceHover({
+			...common, pullRequest: {
+				title: 'Pull request', body: '', state: 'open', isDraft: false,
+				headRef: 'feature', baseRef: 'main', author: { login: 'author' },
+			}
+		});
+		assert.deepStrictEqual([issue, pullRequest].map(hover => ({
+			live: hover.statusRow?.getAttribute('aria-live'),
+			atomic: hover.statusRow?.getAttribute('aria-atomic'),
+			liveRegionCount: hover.element.querySelectorAll('[aria-live]').length,
+			refreshIsNestedLiveRegion: hover.refreshStatus?.hasAttribute('aria-live'),
+		})), Array.from({ length: 2 }, () => ({
+			live: 'polite', atomic: 'true', liveRegionCount: 1, refreshIsNestedLiveRegion: false,
+		})));
+	});
 
 	for (const density of ['default', 'compact'] as const) {
 		test(`keeps short text previews content-sized and ${density} GitHub cards bounded`, () => {

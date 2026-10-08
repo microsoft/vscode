@@ -189,7 +189,7 @@ class CachedChatPillHover {
 	private _updateLiveElements(view: { liveElements?: readonly HTMLElement[] }, content: IChatPillHoverContent): void {
 		for (const [index, element] of (view.liveElements ?? []).entries()) {
 			const refreshedElement = content.liveElements?.[index];
-			if (refreshedElement) {
+			if (refreshedElement && !element.isEqualNode(refreshedElement)) {
 				element.replaceChildren(...refreshedElement.childNodes);
 			}
 		}

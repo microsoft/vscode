@@ -542,7 +542,6 @@ function createResolvedHover(options: IGitHubResourceDetailsHoverOptions, densit
 
 function appendRefreshStatus(hover: IGitHubResourceHover, message: string): void {
 	if (hover.statusRow && hover.refreshStatus) {
-		hover.statusRow.setAttribute('aria-live', 'polite');
 		hover.refreshStatus.hidden = false;
 		hover.refreshStatus.textContent = message;
 	}

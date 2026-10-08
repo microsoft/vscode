@@ -108,6 +108,8 @@ export function createIssueResourceHover(data: IIssueResourceHoverData): IGitHub
 	titleElement.title = title;
 
 	const statusRow = append(hoverElement, $('.sessions-issue-hover-status-row'));
+	statusRow.setAttribute('aria-live', 'polite');
+	statusRow.setAttribute('aria-atomic', 'true');
 	const status = getIssueResourceStatus(data.issue);
 	const statusElement = append(statusRow, $('span.sessions-issue-hover-status'));
 	statusElement.dataset.state = status.kind;
@@ -146,6 +148,8 @@ export function createPullRequestResourceHover(data: IPullRequestResourceHoverDa
 	titleElement.title = title;
 
 	const statusRow = append(hoverElement, $('.sessions-pr-hover-status-row'));
+	statusRow.setAttribute('aria-live', 'polite');
+	statusRow.setAttribute('aria-atomic', 'true');
 	const status = getPullRequestResourceStatus(data.pullRequest);
 	const statusElement = append(statusRow, $('span.sessions-pr-hover-status'));
 	statusElement.dataset.state = status.kind;

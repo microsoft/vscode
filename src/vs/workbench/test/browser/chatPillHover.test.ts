@@ -60,10 +60,13 @@ suite('ChatPillHover', () => {
 			const statusRow = element.querySelector('.status');
 			button.focus();
 			const updated = cache.get('owner/repo/1', { ...entry, label: 'Renamed' }, () => content('Renamed', 'Closed'));
+			const liveContent = statusRow?.firstChild;
+			cache.get('owner/repo/1', { ...entry, label: 'Renamed' }, () => content('Renamed', 'Closed'));
 			const whileOpen = {
 				sameElement: element === await render(updated, density),
 				sameControl: element.querySelector('button') === button,
 				sameStatusRow: element.querySelector('.status') === statusRow,
+				unchangedStatusPreserved: statusRow?.firstChild === liveContent,
 				focusPreserved: mainWindow.document.activeElement === button,
 				title: element.querySelector('.title')?.textContent,
 				status: statusRow?.textContent,
@@ -71,7 +74,7 @@ suite('ChatPillHover', () => {
 			element.remove();
 			const reopened = await render(updated, density);
 			assert.deepStrictEqual({ whileOpen, reopenedTitle: reopened.querySelector('.title')?.textContent, reopenedStatus: reopened.querySelector('.status')?.textContent }, {
-				whileOpen: { sameElement: true, sameControl: true, sameStatusRow: true, focusPreserved: true, title: 'Original', status: 'Closed' },
+				whileOpen: { sameElement: true, sameControl: true, sameStatusRow: true, unchangedStatusPreserved: true, focusPreserved: true, title: 'Original', status: 'Closed' },
 				reopenedTitle: 'Renamed', reopenedStatus: 'Closed',
 			});
 		});
