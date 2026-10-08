@@ -64,8 +64,15 @@ suite('Markdown editor image paste', () => {
 
 	test('increments collisions without overwriting and supports multiple images of one MIME type', async () => {
 		await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(root, 'image.png'), new Uint8Array([1, 2, 3]));
-		await paste.paste({ ...request(), images: [image, image] });
-		assert.strictEqual(document.getText(), '# Title\r\n\r\n![alt text](image-1.png) ![alt text](image-2.png)');
+		await paste.paste({ ...request(), images: [image, { ...image, base64: 'BAUG' }] });
+		const links = Array.from(document.getText().matchAll(/!\[alt text\]\(([^)]+)\)/g), match => match[1]);
+		assert.deepStrictEqual([...links].sort(), ['image-1.png', 'image-2.png']);
+		assert.strictEqual(document.getText(), `# Title\r\n\r\n![alt text](${links[0]}) ![alt text](${links[1]})`);
+		assert.deepStrictEqual(await Promise.all(links.map(async name =>
+			Uint8Array.from(await vscode.workspace.fs.readFile(vscode.Uri.joinPath(root, name))))), [
+			Uint8Array.from(atob(base64), c => c.charCodeAt(0)),
+			new Uint8Array([4, 5, 6]),
+		]);
 		assert.deepStrictEqual(Uint8Array.from(await vscode.workspace.fs.readFile(vscode.Uri.joinPath(root, 'image.png'))), new Uint8Array([1, 2, 3]));
 	});
 

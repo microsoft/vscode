@@ -370,7 +370,7 @@
 		"$generated": true
 	},
 	"markdown.editor.toggleLocked.title": {
-		"message": "Toggle Editing/Locked Mode",
+		"message": "Toggle Markdown Read-only",
 		"comment": [
 			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
 		],
