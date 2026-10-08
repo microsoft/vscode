@@ -21,6 +21,7 @@ import { IExtensionsWorkbenchService } from '../../../extensions/common/extensio
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
 import { ChatConfiguration } from '../../common/constants.js';
+import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { IAgentPluginRepositoryService } from '../../common/plugins/agentPluginRepositoryService.js';
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
 import { type IMarketplaceReference, MarketplaceReferenceKind, parseMarketplaceReference, parseMarketplaceReferences, readConfiguredMarketplaces } from '../../common/plugins/pluginMarketplaceService.js';
@@ -223,6 +224,7 @@ export class ManagePluginMarketplacesAction extends Action2 {
 		const commandService = accessor.get(ICommandService);
 		const fileService = accessor.get(IFileService);
 		const notificationService = accessor.get(INotificationService);
+		const customizationHarnessService = accessor.get(ICustomizationHarnessService);
 
 		while (true) {
 			const { extraValues, effectiveValues } = readConfiguredMarketplaces(configurationService);
@@ -306,15 +308,17 @@ export class ManagePluginMarketplacesAction extends Action2 {
 				return;
 			}
 			switch (action.id) {
-				case 'showPlugins':
+				case 'showPlugins': {
+					const githubFeedAvailable = !!customizationHarnessService.getActiveDescriptor().marketplaceSearchProvider;
 					await commandService.executeCommand(
 						AICustomizationManagementCommands.OpenMarketplace,
 						{
 							section: AICustomizationManagementSection.Plugins,
-							sourceId: getPluginCustomizationMarketplaceNavigationSourceId(configurationService, ref),
+							sourceId: getPluginCustomizationMarketplaceNavigationSourceId(configurationService, ref, githubFeedAvailable),
 						},
 					);
 					return;
+				}
 				case 'openDirectory':
 					await commandService.executeCommand('revealFileInOS', repoUri);
 					return;
