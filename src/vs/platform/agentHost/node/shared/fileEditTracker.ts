@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isThenable } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../files/common/files.js';
@@ -111,7 +112,7 @@ export class FileEditTracker {
 	 * for region-based survival scoring; unknown shapes fall back to
 	 * whole-file scoring.
 	 */
-	async takeCompletedEdit(turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown, modelId: string | undefined, clientContext?: IAgentHostClientTelemetryContext, chatUri?: string, autoTier?: AutoModeRoutingTier): Promise<ToolResultFileEditContent | undefined> {
+	async takeCompletedEdit(turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown, modelId: string | undefined, clientContext?: IAgentHostClientTelemetryContext, chatUri?: string, autoTierSnapshot?: AutoModeRoutingTier | Promise<AutoModeRoutingTier | undefined>): Promise<ToolResultFileEditContent | undefined> {
 		const edit = this._completedEdits.get(filePath);
 		if (!edit) {
 			return undefined;
@@ -156,6 +157,9 @@ export class FileEditTracker {
 		} catch (err) {
 			this._logService.warn(`[FileEditTracker] Failed to persist file edit to database: ${filePath}`, err);
 		}
+
+		// Resolved only after the edit is claimed so a pending tier read cannot let a later edit overwrite this snapshot.
+		const autoTier = isThenable<AutoModeRoutingTier | undefined>(autoTierSnapshot) ? await autoTierSnapshot : autoTierSnapshot;
 
 		this._editSurvivalReporterFactory.launch({
 			clientContext,

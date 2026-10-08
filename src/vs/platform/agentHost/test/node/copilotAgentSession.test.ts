@@ -16,7 +16,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { join, sep } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -68,6 +68,9 @@ import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from '../..
 import { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import { buildMcpChannel } from '../../node/shared/mcpCustomizationController.js';
 import type { FileEditTracker } from '../../node/shared/fileEditTracker.js';
+import { IEditArcReporterService, NullEditArcReporterService } from '../../node/shared/editArcReporter.js';
+import { IEditSurvivalReporterFactory } from '../../node/shared/editSurvivalReporter.js';
+import { IAgentEditAttribution, IAgentEditAttributionService, NullAgentEditAttributionService } from '../../common/fileEditAttribution.js';
 import { buildSandboxConfigForSdk, type SandboxConfig } from '../../node/copilot/sandboxConfigForSdk.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
@@ -1079,6 +1082,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	/** Values visible only through `getEffectiveValue`, as if inherited from root or a parent session. */
 	inheritedConfigValues?: Record<string, unknown>;
 	sessionDatabase?: ISessionDatabase;
+	editServices?: { readonly attribution: IAgentEditAttributionService; readonly survival: IEditSurvivalReporterFactory };
 	/** Configure the mock session before {@link CopilotAgentSession.initializeSession} runs. */
 	configureMockSession?: (session: MockCopilotSession) => void;
 	getUserMcpServerNames?: () => Promise<ReadonlySet<string>>;
@@ -1401,6 +1405,11 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	}
 	const terminalManager = disposables.add(new TestAgentHostTerminalManager());
 	services.set(IAgentHostTerminalManager, terminalManager);
+	if (options?.editServices) {
+		services.set(IAgentEditAttributionService, options.editServices.attribution);
+		services.set(IEditSurvivalReporterFactory, options.editServices.survival);
+		services.set(IEditArcReporterService, new NullEditArcReporterService());
+	}
 	const instantiationService = disposables.add(new InstantiationService(services));
 
 	const session = disposables.add(instantiationService.createInstance(
@@ -14141,7 +14150,7 @@ Use the attached image as context.
 			const sessionInternals = session as unknown as ISessionInternalsForTest;
 			const taken: { toolCallId: string; autoTier: string | undefined }[] = [];
 			sessionInternals._editTracker.takeCompletedEdit = async (_turnId, toolCallId, _path, _toolName, _toolInput, _modelId, _clientContext, _chat, autoTier) => {
-				taken.push({ toolCallId, autoTier });
+				taken.push({ toolCallId, autoTier: await autoTier });
 				return undefined;
 			};
 			const edit = async (toolCallId: string, agentId?: string) => {
@@ -14196,7 +14205,7 @@ Use the attached image as context.
 			const sessionInternals = session as unknown as ISessionInternalsForTest;
 			const taken: { toolCallId: string; autoTier: string | undefined }[] = [];
 			sessionInternals._editTracker.takeCompletedEdit = async (_turnId, toolCallId, _path, _toolName, _toolInput, _modelId, _clientContext, _chat, autoTier) => {
-				taken.push({ toolCallId, autoTier });
+				taken.push({ toolCallId, autoTier: await autoTier });
 				return undefined;
 			};
 			const start = (toolCallId: string, agentId?: string) => mockSession.fire('tool.execution_start', {
@@ -14302,6 +14311,68 @@ Use the attached image as context.
 				}
 				return { ...result, sessionDatabase, writes };
 			}
+
+			test('claims same-file edits before a pending Auto tier read resolves', async () => {
+				const sessionDatabase = new TestSessionDatabase();
+				const tierRead = new DeferredPromise<void>();
+				const capturedRuntime: { current?: ICopilotSessionRuntime } = {};
+				const recorded: { toolCallId: string; autoTier: string | undefined }[] = [];
+				const surveyed: { toolCallId: string; autoTier: string | undefined }[] = [];
+				const { session, mockSession, waitForSignal } = await createAgentSession(disposables, {
+					sessionDatabase,
+					captureRuntime: capturedRuntime,
+					editServices: {
+						attribution: new class extends NullAgentEditAttributionService {
+							override async recordEdit(edit: IAgentEditAttribution) {
+								recorded.push({ toolCallId: edit.toolCallId, autoTier: edit.autoTier });
+								return undefined;
+							}
+						}(),
+						survival: {
+							_serviceBrand: undefined,
+							launch: params => {
+								surveyed.push({ toolCallId: params.toolCallId, autoTier: params.autoTier });
+								return Disposable.None;
+							},
+						},
+					},
+					configureMockSession: mockSession => {
+						mockSession.currentModel = { modelId: 'auto', autoTier: 'balance' };
+						mockSession.currentModelGate = tierRead.p;
+					},
+				});
+				session.resetTurnState('turn-edit');
+				mockSession.fire('user.message', { content: 'Edit the file twice' });
+				const completions: Promise<AgentSignal>[] = [];
+				for (const toolCallId of ['0', '1']) {
+					const hook = {
+						sessionId: 'test-session-1',
+						timestamp: new Date(0),
+						workingDirectory: '/repo',
+						toolName: 'edit',
+						toolArgs: { path: '/repo/file.txt', old_str: 'before', new_str: `after-${toolCallId}` },
+					};
+					await capturedRuntime.current!.handlePreToolUse(hook);
+					await capturedRuntime.current!.handlePostToolUse({ ...hook, toolResult: { textResultForLlm: '', resultType: 'success' } });
+					mockSession.fire('tool.execution_start', { toolCallId, toolName: hook.toolName, arguments: hook.toolArgs });
+					completions.push(waitForSignal(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallComplete && signal.action.toolCallId === toolCallId));
+					mockSession.fire('tool.execution_complete', { toolCallId, success: true });
+				}
+				await tierRead.complete();
+				await Promise.all(completions);
+
+				const byToolCall = (a: { toolCallId: string }, b: { toolCallId: string }) => a.toolCallId.localeCompare(b.toolCallId);
+				const bothBalance = [{ toolCallId: '0', autoTier: 'balance' }, { toolCallId: '1', autoTier: 'balance' }];
+				assert.deepStrictEqual({
+					persisted: (await sessionDatabase.getAllFileEdits()).map(edit => edit.toolCallId).toSorted(),
+					recorded: recorded.toSorted(byToolCall),
+					surveyed: surveyed.toSorted(byToolCall),
+				}, {
+					persisted: ['0', '1'],
+					recorded: bothBalance,
+					surveyed: bothBalance,
+				});
+			});
 
 			test('idle drains every pending edit before completing the original turn', async () => {
 				const { session, mockSession, signals, waitForSignal, sessionDatabase, writes } = await startEdits(2);

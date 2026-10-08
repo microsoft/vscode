@@ -9,7 +9,7 @@ import { attributePermissionResult, isPermissionDeniedKind, permissionResultToCo
 import { realpath as fsRealpath } from 'fs';
 import { cp, rm } from 'fs/promises';
 import { promisify } from 'util';
-import { DeferredPromise, firstParallel, isThenable, raceCancellation, raceCancellationError, raceTimeout, RunOnceScheduler, Sequencer, SequencerByKey, Throttler, timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, firstParallel, raceCancellation, raceCancellationError, raceTimeout, RunOnceScheduler, Sequencer, SequencerByKey, Throttler, timeout } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -7205,13 +7205,12 @@ export class CopilotAgentSession extends Disposable {
 						outputDatabase.dispose();
 					}
 				}
-				const autoTier = isThenable<AutoModeRoutingTier | undefined>(tracked.autoTier) ? await tracked.autoTier : tracked.autoTier;
 				for (const filePath of filePaths) {
 					if (!isCurrent()) {
 						return;
 					}
 					try {
-						const fileEdit = await this._editTracker.takeCompletedEdit(turnId, e.data.toolCallId, filePath, tracked.toolName, tracked.parameters, modelId, turn?.clientContext, chatUri, autoTier);
+						const fileEdit = await this._editTracker.takeCompletedEdit(turnId, e.data.toolCallId, filePath, tracked.toolName, tracked.parameters, modelId, turn?.clientContext, chatUri, tracked.autoTier);
 						if (fileEdit) {
 							content.push(fileEdit);
 						}
