@@ -75,6 +75,7 @@ import {
 import { skillIcon } from './aiCustomizationIcons.js';
 import { ChatModelsWidget } from '../chatManagement/chatModelsWidget.js';
 import { IChatWidgetService } from '../chat.js';
+import { AgentSessionProviders } from '../agentSessions/agentSessions.js';
 import { PromptsType, Target } from '../../common/promptSyntax/promptTypes.js';
 import { CustomizationMigration, CustomizationMigrationCandidate, CustomizationMigrationType, FileCustomizationMigrationFailureReason, getCustomizationMigrationTargetType, getMcpServerCustomizationMigrationCandidateKey, ICustomizationMigrationService, IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationExclusion, IMcpServerCustomizationMigrationResult, isMcpServerCustomizationMigrationCandidate, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import { ICustomizationMigrationTelemetryService } from '../../common/promptSyntax/service/customizationMigrationTelemetryService.js';
@@ -999,6 +1000,20 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.welcomePage.rebuildCards(new Set(this.sections.map(s => s.id)));
 		this.welcomePage.setMigrationCategories(this.getMigrationCategorySummaries());
 		this.updateHomeButtonHarnessPresentation();
+	}
+
+	private async runMarketplacePrompt(prompt: string): Promise<void> {
+		if (this.workspaceService.isSessionsWindow) {
+			await this.commandService.executeCommand('workbench.action.sessions.newChat', { prompt, prefillPrompt: true, noWorkspace: true });
+			return;
+		}
+		const sessionResource = await this.commandService.executeCommand<URI | undefined>(`workbench.action.chat.openNewSessionSidebar.${AgentSessionProviders.AgentHostCopilot}`);
+		const widget = sessionResource ? this.chatWidgetService.getWidgetBySessionResource(sessionResource) : undefined;
+		if (!widget) {
+			throw new Error(localize('marketplaceDetail.chatUnavailable', "The new Copilot session input is unavailable."));
+		}
+		widget.setInput(prompt);
+		widget.focusInput();
 	}
 
 	private createBackArrowButton(
@@ -4653,6 +4668,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.embeddedMarketplaceDetail = this.editorDisposables.add(this.instantiationService.createInstance(EmbeddedMarketplaceDetail, detailBody, {
 			getSourceLabel: sourceId => this.marketplaceService.sources.find(source => source.id === sourceId)?.displayName ?? sourceId,
 			install: resource => this.marketplaceInstallService.install(resource),
+			runPrompt: prompt => this.runMarketplacePrompt(prompt),
 			openExternal: resource => this.openMarketplaceExternal(resource),
 		}));
 		const resizeObserver = this.editorDisposables.add(new DOM.DisposableResizeObserver(
