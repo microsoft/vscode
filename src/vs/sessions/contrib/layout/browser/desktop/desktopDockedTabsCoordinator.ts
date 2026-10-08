@@ -15,6 +15,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { EditorActivation, IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ISessionEditorWorkingSetService } from '../../common/sessionEditorWorkingSet.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { EditorResourceAccessor, IUntypedEditorInput, SideBySideEditor } from '../../../../../workbench/common/editor.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
@@ -133,6 +134,7 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 		@IChangesViewService private readonly _changesViewService: IChangesViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ISessionEditorWorkingSetService private readonly _editorWorkingSetService: ISessionEditorWorkingSetService,
 	) {
 		super();
 
@@ -611,6 +613,9 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 		const toClose: EditorInput[] = [];
 		group.editors.forEach((editor, index) => {
 			if (editor instanceof DockedEditorInput || this.getChangesEditorResource(editor)) {
+				return;
+			}
+			if (this._editorWorkingSetService.shouldRetainEditor(editor)) {
 				return;
 			}
 			// Capture editors that can be reopened so they are restored when the editor area is

@@ -11,7 +11,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { autorun, derived, derivedObservableWithCache, derivedOpts, IReader, observableFromEvent, runOnChange } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
-import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -47,6 +47,7 @@ import { IActiveSession, ISessionsManagementService } from '../../../services/se
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ChatLayoutOwnerKeyRegistry } from './chatLayoutOwnerKeys.js';
+import { ISessionEditorWorkingSetOwner, ISessionEditorWorkingSetService } from '../common/sessionEditorWorkingSet.js';
 
 const secondarySidebarToggleClosedIcon = registerIcon('agent-secondary-sidebar-toggle-closed', Codicon.layoutSidebarRightOff, localize('agentSecondarySidebarToggleClosedIcon', "Icon for the sessions secondary sidebar when closed."));
 const secondarySidebarToggleOpenIcon = registerIcon('agent-secondary-sidebar-toggle-open', Codicon.layoutSidebarRight, localize('agentSecondarySidebarToggleOpenIcon', "Icon for the sessions secondary sidebar when open."));
@@ -80,6 +81,19 @@ const SESSION_LAYOUT_STATE_SCHEMA_VERSION = 1;
 interface ISessionLayoutStateSchema {
 	version: number;
 	entries: ISessionLayoutEntry[];
+}
+
+interface IEditorWorkingSetTarget {
+	readonly session: IActiveSession | undefined;
+	readonly key: URI | undefined;
+	readonly owner: ISessionEditorWorkingSetOwner | undefined;
+}
+
+interface IPendingEditorWorkingSetRestore {
+	readonly key: URI | undefined;
+	readonly owner: ISessionEditorWorkingSetOwner | undefined;
+	readonly isInitialRestore: boolean;
+	readonly restore: IDisposable;
 }
 
 function isValidEditorWorkingSet(value: unknown): value is IEditorWorkingSet {
@@ -144,6 +158,8 @@ export abstract class BaseLayoutController extends Disposable {
 	 */
 	protected readonly _editorPartHiddenBySession = new ResourceMap<boolean>();
 	private readonly _workingSetSequencer = new Sequencer();
+	private _pendingEditorWorkingSetRestore: IPendingEditorWorkingSetRestore | undefined;
+	private _settledEditorWorkingSetKey: URI | undefined;
 	private readonly _chatLayoutOwnerKeys = new ChatLayoutOwnerKeyRegistry();
 	private readonly _replacedSessionResources = new ResourceSet();
 	protected readonly _chatLayoutContext: ChatLayoutContext | undefined;
@@ -275,6 +291,7 @@ export abstract class BaseLayoutController extends Disposable {
 		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
 		@ILifecycleService protected readonly _lifecycleService: ILifecycleService,
 		@ILogService protected readonly _logService: ILogService,
+		@ISessionEditorWorkingSetService private readonly _editorWorkingSetService: ISessionEditorWorkingSetService,
 	) {
 		super();
 
@@ -450,10 +467,29 @@ export abstract class BaseLayoutController extends Disposable {
 			this._workspaceContextService.onDidChangeWorkspaceFolders,
 			() => this._workspaceContextService.getWorkspace().folders);
 
+		// Publish the intended working-set owner immediately, before workspace
+		// hydration allows its working set to apply. This prevents live editors
+		// from opening into the outgoing owner's still-visible working set.
+		const activeEditorWorkingSetTarget = derivedObservableWithCache<IEditorWorkingSetTarget>(this, (reader, lastValue) => {
+			if (this._chatLayoutSuspended(reader)) {
+				return lastValue ?? { session: undefined, key: undefined, owner: undefined };
+			}
+			const session = this._sessionsService.activeSession.read(reader);
+			const chat = session?.activeChat.read(reader);
+			const key = session && chat
+				? this._ownerKeyForChat(session.resource, chat.resource, session.mainChat.read(reader).resource, reader)
+				: undefined;
+			if (isEqual(key, lastValue?.key)) {
+				return lastValue ?? { session, key, owner: this._editorWorkingSetOwnerFor(session, reader) };
+			}
+			return { session, key, owner: this._editorWorkingSetOwnerFor(session, reader) };
+		});
+
 		// [B2] The active session updates before the workspace folders do; hold back
-		const activeSessionForWorkingSet = derivedObservableWithCache<{ readonly session: IActiveSession | undefined; readonly key: URI | undefined }>(this, (reader, lastValue) => {
+		const activeSessionForWorkingSet = derivedObservableWithCache<IEditorWorkingSetTarget>(this, (reader, lastValue) => {
 			const workspaceFolders = workspaceFoldersObs.read(reader);
-			const activeSession = this._sessionsService.activeSession.read(reader);
+			const target = activeEditorWorkingSetTarget.read(reader);
+			const activeSession = target.session;
 			const activeChat = activeSession?.activeChat.read(reader);
 			const activeSessionWorkspaceUri = activeChat?.workspace.read(reader)?.folders[0]?.workingDirectory;
 
@@ -461,23 +497,18 @@ export abstract class BaseLayoutController extends Disposable {
 				activeSessionWorkspaceUri &&
 				!workspaceFolders.some(folder => isEqual(folder.uri, activeSessionWorkspaceUri))
 			) {
-				return lastValue ?? { session: undefined, key: undefined };
+				return lastValue ?? { session: undefined, key: undefined, owner: undefined };
 			}
 
-			if (this._chatLayoutSuspended(reader)) {
-				return lastValue ?? { session: undefined, key: undefined };
+			if (isEqual(target.key, lastValue?.key)) {
+				return lastValue ?? target;
 			}
 
-			const key = activeSession && activeChat
-				? this._ownerKeyForChat(activeSession.resource, activeChat.resource, activeSession.mainChat.read(reader).resource, reader)
-				: undefined;
-
-			if (isEqual(key, lastValue?.key)) {
-				return lastValue ?? { session: activeSession, key };
-			}
-
-			return { session: activeSession, key };
+			return target;
 		});
+		let currentWorkingSetTarget = activeSessionForWorkingSet.get();
+		this._settledEditorWorkingSetKey = activeEditorWorkingSetTarget.get().key;
+		this._editorWorkingSetService.setCurrentOwner(activeEditorWorkingSetTarget.get().owner);
 
 		// Working sets are always active: browser editors dock in the shared grid
 		// editor part even when `workbench.editor.useModal` is `'all'` (they
@@ -505,12 +536,55 @@ export abstract class BaseLayoutController extends Disposable {
 			}
 		}));
 
+		this._register(runOnChange(activeEditorWorkingSetTarget, (current, previous) => {
+			const shouldApply = !!previous.session || (!!current.key && this._workingSets.has(current.key));
+			if (!shouldApply) {
+				const previousPending = this._pendingEditorWorkingSetRestore;
+				this._pendingEditorWorkingSetRestore = undefined;
+				previousPending?.restore.dispose();
+				this._editorWorkingSetService.setCurrentOwner(current.owner);
+				this._settledEditorWorkingSetKey = current.key;
+				return;
+			}
+			const pending: IPendingEditorWorkingSetRestore = {
+				key: current.key,
+				owner: current.owner,
+				isInitialRestore: !previous.session,
+				restore: this._editorWorkingSetService.beginRestore(current.owner),
+			};
+			const previousPending = this._pendingEditorWorkingSetRestore;
+			this._pendingEditorWorkingSetRestore = pending;
+			previousPending?.restore.dispose();
+			if (previous.session && isEqual(current.key, currentWorkingSetTarget.key)) {
+				const immediate = this._takePendingEditorWorkingSetRestore(current.key);
+				if (immediate) {
+					if (isEqual(current.key, this._settledEditorWorkingSetKey)) {
+						this._applyPendingEditorWorkingSetRestore(immediate);
+					} else {
+						immediate.restore.dispose();
+						this._editorWorkingSetService.setCurrentOwner(current.owner);
+						this._settledEditorWorkingSetKey = current.key;
+					}
+				}
+			}
+		}));
+		this._register(toDisposable(() => this._pendingEditorWorkingSetRestore?.restore.dispose()));
+
 		// [B2] Session changed (apply)
 		this._register(runOnChange(activeSessionForWorkingSet, (current, previous) => {
-			// skip applying 'empty' to avoid closing editors that are being restored.
-			if (previous.session || (current.key && this._workingSets.has(current.key))) {
-				this._withSessionLayoutRestore(() => this._applyWorkingSet(current.key, { isInitialRestore: !previous.session }));
+			currentWorkingSetTarget = current;
+			const pending = this._takePendingEditorWorkingSetRestore(current.key);
+			// Skip an initial empty apply, but always complete a raw owner transition
+			// that was queued while its workspace was still hydrating.
+			if (!pending && !(current.key && this._workingSets.has(current.key))) {
+				return;
 			}
+			this._applyPendingEditorWorkingSetRestore(pending ?? {
+				key: current.key,
+				owner: current.owner,
+				isInitialRestore: !previous.session,
+				restore: this._editorWorkingSetService.beginRestore(current.owner),
+			});
 		}));
 
 		// [B2] Session state changed (archive, delete)
@@ -588,6 +662,35 @@ export abstract class BaseLayoutController extends Disposable {
 		const activeChat = reader ? session.activeChat.read(reader) : session.activeChat.get();
 		const mainChat = reader ? session.mainChat.read(reader) : session.mainChat.get();
 		return this._ownerKeyForChat(session.resource, activeChat.resource, mainChat.resource, reader);
+	}
+
+	private _editorWorkingSetOwnerFor(session: IActiveSession | undefined, reader?: IReader): ISessionEditorWorkingSetOwner | undefined {
+		return session && {
+			sessionResource: session.resource,
+			chatResource: this._chatLayoutActive(reader) ? session.activeChat.read(reader).resource : undefined,
+		};
+	}
+
+	private _takePendingEditorWorkingSetRestore(key: URI | undefined): IPendingEditorWorkingSetRestore | undefined {
+		const pending = this._pendingEditorWorkingSetRestore;
+		if (!pending || !isEqual(pending.key, key)) {
+			return undefined;
+		}
+		this._pendingEditorWorkingSetRestore = undefined;
+		return pending;
+	}
+
+	private _applyPendingEditorWorkingSetRestore(pending: IPendingEditorWorkingSetRestore): void {
+		this._withSessionLayoutRestore(async () => {
+			try {
+				await this._applyWorkingSet(pending.key, pending.owner, { isInitialRestore: pending.isInitialRestore });
+			} finally {
+				pending.restore.dispose();
+				if (!this._editorWorkingSetService.restoreState.get().restoring) {
+					this._settledEditorWorkingSetKey = pending.key;
+				}
+			}
+		});
 	}
 
 	protected _registerPersistedOwnerKeys(keys: Iterable<URI>): void {
@@ -1094,7 +1197,7 @@ export abstract class BaseLayoutController extends Disposable {
 
 	// --- Editor working sets [B2] ---
 
-	private async _applyWorkingSet(sessionResource: URI | undefined, options?: { readonly isInitialRestore?: boolean }): Promise<void> {
+	private async _applyWorkingSet(sessionResource: URI | undefined, owner: ISessionEditorWorkingSetOwner | undefined, options?: { readonly isInitialRestore?: boolean }): Promise<void> {
 		// Restoring a session's editor working set must never pull keyboard focus
 		// into the editor area. Focus during a session switch is owned by the
 		// switch itself (it moves focus into the active session's chat input, or
@@ -1111,6 +1214,9 @@ export abstract class BaseLayoutController extends Disposable {
 		const isStaleChatOwner = (): boolean => !!chatLayoutSnapshot?.owner && !this._chatLayoutContext!.isCurrent(chatLayoutSnapshot);
 
 		return this._workingSetSequencer.queue(async () => {
+			if (isStaleChatOwner() || !this._editorWorkingSetService.beginApply(owner)) {
+				return;
+			}
 			// When multiple sessions are visible, applying a working set must never
 			// change the visibility of the editor part: the editor area is shared
 			// across the visible sessions and its visibility is controlled by the

@@ -156,7 +156,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 					publisher: item.publisher,
 					publisherUrl: publisher?.profile,
 					icon: publisher?.avatar ?? registryIcon,
-					installation: providerPlugin ?? { kind: 'providerCatalog' as const, resourceKind: item.kind, selectionId: item.selectionId },
+					installation: providerPlugin ?? { kind: 'providerCatalog' as const, resourceKind: item.kind, selectionId: item.selectionId, itemUrl: item.itemUrl },
 				};
 			}),
 			nextCursor: result.nextCursor,
@@ -208,13 +208,17 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 			if (installation.resourceKind === 'plugin') {
 				throw new Error(this.getInstallUnavailableMessage(resource) ?? localize('agentHost.customizationInstall.directPluginUnavailable', "The SDK cannot yet install a catalog plugin at its exact pinned revision."));
 			}
+			if (!await this.resolveAuthentication()) {
+				throw new CancellationError();
+			}
+			this.throwIfCancelled(token);
 			const review = await this.prepare(sessionResource, {
 				mediaType: resource.mediaType,
 				identifier: resource.identifier,
 				displayName: resource.displayName,
 				description: resource.description,
 				version: resource.version,
-				itemUrl: resource.externalUrl ?? resource.url?.toString(true),
+				itemUrl: installation.itemUrl,
 				selectionId: installation.selectionId,
 				installation: { kind: installation.resourceKind },
 			}, token);

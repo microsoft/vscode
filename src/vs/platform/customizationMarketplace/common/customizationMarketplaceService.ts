@@ -65,7 +65,7 @@ export type CustomizationMarketplaceInstallation =
 	| { readonly kind: 'plugin'; readonly repository: string; readonly ref: string; readonly path: string }
 	| { readonly kind: 'configuredPlugin'; readonly name?: string; readonly marketplace?: string; readonly marketplaceId?: string; readonly marketplaceSource?: string }
 	| { readonly kind: 'providerPlugin'; readonly name: string; readonly marketplace: string }
-	| { readonly kind: 'providerCatalog'; readonly resourceKind: 'skill' | 'mcp' | 'plugin'; readonly selectionId: string }
+	| { readonly kind: 'providerCatalog'; readonly resourceKind: 'skill' | 'mcp' | 'plugin'; readonly selectionId: string; readonly itemUrl?: string }
 	| { readonly kind: 'mcp'; readonly name: string; readonly version: string }
 	| { readonly kind: 'mcpGallery'; readonly name: string; readonly registry: 'custom' | 'default'; readonly registryUrl: string }
 	| { readonly kind: 'copilotConnector'; readonly name: string };

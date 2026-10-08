@@ -507,6 +507,9 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	}
 
 	private async _resolveMarketplaceAuthenticationInteractively(protectedResources: readonly ProtectedResourceMetadata[]): Promise<boolean> {
+		if (this._getScenarioAutomationToken() !== undefined) {
+			return this._resolveAuthenticationInteractivelyForSession(protectedResources);
+		}
 		const account = this._defaultAccountService.currentDefaultAccount
 			?? await this._defaultAccountService.getDefaultAccount()
 			?? await this._defaultAccountService.signIn();

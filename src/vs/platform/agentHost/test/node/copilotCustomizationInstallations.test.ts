@@ -3,13 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotClient, InstallationConfirmationRequest } from '@github/copilot-sdk';
+import type { CopilotClient, InstallationConfirmationRequest, McpInstallationReview } from '@github/copilot-sdk';
 import assert from 'assert';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { CopilotCustomizationInstallations } from '../../node/copilot/customizations/copilotCustomizationInstallations.js';
+
+type CatalogSearchSucceeded = Extract<Awaited<ReturnType<CopilotClient['rpc']['catalog']['search']>>, { readonly kind: 'succeeded' }>;
+type McpCatalogCandidate = Extract<CatalogSearchSucceeded['candidates'][number], { readonly kind: 'mcp-server' }>;
+type McpInstallPlan = Extract<Awaited<ReturnType<CopilotClient['rpc']['mcp']['planInstall']>>, { readonly kind: 'planned' }>['plan'];
+type McpInstallationListOutcome = Extract<Extract<Awaited<ReturnType<CopilotClient['rpc']['mcp']['installations']['list']>>, { readonly kind: 'outcome' }>['outcome'], { readonly kind: 'listed' }>;
+type McpInstallationSummary = McpInstallationListOutcome['installations'][number];
+type McpInstallReview = Extract<McpInstallationReview, { readonly action: 'install' }>;
+type McpEffectiveConfiguration = NonNullable<McpInstallReview['effectiveConfiguration']>;
 
 suite('CopilotCustomizationInstallations', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -443,6 +451,287 @@ suite('CopilotCustomizationInstallations', () => {
 		});
 	});
 
+	test('confirms exact refreshed MCP install and uninstall reviews', async () => {
+		const expiresAtEpochMs = Date.now() + 60_000;
+		const expiresAt = new Date(expiresAtEpochMs).toISOString();
+		const catalogue = {
+			resourceId: 'urn:air:api.mcp.github.com:io.github.example:demo',
+			displayName: 'Demo MCP',
+			description: 'A demo MCP server',
+			source: 'agentfinder.github.com',
+		};
+		const itemUrl = 'https://agentfinder.github.com/items/demo';
+		const candidate: McpCatalogCandidate = {
+			handle: 'candidate-handle',
+			handleExpiresAt: expiresAt,
+			kind: 'mcp-server',
+			mediaType: 'application/mcp-server+json',
+			installability: 'installable',
+			displayName: catalogue.displayName,
+			description: catalogue.description,
+			source: { kind: 'url', url: itemUrl },
+			provenance: {
+				authority: 'agentfinder.github.com',
+				observedAt: new Date().toISOString(),
+				mediaType: 'application/mcp-server+json',
+			},
+		};
+		const identity = {
+			canonicalName: 'io.github.example/demo',
+			serverName: 'io.github.example/demo',
+			version: '1.0.0',
+			registryId: catalogue.resourceId,
+		};
+		const provenance = {
+			authority: 'api.mcp.github.com',
+			validatedAt: new Date().toISOString(),
+			cardDigest: { algorithm: 'sha256-rfc8785' as const, value: 'a'.repeat(64) },
+			mediaType: 'application/mcp-server+json' as const,
+		};
+		const target = { scope: 'user' as const, configKey: identity.serverName };
+		const policy = { decision: 'allowed' as const, source: 'none' as const };
+		const choice = {
+			choiceId: 'remote:0',
+			transport: 'streamable-http' as const,
+			installMethod: 'remote' as const,
+			endpoint: 'https://example.test/mcp',
+			requiredValues: [],
+			secretPlaceholders: [],
+		};
+		const configuration = {
+			operation: 'add' as const,
+			scope: 'user' as const,
+			configKey: identity.serverName,
+			changedFields: ['tools', 'type', 'url'],
+			secretReferences: [],
+		};
+		const plan: McpInstallPlan = {
+			planHandle: 'plan-handle',
+			planHandleExpiresAt: expiresAt,
+			identity,
+			provenance,
+			transportChoices: [choice],
+			recommendedTransportChoiceId: choice.choiceId,
+			target,
+			policy,
+			configurationChanges: [configuration],
+			reloadRequired: true,
+			requiresInteractiveConfiguration: false,
+		};
+		const sdkReview: McpInstallReview = {
+			action: 'install',
+			identity,
+			provenance,
+			catalogue,
+			target,
+			policy,
+			selectedChoice: choice,
+			configurationChange: configuration,
+			inputs: [],
+			suppliedSecrets: [],
+			secretStorage: 'keychain',
+			effectiveConfiguration: {
+				transport: 'http',
+				url: choice.endpoint,
+				headers: {},
+				tools: ['*'],
+			},
+		};
+		const installation: McpInstallationSummary = {
+			installationId: 'installation-id',
+			operationId: 'operation-id',
+			identity,
+			choiceId: choice.choiceId,
+			state: 'active',
+			catalogue,
+			installedAt: new Date().toISOString(),
+		};
+		const negotiated = { runtimeProtocolVersion: 3, grantedCapabilities: [] };
+		const serviceRef: { value?: CopilotCustomizationInstallations } = {};
+		const decisions: string[] = [];
+		const uninstallDecisions: string[] = [];
+		let installed = false;
+		const confirmation = (id: string, effectiveConfiguration: McpEffectiveConfiguration): InstallationConfirmationRequest => ({
+			policySessionId: 'policy-session',
+			confirmationId: id,
+			operationId: 'operation-id',
+			expiresAt,
+			reviewFingerprint: `fingerprint-${id}`,
+			review: {
+				resource: 'mcp',
+				review: { ...sdkReview, effectiveConfiguration },
+			},
+		});
+		const mcp = new class extends mock<CopilotClient['rpc']['mcp']>() {
+			override readonly installations = new class extends mock<CopilotClient['rpc']['mcp']['installations']>() {
+				override readonly list: CopilotClient['rpc']['mcp']['installations']['list'] = async () => ({
+					kind: 'outcome',
+					outcome: { kind: 'listed', installations: installed ? [installation] : [] },
+					negotiated,
+				});
+			}();
+			override readonly planInstall: CopilotClient['rpc']['mcp']['planInstall'] = async () => ({
+				kind: 'planned',
+				plan,
+				negotiated,
+			});
+			override readonly prepareInstall: CopilotClient['rpc']['mcp']['prepareInstall'] = async () => ({
+				kind: 'outcome',
+				outcome: {
+					kind: 'install-prepared',
+					operation: { operationId: installation.operationId, expiresAtEpochMs },
+				},
+				negotiated,
+			});
+			override readonly applyInstall: CopilotClient['rpc']['mcp']['applyInstall'] = async () => {
+				const configurations: readonly [string, McpEffectiveConfiguration][] = [
+					['tampered-url', { ...sdkReview.effectiveConfiguration!, url: 'https://other.invalid/mcp' }],
+					['tampered-header', { ...sdkReview.effectiveConfiguration!, headers: { Authorization: 'tampered' } }],
+					['tampered-tools', { ...sdkReview.effectiveConfiguration!, tools: ['unexpected'] }],
+					['valid', sdkReview.effectiveConfiguration!],
+				];
+				for (const [id, effectiveConfiguration] of configurations) {
+					decisions.push(await serviceRef.value!.confirmationHandler(confirmation(id, effectiveConfiguration), CancellationToken.None));
+				}
+				installed = true;
+				return {
+					kind: 'outcome',
+					outcome: {
+						kind: 'installed',
+						installation,
+						cleanupPending: false,
+					},
+					negotiated,
+				};
+			};
+			override readonly planUninstall: CopilotClient['rpc']['mcp']['planUninstall'] = async () => ({
+				kind: 'outcome',
+				outcome: {
+					kind: 'uninstall-planned',
+					plan: {
+						planHandle: 'uninstall-plan',
+						operationId: 'uninstall-operation',
+						expiresAtEpochMs,
+						installation,
+						restoresPreviousConfiguration: false,
+						ownedSecretCount: 0,
+						preservesSharedAuthentication: true,
+					},
+				},
+				negotiated,
+			});
+			override readonly applyUninstall: CopilotClient['rpc']['mcp']['applyUninstall'] = async () => {
+				const request: InstallationConfirmationRequest = {
+					policySessionId: 'policy-session',
+					confirmationId: 'uninstall-confirmation',
+					operationId: 'uninstall-operation',
+					expiresAt,
+					reviewFingerprint: 'uninstall-fingerprint',
+					review: {
+						resource: 'mcp',
+						review: {
+							action: 'uninstall',
+							installationId: installation.installationId,
+							identity,
+							provenance,
+							target,
+							policy,
+							restoresPreviousConfiguration: false,
+							ownedSecretCount: 0,
+							preservesSharedAuthentication: true,
+						},
+					},
+				};
+				const decision = await serviceRef.value!.confirmationHandler(request, CancellationToken.None);
+				uninstallDecisions.push(decision);
+				installed = decision !== 'confirm';
+				return {
+					kind: 'outcome',
+					outcome: decision === 'confirm'
+						? {
+							kind: 'uninstalled',
+							installationId: installation.installationId,
+							operationId: 'uninstall-operation',
+							cleanupPending: false,
+							restoredPreviousConfiguration: false,
+							removedOwnedSecrets: 0,
+							preservedSharedAuthentication: true,
+						}
+						: { kind: 'cancelled', operationId: 'uninstall-operation' },
+					negotiated,
+				};
+			};
+		}();
+		const catalog = new class extends mock<CopilotClient['rpc']['catalog']>() {
+			override readonly search: CopilotClient['rpc']['catalog']['search'] = async () => ({
+				kind: 'succeeded',
+				searchId: 'refreshed-search',
+				candidates: [candidate],
+				truncated: false,
+				negotiated,
+			});
+		}();
+		const client = {
+			rpc: {
+				catalog,
+				skills: new class extends mock<CopilotClient['rpc']['skills']>() {
+					override readonly installations = new class extends mock<CopilotClient['rpc']['skills']['installations']>() {
+						override readonly list: CopilotClient['rpc']['skills']['installations']['list'] = async () => ({
+							kind: 'outcome',
+							outcome: { kind: 'listed', installations: [] },
+							negotiated,
+						});
+					}();
+				}(),
+				mcp,
+			},
+		};
+		const service = store.add(new CopilotCustomizationInstallations(async () => client, () => 'policy-session'));
+		serviceRef.value = service;
+
+		const review = await service.prepare(URI.parse('agent-host-copilotcli:///session'), {
+			mediaType: candidate.mediaType,
+			identifier: itemUrl,
+			displayName: candidate.displayName,
+			description: candidate.description ?? '',
+			itemUrl,
+			selectionId: 'expired-selection',
+			installation: { kind: 'mcp' },
+		});
+		await service.apply(review.operationId);
+		const uninstallReview = await service.prepare(URI.parse('agent-host-copilotcli:///session'), {
+			installationId: installation.installationId,
+		});
+		await service.apply(uninstallReview.operationId);
+
+		assert.deepStrictEqual({ review, decisions, uninstallReview, uninstallDecisions, installed }, {
+			review: {
+				operationId: review.operationId,
+				action: 'install',
+				kind: 'mcp',
+				displayName: candidate.displayName,
+				serverName: identity.serverName,
+				target: target.configKey,
+				endpoint: choice.endpoint,
+				configurationFields: configuration.changedFields,
+			},
+			decisions: ['cancel', 'cancel', 'cancel', 'confirm'],
+			uninstallReview: {
+				operationId: uninstallReview.operationId,
+				action: 'uninstall',
+				kind: 'mcp',
+				displayName: catalogue.displayName,
+				serverName: identity.serverName,
+				target: identity.serverName,
+				configurationFields: [],
+				restoresPreviousConfiguration: false,
+				preservesSharedAuthentication: true,
+			},
+			uninstallDecisions: ['confirm'],
+			installed: false,
+		});
+	});
+
 	test('uses receipt inventory and confirms only the reviewed pending Skill operation', async () => {
 		const expiresAt = new Date(Date.now() + 60_000).toISOString();
 		const catalogue = {
@@ -594,19 +883,14 @@ suite('CopilotCustomizationInstallations', () => {
 			selectionId: firstSearch.kind === 'page' ? firstSearch.items[0].selectionId : undefined,
 			installation: { kind: 'skill' },
 		}).then(() => undefined, error => error instanceof Error ? error.message : String(error));
-		const secondSearch = await service.search(URI.parse('agent-host-copilotcli:///session'), {
-			query: 'demo',
-			mediaType: 'application/ai-skill',
-			limit: 10,
-		});
-		assert.strictEqual(secondSearch.kind, 'page');
 		const review = await service.prepare(URI.parse('agent-host-copilotcli:///session'), {
 			mediaType: 'application/ai-skill',
 			identifier: catalogue.resourceId,
 			displayName: catalogue.displayName,
 			description: catalogue.description,
 			version: catalogue.version,
-			selectionId: secondSearch.kind === 'page' ? secondSearch.items[0].selectionId : undefined,
+			itemUrl: catalogue.itemUrl,
+			selectionId: 'expired-selection',
 			installation: { kind: 'skill' },
 		});
 		const prematureDecision = await service.confirmationHandler({

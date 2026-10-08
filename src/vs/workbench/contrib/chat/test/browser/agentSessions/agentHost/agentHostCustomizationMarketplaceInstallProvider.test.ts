@@ -174,7 +174,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 					publisher: 'octo-org',
 					publisherUrl: 'https://github.com/octo-org',
 					icon: 'https://github.com/octo-org.png',
-					installation: { kind: 'providerCatalog', resourceKind: 'skill', selectionId: 'selection' },
+					installation: { kind: 'providerCatalog', resourceKind: 'skill', selectionId: 'selection', itemUrl: undefined },
 				}, {
 					identifier: 'https://api.mcp.github.com/oss/v0.1/servers/microsoft%2Fplaywright-mcp/versions/latest',
 					displayName: 'Playwright',
@@ -188,7 +188,12 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 					publisher: undefined,
 					publisherUrl: undefined,
 					icon: 'https://avatars.githubusercontent.com/u/6154722?v=4',
-					installation: { kind: 'providerCatalog', resourceKind: 'mcp', selectionId: 'playwright' },
+					installation: {
+						kind: 'providerCatalog',
+						resourceKind: 'mcp',
+						selectionId: 'playwright',
+						itemUrl: 'https://api.mcp.github.com/oss/v0.1/servers/microsoft%2Fplaywright-mcp/versions/latest',
+					},
 				}],
 				nextCursor: 'next',
 			},
@@ -391,7 +396,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				installation: item.resource.installation,
 			})),
 		}, {
-			authenticationRequests: 0,
+			authenticationRequests: 1,
 			requests: [{
 				mediaType: 'application/ai-skill',
 				identifier: 'selection',

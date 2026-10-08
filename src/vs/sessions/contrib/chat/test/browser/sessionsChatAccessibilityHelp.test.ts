@@ -58,6 +58,21 @@ suite('SessionsChatAccessibilityHelp', () => {
 		}, { back: true, forward: true, singletonViews: true });
 	});
 
+	test('documents repo-less Cloud chats in the harness picker', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
+		stubContextKeyService(instantiationService, configuration);
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
+
+		assert.ok(content.includes('When GitHub sandboxes are enabled, choose Cloud in the harness picker to chat without a repository or pull request.'));
+	});
+
 	test('documents layout density only on desktop', () => {
 		const densityHelp = [false, true].map(phone => {
 			const instantiationService = store.add(new TestInstantiationService());
@@ -142,8 +157,13 @@ suite('SessionsChatAccessibilityHelp', () => {
 				discoveryHelp: content.includes('choose Environments to discover your environments'),
 				refreshHelp: content.includes('Tab reaches Refresh Environments.'),
 				hiddenHelp: content.includes('Hide in This Profile') || content.includes('Restore Host'),
-				missionControl: content.includes('Mission Control'),
-			}, { discoveryHelp: enabled, refreshHelp: enabled, hiddenHelp: false, missionControl: false });
+				githubEnvironment: content.includes('GitHub environment'),
+				sharingKeyboard: content.includes('Enter or Space to enable or disable sharing'),
+				backendSetting: content.includes('chat.agentHost.remoteConnections'),
+			}, {
+				discoveryHelp: enabled, refreshHelp: enabled, hiddenHelp: false,
+				githubEnvironment: !hidden && !aiDisabled, sharingKeyboard: !hidden && !aiDisabled, backendSetting: !hidden && !aiDisabled,
+			});
 		});
 	}
 

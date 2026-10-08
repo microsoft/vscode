@@ -20,6 +20,7 @@ import { ChangesetKind } from '../../../../../platform/agentHost/common/changese
 import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME, CloudSandboxAuthenticationRequiredError, cloudSandboxAddress, ICloudSandboxAgentHostService, ICloudSandboxApiService, ICloudSandboxCreatedSession, ICloudSandboxCreateSessionRequest } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { readCloudSandboxProjects } from '../../../../../platform/agentHost/common/meta/cloudSandboxProjectMeta.js';
 import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { withSessionWorkspaceless } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -201,6 +202,7 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 			provider.seedProvisionalSession({
 				session: AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, created.sessionId),
 				provider: CLOUD_SANDBOX_AGENT_PROVIDER,
+				_meta: withSessionWorkspaceless(undefined, request.repoNwo === undefined),
 				startTime: now,
 				modifiedTime: now,
 				summary: name,

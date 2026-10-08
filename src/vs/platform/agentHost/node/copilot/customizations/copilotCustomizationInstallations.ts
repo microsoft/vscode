@@ -337,10 +337,10 @@ export class CopilotCustomizationInstallations extends Disposable {
 		if (request.installation.kind !== 'skill' && request.installation.kind !== 'mcp') {
 			throw new Error(localize('copilot.customizationInstallation.unsupported', "This customization does not provide an SDK installation identity."));
 		}
-		const retained = request.selectionId ? this.catalogSelections.deleteAndLeak(request.selectionId) : undefined;
+		let retained = request.selectionId ? this.catalogSelections.deleteAndLeak(request.selectionId) : undefined;
 		if (request.selectionId && (!retained || retained.client !== client || retained.policySessionId !== policySessionId)) {
 			retained?.dispose();
-			throw new Error(localize('copilot.customizationMarketplace.selectionExpired', "This catalog result expired. Refresh Discover and try again."));
+			retained = undefined;
 		}
 		let candidate: InstallableCatalogCandidate;
 		let searchId: string;
@@ -377,13 +377,13 @@ export class CopilotCustomizationInstallations extends Disposable {
 			throw new Error(localize('copilot.customizationInstallation.catalogChanged', "The SDK catalog no longer contains this exact customization. Refresh Discover and try again."));
 		}
 		try {
-			return await this.prepareCandidateInstall(client, policySessionId, request, candidate, searchId, !!retained);
+			return await this.prepareCandidateInstall(client, policySessionId, request, candidate, searchId);
 		} finally {
 			retained?.dispose();
 		}
 	}
 
-	private async prepareCandidateInstall(client: ICopilotCustomizationInstallationClient, policySessionId: string, request: IAgentCustomizationInstallationRequest, candidate: InstallableCatalogCandidate, searchId: string, retained: boolean): Promise<IAgentCustomizationInstallationReview> {
+	private async prepareCandidateInstall(client: ICopilotCustomizationInstallationClient, policySessionId: string, request: IAgentCustomizationInstallationRequest, candidate: InstallableCatalogCandidate, searchId: string): Promise<IAgentCustomizationInstallationReview> {
 		if (candidate.kind === 'ai-skill') {
 			if (candidate.installability !== 'installable') {
 				throw new Error(localize('copilot.customizationInstallation.skillUnavailable', "The SDK cannot install this skill in the selected session."));
@@ -420,6 +420,12 @@ export class CopilotCustomizationInstallations extends Disposable {
 
 		if (candidate.installability !== 'installable' || candidate.source.kind !== 'url') {
 			throw new Error(localize('copilot.customizationInstallation.mcpUnavailable', "The SDK cannot install this MCP server in the selected session."));
+		}
+		if (request.itemUrl !== candidate.source.url
+			|| request.displayName !== candidate.displayName
+			|| request.description !== (candidate.description ?? '')
+		) {
+			throw new Error(localize('copilot.customizationInstallation.catalogChanged', "The SDK catalog no longer contains this exact customization. Refresh Discover and try again."));
 		}
 		const planned = await client.rpc.mcp.planInstall({
 			contract: {
@@ -480,9 +486,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 				&& structuralEquals(confirmation.review.review.identity, planned.plan.identity)
 				&& structuralEquals(confirmation.review.review.provenance, planned.plan.provenance)
 				&& structuralEquals(confirmation.review.review.catalogueTrust, candidate.trust)
-				&& (retained
-					? isMatchingRetainedCatalogue(confirmation.review.review.catalogue, candidate)
-					: isMatchingCatalogue(confirmation.review.review.catalogue, request, candidate.provenance.authority, candidate.publisher))
+				&& isMatchingCandidateCatalogue(confirmation.review.review.catalogue, candidate)
 				&& structuralEquals(confirmation.review.review.target, planned.plan.target)
 				&& structuralEquals(confirmation.review.review.policy, planned.plan.policy)
 				&& structuralEquals(confirmation.review.review.selectedChoice, choice)
@@ -492,12 +496,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 				&& confirmation.review.review.secretStorage === 'keychain'
 				&& confirmation.review.review.target.scope === 'user'
 				&& confirmation.review.review.policy.decision !== 'blocked'
-				&& structuralEquals(confirmation.review.review.effectiveConfiguration, {
-					transport: choice.transport,
-					url: choice.endpoint,
-					headers: {},
-					tools: [],
-				}),
+				&& isMatchingEffectiveMcpConfiguration(confirmation.review.review.effectiveConfiguration, choice, configuration),
 			() => client.rpc.mcp.applyInstall({ contract: mcpInstallationContract, operationId: operation.operationId, policySessionId }),
 			operation.expiresAtEpochMs,
 			() => this.operations.deleteAndDispose(operationId),
@@ -567,7 +566,11 @@ export class CopilotCustomizationInstallations extends Disposable {
 				&& confirmation.review.review.target.configKey === plan.installation.identity.serverName
 				&& confirmation.review.review.policy.decision !== 'blocked'
 				&& confirmation.review.review.provenance.mediaType === installation.mediaType
-				&& isMatchingCatalogueAuthority(confirmation.review.review.provenance.authority, installation.catalogue?.source)
+				&& isMatchingInstallationAuthority(
+					confirmation.review.review.provenance.authority,
+					plan.installation.identity.registryId,
+					installation.catalogue?.source,
+				)
 				&& confirmation.review.review.restoresPreviousConfiguration === plan.restoresPreviousConfiguration
 				&& confirmation.review.review.ownedSecretCount === plan.ownedSecretCount
 				&& confirmation.review.review.preservesSharedAuthentication === plan.preservesSharedAuthentication,
@@ -856,25 +859,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 
 }
 
-function isMatchingCatalogue(
-	catalogue: IInstallationCatalogueIdentity | undefined,
-	request: IAgentCustomizationInstallationRequest,
-	authority: string,
-	publisher: string | undefined,
-): boolean {
-	if (!catalogue) {
-		return false;
-	}
-	return catalogue.resourceId === request.identifier
-		&& catalogue.itemUrl === request.itemUrl
-		&& catalogue.displayName === request.displayName
-		&& (catalogue.description ?? '') === request.description
-		&& catalogue.publisher === publisher
-		&& catalogue.version === request.version
-		&& isMatchingCatalogueAuthority(authority, catalogue.source);
-}
-
-function isMatchingRetainedCatalogue(catalogue: IInstallationCatalogueIdentity | undefined, candidate: InstallableCatalogCandidate): boolean {
+function isMatchingCandidateCatalogue(catalogue: IInstallationCatalogueIdentity | undefined, candidate: InstallableCatalogCandidate): boolean {
 	return !!catalogue
 		&& catalogue.displayName === candidate.displayName
 		&& (catalogue.description ?? '') === (candidate.description ?? '')
@@ -886,10 +871,39 @@ function isMatchingCatalogueAuthority(authority: string, source: string | undefi
 	if (!source) {
 		return false;
 	}
+	if (source === authority) {
+		return true;
+	}
 	try {
 		const sourceUri = URI.parse(source);
 		return (sourceUri.authority || sourceUri.path) === authority;
 	} catch {
 		return source === authority;
 	}
+}
+
+function isMatchingInstallationAuthority(authority: string, registryId: string | undefined, source: string | undefined): boolean {
+	const registryAuthority = /^urn:air:(?<authority>[a-z0-9.-]+):/.exec(registryId ?? '')?.groups?.authority;
+	return registryAuthority ? authority === registryAuthority : isMatchingCatalogueAuthority(authority, source);
+}
+
+function isMatchingEffectiveMcpConfiguration(
+	effective: { readonly transport: string; readonly url: string; readonly headers: Readonly<Record<string, string | undefined>>; readonly tools: readonly string[] } | undefined,
+	choice: { readonly transport: string; readonly endpoint: string },
+	configuration: { readonly changedFields: readonly string[] } | undefined,
+): boolean {
+	if (!effective || !configuration || effective.url !== choice.endpoint) {
+		return false;
+	}
+	const transportMatches = effective.transport === choice.transport
+		|| choice.transport === 'streamable-http' && effective.transport === 'http';
+	if (!transportMatches) {
+		return false;
+	}
+	const changedFields = new Set(configuration.changedFields);
+	return changedFields.has('type')
+		&& changedFields.has('url')
+		&& changedFields.has('tools')
+		&& (Object.keys(effective.headers).length === 0 || changedFields.has('headers'))
+		&& structuralEquals(effective.tools, ['*']);
 }
