@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
@@ -18,9 +17,9 @@ import '../../browser/url.contribution.js';
 suite('Open URL action', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('allows contributed external URI openers', async () => {
-		const input = 'https://example.com/path';
-		const opened: { resource: string; options: OpenOptions | undefined }[] = [];
+	test('allows contributed external URI openers and preserves the input', async () => {
+		const input = 'https://example.com/path%23fragment';
+		const opened: { resource: Parameters<IOpenerService['open']>[0]; options: OpenOptions | undefined }[] = [];
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IQuickInputService, new class extends mock<IQuickInputService>() {
 			override async input(): Promise<string | undefined> {
@@ -28,8 +27,8 @@ suite('Open URL action', () => {
 			}
 		}());
 		instantiationService.stub(IOpenerService, new class extends mock<IOpenerService>() {
-			override async open(resource: URI | string, options?: OpenOptions): Promise<boolean> {
-				opened.push({ resource: resource.toString(), options });
+			override async open(resource: Parameters<IOpenerService['open']>[0], options?: OpenOptions): Promise<boolean> {
+				opened.push({ resource, options });
 				return true;
 			}
 		}());

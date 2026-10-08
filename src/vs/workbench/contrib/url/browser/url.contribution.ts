@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { MenuId, MenuRegistry, Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
@@ -46,8 +45,7 @@ class OpenUrlAction extends Action2 {
 
 		return quickInputService.input({ prompt: localize('urlToOpen', "URL to open"), value }).then(input => {
 			if (input) {
-				const uri = URI.parse(input);
-				openerService.open(uri, { allowContributedOpeners: true });
+				openerService.open(input, { allowContributedOpeners: true });
 				storageService.store(OpenUrlAction.STORAGE_KEY, input, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 			}
 		});
