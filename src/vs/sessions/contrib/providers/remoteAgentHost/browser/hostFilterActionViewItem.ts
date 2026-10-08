@@ -496,7 +496,7 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 			actions.push(toAction({
 				id: `agentHostFilter.host.${host.id}`,
 				label,
-				tooltip: '',
+				tooltip: host.description ?? '',
 				class: selectedId === host.id ? 'codicon codicon-check' : undefined,
 				run: () => this._filterService.setSelectedHostId(host.id),
 			}));

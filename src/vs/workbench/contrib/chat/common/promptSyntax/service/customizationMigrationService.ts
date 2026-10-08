@@ -9,7 +9,6 @@ import { Event } from '../../../../../../base/common/event.js';
 import { getComparisonKey } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
-import { ChatConfiguration } from '../../constants.js';
 import { PromptFileSource, PromptsType } from '../promptTypes.js';
 import { PromptsStorage } from './promptsService.js';
 
@@ -20,15 +19,6 @@ export enum CustomizationMigrationType {
 	PromptFiles = 'promptFiles',
 	ConfiguredLocations = 'configuredLocations',
 	McpServers = 'mcpServers',
-}
-
-export function getCustomizationMigrationEnablementSetting(type: CustomizationMigrationType): ChatConfiguration {
-	switch (type) {
-		case CustomizationMigrationType.UserData: return ChatConfiguration.ChatCustomizationsUserDataMigrationEnabled;
-		case CustomizationMigrationType.PromptFiles: return ChatConfiguration.ChatCustomizationsPromptMigrationEnabled;
-		case CustomizationMigrationType.ConfiguredLocations: return ChatConfiguration.ChatCustomizationsLocationsMigrationEnabled;
-		case CustomizationMigrationType.McpServers: return ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled;
-	}
 }
 
 export interface MigratableConfiguration {
@@ -75,6 +65,8 @@ export interface IMcpServerCustomizationMigrationItem {
 	readonly supported: boolean;
 }
 
+export const mcpServerCustomizationMigrationRemovableProperties = ['gallery', 'version', 'dev', 'sandboxEnabled'] as const;
+
 export interface IMcpServerCustomizationMigrationCandidate {
 	readonly type: CustomizationMigrationType.McpServers;
 	readonly storage: PromptsStorage.local | PromptsStorage.user;
@@ -83,6 +75,13 @@ export interface IMcpServerCustomizationMigrationCandidate {
 	readonly sourceUri: URI;
 	readonly targetUri: URI;
 	readonly projectedConfiguration: IMcpServerConfiguration;
+	/**
+	 * Configuration written to the destination when it differs from {@link projectedConfiguration},
+	 * because `${env:NAME}` references are rewritten to `${NAME}` instead of their current values.
+	 */
+	readonly migratedConfiguration?: IMcpServerConfiguration;
+	/** Raw values of properties removed with a warning, retained to revalidate the user's confirmation. */
+	readonly removedProperties?: Readonly<Partial<Record<typeof mcpServerCustomizationMigrationRemovableProperties[number], unknown>>>;
 }
 
 export function getMcpServerCustomizationMigrationCandidateKey(candidate: IMcpServerCustomizationMigrationCandidate): string {
@@ -119,16 +118,24 @@ export const enum McpServerCustomizationMigrationFailureReason {
 	SourceUnavailable = 'sourceUnavailable',
 	/** The source JSON, servers map, or selected server definition is invalid. */
 	InvalidSource = 'invalidSource',
-	/** The configuration cannot be moved losslessly because of unsupported properties, unresolved variables, or projection differences. */
+	/** The configuration has unsupported properties, unresolved variables, or projection differences beyond the confirmed removals. */
 	UnrepresentableConfiguration = 'unrepresentableConfiguration',
+	/** An `${env:}` reference is used in an environment variable or header name, which the destination never expands. */
+	EnvironmentVariableInName = 'environmentVariableInName',
+	/** An `${env:}` reference does not name a variable matching `[A-Za-z_][A-Za-z0-9_]*`, so it cannot be written as `${NAME}`. */
+	InvalidEnvironmentVariableName = 'invalidEnvironmentVariableName',
+	/** A value with an `${env:}` reference would be too long for the destination to expand it. */
+	EnvironmentVariableValueTooLong = 'environmentVariableValueTooLong',
+	/** An `${env:}` reference is in a URL position that the destination rejects, such as the port or the whole URL. */
+	UnsupportedEnvironmentVariableInUrl = 'unsupportedEnvironmentVariableInUrl',
 	/** The source entry or file no longer matches what was validated for migration. */
 	SourceChanged = 'sourceChanged',
 	/** An existing destination cannot be read or parsed as a supported MCP configuration document. */
 	InvalidTarget = 'invalidTarget',
 	/** The destination already defines the same server name with a non-equivalent configuration. */
 	TargetConflict = 'targetConflict',
-	/** The server name is also defined or selected for migration in another workspace root. */
-	CrossRootConflict = 'crossRootConflict',
+	/** The server takes precedence over a same-named server in another workspace folder that was not migrated with it. */
+	ShadowedServerNotMigrated = 'shadowedServerNotMigrated',
 	/** The destination changed before writing, or final source/target verification failed. */
 	TargetChanged = 'targetChanged',
 	/** A migration file operation failed without a more specific failure reason. */
@@ -146,7 +153,6 @@ export interface IMcpServerCustomizationMigrationFailure {
 	readonly sourceUri: URI;
 	readonly targetUri: URI;
 	readonly reason: McpServerCustomizationMigrationFailureReason;
-	readonly conflictingUri?: URI;
 	readonly error?: Error;
 }
 

@@ -24,7 +24,7 @@ import {
 import { IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISessionChatCustomization, ISessionTurnFileChange, ISessionWorkspace, sessionTurnFileChangesEqual } from '../../../../services/sessions/common/session.js';
 import { createActiveSessionSubscriptionObs } from './agentHostSessionChangesets.js';
-import { createIncrementalChatCustomizationRefsParser, customizationRefsEqual, CustomizationIndex, resolveChatCustomizations, sessionChatCustomizationsEqual, type ICustomizationRef } from './agentHostSessionCustomizations.js';
+import { createIncrementalChatCustomizationRefsParser, customizationRefsEqual, CustomizationIndex, resolveChatCustomizations, sessionChatCustomizationsEqual, type ICustomizationRef } from '../../../../../workbench/contrib/chat/common/agentHostSessionCustomizations.js';
 import { IAgentHostAdapterOptions } from './baseAgentHostSessionsProvider.js';
 
 /**
@@ -319,14 +319,14 @@ function parseFileEdit(fileEdit: FileEdit, mapDiffUri?: AgentHostUriMapper): IPa
 		return undefined;
 	}
 	const map = (uri: URI | undefined): URI | undefined => uri ? (mapDiffUri ? mapDiffUri(uri) : uri) : undefined;
-	const mapContent = (uri: URI | undefined): URI | undefined =>
-		uri ? (mapDiffUri ? mapDiffUri(uri, { contentRef: true }) : uri) : undefined;
+	const mapContent = (uri: URI | undefined, fileUri: URI | undefined): URI | undefined =>
+		uri ? (mapDiffUri ? mapDiffUri(uri, { contentRef: true, fileUri }) : uri) : undefined;
 	return {
 		kind: normalized.kind,
 		afterUri: map(normalized.afterUri),
 		beforeUri: map(normalized.beforeUri),
-		beforeContentUri: mapContent(normalized.beforeContentUri),
-		afterContentUri: mapContent(normalized.afterContentUri),
+		beforeContentUri: mapContent(normalized.beforeContentUri, normalized.beforeUri),
+		afterContentUri: mapContent(normalized.afterContentUri, normalized.afterUri),
 		insertions: fileEdit.diff?.added ?? 0,
 		deletions: fileEdit.diff?.removed ?? 0,
 	};

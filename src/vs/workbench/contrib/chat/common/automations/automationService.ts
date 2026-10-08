@@ -79,6 +79,25 @@ export interface ICreateAutomationOptions {
 	/** @deprecated Compatibility input translated into {@link sessionTemplate}. */
 	readonly permissionLevel?: string;
 	readonly enabled?: boolean;
+	/**
+	 * Ids of the {@link IAutomationCustomizationChoice | customizations} to sync.
+	 * Absent means the provider's default: every customization enabled for the target.
+	 */
+	readonly customizationIds?: readonly string[];
+}
+
+/**
+ * A customization an automation can sync, as offered by
+ * {@link IAutomationStore.getCustomizationChoices}.
+ */
+export interface IAutomationCustomizationChoice {
+	readonly id: string;
+	readonly label: string;
+	readonly description?: string;
+	/** Initially selected: enabled for the target when creating, saved in the definition when editing. */
+	readonly selected: boolean;
+	/** Saved in the definition but changed locally since; saving the automation refreshes it. */
+	readonly outdated: boolean;
 }
 
 /**
@@ -98,6 +117,11 @@ export interface IUpdateAutomationOptions {
 	/** @deprecated Compatibility input translated into {@link sessionTemplate}. */
 	readonly permissionLevel?: string | null;
 	readonly enabled?: boolean;
+	/**
+	 * Ids of the customizations to sync. Selected entries that are outdated are refreshed.
+	 * Absent keeps the saved customizations unless the target changes.
+	 */
+	readonly customizationIds?: readonly string[];
 }
 
 /**
@@ -191,6 +215,12 @@ export interface IAutomationStore {
 	updateAutomationIfUnchanged(id: string, patch: IUpdateAutomationOptions, expected: IAutomationDescriptor, mutationGuard?: AutomationMutationGuard): Promise<IGuardedAutomationUpdateResult>;
 	/** Deletes an automation and its retained run history; missing IDs are ignored. */
 	deleteAutomation(id: string, mutationGuard?: AutomationMutationGuard): Promise<void>;
+	/**
+	 * Lists the customizations an automation targeting `target` can sync, including
+	 * those saved in automation `existingId`. Resolves `undefined` when the provider
+	 * does not support choosing customizations for that target.
+	 */
+	getCustomizationChoices?(target: AutomationTarget, existingId: string | undefined, token: CancellationToken): Promise<readonly IAutomationCustomizationChoice[] | undefined>;
 
 	/** Requests a manual run, forwarding supported cancellation after admission even while session creation is pending. */
 	runAutomation(automationId: string, token?: CancellationToken): Promise<IAutomationRunRequestResult>;

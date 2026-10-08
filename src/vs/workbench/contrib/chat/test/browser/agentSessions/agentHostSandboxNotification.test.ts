@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { renderMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { isMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -65,7 +67,7 @@ suite('AgentHostSandboxNotification', () => {
 		}
 	}
 
-	test('shows the SDK reason as plain text in a dismissible session-scoped warning without settings actions', () => {
+	test('escapes SDK reasons in a dismissible session-scoped warning without settings actions', () => {
 		const subscription = store.add(new TestSubscription());
 		subscription.setValue(['Install bubblewrap.', '[not a command](command:evil)']);
 		const service = new NotificationService();
@@ -78,13 +80,45 @@ suite('AgentHostSandboxNotification', () => {
 			id: `agentHost.sandboxUnsupported.${resource.toString()}`,
 			severity: ChatInputNotificationSeverity.Warning,
 			message: 'Sandboxing is unavailable in this environment',
-			description: 'Install bubblewrap.\n[not a command](command:evil)',
+			description: new MarkdownString('Install&nbsp;bubblewrap.\\\n\\[not&nbsp;a&nbsp;command\\]\\(command:evil\\)'),
 			actions: [],
 			dismissible: true,
 			hasDismissHandler: true,
 			autoDismissOnMessage: false,
 			sessionResources: [resource],
 		}]);
+	});
+
+	test('links support URLs without interpreting diagnostic markup or including trailing text', () => {
+		const subscription = store.add(new TestSubscription());
+		const urls = ['https://aka.ms/ghcp-sandbox-os-support', 'http://example.com/support_page?q=a&b=c'];
+		subscription.setValue([
+			`Update Windows: ${urls[0]} [not a command](command:evil) <b>literal</b>`,
+			`Also see ${urls[1]}.`,
+		]);
+		const service = new NotificationService();
+		store.add(new AgentHostSandboxNotification(resource, subscription, service));
+		const description = [...service.notifications.values()][0].description;
+		assert.ok(isMarkdownString(description));
+		const opened: string[] = [];
+		const rendered = store.add(renderMarkdown(description, { actionHandler: url => { opened.push(url); } }));
+		const links = [...rendered.element.querySelectorAll('a')];
+		for (const link of links) {
+			link.click();
+		}
+		assert.deepStrictEqual({
+			links: links.map(link => link.textContent),
+			opened,
+			breaks: rendered.element.querySelectorAll('br').length,
+			boldElements: rendered.element.querySelectorAll('b').length,
+			trusted: description.isTrusted,
+		}, {
+			links: urls,
+			opened: urls,
+			breaks: 1,
+			boldElements: 0,
+			trusted: false,
+		});
 	});
 
 	test('updates and removes the notice as host diagnostics change', () => {

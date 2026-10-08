@@ -55,6 +55,7 @@ Core workbench registrations may expose Local, Copilot CLI, and Claude harnesses
 This shared workbench service computes customization migrations for an explicit chat session. File migrations include source URIs and migratable-configuration metadata for flows that need source type and storage. MCP migrations report known servers' binary harness compatibility, discovery and policy-coverage state, eligible source-to-target candidates, and excluded servers with localized details explaining why they cannot be migrated. MCP candidates and failures identify user or workspace storage so consumers can scope hints, checklist entries, and activity consistently. MCP execution revalidates candidates and ordered session working-directory roots before guarded writes and returns structured per-server results. The service also produces a localized, harness-specific hint with navigation metadata so UI consumers can open the relevant file migration or MCP server surface.
 The service exposes migration-relevant customization changes so consumers can recompute without depending directly on the underlying prompt, Agent Host, or MCP services.
 Harness-specific MCP migration planning and execution are supplied by the active harness descriptor so the shared service does not depend on a provider implementation.
+MCP candidates may carry raw snapshots of properties that migration removes. Consumers must explain those removals before confirmation; providers and execution revalidate the snapshots so the approved changes cannot silently expand.
 
 ### `IHarnessDescriptor`
 
@@ -140,6 +141,8 @@ In the Agents Window, the customization harness and project root track `ISession
 The management-editor command may select a section, target a session type, reveal a URI-addressable customization, and open migration mode for a targeted migration category. Operations that migrate files bind destination resolution and confirmation to their initiating session and stop if the active session changes.
 
 Provider-backed items retain provider identity through the shared contract. Shared widgets must not import or branch on provider implementations.
+
+Host-reported MCP provenance distinguishes user, workspace, plugin, built-in, managed-catalog, and signed-in-account sources. Account-contributed servers retain that source through protocol metadata and display a signed-in-account explanation when the runtime does not expose an editable definition. Tool telemetry reports only the bounded source kind, never the account identity.
 
 ## External customization providers
 

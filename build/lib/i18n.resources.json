@@ -159,6 +159,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/opener",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/output",
 			"project": "vscode-workbench"
 		},
@@ -774,6 +778,10 @@
 		},
 		{
 			"name": "vs/sessions/contrib/sessions",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/sessionComparison",
 			"project": "vscode-sessions"
 		},
 		{

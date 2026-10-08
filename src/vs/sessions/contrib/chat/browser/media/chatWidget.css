@@ -43,7 +43,7 @@
 	max-width: 800px;
 	padding: 0;
 	box-sizing: border-box;
-	margin-bottom: var(--vscode-spacing-size20);
+	margin-bottom: var(--vscode-spacing-size80);
 }
 
 .experimental-new-session-composer .new-session-workspace-picker-container {
@@ -90,48 +90,30 @@
 
 .experimental-new-session-composer .new-session-quick-chat-header {
 	justify-content: flex-end;
-	margin-bottom: var(--vscode-spacing-size40);
+	margin-bottom: 0;
 }
 
 .agent-sessions-workbench:not(.phone-layout) .experimental-new-session-composer .new-session-quick-chat-header {
 	width: 100%;
 	margin: var(--vscode-spacing-size120) 0 0;
 	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80) var(--vscode-spacing-size60);
-	background-color: var(--vscode-editorWidget-background);
-	border-radius: var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) 0 0;
+	border-radius: var(--vscode-cornerRadius-large);
 }
 
 .new-session-workspace-picker-container .sessions-workspace-category-picker.new-chat-session-options {
-	position: relative;
 	width: fit-content;
 	max-width: 100%;
 	margin: 0;
 	flex-wrap: nowrap;
 	gap: 0;
 	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
-	background-color: var(--vscode-editorWidget-background);
 	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
-	border-bottom: 0;
-	border-radius: var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) 0 0;
+	border-radius: var(--vscode-cornerRadius-large);
 }
 
-/* Shoulder: like the connected editor tabs, the tab base flares outward with a small concave
-	fillet where it meets the input surface, instead of a hard step. Only the right side needs it;
-	the left edge is flush with the input. The radius matches the tabs' shoulder
-	(cornerRadius-small + strokeThickness). */
-.new-session-workspace-picker-container .sessions-workspace-category-picker.new-chat-session-options::after {
-	content: '';
-	position: absolute;
-	bottom: 0;
-	left: 100%;
-	width: calc(var(--vscode-cornerRadius-small) + var(--vscode-strokeThickness));
-	height: calc(var(--vscode-cornerRadius-small) + var(--vscode-strokeThickness));
-	box-sizing: border-box;
-	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
-	border-left: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
-	border-bottom-left-radius: calc(var(--vscode-cornerRadius-small) + var(--vscode-strokeThickness));
-	box-shadow: calc(-1 * (var(--vscode-cornerRadius-small) + var(--vscode-strokeThickness)) / 2) calc((var(--vscode-cornerRadius-small) + var(--vscode-strokeThickness)) / 2) 0 calc((var(--vscode-cornerRadius-small) + var(--vscode-strokeThickness)) / 2) var(--vscode-editorWidget-background);
-	pointer-events: none;
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .sessions-chat-widget:not(.new-chat-in-session) .new-chat-widget-content.experimental-new-session-composer .new-chat-session-options {
+	background-color: var(--session-view-background);
+	border-radius: var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) 0 0;
 }
 
 /* Getting-started tip demoted below the input in the experimental composer, matching
@@ -149,12 +131,6 @@
 .new-session-getting-started-tip-below .chat-input-notice {
 	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-input-border, var(--vscode-widget-border, transparent));
 	border-radius: var(--vscode-cornerRadius-large);
-}
-
-/* The session options tray joins the input at its top-left corner, so square that corner
-	while the exposed top-right stays rounded. Quick chat has no tray above the input. */
-.experimental-new-session-composer:not(.quick-chat) .new-chat-input-area {
-	border-top-left-radius: 0;
 }
 
 .new-chat-session-options .new-chat-session-options-details {
@@ -218,6 +194,7 @@
 	border-radius: var(--vscode-cornerRadius-small);
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-codiconFontSize-compact);
+	cursor: pointer;
 }
 
 /*
@@ -361,6 +338,10 @@
 	align-items: center;
 	gap: var(--vscode-spacing-size20);
 	min-height: var(--vscode-spacing-size280);
+	justify-content: space-between;
+}
+
+.experimental-new-session-composer .new-chat-bottom-container {
 	justify-content: flex-end;
 }
 
@@ -373,6 +354,13 @@
 }
 
 .agent-sessions-workbench:not(.phone-layout) .new-chat-widget-container .new-chat-bottom-container {
+	overflow: hidden;
+}
+
+.new-chat-widget-container .new-chat-bottom-container .new-chat-controls-container {
+	display: flex;
+	gap: var(--vscode-spacing-size20);
+	min-width: 0;
 	overflow: hidden;
 }
 
@@ -568,6 +556,16 @@
 	background-color: transparent;
 	background-image: none;
 	border: none;
+}
+
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .sessions-chat-widget:not(.new-chat-in-session) .new-chat-widget-content.experimental-new-session-composer .new-chat-session-options .sessions-chat-picker-slot.sessions-workspace-category-picker-slot .action-label,
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .sessions-chat-widget:not(.new-chat-in-session) .new-chat-widget-content.experimental-new-session-composer .new-chat-session-options .new-chat-repo-config-container .monaco-action-bar {
+	background-color: transparent;
+	background-image: none;
+}
+
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .sessions-chat-widget:not(.new-chat-in-session) .new-chat-widget-content.experimental-new-session-composer .new-chat-session-options .new-chat-repo-config-container .monaco-action-bar {
+	height: var(--vscode-spacing-size240);
 }
 
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .new-chat-widget-container .new-chat-repo-config-container:hover .monaco-action-bar,

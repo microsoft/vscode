@@ -79,7 +79,7 @@ export interface IAICustomizationListItem {
 	/** When true, this syncable item is currently selected for syncing. */
 	readonly synced?: boolean;
 	nameMatches?: IMatch[];
-	descriptionMatches?: IMatch[];
+	secondaryTextMatches?: IMatch[];
 }
 
 /**
@@ -217,7 +217,7 @@ export class AICustomizationItemNormalizer {
 			id: `${item.uri.toString()}${duplicateSuffix}`,
 			uri: item.uri,
 			name: item.name,
-			filename: item.uri.scheme === Schemas.file
+			filename: item.uri.scheme === Schemas.file || item.uri.scheme === Schemas.vscodeRemote
 				? this.labelService.getUriLabel(item.uri, { relative: isWorkspaceItem })
 				: basename(item.uri),
 			description: item.description,

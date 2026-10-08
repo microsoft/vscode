@@ -5,6 +5,7 @@
 
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { stringHash } from '../../../base/common/hash.js';
+import type { AutoModeRoutingTier } from './autoModeTiers.js';
 import { IOffsetEdit } from './diffComputeService.js';
 import { ToolResultFileEditContent } from './state/sessionState.js';
 import { URI } from '../../../base/common/uri.js';
@@ -23,6 +24,7 @@ interface IFileEditAttributionMarkerBase {
 
 export interface IFileEditAttributionSource {
 	readonly modelId?: string;
+	readonly autoTier?: string;
 	readonly conversationId: string;
 	readonly chatSessionId?: string;
 	readonly requestId: string;
@@ -50,6 +52,7 @@ export type AttributedToolResultFileEditContent = ToolResultFileEditContent & {
 };
 
 export interface IAgentEditAttribution {
+	readonly provider?: string;
 	readonly sessionUri: string;
 	/** Originating chat channel, when known; separate from the owning session. */
 	readonly chatUri?: string;
@@ -60,6 +63,7 @@ export interface IAgentEditAttribution {
 	readonly afterText: string;
 	readonly changes: readonly IOffsetEdit[];
 	readonly modelId: string | undefined;
+	readonly autoTier?: AutoModeRoutingTier;
 	readonly toolName: string;
 }
 
@@ -171,6 +175,7 @@ function isFileEditAttributionSource(source: unknown): source is IFileEditAttrib
 	}
 	const candidate = source as Partial<IFileEditAttributionSource>;
 	return (candidate.modelId === undefined || typeof candidate.modelId === 'string') &&
+		(candidate.autoTier === undefined || typeof candidate.autoTier === 'string') &&
 		typeof candidate.conversationId === 'string' &&
 		(candidate.chatSessionId === undefined || typeof candidate.chatSessionId === 'string') &&
 		typeof candidate.requestId === 'string' &&

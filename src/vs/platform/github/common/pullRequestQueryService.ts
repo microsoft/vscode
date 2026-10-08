@@ -261,7 +261,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		}
 	}
 
-	private async _fetchCore(ref: PullRequestRef, credential: GitHubCredential, signal: AbortSignal, priority: import('./githubTypes.js').GitHubRequestPriority): Promise<PullRequestCore> {
+	private async _fetchCore(ref: PullRequestRef, credential: GitHubCredential, signal: AbortSignal, priority: import('./types.js').RequestPriority): Promise<PullRequestCore> {
 		const response = await this._transport.rest<unknown>(credential.account, credential.token, {
 			caller: 'github.pullRequestQuery',
 			method: 'GET',
@@ -277,7 +277,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		credential: GitHubCredential,
 		route: string,
 		signal: AbortSignal,
-		priority: import('./githubTypes.js').GitHubRequestPriority,
+		priority: import('./types.js').RequestPriority,
 	): Promise<readonly unknown[]> {
 		const result: unknown[] = [];
 		let url: string | undefined = this._restUrl(ref, route);
@@ -306,7 +306,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		core: PullRequestCore,
 		credential: GitHubCredential,
 		signal: AbortSignal,
-		priority: import('./githubTypes.js').GitHubRequestPriority,
+		priority: import('./types.js').RequestPriority,
 		includeBodies: boolean,
 	): Promise<readonly PullRequestReviewThread[]> {
 		const result: PullRequestReviewThread[] = [];
@@ -345,7 +345,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		value: unknown,
 		credential: GitHubCredential,
 		signal: AbortSignal,
-		priority: import('./githubTypes.js').GitHubRequestPriority,
+		priority: import('./types.js').RequestPriority,
 		includeBodies: boolean,
 	): Promise<PullRequestReviewThread> {
 		const thread = asObject(value, 'GitHub review thread was malformed');
@@ -392,7 +392,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		core: PullRequestCore,
 		credential: GitHubCredential,
 		signal: AbortSignal,
-		priority: import('./githubTypes.js').GitHubRequestPriority,
+		priority: import('./types.js').RequestPriority,
 		includeRequiredness: boolean,
 		loadExpectedSuites: boolean,
 		includeOptional: boolean,
@@ -419,7 +419,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		core: PullRequestCore,
 		credential: GitHubCredential,
 		signal: AbortSignal,
-		priority: import('./githubTypes.js').GitHubRequestPriority,
+		priority: import('./types.js').RequestPriority,
 		includeRequiredness: boolean,
 		includeOptional: boolean,
 	): Promise<{ readonly headSha: string; readonly checks: readonly PullRequestCheck[] }> {
@@ -443,7 +443,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		headSha: string,
 		credential: GitHubCredential,
 		signal: AbortSignal,
-		priority: import('./githubTypes.js').GitHubRequestPriority,
+		priority: import('./types.js').RequestPriority,
 	): Promise<{ readonly suites: readonly PullRequestCheckSuite[]; readonly complete: boolean }> {
 		try {
 			return { suites: await this._fetchExpectedCheckSuites(ref, headSha, credential, signal, priority), complete: true };
@@ -461,7 +461,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		core: PullRequestCore,
 		credential: GitHubCredential,
 		signal: AbortSignal,
-		priority: import('./githubTypes.js').GitHubRequestPriority,
+		priority: import('./types.js').RequestPriority,
 		includeRequiredness: boolean,
 		includeOptional: boolean,
 		includeWorkflowNames: boolean,
@@ -508,7 +508,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		headSha: string,
 		credential: GitHubCredential,
 		signal: AbortSignal,
-		priority: import('./githubTypes.js').GitHubRequestPriority,
+		priority: import('./types.js').RequestPriority,
 	): Promise<readonly PullRequestCheckSuite[]> {
 		const suites: PullRequestCheckSuite[] = [];
 		let after: string | undefined;
@@ -544,7 +544,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		core: PullRequestCore,
 		credential: GitHubCredential,
 		signal: AbortSignal,
-		priority: import('./githubTypes.js').GitHubRequestPriority,
+		priority: import('./types.js').RequestPriority,
 	): Promise<PullRequestChecks> {
 		const checks: PullRequestCheck[] = [];
 		let url: string | undefined = this._restUrl(ref, `commits/${encodeURIComponent(core.headSha)}/check-runs?per_page=100`);
@@ -586,7 +586,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		core: PullRequestCore,
 		credential: GitHubCredential,
 		signal: AbortSignal,
-		priority: import('./githubTypes.js').GitHubRequestPriority,
+		priority: import('./types.js').RequestPriority,
 		mergeQueueSupported: boolean,
 	): Promise<PullRequestMergeability> {
 		const response = await this._transport.graphql<unknown>(
@@ -638,7 +638,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		core: PullRequestCore,
 		credential: GitHubCredential,
 		signal: AbortSignal,
-		priority: import('./githubTypes.js').GitHubRequestPriority,
+		priority: import('./types.js').RequestPriority,
 	): Promise<PullRequestMergeability> {
 		const response = await this._transport.rest<unknown>(credential.account, credential.token, {
 			caller: 'github.pullRequestQuery',
@@ -669,7 +669,7 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		core: PullRequestCore | undefined,
 		credential: GitHubCredential,
 		signal: AbortSignal,
-		priority: import('./githubTypes.js').GitHubRequestPriority,
+		priority: import('./types.js').RequestPriority,
 	): Promise<PullRequestParticipants> {
 		const values = await this._fetchRestArray(ref, credential, `issues/${ref.number}/timeline?per_page=100`, signal, priority);
 		const participants = new Map<string, { actor: PullRequestParticipant; roles: Set<'author' | 'commenter' | 'reviewer'> }>();
@@ -808,6 +808,7 @@ function toGraphQLInlineComment(value: unknown, includeBody: boolean, diffSide: 
 		url: stringProperty(item, 'url'),
 		createdAt: stringProperty(item, 'createdAt'),
 		updatedAt: stringProperty(item, 'updatedAt'),
+		state: stringProperty(item, 'state'),
 		path: stringProperty(item, 'path'),
 		line: numberProperty(item, 'line'),
 		originalLine: numberProperty(item, 'originalLine'),
@@ -920,7 +921,7 @@ function throwGraphQLErrors(errors: readonly GitHubGraphQLError[]): void {
 		return;
 	}
 	const kinds = errors.map(error => error.type?.toUpperCase());
-	const kind = kinds.includes('RATE_LIMITED')
+	const kind = kinds.includes('RATE_LIMIT') || kinds.includes('RATE_LIMITED')
 		? 'rateLimit'
 		: kinds.some(type => type === 'FORBIDDEN' || type === 'UNAUTHORIZED')
 			? 'authorization'

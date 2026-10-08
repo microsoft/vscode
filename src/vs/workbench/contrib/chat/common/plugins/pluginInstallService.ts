@@ -67,6 +67,12 @@ export interface IPluginInstallService {
 	installPlugin(plugin: IMarketplacePlugin, token?: CancellationToken): Promise<void>;
 
 	/**
+	 * Removes the exact installed plugin entry and performs best-effort source cleanup.
+	 * Returns `false` when no installed entry matches the URI.
+	 */
+	uninstallPlugin(pluginUri: URI): Promise<boolean>;
+
+	/**
 	 * Installs a plugin directly from a source location string. Accepts
 	 * GitHub shorthand (`owner/repo`), a full git clone URL, or a local
 	 * folder path (`file://` URI, absolute path, or `~`-prefixed path).
@@ -91,14 +97,15 @@ export interface IPluginInstallService {
 	validatePluginSource(source: string): string | undefined;
 
 	/**
-	 * Pulls the latest changes for an already-cloned marketplace repository.
+	 * Updates an installed plugin and replaces its installed URI when the source location changes.
 	 */
-	updatePlugin(plugin: IMarketplacePlugin): Promise<boolean>;
+	updatePlugin(plugin: IMarketplacePlugin, silent?: boolean, token?: CancellationToken): Promise<boolean>;
 
 	/**
 	 * Updates all installed plugins. First pulls each unique marketplace
 	 * repository, then updates non-relative-path plugins individually
-	 * (git pull, npm install, pip install, etc.).
+	 * (git pull, npm install, pip install, etc.). Git sources are refreshed
+	 * even when their source descriptors have not changed.
 	 */
 	updateAllPlugins(options: IUpdateAllPluginsOptions, token: CancellationToken): Promise<IUpdateAllPluginsResult>;
 

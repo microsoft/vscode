@@ -10,9 +10,11 @@ import type { URI } from './state.js';
 
 import type { RootAgentsChangedAction, RootActiveSessionsChangedAction, RootTerminalsChangedAction, RootConfigChangedAction } from '../channels-root/actions.js';
 
-import type { SessionReadyAction, SessionCreationFailedAction, SessionChatAddedAction, SessionChatRemovedAction, SessionChatUpdatedAction, SessionDefaultChatChangedAction, SessionTitleChangedAction, SessionServerToolsChangedAction, SessionActiveClientSetAction, SessionActiveClientRemovedAction, SessionWorkingDirectorySetAction, SessionWorkingDirectoryRemovedAction, SessionWorkingDirectoryReplacedAction, SessionInputNeededSetAction, SessionInputNeededRemovedAction, SessionCustomizationsChangedAction, SessionCustomizationToggledAction, SessionCustomizationUpdatedAction, SessionCustomizationRemovedAction, SessionMcpServerStateChangedAction, SessionMcpServerStartRequestedAction, SessionMcpServerStopRequestedAction, SessionMcpServerBackgroundRequestedAction, SessionIsReadChangedAction, SessionIsArchivedChangedAction, SessionActivityChangedAction, SessionChangesetsChangedAction, SessionConfigChangedAction, SessionMetaChangedAction } from '../channels-session/actions.js';
+import type { SessionReadyAction, SessionCreationFailedAction, SessionChatAddedAction, SessionChatRemovedAction, SessionChatUpdatedAction, SessionChatsReorderedAction, SessionDefaultChatChangedAction, SessionTitleChangedAction, SessionServerToolsChangedAction, SessionActiveClientSetAction, SessionActiveClientRemovedAction, SessionWorkingDirectorySetAction, SessionWorkingDirectoryRemovedAction, SessionWorkingDirectoryReplacedAction, SessionInputNeededSetAction, SessionInputNeededRemovedAction, SessionCustomizationsChangedAction, SessionCustomizationToggledAction, SessionCustomizationUpdatedAction, SessionCustomizationRemovedAction, SessionMcpServerStateChangedAction, SessionMcpServerStartRequestedAction, SessionMcpServerStopRequestedAction, SessionMcpServerBackgroundRequestedAction, SessionIsReadChangedAction, SessionIsArchivedChangedAction, SessionActivityChangedAction, SessionChangesetsChangedAction, SessionConfigChangedAction, SessionMetaChangedAction } from '../channels-session/actions.js';
 
-import type { ChatTurnStartedAction, ChatDeltaAction, ChatResponsePartAction, ChatToolCallStartAction, ChatToolCallDeltaAction, ChatToolCallReadyAction, ChatToolCallConfirmedAction, ChatToolCallCompleteAction, ChatToolCallResultConfirmedAction, ChatToolCallContentChangedAction, ChatToolCallAuthRequiredAction, ChatToolCallAuthResolvedAction, ChatTurnCompleteAction, ChatTurnCancelledAction, ChatErrorAction, ChatTurnResumeAction, ChatActivityChangedAction, ChatChangesetsChangedAction, ChatWorkingDirectorySetAction, ChatWorkingDirectoryRemovedAction, ChatUsageAction, ChatReasoningAction, ChatPendingMessageSetAction, ChatPendingMessageRemovedAction, ChatQueuedMessagesReorderedAction, ChatDraftChangedAction, ChatIsArchivedChangedAction, ChatInputRequestedAction, ChatInputAnswerChangedAction, ChatInputCompletedAction, ChatTruncatedAction, ChatTurnsLoadedAction } from '../channels-chat/actions.js';
+import type { ChatTurnStartedAction, ChatDeltaAction, ChatResponsePartAction, ChatToolCallStartAction, ChatToolCallDeltaAction, ChatToolCallReadyAction, ChatToolCallConfirmedAction, ChatToolCallCompleteAction, ChatToolCallResultConfirmedAction, ChatToolCallContentChangedAction, ChatToolCallAuthRequiredAction, ChatToolCallAuthResolvedAction, ChatTurnCompleteAction, ChatTurnCancelledAction, ChatErrorAction, ChatTurnResumeAction, ChatActivityChangedAction, ChatBackgroundWorkSetAction, ChatBackgroundWorkRemovedAction, ChatMovableChangedAction, ChatChangesetsChangedAction, ChatCanvasesChangedAction, ChatWorkingDirectorySetAction, ChatWorkingDirectoryRemovedAction, ChatUsageAction, ChatReasoningAction, ChatPendingMessageSetAction, ChatPendingMessageRemovedAction, ChatQueuedMessagesReorderedAction, ChatDraftChangedAction, ChatIsReadChangedAction, ChatIsArchivedChangedAction, ChatInputRequestedAction, ChatInputAnswerChangedAction, ChatInputCompletedAction, ChatTruncatedAction, ChatTurnsLoadedAction } from '../channels-chat/actions.js';
+
+import type { CanvasStateChangedAction } from '../channels-canvas/actions.js';
 
 import type { ChangesetStatusChangedAction, ChangesetFileSetAction, ChangesetFileRemovedAction, ChangesetFilesReviewChangedAction, ChangesetContentChangedAction, ChangesetOperationsChangedAction, ChangesetOperationStatusChangedAction, ChangesetClearedAction } from '../channels-changeset/actions.js';
 
@@ -40,6 +42,7 @@ export const enum ActionType {
 	SessionChatAdded = 'session/chatAdded',
 	SessionChatRemoved = 'session/chatRemoved',
 	SessionChatUpdated = 'session/chatUpdated',
+	SessionChatsReordered = 'session/chatsReordered',
 	SessionDefaultChatChanged = 'session/defaultChatChanged',
 	ChatTurnStarted = 'chat/turnStarted',
 	ChatDelta = 'chat/delta',
@@ -58,7 +61,12 @@ export const enum ActionType {
 	ChatError = 'chat/error',
 	ChatTurnResume = 'chat/turnResume',
 	ChatActivityChanged = 'chat/activityChanged',
+	ChatBackgroundWorkSet = 'chat/backgroundWorkSet',
+	ChatBackgroundWorkRemoved = 'chat/backgroundWorkRemoved',
+	ChatMovableChanged = 'chat/movableChanged',
 	ChatChangesetsChanged = 'chat/changesetsChanged',
+	ChatCanvasesChanged = 'chat/canvasesChanged',
+	CanvasStateChanged = 'canvas/stateChanged',
 	ChatWorkingDirectorySet = 'chat/workingDirectorySet',
 	ChatWorkingDirectoryRemoved = 'chat/workingDirectoryRemoved',
 	SessionTitleChanged = 'session/titleChanged',
@@ -76,6 +84,7 @@ export const enum ActionType {
 	ChatPendingMessageRemoved = 'chat/pendingMessageRemoved',
 	ChatQueuedMessagesReordered = 'chat/queuedMessagesReordered',
 	ChatDraftChanged = 'chat/draftChanged',
+	ChatIsReadChanged = 'chat/isReadChanged',
 	ChatIsArchivedChanged = 'chat/isArchivedChanged',
 	ChatInputRequested = 'chat/inputRequested',
 	ChatInputAnswerChanged = 'chat/inputAnswerChanged',
@@ -177,6 +186,7 @@ export type StateAction =
 	| SessionChatAddedAction
 	| SessionChatRemovedAction
 	| SessionChatUpdatedAction
+	| SessionChatsReorderedAction
 	| SessionDefaultChatChangedAction
 	| SessionTitleChangedAction
 	| SessionServerToolsChangedAction
@@ -218,7 +228,12 @@ export type StateAction =
 	| ChatErrorAction
 	| ChatTurnResumeAction
 	| ChatActivityChangedAction
+	| ChatBackgroundWorkSetAction
+	| ChatBackgroundWorkRemovedAction
+	| ChatMovableChangedAction
 	| ChatChangesetsChangedAction
+	| ChatCanvasesChangedAction
+	| CanvasStateChangedAction
 	| ChatWorkingDirectorySetAction
 	| ChatWorkingDirectoryRemovedAction
 	| ChatUsageAction
@@ -227,6 +242,7 @@ export type StateAction =
 	| ChatPendingMessageRemovedAction
 	| ChatQueuedMessagesReorderedAction
 	| ChatDraftChangedAction
+	| ChatIsReadChangedAction
 	| ChatIsArchivedChangedAction
 	| ChatInputRequestedAction
 	| ChatInputAnswerChangedAction

@@ -7,6 +7,7 @@ import { SequencerByKey } from '../../../../base/common/async.js';
 import { SessionArtifactCollection } from '../../common/sessionArtifactCollection.js';
 import { readSessionArtifacts, withSessionArtifacts, type ISessionArtifact } from '../../common/sessionArtifacts.js';
 import { AHP_SESSION_NOT_FOUND, ProtocolError } from '../../common/state/sessionProtocol.js';
+import { buildDefaultChatUri } from '../../common/state/sessionState.js';
 import type { AgentHostStateManager } from '../agentHostStateManager.js';
 
 /** Shared artifact mutations for server tools and direct user requests. */
@@ -16,11 +17,19 @@ export class SessionArtifacts {
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
 		private readonly _session: string,
+		private readonly _chat: string,
 		private readonly _persist: (session: string, artifacts: readonly ISessionArtifact[]) => void | Promise<void>,
 	) { }
 
 	read(): SessionArtifactCollection {
-		return new SessionArtifactCollection(readSessionArtifacts(this._getState()._meta));
+		return new SessionArtifactCollection(this._readAll().filter(artifact => artifact.chat === this._chat));
+	}
+
+	private _readAll(): readonly ISessionArtifact[] {
+		const defaultChat = buildDefaultChatUri(this._session);
+		return readSessionArtifacts(this._getState()._meta).map(artifact =>
+			artifact.chat ? artifact : { ...artifact, chat: defaultChat }
+		);
 	}
 
 	private _getState() {
@@ -45,9 +54,27 @@ export class SessionArtifacts {
 			const collection = this.read();
 			const result = mutation(collection);
 			if (result.artifacts !== collection.artifacts) {
-				await this._persist(this._session, result.artifacts);
+				const allArtifacts = this._readAll();
+				const updated = result.artifacts.map(artifact => ({ ...artifact, chat: this._chat }));
+				const updatedById = new Map(updated.map(artifact => [artifact.id, artifact]));
+				const merged: ISessionArtifact[] = [];
+				for (const artifact of allArtifacts) {
+					if (artifact.chat !== this._chat) {
+						merged.push(artifact);
+					} else {
+						const replacement = updatedById.get(artifact.id);
+						if (replacement) {
+							merged.push(replacement);
+							updatedById.delete(artifact.id);
+						}
+					}
+				}
+				for (const artifact of updatedById.values()) {
+					merged.push(artifact);
+				}
+				await this._persist(this._session, merged);
 				const meta = this._getState()._meta;
-				this._stateManager.setSessionMeta(this._session, withSessionArtifacts(meta, result.artifacts));
+				this._stateManager.setSessionMeta(this._session, withSessionArtifacts(meta, merged));
 			}
 			await afterMutation?.(result);
 			return result;

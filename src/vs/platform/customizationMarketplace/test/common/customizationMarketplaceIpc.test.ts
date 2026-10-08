@@ -262,6 +262,7 @@ suite('CustomizationMarketplaceIpc', () => {
 				url: URI.parse(externalUrl),
 				externalUrl,
 				repository: URI.parse('https://github.com/Owner/Repository'),
+				readmeUri: URI.parse('https://raw.githubusercontent.com/Owner/Repository/main/README.md'),
 				icon: URI.parse('https://github.com/Owner.png?size=64'),
 				publisher: 'Owner',
 				version: '1.0',
@@ -275,11 +276,11 @@ suite('CustomizationMarketplaceIpc', () => {
 
 		assert.deepStrictEqual({
 			page: result,
-			uriInstances: [result.items[0].url, result.items[0].repository, result.items[0].icon].map(uri => uri instanceof URI),
+			uriInstances: [result.items[0].url, result.items[0].repository, result.items[0].readmeUri, result.items[0].icon].map(uri => uri instanceof URI),
 			externalUrl: result.items[0].externalUrl,
 		}, {
 			page,
-			uriInstances: [true, true, true],
+			uriInstances: [true, true, true, true],
 			externalUrl,
 		});
 	});

@@ -7,14 +7,14 @@ import { RunOnceScheduler, SequencerByKey } from '../../../base/common/async.js'
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { structuralEquals } from '../../../base/common/equals.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IReference, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { autorun } from '../../../base/common/observable.js';
 import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
-import { deriveGitHubEndpoints } from '../../github/common/githubEndpoints.js';
-import { IGitHubService } from '../../github/common/githubService.js';
-import { GitHubWorkflowRerunOptions } from '../../github/common/githubPullRequestMutationService.js';
+import { IGitHubClient } from '../../github/common/githubService.js';
+import { IParsedPullRequestUrl, parsePullRequestUrl } from '../../github/common/githubUrls.js';
+import { GitHubWorkflowRerunOptions, PullRequestReplyAndResolveResult } from '../../github/common/githubPullRequestMutationService.js';
 import { PullRequestRef, PullRequestSnapshot, PullRequestSubscription } from '../../github/common/githubPullRequestService.js';
 import { GitHubRequestError } from '../../github/common/githubTransport.js';
 import { ILogService } from '../../log/common/log.js';
@@ -31,6 +31,7 @@ import { buildDefaultChatUri, getSessionRelatedPullRequestUrls, ISessionWithDefa
 import { getEffectiveWorkingDirectories, IAgentConfigurationService } from './agentConfigurationService.js';
 import { resolveAgentMergeOwningChat, resolveGitHubStateFolder } from './agentHostBranchChangesetScope.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
+import { IAgentHostGitHubService } from './agentHostGitHubService.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentMergeTurnContext, isFailedConclusion } from './agentMergeTools.js';
@@ -69,8 +70,14 @@ interface IDeferredWorkflowRerun {
 	settled: boolean;
 }
 
+interface IActiveAgentMergeTurnContext extends IAgentMergeTurnContext {
+	readonly reviewReplies: Promise<PullRequestReplyAndResolveResult>[];
+	completing: boolean;
+}
+
 class AgentMergeRuntime extends Disposable {
 
+	readonly clientReference = this._register(new MutableDisposable<IReference<IGitHubClient>>());
 	readonly subscription = this._register(new MutableDisposable<PullRequestSubscription>());
 	readonly snapshotObserver = this._register(new MutableDisposable<DisposableStore>());
 	readonly cancellation = new CancellationTokenSource();
@@ -85,6 +92,13 @@ class AgentMergeRuntime extends Disposable {
 	indeterminate: { readonly cause: string; readonly since: number; observedAt: number } | undefined;
 	/** The refused fragment a credential was last requested for, if any. */
 	reportedCredentialFailure: string | undefined;
+
+	get client(): IGitHubClient {
+		if (!this.clientReference.value) {
+			throw new GitHubRequestError('Agent Merge has no authorized GitHub client', 'authentication');
+		}
+		return this.clientReference.value.object;
+	}
 
 	constructor(
 		readonly session: string,
@@ -105,7 +119,7 @@ export class AgentMergeController extends Disposable {
 	private readonly _runtimes = this._register(new DisposableMap<string, AgentMergeRuntime>());
 	private readonly _evaluations = new SequencerByKey<string>();
 	private readonly _evaluatingSessions = new Set<string>();
-	private readonly _activeTurns = new Map<string, IAgentMergeTurnContext>();
+	private readonly _activeTurns = new Map<string, IActiveAgentMergeTurnContext>();
 
 	private readonly _onDidReleaseHold = this._register(new Emitter<string>());
 	/** Fires when Agent Merge stops holding a session, so the host can re-arm its idle release. */
@@ -128,13 +142,22 @@ export class AgentMergeController extends Disposable {
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IAgentHostGitStateService private readonly _gitStateService: IAgentHostGitStateService,
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
-		@IGitHubService private readonly _gitHubService: IGitHubService,
+		@IAgentHostGitHubService private readonly _gitHubService: IAgentHostGitHubService,
 		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
 		@IAgentHostProviderService private readonly _providerService: IAgentHostProviderService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 		this._logService.debug('[AgentMergeController] Initialized');
+		this._register(this._gitHubService.onDidChangeRepositoryClient(() => {
+			const sessions = new Set([...this._runtimes.values()].map(runtime => runtime.session));
+			for (const key of [...this._runtimes.keys()]) {
+				this._stopRuntime(key);
+			}
+			for (const session of sessions) {
+				this._syncSession(session);
+			}
+		}));
 		this._register(this._stateManager.onDidChangeSessionConfig(event => {
 			const session = event.session.toString();
 			const sessionFolderKey = this._getSessionFolderKey(session);
@@ -305,7 +328,7 @@ export class AgentMergeController extends Disposable {
 	}
 
 	/** The runtime key and context of the repair turn `chat` is running. */
-	private _findActiveTurnEntry(chat: string): [string, IAgentMergeTurnContext] | undefined {
+	private _findActiveTurnEntry(chat: string): [string, IActiveAgentMergeTurnContext] | undefined {
 		for (const entry of this._activeTurns) {
 			if (entry[1].chat === chat) {
 				return entry;
@@ -557,7 +580,7 @@ export class AgentMergeController extends Disposable {
 				this._logService.trace(`[AgentMergeController] Evaluation started: key=${key}`);
 				await this._evaluate(key);
 			} catch (error) {
-				if (!this._runtimes.has(key)) {
+				if (!runtime || !this._isCurrentRuntime(key, runtime)) {
 					this._logService.trace(`[AgentMergeController] Evaluation stopped with disposed runtime: key=${key}`);
 					return;
 				}
@@ -588,7 +611,7 @@ export class AgentMergeController extends Disposable {
 			runtime.backstopScheduler.schedule();
 			return;
 		}
-		if (!runtime || !state || !agentMerge?.enabled || !chat || this._stateManager.getChatState(chat)?.activeTurn) {
+		if (!runtime || !state || !agentMerge?.enabled || !chat || this._activeTurns.get(key)?.completing || this._stateManager.getChatState(chat)?.activeTurn) {
 			return;
 		}
 		const configuration = this._getConfiguration(agentMerge);
@@ -665,7 +688,7 @@ export class AgentMergeController extends Disposable {
 			this._disable(session, runtime.folderKey, agentMerge, agentMergeDisableReasons.invalidPullRequestUrl());
 			return;
 		}
-		const ref = await this._resolveRef(parsed, runtime.abortController.signal);
+		const ref = await this._resolveRef(parsed, runtime);
 		if (!this._isCurrentEvaluation(key, runtime, agentMerge, chat, configuration)) {
 			return;
 		}
@@ -750,7 +773,7 @@ export class AgentMergeController extends Disposable {
 				// worktree records a sentinel that no commit can match, so the
 				// session fails closed rather than authorizing a later merge.
 				const repairBaseCommit = await this._resolveLocalCommit(session, runtime.folderKey) ?? AGENT_MERGE_UNKNOWN_COMMIT;
-				const context: IAgentMergeTurnContext = {
+				const context: IActiveAgentMergeTurnContext = {
 					session,
 					chat,
 					folderKey: runtime.folderKey,
@@ -760,8 +783,12 @@ export class AgentMergeController extends Disposable {
 					actions: gate.actions,
 					configuration,
 					snapshot,
+					client: runtime.client,
 					signal: runtime.abortController.signal,
 					commentWatermark: gate.context.commentWatermark,
+					reviewReplies: [],
+					completing: false,
+					trackReviewReply: reply => { context.reviewReplies.push(reply); },
 					deferredCheckIds,
 					initialDeferredCheckIds: new Set(deferredCheckIds),
 					deferWorkflowRerun: (options, checkIds, running) => {
@@ -863,7 +890,7 @@ export class AgentMergeController extends Disposable {
 		if (pending.length === 0) {
 			return;
 		}
-		const runs = await this._gitHubService.mutations.listWorkflowRuns(ref, headSha, runtime.abortController.signal);
+		const runs = await runtime.client.mutations.listWorkflowRuns(ref, headSha, runtime.abortController.signal);
 		for (const request of pending) {
 			const state = this._stateManager.getSessionState(session.toString());
 			const current = readAgentMergeFolderState(state?.config?.values, runtime.folderKey, this._sessionFolderKey(state));
@@ -906,7 +933,7 @@ export class AgentMergeController extends Disposable {
 				continue;
 			}
 			try {
-				const result = await this._gitHubService.mutations.rerunWorkflow(ref, request.options, runtime.abortController.signal);
+				const result = await runtime.client.mutations.rerunWorkflow(ref, request.options, runtime.abortController.signal);
 				request.settled = result.outcome !== 'indeterminate';
 				this._logService.info(`[AgentMergeController] Deferred workflow rerun requested: session=${session}, run=${run.id}, outcome=${result.outcome}`);
 			} finally {
@@ -971,8 +998,9 @@ export class AgentMergeController extends Disposable {
 		return { branchName };
 	}
 
-	private async _resolveRef(parsed: IParsedPullRequestUrl, signal: AbortSignal): Promise<PullRequestRef | undefined> {
-		const credential = await this._gitHubService.credentials.getCredential(signal);
+	private async _resolveRef(parsed: IParsedPullRequestUrl, runtime: AgentMergeRuntime): Promise<PullRequestRef | undefined> {
+		runtime.clientReference.value ??= this._gitHubService.acquireRepositoryClient(runtime.abortController.signal);
+		const credential = await runtime.client.credentials.getCredential(runtime.abortController.signal);
 		// The bound pull request URL carries its own host: after a restore or an
 		// endpoint switch the same owner/repo/number can name a different GitHub
 		// instance, which must never be acted on with this account's credential.
@@ -992,7 +1020,7 @@ export class AgentMergeController extends Disposable {
 			runtime.deferredWorkflowReruns.clear();
 		}
 		runtime.ref = ref;
-		const subscription = this._gitHubService.pullRequests.subscribePullRequest(ref, {
+		const subscription = runtime.client.pullRequests.subscribePullRequest(ref, {
 			priority: 'background',
 			conversation: {
 				topLevelComments: true,
@@ -1137,7 +1165,7 @@ export class AgentMergeController extends Disposable {
 			runtime.backstopScheduler.schedule();
 			return;
 		}
-		const preparation = await this._gitHubService.mutations.prepareMerge(ref, headSha, runtime.abortController.signal);
+		const preparation = await runtime.client.mutations.prepareMerge(ref, headSha, runtime.abortController.signal);
 		this._logService.debug(`[AgentMergeController] Native merge preparation completed: session=${session}`);
 		if (!chat || !this._isCurrentRuntime(key, runtime) || this._stateManager.getChatState(chat)?.activeTurn) {
 			runtime.backstopScheduler.schedule();
@@ -1175,7 +1203,7 @@ export class AgentMergeController extends Disposable {
 			authorizationId: `${currentTarget.enabledAt}:${currentTarget.pullRequestUrl}`,
 		};
 		if (preparation.snapshot.mergeability.value!.mergeQueueRequired) {
-			const result = await this._gitHubService.mutations.enqueue(preparation, authorization, runtime.abortController.signal);
+			const result = await runtime.client.mutations.enqueue(preparation, authorization, runtime.abortController.signal);
 			this._logService.info(`[AgentMergeController] Pull request submitted to merge queue: session=${session}, outcome=${result.outcome}`);
 			runtime.backstopScheduler.schedule();
 			return;
@@ -1186,7 +1214,7 @@ export class AgentMergeController extends Disposable {
 			runtime.backstopScheduler.schedule();
 			return;
 		}
-		const result = await this._gitHubService.mutations.merge(preparation, { method, authorization }, runtime.abortController.signal);
+		const result = await runtime.client.mutations.merge(preparation, { method, authorization }, runtime.abortController.signal);
 		this._logService.info(`[AgentMergeController] Pull request merged natively: session=${session}, method=${method}, outcome=${result.outcome}`);
 		const mergedPullRequest = preparation.snapshot.core.value!;
 		this._disable(
@@ -1213,42 +1241,62 @@ export class AgentMergeController extends Disposable {
 			return;
 		}
 		const [key, context] = entry;
-		this._activeTurns.delete(key);
-		const folder = { sessionUri: context.session, folderKey: context.folderKey };
-		const session = context.session;
-		const state = this._stateManager.getSessionState(session);
-		const completedTurn = this._stateManager.getChatState(context.chat)?.turns.find(turn => turn.id === context.turnId);
-		const agentMerge = readAgentMergeFolderState(state?.config?.values, folder.folderKey, this._sessionFolderKey(state));
-		const runtime = this._runtimes.get(key);
-		if (!agentMerge?.enabled || !runtime?.subscription.value) {
-			this._logService.debug(`[AgentMergeController] Repair turn ended after Agent Merge stopped: session=${session}, folder=${folder.folderKey}, turn=${context.turnId}, outcome=${completedTurn?.state ?? 'unknown'}`);
+		if (context.completing) {
 			return;
 		}
-		const shouldAdvanceWatermark = context.actions.includes('addressReviews') && completedTurn?.state === TurnState.Complete;
-		this._logService.info(`[AgentMergeController] Repair turn ended: session=${session}, folder=${folder.folderKey}, turn=${context.turnId}, outcome=${completedTurn?.state ?? 'unknown'}, advanceFeedbackWatermark=${shouldAdvanceWatermark}`);
-		if (shouldAdvanceWatermark && agentMerge.target && context.commentWatermark !== agentMerge.target.commentWatermark) {
-			this._updateAgentMergeState(session, folder.folderKey, {
-				target: { ...agentMerge.target, commentWatermark: context.commentWatermark },
-			});
-		}
-
-		// Decided here rather than on the next evaluation because the local
-		// commit is authoritative the instant the agent makes it, while the
-		// pull request's published head lags behind the push. Re-read the state
-		// so an advanced watermark is not written back stale.
-		const currentState = this._stateManager.getSessionState(session);
-		const current = readAgentMergeFolderState(currentState?.config?.values, folder.folderKey, this._sessionFolderKey(currentState)) ?? agentMerge;
-		if (await this._demoteMergePullRequestIfChanged(session, folder.folderKey, current, this._getConfiguration(current))) {
-			// The config write re-enters evaluation with the demoted value.
-			return;
-		}
-
+		context.completing = true;
 		try {
-			await runtime.subscription.value.refresh(undefined, runtime.cancellation.token, { authoritative: true });
-		} catch (error) {
-			this._logService.warn(`[AgentMergeController] Failed to refresh pull request after turn for ${session}`, error);
+			const replies = await Promise.allSettled(context.reviewReplies);
+			const folder = { sessionUri: context.session, folderKey: context.folderKey };
+			const session = context.session;
+			const state = this._stateManager.getSessionState(session);
+			const completedTurn = this._stateManager.getChatState(context.chat)?.turns.find(turn => turn.id === context.turnId);
+			const agentMerge = readAgentMergeFolderState(state?.config?.values, folder.folderKey, this._sessionFolderKey(state));
+			const runtime = this._runtimes.get(key);
+			if (!agentMerge?.enabled || !runtime?.subscription.value || runtime.abortController.signal !== context.signal) {
+				this._logService.debug(`[AgentMergeController] Repair turn ended after Agent Merge stopped: session=${session}, folder=${folder.folderKey}, turn=${context.turnId}, outcome=${completedTurn?.state ?? 'unknown'}`);
+				return;
+			}
+			for (const reply of replies) {
+				if (reply.status === 'rejected') {
+					this._logService.warn(`[AgentMergeController] Review reply failed before turn completion: session=${session}, turn=${context.turnId}`, reply.reason);
+				}
+			}
+			const hasPendingReviewReply = replies.some(reply => reply.status === 'fulfilled' && reply.value.reply.outcome === 'pending');
+			const shouldAdvanceWatermark = !hasPendingReviewReply && context.actions.includes('addressReviews') && completedTurn?.state === TurnState.Complete;
+			this._logService.info(`[AgentMergeController] Repair turn ended: session=${session}, folder=${folder.folderKey}, turn=${context.turnId}, outcome=${completedTurn?.state ?? 'unknown'}, advanceFeedbackWatermark=${shouldAdvanceWatermark}`);
+			if (shouldAdvanceWatermark && agentMerge.target && context.commentWatermark !== agentMerge.target.commentWatermark) {
+				this._updateAgentMergeState(session, folder.folderKey, {
+					target: { ...agentMerge.target, commentWatermark: context.commentWatermark },
+				});
+			}
+
+			// Preserve the changed-worktree safeguard before the handoff clears the repair baseline.
+			const currentState = this._stateManager.getSessionState(session);
+			const current = readAgentMergeFolderState(currentState?.config?.values, folder.folderKey, this._sessionFolderKey(currentState)) ?? agentMerge;
+			const demoted = await this._demoteMergePullRequestIfChanged(session, folder.folderKey, current, this._getConfiguration(current));
+			if (!this._isCurrentRuntime(key, runtime)) {
+				return;
+			}
+			if (hasPendingReviewReply) {
+				this._disable(session, folder.folderKey, current, agentMergeDisableReasons.pendingReviewReply());
+				return;
+			}
+			if (demoted) {
+				return;
+			}
+
+			try {
+				await runtime.subscription.value.refresh(undefined, runtime.cancellation.token, { authoritative: true });
+			} catch (error) {
+				this._logService.warn(`[AgentMergeController] Failed to refresh pull request after turn for ${session}`, error);
+			}
+			this._schedule(key, 0);
+		} finally {
+			if (this._activeTurns.get(key) === context) {
+				this._activeTurns.delete(key);
+			}
 		}
-		this._schedule(key, 0);
 	}
 
 	/**
@@ -1588,37 +1636,6 @@ export class AgentMergeController extends Disposable {
 				break;
 		}
 	}
-}
-
-interface IParsedPullRequestUrl {
-	readonly owner: string;
-	readonly repo: string;
-	readonly number: number;
-	/** REST API host the credential account must match (`api.github.com` for github.com). */
-	readonly apiHost: string;
-}
-
-export function parsePullRequestUrl(value: string): IParsedPullRequestUrl | undefined {
-	let url: URL;
-	try {
-		url = new URL(value);
-	} catch {
-		return undefined;
-	}
-	const match = /^\/(?<owner>[^/]+)\/(?<repo>[^/]+)\/pull\/(?<number>\d+)\/?$/.exec(url.pathname);
-	const number = Number(match?.groups?.number);
-	if (!match?.groups || !Number.isSafeInteger(number) || number <= 0) {
-		return undefined;
-	}
-	const host = url.host.toLowerCase();
-	return {
-		owner: match.groups.owner,
-		repo: match.groups.repo,
-		number,
-		// Derived rather than hard-coded so GitHub Enterprise Cloud web hosts
-		// (`tenant.ghe.com`) canonicalize to the `api.` host the credential reports.
-		apiHost: new URL(deriveGitHubEndpoints(`${url.protocol}//${host}`).apiBaseUri).host.toLowerCase(),
-	};
 }
 
 function sameRef(left: PullRequestRef, right: PullRequestRef): boolean {

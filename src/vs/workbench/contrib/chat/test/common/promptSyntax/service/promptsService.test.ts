@@ -40,6 +40,8 @@ import { toUserDataProfile } from '../../../../../../../platform/userDataProfile
 import { TestContextService, TestUserDataProfileService, TestWorkspaceTrustManagementService } from '../../../../../../test/common/workbenchTestServices.js';
 import { ChatRequestVariableSet, isPromptFileVariableEntry, toFileVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
 import { ComputeAutomaticInstructions, newInstructionsCollectionEvent, newInstructionsCollectionDebugInfo } from '../../../../common/promptSyntax/computeAutomaticInstructions.js';
+import { IChatSessionsService } from '../../../../common/chatSessionsService.js';
+import { MockChatSessionsService } from '../../mockChatSessionsService.js';
 import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
 import { AGENTS_SOURCE_FOLDER, CLAUDE_CONFIG_FOLDER, HOOKS_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptFileSource, PromptsType, Target } from '../../../../common/promptSyntax/promptTypes.js';
@@ -126,6 +128,7 @@ suite('PromptsService', () => {
 		instaService.stub(IWorkbenchEnvironmentService, {});
 		instaService.stub(IUserDataProfileService, new TestUserDataProfileService());
 		instaService.stub(ITelemetryService, NullTelemetryService);
+		instaService.stub(IChatSessionsService, new MockChatSessionsService());
 		instaService.stub(IStorageService, InMemoryStorageService);
 		instaService.stub(IExtensionService, {
 			whenInstalledExtensionsRegistered: () => Promise.resolve(true),
@@ -1112,7 +1115,7 @@ suite('PromptsService', () => {
 					'powershell: "${PLUGIN_ROOT}/scripts/pre-tool.ps1"',
 				],
 			);
-			const quotedScript = (name: string) => `"${pluginUri.fsPath}/scripts/${name}"`;
+			const quotedScript = (name: string) => `'${pluginUri.fsPath}/scripts/${name}'`;
 
 			assert.deepStrictEqual(hooks, [{
 				type: 'command',
@@ -1122,6 +1125,44 @@ suite('PromptsService', () => {
 				windowsSource: 'powershell',
 				linuxSource: 'bash',
 				osxSource: 'bash',
+				cwd: workspaceUri,
+				env: {
+					EXISTING: 'value',
+					PLUGIN_ROOT: pluginUri.fsPath,
+				},
+			}]);
+		});
+
+		test('resolves PLUGIN_ROOT in hooks from Copilot plugin agents', async () => {
+			const pluginUri = URI.file('/plugins/copilot-plugin');
+			const { hooks, workspaceUri } = await getPluginAgentPreToolUseHooks(
+				pluginUri,
+				PluginFormat.Copilot,
+				['command: "echo ${PLUGIN_ROOT}"'],
+			);
+
+			assert.deepStrictEqual(hooks, [{
+				type: 'command',
+				command: `echo ${pluginUri.fsPath}`,
+				cwd: workspaceUri,
+				env: {
+					EXISTING: 'value',
+					PLUGIN_ROOT: pluginUri.fsPath,
+				},
+			}]);
+		});
+
+		test('resolves PLUGIN_ROOT in hooks from Agent Plugin agents', async () => {
+			const pluginUri = URI.file('/plugins/agent-plugin');
+			const { hooks, workspaceUri } = await getPluginAgentPreToolUseHooks(
+				pluginUri,
+				PluginFormat.AgentPlugin,
+				['command: "echo ${PLUGIN_ROOT}"'],
+			);
+
+			assert.deepStrictEqual(hooks, [{
+				type: 'command',
+				command: `echo ${pluginUri.fsPath}`,
 				cwd: workspaceUri,
 				env: {
 					EXISTING: 'value',
@@ -2767,6 +2808,40 @@ suite('PromptsService', () => {
 			} finally {
 				errorSpy.restore();
 			}
+		});
+
+		test('does not cache a partial result when a provider swallows cancellation', async () => {
+			const extension = {
+				identifier: { value: 'test.my-extension' },
+				enabledApiProposals: ['chatParticipantPrivate']
+			} as unknown as IExtensionDescription;
+			// Block standalone files so the provider is the only cancellation source.
+			testConfigService.setUserConfiguration(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, true);
+			fireConfigChange(testConfigService, COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG);
+
+			const agentUri = URI.parse('file://extensions/my-extension/provided.agent.md');
+			const cancellationTokenSource = disposables.add(new CancellationTokenSource());
+			let providerCalls = 0;
+			disposables.add(service.registerPromptFileProvider(extension, PromptsType.agent, {
+				providePromptFiles: async () => {
+					providerCalls++;
+					if (providerCalls === 1) {
+						// Cancel without throwing, the way the provider loop bails out.
+						cancellationTokenSource.cancel();
+						return [];
+					}
+					return [{ uri: agentUri }];
+				}
+			}));
+
+			await assert.rejects(service.listPromptFiles(PromptsType.agent, cancellationTokenSource.token), CancellationError);
+
+			const files = await service.listPromptFiles(PromptsType.agent, CancellationToken.None);
+
+			assert.deepStrictEqual(
+				files.map(file => file.uri.toString()),
+				[agentUri.toString()],
+			);
 		});
 
 		test('Contributed agent file that does not exist should not crash', async () => {

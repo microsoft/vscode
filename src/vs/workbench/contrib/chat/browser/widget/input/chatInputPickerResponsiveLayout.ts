@@ -12,6 +12,7 @@ export interface IChatInputPickerResponsiveLayoutDelegate {
 	getItems(): readonly IChatInputPickerResponsiveLayoutItem[];
 	/** Size a content-fitting lane against its intrinsic width, ignoring animated item bounds. */
 	readonly usePreferredWidth?: boolean;
+	isCompactionEnabled?(): boolean;
 	hasOverflow?(): boolean;
 	relayout?(): void;
 }
@@ -86,6 +87,9 @@ export class ChatInputPickerResponsiveLayout extends Disposable {
 				item.setCompact(false);
 			}
 			this._delegate.relayout?.();
+			if (this._delegate.isCompactionEnabled?.() === false) {
+				return;
+			}
 
 			for (const item of items) {
 				if (this._fitsAvailableWidth(availableWidth)) {

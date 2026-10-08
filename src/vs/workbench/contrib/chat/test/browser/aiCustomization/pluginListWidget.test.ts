@@ -12,10 +12,11 @@ import { PluginFormat } from '../../../../../../platform/agentPlugins/common/plu
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { CustomizationEnablementKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { getInstalledPluginMetadata, getRemotePluginDisabledLabel, getToggledPluginEnablementState, isCurrentPluginMarketplaceRequest, partitionInstalledPluginItemsByScope, PluginMarketplaceSnapshotModel, setPluginEnablementAndReadEffective, shouldLoadPluginMarketplaceSnapshot, shouldShowLegacyPluginMarketplace, shouldShowPluginTree } from '../../../browser/aiCustomization/pluginListWidget.js';
+import { getInstalledPluginMetadata, getRemotePluginDisabledLabel, getToggledPluginEnablementState, isCurrentPluginMarketplaceRequest, partitionInstalledPluginItemsByScope, PluginListWidget, PluginMarketplaceSnapshotModel, setPluginEnablementAndReadEffective, shouldLoadPluginMarketplaceSnapshot, shouldShowLegacyPluginMarketplace, shouldShowPluginTree } from '../../../browser/aiCustomization/pluginListWidget.js';
 import { AgentPluginItemKind, IInstalledPluginItem } from '../../../browser/agentPluginEditor/agentPluginItems.js';
 import { ContributionEnablementState, IEnablementModel } from '../../../common/enablement.js';
 import { IAgentPlugin } from '../../../common/plugins/agentPluginService.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 
 suite('pluginListWidget', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -80,6 +81,142 @@ suite('pluginListWidget', () => {
 		}, {
 			user: ['profile'],
 			workspace: ['workspace'],
+		});
+	});
+
+	test('renders User before Workspace even when User has no plugins', () => {
+		const createItem = (name: string, state: ContributionEnablementState): IInstalledPluginItem => {
+			const plugin = new class extends mock<IAgentPlugin>() {
+				override readonly uri = URI.file(`/plugins/${name}`);
+				override readonly label = name;
+				override readonly enablement = constObservable(state);
+			}();
+			return { kind: AgentPluginItemKind.Installed, name, description: '', plugin };
+		};
+		const renderGroupLabels = (installedItems: readonly IInstalledPluginItem[]): readonly string[] => {
+			type TreeNode = { readonly element: { readonly type: string; readonly label?: string } };
+			let renderedChildren: readonly TreeNode[] = [];
+			const widget = Object.assign(Object.create(PluginListWidget.prototype), {
+				list: {
+					setChildren: (_input: null, children?: readonly TreeNode[]) => {
+						renderedChildren = children ?? [];
+					},
+				},
+				installedItems,
+				remoteItems: [],
+				marketplaceItems: [],
+				marketplaceSnapshot: new PluginMarketplaceSnapshotModel(),
+				searchQuery: '',
+				browseMode: false,
+				configurationService: new TestConfigurationService({
+					[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
+				}),
+				cardScrollableNode: document.createElement('div'),
+				updateToolbarActions: () => { },
+				updatePluginTreeEmptyState: () => { },
+				workspaceContextService: new class extends mock<IWorkspaceContextService>() {
+					override getWorkspace() {
+						const uri = URI.file('/workspace');
+						return { id: 'test', folders: [{ uri, name: 'Workspace', index: 0, toResource: (path: string) => URI.joinPath(uri, path) }] };
+					}
+				}(),
+			});
+			const renderPluginTree = Reflect.get(PluginListWidget.prototype, 'renderPluginTree') as (this: object) => void;
+			renderPluginTree.call(widget);
+			return renderedChildren
+				.filter(child => child.element.type === 'group-header')
+				.map(child => child.element.label ?? '');
+		};
+		const workspace = createItem('workspace', ContributionEnablementState.EnabledWorkspace);
+
+		assert.deepStrictEqual({
+			bothGroupsPopulated: renderGroupLabels([
+				workspace,
+				createItem('user', ContributionEnablementState.EnabledProfile),
+			]),
+			userEmpty: renderGroupLabels([workspace]),
+		}, {
+			bothGroupsPopulated: ['User', 'Workspace'],
+			userEmpty: ['User', 'Workspace'],
+		});
+	});
+
+	test('splits workspace plugin sections in multi-root workspaces', () => {
+		const firstUri = URI.file('/workspace/first');
+		const secondUri = URI.file('/workspace/second');
+		const createItem = (name: string, uri: URI): IInstalledPluginItem => {
+			const plugin = new class extends mock<IAgentPlugin>() {
+				override readonly uri = uri;
+				override readonly label = name;
+				override readonly enablement = constObservable(ContributionEnablementState.EnabledWorkspace);
+			}();
+			return { kind: AgentPluginItemKind.Installed, name, description: '', plugin };
+		};
+		type TreeNode = { readonly element: { readonly type: string; readonly label?: string } };
+		let renderedChildren: readonly TreeNode[] = [];
+		const folders = [
+			{ uri: firstUri, name: 'First', index: 0, toResource: (path: string) => URI.joinPath(firstUri, path) },
+			{ uri: secondUri, name: 'Second', index: 1, toResource: (path: string) => URI.joinPath(secondUri, path) },
+		];
+		const widget = Object.assign(Object.create(PluginListWidget.prototype), {
+			list: { setChildren: (_input: null, children?: readonly TreeNode[]) => renderedChildren = children ?? [] },
+			installedItems: [
+				createItem('first', URI.joinPath(firstUri, '.github/plugins/first')),
+				createItem('second', URI.joinPath(secondUri, '.github/plugins/second')),
+			],
+			remoteItems: [],
+			marketplaceItems: [],
+			marketplaceSnapshot: new PluginMarketplaceSnapshotModel(),
+			searchQuery: '',
+			browseMode: false,
+			configurationService: new TestConfigurationService({ [CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true }),
+			cardScrollableNode: document.createElement('div'),
+			updateToolbarActions: () => { },
+			updatePluginTreeEmptyState: () => { },
+			workspaceContextService: new class extends mock<IWorkspaceContextService>() {
+				override getWorkspace() { return { id: 'test', folders }; }
+				override getWorkspaceFolder(resource: URI) {
+					return folders.find(folder => resource.path.startsWith(folder.uri.path)) ?? null;
+				}
+			}(),
+		});
+
+		(Reflect.get(PluginListWidget.prototype, 'renderPluginTree') as (this: object) => void).call(widget);
+
+		assert.deepStrictEqual(renderedChildren.map(child => child.element.label), ['User', 'First', 'Second']);
+	});
+
+	test('reveals, selects, and focuses an installed plugin by URI', async () => {
+		const targetUri = URI.file('/plugins/security');
+		const targetEntry = {
+			type: 'plugin-item' as const,
+			item: {
+				plugin: { uri: targetUri },
+			},
+		};
+		const calls: string[] = [];
+		const widget = Object.assign(Object.create(PluginListWidget.prototype), {
+			browseMode: false,
+			searchQuery: '',
+			filterPlugins: async () => { },
+			currentTreeGroups: [{
+				element: { type: 'group-header' },
+				children: [targetEntry],
+			}],
+			list: {
+				reveal: (entry: object) => calls.push(entry === targetEntry ? 'reveal' : 'reveal-other'),
+				setFocus: (entries: readonly object[]) => calls.push(entries[0] === targetEntry ? 'focus' : 'focus-other'),
+				setSelection: (entries: readonly object[]) => calls.push(entries[0] === targetEntry ? 'select' : 'select-other'),
+				domFocus: () => calls.push('dom-focus'),
+			},
+		}) as PluginListWidget;
+
+		assert.deepStrictEqual({
+			revealed: await widget.revealAndSelectItemByUri(targetUri),
+			calls,
+		}, {
+			revealed: true,
+			calls: ['reveal', 'focus', 'select', 'dom-focus'],
 		});
 	});
 

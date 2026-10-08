@@ -30,7 +30,7 @@ import { DiffEditorWidget } from '../../../../editor/browser/widget/diffEditor/d
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { Menus } from '../../../browser/menus.js';
 import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID, AGENT_HOST_PULL_REQUEST_OPERATION_IDS, AGENT_HOST_SYNC_CHANGESET_OPERATION_ID } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
-import { SessionHasOpenPullRequestContext, SessionPrimaryPullRequestOperationContext, SinglePaneChangesEditorTransitionContext } from '../../../common/contextkeys.js';
+import { SessionHasOpenPullRequestContext, SessionPrimaryPullRequestOperationContext, DesktopChangesEditorTransitionContext } from '../../../common/contextkeys.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
 import { ISessionChangesStatsCache, readSessionChangesStats } from '../../../services/sessions/common/sessionChangesStatsCache.js';
@@ -76,7 +76,7 @@ class ViewAllChangesAction extends Action2 {
 
 		// Opening the Changes editor from the pill is a deliberate user action, so
 		// reveal the (possibly hidden) editor area explicitly — the automatic
-		// single-pane hide rules must not undo it.
+		// desktop hide rules must not undo it.
 		layoutService.revealEditorPartExplicitly();
 
 		// The header pill reflects the default changeset.
@@ -85,13 +85,13 @@ class ViewAllChangesAction extends Action2 {
 }
 registerAction2(ViewAllChangesAction);
 
-// --- Open File action (per-file toolbar in the single-pane session changes editor)
+// --- Open File action (per-file toolbar in the desktop session changes editor)
 
 /**
- * Opens the file shown in a diff row of the Agents window's single-pane session
+ * Opens the file shown in a diff row of the Agents window's desktop session
  * Changes editor ({@link SessionChangesEditor}) as a regular editor. The workbench
  * {@link GoToFileAction} only appears for the generic {@link MultiDiffEditor}, so
- * the custom single-pane editor needs its own entry in the per-file toolbar. It is
+ * the custom desktop editor needs its own entry in the per-file toolbar. It is
  * scoped to the {@link SessionChangesEditor} rather than the shared
  * `changes-multi-diff-source` scheme so it does not duplicate the workbench action
  * when the same changes are shown in the generic multi-file diff editor.
@@ -340,7 +340,7 @@ class ChangesetOperationsActionControllerContribution extends Disposable impleme
 		const primaryPullRequestOperationKey = SessionPrimaryPullRequestOperationContext.bindTo(contextKeyService);
 		const hasOpenPullRequestKey = SessionHasOpenPullRequestContext.bindTo(contextKeyService);
 		const changesEditorTransitionObs = observableFromEvent(contextKeyService.onDidChangeContext, () =>
-			SinglePaneChangesEditorTransitionContext.getValue(contextKeyService) === true);
+			DesktopChangesEditorTransitionContext.getValue(contextKeyService) === true);
 		let lastPullRequestOperation: string | undefined;
 		this._register(autorun(reader => {
 			if (changesEditorTransitionObs.read(reader)

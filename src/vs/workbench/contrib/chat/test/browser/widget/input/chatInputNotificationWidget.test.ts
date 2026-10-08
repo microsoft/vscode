@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as dom from '../../../../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { IStringDictionary } from '../../../../../../../base/common/collections.js';
-import { IDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { IDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
+import type { AgentChatInputState } from '../../../../../../../platform/agentHost/common/meta/agentHostChatInputState.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { ICommandEvent, ICommandService } from '../../../../../../../platform/commands/common/commands.js';
@@ -17,6 +19,8 @@ import { SyncDescriptor } from '../../../../../../../platform/instantiation/comm
 import { getSingletonServiceDescriptors } from '../../../../../../../platform/instantiation/common/extensions.js';
 import { ServiceCollection } from '../../../../../../../platform/instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
+import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
+import { IOpenerService, OpenOptions } from '../../../../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { defaultButtonStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
@@ -29,6 +33,7 @@ import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, IL
 import { localChatSessionType, SessionType } from '../../../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../../../common/model/chatUri.js';
 import { getCopilotHarnessIntroductionContent } from '../../../../browser/agentSessions/copilotHarnessIntroduction.js';
+import { AgentHostChatInputState } from '../../../../browser/agentSessions/agentHost/agentHostChatInputState.js';
 
 class TestCommandService implements ICommandService {
 	declare readonly _serviceBrand: undefined;
@@ -120,6 +125,39 @@ suite('ChatInputNotificationWidget', () => {
 		store.add(notificationService as IChatInputNotificationService & IDisposable);
 		return notificationService;
 	}
+
+	test('keeps the blocking conversation notice above a session warning until input is available', () => {
+		const notificationService = createNotificationService();
+		const sessionResource = URI.parse('agent-host-codex:/locked');
+		const input = observableValue<AgentChatInputState | undefined>('input', { kind: 'checking' });
+		store.add(new AgentHostChatInputState(sessionResource, input, async () => { }, notificationService));
+		notificationService.setNotification({
+			id: 'sandbox-warning',
+			severity: ChatInputNotificationSeverity.Warning,
+			message: 'Sandboxing is unavailable in this environment',
+			description: undefined,
+			actions: [],
+			dismissible: true,
+			autoDismissOnMessage: false,
+			sessionResources: [sessionResource],
+		});
+		const snapshot = () => {
+			const notice = notificationService.getActiveNotification();
+			return { message: notice?.message, actions: notice?.actions.map(action => action.label) };
+		};
+		const checking = snapshot();
+		input.set({ kind: 'blocked', error: { errorType: 'CodexThreadInUse', message: 'Thread is in use' } }, undefined);
+		const locked = snapshot();
+		input.set({ kind: 'checking' }, undefined);
+		const rechecking = snapshot();
+		input.set(undefined, undefined);
+		assert.deepStrictEqual({ checking, locked, rechecking, available: snapshot() }, {
+			checking: { message: 'Checking Conversation', actions: [] },
+			locked: { message: 'This chat is open in another app', actions: ['Retry'] },
+			rechecking: { message: 'This chat is open in another app', actions: ['Retry'] },
+			available: { message: 'Sandboxing is unavailable in this environment', actions: [] },
+		});
+	});
 
 	test('reactively applies session type filter when pending delegation target changes', () => {
 		const currentSessionType = observableValue<string | undefined>('currentSessionType', localChatSessionType);
@@ -392,6 +430,64 @@ suite('ChatInputNotificationWidget', () => {
 		});
 	});
 
+	test('escaped diagnostic text is selectable and support links open with mouse and keyboard', () => {
+		const notificationService = createNotificationService();
+		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
+		instantiationService.stub(IChatInputNotificationService, notificationService);
+		instantiationService.stub(ICommandService, new TestCommandService());
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		const opened: { link: string; allowCommands: boolean | readonly string[] | undefined }[] = [];
+		instantiationService.stub(IOpenerService, {
+			open: async (link: URI | string, options?: OpenOptions) => {
+				opened.push({ link: link.toString(), allowCommands: options?.allowCommands });
+				return true;
+			},
+		});
+
+		const container = dom.append(document.body, dom.$('.monaco-workbench'));
+		instantiationService.stub(IMarkdownRendererService, instantiationService.createInstance(MarkdownRendererService));
+		store.add(toDisposable(() => container.remove()));
+		const widget = store.add(instantiationService.createInstance(ChatInputNotificationWidget, undefined));
+		container.appendChild(widget.domNode);
+		const url = 'https://aka.ms/ghcp-sandbox-os-support';
+		const reason = `Update Windows: ${url} [not a command](command:evil) <b>literal</b>`;
+		notificationService.setNotification({
+			id: 'sandbox-diagnostic',
+			severity: ChatInputNotificationSeverity.Warning,
+			message: 'Sandboxing is unavailable in this environment',
+			description: new MarkdownString().appendText('Update Windows: ').appendLink(url, url).appendText(' [not a command](command:evil) <b>literal</b>'),
+			actions: [],
+			dismissible: true,
+			autoDismissOnMessage: false,
+		});
+
+		const title = widget.domNode.querySelector<HTMLElement>('.chat-input-notification-title');
+		const description = widget.domNode.querySelector<HTMLElement>('.chat-input-notification-description');
+		const link = description?.querySelector('a');
+		assert.ok(title && description && link);
+		link.click();
+		link.focus();
+		const focused = document.activeElement === link;
+		link.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+		const titleStyle = dom.getWindow(title).getComputedStyle(title);
+		const descriptionStyle = dom.getWindow(description).getComputedStyle(description);
+		assert.deepStrictEqual({
+			text: description.textContent?.replace(/\u00a0/g, ' '),
+			links: description.querySelectorAll('a').length,
+			titleSelection: titleStyle.userSelect || titleStyle.getPropertyValue('-webkit-user-select'),
+			descriptionSelection: descriptionStyle.userSelect || descriptionStyle.getPropertyValue('-webkit-user-select'),
+			focused,
+			opened,
+		}, {
+			text: reason,
+			links: 1,
+			titleSelection: 'text',
+			descriptionSelection: 'text',
+			focused: true,
+			opened: [{ link: url, allowCommands: false }, { link: url, allowCommands: false }],
+		});
+	});
+
 	test('auto-dismiss on message only applies to the sending session', () => {
 		const firstSession = URI.parse('vscode-chat-session://agent-host-copilotcli/session-1');
 		const secondSession = URI.parse('vscode-chat-session://agent-host-copilotcli/session-2');
@@ -550,10 +646,26 @@ suite('ChatInputNotificationWidget', () => {
 
 	test('only marks a banner shown when its host becomes visible', () => {
 		const hostVisible = observableValue('hostVisible', false);
+		const inputUri = URI.parse('test-input:/first');
+		const sessionResource = URI.parse('remote-host-copilot:/session');
 		const telemetryService = new RecordingTelemetryService();
-		const { notificationService, widget } = createWidget({ delegate: { hostVisible }, telemetryService });
+		const { notificationService, widget } = createWidget({
+			delegate: {
+				hostVisible,
+				inputUri,
+				sessionResource: constObservable(sessionResource),
+				modelTargetChatSessionType: constObservable('remote-host-copilot'),
+			},
+			telemetryService,
+		});
 		let shown = 0;
-		showNotification(notificationService, { id: 'promo', message: 'Sale', actions: [], onDidShow: () => shown++ });
+		let shownContext: IChatInputNotificationContext | undefined;
+		showNotification(notificationService, {
+			id: 'promo', message: 'Sale', actions: [], onDidShow: context => {
+				shown++;
+				shownContext = context;
+			}
+		});
 		const contents = widget.domNode.firstChild;
 		const whileHidden = shown;
 		hostVisible.set(true, undefined);
@@ -565,6 +677,7 @@ suite('ChatInputNotificationWidget', () => {
 			sameContents: widget.domNode.firstChild === contents,
 			impressions: telemetryService.events.filter(event => event.name === 'chatInputNotificationShown').length,
 		}, { whileHidden: 0, shown: 1, sameContents: true, impressions: 1 });
+		assert.deepStrictEqual(shownContext, context({ inputUri, sessionResource, sessionType: 'remote-host-copilot' }));
 	});
 
 	function clickAction(widget: ChatInputNotificationWidget): void {

@@ -28,7 +28,9 @@ suite('SessionChatPills', () => {
 				{ kind: SessionChatPillKind.Artifacts, label: 'Artifacts', checked: true },
 				{ kind: SessionChatPillKind.References, label: 'References', checked: true },
 				{ kind: SessionChatPillKind.Customizations, label: 'Customizations', checked: true },
+				{ kind: SessionChatPillKind.Canvases, label: 'Canvases', checked: true },
 				{ kind: SessionChatPillKind.Browsers, label: 'Browsers', checked: true },
+				{ kind: SessionChatPillKind.BackgroundShells, label: 'Background Shells', checked: true },
 			],
 		});
 	});
@@ -50,14 +52,15 @@ suite('SessionChatPills', () => {
 	test('limits the menu to the pill kinds offered by the surface', () => {
 		assert.deepStrictEqual(
 			getSessionChatPillMenu(
-				new Set([SessionChatPillKind.PullRequests, SessionChatPillKind.Browsers]),
+				new Set([SessionChatPillKind.PullRequests, SessionChatPillKind.Browsers, SessionChatPillKind.Canvases]),
 				new Set(),
 				SessionChatPillKind.Browsers,
-				[SessionChatPillKind.Changes, SessionChatPillKind.Artifacts, SessionChatPillKind.PullRequests],
+				[SessionChatPillKind.Changes, SessionChatPillKind.Artifacts, SessionChatPillKind.PullRequests, SessionChatPillKind.Canvases],
 			),
 			{
 				withData: [
 					{ kind: SessionChatPillKind.PullRequests, label: 'Pull Requests', checked: true },
+					{ kind: SessionChatPillKind.Canvases, label: 'Canvases', checked: true },
 				],
 				withoutData: [
 					{ kind: SessionChatPillKind.Artifacts, label: 'Artifacts', checked: true },
@@ -72,12 +75,16 @@ suite('SessionChatPills', () => {
 		assert.deepStrictEqual({
 			customizations: visibility.isVisible(SessionChatPillKind.Customizations, undefined),
 			subagents: visibility.isVisible(SessionChatPillKind.Subagents, undefined),
+			backgroundShells: visibility.isVisible(SessionChatPillKind.BackgroundShells, undefined),
+			canvases: visibility.isVisible(SessionChatPillKind.Canvases, undefined),
 			artifacts: visibility.isVisible(SessionChatPillKind.Artifacts, undefined),
 			references: visibility.isVisible(SessionChatPillKind.References, undefined),
 			changes: visibility.isVisible(SessionChatPillKind.Changes, undefined),
 		}, {
 			customizations: false,
 			subagents: false,
+			backgroundShells: true,
+			canvases: true,
 			artifacts: true,
 			references: true,
 			changes: true,

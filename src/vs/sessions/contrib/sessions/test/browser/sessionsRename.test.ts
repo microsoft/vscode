@@ -17,10 +17,12 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IInputOptions, IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
+import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ARCHIVE_SESSION_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { SessionView } from '../../../../browser/parts/sessionView.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
@@ -160,10 +162,10 @@ suite('Sessions rename', () => {
 				override readonly title = constObservable('Offscreen peer');
 				override readonly updatedAt = constObservable(new Date());
 				override readonly status = constObservable(SessionStatus.Completed);
+				override readonly description = constObservable(undefined);
 				override readonly interactivity = constObservable(ChatInteractivity.Full);
 				override readonly isArchived = constObservable(false);
 				override readonly isRead = constObservable(true);
-				override readonly description = constObservable(undefined);
 				override readonly capabilities = constObservable({ canRename: true, canArchive: true, canDelete: true });
 			}();
 			const chatSession: ISession = {
@@ -382,10 +384,10 @@ suite('Sessions rename', () => {
 				override readonly title = constObservable('Peer chat');
 				override readonly updatedAt = constObservable(new Date());
 				override readonly status = constObservable(SessionStatus.Completed);
+				override readonly description = constObservable(undefined);
 				override readonly interactivity = constObservable(ChatInteractivity.Full);
 				override readonly isArchived = constObservable(false);
 				override readonly isRead = constObservable(true);
-				override readonly description = constObservable(undefined);
 				override readonly capabilities = constObservable({ canRename: true, canArchive: true, canDelete: true });
 			}();
 			const chats = observableValue<readonly IChat[]>('renameDraftChats', [mainChat, peerChat]);
@@ -460,10 +462,10 @@ suite('Sessions rename', () => {
 				override readonly title = constObservable('Peer chat');
 				override readonly updatedAt = constObservable(new Date());
 				override readonly status = constObservable(SessionStatus.Completed);
+				override readonly description = constObservable(undefined);
 				override readonly interactivity = constObservable(ChatInteractivity.Full);
 				override readonly isArchived = constObservable(false);
 				override readonly isRead = constObservable(true);
-				override readonly description = constObservable(undefined);
 				override readonly capabilities = constObservable({ canRename: true, canArchive: true, canDelete: true });
 			}();
 			const session: ISession = {
@@ -645,24 +647,22 @@ suite('Sessions rename', () => {
 				override readonly resource = URI.parse('test-chat:///grill-and-plan');
 				override readonly workspace = constObservable(undefined);
 				override readonly title = constObservable('Grill and Plan');
-				override readonly updatedAt = constObservable(new Date());
 				override readonly status = constObservable(options.status ?? SessionStatus.Completed);
+				override readonly description = constObservable(undefined);
 				override readonly interactivity = constObservable(ChatInteractivity.Full);
 				override readonly isArchived = constObservable(false);
 				override readonly isRead = constObservable(true);
-				override readonly description = constObservable(undefined);
 				override readonly capabilities = constObservable({ canRename: options.canRename ?? true, canArchive: true, canDelete: true });
 			}();
 			const otherPeerChat = new class extends mock<IChat>() {
 				override readonly resource = URI.parse('test-chat:///other-peer');
 				override readonly workspace = constObservable(undefined);
 				override readonly title = constObservable('Other Peer');
-				override readonly updatedAt = constObservable(new Date());
 				override readonly status = constObservable(SessionStatus.Completed);
+				override readonly description = constObservable(undefined);
 				override readonly interactivity = constObservable(ChatInteractivity.Full);
 				override readonly isArchived = constObservable(false);
 				override readonly isRead = constObservable(true);
-				override readonly description = constObservable(undefined);
 				override readonly capabilities = constObservable({ canRename: true, canArchive: true, canDelete: true });
 			}();
 			const chats = observableValue<readonly IChat[]>('renameChats', [mainChat, peerChat, otherPeerChat]);
@@ -875,6 +875,8 @@ suite('Sessions rename', () => {
 	suite('accessibility help', () => {
 		function createHelpProvider(origin: HTMLElement, removeOrigin = false, phoneLayout = false) {
 			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(IEnvironmentService, { isBuilt: true, isExtensionDevelopment: false });
+			instantiationService.stub(IChatEntitlementService, { sentiment: { hidden: false } });
 			let fallbackFocusCount = 0;
 			const fallbackView = new class extends mock<SessionView>() {
 				override focus(): void { fallbackFocusCount++; }

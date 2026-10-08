@@ -7,6 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
+import { readAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
 import { AgentSession, subagentChatTitle } from '../../common/agent.js';
 import { getErrorResponsePart, getTurnError, MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildSubagentSessionUri, type ResponsePart, type StringOrMarkdown, type ToolCallResponsePart, type ToolResultContent } from '../../common/state/sessionState.js';
 import { appendSdkToolResultContent, mapSessionEvents as mapSessionEventsWithRouting, type IMapSessionEventsOptions } from '../../node/copilot/mapSessionEvents.js';
@@ -24,6 +25,27 @@ suite('mapSessionEvents — history replay', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const session = AgentSession.uri('copilot', 'test-session');
+
+	test('declares native input contracts only when replay knows the client tool set', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', data: { interactionId: 'message', content: 'Read files' } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'native', toolName: 'view', arguments: { path: '/workspace/File.ts', view_range: [1, 10] } } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'native', success: true } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'client', toolName: 'edit', arguments: { path: '/workspace/File.ts' } } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'client', success: true } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'mcp', toolName: 'grep', arguments: { pattern: 'query' }, mcpServerName: 'server', mcpToolName: 'grep' } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'mcp', success: true } },
+		];
+		const summaries = await Promise.all([undefined, new Set(['edit'])].map(async clientToolNames => {
+			const result = await mapSessionEvents(session, undefined, toSessionEvents(events), { clientToolNames });
+			return result.turns.flatMap(turn => turn.responseParts.flatMap(part =>
+				part.kind === ResponsePartKind.ToolCall ? [readToolCallMeta(part.toolCall)['vscode.toolInputContract']] : []));
+		}));
+		assert.deepStrictEqual(summaries, [
+			[undefined, undefined, undefined],
+			['copilot-cli-v1', undefined, undefined],
+		]);
+	});
 
 	function partKinds(parts: readonly ResponsePart[]): Array<{ kind: ResponsePartKind; content?: StringOrMarkdown }> {
 		return parts.map(p => p.kind === ResponsePartKind.Markdown || p.kind === ResponsePartKind.SystemNotification ? { kind: p.kind, content: p.content } : { kind: p.kind });
@@ -596,6 +618,7 @@ suite('mapSessionEvents — history replay', () => {
 			predictedLabel: 'needs_reasoning',
 			confidence: 0.93,
 			candidateModels: ['claude-opus-4.8', 'claude-sonnet-4.6'],
+			selectionReason: 'Auto selected claude-opus-4.8 for its fit to your request because of high reasoning needs.',
 		};
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', id: 'turn-before-auto', data: { interactionId: 'm0', content: 'First prompt' } },
@@ -670,6 +693,32 @@ suite('mapSessionEvents — history replay', () => {
 
 			assert.deepStrictEqual(subagentTurnsByToolCallId.get('tc-task')?.[0].usage, {
 				model: 'gpt-5.5', _meta: { autoModeResolved },
+			});
+		});
+	}
+
+	for (const beforeFirstMessage of [false, true]) {
+		test(`restores resolved subagent model options (beforeFirstMessage=${beforeFirstMessage})`, async () => {
+			const configured: ISessionEvent = {
+				type: 'subagent.configured', agentId: 'agent-1',
+				data: { model: 'gpt-5.4-mini', multiTurn: true, reasoningEffort: 'xhigh', contextTier: 'long_context' },
+			};
+			const message: ISessionEvent = { type: 'user.message', agentId: 'agent-1', data: { content: 'Explore' } };
+			const { turns, subagentTurnsByToolCallId } = await mapSessionEvents(session, undefined, toSessionEvents([
+				{ type: 'user.message', data: { content: 'Delegate work' } },
+				{ type: 'subagent.started', agentId: 'agent-1', data: { toolCallId: 'tc-task', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests' } },
+				...(beforeFirstMessage ? [configured, message] : [message, configured]),
+				{ type: 'assistant.turn_start', agentId: 'agent-1', data: { turnId: 'child-turn', model: 'gpt-5.4-mini' } },
+				{ type: 'assistant.message', agentId: 'agent-1', data: { content: 'Child response' } },
+				{ type: 'assistant.message', data: { content: 'Parent response' } },
+			]));
+
+			assert.deepStrictEqual({
+				parent: readAgentRuntimeModelConfiguration(turns[0].usage),
+				child: readAgentRuntimeModelConfiguration(subagentTurnsByToolCallId.get('tc-task')?.[0].usage),
+			}, {
+				parent: undefined,
+				child: { reasoningEffort: 'xhigh', contextTier: 'long_context' },
 			});
 		});
 	}
@@ -1059,75 +1108,82 @@ suite('mapSessionEvents — history replay', () => {
 		});
 	});
 
-	test('restores MCP app data for completed tool calls', async () => {
-		const events: ISessionEvent[] = [
-			{ type: 'user.message', data: { interactionId: 'm1', content: 'call an MCP app tool' } },
-			{
-				type: 'assistant.message',
-				data: {
-					messageId: 'm2',
-					content: '',
-					toolRequests: [{
+	for (const scheme of ['copilot', 'ahp-session']) {
+		test(`restores MCP app data for completed tool calls on ${scheme} resources`, async () => {
+			const structuredContent = { titleId: 'example-title', branding: null };
+			const events: ISessionEvent[] = [
+				{ type: 'user.message', data: { interactionId: 'm1', content: 'call an MCP app tool' } },
+				{
+					type: 'assistant.message',
+					data: {
+						messageId: 'm2',
+						content: '',
+						toolRequests: [{
+							toolCallId: 'tc-1',
+							name: 'GitHub-get_me',
+							arguments: {},
+							type: 'function',
+							mcpServerName: 'GitHub',
+							mcpToolName: 'get_me',
+						}],
+					},
+				},
+				{
+					type: 'tool.execution_start',
+					data: {
 						toolCallId: 'tc-1',
-						name: 'GitHub-get_me',
+						toolName: 'GitHub-get_me',
 						arguments: {},
-						type: 'function',
 						mcpServerName: 'GitHub',
 						mcpToolName: 'get_me',
-					}],
-				},
-			},
-			{
-				type: 'tool.execution_start',
-				data: {
-					toolCallId: 'tc-1',
-					toolName: 'GitHub-get_me',
-					arguments: {},
-					mcpServerName: 'GitHub',
-					mcpToolName: 'get_me',
-					toolDescription: {
-						_meta: {
-							ui: {
-								resourceUri: 'ui://github-mcp-server/get-me',
+						toolDescription: {
+							_meta: {
+								ui: {
+									resourceUri: 'ui://github-mcp-server/get-me',
+								},
 							},
 						},
 					},
 				},
-			},
-			{
-				type: 'tool.execution_complete',
-				data: {
-					toolCallId: 'tc-1',
-					success: true,
-					result: { content: '{"login":"octocat"}' },
+				{
+					type: 'tool.execution_complete',
+					data: {
+						toolCallId: 'tc-1',
+						success: true,
+						result: { content: 'Opened the accent-color editor.', structuredContent },
+					},
 				},
-			},
-		];
+			];
 
-		const chatUri = URI.parse(buildChatUri(session, 'restored-chat'));
-		const sdkConversationUri = URI.parse('copilot-sdk:/conversation-123');
-		const { turns } = await mapSessionEventsWithRouting(sdkConversationUri, undefined, toSessionEvents(events), chatUri);
+			const owner = AgentSession.uri(scheme, 'test-session');
+			const providerId = scheme === 'ahp-session' ? 'copilotcli' : scheme;
+			const chatUri = URI.parse(buildChatUri(owner, 'restored-chat'));
+			const sdkConversationUri = URI.parse('copilot-sdk:/conversation-123');
+			const { turns } = await mapSessionEventsWithRouting(sdkConversationUri, undefined, toSessionEvents(events), chatUri);
 
-		const part = turns[0].responseParts[0] as ToolCallResponsePart;
-		assert.strictEqual(part.kind, ResponsePartKind.ToolCall);
-		assert.deepStrictEqual({
-			contributor: part.toolCall.contributor,
-			meta: readToolCallMeta(part.toolCall),
-		}, {
-			contributor: {
-				kind: ToolCallContributorKind.MCP,
-				customizationId: 'mcp-top-level:copilot:test-session:GitHub',
-			},
-			meta: {
-				mcpServerName: 'GitHub',
-				mcpToolName: 'get_me',
-				ui: {
-					resourceUri: 'ui://github-mcp-server/get-me',
-					channel: `mcp://copilot/${encodeURIComponent(chatUri.toString())}/GitHub`,
+			const part = turns[0].responseParts[0] as ToolCallResponsePart;
+			assert.strictEqual(part.kind, ResponsePartKind.ToolCall);
+			assert.deepStrictEqual({
+				contributor: part.toolCall.contributor,
+				meta: readToolCallMeta(part.toolCall),
+				structuredContent: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.structuredContent : undefined,
+			}, {
+				contributor: {
+					kind: ToolCallContributorKind.MCP,
+					customizationId: `mcp-top-level:${providerId}:test-session:GitHub`,
 				},
-			},
+				meta: {
+					mcpServerName: 'GitHub',
+					mcpToolName: 'get_me',
+					ui: {
+						resourceUri: 'ui://github-mcp-server/get-me',
+						channel: `mcp://${providerId}/${encodeURIComponent(chatUri.toString())}/GitHub`,
+					},
+				},
+				structuredContent,
+			});
 		});
-	});
+	}
 
 	test('derives shell tool intention from the description argument on replay', async () => {
 		const events: ISessionEvent[] = [
@@ -1142,6 +1198,27 @@ suite('mapSessionEvents — history replay', () => {
 		const part = turns[0].responseParts[0] as ToolCallResponsePart;
 		assert.strictEqual(part.kind, ResponsePartKind.ToolCall);
 		assert.strictEqual(part.toolCall.intention, 'List files in the repo root');
+	});
+
+	test('restores image function tools before the final answer', async () => {
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents([
+			{ type: 'user.message', data: { content: 'Draw a puppy.' } },
+			{ type: 'assistant.message', data: { messageId: 'image-request', content: 'I will create an image.', toolRequests: [{ toolCallId: 'image-1', name: 'image_generation' }] } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'image-1', toolName: 'image_generation', arguments: { prompt: 'Draw a puppy' } } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'image-1', success: true, result: { contents: [{ type: 'image', data: 'aW1hZ2U=', mimeType: 'image/png' }] } } },
+			{ type: 'assistant.message', data: { messageId: 'image-result', content: 'Image generation completed.' } },
+		]));
+
+		assert.deepStrictEqual(turns[0].responseParts.map(part => {
+			if (part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed) {
+				return { kind: part.kind, toolCallId: part.toolCall.toolCallId, success: part.toolCall.success };
+			}
+			return part.kind === ResponsePartKind.Markdown ? { kind: part.kind, content: part.content } : { kind: part.kind };
+		}), [
+			{ kind: ResponsePartKind.Markdown, content: 'I will create an image.' },
+			{ kind: ResponsePartKind.ToolCall, toolCallId: 'image-1', success: true },
+			{ kind: ResponsePartKind.Markdown, content: 'Image generation completed.' },
+		]);
 	});
 
 	test('maps SDK image content to an embedded resource on replayed tool completion', async () => {
@@ -1171,6 +1248,42 @@ suite('mapSessionEvents — history replay', () => {
 			{ type: ToolResultContentType.Text, text: 'Viewed image file successfully.' },
 			{ type: ToolResultContentType.EmbeddedResource, data: 'iVBORw0KGgo=', contentType: 'image/png' },
 		]);
+	});
+
+	test('does not advertise opaque SDK resource links as readable host content on replay', async () => {
+		const uri = 'generated-images:/session/generated-image.png?version=1';
+		const imageGeneration = { requestedModel: { id: 'image-preview', name: 'Image Preview' } };
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', data: { interactionId: 'm1', content: 'Draw a puppy' } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'tc-image', toolName: 'image_generation' } },
+			{
+				type: 'tool.execution_complete',
+				data: {
+					toolCallId: 'tc-image',
+					success: true,
+					result: {
+						content: 'Generated an image.',
+						structuredContent: { imageGeneration },
+						contents: [{ type: 'resource_link', uri, name: 'generated-image.png', mimeType: 'image/png', size: 128 }],
+					},
+				},
+			},
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+		const part = turns[0].responseParts[0];
+		assert.ok(part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed);
+		assert.deepStrictEqual({
+			content: part.toolCall.content,
+			title: part.toolCall.pastTenseMessage,
+			meta: part.toolCall._meta,
+		}, {
+			content: [
+				{ type: ToolResultContentType.Text, text: 'Generated an image.' },
+			],
+			title: 'Generated image with Image Preview',
+			meta: { 'vscode.imageGeneration': imageGeneration },
+		});
 	});
 
 	test('maps SDK shell_exit full output to terminal completion on replay', async () => {
@@ -2054,6 +2167,16 @@ suite('appendSdkToolResultContent', () => {
 			});
 		}
 	}
+
+	test('does not convert unsupported SDK links into host-readable resources', () => {
+		const content: ToolResultContent[] = [];
+		appendSdkToolResultContent(content, [
+			{ type: 'resource_link', uri: 'generated-images:/session/result', name: 'result' },
+			{ type: 'resource_link', uri: 'https://example.com/image.png', name: 'image', mimeType: 'image/png' },
+			{ type: 'resource_link', uri: 'mcp:/document', name: 'document', mimeType: 'text/plain' },
+		]);
+		assert.deepStrictEqual(content, []);
+	});
 
 	test('folds shell_exit into an existing terminal block instead of adding a second one', () => {
 		const content: ToolResultContent[] = [

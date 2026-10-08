@@ -8,7 +8,7 @@ import { IStringDictionary } from '../../../../base/common/collections.js';
 import { IPolicyData } from '../../../../base/common/defaultAccount.js';
 import { ManagedSettingsData } from '../../../../base/common/policy.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { collectManagedSettingsDefinitions, COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, COPILOT_MODEL_KEY, COPILOT_OTEL_CAPTURE_IDENTITY_KEY, COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_TOP_LEVEL_MODEL_KEY, MANAGED_SETTINGS_CONTROL_DEFINITIONS, hasManagedSettingsDefinitions, managedModelValue, managedSettingsDisabledValue, managedSettingValue, normalizeManagedSettings, projectManagedSettings, pickManagedSettings, resolveForceRemoteSettingsRefresh } from '../../common/copilotManagedSettings.js';
+import { collectManagedSettingsDefinitions, COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, COPILOT_MODEL_KEY, COPILOT_OTEL_CAPTURE_IDENTITY_KEY, COPILOT_SANDBOX_ALLOWED_HOSTS_KEY, COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY, COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_AUTH_GH_KEY, COPILOT_SANDBOX_AUTH_GIT_KEY, COPILOT_SANDBOX_DENIED_PATHS_KEY, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_SANDBOX_LSP_SERVERS_KEY, COPILOT_SANDBOX_MCP_SERVERS_KEY, COPILOT_SANDBOX_READONLY_PATHS_KEY, COPILOT_SANDBOX_READWRITE_PATHS_KEY, COPILOT_TOP_LEVEL_MODEL_KEY, MANAGED_SETTINGS_CONTROL_DEFINITIONS, hasManagedSettingsDefinitions, managedModelValue, managedSettingsDisabledValue, managedSettingValue, normalizeManagedSettings, projectManagedSettings, pickManagedSettings, resolveForceRemoteSettingsRefresh } from '../../common/copilotManagedSettings.js';
 import { PolicyDefinition } from '../../common/policy.js';
 
 suite('Copilot managed settings projection', () => {
@@ -194,6 +194,45 @@ suite('Copilot managed settings projection', () => {
 			msg => warnings.push(msg),
 		);
 		assert.strictEqual(warnings.length, 1);
+	});
+
+	test('normalizes and projects managed sandbox allowlists, including an explicitly empty list', () => {
+		const key = COPILOT_SANDBOX_ALLOWED_HOSTS_KEY;
+		assert.deepStrictEqual({
+			definition: MANAGED_SETTINGS_CONTROL_DEFINITIONS[key],
+			values: [undefined, [], ['example.com', '*.example.com']].map(allowedHosts => projectManagedSettings(
+				normalizeManagedSettings({ sandbox: { userPolicy: { network: { allowedHosts } } } }),
+				MANAGED_SETTINGS_CONTROL_DEFINITIONS,
+			)),
+			native: projectManagedSettings({ [key]: '["native.example"]' }, MANAGED_SETTINGS_CONTROL_DEFINITIONS),
+			selected: pickManagedSettings(
+				{ [key]: '[]' }, { [key]: '["server.example"]' }, { [key]: '["file.example"]' },
+			).values,
+		}, {
+			definition: { type: 'string' },
+			values: [{}, { [key]: '[]' }, { [key]: '["example.com","*.example.com"]' }],
+			native: { [key]: '["native.example"]' },
+			selected: { [key]: '[]' },
+		});
+	});
+
+	test('normalizes and projects managed sandbox filesystem lists', () => {
+		const values = projectManagedSettings(normalizeManagedSettings({
+			sandbox: {
+				userPolicy: {
+					filesystem: {
+						readwritePaths: ['C:\\Work'],
+						readonlyPaths: [],
+						deniedPaths: ['C:\\Secrets'],
+					}
+				}
+			},
+		}), MANAGED_SETTINGS_CONTROL_DEFINITIONS);
+		assert.deepStrictEqual(values, {
+			[COPILOT_SANDBOX_READWRITE_PATHS_KEY]: '["C:\\\\Work"]',
+			[COPILOT_SANDBOX_READONLY_PATHS_KEY]: '[]',
+			[COPILOT_SANDBOX_DENIED_PATHS_KEY]: '["C:\\\\Secrets"]',
+		});
 	});
 });
 
@@ -403,7 +442,51 @@ suite('Copilot managed settings precedence (pickManagedSettings)', () => {
 		});
 	});
 
-	for (const key of [COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY]) {
+	for (const [field, key] of [['sandboxMcpServers', COPILOT_SANDBOX_MCP_SERVERS_KEY], ['sandboxLspServers', COPILOT_SANDBOX_LSP_SERVERS_KEY]]) {
+		test(`${field} is force-on-wins across all managed channels`, () => {
+			for (const native of [undefined, false, true]) {
+				for (const server of [undefined, false, true]) {
+					for (const file of [undefined, false, true]) {
+						const pick = pickManagedSettings(
+							native === undefined ? undefined : { [key]: native },
+							server === undefined ? undefined : { [key]: server },
+							file === undefined ? undefined : { [key]: file },
+						);
+						assert.strictEqual(pick.values[key], [native, server, file].includes(true) ? true : native ?? server ?? file);
+					}
+				}
+			}
+		});
+
+		test(`${field} projects booleans and restores the remaining policy after removal`, () => {
+			const pick = pickManagedSettings({ [key]: false }, { [key]: true }, { [key]: false });
+			assert.deepStrictEqual({
+				projected: [true, false, 'true'].map(value => projectManagedSettings(
+					normalizeManagedSettings({ sandbox: { [field]: value } }), MANAGED_SETTINGS_CONTROL_DEFINITIONS,
+				)),
+				value: pick.values[key],
+				resolution: pick.resolutions.get(key),
+				removed: pickManagedSettings({ [key]: false }, undefined, { [key]: false }).values[key],
+				malformed: pickManagedSettings({ [key]: 'false' }, { [key]: true }, undefined).values[key],
+			}, {
+				projected: [{ [key]: true }, { [key]: false }, {}],
+				value: true,
+				resolution: {
+					value: true,
+					source: 'server',
+					contributions: [
+						{ channel: 'nativeMdm', value: false },
+						{ channel: 'server', value: true },
+						{ channel: 'file', value: false },
+					],
+				},
+				removed: false,
+				malformed: true,
+			});
+		});
+	}
+
+	for (const key of [COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY, COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY, COPILOT_SANDBOX_AUTH_GIT_KEY, COPILOT_SANDBOX_AUTH_GH_KEY]) {
 		test(`${key} is deny-wins across every channel combination`, () => {
 			const values = [undefined, false, true];
 			for (const native of values) {
@@ -461,6 +544,38 @@ suite('Copilot managed settings precedence (pickManagedSettings)', () => {
 			allowed: { [COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY]: true },
 			invalid: {},
 		});
+	});
+
+	test('sandbox developer tool access projects only the canonical boolean values', () => {
+		assert.deepStrictEqual([false, true, 'false'].map(allowDevToolAccess => projectManagedSettings(
+			normalizeManagedSettings({ sandbox: { allowDevToolAccess } }), MANAGED_SETTINGS_CONTROL_DEFINITIONS,
+		)), [
+			{ [COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY]: false },
+			{ [COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY]: true },
+			{},
+		]);
+	});
+
+	for (const [field, key] of [['git', COPILOT_SANDBOX_AUTH_GIT_KEY], ['gh', COPILOT_SANDBOX_AUTH_GH_KEY]]) {
+		test(`sandbox ${field} authentication projects only canonical nested boolean values`, () => {
+			assert.deepStrictEqual([false, true, 'false'].map(value => projectManagedSettings(
+				normalizeManagedSettings({ sandbox: { auth: { [field]: value } } }), MANAGED_SETTINGS_CONTROL_DEFINITIONS,
+			)), [
+				{ [key]: false },
+				{ [key]: true },
+				{},
+			]);
+		});
+	}
+
+	test('sandbox local network access projects only canonical nested boolean values', () => {
+		assert.deepStrictEqual([false, true, 'false'].map(allowLocalNetwork => projectManagedSettings(
+			normalizeManagedSettings({ sandbox: { userPolicy: { network: { allowLocalNetwork } } } }), MANAGED_SETTINGS_CONTROL_DEFINITIONS,
+		)), [
+			{ [COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY]: false },
+			{ [COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY]: true },
+			{},
+		]);
 	});
 
 	test('malformed higher-precedence sandbox values cannot mask a managed force-on', () => {

@@ -15,7 +15,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { GitHubCredential, IGitHubCredentials } from '../../../github/common/githubCredentialService.js';
 import { GitHubWorkflowJob, GitHubWorkflowRerunOptions, GitHubWorkflowRun, PullRequestMutationResult } from '../../../github/common/githubPullRequestMutationService.js';
 import { PullRequestCheck, PullRequestRef, PullRequestSnapshot, PullRequestSubscription } from '../../../github/common/githubPullRequestService.js';
-import { IGitHubService } from '../../../github/common/githubService.js';
+import { IGitHubClient } from '../../../github/common/githubService.js';
+import { createTestGitHubService } from './testGitHubService.js';
 import { IPullRequestMutations } from '../../../github/common/pullRequestMutationService.js';
 import { IPullRequestResources } from '../../../github/common/pullRequestResourceService.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -390,16 +391,16 @@ suite('Agent Merge evaluation authorization', () => {
 							h.gitStateService.attachSessionGitHubPullRequest = pause;
 							break;
 						case 'credentials': {
-							const getCredential = h.gitHubService.credentials.getCredential;
-							h.gitHubService.credentials.getCredential = async signal => {
+							const getCredential = h.client.credentials.getCredential;
+							h.client.credentials.getCredential = async signal => {
 								await pause();
 								return getCredential(signal);
 							};
 							break;
 						}
 						case 'subscription': {
-							const subscribe = h.gitHubService.pullRequests.subscribePullRequest;
-							h.gitHubService.pullRequests.subscribePullRequest = (ref, interest) => {
+							const subscribe = h.client.pullRequests.subscribePullRequest;
+							h.client.pullRequests.subscribePullRequest = (ref, interest) => {
 								const subscription = subscribe(ref, interest);
 								subscription.refresh = pause;
 								return subscription;
@@ -502,7 +503,7 @@ class RerunTestHarness extends Disposable {
 	readonly authoritativeRefreshes = { count: 0 };
 	readonly controller: AgentMergeController;
 	readonly tools: AgentMergeTools;
-	readonly gitHubService: IGitHubService;
+	readonly client: IGitHubClient;
 	readonly gitStateService: IAgentHostGitStateService = new class extends mock<IAgentHostGitStateService>() {
 		override readonly onDidRefreshSessionGitState = Event.None;
 		override readonly onDidChangeSessionGitHubState = Event.None;
@@ -543,7 +544,7 @@ class RerunTestHarness extends Disposable {
 		const snapshot = this.snapshot;
 		const mutations = this.mutations;
 		const authoritativeRefreshes = this.authoritativeRefreshes;
-		this.gitHubService = new class extends mock<IGitHubService>() {
+		this.client = new class extends mock<IGitHubClient>() {
 			override readonly mutations = mutations;
 			override readonly credentials = new class extends mock<IGitHubCredentials>() {
 				override async getCredential(signal: AbortSignal): Promise<GitHubCredential> {
@@ -588,14 +589,14 @@ class RerunTestHarness extends Disposable {
 			this.configurationService,
 			this.gitStateService,
 			this.gitService,
-			this.gitHubService,
+			createTestGitHubService(this.client),
 			this._register(new AgentHostGitHubEndpointService(this.configurationService, this.logService)),
 			new class extends mock<IAgentHostProviderService>() {
 				override getProviderForSession(): undefined { return undefined; }
 			}(),
 			this.logService,
 		));
-		this.tools = this._register(new AgentMergeTools(() => this.controller.isEnabled(), chat => this.controller.getTurnContext(chat), (chat, enabled, overrides) => this.controller.setEnabled(chat, enabled, overrides), this.gitHubService, this.logService, this.stateManager, this.configurationService));
+		this.tools = this._register(new AgentMergeTools(() => this.controller.isEnabled(), chat => this.controller.getTurnContext(chat), (chat, enabled, overrides) => this.controller.setEnabled(chat, enabled, overrides), this.logService, this.stateManager, this.configurationService));
 		if (ready) {
 			this.stateManager.dispatchServerAction(this.session, { type: ActionType.SessionReady });
 		}

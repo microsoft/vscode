@@ -71,9 +71,13 @@ export interface IEditTelemetryBaseData {
 }
 
 export interface IEditTelemetryCodeSuggestedData extends IEditTelemetryBaseData {
+	/** The agent implementation that produced the code block. */
+	provider?: string;
 }
 
 export interface IEditTelemetryCodeAcceptedData extends IEditTelemetryBaseData {
+	/** The agent implementation that produced the code block. */
+	provider?: string;
 	/** Canonical chat session ID for code-block actions, matching chat request telemetry. */
 	chatSessionId?: string;
 

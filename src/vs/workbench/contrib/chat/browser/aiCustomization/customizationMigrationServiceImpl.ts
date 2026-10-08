@@ -15,7 +15,8 @@ import { isAgentHostSessionResource } from '../../common/chatSessionsService.js'
 import { ICustomizationHarnessService, ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import { CustomizationMigration, CustomizationMigrationType, FileCustomizationMigration, FileCustomizationMigrationType, getCustomizationMigrationEnablementSetting, getCustomizationMigrationTargetType, ICustomizationMigrationHint, ICustomizationMigrationService, IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationResult, isConfiguredLocationMigrationCandidate, isPromptFileMigrationCandidate, isUserDataMigrationCandidate, McpServerCustomizationMigration, McpServerCustomizationMigrationFailureReason, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigration, CustomizationMigrationType, FileCustomizationMigration, FileCustomizationMigrationType, getCustomizationMigrationTargetType, ICustomizationMigrationHint, ICustomizationMigrationService, IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationResult, isConfiguredLocationMigrationCandidate, isPromptFileMigrationCandidate, isUserDataMigrationCandidate, McpServerCustomizationMigration, McpServerCustomizationMigrationFailureReason, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
+import { ChatConfiguration } from '../../common/constants.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { IMcpService } from '../../../mcp/common/mcpTypes.js';
 
@@ -48,7 +49,7 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 				? this.emptyMcpServerMigration()
 				: { type, files: [], candidates: [] };
 		}
-		if (!this.isMigrationEnabled(type)) {
+		if (!this.isMigrationEnabled()) {
 			return type === CustomizationMigrationType.McpServers
 				? this.emptyMcpServerMigration()
 				: { type, files: [], candidates: [] };
@@ -114,7 +115,7 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 			return undefined;
 		}
 
-		const mcpMigrationEnabled = this.isMigrationEnabled(CustomizationMigrationType.McpServers);
+		const mcpMigrationEnabled = this.isMigrationEnabled();
 		const [userDataMigration, promptFilesMigration, configuredLocationsMigration, mcpServerMigration] = await Promise.all([
 			this.computeMigration(sessionResource, CustomizationMigrationType.UserData, token),
 			this.computeMigration(sessionResource, CustomizationMigrationType.PromptFiles, token),
@@ -122,7 +123,7 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 			mcpMigrationEnabled ? this.computeMigration(sessionResource, CustomizationMigrationType.McpServers, token) : Promise.resolve(this.emptyMcpServerMigration()),
 		]);
 		const fileCandidates = [userDataMigration, promptFilesMigration, configuredLocationsMigration]
-			.filter(migration => this.isMigrationEnabled(migration.type))
+			.filter(() => this.isMigrationEnabled())
 			.flatMap(migration => migration.candidates);
 		const migratableMcpServerCount = mcpServerMigration.candidates.length;
 		const workspaceCount = fileCandidates.filter(candidate => candidate.storage === PromptsStorage.local).length
@@ -197,8 +198,8 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 		};
 	}
 
-	private isMigrationEnabled(type: CustomizationMigrationType): boolean {
-		return this.configurationService.getValue<boolean>(getCustomizationMigrationEnablementSetting(type)) === true;
+	private isMigrationEnabled(): boolean {
+		return this.configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationsMigrationEnabled) === true;
 	}
 
 	protected generateMigrationFlowId(): string {
