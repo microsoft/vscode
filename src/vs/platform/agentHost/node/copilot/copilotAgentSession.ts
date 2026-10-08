@@ -3762,12 +3762,12 @@ export class CopilotAgentSession extends Disposable {
 				throw new Error('Cannot set approval mode without an initialized session');
 			}
 			const mode = enabled ? 'allow-all' : 'manual';
-			if (!await this._trySetSdkPermissionMode(mode)) {
+			const applied = await this._trySetSdkPermissionMode(mode);
+			if (!applied) {
 				throw new Error(`Copilot SDK rejected permission mode '${mode}'`);
 			}
-			this._lastAppliedPermissionMode = mode;
 			this._configurationService.updateSessionConfig(this._ownerSessionUri.toString(), {
-				[SessionConfigKey.AutoApprove]: enabled ? 'autoApprove' : 'default',
+				[SessionConfigKey.AutoApprove]: fromCopilotPermissionMode(applied),
 			});
 		});
 	}
@@ -6010,14 +6010,14 @@ export class CopilotAgentSession extends Disposable {
 		}, this._permissionModeSequencer);
 	}
 
-	private async _trySetSdkPermissionMode(mode: PermissionMode): Promise<boolean> {
+	private async _trySetSdkPermissionMode(mode: PermissionMode): Promise<PermissionMode | undefined> {
 		const result = await this._wrapper.session.rpc.permissions.setMode({ mode });
 		if (!result.success && (!this._approvalPolicy || this._approvalPolicy.available.includes(fromCopilotPermissionMode(mode))
 			|| !this._approvalPolicy.available.includes(fromCopilotPermissionMode(result.mode)))) {
-			return false;
+			return undefined;
 		}
 		this._acceptPermissionMode(result.mode);
-		return true;
+		return result.mode;
 	}
 
 	private _acceptPermissionMode(mode: PermissionMode): void {
