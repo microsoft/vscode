@@ -2749,6 +2749,9 @@ export class CopilotAgentSession extends Disposable {
 								invocation.toolCallId,
 								() => this._emitToolSearchReady(invocation.toolCallId, candidates),
 							);
+							if (clientResult.resultType !== 'success' && !this._resolveClientToolOwner(CLIENT_TOOL_SEARCH_REFERENCE_NAME)) {
+								return this._searchToolsOnHost(args, candidates);
+							}
 							return this._toToolSearchResult(clientResult, invocation.availableTools);
 						} catch (error) {
 							this._logService.error(error, `[Copilot:${this.sessionId}] Failed in tool-search handler: toolCallId=${invocation.toolCallId}`);
@@ -2901,12 +2904,6 @@ export class CopilotAgentSession extends Disposable {
 		return { textResultForLlm: message, resultType: 'failure', error: message, toolReferences: [] };
 	}
 
-	/**
-	 * Tool search normally runs on a client, but the tools it gates include
-	 * server and MCP tools that need none. When no client is reachable, e.g.
-	 * for autonomous Agent Merge turns, load the host-runnable tools the query
-	 * names instead of failing the search.
-	 */
 	private _searchToolsOnHost(args: Record<string, unknown>, candidates: readonly IToolSearchCandidate[]): ToolResultObject {
 		const query = isString(args.query) ? args.query.trim() : '';
 		if (!query) {
@@ -6791,7 +6788,6 @@ export class CopilotAgentSession extends Disposable {
 			// server-side disconnect timeout fires. We emit the completion
 			// ourselves and drop the active-tool entry so the SDK's own
 			// tool.execution_complete for this id is suppressed.
-			// Tool search is exempt: its handler ranks on the host instead.
 			if (isClientTool && !contributor && !isToolSearch) {
 				this._logService.warn(`[Copilot:${sessionId}] Client tool '${e.data.toolName}' started with no connected client; failing it immediately.`);
 				this._reportToolApprovalIfNoPermission(e.data.toolCallId);

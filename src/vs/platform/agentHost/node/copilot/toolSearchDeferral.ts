@@ -20,20 +20,13 @@ export const NON_DEFERRED_CLIENT_TOOL_NAMES: ReadonlySet<string> = new Set<strin
 ]);
 
 export interface IHostToolSearchResult {
-	/** Candidates the query named exactly, to load as tool references. */
 	readonly toolNames: readonly string[];
 	readonly textResultForLlm: string;
 }
 
 const HOST_TOOL_SEARCH_PREAMBLE = 'No client is connected, so tool search only matches exact tool names and client tools are unavailable.';
 
-/**
- * Tool search for sessions whose search cannot reach a client. Only exact tool
- * names in the query match, so a prompt that names its tools (e.g. Agent Merge)
- * can still load them. `candidates` must already exclude client tools, which
- * cannot run without a client. When nothing matches, the result lists the
- * loadable names so the model can search again by name.
- */
+/** `candidates` must already exclude client tools, which cannot run without a client. */
 export function searchToolsWithoutClient(query: string, candidates: readonly IToolSearchCandidate[]): IHostToolSearchResult {
 	const namesByLowerCase = new Map(candidates.map(candidate => [candidate.name.toLowerCase(), candidate.name]));
 	const toolNames = new Set<string>();

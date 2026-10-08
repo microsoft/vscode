@@ -18292,7 +18292,6 @@ Use the attached image as context.
 				rootValues: { [CopilotCliConfigKey.ToolSearchEnabled]: true },
 			});
 			const override = runtime.createClientSdkTools(true).find(tool => tool.name === 'tool_search_tool')!;
-			// The SDK session keeps its launch-time tools after the client leaves.
 			activeClientToolSet.delete('tool-search-client');
 			const availableTools = [
 				{ name: 'list_sessions', description: 'List agent sessions', deferLoading: true },
@@ -18336,6 +18335,86 @@ Use the attached image as context.
 					toolReferences: [],
 				},
 				completions: [true, true],
+			});
+		});
+
+		test('tool search falls back to the host when its client leaves or drops the search tool', async () => {
+			const toolSearchSnapshot: IActiveClientSnapshot = {
+				tools: [
+					{ name: 'toolSearch', description: 'Search tools', inputSchema: { type: 'object', properties: { query: { type: 'string' } } } },
+					{ name: 'screenshotPage', description: 'Capture an image of the browser page', inputSchema: { type: 'object', properties: {} } },
+				],
+				plugins: [],
+				mcpServers: {},
+			};
+			const activeClientToolSet = new ActiveClientToolSet();
+			activeClientToolSet.set('tool-search-client', toolSearchSnapshot.tools);
+			const { session, runtime, mockSession, waitForSignal } = await createAgentSession(disposables, {
+				clientSnapshot: toolSearchSnapshot,
+				activeClientToolSet,
+				modelId: 'claude-opus-4.8',
+				rootValues: { [CopilotCliConfigKey.ToolSearchEnabled]: true },
+			});
+			const override = runtime.createClientSdkTools(true).find(tool => tool.name === 'tool_search_tool')!;
+			const availableTools = [
+				{ name: 'readAgentMergeCI', description: 'Read CI diagnostics', deferLoading: true },
+				{ name: 'screenshotPage', description: 'Capture an image of the browser page', deferLoading: true },
+			];
+			const disconnected = { success: false, pastTenseMessage: 'Search tools failed', error: { message: 'Client tool-search-client disconnected before completing Search tools' } };
+
+			const search = async (toolCallId: string, clientLeaves: boolean) => {
+				const query = 'readAgentMergeCI screenshotPage';
+				mockSession.fire('tool.execution_start', {
+					toolCallId,
+					toolName: 'tool_search_tool',
+					arguments: { query },
+				} as SessionEventPayload<'tool.execution_start'>['data']);
+				const handler = invokeClientToolHandler(override, toolCallId, { query }, availableTools);
+				const ready = await waitForSignal(s => isAction(s, ActionType.ChatToolCallReady) && (s.action as ChatToolCallReadyAction).toolCallId === toolCallId);
+				assert.ok(isAction(ready, ActionType.ChatToolCallReady));
+				const routedTo = (ready.action as ChatToolCallReadyAction).contributor;
+				session.handleClientToolCallComplete(toolCallId, disconnected);
+				if (clientLeaves) {
+					activeClientToolSet.delete('tool-search-client');
+				}
+				const result = await handler;
+				return {
+					routedTo,
+					resultType: result.resultType,
+					textResultForLlm: result.textResultForLlm,
+					toolReferences: result.toolReferences,
+				};
+			};
+
+			const contributor = { kind: ToolCallContributorKind.Client, clientId: 'tool-search-client' };
+			const clientStillThere = await search('tc-failed', false);
+			const clientLeft = await search('tc-left', true);
+			activeClientToolSet.set('tool-search-client', [toolSearchSnapshot.tools[1]]);
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-dropped',
+				toolName: 'tool_search_tool',
+				arguments: { query: 'readAgentMergeCI' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			const clientDroppedSearch = await invokeClientToolHandler(override, 'tc-dropped', { query: 'readAgentMergeCI' }, availableTools);
+
+			assert.deepStrictEqual({
+				clientStillThere,
+				clientLeft,
+				clientDroppedSearch: { resultType: clientDroppedSearch.resultType, toolReferences: clientDroppedSearch.toolReferences },
+			}, {
+				clientStillThere: {
+					routedTo: contributor,
+					resultType: 'failure',
+					textResultForLlm: 'Client tool-search-client disconnected before completing Search tools',
+					toolReferences: [],
+				},
+				clientLeft: {
+					routedTo: contributor,
+					resultType: 'success',
+					textResultForLlm: 'No client is connected, so tool search only matches exact tool names and client tools are unavailable. Loaded: readAgentMergeCI.',
+					toolReferences: ['readAgentMergeCI'],
+				},
+				clientDroppedSearch: { resultType: 'success', toolReferences: ['readAgentMergeCI'] },
 			});
 		});
 
