@@ -24,6 +24,8 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { SessionsView, SessionsViewId } from '../../sessions/browser/views/sessionsView.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { TerminalContextKeys } from '../../../../workbench/contrib/terminal/common/terminalContextKey.js';
+import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { IsPhoneLayoutContext } from '../../../common/contextkeys.js';
 
 //#region Utilities
 
@@ -294,12 +296,12 @@ registerAction2(class extends Action2 {
 			id: FOCUS_AI_CUSTOMIZATION_VIEW_ID,
 			title: localize2('focusCustomizations', "Focus Chat Customizations"),
 			category: AI_CUSTOMIZATION_CATEGORY,
-			precondition: IsSessionsWindowContext,
+			precondition: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, IsPhoneLayoutContext.negate()),
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyC,
-				when: ContextKeyExpr.and(IsSessionsWindowContext, TerminalContextKeys.focus.negate()),
+				when: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, IsPhoneLayoutContext.negate(), TerminalContextKeys.focus.negate()),
 			},
 		});
 	}

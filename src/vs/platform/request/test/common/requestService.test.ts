@@ -6,15 +6,29 @@
 import assert from 'assert';
 import { bufferToStream, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { IRequestContext, IRequestOptions } from '../../../../base/parts/request/common/request.js';
-import { NullLogService } from '../../../log/common/log.js';
+import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AbstractRequestService, AuthInfo, Credentials, IRequestCompleteEvent, NO_FETCH_TELEMETRY } from '../../common/request.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
+class TestLogService extends NullLogService {
+	readonly traces: string[] = [];
+	readonly errors: (string | Error)[] = [];
+
+	override trace(message: string, ...args: unknown[]): void {
+		this.traces.push([message, ...args].join(' '));
+	}
+
+	override error(error: string | Error, ..._args: unknown[]): void {
+		this.errors.push(error);
+	}
+}
+
 class TestRequestService extends AbstractRequestService {
 
-	constructor(private readonly handler: (options: IRequestOptions) => Promise<IRequestContext>) {
-		super(new NullLogService());
+	constructor(private readonly handler: (options: IRequestOptions) => Promise<IRequestContext>, logService: ILogService = new NullLogService()) {
+		super(logService);
 	}
 
 	async request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
@@ -85,6 +99,24 @@ suite('AbstractRequestService', () => {
 		await assert.rejects(() => service.request({ url: 'http://test', callSite: 'test.error' }, CancellationToken.None));
 
 		assert.strictEqual(events.length, 0);
+	});
+
+	test('logs cancellation at trace level', async () => {
+		const logService = new TestLogService();
+		const service = store.add(new TestRequestService(() => Promise.reject(new CancellationError()), logService));
+
+		await assert.rejects(
+			() => service.request({ url: 'http://test', callSite: 'test.cancelled' }, CancellationToken.None),
+			error => isCancellationError(error),
+		);
+
+		assert.deepStrictEqual({
+			cancelledTraces: logService.traces.filter(message => message.includes(' - cancelled')).length,
+			errors: logService.errors,
+		}, {
+			cancelledTraces: 1,
+			errors: [],
+		});
 	});
 
 	test('onDidCompleteRequest fires for each request', async () => {

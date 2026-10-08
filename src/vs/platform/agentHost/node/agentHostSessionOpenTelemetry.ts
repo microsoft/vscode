@@ -12,6 +12,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import type { AgentProvider } from '../common/agent.js';
 import { isAhpChatChannel, isDefaultChatUri, parseRequiredSessionUriFromChatUri } from '../common/state/sessionState.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
+import type { IAgentHostCopilotSkuClassification, IAgentHostCopilotSkuTelemetry } from './agentHostTelemetryReporter.js';
 
 export const AgentHostSessionSubscribeTimeoutMs = 60_000;
 
@@ -37,7 +38,7 @@ export interface IAgentHostSessionOpenTelemetry {
 
 export const IAgentHostSessionOpenTelemetry = createDecorator<IAgentHostSessionOpenTelemetry>('agentHostSessionOpenTelemetry');
 
-type AgentHostSessionSubscribeEvent = {
+type AgentHostSessionSubscribeEvent = IAgentHostCopilotSkuTelemetry & {
 	provider: string;
 	channel: string;
 	outcome: string;
@@ -53,7 +54,7 @@ type AgentHostSessionSubscribeEvent = {
 	totalDurationMs: number;
 };
 
-type AgentHostSessionSubscribeClassification = {
+type AgentHostSessionSubscribeClassification = IAgentHostCopilotSkuClassification & {
 	owner: 'roblourens';
 	comment: 'Measures Agent Host subscription latency from the subscribe request through session restoration and provider-specific resume work to the returned snapshot.';
 	provider: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Agent provider identifier.' };

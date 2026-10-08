@@ -17,9 +17,9 @@ suite('AgentHostManagedSettingsService', () => {
 		service.setClientPermissions('client-1', { disableBypassPermissionsMode: 'disable' });
 		service.setClientPermissions('client-2', { ask: ['Shell'], deny: ['Write(**)'] });
 		const combined = service.permissions;
-		service.removeClientPermissions('client-1');
+		service.removeClient('client-1');
 		const afterFirstRemoval = service.permissions;
-		service.removeClientPermissions('client-2');
+		service.removeClient('client-2');
 
 		assert.deepStrictEqual({
 			combined,
@@ -46,9 +46,10 @@ suite('AgentHostManagedSettingsService', () => {
 
 		service.setClientPermissions('client-1', { ask: ['Shell'] });
 		service.setClientPermissions('client-2', { ask: ['Shell'] });
-		service.removeClientPermissions('client-1');
-		service.removeClientPermissions('client-2');
+		service.removeClient('client-1');
+		service.removeClient('client-2');
 
 		assert.strictEqual(changes, 2);
 	});
+
 });

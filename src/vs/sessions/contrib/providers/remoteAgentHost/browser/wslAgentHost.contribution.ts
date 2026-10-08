@@ -4,14 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IntervalTimer } from '../../../../../base/common/async.js';
-import { isCancellationError } from '../../../../../base/common/errors.js';
+import { isCancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
+import { localize } from '../../../../../nls.js';
 import { type IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, getEntryAddress, getEntryTypeConfig } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { IWSLRemoteAgentHostService, WSL_ADDRESS_PREFIX } from '../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
+import { IWSLRemoteAgentHostService, WSL_ADDRESS_PREFIX, WslAutoStartSettingId } from '../../../../../platform/agentHost/common/wslRemoteAgentHost.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
+import { type IAgentHostAutoConnect } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ManagedReconnectAgentHostContribution } from './managedReconnectAgentHostContribution.js';
 
@@ -38,6 +41,14 @@ export class WSLAgentHostContribution extends ManagedReconnectAgentHostContribut
 	static readonly ID = 'sessions.contrib.wslAgentHostContribution';
 
 	protected readonly _entryType = RemoteAgentHostEntryType.WSL;
+
+	private readonly _autoConnect: IAgentHostAutoConnect = {
+		label: localize('wslAgentHost.autoStart', "Automatically Start WSL When Opening Chats"),
+		enabled: observableConfigValue(WslAutoStartSettingId, false, this._configurationService),
+		setEnabled: enabled => {
+			this._configurationService.updateValue(WslAutoStartSettingId, enabled).catch(onUnexpectedError);
+		},
+	};
 
 	constructor(
 		@IRemoteAgentHostService remoteAgentHostService: IRemoteAgentHostService,
@@ -117,6 +128,7 @@ export class WSLAgentHostContribution extends ManagedReconnectAgentHostContribut
 			connectOnDemand: () => this._connectWSLOnDemand(distro, entry.name, address),
 			disconnectOnDemand: () => this._disconnectWSLOnDemand(distro, address),
 			onDidReportConnectProgress: this._wslService.onDidReportConnectProgress,
+			autoConnect: this._autoConnect,
 		};
 	}
 
@@ -126,12 +138,15 @@ export class WSLAgentHostContribution extends ManagedReconnectAgentHostContribut
 			if (!inFlight) {
 				break;
 			}
+			this._logService.info(`[WSLAgentHost] connectOnDemand: awaiting in-flight reconnect for ${distro}`);
 			await inFlight.catch(() => undefined);
 			const live = this._remoteAgentHostService.connections.find(connection => connection.address === address);
 			if (live && RemoteAgentHostConnectionStatus.isConnected(live.status)) {
+				this._logService.info(`[WSLAgentHost] connectOnDemand: ${distro} connected by in-flight reconnect`);
 				return;
 			}
 		}
+		this._logService.info(`[WSLAgentHost] connectOnDemand: starting user-initiated reconnect for ${distro}`);
 		this._reconnectStates.get(distro)?.resetForResume();
 		await this._attemptWSLReconnect(distro, name, address, true);
 	}

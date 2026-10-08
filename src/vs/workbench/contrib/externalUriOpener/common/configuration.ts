@@ -7,9 +7,10 @@ import { IConfigurationNode, IConfigurationRegistry, Extensions } from '../../..
 import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
 import * as nls from '../../../../nls.js';
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
+import { defaultExternalUriOpenerId } from '../../../../platform/opener/common/opener.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 
-export const defaultExternalUriOpenerId = 'default';
+export { defaultExternalUriOpenerId };
 
 export const externalUriOpenersSettingId = 'workbench.externalUriOpeners';
 

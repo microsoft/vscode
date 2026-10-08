@@ -106,6 +106,10 @@
 	align-items: center;
 }
 
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-right-layout-container {
+	padding-right: var(--vscode-spacing-size80);
+}
+
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-screen-reader-container:not(.has-no-actions) {
 	margin-right: var(--vscode-spacing-size40);
 }
@@ -171,6 +175,10 @@
 	display: flex;
 	justify-content: center;
 	align-items: center;
+}
+
+.monaco-workbench.mac:not(.web):not(.fullscreen) .part.titlebar > .sessions-titlebar-container > .titlebar-left > .window-controls-container + .left-toolbar-container {
+	padding-left: var(--vscode-spacing-size160);
 }
 
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left > .left-toolbar-container .monaco-action-bar .action-item:not(.disabled) .codicon {

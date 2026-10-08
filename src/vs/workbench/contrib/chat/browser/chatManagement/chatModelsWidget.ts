@@ -1713,6 +1713,14 @@ export class ChatModelsWidget extends Disposable {
 		this.searchWidget.setValue('');
 	}
 
+	/**
+	 * Lists only the Copilot models of the given session type (harness).
+	 * Pass `undefined` to list every model.
+	 */
+	public setSessionType(sessionType: string | undefined): void {
+		this.viewModel.setSessionType(sessionType);
+	}
+
 	public render(): void {
 		if (this.viewModel.shouldRefilter()) {
 			this.viewModel.filter(this.searchWidget.getValue());

@@ -10,7 +10,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 import { basename, isEqualOrParent } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { Position } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { IWordAtPosition, getWordAtText } from '../../../../editor/common/core/wordHelper.js';
@@ -23,7 +23,7 @@ import { CommandsRegistry } from '../../../../platform/commands/common/commands.
 import { FileKind, IFileService } from '../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ISearchService } from '../../../../workbench/services/search/common/search.js';
-import { searchFilesAndFolders } from '../../../../workbench/contrib/search/browser/searchChatContext.js';
+import { MAX_CHAT_FILE_COMPLETION_RESULTS, searchFilesAndFolders } from '../../../../workbench/contrib/search/browser/searchChatContext.js';
 import { IEditorDecorationsCollection } from '../../../../editor/common/editorCommon.js';
 import { IHistoryService } from '../../../../workbench/services/history/common/history.js';
 import { isDiffEditorInput } from '../../../../workbench/common/editor.js';
@@ -114,7 +114,7 @@ export class VariableCompletionHandler extends Disposable {
 	private readonly _decorations: IEditorDecorationsCollection;
 
 	constructor(
-		private readonly _editor: CodeEditorWidget,
+		private readonly _editor: ICodeEditor,
 		private readonly _contextAttachments: NewChatContextAttachments,
 		private readonly _getWorkspaceUri: () => URI | undefined,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
@@ -156,7 +156,7 @@ export class VariableCompletionHandler extends Disposable {
 				}
 
 				const range = computeRange(model, position, VariableCompletionHandler._wordPattern);
-				if (!range) {
+				if (!range || (!range.varWord && /^\s*\//.test(model.getValueInRange(new Range(1, 1, position.lineNumber, position.column))))) {
 					return null;
 				}
 
@@ -256,7 +256,7 @@ export class VariableCompletionHandler extends Disposable {
 		token: CancellationToken,
 	): Promise<void> {
 		try {
-			const { files, folders } = await searchFilesAndFolders(workspaceUri, pattern || '', true, token, undefined, this.configurationService, this.searchService);
+			const { files, folders } = await searchFilesAndFolders(workspaceUri, pattern || '', true, token, undefined, this.configurationService, this.searchService, MAX_CHAT_FILE_COMPLETION_RESULTS);
 
 			for (const file of files) {
 				if (!seen.has(file)) {
@@ -371,4 +371,3 @@ export class VariableCompletionHandler extends Disposable {
 	}
 
 }
-

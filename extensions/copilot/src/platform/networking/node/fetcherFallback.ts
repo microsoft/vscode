@@ -20,6 +20,7 @@ const fetcherConfigKeys: Partial<Record<FetcherId, Config<boolean>>> = {
 const terminalResponseStatusCodes = new Set([429, 502, 503]);
 const allFetchersFailedTelemetryIntervalMs = 15 * 60 * 1000;
 const maxAggregatedErrorLength = 1024;
+const maxAggregatedErrorCount = 100;
 const maxAggregatedErrorsSerializedLength = 8192;
 const aggregatedErrorsOverflowKey = '<other>';
 const allFetchersFailedErrors = new Map<string, number>();
@@ -85,7 +86,12 @@ function recordErrors(target: Map<string, number>, errors: readonly string[]): v
 			target.set(truncatedError, Math.min(count + 1, Number.MAX_SAFE_INTEGER));
 			continue;
 		}
-		target.set(truncatedError, 1);
+		if (target.size < maxAggregatedErrorCount) {
+			target.set(truncatedError, 1);
+			continue;
+		}
+		const overflowCount = target.get(aggregatedErrorsOverflowKey) ?? 0;
+		target.set(aggregatedErrorsOverflowKey, Math.min(overflowCount + 1, Number.MAX_SAFE_INTEGER));
 	}
 }
 

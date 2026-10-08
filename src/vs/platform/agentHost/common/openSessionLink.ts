@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { AGENTS_AUTHORITY } from '../../../base/common/network.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ILinkPresentation, ILinkPresentationStatus } from '../../dataChannel/common/dataChannel.js';
@@ -25,6 +26,9 @@ export const AGENT_HOST_SESSION_LINK_PATTERN = /^agent-host-session:\/\/[^/?#]+\
 export const AGENT_HOST_SESSION_ONLY_LINK_PATTERN = /^(?![^#]*[?&]chat=)agent-host-session:\/\/[^/?#]+\/[^?#]+(?:\?[^#]*)?(?:#.*)?$/i;
 export const AGENT_HOST_CHAT_LINK_PATTERN = /^(?=[^#]*[?&]chat=)agent-host-session:\/\/[^/?#]+\/[^?#]+(?:\?[^#]*)?(?:#.*)?$/i;
 
+const AGENT_HOST_SESSION_LINK_PATH_PREFIX = `/${AGENT_HOST_SESSION_LINK_SCHEME}/`;
+const AGENT_HOST_CHAT_LINK_PATH_SEGMENT = '/chat/';
+
 export type AgentSessionLinkStatus = 'untitled' | 'inProgress' | 'needsInput' | 'completed' | 'error';
 
 export function buildAgentSessionLinkPresentation(title: string, description: string | undefined, status: AgentSessionLinkStatus, kind: 'session' | 'chat' = 'session'): ILinkPresentation {
@@ -45,7 +49,7 @@ function getAgentSessionLinkPresentationStatus(status: AgentSessionLinkStatus): 
 	switch (status) {
 		case 'untitled': return { kind: 'neutral', label: localize('agentSessionLink.notStarted', "Not started") };
 		case 'inProgress': return { kind: 'pending', label: localize('agentSessionLink.working', "Working") };
-		case 'needsInput': return { kind: 'warning', label: localize('agentSessionLink.needsInput', "Needs input") };
+		case 'needsInput': return { kind: 'warning', label: localize('agentSessionLink.needsInput', "Needs attention") };
 		case 'completed': return { kind: 'success', label: localize('agentSessionLink.completed', "Completed") };
 		case 'error': return { kind: 'error', label: localize('agentSessionLink.error', "Error") };
 	}
@@ -86,14 +90,21 @@ export function isSendMessageTool(toolName: string): boolean {
  * ecosystem-wide invariant (an absent chat id already means "the default chat"),
  * so it is enforced here once rather than at each call site.
  */
-export function buildOpenSessionLinkUri(backendSession: URI | string, chatId?: string, turnId?: string): string {
-	const provider = AgentSession.provider(backendSession);
+export function buildOpenSessionLinkUri(backendSession: URI | string, chatId?: string, turnId?: string, connectionAuthority?: string): string {
+	const session = typeof backendSession === 'string' ? URI.parse(backendSession) : backendSession;
+	const provider = session.scheme;
 	const rawId = AgentSession.id(backendSession);
 	if (!provider) {
 		throw new Error(`Cannot build open-session link: missing provider in ${backendSession.toString()}`);
 	}
 	const base = URI.from({ scheme: AGENT_HOST_SESSION_LINK_SCHEME, authority: provider, path: `/${rawId}` }).toString();
 	const query: string[] = [];
+	if (connectionAuthority) {
+		query.push(`connectionAuthority=${encodeURIComponent(connectionAuthority)}`);
+	}
+	if (session.authority || session.query || session.fragment) {
+		query.push(`session=${encodeURIComponent(session.toString())}`);
+	}
 	if (chatId && chatId !== DEFAULT_CHAT_ID) {
 		query.push(`chat=${encodeURIComponent(chatId)}`);
 	}
@@ -101,6 +112,66 @@ export function buildOpenSessionLinkUri(backendSession: URI | string, chatId?: s
 		query.push(`turn=${encodeURIComponent(turnId)}`);
 	}
 	return query.length > 0 ? `${base}?${query.join('&')}` : base;
+}
+
+/**
+ * Builds a product protocol URL that opens an agent-host session in the Agents window.
+ *
+ * Shape: `<product-protocol>://agents/agent-host-session/<provider>/<rawSessionId>[/chat/<chatId>]`.
+ */
+export function buildExternalOpenSessionLinkUri(productUrlProtocol: string, backendSession: URI | string, chatId?: string, turnId?: string, connectionAuthority?: string): string {
+	const sessionLinkText = buildOpenSessionLinkUri(backendSession, undefined, undefined, connectionAuthority);
+	const link = URI.parse(sessionLinkText);
+	const sessionLink = link.with({ query: '' }).toString();
+	const encodedTarget = sessionLink.slice(`${AGENT_HOST_SESSION_LINK_SCHEME}://`.length);
+	const chatPath = chatId && chatId !== DEFAULT_CHAT_ID ? `${AGENT_HOST_CHAT_LINK_PATH_SEGMENT}${encodeURIComponent(encodeURIComponent(chatId))}` : '';
+	const queryParts = [sessionLinkText.split('?')[1] ?? '', turnId ? `turn=${encodeURIComponent(turnId)}` : ''].filter(Boolean);
+	const query = queryParts.length ? `?${queryParts.join('&')}` : '';
+	return `${productUrlProtocol}://${AGENTS_AUTHORITY}${AGENT_HOST_SESSION_LINK_PATH_PREFIX}${encodedTarget}${chatPath}${query}`;
+}
+
+/**
+ * Recovers the internal agent-host session link carried by an Agents product protocol URL.
+ */
+export function parseExternalOpenSessionLinkUri(uri: URI | string, productUrlProtocol: string): URI | undefined {
+	const parsed = typeof uri === 'string' ? URI.parse(uri) : uri;
+	if (parsed.scheme !== productUrlProtocol || parsed.authority !== AGENTS_AUTHORITY || !parsed.path.startsWith(AGENT_HOST_SESSION_LINK_PATH_PREFIX)) {
+		return undefined;
+	}
+
+	const sessionPath = parsed.path.slice(AGENT_HOST_SESSION_LINK_PATH_PREFIX.length);
+	const providerEnd = sessionPath.indexOf('/');
+	if (providerEnd <= 0 || providerEnd === sessionPath.length - 1) {
+		return undefined;
+	}
+
+	const chatSegmentIndex = sessionPath.lastIndexOf(AGENT_HOST_CHAT_LINK_PATH_SEGMENT);
+	const hasChatSegment = chatSegmentIndex > providerEnd;
+	let chatId: string | undefined;
+	if (hasChatSegment) {
+		const encodedChatId = sessionPath.slice(chatSegmentIndex + AGENT_HOST_CHAT_LINK_PATH_SEGMENT.length);
+		if (!encodedChatId) {
+			return undefined;
+		}
+		try {
+			chatId = decodeURIComponent(encodedChatId);
+		} catch {
+			return undefined;
+		}
+	}
+	const sessionTarget = hasChatSegment ? sessionPath.slice(0, chatSegmentIndex) : sessionPath;
+	const query = [
+		chatId ? `chat=${encodeURIComponent(chatId)}` : undefined,
+		parsed.query,
+	].filter(queryPart => !!queryPart).join('&');
+	const sessionLink = URI.from({
+		scheme: AGENT_HOST_SESSION_LINK_SCHEME,
+		authority: sessionTarget.slice(0, providerEnd),
+		path: sessionTarget.slice(providerEnd),
+		query,
+		fragment: parsed.fragment,
+	});
+	return parseOpenSessionLinkUri(sessionLink) ? sessionLink : undefined;
 }
 
 /**
@@ -112,9 +183,16 @@ export function parseOpenSessionLinkUri(uri: URI | string): URI | undefined {
 	if (parsed.scheme !== AGENT_HOST_SESSION_LINK_SCHEME || !parsed.authority) {
 		return undefined;
 	}
+	if (/(?:^|&)connectionAuthority=/.test(parsed.query) && !parseOpenSessionLinkConnectionAuthority(parsed)) {
+		return undefined;
+	}
 	const rawId = parsed.path.replace(/^\//, '');
 	if (!rawId) {
 		return undefined;
+	}
+	const session = readOpenSessionLinkQueryParam(parsed, 'session');
+	if (session) {
+		return URI.parse(session, true);
 	}
 	return AgentSession.uri(parsed.authority, rawId);
 }
@@ -136,6 +214,10 @@ export function parseOpenSessionLinkChatId(uri: URI | string): string | undefine
 
 export function parseOpenSessionLinkTurnId(uri: URI | string): string | undefined {
 	return readOpenSessionLinkQueryParam(uri, 'turn');
+}
+
+export function parseOpenSessionLinkConnectionAuthority(uri: URI | string): string | undefined {
+	return readOpenSessionLinkQueryParam(uri, 'connectionAuthority');
 }
 
 function readOpenSessionLinkQueryParam(uri: URI | string, name: string): string | undefined {

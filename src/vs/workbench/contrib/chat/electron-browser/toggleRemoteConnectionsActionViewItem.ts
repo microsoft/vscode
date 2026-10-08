@@ -13,13 +13,30 @@ import { disposableTimeout } from '../../../../base/common/async.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { ITunnelHostService } from '../common/tunnelHost.js';
-import { RENAME_TUNNEL_ID, SHOW_TUNNEL_HOST_OUTPUT_ID } from './tunnelHostService.js';
+import { AgentHostRemoteConnectionsBackend, AgentHostRemoteConnectionsSettingId, IMissionControlSharingService } from '../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IRemoteTunnelService, INACTIVE_TUNNEL_MODE, TunnelMode, TunnelStatus } from '../../../../platform/remoteTunnel/common/remoteTunnel.js';
+import { RemoteTunnelCommandIds } from '../../remoteTunnel/electron-browser/remoteTunnel.contribution.js';
 
 const TUNNEL_ACCESS_DOCS_URL = 'https://aka.ms/vscode-agent-tunnel-access';
+
+export interface IRemoteTunnelAccessState {
+	readonly isSharing: boolean;
+	readonly isConnecting: boolean;
+	readonly tunnelName: string | undefined;
+}
+
+export function getRemoteTunnelAccessState(mode: TunnelMode, status: TunnelStatus): IRemoteTunnelAccessState {
+	return {
+		isSharing: status.type === 'connected',
+		isConnecting: status.type === 'connecting' || (mode.active && status.type === 'uninitialized'),
+		tunnelName: status.type === 'connected' ? status.info.tunnelName : undefined,
+	};
+}
 
 export class ToggleRemoteConnectionsActionViewItem extends BaseActionViewItem {
 
@@ -27,20 +44,43 @@ export class ToggleRemoteConnectionsActionViewItem extends BaseActionViewItem {
 	private _toastElement: HTMLElement | undefined;
 	private _hover: IManagedHover | undefined;
 	private _wasSharing = false;
+	private _mode: TunnelMode = INACTIVE_TUNNEL_MODE;
+	private _status: TunnelStatus = { type: 'uninitialized' };
+	private _hasReceivedMode = false;
+	private _hasReceivedStatus = false;
+	private _hasInitializedState = false;
 
 	constructor(
 		action: IAction,
-		@ITunnelHostService private readonly _tunnelHostService: ITunnelHostService,
+		@IRemoteTunnelService private readonly _remoteTunnelService: IRemoteTunnelService,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IProductService private readonly _productService: IProductService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IMissionControlSharingService private readonly _missionControlSharingService: IMissionControlSharingService,
 	) {
 		super(undefined, action);
 
-		this._wasSharing = this._tunnelHostService.isSharing;
-
-		this._register(this._tunnelHostService.onDidChangeStatus(() => {
+		this._register(autorun(reader => {
+			this._missionControlSharingService.state.read(reader);
 			this._updateState();
 		}));
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AgentHostRemoteConnectionsSettingId)) {
+				this._hideToast();
+				this._updateState();
+			}
+		}));
+		this._register(this._remoteTunnelService.onDidChangeTunnelStatus(status => {
+			this._hasReceivedStatus = true;
+			this._status = status;
+			this._updateState();
+		}));
+		this._register(this._remoteTunnelService.onDidChangeMode(mode => {
+			this._hasReceivedMode = true;
+			this._mode = mode;
+			this._updateState();
+		}));
+		void this._loadState();
 	}
 
 	override render(container: HTMLElement): void {
@@ -68,26 +108,54 @@ export class ToggleRemoteConnectionsActionViewItem extends BaseActionViewItem {
 	}
 
 	private _updateState(): void {
+		const state = this._getState();
 		if (!this.element) {
+			this._wasSharing = state.isSharing;
 			return;
 		}
 
-		const isSharing = this._tunnelHostService.isSharing;
-		const isConnecting = this._tunnelHostService.isConnecting;
-
-		this.element.classList.toggle('sharing', isSharing);
-		this.element.classList.toggle('connecting', isConnecting);
+		this.element.classList.toggle('sharing', state.isSharing);
+		this.element.classList.toggle('connecting', state.isConnecting);
 		this._hover?.update(this._getHoverContent());
 		this.element.setAttribute('aria-label', this._getAriaLabel());
-		this.element.setAttribute('aria-pressed', String(isSharing));
+		this.element.setAttribute('aria-pressed', String(state.isSharing));
 
-		if (isSharing && !this._wasSharing && !isConnecting) {
-			this._showToast();
-		} else if (!isSharing && this._wasSharing) {
-			this._hideToast();
+		if (this._hasInitializedState) {
+			if (state.isSharing && !this._wasSharing && !state.isConnecting) {
+				this._showToast();
+			} else if (!state.isSharing && this._wasSharing) {
+				this._hideToast();
+			}
 		}
 
-		this._wasSharing = isSharing;
+		this._wasSharing = state.isSharing;
+	}
+
+	private _usesMissionControl(): boolean {
+		return this._configurationService.getValue<AgentHostRemoteConnectionsBackend>(AgentHostRemoteConnectionsSettingId) === 'missionControl';
+	}
+
+	private _getState(): IRemoteTunnelAccessState {
+		if (this._usesMissionControl()) {
+			const state = this._missionControlSharingService.state.get();
+			return { isSharing: state === 'enabled', isConnecting: state === 'connecting', tunnelName: undefined };
+		}
+		return getRemoteTunnelAccessState(this._mode, this._status);
+	}
+
+	private async _loadState(): Promise<void> {
+		const [mode, status] = await Promise.all([
+			this._remoteTunnelService.getMode(),
+			this._remoteTunnelService.getTunnelStatus(),
+		]);
+		if (!this._hasReceivedMode) {
+			this._mode = mode;
+		}
+		if (!this._hasReceivedStatus) {
+			this._status = status;
+		}
+		this._updateState();
+		this._hasInitializedState = true;
 	}
 
 	private _showToast(): void {
@@ -108,19 +176,18 @@ export class ToggleRemoteConnectionsActionViewItem extends BaseActionViewItem {
 	}
 
 	private _getHoverContent(): IManagedHoverContent {
+		if (this._usesMissionControl()) {
+			return this._getAriaLabel();
+		}
 		const lines: string[] = [];
+		const state = this._getState();
 
-		if (this._tunnelHostService.isConnecting) {
+		if (state.isConnecting) {
 			lines.push(localize('tunnelHost.hover.connecting', "Establishing tunnel connection..."));
-		} else if (this._tunnelHostService.isSharing) {
-			const info = this._tunnelHostService.sharingInfo;
-			if (info) {
-				lines.push(info.viaRemoteTunnelAccess
-					? localize('tunnelHost.hover.remoteTunnelAccess', "Remote session access is provided by Remote Tunnel Access via tunnel '{0}'. Turning off remote session access does not disable Remote Tunnel Access.", info.tunnelName)
-					: localize('tunnelHost.hover.sharing', "Remote session access enabled via tunnel '{0}'", info.tunnelName));
-			} else {
-				lines.push(localize('tunnelHost.hover.enabled', "Remote session access is enabled"));
-			}
+		} else if (state.isSharing) {
+			lines.push(state.tunnelName
+				? localize('tunnelHost.hover.sharing', "Remote Tunnel Access is enabled via tunnel '{0}'", state.tunnelName)
+				: localize('tunnelHost.hover.enabled', "Remote Tunnel Access is enabled"));
 		} else {
 			const agentsUrl = this._productService.webUrl ? `${this._productService.webUrl.replace(/\/$/, '')}/agents` : undefined;
 			lines.push(agentsUrl
@@ -128,24 +195,28 @@ export class ToggleRemoteConnectionsActionViewItem extends BaseActionViewItem {
 				: localize('tunnelHost.hover.idle.noWebUrl', "Allow connections from other machines"));
 		}
 
-		lines.push(`[${localize('tunnelHost.hover.showOutput', "Show Output")}](command:${SHOW_TUNNEL_HOST_OUTPUT_ID}) | [${localize('tunnelHost.hover.renameTunnel', "Rename Tunnel")}](command:${RENAME_TUNNEL_ID}) | [${localize('tunnelHost.hover.learnMore', "Learn More")}](${TUNNEL_ACCESS_DOCS_URL})`);
+		lines.push(`[${localize('tunnelHost.hover.showOutput', "Show Output")}](command:${RemoteTunnelCommandIds.showLog}) | [${localize('tunnelHost.hover.renameTunnel', "Rename Tunnel")}](command:${RemoteTunnelCommandIds.rename}) | [${localize('tunnelHost.hover.learnMore', "Learn More")}](${TUNNEL_ACCESS_DOCS_URL})`);
 
-		const md = new MarkdownString(lines.join('\n\n'), { isTrusted: { enabledCommands: [SHOW_TUNNEL_HOST_OUTPUT_ID, RENAME_TUNNEL_ID] } });
+		const md = new MarkdownString(lines.join('\n\n'), { isTrusted: { enabledCommands: [RemoteTunnelCommandIds.showLog, RemoteTunnelCommandIds.rename] } });
 		return { markdown: md, markdownNotSupportedFallback: lines[0] };
 	}
 
 	private _getAriaLabel(): string {
-		if (this._tunnelHostService.isConnecting) {
+		const state = this._getState();
+		if (this._usesMissionControl()) {
+			return state.isConnecting
+				? localize('missionControlSharing.connecting', "Registering environment with Mission Control...")
+				: state.isSharing
+					? localize('missionControlSharing.enabled', "Remote Connections via Mission Control are enabled")
+					: localize('missionControlSharing.disabled', "Allow Remote Connections via Mission Control");
+		}
+		if (state.isConnecting) {
 			return localize('tunnelHost.hover.connecting', "Establishing tunnel connection...");
 		}
-		if (this._tunnelHostService.isSharing) {
-			const info = this._tunnelHostService.sharingInfo;
-			if (info) {
-				return info.viaRemoteTunnelAccess
-					? localize('tunnelHost.ariaLabel.remoteTunnelAccess', "Remote session access provided by Remote Tunnel Access via tunnel '{0}'", info.tunnelName)
-					: localize('tunnelHost.hover.sharing', "Remote session access enabled via tunnel '{0}'", info.tunnelName);
-			}
-			return localize('tunnelHost.hover.enabled', "Remote session access is enabled");
+		if (state.isSharing) {
+			return state.tunnelName
+				? localize('tunnelHost.ariaLabel.remoteTunnelAccess', "Remote Tunnel Access is enabled via tunnel '{0}'", state.tunnelName)
+				: localize('tunnelHost.hover.enabled', "Remote Tunnel Access is enabled");
 		}
 		const agentsUrl = this._productService.webUrl ? `${this._productService.webUrl.replace(/\/$/, '')}/agents` : undefined;
 		return agentsUrl

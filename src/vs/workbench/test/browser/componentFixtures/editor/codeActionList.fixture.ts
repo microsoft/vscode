@@ -71,7 +71,7 @@ function renderCodeActionList(options: CodeActionFixtureOptions): void {
 	container.appendChild(wrapper);
 
 	list.layout(0);
-	list.focus();
+	options.focus(list);
 }
 
 const quickFixItems: IActionListItem<string>[] = [

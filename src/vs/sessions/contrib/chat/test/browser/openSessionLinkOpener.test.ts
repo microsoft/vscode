@@ -12,7 +12,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
+import { buildOpenSessionLinkUri, parseOpenSessionLinkConnectionAuthority } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { ILinkPresentationProvider, ILinkPresentationService } from '../../../../../platform/dataChannel/common/dataChannel.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IOpener, IOpenerService } from '../../../../../platform/opener/common/opener.js';
@@ -23,10 +23,28 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionLinkChatState, ISessionLinkState, OpenSessionLinkOpenerContribution, readSessionState } from '../../browser/openSessionLinkOpener.contribution.js';
+import { findSessionForOpenSessionLink, ISessionLinkChatState, ISessionLinkState, OpenSessionLinkOpenerContribution, readSessionState } from '../../browser/openSessionLinkOpener.contribution.js';
 
 suite('OpenSessionLinkOpenerContribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('scoped links select the owning host when backend IDs collide', () => {
+		const backend = URI.parse('ahp-session:/shared');
+		const local = upcastPartial<ISession>({ resource: URI.parse('agent-host-codex:/shared') });
+		const remote = upcastPartial<ISession>({ resource: URI.parse('remote-other-host-claude:/shared') });
+		const sessions = new class extends mock<ISessionsManagementService>() {
+			override getSessions(): ISession[] { return [local, remote]; }
+		}();
+		const connections = new class extends mock<IAgentHostConnectionsService>() {
+			override resolveSessionResourceIdentity(resource: URI) {
+				return { backendSession: backend, backendSessionIsAdvertised: true as const, connectionAuthority: resource.scheme === local.resource.scheme ? 'local' : 'other-host' };
+			}
+		}();
+		assert.deepStrictEqual(['other-host', 'missing-host', 'local'].map(authority => findSessionForOpenSessionLink(backend, sessions, connections, authority)?.resource.toString()), [remote.resource.toString(), undefined, local.resource.toString()]);
+		sessions.getSessions = () => [remote];
+		const ambientLink = buildOpenSessionLinkUri(backend, undefined, undefined, 'local');
+		assert.strictEqual(findSessionForOpenSessionLink(backend, sessions, connections, parseOpenSessionLinkConnectionAuthority(ambientLink)), undefined);
+	});
 
 	const sessionsProvidersService = new class extends mock<ISessionsProvidersService>() {
 		override getProvider<T extends ISessionsProvider>(): T | undefined {
@@ -70,7 +88,8 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			}
 		};
 		const connectionsService = new class extends mock<IAgentHostConnectionsService>() {
-			override resolveSessionResource() {
+			override readonly onDidChangeSessionResolution = Event.None;
+			override resolveSessionResourceIdentity() {
 				return undefined;
 			}
 		};
@@ -138,7 +157,8 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			}
 		};
 		const connectionsService = new class extends mock<IAgentHostConnectionsService>() {
-			override resolveSessionResource() {
+			override readonly onDidChangeSessionResolution = Event.None;
+			override resolveSessionResourceIdentity() {
 				return undefined;
 			}
 		};
@@ -168,6 +188,23 @@ suite('OpenSessionLinkOpenerContribution', () => {
 		const result = await registeredOpener.open(buildOpenSessionLinkUri(sessionResource, undefined, 'turn-1'));
 
 		assert.deepStrictEqual({ result, opened }, { result: true, opened: ['chat:copilotcli:/session-1'] });
+	});
+
+	test('finds a client session from its backend link resource', () => {
+		const backendSession = URI.parse('copilotcli:/session-1');
+		const session = upcastPartial<ISession>({ resource: URI.parse('agent-host-copilotcli:/session-1') });
+		const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
+			override getSessions(): ISession[] {
+				return [session];
+			}
+		};
+		const connectionsService = new class extends mock<IAgentHostConnectionsService>() {
+			override resolveSessionResourceIdentity() {
+				return upcastPartial<NonNullable<ReturnType<IAgentHostConnectionsService['resolveSessionResourceIdentity']>>>({ backendSession });
+			}
+		};
+
+		assert.strictEqual(findSessionForOpenSessionLink(backendSession, sessionsManagementService, connectionsService), session);
 	});
 
 	test('uses a contextual placeholder without opening the linked chat', () => {
@@ -208,7 +245,7 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			sessionsManagementService,
 			new class extends mock<ISessionsService>() { },
 			new class extends mock<IAgentHostConnectionsService>() {
-				override resolveSessionResource() { return undefined; }
+				override resolveSessionResourceIdentity() { return undefined; }
 			},
 			linkPresentationService,
 			sessionsProvidersService,
@@ -256,7 +293,6 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			isQuickChat: observableValue('isQuickChat', false),
 			workspace: observableValue('workspace', undefined),
 			worktreePending: observableValue('worktreePending', false),
-			changes: observableValue('changes', []),
 		});
 		const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
 			override getSessions(): ISession[] {
@@ -271,7 +307,7 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			sessionsManagementService,
 			new class extends mock<ISessionsService>() { },
 			new class extends mock<IAgentHostConnectionsService>() {
-				override resolveSessionResource() { return undefined; }
+				override resolveSessionResourceIdentity() { return undefined; }
 			},
 			new class extends mock<ILinkPresentationService>() {
 				override registerLinkPresentationProvider(): IDisposable { return Disposable.None; }
@@ -346,9 +382,9 @@ suite('OpenSessionLinkOpenerContribution', () => {
 				kind: 'chat',
 				title: 'Peer chat',
 				detail: 'Session details',
-				status: { kind: 'warning', label: 'Needs input' },
-				tooltip: 'Peer chat · Needs input',
-				ariaLabel: 'Agent chat Peer chat, Needs input',
+				status: { kind: 'warning', label: 'Needs attention' },
+				tooltip: 'Peer chat · Needs attention',
+				ariaLabel: 'Agent chat Peer chat, Needs attention',
 			},
 		]);
 	});

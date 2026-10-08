@@ -12,6 +12,7 @@ import { AICustomizationManagementSection } from '../../common/aiCustomizationWo
 export interface IAICustomizationManagementSectionWidget extends IDisposable {
 	layout?(dimension: Dimension): void;
 	focus?(): void;
+	setVisible?(visible: boolean): void;
 }
 
 export interface IAICustomizationManagementSectionContribution {
@@ -19,6 +20,8 @@ export interface IAICustomizationManagementSectionContribution {
 	readonly label: string;
 	readonly icon: ThemeIcon;
 	readonly description: string;
+	/** At least one of these boolean settings must be enabled to show or instantiate the section. */
+	readonly enablementSettings?: readonly string[];
 	readonly supportsHarness: (harnessId: string) => boolean;
 	create(instantiationService: IInstantiationService, container: HTMLElement): IAICustomizationManagementSectionWidget;
 }

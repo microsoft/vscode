@@ -11,11 +11,12 @@
  * file changes through host-executed bang commands and never cross the model
  * boundary.
  *
- * The host publishes several changesets per session, each on its own
+ * The host publishes several changesets per chat, each on its own
  * subscribable channel: `branch` (against the branch point), `uncommitted`
- * (working-tree state), and `session` (cumulative for the session). They are
- * separate channels because `changeset/*` actions are scoped to the changeset
- * URI, so a session-only subscription never receives them.
+ * (working-tree state), and `session` (cumulative for the chat). They are
+ * separate channels because `changeset/*` actions are scoped to their URI.
+ * Creating sessions temporarily advertise repository-preparation changes
+ * until their committed chat becomes authoritative.
  *
  * This contract previously existed only in the frozen `../protocol/` suite,
  * which drives a mock agent with the magic prompt `terminal-edit:<path>` and
@@ -24,29 +25,37 @@
 
 import assert from 'assert';
 import { execFileSync, execSync } from 'child_process';
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { retry } from '../../../../../../base/common/async.js';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
+import { AgentMergeConfigKey } from '../../../../common/agentMerge.js';
+import { CheckoutOperationPreAction, checkoutOperationMeta, isCheckoutOperationDirtyWorkingTreeErrorData } from '../../../../common/meta/agentCheckoutOperationMeta.js';
+import { ProtocolError } from '../../../../common/state/sessionProtocol.js';
+import { getWorkingDirectoryScopeId } from '../../../../common/agentHostWorkingDirectories.js';
 import type { ListSessionsResult, ResourceReadResult, SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { ContentEncoding } from '../../../../common/state/protocol/common/commands.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { ChangesetOperationTargetKind, type InvokeChangesetOperationResult } from '../../../../common/state/protocol/channels-changeset/commands.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, readSessionGitState, ROOT_STATE_URI, type SessionState } from '../../../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, readSessionGitState, ROOT_STATE_URI, type ChatState, type SessionState } from '../../../../common/state/sessionState.js';
 import {
 	ChangesetKind,
-	buildBranchChangesetUri,
+	buildBranchChangesetUri as buildOwnerBranchChangesetUri,
 	buildCompareTurnsChangesetUri,
 	buildSessionChangesetUri,
 	buildTurnChangesetUri,
 	buildUncommittedChangesetUri,
+	buildFolderChangesetOwnerUri,
 } from '../../../../common/changesetUri.js';
-import { createRealSession, dispatchTurn, driveChatTurnToCompletion, driveTurnToCompletion, initTestGitRepo, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
-import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
+import { createRealSession, disableTestGitMaintenance, dispatchTurn, driveChatTurnToCompletion, driveTurnToCompletion, initTestGitRepo, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
+import { getActionEnvelope, getAgentHostE2ETestTimeout, isActionNotification } from '../../serverIntegrationTestHelpers.js';
+import { assertExpectedFailure } from '../harness/expectedFailure.js';
+import { vscodeAgentHostTarget } from '../harness/agentHostTarget.js';
 import { conformanceTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 /** The subset of `ChangesetFile` these tests assert on. */
 interface IObservedChangesetFile {
@@ -70,6 +79,7 @@ interface IOperationsChangedAction {
 
 interface IObservedOperation {
 	readonly id: string;
+	readonly group?: string;
 	readonly scopes: readonly string[];
 	readonly status: string;
 }
@@ -90,6 +100,16 @@ const CHANGESET_OPERATION_TIMEOUT_MS = 60_000;
 
 export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	const { config, createdSessions, tempDirs } = context;
+	const sessionWorkingDirectories = new Map<string, readonly string[]>();
+
+	function parityTest(title: string, run: Mocha.AsyncFunc): void {
+		if (context.tier === 'parity') {
+			test(title, function () {
+				this.timeout(180_000);
+				return run.call(this);
+			});
+		}
+	}
 
 	/**
 	 * Client sequence numbers must strictly increase for the lifetime of a
@@ -103,7 +123,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 
 	/** A git repository with one committed file, so a branch point exists. */
 	function createGitWorkspace(prefix: string): string {
-		const workspace = mkdtempSync(join(tmpdir(), prefix));
+		const workspace = createTestDirectory(join(tmpdir(), prefix));
 		tempDirs.push(workspace);
 		initTestGitRepo(workspace);
 		writeFileSync(join(workspace, 'seed.txt'), 'seed\n');
@@ -114,9 +134,9 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 
 	function createRemoteGitWorkspace(prefix: string): { readonly workspace: string; readonly remote: string } {
 		const workspace = createGitWorkspace(`${prefix}-workspace-`);
-		const remote = mkdtempSync(join(tmpdir(), `${prefix}-remote-`));
+		const remote = createTestDirectory(join(tmpdir(), `${prefix}-remote-`));
 		tempDirs.push(remote);
-		execFileSync('git', ['init', '--bare', '-q'], { cwd: remote });
+		initTestGitRepo(remote, { bare: true });
 		execFileSync('git', ['remote', 'add', 'origin', remote], { cwd: workspace });
 		execFileSync('git', ['push', '-q', '-u', 'origin', 'HEAD'], { cwd: workspace });
 		execFileSync('git', ['config', 'pull.rebase', 'false'], { cwd: workspace });
@@ -130,9 +150,10 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	}
 
 	function pushRemoteCommit(remote: string, prefix: string, file: string, contents: string): void {
-		const clone = mkdtempSync(join(tmpdir(), `${prefix}-clone-`));
+		const clone = createTestDirectory(join(tmpdir(), `${prefix}-clone-`));
 		tempDirs.push(clone);
-		execFileSync('git', ['clone', '-q', remote, '.'], { cwd: clone });
+		execFileSync('git', ['-c', 'gc.auto=0', '-c', 'maintenance.auto=false', 'clone', '-q', remote, '.'], { cwd: clone });
+		disableTestGitMaintenance(clone);
 		execFileSync('git', ['config', 'user.email', 'test@example.com'], { cwd: clone });
 		execFileSync('git', ['config', 'user.name', 'Agent Host E2E'], { cwd: clone });
 		commitFile(clone, file, contents, `add ${file}`);
@@ -140,7 +161,25 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	}
 
 	async function createSessionIn(workspace: string, prefix: string): Promise<string> {
-		return createRealSession(context.client, config, `${prefix}-${config.provider}`, createdSessions, URI.file(workspace));
+		const workingDirectory = URI.file(workspace);
+		const sessionUri = await createRealSession(context.client, config, `${prefix}-${config.provider}`, createdSessions, workingDirectory);
+		sessionWorkingDirectories.set(sessionUri, [workingDirectory.toString()]);
+		return sessionUri;
+	}
+
+	async function setRootConfig(values: Readonly<Record<string, unknown>>): Promise<void> {
+		await context.client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
+		const clientSeq = nextClientSeq();
+		context.client.dispatch({
+			channel: ROOT_STATE_URI,
+			clientSeq,
+			action: { type: ActionType.RootConfigChanged, config: values },
+		});
+		await context.client.waitForNotification(notification =>
+			isActionNotification(notification, ActionType.RootConfigChanged)
+			&& getActionEnvelope(notification).channel === ROOT_STATE_URI
+			&& getActionEnvelope(notification).origin?.clientSeq === clientSeq,
+		);
 	}
 
 	async function createWorktreeSessionIn(workspace: string, prefix: string): Promise<string> {
@@ -157,6 +196,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 			config: { isolation: 'worktree', branch },
 		}, 30_000);
 		createdSessions.push(sessionUri);
+		sessionWorkingDirectories.set(sessionUri, [URI.file(workspace).toString()]);
 		await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });
 		await context.client.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(sessionUri) });
 		context.client.clearReceived();
@@ -224,6 +264,15 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		return action.files.find(file => fileHasBasename(file, basename))!;
 	}
 
+	async function waitForEmptyChangeset(channel: string): Promise<void> {
+		await context.client.waitForNotification(n =>
+			isActionNotification(n, 'changeset/contentChanged')
+			&& getActionEnvelope(n).channel === channel
+			&& (getActionEnvelope(n).action as IContentChangedAction).files.length === 0,
+			60_000,
+		);
+	}
+
 	async function waitForTurnComplete(sessionUri: string, turnId: string): Promise<void> {
 		const chatUri = buildDefaultChatUri(sessionUri);
 		await context.client.waitForNotification(n =>
@@ -235,19 +284,23 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	}
 
 	async function changesetState(channel: string): Promise<IObservedChangesetState> {
-		const result = await context.client.call<SubscribeResult>('subscribe', { channel });
-		let state = result.snapshot!.state as IObservedChangesetState;
-		if (state.status === 'computing') {
+		const isPending = (status: string) => status === 'computing' || status === 'recomputing';
+		let snapshot = (await context.client.call<SubscribeResult>('subscribe', { channel })).snapshot!;
+		while (isPending((snapshot.state as IObservedChangesetState).status)) {
 			await context.client.waitForNotification(n =>
 				isActionNotification(n, 'changeset/statusChanged')
 				&& getActionEnvelope(n).channel === channel
-				&& (getActionEnvelope(n).action as { readonly status: string }).status !== 'computing',
+				&& getActionEnvelope(n).serverSeq > snapshot.fromSeq
+				&& !isPending((getActionEnvelope(n).action as { readonly status: string }).status),
 				60_000,
 			);
-			state = (await context.client.call<SubscribeResult>('subscribe', { channel })).snapshot!.state as typeof state;
+			snapshot = (await context.client.call<SubscribeResult>('subscribe', { channel })).snapshot!;
 		}
-		return state;
+		return snapshot.state as IObservedChangesetState;
 	}
+
+	// Re-reading git state is slow on a contended CI agent.
+	const operationPollRetries = getAgentHostE2ETestTimeout(100, 300);
 
 	async function waitForOperation(channel: string, operationId: string): Promise<IObservedOperation> {
 		return retry(async () => {
@@ -256,7 +309,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 				throw new Error(`Changeset ${channel} has not advertised idle operation ${operationId}`);
 			}
 			return operation;
-		}, 100, 100);
+		}, 100, operationPollRetries);
 	}
 
 	async function waitForOperationRemoved(channel: string, operationId: string): Promise<void> {
@@ -264,10 +317,10 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 			if ((await changesetState(channel)).operations?.some(operation => operation.id === operationId)) {
 				throw new Error(`Changeset ${channel} still advertises operation ${operationId}`);
 			}
-		}, 100, 100);
+		}, 100, operationPollRetries);
 	}
 
-	async function invokeChangesetOperation(channel: string, operationId: string): Promise<{
+	async function invokeChangesetOperation(channel: string, operationId: string, meta?: Record<string, unknown>): Promise<{
 		readonly result: InvokeChangesetOperationResult;
 		readonly statuses: readonly string[];
 	}> {
@@ -282,6 +335,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		const result = await context.client.call<InvokeChangesetOperationResult>('invokeChangesetOperation', {
 			channel,
 			operationId,
+			_meta: meta,
 		}, CHANGESET_OPERATION_TIMEOUT_MS);
 		await completed;
 		const statuses = context.client.receivedNotifications(n =>
@@ -292,6 +346,307 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 			.map(action => action.status);
 		return { result, statuses };
 	}
+
+	function createCheckoutWorkspace(prefix: string): { workspace: string; originalBranch: string } {
+		const workspace = createGitWorkspace(prefix);
+		execFileSync('git', ['config', 'core.autocrlf', 'false'], { cwd: workspace });
+		const originalBranch = execFileSync('git', ['branch', '--show-current'], { cwd: workspace, encoding: 'utf8' }).trim();
+		execFileSync('git', ['checkout', '-q', '-b', 'checkout-target'], { cwd: workspace });
+		commitFile(workspace, 'seed.txt', 'target\n', 'target content');
+		execFileSync('git', ['checkout', '-q', originalBranch], { cwd: workspace });
+		return { workspace, originalBranch };
+	}
+
+	async function checkoutChannel(workspace: string, prefix: string): Promise<string> {
+		const session = await createSessionIn(workspace, prefix);
+		const channel = buildUncommittedChangesetUri(session);
+		await waitForOperation(channel, 'checkout');
+		return channel;
+	}
+
+	function currentBranch(workspace: string): string {
+		return execFileSync('git', ['branch', '--show-current'], { cwd: workspace, encoding: 'utf8' }).trim();
+	}
+
+	async function readChangesetBytes(uri: string | undefined): Promise<Buffer> {
+		assert.ok(uri);
+		const result = await context.client.call<ResourceReadResult>('resourceRead', { uri, encoding: ContentEncoding.Base64 });
+		return Buffer.from(result.data, result.encoding === ContentEncoding.Base64 ? 'base64' : 'utf8');
+	}
+
+	conformanceTest(context, 'regression coverage: staged changes appear in the branch changeset', async function () {
+		const workspace = createGitWorkspace('ahp-staged-branch-');
+		writeFileSync(join(workspace, 'seed.txt'), 'staged\n');
+		execFileSync('git', ['add', 'seed.txt'], { cwd: workspace });
+		const session = await createSessionIn(workspace, 'staged-branch');
+		const channel = await getBranchChangesetUri(context, session);
+		const [file] = await waitForChangesetFiles(channel, ['seed.txt']);
+		assert.deepStrictEqual({
+			before: (await readChangesetBytes(file.edit.before?.content?.uri)).toString(),
+			after: (await readChangesetBytes(file.edit.after?.content?.uri)).toString(),
+			staged: execFileSync('git', ['diff', '--cached', '--name-only'], { cwd: workspace, encoding: 'utf8' }).trim(),
+		}, { before: 'seed\n', after: 'staged\n', staged: 'seed.txt' });
+	});
+
+	conformanceTest(context, 'regression coverage: branch content uses working bytes rather than an older staged version', async function () {
+		const workspace = createGitWorkspace('ahp-index-worktree-');
+		writeFileSync(join(workspace, 'seed.txt'), 'staged\n');
+		execFileSync('git', ['add', 'seed.txt'], { cwd: workspace });
+		writeFileSync(join(workspace, 'seed.txt'), 'working\n');
+		const session = await createSessionIn(workspace, 'index-worktree');
+		const [file] = await waitForChangesetFiles(await getBranchChangesetUri(context, session), ['seed.txt']);
+		assert.deepStrictEqual({
+			before: (await readChangesetBytes(file.edit.before?.content?.uri)).toString(),
+			after: (await readChangesetBytes(file.edit.after?.content?.uri)).toString(),
+			index: execFileSync('git', ['show', ':seed.txt'], { cwd: workspace, encoding: 'utf8' }),
+		}, { before: 'seed\n', after: 'working\n', index: 'staged\n' });
+	});
+
+	conformanceTest(context, 'regression coverage: binary changeset references preserve both byte sequences', async function () {
+		const workspace = createGitWorkspace('ahp-binary-changeset-');
+		const before = Buffer.from([0, 255, 254, 1]);
+		const after = Buffer.from([0, 128, 129, 2, 3]);
+		writeFileSync(join(workspace, 'binary.dat'), before);
+		execFileSync('git', ['add', 'binary.dat'], { cwd: workspace });
+		execFileSync('git', ['commit', '-q', '-m', 'binary seed'], { cwd: workspace });
+		const session = await createSessionIn(workspace, 'binary-changeset');
+		const channel = await getBranchChangesetUri(context, session);
+		await runBangTurn(session, 'binary-update', '!node -e "require(\'fs\').writeFileSync(\'binary.dat\',Buffer.from([0,128,129,2,3]))"', 1);
+		const [file] = await waitForChangesetFiles(channel, ['binary.dat']);
+		assert.deepStrictEqual(await readChangesetBytes(file.edit.after?.content?.uri), after);
+		const historical = await readChangesetBytes(file.edit.before?.content?.uri);
+		const assertHistoricalBytes = () => assert.ok(historical.equals(before), 'Historical Git blob did not preserve binary bytes');
+		if (context.targetId === vscodeAgentHostTarget.id) {
+			await assertExpectedFailure('Agent Host historical binary Git blob transport',
+				/^Historical Git blob did not preserve binary bytes/, assertHistoricalBytes);
+		} else {
+			assertHistoricalBytes();
+		}
+	});
+
+	for (const { title, filename } of [
+		{ title: 'URI-reserved filenames remain readable through changeset references', filename: 'percent%hash#.txt' },
+		{ title: 'UTF-8 filenames survive Git changeset decoding', filename: 'caf\u00e9.txt' },
+	]) {
+		conformanceTest(context, `regression coverage: ${title}`, async function () {
+			const workspace = createGitWorkspace('ahp-encoded-changeset-');
+			const session = await createSessionIn(workspace, 'encoded-changeset');
+			const channel = await getBranchChangesetUri(context, session);
+			await runBangTurn(session, 'encoded-add', writeFileBase64Command(filename, 'encoded content\n'), 1);
+			const [file] = await waitForChangesetFiles(channel, [filename]);
+			assert.deepStrictEqual({
+				name: URI.parse(fileUri(file)).path.split('/').at(-1),
+				bytes: (await readChangesetBytes(file.edit.after?.content?.uri)).toString(),
+			}, { name: filename, bytes: 'encoded content\n' });
+		});
+	}
+
+	conformanceTest(context, 'regression coverage: an added empty file remains present in the changeset', async function () {
+		const workspace = createGitWorkspace('ahp-empty-changeset-');
+		const session = await createSessionIn(workspace, 'empty-changeset');
+		const channel = await getBranchChangesetUri(context, session);
+		await runBangTurn(session, 'empty-add', '!node -e "require(\'fs\').writeFileSync(\'empty.txt\',\'\')"', 1);
+		assert.strictEqual(readFileSync(join(workspace, 'empty.txt')).length, 0);
+		const [file] = await waitForChangesetFiles(channel, ['empty.txt']);
+		assert.deepStrictEqual({ before: file.edit.before, after: !!file.edit.after, bytes: await readChangesetBytes(file.edit.after?.content?.uri) },
+			{ before: undefined, after: true, bytes: Buffer.alloc(0) });
+	});
+
+	conformanceTest(context, 'regression coverage: a staged mode-only change is not discarded as an empty diff', async function () {
+		const workspace = createGitWorkspace('ahp-mode-changeset-');
+		if (!context.isWindows) {
+			chmodSync(join(workspace, 'seed.txt'), 0o755);
+		}
+		execFileSync('git', ['update-index', '--chmod=+x', 'seed.txt'], { cwd: workspace });
+		const session = await createSessionIn(workspace, 'mode-changeset');
+		const [file] = await waitForChangesetFiles(await getBranchChangesetUri(context, session), ['seed.txt']);
+		assert.deepStrictEqual({
+			before: !!file.edit.before, after: !!file.edit.after,
+			indexMode: execFileSync('git', ['ls-files', '--stage', 'seed.txt'], { cwd: workspace, encoding: 'utf8' }).split(' ')[0],
+		}, { before: true, after: true, indexMode: '100755' });
+	});
+
+	conformanceTest(context, 'regression coverage: a nested folder session preserves repository-wide branch changes', async function () {
+		const workspace = createGitWorkspace('ahp-scoped-changeset-');
+		mkdirSync(join(workspace, 'nested'));
+		writeFileSync(join(workspace, 'nested', 'inside.txt'), 'before\n');
+		execFileSync('git', ['add', '.'], { cwd: workspace });
+		execFileSync('git', ['commit', '-q', '-m', 'nested seed'], { cwd: workspace });
+		writeFileSync(join(workspace, 'seed.txt'), 'outside\n');
+		const session = await createSessionIn(join(workspace, 'nested'), 'scoped-changeset');
+		const channel = await getBranchChangesetUri(context, session);
+		await runBangTurn(session, 'inside-update', writeFileCommand('inside.txt', 'inside'), 1);
+		await waitForChangesetFiles(channel, ['inside.txt']);
+		const files = (await changesetState(channel)).files;
+		assert.deepStrictEqual(files.map(file => URI.parse(fileUri(file)).path.split('/').at(-1)).sort(), ['inside.txt', 'seed.txt']);
+		assert.strictEqual(readFileSync(join(workspace, 'seed.txt'), 'utf8'), 'outside\n');
+		assert.strictEqual(readFileSync(join(workspace, 'nested', 'inside.txt'), 'utf8'), 'inside');
+	});
+
+	conformanceTest(context, 'regression coverage: discarding working edits preserves a staged sibling', async function () {
+		const workspace = createGitWorkspace('ahp-discard-index-sibling-');
+		writeFileSync(join(workspace, 'staged.txt'), 'staged sibling\n');
+		execFileSync('git', ['add', 'staged.txt'], { cwd: workspace });
+		const session = await createSessionIn(workspace, 'discard-index-sibling');
+		const channel = buildUncommittedChangesetUri(session);
+		await runBangTurn(session, 'dirty-seed', writeFileCommand('seed.txt', 'dirty'), 1);
+		const files = await waitForChangesetFiles(channel, ['seed.txt', 'staged.txt']);
+		const target = files.find(file => fileHasBasename(file, 'seed.txt'));
+		assert.ok(target);
+		await waitForOperation(channel, 'discard-changes');
+		await invokeDiscard(channel, fileUri(target));
+		assert.deepStrictEqual({
+			seed: readFileSync(join(workspace, 'seed.txt'), 'utf8').replaceAll('\r\n', '\n'),
+			staged: execFileSync('git', ['diff', '--cached', '--name-only'], { cwd: workspace, encoding: 'utf8' }).trim(),
+			sibling: readFileSync(join(workspace, 'staged.txt'), 'utf8'),
+		}, { seed: 'seed\n', staged: 'staged.txt', sibling: 'staged sibling\n' });
+	});
+
+	conformanceTest(context, 'regression coverage: discarding an unstaged layer restores the staged bytes', async function () {
+		const workspace = createGitWorkspace('ahp-discard-working-layer-');
+		writeFileSync(join(workspace, 'seed.txt'), 'staged\n');
+		execFileSync('git', ['add', 'seed.txt'], { cwd: workspace });
+		const session = await createSessionIn(workspace, 'discard-working-layer');
+		const channel = buildUncommittedChangesetUri(session);
+		await runBangTurn(session, 'working-layer', writeFileCommand('seed.txt', 'working'), 1);
+		const [target] = await waitForChangesetFiles(channel, ['seed.txt']);
+		await waitForOperation(channel, 'discard-changes');
+		await invokeDiscard(channel, fileUri(target));
+		assert.deepStrictEqual({
+			working: readFileSync(join(workspace, 'seed.txt'), 'utf8').replaceAll('\r\n', '\n'),
+			index: execFileSync('git', ['show', ':seed.txt'], { cwd: workspace, encoding: 'utf8' }),
+		}, { working: 'staged\n', index: 'staged\n' });
+	});
+
+	conformanceTest(context, 'regression coverage: discarding a binary edit restores committed bytes', async function () {
+		const workspace = createGitWorkspace('ahp-discard-binary-');
+		const original = Buffer.from([0, 255, 254, 42]);
+		writeFileSync(join(workspace, 'binary.dat'), original);
+		execFileSync('git', ['add', 'binary.dat'], { cwd: workspace });
+		execFileSync('git', ['commit', '-q', '-m', 'binary seed'], { cwd: workspace });
+		const session = await createSessionIn(workspace, 'discard-binary');
+		const channel = buildUncommittedChangesetUri(session);
+		await runBangTurn(session, 'binary-dirty', '!node -e "require(\'fs\').writeFileSync(\'binary.dat\',Buffer.from([0,128]))"', 1);
+		const [target] = await waitForChangesetFiles(channel, ['binary.dat']);
+		await waitForOperation(channel, 'discard-changes');
+		await invokeDiscard(channel, fileUri(target));
+		assert.deepStrictEqual(readFileSync(join(workspace, 'binary.dat')), original);
+	});
+
+	conformanceTest(context, 'regression coverage: discarding a nested untracked file preserves ignored sibling data', async function () {
+		const workspace = createGitWorkspace('ahp-discard-ignored-sibling-');
+		writeFileSync(join(workspace, '.gitignore'), 'nested/keep.log\n');
+		execFileSync('git', ['add', '.gitignore'], { cwd: workspace });
+		execFileSync('git', ['commit', '-q', '-m', 'ignored sibling'], { cwd: workspace });
+		mkdirSync(join(workspace, 'nested'));
+		writeFileSync(join(workspace, 'nested', 'keep.log'), 'ignored witness');
+		const session = await createSessionIn(workspace, 'discard-ignored-sibling');
+		const channel = buildUncommittedChangesetUri(session);
+		await runBangTurn(session, 'untracked-nested', writeFileBase64Command('nested/remove.txt', 'remove'), 1);
+		const [target] = await waitForChangesetFiles(channel, ['remove.txt']);
+		await waitForOperation(channel, 'discard-changes');
+		await invokeDiscard(channel, fileUri(target));
+		assert.deepStrictEqual({ removed: existsSync(join(workspace, 'nested', 'remove.txt')), kept: readFileSync(join(workspace, 'nested', 'keep.log'), 'utf8') },
+			{ removed: false, kept: 'ignored witness' });
+	});
+
+	conformanceTest(context, 'checkout lifecycle: an unused session checks out an existing branch', async function () {
+		const { workspace } = createCheckoutWorkspace('ahp-checkout-clean-');
+		const channel = await checkoutChannel(workspace, 'checkout-clean');
+		const result = await invokeChangesetOperation(channel, 'checkout', checkoutOperationMeta('checkout-target'));
+		assert.deepStrictEqual({
+			branch: currentBranch(workspace),
+			file: readFileSync(join(workspace, 'seed.txt'), 'utf8'),
+			statuses: result.statuses,
+		}, { branch: 'checkout-target', file: 'target\n', statuses: ['running', 'idle'] });
+	});
+
+	conformanceTest(context, 'checkout lifecycle: conflicting local edits are preserved with a structured error', async function () {
+		const { workspace, originalBranch } = createCheckoutWorkspace('ahp-checkout-conflict-');
+		writeFileSync(join(workspace, 'seed.txt'), 'local edit\n');
+		const channel = await checkoutChannel(workspace, 'checkout-conflict');
+		await assert.rejects(context.client.call('invokeChangesetOperation', {
+			channel, operationId: 'checkout', _meta: checkoutOperationMeta('checkout-target'),
+		}), error => error instanceof ProtocolError && isCheckoutOperationDirtyWorkingTreeErrorData(error.data));
+		assert.deepStrictEqual({
+			branch: currentBranch(workspace),
+			file: readFileSync(join(workspace, 'seed.txt'), 'utf8'),
+			stashes: execFileSync('git', ['stash', 'list'], { cwd: workspace, encoding: 'utf8' }),
+			operationStatus: (await waitForOperation(channel, 'checkout')).status,
+		}, { branch: originalBranch, file: 'local edit\n', stashes: '', operationStatus: 'idle' });
+	});
+
+	conformanceTest(context, 'checkout lifecycle: stashing preserves tracked and untracked work before switching branches', async function () {
+		const { workspace } = createCheckoutWorkspace('ahp-checkout-stash-');
+		writeFileSync(join(workspace, 'seed.txt'), 'local edit\n');
+		writeFileSync(join(workspace, 'untracked.txt'), 'untracked edit\n');
+		const channel = await checkoutChannel(workspace, 'checkout-stash');
+		await invokeChangesetOperation(channel, 'checkout', checkoutOperationMeta('checkout-target', CheckoutOperationPreAction.Stash));
+		assert.deepStrictEqual({
+			branch: currentBranch(workspace),
+			file: readFileSync(join(workspace, 'seed.txt'), 'utf8'),
+			untrackedExists: existsSync(join(workspace, 'untracked.txt')),
+			stashedTracked: execFileSync('git', ['show', 'stash@{0}:seed.txt'], { cwd: workspace, encoding: 'utf8' }),
+			stashedUntracked: execFileSync('git', ['show', 'stash@{0}^3:untracked.txt'], { cwd: workspace, encoding: 'utf8' }),
+		}, {
+			branch: 'checkout-target',
+			file: 'target\n',
+			untrackedExists: false,
+			stashedTracked: 'local edit\n',
+			stashedUntracked: 'untracked edit\n',
+		});
+	});
+
+	conformanceTest(context, 'checkout lifecycle: committing before checkout saves changes on the original branch', async function () {
+		const { workspace, originalBranch } = createCheckoutWorkspace('ahp-checkout-commit-');
+		writeFileSync(join(workspace, 'seed.txt'), 'local edit\n');
+		writeFileSync(join(workspace, 'untracked.txt'), 'new file\n');
+		const channel = await checkoutChannel(workspace, 'checkout-commit');
+		await invokeChangesetOperation(channel, 'checkout', checkoutOperationMeta('checkout-target', CheckoutOperationPreAction.Commit));
+		assert.deepStrictEqual({
+			branch: currentBranch(workspace),
+			committedEdit: execFileSync('git', ['show', `${originalBranch}:seed.txt`], { cwd: workspace, encoding: 'utf8' }),
+			committedNewFile: execFileSync('git', ['show', `${originalBranch}:untracked.txt`], { cwd: workspace, encoding: 'utf8' }),
+			status: execFileSync('git', ['status', '--porcelain'], { cwd: workspace, encoding: 'utf8' }),
+		}, { branch: 'checkout-target', committedEdit: 'local edit\n', committedNewFile: 'new file\n', status: '' });
+	});
+
+	conformanceTest(context, 'checkout lifecycle: a concurrent Git lock preserves edits and permits a later retry', async function () {
+		const { workspace, originalBranch } = createCheckoutWorkspace('ahp-checkout-lock-');
+		writeFileSync(join(workspace, 'seed.txt'), 'local edit\n');
+		const channel = await checkoutChannel(workspace, 'checkout-lock');
+		const lock = join(workspace, '.git', 'index.lock');
+		writeFileSync(lock, '');
+		try {
+			await assert.rejects(context.client.call('invokeChangesetOperation', {
+				channel, operationId: 'checkout', _meta: checkoutOperationMeta('checkout-target', CheckoutOperationPreAction.Commit),
+			}), /Failed to commit changes/);
+			assert.deepStrictEqual({
+				branch: currentBranch(workspace),
+				file: readFileSync(join(workspace, 'seed.txt'), 'utf8'),
+			}, { branch: originalBranch, file: 'local edit\n' });
+		} finally {
+			unlinkSync(lock);
+		}
+		await waitForOperation(channel, 'checkout');
+		await invokeChangesetOperation(channel, 'checkout', checkoutOperationMeta('checkout-target', CheckoutOperationPreAction.Commit));
+		assert.strictEqual(currentBranch(workspace), 'checkout-target');
+	});
+
+	conformanceTest(context, 'checkout lifecycle: a deleted branch is rejected before stashing the user\'s work', async function () {
+		const { workspace, originalBranch } = createCheckoutWorkspace('ahp-checkout-deleted-');
+		const channel = await checkoutChannel(workspace, 'checkout-deleted');
+		execFileSync('git', ['branch', '-D', 'checkout-target'], { cwd: workspace });
+		writeFileSync(join(workspace, 'seed.txt'), 'local edit\n');
+		await assert.rejects(context.client.call('invokeChangesetOperation', {
+			channel, operationId: 'checkout', _meta: checkoutOperationMeta('checkout-target', CheckoutOperationPreAction.Stash),
+		}), /not an existing local branch/);
+		assert.deepStrictEqual({
+			branch: currentBranch(workspace),
+			file: readFileSync(join(workspace, 'seed.txt'), 'utf8'),
+			stashes: execFileSync('git', ['stash', 'list'], { cwd: workspace, encoding: 'utf8' }),
+		}, { branch: originalBranch, file: 'local edit\n', stashes: '' });
+	});
 
 	async function waitForChangesetFiles(channel: string, basenames: readonly string[]): Promise<readonly IObservedChangesetFile[]> {
 		return retry(async () => {
@@ -314,6 +669,20 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		context.client.clearReceived();
 		dispatchTurn(context.client, sessionUri, turnId, command, clientSeq);
 		await waitForTurnComplete(sessionUri, turnId);
+	}
+
+	async function getBranchChangesetUri(context: IAgentHostE2ETestContext, sessionUri: string): Promise<string> {
+		const chatUri = buildDefaultChatUri(sessionUri);
+		context.client.notify('unsubscribe', { channel: chatUri });
+		const chat = await context.client.call<SubscribeResult>('subscribe', { channel: chatUri });
+		const advertised = (chat.snapshot?.state as ChatState).changesets?.find(changeset => changeset.changeKind === ChangesetKind.Branch)?.uriTemplate;
+		if (advertised) {
+			return advertised;
+		}
+
+		const workingDirectories = sessionWorkingDirectories.get(sessionUri);
+		assert.ok(workingDirectories, `working directories tracked for ${sessionUri}`);
+		return buildOwnerBranchChangesetUri(buildFolderChangesetOwnerUri(sessionUri, getWorkingDirectoryScopeId(workingDirectories)));
 	}
 
 	async function waitForIdleResourceOnlyOperation(
@@ -424,7 +793,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	conformanceTest(context, 'subscribing to a changeset reaches ready status', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-status-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-status');
-		const branchUri = buildBranchChangesetUri(sessionUri);
+		const branchUri = await getBranchChangesetUri(context, sessionUri);
 
 		const subscribed = await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
 
@@ -451,7 +820,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	conformanceTest(context, 'a file written during a turn appears in the branch changeset', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-add-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-add');
-		const branchUri = buildBranchChangesetUri(sessionUri);
+		const branchUri = await getBranchChangesetUri(context, sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
 
 		context.client.clearReceived();
@@ -480,7 +849,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	conformanceTest(context, 'editing a committed file reports both sides of the change', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-edit-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-edit');
-		const branchUri = buildBranchChangesetUri(sessionUri);
+		const branchUri = await getBranchChangesetUri(context, sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
 
 		context.client.clearReceived();
@@ -504,7 +873,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	conformanceTest(context, 'committed changeset content can be read through its git blob reference', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-git-blob-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-git-blob');
-		const branchUri = buildBranchChangesetUri(sessionUri);
+		const branchUri = await getBranchChangesetUri(context, sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
 		await runBangTurn(sessionUri, 'turn-changeset-git-blob', writeFileCommand('seed.txt', 'edited'), 1);
 		const [file] = await waitForChangesetFiles(branchUri, ['seed.txt']);
@@ -522,7 +891,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	conformanceTest(context, 'deleting a committed file reports only the before side', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-delete-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-delete');
-		const branchUri = buildBranchChangesetUri(sessionUri);
+		const branchUri = await getBranchChangesetUri(context, sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
 
 		await runBangTurn(sessionUri, 'turn-changeset-delete', deleteFileCommand('seed.txt'), 1);
@@ -542,7 +911,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	conformanceTest(context, 'renaming a committed file reports the destination change', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-rename-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-rename');
-		const branchUri = buildBranchChangesetUri(sessionUri);
+		const branchUri = await getBranchChangesetUri(context, sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
 
 		await runBangTurn(sessionUri, 'turn-changeset-rename', renameFileCommand('seed.txt', 'renamed.txt'), 1);
@@ -565,7 +934,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		execSync('git add .', { cwd: workspace });
 		execSync('git commit -q -m "second seed"', { cwd: workspace });
 		const sessionUri = await createSessionIn(workspace, 'changeset-mixed');
-		const branchUri = buildBranchChangesetUri(sessionUri);
+		const branchUri = await getBranchChangesetUri(context, sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
 
 		await runBangTurn(
@@ -593,16 +962,11 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		execSync('git add .gitignore', { cwd: workspace });
 		execSync('git commit -q -m "ignore generated log"', { cwd: workspace });
 		const sessionUri = await createSessionIn(workspace, 'changeset-ignored');
-		const branchUri = buildBranchChangesetUri(sessionUri);
-		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
-		await changesetState(branchUri);
-		context.client.clearReceived();
-		const changed = context.client.waitForNotification(n =>
-			isActionNotification(n, 'changeset/contentChanged') && getActionEnvelope(n).channel === branchUri,
-			60_000,
-		);
+		const branchUri = await getBranchChangesetUri(context, sessionUri);
 
 		await runBangTurn(sessionUri, 'turn-changeset-ignored', writeFileCommand('ignored.log', 'ignored'), 1);
+		const changed = waitForEmptyChangeset(branchUri);
+		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
 		await changed;
 		const state = await changesetState(branchUri);
 
@@ -612,16 +976,11 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	conformanceTest(context, 'a file created and deleted in one turn leaves no branch change', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-create-delete-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-create-delete');
-		const branchUri = buildBranchChangesetUri(sessionUri);
-		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
-		await changesetState(branchUri);
-		context.client.clearReceived();
-		const changed = context.client.waitForNotification(n =>
-			isActionNotification(n, 'changeset/contentChanged') && getActionEnvelope(n).channel === branchUri,
-			60_000,
-		);
+		const branchUri = await getBranchChangesetUri(context, sessionUri);
 
 		await runBangTurn(sessionUri, 'turn-changeset-create-delete', '!node -e "const fs=require(\'fs\');fs.writeFileSync(\'temporary.txt\',\'temporary\');fs.unlinkSync(\'temporary.txt\')"', 1);
+		const changed = waitForEmptyChangeset(branchUri);
+		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
 		await changed;
 		const state = await changesetState(branchUri);
 
@@ -631,16 +990,11 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	conformanceTest(context, 'an edit restored in the same turn leaves no branch change', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-edit-restore-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-edit-restore');
-		const branchUri = buildBranchChangesetUri(sessionUri);
-		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
-		await changesetState(branchUri);
-		context.client.clearReceived();
-		const changed = context.client.waitForNotification(n =>
-			isActionNotification(n, 'changeset/contentChanged') && getActionEnvelope(n).channel === branchUri,
-			60_000,
-		);
+		const branchUri = await getBranchChangesetUri(context, sessionUri);
 
 		await runBangTurn(sessionUri, 'turn-changeset-edit-restore', writeFileTwiceBase64Command('seed.txt', 'changed', 'seed\n'), 1);
+		const changed = waitForEmptyChangeset(branchUri);
+		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
 		await changed;
 		const state = await changesetState(branchUri);
 
@@ -650,7 +1004,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	conformanceTest(context, 'an added multiline file reports every added line', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-multiline-add-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-multiline-add');
-		const branchUri = buildBranchChangesetUri(sessionUri);
+		const branchUri = await getBranchChangesetUri(context, sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
 
 		await runBangTurn(sessionUri, 'turn-changeset-multiline-add', writeFileBase64Command('lines.txt', 'one\ntwo\nthree\n'), 1);
@@ -665,7 +1019,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		execSync('git add lines.txt', { cwd: workspace });
 		execSync('git commit -q -m "add multiline file"', { cwd: workspace });
 		const sessionUri = await createSessionIn(workspace, 'changeset-multiline-delete');
-		const branchUri = buildBranchChangesetUri(sessionUri);
+		const branchUri = await getBranchChangesetUri(context, sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
 
 		await runBangTurn(sessionUri, 'turn-changeset-multiline-delete', deleteFileCommand('lines.txt'), 1);
@@ -677,7 +1031,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	conformanceTest(context, 'a changed filename containing spaces remains addressable', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-spaced-file-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-spaced-file');
-		const branchUri = buildBranchChangesetUri(sessionUri);
+		const branchUri = await getBranchChangesetUri(context, sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
 
 		await runBangTurn(sessionUri, 'turn-changeset-spaced-file', writeFileBase64Command('spaced file.txt', 'content\n'), 1);
@@ -695,11 +1049,11 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	});
 
 	conformanceTest(context, 'an empty repository reports an untracked file as added', async function () {
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-changeset-empty-repo-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-changeset-empty-repo-'));
 		tempDirs.push(workspace);
 		initTestGitRepo(workspace);
 		const sessionUri = await createSessionIn(workspace, 'changeset-empty-repo');
-		const branchUri = buildBranchChangesetUri(sessionUri);
+		const branchUri = await getBranchChangesetUri(context, sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
 
 		await runBangTurn(sessionUri, 'turn-changeset-empty-repo', writeFileCommand('first.txt', 'first'), 1);
@@ -719,7 +1073,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	conformanceTest(context, 'a client can mark a changeset file reviewed', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-review-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-review');
-		const branchUri = buildBranchChangesetUri(sessionUri);
+		const branchUri = await getBranchChangesetUri(context, sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
 
 		context.client.clearReceived();
@@ -787,6 +1141,86 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 			{ id: 'commit', scopes: ['changeset'] },
 			{ id: 'discard-changes', scopes: ['resource'] },
 		]);
+	});
+
+	parityTest('a GitHub remote with changes advertises pull request creation', async function () {
+		const workspace = createGitWorkspace('ahp-changeset-pr-ops-');
+		execFileSync('git', ['remote', 'add', 'origin', 'https://github.com/microsoft/vscode.git'], { cwd: workspace });
+		writeFileSync(join(workspace, 'pull-request.txt'), 'PR');
+		const sessionUri = await createSessionIn(workspace, 'changeset-pr-ops');
+		const uncommittedUri = buildUncommittedChangesetUri(sessionUri);
+		await context.client.call<SubscribeResult>('subscribe', { channel: uncommittedUri });
+		await driveTurnToCompletion(context.client, sessionUri, 'turn-changeset-pr-materialize', 'Reply exactly "ready".', nextClientSeq());
+
+		await waitForOperation(uncommittedUri, 'create-pr');
+		const pullRequestOperations = async () => ((await changesetState(uncommittedUri)).operations ?? [])
+			.filter(operation => operation.group?.startsWith('pull-request'))
+			.map(operation => ({ id: operation.id, group: operation.group, scopes: operation.scopes }));
+		const initialOperations = await pullRequestOperations();
+		let enabledOperations: Awaited<ReturnType<typeof pullRequestOperations>>;
+		try {
+			await setRootConfig({ [AgentMergeConfigKey.Enabled]: true });
+			enabledOperations = await pullRequestOperations();
+		} finally {
+			await setRootConfig({ [AgentMergeConfigKey.Enabled]: false });
+		}
+		const disabledOperations = await pullRequestOperations();
+		const expectedOperations = [
+			{ id: 'create-pr', group: 'pull-request', scopes: ['changeset'] },
+			{ id: 'prepare-pull-request', group: 'pull-request', scopes: ['changeset'] },
+		];
+
+		assert.deepStrictEqual({
+			initial: initialOperations,
+			enabled: enabledOperations,
+			disabled: disabledOperations,
+		}, {
+			initial: expectedOperations,
+			enabled: expectedOperations,
+			disabled: expectedOperations,
+		});
+
+		// Invalid options exercise the consolidated operation without creating a real pull request.
+		for (const [options, error] of [
+			[{ draft: true, agentMerge: false, autoMergeMethod: 'MERGE' }, /Draft pull requests cannot use GitHub auto-merge/],
+			[{ draft: false, agentMerge: true }, /Agent Merge is disabled in the host configuration/],
+		] as const) {
+			await assert.rejects(context.client.call('invokeChangesetOperation', {
+				channel: uncommittedUri,
+				operationId: 'create-pr',
+				_meta: { 'vscode.pullRequest': { title: 'Pull request', description: 'Description', ...options } },
+			}, CHANGESET_OPERATION_TIMEOUT_MS), error);
+		}
+	});
+
+	conformanceTest(context, 'a folder session advertises commit only on its uncommitted changeset', async function () {
+		const workspace = createGitWorkspace('ahp-changeset-branch-commit-');
+		const sessionUri = await createSessionIn(workspace, 'changeset-branch-commit');
+		const branchUri = await getBranchChangesetUri(context, sessionUri);
+		const uncommittedUri = buildUncommittedChangesetUri(sessionUri);
+		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
+		await context.client.call<SubscribeResult>('subscribe', { channel: uncommittedUri });
+
+		context.client.clearReceived();
+		const turnId = 'turn-changeset-branch-commit';
+		dispatchTurn(context.client, sessionUri, turnId, writeFileCommand('branch-commit.txt', 'COMMIT'), 1);
+		await waitForFileInChangeset(branchUri, 'branch-commit.txt');
+		await waitForTurnComplete(sessionUri, turnId);
+
+		// Commit always commits every uncommitted change, so it belongs only to
+		// the changeset that shows exactly those changes. Operations for all of
+		// the session's changesets are recomputed together, so once the
+		// uncommitted changeset offers Commit the branch changeset is settled.
+		const operation = await waitForOperation(uncommittedUri, 'commit');
+		const branchOperationIds = ((await changesetState(branchUri)).operations ?? []).map(candidate => candidate.id);
+
+		assert.deepStrictEqual({
+			uncommitted: { id: operation.id, group: operation.group, scopes: operation.scopes },
+			branchAdvertisesCommit: branchOperationIds.includes('commit'),
+		}, {
+			uncommitted: { id: 'commit', group: 'commit', scopes: ['changeset'] },
+			branchAdvertisesCommit: false,
+		});
 	});
 
 	conformanceTest(context, 'a branch with an upstream and no outgoing commits omits sync', async function () {
@@ -912,27 +1346,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		const { workspace, changeset, file } = await createModifiedUncommittedChangeset('changeset-discard');
 		const resource = file.edit.after?.uri;
 		assert.ok(resource);
-		context.client.clearReceived();
-		const completed = context.client.waitForNotification(n =>
-			isActionNotification(n, 'changeset/operationStatusChanged')
-			&& getActionEnvelope(n).channel === changeset
-			&& (getActionEnvelope(n).action as { operationId: string; status: string }).operationId === 'discard-changes'
-			&& (getActionEnvelope(n).action as { operationId: string; status: string }).status === 'idle',
-		);
-
-		await context.client.call('invokeChangesetOperation', {
-			channel: changeset,
-			operationId: 'discard-changes',
-			target: { kind: ChangesetOperationTargetKind.Resource, resource },
-		});
-		await completed;
-
-		const statuses = context.client.receivedNotifications(n =>
-			isActionNotification(n, 'changeset/operationStatusChanged')
-			&& getActionEnvelope(n).channel === changeset,
-		).map(n => getActionEnvelope(n).action as { operationId: string; status: string })
-			.filter(action => action.operationId === 'discard-changes')
-			.map(action => action.status);
+		const statuses = await invokeDiscard(changeset, resource);
 		assert.deepStrictEqual({
 			contents: readFileSync(join(workspace, 'seed.txt'), 'utf8').replaceAll('\r\n', '\n'),
 			statuses,
@@ -942,7 +1356,6 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		});
 	});
 
-	// The operation is advertised but currently fails for untracked paths; see KNOWN_ISSUES.md.
 	conformanceTest(context, 'discarding an untracked file removes it from disk', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-discard-added-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-discard-added');
@@ -962,7 +1375,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 			exists: false,
 			statuses: ['running', 'idle'],
 		});
-	}, false);
+	});
 
 	conformanceTest(context, 'discarding a deleted tracked file restores its contents', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-discard-deleted-');
@@ -1029,7 +1442,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	conformanceTest(context, 'review state can be applied to multiple changed files', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-review-multiple-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-review-multiple');
-		const changeset = buildBranchChangesetUri(sessionUri);
+		const changeset = await getBranchChangesetUri(context, sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: changeset });
 		await runBangTurn(
 			sessionUri,
@@ -1061,7 +1474,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	conformanceTest(context, 'a client can clear review state from a changed file', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-review-unset-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-review-unset');
-		const changeset = buildBranchChangesetUri(sessionUri);
+		const changeset = await getBranchChangesetUri(context, sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: changeset });
 		await runBangTurn(sessionUri, 'turn-changeset-review-unset', writeFileCommand('seed.txt', 'edited'), 1);
 		const [file] = await waitForChangesetFiles(changeset, ['seed.txt']);
@@ -1092,7 +1505,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	conformanceTest(context, 'a second edit updates one changeset entry in place', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-second-edit-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-second-edit');
-		const changeset = buildBranchChangesetUri(sessionUri);
+		const changeset = await getBranchChangesetUri(context, sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: changeset });
 		await runBangTurn(
 			sessionUri,
@@ -1130,7 +1543,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	conformanceTest(context, 'a nested untracked file retains its workspace-relative identity', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-nested-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-nested');
-		const changeset = buildBranchChangesetUri(sessionUri);
+		const changeset = await getBranchChangesetUri(context, sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: changeset });
 		await runBangTurn(
 			sessionUri,
@@ -1155,7 +1568,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	conformanceTest(context, 'discarding the last tracked change clears changeset and list summaries', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-discard-last-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-discard-last');
-		const branchChangeset = buildBranchChangesetUri(sessionUri);
+		const branchChangeset = await getBranchChangesetUri(context, sessionUri);
 		const uncommittedChangeset = buildUncommittedChangesetUri(sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: branchChangeset });
 		const subscribed = await context.client.call<SubscribeResult>('subscribe', { channel: uncommittedChangeset });
@@ -1185,7 +1598,7 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 	conformanceTest(context, 'listSessions reports the aggregate file change summary', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-list-summary-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-list-summary');
-		const branchUri = buildBranchChangesetUri(sessionUri);
+		const branchUri = await getBranchChangesetUri(context, sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
 		await runBangTurn(
 			sessionUri,
@@ -1193,18 +1606,28 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 			'!node -e "const fs=require(\'fs\');fs.writeFileSync(\'seed.txt\',\'edited\');fs.writeFileSync(\'added.txt\',\'added\')"',
 			1,
 		);
-		await waitForChangesetFiles(branchUri, ['seed.txt', 'added.txt']);
+		const branchFiles = await waitForChangesetFiles(branchUri, ['seed.txt', 'added.txt']);
+		// Bang commands bypass the provider, so their working-tree edits do not create session checkpoints.
+		const sessionChangeset = await changesetState(buildSessionChangesetUri(sessionUri));
 
 		const changes = await retry(async () => {
 			const result = await context.client.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI });
 			const summary = result.items.find(item => item.resource === sessionUri)?.changes;
-			if (!summary || summary.files !== 2) {
+			if (!summary || summary.files !== sessionChangeset.files.length) {
 				throw new Error('Session list has not received the changes summary');
 			}
 			return summary;
 		}, 100, 100);
 
-		assert.deepStrictEqual(changes, { additions: 2, deletions: 1, files: 2 });
+		assert.deepStrictEqual({
+			branchFiles: branchFiles.length,
+			sessionFiles: sessionChangeset.files.length,
+			changes,
+		}, {
+			branchFiles: 2,
+			sessionFiles: 0,
+			changes: { additions: 0, deletions: 0, files: 0 },
+		});
 	});
 
 	conformanceTest(context, 'invoking an unknown changeset operation is rejected', async function () {
@@ -1225,28 +1648,32 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		}));
 	});
 
-	conformanceTest(context, 'a new session advertises its initial changeset catalog on a separate channel', async function () {
+	conformanceTest(context, 'a new session advertises its initial changeset catalog only on its chat', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-catalog-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-catalog');
 
 		const session = await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });
-		const changesets = (session.snapshot!.state as SessionState).changesets ?? [];
-		const advertisedChannels = changesets.map(changeset => changeset.uriTemplate).filter(uri => !uri.includes('{'));
+		const chat = await context.client.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+		const sessionChangesets = (session.snapshot!.state as SessionState).changesets ?? [];
+		const chatChangesets = (chat.snapshot!.state as ChatState).changesets ?? [];
+		const advertisedChannels = chatChangesets.map(changeset => changeset.uriTemplate).filter(uri => !uri.includes('{'));
 		const subscribed = await Promise.all(advertisedChannels.map(channel =>
 			context.client.call<SubscribeResult>('subscribe', { channel })
 		));
 
 		assert.deepStrictEqual({
-			catalog: changesets.map(changeset => ({
+			sessionCatalog: sessionChangesets,
+			chatCatalog: chatChangesets.map(changeset => ({
 				changeKind: changeset.changeKind,
 				uriTemplate: changeset.uriTemplate,
 				canReview: changeset.capabilities?.review !== undefined,
 			})),
 			subscribedChannels: subscribed.map(result => result.snapshot!.resource),
 		}, {
-			catalog: [{
+			sessionCatalog: [],
+			chatCatalog: [{
 				changeKind: ChangesetKind.Uncommitted,
-				uriTemplate: buildUncommittedChangesetUri(sessionUri),
+				uriTemplate: buildUncommittedChangesetUri(buildDefaultChatUri(sessionUri)),
 				canReview: false,
 			}],
 			subscribedChannels: advertisedChannels,
@@ -1367,18 +1794,22 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		assert.strictEqual(state.status, 'error');
 	});
 
-	conformanceTest(context, 'a materialized git session advertises turn and compare changeset templates', async function () {
+	conformanceTest(context, 'a materialized git session advertises changesets only on its chat', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-template-catalog-');
 		const sessionUri = await createWorktreeSessionIn(workspace, 'changeset-template-catalog');
 		await runBangTurn(sessionUri, 'turn-materialize', '/rename Materialized', 1);
 
 		const session = await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });
-		const kinds = ((session.snapshot!.state as SessionState).changesets ?? []).map(changeset => changeset.changeKind);
+		const chat = await context.client.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+		const sessionKinds = ((session.snapshot!.state as SessionState).changesets ?? []).map(changeset => changeset.changeKind);
+		const chatKinds = ((chat.snapshot!.state as ChatState).changesets ?? []).map(changeset => changeset.changeKind);
 
 		assert.deepStrictEqual({
-			hasTurn: kinds.includes(ChangesetKind.Turn),
-			hasCompare: kinds.includes(ChangesetKind.Compare),
+			sessionKinds,
+			hasTurn: chatKinds.includes(ChangesetKind.Turn),
+			hasCompare: chatKinds.includes(ChangesetKind.Compare),
 		}, {
+			sessionKinds: [],
 			hasTurn: true,
 			hasCompare: true,
 		});
@@ -1386,14 +1817,13 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 
 	if (context.tier === 'parity') {
 		const supportsProviderFileEdits = config.streamingFileCreateToolName !== undefined || config.fileOperationStrategy === 'shell';
-		// Skip unstable Codex packaged-Linux shell replay while retaining recording and unaffected platforms.
 		const providerFileEditsEnabled = config.fileOperationStrategy !== 'shell' || context.portableShellToolReplayEnabled;
 		(config.supportsMultipleChats && supportsProviderFileEdits && providerFileEditsEnabled ? test : test.skip)('session changeset aggregates provider edits from default and peer chats', async function () {
 			this.timeout(240_000);
 			const workspace = createGitWorkspace(`ahp-provider-session-changeset-${config.provider}-`);
 			const sessionUri = await createSessionIn(workspace, 'provider-session-changeset');
 			const peerUri = buildChatUri(sessionUri, generateUuid());
-			await context.client.call('createChat', { channel: sessionUri, chat: peerUri, title: 'Changes Peer' });
+			await context.client.call('createChat', { channel: sessionUri, chat: peerUri, title: 'Changes Peer' }, 30_000);
 			await context.client.call<SubscribeResult>('subscribe', { channel: peerUri });
 			const sessionChangeset = buildSessionChangesetUri(sessionUri);
 			await context.client.call<SubscribeResult>('subscribe', { channel: sessionChangeset });
@@ -1420,6 +1850,11 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 				10,
 			);
 
+			assert.deepStrictEqual(['default-provider.txt', 'peer-provider.txt'].map(name => readFileSync(join(workspace, name), 'utf8')), [
+				'DEFAULT_PROVIDER',
+				'PEER_PROVIDER',
+			]);
+
 			const files = await retry(async () => {
 				const state = await changesetState(sessionChangeset);
 				const matches = ['default-provider.txt', 'peer-provider.txt'].map(name => state.files.find(file => fileUri(file).endsWith(`/${name}`)));
@@ -1433,6 +1868,22 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 				'default-provider.txt',
 				'peer-provider.txt',
 			]);
+
+			// A refresh after checkpoint capture must still include shell edits that
+			// the provider's file-edit tracker cannot report.
+			await context.client.call('unsubscribe', { channel: sessionChangeset });
+			const refreshed = await changesetState(sessionChangeset);
+			assert.deepStrictEqual(refreshed.files.map(fileUri).sort(), files.map(file => fileUri(file!)).sort());
+
+			const expectedChanges = {
+				additions: files.reduce((total, file) => total + (file?.edit.diff?.added ?? 0), 0),
+				deletions: files.reduce((total, file) => total + (file?.edit.diff?.removed ?? 0), 0),
+				files: files.length,
+			};
+			await retry(async () => {
+				const result = await context.client.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI });
+				assert.deepStrictEqual(result.items.find(item => item.resource === sessionUri)?.changes, expectedChanges);
+			}, 100, 100);
 		});
 	}
 }

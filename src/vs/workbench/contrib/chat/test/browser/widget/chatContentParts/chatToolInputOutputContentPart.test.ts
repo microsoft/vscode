@@ -8,8 +8,11 @@ import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { Event } from '../../../../../../../base/common/event.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
+import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
+import { IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
+import { ToolDataSource } from '../../../../common/tools/languageModelToolsService.js';
 import { CodeBlockPart } from '../../../../browser/widget/chatContentParts/codeBlockPart.js';
 import { ChatCollapsibleContentPart } from '../../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
 import { IDisposableReference } from '../../../../browser/widget/chatContentParts/chatCollections.js';
@@ -17,6 +20,7 @@ import { DiffEditorPool, EditorPool } from '../../../../browser/widget/chatConte
 import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { ChatCollapsibleInputOutputContentPart } from '../../../../browser/widget/chatContentParts/chatToolInputOutputContentPart.js';
 import { ChatToolOutputContentSubPart } from '../../../../browser/widget/chatContentParts/chatToolOutputContentSubPart.js';
+import { ChatInputOutputMarkdownProgressPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatInputOutputMarkdownProgressPart.js';
 import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
 
 suite('ChatCollapsibleInputOutputContentPart', () => {
@@ -75,6 +79,7 @@ suite('ChatCollapsibleInputOutputContentPart', () => {
 			false,
 			false,
 			false,
+			undefined,
 		));
 
 		const button = part.domNode.querySelector<HTMLElement>('.chat-confirmation-widget-title');
@@ -187,5 +192,139 @@ suite('ChatCollapsibleInputOutputContentPart', () => {
 			titles: ['https://example.com/first', 'https://example.com/second'],
 			renderedTexts: ['First result', 'Second result'],
 		});
+	});
+
+	for (const toolId of ['image_gen.imagegen', 'image_generation', 'copilot_viewImage']) {
+		test(`collapsed resources are hidden only for image generation (${toolId})`, () => {
+			const instantiationService = workbenchInstantiationService(undefined, store);
+			const context: IChatContentPartRenderContext = {
+				element: new class extends mock<IChatResponseViewModel>() {
+					override readonly id = 'response';
+					override readonly sessionResource = URI.parse('chat-session://test/session');
+				}(),
+				elementIndex: 0,
+				container: mainWindow.document.createElement('div'),
+				content: [],
+				contentIndex: 0,
+				codeBlockStartIndex: 0,
+				treeStartIndex: 0,
+				inlineTextModels: new class extends mock<InlineTextModelCollection>() { }(),
+				editorPool: new class extends mock<EditorPool>() { }(),
+				diffEditorPool: new class extends mock<DiffEditorPool>() { }(),
+				currentWidth: observableValue('testWidth', 500),
+				onDidChangeVisibility: Event.None,
+			};
+			const toolInvocation: IChatToolInvocationSerialized = {
+				kind: 'toolInvocationSerialized',
+				toolCallId: 'image-call',
+				toolId,
+				invocationMessage: 'Image tool',
+				originMessage: undefined,
+				pastTenseMessage: 'Image tool completed',
+				isComplete: true,
+				isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+				presentation: undefined,
+				source: ToolDataSource.Internal,
+			};
+			const part = store.add(instantiationService.createInstance(
+				ChatInputOutputMarkdownProgressPart,
+				toolInvocation,
+				context,
+				0,
+				'Image tool completed',
+				undefined,
+				'{}',
+				undefined,
+				[{ type: 'embed', value: 'aW1hZ2U=', mimeType: 'image/png' }],
+				false,
+			));
+
+			assert.deepStrictEqual({
+				collapsed: part.domNode.querySelector('.chat-confirmation-widget-title')?.getAttribute('aria-expanded'),
+				previewCount: part.domNode.querySelectorAll('.chat-collapsible-top-level-resource-group').length,
+			}, { collapsed: 'false', previewCount: toolId === 'copilot_viewImage' ? 1 : 0 });
+		});
+	}
+
+	test('uses output MIME types and defaults to plaintext', () => {
+		const renderedCodeBlocks: { text: string; languageId: string }[] = [];
+		const editorPool = Object.create(EditorPool.prototype) as EditorPool;
+		Object.defineProperty(editorPool, 'get', {
+			value: () => {
+				const codeBlockPart = Object.create(CodeBlockPart.prototype) as CodeBlockPart;
+				Object.defineProperties(codeBlockPart, {
+					element: { value: mainWindow.document.createElement('div') },
+					render: { value: (data: { text: string; languageId: string }) => renderedCodeBlocks.push({ text: data.text, languageId: data.languageId }) },
+					layout: { value: () => { } },
+					uri: { value: URI.parse('test://codeblock') },
+				});
+				return {
+					object: codeBlockPart,
+					isStale: () => false,
+					dispose: () => { },
+				} satisfies IDisposableReference<CodeBlockPart>;
+			}
+		});
+		const element = Object.assign(Object.create(null), {
+			id: 'response',
+			sessionResource: URI.parse('chat-session://test/session'),
+		}) as IChatResponseViewModel;
+		const context: IChatContentPartRenderContext = {
+			element,
+			elementIndex: 0,
+			container: mainWindow.document.createElement('div'),
+			content: [],
+			contentIndex: 0,
+			inlineTextModels: Object.create(InlineTextModelCollection.prototype) as InlineTextModelCollection,
+			editorPool,
+			codeBlockStartIndex: 0,
+			treeStartIndex: 0,
+			diffEditorPool: Object.create(DiffEditorPool.prototype) as DiffEditorPool,
+			currentWidth: observableValue('testWidth', 500),
+			onDidChangeVisibility: Event.None,
+		};
+		const toolInvocation: IChatToolInvocationSerialized = {
+			kind: 'toolInvocationSerialized',
+			toolCallId: 'tool-call-id',
+			toolId: 'test-tool',
+			invocationMessage: 'Running tool',
+			originMessage: undefined,
+			pastTenseMessage: 'Ran tool',
+			isComplete: true,
+			isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
+			presentation: undefined,
+			source: ToolDataSource.Internal,
+		};
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const part = store.add(instantiationService.createInstance(
+			ChatInputOutputMarkdownProgressPart,
+			toolInvocation,
+			context,
+			0,
+			'Ran tool',
+			undefined,
+			'{"query":"test"}',
+			undefined,
+			[
+				{ type: 'embed', value: '# Heading', isText: true, mimeType: ' Text/Markdown ; charset=utf-8' },
+				{ type: 'embed', value: '{"declared":true}', isText: true, mimeType: 'text/plain' },
+				{ type: 'embed', value: 'invalid JSON', isText: true, mimeType: 'application/problem+json' },
+				{ type: 'embed', value: '{"detected":true}', isText: true },
+				{ type: 'embed', value: '[1, 2, 3]', isText: true },
+				{ type: 'embed', value: 'ordinary output', isText: true },
+				{ type: 'embed', value: '1', isText: true },
+			],
+			false,
+		));
+
+		part.domNode.querySelector<HTMLElement>('.chat-confirmation-widget-title')?.click();
+
+		assert.deepStrictEqual(renderedCodeBlocks, [
+			{ text: '{"query":"test"}', languageId: 'json' },
+			{ text: '# Heading', languageId: 'markdown' },
+			{ text: '{"declared":true}', languageId: 'plaintext' },
+			{ text: 'invalid JSON', languageId: 'json' },
+			{ text: '{"detected":true}\n[1, 2, 3]\nordinary output\n1', languageId: 'plaintext' },
+		]);
 	});
 });

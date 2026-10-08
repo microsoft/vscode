@@ -26,16 +26,13 @@ export const enum MultiDiffEditorItemLabelKind {
  * This would make monaco-editor consumption much more difficult though.
  */
 export interface IWorkbenchUIElementFactory {
-	createResourceLabel?(element: HTMLElement, kind: MultiDiffEditorItemLabelKind): IResourceLabel;
-
-	/**
-	 * When true, the entire header area is clickable to toggle collapse/expand
-	 * and receives keyboard activation (Enter/Space) and ARIA button semantics.
-	 */
-	readonly headerClickToCollapse?: boolean;
+	createResourceLabel?(element: HTMLElement, kind: MultiDiffEditorItemLabelKind, accessoryContainer: HTMLElement): IResourceLabel;
 
 	/** Handles a middle-click on an entry header. Returns whether the event was handled. */
 	handleHeaderMiddleClick?(resource: URI): boolean;
+
+	/** Opens an entry in a standalone diff editor. */
+	openDiffEditor?(original: URI, modified: URI): void;
 
 	/**
 	 * Optional override for how individual actions render in the per-file header

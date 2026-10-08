@@ -7,6 +7,9 @@ import * as esbuild from 'esbuild';
 import * as fs from 'fs';
 import { createRequire } from 'module';
 import * as path from 'path';
+import { rewriteSourceMappingURL } from './source-map-url.ts';
+
+export const devTunnelsWebOutDir = 'vs/sessions/contrib/providers/remoteAgentHost/browser';
 
 const REPO_ROOT = path.dirname(path.dirname(import.meta.dirname));
 const ENTRY_POINT = path.join(REPO_ROOT, 'build', 'next', 'devTunnelsWebEntry.js');
@@ -15,8 +18,7 @@ const NODE_MODULES_ROOT = path.join(REPO_ROOT, 'node_modules');
 const BUFFER_GLOBAL_SHIM = path.join(SHIMS_ROOT, 'buffer.js');
 const VSCODE_JSONRPC_SHIM = path.join(SHIMS_ROOT, 'vscodeJsonrpc.cjs');
 const SSH_ALGORITHMS_ROOT = path.join(REPO_ROOT, 'node_modules', '@microsoft', 'dev-tunnels-ssh', 'algorithms');
-const WEB_MODULE_OUT_DIR = path.join('vs', 'sessions', 'contrib', 'providers', 'remoteAgentHost', 'browser');
-const WEB_DEV_OUT_DIR = path.join('out', WEB_MODULE_OUT_DIR);
+const WEB_DEV_OUT_DIR = path.join('out', devTunnelsWebOutDir);
 const nodeRequire = createRequire(import.meta.url);
 const allowedImporterRoots = [
 	path.join(NODE_MODULES_ROOT, '@microsoft', 'dev-tunnels-ssh'),
@@ -33,13 +35,13 @@ const vscodeJsonrpcCancellationPath = resolveDevTunnelsJsonRpcModule('cancellati
 /**
  * Builds the browser-only Dev Tunnels SDK bundle loaded through a dynamic ESM import.
  */
-export async function bundleDevTunnelsWeb(options: { minify?: boolean; outDir: string }): Promise<void> {
+export async function bundleDevTunnelsWeb(options: { minify?: boolean; outDir: string; sourceMapBaseUrl?: string }): Promise<void> {
 	const outDir = path.resolve(REPO_ROOT, options.outDir);
 	const t1 = Date.now();
 	await fs.promises.mkdir(outDir, { recursive: true });
 
 	console.log(`[dev-tunnels-web] ${path.relative(REPO_ROOT, ENTRY_POINT)} → ${path.relative(REPO_ROOT, outDir) || '.'}${options.minify ? ' (minify)' : ''}`);
-	await esbuild.build({
+	const result = await esbuild.build({
 		entryPoints: [ENTRY_POINT],
 		bundle: true,
 		format: 'esm',
@@ -58,8 +60,15 @@ export async function bundleDevTunnelsWeb(options: { minify?: boolean; outDir: s
 		sourcemap: 'linked',
 		outfile: path.join(outDir, 'devTunnelsModule.js'),
 		plugins: [devTunnelsBrowserShimPlugin()],
+		write: false,
 		logLevel: 'warning',
 	});
+	for (const output of result.outputFiles) {
+		await fs.promises.mkdir(path.dirname(output.path), { recursive: true });
+		await fs.promises.writeFile(output.path, output.path.endsWith('.js')
+			? rewriteSourceMappingURL(output.text, path.relative(outDir, output.path), options.sourceMapBaseUrl)
+			: output.contents);
+	}
 	console.log(`[dev-tunnels-web] Done in ${Date.now() - t1}ms`);
 }
 
