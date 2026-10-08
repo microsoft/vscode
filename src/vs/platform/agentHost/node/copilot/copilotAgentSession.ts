@@ -5304,16 +5304,31 @@ export class CopilotAgentSession extends Disposable {
 		if (!this._wrapper.canvasRuntimeEnabled) {
 			throw new Error('Canvases are disabled for this session.');
 		}
-		const result = await this._awaitControlPlaneRpc('rpc.canvas.list', this._wrapper.session.rpc.canvas.list());
+		const [result, extensions] = await Promise.all([
+			this._awaitControlPlaneRpc('rpc.canvas.list', this._wrapper.session.rpc.canvas.list()),
+			this._awaitControlPlaneRpc('rpc.extensions.list', this._wrapper.session.rpc.extensions.list()),
+		]);
+		const extensionSources = new Map(extensions.extensions.map(extension => [extension.id, this._canvasExtensionSource(extension.source)]));
 		return result.canvases.map(canvas => ({
 			canvasId: canvas.canvasId,
 			extensionId: canvas.extensionId,
+			extensionSource: extensionSources.get(canvas.extensionId) ?? 'unknown',
 			...(canvas.extensionName ? { extensionName: canvas.extensionName } : {}),
 			displayName: canvas.displayName,
 			description: canvas.description,
 			requiresInput: canvas.inputSchema !== undefined,
 			actionCount: canvas.actions?.length ?? 0,
 		}));
+	}
+
+	private _canvasExtensionSource(source: string): AgentCanvasExtensionSource {
+		switch (source) {
+			case 'user': return 'user';
+			case 'project': return 'project';
+			case 'session': return 'session';
+			case 'plugin': return 'plugin';
+			default: return 'unknown';
+		}
 	}
 
 	async refreshCanvases(): Promise<readonly IAgentCanvasInfo[]> {

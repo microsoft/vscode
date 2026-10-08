@@ -104,6 +104,10 @@ function isAgentExtensionSource(value: unknown): value is AgentExtensionSource {
 	return value === 'user' || value === 'plugin';
 }
 
+function isAgentCanvasExtensionSource(value: unknown): value is AgentCanvasExtensionSource {
+	return value === 'user' || value === 'project' || value === 'session' || value === 'plugin' || value === 'unknown';
+}
+
 /**
  * After this much inbound silence, send an application-level `ping` to
  * the remote so we have something to time out on. Reset on any inbound

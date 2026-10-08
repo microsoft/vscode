@@ -391,7 +391,7 @@ export class CopilotCustomizationsWidget extends Disposable implements IAICustom
 	}
 
 	private openCanvasProvider(canvas: IAgentCanvasInfo): void {
-		const section = canvas.extensionId.startsWith('plugin:')
+		const section = canvas.extensionSource === 'plugin'
 			? AICustomizationManagementSection.Plugins
 			: AICustomizationManagementSection.Extensions;
 		this.selectSection(section);
@@ -442,18 +442,17 @@ export class CopilotCustomizationsWidget extends Disposable implements IAICustom
 
 	private getCanvasSource(canvas: IAgentCanvasInfo): string {
 		const provider = canvas.extensionName ?? canvas.extensionId;
-		if (canvas.extensionId.startsWith('plugin:')) {
-			return localize('copilotCanvases.pluginSource', "Plugin: {0}", provider);
+		switch (canvas.extensionSource) {
+			case 'plugin':
+				return localize('copilotCanvases.pluginSource', "Plugin: {0}", provider);
+			case 'project':
+				return localize('copilotCanvases.projectSource', "Project Extension: {0}", provider);
+			case 'user':
+				return localize('copilotCanvases.userSource', "User Extension: {0}", provider);
+			case 'session':
+				return localize('copilotCanvases.sessionSource', "Session Extension: {0}", provider);
+			default:
+				return localize('copilotCanvases.providerSource', "Provider: {0}", provider);
 		}
-		if (canvas.extensionId.startsWith('project:')) {
-			return localize('copilotCanvases.projectSource', "Project Extension: {0}", provider);
-		}
-		if (canvas.extensionId.startsWith('user:')) {
-			return localize('copilotCanvases.userSource', "User Extension: {0}", provider);
-		}
-		if (canvas.extensionId.startsWith('session:')) {
-			return localize('copilotCanvases.sessionSource', "Session Extension: {0}", provider);
-		}
-		return localize('copilotCanvases.providerSource', "Provider: {0}", provider);
 	}
 }

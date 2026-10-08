@@ -33,6 +33,7 @@ suite('CopilotCustomizationsService', () => {
 		const canvases: readonly IAgentCanvasInfo[] = [{
 			canvasId: 'preview',
 			extensionId: 'user:preview',
+			extensionSource: 'user',
 			displayName: 'Preview Canvas',
 			description: 'Interactive preview.',
 			requiresInput: false,
