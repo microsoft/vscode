@@ -315,6 +315,34 @@
 	cursor: default;
 }
 
+.chat-debug-session-timeline-prompt-capabilities {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	gap: var(--vscode-spacing-size40);
+}
+
+.chat-debug-session-timeline-prompt-capability {
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size60);
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border, transparent);
+	border-radius: var(--vscode-cornerRadius-circle);
+	color: var(--vscode-textLink-foreground);
+	background: transparent;
+	font: inherit;
+	font-size: var(--vscode-fontSize-body2);
+	cursor: pointer;
+}
+
+.chat-debug-session-timeline-prompt-capability:hover {
+	color: var(--vscode-textLink-activeForeground);
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.chat-debug-session-timeline-prompt-capability:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
 .chat-debug-session-timeline-event-category {
 	flex-shrink: 0;
 	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size60);
@@ -460,6 +488,11 @@
 
 .chat-debug-session-timeline-section {
 	width: 100%;
+}
+
+.chat-debug-session-timeline-section:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-spacing-size40);
 }
 
 .chat-debug-session-timeline-section-title {

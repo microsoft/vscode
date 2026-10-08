@@ -18,6 +18,7 @@ import { agentHostAuthority } from '../../../../../platform/agentHost/common/age
 import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { localize } from '../../../../../nls.js';
 import { defaultBreadcrumbsWidgetStyles, defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IChatService } from '../../common/chatService/chatService.js';
@@ -25,7 +26,7 @@ import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { resolveEventsUri } from '../copilotCliEventsUri.js';
-import { createSessionTimelineModel, ISessionTimelineEvent, ISessionTimelineModel, SessionTimelineCategory } from './chatDebugSessionTimelineModel.js';
+import { createSessionTimelineModel, ISessionTimelineEvent, ISessionTimelineModel, SessionTimelineCategory, SessionTimelinePromptSection } from './chatDebugSessionTimelineModel.js';
 import { CHAT_DEBUG_SESSION_TIMELINE_FOCUSED, setupBreadcrumbKeyboardNavigation, TextBreadcrumbItem } from './chatDebugTypes.js';
 
 const $ = DOM.$;
@@ -68,6 +69,7 @@ export class ChatDebugSessionTimeline extends Disposable {
 	private readonly filterInput: HTMLInputElement;
 	private readonly renderDisposables = this._register(new DisposableStore());
 	private readonly renderedEventElements = new Map<string, { readonly item: HTMLElement; readonly focusTarget: HTMLElement }>();
+	private readonly renderedPromptSections = new Map<string, HTMLElement>();
 	private readonly expandedEventIds = new Set<string>();
 	private readonly enabledCategories = new Set<SessionTimelineCategory>(categories);
 	private readonly refreshScheduler: RunOnceScheduler;
@@ -85,6 +87,7 @@ export class ChatDebugSessionTimeline extends Disposable {
 		@IRemoteAgentHostService private readonly remoteAgentHostService: IRemoteAgentHostService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super();
 		this.focusedContextKey = CHAT_DEBUG_SESSION_TIMELINE_FOCUSED.bindTo(contextKeyService);
@@ -352,6 +355,7 @@ export class ChatDebugSessionTimeline extends Disposable {
 	private render(): void {
 		this.renderDisposables.clear();
 		this.renderedEventElements.clear();
+		this.renderedPromptSections.clear();
 		DOM.clearNode(this.filters);
 		DOM.clearNode(this.content);
 		if (!this.model) {
@@ -443,10 +447,11 @@ export class ChatDebugSessionTimeline extends Disposable {
 		item.classList.add(`chat-debug-session-timeline-event-${event.category}`);
 		const card = DOM.append(item, $('.chat-debug-session-timeline-event-card'));
 		const expanded = this.expandedEventIds.has(event.id);
-		const header = DOM.append(card, event.category === 'user'
+		const hasHeaderActions = event.category === 'user' || !!event.promptCapabilities;
+		const header = DOM.append(card, hasHeaderActions
 			? $('.chat-debug-session-timeline-event-header')
 			: $('button.chat-debug-session-timeline-event-header', { type: 'button', 'aria-expanded': String(expanded) }));
-		const toggle = event.category === 'user'
+		const toggle = hasHeaderActions
 			? DOM.append(header, $('button.chat-debug-session-timeline-event-header-toggle', { type: 'button', 'aria-expanded': String(expanded) }))
 			: header;
 		this.renderedEventElements.set(event.id, { item, focusTarget: toggle });
@@ -475,6 +480,9 @@ export class ChatDebugSessionTimeline extends Disposable {
 				this.renderUserNavigation(header, userEvents, userEventIndex);
 			}
 		}
+		if (event.promptCapabilities) {
+			this.renderPromptCapabilities(header, event);
+		}
 		if (event.category === 'user') {
 			DOM.append(header, $('time.chat-debug-session-timeline-event-time', { dateTime: event.timestamp }, new Date(event.timestamp).toLocaleTimeString(undefined, {
 				hour: '2-digit',
@@ -502,7 +510,7 @@ export class ChatDebugSessionTimeline extends Disposable {
 			}
 			this.render();
 		};
-		this.renderDisposables.add(DOM.addDisposableListener(event.category === 'user' ? header : toggle, DOM.EventType.CLICK, toggleExpanded));
+		this.renderDisposables.add(DOM.addDisposableListener(hasHeaderActions ? header : toggle, DOM.EventType.CLICK, toggleExpanded));
 		if (event.category === 'user' && summary) {
 			summary.classList.add('chat-debug-session-timeline-event-summary-clickable');
 			this.renderDisposables.add(DOM.addDisposableListener(summary, DOM.EventType.CLICK, toggleExpanded));
@@ -527,6 +535,10 @@ export class ChatDebugSessionTimeline extends Disposable {
 			}
 			for (const section of event.sections) {
 				const sectionElement = DOM.append(body, $('section.chat-debug-session-timeline-section'));
+				if (section.id) {
+					sectionElement.tabIndex = -1;
+					this.renderedPromptSections.set(`${event.id}:${section.id}`, sectionElement);
+				}
 				const sectionTitle = DOM.append(sectionElement, $('h3.chat-debug-session-timeline-section-title'));
 				this.appendHighlightedText(sectionTitle, section.label, searchQuery);
 				const sectionContent = DOM.append(sectionElement, $('pre.chat-debug-session-timeline-event-content', { tabIndex: 0 }));
@@ -548,6 +560,45 @@ export class ChatDebugSessionTimeline extends Disposable {
 				this.renderEvent(childList, child, childrenByParentId, renderedEventIds, userEvents, userEventIndexes, searchQuery);
 			}
 		}
+	}
+
+	private renderPromptCapabilities(header: HTMLElement, event: ISessionTimelineEvent): void {
+		const capabilities = event.promptCapabilities;
+		if (!capabilities) {
+			return;
+		}
+		const container = DOM.append(header, $('.chat-debug-session-timeline-prompt-capabilities'));
+		this.renderPromptCapability(container, event.id, 'skills', capabilities.skills.length, capabilities.skills,
+			localize('chatDebug.sessionTimeline.skillsCount', "{0} Skills", capabilities.skills.length));
+		this.renderPromptCapability(container, event.id, 'tools', capabilities.tools.length, capabilities.tools,
+			localize('chatDebug.sessionTimeline.toolsCount', "{0} Tools", capabilities.tools.length));
+		this.renderPromptCapability(container, event.id, 'instructions', capabilities.instructionCount, capabilities.instructions,
+			localize('chatDebug.sessionTimeline.instructionsCount', "{0} Instructions", capabilities.instructionCount));
+	}
+
+	private renderPromptCapability(container: HTMLElement, eventId: string, section: SessionTimelinePromptSection, count: number, names: readonly string[], label: string): void {
+		if (count === 0) {
+			return;
+		}
+		const button = DOM.append(container, $<HTMLButtonElement>('button.chat-debug-session-timeline-prompt-capability', {
+			type: 'button',
+			'aria-label': localize('chatDebug.sessionTimeline.openPromptSection', "{0}. Open section.", label),
+		}, label));
+		this.renderDisposables.add(this.hoverService.setupDelayedHover(button, {
+			content: names.length ? names.join('\n') : label,
+		}));
+		this.renderDisposables.add(DOM.addDisposableListener(button, DOM.EventType.CLICK, clickEvent => {
+			clickEvent.stopPropagation();
+			this.navigateToPromptSection(eventId, section);
+		}));
+	}
+
+	private navigateToPromptSection(eventId: string, section: SessionTimelinePromptSection): void {
+		this.expandedEventIds.add(eventId);
+		this.render();
+		const sectionElement = this.renderedPromptSections.get(`${eventId}:${section}`);
+		sectionElement?.scrollIntoView({ block: 'center' });
+		sectionElement?.focus();
 	}
 
 	private renderUserNavigation(header: HTMLElement, userEvents: readonly ISessionTimelineEvent[], userEventIndex: number): void {
@@ -608,6 +659,7 @@ export class ChatDebugSessionTimeline extends Disposable {
 	private renderMessage(message: string): void {
 		this.renderDisposables.clear();
 		this.renderedEventElements.clear();
+		this.renderedPromptSections.clear();
 		DOM.clearNode(this.filters);
 		DOM.clearNode(this.content);
 		this.sourceSummary.textContent = '';

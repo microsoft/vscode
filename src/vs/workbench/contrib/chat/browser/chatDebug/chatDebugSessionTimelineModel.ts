@@ -18,8 +18,18 @@ export interface IAgentHostJsonlRecord {
 }
 
 export interface ISessionTimelineSection {
+	readonly id?: SessionTimelinePromptSection;
 	readonly label: string;
 	readonly content: string;
+}
+
+export type SessionTimelinePromptSection = 'skills' | 'tools' | 'instructions';
+
+export interface ISessionTimelinePromptCapabilities {
+	readonly instructions: readonly string[];
+	readonly instructionCount: number;
+	readonly skills: readonly string[];
+	readonly tools: readonly string[];
 }
 
 export interface ISessionTimelineEvent {
@@ -31,6 +41,7 @@ export interface ISessionTimelineEvent {
 	readonly summaryPath?: { readonly directory: string; readonly basename: string };
 	readonly timestamp: string;
 	readonly metadata: readonly string[];
+	readonly promptCapabilities?: ISessionTimelinePromptCapabilities;
 	readonly sections: readonly ISessionTimelineSection[];
 	readonly rawRecords: readonly IAgentHostJsonlRecord[];
 	readonly searchableText: string;
@@ -160,6 +171,58 @@ function summarize(value: string, fallback: string): string {
 	return compact ? compact.slice(0, 180) : fallback;
 }
 
+function extractTagContent(content: string, tag: string): string | undefined {
+	const match = new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${tag}>`, 'i').exec(content);
+	return match?.[1];
+}
+
+function extractPromptCapabilities(content: string): ISessionTimelinePromptCapabilities | undefined {
+	const availableSkills = extractTagContent(content, 'available_skills');
+	const skills = availableSkills
+		? [...availableSkills.matchAll(/<skill>\s*[\s\S]*?<name>([\s\S]*?)<\/name>[\s\S]*?<\/skill>/gi)]
+			.map(match => match[1].trim())
+			.filter(Boolean)
+		: [];
+
+	const toolsContent = extractTagContent(content, 'tools') ?? '';
+	const tools = ['bash', 'view', 'skill', 'ask_user', 'sql', 'rg', 'task']
+		.filter(tool => new RegExp(`<${tool}(?:\\s[^>]*)?>[\\s\\S]*?<\\/${tool}>`, 'i').test(toolsContent));
+
+	const toolsStart = content.search(/<tools(?:\s[^>]*)?>/i);
+	const toolsEndTag = /<\/tools>/i.exec(content);
+	const instructionSections: { name: string; start: number; end: number }[] = [];
+	for (const match of content.matchAll(/<([A-Za-z_][A-Za-z0-9_.-]*)(?:\s[^>]*)?>/g)) {
+		const name = match[1];
+		const start = match.index;
+		if (start === undefined || name.toLowerCase() === 'tools' || (toolsStart >= 0 && toolsEndTag && start >= toolsStart && start <= toolsEndTag.index)) {
+			continue;
+		}
+		const closingTag = `</${name}>`;
+		const end = content.indexOf(closingTag, start + match[0].length);
+		if (end >= 0) {
+			instructionSections.push({ name, start, end: end + closingTag.length });
+		}
+	}
+	const topLevelInstructionSections = instructionSections.filter(section =>
+		!instructionSections.some(parent => parent !== section && parent.start < section.start && parent.end > section.end)
+	);
+	const instructionCounts = new Map<string, number>();
+	for (const section of topLevelInstructionSections) {
+		instructionCounts.set(section.name, (instructionCounts.get(section.name) ?? 0) + 1);
+	}
+	const instructions = [...instructionCounts].map(([name, count]) => {
+		const label = name
+			.replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+			.replace(/[_.-]+/g, ' ')
+			.replace(/\b\w/g, character => character.toUpperCase());
+		return count > 1 ? `${label} (${count})` : label;
+	});
+
+	return skills.length || tools.length || topLevelInstructionSections.length
+		? { skills, tools, instructions, instructionCount: topLevelInstructionSections.length }
+		: undefined;
+}
+
 function duration(start: IAgentHostJsonlRecord, end: IAgentHostJsonlRecord): string | undefined {
 	const milliseconds = Date.parse(end.timestamp) - Date.parse(start.timestamp);
 	return Number.isFinite(milliseconds) && milliseconds >= 0
@@ -189,6 +252,7 @@ function createEvent(
 	sections: readonly ISessionTimelineSection[],
 	rawRecords: readonly IAgentHostJsonlRecord[] = [record],
 	summaryPath?: { readonly directory: string; readonly basename: string },
+	promptCapabilities?: ISessionTimelinePromptCapabilities,
 ): ISessionTimelineEvent {
 	return {
 		id: record.id,
@@ -198,6 +262,7 @@ function createEvent(
 		summaryPath,
 		timestamp: record.timestamp,
 		metadata,
+		promptCapabilities,
 		sections,
 		rawRecords,
 		searchableText: JSON.stringify(rawRecords).toLowerCase(),
@@ -299,13 +364,27 @@ export function createSessionTimelineModel(text: string): ISessionTimelineModel 
 		switch (record.type) {
 			case 'system.message': {
 				const content = asString(data.content) ?? '';
+				const promptCapabilities = extractPromptCapabilities(content);
+				const sections: ISessionTimelineSection[] = [{ label: localize('chatDebug.sessionTimeline.content', "Content"), content }];
+				if (promptCapabilities?.skills.length) {
+					sections.push({ id: 'skills', label: localize('chatDebug.sessionTimeline.advertisedSkills', "Advertised Skills"), content: promptCapabilities.skills.join('\n') });
+				}
+				if (promptCapabilities?.tools.length) {
+					sections.push({ id: 'tools', label: localize('chatDebug.sessionTimeline.toolGuidance', "Tool Guidance"), content: promptCapabilities.tools.join('\n') });
+				}
+				if (promptCapabilities?.instructions.length) {
+					sections.push({ id: 'instructions', label: localize('chatDebug.sessionTimeline.instructionSections', "Instruction Sections"), content: promptCapabilities.instructions.join('\n') });
+				}
 				events.push(withParent(createEvent(
 					record,
 					'system',
 					'',
 					summarize(content, localize('chatDebug.sessionTimeline.emptySystemMessage', "Empty system message")),
 					[],
-					[{ label: localize('chatDebug.sessionTimeline.content', "Content"), content }],
+					sections,
+					[record],
+					undefined,
+					promptCapabilities,
 				), currentUserEventId));
 				break;
 			}

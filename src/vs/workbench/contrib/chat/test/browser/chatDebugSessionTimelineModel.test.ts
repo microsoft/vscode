@@ -85,6 +85,49 @@ suite('ChatDebugSessionTimelineModel', () => {
 		]);
 	});
 
+	test('extracts prompt-derived skills, tools, and instruction sections', () => {
+		const content = [
+			'<tools>',
+			'<bash>Shell guidance</bash>',
+			'<view>File guidance</view>',
+			'<skill><available_skills>',
+			'<skill><name>accessibility</name><description>Accessible UI</description></skill>',
+			'<skill><name>unit-tests</name><description>Test guidance</description></skill>',
+			'</available_skills></skill>',
+			'<task>Delegation guidance</task>',
+			'</tools>',
+			'<code_change_instructions>Change safely</code_change_instructions>',
+			'<custom_instruction>First customization</custom_instruction>',
+			'<custom_instruction>Second customization</custom_instruction>',
+		].join('\n');
+		const record = {
+			type: 'system.message',
+			id: 'system',
+			parentId: null,
+			timestamp: '2026-10-07T10:00:00.000Z',
+			data: { content },
+		};
+		const model = createSessionTimelineModel(JSON.stringify(record));
+
+		assert.deepStrictEqual(model.events.map(event => ({
+			promptCapabilities: event.promptCapabilities,
+			sections: event.sections.map(section => ({ id: section.id, label: section.label, content: section.content })),
+		})), [{
+			promptCapabilities: {
+				skills: ['accessibility', 'unit-tests'],
+				tools: ['bash', 'view', 'skill', 'task'],
+				instructions: ['Code Change Instructions', 'Custom Instruction (2)'],
+				instructionCount: 3,
+			},
+			sections: [
+				{ id: undefined, label: 'Content', content },
+				{ id: 'skills', label: 'Advertised Skills', content: 'accessibility\nunit-tests' },
+				{ id: 'tools', label: 'Tool Guidance', content: 'bash\nview\nskill\ntask' },
+				{ id: 'instructions', label: 'Instruction Sections', content: 'Code Change Instructions\nCustom Instruction (2)' },
+			],
+		}]);
+	});
+
 	test('pairs external tools and subagents while retaining standalone completions', () => {
 		const records = [
 			{ type: 'external_tool.requested', id: 'external-start', parentId: null, timestamp: '2026-10-07T10:00:00.000Z', data: { requestId: 'request', toolCallId: 'external-call', toolName: 'browser', arguments: { url: 'https://example.com' }, workingDirectory: '/workspace' } },
