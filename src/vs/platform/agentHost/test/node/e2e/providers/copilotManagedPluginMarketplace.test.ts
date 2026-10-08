@@ -27,6 +27,7 @@ suite('Copilot managed plugin marketplace fixture', () => {
 		}]);
 		const gate = marketplace.holdNextRequest();
 		let cloneComplete = false;
+		let testError: Error | undefined;
 		try {
 			const clone = execFileAsync('git', ['clone', marketplace.sourceUrl, checkout]).then(() => {
 				cloneComplete = true;
@@ -42,10 +43,27 @@ suite('Copilot managed plugin marketplace fixture', () => {
 				cloneComplete: true,
 				skill: '---\nname: gated-skill\ndescription: Managed plugin skill gated-skill.\n---\n\nManaged plugin skill gated-skill.',
 			});
+		} catch (error) {
+			testError = error instanceof Error ? error : new Error(String(error));
 		} finally {
 			gate.release();
+		}
+		const cleanupErrors: Error[] = [];
+		try {
 			await marketplace.close();
+		} catch (error) {
+			cleanupErrors.push(error instanceof Error ? error : new Error(String(error)));
+		}
+		try {
 			await rm(root, { recursive: true, force: true });
+		} catch (error) {
+			cleanupErrors.push(error instanceof Error ? error : new Error(String(error)));
+		}
+		if (testError || cleanupErrors.length > 0) {
+			const errors = testError ? [testError, ...cleanupErrors] : cleanupErrors;
+			throw testError && cleanupErrors.length === 0
+				? testError
+				: new AggregateError(errors, `Managed plugin marketplace fixture failed: ${errors.map(error => error.message).join('; ')}`);
 		}
 	});
 });

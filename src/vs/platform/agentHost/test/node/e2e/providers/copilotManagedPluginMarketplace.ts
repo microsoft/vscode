@@ -241,7 +241,7 @@ export async function createManagedPluginMarketplace(
 			nextRequestGate?.released.complete();
 			await closeServer(server);
 			if (errors.length > 0) {
-				throw new AggregateError(errors, 'Managed plugin marketplace server failed');
+				throw new AggregateError(errors, `Managed plugin marketplace server failed: ${errors.map(error => error.message).join('; ')}`);
 			}
 		},
 	};
