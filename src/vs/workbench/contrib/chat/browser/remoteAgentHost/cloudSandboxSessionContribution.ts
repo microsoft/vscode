@@ -237,6 +237,8 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		}));
 
 		this._register(Registry.as<IAsyncChatSessionActivationRegistry>(ChatSessionsExtensions.AsyncActivation).register({
+			// Serve recorded history before the generic activator waits for a live host.
+			priority: 1,
 			matchSessionType: sessionType => this._findAddressForSessionType(sessionType) !== undefined,
 			waitForActivation: (_accessor, sessionType) => this._waitForActivation(sessionType),
 		}));

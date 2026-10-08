@@ -12,9 +12,10 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { ContextKeyExpr, IContextKey, RawContextKey } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { applyCodexAgentHostPreference, ChatSessionsService } from '../../../browser/chatSessions/chatSessions.contribution.js';
-import { ChatSessionOptionsMap, ChatSessionStatus, IChatSession, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionsExtensionPoint, ReadonlyChatSessionOptionsMap, SessionType } from '../../../common/chatSessionsService.js';
+import { ChatSessionOptionsMap, ChatSessionStatus, ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSession, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionsExtensionPoint, ReadonlyChatSessionOptionsMap, SessionType } from '../../../common/chatSessionsService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AgentHostCodexAgentEnabledSettingId, CodexPreferAgentHostEditorSettingId, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, protectedResourcesRequireGitHubCopilotSignIn } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -164,6 +165,77 @@ suite.skip('ChatSessionsService', () => {
 			const input = '   Check [](file:///test.js)   ';
 			const result = callExtractFileNameFromLink(input);
 			assert.strictEqual(result, '   Check test.js   ');
+		});
+	});
+});
+
+suite('ChatSessionsService - async activation', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const sessionType = 'test-activation-order';
+	const registry = Registry.as<IAsyncChatSessionActivationRegistry>(ChatSessionsExtensions.AsyncActivation);
+	let service: ChatSessionsService;
+
+	setup(() => {
+		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
+		service = store.add(instantiationService.createInstance(ChatSessionsService));
+	});
+
+	test('preserves registration order for default and equal priorities, ignoring unmatched and disposed activators', async () => {
+		const calls: string[] = [];
+		const activate = async (name: string) => {
+			calls.push(name);
+			return false;
+		};
+		store.add(registry.register({
+			matchSessionType: type => type === sessionType,
+			waitForActivation: () => activate('first'),
+		}));
+		store.add(registry.register({
+			priority: 0,
+			matchSessionType: type => type === sessionType,
+			waitForActivation: () => activate('second'),
+		}));
+		store.add(registry.register({
+			priority: 1,
+			matchSessionType: () => false,
+			waitForActivation: () => activate('unmatched'),
+		}));
+		const removed = store.add(registry.register({
+			priority: 2,
+			matchSessionType: type => type === sessionType,
+			waitForActivation: () => activate('removed'),
+		}));
+		removed.dispose();
+
+		assert.deepStrictEqual({ resolved: await service.canResolveChatSession(sessionType), calls }, {
+			resolved: false, calls: ['first', 'second'],
+		});
+	});
+
+	test('tries a higher-priority activator first and falls back when it declines', async () => {
+		const calls: string[] = [];
+		store.add(registry.register({
+			matchSessionType: type => type === sessionType,
+			waitForActivation: async () => {
+				calls.push('fallback');
+				store.add(service.registerChatSessionContentProvider(sessionType, {
+					provideChatSessionContent: async () => { throw new Error('Content is not requested during activation'); },
+				}));
+				return true;
+			},
+		}));
+		store.add(registry.register({
+			priority: 1,
+			matchSessionType: type => type === sessionType,
+			waitForActivation: async () => {
+				calls.push('specialized');
+				return false;
+			},
+		}));
+
+		assert.deepStrictEqual({ resolved: await service.canResolveChatSession(sessionType), calls }, {
+			resolved: true, calls: ['specialized', 'fallback'],
 		});
 	});
 });

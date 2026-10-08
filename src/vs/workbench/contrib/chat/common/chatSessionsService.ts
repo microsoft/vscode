@@ -29,6 +29,8 @@ export const enum ChatSessionsExtensions {
 }
 
 export interface IAsyncChatSessionActivationContribution {
+	/** Higher priorities activate first. Defaults to 0, with registration order breaking ties. */
+	readonly priority?: number;
 	matchSessionType(sessionType: string): boolean;
 	waitForActivation(accessor: ServicesAccessor, sessionType: string): Promise<boolean>;
 }
@@ -49,7 +51,9 @@ class AsyncChatSessionActivationRegistry implements IAsyncChatSessionActivationR
 	}
 
 	getActivators(sessionType: string): readonly IAsyncChatSessionActivationContribution[] {
-		return Array.from(this._contributions).filter(contribution => contribution.matchSessionType(sessionType));
+		return Array.from(this._contributions)
+			.filter(contribution => contribution.matchSessionType(sessionType))
+			.sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
 	}
 }
 

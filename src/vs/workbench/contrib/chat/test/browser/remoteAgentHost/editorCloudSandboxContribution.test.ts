@@ -41,6 +41,7 @@ import { InMemoryStorageService, IStorageService } from '../../../../../../platf
 import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent, toWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { TestWorkspaceTrustManagementService } from '../../../../../test/common/workbenchTestServices.js';
+import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IHostService } from '../../../../../services/host/browser/host.js';
@@ -55,8 +56,10 @@ import { DeleteAgentSessionAction } from '../../../browser/agentSessions/agentSe
 import { AgentSessionsFilter } from '../../../browser/agentSessions/agentSessionsFilter.js';
 import { IAgentSession } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { EditorCloudSandboxContribution, EditorCloudSandboxSessionContribution } from '../../../browser/remoteAgentHost/editorCloudSandboxContribution.js';
+import '../../../browser/remoteAgentHost/remoteAgentHostChatContribution.js';
 import { IRemoteAgentHostAuthenticationService, RemoteAgentHostAuthenticationService } from '../../../browser/remoteAgentHost/remoteAgentHostAuthentication.js';
 import { IRemoteAgentHostConnectionCustomizationService, RemoteAgentHostConnectionCustomizationService } from '../../../browser/remoteAgentHost/remoteAgentHostConnectionCustomization.js';
+import { ChatSessionsService } from '../../../browser/chatSessions/chatSessions.contribution.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IChatWidgetService } from '../../../browser/chat.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
@@ -139,6 +142,8 @@ function history(): IReplayedTaskHistory {
 
 function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	readonly enabled?: boolean;
+	readonly chatSessionsService?: IChatSessionsService;
+	readonly remoteAgentHostService?: IRemoteAgentHostService;
 	readonly listSessions?: () => Promise<ICloudSandboxDiscoveryResult>;
 	readonly storageService?: IStorageService;
 	readonly workspaceFolders?: readonly URI[];
@@ -210,7 +215,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 			state.hostSessions = state.hostSessions.filter(entry => entry.session.toString() !== session.toString());
 		}
 	}();
-	const chatSessionsService = new class extends mock<IChatSessionsService>() {
+	const chatSessionsService = options?.chatSessionsService ?? new class extends mock<IChatSessionsService>() {
 		override readonly onDidChangeItemsProviders = Event.None;
 		override readonly onDidChangeAvailability = Event.None;
 		override getChatSessionContribution(type: string) { return contributions.get(type); }
@@ -303,7 +308,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 			state.connected = false;
 		}
 	}());
-	instantiationService.stub(IRemoteAgentHostService, new class extends mock<IRemoteAgentHostService>() {
+	instantiationService.stub(IRemoteAgentHostService, options?.remoteAgentHostService ?? new class extends mock<IRemoteAgentHostService>() {
 		override readonly onDidChangeConnections = connectionsChanged.event;
 		override get connections() {
 			return state.connected ? [upcastPartial<IRemoteAgentHostConnectionInfo>({
@@ -421,6 +426,58 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 
 suite('Editor cloud sandbox discovery', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const status of [RemoteAgentHostConnectionStatus.connecting, RemoteAgentHostConnectionStatus.reconnecting]) {
+		test(`opens recorded history through the activation registry while the remote host is ${status.kind}`, async () => {
+			const contributionStore = store.add(new DisposableStore());
+			const connectionWait = new DeferredPromise<void>();
+			const connectionChanges = store.add(new Emitter<void>());
+			let pendingConnection = true;
+			let opening = false;
+			const remoteAgentHostService = new class extends mock<IRemoteAgentHostService>() {
+				override readonly onDidChangeConnections = connectionChanges.event;
+				override readonly configuredEntries = [];
+				override get connections() {
+					return pendingConnection ? [upcastPartial<IRemoteAgentHostConnectionInfo>({ address, name: discovered.name, status })] : [];
+				}
+				override getConnection() {
+					if (opening) {
+						void connectionWait.complete();
+					}
+					return undefined;
+				}
+			}();
+			const contextKeyService = store.add(new ContextKeyService(new TestConfigurationService()));
+			ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+			const instantiationService = store.add(workbenchInstantiationService({ contextKeyService: () => contextKeyService }, store));
+			instantiationService.stub(IRemoteAgentHostService, remoteAgentHostService);
+			const chatSessionsService = store.add(instantiationService.createInstance(ChatSessionsService));
+			const h = createHarness(contributionStore, { chatSessionsService, remoteAgentHostService });
+			await h.refresh();
+
+			opening = true;
+			const activation = chatSessionsService.canResolveChatSession(sessionType);
+			try {
+				const first = await Promise.race([
+					activation.then(activated => activated ? 'history' : 'unavailable'),
+					connectionWait.p.then(() => 'connection'),
+				]);
+				const session = first === 'history' ? store.add(await chatSessionsService.getOrCreateChatSession(resource, CancellationToken.None)) : undefined;
+				assert.deepStrictEqual({
+					first, readOnly: session?.isReadOnly?.get(),
+					prompts: session?.history.filter(item => item.type === 'request').map(item => item.prompt),
+					historyRequests: h.calls.history, connections: h.calls.connected,
+				}, {
+					first: 'history', readOnly: true, prompts: ['Original request'],
+					historyRequests: [discovered.taskId], connections: [],
+				});
+			} finally {
+				pendingConnection = false;
+				connectionChanges.fire();
+				await activation;
+			}
+		});
+	}
 
 	test('archives and unarchives a discovered task without connecting', async () => {
 		const h = createHarness(store);
