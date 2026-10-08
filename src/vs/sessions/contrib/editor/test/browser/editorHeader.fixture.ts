@@ -103,11 +103,12 @@ function renderHeader(ctx: ComponentFixtureContext, breadcrumbs: boolean, primar
 	});
 }
 
-function renderConnectedCard(ctx: ComponentFixtureContext, secondTabActive = false): void {
+function renderConnectedCard(ctx: ComponentFixtureContext, secondTabActive = false, compactLayout = false): void {
 	ctx.container.classList.add('agent-sessions-workbench', 'dock-detail-panel');
+	ctx.container.classList.toggle('modern-ui-compact', compactLayout);
 	renderEditorTabsFixture(ctx, {
 		modernUI: true,
-		width: 358,
+		width: compactLayout ? 360 : 358,
 		editors: [
 			{ resource: URI.file('/Changes'), icon: Codicon.diffMultiple, pinned: true, active: true },
 			...(secondTabActive ? [{ resource: URI.file('/README.md'), pinned: true, active: true }] : []),
@@ -125,6 +126,16 @@ export default defineThemedFixtureGroup({ path: 'sessions/editorHeader/' }, {
 		render: ctx => renderConnectedCard(ctx),
 		additionalThemes: ['visualStudioDark', 'darkHighContrast', 'lightHighContrast'],
 		expectedVisualDescriptions: ['The Changes tab joins the card outline at both upper corners and at the lower-left junction without gaps or doubled borders.'],
+	}),
+	CompactLayoutChangesCard: defineComponentFixture({
+		render: ctx => renderConnectedCard(ctx, false, true),
+		additionalThemes: ['visualStudioDark', 'darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The compact Changes tab outline continues across the inactive tab strip.'],
+	}),
+	CompactLayoutSecondTabCard: defineComponentFixture({
+		render: ctx => renderConnectedCard(ctx, true, true),
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The compact active tab outline connects continuously to the tab strip on both sides.'],
 	}),
 	ConnectedSecondTabCard: defineComponentFixture({
 		render: ctx => renderConnectedCard(ctx, true),

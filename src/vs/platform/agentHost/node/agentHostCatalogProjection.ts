@@ -9,12 +9,14 @@ import { stableStringify } from '../../../base/common/objects.js';
 import { URI } from '../../../base/common/uri.js';
 import { IValidator, ValidationError, ValidatorBase, ValidatorType, vArray, vBoolean, vEnum, vObj, vOptionalProp } from '../../../base/common/validation.js';
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY, isAgentDevContainerWorktreeHandle } from '../common/meta/agentDevContainerWorktreeMeta.js';
+import { CODEX_SESSION_MODEL_META_KEY, readCodexSessionModel } from '../common/meta/codexSessionModel.js';
 import { readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY } from '../common/meta/agentRemoteSessionMeta.js';
+import { SESSION_INITIATOR_METADATA_KEY } from '../common/meta/agentSessionInitiatorMeta.js';
 import { SESSION_META_ARTIFACTS_KEY } from '../common/sessionArtifacts.js';
-import { ChatInteractivity } from '../common/state/protocol/channels-chat/state.js';
+import { ChatInteractivity, ChatOriginKind } from '../common/state/protocol/channels-chat/state.js';
 import { SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_DATA_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_DATA_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY } from '../common/state/sessionState.js';
 
-export const AGENT_HOST_CATALOG_PAYLOAD_VERSION = 1;
+export const AGENT_HOST_CATALOG_PAYLOAD_VERSION = 2;
 export const AGENT_HOST_CATALOG_GITHUB_REFERENCE_LIMIT = 10;
 export const AGENT_HOST_CATALOG_ARTIFACT_LIMIT = 100;
 export const AGENT_HOST_CATALOG_CHILD_LIMIT = 1000;
@@ -129,6 +131,28 @@ type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string
 
 /** Forward-compatible JSON accepted for payload fields whose shape the catalog does not own. */
 export type AgentHostCatalogJsonValue = JsonValue;
+
+/** Keeps public navigation provenance bounded without discarding authoritative selection snapshots. */
+export function projectAgentHostCatalogChatOrigin(origin: AgentHostCatalogJsonValue | undefined): AgentHostCatalogJsonValue | undefined {
+	const projected = origin && typeof origin === 'object' && !Array.isArray(origin) && origin.kind === ChatOriginKind.SideChat
+		? { kind: origin.kind, chat: origin.chat, turnId: origin.turnId }
+		: origin;
+	return projected !== undefined && hasOnlyBoundedStrings(projected) ? projected : undefined;
+}
+
+function hasOnlyBoundedStrings(value: AgentHostCatalogJsonValue): boolean {
+	if (typeof value === 'string') {
+		return value.length <= AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT;
+	}
+	if (Array.isArray(value)) {
+		return value.every(hasOnlyBoundedStrings);
+	}
+	if (value && typeof value === 'object') {
+		return Object.entries(value).every(([key, entry]) =>
+			key.length <= AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT && hasOnlyBoundedStrings(entry));
+	}
+	return true;
+}
 
 class JsonValueValidator extends ValidatorBase<JsonValue> {
 	validate(content: unknown): { content: JsonValue; error: undefined } | { content: undefined; error: ValidationError } {
@@ -272,6 +296,8 @@ const gitValidator = plainObject(vObj({
 	isDetachedHead: vOptionalProp(vBoolean()),
 	baseBranchName: vOptionalProp(boundedString(AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT)),
 	upstreamBranchName: vOptionalProp(boundedString(AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT)),
+	defaultBranchName: vOptionalProp(boundedString(AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT)),
+	defaultRemoteBranchName: vOptionalProp(boundedString(AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT)),
 	incomingChanges: vOptionalProp(safeInteger()),
 	outgoingChanges: vOptionalProp(safeInteger()),
 	uncommittedChanges: vOptionalProp(safeInteger()),
@@ -340,6 +366,12 @@ const devContainerWorktreeValidator = new RefinedValidator(plainObject(vObj({
 	? value
 	: { message: 'Expected valid Dev Container worktree metadata.' });
 
+const codexSessionModelValidator = new RefinedValidator(plainObject(vObj({
+	id: boundedString(),
+})), value => readCodexSessionModel({ _meta: { [CODEX_SESSION_MODEL_META_KEY]: value } })
+	? value
+	: { message: 'Expected a canonical Codex provider model selection.' });
+
 /**
  * The session's `_meta` bag, validated slot by slot under the same well-known
  * keys `sessionState.ts` uses, so readers such as `readSessionGitState` accept
@@ -356,11 +388,17 @@ const metadataValidator = plainObject(vObj({
 	[SESSION_META_SOURCE_CONTROL_KEY]: vOptionalProp(sourceControlValidator),
 	[SESSION_META_ARTIFACTS_KEY]: vOptionalProp(artifactsValidator),
 	[SESSION_META_CREATED_BY_SESSION_KEY]: vOptionalProp(creationReferenceValidator),
+	[SESSION_INITIATOR_METADATA_KEY]: vOptionalProp(plainObject(vObj({
+		name: boundedString(),
+		title: vOptionalProp(boundedString()),
+		version: vOptionalProp(boundedString()),
+	}))),
 	[REMOTE_SESSION_ORIGIN_METADATA_KEY]: vOptionalProp(remoteSessionOriginValidator),
 	[SESSION_META_WORKSPACELESS_KEY]: vOptionalProp(vBoolean()),
 	[SESSION_META_EHCLI_ADOPTABLE_KEY]: vOptionalProp(vBoolean()),
 	[SESSION_META_EHCLI_ADOPTED_KEY]: vOptionalProp(vBoolean()),
 	[AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]: vOptionalProp(devContainerWorktreeValidator),
+	[CODEX_SESSION_MODEL_META_KEY]: vOptionalProp(codexSessionModelValidator),
 }));
 
 const workingDirectoriesValidator = new RefinedValidator(
@@ -377,8 +415,10 @@ const chatValidator = plainObject(vObj({
 	origin: vOptionalProp(jsonValue()),
 	interactivity: vOptionalProp(vEnum(ChatInteractivity.Full, ChatInteractivity.ReadOnly, ChatInteractivity.Hidden)),
 	archived: vOptionalProp(vBoolean()),
+	isRead: vOptionalProp(vBoolean()),
 	inheritedTurnId: vOptionalProp(boundedString(AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT)),
 	workingDirectories: vOptionalProp(workingDirectoriesValidator),
+	changes: vOptionalProp(agentHostCatalogChangesValidator),
 }));
 
 const chatsValidator = new RefinedValidator(
@@ -464,8 +504,8 @@ export function encodeAgentHostCatalogPayload(data: AgentHostCatalogData): Agent
 	};
 }
 
-/** Validates a stored payload and returns its canonical form without hashing it. */
-export function decodeAgentHostCatalogPayload(payload: string): AgentHostCatalogPayloadResult<IAgentHostCatalogDecodedPayload> {
+/** Validates a stored payload without building an unused canonical serialization. */
+export function decodeAgentHostCatalogPayloadData(payload: string): AgentHostCatalogPayloadResult<AgentHostCatalogData> {
 	if (Buffer.byteLength(payload, 'utf8') > AGENT_HOST_CATALOG_PAYLOAD_BYTE_LIMIT) {
 		return invalidPayload(`Payload exceeds ${AGENT_HOST_CATALOG_PAYLOAD_BYTE_LIMIT} bytes.`);
 	}
@@ -491,11 +531,17 @@ export function decodeAgentHostCatalogPayload(payload: string): AgentHostCatalog
 	}
 	return {
 		ok: true,
-		value: {
-			data: result.content.data,
-			payload: stableStringify(result.content),
-		},
+		value: result.content.data,
 	};
+}
+
+/** Validates a stored payload and returns its canonical form without hashing it. */
+export function decodeAgentHostCatalogPayload(payload: string): AgentHostCatalogPayloadResult<IAgentHostCatalogDecodedPayload> {
+	const result = decodeAgentHostCatalogPayloadData(payload);
+	return result.ok ? {
+		ok: true,
+		value: { data: result.value, payload: stableStringify({ payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION, data: result.value }) },
+	} : result;
 }
 
 export function reviveAgentHostCatalogData(data: AgentHostCatalogData): AgentHostCatalogRevivedData {

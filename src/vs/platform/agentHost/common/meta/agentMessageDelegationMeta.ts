@@ -4,4 +4,4 @@
  *--------------------------------------------------------------------------------------------*/
 
 export type { IAgentMessageThreadDelegationMeta, IAgentMessageSessionDelegationMeta, IAgentMessageDelegationMeta } from './vscode/agentMessageDelegationMeta.js';
-export { parseAgentMessageDelegationMeta, readAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from './vscode/agentMessageDelegationMeta.js';
+export { parseAgentMessageDelegationMeta, readAgentMessageDelegationMeta, toAgentMessageDelegationMeta, withoutAgentMessageDelegationMeta } from './vscode/agentMessageDelegationMeta.js';

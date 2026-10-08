@@ -545,6 +545,7 @@ export class ChatListWidget extends Disposable {
 			container: this._container,
 			currentChatMode: options.currentChatMode ?? (() => ChatModeKind.Ask),
 			isStickyScrollEnabled: () => this.isTreeStickyScrollEnabled(),
+			isScrolledToBottom: () => this.isScrolledToBottom,
 			refreshStickyScroll: () => this._tree.refreshStickyScroll(),
 			stickyScrollTopPadding: CHAT_STICKY_SCROLL_TOP_PADDING,
 			getEditingValue: options.getEditingValue,
@@ -846,12 +847,14 @@ export class ChatListWidget extends Disposable {
 	 * Update scroll-down button visibility based on scroll position and scroll lock.
 	 */
 	private updateScrollDownButtonVisibility(): void {
-		const { showButton, atBottom } = computeScrollDownState(this.isScrolledToBottom, this._scrollLock);
+		const isScrolledToBottom = this.isScrolledToBottom;
+		const { showButton, atBottom } = computeScrollDownState(isScrolledToBottom, this._scrollLock);
 		// Use an explicit `flex` (the `.monaco-button` default) rather than '' when showing: the
 		// stylesheet applies `display: none` to `.interactive-session .chat-scroll-down`, so clearing
 		// the inline style would let that rule win and keep the button hidden.
 		this._scrollDownButton.element.style.display = showButton ? 'flex' : 'none';
 		this._container.classList.toggle('chat-list-at-bottom', atBottom);
+		this._container.classList.toggle('chat-list-scrolled-to-bottom', isScrolledToBottom);
 	}
 
 	/**
@@ -1082,6 +1085,10 @@ export class ChatListWidget extends Disposable {
 	 */
 	private _updateElementHeight(element: ChatTreeItem, height?: number): void {
 		if (this._tree.hasElement(element) && this._visible) {
+			// A refresh must reuse the resized height, not the measurement taken before image loading.
+			if (height !== undefined) {
+				this._delegate.setDynamicHeight(element, height);
+			}
 			const userToggleResizeTracker = this._userToggleResizeTrackers.get(element);
 			if (userToggleResizeTracker) {
 				const scrollTop = this._tree.scrollTop;
@@ -1374,6 +1381,12 @@ export class ChatListWidget extends Disposable {
 	 */
 	updateRendererOptions(options: IChatListItemRendererOptions): void {
 		this._renderer.updateOptions(options);
+		if (Object.hasOwn(options, 'firstRequestSummary')) {
+			const request = this._viewModel?.getItems().find(isRequestVM);
+			if (request && this._tree.hasElement(request)) {
+				this._tree.rerender(request);
+			}
+		}
 	}
 
 	setPaddingBottom(paddingBottom: number): void {

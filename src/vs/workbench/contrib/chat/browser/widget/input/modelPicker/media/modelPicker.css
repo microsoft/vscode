@@ -143,34 +143,6 @@
 	margin-bottom: 4px;
 }
 
-.action-widget .monaco-list-row.chat-model-picker-section-toggle.has-toolbar .action-list-item-toolbar {
-	display: flex;
-}
-
-.action-widget .monaco-list-row.chat-model-picker-inline-source .title {
-	flex: 0 1 auto;
-}
-
-.action-widget .monaco-list-row.chat-model-picker-inline-source .action-item-badge {
-	padding: 0;
-	border-radius: 0;
-	background-color: transparent;
-	color: var(--vscode-descriptionForeground);
-	font-size: 12px;
-	line-height: normal;
-}
-
-.action-widget .monaco-list-row.chat-model-picker-inline-source .description {
-	margin-left: auto;
-	flex-shrink: 0;
-}
-
-.action-widget .monaco-list-row.chat-model-picker-config-option .title,
-.action-widget .monaco-list-row.chat-model-picker-config-option .description {
-	flex: none;
-	overflow: visible;
-}
-
 .chat-model-hover {
 	display: flex;
 	flex-direction: column;
@@ -1186,4 +1158,27 @@
 
 .chat-model-card-description p {
 	margin: 0;
+}
+
+.model-picker-workflow-footer {
+	padding: var(--vscode-spacing-size80);
+}
+
+.model-picker-workflow-count,
+.model-picker-workflow-actions {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+}
+
+.model-picker-workflow-count {
+	margin-bottom: var(--vscode-spacing-size80);
+}
+
+.model-picker-workflow-count > span {
+	flex-shrink: 0;
+}
+
+.model-picker-workflow .action-list-header-text {
+	white-space: pre-line;
 }

@@ -12,7 +12,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
+import { buildOpenSessionLinkUri, parseOpenSessionLinkConnectionAuthority } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { ILinkPresentationProvider, ILinkPresentationService } from '../../../../../platform/dataChannel/common/dataChannel.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IOpener, IOpenerService } from '../../../../../platform/opener/common/opener.js';
@@ -27,6 +27,24 @@ import { findSessionForOpenSessionLink, ISessionLinkChatState, ISessionLinkState
 
 suite('OpenSessionLinkOpenerContribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('scoped links select the owning host when backend IDs collide', () => {
+		const backend = URI.parse('ahp-session:/shared');
+		const local = upcastPartial<ISession>({ resource: URI.parse('agent-host-codex:/shared') });
+		const remote = upcastPartial<ISession>({ resource: URI.parse('remote-other-host-claude:/shared') });
+		const sessions = new class extends mock<ISessionsManagementService>() {
+			override getSessions(): ISession[] { return [local, remote]; }
+		}();
+		const connections = new class extends mock<IAgentHostConnectionsService>() {
+			override resolveSessionResourceIdentity(resource: URI) {
+				return { backendSession: backend, backendSessionIsAdvertised: true as const, connectionAuthority: resource.scheme === local.resource.scheme ? 'local' : 'other-host' };
+			}
+		}();
+		assert.deepStrictEqual(['other-host', 'missing-host', 'local'].map(authority => findSessionForOpenSessionLink(backend, sessions, connections, authority)?.resource.toString()), [remote.resource.toString(), undefined, local.resource.toString()]);
+		sessions.getSessions = () => [remote];
+		const ambientLink = buildOpenSessionLinkUri(backend, undefined, undefined, 'local');
+		assert.strictEqual(findSessionForOpenSessionLink(backend, sessions, connections, parseOpenSessionLinkConnectionAuthority(ambientLink)), undefined);
+	});
 
 	const sessionsProvidersService = new class extends mock<ISessionsProvidersService>() {
 		override getProvider<T extends ISessionsProvider>(): T | undefined {
@@ -364,9 +382,9 @@ suite('OpenSessionLinkOpenerContribution', () => {
 				kind: 'chat',
 				title: 'Peer chat',
 				detail: 'Session details',
-				status: { kind: 'warning', label: 'Needs input' },
-				tooltip: 'Peer chat · Needs input',
-				ariaLabel: 'Agent chat Peer chat, Needs input',
+				status: { kind: 'warning', label: 'Needs attention' },
+				tooltip: 'Peer chat · Needs attention',
+				ariaLabel: 'Agent chat Peer chat, Needs attention',
 			},
 		]);
 	});

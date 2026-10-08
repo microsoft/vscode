@@ -8,6 +8,7 @@ import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import type { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { constObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
@@ -26,7 +27,8 @@ import { PullRequestMergeMethod } from '../../../github/common/githubPullRequest
 import { GitHubPullRequestLookup, GitHubRepositoryMergeCapabilities, GitHubRepositoryRef } from '../../../github/common/githubQueryService.js';
 import { IGitHubQuery } from '../../../github/common/githubQueryServiceImpl.js';
 import { IGitHubClient } from '../../../github/common/githubService.js';
-import { GitHubFetch, GitHubRequestTimeoutError } from '../../../github/common/githubTypes.js';
+import { GitHubRequestTimeoutError } from '../../../github/common/githubTypes.js';
+import { RequestFetch } from '../../../github/common/types.js';
 import { IPullRequestMutations } from '../../../github/common/pullRequestMutationService.js';
 import { AgentHostGitHubService } from '../../node/agentHostGitHubService.js';
 import { createTestGitHubClient, createTestGitHubService, createTestPullRequest } from './testGitHubService.js';
@@ -101,6 +103,7 @@ class TestGitService implements IAgentHostGitService {
 	async getBranch(): Promise<IBranch | undefined> { return undefined; }
 	async getRefs(): Promise<IBranch[]> { return []; }
 	async getBranches(): Promise<IBranch[]> { return []; }
+	hasGitRoot() { return constObservable(undefined); }
 	async getRepositoryRoot(): Promise<URI | undefined> { return URI.file('/repo'); }
 	async getWorktreeRoots(): Promise<URI[]> { return []; }
 	async addWorktree(): Promise<void> { }
@@ -161,6 +164,7 @@ class TestGitService implements IAgentHostGitService {
 	async diffTreePaths(): Promise<string[] | undefined> { return undefined; }
 	async computeFileDiffsBetweenRefs(): Promise<readonly ISessionFileDiff[] | undefined> { return undefined; }
 	async getFetchRemoteUrls(): Promise<undefined> { return undefined; }
+	async getFetchRemotes(): Promise<undefined> { return undefined; }
 	async getUntrackedPaths(): Promise<[]> { return []; }
 	async getBranchDiffSafetyInfo(): Promise<undefined> { return undefined; }
 	async getDiffPatchBetweenRefs(): Promise<undefined> { return undefined; }
@@ -375,7 +379,7 @@ function agentMergeFolderPatch(session: URI, state: { readonly enabled: boolean;
 suite('AgentHostPullRequestOperationHandler', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createNetworkClient(fetch: GitHubFetch): IGitHubClient {
+	function createNetworkClient(fetch: RequestFetch): IGitHubClient {
 		const service = disposables.add(new AgentHostGitHubService({ fetch }, createAuthenticationService(), createTestGitHubEndpointService(), new NullLogService(), NullTelemetryService));
 		return disposables.add(service.acquireRepositoryClient(new AbortController().signal)).object;
 	}

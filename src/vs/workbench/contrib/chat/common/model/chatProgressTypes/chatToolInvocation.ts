@@ -10,6 +10,7 @@ import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
 import { ConfirmedReason, IChatAgentFeedbackReviewConfirmationData, IChatAutomationConfigurationData, IChatAutomationConfiguredData, IChatExtensionsContent, IChatGeneratedImageData, IChatModifiedFilesConfirmationData, IChatSearchToolInvocationData, IChatSessionCreatedData, IChatSimpleToolInvocationData, IChatSubagentToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationOtherClientData, IChatToolInvocationSerialized, ToolConfirmKind, type ToolDeniedReason, type IChatMcpAuthenticationRequiredServer, type IChatTerminalToolInvocationData } from '../../chatService/chatService.js';
 import { IPreparedToolInvocation, isToolResultOutputDetails, IToolConfirmationMessages, IToolData, IToolProgressStep, IToolResult, ToolDataSource } from '../../tools/languageModelToolsService.js';
+import { ChatToolInvocationSummary } from '../../tools/toolInvocationSummary.js';
 
 export interface IStreamingToolCallOptions {
 	toolCallId: string;
@@ -33,6 +34,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	public readonly subAgentInvocationId: string | undefined;
 	public parameters: unknown;
 	public generatedTitle?: string;
+	public summary?: ChatToolInvocationSummary;
 	public readonly chatRequestId?: string;
 	public isAttachedToThinking: boolean = false;
 	public otherClientToolCall?: IChatToolInvocationOtherClientData;
@@ -218,6 +220,15 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			return false; // Only cancel from streaming state
 		}
 
+		this.didCancelTool(reason, reasonMessage);
+		return true;
+	}
+
+	/** Records provider cancellation without turning an executed tool into a failed completion. */
+	public didCancelTool(reason: ToolDeniedReason, reasonMessage?: string | IMarkdownString, resultDetails?: IToolResult['toolResultDetails']): void {
+		if (IChatToolInvocation.isComplete(this)) {
+			return;
+		}
 		this._state.set({
 			type: IChatToolInvocation.StateKind.Cancelled,
 			reason: reason.type,
@@ -225,8 +236,8 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			reasonMessage: reasonMessage,
 			parameters: this.parameters,
 			confirmationMessages: this.confirmationMessages,
+			...(resultDetails ? { resultDetails } : {}),
 		}, undefined);
-		return true;
 	}
 
 	/**
@@ -444,6 +455,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		// persist the serialized call as 'skipped' if we were waiting for postapproval
 		const waitingForPostApproval = this.state.get().type === IChatToolInvocation.StateKind.WaitingForPostApproval;
 		const details = waitingForPostApproval ? undefined : IChatToolInvocation.resultDetails(this);
+		const summary: ChatToolInvocationSummary | undefined = IChatToolInvocation.isComplete(this) ? this.summary : { kind: 'incomplete' };
 
 		return {
 			kind: 'toolInvocationSerialized',
@@ -463,6 +475,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			toolCallId: this.toolCallId,
 			toolId: this.toolId,
 			subAgentInvocationId: this.subAgentInvocationId,
+			...(summary ? { summary } : {}),
 			generatedTitle: this.generatedTitle,
 		};
 	}

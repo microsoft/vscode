@@ -13,14 +13,6 @@ import { ICommandService } from '../../../../../../../platform/commands/common/c
 import { ChatEntitlement, IChatEntitlementService, isProUser } from '../../../../../../services/chat/common/chatEntitlementService.js';
 import { MANAGE_CHAT_COMMAND_ID } from '../../../../common/constants.js';
 import { IModelControlEntry, ILanguageModelChatMetadataAndIdentifier, IModelsControlManifest } from '../../../../common/languageModels.js';
-import { buildFlatModelItems, buildGroupedModelItems, buildUnavailableStateItems, RESTRICTED_MODE_TRUST_ACTION_ID, SETUP_REQUIRED_SIGN_IN_ACTION_ID } from './modelPickerItemSections.js';
-import type { IBuildModelPickerItemsOptions } from './modelPickerItemTypes.js';
-import { filterModelPickerControlModelsForEntitlement, filterModelPickerModelsForEntitlement } from './modelPickerPresentation.js';
-
-export type { IBuildModelPickerItemsOptions } from './modelPickerItemTypes.js';
-export { ModelPickerSection } from './modelPickerItemSections.js';
-
-const PICKER_COMMAND_ACTION_IDS: ReadonlySet<string> = new Set([RESTRICTED_MODE_TRUST_ACTION_ID, SETUP_REQUIRED_SIGN_IN_ACTION_ID]);
 
 export function getControlModelsForEntitlement(manifest: IModelsControlManifest, entitlement: ChatEntitlement): IStringDictionary<IModelControlEntry> {
 	return isProUser(entitlement) && entitlement !== ChatEntitlement.EDU ? manifest.paid : manifest.free;
@@ -66,7 +58,7 @@ export function shouldShowManageModelsAction(chatEntitlementService: IChatEntitl
 		chatEntitlementService.isInternal;
 }
 
-export function createManageModelsAction(commandService: ICommandService): IActionWidgetDropdownAction {
+export function createManageModelsAction(commandService: ICommandService, sessionType?: string): IActionWidgetDropdownAction {
 	return {
 		id: 'manageModels',
 		enabled: true,
@@ -74,27 +66,11 @@ export function createManageModelsAction(commandService: ICommandService): IActi
 		class: ThemeIcon.asClassName(Codicon.gear),
 		tooltip: localize('chat.manageModels.tooltip', "Manage Language Models"),
 		label: localize('chat.manageModels', "Manage Models..."),
-		run: () => { commandService.executeCommand(MANAGE_CHAT_COMMAND_ID); },
+		run: () => { commandService.executeCommand(MANAGE_CHAT_COMMAND_ID, undefined, sessionType); },
 	};
 }
 
-/** Builds the ordered model picker sections for the current presentation state. */
-export function buildModelPickerItems(options: IBuildModelPickerItemsOptions): IActionListItem<IActionWidgetDropdownAction>[] {
-	const pickerOptions = {
-		...options,
-		models: filterModelPickerModelsForEntitlement(options.models, options.chatEntitlementService.entitlement, options.languageModelsService),
-		controlModels: filterModelPickerControlModelsForEntitlement(options.controlModels, options.models, options.chatEntitlementService.entitlement, options.languageModelsService),
-	};
-	const unavailableItems = buildUnavailableStateItems(pickerOptions);
-	if (unavailableItems) {
-		return unavailableItems;
-	}
-	return pickerOptions.presentation.useGroupedModelPicker
-		? buildGroupedModelItems(pickerOptions)
-		: buildFlatModelItems(pickerOptions);
-}
-
-export function getModelPickerAccessibilityProvider(isSearch = false) {
+export function getModelPickerAccessibilityProvider(isSearch = false, multiple = false) {
 	return {
 		getAriaLabel(element: IActionListItem<IActionWidgetDropdownAction>) {
 			if (element.kind !== ActionListItemKind.Action) {
@@ -103,17 +79,14 @@ export function getModelPickerAccessibilityProvider(isSearch = false) {
 					: null;
 			}
 			const description = element.ariaDescription ?? (typeof element.description === 'string' ? element.description : element.description?.value);
-			const currentModel = isSearch && element.item?.checked ? localize('chat.modelPicker.currentModel', "Current model") : undefined;
+			const currentModel = isSearch && element.item?.checked ? (multiple ? localize('chat.modelPicker.selectedModel', "Selected") : localize('chat.modelPicker.currentModel', "Current model")) : undefined;
 			return [element.label, element.badge, ...(element.additionalBadges?.map(badge => badge.label) ?? []), description, currentModel].filter((part): part is string => !!part).join(', ');
 		},
 		isChecked(element: IActionListItem<IActionWidgetDropdownAction>) {
 			if (isSearch || element.isSectionToggle) {
 				return undefined;
 			}
-			if (element.kind === ActionListItemKind.Action && !(element.item?.id && PICKER_COMMAND_ACTION_IDS.has(element.item.id))) {
-				return !!element.item?.checked;
-			}
-			return undefined;
+			return element.kind === ActionListItemKind.Action ? !!element.item?.checked : undefined;
 		},
 		getRole: (element: IActionListItem<IActionWidgetDropdownAction>) => {
 			if (isSearch) {
@@ -124,7 +97,7 @@ export function getModelPickerAccessibilityProvider(isSearch = false) {
 			}
 			switch (element.kind) {
 				case ActionListItemKind.Action:
-					return element.item?.id && PICKER_COMMAND_ACTION_IDS.has(element.item.id) ? 'menuitem' : 'menuitemradio';
+					return multiple ? 'menuitemcheckbox' : 'menuitemradio';
 				case ActionListItemKind.Separator:
 				default:
 					return 'separator';

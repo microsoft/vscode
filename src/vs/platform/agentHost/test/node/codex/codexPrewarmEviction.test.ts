@@ -300,7 +300,6 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	instantiationService.stub(ILogService, logService);
 	instantiationService.stub(ITelemetryService, options.telemetryService ?? NullTelemetryService);
 	const agent = disposables.add(instantiationService.createInstance(CodexAgent));
-	agent['_probeAccountAtStartup'] = async () => { };
 	agent['_activated'] = true;
 	await agent.authenticate(agent.getProtectedResources()[0].resource, 'test-token');
 	await agent.refreshModels();
@@ -2423,6 +2422,39 @@ suite('CodexAgent prewarm eviction', () => {
 		peer.exit();
 	});
 
+	for (const changeModelId of [true, false]) {
+		test(`background model resolution preserves a concurrent ${changeModelId ? 'model' : 'model configuration'} change`, async () => {
+			const agent = await createAgent(disposables);
+			agent['_schedulePrewarm'] = () => { };
+			const alternateModel = toCodexModelSelectionId('vscode-proxy', 'gpt-alternate');
+			agent['_models'].set([
+				...agent.models.get(),
+				{ provider: 'codex', id: alternateModel, name: 'GPT Alternate', supportsVision: false },
+			], undefined);
+			const created = await createSession(agent, { model: { id: COPILOT_TEST_MODEL } });
+			const chat = defaultChatOf(created.session);
+			const context = chatContext(created.session, chat);
+			const entry = agent['_sessions'].get(AgentSession.id(created.session))!;
+			const refresh = new DeferredPromise<void>();
+			agent['_modelsRefreshPromise'] = refresh.p;
+
+			// The first turn can change the selection while prewarm waits for discovery.
+			const resolving = agent['_resolveModel'](entry);
+			const selected = { id: changeModelId ? alternateModel : COPILOT_TEST_MODEL, config: { thinkingLevel: 'high' } };
+			await agent.chats.changeModel(chat, selected, context);
+			agent['_modelsRefreshPromise'] = undefined;
+			await refresh.complete();
+
+			assert.deepStrictEqual({
+				resolved: await resolving,
+				current: agent.chats.getModel?.(chat, context),
+			}, {
+				resolved: selected,
+				current: selected,
+			});
+		});
+	}
+
 	test('changing the model of an idle-released chat persists the new selection', async () => {
 		const agent = await createAgent(disposables);
 		agent['_schedulePrewarm'] = () => { };
@@ -2765,7 +2797,7 @@ suite('CodexAgent prewarm eviction', () => {
 					turnAttempts: 3,
 					events: [{
 						name: 'agentHost.codexProviderSwitch',
-						data: { fromProvider: 'openai', toProvider: 'copilot', isDesktopThread: false, chatgptAccountState: 'unknown', chatgptWeeklyQuotaState: 'unavailable' },
+						data: { fromProvider: 'openai', toProvider: 'copilot', isDesktopThread: false, chatgptAccountState: 'unknown', chatgptWeeklyQuotaState: 'unavailable', chatgptFiveHourQuotaState: 'unavailable' },
 					}],
 				});
 			} finally {
@@ -2878,7 +2910,7 @@ suite('CodexAgent prewarm eviction', () => {
 			quotaReads: 1,
 			events: [{
 				name: 'agentHost.codexProviderSwitch',
-				data: { fromProvider: 'openai', toProvider: 'copilot', isDesktopThread: false, chatgptAccountState: 'signedIn', chatgptPlanTier: 'unknown', chatgptWeeklyQuotaState: 'available', chatgptWeeklyUsedPercentBucket: 90 },
+				data: { fromProvider: 'openai', toProvider: 'copilot', isDesktopThread: false, chatgptAccountState: 'signedIn', chatgptPlanTier: 'unknown', chatgptWeeklyQuotaState: 'available', chatgptWeeklyUsedPercentBucket: 90, chatgptFiveHourQuotaState: 'missing' },
 			}],
 		});
 	});
@@ -2954,7 +2986,7 @@ suite('CodexAgent prewarm eviction', () => {
 				method: 'turn/start',
 				events: [{
 					name: 'agentHost.codexProviderSwitch',
-					data: { fromProvider: 'openai', toProvider: 'copilot', isDesktopThread: false, chatgptAccountState: 'signedIn', chatgptPlanTier: 'business', chatgptWeeklyQuotaState: 'available', chatgptWeeklyUsedPercentBucket: 90 },
+					data: { fromProvider: 'openai', toProvider: 'copilot', isDesktopThread: false, chatgptAccountState: 'signedIn', chatgptPlanTier: 'business', chatgptWeeklyQuotaState: 'available', chatgptWeeklyUsedPercentBucket: 90, chatgptFiveHourQuotaState: 'missing' },
 				}],
 			});
 		} finally {
@@ -3094,7 +3126,7 @@ suite('CodexAgent prewarm eviction', () => {
 			method: 'turn/start',
 			events: [{
 				name: 'agentHost.codexProviderSwitch',
-				data: { fromProvider: 'openai', toProvider: 'copilot', isDesktopThread: false, chatgptAccountState: 'unknown', chatgptWeeklyQuotaState: 'unavailable' },
+				data: { fromProvider: 'openai', toProvider: 'copilot', isDesktopThread: false, chatgptAccountState: 'unknown', chatgptWeeklyQuotaState: 'unavailable', chatgptFiveHourQuotaState: 'unavailable' },
 			}],
 		});
 
@@ -4284,7 +4316,7 @@ suite('CodexAgent prewarm eviction', () => {
 				success: response.result?.success,
 				approvalPending: entry.pendingCommandApprovals.has('tool-1'),
 			}, {
-				confirmations: scenario.requiresConfirmation ? ['Continue in app?'] : [],
+				confirmations: scenario.requiresConfirmation ? ['Change Workspace to app?'] : [],
 				executionsBeforeApproval: scenario.requiresConfirmation ? [0] : [],
 				executions: scenario.approved === false ? [] : [{ chatUri: defaultChatOf(session).toString(), toolName: tool.name }],
 				success: scenario.approved !== false,
@@ -4779,7 +4811,7 @@ suite('CodexAgent prewarm eviction', () => {
 			threadId: 'desktop-thread',
 			events: [{
 				name: 'agentHost.codexProviderSwitch',
-				data: { fromProvider: 'copilot', toProvider: 'openai', isDesktopThread: true, chatgptAccountState: 'unknown', chatgptWeeklyQuotaState: 'unavailable' },
+				data: { fromProvider: 'copilot', toProvider: 'openai', isDesktopThread: true, chatgptAccountState: 'unknown', chatgptWeeklyQuotaState: 'unavailable', chatgptFiveHourQuotaState: 'unavailable' },
 			}],
 		});
 		peer.exit();

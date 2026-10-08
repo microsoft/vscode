@@ -33,10 +33,15 @@ import {
 	GitHubRecentIssue,
 	GitHubRecentPullRequest,
 	GitHubRecentPullRequestReviewThread,
+	GitHubRepositoriesPage,
 	GitHubRepository,
+	GitHubRepositoryListOptions,
 	GitHubRepositoryMergeCapabilities,
+	GitHubRepositoryPageOptions,
 	GitHubRepositoryRef,
 	GitHubRepositoryResource,
+	GitHubRepositorySearchOptions,
+	GitHubRepositorySearchPage,
 	GitHubRepositorySubscription,
 	GitHubResourcePriority,
 	GitHubResourceSubscriptionOptions,
@@ -45,12 +50,13 @@ import { FragmentState, GitHubActor, PullRequestMergeMethod, PullRequestRef } fr
 import { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } from './githubCredentialService.js';
 import { IGitHubCapabilities } from './githubHostCapabilitiesService.js';
 import { arrayProperty, asArray, asObject, booleanProperty, idProperty, nextLink, nullableStringProperty, numberProperty, objectAt, objectProperty, optionalObjectProperty, requiredNumber, requiredString, stringProperty } from './githubResponse.js';
-import { IGitHubScheduler, systemGitHubScheduler } from './githubScheduler.js';
+import { IRequestScheduler, systemRequestScheduler } from './scheduler.js';
 import { GitHubGraphQLError, GitHubRequestError, IGitHubTransport } from './githubTransport.js';
-import { GitHubBackoffPolicy, gitHubBackoffDelay } from './githubBackoff.js';
+import { BackoffPolicy, backoffDelay } from './backoff.js';
 import { IGitHubEndpointProvider } from './githubTypes.js';
 import { getPullRequestUrlKey } from './githubUrls.js';
 import { PullRequestScheduler } from './pullRequestScheduler.js';
+import { AccountHandle } from './types.js';
 
 export interface IGitHubQuery extends GitHubQueryApi {
 	clear(): void;
@@ -61,7 +67,7 @@ export interface GitHubEntityPollingPolicy {
 	readonly maximumDormantEntries: number;
 	readonly visible: number;
 	readonly background: number;
-	readonly failureBackoff: GitHubBackoffPolicy;
+	readonly failureBackoff: BackoffPolicy;
 	readonly jitter: number;
 }
 
@@ -75,6 +81,8 @@ const defaultPollingPolicy: GitHubEntityPollingPolicy = {
 };
 
 const maximumPaginationPages = 100;
+const maximumRepositoryPageSize = 100;
+const maximumRepositorySearchResults = 1_000;
 const maximumHydrationBatchSize = 25;
 const repositoryHydrationFields = `
 	id
@@ -305,11 +313,11 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 	private readonly _dormant = new Map<number, EntityEntry<EntityRef, EntityValue>>();
 	private readonly _unsupportedGraphQLQueries = new Set<string>();
 	private readonly _scheduler: PullRequestScheduler;
-	private readonly _clock: IGitHubScheduler;
+	private readonly _clock: IRequestScheduler;
 	private _entryId = 0;
 
 	constructor(
-		scheduler: IGitHubScheduler | undefined,
+		scheduler: IRequestScheduler | undefined,
 		private readonly _policy: GitHubEntityPollingPolicy = defaultPollingPolicy,
 		private readonly _credentials: IGitHubCredentials,
 		private readonly _transport: IGitHubTransport,
@@ -318,7 +326,7 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 		private readonly _logService: ILogService,
 	) {
 		super();
-		this._clock = scheduler ?? systemGitHubScheduler;
+		this._clock = scheduler ?? systemRequestScheduler;
 		this._scheduler = this._register(new PullRequestScheduler(this._clock));
 		this._register(this._credentials.onDidInvalidate(event => this._handleCredentialInvalidation(event)));
 	}
@@ -492,6 +500,84 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 		this._logService.trace(`[GitHubQueryService] Added commit subscription for ${formatEntityRef(entry.ref)} (entry ${entry.id}, subscriptions: ${entry.subscriptions.size})`);
 		this._activateEntity(entry);
 		return subscription;
+	}
+
+	async getRepository(ref: GitHubRepositoryRef, signal: AbortSignal): Promise<GitHubRepository> {
+		const normalized = normalizeRepositoryRef(ref);
+		return this._withCredential(normalized, signal, async (credential, combinedSignal) => {
+			const response = await this._transport.rest<unknown>(credential.account, credential.token, {
+				caller: 'github.query',
+				method: 'GET',
+				url: this._restUrl(normalized, ''),
+				etag: true,
+				priority: 'interactive',
+			}, combinedSignal);
+			return toRepository(response.data);
+		});
+	}
+
+	async listRepositories(account: AccountHandle, signal: AbortSignal, options?: GitHubRepositoryListOptions): Promise<GitHubRepositoriesPage> {
+		const { page, perPage } = repositoryPagination(options);
+		const params = new URLSearchParams({ page: String(page), per_page: String(perPage) });
+		if (options?.affiliation) {
+			if (options.affiliation.length === 0) {
+				throw new GitHubRequestError('GitHub repository listing requires at least one affiliation', 'validation');
+			}
+			params.set('affiliation', [...new Set(options.affiliation)].join(','));
+		}
+		if (options?.sort) {
+			params.set('sort', options.sort);
+		}
+		if (options?.direction) {
+			params.set('direction', options.direction);
+		}
+		return this._withCredential(account, signal, async (credential, combinedSignal) => {
+			const response = await this._transport.rest<unknown>(credential.account, credential.token, {
+				caller: 'github.query',
+				method: 'GET',
+				url: `${this._endpoint.getApiBaseUri()}/user/repos?${params}`,
+				etag: true,
+				priority: 'interactive',
+			}, combinedSignal);
+			return toRepositoriesPage(response.data, response.link, page, perPage);
+		});
+	}
+
+	async searchRepositories(account: AccountHandle, query: string, signal: AbortSignal, options?: GitHubRepositorySearchOptions): Promise<GitHubRepositorySearchPage> {
+		const { page, perPage } = repositoryPagination(options);
+		if (!query.trim() || (page - 1) * perPage >= maximumRepositorySearchResults) {
+			throw new GitHubRequestError('GitHub repository search requires a query and a page within the first 1,000 results', 'validation');
+		}
+		const params = new URLSearchParams({ q: query.trim(), page: String(page), per_page: String(perPage) });
+		if (options?.sort) {
+			params.set('sort', options.sort);
+		}
+		if (options?.direction) {
+			params.set('order', options.direction);
+		}
+		return this._withCredential(account, signal, async (credential, combinedSignal) => {
+			const response = await this._transport.rest<unknown>(credential.account, credential.token, {
+				caller: 'github.query',
+				method: 'GET',
+				url: `${this._endpoint.getApiBaseUri()}/search/repositories?${params}`,
+				etag: true,
+				priority: 'interactive',
+			}, combinedSignal);
+			const value = asObject(response.data, 'GitHub repository search response was malformed');
+			const totalCount = requiredNumber(value, 'total_count');
+			const incompleteResults = booleanProperty(value, 'incomplete_results');
+			if (!Number.isSafeInteger(totalCount) || totalCount < 0 || incompleteResults === undefined) {
+				throw new GitHubRequestError('GitHub repository search completeness was malformed', 'malformedResponse');
+			}
+			const result = toRepositoriesPage(arrayProperty(value, 'items'), response.link, page, perPage);
+			return {
+				...result,
+				nextPage: page * perPage < maximumRepositorySearchResults ? result.nextPage : undefined,
+				totalCount,
+				incompleteResults,
+				limitReached: totalCount > maximumRepositorySearchResults,
+			};
+		});
 	}
 
 	async compare(ref: GitHubRepositoryRef, base: string, head: string, signal: AbortSignal): Promise<GitHubComparison> {
@@ -1071,7 +1157,7 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 	}
 
 	private async _withCredential<T>(
-		ref: GitHubRepositoryRef,
+		ref: AccountHandle,
 		signal: AbortSignal,
 		task: (credential: GitHubCredential, signal: AbortSignal) => Promise<T>,
 	): Promise<T> {
@@ -1187,7 +1273,7 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 	 */
 	private _scheduleAfterFailure(entry: EntityEntry<EntityRef, EntityValue>): void {
 		entry.failureCount++;
-		const delay = gitHubBackoffDelay(this._policy.failureBackoff, this._clock, entry.failureCount, this._pollDelay(entry));
+		const delay = backoffDelay(this._policy.failureBackoff, this._clock, entry.failureCount, this._pollDelay(entry));
 		this._scheduleEntity(entry, this._clock.now() + delay);
 	}
 
@@ -1257,7 +1343,7 @@ function entityKey(kind: EntityKind, ref: EntityRef): string {
 }
 
 function sameAccount(
-	ref: GitHubRepositoryRef,
+	ref: AccountHandle,
 	credential: { readonly account: { readonly host: string; readonly accountId: string } },
 ): boolean {
 	return ref.host.toLowerCase() === credential.account.host.toLowerCase() && ref.accountId === credential.account.accountId;
@@ -1267,11 +1353,31 @@ function toRequestPriority(priority: GitHubResourcePriority): 'interactive' | 'v
 	return priority;
 }
 
+function repositoryPagination(options: GitHubRepositoryPageOptions | undefined): { page: number; perPage: number } {
+	const page = options?.page ?? 1;
+	const perPage = options?.perPage ?? maximumRepositoryPageSize;
+	if (!Number.isSafeInteger(page) || page <= 0 || !Number.isSafeInteger(perPage) || perPage <= 0 || perPage > maximumRepositoryPageSize) {
+		throw new GitHubRequestError('GitHub repository pagination requires a positive page and a page size between 1 and 100', 'validation');
+	}
+	return { page, perPage };
+}
+
+function toRepositoriesPage(value: unknown, link: string | undefined, page: number, perPage: number): GitHubRepositoriesPage {
+	const values = asArray(value, 'GitHub repository page was malformed');
+	const nextPage = nextLink(link) ? page + 1 : undefined;
+	if (values.length > perPage || (nextPage !== undefined && !Number.isSafeInteger(nextPage))) {
+		throw new GitHubRequestError('GitHub repository pagination was malformed', 'malformedResponse');
+	}
+	return { repositories: values.map(toRepository), nextPage };
+}
+
 function toRepository(value: unknown): GitHubRepository {
 	const item = asObject(value, 'GitHub repository response was malformed');
 	const owner = objectProperty(item, 'owner');
 	const language = nullableStringProperty(item, 'language');
 	const stars = numberProperty(item, 'stargazers_count');
+	const cloneUrl = stringProperty(item, 'clone_url');
+	const sshUrl = stringProperty(item, 'ssh_url');
 	return {
 		id: idProperty(item, 'node_id') ?? idProperty(item, 'id'),
 		owner: requiredActor(owner),
@@ -1283,6 +1389,8 @@ function toRepository(value: unknown): GitHubRepository {
 		private: booleanProperty(item, 'private') ?? false,
 		description: nullableStringProperty(item, 'description') ?? '',
 		url: requiredString(item, 'html_url'),
+		...(cloneUrl !== undefined ? { cloneUrl } : {}),
+		...(sshUrl !== undefined ? { sshUrl } : {}),
 		archived: booleanProperty(item, 'archived') ?? false,
 		fork: booleanProperty(item, 'fork') ?? false,
 	};
@@ -1571,7 +1679,7 @@ function requiredActor(value: object): GitHubActor {
 	return id ? { id, login } : { login };
 }
 
-function toFragmentError(error: unknown): { readonly message: string; readonly kind: import('./githubTypes.js').GitHubRequestErrorKind; readonly statusCode?: number } {
+function toFragmentError(error: unknown): { readonly message: string; readonly kind: import('./types.js').RequestErrorKind; readonly statusCode?: number } {
 	if (error instanceof GitHubRequestError) {
 		return { message: error.message, kind: error.kind, statusCode: error.statusCode };
 	}

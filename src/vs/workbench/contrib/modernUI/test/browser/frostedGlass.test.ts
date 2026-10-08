@@ -325,30 +325,19 @@ suite('Frosted glass styles', () => {
 			});
 		});
 
-		glassMotionTest(`opens ${name} submenus without changing their glass tint`, () => {
+		glassMotionTest(`opens ${name} submenus without animation or changing their glass tint`, () => {
 			const { root, container, finishOpening } = createNestedMenu(domPosition);
 			finishOpening();
 			const submenu = openSubmenu(container);
-			const animations = submenu.getAnimations({ subtree: true });
-			animations.forEach(animation => {
-				animation.pause();
-				animation.currentTime = 40;
-			});
 			const nestedSubmenu = openSubmenu(submenu);
-			nestedSubmenu.getAnimations({ subtree: true }).forEach(animation => animation.finish());
 			const submenus = [submenu, nestedSubmenu];
-			const tint = () => submenus.map(menu => Math.round(readColor(menu, '::before').rgba.a * 100));
-			const opening = tint();
-			animations.forEach(animation => animation.finish());
 			const supported = supportsGlass(root);
 			assert.deepStrictEqual({
-				opening,
-				settled: tint(),
-				animationCount: animations.length,
+				tint: submenus.map(menu => Math.round(readColor(menu, '::before').rgba.a * 100)),
+				animationCount: submenu.getAnimations({ subtree: true }).length,
 			}, {
-				opening: submenus.map(() => supported ? 50 : 0),
-				settled: submenus.map(() => supported ? 50 : 0),
-				animationCount: supported ? 2 : 1,
+				tint: submenus.map(() => supported ? 50 : 0),
+				animationCount: 0,
 			});
 		});
 	}

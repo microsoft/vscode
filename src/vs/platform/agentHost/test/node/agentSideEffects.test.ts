@@ -26,6 +26,7 @@ import { AgentSession, AgentSignal, IAgent, resolveAgentHostInstructions, resolv
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { buildDefaultChangesetCatalog } from '../../common/changesetUri.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
+import { readCodexSessionModel, withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
 import { toAgentMergeMessageMeta } from '../../common/meta/agentMergeMessageMeta.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
@@ -83,6 +84,7 @@ import { applyMcpServerEnablement } from '../../node/shared/mcpCustomizationCont
 import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { createLegacyChatMetadataPersistence } from './chatMetadataTestHelpers.js';
 import { MockAgent } from './mockAgent.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
 import { createTestAgentService, getTestAgentStateManager, registerTestAgentProvider } from './agentServiceTestUtils.js';
@@ -126,6 +128,8 @@ class FakeChangesetService implements IAgentHostChangesetService {
 	onSessionTruncated(session: string): void {
 		this.truncates.push(session);
 	}
+	ensureChatChangesSummary(): void { }
+	refreshChatChangesSummary(): void { }
 }
 
 class NoopGitStateService implements IAgentHostGitStateService {
@@ -135,6 +139,7 @@ class NoopGitStateService implements IAgentHostGitStateService {
 
 	async refreshSessionGitState(_sessionKey: string, _workingDirectory?: URI): Promise<void> { }
 	getMaterializedWorktreeMeta(_sessionKey: string, _branchName: string): undefined { return undefined; }
+	async setFolderGitState(): Promise<void> { }
 	async resolveSessionBaseBranchName(_sessionKey: string): Promise<string | undefined> { return undefined; }
 	async setSessionGitHubState(_sessionKey: string, _state: ISessionGitHubState): Promise<void> { }
 	async recordSessionMerge(_sessionKey: string, _commit: string): Promise<void> { }
@@ -208,7 +213,7 @@ function createTestSideEffects(
 		fileService?: IFileService;
 		onDidCreateTurnService?: (turnService: IAgentHostTurnService) => void;
 	},
-	_gitService?: IAgentHostGitService,
+	gitService: IAgentHostGitService = createNoopGitService(),
 	telemetryService: ITelemetryService = NullTelemetryService,
 	changesets: IAgentHostChangesetService = new FakeChangesetService(),
 	terminalManager: IAgentHostTerminalManager = disposables.add(new TestAgentHostTerminalManager()),
@@ -224,6 +229,7 @@ function createTestSideEffects(
 		[IAgentHostChangesetService, changesets],
 		[IAgentHostCheckpointService, checkpointService],
 		[IAgentHostGitStateService, options.gitStateService ?? new NoopGitStateService()],
+		[IAgentHostGitService, gitService],
 		[IAgentHostStateManager, stateManager],
 		[IAgentSessionRegistry, disposables.add(new AgentSessionRegistry(disposables.add(new AgentHostDatabase(':memory:'))))],
 		[IFileService, options.fileService ?? contributionFileService],
@@ -234,14 +240,21 @@ function createTestSideEffects(
 		[IAdditionalWorktreeLifecycleService, new AdditionalWorktreeLifecycleService(options.sessionDataService, worktreeIsolation)],
 		[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
 		[IAgentHostPeerChatPersistenceService, {
+			...createLegacyChatMetadataPersistence(options.sessionDataService),
 			_serviceBrand: undefined,
+			setRead: async () => { },
 			setArchived: async () => { },
 		}],
 	);
 	services.set(ISessionWorkspaceConversionService, {
 		_serviceBrand: undefined,
-		requestSessionWorkspaceUpdate: () => { },
+		supportsChatIsolation: () => false,
+		canIsolateChat: () => false,
+		requestChatIsolation: () => { },
+		restoreChatIsolation: async () => { },
+		requestSessionWorkspaceUpdate: () => true,
 		isPending: () => false,
+		isConversionTurn: () => false,
 		cancel: () => { },
 		updateSessionWorkspace: async () => { },
 	});
@@ -1993,6 +2006,7 @@ suite('AgentSideEffects', () => {
 				eventName: 'agentHost.userMessageSent',
 				data: {
 					provider: 'mock',
+					isOtelEnabled: false,
 					hostLaunchKind: 'vscode_main_process',
 					initiatorClientId: 'client-agents',
 					initiatorClientType: 'agents_window',
@@ -3456,7 +3470,7 @@ suite('AgentSideEffects', () => {
 			]);
 		});
 
-		test('marks the parent session unread when a subagent turn completes', () => {
+		test('does not mark the parent session unread when a subagent turn completes', () => {
 			const { sideEffects: persisting } = setupPersisting();
 			setupSession();
 			// The session has been read (e.g. a client viewed it after the parent
@@ -3494,8 +3508,8 @@ suite('AgentSideEffects', () => {
 				readChanges: readChangesFrom(envelopes),
 				isReadBitSet: (stateManager.getSessionSummary(sessionUri.toString())!.status & SessionStatus.IsRead) !== 0,
 			}, {
-				readChanges: [false],
-				isReadBitSet: false,
+				readChanges: [],
+				isReadBitSet: true,
 			});
 		});
 		test('marks a read session unread when a turn is cancelled', () => {
@@ -3685,10 +3699,10 @@ suite('AgentSideEffects', () => {
 					phase: { ...metadata.fusionPhase, status: 'cancelled', duration: phase.duration },
 					finalizedBeforeAbort: true,
 					abortCalls: 1,
-					actions: [status === ToolCallStatus.Streaming ? ActionType.ChatToolCallDelta : ActionType.ChatToolCallReady, ActionType.ChatTurnCancelled, ActionType.ChatToolCallComplete],
-					liveTurns: [turn],
+					actions: [status === ToolCallStatus.Streaming ? ActionType.ChatToolCallDelta : ActionType.ChatToolCallReady, ActionType.ChatTurnCancelled, ActionType.ChatIsReadChanged, ActionType.ChatToolCallComplete],
+					liveTurns: [structuredClone(turn)],
 					liveActiveTurn: undefined,
-					restoredTurns: [turn],
+					restoredTurns: [structuredClone(turn)],
 					restoredActiveTurn: undefined,
 					pending: [],
 					toolEvents: [],
@@ -3774,6 +3788,30 @@ suite('AgentSideEffects', () => {
 	// ---- handleAction: chat/turnStarted model selection --------------------
 
 	suite('handleAction — chat/turnStarted model selection', () => {
+		function createCodexTurnHarness(meta?: Record<string, unknown>) {
+			const codexAgent = new MockAgent('codex');
+			disposables.add(toDisposable(() => codexAgent.dispose()));
+			const session = AgentSession.uri('codex', 'model-session');
+			const defaultChat = buildDefaultChatUri(session);
+			stateManager.createSession({
+				resource: session.toString(),
+				provider: 'codex',
+				title: 'Codex model session',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+				_meta: meta,
+			});
+			stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionReady });
+			const agents = observableValue<readonly IAgent[]>('codexAgents', [codexAgent]);
+			const effects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => codexAgent,
+				agents,
+				sessionDataService: createNullSessionDataService(),
+				hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+			}, undefined, disposables.add(new AgentHostTelemetryService(telemetryService)));
+			return { codexAgent, defaultChat, effects, session };
+		}
 
 		test('calls changeModel on the agent before sending the message', async () => {
 			setupSession();
@@ -3864,6 +3902,75 @@ suite('AgentSideEffects', () => {
 				model: call.model,
 				chat: call.chat?.toString(),
 			})), [{ session: sessionUri.toString(), model: { id: 'gpt-5' }, chat: chatChannel }]);
+		});
+
+		test('stamps a successful default-chat Codex model selection before provider send', async () => {
+			const { codexAgent, defaultChat, effects, session } = createCodexTurnHarness();
+			const model = { id: '@provider=openai:gpt-5.6-sol' };
+			codexAgent.chatModel = model;
+			let modelAtSend: string | undefined;
+			const sent = new DeferredPromise<void>();
+			codexAgent.sendMessage = async () => {
+				modelAtSend = readCodexSessionModel(stateManager.getSessionState(session.toString()))?.id;
+				sent.complete();
+			};
+			const action = {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'hello', origin: { kind: MessageKind.User }, model },
+			} as const;
+			stateManager.dispatchServerAction(defaultChat, action);
+			effects.handleAction(defaultChat, action);
+			await sent.p;
+
+			assert.deepStrictEqual({
+				modelAtSend,
+				modelInState: readCodexSessionModel(stateManager.getSessionState(session.toString()))?.id,
+			}, {
+				modelAtSend: model.id,
+				modelInState: model.id,
+			});
+		});
+
+		test('does not stamp a rejected Codex model selection', async () => {
+			const original = { id: '@provider=openai:gpt-5.6-sol' };
+			const { codexAgent, defaultChat, effects, session } = createCodexTurnHarness(withCodexSessionModel(undefined, original));
+			codexAgent.chatModel = { id: '@provider=vscode-proxy:gpt-5.6-sol' };
+			codexAgent.chats.changeModel = async () => { throw new Error('model selection failed'); };
+			const failed = Event.toPromise(Event.filter(stateManager.onDidEmitEnvelope, envelope => envelope.action.type === ActionType.ChatError));
+			const action = {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'hello', origin: { kind: MessageKind.User }, model: codexAgent.chatModel },
+			} as const;
+			stateManager.dispatchServerAction(defaultChat, action);
+			effects.handleAction(defaultChat, action);
+			await failed;
+
+			assert.strictEqual(readCodexSessionModel(stateManager.getSessionState(session.toString()))?.id, original.id);
+		});
+
+		test('does not overwrite the session model from a Codex peer chat', async () => {
+			const original = { id: '@provider=openai:gpt-5.6-sol' };
+			const { codexAgent, effects, session } = createCodexTurnHarness(withCodexSessionModel(undefined, original));
+			const peer = buildChatUri(session.toString(), 'peer-1');
+			stateManager.addChat(session.toString(), peer, { title: 'Peer', origin: { kind: ChatOriginKind.User } });
+			codexAgent.chatModel = { id: '@provider=vscode-proxy:gpt-5.6-sol' };
+			const sent = new DeferredPromise<void>();
+			codexAgent.sendMessage = async () => { sent.complete(); };
+			const action = {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'hello', origin: { kind: MessageKind.User }, model: codexAgent.chatModel },
+			} as const;
+			stateManager.dispatchServerAction(peer, action);
+			effects.handleAction(peer, action);
+			await sent.p;
+
+			assert.strictEqual(readCodexSessionModel(stateManager.getSessionState(session.toString()))?.id, original.id);
 		});
 	});
 
@@ -4400,6 +4507,29 @@ suite('AgentSideEffects', () => {
 			});
 		});
 
+		test('syncs server-dispatched steering message to agent', () => {
+			setupSession();
+
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatPendingMessageSet,
+				kind: PendingMessageKind.Steering,
+				id: 'server-steer',
+				message: { text: 'focus on tests', origin: { kind: MessageKind.Agent } },
+			});
+
+			assert.deepStrictEqual(agent.setPendingMessagesCalls.map(call => ({
+				chat: call.chat.toString(),
+				steeringMessage: call.steeringMessage,
+				queuedMessages: call.queuedMessages,
+				steeringSender: call.steeringSender,
+			})), [{
+				chat: defaultChatUri,
+				steeringMessage: { id: 'server-steer', message: { text: 'focus on tests', origin: { kind: MessageKind.Agent } } },
+				queuedMessages: [],
+				steeringSender: undefined,
+			}]);
+		});
+
 		test('syncs a peer chat steering message addressed by the peer chat URI', () => {
 			setupSession();
 			const peerChatUri = URI.parse(buildChatUri(sessionUri.toString(), 'peer-steer'));
@@ -4491,6 +4621,7 @@ suite('AgentSideEffects', () => {
 				eventName: 'agentHost.userMessageSent',
 				data: {
 					provider: 'mock',
+					isOtelEnabled: false,
 					hostLaunchKind: 'vscode_main_process',
 					initiatorClientId: undefined,
 					initiatorClientType: 'unknown',
@@ -7440,6 +7571,55 @@ suite('AgentSideEffects', () => {
 				message: 'Follow up',
 				response: { kind: ResponsePartKind.Markdown, id: 'follow-up-part', content: 'Follow-up response' },
 				completedTurns: 1,
+			});
+		});
+
+		test('a child-scoped error ends the subagent turn as failed before its completion signal', () => {
+			setupSession();
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+			agent.fireProgress({ kind: 'subagent_started', chat: URI.parse(defaultChatUri), toolCallId: 'tc-search', agentName: 'search_code_subagent', agentDisplayName: 'Search code', agentDescription: 'Searches' });
+			const error = { errorType: 'subagentFailed', message: 'Search failed' };
+			agent.fireProgress({
+				kind: 'action',
+				resource: URI.parse(defaultChatUri),
+				parentToolCallId: 'tc-search',
+				action: { type: ActionType.ChatError, turnId: 'turn-1', duration: 42, part: { kind: ResponsePartKind.Error, error } },
+			});
+			agent.fireProgress({ kind: 'subagent_completed', chat: URI.parse(defaultChatUri), toolCallId: 'tc-search' });
+
+			const subState = stateManager.getSessionState(buildSubagentChatUri(sessionUri.toString(), 'tc-search'));
+			assert.deepStrictEqual({
+				activeTurn: subState?.activeTurn,
+				turnStates: subState?.turns.map(turn => turn.state),
+				error: subState?.turns[0]?.responseParts.find(part => part.kind === ResponsePartKind.Error),
+			}, {
+				activeTurn: undefined,
+				turnStates: [TurnState.Error],
+				error: { kind: ResponsePartKind.Error, error },
+			});
+		});
+
+		test('a child-scoped cancellation ends the subagent turn as cancelled before its completion signal', () => {
+			setupSession();
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+			agent.fireProgress({ kind: 'subagent_started', chat: URI.parse(defaultChatUri), toolCallId: 'tc-task', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explores' });
+			agent.fireProgress({
+				kind: 'action',
+				resource: URI.parse(defaultChatUri),
+				parentToolCallId: 'tc-task',
+				action: { type: ActionType.ChatTurnCancelled, turnId: 'turn-1', duration: 42 },
+			});
+			agent.fireProgress({ kind: 'subagent_completed', chat: URI.parse(defaultChatUri), toolCallId: 'tc-task' });
+
+			const subState = stateManager.getSessionState(buildSubagentChatUri(sessionUri.toString(), 'tc-task'));
+			assert.deepStrictEqual({
+				activeTurn: subState?.activeTurn,
+				turnStates: subState?.turns.map(turn => turn.state),
+			}, {
+				activeTurn: undefined,
+				turnStates: [TurnState.Cancelled],
 			});
 		});
 

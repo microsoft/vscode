@@ -8,6 +8,17 @@ Product startup telemetry and its host-lifetime correlation ID are documented in
 [`PERFORMANCE.md`](PERFORMANCE.md). They use the existing usage-telemetry consent,
 not the OTel exporter or its configuration.
 
+Product telemetry event `agentHost.userMessageSent` includes `isOtelEnabled`, a boolean
+recording resolved Agent Host OTel configuration at submission, not SDK initialization
+or successful export. It is stored as `Measures["isotelenabled"]` in Kusto. Join error
+events to admitted turns by machine, session, chat, and turn identifiers to calculate
+OTel-scoped failure rates. Unmatched errors and absent fields on older builds are
+unknown, not disabled; a host restart or resume can change configuration after submission.
+
+Host-wide diagnostic logs can be subscribed to over local Agent Host ingress, but are not advertised on Mission Control relay connections. Those logs must not contend with session operations on the bounded relay publisher. This is separate from provider-native OTel logs and their configured exporter destinations.
+
+<!-- (Written by Copilot) -->
+
 | Property | Agent Host OTel | Extension OTel |
 |---|---|---|
 | Process | Separate utility process (`src/vs/platform/agentHost/node/`) | Extension host |
@@ -116,8 +127,9 @@ the deadline remain missing; the marker is not proof that a turn completed.
 | Host `sendStageCheckpointMs` | **Residual critical-path wait** for the checkpoint after overlap with earlier preparation, not the entire checkpoint operation |
 | Host `sendStageProviderPreparationMs` | **Residual critical-path wait** for provider turn preparation (`IAgentChats.prepareTurn`, enabled by `chat.agentHost.experimental.overlapProviderPreparation`) after it overlapped the earlier pre-send stages and the checkpoint capture; absent when preparation did not run. Provider stage marks made during preparation precede dispatch and are not reported as `providerStage*Ms` |
 | Host `providerStageQueueMs`, `providerStageClientMs`, `providerStageSnapshotMs`, `providerStageConfigMs`, `providerStageCreateMs`, `providerStageFinalizeMs`, `providerStagePersistMs`, `providerStageRefreshMs`, `providerStageTurnPrepareMs`, `providerStageModelResponseMs` | Sequential provider-marked stages between provider dispatch and first progress (chat queue wait, SDK client acquisition, customization snapshot, session config, SDK create/resume, post-create setup, session registration/persistence, live-session refresh, per-turn preparation, and SDK send until first progress). Only stages the provider ran are present; a turn ending before first progress retains its partial open stage. Copilot marks all of them; other providers currently mark none |
-| Host `hostRootTurnOrdinal`, `hostProcessAgeMs`, `titleGenerationStrategy` | Existing root ordinal and process age captured at turn start, and effective `activeAgent`, `utility`, or `deferred` strategy when observed |
+| Host `hostRootTurnOrdinal`, `hostProcessAgeMs`, `titleGenerationStrategy` | Existing root ordinal and process age captured at turn start, and effective `activeAgent`, `utility`, `deferred`, or `agentReview` strategy when observed |
 | Renderer `requestId` | Exact client request ID, duplicated as `turnId` for joins |
+| Renderer `connectionKind` | Existing bounded `AgentHostClientConnectionKind`, captured from the client connection at invocation start; `unknown` when unavailable, absent in older diagnostic payloads |
 | Renderer `outcome`, `sessionTurnKind`, `invocationKind` | Existing diagnostic classifications described below |
 | Renderer `firstResponseTextMs`, `totalElapsedMs` | Invocation to qualifying first live root markdown, and invocation to terminal outcome |
 | Renderer `hasResponseText`, `rootToolCallsBeforeFirstText` | Whether qualifying text occurred; distinct live root tools before that text, absent without text |
@@ -160,7 +172,7 @@ user-owned; the diagnostics add no workspace paths, content or credentials.
 
 The renderer reports `agentHost.firstResponse` and writes a content-free
 `[AgentHostFirstResponse]` JSON record to its existing log. Schema version 1
-contains `requestId`, `provider`, optional backend `agentSessionId` / `chatId`,
+contains `requestId`, `provider`, `connectionKind`, optional backend `agentSessionId` / `chatId`,
 `sessionTurnKind` (`first`, `later`, or `unknown`), `outcome` (`success`,
 `cancelled`, `error`, or `notDispatched`), `hasResponseText`, optional
 `firstResponseTextMs`, and `totalElapsedMs`. The log additionally retains
@@ -176,6 +188,33 @@ The endpoint is the first nonwhitespace live root markdown emission, including
 final-only responses, not physical submit, paint, or a semantic guarantee of an
 answer. Reasoning, tool output, restored history and server-initiated observation
 do not start this metric. Existing first-progress measurements are unchanged.
+
+`connectionKind` reuses `AgentHostClientConnectionKind`, assigned by the owning
+client transport/integration and exposed through `IAgentConnection`. Values are
+`local`, `direct_websocket`, `dev_tunnel`, `dev_container`, `ssh`, `wsl`,
+`remote_extension_host`, `web_pub_sub`, `mission_control`, and `unknown`. The
+invocation captures this classification once, independently of provider names,
+host identities, or the configured-host registry, so it survives disconnection.
+Missing or unrecognized classifications become `unknown`; older diagnostic
+payloads can omit the field. The log and OTel diagnostic carry the same value,
+with no environment IDs, addresses, or credentials.
+
+Today, the GitHub-managed sandbox integration assigns `web_pub_sub`, while
+user-local environments discovered through Mission Control assign
+`mission_control`, although both use the Web PubSub relay. This is an
+integration classification, not a general hosting-ownership guarantee: future
+contributions must deliberately select their connection kind. PubSub usage
+alone does not identify a GitHub-managed sandbox or a user-managed environment.
+
+For cloud-sandbox first-response-text latency, filter `agentHost.firstResponse`
+to `connectionKind = web_pub_sub`, `invocationKind = newTurn`, `hasResponseText = true`,
+and `trustInteractionRequired = false`, then compute percentiles of
+`firstResponseTextMs`. Use `connectionKind = mission_control` for the current
+user-local cohort. Scope these filters to deployed versions using the
+classifications above; missing historical values are not cloud sandboxes.
+Separate outcomes and first/later turns when comparing cohorts. This remains
+invocation-to-first-response-text latency, not model TTFT or submission-to-paint
+latency; no connection-event join is needed.
 
 `rendererRootInvocationOrdinal` counts root invocation attempts across providers
 in this renderer lifetime, including declined, cancelled and resumed attempts.
@@ -195,7 +234,7 @@ progress, `[AgentHostFirstProgress]` JSON records `timeToFirstProgress`,
 `providerStages` durations observed so far, for attributing local latency
 without product telemetry. The first strategy capture adds
 an enriched marker with the same start values and `titleGenerationStrategy`
-(`activeAgent`, `utility`, or `deferred`). Merge compatible markers for one turn,
+(`activeAgent`, `utility`, `deferred`, or `agentReview`). Merge compatible markers for one turn,
 retaining the known strategy rather than counting them as separate observations.
 Resuming the same turn retains its original host timing and strategy without
 advancing the ordinal. This identity is retained until chat teardown or truncation.
@@ -239,10 +278,17 @@ and administrator controls apply; no additional setting or exporter is needed.
 - `cloudSandboxConnectionOutcome`: one `connect` or `recover` outcome (`success`,
   `failure`, `cancelled`) and `durationMs`. Public connects start before credential
   minting, waking and sealed-token waits; direct factory dials start at connection
-  setup. `stage` is `credentials` or `connection`. Readiness means authenticated
+  setup. `stage` is the last observed credentials, connection, relay, protocol,
+  authentication or restoration stage. Readiness means authenticated
   AHP initialization/state restoration, not WebSocket open. Reuse is excluded.
   Retries, backoff and outer-client replacement stay in the same operation;
   an initial handshake retry is not a healthy connection drop.
+- `cloudSandboxProvisioningOutcome`: one task/VM creation outcome (`success`,
+  `failure`, `cancelled`) and client-observed `durationMs`, before connection
+  tracking starts. Includes account resolution, HTTP, response validation and
+  failure cleanup. Success means a usable environment/session binding was returned,
+  not that AHP or the repository is ready. This event does not contain a connection
+  identifier; analyze provisioning separately rather than joining individual attempts.
 - `cloudSandboxConnectionHealth`: five-minute aggregate deltas across tracked
   connections, plus each connection's final delta at teardown. `connectedMs`
   includes quiet healthy connections and excludes outages. `unexpectedDisconnects`
@@ -257,6 +303,55 @@ Report successful p50/p95 ready/recovery durations alongside failure and cancell
 rates; use p99 only with enough samples. Compare like traffic levels and product
 surfaces using existing `commitHash`, `version`, `common.platform`,
 `common.product` and `common.isAgentsWindow` properties (including web Agents).
+
+To compare provisioning with resuming, use **`readinessMs` on successful
+`cloudSandboxConnectionOutcome` events**, grouped by `environmentOperation`:
+
+| `environmentOperation` | Start of `readinessMs` | Meaning |
+|---|---|---|
+| `provision` | Task creation starts | New sandbox, including allocation, local provider setup and connection. |
+| `resume` | Connection to an existing sandbox starts | Reopening an existing environment; it may already be warm. |
+| `recover` | A previously ready connection is lost | Automatic recovery, even if the original connection provisioned the sandbox. |
+| `attach` | Connection to a user-local Mission Control host starts | Not a managed sandbox; exclude from provisioning/resume comparisons. |
+
+All successful samples end at **authenticated AHP readiness**, not credential
+issuance or WebSocket open. A slow `initialize`/`reconnect` response therefore
+counts toward the correct workflow, even if the host is still starting after
+credentials arrive. Failures and cancellations carry partial elapsed time;
+do not mix them into successful readiness percentiles.
+
+For provisioning, `provisioningMs` covers task creation through connection start;
+`readinessMs = provisioningMs + preparationMs + connectionMs`. For resume and
+recovery, `provisioningMs` is zero and `readinessMs = durationMs`. Provisioning
+start times are local, never persisted or emitted, and are not reused for later
+recoveries or independent dials. If a created-environment caller omits that start
+time, `provisioningMs` and `readinessMs` are absent rather than silently treating
+allocation as instantaneous; exclude missing measurements from comparisons.
+The separate `cloudSandboxProvisioningOutcome.durationMs` remains the API-phase
+duration, including failures before connection starts. It is **not** comparable
+on its own to end-to-end resume time, and must not be added again to `readinessMs`.
+
+For connection latency, `preparationMs` and `connectionMs` are an exclusive
+partition of `durationMs` on both connect and recovery outcomes:
+
+- `preparationMs` includes credential acquisition, environment wake/resume hidden
+  inside `/connect`, explicit HTTP 202 retry waits and sealed-token preparation.
+  After a credential failure it also includes retry/cooldown time until preparation
+  succeeds or connection setup resumes.
+- `connectionMs` is the remaining wall time: relay, protocol, authentication and
+  state restoration, including connection retry backoff but excluding credential
+  preparation nested inside authentication.
+
+The existing `credentialsMs`, `relayMs`, `protocolMs`, `authenticationMs` and
+`restorationMs` remain cumulative diagnostic spans, not an additive breakdown:
+they may overlap, and `credentialsMs` excludes backoff outside its spans.
+Compare successful provisioning, preparation and connection p50/p95 separately,
+split connection outcomes by `operation` and `surface`, and keep failures and
+cancellations separate. `source: created | existing` is not a warm/cold signal.
+`wakingResponses > 0` confirms observed waking, but zero does not prove warm compute.
+Both provisioning and preparation include client/network/credential overhead;
+pure server startup duration or warm/cold classification still requires a
+server-reported signal. Neither metric includes subsequent repository preparation.
 
 Both versions need this instrumentation; missing historical measurements cannot
 be reconstructed, and a version comparison alone is not causal proof. Deltas reset

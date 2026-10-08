@@ -18,6 +18,7 @@ import { ChatUserInteractionSpanName, chatUserInteractionAttributes, IChatUserIn
 import { IOtlpExportTraceServiceRequest } from '../../../../otel/node/otlp/otlpJsonTypes.js';
 import { OTelSqliteStore } from '../../../../otel/node/sqlite/otelSqliteStore.js';
 import { NullTelemetryService } from '../../../../telemetry/common/telemetryUtils.js';
+import { AgentHostClientConnectionKind } from '../../../common/agentHostTelemetry.js';
 import { AgentHostFirstResponseSpanName, AgentHostTimingAttributePrefix, AgentHostTurnTimingSpanName, agentHostTimingAttributes, type IAgentHostFirstResponseDiagnostic, type IAgentHostTurnTimingDiagnostic } from '../../../common/otel/agentHostTiming.js';
 import { buildDefaultChatUri } from '../../../common/state/sessionState.js';
 import { AgentHostClientConnectionService } from '../../../node/agentHostClientConnectionService.js';
@@ -84,6 +85,18 @@ suite('Agent Host timing OTel', () => {
 		return (await readFile(outfile, 'utf8')).trim().split('\n').map(line => JSON.parse(line));
 	}
 
+	test('exposes resolved enablement independently of diagnostic export support', () => {
+		const cases: { env: NodeJS.ProcessEnv; enabled: boolean }[] = [
+			{ env: {}, enabled: false },
+			{ env: { COPILOT_OTEL_ENABLED: 'false' }, enabled: false },
+			{ env: { COPILOT_OTEL_ENABLED: 'true' }, enabled: true },
+			{ env: { COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED: 'true' }, enabled: true },
+			{ env: { OTEL_EXPORTER_OTLP_ENDPOINT: 'http://localhost:4318' }, enabled: true },
+			{ env: { COPILOT_OTEL_FILE_EXPORTER_PATH: outfile }, enabled: true },
+		];
+		assert.deepStrictEqual(cases.map(({ env }) => createService(env).enabled), cases.map(({ enabled }) => enabled));
+	});
+
 	test('allowlists diagnostics, preserves zero, and omits unknown or invalid measurements', () => {
 		const attributes = agentHostTimingAttributes({
 			...host, agentSessionId: 'file:///private/workspace', chatId: '../private',
@@ -140,6 +153,31 @@ suite('Agent Host timing OTel', () => {
 			{ hasResponseText: false, firstResponseTextMs: undefined, rootToolCallsBeforeFirstText: undefined, rendererRootInvocationOrdinal: 1, totalElapsedMs: 70 },
 			{ hasResponseText: true, firstResponseTextMs: 0, rootToolCallsBeforeFirstText: 0, rendererRootInvocationOrdinal: 1, totalElapsedMs: 70 },
 		]);
+	});
+
+	test('exports optional connection kind without inferring it from the provider', async () => {
+		const service = createService({ COPILOT_OTEL_FILE_EXPORTER_PATH: outfile });
+		const connectionKinds = [
+			undefined,
+			AgentHostClientConnectionKind.Local,
+			AgentHostClientConnectionKind.DirectWebSocket,
+			AgentHostClientConnectionKind.DevTunnel,
+			AgentHostClientConnectionKind.DevContainer,
+			AgentHostClientConnectionKind.SSH,
+			AgentHostClientConnectionKind.WSL,
+			AgentHostClientConnectionKind.RemoteExtensionHost,
+			AgentHostClientConnectionKind.WebPubSub,
+			AgentHostClientConnectionKind.MissionControl,
+			AgentHostClientConnectionKind.Unknown,
+		];
+		for (const connectionKind of connectionKinds) {
+			service.emitFirstResponse({ ...renderer, provider: 'copilot', connectionKind });
+		}
+		await service.flush();
+		assert.deepStrictEqual((await readSpans()).map(span => ({
+			connectionKind: span.attributes[`${prefix}connectionKind`],
+			firstResponseTextMs: span.attributes[`${prefix}firstResponseTextMs`],
+		})), connectionKinds.map(connectionKind => ({ connectionKind, firstResponseTextMs: 60 })));
 	});
 
 	test('exports numeric file metadata with content capture off and without model accounting', async () => {

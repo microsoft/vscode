@@ -10,6 +10,7 @@ import { retry } from '../../../../../../base/common/async.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
 import { TestAccessibilityService } from '../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -322,6 +323,13 @@ suite('ChatWorkingLogo', () => {
 			maximumTieDevicePixelTravelAt30Fps: 5.751,
 			pendingAfterStop: false,
 		});
+	});
+
+	test('Draw mask geometry preserves moving caps and fully revealed bands', async () => {
+		await assertSnapshot([0.05, 0.2, 0.38, 0.58, 0.75, 0.93].map(progress => ({
+			progress,
+			paths: getChatWorkingLogoDrawFrame(progress).paths,
+		})));
 	});
 
 	test('draw resolves to a full static logo when stopped, reduced, or disabled', () => {

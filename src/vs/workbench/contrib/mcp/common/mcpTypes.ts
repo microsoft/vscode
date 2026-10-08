@@ -208,6 +208,12 @@ export interface McpServerDefinition {
 	readonly roots?: URI[] | undefined;
 	/** If set, allows configuration variables to be resolved in the {@link launch} with the given context */
 	readonly variableReplacement?: McpServerDefinitionVariableReplacement;
+	/**
+	 * If set, `${VAR}` environment variable references in the {@link launch}, as written when
+	 * servers are migrated to `.mcp.json` or the Copilot user configuration, are expanded with
+	 * the environment of the extension host that runs or connects to the server.
+	 */
+	readonly environmentVariableExpansion?: McpServerEnvironmentVariableExpansion;
 	/** Nonce used for caching the server. Changing the nonce will indicate that tools need to be refreshed. */
 	readonly cacheNonce: string;
 	/** Dev mode configuration for the server */
@@ -299,6 +305,7 @@ export namespace McpServerDefinition {
 		readonly launch: McpServerLaunch.Serialized;
 		readonly defaultCwd?: UriComponents;
 		readonly variableReplacement?: McpServerDefinitionVariableReplacement.Serialized;
+		readonly environmentVariableExpansion?: McpServerEnvironmentVariableExpansion;
 		readonly staticMetadata?: McpServerStaticMetadata;
 		readonly sandboxEnabled?: boolean;
 		readonly version?: string;
@@ -321,6 +328,7 @@ export namespace McpServerDefinition {
 			version: def.version,
 			gallery: def.gallery,
 			variableReplacement: def.variableReplacement ? McpServerDefinitionVariableReplacement.fromSerialized(def.variableReplacement) : undefined,
+			environmentVariableExpansion: def.environmentVariableExpansion,
 		};
 	}
 
@@ -333,6 +341,7 @@ export namespace McpServerDefinition {
 			&& objectsEqualWithUris(a.launch, b.launch)
 			&& objectsEqualWithUris(a.presentation, b.presentation)
 			&& objectsEqualWithUris(a.variableReplacement, b.variableReplacement)
+			&& objectsEqual(a.environmentVariableExpansion, b.environmentVariableExpansion)
 			&& objectsEqual(a.devMode, b.devMode)
 			&& a.version === b.version
 			&& a.gallery === b.gallery
@@ -341,6 +350,20 @@ export namespace McpServerDefinition {
 	}
 }
 
+
+/**
+ * Expands `${VAR}` and `${VAR:-default}` references with the Copilot CLI's rules, for
+ * servers from a workspace `.mcp.json` or the Copilot user configuration. VS Code variables
+ * with an argument, such as `${input:x}` or `${env:X}`, are not interpreted.
+ */
+export interface McpServerEnvironmentVariableExpansion {
+	/**
+	 * The unexpanded URL of an HTTP server. `URI` normalization would encode or
+	 * lowercase references such as `${HOST}`, so the URL is expanded from this
+	 * string rather than from the launch's `uri`.
+	 */
+	readonly url?: string;
+}
 
 export interface McpServerDefinitionVariableReplacement {
 	section?: string; // e.g. 'mcp'

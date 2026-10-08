@@ -10,11 +10,12 @@ import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
-import { GitHubRequestQueue } from '../../common/githubRequestQueue.js';
-import { GitHubRequestTelemetry, gitHubRequestOutcome } from '../../common/githubRequestTelemetry.js';
+import { RequestQueue } from '../../common/requestQueue.js';
+import { GitHubRequestTelemetry } from '../../common/githubRequestTelemetry.js';
+import { requestOutcome, AccountHandle, RequestContext } from '../../common/types.js';
 import { GitHubTransport } from '../../common/githubTransport.js';
-import { GitHubAccountHandle, GitHubRequestContext, GitHubRequestError } from '../../common/githubTypes.js';
-import { FakeGitHubScheduler } from './fakeGitHubScheduler.js';
+import { GitHubRequestError } from '../../common/githubTypes.js';
+import { FakeScheduler } from './fakeScheduler.js';
 
 class RecordingTelemetryService extends mock<ITelemetryService>() {
 	override telemetryLevel = TelemetryLevel.USAGE;
@@ -36,7 +37,7 @@ class RecordingTelemetryService extends mock<ITelemetryService>() {
 	}
 }
 
-function context(overrides: Partial<GitHubRequestContext & { account: GitHubAccountHandle }> = {}): GitHubRequestContext & { account: GitHubAccountHandle } {
+function context(overrides: Partial<RequestContext & { account: AccountHandle }> = {}): RequestContext & { account: AccountHandle } {
 	return {
 		kind: 'rest',
 		account: { host: 'private-tenant.example', accountId: 'private-account' },
@@ -53,7 +54,7 @@ suite('GitHubRequestTelemetry', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function setup() {
-		const scheduler = store.add(new FakeGitHubScheduler());
+		const scheduler = store.add(new FakeScheduler());
 		const sink = new RecordingTelemetryService();
 		const telemetry = store.add(new GitHubRequestTelemetry('agentHost', scheduler, sink, new NullLogService()));
 		return { scheduler, sink, telemetry };
@@ -103,7 +104,7 @@ suite('GitHubRequestTelemetry', () => {
 
 	test('separates observed cooldown, remaining queue wait, and active execution', async () => {
 		const { scheduler, sink, telemetry } = setup();
-		const queue = store.add(new GitHubRequestQueue(scheduler,
+		const queue = store.add(new RequestQueue(scheduler,
 			request => request.resource === 'search' ? Math.max(0, 50 - scheduler.now()) : 0,
 			undefined, telemetry));
 		const releaseFirst = new DeferredPromise<void>();
@@ -156,7 +157,7 @@ suite('GitHubRequestTelemetry', () => {
 			resource: 'https://private-tenant.example/private-endpoint',
 			priority: 'background',
 		}));
-		const outcome = gitHubRequestOutcome(new GitHubRequestError('private-error', 'network', 503, 'private-body', [{ message: 'private-query' }]), false);
+		const outcome = requestOutcome(new GitHubRequestError('private-error', 'network', 503, 'private-body', [{ message: 'private-query' }]), false);
 		finish?.(outcome);
 		timing?.finish(outcome);
 		telemetry.flush();
@@ -224,7 +225,7 @@ suite('GitHubRequestTelemetry', () => {
 	});
 
 	test('discards aggregates and completion handles on an idle opt-out and opt-in transition', () => {
-		const scheduler = store.add(new FakeGitHubScheduler());
+		const scheduler = store.add(new FakeScheduler());
 		const sink = new RecordingTelemetryService();
 		const levelChanged = store.add(new Emitter<TelemetryLevel>());
 		const telemetry = store.add(new GitHubRequestTelemetry('workbench', scheduler, sink, new NullLogService(), levelChanged.event));
@@ -344,10 +345,37 @@ suite('GitHubRequestTelemetry', () => {
 		});
 	}
 
+	for (const evidence of ['generic denial', 'primary quota', 'secondary header', 'HTTP 429'] as const) {
+		test(`HTTP rate-limit telemetry agrees with error classification for ${evidence}`, async () => {
+			const { scheduler, sink, telemetry } = setup();
+			const limited = evidence !== 'generic denial';
+			const transport = store.add(new GitHubTransport(async () => Response.json({ message: 'Rate Limit Exceeded' }, {
+				status: evidence === 'HTTP 429' ? 429 : 403,
+				headers: {
+					'x-ratelimit-remaining': evidence === 'primary quota' ? '0' : '4999',
+					'x-github-secondary-rate-limited': String(evidence === 'secondary header'),
+				},
+			}), scheduler, false, undefined, undefined, telemetry));
+			await assert.rejects(transport.rest(context().account, 'token', {
+				method: 'GET', url: 'https://github.example.test/repos/owner/repo',
+			}, context().signal), { kind: limited ? 'rateLimit' : 'authorization' });
+			telemetry.flush();
+			const summary = sink.summary();
+			assert.deepStrictEqual({
+				attempts: summary.wireAttempts, authorizationFailures: summary.authorizationFailures,
+				rateLimitFailures: summary.rateLimitFailures, limitedResponses: summary.rateLimitedResponses,
+				delay: transport.rateLimits.getDelay(context().account, 'core'), timers: scheduler.pendingCount,
+			}, {
+				attempts: 1, authorizationFailures: Number(!limited), rateLimitFailures: Number(limited),
+				limitedResponses: Number(limited), delay: limited ? 60_000 : 0, timers: 0,
+			});
+		});
+	}
+
 	test('counts the remaining failure and HTTP status categories', () => {
 		const { sink, telemetry } = setup();
 		for (const kind of ['authentication', 'authorization', 'rateLimit', 'server', 'unknown'] as const) {
-			telemetry.startRequest()?.(gitHubRequestOutcome(new GitHubRequestError('ignored', kind), false));
+			telemetry.startRequest()?.(requestOutcome(new GitHubRequestError('ignored', kind), false));
 		}
 		for (const status of [403, 429, 101]) {
 			telemetry.recordResponse(status);
@@ -410,7 +438,7 @@ suite('GitHubRequestTelemetry', () => {
 	});
 
 	test('flushes completed work on disposal and isolates telemetry sink failures', () => {
-		const scheduler = store.add(new FakeGitHubScheduler());
+		const scheduler = store.add(new FakeScheduler());
 		const sink = new RecordingTelemetryService();
 		const successful = store.add(new GitHubRequestTelemetry('web', scheduler, sink, new NullLogService()));
 		successful.startRequest()?.('success');

@@ -93,6 +93,7 @@ export function createSessionsWorkbenchFixture(context: ComponentFixtureContext,
 		override readonly onDidChangePartVisibility = Event.None;
 		override isVisible(part: Parts) { return part === Parts.SESSIONS_PART || part === Parts.TITLEBAR_PART; }
 		override isEditorPaneVisible() { return false; }
+		override isModernUICompact() { return false; }
 		override getContainer() { return container; }
 	}();
 	const instantiationService = createEditorServices(disposableStore, {

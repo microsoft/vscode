@@ -523,7 +523,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		[DevContainerAgentHostEnabledSettingId]: {
 			type: 'boolean',
 			description: localize('chat.agentHost.devContainer.enabled', "Enable running Agent Host sessions in Dev Containers."),
-			default: false,
+			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			experiment: { mode: 'auto' },
 		},

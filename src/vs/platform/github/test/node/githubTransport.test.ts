@@ -7,15 +7,16 @@ import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { GitHubAccountHandle, GitHubGraphQLError } from '../../common/githubTypes.js';
+import { GitHubGraphQLError } from '../../common/githubTypes.js';
+import { AccountHandle } from '../../common/types.js';
 import { GitHubRequestError, GitHubTransport } from '../../common/githubTransport.js';
-import { FakeGitHubScheduler } from './fakeGitHubScheduler.js';
+import { FakeScheduler } from './fakeScheduler.js';
 import { nodeFetch } from './nodeFetch.js';
 import { gitHubGraphQLResponse, gitHubGraphQLStep, gitHubJsonResponse, gitHubNotModifiedResponse, gitHubRateLimitResponse, gitHubRawResponse, gitHubRedirectResponse, gitHubRestStep, ProgrammableGitHubServer } from './programmableGitHubServer.js';
 
-const accountA: GitHubAccountHandle = { host: 'github.example.test', accountId: '1' };
-const accountB: GitHubAccountHandle = { host: 'github.example.test', accountId: '2' };
-const accountOnOtherHost: GitHubAccountHandle = { host: 'other.example.test', accountId: '1' };
+const accountA: AccountHandle = { host: 'github.example.test', accountId: '1' };
+const accountB: AccountHandle = { host: 'github.example.test', accountId: '2' };
+const accountOnOtherHost: AccountHandle = { host: 'other.example.test', accountId: '1' };
 
 function signal(): AbortSignal {
 	return new AbortController().signal;
@@ -108,7 +109,7 @@ suite('GitHubTransport', () => {
 					response: gitHubJsonResponse([{ number: 4 }], { etag: '"media"' }),
 				}),
 			);
-			const transport = disposables.add(new GitHubTransport(nodeFetch, new FakeGitHubScheduler({ now: 123 })));
+			const transport = disposables.add(new GitHubTransport(nodeFetch, new FakeScheduler({ now: 123 })));
 			const pageOne = `${server.apiBaseUrl}/repos/o/r/pulls?page=1`;
 
 			await transport.rest(accountA, 'token-a', { method: 'GET', url: pageOne }, signal());
@@ -165,6 +166,33 @@ suite('GitHubTransport', () => {
 			server.assertSatisfied();
 		});
 	});
+
+	for (const status of [200, 304]) {
+		test(`honors no-store on HTTP ${status} without retaining a cached representation`, async () => {
+			const validators: (string | null)[] = [];
+			const transport = disposables.add(new GitHubTransport(async (_url, init) => {
+				validators.push(new Headers(init?.headers).get('If-None-Match'));
+				if (validators.length === 1) {
+					return Response.json({ value: 1 }, { headers: { etag: '"old"' } });
+				}
+				if (validators.length === 2) {
+					const headers = { etag: '"new"', 'cache-control': 'private, No-Store' };
+					return status === 304 ? new Response(null, { status, headers }) : Response.json({ value: 2 }, { headers });
+				}
+				return Response.json({ value: 3 });
+			}));
+			const request = { method: 'GET' as const, url: 'https://github.example.test/repos/o/r' };
+			await transport.rest(accountA, 'token-a', request, signal());
+			const revalidated = await transport.rest(accountA, 'token-a', request, signal());
+			const fresh = await transport.rest(accountA, 'token-a', request, signal());
+			assert.deepStrictEqual({
+				validators, revalidated: revalidated.data, fresh: fresh.data, originalStatus: revalidated.revalidatedStatusCode,
+			}, {
+				validators: [null, '"old"', null], revalidated: { value: status === 304 ? 1 : 2 },
+				fresh: { value: 3 }, originalStatus: status === 304 ? 200 : undefined,
+			});
+		});
+	}
 
 	test('rejects a 304 that answers no cached representation', async () => {
 		await withServer(async server => {
@@ -261,7 +289,7 @@ suite('GitHubTransport', () => {
 				waitFor: release.p,
 				response: gitHubGraphQLResponse({ repository: { id: 'R1' } }),
 			}));
-			const transport = disposables.add(new GitHubTransport(nodeFetch, new FakeGitHubScheduler({ now: 123 })));
+			const transport = disposables.add(new GitHubTransport(nodeFetch, new FakeScheduler({ now: 123 })));
 			const cancelled = new AbortController();
 			const query = 'query Repo($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { id } }';
 			const first = transport.graphql(accountA, 'token-a', server.graphQlUrl, query, { owner: 'o', name: 'r' }, cancelled.signal);
@@ -444,9 +472,90 @@ suite('GitHubTransport', () => {
 		});
 	});
 
+	test('a no-redirect request bypasses a learned redirect without changing ordinary reads', async () => {
+		const requests: { path: string; etag: string | null }[] = [];
+		const transport = disposables.add(new GitHubTransport(async (input, init) => {
+			const path = new URL(String(input)).pathname;
+			const etag = new Headers(init?.headers).get('If-None-Match');
+			requests.push({ path, etag });
+			return path === '/alias'
+				? new Response(null, { status: 302, headers: { location: '/repos/o/r' } })
+				: etag ? new Response(null, { status: 304 }) : Response.json({ value: 1 }, { headers: { etag: '"target"' } });
+		}));
+		const request = { method: 'GET' as const, url: 'https://github.example.test/alias' };
+		await transport.rest(accountA, 'token-a', request, signal());
+		await assert.rejects(transport.rest(accountA, 'token-a', { ...request, followRedirects: false }, signal()), { statusCode: 302 });
+		const ordinary = await transport.rest(accountA, 'token-a', request, signal());
+		assert.deepStrictEqual({ requests, data: ordinary.data, status: ordinary.statusCode }, {
+			requests: [
+				{ path: '/alias', etag: null }, { path: '/repos/o/r', etag: null },
+				{ path: '/alias', etag: null }, { path: '/repos/o/r', etag: '"target"' },
+			],
+			data: { value: 1 }, status: 304,
+		});
+	});
+
+	for (const variant of [
+		{ name: 'rate-limit resource', options: { rateLimitResource: 'agents' }, expectedData: { value: 2 } },
+		{ name: 'response body mode', options: { responseBody: 'none' }, expectedData: undefined },
+	] as const) {
+		test(`isolates concurrent reads and cached validators by ${variant.name}`, async () => {
+			const started = new DeferredPromise<void>();
+			const response = new DeferredPromise<Response>();
+			const validators: (string | null)[] = [];
+			const transport = disposables.add(new GitHubTransport(async (_url, init) => {
+				const etag = new Headers(init?.headers).get('If-None-Match');
+				validators.push(etag);
+				if (validators.length === 1) {
+					void started.complete();
+					return response.p;
+				}
+				return etag ? new Response(null, { status: 304 }) : Response.json({ value: 2 }, { headers: { etag: '"other"' } });
+			}));
+			const request = { method: 'GET' as const, url: 'https://github.example.test/repos/o/r' };
+			const ordinary = transport.rest(accountA, 'token-a', request, signal());
+			await started.p;
+			const different = transport.rest(accountA, 'token-a', { ...request, ...variant.options }, signal());
+			await response.complete(Response.json({ value: 1 }, { headers: { etag: '"original"' } }));
+			const results = await Promise.all([ordinary, different]);
+			const revalidated = await transport.rest(accountA, 'token-a', request, signal());
+			assert.deepStrictEqual({
+				data: results.map(result => result.data), validators, revalidated: revalidated.data,
+			}, {
+				data: [{ value: 1 }, variant.expectedData], validators: [null, null, '"original"'], revalidated: { value: 1 },
+			});
+		});
+	}
+
+	test('dispatch callbacks prevent sharing and do not fire for cancelled queued requests', async () => {
+		const started = new DeferredPromise<void>();
+		const response = new DeferredPromise<Response>();
+		const dispatched: string[] = [];
+		let calls = 0;
+		const transport = disposables.add(new GitHubTransport(async () => {
+			if (++calls === 1) {
+				void started.complete();
+				return response.p;
+			}
+			return Response.json({});
+		}));
+		const request = { method: 'GET' as const, url: 'https://github.example.test/repos/o/r' };
+		const first = transport.rest(accountA, 'token-a', { ...request, onDidDispatch: () => dispatched.push('first') }, signal());
+		await started.p;
+		const controller = new AbortController();
+		const reason = new Error('cancelled before dispatch');
+		const cancelled = transport.rest(accountA, 'token-a', { ...request, onDidDispatch: () => dispatched.push('cancelled') }, controller.signal);
+		const rejected = assert.rejects(cancelled, error => error === reason);
+		controller.abort(reason);
+		const last = transport.rest(accountA, 'token-a', { ...request, onDidDispatch: () => dispatched.push('last') }, signal());
+		await response.complete(Response.json({}));
+		await Promise.all([first, last, rejected]);
+		assert.deepStrictEqual({ calls, dispatched }, { calls: 2, dispatched: ['first', 'last'] });
+	});
+
 	test('shares rate-limit backoff across requests for an account', async () => {
 		await withServer(async server => {
-			const scheduler = new FakeGitHubScheduler({ now: 1_000 });
+			const scheduler = new FakeScheduler({ now: 1_000 });
 			const transport = disposables.add(new GitHubTransport(nodeFetch, scheduler));
 			server.enqueue(
 				gitHubRestStep({
@@ -478,7 +587,7 @@ suite('GitHubTransport', () => {
 
 	test('parks the account when a secondary rate limit gives no usable retry hint', async () => {
 		await withServer(async server => {
-			const scheduler = new FakeGitHubScheduler({ now: 1_000_000 });
+			const scheduler = new FakeScheduler({ now: 1_000_000 });
 			const transport = disposables.add(new GitHubTransport(nodeFetch, scheduler));
 			server.enqueue(
 				gitHubRestStep({
@@ -526,7 +635,7 @@ suite('GitHubTransport', () => {
 
 	test('parks a primary rate limit that GitHub reports as 403 rather than 429', async () => {
 		await withServer(async server => {
-			const scheduler = new FakeGitHubScheduler({ now: 1_000_000 });
+			const scheduler = new FakeScheduler({ now: 1_000_000 });
 			const transport = disposables.add(new GitHubTransport(nodeFetch, scheduler));
 			server.enqueue(
 				gitHubRestStep({
@@ -568,7 +677,7 @@ suite('GitHubTransport', () => {
 
 	test('does not park an authorization failure that merely shares the 403 status', async () => {
 		await withServer(async server => {
-			const scheduler = new FakeGitHubScheduler({ now: 1_000_000 });
+			const scheduler = new FakeScheduler({ now: 1_000_000 });
 			const transport = disposables.add(new GitHubTransport(nodeFetch, scheduler));
 			server.enqueue(
 				gitHubRestStep({
@@ -762,7 +871,7 @@ suite('GitHubTransport', () => {
 
 	for (const scenario of graphQLThrottlingCases) {
 		test(`classifies GraphQL throttling: ${scenario.name}`, async () => {
-			const scheduler = disposables.add(new FakeGitHubScheduler({ now: 1_000_000 }));
+			const scheduler = disposables.add(new FakeScheduler({ now: 1_000_000 }));
 			const dispatchTimes: number[] = [];
 			const transport = disposables.add(new GitHubTransport(async () => {
 				dispatchTimes.push(scheduler.now());
@@ -801,7 +910,7 @@ suite('GitHubTransport', () => {
 	for (const source of ['primary error', 'primary headers', 'secondary error'] as const) {
 		for (const locallyThrottled of [false, true]) {
 			test(`preserves a GraphQL cooldown from ${source} when an older response reports healthy quota (RATE_LIMITED: ${locallyThrottled})`, async () => {
-				const scheduler = disposables.add(new FakeGitHubScheduler({ now: 1_000_000 }));
+				const scheduler = disposables.add(new FakeScheduler({ now: 1_000_000 }));
 				const started = new DeferredPromise<void>();
 				const delayedResponse = new DeferredPromise<Response>();
 				let requests = 0;
@@ -843,7 +952,7 @@ suite('GitHubTransport', () => {
 
 	for (const type of ['RATE_LIMIT', 'RATE_LIMITED']) {
 		test(`GraphQL ${type} with shorter Retry-After does not shorten an existing cooldown`, async () => {
-			const scheduler = disposables.add(new FakeGitHubScheduler({ now: 1_000_000 }));
+			const scheduler = disposables.add(new FakeScheduler({ now: 1_000_000 }));
 			const started = new DeferredPromise<void>();
 			const response = new DeferredPromise<Response>();
 			const transport = disposables.add(new GitHubTransport(async () => {
@@ -870,7 +979,7 @@ suite('GitHubTransport', () => {
 
 	test('does not apply GraphQL primary-rate-limit state to the REST core bucket', async () => {
 		await withServer(async server => {
-			const scheduler = new FakeGitHubScheduler({ now: 1_000 });
+			const scheduler = new FakeScheduler({ now: 1_000 });
 			const transport = disposables.add(new GitHubTransport(nodeFetch, scheduler));
 			transport.rateLimits.updateFromGraphQL(accountA, {
 				remaining: 0,
@@ -993,7 +1102,7 @@ suite('GitHubTransport', () => {
 
 	for (const abortMode of ['cancel', 'timeout'] as const) {
 		test(`releases pending download reads on ${abortMode} even when source cancellation never settles`, async () => {
-			const scheduler = disposables.add(new FakeGitHubScheduler());
+			const scheduler = disposables.add(new FakeScheduler());
 			const controller = new AbortController();
 			const readStarted = new DeferredPromise<void>();
 			let cancelled = false;
@@ -1026,7 +1135,7 @@ suite('GitHubTransport', () => {
 	}
 
 	test('does not await a hanging source cancellation after capturing the bounded prefix', async () => {
-		const scheduler = disposables.add(new FakeGitHubScheduler());
+		const scheduler = disposables.add(new FakeScheduler());
 		let cancelled = false;
 		const stream = new ReadableStream<Uint8Array>({
 			start(controller) { controller.enqueue(new TextEncoder().encode('abcdef')); },
@@ -1045,7 +1154,7 @@ suite('GitHubTransport', () => {
 	});
 
 	test('sanitizes body read failures and releases the reader and deadline', async () => {
-		const scheduler = disposables.add(new FakeGitHubScheduler());
+		const scheduler = disposables.add(new FakeScheduler());
 		const stream = new ReadableStream<Uint8Array>({
 			pull(controller) { controller.error(new Error('private-token https://storage.example.test/log?sig=private')); },
 		}, { highWaterMark: 0 });
@@ -1091,7 +1200,7 @@ suite('GitHubTransport', () => {
 			url: 'https://api.example.test/log', maximumBytes: 3, timeout: 1_000,
 		}, signal());
 		assert.deepStrictEqual({ text: result.text, locked: stream.locked, warnings }, {
-			text: 'abc', locked: false, warnings: ['[GitHubTransport] Failed to cancel a download body'],
+			text: 'abc', locked: false, warnings: ['[Request] Failed to cancel a response body'],
 		});
 	});
 

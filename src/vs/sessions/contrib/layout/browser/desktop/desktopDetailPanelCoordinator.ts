@@ -22,6 +22,7 @@ export const enum DetailPanelTarget {
 	Changes,
 	ChangesForced,
 	Files,
+	FilesHidden,
 	FilesForced,
 	Preserve
 }
@@ -64,7 +65,7 @@ export class DesktopDetailPanelCoordinator extends Disposable {
 	sync(target: DetailPanelTarget): void {
 		this._target = target;
 		this._hasDockedDetailsContext.set(target === DetailPanelTarget.Changes || target === DetailPanelTarget.ChangesForced
-			|| target === DetailPanelTarget.Files || target === DetailPanelTarget.FilesForced);
+			|| target === DetailPanelTarget.Files || target === DetailPanelTarget.FilesHidden || target === DetailPanelTarget.FilesForced);
 		this._queueTarget(target);
 	}
 
@@ -84,6 +85,7 @@ export class DesktopDetailPanelCoordinator extends Disposable {
 				await this._viewsService.openViewContainer(CHANGES_VIEW_CONTAINER_ID, false);
 				return;
 			case DetailPanelTarget.Files:
+			case DetailPanelTarget.FilesHidden:
 			case DetailPanelTarget.FilesForced:
 				await this._viewsService.openViewContainer(SESSIONS_FILES_CONTAINER_ID, false);
 				return;

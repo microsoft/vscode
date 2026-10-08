@@ -9,7 +9,7 @@
  * - `enforced`: the policy governs Agent Host sessions as it governs Local sessions.
  * - `partial`: coverage is incomplete across paths or policy delivery sources.
  * - `notEnforced`: Agent Host sessions ignore the policy.
- * - `notApplicable`: the governed behavior is outside the Copilot Agent Host scope.
+ * - `notApplicable`: the policy is outside the supported Copilot Agent Host policy scope.
  */
 export type AgentHostPolicySupportStatus = 'enforced' | 'partial' | 'notEnforced' | 'notApplicable';
 
@@ -51,16 +51,11 @@ export const agentHostPolicySupport: Readonly<Record<string, IAgentHostPolicySup
 	// The bridge requires managed approval for native shell requests. Custom terminal tools report
 	// custom-tool requests instead, so their host-side approval paths still need a parity audit.
 	ChatToolsTerminalEnableAutoApprove: { status: 'partial' },
-	// Connection-owned legacy requirements block direct session Off on macOS/Linux (#339144).
-	// Policy loading versus withdrawal and last-client disconnect-grace transitions still need
-	// end-to-end verification. Windows uses its separate enablement setting. Copilot only.
-	ChatAgentSandboxEnabled: { status: 'partial' },
-	// Forwarded as the SDK sandbox `allowOutbound`. Copilot only.
-	ChatAgentSandboxAllowNetwork: { status: 'enforced' },
-	// Forwarded as the SDK sandbox `allowBypass`. Copilot only.
-	ChatAgentSandboxAllowUnsandboxedCommands: { status: 'enforced' },
-	// Not read by Agent Host; Copilot auto-approves every sandboxed shell command. Not yet tracked.
-	ChatAgentSandboxAllowAutoApprove: { status: 'notEnforced' },
+	// Deprecated legacy sandbox policies are outside the Agent Host policy contract.
+	// Existing setting forwarding remains, but supported enterprise enforcement uses native managed settings.
+	ChatAgentSandboxEnabled: { status: 'notApplicable' },
+	ChatAgentSandboxAllowNetwork: { status: 'notApplicable' },
+	ChatAgentSandboxAllowUnsandboxedCommands: { status: 'notApplicable' },
 	// The default-on bridge covers supported denies and empty-list deny-all, but not allowlists
 	// or every VS Code domain pattern. #337538, #337539
 	ChatAgentNetworkFilter: { status: 'partial' },
@@ -103,9 +98,10 @@ export const agentHostPolicySupport: Readonly<Record<string, IAgentHostPolicySup
 	// Extra marketplaces are additive; strict marketplaces do not disable already-installed plugins.
 	ChatExtraMarketplaces: { status: 'partial' },
 	ChatStrictMarketplaces: { status: 'partial' },
-	// The workbench filters synchronized customizations; independent runtime discovery is not
-	// governed by the VS Code-only value. Instructions are sent to the SDK too; runtime-native
-	// lockdown across every customization type still needs execution verification.
+	// The workbench filters synchronized customizations only for the boolean form, and the VS Code-only
+	// value does not govern independent runtime discovery. Forwarded user and workspace skills and agents,
+	// and all forwarded MCP servers, bypass plugin delivery so runtime-native lockdown can apply to them;
+	// that runtime enforcement, and lockdown of standalone instructions, still need execution verification.
 	ChatStrictPluginOnlyCustomization: { status: 'partial' },
 	// Documented as Local-only; Agent Host enables runtime file hooks regardless.
 	ChatHooks: { status: 'notEnforced' },

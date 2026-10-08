@@ -3,9 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Sequencer } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { Emitter } from '../../../../../base/common/event.js';
+import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -19,6 +22,7 @@ import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME } from '../.
 import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { INotification } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { getGitHubRepositoryFromRemoteUrl } from '../../../git/common/utils.js';
 import { IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta } from '../../common/chatSessionsService.js';
 import { AgentHostSessionListController } from '../agentSessions/agentHost/agentHostSessionListController.js';
@@ -40,13 +44,17 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 	private readonly _connection = observableValue<IAgentConnection | undefined>(this, undefined);
 	private readonly _discoveredRepositories = observableValue<ReadonlyMap<string, { readonly repository: string | undefined; readonly modifiedTime: number }>>(this, new Map());
 	private readonly _items: IObservable<readonly IChatSessionItem[]>;
+	private readonly _archivedStates = observableValue<ReadonlyMap<string, boolean>>(this, new Map());
+	private readonly _archiveSequencer = new Sequencer();
 
 	constructor(
 		address: string,
 		workspaceRepositories: IObservable<ReadonlySet<string> | undefined>,
 		private readonly _deleteSession: (rawId: string, token: CancellationToken) => Promise<boolean>,
+		private readonly _archiveSession: (rawId: string, archived: boolean, token: CancellationToken) => Promise<boolean>,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IRemoteAgentHostAuthenticationService authenticationService: IRemoteAgentHostAuthenticationService,
+		@INotificationService private readonly _notificationService: INotificationService,
 	) {
 		super();
 		const authority = agentHostAuthority(address);
@@ -60,6 +68,7 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 			dispatch: (channel, action) => this._requireConnection().dispatch(channel, action),
 		}, {
 			filterToWorkspace: false,
+			connectionAuthority: authority,
 			sessionSchemeAlias: { ui: CLOUD_SANDBOX_AGENT_PROVIDER, backend: CLOUD_SANDBOX_SESSION_SCHEME },
 		}));
 		this._controller = this._register(instantiationService.createInstance(AgentHostSessionListController,
@@ -71,6 +80,7 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 			const repositories = workspaceRepositories.read(reader);
 			const discoveredRepositories = this._discoveredRepositories.read(reader);
 			const connected = !!this._connection.read(reader);
+			const archivedStates = this._archivedStates.read(reader);
 			const visibleSessions = repositories && new Set(this._sessionListStore.getSessions(CLOUD_SANDBOX_AGENT_PROVIDER).filter(entry => {
 				const projectUri = entry.summary.project?.uri;
 				const project = projectUri ? getGitHubRepositoryFromRemoteUrl(projectUri) : undefined;
@@ -83,7 +93,7 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 			}).map(entry => entry.rawId));
 			return this._controller.items
 				.filter(item => !visibleSessions || visibleSessions.has(AgentSession.id(item.resource)))
-				.map(item => this._listItem(item, connected));
+				.map(item => this._listItem(item, connected, archivedStates));
 		});
 		let previousResources = new ResourceSet();
 		this._register(autorun(reader => {
@@ -184,11 +194,46 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 		this._sessionListStore.removeSession(CLOUD_SANDBOX_AGENT_PROVIDER, rawId);
 	}
 
-	private _listItem(item: IChatSessionItem, connected: boolean): IChatSessionItem {
+	setSessionArchived(rawId: string, archived: boolean): void {
+		if (this._archivedStates.get().get(rawId) === archived) {
+			return;
+		}
+		const states = new Map(this._archivedStates.get());
+		states.set(rawId, archived);
+		this._archivedStates.set(states, undefined);
+	}
+
+	setChatSessionItemArchived(resource: URI, archived: boolean): void {
+		void this._archiveSequencer.queue(async () => {
+			if (this._store.isDisposed) {
+				throw new CancellationError();
+			}
+			if (resource.scheme !== this.sessionType || resource.fragment) {
+				throw new Error(localize('cloudSandbox.archiveInvalidSession', "The session does not belong to this sandbox."));
+			}
+			const rawId = AgentSession.id(resource);
+			if (await this._archiveSession(rawId, archived, CancellationToken.None)) {
+				if (this._store.isDisposed) {
+					throw new CancellationError();
+				}
+				this.setSessionArchived(rawId, archived);
+			} else {
+				this._requireConnection();
+				this._controller.setChatSessionItemArchived(resource, archived);
+			}
+		}).catch(error => {
+			if (!isCancellationError(error)) {
+				this._notificationService.error(localize('cloudSandbox.archiveFailed', "Unable to change the sandbox session's archive state: {0}", toErrorMessage(error)));
+			}
+		});
+	}
+
+	private _listItem(item: IChatSessionItem, connected: boolean, archivedStates: ReadonlyMap<string, boolean>): IChatSessionItem {
 		return {
 			...item,
 			iconPath: Codicon.cloud,
 			...(!connected || item.isRead === undefined ? { archived: undefined, isRead: undefined } : {}),
+			...(archivedStates.has(AgentSession.id(item.resource)) ? { archived: archivedStates.get(AgentSession.id(item.resource)) } : {}),
 		};
 	}
 

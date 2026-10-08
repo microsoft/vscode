@@ -41,6 +41,8 @@ import {
 	type ChangesetState,
 	type ChatState,
 	type ChatSummary,
+	type ChatOrigin,
+	type CanvasState,
 	type ErrorInfo,
 	type ErrorResponsePart,
 	type PendingMessage,
@@ -51,6 +53,7 @@ import {
 	type URI as ProtocolURI,
 	type RootState,
 	type SessionState,
+	type SessionChatSummary,
 	type SessionSummary,
 	type TextRange,
 	type ToolCallCancelledState,
@@ -77,7 +80,7 @@ export {
 	SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus,
 	ToolResultContentType,
 	TurnState, type ActiveTurn, type AgentCustomization, type AgentCapabilities, type AgentInfo, type AgentSelection, type Annotation, type AnnotationEntry, type AnnotationOrigin, type AnnotationsState, type AnnotationsSummary, type Changeset, type ChangesetFile,
-	type ChangesetOperation, type ChangesetState, type ChatState, type ChatSummary, type ChatOrigin, type ChildCustomization, type ClientPluginCustomization, type ConfigPropertySchema,
+	type ChangesetOperation, type ChangesetState, type ChatState, type ChatSummary, type ChatOrigin, type CanvasReference, type CanvasState, type ChildCustomization, type ClientPluginCustomization, type ConfigPropertySchema,
 	type ConfigSchema,
 	type ContentRef, type Customization, type CustomizationDegradedState,
 	type CustomizationErrorState, type CustomizationLoadedState, type CustomizationLoadingState, type CustomizationLoadState, type DirectoryCustomization, type ErrorInfo, type HookCustomization, type FileEdit as ISessionFileDiff, type ToolResultEmbeddedResourceContent as IToolResultBinaryContent, type MarkdownResponsePart, type McpServerCustomization, type MessageAttachment,
@@ -263,6 +266,12 @@ export interface IAutoModeResolvedInfo {
 	readonly predictedLabel?: string;
 	readonly confidence?: number;
 	readonly candidateModels?: readonly string[];
+	/**
+	 * Display-only sentence from the routing service explaining why
+	 * {@link chosenModel} was picked; it already names the model. Absent for
+	 * on-device selections and when the service supplied no explanation.
+	 */
+	readonly selectionReason?: string;
 }
 
 /**
@@ -571,20 +580,25 @@ export function buildSubagentSessionUri(parentSession: ProtocolURI | ResourceURI
 	return parent.with({ path: `${path}${toolCallId}` }).toString();
 }
 
-/**
- * Parses a subagent session URI into its parent session URI and tool call ID.
- * Returns `undefined` if the URI does not follow the subagent convention.
- */
+/** Parses path-based subagent URIs and legacy Copilot fragment selections into their parent and tool call ID. */
 export function parseSubagentSessionUri(uri: ProtocolURI | ResourceURI): { parentSession: ResourceURI; toolCallId: string } | undefined {
 	const resource = asResourceUri(uri);
 	const match = SUBAGENT_URI_PATH_REGEX.exec(resource.path);
-	if (!match?.groups) {
-		return undefined;
+	if (match?.groups) {
+		return {
+			parentSession: resource.with({ path: match.groups.parentPath }),
+			toolCallId: match.groups.toolCallId,
+		};
 	}
-	return {
-		parentSession: resource.with({ path: match.groups.parentPath }),
-		toolCallId: match.groups.toolCallId,
-	};
+	const legacyPrefix = `${SUBAGENT_URI_SEGMENT}/`;
+	if (resource.scheme === 'copilotcli' && !resource.authority && !resource.query
+		&& resource.fragment.startsWith(legacyPrefix) && resource.fragment.length > legacyPrefix.length) {
+		return {
+			parentSession: resource.with({ fragment: '' }),
+			toolCallId: resource.fragment.slice(legacyPrefix.length),
+		};
+	}
+	return undefined;
 }
 
 /**
@@ -650,6 +664,7 @@ export function createChatState(summary: ChatSummary): ChatState {
 		origin: summary.origin,
 		interactivity: summary.interactivity,
 		workingDirectories: summary.workingDirectories,
+		...(summary.changes !== undefined ? { changes: summary.changes } : {}),
 		turns: [],
 		activeTurn: undefined,
 	};
@@ -750,6 +765,7 @@ export function chatSummaryFromState(state: ChatState): ChatSummary {
 	if (state.origin !== undefined) { summary.origin = state.origin; }
 	if (state.interactivity !== undefined) { summary.interactivity = state.interactivity; }
 	if (state.workingDirectories !== undefined) { summary.workingDirectories = state.workingDirectories; }
+	if (state.changes !== undefined) { summary.changes = state.changes; }
 	return summary;
 }
 
@@ -812,6 +828,7 @@ export const enum StateComponents {
 	Annotations,
 	AutomationCatalog,
 	AutomationRun,
+	Canvas,
 }
 
 export type ComponentToState = {
@@ -823,6 +840,7 @@ export type ComponentToState = {
 	[StateComponents.Annotations]: AnnotationsState;
 	[StateComponents.AutomationCatalog]: AutomationState;
 	[StateComponents.AutomationRun]: AutomationRunState;
+	[StateComponents.Canvas]: CanvasState;
 };
 
 // ---- Default chat URI helpers ----------------------------------------------
@@ -934,7 +952,7 @@ export function isDefaultChatUri(uri: ProtocolURI | ResourceURI): boolean {
 export function getSessionChatResource(state: Pick<SessionState, 'defaultChat'> & { readonly chats: readonly Pick<ChatSummary, 'resource'>[] }, chatId: string): ProtocolURI | undefined {
 	return chatId === DEFAULT_CHAT_ID
 		? state.defaultChat ?? state.chats.find(chat => isDefaultChatUri(chat.resource))?.resource
-		: state.chats.find(chat => parseChatUri(chat.resource)?.chatId === chatId)?.resource;
+		: state.chats.find(chat => (parseChatUri(chat.resource)?.chatId ?? chat.resource.toString()) === chatId)?.resource;
 }
 
 /**
@@ -1282,6 +1300,14 @@ export interface ISessionGitState {
 	readonly baseBranchName?: string;
 	/** Upstream tracking branch (e.g. `origin/feature`). */
 	readonly upstreamBranchName?: string;
+	/**
+	 * Default branch of the `origin` remote (e.g. `main`), read from
+	 * `refs/remotes/origin/HEAD`. Unlike {@link baseBranchName}, it is never
+	 * replaced by a configured base branch.
+	 */
+	readonly defaultBranchName?: string;
+	/** Remote-tracking branch of {@link defaultBranchName} (e.g. `origin/main`), present only when that ref exists. */
+	readonly defaultRemoteBranchName?: string;
 	/** Number of commits the upstream branch has ahead of the local branch. */
 	readonly incomingChanges?: number;
 	/** Number of commits the local branch has ahead of the upstream branch. */
@@ -1479,6 +1505,8 @@ export function parseSessionGitState(value: unknown): ISessionGitState | undefin
 		isDetachedHead?: boolean;
 		baseBranchName?: string;
 		upstreamBranchName?: string;
+		defaultBranchName?: string;
+		defaultRemoteBranchName?: string;
 		incomingChanges?: number;
 		outgoingChanges?: number;
 		uncommittedChanges?: number;
@@ -1493,6 +1521,8 @@ export function parseSessionGitState(value: unknown): ISessionGitState | undefin
 	if (typeof raw['isDetachedHead'] === 'boolean') { result.isDetachedHead = raw['isDetachedHead']; }
 	if (typeof raw['baseBranchName'] === 'string') { result.baseBranchName = raw['baseBranchName']; }
 	if (typeof raw['upstreamBranchName'] === 'string') { result.upstreamBranchName = raw['upstreamBranchName']; }
+	if (typeof raw['defaultBranchName'] === 'string') { result.defaultBranchName = raw['defaultBranchName']; }
+	if (typeof raw['defaultRemoteBranchName'] === 'string') { result.defaultRemoteBranchName = raw['defaultRemoteBranchName']; }
 	if (typeof raw['incomingChanges'] === 'number') { result.incomingChanges = raw['incomingChanges']; }
 	if (typeof raw['outgoingChanges'] === 'number') { result.outgoingChanges = raw['outgoingChanges']; }
 	if (typeof raw['uncommittedChanges'] === 'number') { result.uncommittedChanges = raw['uncommittedChanges']; }
@@ -2012,11 +2042,13 @@ export const AH_META_AUTO_ARCHIVED_AT_DB_KEY = 'agentHost.autoArchivedAt';
 export const AH_META_IS_DONE_DB_KEY = 'isDone';
 
 /**
- * Session-database metadata key recording whether a session has been read. This is
- * the only durable representation of read state; the in-memory truth is
- * {@link SessionStatus.IsRead}. The host owns it — no agent SDK tracks read state.
+ * Session-database metadata key recording the session aggregate read state. The
+ * in-memory truth is {@link SessionStatus.IsRead}; chat state is stored separately.
  */
 export const AH_META_IS_READ_DB_KEY = 'isRead';
+
+/** Session-database metadata key recording the default chat's independent read state. */
+export const AH_META_DEFAULT_CHAT_IS_READ_DB_KEY = 'defaultChatIsRead';
 
 /** Returns `status` with `flag` set or cleared. */
 export function withSessionStatusFlag(status: SessionStatus, flag: SessionStatus, set: boolean): SessionStatus {
@@ -2028,9 +2060,24 @@ export function isSessionStatusRead(status: SessionStatus | undefined): boolean 
 	return status !== undefined && (status & SessionStatus.IsRead) !== 0;
 }
 
+/**
+ * Whether a chat participates in the containing session's aggregate read state.
+ * Tool/subagent/hidden chats retain exact per-chat state without making the session unread.
+ */
+export function isChatInSessionReadAggregate(resource: ProtocolURI, origin?: ChatOrigin, interactivity?: ChatInteractivity): boolean {
+	return origin?.kind !== ChatOriginKind.Tool
+		&& interactivity !== ChatInteractivity.Hidden
+		&& !isSubagentChatUri(resource);
+}
+
 /** Whether the {@link SessionStatus.IsArchived} flag bit is set. */
 export function isSessionStatusArchived(status: SessionStatus | undefined): boolean {
 	return status !== undefined && (status & SessionStatus.IsArchived) !== 0;
+}
+
+/** Reads the archive flag from current chat status or a legacy AHP 0.9 summary. */
+export function isSessionChatArchived(chat: SessionChatSummary & { readonly archived?: boolean }): boolean {
+	return isSessionStatusArchived(chat.status) || chat.archived === true;
 }
 
 /**

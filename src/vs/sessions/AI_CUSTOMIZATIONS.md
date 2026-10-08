@@ -142,6 +142,8 @@ The management-editor command may select a section, target a session type, revea
 
 Provider-backed items retain provider identity through the shared contract. Shared widgets must not import or branch on provider implementations.
 
+Host-reported MCP provenance distinguishes user, workspace, plugin, built-in, managed-catalog, and signed-in-account sources. Account-contributed servers retain that source through protocol metadata and display a signed-in-account explanation when the runtime does not expose an editable definition. Tool telemetry reports only the bounded source kind, never the account identity.
+
 ## External customization providers
 
 Extensions may contribute customization items through the proposed `chatSessionCustomizationProvider` API. Its internal contract is `ICustomizationItemProvider` and `ICustomizationItem`.

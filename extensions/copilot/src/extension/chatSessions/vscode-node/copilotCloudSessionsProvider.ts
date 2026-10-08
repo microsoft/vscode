@@ -1479,7 +1479,11 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 						: undefined;
 				const repositoryMetadata = getCloudSessionItemMetadata(entry.repo, entry.diffRefs, pr);
 				// Tells the Agents window that the task was started outside VS Code and not adopted yet.
-				const metadata = isExternal(entry.taskId) ? { ...repositoryMetadata, external: true } : repositoryMetadata;
+				const metadata = {
+					...repositoryMetadata,
+					event_type: entry.eventType || this._ownership.getApplication(entry.taskId) || (isExternal(entry.taskId) ? 'github/autopilot' : 'vscode'),
+					...(isExternal(entry.taskId) ? { external: true } : {}),
+				};
 
 				return {
 					...getCloudSessionResources(entry.taskId, pr?.number),
@@ -2662,7 +2666,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			model: modelName && modelName !== DEFAULT_MODEL_ID ? modelName : undefined,
 			partnerAgentId,
 		});
-		await this.recordTaskFromVSCode(result.taskId);
+		await this.recordTaskFromVSCode(result.taskId, true);
 		this.refresh();
 		return result;
 	}
@@ -2671,9 +2675,13 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	 * Records a task started or messaged from VS Code so that it is not external. Returns whether
 	 * the task was external before. Failing to record must not fail the request.
 	 */
-	private async recordTaskFromVSCode(taskId: string): Promise<boolean> {
+	private async recordTaskFromVSCode(taskId: string, created = false): Promise<boolean> {
 		try {
-			return await this._ownership.record(taskId);
+			const item = this.cachedSessionItems?.find(item => SessionIdForTask.parseTaskId(item.resource) === taskId);
+			const application = created ? 'vscode'
+				: typeof item?.metadata?.event_type === 'string' ? item.metadata.event_type
+					: this._ownership.getOwnedTaskIds().has(taskId) ? 'vscode' : 'github/autopilot';
+			return await this._ownership.record(taskId, Date.now(), application);
 		} catch (e) {
 			this.logService.warn(`Failed to record cloud task ${taskId} as started from VS Code: ${e}`);
 			return false;
