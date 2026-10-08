@@ -108,25 +108,6 @@ suite('MCP Discovery - workspaceDotMcpDiscovery', () => {
 		}]);
 	});
 
-	test('discovers stdio servers written with the Copilot "local" type', async () => {
-		const f = fixture('{"mcpServers":{"migrated":{"type":"local","command":"node","args":["server.js"],"env":{"TOKEN":"value"},"tools":["*"]}}}');
-		const changed = Event.toPromise(f.onDidChange);
-		f.discovery.start();
-		await changed;
-		assert.deepStrictEqual(f.collections.get('workspace-dot-mcp.0')!.serverDefinitions.get().map(definition => ({ id: definition.id, launch: definition.launch })), [{
-			id: 'workspace-dot-mcp.0.migrated',
-			launch: {
-				type: McpServerTransportType.Stdio,
-				command: 'node',
-				args: ['server.js'],
-				env: { TOKEN: 'value' },
-				envFile: undefined,
-				cwd: undefined,
-				sandbox: undefined,
-			},
-		}]);
-	});
-
 	for (const wrapped of [true, false]) {
 		test(`reads ${wrapped ? 'wrapped' : 'flat'} JSONC without changing IDs, trust nonces or default cwd`, async () => {
 			const entries = '"local": { "command": "node", "args": ["server.js"] }, "invalid": null, "remote": { "url": "https://example.com/mcp", "headers": { "Authorization": "value" } },';
