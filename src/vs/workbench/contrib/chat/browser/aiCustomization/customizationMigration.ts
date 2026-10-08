@@ -130,6 +130,7 @@ export function migratePromptFileToSkill(promptFile: MigratableConfiguration, co
 	const friendlyName = promptFile.name?.trim() || parsed.header?.name?.trim() || getCleanPromptName(promptFile.uri);
 	const skillName = skillNameOverride ?? sanitizeSkillName(friendlyName);
 	const description = promptFile.description?.trim() || parsed.header?.description?.trim() || friendlyName;
+	const descriptionAttribute = parsed.header?.getAttribute(PromptHeaderAttributes.description);
 	const argumentHint = parsed.header?.argumentHint?.trim();
 	const argumentHintAttribute = parsed.header?.getAttribute(PromptHeaderAttributes.argumentHint);
 	const body = getPromptBody(parsed, content);
@@ -140,7 +141,7 @@ export function migratePromptFileToSkill(promptFile: MigratableConfiguration, co
 	const headerLines = [
 		'---',
 		`name: ${skillName}`,
-		`description: ${description}`,
+		`description: ${formatMigratedDescription(description, descriptionAttribute)}`,
 		'disable-model-invocation: true',
 	];
 
@@ -155,6 +156,32 @@ export function migratePromptFileToSkill(promptFile: MigratableConfiguration, co
 		content: `${headerLines.join('\n')}${body}`,
 		unsupportedHeaderKeys,
 	};
+}
+
+function formatMigratedDescription(value: string, sourceAttribute: IHeaderAttribute | undefined): string {
+	if (/[\u0000-\u001F\u007F]/.test(value)) {
+		return JSON.stringify(value);
+	}
+
+	if (sourceAttribute?.value.type === 'scalar') {
+		switch (sourceAttribute.value.format) {
+			case 'single':
+				return `'${value.replace(/'/g, `''`)}'`;
+			case 'double':
+				return JSON.stringify(value);
+			case 'none':
+				if (isSafePlainYamlScalar(value)) {
+					return value;
+				}
+		}
+	}
+
+	return isSafePlainYamlScalar(value) ? value : JSON.stringify(value);
+}
+
+function isSafePlainYamlScalar(value: string): boolean {
+	return /^[A-Za-z][A-Za-z0-9 ._/()'!?+=-]*$/.test(value)
+		&& !/^(?:true|false|null)$/i.test(value);
 }
 
 function formatMigratedHeaderValue(value: string, sourceAttribute: IHeaderAttribute | undefined): string {
