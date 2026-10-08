@@ -34,6 +34,8 @@ import { MissionControlProjects } from './missionControlProjects.js';
 import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { isObject } from '../../../../base/common/types.js';
 import { ActionType } from '../../common/state/sessionActions.js';
+import { AhpJsonlLogger } from '../../common/ahpJsonlLogger.js';
+import { MISSION_CONTROL_AHP_LOG_ID } from '../../common/missionControlEnvironment.js';
 
 interface IMissionControlHostOptions {
 	readonly hostLaunchKind: AgentHostLaunchKind;
@@ -107,6 +109,12 @@ export class MissionControlHost extends Disposable {
 			getIdentityApiBase: () => gitHubEndpoints.getApiBaseUri(),
 			onDidChangeIdentityAuthority: gitHubEndpoints.onDidChange,
 			createMirror: environmentId => this._createMirror(environmentId),
+			createAhpLogger: (clientId, generation) => this._instantiationService.createInstance(AhpJsonlLogger, {
+				logsHome: environmentService.logsHome,
+				logId: MISSION_CONTROL_AHP_LOG_ID,
+				connectionId: `${clientId}-${generation}`,
+				transport: 'mission-control',
+			}),
 		}));
 	}
 

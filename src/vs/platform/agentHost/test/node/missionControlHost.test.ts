@@ -35,6 +35,8 @@ import { MissionControlSessionMirror, type MissionControlMirrorEvent } from '../
 import { URI } from '../../../../base/common/uri.js';
 import { ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ProtocolServerHandler, type IProtocolServerConfig } from '../../node/protocolServerHandler.js';
+import { AhpJsonlLogger } from '../../common/ahpJsonlLogger.js';
+import { MISSION_CONTROL_AHP_LOG_ID } from '../../common/missionControlEnvironment.js';
 
 suite('Mission Control host integration', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -76,6 +78,7 @@ suite('Mission Control host integration', () => {
 		instantiation.stub(INativeEnvironmentService, new class extends mock<INativeEnvironmentService>() {
 			override readonly isBuilt = true;
 			override readonly userDataPath = '/unused-mission-control-test-profile';
+			override readonly logsHome = URI.file('/mission-control-test-logs');
 		}());
 		instantiation.stub(IProductService, new class extends mock<IProductService>() {
 			override readonly quality = 'stable';
@@ -223,6 +226,26 @@ suite('Mission Control host integration', () => {
 			diagnosticLogs: config.otlpLogEmitter,
 			modelProviders: config.advertisedModelProviders,
 		}, { hostManagement: false, diagnosticLogs: undefined, modelProviders: ['copilotcli'] });
+	});
+
+	test('creates lane-owned Mission Control JSONL loggers in the host log directory', () => {
+		const instantiation = store.add(new TestInstantiationService());
+		const creations = sinon.spy(instantiation, 'createInstance');
+		store.add(toDisposable(() => creations.restore()));
+		instantiation.stubInstance(AhpJsonlLogger, new class extends mock<AhpJsonlLogger>() {
+			override dispose(): void { }
+		}());
+		createHost(instantiation);
+		const environmentCreation = creations.getCalls().find(call => call.args[0] === MissionControlEnvironment)!;
+		const options = environmentCreation.args[1] as IMissionControlEnvironmentHost;
+		store.add(options.createAhpLogger!('mobile-client', 42));
+		const loggerCreation = creations.getCalls().find(call => call.args[0] === AhpJsonlLogger)!;
+		assert.deepStrictEqual(loggerCreation.args[1], {
+			logsHome: URI.file('/mission-control-test-logs'),
+			logId: MISSION_CONTROL_AHP_LOG_ID,
+			connectionId: 'mobile-client-42',
+			transport: 'mission-control',
+		});
 	});
 
 	test('reports bounded host lifecycle metadata without exporting errors or successful heartbeat traffic', () => {

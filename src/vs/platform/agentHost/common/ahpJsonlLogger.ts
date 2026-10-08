@@ -257,6 +257,9 @@ function stringifyAhpLogEntryTruncated(value: unknown, maxStringLength: number):
  */
 function _ahpReplacer(this: unknown, _key: string, value: unknown): unknown {
 	if (isRecord(value)) {
+		if (value.method === 'authenticate' && isRecord(value.params) && value.params.token !== undefined) {
+			return { ...value, params: { ...value.params, token: '<redacted authentication token>' } };
+		}
 		if (value.type === 'canvas/stateChanged' && isRecord(value.canvas) && value.canvas.url !== undefined) {
 			return { ...value, canvas: { ...value.canvas, url: REDACTED_CANVAS_SOURCE } };
 		}

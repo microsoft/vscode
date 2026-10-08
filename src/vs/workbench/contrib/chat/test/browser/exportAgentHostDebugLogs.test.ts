@@ -38,6 +38,7 @@ import { IWorkbenchEnvironmentService } from '../../../../services/environment/c
 import { TestPathService } from '../../../../test/browser/workbenchTestServices.js';
 import { BrowserAgentHostDebugLogsExportService, collectAgentHostDebugLogs, collectRotatedLogFiles, createHostArtifactStream, findOutputChannelLogFiles, getAgentHostDebugLogsExportName, IAgentHostDebugLogsExportService, notifyAgentHostDebugLogsExported, prepareAgentHostDebugLogsExport, resolveAgentHostDebugLogsChat, toActiveAgentHostSession } from '../../browser/actions/exportAgentHostDebugLogsAction.js';
 import { ChatConfiguration } from '../../common/constants.js';
+import { MISSION_CONTROL_AHP_LOG_ID } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 
 function artifactOfSize(size: number): IAgentHostDebugLogsArtifact {
 	return {
@@ -306,7 +307,7 @@ suite('toActiveAgentHostSession', () => {
 suite('collectAgentHostDebugLogs', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	async function collectWithFiles(ahpFiles: readonly { name: string; mtime: number }[], hostEntryCount = 0, sharedLogCount = 1, sessionScoped = false, hostArtifactKind: IAgentHostDebugLogsArtifact['kind'] = 'archive') {
+	async function collectWithFiles(ahpFiles: readonly { name: string; mtime: number }[], hostEntryCount = 0, sharedLogCount = 1, sessionScoped = false, hostArtifactKind: IAgentHostDebugLogsArtifact['kind'] = 'archive', missionControlLogsIncluded = false) {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const warnings: string[] = [];
 		const logService = new class extends NullLogService {
@@ -320,7 +321,7 @@ suite('collectAgentHostDebugLogs', () => {
 			...artifactOfSize(hostEntryCount),
 			kind: hostArtifactKind,
 			...(hostArtifactKind === 'directory' ? { resource: URI.file('/staging') } : {}),
-			entries: Array.from({ length: hostEntryCount }, (_, index) => ({ path: `host-${index}.log`, size: 1 })),
+			entries: Array.from({ length: hostEntryCount }, (_, index) => ({ path: missionControlLogsIncluded && index === 0 ? 'ahp/mission-control/connection.jsonl' : `host-${index}.log`, size: 1 })),
 		};
 		const fileStat = (folder: URI, name: string, mtime = 0) => upcastPartial<IFileStatWithMetadata>({
 			name,
@@ -411,6 +412,21 @@ suite('collectAgentHostDebugLogs', () => {
 			warnings: ['[ExportAgentHostDebugLogs] Omitted 1151 log files to keep the export within 1000 entries and 10 AHP files per host'],
 		});
 	});
+
+	for (const missionControlLogsIncluded of [true, false]) {
+		test(`collects Mission Control logs once when host inclusion is ${missionControlLogsIncluded}`, async () => {
+			const relay = ahpFile(MISSION_CONTROL_AHP_LOG_ID, 1);
+			const local = ahpFile('local-client', 2);
+			const { result, warnings } = await collectWithFiles([relay, local], 1, 1, false, 'archive', missionControlLogsIncluded);
+			assert.deepStrictEqual({
+				wireFiles: result.files.filter(file => file.path.startsWith('ahp/')).map(file => file.path),
+				warnings,
+			}, {
+				wireFiles: [`ahp/${local.name}`, ...missionControlLogsIncluded ? [] : [`ahp/${relay.name}`]],
+				warnings: [],
+			});
+		});
+	}
 
 	for (const hostEntryCount of [0, 990, 1000]) {
 		test(`caps the combined export at 1000 entries with ${hostEntryCount} host artifact entries`, async () => {

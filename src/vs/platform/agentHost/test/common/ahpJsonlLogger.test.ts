@@ -152,6 +152,32 @@ suite('AhpJsonlLogger', () => {
 		});
 	});
 
+	test('redacts authentication tokens without mutating live requests, including oversized entries', async () => {
+		const fileService = store.add(new FileService(new NullLogService()));
+		store.add(fileService.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
+		const logger = store.add(new AhpJsonlLogger(
+			{ logsHome: URI.file('/logs'), logId: 'authentication', connectionId: 'client', transport: 'mission-control' },
+			fileService, new NullLogService(),
+		));
+		const request = { jsonrpc: '2.0', id: 1, method: 'authenticate', params: { resource: 'https://api.github.com', token: 'private-token', scopes: ['copilot'] } };
+		logger.log(request, 'c2s');
+		logger.log({ ...request, id: 2, params: { ...request.params, extra: 'x'.repeat(2 * 1024 * 1024) } }, 'c2s');
+		await logger.flush();
+		const content = (await fileService.readFile(logger.resource)).value.toString();
+		const entries = content.trim().split('\n').map(line => JSON.parse(line));
+		assert.deepStrictEqual({
+			tokens: entries.map(entry => entry.params.token),
+			resources: entries.map(entry => entry.params.resource),
+			containsCredential: content.includes(request.params.token),
+			liveToken: request.params.token,
+			truncated: entries[1]._ahpLog.truncated,
+		}, {
+			tokens: ['<redacted authentication token>', '<redacted authentication token>'],
+			resources: ['https://api.github.com', 'https://api.github.com'],
+			containsCredential: false, liveToken: 'private-token', truncated: true,
+		});
+	});
+
 	test('coalesces synchronously queued log calls into a single write', async () => {
 		const fileService = store.add(new FileService(new NullLogService()));
 		const provider = store.add(new RecordingInMemoryFileSystemProvider());
