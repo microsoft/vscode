@@ -1489,12 +1489,12 @@ function registerModalEditorCommands(): void {
 				category: Categories.View,
 				f1: true,
 				icon: Codicon.emptyWindow,
-				precondition: EditorPartModalContext,
+				precondition: ContextKeyExpr.and(EditorPartModalContext, EditorPartModalCanMoveToEditorAreaContext),
 				menu: [{
 					id: MenuId.ModalEditorTitleContext,
 					group: '1_window',
 					order: 0,
-					when: IsSessionsWindowContext
+					when: ContextKeyExpr.and(IsSessionsWindowContext, EditorPartModalCanMoveToEditorAreaContext)
 				}]
 			});
 		}
@@ -1503,6 +1503,9 @@ function registerModalEditorCommands(): void {
 
 			for (const part of editorGroupsService.parts) {
 				if (isModalEditorPart(part)) {
+					if (!canMoveModalEditorToEditorArea(part.activeGroup.activeEditor)) {
+						return;
+					}
 					const auxiliaryEditorPart = await editorGroupsService.createAuxiliaryEditorPart();
 
 					for (const group of part.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
