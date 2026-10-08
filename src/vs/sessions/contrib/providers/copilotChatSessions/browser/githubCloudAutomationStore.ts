@@ -317,9 +317,16 @@ export class GitHubCloudAutomationStore extends Disposable {
 					const history = await Promise.all(this.cachedEntries.get().map(entry => limiter.queue(async () => {
 						try {
 							historySignal.throwIfAborted();
-							const tasks = await client.automations.listRuns(entry.definition.id, historySignal, { per_page: 50, page: 1, sort: 'created_at', direction: 'desc', is_archived: false });
+							const tasks = await client.automations.listRuns(entry.definition.id, historySignal, { per_page: 50, page: 1, sort: 'created_at', direction: 'desc', is_archived: false }).catch(error => {
+								if (!(error instanceof ApiRequestError) || error.statusCode !== 404) {
+									throw error;
+								}
+								this.removeEntry(entry, historySignal);
+								this.logService.info('[CloudAutomations] Definition no longer available', entry.definition.id);
+								return undefined;
+							});
 							const result: ICloudAutomationHistoryEntry[] = [];
-							for (const task of tasks.data.tasks) {
+							for (const task of tasks?.data.tasks ?? []) {
 								const detail = ['queued', 'in_progress', 'running', 'waiting_for_user'].includes(task.state)
 									? await client.tasks.get(task.id, historySignal) : task;
 								result.push({ entry, task: detail });

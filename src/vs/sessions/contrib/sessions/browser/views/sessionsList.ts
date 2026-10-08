@@ -247,7 +247,7 @@ function getChatTitle(chat: IChat, reader?: IReader): string {
 	return chat.title.read(reader).trim() || localize('untitledChat', "Untitled Chat");
 }
 
-function formatSessionListTime(date: Date): string {
+export function formatSessionListTime(date: Date): string {
 	const seconds = Math.round((Date.now() - date.getTime()) / 1000);
 	return seconds < 60 ? localize('secondsDuration', "now") : fromNow(date, true);
 }
@@ -6729,6 +6729,11 @@ export class SessionsFlatList extends Disposable {
 		}
 		this.tree.setFocus([session]);
 		this.tree.domFocus();
+	}
+
+	getFocusedSession(): ISession | undefined {
+		const focused = this.tree.getFocus()[0];
+		return focused && isSessionItem(focused) ? focused : undefined;
 	}
 }
 
