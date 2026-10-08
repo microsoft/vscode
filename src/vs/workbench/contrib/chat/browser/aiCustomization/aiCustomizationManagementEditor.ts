@@ -33,7 +33,7 @@ import { defaultButtonStyles } from '../../../../../platform/theme/browser/defau
 import { logSettingExperimentTrigger } from '../../../../../platform/telemetry/common/experimentTrigger.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
-import { IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { EditorPane } from '../../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../../common/editor.js';
@@ -240,8 +240,7 @@ interface IMigrationTargetQuickPickItem extends IQuickPickItem {
 }
 
 interface IMigrationDestinationQuickPickItem extends IQuickPickItem {
-	readonly folder?: ICustomizationSourceFolder;
-	readonly chooseAnother?: boolean;
+	readonly folder: ICustomizationSourceFolder;
 }
 
 interface IBuiltinPromptSaveRequest {
@@ -511,7 +510,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IFileService private readonly fileService: IFileService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
@@ -1289,6 +1287,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	private registerCustomizationMigrationSessionRefresh(): void {
 		this.editorDisposables.add(autorun(reader => {
+			this.harnessService.activeHarness.read(reader);
 			this.harnessService.activeSessionResource.read(reader);
 			this.workspaceService.activeProjectRoot.read(reader);
 			void this.refreshCustomizationMigrationInfo();
@@ -1337,8 +1336,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private async computeCustomizationMigrationInfo(refreshSequence: number, token: CancellationToken): Promise<void> {
 		const activeHarnessId = this.harnessService.activeHarness.get();
 		const activeSessionResource = this.harnessService.activeSessionResource.get();
-		const projectRoot = this.workspaceService.activeProjectRoot.get();
-		const contextKey = `${activeHarnessId}\n${activeSessionResource.toString()}\n${projectRoot ? getComparisonKey(projectRoot) : ''}`;
+		const contextKey = this.getCustomizationMigrationContextKey();
 		const contextChanged = contextKey !== this.migrationContextKey;
 		if (contextChanged) {
 			this.migrationContextKey = contextKey;
@@ -1387,7 +1385,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 				}
 				return [category.id, migration] as const;
 			}));
-			if (token.isCancellationRequested || refreshSequence !== this.customizationMigrationRefreshSequence || activeHarnessId !== this.harnessService.activeHarness.get() || !isEqual(activeSessionResource, this.harnessService.activeSessionResource.get())) {
+			if (token.isCancellationRequested || refreshSequence !== this.customizationMigrationRefreshSequence || !this.isCustomizationMigrationContextActive(contextKey)) {
 				return;
 			}
 
@@ -1404,7 +1402,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 				const folders = await provider?.provideSourceFolders?.(activeSessionResource, targetType, token);
 				return [targetType, folders ?? []] as const;
 			}));
-			if (token.isCancellationRequested || refreshSequence !== this.customizationMigrationRefreshSequence || activeHarnessId !== this.harnessService.activeHarness.get() || !isEqual(activeSessionResource, this.harnessService.activeSessionResource.get())) {
+			if (token.isCancellationRequested || refreshSequence !== this.customizationMigrationRefreshSequence || !this.isCustomizationMigrationContextActive(contextKey)) {
 				return;
 			}
 			const targetFoldersByType = new Map<PromptsType, readonly ICustomizationSourceFolder[]>(targetFolderEntries);
@@ -1414,7 +1412,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			if (isCancellationError(error)) {
 				return;
 			}
-			if (!token.isCancellationRequested && refreshSequence === this.customizationMigrationRefreshSequence) {
+			if (!token.isCancellationRequested && refreshSequence === this.customizationMigrationRefreshSequence && this.isCustomizationMigrationContextActive(contextKey)) {
 				this.customizationMigrationLoading = false;
 				this.customizationMigrationLoadError = getErrorMessage(error);
 				this.renderCustomizationMigrationDashboardState();
@@ -1479,10 +1477,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 			}
 		}
 		for (const [key, target] of requiredTargets) {
-			if (this.selectedCustomizationMigrationTargets.has(key) && this.explicitlySelectedCustomizationMigrationTargets.has(key)) {
+			const availableFolders = this.getCustomizationMigrationFolders(target.type, target.storage);
+			const selection = this.selectedCustomizationMigrationTargets.get(key);
+			const selectedFolder = selection && availableFolders.find(folder => isEqual(folder.uri, selection.uri));
+			if (selectedFolder && this.explicitlySelectedCustomizationMigrationTargets.has(key)) {
+				this.selectedCustomizationMigrationTargets.set(key, selectedFolder);
 				continue;
 			}
-			const folder = this.getCustomizationMigrationFolders(target.type, target.storage)[0];
+			this.explicitlySelectedCustomizationMigrationTargets.delete(key);
+			const folder = availableFolders[0];
 			if (folder) {
 				this.selectedCustomizationMigrationTargets.set(key, folder);
 			} else {
@@ -1589,6 +1592,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return;
 		}
 		const sessionResource = this.harnessService.activeSessionResource.get();
+		const contextKey = this.getCustomizationMigrationContextKey();
 		const customizations = [...this.customizationsByMigrationCategory].flatMap(([categoryId, candidates]) => {
 			const category = getCustomizationMigrationCategory(categoryId).migrationType;
 			return candidates
@@ -1617,12 +1621,18 @@ export class AICustomizationManagementEditor extends EditorPane {
 				type,
 				await harness.itemProvider?.provideSourceFolders?.(sessionResource, type, CancellationToken.None) ?? [],
 			] as const));
-			if (!isEqual(sessionResource, this.harnessService.activeSessionResource.get()) || harness.id !== this.harnessService.activeHarness.get()) {
+			if (!this.isCustomizationMigrationContextActive(contextKey)) {
 				return;
 			}
 
 			const recoveryBundleFolder = URI.joinPath(this.environmentService.workspaceStorageHome, 'customizationMigrations', migrationFlowId);
+			if (!this.isCustomizationMigrationContextActive(contextKey)) {
+				return;
+			}
 			await this.fileService.createFolder(recoveryBundleFolder);
+			if (!this.isCustomizationMigrationContextActive(contextKey)) {
+				return;
+			}
 
 			const prompt = createCustomizationMigrationAgentPrompt(harness, migrationFlowId, recoveryBundleFolder, customizations, new Map(targetFolderEntries));
 			if (!await this.closeCustomizationEditor()) {
@@ -1722,14 +1732,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 		try {
 			const migrationFlowId = this.migrationFlowId;
 			const sessionResource = this.harnessService.activeSessionResource.get();
+			const contextKey = this.getCustomizationMigrationContextKey();
 			if (category.migrationType === CustomizationMigrationType.McpServers) {
-				await this.migrateSelectedMcpServers(category, customizations.filter(isMcpServerCustomizationMigrationCandidate), sessionResource, migrationFlowId);
+				await this.migrateSelectedMcpServers(category, customizations.filter(isMcpServerCustomizationMigrationCandidate), sessionResource, contextKey, migrationFlowId);
 				return;
 			}
 			const files = customizations.filter(candidate => !isMcpServerCustomizationMigrationCandidate(candidate));
 			const settingsToClear = this.getConfiguredLocationSettingsToClear(category, files);
-			const targetFolders = await this.resolveCustomizationMigrationTargetFolders(files, this.customizationMigrationTargetFoldersByType, sessionResource);
-			if (!targetFolders || !this.isCustomizationMigrationSessionActive(sessionResource)) {
+			const targetFolders = await this.resolveCustomizationMigrationTargetFolders(files, this.customizationMigrationTargetFoldersByType, contextKey);
+			if (!targetFolders || !this.isCustomizationMigrationContextActive(contextKey)) {
 				return;
 			}
 			const confirmation = category.getConfirmation(files, this.getActiveHarnessLabel(), this.getCustomizationMigrationDestinationLabel(
@@ -1745,11 +1756,19 @@ export class AICustomizationManagementEditor extends EditorPane {
 				primaryButton: confirmation.primaryButton,
 				...(confirmation.deleteOriginalsLabel ? { checkbox: { label: confirmation.deleteOriginalsLabel, checked: true } } : {}),
 			});
-			if (!confirmed.confirmed || !this.isCustomizationMigrationSessionActive(sessionResource)) {
+			if (!confirmed.confirmed || !this.isCustomizationMigrationContextActive(contextKey) || !this.validateCustomizationMigrationTargetFolders(targetFolders)) {
 				return;
 			}
 			const deleteOriginalFiles = confirmed.checkboxChecked !== false;
-			const result = await this.runCustomizationMigration(files, targetFolders, deleteOriginalFiles);
+			let result: IMigratedCustomizationsWithFailureReasonsResult;
+			try {
+				result = await this.runCustomizationMigration(files, targetFolders, deleteOriginalFiles, contextKey);
+			} catch (error) {
+				if (isCancellationError(error)) {
+					return;
+				}
+				throw error;
+			}
 			this.customizationMigrationTelemetryService.migrationCompleted(
 				category.migrationType,
 				files.length,
@@ -1795,6 +1814,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		category: ICustomizationMigrationCategory,
 		servers: readonly IMcpServerCustomizationMigrationCandidate[],
 		sessionResource: URI,
+		contextKey: string,
 		migrationFlowId: string | undefined,
 	): Promise<void> {
 		if (servers.length === 0) {
@@ -1808,13 +1828,16 @@ export class AICustomizationManagementEditor extends EditorPane {
 			detail: this.getMcpMigrationConfirmationDetail(confirmation.detail, servers),
 			primaryButton: confirmation.primaryButton,
 		});
-		if (!confirmResult.confirmed || !this.isCustomizationMigrationSessionActive(sessionResource)) {
+		if (!confirmResult.confirmed || !this.isCustomizationMigrationContextActive(contextKey)) {
 			return;
 		}
 
 		this.customizationMigrationWritesInProgress = true;
 		let result: IMcpServerCustomizationMigrationResult;
 		try {
+			if (!this.isCustomizationMigrationContextActive(contextKey)) {
+				return;
+			}
 			result = await this.customizationMigrationService.migrateMcpServers(sessionResource, servers);
 		} finally {
 			await timeout(0);
@@ -1941,18 +1964,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 	): ICustomizationSourceFolder | undefined {
 		const targetType = getCustomizationMigrationTargetType(customization);
 		const targetFolder = targetFolders.get(targetType)?.get(customization.storage);
-		if (!targetFolder || customization.storage !== PromptsStorage.local) {
-			return targetFolder;
-		}
 		const availableFolders = this.getCustomizationMigrationFolders(targetType, customization.storage);
-		if (!availableFolders.some(folder => isEqual(folder.uri, targetFolder.uri))) {
-			// A folder picked through the file dialog is used as is.
-			return targetFolder;
+		const advertisedFolder = targetFolder && availableFolders.find(folder => isEqual(folder.uri, targetFolder.uri));
+		if (!advertisedFolder || customization.storage !== PromptsStorage.local) {
+			return advertisedFolder;
 		}
-		return resolveWorkspaceMigrationTargetFolder(customization.workspaceGroupId, targetFolder, availableFolders);
+		return resolveWorkspaceMigrationTargetFolder(customization.workspaceGroupId, advertisedFolder, availableFolders);
 	}
 
-	private async runCustomizationMigration(customizations: readonly MigratableConfiguration[], targetFolders: CustomizationMigrationTargetFolders, deleteOriginalFiles: boolean): Promise<IMigratedCustomizationsWithFailureReasonsResult> {
+	private async runCustomizationMigration(customizations: readonly MigratableConfiguration[], targetFolders: CustomizationMigrationTargetFolders, deleteOriginalFiles: boolean, contextKey: string): Promise<IMigratedCustomizationsWithFailureReasonsResult> {
 		this.customizationMigrationWritesInProgress = true;
 		try {
 			const failureReasons: FileCustomizationMigrationFailureReason[] = [];
@@ -1967,6 +1987,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 				{
 					deleteOriginalFiles,
 					resolveTargetFolder: customization => this.getEffectiveCustomizationMigrationTargetFolder(customization, targetFolders),
+					isWriteAllowed: () => this.isCustomizationMigrationContextActive(contextKey) && this.validateCustomizationMigrationTargetFolders(targetFolders),
 				},
 			);
 			return { ...result, failureReasons };
@@ -2540,7 +2561,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private async configureCustomizationMigrationLocations(id: CustomizationMigrationCategoryId, storage: PromptsStorage): Promise<void> {
-		const sessionResource = this.harnessService.activeSessionResource.get();
+		const contextKey = this.getCustomizationMigrationContextKey();
 		const destinations = this.getCustomizationMigrationDashboardDestinations(
 			this.getMigrationCandidates(getCustomizationMigrationCategory(id), storage)
 				.filter(candidate => !isMcpServerCustomizationMigrationCandidate(candidate)),
@@ -2550,7 +2571,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return;
 		}
 		if (destinations.length === 1) {
-			await this.chooseCustomizationMigrationDestination(destinations[0]);
+			await this.chooseCustomizationMigrationDestination(destinations[0], contextKey);
 			return;
 		}
 		const selected = await this.quickInputService.pick(destinations.map(destination => ({
@@ -2562,10 +2583,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 			placeHolder: localize('chooseMigrationLocationToCustomize', "Choose a migration location to customize"),
 			matchOnDescription: true,
 		});
-		if (!selected || !this.isCustomizationMigrationSessionActive(sessionResource)) {
+		if (!selected || !this.isCustomizationMigrationContextActive(contextKey)) {
 			return;
 		}
-		await this.chooseCustomizationMigrationDestination(selected.destination);
+		await this.chooseCustomizationMigrationDestination(selected.destination, contextKey);
 	}
 
 	private getCustomizationMigrationDestinationContextLabel(targetType: PromptsType, storage: PromptsStorage): string {
@@ -2582,8 +2603,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 	}
 
-	private async chooseCustomizationMigrationDestination(destination: ICustomizationMigrationDashboardDestination): Promise<void> {
-		const sessionResource = this.harnessService.activeSessionResource.get();
+	private async chooseCustomizationMigrationDestination(destination: ICustomizationMigrationDashboardDestination, contextKey = this.getCustomizationMigrationContextKey()): Promise<void> {
 		const key = this.getCustomizationMigrationTargetKey(destination.targetType, destination.storage);
 		const currentFolder = this.selectedCustomizationMigrationTargets.get(key);
 		const availableFolders = this.getCustomizationMigrationFolders(destination.targetType, destination.storage);
@@ -2593,55 +2613,28 @@ export class AICustomizationManagementEditor extends EditorPane {
 			picked: currentFolder ? isEqual(folder.uri, currentFolder.uri) : false,
 			folder,
 		}));
-		picks.push({
-			label: localize('chooseAnotherMigrationFolder', "Choose another folder..."),
-			description: localize('chooseAnotherMigrationFolderDescription', "Use a custom migration destination"),
-			chooseAnother: true,
-		});
+		if (picks.length === 0) {
+			this.notificationService.error(this.getMissingMigrationTargetFolderMessage(destination.targetType, destination.storage));
+			return;
+		}
 
 		const selected = await this.quickInputService.pick(picks, {
 			canPickMany: false,
 			placeHolder: localize('chooseMigrationDestination', "Choose a destination for {0}", destination.contextLabel),
 			matchOnDescription: true,
 		});
-		if (!selected || !this.isCustomizationMigrationSessionActive(sessionResource)) {
+		if (!selected || !this.isCustomizationMigrationContextActive(contextKey)) {
 			return;
 		}
 
-		const folder = selected.folder;
-		if (selected.chooseAnother) {
-			await this.chooseCustomMigrationDestination(destination, sessionResource);
-			return;
-		}
+		const folder = this.getCustomizationMigrationFolders(destination.targetType, destination.storage)
+			.find(availableFolder => isEqual(availableFolder.uri, selected.folder.uri));
 		if (!folder) {
+			this.notificationService.error(this.getUnavailableMigrationTargetFolderMessage(destination.targetType, destination.storage));
 			return;
 		}
 
 		this.selectedCustomizationMigrationTargets.set(key, folder);
-		this.explicitlySelectedCustomizationMigrationTargets.add(key);
-		this.renderCustomizationMigrationDashboardState();
-	}
-
-	private async chooseCustomMigrationDestination(destination: ICustomizationMigrationDashboardDestination, sessionResource: URI): Promise<void> {
-		const key = this.getCustomizationMigrationTargetKey(destination.targetType, destination.storage);
-		const currentFolder = this.selectedCustomizationMigrationTargets.get(key);
-		const folders = await this.fileDialogService.showOpenDialog({
-			title: localize('chooseCustomMigrationDestination', "Choose a Custom Migration Destination"),
-			openLabel: localize('selectFolder', "Select Folder"),
-			canSelectFiles: false,
-			canSelectFolders: true,
-			canSelectMany: false,
-			defaultUri: currentFolder?.uri,
-		});
-		const uri = folders?.[0];
-		if (!uri || !this.isCustomizationMigrationSessionActive(sessionResource)) {
-			return;
-		}
-		this.selectedCustomizationMigrationTargets.set(key, {
-			uri,
-			label: this.labelService.getUriLabel(uri, { relative: true }),
-			source: destination.storage,
-		});
 		this.explicitlySelectedCustomizationMigrationTargets.add(key);
 		this.renderCustomizationMigrationDashboardState();
 	}
@@ -2661,7 +2654,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private async resolveCustomizationMigrationTargetFolders(
 		customizations: readonly MigratableConfiguration[],
 		availableSourceFolders: ReadonlyMap<PromptsType, readonly ICustomizationSourceFolder[]>,
-		sessionResource: URI,
+		contextKey: string,
 	): Promise<CustomizationMigrationTargetFolders | undefined> {
 		const requiredStorageByTargetType = new Map<PromptsType, Set<PromptsStorage>>();
 		for (const customization of customizations) {
@@ -2675,15 +2668,21 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const selectedDestinationGroupIds = new Map<PromptsStorage, string>();
 		for (const [targetType, requiredStorages] of requiredStorageByTargetType) {
 			const availableFolders = availableSourceFolders.get(targetType) ?? [];
-			if (!this.isCustomizationMigrationSessionActive(sessionResource)) {
+			if (!this.isCustomizationMigrationContextActive(contextKey)) {
 				return undefined;
 			}
 			const foldersByStorage = new Map<PromptsStorage, ICustomizationSourceFolder>();
 			for (const storage of requiredStorages) {
 				const matchingFolders = this.getCustomizationMigrationFolders(targetType, storage, availableFolders);
-				const selectedFolder = this.selectedCustomizationMigrationTargets.get(this.getCustomizationMigrationTargetKey(targetType, storage));
-				if (matchingFolders.length === 0 && !selectedFolder) {
+				const key = this.getCustomizationMigrationTargetKey(targetType, storage);
+				const selection = this.selectedCustomizationMigrationTargets.get(key);
+				const selectedFolder = selection && matchingFolders.find(folder => isEqual(folder.uri, selection.uri));
+				if (matchingFolders.length === 0) {
 					this.notificationService.error(this.getMissingMigrationTargetFolderMessage(targetType, storage));
+					return undefined;
+				}
+				if (selection && !selectedFolder) {
+					this.notificationService.error(this.getUnavailableMigrationTargetFolderMessage(targetType, storage));
 					return undefined;
 				}
 
@@ -2691,11 +2690,14 @@ export class AICustomizationManagementEditor extends EditorPane {
 				const foldersAtSelectedDestination = selectedDestinationGroupId
 					? matchingFolders.filter(folder => folder.destinationGroupId === selectedDestinationGroupId)
 					: [];
-				let targetFolder = selectedFolder;
-				if (targetFolder?.destinationGroupId) {
+				const explicitlySelected = this.explicitlySelectedCustomizationMigrationTargets.has(key);
+				let targetFolder = explicitlySelected ? selectedFolder : undefined;
+				if (explicitlySelected && targetFolder?.destinationGroupId) {
 					selectedDestinationGroupIds.set(storage, targetFolder.destinationGroupId);
-				} else if (foldersAtSelectedDestination.length === 1) {
+				} else if (!targetFolder && foldersAtSelectedDestination.length === 1) {
 					targetFolder = foldersAtSelectedDestination[0];
+				} else if (!targetFolder && selectedFolder) {
+					targetFolder = selectedFolder;
 				} else if (!targetFolder && matchingFolders.length === 1) {
 					targetFolder = matchingFolders[0];
 				} else if (!targetFolder) {
@@ -2704,7 +2706,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 						selectedDestinationGroupIds.set(storage, targetFolder.destinationGroupId);
 					}
 				}
-				if (!targetFolder || !this.isCustomizationMigrationSessionActive(sessionResource)) {
+				if (!targetFolder || !this.isCustomizationMigrationContextActive(contextKey)) {
 					return undefined;
 				}
 				foldersByStorage.set(storage, targetFolder);
@@ -2714,8 +2716,25 @@ export class AICustomizationManagementEditor extends EditorPane {
 		return targetFolders;
 	}
 
-	private isCustomizationMigrationSessionActive(sessionResource: URI): boolean {
-		return isEqual(sessionResource, this.harnessService.activeSessionResource.get());
+	private getCustomizationMigrationContextKey(): string {
+		const projectRoot = this.workspaceService.activeProjectRoot.get();
+		return `${this.harnessService.activeHarness.get()}\n${getComparisonKey(this.harnessService.activeSessionResource.get())}\n${projectRoot ? getComparisonKey(projectRoot) : ''}`;
+	}
+
+	private isCustomizationMigrationContextActive(contextKey: string): boolean {
+		return contextKey === this.migrationContextKey && contextKey === this.getCustomizationMigrationContextKey();
+	}
+
+	private validateCustomizationMigrationTargetFolders(targetFolders: CustomizationMigrationTargetFolders): boolean {
+		for (const [targetType, foldersByStorage] of targetFolders) {
+			for (const [storage, folder] of foldersByStorage) {
+				if (!this.getCustomizationMigrationFolders(targetType, storage).some(availableFolder => isEqual(availableFolder.uri, folder.uri))) {
+					this.notificationService.error(this.getUnavailableMigrationTargetFolderMessage(targetType, storage));
+					return false;
+				}
+			}
+		}
+		return true;
 	}
 
 	private getMissingMigrationTargetFolderMessage(targetType: PromptsType, storage: PromptsStorage): string {
@@ -2737,6 +2756,14 @@ export class AICustomizationManagementEditor extends EditorPane {
 			default:
 				return localize('migrationNoGlobalInstructionsFolder', "No global instructions folder is configured for the active harness.");
 		}
+	}
+
+	private getUnavailableMigrationTargetFolderMessage(targetType: PromptsType, storage: PromptsStorage): string {
+		return localize(
+			'customizationMigrationDestinationUnavailable',
+			"The selected destination for {0} is no longer available. Choose a destination supported by the active harness.",
+			this.getCustomizationMigrationDestinationContextLabel(targetType, storage),
+		);
 	}
 
 	private async pickCustomizationMigrationTargetFolder(sourceFolders: readonly ICustomizationSourceFolder[], targetType: PromptsType, selectsMultipleTypes: boolean): Promise<ICustomizationSourceFolder | undefined> {

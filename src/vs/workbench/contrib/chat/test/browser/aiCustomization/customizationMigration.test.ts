@@ -8,6 +8,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { dirname, isEqual } from '../../../../../../base/common/resources.js';
+import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
@@ -813,6 +814,53 @@ suite('customizationMigration', () => {
 			migratedUris: [migratedUri.path],
 			originalExists: true,
 			migratedExists: true,
+		});
+	});
+
+	test('revalidates the migration context immediately before filesystem writes', async () => {
+		const customization: IPromptPath = {
+			uri: URI.file('/home/test/.vscode/prompts/style.instructions.md'),
+			name: 'Style',
+			storage: PromptsStorage.user,
+			type: PromptsType.instructions,
+			source: PromptFileSource.UserData,
+		};
+		const instructionsRoot: ICustomizationSourceFolder = {
+			uri: URI.file('/home/test/.copilot/instructions'),
+			label: '~/.copilot/instructions',
+			source: PromptsStorage.user,
+		};
+		const targetUri = URI.joinPath(instructionsRoot.uri, 'style.instructions.md');
+		const fileService = store.add(new FileService(new NullLogService()));
+		const fileSystemProvider = store.add(new InMemoryFileSystemProvider());
+		store.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
+		await fileService.writeFile(customization.uri, VSBuffer.fromString('Use tabs.'));
+		let validationCount = 0;
+
+		await assert.rejects(
+			migrateCustomizations(
+				[customization],
+				new Map([[PromptsType.instructions, new Map([[PromptsStorage.user, instructionsRoot]])]]),
+				fileService,
+				undefined,
+				{
+					isWriteAllowed: () => {
+						validationCount++;
+						return false;
+					},
+				},
+			),
+			error => isCancellationError(error),
+		);
+
+		assert.deepStrictEqual({
+			validationCount,
+			sourceExists: await fileService.exists(customization.uri),
+			targetExists: await fileService.exists(targetUri),
+		}, {
+			validationCount: 1,
+			sourceExists: true,
+			targetExists: false,
 		});
 	});
 

@@ -9,6 +9,7 @@ import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { basename, dirname, getComparisonKey } from '../../../../../base/common/resources.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
+import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { getCleanPromptName, getPromptFileExtension, SKILL_FILENAME, VALID_SKILL_NAME_REGEX } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { IHeaderAttribute, ParsedPromptFile, PromptFileParser, PromptHeaderAttributes } from '../../common/promptSyntax/promptFileParser.js';
@@ -49,6 +50,8 @@ export type CustomizationMigrationTargetFolders = ReadonlyMap<PromptsType, Reado
 
 export interface ICustomizationMigrationOptions {
 	readonly deleteOriginalFiles?: boolean;
+	/** Returns whether migration writes are still valid for the context that initiated them. */
+	readonly isWriteAllowed?: () => boolean;
 	/**
 	 * Resolves the target folder for a single customization. Used to keep workspace
 	 * customizations of a multi-root workspace inside their own workspace folder.
@@ -188,6 +191,11 @@ export async function migrateCustomizations(
 	let migratedCount = 0;
 	const deleteOriginalFiles = options?.deleteOriginalFiles ?? true;
 	const customizationsBySource = new ResourceMap<MigratableConfiguration[]>();
+	const ensureWriteAllowed = () => {
+		if (options?.isWriteAllowed?.() === false) {
+			throw new CancellationError();
+		}
+	};
 
 	for (const customization of customizations) {
 		const sourceCustomizations = customizationsBySource.get(customization.uri) ?? [];
@@ -236,17 +244,22 @@ export async function migrateCustomizations(
 				}
 
 				failureReason = FileCustomizationMigrationFailureReason.TargetWriteFailed;
+				ensureWriteAllowed();
 				await fileService.createFolder(targetFolder.uri);
 				if (customization.type === PromptsType.skill) {
 					const sourceFolder = dirname(customization.uri);
 					const targetSkillFolder = dirname(targetUri);
 					const stagingFolder = URI.joinPath(targetFolder.uri, `.migration-${generateUuid()}`);
 					writtenTargetUris.push(stagingFolder);
+					ensureWriteAllowed();
 					await fileService.copy(sourceFolder, stagingFolder, false);
+					ensureWriteAllowed();
 					await fileService.move(stagingFolder, targetSkillFolder, false);
 					writtenTargetUris.push(targetSkillFolder);
 				} else {
+					ensureWriteAllowed();
 					await fileService.createFolder(dirname(targetUri));
+					ensureWriteAllowed();
 					await fileService.createFile(targetUri, VSBuffer.fromString(migratedContent), { overwrite: false });
 					writtenTargetUris.push(targetUri);
 				}
@@ -256,6 +269,7 @@ export async function migrateCustomizations(
 			if (deleteOriginalFiles) {
 				failureReason = FileCustomizationMigrationFailureReason.SourceDeleteFailed;
 				const sourceToDelete = sourceCustomization.type === PromptsType.skill ? dirname(sourceCustomization.uri) : sourceCustomization.uri;
+				ensureWriteAllowed();
 				await fileService.del(sourceToDelete, { recursive: sourceCustomization.type === PromptsType.skill });
 			}
 			for (const key of sourceUnsupportedHeaderKeys) {
@@ -270,6 +284,15 @@ export async function migrateCustomizations(
 		} catch (error) {
 			const migrationError = error instanceof Error ? error : new Error(String(error));
 			const rollbackErrors = await rollbackMigrationTargets(writtenTargetUris, fileService);
+			if (isCancellationError(migrationError)) {
+				if (rollbackErrors.length > 0) {
+					onMigrationError?.(
+						new AggregateError([migrationError, ...rollbackErrors], `Failed to roll back ${basename(sourceCustomization.uri)} after migration was cancelled`),
+						[FileCustomizationMigrationFailureReason.RollbackFailed],
+					);
+				}
+				throw migrationError;
+			}
 			failedCustomizationFileNames.push(basename(sourceCustomization.uri));
 			const failureReasons = rollbackErrors.length > 0
 				? [failureReason, FileCustomizationMigrationFailureReason.RollbackFailed]
