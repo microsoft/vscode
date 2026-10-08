@@ -1293,6 +1293,12 @@ export interface IAgentTelemetryContext {
 	readonly copilotSku: string | undefined;
 }
 
+export interface IAgentSessionPlan {
+	readonly plan: { readonly exists: boolean; readonly content: string | null; readonly path: string | null };
+	readonly todos: readonly { readonly id: string | null; readonly title: string | null; readonly status: string | null; readonly description: string | null }[];
+	readonly dependencies: readonly { readonly todoId: string; readonly dependsOn: string }[];
+}
+
 /**
  * Implemented by each agent backend (e.g. Copilot SDK).
  * The {@link IAgentService} dispatches to the appropriate agent based on
@@ -1324,6 +1330,12 @@ export interface IAgent {
 
 	/** Capture the current account without allowing a later account to relabel an in-flight turn. */
 	getTelemetryContext?(): IAgentTelemetryContext;
+
+	/** Reads the owning session's provider-native plan and structured todos. */
+	getSessionPlan?(session: URI): Promise<IAgentSessionPlan>;
+
+	/** Applies a legacy boolean approval selection through the provider's runtime permission policy. */
+	setSessionApproveAll?(session: URI, enabled: boolean): Promise<void>;
 
 	// ---- Chat lifecycle and progress ----------------------------------------
 

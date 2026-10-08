@@ -296,6 +296,136 @@ suite('Mission Control sealed authentication', () => {
 		});
 	});
 
+	for (const algorithm of ['x25519-sealedbox', 'hpke-x25519-hkdf-sha256-aes256gcm'] as const) {
+		test(`local credential opt-in validates the ${algorithm} remote owner before forwarding the local credential`, async () => {
+			const sealing = store.add(new MissionControlSealing());
+			const key = sealing.advertisedKeys.find(key => key.use === 'auth-token' && key.algorithm === algorithm)!;
+			const envelope = await sealMissionControlCredential({ resource, token: 'mobile-token', key: { ...key, use: 'auth-token' } });
+			const requests: string[] = [];
+			const fetcher: typeof fetch = async (_input, init) => {
+				requests.push(new Headers(init?.headers).get('Authorization')!);
+				return Response.json({ id: 123, type: 'User' });
+			};
+			const auth = new MissionControlAuthentication(sealing, '123', resource, fetcher, false, () => true, () => 'desktop-token');
+			const accepted = await auth.authenticate({ resource, token: envelope, expiresIn: 1, scopes: ['mobile-only'] });
+			assert.deepStrictEqual({ accepted, requests, authorized: auth.authenticated }, {
+				accepted: { resource, token: 'desktop-token' },
+				requests: ['Bearer mobile-token', 'Bearer desktop-token'],
+				authorized: true,
+			});
+		});
+	}
+
+	test('local credential mode does not replace repository or MCP credentials', async () => {
+		const sealing = store.add(new MissionControlSealing());
+		const local = stub().returns('desktop-token');
+		const auth = new MissionControlAuthentication(sealing, '123', resource, async () => Response.json({ id: 123, type: 'User' }), false, () => true, local);
+		await auth.authenticate({ resource, token: seal(sealing, 'mobile-token') });
+		const repository = `${resource}/repos`;
+		const mcp = 'https://mcp.example.test';
+		assert.deepStrictEqual(await Promise.all([
+			auth.authenticate({ resource: repository, token: seal(sealing, 'repository-token', undefined, 'auth-token', repository), scopes: ['repo'], expiresIn: 300 }),
+			auth.authenticate({ resource: mcp, token: seal(sealing, 'mcp-token', undefined, 'mcp-auth-token', mcp), expiresIn: 60 }),
+		]), [
+			{ resource: repository, token: 'repository-token', scopes: ['repo'], expiresIn: 300 },
+			{ resource: mcp, token: 'mcp-token', expiresIn: 60 },
+		]);
+		assert.strictEqual(local.callCount, 2);
+	});
+
+	test('local credential mode cannot authorize a foreign remote user or a foreign local credential', async () => {
+		const sealing = store.add(new MissionControlSealing());
+		for (const foreign of ['mobile-token', 'desktop-token']) {
+			const local = stub().returns('desktop-token');
+			const auth = new MissionControlAuthentication(sealing, '123', resource, async (_input, init) => Response.json({
+				id: new Headers(init?.headers).get('Authorization') === `Bearer ${foreign}` ? 456 : 123, type: 'User',
+			}), false, () => true, local);
+			await assert.rejects(auth.authenticate({ resource, token: seal(sealing, 'mobile-token') }), /registered owner/);
+			assert.deepStrictEqual({ authorized: auth.authenticated, localReads: local.callCount }, {
+				authorized: false, localReads: foreign === 'mobile-token' ? 0 : 1,
+			});
+		}
+	});
+
+	for (const localCredential of [undefined, 'expired-local-token']) {
+		test(`local credential mode fails closed when the local credential is ${localCredential ? 'rejected' : 'unavailable'}`, async () => {
+			const sealing = store.add(new MissionControlSealing());
+			const auth = new MissionControlAuthentication(sealing, '123', resource, async (_input, init) =>
+				new Headers(init?.headers).get('Authorization') === 'Bearer expired-local-token'
+					? new Response('', { status: 401 })
+					: Response.json({ id: 123, type: 'User' }),
+				false, () => true, () => localCredential,
+			);
+			await assert.rejects(auth.authenticate({ resource, token: seal(sealing, 'mobile-token') }),
+				localCredential ? /GitHub identity validation failed/ : /local credential is unavailable/);
+			assert.strictEqual(auth.authenticated, false);
+		});
+	}
+
+	for (const transition of ['handshake', 'close', 'authority', 'local-token'] as const) {
+		test(`local credential validation cannot complete after ${transition} changes`, async () => {
+			const sealing = store.add(new MissionControlSealing());
+			const localValidation = new DeferredPromise<Response>();
+			const localStarted = new DeferredPromise<void>();
+			let current = true;
+			let localToken = 'desktop-token';
+			const fetcher: typeof fetch = async (_input, init) => {
+				if (new Headers(init?.headers).get('Authorization') === 'Bearer desktop-token') {
+					void localStarted.complete();
+					return localValidation.p;
+				}
+				return Response.json({ id: 123, type: 'User' });
+			};
+			const auth = new MissionControlAuthentication(sealing, '123', resource, fetcher, false, () => current, () => localToken);
+			const pending = auth.authenticate({ resource, token: seal(sealing, 'mobile-token') });
+			const rejection = assert.rejects(pending, /expired handshake|local credential changed/);
+			await localStarted.p;
+			if (transition === 'handshake') {
+				auth.beginHandshake();
+			} else if (transition === 'close') {
+				auth.dispose();
+			} else if (transition === 'authority') {
+				current = false;
+			} else {
+				localToken = 'new-desktop-token';
+			}
+			await localValidation.complete(Response.json({ id: 123, type: 'User' }));
+			await rejection;
+			assert.strictEqual(auth.authenticated, false);
+		});
+	}
+
+	test('MCP waits until local credential validation completes in delegated mode', async () => {
+		const sealing = store.add(new MissionControlSealing());
+		const localValidation = new DeferredPromise<Response>();
+		const localStarted = new DeferredPromise<void>();
+		const auth = new MissionControlAuthentication(sealing, '123', resource, async (_input, init) => {
+			if (new Headers(init?.headers).get('Authorization') === 'Bearer desktop-token') {
+				void localStarted.complete();
+				return localValidation.p;
+			}
+			return Response.json({ id: 123, type: 'User' });
+		}, false, () => true, () => 'desktop-token');
+		const owner = auth.authenticate({ resource, token: seal(sealing, 'mobile-token') });
+		const mcpResource = 'https://mcp.example.test';
+		const mcp = auth.authenticate({ resource: mcpResource, token: seal(sealing, 'mcp-token', undefined, 'mcp-auth-token', mcpResource) });
+		await localStarted.p;
+		assert.strictEqual(auth.authenticated, false);
+		await localValidation.complete(Response.json({ id: 123, type: 'User' }));
+		assert.deepStrictEqual(await Promise.all([owner, mcp]), [
+			{ resource, token: 'desktop-token' },
+			{ resource: mcpResource, token: 'mcp-token' },
+		]);
+	});
+
+	test('local credential mode still enforces connection binding before accessing the local token', async () => {
+		const sealing = store.add(new MissionControlSealing());
+		const local = stub().returns('desktop-token');
+		const auth = new MissionControlAuthentication(sealing, '123', resource, async () => Response.json({ id: 123, type: 'User' }), true, () => true, local);
+		await assert.rejects(auth.authenticate({ resource, token: seal(sealing, 'mobile-token') }), /connection-bound/);
+		assert.strictEqual(local.callCount, 0);
+	});
+
 	test('refuses failed identity validation and non-user principals', async () => {
 		await assert.rejects(resolveMissionControlOwner(async () => new Response('', { status: 401 }), resource, 'test'), /401/);
 		await assert.rejects(resolveMissionControlOwner(async () => Response.json({ id: 123, type: 'Bot' }), resource, 'test'), /user identity/);

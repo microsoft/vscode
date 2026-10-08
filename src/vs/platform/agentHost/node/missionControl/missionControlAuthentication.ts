@@ -234,6 +234,7 @@ export class MissionControlAuthentication {
 		private readonly _fetch: typeof fetch,
 		private readonly _requireBinding: boolean,
 		private readonly _isCurrentIdentityAuthority: () => boolean = () => true,
+		private readonly _getLocalCredential?: () => string | undefined,
 	) { }
 
 	beginHandshake(): void {
@@ -323,12 +324,30 @@ export class MissionControlAuthentication {
 				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Credential does not belong to the registered owner');
 			}
 		}
+		let localCredential: string | undefined;
+		if (this._getLocalCredential && params.resource === this._apiOrigin) {
+			if (this._closed || generation !== this._generation || !this._isCurrentIdentityAuthority()) {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidRequest, 'Relay authentication belongs to an expired handshake');
+			}
+			localCredential = this._getLocalCredential();
+			if (!localCredential) {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidRequest, 'Mission Control local credential is unavailable');
+			}
+			if (await resolveMissionControlOwner(this._fetch, this._apiOrigin, localCredential) !== this._owner) {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Local credential does not belong to the registered owner');
+			}
+			if (localCredential !== this._getLocalCredential()) {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidRequest, 'Mission Control local credential changed during authentication');
+			}
+		}
 		if (this._closed || generation !== this._generation || !this._isCurrentIdentityAuthority()) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidRequest, 'Relay authentication belongs to an expired handshake');
 		}
 		if (identity) {
 			this._authenticated = true;
 		}
-		return { ...params, token: opened.token };
+		return localCredential
+			? { resource: params.resource, token: localCredential }
+			: { ...params, token: opened.token };
 	}
 }
