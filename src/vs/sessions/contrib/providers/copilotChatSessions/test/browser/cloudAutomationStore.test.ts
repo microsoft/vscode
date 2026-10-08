@@ -482,6 +482,13 @@ suite('CloudAutomationStore', () => {
 		}, { enabled: false, automations: [], historyRequested: false });
 	});
 
+	test('cloud definitions link to their GitHub automation detail page', async () => {
+		const { provider, set } = setup();
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		assert.strictEqual(provider.automations.get()[0].externalResource?.toString(), 'https://github.com/owner/private/agents/automations/one');
+	});
+
 	test('202 remains acknowledgement only and cloud history has no native session resource', async () => {
 		const { provider, api, set } = setup();
 		api.tasks = [{ id: 'task', state: 'waiting_for_user', created_at: definition.created_at, remote_steerable: true }];

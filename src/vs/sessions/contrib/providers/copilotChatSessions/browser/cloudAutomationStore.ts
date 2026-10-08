@@ -391,7 +391,8 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		return {
 			id: JSON.stringify([this.providerId, this.defaultAccountService.currentDefaultAccount?.accountName, repository.owner.toLowerCase(), repository.name.toLowerCase(), definition.id]),
 			name: definition.name, prompt: definition.prompt, schedule,
-			targetDisplay: { label: localize('cloudAutomationTarget', "GitHub Cloud: {0}/{1}", repository.owner, repository.name), icon: Codicon.cloud },
+			targetDisplay: { label: `${repository.owner}/${repository.name}`, icon: Codicon.cloud },
+			externalResource: URI.from({ scheme: Schemas.https, authority: 'github.com', path: `/${repository.owner}/${repository.name}/agents/automations/${definition.id}` }),
 			target: { kind: 'workspace', providerId: this.providerId, sessionTypeId: this.sessionTypeId, isolation: { kind: 'default' }, folderUri: URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repository.owner}/${repository.name}/HEAD` }) },
 			sessionTemplate: {
 				...(definition.model ? { modelId: definition.model } : {}),

@@ -400,7 +400,8 @@ function createCloudData(): IAutomationsFixtureData {
 	const automations = createPopulatedData().automations.slice(0, 2).map((automation, index) => ({
 		...automation,
 		enabled: index === 0,
-		targetDisplay: { label: 'GitHub Cloud: example/private-project', icon: Codicon.cloud },
+		targetDisplay: { label: 'example/private-project', icon: Codicon.cloud },
+		externalResource: URI.parse(`https://github.com/example/private-project/agents/automations/${automation.id}`),
 		schedule: { ...automation.schedule, interval: 'daily' as const, scheduleHour: 9, timeZone: 'UTC' as const },
 	}));
 	const runs: IAutomationRun[] = (['pending', 'running', 'completed', 'failed'] as const).map((status, index) => ({

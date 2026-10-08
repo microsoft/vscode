@@ -721,14 +721,20 @@ suite('AutomationsCardsWidget', () => {
 	}
 
 	test('entry and manual refresh reload catalogues, but restoring focus does not', async () => {
-		const { widget, automationService, refreshErrors } = setup();
+		const { widget, automationService, refreshErrors, instantiationService, contextKeyService } = setup();
 		widget.focus();
 		await timeout(0);
 		automationService.refreshFailure = new Error('Offline');
 		widget.focus();
-		widget.element.querySelector<HTMLElement>('.automations-refresh-toolbar .monaco-button')!.click();
-		await timeout(0);
-		assert.deepStrictEqual({ calls: automationService.refreshCalls, errors: refreshErrors }, { calls: 2, errors: ['Could not refresh automations: Offline'] });
+		const command = CommandsRegistry.getCommand('sessions.automations.refresh')!;
+		await instantiationService.invokeFunction(accessor => command.handler(accessor));
+		const menuActions = instantiationService.get(IMenuService).getMenuActions(Menus.CustomViewAutomations, contextKeyService)
+			.flatMap(([, actions]) => actions).map(action => action.id);
+		assert.deepStrictEqual({
+			calls: automationService.refreshCalls, errors: refreshErrors,
+			headerRefresh: menuActions.includes('sessions.automations.refresh'),
+			inlineRefresh: !!widget.element.querySelector('.automations-refresh-toolbar'),
+		}, { calls: 2, errors: ['Could not refresh automations: Offline'], headerRefresh: true, inlineRefresh: false });
 	});
 
 	test('external run rows preserve identity, expose status and support keyboard actions without a native session', async () => {
@@ -750,13 +756,35 @@ suite('AutomationsCardsWidget', () => {
 		assert.deepStrictEqual({
 			running, stopped: automationService.stoppedRuns, opened,
 			sameRow: widget.element.querySelector('.automations-temporary-run') === row,
-			completed: row.textContent?.includes('Completed on GitHub'),
+			completed: row.getAttribute('aria-label')?.includes('Completed on GitHub'),
 			stopVisible: !!row.querySelector('[aria-label="Stop"]'),
 			externalVisible: !!row.querySelector('[aria-label="Open on GitHub"]'),
 			focusInRow: row.contains(document.activeElement),
 		}, { running: true, stopped: [external.id], opened: [external.externalResource!.toString()], sameRow: true, completed: true, stopVisible: false, externalVisible: true, focusInRow: true });
 		automationService.setRuns([]);
 		assert.strictEqual(document.activeElement, widget.element);
+	});
+
+	test('cloud run actions stay quiet at rest and reveal on keyboard focus', () => {
+		const { widget, automationService } = setup();
+		automationService.setAutomations([automation()]);
+		automationService.setRuns([run({ sessionResource: undefined, externalResource: URI.parse('https://github.com/owner/private/tasks/task') })]);
+		const actions = widget.element.querySelector<HTMLElement>('.automations-run-actions')!;
+		const action = actions.querySelector<HTMLElement>('[aria-label="Open on GitHub"]')!;
+		widget.element.focus();
+		const style = () => {
+			const computed = getWindow(actions).getComputedStyle(actions);
+			return { opacity: computed.opacity, pointerEvents: computed.pointerEvents };
+		};
+		const atRest = style();
+		action.focus();
+		const focused = style();
+		widget.element.focus();
+		assert.deepStrictEqual({ atRest, focused, blurred: style() }, {
+			atRest: { opacity: '0', pointerEvents: 'none' },
+			focused: { opacity: '1', pointerEvents: 'auto' },
+			blurred: { opacity: '0', pointerEvents: 'none' },
+		});
 	});
 
 	test('history states distinguish failed refresh from confirmed empty without hiding cached runs', () => {
@@ -772,10 +800,46 @@ suite('AutomationsCardsWidget', () => {
 			empty, loading, error: state.textContent, rows: widget.element.querySelectorAll('.automations-temporary-run').length,
 		}, {
 			empty: 'No runs yet. Run an automation now or wait for its next scheduled run.',
-			loading: 'Refreshing run history...',
+			loading: '',
 			error: 'Run history could not be refreshed. Showing the last available history. Use Refresh to try again.',
 			rows: 1,
 		});
+	});
+
+	test('background refresh does not insert messages or shift run history', () => {
+		const { widget, automationService } = setup();
+		automationService.setCatalogueState('ready');
+		automationService.setAutomations([automation()]);
+		automationService.setRuns([run({ sessionResource: undefined, externalResource: URI.parse('https://github.com/owner/private/tasks/task') })]);
+		const history = widget.element.querySelector<HTMLElement>('.automations-history')!;
+		const top = history.offsetTop;
+		automationService.historyState.set('loading', undefined);
+		automationService.setCatalogueState('loading');
+		assert.deepStrictEqual({
+			top: history.offsetTop,
+			historyState: widget.element.querySelector<HTMLElement>('.automations-history-state')?.style.display,
+			partialState: widget.element.querySelector<HTMLElement>('.automations-cards-partial-state')?.style.display,
+		}, { top, historyState: 'none', partialState: 'none' });
+	});
+
+	test('completed cloud history uses cloud repository, separator and relative updated time', () => {
+		const { widget, automationService } = setup();
+		automationService.setAutomations([automation()]);
+		const updatedAt = new Date().toISOString();
+		automationService.setRuns([run({
+			sessionResource: undefined, externalResource: URI.parse('https://github.com/owner/private/tasks/task'),
+			startedAt: '2026-01-01T00:00:00Z', updatedAt, status: 'completed',
+		})]);
+		const row = widget.element.querySelector('.automations-temporary-run')!;
+		const details = row.querySelector('.session-details-row')!;
+		assert.deepStrictEqual({
+			cloud: !!details.querySelector('.session-details-icon .codicon-cloud-compact'),
+			repository: details.querySelector('.session-badge')?.textContent,
+			separators: details.querySelectorAll('.session-separator.has-separator').length,
+			time: details.querySelector('.session-time')?.textContent,
+			description: details.querySelector('.session-description')?.textContent,
+			accessibleStatus: row.getAttribute('aria-label')?.includes('Completed on GitHub'),
+		}, { cloud: true, repository: 'owner/private', separators: 1, time: 'now', description: '', accessibleStatus: true });
 	});
 
 	test('removing a focused external row restores focus when other history remains', () => {
@@ -790,17 +854,35 @@ suite('AutomationsCardsWidget', () => {
 	});
 
 	test('disabled cloud cards retain repository metadata and show schedules in local time when enabled', () => {
-		const { widget, automationService } = setup();
+		const tooltips: string[] = [];
+		const hoverService: IHoverService = {
+			...NullHoverService,
+			setupManagedHover: (delegate, element, content, options) => {
+				if (element.classList.contains('automations-card-folder')) {
+					assert.strictEqual(typeof content, 'string');
+					tooltips.push(String(content));
+				}
+				return NullHoverService.setupManagedHover(delegate, element, content, options);
+			},
+		};
+		const { widget, automationService } = setup('archive', hoverService);
 		const cloud = automation({
 			enabled: false,
-			targetDisplay: { label: 'GitHub Cloud: owner/private', icon: Codicon.cloud },
+			targetDisplay: { label: 'owner/private', icon: Codicon.cloud },
 			schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 0, timeZone: 'UTC' },
 		});
 		automationService.setAutomations([cloud]);
 		const folder = widget.element.querySelector<HTMLElement>('.automations-card-folder')!;
-		assert.deepStrictEqual({ visible: folder.style.display, text: folder.textContent }, { visible: '', text: 'GitHub Cloud: owner/private' });
+		assert.deepStrictEqual({
+			visible: folder.style.display, text: folder.textContent, cloudIcon: !!folder.querySelector('.codicon-cloud'),
+			ariaLabel: folder.getAttribute('aria-label'), tooltips,
+			accessible: buildAutomationsAccessibleContent([cloud], [], 'ready', []).includes('owner/private'),
+		}, { visible: '', text: 'owner/private', cloudIcon: true, ariaLabel: 'owner/private', tooltips: ['owner/private'], accessible: true });
 		automationService.setAutomations([{ ...cloud, enabled: true }]);
-		assert.ok(widget.element.querySelector('.automations-card-schedule')?.textContent?.includes('(local)'));
+		const local = automationScheduleToLocal(cloud.schedule);
+		const time = new Date(Date.UTC(2000, 0, 1, local.scheduleHour, local.scheduleMinute))
+			.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' });
+		assert.strictEqual(widget.element.querySelector('.automations-card-schedule')?.textContent, `Daily at ${time}`);
 	});
 
 	test('accessible cloud history includes needs-input status, external link and refresh errors', () => {
@@ -863,7 +945,7 @@ suite('AutomationsCardsWidget', () => {
 			const local = automationScheduleToLocal(item.schedule);
 			const time = new Date(Date.UTC(2000, 0, 1, local.scheduleHour, local.scheduleMinute))
 				.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' });
-			const expected = `${interval === 'daily' ? 'Daily' : DAYS_OF_WEEK[local.scheduleDay]} at ${time} (local)`;
+			const expected = `${interval === 'daily' ? 'Daily' : DAYS_OF_WEEK[local.scheduleDay]} at ${time}`;
 			automationService.setAutomations([item]);
 			const accessible = buildAutomationsAccessibleContent([item], [], 'ready');
 			assert.deepStrictEqual({
@@ -965,6 +1047,60 @@ suite('AutomationsCardsWidget', () => {
 			spinnerUsesSharedIconSlot: true,
 			temporaryRowsAfterCommit: 0,
 			sessionRowsAfterCommit: 1,
+		});
+	});
+
+	test('local session resolution keeps older cloud runs in chronological order', () => {
+		const { automationService, widget } = setup();
+		const now = Date.now();
+		automationService.setAutomations([automation(), automation({ id: 'cloud', name: 'Cloud review' })]);
+		const local = run({ status: 'pending', sessionResource: undefined, startedAt: new Date(now).toISOString() });
+		const cloud = run({
+			id: 'cloud-run', automationId: 'cloud', status: 'completed', sessionResource: undefined,
+			externalResource: URI.parse('https://github.com/owner/private/tasks/cloud'), startedAt: new Date(now - 1000).toISOString(),
+		});
+		const titles = () => [...widget.element.querySelectorAll('.automations-history-group-runs .session-item')].map(row =>
+			row.querySelector('.monaco-highlighted-label')?.textContent ?? row.querySelector('.session-title')?.textContent);
+		automationService.setRuns([local, cloud]);
+		const pending = titles();
+		const cloudRow = [...widget.element.querySelectorAll('.automations-temporary-run')][1];
+		const cloudAction = cloudRow.querySelector<HTMLElement>('[aria-label="Open on GitHub"]')!;
+		cloudAction.focus();
+		automationService.setRuns([{ ...local, status: 'running', sessionResource: SESSION_RESOURCE }, cloud]);
+		const running = titles();
+		const cloudFocusPreserved = document.activeElement === cloudAction;
+		automationService.setRuns([{ ...local, status: 'completed', sessionResource: SESSION_RESOURCE }, cloud]);
+		assert.deepStrictEqual({
+			pending, running, completed: titles(), cloudFocusPreserved,
+			cloudRowPreserved: widget.element.querySelector('.automations-temporary-run') === cloudRow,
+		}, {
+			pending: ['Daily review', 'Cloud review'], running: ['Daily review', 'Cloud review'],
+			completed: ['Daily review', 'Cloud review'], cloudFocusPreserved: true, cloudRowPreserved: true,
+		});
+	});
+
+	test('mixed history interleaves cloud rows and contiguous native lists and merges lists after removal', () => {
+		const { automationService, widget } = setup();
+		automationService.setAutomations([automation(), automation({ id: 'cloud', name: 'Cloud review' })]);
+		const local = run();
+		const cloud = run({
+			id: 'cloud-run', automationId: 'cloud', sessionResource: undefined,
+			externalResource: URI.parse('https://github.com/owner/private/tasks/cloud'),
+		});
+		const olderLocal = run({ id: 'older-local', sessionResource: SECOND_SESSION_RESOURCE });
+		const oldestCloud = { ...cloud, id: 'oldest-cloud' };
+		const titles = () => [...widget.element.querySelectorAll('.automations-history-group-runs .session-item')].map(row =>
+			row.querySelector('.monaco-highlighted-label')?.textContent ?? row.querySelector('.session-title')?.textContent);
+		automationService.setRuns([local, cloud, olderLocal, oldestCloud]);
+		const before = { titles: titles(), lists: widget.element.querySelectorAll('.automations-run-session-list').length };
+		const firstList = widget.element.querySelector('.automations-run-session-list');
+		automationService.setRuns([local, olderLocal, oldestCloud]);
+		assert.deepStrictEqual({
+			before, titles: titles(), lists: widget.element.querySelectorAll('.automations-run-session-list').length,
+			firstListPreserved: widget.element.querySelector('.automations-run-session-list') === firstList,
+		}, {
+			before: { titles: ['Daily review', 'Cloud review', 'Second daily review', 'Cloud review'], lists: 2 },
+			titles: ['Daily review', 'Second daily review', 'Cloud review'], lists: 1, firstListPreserved: true,
 		});
 	});
 
@@ -1612,7 +1748,7 @@ suite('AutomationsCardsWidget', () => {
 	test('surfaces partial catalogue states with saved automations', () => {
 		const { automationService, widget } = setup();
 		automationService.setAutomations([automation()]);
-		const loadingMessage = widget.element.querySelector<HTMLElement>('.automations-cards-partial-state')?.textContent;
+		const loadingDisplay = widget.element.querySelector<HTMLElement>('.automations-cards-partial-state')?.style.display;
 		automationService.setUnavailableProviders([{ id: 'remote-build-host', label: 'Remote build host' }]);
 		automationService.setCatalogueState('unavailable');
 		const partialState = widget.element.querySelector<HTMLElement>('.automations-cards-partial-state');
@@ -1620,14 +1756,14 @@ suite('AutomationsCardsWidget', () => {
 		automationService.setCatalogueState('error');
 
 		assert.deepStrictEqual({
-			loadingMessage,
+			loadingDisplay,
 			unavailableMessage,
 			errorMessage: widget.element.querySelector<HTMLElement>('.automations-cards-partial-state')?.textContent,
 			savedCards: widget.element.querySelectorAll('.automations-card').length,
 			appearsAfterCards: partialState?.previousElementSibling?.classList.contains('automations-cards-grid'),
 			templatesDisplay: widget.element.querySelector<HTMLElement>('.automations-templates')?.style.display,
 		}, {
-			loadingMessage: 'Loading additional automations...',
+			loadingDisplay: 'none',
 			unavailableMessage: 'Automations are unavailable on Remote build host.',
 			errorMessage: 'Some automations could not be loaded.',
 			savedCards: 1,
@@ -1893,7 +2029,7 @@ suite('AutomationsCardsWidget', () => {
 				templateDisplay: '',
 				builtInOpen: false,
 				cardLabel: 'Edit automation Local review',
-				warningVisible: true,
+				warningVisible: catalogueState !== 'loading',
 			});
 		});
 	}
@@ -2171,6 +2307,36 @@ suite('AutomationsCardsWidget', () => {
 				ariaExpanded: 'false',
 				menuOpen: false,
 			},
+		});
+	});
+
+	test('More Actions offers Open on GitHub only for external definitions and opens the current definition', async () => {
+		const { automationService, contextKeyService, contextMenuService, instantiationService, widget, opened, dialogService } = setup();
+		const id = 'sessions.automations.openOnGitHub';
+		const source = automation({ externalResource: URI.parse('https://github.com/owner/private/agents/automations/one'), enabled: false });
+		automationService.setAutomations([source]);
+		const menu = () => {
+			const delegate = openAutomationCardMenu(widget, contextMenuService);
+			const actions = instantiationService.get(IMenuService).getMenuActions(
+				Menus.AutomationCardContext, delegate.contextKeyService ?? contextKeyService, delegate.menuActionOptions,
+			).flatMap(([, actions]) => actions);
+			delegate.onHide?.(false);
+			return actions.find(action => action.id === id);
+		};
+		const externalAction = menu();
+		const updated = { ...source, externalResource: URI.parse('https://github.com/owner/private/agents/automations/two') };
+		automationService.setAutomations([updated]);
+		const command = CommandsRegistry.getCommand(id)!;
+		await instantiationService.invokeFunction(accessor => command.handler(accessor, source));
+		automationService.setAutomations([automation()]);
+		const localAction = menu();
+		await instantiationService.invokeFunction(accessor => command.handler(accessor, source));
+		assert.deepStrictEqual({
+			external: externalAction?.enabled, local: localAction, opened,
+			error: dialogService.errors,
+		}, {
+			external: true, local: undefined, opened: [updated.externalResource.toString()],
+			error: [{ message: 'Failed to open the automation on GitHub.', detail: 'This automation is no longer available on GitHub.' }],
 		});
 	});
 
