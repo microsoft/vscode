@@ -13,10 +13,11 @@ import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.j
 import { GitHubService, IGitHubClient } from '../../common/githubService.js';
 import { GitHubRestRequest, GitHubTransport } from '../../common/githubTransport.js';
 import { GitHubClientOptions, IGitHubCredentialProvider } from '../../common/githubTypes.js';
-import { AutomationDetail } from '../../common/missionControl/automations.js';
+import { AutomationDetail, AutomationToolGroup, AutomationTriggerDefinition } from '../../common/missionControl/automations.js';
 import { ClientTokenResponse } from '../../common/missionControl/environments.js';
 import { ApiRequestError } from '../../common/missionControl/missionControlClient.js';
 import { Task } from '../../common/missionControl/tasks.js';
+import { SchemaError } from '../../common/schema.js';
 
 const signal = () => new AbortController().signal;
 const repository = { owner: 'owner', name: 'repo' };
@@ -29,6 +30,31 @@ const automation: AutomationDetail = {
 	id: 'automation-1', name: 'Triage', description: 'Triage issues', prompt: 'Triage the issue',
 	created_at: date, updated_at: date, created_by: { id: 101 },
 };
+const toolGroups: readonly AutomationToolGroup[] = [{
+	id: 'issues', name: 'Issues', tools: [
+		{ id: 'github/issue_read', name: 'Read issue', description: 'Read an issue.', scope: 'read' },
+		{ id: 'github/update_issue', name: 'Update issue', description: 'Update an issue.', scope: 'write' },
+		{ id: 'report_progress', name: 'Report progress', description: 'Report progress.' },
+	],
+}];
+const triggerDefinitions: readonly AutomationTriggerDefinition[] = [
+	{
+		name: 'interval', title: 'Schedule', description: 'Runs on a schedule.',
+		fields: [{ name: 'types', required: true, options: ['hourly', 'daily', 'weekly'] }],
+	},
+	{
+		name: 'issues', title: 'Issue opened', description: 'Runs when an issue is opened.',
+		field_labels: { query: 'Issue query' },
+		fields: [
+			{ name: 'types', required: true, options: ['opened'] },
+			{ name: 'query', required: false, description: 'Filter using [issue search syntax](https://docs.github.com).' },
+		],
+	},
+	{
+		name: 'automation_completed', title: 'Automation completed', description: 'Runs after an automation completes.',
+		fields: [{ name: 'automation_ids', required: true }], supports_run_now: false,
+	},
+];
 const task: Task = {
 	id: 'task-1', automation_id: automation.id, state: 'queued', created_at: date, remote_steerable: true,
 };
@@ -94,6 +120,8 @@ suite('Mission Control client', () => {
 			Response.json(acknowledgement, { status: 202 }),
 			Response.json({ tasks: [task] }),
 			new Response(null, { status: 204 }),
+			Response.json(toolGroups),
+			Response.json(triggerDefinitions),
 		];
 		const { client, requests, identities } = setup(() => {
 			const response = responses.shift();
@@ -110,6 +138,8 @@ suite('Mission Control client', () => {
 			await client.automations.dispatch(repository, automation.id, { event: 'manual' }, signal()),
 			await client.automations.listRuns(automation.id, signal()),
 			await client.automations.delete(repository, automation.id, signal()),
+			await client.automations.listTools(signal()),
+			await client.automations.listTriggers(signal()),
 		];
 		assert.deepStrictEqual({
 			results,
@@ -125,6 +155,7 @@ suite('Mission Control client', () => {
 				{ data: { automations: [summary], total_count: 1 }, nextLink, serverDate },
 				automation, automation, automation, acknowledgement,
 				{ data: { tasks: [task] }, nextLink: undefined, serverDate: undefined }, undefined,
+				toolGroups, triggerDefinitions,
 			],
 			requests: [
 				['GET', `${collection}/v2?page=1&per_page=10&disabled=false`, undefined],
@@ -134,12 +165,71 @@ suite('Mission Control client', () => {
 				['POST', `${collection}/${automation.id}/tasks`, '{"event":"manual"}'],
 				['GET', `/agents/automations/${automation.id}/tasks`, undefined],
 				['DELETE', `${collection}/${automation.id}`, undefined],
+				['GET', '/agents/automations/tools', undefined],
+				['GET', '/agents/automations/triggers', undefined],
 			],
-			authentication: Array(8).fill('Bearer token-selected'),
-			headers: Array(7).fill(['test-integration', null, 'omit', 'manual', 'no-store', 'no-referrer']),
+			authentication: Array(10).fill('Bearer token-selected'),
+			headers: Array(9).fill(['test-integration', null, 'omit', 'manual', 'no-store', 'no-referrer']),
 			identityUrl: ['https://api.github.com/user'],
 		});
 	});
+
+	test('automation discovery preserves public metadata without inventing internal fields or defaults', async () => {
+		const tools: readonly AutomationToolGroup[] = [{
+			id: 'issues', title: 'Issues', tools: [
+				{ id: 'github/issue_read', title: 'Read issue', description: 'Read an issue.', scope: 'read' },
+			],
+		}, { id: 'empty', tools: [] }];
+		const triggers: readonly AutomationTriggerDefinition[] = [{
+			id: 'interval', title: 'Schedule', description: 'Runs on a schedule.', supports_run_now: true,
+			fields: [
+				{ id: 'cadence', label: 'Cadence', type: 'string_array', required: true, options: ['hourly', 'daily', 'weekly'] },
+				{ id: 'minute_utc', label: 'UTC minute', type: 'integer', required: false, options: ['0', '15', '30', '45'] },
+				{ id: 'write_scope', label: 'Write scope', type: 'string', required: false, options: ['trigger', 'repository'] },
+			],
+		}, { title: 'No fields', description: '', fields: [] }];
+		const { client } = setup(request => Response.json(request.url.pathname.endsWith('/tools') ? tools : triggers));
+		assert.deepStrictEqual(await Promise.all([
+			client.automations.listTools(signal()), client.automations.listTriggers(signal()),
+		]), [tools, triggers]);
+	});
+
+	for (const method of ['listTools', 'listTriggers'] as const) {
+		test(`${method} returns an empty catalog without pagination or additional requests`, async () => {
+			const { client, requests } = setup(() => Response.json([], { headers: { link: '<https://example.test/next>; rel="next"' } }));
+			const result = await client.automations[method](signal());
+			assert.deepStrictEqual({ result, requests: requests.length }, { result: [], requests: 1 });
+		});
+
+		test(`${method} requires an uncancelled signal before acquiring credentials`, async () => {
+			const { client, identities, requests } = setup(() => Response.json([]));
+			const controller = new AbortController();
+			const reason = new Error('cancelled discovery');
+			controller.abort(reason);
+			await assert.rejects(client.automations[method](controller.signal), error => error === reason);
+			assert.deepStrictEqual({ identities: identities.length, requests: requests.length }, { identities: 0, requests: 0 });
+		});
+	}
+
+	for (const invalid of [
+		{ method: 'listTools', name: 'a wrapped catalog', data: { tools: toolGroups } },
+		{ method: 'listTools', name: 'a group without tools', data: [{ id: 'issues' }] },
+		{ method: 'listTools', name: 'a tool without a description', data: [{ id: 'issues', tools: [{ id: 'github/issue_read' }] }] },
+		{ method: 'listTools', name: 'an invalid permission scope', data: [{ id: 'issues', tools: [{ id: 'tool', description: '', scope: 'admin' }] }] },
+		{ method: 'listTools', name: 'a null optional name', data: [{ ...toolGroups[0], name: null }] },
+		{ method: 'listTriggers', name: 'a wrapped catalog', data: { triggers: triggerDefinitions } },
+		{ method: 'listTriggers', name: 'missing fields', data: [{ title: 'Schedule', description: '' }] },
+		{ method: 'listTriggers', name: 'a missing required-field flag', data: [{ ...triggerDefinitions[0], fields: [{ name: 'types' }] }] },
+		{ method: 'listTriggers', name: 'non-string options', data: [{ ...triggerDefinitions[0], fields: [{ name: 'types', required: true, options: [1] }] }] },
+		{ method: 'listTriggers', name: 'an invalid field type', data: [{ ...triggerDefinitions[0], fields: [{ id: 'types', required: true, type: 'boolean' }] }] },
+		{ method: 'listTriggers', name: 'a non-string field label', data: [{ ...triggerDefinitions[0], field_labels: { types: 1 } }] },
+		{ method: 'listTriggers', name: 'a non-boolean run-now flag', data: [{ ...triggerDefinitions[0], supports_run_now: 'false' }] },
+	] as const) {
+		test(`${invalid.method} rejects ${invalid.name}`, async () => {
+			const { client } = setup(() => Response.json(invalid.data));
+			await assert.rejects(client.automations[invalid.method](signal()), SchemaError);
+		});
+	}
 
 	test('rejects run history belonging to a different automation', async () => {
 		const { client } = setup(() => Response.json({ tasks: [{ ...task, automation_id: 'other' }] }));
@@ -154,6 +244,8 @@ suite('Mission Control client', () => {
 		{ name: 'delete', status: 200, run: (client: IGitHubClient) => client.automations.delete(repository, automation.id, signal()) },
 		{ name: 'dispatch', status: 200, run: (client: IGitHubClient) => client.automations.dispatch(repository, automation.id, { event: 'manual' }, signal()) },
 		{ name: 'listRuns', status: 201, run: (client: IGitHubClient) => client.automations.listRuns(automation.id, signal()) },
+		{ name: 'listTools', status: 201, run: (client: IGitHubClient) => client.automations.listTools(signal()) },
+		{ name: 'listTriggers', status: 201, run: (client: IGitHubClient) => client.automations.listTriggers(signal()) },
 	]) {
 		test(`${operation.name} rejects an undocumented HTTP ${operation.status} success`, async () => {
 			const { client, requests } = setup(() => Response.json(automation, { status: operation.status }));
