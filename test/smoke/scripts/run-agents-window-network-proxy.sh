@@ -38,6 +38,9 @@ KERBEROS_KEYTAB="FILE:$TEMP_ROOT/proxy.keytab"
 KERBEROS_REALM="VSCODE.PROXY.TEST"
 KERBEROS_USERNAME="PlaceholderUsername"
 KERBEROS_PASSWORD="Placeholder"
+TLS_CONFIG="$TEMP_ROOT/tls.conf"
+TLS_CERT="$TEMP_ROOT/tls.crt"
+TLS_KEY="$TEMP_ROOT/tls.key"
 
 pac_pid=""
 squid_pid=""
@@ -130,6 +133,10 @@ if [[ "$PROXY_AUTH" == "kerberos" ]]; then
 		echo "The macOS Heimdal KDC is required at $KDC_BIN" >&2
 		exit 1
 	fi
+	if ! command -v openssl >/dev/null; then
+		echo "OpenSSL is required for the Kerberos proxy smoke test" >&2
+		exit 1
+	fi
 	if nc -z 127.0.0.1 "$KDC_PORT"; then
 		echo "Port $KDC_PORT must be available for the Kerberos KDC" >&2
 		exit 1
@@ -178,6 +185,22 @@ EOF
 		echo "The local Kerberos KDC did not become ready" >&2
 		exit 1
 	fi
+
+	cat > "$TLS_CONFIG" <<EOF
+[req]
+distinguished_name = subject
+x509_extensions = extensions
+prompt = no
+
+[subject]
+CN = $MOCK_HOST
+
+[extensions]
+subjectAltName = DNS:$MOCK_HOST
+keyUsage = critical,digitalSignature,keyEncipherment
+extendedKeyUsage = serverAuth
+EOF
+	openssl req -x509 -nodes -newkey rsa:2048 -days 1 -config "$TLS_CONFIG" -keyout "$TLS_KEY" -out "$TLS_CERT" >/dev/null 2>&1
 
 	printf '%s\n' "$KERBEROS_PASSWORD" > "$TEMP_ROOT/kerberos-password"
 	KRB5_CONFIG="$KERBEROS_CONFIG" KRB5CCNAME="$KERBEROS_CACHE" \
@@ -301,6 +324,8 @@ if [[ "$PROXY_AUTH" == "kerberos" ]]; then
 	restricted_env+=(
 		"KRB5_CONFIG=$KERBEROS_CONFIG"
 		"KRB5CCNAME=$KERBEROS_CACHE"
+		"NODE_EXTRA_CA_CERTS=$TLS_CERT"
+		"SSL_CERT_FILE=$TLS_CERT"
 	)
 fi
 for name in BUILD_ARTIFACTSTAGINGDIRECTORY CI GITHUB_ACTIONS GITHUB_RUN_ATTEMPT GITHUB_RUN_ID GITHUB_WORKSPACE RUNNER_TEMP TF_BUILD; do
@@ -339,8 +364,17 @@ if [[ "$PROXY_AUTH" == "kerberos" ]]; then
 fi
 
 cd "$ROOT"
-run_restricted env VSCODE_SMOKE_TEST_MOCK_HOST="$MOCK_HOST" VSCODE_SMOKE_TEST_PROXY_HEADER="$PROXY_HEADER_VALUE" \
-	npm run smoketest-no-compile -- --tracing -g 'Agents Window' --fail-zero --test-repo "$TEST_REPO" --skip-stable-build "$@"
+smoke_env=(
+	"VSCODE_SMOKE_TEST_MOCK_HOST=$MOCK_HOST"
+	"VSCODE_SMOKE_TEST_PROXY_HEADER=$PROXY_HEADER_VALUE"
+)
+if [[ "$PROXY_AUTH" == "kerberos" ]]; then
+	smoke_env+=(
+		"VSCODE_SMOKE_TEST_TLS_CERT=$TLS_CERT"
+		"VSCODE_SMOKE_TEST_TLS_KEY=$TLS_KEY"
+	)
+fi
+run_restricted env "${smoke_env[@]}" npm run smoketest-no-compile -- --tracing -g 'Agents Window' --fail-zero --test-repo "$TEST_REPO" --skip-stable-build "$@"
 
 kill "$squid_pid"
 wait "$squid_pid" || true

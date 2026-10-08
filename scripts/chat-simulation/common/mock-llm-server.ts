@@ -19,6 +19,7 @@
  */
 
 const http: typeof import('http') = require('http');
+const https: typeof import('https') = require('https');
 const path: typeof import('path') = require('path');
 const { EventEmitter }: typeof import('events') = require('events');
 
@@ -1969,6 +1970,7 @@ interface CapturedRequest {
 interface StartServerOptions {
 	logger?: (msg: string) => void;
 	verbose?: boolean;
+	tls?: import('https').ServerOptions;
 	/** Address to listen on. Defaults to loopback. */
 	host?: string;
 	/** Reject requests that do not carry this exact header. */
@@ -2029,7 +2031,7 @@ function _startServer(port = 0, options?: StartServerOptions): Promise<MockLlmSe
 			serverEvents.on('capturedRequest', onCapturedRequest);
 		}
 
-		const server = http.createServer((req, res) => {
+		const requestListener: import('http').RequestListener = (req, res) => {
 			const requiredRequestHeader = options?.requiredRequestHeader;
 			const requestHost = req.headers.host?.replace(/:\d+$/, '').toLowerCase();
 			const isTrustedProxy = options?.trustedRequestHost && requestHost === options.trustedRequestHost;
@@ -2041,11 +2043,12 @@ function _startServer(port = 0, options?: StartServerOptions): Promise<MockLlmSe
 			reqCount++;
 			requestWaiters = requestWaiters.filter(fn => !fn());
 			handleRequest(req, res);
-		});
+		};
+		const server = options?.tls ? https.createServer(options.tls, requestListener) : http.createServer(requestListener);
 		server.listen(port, options?.host ?? '127.0.0.1', () => {
 			const addr = server.address();
 			const actualPort = typeof addr === 'object' && addr ? addr.port : port;
-			const url = `http://127.0.0.1:${actualPort}`;
+			const url = `${options?.tls ? 'https' : 'http'}://127.0.0.1:${actualPort}`;
 			resolve({
 				port: actualPort,
 				url,

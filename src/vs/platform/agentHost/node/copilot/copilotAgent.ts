@@ -187,7 +187,6 @@ function isCopilotConnectionClosedError(error: unknown): boolean {
  */
 const COPILOT_PROXY_ENV_KEYS = ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy', 'ALL_PROXY', 'all_proxy'] as const;
 const COPILOT_NO_PROXY_ENV_KEYS = ['no_proxy', 'NO_PROXY'] as const;
-const COPILOT_PROXY_KERBEROS_ENV_KEY = 'COPILOT_PROXY_KERBEROS';
 /**
  * Proxy env vars we set when injecting the resolved CAPI proxy.
  */
@@ -6174,9 +6173,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		if (noProxy) {
 			env['NO_PROXY'] = noProxy;
-		}
-		if ((proxy || COPILOT_PROXY_ENV_KEYS.some(key => env[key])) && env[COPILOT_PROXY_KERBEROS_ENV_KEY] === undefined) {
-			env[COPILOT_PROXY_KERBEROS_ENV_KEY] = '1';
 		}
 		const kerberosSpn = this._readKerberosSpn(process.env);
 		this._appliedProxyKerberosSpn = kerberosSpn;
