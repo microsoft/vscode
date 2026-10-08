@@ -115,7 +115,7 @@ import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type McpAuthRequirement, type McpServerCustomization, type McpServerState } from '../../common/state/protocol/channels-session/state.js';
 import type { ErrorInfo, ProtectedResourceMetadata } from '../../common/state/protocol/common/state.js';
 import { CopilotSlashCommandProvider } from './copilotSlashCommandProvider.js';
-import { CopilotMcpToolRoutingCache, getMcpRoutingCacheKey, type ICopilotMcpRoutingServer, type ICopilotMcpRoutingTool } from './copilotMcpToolRoutingCache.js';
+import { CopilotMcpToolRoutingCache, getMcpRoutingProxyName, type ICopilotMcpRoutingServer, type ICopilotMcpRoutingTool } from './copilotMcpToolRoutingCache.js';
 import { getCopilotCustomizationCommandHandler } from './copilotCustomizationCommandDisplay.js';
 import { renderCopilotSlashCommandOutput, type RuntimeSlashCommandInfo } from './copilotSlashCommand.js';
 import { CopilotSandboxPolicyDisplay } from './copilotSandboxPolicyDisplay.js';
@@ -187,6 +187,7 @@ interface IPendingMcpAuthRequest {
 	readonly resource: ProtectedResourceMetadata;
 	readonly requiredScopes: readonly string[];
 	readonly toolCalls: IMcpAuthToolCall[];
+	completion?: Promise<McpAuthResult | null | undefined>;
 }
 
 type SubagentTurnOutcome =
@@ -2920,17 +2921,17 @@ export class CopilotAgentSession extends Disposable {
 		const tools: Tool<Record<string, never>>[] = [];
 		for (const server of this._configuredMcpRoutingServers.values()) {
 			const cached = this._mcpToolRoutingCache.get(server);
-			const name = `mcp_route_${(cached?.cacheKey ?? getMcpRoutingCacheKey(server)).slice(0, 16)}`;
+			const name = getMcpRoutingProxyName(server);
 			this._mcpRoutingProxies.set(name, { server });
 			tools.push({
 				name,
 				description: getMcpRoutingProxyDescription(server.serverName, cached?.tools ?? []).slice(0, MCP_ROUTING_PROXY_DESCRIPTION_MAX_LENGTH),
 				parameters: { type: 'object', properties: {}, additionalProperties: false },
 				defer: 'auto',
-				skipPermission: true,
 				handler: this._guarded(async (_args, invocation) => {
 					this._surfaceUnobservedClientToolStart(invocation);
 					try {
+						await (this._adoptPendingMcpAuthentication(server.serverName) ?? this._startMcpServer(server.serverName, this._abortToken));
 						const liveTools = await this._refreshMcpToolRoutingCache(server.serverName);
 						return {
 							resultType: 'success',
@@ -3534,6 +3535,33 @@ export class CopilotAgentSession extends Disposable {
 		return false;
 	}
 
+	private _adoptPendingMcpAuthentication(serverName: string): Promise<void> | undefined {
+		const toolCalls = this._activeMcpToolCalls(serverName);
+		const completions: Promise<McpAuthResult | null | undefined>[] = [];
+		for (const [requestId, pending] of this._pendingMcpAuthRequests.entries()) {
+			if (pending.serverName !== serverName || !pending.completion) {
+				continue;
+			}
+			const requirement = this._lastMcpAuthRequirements.get(serverName);
+			if (requirement?.requestId !== requestId) {
+				continue;
+			}
+			for (const toolCall of toolCalls) {
+				if (!pending.toolCalls.some(existing => existing.toolCallId === toolCall.toolCallId)) {
+					pending.toolCalls.push(toolCall);
+					this._emitAction({
+						type: ActionType.ChatToolCallAuthRequired,
+						turnId: toolCall.turnId,
+						toolCallId: toolCall.toolCallId,
+						auth: requirement.auth,
+					}, toolCall.parentToolCallId);
+				}
+			}
+			completions.push(pending.completion);
+		}
+		return completions.length ? Promise.all(completions).then(() => undefined) : undefined;
+	}
+
 	private async _handleMcpAuthRequest(request: McpAuthRequest): Promise<McpAuthResult | null | undefined> {
 		const enabled = this._getDesiredMcpServerEnablementByName([request.serverName]).get(request.serverName);
 		if (enabled === false) {
@@ -3566,12 +3594,14 @@ export class CopilotAgentSession extends Disposable {
 		};
 		this._mcpLifecycleVersion++;
 		const toolCalls = this._activeMcpToolCalls(request.serverName);
-		const result = this._pendingMcpAuthRequests.register(request.requestId, {
+		const pending: IPendingMcpAuthRequest = {
 			serverName: request.serverName,
 			resource,
 			requiredScopes,
 			toolCalls,
-		});
+		};
+		const result = this._pendingMcpAuthRequests.register(request.requestId, pending);
+		pending.completion = result;
 		this._lastMcpAuthRequirements.set(request.serverName, {
 			requestId: request.requestId,
 			auth,
@@ -5051,6 +5081,10 @@ export class CopilotAgentSession extends Disposable {
 		if (!serverName) {
 			throw new Error(`Cannot start unknown MCP server customization ${id}`);
 		}
+		return this._startMcpServer(serverName, token);
+	}
+
+	private async _startMcpServer(serverName: string, token: CancellationToken): Promise<void> {
 		return raceCancellationError(this._mcpServerLifecycleSequencer.queue(serverName, async () => {
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
@@ -5388,6 +5422,10 @@ export class CopilotAgentSession extends Disposable {
 			const requestSandboxPermissive = request.kind === 'shell' && requestSandboxBypass === true
 				? request.requestSandboxPermissive === true
 				: false;
+			if (!managedApprovalRequired && request.kind === 'custom-tool' && this._mcpRoutingProxies.has(request.toolName)) {
+				this._logService.info(`[Copilot:${this.sessionId}] Auto-approving MCP routing proxy ${request.toolName}`);
+				return attributePermissionResult({ kind: 'approve-once' }, 'host_policy');
+			}
 			const autoApproval = !managedApprovalRequired && this._lastAppliedPermissionMode === 'assisted'
 				? await this._takeAutoApproval(toolCallId)
 				: undefined;
