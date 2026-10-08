@@ -505,10 +505,8 @@
 .chat-debug-session-timeline-event-content {
 	box-sizing: border-box;
 	width: 100%;
-	max-height: 520px;
 	margin: 0;
 	padding: var(--vscode-spacing-size120);
-	overflow: auto;
 	white-space: pre-wrap;
 	overflow-wrap: anywhere;
 	border-radius: var(--vscode-cornerRadius-small);
