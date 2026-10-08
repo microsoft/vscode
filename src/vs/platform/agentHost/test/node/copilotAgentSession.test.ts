@@ -11306,6 +11306,43 @@ Use the attached image as context.
 			assert.strictEqual((consumed as { id: string }).id, 'steer-1');
 		});
 
+		for (const ending of ['abort', 'dispose'] as const) {
+			test(`clears steering exactly once on ${ending} during MCP reconciliation`, async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				await timeout(0);
+				session.resetTurnState('turn-original');
+				const gate = new DeferredPromise<void>();
+				mockSession.mcpListGates.push(gate.p);
+				const previousListCalls = mockSession.mcpListCalls;
+				const steering = session.sendSteering({ id: 'steer-1', message: { text: 'follow up', origin: { kind: MessageKind.User } } });
+				try {
+					await timeout(0);
+					assert.strictEqual(mockSession.mcpListCalls, previousListCalls + 1);
+					if (ending === 'abort') {
+						await session.abort();
+					} else {
+						session.dispose();
+					}
+					const consumedBeforeReconciliation = signals.filter(signal => signal.kind === 'steering_consumed');
+					gate.complete();
+					await steering;
+					session.dispose();
+					assert.deepStrictEqual({
+						sends: mockSession.sendRequests,
+						consumedBeforeReconciliation,
+						consumedAfterReconciliation: signals.filter(signal => signal.kind === 'steering_consumed'),
+					}, {
+						sends: [],
+						consumedBeforeReconciliation: [{ kind: 'steering_consumed', chat: session.chatChannelUri, id: 'steer-1' }],
+						consumedAfterReconciliation: [{ kind: 'steering_consumed', chat: session.chatChannelUri, id: 'steer-1' }],
+					});
+				} finally {
+					gate.complete();
+					await steering;
+				}
+			});
+		}
+
 		test('an abort during a steering turn tears it down without completing it', async () => {
 			// A steering turn is promoted mid-loop while the SDK is actively
 			// producing its response, so it must be `running` (not `pending`).
