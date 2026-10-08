@@ -316,7 +316,7 @@ export class McpServerConfigurationForm extends Disposable {
 		const otherPropertiesButton = this._register(new Button(footer, {
 			...defaultButtonStyles,
 			secondary: true,
-			title: localize('mcpForm.otherProperties.tooltip', "Open the configuration file to edit properties not shown here, such as tools or timeout"),
+			title: localize('mcpForm.otherProperties.tooltip', "Open the configuration file to edit properties not shown here"),
 		}));
 		otherPropertiesButton.label = localize('mcpForm.otherProperties', "Other Properties");
 		otherPropertiesButton.element.classList.add('mcp-config-form-other-properties');
