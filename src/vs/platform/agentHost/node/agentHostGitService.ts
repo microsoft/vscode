@@ -52,6 +52,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 	private readonly _repositoryRoots = observableValueOpts({ owner: this, equalsFn: () => false }, new LRUCache<string, URI | undefined>(100));
 	private readonly _repositoryRootSequencer = new SequencerByKey<string>();
 	private readonly _indexPaths = new LRUCache<string, string>(100);
+	private readonly _pendingBranches = new Map<string, Promise<Branch | undefined>>();
 
 	constructor(
 		@IFileService private readonly _fileService: IFileService,
@@ -117,7 +118,17 @@ export class AgentHostGitService implements IAgentHostGitService {
 		return refs.filter(r => r.kind === GitRefType.Head || r.kind === GitRefType.RemoteHead);
 	}
 
-	async getBranch(workingDirectory: URI, name: string): Promise<Branch | undefined> {
+	getBranch(workingDirectory: URI, name: string): Promise<Branch | undefined> {
+		const key = JSON.stringify([extUriBiasedIgnorePathCase.getComparisonKey(workingDirectory), name]);
+		let pending = this._pendingBranches.get(key);
+		if (!pending) {
+			pending = this._readBranch(workingDirectory, name).finally(() => this._pendingBranches.delete(key));
+			this._pendingBranches.set(key, pending);
+		}
+		return pending;
+	}
+
+	private async _readBranch(workingDirectory: URI, name: string): Promise<Branch | undefined> {
 		const branchRefs = name.startsWith('refs/')
 			? [name]
 			: [`refs/heads/${name}`, `refs/remotes/${name}`];

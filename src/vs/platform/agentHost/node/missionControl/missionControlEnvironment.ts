@@ -39,6 +39,7 @@ interface IEnvironmentResponse {
 }
 
 const heartbeatInterval = 60_000;
+const registrationMetadataTimeout = 60_000;
 
 export interface IMissionControlEnvironmentHost {
 	readonly userDataPath: string;
@@ -519,13 +520,13 @@ export class MissionControlEnvironment extends Disposable {
 				return;
 			}
 		}
-		const capabilities = { ahp_version: PROTOCOL_VERSION, features: [], current_sessions: await this._boundedRegistrationWork(this._host.getSessionCount?.() ?? Promise.resolve(0)) };
+		const capabilities = { ahp_version: PROTOCOL_VERSION, features: [], current_sessions: await this._boundedRegistrationWork(this._host.getSessionCount?.() ?? Promise.resolve(0), 'session count') };
 		let remoteControl: Record<string, unknown> | undefined;
 		if (options.live) {
 			if (!this._host.getRemoteControlPolicy) {
 				throw new Error('Cannot register before reading device remote-control policy');
 			}
-			remoteControl = await this._boundedRegistrationWork(this._host.getRemoteControlPolicy());
+			remoteControl = await this._boundedRegistrationWork(this._host.getRemoteControlPolicy(), 'remote-control policy');
 		}
 		if (generation !== this._generation || this._options !== options || this._store.isDisposed) {
 			return;
@@ -685,10 +686,10 @@ export class MissionControlEnvironment extends Disposable {
 		}
 	}
 
-	private async _boundedRegistrationWork<T>(operation: Promise<T>): Promise<T> {
-		const result = await raceTimeout(operation.then(value => ({ value })), 15_000);
+	private async _boundedRegistrationWork<T>(operation: Promise<T>, metadata: string): Promise<T> {
+		const result = await raceTimeout(operation.then(value => ({ value })), registrationMetadataTimeout);
 		if (!result) {
-			throw new Error('Mission Control registration metadata timed out');
+			throw new Error(`Mission Control registration metadata timed out (${metadata})`);
 		}
 		return result.value;
 	}
