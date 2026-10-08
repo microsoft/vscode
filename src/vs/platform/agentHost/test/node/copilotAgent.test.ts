@@ -10,6 +10,7 @@ import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
 import { spy, stub, useFakeTimers } from 'sinon';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
+import { constants as fsConstants } from 'fs';
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import { VSBuffer } from '../../../../base/common/buffer.js';
@@ -20911,6 +20912,87 @@ suite('CopilotAgent', () => {
 						adopted: false, eligible: false, reason: 'notLegacyChat', provenance: 'unknown',
 						status, clientName, containsPrivateContent: false, metadataCalls: [], openedDatabases: [],
 					});
+				} finally {
+					await fs.rm(userHome.fsPath, { recursive: true, force: true });
+					await disposeAgent(agent);
+				}
+			});
+		}
+
+		for (const scenario of ['unchanged', 'differentFile', 'differentDevice', 'nonRegular', 'grewBeforeOpen', 'statFailure'] as const) {
+			test(`validates and closes the opened client metadata descriptor: ${scenario}`, async () => {
+				const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-client-descriptor-`));
+				const sessionId = 'client-descriptor';
+				const agent = createTestAgent(disposables, { userHome });
+				let file: fs.FileHandle | undefined;
+				let read: { callCount: number } | undefined;
+				let close: { callCount: number } | undefined;
+				let openFlags: string | number | undefined;
+				try {
+					const directory = join(getCopilotHomePath(userHome.fsPath, process.env), 'session-state', sessionId);
+					await fs.mkdir(directory, { recursive: true });
+					await fs.writeFile(join(directory, 'workspace.yaml'), 'client_name: vscode');
+					const replacement = join(directory, 'replacement.yaml');
+					await fs.writeFile(replacement, 'client_name: github/cli');
+					const result = await agent['_readLegacyClientMetadata'](sessionId, async (path, flags, mode) => {
+						openFlags = flags;
+						if (scenario === 'grewBeforeOpen') {
+							await fs.appendFile(path, ' '.repeat(16 * 1024));
+						}
+						file = await fs.open(scenario === 'differentFile' ? replacement : path, flags, mode);
+						read = spy(file, 'read');
+						close = spy(file, 'close');
+						if (scenario === 'statFailure') {
+							stub(file, 'stat').rejects(Object.assign(new Error('private stat failure'), { code: 'EIO' }));
+						} else if (scenario === 'nonRegular' || scenario === 'differentDevice') {
+							const stat = await file.stat();
+							if (scenario === 'nonRegular') {
+								stub(stat, 'isFile').returns(false);
+							} else {
+								stat.dev++;
+							}
+							stub(file, 'stat').resolves(stat);
+						}
+						return file;
+					});
+					assert.deepStrictEqual({
+						result, openFlags, read: (read?.callCount ?? 0) > 0, closeCalls: close?.callCount, closed: file?.fd === -1,
+					}, {
+						result: scenario === 'unchanged' ? { workspaceMetadataStatus: 'valid', lastKnownClient: 'vscode' }
+							: { workspaceMetadataStatus: scenario === 'nonRegular' ? 'notFile' : scenario === 'grewBeforeOpen' ? 'tooLarge' : 'readError' },
+						openFlags: fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0) | (fsConstants.O_NONBLOCK ?? 0),
+						read: scenario === 'unchanged', closeCalls: 1, closed: true,
+					});
+				} finally {
+					if (file && file.fd !== -1) {
+						await file.close();
+					}
+					await fs.rm(userHome.fsPath, { recursive: true, force: true });
+					await disposeAgent(agent);
+				}
+			});
+		}
+
+		if (fsConstants.O_NOFOLLOW !== undefined) {
+			test('rejects a client metadata symlink substituted between lstat and open', async () => {
+				const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-client-symlink-`));
+				const sessionId = 'client-symlink';
+				const agent = createTestAgent(disposables, { userHome });
+				try {
+					const directory = join(getCopilotHomePath(userHome.fsPath, process.env), 'session-state', sessionId);
+					await fs.mkdir(directory, { recursive: true });
+					await fs.writeFile(join(directory, 'workspace.yaml'), 'client_name: vscode');
+					const replacement = join(directory, 'replacement.yaml');
+					await fs.writeFile(replacement, 'client_name: github/cli');
+					let opened = false;
+					const result = await agent['_readLegacyClientMetadata'](sessionId, async (path, flags, mode) => {
+						await fs.unlink(path);
+						await fs.symlink(replacement, path);
+						const file = await fs.open(path, flags, mode);
+						opened = true;
+						return file;
+					});
+					assert.deepStrictEqual({ result, opened }, { result: { workspaceMetadataStatus: 'readError' }, opened: false });
 				} finally {
 					await fs.rm(userHome.fsPath, { recursive: true, force: true });
 					await disposeAgent(agent);

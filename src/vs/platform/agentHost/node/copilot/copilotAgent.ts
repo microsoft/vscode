@@ -4309,7 +4309,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return { ...diagnostics, sessionStateRootStatus, sessionDirectoryStatus, eventsFileStatus };
 	}
 
-	private async _readLegacyClientMetadata(sessionId: string): Promise<Pick<NonNullable<IAgentChatAdoptionResult['diagnostics']>, 'workspaceMetadataStatus' | 'lastKnownClient'>> {
+	private async _readLegacyClientMetadata(sessionId: string, open: typeof fs.open = fs.open): Promise<Pick<NonNullable<IAgentChatAdoptionResult['diagnostics']>, 'workspaceMetadataStatus' | 'lastKnownClient'>> {
 		const maxBytes = 16 * 1024;
 		try {
 			const path = this._extensionHostCliSidecarPath(sessionId, 'workspace.yaml');
@@ -4320,9 +4320,21 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (stat.size > maxBytes) {
 				return { workspaceMetadataStatus: 'tooLarge' };
 			}
-			const file = await fs.open(path, 'r');
+			const file = await open(path, fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0) | (fsConstants.O_NONBLOCK ?? 0));
 			let text: string;
 			try {
+				const openedStat = await file.stat();
+				if (!openedStat.isFile()) {
+					return { workspaceMetadataStatus: 'notFile' };
+				}
+				// Windows lacks O_NOFOLLOW; reject a switched target before reading from the descriptor.
+				if (openedStat.dev !== stat.dev || openedStat.ino !== stat.ino) {
+					this._logService.warn('[Copilot] Workspace metadata changed during legacy client diagnostics');
+					return { workspaceMetadataStatus: 'readError' };
+				}
+				if (openedStat.size > maxBytes) {
+					return { workspaceMetadataStatus: 'tooLarge' };
+				}
 				const buffer = Buffer.alloc(maxBytes + 1);
 				let length = 0;
 				while (length < buffer.length) {
