@@ -258,7 +258,9 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	}
 
 	override async resolve(): Promise<ChatEditorModel | null> {
-		await whenAccountPolicySettled(this.accountPolicyGateService);
+		if (!this.options.target?.data && (!this._sessionResource || isUntitledChatSession(this._sessionResource))) {
+			await whenAccountPolicySettled(this.accountPolicyGateService);
+		}
 		const searchParams = new URLSearchParams(this.resource.query);
 		const chatSessionType = searchParams.get('chatSessionType');
 		const inputType = chatSessionType ?? this.resource.authority;
@@ -307,6 +309,9 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 				this.modelRef.value = this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { canUseTools: !inputType, debugOwner: 'ChatEditorInput#resolveUntitledFallback', sessionTypeSelectionReason: getLocalFallbackSessionTypeSelectionReason(getChatSessionType(this._sessionResource), false) });
 			}
 
+			if (LocalChatSessionUri.isLocalSession(this._sessionResource) && !this.model?.hasRequests) {
+				await whenAccountPolicySettled(this.accountPolicyGateService);
+			}
 			if (this.shouldReplaceEmptyLocalSession(this._sessionResource)) {
 				const defaultTypeAndReason = getDefaultNewChatSessionTypeAndReasonFromServices(this.configurationService, this.chatSessionsService, this.storageService, this.workspaceContextService.getWorkspace(), this.agentHostEnablementService.enabled.get(), undefined, this.agentHostEnablementService.managedSandboxEnforced.get(), requiresCopilotAgentHost(this.managedSettingsService));
 				const defaultResource = getNewChatSessionResource(defaultTypeAndReason.sessionType);

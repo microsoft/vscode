@@ -23,8 +23,7 @@ import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { filter } from '../../../../../base/common/objects.js';
-import { autorun, derived, IObservable, IReader, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
-import { mainWindow } from '../../../../../base/browser/window.js';
+import { autorun, constObservable, derived, IObservable, IReader, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { extUri, isEqual } from '../../../../../base/common/resources.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -433,9 +432,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private editorOverflowWidgetsDomNode: HTMLElement | undefined;
 	private editorOptions!: ChatEditorOptions;
 	private readonly readOnlyBanner: ChatReadOnlyBanner | undefined;
-	private readOnlyBannerSlot: Comment | undefined;
 	private readonly policyRequiresAgentHost: IObservable<boolean>;
-	private readonly sessionArchiveChanged: IObservable<void>;
 	private policyReadOnly = false;
 
 	private recentlyRestoredCheckpoint: boolean = false;
@@ -646,7 +643,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		super();
 		this._persistentContentHeight = viewOptions.persistentContentHeight ?? 0;
 		this.policyRequiresAgentHost = observableFromEvent(this, managedSettingsService.onDidChangeManagedSettings, () => requiresCopilotAgentHost(managedSettingsService));
-		this.sessionArchiveChanged = observableSignalFromEvent(this, agentSessionsService.model.onDidChangeSessions);
 
 		this.readOnlyBanner = viewOptions.isSessionsWindow
 			? undefined
@@ -1183,11 +1179,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.container.appendChild(this.readOnlyBanner.domNode);
 			}
 			this.createInput(this.container, { renderFollowups, renderStyle, renderInputToolbarBelowInput });
-		}
-
-		if (this.readOnlyBanner) {
-			this.readOnlyBannerSlot = mainWindow.document.createComment('read-only banner');
-			this.readOnlyBanner.domNode.after(this.readOnlyBannerSlot);
 		}
 
 		if (this.location === ChatAgentLocation.Chat && !isInlineChat(this)) {
@@ -2145,13 +2136,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}),
 		} : undefined);
 		this.readOnlyBanner?.setVisible(readOnly && !keepInputVisible);
-		if (this.readOnlyBanner && this.readOnlyBannerSlot) {
-			if (this.policyReadOnly) {
-				this.listContainer.before(this.readOnlyBanner.domNode);
-			} else {
-				this.readOnlyBannerSlot.before(this.readOnlyBanner.domNode);
-			}
-		}
 		this.setInputVisible(!readOnly || keepInputVisible);
 		// Authoritative over the lock/unlock `editable` toggles below.
 		this._applyRendererEditable(!readOnly);
@@ -2160,11 +2144,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
-	private updateReadOnlyState(model: IChatModel, reader: IReader): void {
-		this.sessionArchiveChanged.read(reader);
-		const archived = this.agentSessionsService.getSession(model.sessionResource)?.isArchived() === true;
-		this.policyReadOnly = !archived && getChatSessionType(model.sessionResource) === localChatSessionType && this.policyRequiresAgentHost.read(reader);
-		this.setReadOnly(archived || model.isReadOnly.read(reader) || this.policyReadOnly, !archived && !this.policyReadOnly && model.isInputBlocked.read(reader));
+	private observeLocalSessionArchived(model: IChatModel): IObservable<boolean> {
+		return getChatSessionType(model.sessionResource) === localChatSessionType
+			? observableFromEvent(this, this.agentSessionsService.model.onDidChangeSessions, () => this.agentSessionsService.getSession(model.sessionResource)?.isArchived() === true)
+			: constObservable(false);
+	}
+
+	private updateReadOnlyState(model: IChatModel, archived: boolean, reader: IReader): void {
+		const policyRequired = getChatSessionType(model.sessionResource) === localChatSessionType && this.policyRequiresAgentHost.read(reader);
+		this.policyReadOnly = policyRequired && !archived;
+		this.setReadOnly(model.isReadOnly.read(reader) || policyRequired, !policyRequired && model.isInputBlocked.read(reader));
 	}
 
 	/**
@@ -2966,7 +2955,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this.viewModel = this.instantiationService.createInstance(ChatViewModel, model, undefined);
 		if (!this.viewOptions.isSessionsWindow) {
-			this.viewModelDisposables.add(autorun(reader => this.updateReadOnlyState(model, reader)));
+			const archived = this.observeLocalSessionArchived(model);
+			this.viewModelDisposables.add(autorun(reader => this.updateReadOnlyState(model, archived.read(reader), reader)));
 		}
 
 		this.listWidget.setViewModel(this.viewModel);

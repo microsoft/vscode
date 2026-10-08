@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { IManagedSettingsService, NullManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { AccountPolicyGateState, IAccountPolicyGateService } from '../../../../../services/policies/common/accountPolicyService.js';
-import { spy } from 'sinon';
+import { spy, stub } from 'sinon';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
@@ -309,6 +309,63 @@ suite('ChatService', () => {
 			const result = await pending;
 			assert.deepStrictEqual({ before, after: activate.callCount, result: result.kind, requests: model.getRequests().length }, { before: 0, after: 0, result: 'rejected', requests: 0 });
 		});
+
+		for (const location of [ChatAgentLocation.EditorInline, ChatAgentLocation.Terminal]) {
+			test(`${policyKey} cannot be bypassed by a Local ${location} session`, async () => {
+				instantiationService.stub(IManagedSettingsService, {
+					_serviceBrand: undefined, onDidChangeManagedSettings: Event.None,
+					getManagedSettingValue: key => key === policyKey ? (policyKey === 'sandbox.enabled' ? true : '["Shell"]') : undefined,
+				});
+				const service = createChatService();
+				const model = startSessionModel(service, location).object;
+				const result = await service.sendRequest(model.sessionResource, 'must not bypass policy');
+				assert.deepStrictEqual({
+					result: result.kind, blocked: model.isInputBlocked.get(), requests: model.getRequests().length,
+				}, { result: 'rejected', blocked: true, requests: 0 });
+			});
+		}
+
+		for (const phase of ['before', 'during']) {
+			test(`${policyKey} blocks Local execution when policy arrives ${phase} MCP autostart`, async () => {
+				const changes = testDisposables.add(new Emitter<void>());
+				let rules: string | boolean | undefined;
+				const applyPolicy = () => {
+					rules = policyKey === 'sandbox.enabled' ? true : '["Shell"]';
+					changes.fire();
+				};
+				instantiationService.stub(IManagedSettingsService, {
+					_serviceBrand: undefined, onDidChangeManagedSettings: changes.event,
+					getManagedSettingValue: key => key === policyKey ? rules : undefined,
+				});
+				const extensionService = new TestExtensionService();
+				const activate = stub(extensionService, 'activateByEvent').callsFake(async () => {
+					if (phase === 'before') {
+						applyPolicy();
+					}
+				});
+				testDisposables.add(toDisposable(() => activate.restore()));
+				instantiationService.stub(IExtensionService, extensionService);
+				let autostarts = 0;
+				instantiationService.stub(IMcpService, new class extends TestMcpService {
+					override autostart() {
+						autostarts++;
+						applyPolicy();
+						return super.autostart();
+					}
+				});
+				const invoke = spy(chatAgentService, 'invokeAgent');
+				testDisposables.add(toDisposable(() => invoke.restore()));
+				const service = createChatService();
+				const model = startSessionModel(service).object;
+				const result = await service.sendRequest(model.sessionResource, 'policy race');
+				ChatSendResult.assertSent(result);
+				await result.data.responseCompletePromise;
+				assert.deepStrictEqual({
+					autostarts, invocations: invoke.callCount, blocked: model.isInputBlocked.get(),
+					hasError: !!model.getRequests()[0]?.response?.result?.errorDetails,
+				}, { autostarts: phase === 'before' ? 0 : 1, invocations: 0, blocked: true, hasError: true });
+			});
+		}
 	}
 
 	test('propagates Agents Voice Mode input to the participant request', async () => {

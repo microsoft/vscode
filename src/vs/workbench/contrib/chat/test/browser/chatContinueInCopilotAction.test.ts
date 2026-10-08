@@ -137,6 +137,7 @@ suite('Continue in Copilot policy recovery', () => {
 					getOrCreate: async () => { preparation.push('prepare'); return scenario === 'prepare-failed' ? undefined : real; },
 					get: () => real,
 					disposeSession: async () => { preparation.push('release draft'); },
+					releaseSession: () => { preparation.push('retain imported session'); },
 				});
 				services.stub(IAgentHostNewSessionFolderService, { resolveNewSessionPrimary: () => undefined });
 				services.stub(ICustomizationHarnessService, {});
@@ -181,16 +182,9 @@ suite('Continue in Copilot policy recovery', () => {
 					await duplicate;
 				}
 				if (scenario === 'unavailable' || scenario === 'prepare-failed' || scenario === 'import-failed' || scenario === 'import-missing' || scenario === 'open-failed' || scenario === 'open-cancelled' || scenario === 'archived' || scenario === 'missing-history' || scenario === 'cancelled' || scenario === 'in-progress') {
-					const error = scenario === 'unavailable' ? /organization requires the new Copilot experience/
-						: scenario === 'prepare-failed' ? /Couldn't start Copilot/
-							: scenario === 'import-missing' ? /Start a new Copilot chat instead/
-								: scenario === 'open-failed' ? /Open failed/
-									: scenario === 'open-cancelled' ? /Couldn't open the Copilot conversation/
-										: scenario === 'archived' ? /This chat is archived/
-											: scenario === 'missing-history' ? /Couldn't find this conversation in chat history/
-												: scenario === 'cancelled' ? /Canceled/
-													: scenario === 'in-progress' ? /Stop the current request/
-														: /Import rejected/;
+					const error = scenario === 'import-failed' ? /Import rejected/
+						: scenario === 'cancelled' ? /Canceled/
+							: /Couldn't move this chat to Copilot/;
 					await assert.rejects(run, error);
 					assertTelemetry(scenario === 'cancelled' ? 'cancelled' : 'failed');
 					assert.deepStrictEqual({ target, draft: widget.getInput(), history: model.getRequests().length, preparation, archived }, {
@@ -210,7 +204,7 @@ suite('Continue in Copilot policy recovery', () => {
 					target: SessionType.AgentHostCopilot,
 					history: scenario === 'empty' ? undefined : [{ text: 'Original question', response: [{ kind: 'markdown', content: 'Original answer' }] }],
 					draft: { inputText: 'Unsent follow-up', attachments: [attachment], selections: [] },
-					preparation: scenario === 'empty' ? ['open'] : ['prepare', 'import', 'release draft', 'open', 'archive'],
+					preparation: scenario === 'empty' ? ['open'] : ['prepare', 'import', 'release draft', 'open', 'retain imported session', 'archive'],
 					archived: scenario !== 'empty',
 					modelOverride: undefined, originalDraft: 'Unsent follow-up', originalRequests: scenario === 'empty' ? 0 : 1,
 				});

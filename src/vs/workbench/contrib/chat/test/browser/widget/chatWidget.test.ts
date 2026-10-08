@@ -10,7 +10,7 @@ import { DeferredPromise, timeout } from '../../../../../../base/common/async.js
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, IReader, observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, IReader, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mockObject, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -1192,14 +1192,14 @@ suite('ChatWidget', () => {
 		const instantiation = store.add(new TestInstantiationService());
 		instantiation.stub(IHoverService, NullHoverService);
 		instantiation.stub(IOpenerService, { open: async () => true });
-		const banner = store.add(instantiation.createInstance(ChatReadOnlyBanner, undefined));
+		const banner = store.add(instantiation.createInstance(ChatReadOnlyBanner, 'This chat is read-only'));
 		const container = dom.$('div');
-		const listContainer = dom.append(container, dom.$('div'));
 		container.appendChild(banner.domNode);
-		const slot = mainWindow.document.createComment('read-only banner');
-		container.appendChild(slot);
+		dom.append(container, dom.$('div'));
 		const policy = observableValue('policy', true);
-		const archivedState = observableValue('archivedState', false);
+		const sessionChanges = store.add(new Emitter<void>());
+		let archivedState = false;
+		let readOnlyUpdates = 0;
 		const local = upcastPartial<IChatModel>({
 			sessionResource: LocalChatSessionUri.forSession('old-local'), hasRequests: true,
 			isReadOnly: constObservable(false), isInputBlocked: policy,
@@ -1213,21 +1213,27 @@ suite('ChatWidget', () => {
 			isReadOnly: constObservable(true), isInputBlocked: constObservable(false),
 		});
 		const selected = observableValue('selected', local);
-		const widget: { updateReadOnlyState(model: IChatModel, reader: IReader): void; _viewModel: { sessionResource: URI; model: IChatModel } } = Object.assign(Object.create(ChatWidget.prototype), {
+		const widget: {
+			observeLocalSessionArchived(model: IChatModel): IObservable<boolean>;
+			updateReadOnlyState(model: IChatModel, archived: boolean, reader: IReader): void;
+			_viewModel: { sessionResource: URI; model: IChatModel };
+		} = Object.assign(Object.create(ChatWidget.prototype), {
 			_readOnly: false, _draftOnly: observableValue('draftOnly', false), _visible: constObservable(false),
 			_readOnlyContextKey: { set: () => { } }, policyRequiresAgentHost: policy, readOnlyBanner: banner,
-			sessionArchiveChanged: { read: (reader: IReader) => { archivedState.read(reader); } },
-			agentSessionsService: { getSession: () => ({ isArchived: () => archivedState.get() }) },
-			listContainer, readOnlyBannerSlot: slot,
+			agentSessionsService: {
+				model: { onDidChangeSessions: sessionChanges.event },
+				getSession: () => ({ isArchived: () => archivedState }),
+			},
 			chatSuggestNextWidget: { hide: () => { } }, hasInputFocus: () => false,
 			setInputVisible: () => { }, renderChatSuggestNextWidget: () => { },
-			listWidget: { updateRendererOptions: () => { } },
+			listWidget: { updateRendererOptions: () => { readOnlyUpdates++; } },
 			inputPartDisposable: { value: { inputUri: URI.parse('vscode-chat-input:policy-banner') } },
 		});
 		store.add(autorun(reader => {
 			const model = selected.read(reader);
 			widget._viewModel = { sessionResource: model.sessionResource, model };
-			widget.updateReadOnlyState(model, reader);
+			const archived = widget.observeLocalSessionArchived(model);
+			reader.store.add(autorun(reader => widget.updateReadOnlyState(model, archived.read(reader), reader)));
 		}));
 		const snapshot = () => ({
 			visible: banner.visible, text: banner.domNode.querySelector('.chat-readonly-banner-text')?.textContent,
@@ -1235,25 +1241,35 @@ suite('ChatWidget', () => {
 			atTop: container.firstChild === banner.domNode,
 		});
 		const original = snapshot();
+		const initialUpdates = readOnlyUpdates;
+		sessionChanges.fire();
+		const unrelatedUpdateChangedBanner = readOnlyUpdates !== initialUpdates;
 		selected.set(copilot, undefined);
 		const away = snapshot();
 		selected.set(local, undefined);
 		const returned = snapshot();
-		archivedState.set(true, undefined);
+		archivedState = true;
+		sessionChanges.fire();
 		const archivedUnderPolicy = snapshot();
+		selected.set(copilot, undefined);
+		const otherProviderWhileArchived = snapshot();
+		selected.set(local, undefined);
 		policy.set(false, undefined);
 		const archivedAfterRemoval = snapshot();
-		archivedState.set(false, undefined);
+		archivedState = false;
+		sessionChanges.fire();
 		const removed = snapshot();
 		selected.set(archived, undefined);
-		assert.deepStrictEqual({ original, away, returned, archivedUnderPolicy, archivedAfterRemoval, removed, archived: snapshot() }, {
+		assert.deepStrictEqual({ original, unrelatedUpdateChangedBanner, away, returned, archivedUnderPolicy, otherProviderWhileArchived, archivedAfterRemoval, removed, archived: snapshot() }, {
 			original: { visible: true, text: 'This chat is read-only because your organization requires the new Copilot experience.', action: 'Move to Copilot', atTop: true },
-			away: { visible: false, text: 'Archived sessions are read-only.', action: '', atTop: false },
+			unrelatedUpdateChangedBanner: false,
+			away: { visible: false, text: 'This chat is read-only', action: '', atTop: true },
 			returned: original,
-			archivedUnderPolicy: { visible: true, text: 'Archived sessions are read-only.', action: '', atTop: false },
-			archivedAfterRemoval: { visible: true, text: 'Archived sessions are read-only.', action: '', atTop: false },
-			removed: { visible: false, text: 'Archived sessions are read-only.', action: '', atTop: false },
-			archived: { visible: true, text: 'Archived sessions are read-only.', action: '', atTop: false },
+			archivedUnderPolicy: { visible: true, text: 'This chat is read-only', action: '', atTop: true },
+			otherProviderWhileArchived: { visible: false, text: 'This chat is read-only', action: '', atTop: true },
+			archivedAfterRemoval: { visible: false, text: 'This chat is read-only', action: '', atTop: true },
+			removed: { visible: false, text: 'This chat is read-only', action: '', atTop: true },
+			archived: { visible: true, text: 'This chat is read-only', action: '', atTop: true },
 		});
 	});
 

@@ -87,6 +87,25 @@ suite('ChatEditorInput', () => {
 		}
 	}
 
+	for (const sessionResource of [LocalChatSessionUri.forSession('existing-local'), URI.from({ scheme: SessionType.AgentHostCopilot, path: '/existing-copilot' })]) {
+		test(`restores ${sessionResource.scheme} history without waiting for account policy`, async () => {
+			const model = upcastPartial<IChatModel>({
+				sessionResource, hasRequests: true, onDidDispose: Event.None, onDidChange: Event.None,
+			});
+			const input = disposables.add(new ChatEditorInput(
+				sessionResource, {},
+				upcastPartial<IChatService>({ acquireOrLoadSession: async () => ({ object: model, dispose: () => { } }) }),
+				upcastPartial<IDialogService>({}), new TestConfigurationService(), new MockChatSessionsService(),
+				upcastPartial<IInstantiationService>({}), disposables.add(new TestStorageService()), new NullLogService(), new TestContextService(),
+				{ _serviceBrand: undefined, enabled: constObservable(true), managedSandboxEnforced: constObservable(false), managedSandboxAllowsBypass: constObservable(false) },
+				upcastPartial<IAgentHostConnectionsService>({}), NullTelemetryService, upcastPartial<IProgressService>({}),
+				new NullManagedSettingsService(),
+				{ ...settledPolicyGate, whenInitialized: () => { throw new Error('Restoring history must not wait for policy'); } },
+			));
+			assert.strictEqual((await input.resolve())?.model, model);
+		});
+	}
+
 	for (const throws of [false, true]) {
 		test(`reports migration restore resolution ${throws ? 'errors' : 'missing models'}`, async () => {
 			const events: { name: string; data: unknown; error: boolean }[] = [];

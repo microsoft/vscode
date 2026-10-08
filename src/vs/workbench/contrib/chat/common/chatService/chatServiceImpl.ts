@@ -581,11 +581,11 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	private policyInitialized = false;
+	private readonly managedPolicy = observableFromEvent(this, this.managedSettingsService.onDidChangeManagedSettings, () => requiresCopilotAgentHost(this.managedSettingsService));
 
 	private _startSession(props: IStartSessionProps): ChatModel {
 		const { initialData, location, sessionResource, canUseTools, transferEditingSession, disableBackgroundKeepAlive, inputState, isReadOnly, isInputBlocked, backgroundShellCount, sessionTypeSelectionReason } = props;
-		const managedPolicy = observableFromEvent(this, this.managedSettingsService.onDidChangeManagedSettings, () => requiresCopilotAgentHost(this.managedSettingsService));
-		const blocked = derived(this, reader => (getChatSessionType(sessionResource) === localChatSessionType && managedPolicy.read(reader)) || (isInputBlocked?.read(reader) ?? false));
+		const blocked = derived(this, reader => (getChatSessionType(sessionResource) === localChatSessionType && this.managedPolicy.read(reader)) || (isInputBlocked?.read(reader) ?? false));
 		const model = this.instantiationService.createInstance(ChatModel, initialData, { initialLocation: location, canUseTools, resource: sessionResource, disableBackgroundKeepAlive, inputState, isReadOnly, isInputBlocked: blocked, backgroundShellCount, sessionTypeSelectionReason });
 		if (this._hasAgentHostContribution(sessionResource)) {
 			this._serverManagedQueueModels.add(model);
@@ -1968,6 +1968,9 @@ export class ChatService extends Disposable implements IChatService {
 						progressCallback([{ kind: 'disabledClaudeHooks' }]);
 					}
 
+					if (getChatSessionType(sessionResource) === localChatSessionType && this.managedPolicy.get()) {
+						throw new ErrorNoTelemetry(managedPolicyRequiresAgentHostMessage());
+					}
 					// MCP autostart: only run for native VS Code sessions (sidebar, new editors) but not for extension contributed sessions that have inputType set.
 					if (model.canUseTools) {
 						const autostartResult = new ChatMcpServersStarting(this.mcpService.autostart(token));
@@ -1977,7 +1980,7 @@ export class ChatService extends Disposable implements IChatService {
 						}
 					}
 
-					if (getChatSessionType(sessionResource) === localChatSessionType && requiresCopilotAgentHost(this.managedSettingsService)) {
+					if (getChatSessionType(sessionResource) === localChatSessionType && this.managedPolicy.get()) {
 						throw new ErrorNoTelemetry(managedPolicyRequiresAgentHostMessage());
 					}
 					const agentResult = await this.chatAgentService.invokeAgent(agent.id, requestProps, progressCallback, history, token);
