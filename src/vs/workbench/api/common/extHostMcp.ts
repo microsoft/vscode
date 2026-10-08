@@ -189,7 +189,13 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 		};
 
 		const update = async () => {
+			if (store.isDisposed) {
+				return;
+			}
 			const list = await provider.provideMcpServerDefinitions(CancellationToken.None);
+			if (store.isDisposed) {
+				return;
+			}
 			this._unresolvedMcpServers.set(mcp.id, { servers: list ?? [], provider });
 
 			const servers: McpServerDefinition.Serialized[] = [];
