@@ -408,7 +408,6 @@ export class ChatDebugSessionTimeline extends Disposable {
 		this.findSearching = false;
 		this.findCancellation.clear();
 		this.render();
-		this.revealCurrentFindMatch();
 	}
 
 	private async computeFindMatches(events: readonly ISessionTimelineEvent[], query: string, token: CancellationToken): Promise<readonly ISessionTimelineFindMatch[] | undefined> {
