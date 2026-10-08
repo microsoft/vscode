@@ -119,8 +119,6 @@ export class WorkbenchExtensionGalleryManifestService extends ExtensionGalleryMa
 		}));
 	}
 
-	// A sign-out or account change can arrive while a resolution is awaiting the manifest fetch;
-	// cancelling the previous run prevents a superseded fetch from publishing a stale status.
 	private readonly resolutionTokenSource = this._register(new MutableDisposable<CancellationTokenSource>());
 	private beginResolution(): CancellationToken {
 		this.resolutionTokenSource.value?.cancel();

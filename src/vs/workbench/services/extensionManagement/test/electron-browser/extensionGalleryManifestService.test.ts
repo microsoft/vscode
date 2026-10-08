@@ -734,8 +734,6 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 	});
 
 	test('GitHub provider — sign-out during an in-flight manifest fetch does not restore access', async () => {
-		// A sign-out that lands while the eligible-account fetch is parked must supersede it: the stale
-		// fetch resolving last must not publish Available over the RequiresSignIn the sign-out set.
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'github');
 		defaultAccount = createDefaultAccount({ enterprise: true });
 
