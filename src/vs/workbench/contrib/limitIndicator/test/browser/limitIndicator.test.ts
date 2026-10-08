@@ -64,7 +64,7 @@ suite('LimitIndicatorContribution', () => {
 	});
 
 	function createModel(): ITextModel {
-		return disposables.add(modelService.createModel(Array.from({ length: 600 }, () => 'value').join('\n'), null));
+		return disposables.add(modelService.createModel(Array.from({ length: 5100 }, () => 'value').join('\n'), null));
 	}
 
 	function createEditor(): ITestCodeEditor {
@@ -92,7 +92,7 @@ suite('LimitIndicatorContribution', () => {
 	}
 
 	test('shows a warning without a Configure action only when diagnostics overflow', async () => {
-		await changeMarkers(editor.getModel(), 500);
+		await changeMarkers(editor.getModel(), 5000);
 		const atLimit = [...statuses];
 		await changeMarkers(editor.getModel(), 1, 'overflow');
 		const overflowing = [...statuses];
@@ -106,7 +106,7 @@ suite('LimitIndicatorContribution', () => {
 				name: 'Diagnostic Highlight Status',
 				severity: Severity.Warning,
 				label: 'Diagnostic highlights',
-				detail: 'only 500 shown for performance reasons',
+				detail: 'only 5000 shown for performance reasons',
 				command: undefined,
 				accessibilityInfo: undefined,
 				source: 'Diagnostics',
@@ -118,7 +118,7 @@ suite('LimitIndicatorContribution', () => {
 
 	test('shows existing overflow when the contribution is initialized', async () => {
 		contribution.dispose();
-		await changeMarkers(editor.getModel(), 501);
+		await changeMarkers(editor.getModel(), 5001);
 		contribution = disposables.add(new LimitIndicatorContribution(editorService, languageStatusService));
 
 		assert.deepStrictEqual([...statuses].map(status => status.id), ['diagnosticsLimitInfo']);
@@ -127,7 +127,7 @@ suite('LimitIndicatorContribution', () => {
 	test('follows model changes in the same editor, including an empty editor', async () => {
 		const affected = editor.getModel();
 		const unaffected = createModel();
-		await changeMarkers(affected, 501);
+		await changeMarkers(affected, 5001);
 		const counts = [statuses.size];
 
 		editor.setModel(unaffected);
@@ -147,23 +147,23 @@ suite('LimitIndicatorContribution', () => {
 	test('follows the active split editor and ignores background diagnostics', async () => {
 		const affected = editor.getModel();
 		const otherEditor = createEditor();
-		await changeMarkers(affected, 501);
+		await changeMarkers(affected, 5001);
 		const counts = [statuses.size];
 
 		setActiveEditor(otherEditor);
 		counts.push(statuses.size);
-		await changeMarkers(affected, 600);
+		await changeMarkers(affected, 5100);
 		counts.push(statuses.size);
 		setActiveEditor(editor);
 		counts.push(statuses.size);
 		otherEditor.setModel(affected);
 		setActiveEditor(otherEditor);
 		counts.push(statuses.size);
-		await changeMarkers(affected, 500);
+		await changeMarkers(affected, 5000);
 		counts.push(statuses.size);
 		setActiveEditor(editor);
 		counts.push(statuses.size);
-		await changeMarkers(affected, 501);
+		await changeMarkers(affected, 5001);
 		counts.push(statuses.size);
 		setActiveEditor(undefined);
 		counts.push(statuses.size);
@@ -172,40 +172,40 @@ suite('LimitIndicatorContribution', () => {
 	});
 
 	test('does not recreate the active warning for another resource', async () => {
-		await changeMarkers(editor.getModel(), 501);
+		await changeMarkers(editor.getModel(), 5001);
 		const status = [...statuses][0];
-		await changeMarkers(createModel(), 600);
+		await changeMarkers(createModel(), 5100);
 
 		assert.strictEqual([...statuses][0], status);
 	});
 
 	test('does not recreate the warning while diagnostics remain over the limit', async () => {
-		await changeMarkers(editor.getModel(), 501);
+		await changeMarkers(editor.getModel(), 5001);
 		const status = [...statuses][0];
-		await changeMarkers(editor.getModel(), 600);
+		await changeMarkers(editor.getModel(), 5100);
 
 		assert.strictEqual([...statuses][0], status);
 	});
 
 	test('uses the modified editor in a diff', async () => {
 		const modifiedEditor = createEditor();
-		await changeMarkers(editor.getModel(), 501);
+		await changeMarkers(editor.getModel(), 5001);
 		setActiveEditor(new class extends mock<IDiffEditor>() {
 			override getEditorType() { return EditorType.IDiffEditor; }
 			override getOriginalEditor() { return editor; }
 			override getModifiedEditor() { return modifiedEditor; }
 		});
 		const counts = [statuses.size];
-		await changeMarkers(modifiedEditor.getModel(), 501);
+		await changeMarkers(modifiedEditor.getModel(), 5001);
 		counts.push(statuses.size);
-		await changeMarkers(modifiedEditor.getModel(), 500);
+		await changeMarkers(modifiedEditor.getModel(), 5000);
 		counts.push(statuses.size);
 
 		assert.deepStrictEqual(counts, [0, 1, 0]);
 	});
 
 	test('respects validation visibility and read-only changes', async () => {
-		await changeMarkers(editor.getModel(), 501);
+		await changeMarkers(editor.getModel(), 5001);
 		const counts = [statuses.size];
 
 		editor.updateOptions({ renderValidationDecorations: 'off' });
@@ -224,7 +224,7 @@ suite('LimitIndicatorContribution', () => {
 
 	test('clears and restores the warning when diagnostics are filtered', async () => {
 		const model = editor.getModel();
-		await changeMarkers(model, 501);
+		await changeMarkers(model, 5001);
 		const counts = [statuses.size];
 
 		const filtered = Event.toPromise(markerService.onMarkerChanged);
@@ -254,7 +254,7 @@ suite('LimitIndicatorContribution', () => {
 		colorReporter.update(3, 1);
 		foldingReporter.update(10, 5);
 		contribution = disposables.add(new LimitIndicatorContribution(editorService, languageStatusService));
-		await changeMarkers(editor.getModel(), 501);
+		await changeMarkers(editor.getModel(), 5001);
 
 		assert.deepStrictEqual([...statuses].map(status => ({ id: status.id, detail: status.detail, command: status.command })), [
 			{
@@ -267,19 +267,19 @@ suite('LimitIndicatorContribution', () => {
 				detail: 'only 5 shown for performance reasons',
 				command: { id: 'workbench.action.openSettings', arguments: ['editor.foldingMaximumRegions'], title: 'Configure' }
 			},
-			{ id: 'diagnosticsLimitInfo', detail: 'only 500 shown for performance reasons', command: undefined }
+			{ id: 'diagnosticsLimitInfo', detail: 'only 5000 shown for performance reasons', command: undefined }
 		]);
 	});
 
 	test('disposes its warning and listeners', async () => {
-		await changeMarkers(editor.getModel(), 501);
+		await changeMarkers(editor.getModel(), 5001);
 		contribution.dispose();
-		await changeMarkers(editor.getModel(), 600);
+		await changeMarkers(editor.getModel(), 5100);
 		editor.updateOptions({ renderValidationDecorations: 'off' });
 		editor.updateOptions({ renderValidationDecorations: 'on' });
 		setActiveEditor(editor);
 		editor.setModel(disposables.add(modelService.createModel('value', null, URI.file('/other.txt'))));
-		await changeMarkers(editor.getModel(), 501);
+		await changeMarkers(editor.getModel(), 5001);
 
 		assert.deepStrictEqual([...statuses], []);
 	});
