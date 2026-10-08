@@ -6,9 +6,9 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, ISettableObservable, observableValue, waitForState } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -19,6 +19,7 @@ import { SyncDescriptor } from '../../../../../platform/instantiation/common/des
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../../../workbench/common/editor.js';
+import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../../../../workbench/contrib/browserView/common/browserView.js';
 import { IAuxiliaryWindowService } from '../../../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { EditorService } from '../../../../../workbench/services/editor/browser/editorService.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
@@ -70,6 +71,23 @@ suite('Session canvas working sets', () => {
 		}));
 		const configurationService = harness.instaService.invokeFunction(accessor => accessor.get(IConfigurationService)) as TestConfigurationService;
 		await configurationService.setUserConfiguration(CanvasesEnabledSettingId, true);
+		const browserModels: { disposed: boolean }[] = [];
+		harness.instaService.stub(IBrowserViewWorkbenchService, upcastPartial<IBrowserViewWorkbenchService>({
+			createExternalBrowserView: async () => {
+				const onWillDispose = store.add(new Emitter<void>());
+				const browserModel = { disposed: false };
+				browserModels.push(browserModel);
+				return upcastPartial<IBrowserViewModel>({
+					onWillDispose: onWillDispose.event,
+					dispose: () => {
+						if (!browserModel.disposed) {
+							browserModel.disposed = true;
+							onWillDispose.fire();
+						}
+					},
+				});
+			},
+		}));
 		store.add(harness.instaService.createInstance(TestCanvasLayoutController));
 		const canvasService = store.add(harness.instaService.createInstance(SessionCanvasService));
 		instantiationService.stub(ISessionCanvasService, canvasService);
@@ -101,7 +119,7 @@ suite('Session canvas working sets', () => {
 			harness.activeSessionObs.set(session, undefined);
 			await timeout(0);
 		};
-		return { harness, instantiationService, parts, editorService, canvasService, canvas, canvases, sessionA, sessionB, originalCanvas, file, switchTo };
+		return { harness, instantiationService, parts, editorService, canvasService, canvas, canvases, sessionA, sessionB, originalCanvas, file, switchTo, browserModels };
 	}
 
 	for (const mode of ['session-shared', 'chat-shared', 'chat'] as const) {
@@ -451,6 +469,68 @@ suite('Session canvas working sets', () => {
 			editors: editorService.editors.length,
 			suppressionDepth: harness.editorPartAutoVisibilitySuppressionDepth,
 		}, { editors: 0, suppressionDepth: 0 });
+	});
+
+	test('skips duplicate queued applies for an owner so its restored canvas stays live after A-B-A-B-A', async () => {
+		const { harness, parts, editorService, canvasService, canvas, sessionA, sessionB, originalCanvas, browserModels } = await createHarness();
+		await parts.activeGroup.setSelection(originalCanvas, []);
+		const { model } = await canvasService.resolveCanvasModel(originalCanvas.reference, canvas.source!);
+		const layout = parts.getLayout();
+		const focus = document.createElement('input');
+		document.body.appendChild(focus);
+		store.add(toDisposable(() => focus.remove()));
+		focus.focus();
+		const applied: string[] = [];
+		const held = new DeferredPromise<void>();
+		const release = new DeferredPromise<void>();
+		const apply = parts.applyWorkingSet;
+		parts.applyWorkingSet = async (workingSet, options) => {
+			applied.push(workingSet === 'empty' ? workingSet : workingSet.name);
+			if (!held.isSettled) {
+				held.complete();
+				await release.p;
+			}
+			return apply.call(parts, workingSet, options);
+		};
+
+		harness.activeSessionObs.set(sessionB, undefined);
+		await held.p;
+		for (const session of [sessionA, sessionB, sessionA]) {
+			harness.activeSessionObs.set(session, undefined);
+		}
+		release.complete();
+		await waitForState(harness.editorWorkingSetService.restoreState, state => !state.restoring);
+		await timeout(0);
+
+		const restored = editorService.editors.find(input => input instanceof SessionCanvasInput);
+		const resolution = restored && await canvasService.resolveCanvasModel(restored.reference, canvas.source!);
+		assert.deepStrictEqual({
+			applied,
+			editors: editorService.editors.map(input => input.typeId),
+			activeEditor: editorService.activeEditor?.typeId,
+			canonical: restored?.serializationId === originalCanvas.serializationId,
+			reopenable: canvasService.reopenableCanvases.get().length,
+			sameBrowserModel: resolution?.model === model,
+			reusedBrowserModel: resolution?.reused,
+			browserModels,
+			layout: parts.getLayout(),
+			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+			suppressionDepth: harness.editorPartAutoVisibilitySuppressionDepth,
+			focusPreserved: document.activeElement === focus,
+		}, {
+			applied: ['empty', `session-working-set:${sessionA.resource.toString()}`],
+			editors: [SessionCanvasInput.ID, 'canvas-working-set-file'],
+			activeEditor: SessionCanvasInput.ID,
+			canonical: true,
+			reopenable: 0,
+			sameBrowserModel: true,
+			reusedBrowserModel: true,
+			browserModels: [{ disposed: false }],
+			layout,
+			editorVisible: true,
+			suppressionDepth: 0,
+			focusPreserved: true,
+		});
 	});
 
 	test('cold working-set identities cannot grant a fresh service live admission', async () => {
