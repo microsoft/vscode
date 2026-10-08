@@ -39,6 +39,7 @@ import { parseGitHubIssueUrl, parseGitHubPullRequestUrl } from '../../../../../p
 import { getEffectiveAgents } from '../../../../../platform/agentHost/common/customAgents.js';
 import { KNOWN_MODE_VALUES, omitAutomationSessionTemplateConfigValues, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { filterSessionConfigValues, getEffectiveSessionApprovalValue, getSessionApprovalProperty, getSessionWorkspaceProperties, isSessionConfigWritable, readSessionIsolation, validateSessionConfigWrite, writeSessionIsolation } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
+import { ChatAgentFilesLocationsSettingId, ChatHookFilesLocationsSettingId, getChatSensitiveEditLocations, type IChatSensitiveEditLocation } from '../../../../../platform/chat/common/chatSettings.js';
 import { applyLegacyAutomationSessionConfig } from '../../../../../platform/agentHost/common/automationConfig.js';
 import { migrateLegacyAutopilotConfig } from '../../../../../platform/agentHost/common/agentHostSchema.js';
 import { readAgentDevContainerWorktreeMetadata, withAgentDevContainerWorktreeMetadata, type IAgentDevContainerWorktreeMetadata } from '../../../../../platform/agentHost/common/meta/agentDevContainerWorktreeMeta.js';
@@ -110,6 +111,7 @@ const SETTINGS_DERIVED_SESSION_CONFIG_CLEARED_VALUES: Readonly<Record<string, un
 	[SessionConfigKey.WorktreeBranchPrefix]: '',
 	[SessionConfigKey.WorktreeIncludeFiles]: [],
 	[SessionConfigKey.WorktreeSymlinkFolders]: [],
+	[SessionConfigKey.SensitiveEditLocations]: [],
 };
 
 function mergeSessionChangeEvents(events: readonly ISessionChangeEvent[]): ISessionChangeEvent {
@@ -4154,6 +4156,17 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}));
 		this._register(recentWorkspacesService.onDidRemoveRecentWorkspaces(
 			workspaceUris => this._forgetWorkspaceIsolations(workspaceUris)));
+		this._register(this._baseConfigurationService.onDidChangeConfiguration(event => {
+			if (!event.affectsConfiguration(ChatHookFilesLocationsSettingId) && !event.affectsConfiguration(ChatAgentFilesLocationsSettingId)) {
+				return;
+			}
+			for (const newSession of this._newSessions.values()) {
+				this._refreshSettingsDerivedNewSessionConfig(newSession);
+			}
+			for (const cached of this._sessionCache.values()) {
+				this._syncSensitiveEditLocations(cached);
+			}
+		}));
 		this._register(this._storageService.onWillSaveState(() => {
 			if (this._sessionCacheStorageKey && this._cacheDirty) {
 				this._persistCache();
@@ -5150,7 +5163,53 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (Array.isArray(worktreeSymlinkFolders) && worktreeSymlinkFolders.length > 0) {
 			config[SessionConfigKey.WorktreeSymlinkFolders] = worktreeSymlinkFolders;
 		}
+
+		const sensitiveEditLocations = this._getSensitiveEditLocations(workspace);
+		if (sensitiveEditLocations.length > 0) {
+			config[SessionConfigKey.SensitiveEditLocations] = sensitiveEditLocations;
+		}
 		return config;
+	}
+
+	private _getSensitiveEditLocations(workspace: ISessionWorkspace | undefined): readonly IChatSensitiveEditLocation[] {
+		const locations = new Map<string, IChatSensitiveEditLocation>();
+		for (const folder of workspace?.folders ?? []) {
+			const overrides = { resource: folder.root };
+			const hookLocations = this._baseConfigurationService.getValue<unknown>(ChatHookFilesLocationsSettingId, overrides);
+			const agentLocations = this._baseConfigurationService.getValue<unknown>(ChatAgentFilesLocationsSettingId, overrides);
+			for (const location of getChatSensitiveEditLocations(hookLocations, agentLocations)) {
+				const existing = locations.get(location.path);
+				locations.set(location.path, {
+					path: location.path,
+					isDirectory: location.isDirectory || existing?.isDirectory === true,
+				});
+			}
+		}
+		return [...locations.values()].sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : Number(b.isDirectory) - Number(a.isDirectory));
+	}
+
+	private _syncSensitiveEditLocations(session: AgentHostSessionAdapter): void {
+		const connection = this.connection;
+		const config = this._runningSessionConfigs.get(session.sessionId);
+		if (!connection || !config?.schema.properties[SessionConfigKey.SensitiveEditLocations]) {
+			return;
+		}
+
+		const desired = this._getSensitiveEditLocations(session.workspace.get());
+		const current = config.values[SessionConfigKey.SensitiveEditLocations];
+		if (equals(current, desired) || (current === undefined && desired.length === 0)) {
+			return;
+		}
+
+		this._runningSessionConfigs.set(session.sessionId, {
+			...config,
+			values: { ...config.values, [SessionConfigKey.SensitiveEditLocations]: desired },
+		});
+		this._onDidChangeSessionConfig.fire(session.sessionId);
+		connection.dispatch(session.backendUri.toString(), {
+			type: ActionType.SessionConfigChanged,
+			config: { [SessionConfigKey.SensitiveEditLocations]: desired },
+		});
 	}
 
 	/**
@@ -6736,6 +6795,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!rawId || !cached) {
 			throw new Error(`Session '${chatId}' not found`);
 		}
+		this._syncSensitiveEditLocations(cached);
 
 		const { query, attachedContext } = options;
 		const sessionType = chatResource.scheme;
@@ -7607,11 +7667,21 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			};
 		}
 		if (existing && resolvedConfigsEqual(existing, seeded)) {
+			const rawId = this._rawIdFromChatId(sessionId);
+			const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+			if (cached) {
+				this._syncSensitiveEditLocations(cached);
+			}
 			return;
 		}
 		this._runningSessionConfigs.set(sessionId, seeded);
 		this._applyWorktreeIsolation(sessionId, seeded.values);
 		this._onDidChangeSessionConfig.fire(sessionId);
+		const rawId = this._rawIdFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		if (cached) {
+			this._syncSensitiveEditLocations(cached);
+		}
 	}
 
 	/** Mirrors a session's `isolation` pick onto its adapter. See {@link ISession.worktreePending}. */
