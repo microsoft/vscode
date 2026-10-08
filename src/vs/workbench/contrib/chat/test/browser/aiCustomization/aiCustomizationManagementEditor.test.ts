@@ -522,7 +522,7 @@ suite('aiCustomizationManagementEditor', () => {
 
 		assert.deepStrictEqual(calls, [{
 			commandId: 'workbench.action.sessions.newChat',
-			args: [{ prompt: 'Review this change', prefillPrompt: true, noWorkspace: true, sessionTypeId: 'copilotcli' }],
+			args: [{ prompt: 'Review this change', prefillPrompt: true, noWorkspace: true }],
 		}]);
 	});
 

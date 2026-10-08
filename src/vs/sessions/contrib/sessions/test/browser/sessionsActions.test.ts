@@ -1355,10 +1355,10 @@ suite('Sessions - Actions', () => {
 				return instantiationService.get(id);
 			},
 		};
-		await command.handler(invocationAccessor, { prompt: 'Review this change', prefillPrompt: true, noWorkspace: true, sessionTypeId: 'copilotcli' });
+		await command.handler(invocationAccessor, { prompt: 'Review this change', prefillPrompt: true, noWorkspace: true });
 
 		assert.deepStrictEqual({ quickChatRequests, openNewSessionCalls, viewSessionIds, queries }, {
-			quickChatRequests: [{ options: { sessionTypeId: 'copilotcli' }, preserveNavigation: true }],
+			quickChatRequests: [{ options: { providerId: activeSession.providerId, sessionTypeId: activeSession.sessionType }, preserveNavigation: true }],
 			openNewSessionCalls: 0,
 			viewSessionIds: [quickChat.sessionId],
 			queries: ['Review this change'],
