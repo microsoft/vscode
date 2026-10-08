@@ -213,7 +213,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		// its display metadata only. The picker hides per-model pricing for
 		// Auto, so the wrapped model is not user-visible.
 		const base = knownEndpoints.find(e => e.showInModelPicker) ?? knownEndpoints[0];
-		return this._instantiationService.createInstance(AutoChatEndpoint, base, '', 0, this.getAutoPickerMetadata(knownEndpoints).discountRange);
+		return this._instantiationService.createInstance(AutoChatEndpoint, base, '', 0, this.getAutoPickerMetadata(knownEndpoints).discountRange, undefined);
 	}
 
 	getAutoPickerMetadata(knownEndpoints: IChatEndpoint[]): AutoModePickerMetadata {
@@ -351,7 +351,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 
 		const endpoint = (entry?.endpoint && entry.sessionToken === result.session_token && entry.endpoint.model === selectedModel.model && entry.tier === tier)
 			? entry.endpoint
-			: this._instantiationService.createInstance(AutoChatEndpoint, selectedModel, result.session_token, result.discounted_costs?.[selectedModel.model] ?? selectedModel.autoDiscount ?? 0, this._calculateDiscountRange(knownEndpoints));
+			: this._instantiationService.createInstance(AutoChatEndpoint, selectedModel, result.session_token, result.discounted_costs?.[selectedModel.model] ?? selectedModel.autoDiscount ?? 0, this._calculateDiscountRange(knownEndpoints), tier);
 
 		if (conversationId === 'unknown') {
 			return endpoint;
