@@ -7493,10 +7493,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 */
 	private _applySessionStateUpdate(sessionId: string, state: SessionState): void {
 		const previous = this._lastSessionStates.get(sessionId);
-		const connection = this.connection;
-		const activeClientRemoved = connection !== undefined
-			&& previous?.activeClients.some(client => client.clientId === connection.clientId)
-			&& !state.activeClients.some(client => client.clientId === connection.clientId);
 		// Any folder's Agent Merge settings, including those written by earlier versions.
 		const agentMergeSettings = () => [...readAgentMergeFolderStates(this._getAgentMergeValues(sessionId), '').entries()]
 			.map(([key, folderState]) => ({ key, enabled: folderState.enabled, overrides: folderState.overrides }));
@@ -7525,9 +7521,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		if (agentMergeSettingsChanged) {
 			this._onDidChangeAgentMergeSessionState.fire(sessionId);
-		}
-		if (activeClientRemoved) {
-			this._syncActiveClient();
 		}
 	}
 
@@ -8084,6 +8077,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				this._handleConfigChanged(e.channel, e.action.config, e.action.replace === true);
 			} else if (e.action.type === ActionType.SessionMetaChanged && isSessionAction(e.action)) {
 				this._handleSessionMetaChanged(e.channel, e.action._meta);
+			} else if (e.action.type === ActionType.SessionActiveClientRemoved && e.action.clientId === connection.clientId) {
+				const activeSession = this._sessionsService.activeSession.get();
+				const rawId = activeSession?.providerId === this.id ? this._sessionKeyFromChatId(activeSession.sessionId) : undefined;
+				if (rawId && this._sessionCache.get(rawId)?.backendUri.toString() === e.channel) {
+					this._syncActiveClient();
+				}
 			}
 		}));
 	}

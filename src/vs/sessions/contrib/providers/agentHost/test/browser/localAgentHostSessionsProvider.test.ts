@@ -7756,9 +7756,67 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		agentHost.setSessionState('active-client-removal', 'copilotcli', state([publishedActiveClient]));
 		agentHost.setSessionState('active-client-removal', 'copilotcli', state([]));
+		agentHost.fireAction({
+			channel: AgentSession.uri('copilotcli', 'active-client-removal').toString(),
+			action: {
+				type: ActionType.SessionActiveClientRemoved,
+				clientId: agentHost.clientId,
+			},
+			serverSeq: 1,
+			origin: undefined,
+		});
 		await timeout(0);
 
 		assert.strictEqual(agentHost.dispatchedActions.filter(dispatch => dispatch.action.type === ActionType.SessionActiveClientSet).length, 2);
+	});
+
+	test('does not republish the active client after a rejected publication rolls back', async () => {
+		const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+		const visibleSessions = observableValue<readonly (IActiveSession | undefined)[]>('visibleSessions', []);
+		const activeClient = {
+			tools: [],
+			customizations: [],
+		} satisfies Omit<SessionActiveClient, 'clientId'>;
+		const publishedActiveClient = { clientId: agentHost.clientId, ...activeClient };
+		const state = (activeClients: SessionActiveClient[]): SessionState => ({
+			provider: 'copilotcli',
+			title: 'Rejected active client',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients,
+			chats: [],
+		});
+		agentHost.addSession(createSession('active-client-rejected'));
+		agentHost.setSessionState('active-client-rejected', 'copilotcli', state([]));
+		const provider = createProvider(disposables, agentHost, undefined, { activeSession, visibleSessions, activeClient });
+		provider.getSessions();
+		await timeout(0);
+		agentHost.dispatchedActions.length = 0;
+		const resource = URI.from({ scheme: 'agent-host-copilotcli', path: '/active-client-rejected' });
+		const selectedSession = {
+			providerId: provider.id,
+			sessionId: `${provider.id}:${resource.toString()}`,
+			resource,
+		} as IActiveSession;
+		visibleSessions.set([selectedSession], undefined);
+		activeSession.set(selectedSession, undefined);
+		await timeout(0);
+
+		agentHost.setSessionState('active-client-rejected', 'copilotcli', state([publishedActiveClient]));
+		agentHost.fireAction({
+			channel: AgentSession.uri('copilotcli', 'active-client-rejected').toString(),
+			action: {
+				type: ActionType.SessionActiveClientSet,
+				activeClient: publishedActiveClient,
+			},
+			serverSeq: 1,
+			origin: { clientId: agentHost.clientId, clientSeq: 0 },
+			rejectionReason: 'Publication rejected',
+		});
+		agentHost.setSessionState('active-client-rejected', 'copilotcli', state([]));
+		await timeout(0);
+
+		assert.strictEqual(agentHost.dispatchedActions.filter(dispatch => dispatch.action.type === ActionType.SessionActiveClientSet).length, 1);
 	});
 
 	test('quick chat excludes its host scratch directory from the active client customization scope', async () => {

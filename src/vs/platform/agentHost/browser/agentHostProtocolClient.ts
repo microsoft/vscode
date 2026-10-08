@@ -11,7 +11,7 @@ import { CancellationError } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable, IReference, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { Schemas } from '../../../base/common/network.js';
-import { equals, stableStringify } from '../../../base/common/objects.js';
+import { stableStringify } from '../../../base/common/objects.js';
 import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
@@ -1506,7 +1506,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			const existing = state?.activeClients.find(client => client.clientId === action.activeClient.clientId);
 			const serialized = stableStringify(action.activeClient);
 			const pending = this._lastActiveClientDispatches.get(key);
-			if (pending ? pending.serialized === serialized : equals(existing, action.activeClient)) {
+			if (pending ? pending.serialized === serialized : stableStringify(existing) === serialized) {
 				return;
 			}
 			const seq = this._subscriptionManager.dispatchOptimistic(channel, action);
