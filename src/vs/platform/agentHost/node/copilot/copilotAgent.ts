@@ -5126,8 +5126,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (!pending) {
 			return;
 		}
-		this._pendingSteeringMessages.delete(chatKey);
 		void target.sendSteering(pending.message, pending.sender);
+		this._pendingSteeringMessages.delete(chatKey);
 	}
 
 	private async _getChatMessages(chat: URI, sessionOrContext: URI | IAgentChatContext): Promise<readonly Turn[]> {

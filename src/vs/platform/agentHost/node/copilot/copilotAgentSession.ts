@@ -1788,12 +1788,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	/**
-	 * Drains any steering messages we acknowledged to the SDK but never
-	 * promoted to their own turn (e.g. on abort or session dispose). Fires
-	 * `steering_consumed` so the chat UI removes the lingering pending
-	 * steering bubble even when no fresh `user.message` arrives.
-	 */
+	/** Clears unpromoted steering, including messages still preparing, on abort or disposal. */
 	private _drainPendingSteeringFlips(): void {
 		if (this._pendingSteeringFlips.size === 0) {
 			return;
@@ -4516,10 +4511,10 @@ export class CopilotAgentSession extends Disposable {
 		const steeringTurn = this._currentTurn.value;
 		const abortToken = this._abortToken;
 		this._steeringMessagesInFlight.add(steeringMessage.id);
+		this._pendingSteeringFlips.set(steeringMessage.id, { pendingMessage: steeringMessage, sender });
 		this._logService.info(`[Copilot:${this.sessionId}] Sending steering message: "${steeringMessage.message.text.substring(0, 100)}"`);
 		try {
 			await this._reconcileMcpServerEnablement();
-			this._pendingSteeringFlips.set(steeringMessage.id, { pendingMessage: steeringMessage, sender });
 			const sdkAttachments = await this._toSdkAttachments(steeringMessage.message.attachments);
 			// Steering is injected into the active turn and never fires the SDK's `user-prompt-submitted`
 			// hook, so the read-only snapshot signal can't ride `additionalContext` here. Fold it into the

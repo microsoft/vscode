@@ -483,7 +483,7 @@ Copilot also has no AH-session container:
 
 No `CopilotSessionEntry`, `AgentSessionEntry`, default-chat URI helper, or sibling cascade remains. Send/history/model/agent/abort/tool/config/dispose/release operations resolve one leaf. Active-client state remains keyed by the owning SDK session where it is genuinely shared, while each live leaf owns its own SDK and MCP lifecycle. Capabilities remain `multipleChats: { fork: true }`.
 
-Steering received during turn preparation or configuration refresh is buffered for the addressed chat and delivered after its original send succeeds. Preparation or send failure retains it for a successful retry, rather than dispatching against an unready runtime. Pending updates replace or remove buffered steering; abort clears it and emits `steering_consumed` to clear the pending UI. Chat disposal and host shutdown discard buffered delivery.
+Steering received during turn preparation or configuration refresh is buffered for the addressed chat and delivered after its original send succeeds. Preparation or send failure retains it for a successful retry, rather than dispatching against an unready runtime. Pending updates replace or remove buffered steering; abort clears it and emits `steering_consumed` to clear the pending UI. The live SDK-session wrapper takes ownership synchronously before MCP reconciliation, so abort and disposal can clear steering throughout delivery. Chat disposal and host shutdown discard buffered delivery.
 
 `CopilotSessionLauncher` sets `mcpOAuthTokenStorage: 'in-memory'` for created, resumed, and ephemeral SDK sessions. VS Code owns durable MCP credentials through `onMcpAuthRequest`; the runtime must not consult its persistent MCP OAuth keychain store.
 
