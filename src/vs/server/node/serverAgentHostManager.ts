@@ -41,6 +41,7 @@ export interface IServerAgentHostManagerOptions {
 	readonly startMode?: 'eager' | 'lazy';
 	readonly githubEnvironment?: IMissionControlOptions;
 	readonly onGithubEnvironmentReady?: (environmentId: string) => void;
+	readonly onRestartLimitReached?: () => void;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -184,6 +185,7 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 					this._logService.error(`ServerAgentHostManager: agent host failed to start, giving up after ${Constants.MaxRestarts} restarts`, error);
 					// A future explicit request gets a fresh crash-retry budget.
 					this._restartCount = 0;
+					this._options.onRestartLimitReached?.();
 					throw error;
 				}
 
@@ -265,6 +267,7 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 			this._logService.error(`ServerAgentHostManager: agent host terminated with code ${e.code}, giving up after ${Constants.MaxRestarts} restarts`);
 			// A future explicit request gets a fresh crash-retry budget.
 			this._restartCount = 0;
+			this._options.onRestartLimitReached?.();
 		}
 	}
 

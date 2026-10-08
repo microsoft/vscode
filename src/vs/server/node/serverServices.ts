@@ -281,6 +281,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 		const agentHostManager = disposables.add(instantiationService.createInstance(ServerAgentHostManager, agentHostStarter, {
 			githubEnvironment,
 			onGithubEnvironmentReady: environmentId => console.log(`__VSCODE_GITHUB_ENVIRONMENT_READY__:${environmentId}`),
+			onRestartLimitReached: githubEnvironment ? () => process.exit(1) : undefined,
 		}));
 		if (githubEnvironment) {
 			const shutdown = () => {

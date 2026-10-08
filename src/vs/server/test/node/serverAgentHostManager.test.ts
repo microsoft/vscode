@@ -297,6 +297,34 @@ suite('ServerAgentHostManager', () => {
 		});
 	});
 
+	test('notifies the GitHub environment supervisor when inner-host crash recovery is exhausted', async () => {
+		starter.managementChannel.setCallResult('getMissionControlEnvironmentId', 'environment-123');
+		let failures = 0;
+		const manager = createManager({ githubEnvironment, onRestartLimitReached: () => failures++ });
+		await manager.ensureStarted();
+		for (let i = 0; i < 5; i++) {
+			starter.fireProcessExit(1);
+			await manager.ensureStarted();
+		}
+		starter.fireProcessExit(1);
+		assert.deepStrictEqual({
+			failures, starts: starter.startCount, disposed: starter.connectionStores.every(store => store.isDisposed),
+		}, {
+			failures: 1, starts: 6, disposed: true,
+		});
+	});
+
+	test('notifies the GitHub environment supervisor when inner-host registration retries are exhausted', async () => {
+		let failures = 0;
+		const manager = createManager({ githubEnvironment, onRestartLimitReached: () => failures++ });
+		await assert.rejects(manager.ensureStarted(), /did not return an environment ID/);
+		assert.deepStrictEqual({
+			failures, starts: starter.startCount, disposed: starter.connectionStores.every(store => store.isDisposed),
+		}, {
+			failures: 1, starts: 6, disposed: true,
+		});
+	});
+
 	test('joins graceful Agent Host shutdown before server exit', async () => {
 		const manager = createManager();
 		await waitForStart(manager);

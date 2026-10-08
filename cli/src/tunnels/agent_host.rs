@@ -984,7 +984,7 @@ impl AgentHostManager {
 			self_clone.kill_running_server().await;
 			// Eagerly spin up the new server so the next dial sees a
 			// ready endpoint instead of paying for startup again.
-			match self_clone.start_server().await {
+			match self_clone.ensure_server().await {
 				Ok(_) => info!(self_clone.log, "Restarted agent host on {}", release_commit),
 				Err(e) => warning!(
 					self_clone.log,
@@ -2609,6 +2609,39 @@ mod tests {
 			.unwrap();
 		assert_eq!(std::fs::read_to_string(starts).unwrap(), "first\nsecond\n");
 		assert_eq!(std::fs::read_to_string(stopped).unwrap(), "withdrawn");
+		assert!(manager.running.lock().await.is_none());
+	}
+
+	#[cfg(unix)]
+	#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+	async fn github_environment_serializes_upgrade_restart_with_maintenance() {
+		let dir = tempfile::tempdir().unwrap();
+		let starts = dir.path().join("starts");
+		let manager = make_cached_github_environment_manager(
+			dir.path(),
+			&format!(
+				"printf 'started\\n' >> '{}'\necho '{}environment-123'\nread ignored",
+				starts.display(),
+				GITHUB_ENVIRONMENT_READY_PREFIX,
+			),
+		)
+		.await;
+		let manager_for_maintenance = manager.clone();
+		let maintenance =
+			tokio::spawn(async move { manager_for_maintenance.maintain_server().await });
+		manager.ensure_server().await.unwrap();
+		manager.kill_running_server().await;
+		tokio::time::timeout(Duration::from_secs(5), manager.ensure_server())
+			.await
+			.unwrap()
+			.unwrap();
+		maintenance.abort();
+		let _ = maintenance.await;
+		manager.kill_running_server().await;
+		assert_eq!(
+			std::fs::read_to_string(starts).unwrap(),
+			"started\nstarted\n"
+		);
 		assert!(manager.running.lock().await.is_none());
 	}
 
