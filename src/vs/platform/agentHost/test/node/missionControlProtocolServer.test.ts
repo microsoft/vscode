@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { createPublicKey, generateKeyPairSync, randomUUID, sign, verify, type JsonWebKey } from 'crypto';
+import { createHash, createPublicKey, generateKeyPairSync, randomUUID, sign, verify, type JsonWebKey } from 'crypto';
 import { EventEmitter } from 'events';
-import { copyFile, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'fs/promises';
-import { realpathSync } from 'fs';
+import { copyFile, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'fs/promises';
+import { promises as fs, realpathSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from '../../../../base/common/path.js';
+import { isWindows } from '../../../../base/common/platform.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
@@ -1497,6 +1498,87 @@ suite('Mission Control WPS', () => {
 			await rm(path, { recursive: true });
 		}
 	});
+
+	for (const code of ['EPERM', 'EACCES', 'EBUSY']) {
+		// Windows can deny atomic replacement while another host is reading the identity.
+		(isWindows ? test : test.skip)(`retries transient ${code} when publishing the compute identity on Windows`, async () => {
+			const path = await mkdtemp(join(process.cwd(), '.build', 'mission-control-rename-'));
+			const computeIds: string[] = [];
+			const service = createIdentityService(path, computeIds);
+			const rename = sinon.stub(fs, 'rename').callThrough();
+			rename.onFirstCall().rejects(Object.assign(new Error('Identity is being read'), { code }));
+			try {
+				await service.configure({ baseUrl: 'http://127.0.0.1:9999/', accountId: 'owner', credential: 'fake-token', roots: [path] });
+				const record: { id: string } = JSON.parse(await readFile(join(path, 'agent-host-mission-control-id'), 'utf8'));
+				assert.deepStrictEqual({
+					renameAttempts: rename.callCount,
+					computeIds,
+					files: await readdir(path),
+				}, {
+					renameAttempts: 2,
+					computeIds: [record.id],
+					files: ['agent-host-mission-control-id'],
+				});
+			} finally {
+				rename.restore();
+				service.dispose();
+				await rm(path, { recursive: true });
+			}
+		});
+	}
+
+	for (const initialState of ['missing', 'legacy', 'copied', 'interrupted', 'completed'] as const) {
+		test(`concurrent hosts converge on one compute identity with a ${initialState} record`, async () => {
+			const path = await mkdtemp(join(process.cwd(), '.build', 'mission-control-concurrent-'));
+			const services: MissionControlEnvironment[] = [];
+			try {
+				const filename = join(path, 'agent-host-mission-control-id');
+				const directory = realpathSync(path);
+				const initialId = randomUUID();
+				if (initialState === 'legacy') {
+					await writeFile(filename, initialId);
+				} else if (initialState === 'copied') {
+					await writeFile(filename, JSON.stringify({ version: 1, id: initialId, userDataDirectory: `${directory}-original` }));
+				} else if (initialState === 'interrupted' || initialState === 'completed') {
+					const initializationPath = `${filename}.${createHash('sha256').update(directory).digest('hex')}.init`;
+					const record = JSON.stringify({ version: 1, id: initialId, userDataDirectory: directory });
+					await writeFile(initializationPath, record);
+					if (initialState === 'completed') {
+						await writeFile(filename, record);
+					}
+				}
+				const computeIds: string[] = [];
+				const options = { baseUrl: 'http://127.0.0.1:9999/', accountId: 'owner', credential: 'fake-token', roots: [path] };
+				for (let index = 0; index < 10; index++) {
+					services.push(createIdentityService(path, computeIds));
+				}
+				await Promise.all(services.map(service => service.configure(options)));
+				for (const service of services) {
+					service.dispose();
+				}
+				const persisted: { id: string } = JSON.parse(await readFile(filename, 'utf8'));
+				const restarted = createIdentityService(path, computeIds);
+				services.push(restarted);
+				await restarted.configure(options);
+				assert.deepStrictEqual({
+					registrations: computeIds.length,
+					identities: [...new Set(computeIds)],
+					preservedInitial: persisted.id === initialId,
+					files: await readdir(path),
+				}, {
+					registrations: 11,
+					identities: [persisted.id],
+					preservedInitial: initialState === 'legacy' || initialState === 'interrupted' || initialState === 'completed',
+					files: ['agent-host-mission-control-id'],
+				});
+			} finally {
+				for (const service of services) {
+					service.dispose();
+				}
+				await rm(path, { recursive: true });
+			}
+		});
+	}
 
 	test('copied identity records rotate only the copy and preserve both identities across restart', async () => {
 		const path = await mkdtemp(join(process.cwd(), '.build', 'mission-control-copy-'));
