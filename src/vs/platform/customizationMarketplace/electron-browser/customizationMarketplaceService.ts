@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Event } from '../../../base/common/event.js';
 import { Lazy } from '../../../base/common/lazy.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
@@ -16,6 +17,7 @@ import { createMcpGalleryMarketplaceProviders, getAllMcpGalleryMarketplaceSource
 export class NativeCustomizationMarketplaceService implements ICustomizationMarketplaceService {
 	declare readonly _serviceBrand: undefined;
 	readonly allSources = getAllMcpGalleryMarketplaceSourceInfos();
+	readonly onDidChangeSources = Event.None;
 	get sources() { return getCustomizationMarketplaceSourceInfos(); }
 	private readonly service: Lazy<CustomizationMarketplaceService>;
 

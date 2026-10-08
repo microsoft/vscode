@@ -159,7 +159,7 @@ export interface IHostEncryptionKey {
 	readonly key_id: string;
 	/** Trust domain the key serves (e.g. `auth-token`). */
 	readonly use: string;
-	/** Sealing scheme (only `x25519-sealedbox` is defined today). */
+	/** Sealing scheme, such as `x25519-sealedbox` or `hpke-x25519-hkdf-sha256-aes256gcm`. */
 	readonly algorithm: string;
 	/** Recipient public key in standard (padded) base64. */
 	readonly public_key: string;
@@ -379,6 +379,8 @@ export interface ICloudSandboxConnectOptions {
 	readonly accountKey?: string;
 	/** Caller provenance, not a claim about warm or cold compute. */
 	readonly connectionSource?: 'created' | 'existing';
+	/** Local task-creation start time for end-to-end provisioning telemetry; never persisted or sent to MC. */
+	readonly provisioningStartedAt?: number;
 }
 
 /**

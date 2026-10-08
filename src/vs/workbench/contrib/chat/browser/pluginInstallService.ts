@@ -20,6 +20,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { NotificationTelemetryId } from '../../../../platform/notification/common/notificationTelemetry.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { IAgentPluginRepositoryService } from '../common/plugins/agentPluginRepositoryService.js';
@@ -625,6 +626,7 @@ export class PluginInstallService implements IPluginInstallService {
 			await this._progressService.withProgress(
 				{
 					location: ProgressLocation.Notification,
+					telemetry: NotificationTelemetryId.PluginUpdate,
 					title: localize('updatingAllPlugins', "Updating plugins..."),
 				},
 				doUpdate,

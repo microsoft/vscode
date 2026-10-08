@@ -10,9 +10,9 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { CustomizationMarketplaceMediaType } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
-import { CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { CustomizationMarketplaceConfiguration } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { PluginCustomizationMarketplaceProvider, getPluginCustomizationMarketplaceSourceInfos, getPluginMarketplaceIdentifier } from '../../../browser/aiCustomization/pluginCustomizationMarketplaceProvider.js';
+import { PluginCustomizationMarketplaceProvider, getPluginCustomizationMarketplaceSourceId, getPluginCustomizationMarketplaceSourceInfos, getPluginMarketplaceIdentifier } from '../../../browser/aiCustomization/pluginCustomizationMarketplaceProvider.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { DEFAULT_PLUGIN_MARKETPLACE } from '../../../common/plugins/marketplaceReference.js';
 import { IMarketplacePlugin, IPluginMarketplacePage, IPluginMarketplaceQuery, IPluginMarketplaceService, MarketplaceType, parseMarketplaceReference, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
@@ -51,7 +51,7 @@ suite('PluginCustomizationMarketplaceProvider', () => {
 		}
 	}
 
-	test('maps custom registry results behind the configured Plugin source', async () => {
+	test('maps results behind their configured marketplace source', async () => {
 		const service = new TestPluginMarketplaceService();
 		service.page = {
 			items: [plugin],
@@ -59,11 +59,10 @@ suite('PluginCustomizationMarketplaceProvider', () => {
 			nextCursor: 'next',
 			errors: [{ marketplace: customReference.displayLabel, message: 'Another marketplace is unavailable' }],
 		};
-		const provider = new PluginCustomizationMarketplaceProvider('custom', service);
+		const provider = new PluginCustomizationMarketplaceProvider(customReference, service);
 		const page = await provider.query({ query: 'review', pageSize: 1 }, CancellationToken.None);
 		assert.deepStrictEqual({
 			id: provider.id,
-			sourceId: provider.sourceId,
 			items: page.items,
 			total: page.total,
 			nextCursor: page.nextCursor,
@@ -74,8 +73,7 @@ suite('PluginCustomizationMarketplaceProvider', () => {
 				marketplaceTypes: [...service.calls[0].marketplaceTypes],
 			},
 		}, {
-			id: 'pluginMarketplaces.custom',
-			sourceId: CustomizationMarketplaceSources.PluginMarketplaces.id,
+			id: getPluginCustomizationMarketplaceSourceId(customReference),
 			items: [{
 				identifier: getPluginMarketplaceIdentifier(plugin),
 				displayName: 'Review',
@@ -122,7 +120,7 @@ suite('PluginCustomizationMarketplaceProvider', () => {
 			}],
 			errors: [],
 		};
-		const provider = new PluginCustomizationMarketplaceProvider('custom', service);
+		const provider = new PluginCustomizationMarketplaceProvider(customReference, service);
 
 		const page = await provider.query({}, CancellationToken.None);
 
@@ -141,7 +139,7 @@ suite('PluginCustomizationMarketplaceProvider', () => {
 			}],
 			errors: [],
 		};
-		const provider = new PluginCustomizationMarketplaceProvider('custom', service);
+		const provider = new PluginCustomizationMarketplaceProvider(customReference, service);
 
 		const page = await provider.query({}, CancellationToken.None);
 
@@ -154,7 +152,7 @@ suite('PluginCustomizationMarketplaceProvider', () => {
 	test('default provider remains available independently of the GitHub feed', async () => {
 		const service = new TestPluginMarketplaceService();
 		service.page = { items: [{ ...plugin, marketplace: defaultReference.displayLabel, marketplaceReference: defaultReference }], total: 1, errors: [] };
-		const provider = new PluginCustomizationMarketplaceProvider('default', service);
+		const provider = new PluginCustomizationMarketplaceProvider(defaultReference, service);
 		const page = await provider.query({}, CancellationToken.None);
 		assert.deepStrictEqual({
 			ids: [...service.calls[0].marketplaceIds],
@@ -165,10 +163,18 @@ suite('PluginCustomizationMarketplaceProvider', () => {
 		});
 	});
 
+	test('does not query a marketplace that is no longer configured', async () => {
+		const service = new TestPluginMarketplaceService();
+		service.references = [customReference];
+		const provider = new PluginCustomizationMarketplaceProvider(defaultReference, service);
+		assert.deepStrictEqual(await provider.query({}, CancellationToken.None), { items: [], total: 0 });
+		assert.strictEqual(service.calls.length, 0);
+	});
+
 	test('default provider selects only the existing default marketplace', async () => {
 		const service = new TestPluginMarketplaceService();
 		service.page = { items: [{ ...plugin, marketplace: defaultReference.displayLabel, marketplaceReference: defaultReference }], total: 1, errors: [] };
-		const provider = new PluginCustomizationMarketplaceProvider('default', service);
+		const provider = new PluginCustomizationMarketplaceProvider(defaultReference, service);
 		const page = await provider.query({ mediaType: CustomizationMarketplaceMediaType.ClaudePlugin }, CancellationToken.None);
 		assert.deepStrictEqual({
 			ids: [...service.calls[0].marketplaceIds],
@@ -183,7 +189,7 @@ suite('PluginCustomizationMarketplaceProvider', () => {
 
 	test('maps customization media types to native Plugin marketplace types', async () => {
 		const service = new TestPluginMarketplaceService();
-		const provider = new PluginCustomizationMarketplaceProvider('custom', service);
+		const provider = new PluginCustomizationMarketplaceProvider(customReference, service);
 		await provider.query({ mediaType: CustomizationMarketplaceMediaType.CopilotPlugin }, CancellationToken.None);
 		await provider.query({ mediaType: CustomizationMarketplaceMediaType.ClaudePlugin }, CancellationToken.None);
 		const unsupported = await provider.query({ mediaType: CustomizationMarketplaceMediaType.Skill }, CancellationToken.None);
@@ -203,21 +209,42 @@ suite('PluginCustomizationMarketplaceProvider', () => {
 		const service = new TestPluginMarketplaceService();
 		const configuration = new TestConfigurationService({
 			[ChatConfiguration.PluginsEnabled]: true,
+			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true,
 		});
-		const sourceIds = () => getPluginCustomizationMarketplaceSourceInfos(configuration, service).map(source => source.id);
+		const sources = (githubFeedAvailable: boolean) => getPluginCustomizationMarketplaceSourceInfos(configuration, service, githubFeedAvailable).map(source => ({
+			id: source.id,
+			displayName: source.displayName,
+		}));
 		service.references = [defaultReference];
-		const defaultOnly = sourceIds();
+		const localDefault = sources(false);
+		const copilotDefault = sources(true);
 		service.references = [defaultReference, customReference];
-		const withCustom = sourceIds();
+		const copilotWithCustom = sources(true);
+		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, false);
+		service.references = [defaultReference];
+		const defaultWithoutPublic = sources(true);
 		await configuration.setUserConfiguration(ChatConfiguration.PluginsEnabled, false);
-		const pluginsDisabled = sourceIds();
+		const pluginsDisabled = sources(false);
 		assert.deepStrictEqual({
-			defaultOnly,
-			withCustom,
+			localDefault,
+			copilotDefault,
+			copilotWithCustom,
+			defaultWithoutPublic,
 			pluginsDisabled,
 		}, {
-			defaultOnly: [CustomizationMarketplaceSources.PluginMarketplaces.id],
-			withCustom: [CustomizationMarketplaceSources.PluginMarketplaces.id],
+			localDefault: [{
+				id: getPluginCustomizationMarketplaceSourceId(defaultReference),
+				displayName: defaultReference.displayLabel,
+			}],
+			copilotDefault: [],
+			copilotWithCustom: [{
+				id: getPluginCustomizationMarketplaceSourceId(customReference),
+				displayName: customReference.displayLabel,
+			}],
+			defaultWithoutPublic: [{
+				id: getPluginCustomizationMarketplaceSourceId(defaultReference),
+				displayName: defaultReference.displayLabel,
+			}],
 			pluginsDisabled: [],
 		});
 	});

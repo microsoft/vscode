@@ -21,15 +21,19 @@ interface SandboxSetupOptions {
 }
 
 const packages = [
-	'build-essential', 'ca-certificates', 'curl', 'pkg-config', 'python3', 'xz-utils',
+	'build-essential', 'ca-certificates', 'curl', 'pkg-config', 'python3', 'util-linux', 'xz-utils',
 	'libxkbfile-dev', 'libkrb5-dev', 'libgtk-3-dev', 'libgbm-dev', 'libnss3', 'libasound2-dev',
 	'xvfb', 'rpm',
 ];
 
+export function isCloudSandbox(env: NodeJS.ProcessEnv = process.env, platform: NodeJS.Platform = process.platform): boolean {
+	return platform === 'linux' && Boolean(env.GITHUB_ENVIRONMENT_ID?.trim());
+}
+
 function sandboxOptions(overrides: Partial<SandboxSetupOptions>): SandboxSetupOptions | undefined {
 	const env = overrides.env ?? process.env;
 	const platform = overrides.platform ?? process.platform;
-	if (platform !== 'linux' || !env.GITHUB_ENVIRONMENT_ID?.trim()) {
+	if (!isCloudSandbox(env, platform)) {
 		return undefined;
 	}
 
@@ -52,7 +56,6 @@ function sandboxOptions(overrides: Partial<SandboxSetupOptions>): SandboxSetupOp
 
 /**
  * Prepare native-build and graphical prerequisites only in Mission Control cloud sandboxes.
- * install-fast calls this before npm; root preinstall can run after dependency build scripts.
  */
 export function prepareCloudSandbox(overrides: Partial<SandboxSetupOptions> = {}): boolean {
 	const options = sandboxOptions(overrides);
@@ -123,7 +126,44 @@ export function prepareCloudSandbox(overrides: Partial<SandboxSetupOptions> = {}
 	}
 
 	const bin = `'${path.join(nodeDirectory, 'bin').replaceAll('\'', '\'\\\'\'')}'`;
-	throw new Error(`Cloud Sandbox: installed Node.js ${requiredVersion}. The running npm process still uses ${nodeVersion}.\nRun this in your shell, then rerun npm install or npm run install-fast:\nexport PATH=${bin}:"$PATH"\nhash -r`);
+	throw new Error(`Cloud Sandbox: installed Node.js ${requiredVersion}. The running process still uses ${nodeVersion}.\nRun this in your shell, then rerun node build/npm/cloudSandboxSetup.ts before installing dependencies:\nexport PATH=${bin}:"$PATH"\nhash -r`);
+}
+
+/**
+ * Raise a sandbox process's soft descriptor limit so its future children inherit it.
+ */
+export function raiseCloudSandboxFileLimit(pid: number, overrides: Partial<SandboxSetupOptions> = {}): void {
+	const options = sandboxOptions(overrides);
+	if (!options) {
+		return;
+	}
+	if (!Number.isSafeInteger(pid) || pid <= 1) {
+		throw new Error('Cloud Sandbox setup: the file-limit target must be a process ID greater than 1.');
+	}
+
+	const requiredLimit = 1048576;
+	const query = ['--pid', String(pid), '--nofile', '--noheadings', '--raw', '--output', 'SOFT,HARD'];
+	const readLimits = () => {
+		const values = options.run('prlimit', query, true).trim().split(/\s+/);
+		const limits = values.map(value => value === 'unlimited' ? Infinity : Number(value));
+		if (values.length !== 2 || limits.some(limit => limit !== Infinity && (!Number.isSafeInteger(limit) || limit < 0))) {
+			throw new Error(`Cloud Sandbox setup: unable to read file-descriptor limits for process ${pid}.`);
+		}
+		return { soft: limits[0], hard: limits[1] };
+	};
+
+	const current = readLimits();
+	if (current.soft >= requiredLimit) {
+		return;
+	}
+	// Preserve higher hard limits; a cold sandbox may require raising both limits.
+	const hard = current.hard < requiredLimit ? String(requiredLimit) : '';
+	options.run('prlimit', ['--pid', String(pid), `--nofile=${requiredLimit}:${hard}`]);
+	const updated = readLimits();
+	if (updated.soft < requiredLimit || updated.hard < Math.max(current.hard, requiredLimit)) {
+		throw new Error(`Cloud Sandbox setup: process ${pid} still has a file-descriptor limit below ${requiredLimit}.`);
+	}
+	console.log(`Cloud Sandbox: raised process ${pid}'s file-descriptor limit to ${requiredLimit}.`);
 }
 
 /**

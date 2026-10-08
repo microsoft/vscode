@@ -185,6 +185,8 @@ Opaque to the host, but not arbitrary for the provider: whatever id the blob car
 
 **List payload compatibility.** Central identity and membership are authoritative; the bounded list payload is rebuildable. When local storage exists, catalog synchronization uses legacy-first writes and pending receipts before central acknowledgement. Import and runtime discovery of unopened adoptable legacy sessions use the non-creating path: metadata discovery must not create `agentSessionData/<id>` and accidentally claim ownership. Explicit adoption owns that transition.
 
+Catalog synchronization, migration, replay, and deletion fences share a queue keyed by the storage service's session directory. URI aliases for the same database cannot overlap, while different storage directories remain independent.
+
 Automatic catalog reconciliation waits until both host startup and the first session listing have completed. Startup repair requests leave their dirty markers for that deferred pass, which then starts periodic maintenance; explicit refreshes and mutation persistence do not wait for background maintenance.
 
 An unresolvable source is distinct from an unavailable provider, and the two are reported separately because their retry policies differ. `providerUnavailable` means the provider is not registered: cheap to detect, resolved by registration, and guarded before any storage is claimed. `sourceUnresolvable` means the provider *is* registered but cannot vouch for the session, so there is nothing authoritative to project — typically a registry row whose provider-side state was pruned. Retrying that on the periodic cadence never converges and re-opens the session's storage on every pass, so the session is **parked** instead: it is filtered out of the dirty list until a wake signal arrives. A single failed lookup is never treated as proof of absence — a provider whose SDK is still downloading is indistinguishable from a pruned one — so parking never tombstones, never clears `payloadDirty` (the rebuild is still owed), and is held in memory only, so a restart re-attempts each parked session once and re-parks. Wake signals are provider registration, a mutation of that session, and the periodic verification. A session that can never be resolved keeps its provider fallback in the listing rather than having a payload invented for it.
@@ -506,6 +508,8 @@ Codex supports multiple chats per session. Each conversation — the session's d
 
 Restoring or continuing a thread retains its saved model when available. When that model is absent from the catalog, restoration waits for queued model discovery and selects the first available model from the same native provider (whose declared default is ordered first), dropping the unavailable model's configuration. It never switches billing providers, even when another provider lists the same model name. If the saved provider has no available models, its saved selection remains intact so history stays readable; only a thread without a saved selection uses the global default. The restored metadata, runtime, and next send use the same selection, while historical turns retain their original model attribution. `thread/resume` must explicitly supply both the selected model and provider so the SDK does not choose its configured default model instead. Explicit model selections for creation and model changes still require a catalog entry and the corresponding provider authentication.
 
+Background model resolution must preserve changes to a model or its configuration made while discovery is pending. Wait for discovery before reading the session's current selection, then resolve and store it without yielding again.
+
 Explicitly switching an existing chat's model provider reloads the same native thread on its next send. It must not create a replacement conversation or clear its turn-ID mappings. Unsubscribe before resuming so the app-server applies the new provider rather than rejoining the old runtime, and record the successfully resumed provider so a later switch back also reloads. Restoring a saved selection from another provider only marks this reload pending; metadata reads remain read-only.
 
 Native thread settings retain the last effective provider. Before resuming an OpenAI-backed thread through Copilot, the harness ensures the effective Codex user config has a portable `vscode-proxy` alias (`name = "OpenAI"`, `wire_api = "responses"`, `requires_openai_auth = true`). The app-server's config API targets its effective home, and version-checked writes are serialized with the existing user-config writes. The alias has no endpoint or credentials; VS Code supplies its loopback proxy settings only as process overrides, while a native client uses its own OpenAI authentication. Existing definitions are never overwritten, persistent conflicting settings fail before unsubscribe/resume, and concurrent edits are reread with bounded retries. Metadata/history reads do not install the alias or change thread settings. The configuration-file action honors the host's effective `CODEX_HOME`, including the forwarded Codex home setting.
@@ -542,6 +546,30 @@ Agents expose exact-chat lifecycle and metadata methods for SDK backing data; th
 - **Config.** Live provider runtimes that react to session config subscribe to `IAgentConfigurationService.onDidSessionConfigChange` using their explicit config resource. `AgentSideEffects` does not enumerate chats or fan config values through provider hooks.
 - **Active client.** `AgentSideEffects` calls `getOrCreateActiveClient` once per exact chat and client. Providers receive no sibling list (§8c).
 - **Enumerate.** `AgentService.listSessions` enumerates `AgentSessionRegistry`, asks the registered provider for that exact session's metadata via `getChatMetadata`, and applies persisted and live state overlays. Provider-owned code activates additive external-chat discovery; `listChatsToMigrate` remains the one-time registry migration seam.
+
+### Legacy Copilot CLI migration diagnostics
+
+Migration remains adopt-on-open/restore, gated by the startup-frozen setting; unsuccessful probes are not cached. The `agentHost.legacyCopilotCliMigrationProbe` event records a bounded `reason`, the startup/current setting values, and the original subscription/exception `errorCode` and `errorMessage` when available. A timeout is not an eligibility rejection.
+
+The host's `agentHost.legacyCopilotCliMigration` event records the provider's adoption `reason` separately from the `stage` reached. `declined` records an unregistered, non-adoptable session; `skipped` still means an eligible session was not adopted. `failed` covers adoption, registration, and restoration exceptions, including eligible sessions that were not adopted. A `reason` of `adopted` can therefore accompany a later failure. Early failures before adoption may only be visible in the client probe's error.
+
+Host diagnostics also record `markerStatus` (`valid`, `missing`, `invalid`, or `readError`), bounded `provenance` (`legacy`, `external`, or `unknown`), `markerFromCache`, and separate `eligibilityErrorCode`/`eligibilityErrorMessage`. No marker contents or raw origin strings are collected. `eligible` is the provider decision, or absent when the provider did not return a decision. `advertisedAsAdoptable` captures whether the host's surfaced session summary identified a legacy candidate before adoption.
+
+Use `diagnosticCategory` for conservative triage, not as a code-bug verdict:
+
+| Category | Evidence |
+|---|---|
+| `expectedExclusion` | A valid marker explicitly identifies an external session, with no conflicting adoptable advertisement. |
+| `configurationDisabled` | The host's frozen migration setting is disabled. Compare the client setting fields to investigate startup/configuration disagreement. |
+| `needsInvestigation` | An exception, invalid/unreadable marker, an eligible session that did not migrate, or a rejection contradicting an adoptable advertisement. Causes may include environmental/data problems, not only code defects. |
+| `unknown` | Insufficient evidence: for example, a missing marker, ambiguous provenance, or an older provider with no diagnostic details. A missing marker is not proof that the session is external. |
+| `notApplicable` | Migration completed. |
+
+The reader retains successful marker caching and retries missing, unreadable, and malformed markers. The archive-state check still reads fresh data and reports that evidence separately from an earlier cached eligibility decision.
+
+The `agentHost.legacyCopilotCliMigrationOpen` event records `surfaced`, `sessionNotSurfaced`, or `resolveFailed` for explicit opens and editor restores. Explicit opens observe provider refresh/list errors through the model's diagnostic callback without changing its failure isolation or legacy fallback. Error-bearing events use error telemetry and its consent level and data cleaning. All migration error messages, including eligibility errors, first redact the migrating session's raw/encoded identifier and session URIs with a shared session-aware sanitizer. Non-error outcomes retain usage telemetry.
+
+All three events carry `migrationSessionId`, a SHA-1 of the exact backend session URI, never the raw URI. Correlate it with device and time; it identifies a session, not a unique retry, so concurrent/repeated attempts must not be joined one-to-one by this field alone. Older builds lack these diagnostic fields. The existing outcomes and client fallback/retry behavior remain unchanged except for the new host `declined` outcome.
 
 ### No provider-side default-chat derivation
 

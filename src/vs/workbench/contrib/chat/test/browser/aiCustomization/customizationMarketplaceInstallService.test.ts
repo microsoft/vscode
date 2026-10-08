@@ -18,6 +18,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { IPlatformCustomizationMarketplaceService } from '../../../../../../platform/customizationMarketplace/common/platformCustomizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -37,7 +38,8 @@ import { CopilotConnectorsError } from '../../../../../../platform/copilotConnec
 import { CopilotConnectorConnectionStatus, CopilotConnectorConnectionStatusDetail, ICopilotConnectorAccount, ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
 import { IWorkbenchLocalMcpServer } from '../../../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { CustomizationMarketplaceInstallService } from '../../../browser/aiCustomization/customizationMarketplaceInstallService.js';
-import { getPluginMarketplaceIdentifier } from '../../../browser/aiCustomization/pluginCustomizationMarketplaceProvider.js';
+import { CustomizationMarketplaceWorkbenchService } from '../../../browser/aiCustomization/customizationMarketplaceWorkbenchService.js';
+import { getPluginCustomizationMarketplaceSourceId, getPluginMarketplaceIdentifier } from '../../../browser/aiCustomization/pluginCustomizationMarketplaceProvider.js';
 import { ICustomizationMarketplaceInstallProvider, ICustomizationMarketplaceInstallService, IRecordedCustomizationMarketplaceResource } from '../../../common/customizationMarketplaceInstallService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
@@ -201,8 +203,9 @@ suite('CustomizationMarketplaceInstallService', () => {
 			availablePlugins: IMarketplaceInstalledPlugin['plugin'][] = [];
 			strictMarketplacePolicy = false;
 			override async fetchMarketplacePlugins() { return this.availablePlugins; }
-			override getMarketplaceReferences() { return this.availablePlugins.map(plugin => plugin.marketplaceReference); }
 			override isStrictMarketplacePolicyActive() { return this.strictMarketplacePolicy; }
+			references: IMarketplaceReference[] | undefined;
+			override getMarketplaceReferences() { return this.references ?? this.availablePlugins.map(plugin => plugin.marketplaceReference); }
 			override get installedPlugins() {
 				this.readCount++;
 				return installedPlugins;
@@ -389,7 +392,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 		instantiationService.stub(ICustomizationHarnessService, harnessService);
 		instantiationService.stub(IChatEntitlementService, entitlementService);
 		instantiationService.stub(ICustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
-			override readonly sources = sources;
+			override get sources() { return sources.map(source => ({ ...source })); }
 		}());
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IFileService, fileService);
@@ -792,6 +795,48 @@ suite('CustomizationMarketplaceInstallService', () => {
 
 
 	suite('plugins', () => {
+		test('installs from a marketplace added after constructing the workbench marketplace service', async () => {
+			const fixture = await createFixture();
+			fixture.service.dispose();
+			fixture.instantiationService.stub(IPlatformCustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
+				override readonly sources = [];
+				override readonly allSources = [];
+				override readonly onDidChangeSources = Event.None;
+				override async query() { return { items: [] }; }
+			}());
+			const marketplaceService = store.add(fixture.instantiationService.createInstance(CustomizationMarketplaceWorkbenchService));
+			fixture.instantiationService.stub(ICustomizationMarketplaceService, marketplaceService);
+			const installService = store.add(fixture.instantiationService.createInstance(CustomizationMarketplaceInstallService));
+			const plugin = installedPlugin({ kind: PluginSourceKind.RelativePath, path: 'plugins/demo' });
+			fixture.marketplaceService.references = [plugin.plugin.marketplaceReference];
+			fixture.marketplaceService.availablePlugins = [plugin.plugin];
+			fixture.pluginService.onDirectInstall = async () => fixture.installedPlugins.set([plugin], undefined);
+			fixture.marketplaceChanges.fire();
+			const candidate = resource({
+				sourceId: getPluginCustomizationMarketplaceSourceId(plugin.plugin.marketplaceReference),
+				identifier: getPluginMarketplaceIdentifier(plugin.plugin),
+				displayName: plugin.plugin.name,
+				mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+				installation: { kind: 'configuredPlugin' },
+			});
+
+			if (isWeb) {
+				await assert.rejects(installService.install(candidate), /not available in VS Code for the Web/);
+				return;
+			}
+			await installService.install(candidate);
+
+			assert.deepStrictEqual({
+				state: installService.getInstallState(candidate).kind,
+				installs: fixture.pluginService.directInstalls,
+				sourceNames: marketplaceService.allSources.map(source => source.displayName ?? source.id),
+			}, {
+				state: 'installed',
+				installs: [plugin.plugin],
+				sourceNames: ['Configured Plugin Marketplaces', plugin.plugin.marketplaceReference.displayLabel, 'GitHub Feed', 'Copilot Connectors'],
+			});
+		});
+
 		test('configured marketplace entries install through the plugin trust path only while Marketplace is enabled', async () => {
 			const fixture = await createFixture();
 			const plugin = installedPlugin({ kind: PluginSourceKind.RelativePath, path: 'plugins/demo' });

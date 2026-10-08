@@ -14,6 +14,7 @@ import { autorun, IObservable, IReader, observableSignalFromEvent, observableVal
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { hasKey } from '../../../../base/common/types.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuRegistry, MenuId, registerAction2, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
@@ -180,7 +181,7 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 				}
 			};
 
-			appendSessions(localize('sessionsPickerNeedsInput', "needs input"), sessionGroups.needsInput);
+			appendSessions(localize('sessionsPickerNeedsInput', "needs attention"), sessionGroups.needsInput);
 			appendSessions(localize('sessionsPickerUnread', "unread"), sessionGroups.unread);
 			appendSessions(localize('recentlyOpened', "recently opened"), sessionGroups.recent);
 			appendSessions(localize('otherSessions', "other sessions"), sessionGroups.other);
@@ -279,15 +280,19 @@ registerAction2(class GoBackAction extends Action2 {
 			tooltip: localize('sessionsGoBackTooltip', "Go Back One Session"),
 			category: SessionsCategories.Sessions,
 			precondition: CanGoBackContext,
-			keybinding: {
+			keybinding: [{
 				// Higher than `WorkbenchContrib` so the `Ctrl+Shift+Tab` secondary wins over the
 				// editor quick-open actions (which bind the same chord at `WorkbenchContrib`).
 				weight: KeybindingWeight.SessionsContrib,
 				win: { primary: KeyMod.Alt | KeyCode.LeftArrow, secondary: [KeyCode.BrowserBack, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab] },
 				mac: { primary: KeyMod.WinCtrl | KeyCode.Minus, secondary: [KeyCode.BrowserBack, KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab] },
-				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Minus, secondary: [KeyCode.BrowserBack, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab] },
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Minus, secondary: [KeyMod.Alt | KeyCode.LeftArrow, KeyCode.BrowserBack, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab] },
 				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated()),
-			},
+			}, {
+				weight: KeybindingWeight.SessionsContrib,
+				mac: { primary: KeyMod.Alt | KeyCode.LeftArrow },
+				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), InputFocusedContext.negate(), EditorContextKeys.textInputFocus.negate()),
+			}],
 			menu: [{
 				id: Menus.TitleBarCenterLeft,
 				group: 'navigation',
@@ -321,15 +326,19 @@ registerAction2(class GoForwardAction extends Action2 {
 			tooltip: localize('sessionsGoForwardTooltip', "Go Forward One Session"),
 			category: SessionsCategories.Sessions,
 			precondition: CanGoForwardContext,
-			keybinding: {
+			keybinding: [{
 				// Higher than `WorkbenchContrib` so the `Ctrl+Tab` secondary wins over the
 				// editor quick-open actions (which bind the same chord at `WorkbenchContrib`).
 				weight: KeybindingWeight.SessionsContrib,
 				win: { primary: KeyMod.Alt | KeyCode.RightArrow, secondary: [KeyCode.BrowserForward, KeyMod.CtrlCmd | KeyCode.Tab] },
 				mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Minus, secondary: [KeyCode.BrowserForward, KeyMod.WinCtrl | KeyCode.Tab] },
-				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Minus, secondary: [KeyCode.BrowserForward, KeyMod.CtrlCmd | KeyCode.Tab] },
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Minus, secondary: [KeyMod.Alt | KeyCode.RightArrow, KeyCode.BrowserForward, KeyMod.CtrlCmd | KeyCode.Tab] },
 				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated()),
-			},
+			}, {
+				weight: KeybindingWeight.SessionsContrib,
+				mac: { primary: KeyMod.Alt | KeyCode.RightArrow },
+				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), InputFocusedContext.negate(), EditorContextKeys.textInputFocus.negate()),
+			}],
 			menu: [{
 				id: Menus.TitleBarCenterLeft,
 				group: 'navigation',

@@ -9,6 +9,7 @@
 // can subscribe to `rootState` etc. immediately; the actual transport
 // connection (and AHP handshake) happens asynchronously in the background.
 
+import type { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable, ISettableObservable, observableValue, constObservable } from '../../../../base/common/observable.js';
@@ -71,6 +72,7 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 
 	private readonly _protocolClient: AgentHostProtocolClient | undefined;
 	private readonly _connectionAuthority: string | undefined;
+	get clientConnectionKind() { return this._protocolClient?.clientConnectionKind; }
 	get resourceUris() { return this._protocolClient?.resourceUris ?? identityAgentHostResourceUriMapper; }
 	private readonly _noopRootState: IAgentSubscription<RootState> = {
 		value: undefined,
@@ -228,6 +230,13 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 
 	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction): void {
 		this._protocolClient?.dispatch(channel, action);
+	}
+
+	async dispatchConfirmed<T>(channel: string, subscription: IAgentSubscription<T>, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction, token: CancellationToken): Promise<ActionEnvelope> {
+		if (!this._protocolClient) {
+			throw new Error('Remote Agent Host is not connected');
+		}
+		return this._protocolClient.dispatchConfirmed(channel, subscription, action, token);
 	}
 
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {

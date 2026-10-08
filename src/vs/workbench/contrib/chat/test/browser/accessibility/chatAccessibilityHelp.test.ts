@@ -95,7 +95,7 @@ suite('Chat Accessibility Help', () => {
 				preserve: help.includes('Sending another message or completing a task does not dismiss the invitation'),
 				mute: help.includes('Don\'t Show Again turns off all future Agents Window invitations'),
 				dismiss: help.includes('created five more Agent Host sessions in editor windows and at least 24 hours have passed'),
-				input: help.includes('temporarily hidden while the session needs input'),
+				input: help.includes('temporarily hidden while the session needs attention'),
 				hiddenInAgents: !getAccessibilityHelpText(type, new MockKeybindingService(), false, true).includes('new Copilot harness chat'),
 			}, {
 				introductionModes: true,

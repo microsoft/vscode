@@ -11,7 +11,7 @@ import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { findOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
+import { findOnboardingTarget, markOnboardingTarget, resolveOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ExtUri } from '../../../../../base/common/resources.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -31,6 +31,7 @@ import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSetting
 import { Separator, SubmenuAction } from '../../../../../base/common/actions.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -41,7 +42,7 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { createUSLayoutResolvedKeybinding } from '../../../../../platform/keybinding/test/common/keybindingsTestUtils.js';
 import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
+import { IListService, ListService, WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { IOpenerService, OpenExternalOptions, OpenInternalOptions } from '../../../../../platform/opener/common/opener.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -55,6 +56,11 @@ import { SessionSummaryHoverWidget } from '../../../../../workbench/contrib/chat
 import { AICustomizationManagementEditorInput } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IPreferencesService, IOpenSettingsOptions } from '../../../../../workbench/services/preferences/common/preferences.js';
+import { SpotlightPresentation } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightPresentation.js';
+import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js';
+import { OnboardingOutcome } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
+import { TestHostService, TestLayoutService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import '../../../../../workbench/browser/actions/listCommands.js';
 import { AgentMergeSessionState } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { getSessionChatDragData, isSessionChatDrag, SessionsDataTransfers } from '../../../../browser/dnd.js';
 import { IsPhoneLayoutContext, IsQuickChatSessionContext, SessionIsArchivedContext, SessionSupportsMultipleChatsContext } from '../../../../common/contextkeys.js';
@@ -333,7 +339,106 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		for (const activation of ['click', 'keyboard'] as const) {
+			test(`spotlights the New Session navigation row and completes via ${activation} activation`, async () => {
+				const harness = createListHarness(disposables, [], instantiationService => {
+					instantiationService.stub(IListService, disposables.add(new ListService()));
+				});
+				const container = harness.createContainer();
+				const headerButton = mainWindow.document.createElement('button');
+				headerButton.textContent = 'New';
+				headerButton.style.display = 'none';
+				harness.store.add(markOnboardingTarget(headerButton, 'sessions.newSession.button'));
+				const navigationContainer = mainWindow.document.createElement('div');
+				const listContainer = mainWindow.document.createElement('div');
+				container.append(headerButton, navigationContainer, listContainer);
+				let showNavigationShortcuts = true;
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, listContainer, {
+					grouping: () => SessionsGrouping.Date,
+					sorting: () => SessionsSorting.Created,
+					showNavigationShortcuts: () => showNavigationShortcuts,
+					navigationContainer,
+					onSessionOpen: () => { },
+				}));
+				list.layout(300, 400);
+				list.focusCustomizations();
+
+				const target = resolveOnboardingTarget(mainWindow, 'sessions.newSession.button');
+				assert.ok(target?.onDidActivate);
+				const targetsNavigationRow = target.element === navigationContainer.querySelector('.session-section-new-session');
+				let activations = 0;
+				harness.store.add(target.onDidActivate(() => activations++));
+				const presentation = harness.store.add(new SpotlightPresentation(
+					new class extends TestLayoutService { override getContainer(): HTMLElement { return container; } }(),
+					new TestHostService(), harness.instantiationService.get(IContextKeyService),
+				));
+				const shown = new DeferredPromise<void>();
+				const result = presentation.run({
+					id: 'test.newSessionNavigation',
+					trigger: { kind: 'auto' },
+					presentation: {
+						kind: SPOTLIGHT_PRESENTATION_KIND,
+						payload: {
+							steps: [{
+								id: 'newSession', targetId: 'sessions.newSession.button', title: 'New Session', description: 'Start another task.',
+								allowTargetInteraction: true, advanceOnTargetClick: true, hideNext: false,
+							}],
+						} satisfies ISpotlightPayload,
+					},
+				}, { targetWindow: mainWindow, onAbort: Event.None, onDidShow: () => { void shown.complete(); } });
+				await shown.p;
+
+				if (activation === 'click') {
+					target.element.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+				} else {
+					const next = [...container.querySelectorAll<HTMLElement>('.spotlight-callout-actions .monaco-button')].at(-1)!;
+					next.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, bubbles: true, cancelable: true }));
+					const navigation = navigationContainer.querySelector<HTMLElement>('.monaco-list')!;
+					assert.deepStrictEqual({
+						focused: mainWindow.document.activeElement === navigation,
+						newSessionFocused: target.element.closest('.monaco-list-row')?.classList.contains('focused'),
+					}, { focused: true, newSessionFocused: true });
+					navigation.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, shiftKey: true, bubbles: true, cancelable: true }));
+					assert.strictEqual(mainWindow.document.activeElement, next);
+					next.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, bubbles: true, cancelable: true }));
+					// Hidden Electron windows update activeElement without emitting native focus events.
+					if (!mainWindow.document.hasFocus()) {
+						navigation.dispatchEvent(new FocusEvent('focus'));
+					}
+					harness.instantiationService.invokeFunction(CommandsRegistry.getCommand('list.select')!.handler);
+				}
+				const outcome = (await result).outcome;
+
+				showNavigationShortcuts = false;
+				list.updateNavigationVisibility();
+				const targetAfterRemoval = resolveOnboardingTarget(mainWindow, 'sessions.newSession.button');
+				const markerAfterRemoval = target.element.hasAttribute('data-onboarding-id');
+				headerButton.style.display = '';
+
+				assert.deepStrictEqual({
+					targetsNavigationRow,
+					activations,
+					outcome,
+					overlayRemaining: !!container.querySelector('.spotlight-callout'),
+					commands: harness.commandService.calls,
+					targetAfterRemoval,
+					markerAfterRemoval,
+					targetsHeader: resolveOnboardingTarget(mainWindow, 'sessions.newSession.button')?.element === headerButton,
+				}, {
+					targetsNavigationRow: true,
+					activations: 1,
+					outcome: OnboardingOutcome.Completed,
+					overlayRemaining: false,
+					commands: [{ commandId: NEW_SESSION_ACTION_ID, args: [undefined] }],
+					targetAfterRemoval: undefined,
+					markerAfterRemoval: false,
+					targetsHeader: true,
+				});
+			});
+		}
+
 		test('switches the navigation treatment without disturbing Find focus', async () => {
+			const commands: string[] = [];
 			const activeEditorChanged = disposables.add(new Emitter<void>());
 			const keybindingsChanged = disposables.add(new Emitter<void>());
 			const editorState: { activeEditor?: AICustomizationManagementEditorInput } = {};
@@ -348,6 +453,12 @@ suite('Sessions - SessionsList', () => {
 			};
 			let newSessionKeybinding = createNewSessionKeybinding(KeyMod.CtrlCmd | KeyCode.KeyN);
 			const harness = createListHarness(disposables, [], instantiationService => {
+				instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+					override async executeCommand<R>(commandId: string): Promise<R | undefined> {
+						commands.push(commandId);
+						return undefined;
+					}
+				});
 				ChatAutomationsEnabledContext.bindTo(instantiationService.get(IContextKeyService)).set(true);
 				instantiationService.stub(IAutomationService, new class extends mock<IAutomationService>() {
 					override readonly automations = constObservable([]);
@@ -453,7 +564,12 @@ suite('Sessions - SessionsList', () => {
 			list.focusAutomations();
 			await timeout(350);
 			const controlNavigationLabels = Array.from(navigationContainer.querySelectorAll('.session-section-shortcut .session-section-label'), element => element.textContent);
+			const controlTreeShortcuts = Array.from(listContainer.querySelectorAll('.session-section-shortcut .session-section-label'), element => element.textContent);
 			const controlAutomationsFocused = list.isAutomationsFocused();
+			const controlAutomationsRow = listContainer.querySelector<HTMLElement>('.session-section-shortcut');
+			assert.ok(controlAutomationsRow);
+			controlAutomationsRow.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+			await Promise.resolve();
 
 			assert.deepStrictEqual({
 				findInput,
@@ -475,7 +591,9 @@ suite('Sessions - SessionsList', () => {
 				navigationUsesList: navigationContainer.querySelector('.monaco-list') !== null && navigationContainer.querySelector('[role="tree"]') === null,
 				sessionsUseTree: listContainer.querySelector('[role="tree"]') !== null,
 				controlNavigationLabels,
+				controlTreeShortcuts,
 				controlAutomationsFocused,
+				commands,
 				newSessionKeybindingLookupUsesViewContext: keybindingLookupContexts.length >= 2
 					&& keybindingLookupContexts.every(context => context === harness.instantiationService.get(IContextKeyService)),
 			}, {
@@ -510,8 +628,10 @@ suite('Sessions - SessionsList', () => {
 				stableFindHeaderUnmoved: true,
 				navigationUsesList: true,
 				sessionsUseTree: true,
-				controlNavigationLabels: ['Automations'],
+				controlNavigationLabels: [],
+				controlTreeShortcuts: ['Automations'],
 				controlAutomationsFocused: true,
+				commands: ['sessionsView.manageAutomations'],
 				newSessionKeybindingLookupUsesViewContext: true,
 			});
 		});
@@ -969,7 +1089,7 @@ suite('Sessions - SessionsList', () => {
 
 		function needsInputSections(container: HTMLElement): string[] {
 			return [...container.querySelectorAll('.session-section')]
-				.filter(header => header.querySelector('.session-section-icon .monaco-pixel-spinner-ring'))
+				.filter(header => header.querySelector('.session-section-icon .codicon-report'))
 				.map(header => header.querySelector('.session-section-label')!.textContent!);
 		}
 
@@ -1060,7 +1180,7 @@ suite('Sessions - SessionsList', () => {
 				return {
 					ariaLabel: header.closest('.monaco-list-row')?.getAttribute('aria-label'),
 					icon: header.querySelector('.session-section-icon')?.className,
-					indicator: !!header.querySelector('.codicon-circle-filled, .monaco-pixel-spinner'),
+					indicator: !!header.querySelector('.codicon-circle-filled, .codicon-report, .monaco-pixel-spinner'),
 				};
 			}), [
 				{ ariaLabel: 'Group A, 1', icon: 'session-section-icon codicon codicon-folder-library', indicator: false },
@@ -1169,7 +1289,7 @@ suite('Sessions - SessionsList', () => {
 				const label = grouped ? group.name : 'Workspace';
 				const header = getHeader(container, label);
 				const getStatus = () => {
-					if (header.querySelector('.monaco-pixel-spinner-ring')) {
+					if (header.querySelector('.codicon-report')) {
 						return 'needsInput';
 					}
 					const dot = header.querySelector<HTMLElement>('.codicon-circle-filled');
@@ -1219,17 +1339,17 @@ suite('Sessions - SessionsList', () => {
 				} : {});
 				const label = grouped ? group.name : 'Workspace';
 				const header = getHeader(container, label);
-				const getStatus = () => header.querySelector('.monaco-pixel-spinner-ring') ? 'needsInput' : header.querySelector('.codicon-circle-filled') ? 'unread' : 'none';
+				const getStatus = () => header.querySelector('.codicon-report') ? 'needsInput' : header.querySelector('.codicon-circle-filled') ? 'unread' : 'none';
 				const states = [getStatus()];
 				const hiddenNeedsInput = !list.getVisibleSessions().some(session => session.sessionId === needsInput.session.sessionId);
 
 				list.collapseAllSections();
 				states.push(getStatus());
-				const spinner = header.querySelector<HTMLElement>('.monaco-pixel-spinner-ring');
+				const reportIcon = header.querySelector<HTMLElement>('.codicon-report');
 				const needsInputAria = header.closest('.monaco-list-row')?.getAttribute('aria-label');
 				unread.isRead.set(true, undefined);
 				unread.isRead.set(false, undefined);
-				const preservesSpinner = !!spinner && spinner === header.querySelector('.monaco-pixel-spinner-ring');
+				const preservesReportIcon = !!reportIcon && reportIcon === header.querySelector('.codicon-report');
 				needsInput.status.set(SessionStatus.Completed, undefined);
 				states.push(getStatus());
 				const unreadAria = header.closest('.monaco-list-row')?.getAttribute('aria-label');
@@ -1252,8 +1372,8 @@ suite('Sessions - SessionsList', () => {
 				assert.deepStrictEqual({
 					hiddenNeedsInput,
 					states,
-					preservesSpinner,
-					color: spinner?.style.color,
+					preservesReportIcon,
+					color: reportIcon?.style.color,
 					needsInputAria,
 					unreadAria,
 					expandedPulse,
@@ -1261,9 +1381,9 @@ suite('Sessions - SessionsList', () => {
 				}, {
 					hiddenNeedsInput: true,
 					states: ['none', 'needsInput', 'unread', 'needsInput', 'unread', 'needsInput', 'none', 'needsInput', 'unread', 'none'],
-					preservesSpinner: true,
+					preservesReportIcon: true,
 					color: 'var(--vscode-list-warningForeground)',
-					needsInputAria: `${label}, 6, session needs input`,
+					needsInputAria: `${label}, 6, session needs attention`,
 					unreadAria: `${label}, 6, contains unread sessions`,
 					expandedPulse: false,
 					clearedPulse: false,
@@ -1395,7 +1515,7 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('uses the existing orange needs-input fallback with reduced motion', () => {
+		test('uses the report icon for needs-attention with reduced motion', () => {
 			const { session } = createTestSession('Needs input', { status: SessionStatus.NeedsInput });
 			const { list, container } = renderList([session], {}, true);
 			list.collapseAllSections();
@@ -1403,12 +1523,14 @@ suite('Sessions - SessionsList', () => {
 
 			assert.deepStrictEqual({
 				hasSpinner: !!header.querySelector('.monaco-pixel-spinner'),
-				color: header.querySelector<HTMLElement>('.codicon-circle-filled')?.style.color,
+				hasReportIcon: !!header.querySelector('.codicon-report'),
+				color: header.querySelector<HTMLElement>('.codicon-report')?.style.color,
 				ariaLabel: header.closest('.monaco-list-row')?.getAttribute('aria-label'),
 			}, {
 				hasSpinner: false,
+				hasReportIcon: true,
 				color: 'var(--vscode-list-warningForeground)',
-				ariaLabel: 'Workspace, 1, session needs input',
+				ariaLabel: 'Workspace, 1, session needs attention',
 			});
 		});
 
@@ -1429,7 +1551,7 @@ suite('Sessions - SessionsList', () => {
 				const header = getHeader(container, label);
 				return {
 					ariaLabel: header.closest('.monaco-list-row')?.getAttribute('aria-label'),
-					indicator: !!header.querySelector('.codicon-circle-filled, .monaco-pixel-spinner'),
+					indicator: !!header.querySelector('.codicon-circle-filled, .codicon-report, .monaco-pixel-spinner'),
 				};
 			}), [
 				{ ariaLabel: 'Group A, 0', indicator: false },
@@ -1484,7 +1606,7 @@ suite('Sessions - SessionsList', () => {
 
 			assert.deepStrictEqual(states, [
 				{ needsInputSections: [], workspaceIcon: true, ariaLabel: 'Workspace, 1' },
-				{ needsInputSections: ['Workspace'], workspaceIcon: false, ariaLabel: 'Workspace, 1, session needs input' },
+				{ needsInputSections: ['Workspace'], workspaceIcon: false, ariaLabel: 'Workspace, 1, session needs attention' },
 			]);
 		});
 
@@ -3012,6 +3134,39 @@ suite('Sessions - SessionsList', () => {
 			list.layout(400, 400);
 			return { attempt1, attempt2, judge, synthesis, container, harness, list };
 		}
+
+		test('uses attention wording for blocked comparison participants', () => {
+			const { attempt1, attempt2, judge, container } = renderComparison();
+			const readPresentation = () => ({
+				summary: container.querySelector('.session-comparison-group .session-group-description')?.textContent,
+				attempts: [...container.querySelectorAll('.session-comparison-attempt')]
+					.map(attempt => attempt.querySelector('.session-comparison-attempt-status.visible')?.textContent),
+			});
+
+			attempt1.status.set(SessionStatus.NeedsInput, undefined);
+			const oneAttempt = readPresentation();
+			attempt2.status.set(SessionStatus.NeedsInput, undefined);
+			const bothAttempts = readPresentation();
+			attempt1.status.set(SessionStatus.Completed, undefined);
+			attempt2.status.set(SessionStatus.Completed, undefined);
+			judge.status.set(SessionStatus.NeedsInput, undefined);
+			const judgeWaiting = readPresentation();
+
+			assert.deepStrictEqual({ oneAttempt, bothAttempts, judgeWaiting }, {
+				oneAttempt: {
+					summary: 'Comparison · 1 attempt needs attention',
+					attempts: ['Attention needed', ''],
+				},
+				bothAttempts: {
+					summary: 'Comparison · 2 attempts need attention',
+					attempts: [undefined, undefined],
+				},
+				judgeWaiting: {
+					summary: 'Comparison · Judge needs attention',
+					attempts: [undefined, undefined],
+				},
+			});
+		});
 
 		test('renders synthesis and Judge before connected compact attempts', () => {
 			const { attempt1, attempt2, container } = renderComparison();
@@ -5613,7 +5768,7 @@ suite('Sessions - SessionsList', () => {
 				aggregateStatus: session.status.get(),
 			}, {
 				session: { inProgress: false, needsInput: false, ariaLabel: 'Session, updated now, State: Completed, in Workspace' },
-				peerChatNeedsInput: 'Peer chat, chat, updated now, State: Input Needed',
+				peerChatNeedsInput: 'Peer chat, chat, updated now, State: Attention Needed',
 				aggregateStatus: SessionStatus.NeedsInput,
 			});
 		});
@@ -5682,9 +5837,9 @@ suite('Sessions - SessionsList', () => {
 
 				const completed = { inProgress: false, needsInput: false, ariaLabel: 'Session, updated now, State: Completed, in Workspace' };
 				const working = { inProgress: true, needsInput: false, ariaLabel: 'Session, updated now, State: In Progress' };
-				const waiting = { inProgress: false, needsInput: true, ariaLabel: 'Session, updated now, State: Input Needed' };
+				const waiting = { inProgress: false, needsInput: true, ariaLabel: 'Session, updated now, State: Attention Needed' };
 				const workingWithoutTime = { inProgress: true, needsInput: false, ariaLabel: 'Session, State: In Progress' };
-				const waitingWithoutTime = { inProgress: false, needsInput: true, ariaLabel: 'Session, State: Input Needed' };
+				const waitingWithoutTime = { inProgress: false, needsInput: true, ariaLabel: 'Session, State: Attention Needed' };
 				assert.deepStrictEqual({ snapshots, chats: chatRowTitles(container) }, {
 					snapshots: [completed, working, waiting, waitingWithoutTime, workingWithoutTime, completed, completed, working, completed, working, completed, waiting, completed, completed],
 					chats: expanded && withPeer ? ['Peer chat'] : [],
@@ -5745,7 +5900,7 @@ suite('Sessions - SessionsList', () => {
 			assert.deepStrictEqual(sessionRowSnapshot(container), {
 				inProgress: false,
 				needsInput: true,
-				ariaLabel: 'Session, updated now, State: Input Needed',
+				ariaLabel: 'Session, updated now, State: Attention Needed',
 			});
 		});
 
@@ -5781,7 +5936,7 @@ suite('Sessions - SessionsList', () => {
 
 			assert.deepStrictEqual({ before, after: sessionRowSnapshot(container) }, {
 				before: { inProgress: false, needsInput: false, ariaLabel: 'Session, updated now, State: Completed, in Workspace' },
-				after: { inProgress: false, needsInput: true, ariaLabel: 'Session, updated now, State: Input Needed' },
+				after: { inProgress: false, needsInput: true, ariaLabel: 'Session, updated now, State: Attention Needed' },
 			});
 		});
 
@@ -5825,7 +5980,7 @@ suite('Sessions - SessionsList', () => {
 			const peerRow = [...container.querySelectorAll<HTMLElement>('.session-chat-item')]
 				.find(element => element.textContent?.includes('Needs input chat'));
 			assert.ok(peerRow);
-			assert.strictEqual(peerRow.closest('.monaco-list-row')?.getAttribute('aria-label'), 'Needs input chat, chat, updated now, State: Input Needed');
+			assert.strictEqual(peerRow.closest('.monaco-list-row')?.getAttribute('aria-label'), 'Needs input chat, chat, updated now, State: Attention Needed');
 		});
 
 		test('updates rendered chat row heights across phone layout changes', () => {
@@ -7222,7 +7377,7 @@ suite('Sessions - SessionsList', () => {
 
 			assert.deepStrictEqual({ completed, needsInput, completedAgain }, {
 				completed: { height: '30px', visible: false, label: '', ariaHidden: 'true', ariaLabel: 'Answer required, updated now, State: Completed, in vscode' },
-				needsInput: { height: '62px', visible: true, label: 'Which strategy should I use?', ariaHidden: 'true', ariaLabel: 'Answer required, updated now, State: Input Needed, Which strategy should I use?' },
+				needsInput: { height: '62px', visible: true, label: 'Which strategy should I use?', ariaHidden: 'true', ariaLabel: 'Answer required, updated now, State: Attention Needed, Which strategy should I use?' },
 				completedAgain: { height: '30px', visible: false, label: '', ariaHidden: 'true', ariaLabel: 'Answer required, updated now, State: Completed, in vscode' },
 			});
 		});

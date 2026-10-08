@@ -386,7 +386,7 @@ pub mod singleton {
 		pub tunnel_id: Option<String>,
 		/// Whether the running singleton serves the editor, as opposed to only
 		/// the agent host. `None` from servers predating this field, in which
-		/// case a client must fall back to describing its own invocation.
+		/// case a client assumes remote editor access is available.
 		#[serde(default)]
 		pub has_editor_link: Option<bool>,
 		#[serde(flatten)]
@@ -430,7 +430,7 @@ pub mod singleton {
 
 		/// A singleton server predating `has_editor_link` omits the field
 		/// entirely; clients must still be able to read its status and fall
-		/// back to describing their own invocation.
+		/// back to assuming remote editor access is available.
 		#[test]
 		fn status_without_editor_link_field_deserializes_as_unknown() {
 			// Built by removing the field from a real payload rather than

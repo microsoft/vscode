@@ -62,9 +62,13 @@ The view service:
 - owns the active session and visible-session arrangement;
 - opens sessions and chats;
 - presents new-session and peer-chat composers;
-- owns session navigation, focus, and visible-session restoration.
+- owns Back/Forward navigation across session chats, the new-session composer, and custom views, along with focus and visible-session restoration.
 
 It delegates model lifecycle operations to `ISessionsManagementService`.
+
+Navigation and the recent-sessions picker share MRU ordering. Singleton composer and custom-view entries participate only in the current window's navigation, not persisted session recency or the picker. Back/Forward moves through that order without promoting entries.
+
+Explicit opens carry navigation intent even when the destination is already visible. Async session/chat opens commit only their final destination and honor cancellation; intermediate selections and history traversal do not promote entries. Custom-view opening state distinguishes explicit opens, history traversal, and restoration while the rendered descriptor remains a derived projection.
 
 Visible-session slots have stable identities independent of list position. The view service coordinates membership, activation, directional placement, cancellation, and persisted leaf bindings; the Sessions Part owns rendering and split geometry. Explicit batch opening resolves and prepares its sessions before committing a visibility change. Geometry and layout operations remain independent of providers and comparison membership. See [LAYOUT.md](LAYOUT.md#sessions-part) for the grid and restoration contract.
 

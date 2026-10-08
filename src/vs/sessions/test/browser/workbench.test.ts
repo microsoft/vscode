@@ -78,6 +78,38 @@ class TestTelemetryService extends NullTelemetryServiceShape {
 suite('Sessions - Workbench', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('leaves native resize to the host window while retaining iOS and phone viewport listeners', () => {
+		const viewport = mainWindow.visualViewport;
+		assert.ok(viewport);
+		const results = [false, true].map(isIOSWindow => {
+			const listeners = store.add(new DisposableStore());
+			let layouts = 0;
+			let phone = false;
+			const workbench: { registerLayoutListeners(isIOSWindow: boolean): void } = Object.assign(Object.create(Workbench.prototype), {
+				parent: document.createElement('div'),
+				_register: <T extends IDisposable>(disposable: T) => listeners.add(disposable),
+				layout: () => layouts++,
+				layoutPolicy: { viewportClass: { get: () => phone ? 'phone' : 'desktop' } },
+			});
+			workbench.registerLayoutListeners(isIOSWindow);
+			mainWindow.dispatchEvent(new Event('resize'));
+			const native = layouts;
+			viewport.dispatchEvent(new Event('resize'));
+			const desktopVisual = layouts;
+			phone = true;
+			viewport.dispatchEvent(new Event('resize'));
+			const phoneVisual = layouts;
+			listeners.dispose();
+			mainWindow.dispatchEvent(new Event('resize'));
+			viewport.dispatchEvent(new Event('resize'));
+			return { isIOSWindow, native, desktopVisual, phoneVisual, afterDisposal: layouts };
+		});
+		assert.deepStrictEqual(results, [
+			{ isIOSWindow: false, native: 0, desktopVisual: 0, phoneVisual: 1, afterDisposal: 1 },
+			{ isIOSWindow: true, native: 1, desktopVisual: 1, phoneVisual: 1, afterDisposal: 1 },
+		]);
+	});
+
 	// Real Workbench methods invoked against a prototype-chained fake harness so
 	// the protected layout hooks dispatch to the base (grid) or DesktopWorkbench
 	// (docked) override, exactly as at runtime.
@@ -4073,7 +4105,7 @@ suite('Sessions - Workbench', () => {
 		});
 	});
 
-	test('swapping to another custom view re-renders it without touching the layout', () => {
+	test('swapping to another custom view re-renders and focuses it without touching the layout', () => {
 		const host = createHost({ partVisibility: { editor: true, auxiliaryBar: true, sessions: true } });
 		const first = {};
 		const second = {};
@@ -4087,11 +4119,13 @@ suite('Sessions - Workbench', () => {
 			customViewGridVisible: isVisible.call(host, Parts.CUSTOM_VIEW_GRID_PART),
 			sessions: isVisible.call(host, Parts.SESSIONS_PART),
 			eventsAfterSwap: host.events.length - eventsAfterShow,
+			focusedParts: host.focusedParts,
 		}, {
 			renderedCustomViews: [first, second],
 			customViewGridVisible: true,
 			sessions: false,
 			eventsAfterSwap: 0,
+			focusedParts: [Parts.CUSTOM_VIEW_GRID_PART, Parts.CUSTOM_VIEW_GRID_PART],
 		});
 	});
 

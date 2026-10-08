@@ -42,7 +42,6 @@ export const enum AgentSandboxSettingId {
 	AgentSandboxLinuxFileSystem = 'chat.agent.sandbox.fileSystem.linux',
 	AgentSandboxMacFileSystem = 'chat.agent.sandbox.fileSystem.mac',
 	AgentSandboxWindowsFileSystem = 'chat.agent.sandbox.fileSystem.windows',
-	AgentSandboxWindowsSchemaVersion = 'chat.agent.sandbox.advanced.windows.schemaVersion',
 	AgentSandboxAdvancedRuntime = 'chat.agent.sandbox.advanced.runtime',
 }
 
