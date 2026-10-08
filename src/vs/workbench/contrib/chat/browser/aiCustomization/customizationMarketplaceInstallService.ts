@@ -796,15 +796,15 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		const providerBinding = this.getInstallProviderBinding(resource);
 		const operationDisposables = new DisposableStore();
 		const token = cancelOnDispose(operationDisposables);
-		const isConfiguredPlugin = resource.installation?.kind === 'configuredPlugin';
+		const requiresMarketplaceTrust = resource.installation?.kind === 'configuredPlugin' || resource.installation?.kind === 'providerPlugin';
 		operationDisposables.add(this.lifetimeToken.onCancellationRequested(() => operationDisposables.dispose()));
-		if (isConfiguredPlugin) {
+		if (requiresMarketplaceTrust) {
 			operationDisposables.add(this.pluginMarketplaceService.onDidChangeMarketplaces(() => operationDisposables.dispose()));
 		}
 		operationDisposables.add(this.configurationService.onDidChangeConfiguration(event => {
 			if (
 				!this.isSourceEnabled(resource.sourceId) ||
-				(isConfiguredPlugin && (
+				(requiresMarketplaceTrust && (
 					event.affectsConfiguration(ChatConfiguration.StrictMarketplaces)
 				)) ||
 				(resource.installation?.kind === 'mcpGallery' && resource.installation.registry === 'custom' &&
@@ -818,8 +818,10 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			getCustomizationMarketplaceInstallTelemetryContext('marketplace', resource.installation),
 			async () => {
 				if (providerBinding) {
-					if (resource.installation?.kind === 'configuredPlugin') {
-						const plugin = await this.resolveConfiguredPlugin(resource, token);
+					if (resource.installation?.kind === 'configuredPlugin' || resource.installation?.kind === 'providerPlugin') {
+						const plugin = resource.installation.kind === 'configuredPlugin'
+							? await this.resolveConfiguredPlugin(resource, token)
+							: await this.resolveProviderPlugin(resource, token);
 						if (!await this.pluginInstallService.ensureMarketplaceTrusted(plugin.marketplaceReference, token)) {
 							throw new CancellationError();
 						}
@@ -1190,6 +1192,22 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			throw new Error(localize('customizationMarketplace.pluginUnavailable', "This plugin is no longer available from a configured marketplace. Refresh Discover and try again."));
 		}
 		return plugin;
+	}
+
+	private async resolveProviderPlugin(resource: ICustomizationMarketplaceResource, token: CancellationToken): Promise<IMarketplacePlugin> {
+		const source = resource.installation;
+		if (source?.kind !== 'providerPlugin') {
+			throw new Error(localize('customizationMarketplace.providerPluginIdentityUnavailable', "This plugin does not provide provider marketplace identity."));
+		}
+		const plugins = await this.pluginMarketplaceService.fetchMarketplacePlugins(token);
+		this.checkEnabled(resource.sourceId, token);
+		const matches = plugins.filter(plugin =>
+			plugin.name === source.name &&
+			plugin.marketplaceName === source.marketplace);
+		if (matches.length !== 1) {
+			throw new Error(localize('customizationMarketplace.providerPluginUnavailable', "This featured plugin is no longer available from a registered marketplace. Refresh Discover and try again."));
+		}
+		return matches[0];
 	}
 
 	private async installTarget(resource: ICustomizationMarketplaceResource, token: CancellationToken): Promise<CustomizationMarketplaceInstallationRecordTarget> {

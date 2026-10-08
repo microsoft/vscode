@@ -704,7 +704,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 		assert.deepStrictEqual([gallery.kind, connector.kind], ['installed', 'installed']);
 	});
 
-	test('routes an SDK-featured plugin without local marketplace validation', async () => {
+	test('validates SDK-featured plugin marketplace trust before invoking the provider', async () => {
 		const installs: ICustomizationMarketplaceResource[] = [];
 		const provider = new class implements ICustomizationMarketplaceInstallProvider {
 			readonly onDidChange = Event.None;
@@ -714,11 +714,13 @@ suite('CustomizationMarketplaceInstallService', () => {
 			uninstall(): Promise<void> { throw new Error('Unexpected uninstall'); }
 		}();
 		const fixture = await createFixture({ enabled: true, installProvider: provider });
+		const plugin = { ...installedPlugin({ kind: PluginSourceKind.RelativePath, path: 'plugins/demo' }).plugin, marketplaceName: 'awesome-copilot' };
+		fixture.marketplaceService.availablePlugins = [plugin];
 		const candidate = resource({
 			identifier: '["awesome-copilot","azure"]',
 			displayName: 'Azure',
 			mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
-			installation: { kind: 'providerPlugin', name: 'azure', marketplace: 'awesome-copilot' },
+			installation: { kind: 'providerPlugin', name: plugin.name, marketplace: plugin.marketplaceName },
 		});
 
 		await fixture.service.install(candidate);
@@ -728,7 +730,38 @@ suite('CustomizationMarketplaceInstallService', () => {
 			trustChecks: fixture.pluginService.trustChecks,
 		}, {
 			installs: [candidate],
-			trustChecks: [],
+			trustChecks: [plugin.marketplaceReference],
+		});
+	});
+
+	test('does not invoke the provider when SDK-featured plugin marketplace trust is declined', async () => {
+		let providerInstalls = 0;
+		const provider = new class implements ICustomizationMarketplaceInstallProvider {
+			readonly onDidChange = Event.None;
+			getInstallations() { return Promise.resolve([]); }
+			async install(): Promise<void> { providerInstalls++; }
+			repair(): Promise<void> { throw new Error('Unexpected repair'); }
+			uninstall(): Promise<void> { throw new Error('Unexpected uninstall'); }
+		}();
+		const fixture = await createFixture({ enabled: true, installProvider: provider });
+		const plugin = { ...installedPlugin({ kind: PluginSourceKind.RelativePath, path: 'plugins/demo' }).plugin, marketplaceName: 'awesome-copilot' };
+		fixture.marketplaceService.availablePlugins = [plugin];
+		fixture.pluginService.trustResult = false;
+		const candidate = resource({
+			identifier: '["awesome-copilot","azure"]',
+			displayName: 'Azure',
+			mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+			installation: { kind: 'providerPlugin', name: plugin.name, marketplace: plugin.marketplaceName },
+		});
+
+		await assert.rejects(fixture.service.install(candidate), isCancellationError);
+
+		assert.deepStrictEqual({
+			providerInstalls,
+			trustChecks: fixture.pluginService.trustChecks,
+		}, {
+			providerInstalls: 0,
+			trustChecks: [plugin.marketplaceReference],
 		});
 	});
 
