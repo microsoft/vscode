@@ -39,7 +39,7 @@ import { getCopilotHomePath, getCopilotMcpConfigurationPath } from '../../../env
 import { AgentHostHydraFusionEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
 import { logSettingExperimentTrigger } from '../../../telemetry/common/experimentTrigger.js';
 import { withCustomizationEnablement } from '../../common/customizationEnablement.js';
-import type { AutoModeTier } from '../../common/autoModeTiers.js';
+import { isAutoModeRoutingTier, type AutoModeRoutingTier, type AutoModeTier } from '../../common/autoModeTiers.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReviewAction } from '../../common/agentHostPlanReview.js';
 import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
@@ -152,6 +152,11 @@ function readSubagentTaskModelSource(data: object): AgentSubagentTaskModelSource
 		default:
 			return undefined;
 	}
+}
+
+/** The runtime-reported Auto tier, only while the model is Auto; never inferred or defaulted. */
+function getCommittedAutoTier(model: string | undefined, autoTier: unknown): AutoModeRoutingTier | undefined {
+	return isAutoModel(model) && isAutoModeRoutingTier(autoTier) ? autoTier : undefined;
 }
 
 function getClientToolSdkPolicy(toolName: string): IClientToolSdkPolicy {
@@ -1014,6 +1019,9 @@ export class CopilotAgentSession extends Disposable {
 	 * subagent outlives the root turn that spawned it when steering mints a new one.
 	 */
 	private readonly _autoModeResolvedByToolCallId = new Map<string, NonNullable<UsageInfoMeta['autoModeResolved']>>();
+	private _committedAutoTier: AutoModeRoutingTier | undefined;
+	private _committedAutoTierRevision = 0;
+	private readonly _committedAutoTierBySubagentToolCallId = new Map<string, AutoModeRoutingTier>();
 	private readonly _activeSubagentAgentIds = new Set<string>();
 	private readonly _subagentTaskCompletionSchedulers = this._register(new DisposableMap<string, RunOnceScheduler>());
 	private readonly _pendingSubagentLifecycleCompletions = new Map<string, { readonly toolCallId: string; readonly activityRevision: number | undefined; readonly outcome?: SubagentTurnOutcome }>();
@@ -1957,6 +1965,7 @@ export class CopilotAgentSession extends Disposable {
 			this._subagentObservedTokenUsage.delete(parentToolCallId);
 			this._lastSubagentUsageByToolCallId.delete(parentToolCallId);
 			this._autoModeResolvedByToolCallId.delete(parentToolCallId);
+			this._committedAutoTierBySubagentToolCallId.delete(parentToolCallId);
 			return;
 		}
 		this._onDidSessionProgress.fire({
@@ -1969,6 +1978,7 @@ export class CopilotAgentSession extends Disposable {
 		this._subagentDirectUsageByToolCallId.delete(parentToolCallId);
 		this._lastSubagentUsageByToolCallId.delete(parentToolCallId);
 		this._autoModeResolvedByToolCallId.delete(parentToolCallId);
+		this._committedAutoTierBySubagentToolCallId.delete(parentToolCallId);
 	}
 
 	private _getOrCreateSubagentCompletionScheduler(agentId: string): RunOnceScheduler {
@@ -3200,6 +3210,7 @@ export class CopilotAgentSession extends Disposable {
 		}));
 		this._subscribeToEvents();
 		this._subscribeToSdkEvents();
+		void this._readCommittedAutoTier(wrapper);
 		this._subscribeForMemoInvalidation();
 		this._subscribeForInstructionsCollectedTelemetry();
 		this._subscribeToPermissionConfigChanges();
@@ -7137,6 +7148,9 @@ export class CopilotAgentSession extends Disposable {
 			const turnId = tracked.turnId;
 			const chatUri = parentToolCallId ? buildSubagentChatUri(this._ownerSessionUri.toString(), parentToolCallId) : this._chatChannelUri.toString();
 			const modelId = this._lastSeenModelId;
+			const autoTier = parentToolCallId && !this._fusionPhaseLabels.has(parentToolCallId)
+				? this._committedAutoTierBySubagentToolCallId.get(parentToolCallId)
+				: this._committedAutoTier;
 			const abortToken = this._abortToken;
 			const isCurrent = () => !this._store.isDisposed && !abortToken.isCancellationRequested && this._currentTurn.value === turn;
 			let terminalOutputStored = false;
@@ -7193,7 +7207,7 @@ export class CopilotAgentSession extends Disposable {
 						return;
 					}
 					try {
-						const fileEdit = await this._editTracker.takeCompletedEdit(turnId, e.data.toolCallId, filePath, tracked.toolName, tracked.parameters, modelId, turn?.clientContext, chatUri);
+						const fileEdit = await this._editTracker.takeCompletedEdit(turnId, e.data.toolCallId, filePath, tracked.toolName, tracked.parameters, modelId, turn?.clientContext, chatUri, autoTier);
 						if (fileEdit) {
 							content.push(fileEdit);
 						}
@@ -8842,6 +8856,19 @@ export class CopilotAgentSession extends Disposable {
 		});
 	}
 
+	/** Seeds the tier from the runtime snapshot; `session.start`/`session.resume` fire before this session subscribes. */
+	private async _readCommittedAutoTier(wrapper: CopilotSessionWrapper): Promise<void> {
+		const revision = this._committedAutoTierRevision;
+		try {
+			const current = await wrapper.session.rpc.model.getCurrent();
+			if (revision === this._committedAutoTierRevision && this._wrapper === wrapper) {
+				this._committedAutoTier = getCommittedAutoTier(current.modelId, current.autoTier);
+			}
+		} catch (error) {
+			this._logService.trace(`[Copilot:${this.sessionId}] Failed to read the committed Auto tier: ${getErrorMessage(error)}`);
+		}
+	}
+
 	private _subscribeToSdkEvents(): void {
 		const wrapper = this._wrapper;
 		const sessionId = this.sessionId;
@@ -8991,15 +9018,30 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onSessionModelChange(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Model changed: ${e.data.previousModel ?? '(none)'} -> ${e.data.newModel}`);
+			const committedAutoTier = getCommittedAutoTier(e.data.newModel, e.data.autoTier);
+			// The runtime omits `autoTier` on Auto-to-Auto changes that keep its committed preference.
+			const keepsAutoTier = e.data.autoTier === undefined && isAutoModel(e.data.previousModel) && isAutoModel(e.data.newModel);
 			if (e.agentId) {
 				const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
 				if (parentToolCallId) {
 					if (e.data.previousModel !== e.data.newModel) {
 						this._autoModeResolvedByToolCallId.delete(parentToolCallId);
 					}
+					if (committedAutoTier) {
+						this._committedAutoTierBySubagentToolCallId.set(parentToolCallId, committedAutoTier);
+					} else if (!keepsAutoTier) {
+						this._committedAutoTierBySubagentToolCallId.delete(parentToolCallId);
+					}
 					this._updateSubagentModel(parentToolCallId, e.data.newModel);
 				}
 			} else {
+				if (!keepsAutoTier) {
+					this._committedAutoTierRevision++;
+					this._committedAutoTier = committedAutoTier;
+					if (e.data.autoTier === undefined && isAutoModel(e.data.newModel)) {
+						void this._readCommittedAutoTier(wrapper);
+					}
+				}
 				this._promptCacheRefreshGeneration++;
 				if (e.data.previousModel !== e.data.newModel) {
 					this._setPromptCacheState(undefined);

@@ -50,6 +50,7 @@ interface ISourceStatistics {
 	readonly sourceKey: string;
 	readonly sourceKeyCleaned: string;
 	readonly modelId: string | undefined;
+	readonly autoTier: string | undefined;
 	readonly conversationId: string;
 	readonly chatSessionId: string | undefined;
 	readonly requestId: string;
@@ -305,7 +306,9 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 
 		const provider = edit.provider ?? getSessionProvider(edit.sessionUri);
 		const modelSegment = edit.modelId ? `-$modelId:${edit.modelId}` : '';
-		const sourceKey = `source:Chat.applyEdits${modelSegment}-$harness:${provider}-$origin:agentHost`;
+		// Matches the workbench edit-source key order ($modelId, $autoTier, ..., $harness, $origin).
+		const autoTierSegment = edit.autoTier ? `-$autoTier:${edit.autoTier}` : '';
+		const sourceKey = `source:Chat.applyEdits${modelSegment}${autoTierSegment}-$harness:${provider}-$origin:agentHost`;
 		const conversationId = AgentSession.id(edit.sessionUri);
 		const chatUri = edit.chatUri ?? (isAhpChatChannel(edit.sessionUri) ? edit.sessionUri : undefined);
 		const chatSessionId = chatUri === undefined ? undefined : getTelemetryChatSessionId(chatUri);
@@ -317,6 +320,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 				sourceKey,
 				sourceKeyCleaned: `source:Chat.applyEdits-$harness:${provider}-$origin:agentHost`,
 				modelId: edit.modelId,
+				autoTier: edit.autoTier,
 				conversationId,
 				chatSessionId,
 				requestId: edit.turnId,
@@ -335,6 +339,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 			afterDigest: createFileEditContentDigest(edit.afterText),
 			source: {
 				modelId: edit.modelId,
+				...(edit.autoTier !== undefined ? { autoTier: edit.autoTier } : {}),
 				conversationId,
 				...(chatSessionId !== undefined ? { chatSessionId } : {}),
 				requestId: edit.turnId,
@@ -797,6 +802,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 				extensionId: undefined,
 				extensionVersion: undefined,
 				modelId: source.modelId,
+				...(source.autoTier !== undefined ? { autoTier: source.autoTier } : {}),
 				trigger: prepared.trigger,
 				languageId: prepared.languageId,
 				statsUuid: prepared.statsUuid,
@@ -819,6 +825,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 					extensionId: '',
 					extensionVersion: '',
 					modelId: data.modelId ?? '',
+					...(source.autoTier !== undefined ? { autoTier: source.autoTier } : {}),
 					trigger: data.trigger,
 					languageId: data.languageId ?? '',
 					statsUuid: data.statsUuid,

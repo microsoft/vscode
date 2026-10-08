@@ -13,6 +13,7 @@ import { ISessionDatabase } from '../../common/sessionDataService.js';
 import { buildSessionDbUri } from '../../common/sessionDbUri.js';
 import { FileEditKind, ToolResultContentType, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
+import type { AutoModeRoutingTier } from '../../common/autoModeTiers.js';
 import { extractAiChunks } from './editChunkExtractor.js';
 import { IEditSurvivalReporterFactory } from './editSurvivalReporter.js';
 import { IEditArcReporterService } from './editArcReporter.js';
@@ -110,7 +111,7 @@ export class FileEditTracker {
 	 * for region-based survival scoring; unknown shapes fall back to
 	 * whole-file scoring.
 	 */
-	async takeCompletedEdit(turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown, modelId: string | undefined, clientContext?: IAgentHostClientTelemetryContext, chatUri?: string): Promise<ToolResultFileEditContent | undefined> {
+	async takeCompletedEdit(turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown, modelId: string | undefined, clientContext?: IAgentHostClientTelemetryContext, chatUri?: string, autoTier?: AutoModeRoutingTier): Promise<ToolResultFileEditContent | undefined> {
 		const edit = this._completedEdits.get(filePath);
 		if (!edit) {
 			return undefined;
@@ -167,6 +168,7 @@ export class FileEditTracker {
 			afterText,
 			isCreate,
 			modelId,
+			...(autoTier !== undefined ? { autoTier } : {}),
 			toolName,
 			aiChunks: extractAiChunks(toolName, toolInput, filePath),
 		});
@@ -196,6 +198,7 @@ export class FileEditTracker {
 				afterText,
 				changes,
 				modelId,
+				...(autoTier !== undefined ? { autoTier } : {}),
 				toolName,
 			});
 		} catch (error) {

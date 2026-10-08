@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type Anthropic from '@anthropic-ai/sdk';
-import type { CopilotClient, CopilotSession, CurrentToolMetadata, PermissionMode, PermissionRequest, PermissionRequestResult, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
+import type { AutoTier, CopilotClient, CopilotSession, CurrentToolMetadata, PermissionMode, PermissionRequest, PermissionRequestResult, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
 import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'fs';
@@ -389,7 +389,12 @@ class MockCopilotSession {
 		}
 	}
 
+	currentModel: { modelId?: string; autoTier?: AutoTier } = {};
+
 	readonly rpc = {
+		model: {
+			getCurrent: async () => this.currentModel,
+		},
 		agent: {
 			select: async () => { await this.agentSelectGate; },
 			deselect: async () => { await this.agentDeselectGate; },
@@ -14123,6 +14128,57 @@ Use the attached image as context.
 					})));
 				}
 			}
+		});
+
+		test('tool_complete snapshots the committed Auto tier per edit without subagent inheritance', async () => {
+			const { session, mockSession, waitForSignal } = await createAgentSession(disposables, {
+				configureMockSession: mockSession => { mockSession.currentModel = { modelId: 'auto', autoTier: 'balance' }; },
+			});
+			const sessionInternals = session as unknown as ISessionInternalsForTest;
+			const taken: { toolCallId: string; autoTier: string | undefined }[] = [];
+			sessionInternals._editTracker.takeCompletedEdit = async (_turnId, toolCallId, _path, _toolName, _toolInput, _modelId, _clientContext, _chat, autoTier) => {
+				taken.push({ toolCallId, autoTier });
+				return undefined;
+			};
+			const edit = async (toolCallId: string, agentId?: string) => {
+				mockSession.fire('tool.execution_start', {
+					toolCallId, toolName: 'apply_patch', arguments: '*** Begin Patch\n*** Update File: foo.ts\n@@\n+new\n*** End Patch',
+				} as unknown as SessionEventPayload<'tool.execution_start'>['data'], { agentId });
+				mockSession.fire('tool.execution_complete', { toolCallId, success: true } as SessionEventPayload<'tool.execution_complete'>['data'], { agentId });
+				await waitForSignal(s => s.kind === 'action' && s.action.type === ActionType.ChatToolCallComplete && s.action.toolCallId === toolCallId);
+			};
+			session.resetTurnState('turn-auto');
+
+			await edit('root-start');
+			mockSession.fire('subagent.started', {
+				toolCallId: 'task', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests',
+			} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-1' });
+			await edit('subagent-inherits-nothing', 'agent-1');
+			mockSession.fire('session.model_change', { previousModel: 'auto', newModel: 'auto', autoTier: 'efficiency' }, { agentId: 'agent-1' });
+			await edit('subagent-own-tier', 'agent-1');
+			mockSession.fire('session.model_change', { previousModel: 'auto', newModel: 'auto', reasoningEffort: 'high' }, { agentId: 'agent-1' });
+			await edit('subagent-effort-only', 'agent-1');
+			mockSession.fire('session.model_change', { previousModel: 'auto', newModel: 'auto', autoTier: 'intelligence' });
+			await edit('root-changed');
+			mockSession.fire('session.model_change', { previousModel: 'auto', newModel: 'auto', reasoningEffort: 'high' });
+			await edit('root-effort-only');
+			mockSession.fire('session.model_change', { previousModel: 'auto', newModel: 'gpt-5', autoTier: 'intelligence' });
+			await edit('root-not-auto');
+			mockSession.currentModel = { modelId: 'auto', autoTier: 'fast' };
+			mockSession.fire('session.model_change', { previousModel: 'gpt-5', newModel: 'auto' });
+			await timeout(0);
+			await edit('root-back-to-auto');
+
+			assert.deepStrictEqual(taken, [
+				{ toolCallId: 'root-start', autoTier: 'balance' },
+				{ toolCallId: 'subagent-inherits-nothing', autoTier: undefined },
+				{ toolCallId: 'subagent-own-tier', autoTier: 'efficiency' },
+				{ toolCallId: 'subagent-effort-only', autoTier: 'efficiency' },
+				{ toolCallId: 'root-changed', autoTier: 'intelligence' },
+				{ toolCallId: 'root-effort-only', autoTier: 'intelligence' },
+				{ toolCallId: 'root-not-auto', autoTier: undefined },
+				{ toolCallId: 'root-back-to-auto', autoTier: 'fast' },
+			]);
 		});
 
 		suite('asynchronous edit completion', () => {
