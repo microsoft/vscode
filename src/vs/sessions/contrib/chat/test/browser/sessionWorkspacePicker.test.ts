@@ -1628,7 +1628,63 @@ suite('WorkspacePicker - Connection Status', () => {
 		});
 	});
 
-	test('appends removable workspaces from eligible sessions after recent workspaces', async () => {
+	for (const setting of [UNIFIED_WORKSPACE_PICKER_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]) {
+		for (const inVSCodeHistory of [false, true]) {
+			test(`includes a newly used editor workspace after the composer opens (${setting}, VS Code history: ${inVSCodeHistory})`, async () => {
+				let sessions: ISession[] = [];
+				const sessionsChanged = disposables.add(new Emitter<ISessionChangeEvent>());
+				const historyChanged = disposables.add(new Emitter<void>());
+				const provider = createMockProvider('local-1', { getSessions: () => sessions, onDidChangeSessions: sessionsChanged.event });
+				providersService.setProviders([provider]);
+
+				const oldFolders = Array.from({ length: 10 }, (_, index) => URI.file(`/local/old-${index}`));
+				sessions = oldFolders.map((folder, index) => createMockSession(provider, folder, 10 - index));
+				const storage = disposables.add(new TestStorageService());
+				seedStorage(storage, oldFolders.map((uri, index) => ({ uri, providerId: provider.id, checked: index === 0 })));
+				const storedRecents = storage.get(STORAGE_KEY_RECENT_WORKSPACES, StorageScope.PROFILE);
+				let recentFolders: URI[] = [];
+				const workspacesService = upcastPartial<IWorkspacesService>({
+					getRecentlyOpened: async () => ({ workspaces: recentFolders.map(folderUri => ({ folderUri })), files: [] }),
+					onDidChangeRecentlyOpened: historyChanged.event,
+				});
+				const recents = await createResolvedRecentWorkspacesService(disposables, storage, providersService, workspacesService);
+				let shownFolders: URI[] = [];
+				const actionWidgetService = upcastPartial<IActionWidgetService>({
+					isVisible: false,
+					show: (_id, _supportsPreview, items: IActionListItem<IWorkspacePickerItem>[]) => {
+						shownFolders = items.flatMap(entry => entry.item?.folderUri ?? []);
+					},
+				});
+				const picker = createTestPicker(disposables, providersService, storage, undefined, undefined, undefined, workspacesService, recents, {
+					configuration: { [setting]: true },
+				}, undefined, actionWidgetService);
+
+				const newFolder = URI.file('/local/new-editor-workspace');
+				if (inVSCodeHistory) {
+					recentFolders = [newFolder];
+					const refreshed = Event.toPromise(recents.onDidChangeRecentWorkspaces);
+					historyChanged.fire();
+					await refreshed;
+				}
+				const newSession = createMockSession(provider, newFolder, 11);
+				sessions.push(newSession);
+				sessionsChanged.fire({ added: [newSession], removed: [], changed: [] });
+				picker.showPicker(false, document.createElement('button'));
+
+				assert.deepStrictEqual({
+					shownFolders,
+					selected: picker.selectedFolderUri,
+					storedRecents: storage.get(STORAGE_KEY_RECENT_WORKSPACES, StorageScope.PROFILE),
+				}, {
+					shownFolders: [newFolder, ...oldFolders.slice(0, 9)],
+					selected: oldFolders[0],
+					storedRecents,
+				});
+			});
+		}
+	}
+
+	test('prioritizes removable workspaces by eligible session recency before other recent workspaces', async () => {
 		let sessions: ISession[] = [];
 		const provider = createMockProvider('local-1', { getSessions: () => sessions });
 		providersService.setProviders([provider]);
@@ -1683,16 +1739,16 @@ suite('WorkspacePicker - Connection Status', () => {
 					: []),
 			[
 				{ uri: agentsRecent.toString(), removable: true },
-				{ uri: vscodeRecent.toString(), removable: true },
 				{ uri: sessionOnlyFirst.toString(), removable: true },
 				{ uri: sessionOnlySecond.toString(), removable: true },
 				{ uri: worktreeProject.toString(), removable: true },
+				{ uri: vscodeRecent.toString(), removable: true },
 			],
 		);
 		archived.set(false, undefined);
 		assert.deepStrictEqual(
 			picker.getItems().flatMap(entry => entry.item?.folderUri ? [entry.item.folderUri.toString()] : []),
-			[agentsRecent, vscodeRecent, URI.file('/local/changing'), sessionOnlyFirst, sessionOnlySecond, worktreeProject].map(uri => uri.toString()),
+			[URI.file('/local/changing'), agentsRecent, sessionOnlyFirst, sessionOnlySecond, worktreeProject, vscodeRecent].map(uri => uri.toString()),
 		);
 	});
 
@@ -5503,7 +5559,6 @@ suite('WorkspacePicker - Tab discovery', () => {
 		const recentWorkspaces = Array.from({ length: 12 }, (_, index) => ({
 			providerId: provider.id,
 			workspace: provider.resolveWorkspace(URI.file(`/recent-${index}`))!,
-			isSessionWorkspace: index >= 8,
 		}));
 		const getRecentPaths = (unifiedWorkspacePicker: boolean, experimentalComposerLayout: boolean) => {
 			const picker = createTestablePicker(

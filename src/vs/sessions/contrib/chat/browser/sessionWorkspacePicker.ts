@@ -1586,11 +1586,8 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	/**
-	 * Builds the picker items list from recent workspaces.
-	 *
-	 * Items are shown in a flat recency-sorted list (most recently used first)
-	 * without source grouping. Own recents come first, followed by VS Code
-	 * recent folders.
+	 * Builds the picker items from workspaces ordered by session activity,
+	 * followed by remaining Agents and VS Code recent folders.
 	 */
 	protected _buildItems(): IActionListItem<IWorkspacePickerItem>[] {
 		const items: IActionListItem<IWorkspacePickerItem>[] = [];
@@ -1655,7 +1652,6 @@ export class WorkspacePicker extends Disposable {
 				}),
 			];
 		};
-		// Own recents first, then VS Code recents (merged and deduplicated by the service)
 		const recentWorkspaces = this._directPickerAttachesContext === true
 			? []
 			: this._getRecentWorkspaces()
@@ -1684,11 +1680,8 @@ export class WorkspacePicker extends Disposable {
 				...entries.filter(({ workspace }) => ThemeIcon.isEqual(this._getWorkspaceIcon(workspace), Codicon.repo)),
 			]
 			: entries;
-		const recentEntries = orderByWorkspaceKind(recentWorkspaceEntries.filter(entry => !entry.isSessionWorkspace));
-		const orderedRecentWorkspaceEntries = [
-			...recentEntries,
-			...orderByWorkspaceKind(recentWorkspaceEntries.filter(entry => entry.isSessionWorkspace)),
-		].slice(0, limitRecentWorkspaces ? MAX_NEW_PICKER_RECENT_WORKSPACES : undefined);
+		const orderedRecentWorkspaceEntries = orderByWorkspaceKind(recentWorkspaceEntries)
+			.slice(0, limitRecentWorkspaces ? MAX_NEW_PICKER_RECENT_WORKSPACES : undefined);
 
 		let previousRecentWorkspaceIsRepository: boolean | undefined;
 		for (const { workspace, providerId, repositoryId } of orderedRecentWorkspaceEntries) {
@@ -2521,17 +2514,18 @@ export class WorkspacePicker extends Disposable {
 	protected _getRecentWorkspaces(): IResolvedFolderWorkspace[] {
 		const recentWorkspaces = this.recentWorkspacesService.getRecentWorkspaces(true, this._useConsolidatedRemoteWorkspaces())
 			.filter(workspace => this._isWorkspaceProviderVisible(workspace.providerId));
-		const seen = new Set(recentWorkspaces.map(({ workspace }) =>
-			this.uriIdentityService.extUri.getComparisonKey(workspace.folders[0]?.root ?? workspace.uri)));
-		const sessionWorkspaces = (this._sessionWorkspaceFallback?.getWorkspaces() ?? []).filter(({ workspace }) => {
+		const remainingRecents = new Map(recentWorkspaces.map(recent => [
+			this.uriIdentityService.extUri.getComparisonKey(recent.workspace.folders[0]?.root ?? recent.workspace.uri), recent,
+		]));
+		// Session activity in any window takes precedence over older picker history.
+		const sessionWorkspaces = (this._sessionWorkspaceFallback?.getWorkspaces() ?? []).map(sessionWorkspace => {
+			const { workspace } = sessionWorkspace;
 			const key = this.uriIdentityService.extUri.getComparisonKey(workspace.folders[0]?.root ?? workspace.uri);
-			if (seen.has(key)) {
-				return false;
-			}
-			seen.add(key);
-			return true;
+			const recent = remainingRecents.get(key);
+			remainingRecents.delete(key);
+			return recent ?? sessionWorkspace;
 		});
-		return [...recentWorkspaces, ...sessionWorkspaces];
+		return [...sessionWorkspaces, ...remainingRecents.values()];
 	}
 
 	protected _removeRecentWorkspace(folderUri: URI): void {
