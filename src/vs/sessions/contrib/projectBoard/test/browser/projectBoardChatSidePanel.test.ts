@@ -17,6 +17,9 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { NullLogService, ILogService } from '../../../../../platform/log/common/log.js';
@@ -711,7 +714,15 @@ suite('ProjectBoardChatContent', () => {
 		const getSession = sinon.stub().returns(currentSession?.(card));
 		instantiation.stub(ISessionsManagementService, { getSession, onDidReplaceSession: replacements.event });
 		const notify = sinon.spy();
-		instantiation.stub(INotificationService, { info: notify });
+		instantiation.stub(INotificationService, { info: notify, error: notify, warn: notify });
+		const execute = sinon.stub().resolves();
+		const menus: IContextMenuDelegate[] = [];
+		instantiation.stub(ICommandService, { executeCommand: execute });
+		instantiation.stub(IContextMenuService, { showContextMenu: delegate => {
+			const getActions = delegate.getActions;
+			assert.ok(getActions);
+			menus.push({ ...delegate, getActions });
+		} });
 		let boundViewModel: ChatViewModel | undefined;
 		const widget = new class extends mock<ChatWidget>() {
 			override render = sinon.spy();
@@ -760,8 +771,37 @@ suite('ProjectBoardChatContent', () => {
 		const released = sinon.spy();
 		const ref: IChatModelReference = { object: model, dispose: released };
 		load.resolves(ref);
-		return { instantiation, content, card, widget, child, cache, pendingInputs, load, ref, released, setInputState, inputState, replacements, getSession, close, notify };
+		return { instantiation, content, card, widget, child, cache, pendingInputs, load, ref, released, setInputState, inputState, replacements, getSession, close, notify, execute, menus };
 	}
+
+	test('right-clicking the panel title offers New Chat in This Session for its scoped owning session', async () => {
+		const h = setup(card => ({ ...card.session, capabilities: constObservable({ supportsMultipleChats: true }) }));
+		const title = h.content.element.querySelector<HTMLElement>('.project-board-chat-title')!;
+		title.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+		assert.strictEqual(h.menus.length, 1);
+		const action = h.menus[0].getActions()[0];
+		assert.strictEqual(action.label, 'New Chat in This Session');
+		await action.run();
+		assert.deepStrictEqual(h.execute.firstCall.args, ['sessions.chatCompositeBar.addChat', h.getSession.firstCall.returnValue]);
+	});
+
+	test('panel title menu uses current canonical session and reports stale targets or command failures', async () => {
+		const h = setup(card => ({ ...card.session, capabilities: constObservable({ supportsMultipleChats: true }) }));
+		const title = h.content.element.querySelector<HTMLElement>('.project-board-chat-title')!;
+		const show = () => title.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+		show();
+		const stale = h.menus[0].getActions()[0];
+		h.getSession.returns(undefined);
+		await stale.run();
+		assert.strictEqual(h.execute.callCount, 0);
+		assert.match(h.notify.firstCall.args[0], /no longer available/);
+		const current = { ...h.card.session, capabilities: constObservable({ supportsMultipleChats: true }) };
+		h.getSession.returns(current);
+		h.execute.rejects(new Error('Peer command failed'));
+		show();
+		await h.menus[1].getActions()[0].run();
+		assert.match(h.notify.lastCall.args[0], /new chat could not be opened/);
+	});
 
 	function canonicalSession(card: IProjectBoardCard, resource = card.chat.resource) {
 		const chat = {
@@ -776,6 +816,20 @@ suite('ProjectBoardChatContent', () => {
 			chats: constObservable([chat]),
 		};
 	}
+
+	test('an open title menu resolves the replacement owning session without reopening the widget', async () => {
+		const h = setup(card => ({ ...card.session, capabilities: constObservable({ supportsMultipleChats: true }) }));
+		const title = h.content.element.querySelector<HTMLElement>('.project-board-chat-title')!;
+		title.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+		const canonical = { ...canonicalSession(h.card), capabilities: constObservable({ supportsMultipleChats: true }) };
+		h.getSession.returns(canonical);
+		h.replacements.fire({ from: h.card.session, to: canonical });
+		await h.menus[0].getActions()[0].run();
+		assert.deepStrictEqual(h.execute.firstCall.args, ['sessions.chatCompositeBar.addChat', canonical]);
+		assert.deepStrictEqual(h.getSession.lastCall.args, [canonical.resource]);
+		assert.strictEqual(h.widget.render.callCount, 1);
+		assert.strictEqual(h.close.callCount, 0);
+	});
 
 	test('replacement switches scoped session, title and readonly without disturbing the live widget', async () => {
 		const h = setup();

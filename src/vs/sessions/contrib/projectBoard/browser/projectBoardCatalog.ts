@@ -16,6 +16,7 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { DEFAULT_PROJECT_BOARD_ID, IProjectBoardCatalogService, IProjectBoardCollection, IProjectBoardRecord } from '../common/projectBoardCatalog.js';
 import { defaultConfiguration, freezeConfiguration, hasKeys, IProjectBoardCardIdentity, IProjectBoardConfiguration, isIdentifier, validateConfiguration } from '../common/projectBoardConfiguration.js';
+import { IProjectBoardViewState, ProjectBoardViewState, validateProjectBoardViewState } from './projectBoardViewState.js';
 
 export class ProjectBoardCatalogService extends Disposable implements IProjectBoardCatalogService {
 	declare readonly _serviceBrand: undefined;
@@ -71,6 +72,7 @@ export class ProjectBoardCatalogService extends Disposable implements IProjectBo
 			const selectedBoardId = collection.selectedBoardId === boardId ? boards[0]?.id : collection.selectedBoardId;
 			return { version: 2, boards, ...(selectedBoardId !== undefined ? { selectedBoardId } : {}) };
 		});
+		this.updateViewStates(boardId);
 	}
 
 	selectBoard(boardId: string): void {
@@ -127,6 +129,11 @@ export class ProjectBoardCatalogService extends Disposable implements IProjectBo
 				}),
 			};
 		});
+		this.updateViewStates(undefined, state => ({
+			...state,
+			expandedCards: [...new Set(state.expandedCards.map(id => id === from ? to : id))],
+			expandedChats: [...new Set(state.expandedChats.map(id => id === from ? to : id))],
+		}));
 	}
 
 	updateCardIdentities(identities: ReadonlyMap<string, IProjectBoardCardIdentity>): void {
@@ -148,9 +155,35 @@ export class ProjectBoardCatalogService extends Disposable implements IProjectBo
 	reset(): void {
 		try {
 			this.save(defaultCollection());
+			this.updateViewStates(undefined);
 		} catch (error) {
 			this.report(localize('projectBoard.catalogResetFailed', "Could not reset Agents Hub configuration."), error);
 			throw error;
+		}
+	}
+
+	private updateViewStates(boardId: string | undefined, update?: (state: IProjectBoardViewState) => IProjectBoardViewState): void {
+		const keys = boardId === undefined
+			? this.storageService.keys(StorageScope.PROFILE, StorageTarget.MACHINE).filter(key => key.startsWith(ProjectBoardViewState.STORAGE_PREFIX))
+			: [ProjectBoardViewState.storageKey(boardId, 'embedded'), ProjectBoardViewState.storageKey(boardId, 'standalone')];
+		for (const key of keys) {
+			try {
+				const raw = this.storageService.get(key, StorageScope.PROFILE);
+				if (raw === undefined) {
+					continue;
+				}
+				const state = update === undefined ? undefined : update(validateProjectBoardViewState(JSON.parse(raw)));
+				if (state === undefined) {
+					this.storageService.remove(key, StorageScope.PROFILE);
+				} else {
+					const serialized = JSON.stringify(state);
+					if (serialized !== raw) {
+						this.storageService.store(key, serialized, StorageScope.PROFILE, StorageTarget.MACHINE);
+					}
+				}
+			} catch (error) {
+				this.report(localize('projectBoard.viewStateUpdateFailed', "Could not update saved Agents Hub view state."), error);
+			}
 		}
 	}
 

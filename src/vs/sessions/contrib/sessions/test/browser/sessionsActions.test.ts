@@ -82,6 +82,13 @@ suite('Sessions - Actions', () => {
 		assert.strictEqual(action, undefined);
 	});
 
+	test('does not contribute New Nested Session to the session panel title context menu', () => {
+		const action = MenuRegistry.getMenuItems(Menus.SessionHeaderContext)
+			.filter(isIMenuItem)
+			.find(item => item.command.id === 'sessions.chatCompositeBar.addChat');
+		assert.strictEqual(action, undefined);
+	});
+
 	test('contributes New Nested Session to the session list toolbar and context menu', () => {
 		const action = (menuId: MenuId) => MenuRegistry.getMenuItems(menuId)
 			.filter(isIMenuItem)

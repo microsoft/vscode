@@ -39,7 +39,7 @@ import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
 import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionFocusedChatIsRenameTargetContext, SessionActiveChatIsDeletableContext, SessionActiveChatIsUntitledContext, SessionChatsPickerVisibleContext, SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionsTitleBarNewSessionEnabledContext, SessionsEditorScopeContext, SessionsHasClosedItemContext, IsNewChatSessionContext, IsQuickChatSessionContext, SessionsListPromoteNewChatActionContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionHeaderTargetsChatContext, SessionItemIsMultiSelectionContext, IsPhoneLayoutContext, SessionToolbarShowsSessionContext } from '../../../common/contextkeys.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
-import { ARRANGE_SESSIONS_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SESSION_GRID_FOCUS_COMMANDS, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { ARRANGE_SESSIONS_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, NEW_CHAT_IN_SESSION_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SESSION_GRID_FOCUS_COMMANDS, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getUntitledSessionTitle, IChat, isSideChatOf, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
@@ -756,12 +756,11 @@ registerAction2(class DeleteSessionListChatAction extends Action2 {
 });
 
 // "New Nested Session" starts a nested session from the Sessions list.
-const ADD_CHAT_TO_SESSION_ACTION_ID = 'sessions.chatCompositeBar.addChat';
 
 registerAction2(class AddChatToSessionAction extends Action2 {
 	constructor() {
 		super({
-			id: ADD_CHAT_TO_SESSION_ACTION_ID,
+			id: NEW_CHAT_IN_SESSION_COMMAND_ID,
 			title: localize2('chatCompositeBar.addChat', "New Nested Session"),
 			icon: Codicon.add,
 			precondition: SessionItemIsMultiSelectionContext.negate(),
