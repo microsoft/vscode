@@ -4421,7 +4421,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				invocation.updatePreparedInvocation(prepared, invocation.parameters);
 			} else if (status === ToolCallStatus.AuthRequired) {
 				this._ensureLeftStreaming(invocation, tc, opts);
-				invocation.setAuthenticationRequired(toolCallAuthenticationServer(tc, opts.sessionResource.authority, this._toolAuthenticationServerName(tc, opts)), () => {
+				const onCancelAuthentication = () => {
 					this._dispatchAction(opts.backendSession, {
 						type: ActionType.ChatToolCallComplete,
 						turnId: opts.turnId,
@@ -4432,7 +4432,23 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 							error: { message: localize('agentHost.mcpToolAuthentication.cancelledError', "MCP authentication was cancelled"), code: 'cancelled' },
 						},
 					}, opts.chatURI);
-				});
+				};
+				if (invocation.state.read(undefined).type === IChatToolInvocation.StateKind.WaitingForAuthentication) {
+					invocation.setAuthenticationRequired(toolCallAuthenticationServer(tc, opts.sessionResource.authority, this._toolAuthenticationServerName(tc, opts)), onCancelAuthentication);
+				} else if (priorStatus !== ToolCallStatus.AuthRequired) {
+					// Try silent authentication first so an expired token that is
+					// renewed automatically does not flash the authentication UI.
+					// Show the UI afterwards only if the tool is still waiting.
+					const server = toolCallAuthenticationServer(tc, opts.sessionResource.authority);
+					const serverName = this._customizationService.getMcpServers(opts.sessionResource).find(candidate => candidate.id === server.id)?.name ?? server.name;
+					this._autoAuthenticateMcpServer(opts.sessionResource, { ...server, name: serverName }).then(() => {
+						const current = part$.read(undefined).toolCall;
+						if (store.isDisposed || current.status !== ToolCallStatus.AuthRequired || IChatToolInvocation.isComplete(invocation)) {
+							return;
+						}
+						invocation.setAuthenticationRequired(toolCallAuthenticationServer(current, opts.sessionResource.authority, this._toolAuthenticationServerName(current, opts)), onCancelAuthentication);
+					});
+				}
 			} else if (status === ToolCallStatus.Running || status === ToolCallStatus.PendingResultConfirmation) {
 				if (priorStatus === ToolCallStatus.AuthRequired) {
 					invocation.setAuthenticationResolved();
