@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { randomUUID } from 'crypto';
-import { mkdir, open, readFile, rename, unlink } from 'fs/promises';
-import { realpathSync } from 'fs';
+import { mkdir, open, readFile, realpath, rename, unlink } from 'fs/promises';
 import { join } from '../../../../base/common/path.js';
 import { disposableLongTimeout, raceTimeout, Sequencer } from '../../../../base/common/async.js';
 import { combinedDisposable, Disposable, MutableDisposable, toDisposable, type IDisposable } from '../../../../base/common/lifecycle.js';
@@ -254,7 +253,13 @@ export class MissionControlEnvironment extends Disposable {
 		if (this._canonicalOwner && this._canonicalOwner !== owner) {
 			throw new Error('Credential does not match the Agent Host owner');
 		}
-		const roots = options.roots.map(root => realpathSync(root));
+		const roots = await Promise.all(options.roots.map(root => realpath(root)));
+		if (epoch !== this._configurationEpoch || this._store.isDisposed) {
+			return;
+		}
+		if (options.live && identityApiBase !== this._getIdentityApiBase()) {
+			throw new Error('GitHub identity authority changed during Mission Control configuration');
+		}
 		if (!roots.every(root => root.startsWith('/') || /^[A-Za-z]:\\/.test(root))) {
 			throw new Error('Mission Control projects must be absolute local directories');
 		}
@@ -264,7 +269,8 @@ export class MissionControlEnvironment extends Disposable {
 				throw new Error('Mission Control is already configured; disable it before changing its scope');
 			}
 			this._roots = [...new Set([...this._roots, ...roots])];
-			if (this._options.credential !== options.credential || this._credentialRejected) {
+			if (this._options.credential !== options.credential || this._credentialRejected
+				|| (this._options.useLocalCredentials === true) !== (options.useLocalCredentials === true)) {
 				this._generation++;
 				this._handler.clear();
 				this._mirrorAttachment.clear();
@@ -314,7 +320,7 @@ export class MissionControlEnvironment extends Disposable {
 	/** The native Agent Host owns profile writes; atomic replacement keeps the location-bound identity record complete. */
 	private async _computeId(): Promise<string> {
 		await mkdir(this._host.userDataPath, { recursive: true });
-		const directory = realpathSync(this._host.userDataPath);
+		const directory = await realpath(this._host.userDataPath);
 		const path = join(directory, 'agent-host-mission-control-id');
 		let contents: string | undefined;
 		try {
@@ -623,7 +629,11 @@ export class MissionControlEnvironment extends Disposable {
 			verifier,
 			this._host.socketFactory,
 			error => this._host.onError(error),
-			sealing && identityApiBase ? () => new MissionControlAuthentication(sealing, response.user_id, identityApiBase, this._host.fetch, options.requireConnectionBinding === true, () => identityApiBase === this._getIdentityApiBase() && generation === this._generation) : undefined,
+			sealing && identityApiBase ? () => new MissionControlAuthentication(
+				sealing, response.user_id, identityApiBase, this._host.fetch, options.requireConnectionBinding === true,
+				() => identityApiBase === this._getIdentityApiBase() && generation === this._generation,
+				options.useLocalCredentials === true ? () => this._options?.credential : undefined,
+			) : undefined,
 			sealing?.rootMeta,
 			this._mirror.value,
 		);

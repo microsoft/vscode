@@ -37,6 +37,7 @@ export interface ICustomizationMarketplaceInstallationSnapshot {
 
 export function createCustomizationMarketplaceInstallationSnapshot(
 	installations: readonly IRecordedCustomizationMarketplaceResource[],
+	isCompatibleResource?: (recorded: ICustomizationMarketplaceResource, resource: ICustomizationMarketplaceResource) => boolean,
 ): ICustomizationMarketplaceInstallationSnapshot {
 	const snapshotInstallations = [...installations];
 	const byResource = new Map<string, IRecordedCustomizationMarketplaceResource>();
@@ -75,7 +76,8 @@ export function createCustomizationMarketplaceInstallationSnapshot(
 	}
 	return {
 		installations: snapshotInstallations,
-		findByResource: resource => byResource.get(getCustomizationMarketplaceResourceKey(resource)),
+		findByResource: resource => byResource.get(getCustomizationMarketplaceResourceKey(resource))
+			?? snapshotInstallations.find(installation => isCompatibleResource?.(installation.resource, resource)),
 		findByTarget: target => {
 			switch (target.kind) {
 				case 'skill': return skillsByUri.get(target.uri);

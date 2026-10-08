@@ -339,7 +339,7 @@ suite('AbstractAgentHostCustomizationService', () => {
 	test('preserves host-only MCP presentation metadata without requiring a source file', () => {
 		const sut = createSut();
 		const session = URI.parse('vscode-agent-session:///session-1');
-		const sources = ['user', 'workspace', 'plugin', 'builtin', 'managed'] as const;
+		const sources = ['user', 'workspace', 'plugin', 'builtin', 'managed', 'account'] as const;
 		sut.setTarget(session, new FakeTarget(sources.map(source => ({
 			...mcpServer(source, source),
 			uri: `mcp-top-level:copilot:session-1:${source}`,

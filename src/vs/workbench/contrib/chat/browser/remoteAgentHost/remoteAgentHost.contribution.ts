@@ -32,6 +32,7 @@ import { MissionControlEnvironmentService } from './missionControlEnvironmentSer
 import { IRemoteAgentHostConnectionCustomizationService, RemoteAgentHostConnectionCustomizationService } from './remoteAgentHostConnectionCustomization.js';
 
 const missionControlEnabled = 'chat.agentHost.experimentalMissionControl.enabled';
+const missionControlUseLocalCredentials = 'chat.agentHost.experimentalMissionControl.useLocalCredentials';
 
 export class MissionControlContribution extends Disposable {
 	static readonly ID = 'workbench.contrib.missionControl';
@@ -59,7 +60,7 @@ export class MissionControlContribution extends Disposable {
 			return;
 		}
 		this._register(this._configuration.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(missionControlEnabled)) {
+			if (e.affectsConfiguration(missionControlEnabled) || e.affectsConfiguration(missionControlUseLocalCredentials)) {
 				this._withdraw();
 				this._update.schedule();
 			}
@@ -144,12 +145,18 @@ export class MissionControlContribution extends Disposable {
 		this._accountId = sessions[0].account.id;
 		this._accountSessionIds = new Set(sessions.map(session => session.id));
 		this._configured = true;
+		const localCredentialSetting = this._configuration.inspect<boolean>(missionControlUseLocalCredentials);
+		const useLocalCredentials = (localCredentialSetting.userLocalValue ?? localCredentialSetting.applicationValue) === true;
+		if (useLocalCredentials) {
+			this._logService.warn('[Mission Control] Local credential delegation enabled: same-owner remote clients will run Copilot work with the desktop credential and its permissions');
+		}
 		await this._agentHost.configureMissionControl?.({
 			baseUrl: 'https://api.github.com',
 			accountId: sessions[0].account.id,
 			credential: sessions[0].accessToken,
 			roots,
 			live: true,
+			...(useLocalCredentials ? { useLocalCredentials: true } : {}),
 		});
 	}
 }

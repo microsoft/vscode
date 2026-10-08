@@ -178,7 +178,8 @@ interface IReconnectState {
 	timeoutHandle: ReturnType<typeof setTimeout> | undefined;
 	/** Deadline for the next scheduled attempt, if any. */
 	nextAttemptAt: number | undefined;
-	readonly deadline: number | undefined;
+	deadline: number | undefined;
+	remainingTimeMs: number | undefined;
 }
 
 /**
@@ -204,6 +205,9 @@ export interface IAgentHostProtocolClientOptions {
 	readonly clientInfo?: Implementation;
 	/** How a dropped transport is restored. Defaults to {@link DEFAULT_RECONNECT_POLICY}. */
 	readonly reconnectPolicy?: IRemoteAgentHostReconnectPolicy;
+	/** Paired OS power events exclude sleep from the recovery budget. */
+	readonly onDidSuspend?: Event<void>;
+	readonly onDidResume?: Event<void>;
 	/** Refresh connection prerequisites before constructing a replacement transport. */
 	readonly prepareReconnect?: () => Promise<void>;
 	/** Prepare credentials before initial authentication or restoration; transient failures remain reconnectable. */
@@ -408,6 +412,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private readonly _prepareReconnect: (() => Promise<void>) | undefined;
 	private readonly _prepareAuthentication: (() => Promise<void>) | undefined;
 	private readonly _reconnectDeadlineTimer = this._register(new TimeoutTimer());
+	private _isSuspended = false;
 	private _firstSessionRequestPending = false;
 	private readonly _resolveInitialAuthentication: (() => Promise<AuthenticateParams | undefined>) | undefined;
 	private readonly _onDispose: (() => void) | undefined;
@@ -474,6 +479,10 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			? identityAgentHostResourceUriMapper
 			: createAgentHostResourceUriMapper(this._connectionAuthority);
 		this._loadEstimator = options?.loadEstimator ?? LoadEstimator.getInstance();
+		if (options?.onDidSuspend && options.onDidResume) {
+			this._register(options.onDidSuspend(() => this._suspendReconnectDeadline()));
+			this._register(options.onDidResume(() => this._resumeReconnectDeadline()));
+		}
 		this._clientInfo = options?.clientInfo;
 		this._reconnectPolicy = options?.reconnectPolicy ?? DEFAULT_RECONNECT_POLICY;
 		this._prepareReconnect = options?.prepareReconnect;
@@ -607,12 +616,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		if (next.kind === AgentHostClientState.Connected) {
 			this._firstSessionRequestPending = true;
 		}
-		if (next.kind === AgentHostClientState.Reconnecting && next.reconnect.deadline !== undefined) {
-			this._reconnectDeadlineTimer.setIfNotSet(() => {
-				if (this._state === next) {
-					this._handleReconnectTimeout();
-				}
-			}, Math.max(0, next.reconnect.deadline - Date.now()));
+		if (next.kind === AgentHostClientState.Reconnecting) {
+			this._armReconnectDeadline(next.reconnect);
 		}
 		if (next.kind === AgentHostClientState.Reconnecting || next.kind === AgentHostClientState.Closed) {
 			this._devContainerService.connectionClosed();
@@ -633,8 +638,43 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return {
 			gate: this._newReconnectGate(), outbox: [], attempt: 0, transportConnected: false,
 			timeoutHandle: undefined, nextAttemptAt: undefined,
-			deadline: this._reconnectPolicy.maxElapsedTimeMs === undefined ? undefined : Date.now() + this._reconnectPolicy.maxElapsedTimeMs,
+			deadline: this._isSuspended || this._reconnectPolicy.maxElapsedTimeMs === undefined ? undefined : Date.now() + this._reconnectPolicy.maxElapsedTimeMs,
+			remainingTimeMs: this._isSuspended ? this._reconnectPolicy.maxElapsedTimeMs : undefined,
 		};
+	}
+
+	private _armReconnectDeadline(reconnect: IReconnectState): void {
+		if (reconnect.deadline !== undefined) {
+			this._reconnectDeadlineTimer.setIfNotSet(() => {
+				if (this._state.kind === AgentHostClientState.Reconnecting && this._state.reconnect === reconnect) {
+					this._handleReconnectTimeout();
+				}
+			}, Math.max(0, reconnect.deadline - Date.now()));
+		}
+	}
+
+	private _suspendReconnectDeadline(): void {
+		this._isSuspended = true;
+		if (this._state.kind === AgentHostClientState.Reconnecting) {
+			const reconnect = this._state.reconnect;
+			if (reconnect.deadline !== undefined) {
+				reconnect.remainingTimeMs = Math.max(0, reconnect.deadline - Date.now());
+				reconnect.deadline = undefined;
+				this._reconnectDeadlineTimer.cancel();
+			}
+		}
+	}
+
+	private _resumeReconnectDeadline(): void {
+		this._isSuspended = false;
+		if (this._state.kind === AgentHostClientState.Reconnecting) {
+			const reconnect = this._state.reconnect;
+			if (reconnect.remainingTimeMs !== undefined) {
+				reconnect.deadline = Date.now() + reconnect.remainingTimeMs;
+				reconnect.remainingTimeMs = undefined;
+				this._armReconnectDeadline(reconnect);
+			}
+		}
 	}
 
 	private _handleReconnectTimeout(): void {

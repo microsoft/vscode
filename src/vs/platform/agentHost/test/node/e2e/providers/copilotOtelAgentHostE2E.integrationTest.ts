@@ -280,7 +280,7 @@ suite('Agent Host E2E — Copilot managed telemetry', function () {
 		const identityKeys = native.flatMap(span => [span.attributes, ...span.events.map(event => event.attributes ?? {})])
 			.flatMap(attributes => Object.keys(attributes).filter(key => ['user.name', 'process.user.name', 'host.name'].includes(key)));
 		assert.deepStrictEqual(identityKeys.filter(key => key !== 'user.name'), []);
-		await assertExpectedFailure('Copilot native inherited identity redaction (runtime 1.0.92-4)',
+		await assertExpectedFailure('Copilot native inherited identity redaction',
 			/^Managed identity denial retained inherited identity resource attributes/, () => {
 				assert.ok(identityKeys.length === 0, 'Managed identity denial retained inherited identity resource attributes');
 				assert.ok(!JSON.stringify(native).includes('synthetic-account'));
