@@ -278,7 +278,7 @@ suite('Continue in Copilot policy recovery', () => {
 				assert.deepStrictEqual({
 					target: target && getChatSessionType(target),
 					history: imported?.turns.map(turn => ({ text: turn.message.text, response: turn.responseParts.map(part => part.kind === 'markdown' ? { kind: part.kind, content: part.content } : part) })),
-					draft, preparation, archived, backendExists, listed, deleted, modelOverride: imported?.model, originalDraft: widget.getInput(), originalRequests: model.getRequests().length,
+					draft, preparation, archived, backendExists, listed, deleted, aliases, published, modelOverride: imported?.model, originalDraft: widget.getInput(), originalRequests: model.getRequests().length,
 				}, {
 					target: SessionType.AgentHostCopilot,
 					history: scenario === 'empty' ? undefined : [{ text: 'Original question', response: [{ kind: 'markdown', content: 'Original answer' }] }],
@@ -286,6 +286,8 @@ suite('Continue in Copilot policy recovery', () => {
 					preparation: scenario === 'empty' ? ['open'] : ['prepare', 'import', 'release draft', 'open', 'release imported ownership', 'archive'],
 					archived: scenario !== 'empty',
 					backendExists: scenario !== 'empty', listed: scenario !== 'empty', deleted: [],
+					aliases: scenario === 'empty' ? [] : [real],
+					published: scenario === 'empty' ? [] : [real],
 					modelOverride: undefined, originalDraft: 'Unsent follow-up', originalRequests: scenario === 'empty' ? 0 : 1,
 				});
 			});
