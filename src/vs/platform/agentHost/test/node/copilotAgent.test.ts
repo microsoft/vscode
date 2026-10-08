@@ -18731,6 +18731,34 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('early release affects only its client while other clients retain unknown-chat fallback', async () => {
+			const agent = createTestAgent(disposables);
+			try {
+				const session = AgentSession.uri('copilotcli', 'membership-early-release-two-clients');
+				const main = defaultChatUri(session);
+				const peer = URI.parse(buildChatUri(session, 'peer-new'));
+				agent.getOrCreateActiveClient(main, session, { clientId: 'client-A' }).tools = [toolA];
+				agent.getOrCreateActiveClient(main, session, { clientId: 'client-B' }).tools = [toolB];
+				const active = membership(agent, session);
+				agent.removeActiveClient(peer, session, 'client-A');
+				const released = {
+					reachesA: active.contributesTo('client-A', peer.toString()),
+					reachesB: active.contributesTo('client-B', peer.toString()),
+					peerTools: active.toolsForChat(peer.toString()).map(tool => tool.name),
+					mainTools: active.toolsForChat(main.toString()).map(tool => tool.name),
+				};
+				agent.getOrCreateActiveClient(peer, session, { clientId: 'client-B' });
+				agent.getOrCreateActiveClient(peer, session, { clientId: 'client-A' });
+
+				assert.deepStrictEqual({ released, restored: active.toolsForChat(peer.toString()).map(tool => tool.name) }, {
+					released: { reachesA: false, reachesB: true, peerTools: ['tool_b'], mainTools: ['tool_a', 'tool_b'] },
+					restored: ['tool_a', 'tool_b'],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('release before membership fan-out prevents fallback to sibling client tools until restored', async () => {
 			const agent = createTestAgent(disposables);
 			try {
