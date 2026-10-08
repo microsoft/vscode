@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { bufferToStream, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
@@ -12,6 +13,7 @@ import { isObject } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostMcpOAuthMetadataService, IAgentHostMcpOAuthMetadataService } from '../../../../../../platform/agentHost/common/agentHostMcpOAuthMetadataService.js';
 import { authenticationAccountMeta, readAuthenticationAccount } from '../../../../../../platform/agentHost/common/meta/agentAuthenticationAccount.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -23,6 +25,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { IRequestService } from '../../../../../../platform/request/common/request.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IAuthenticationMcpAccessService } from '../../../../../services/authentication/browser/authenticationMcpAccessService.js';
@@ -1233,6 +1236,75 @@ suite('resolveMcpServerAuthentication', () => {
 			warnings: [],
 			metadataRequests: [],
 			providerCreations: [],
+		});
+	});
+
+	test('fetches authorization server metadata through the request service', async () => {
+		const requestedUrls: string[] = [];
+		const providerCreations: string[] = [];
+		const warnings: string[] = [];
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IAuthenticationService, createMockAuthService({
+			getOrActivateProviderIdForServer: () => Promise.resolve(undefined),
+			createDynamicAuthenticationProvider: async (authorizationServer, metadata) => {
+				providerCreations.push(`${authorizationServer.toString(true)} ${metadata.issuer}`);
+				return { id: 'avalara' };
+			},
+			getSessions: () => Promise.resolve([]),
+		}));
+		instantiationService.stub(IAuthenticationMcpAccessService, {});
+		instantiationService.stub(IAuthenticationMcpService, {
+			getAccountPreference: () => undefined,
+		});
+		instantiationService.stub(IAuthenticationMcpUsageService, {});
+		instantiationService.stub(IDynamicAuthenticationProviderStorageService, {
+			getClientRegistration: () => Promise.resolve({ clientId: 'avalara-client' }),
+		});
+		instantiationService.stub(ILogService, new class extends NullLogService {
+			override warn(message: string, error?: Error): void {
+				warnings.push(`${message}: ${error?.message}`);
+			}
+		}());
+		const requestService = new class extends mock<IRequestService>() {
+			override async request(options: Parameters<IRequestService['request']>[0]) {
+				assert.ok(options.url);
+				requestedUrls.push(options.url);
+				const metadata = options.url.endsWith('/.well-known/openid-configuration')
+					? JSON.stringify({
+						issuer: 'https://identity.avalara.com',
+						authorization_endpoint: 'https://identity.avalara.com/connect/authorize',
+						token_endpoint: 'https://identity.avalara.com/connect/token',
+					})
+					: '';
+				return {
+					res: { headers: {}, statusCode: metadata ? 200 : 404 },
+					stream: bufferToStream(VSBuffer.fromString(metadata)),
+				};
+			}
+		}();
+		instantiationService.stub(IAgentHostMcpOAuthMetadataService, new AgentHostMcpOAuthMetadataService(requestService));
+
+		const result = await instantiationService.invokeFunction(resolveMcpServerAuthentication, {
+			resource: 'https://mcp.avalara.com/elr',
+			authorization_servers: ['https://identity.avalara.com/'],
+		}, {
+			allowInteraction: false,
+			logPrefix: '[AgentHost]',
+			mcpServerId: 'avalara',
+			mcpServerName: 'Avalara',
+			mcpServerUrl: 'https://mcp.avalara.com/elr',
+			scopes: [],
+			authenticate: async () => { },
+		});
+
+		assert.deepStrictEqual({ result, requestedUrls, providerCreations, warnings }, {
+			result: false,
+			requestedUrls: [
+				'https://identity.avalara.com/.well-known/oauth-authorization-server',
+				'https://identity.avalara.com/.well-known/openid-configuration',
+			],
+			providerCreations: ['https://identity.avalara.com/ https://identity.avalara.com'],
+			warnings: [],
 		});
 	});
 
