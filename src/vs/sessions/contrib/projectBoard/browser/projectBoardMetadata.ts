@@ -24,6 +24,8 @@ export const projectBoardMetadataLimits = Object.freeze({
 	activeHelpers: 16,
 	requestTail: 64,
 	promptLength: 8192,
+	responseLength: 2048,
+	responseTail: 64,
 	contextEntries: 16,
 	contextTail: 64,
 	labelLength: 256,
@@ -67,6 +69,7 @@ export type IProjectBoardMetadata =
 	| {
 		readonly kind: 'ready';
 		readonly prompt?: string;
+		readonly response?: string;
 		/** Only a known submitted-request timestamp; never a synthesized model/session time. */
 		readonly submittedAt?: number;
 		readonly message?: string;
@@ -103,6 +106,51 @@ function getLatestSubmittedRequest(model: IChatModel, lastRequest: IChatRequestM
 
 function isUserRequest(request: IChatRequestModel): boolean {
 	return !request.isHiddenFromTranscript && !request.isRequestHiddenFromTranscript && !request.isSystemInitiated;
+}
+
+/** A small read-only snapshot of an already loaded model; acquires no model reference. */
+export function getProjectBoardLoadedMetadata(model: IChatModel): IProjectBoardMetadata {
+	return getRequestMetadata(getLatestSubmittedRequest(model, model.lastRequest));
+}
+
+function getRequestMetadata(request: IChatRequestModel | undefined): IProjectBoardMetadata {
+	if (!request) {
+		return Object.freeze({ kind: 'unavailable', message: localize('projectBoard.metadata.noPrompt', "No submitted user prompt available.") });
+	}
+	const prompt = request.message.text.trim().slice(0, projectBoardMetadataLimits.promptLength) || undefined;
+	let response: string | undefined;
+	if (request.response?.isComplete) {
+		const parts = request.response.response.value;
+		let text = '';
+		for (let index = parts.length - 1; index >= Math.max(0, parts.length - projectBoardMetadataLimits.responseTail) && text.length < projectBoardMetadataLimits.responseLength; index--) {
+			const part = parts[index];
+			if (part.kind === 'markdownContent') {
+				text = part.content.value.slice(-(projectBoardMetadataLimits.responseLength - text.length)) + text;
+			}
+		}
+		response = text.trim() || undefined;
+	}
+	const submittedAt = getSubmittedAt(request);
+	const context: IProjectBoardContext[] = [];
+	const seen = new Set<string>();
+	for (const entry of request.variableData.variables.slice(-projectBoardMetadataLimits.contextTail)) {
+		const value = entry.value;
+		const uri = URI.isUri(value) ? value : isLocation(value) ? value.uri : undefined;
+		if (!uri || !['file', 'vscode-remote', 'http', 'https'].includes(uri.scheme) || seen.has(uri.toString())) {
+			continue;
+		}
+		seen.add(uri.toString());
+		context.push(Object.freeze({ label: (entry.fullName || entry.name || uri.toString()).slice(0, projectBoardMetadataLimits.labelLength), uri }));
+		if (context.length === projectBoardMetadataLimits.contextEntries) {
+			break;
+		}
+	}
+	const message = !prompt
+		? context.length
+			? localize('projectBoard.metadata.contextOnly', "The latest request has attached context but no stored prompt text.")
+			: localize('projectBoard.metadata.emptyPrompt', "The latest request has no stored prompt text.")
+		: submittedAt === undefined ? localize('projectBoard.metadata.unknownTime', "Last submitted prompt time unavailable.") : undefined;
+	return Object.freeze({ kind: 'ready', prompt, response, submittedAt, message, context: Object.freeze(context) });
 }
 
 /**
@@ -232,42 +280,14 @@ export class ProjectBoardMetadata extends Disposable {
 			this._unavailable(localize('projectBoard.metadata.noPrompt', "No submitted user prompt available."));
 			return;
 		}
-		const prompt = request.message.text.trim().slice(0, projectBoardMetadataLimits.promptLength) || undefined;
-		const submittedAt = getSubmittedAt(request);
-		const context = this._context(request);
-		const message = !prompt
-			? context.length
-				? localize('projectBoard.metadata.contextOnly', "The latest request has attached context but no stored prompt text.")
-				: localize('projectBoard.metadata.emptyPrompt', "The latest request has no stored prompt text.")
-			: submittedAt === undefined
-				? localize('projectBoard.metadata.unknownTime', "Last submitted prompt time unavailable.")
-				: undefined;
+		const snapshot = getRequestMetadata(request);
 		const previous = this._metadata.get();
-		if (previous.kind === 'ready' && previous.prompt === prompt && previous.submittedAt === submittedAt && previous.message === message
-			&& previous.context.length === context.length && previous.context.every((item, index) => item.label === context[index].label && item.uri.toString() === context[index].uri.toString())) {
+		if (previous.kind === 'ready' && snapshot.kind === 'ready' && previous.prompt === snapshot.prompt && previous.response === snapshot.response
+			&& previous.submittedAt === snapshot.submittedAt && previous.message === snapshot.message
+			&& previous.context.length === snapshot.context.length && previous.context.every((item, index) => item.label === snapshot.context[index].label && item.uri.toString() === snapshot.context[index].uri.toString())) {
 			return;
 		}
-		this._metadata.set(Object.freeze({ kind: 'ready', prompt, submittedAt, message, context }), undefined);
-	}
-
-	private _context(request: IChatRequestModel): readonly IProjectBoardContext[] {
-		const context: IProjectBoardContext[] = [];
-		const seen = new Set<string>();
-		const variables = request.variableData.variables;
-		for (const entry of variables.slice(-projectBoardMetadataLimits.contextTail)) {
-			const value = entry.value;
-			const uri = URI.isUri(value) ? value : isLocation(value) ? value.uri : undefined;
-			// Only supported resource/link shapes; never infer paths or open command/data URIs.
-			if (!uri || !['file', 'vscode-remote', 'http', 'https'].includes(uri.scheme) || seen.has(uri.toString())) {
-				continue;
-			}
-			seen.add(uri.toString());
-			context.push(Object.freeze({ label: (entry.fullName || entry.name || uri.toString()).slice(0, projectBoardMetadataLimits.labelLength), uri }));
-			if (context.length === projectBoardMetadataLimits.contextEntries) {
-				break;
-			}
-		}
-		return Object.freeze(context);
+		this._metadata.set(snapshot, undefined);
 	}
 
 	private _unavailable(message: string): void {

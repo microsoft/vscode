@@ -6038,6 +6038,8 @@ export interface ISessionsFlatListOptions {
 	readonly showChatChildren?: boolean;
 	/** Starts child groups collapsed while preserving subsequent user toggles. */
 	readonly collapseChatChildrenByDefault?: boolean;
+	readonly getChatChildrenCollapsed?: (session: ISession) => boolean;
+	readonly onDidChangeChatChildrenCollapsed?: (session: ISession, collapsed: boolean) => void;
 	readonly ariaLabel?: string;
 	/** Called when a session row is opened (clicked / activated). */
 	onSessionOpen(resource: URI, preserveFocus: boolean, sideBySide: boolean): void;
@@ -6297,7 +6299,7 @@ export class SessionsFlatList extends Disposable {
 						chats.set(chat, item);
 					}
 					return item;
-				}, reader, this.options.collapseChatChildrenByDefault));
+				}, reader, this.options.getChatChildrenCollapsed?.(session) ?? this.options.collapseChatChildrenByDefault));
 				this.tree.setChildren(null, elements);
 				reader.store.add(autorun(heightReader => {
 					for (const node of this.tree.getNode().children) {
@@ -6312,6 +6314,11 @@ export class SessionsFlatList extends Disposable {
 					}
 					this._onDidChangeContentHeight.fire();
 				}));
+			}));
+			this._register(this.tree.onDidChangeCollapseState(event => {
+				if (event.node.element && isSessionItem(event.node.element)) {
+					this.options.onDidChangeChatChildrenCollapsed?.(event.node.element, event.node.collapsed);
+				}
 			}));
 		}
 

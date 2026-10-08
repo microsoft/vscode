@@ -774,6 +774,17 @@
 	font-size: 12px;
 }
 
+.project-board-card-summary {
+	margin-top: var(--vscode-spacing-size40);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+	overflow: hidden;
+	overflow-wrap: anywhere;
+}
+
 .project-board-card-configuration {
 	display: flex;
 	gap: var(--vscode-spacing-size40, 4px);

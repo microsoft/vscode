@@ -10,6 +10,7 @@ import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { Orientation, Sizing, SplitView } from '../../../../base/browser/ui/splitview/splitview.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -57,6 +58,7 @@ import { ChatInteractivity, getChatCapabilities, IChat, ISession, ISessionGitRep
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { getProjectBoardCardId, getProjectBoardSessionKey, IProjectBoardAxis, IProjectBoardCard, IProjectBoardPlacement, ProjectBoardModel } from '../common/projectBoardModel.js';
 import { ProjectBoardState } from './projectBoardState.js';
+import { ProjectBoardViewState } from './projectBoardViewState.js';
 import { ProjectBoardStateDurations } from '../common/projectBoardStateDurations.js';
 import { ProjectBoardChatActions } from './projectBoardChatActions.js';
 import { getProjectBoardConfigurationDetails, IProjectBoardConfigurationDetails } from './projectBoardConfigurationDetails.js';
@@ -64,12 +66,14 @@ import { ISessionsProvidersService } from '../../../services/sessions/browser/se
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { IProjectBoardDraft, ProjectBoardChatWindows } from './projectBoardNavigation.js';
 import { ProjectBoardNewSessionDialog } from './projectBoardNewSessionDialog.js';
+import { createProjectBoardPeerChatAction } from './projectBoardPeerChatAction.js';
 import { IProjectBoardPendingQuestion, ProjectBoardQuestionPreviewState } from './projectBoardQuestions.js';
-import { getProjectBoardSubmittedAt, IProjectBoardInputConfiguration, IProjectBoardMetadata } from './projectBoardMetadata.js';
+import { getProjectBoardLoadedMetadata, getProjectBoardSubmittedAt, IProjectBoardInputConfiguration, IProjectBoardMetadata } from './projectBoardMetadata.js';
 import { KanbanAutoIncludeSessionsContext, KanbanBoardEditableContext, KanbanOpenChatInSidePanelContext, KanbanShowArchivedContext, KanbanShowCreditsContext, KanbanShowLastPromptContext, KanbanShowModelDetailsContext, KanbanShowPermissionDetailsContext, KanbanShowSessionListContext, KanbanShowStateDurationContext } from '../../../common/contextkeys.js';
 import { IProjectBoardCardIdentity, IProjectBoardDisplayOptions, IProjectBoardSavedPlacement, projectBoardIdentityLabelLimit } from '../common/projectBoardConfiguration.js';
 import { ProjectBoardWindow } from './projectBoardWindow.js';
 import { ProjectBoardChatSidePanel } from './projectBoardChatSidePanel.js';
+import { ProjectBoardStandaloneChatPanel, ProjectBoardStandaloneChatState } from './projectBoardStandaloneChatPanel.js';
 import { getSessionDragData, SessionsDataTransfers } from '../../../browser/dnd.js';
 import { SessionsFlatList } from '../../sessions/browser/views/sessionsList.js';
 import { AgentSessionApprovalModel } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
@@ -141,6 +145,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 	private readonly monitoredChildLabels = new Map<string, { element: HTMLElement; children: readonly IProjectBoardCard[] }>();
 	private readonly expandedChats = new Set<string>();
 	private readonly expandedCards = new Set<string>();
+	private readonly savedViewState: ProjectBoardViewState;
 	private readonly openingCards = new Map<string, number>();
 	private readonly cardLoadingLabels = new Map<string, HTMLElement>();
 	private readonly selectedCards = new Set<string>();
@@ -244,6 +249,11 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 	private readonly contextMenuService: IContextMenuService;
 	private readonly instantiationService: IInstantiationService;
 	private readonly chatSidePanel: ProjectBoardChatSidePanel;
+	private readonly standaloneChatPanel: ProjectBoardStandaloneChatPanel | undefined;
+	private readonly splitView: SplitView | undefined;
+	private standaloneWidth = 0;
+	private standaloneHeight = 0;
+	private readonly standaloneLayout = this._register(new RunOnceScheduler(() => this.layout(this.container.clientWidth, this.container.clientHeight), 0));
 	private readonly customViewContexts: {
 		readonly editable: IContextKey<boolean>;
 		readonly autoIncludeSessions: IContextKey<boolean>;
@@ -269,6 +279,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			contextMenuService: IContextMenuService;
 			instantiationService: IInstantiationService;
 			chatSidePanel: ProjectBoardChatSidePanel;
+			createStandalonePanel: (container: HTMLElement) => ProjectBoardStandaloneChatPanel;
 			previewPool: ProjectBoardPreviewPool;
 			markSessionDone: (session: ISession) => Promise<void>;
 			onOpenChat: (resource: URI) => void;
@@ -301,6 +312,12 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		this.renameBoard = services.renameBoard;
 		this.deleteBoard = services.deleteBoard;
 		this.recoverHub = services.recoverHub;
+		this.savedViewState = this._register(this.instantiationService.createInstance(ProjectBoardViewState, this.boardId, showHeader ? 'standalone' : 'embedded'));
+		this.restoreViewState();
+		this._register(this.savedViewState.onDidChange(() => {
+			this.restoreViewState();
+			this.observeSessions();
+		}));
 		this.filterElement.className = 'project-board-filter';
 		this.searchInput = this._register(new InputBox(this.filterElement, undefined, {
 			inputBoxStyles: defaultInputBoxStyles,
@@ -351,13 +368,44 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 				useShadows: false,
 			}));
 			scrollable.getDomNode().classList.add('project-board-scrollable');
-			this.container.appendChild(scrollable.getDomNode());
+			const panelContainer = mainWindow.document.createElement('div');
+			panelContainer.className = 'project-board-standalone-chat';
+			const panel = this.standaloneChatPanel = this._register(services.createStandalonePanel(panelContainer));
+			const split = this.splitView = this._register(new SplitView(this.container, { orientation: Orientation.HORIZONTAL, proportionalLayout: false }));
+			split.addView({
+				element: scrollable.getDomNode(), minimumSize: 240, maximumSize: Number.POSITIVE_INFINITY, onDidChange: Event.None,
+				layout: () => {
+					this.layoutSessionLists();
+					this.layoutPinned();
+					scrollable.scanDomNode();
+				},
+			}, Sizing.Distribute);
+			split.addView({
+				element: panelContainer, minimumSize: 320, maximumSize: Number.POSITIVE_INFINITY, onDidChange: Event.None,
+				layout: width => panel.layout(this.standaloneHeight, width),
+			}, Sizing.Invisible(420));
+			this._register(autorun(reader => split.setViewVisible(1, panel.visible.read(reader))));
+			this._register(autorun(reader => {
+				if (!this.boardState.configuration.read(reader).openChatInSidePanel) {
+					panel.close(false);
+				}
+			}));
 			this._register(toDisposable(() => scrollable.getDomNode().remove()));
 			this._register(addDisposableListener(this.boardElement, EventType.SCROLL, () => {
 				scrollable.scanDomNode();
 				this.updateSortingDeferred();
 			}));
-			this.scrollObserver = this._register(new DisposableResizeObserver('ProjectBoardView.scrollable', () => scrollable.scanDomNode(), getWindow(this.container)));
+			this.scrollObserver = this._register(new DisposableResizeObserver('ProjectBoardView.scrollable', () => {
+				const width = this.container.clientWidth;
+				const height = this.container.clientHeight;
+				if (width !== this.standaloneWidth || height !== this.standaloneHeight) {
+					// SplitView writes must occur after ResizeObserver delivery.
+					this.standaloneLayout.schedule();
+				} else {
+					scrollable.scanDomNode();
+				}
+			}, getWindow(this.container)));
+			this._register(this.scrollObserver.observe(this.container));
 			this._register(this.scrollObserver.observe(this.boardElement));
 		} else {
 			this.container.appendChild(this.boardElement);
@@ -387,7 +435,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		}
 		this._register(this.sessionsManagementService.onDidChangeSessions(() => this.observeSessions()));
 		this._register(this.sessionsProvidersService.onDidChangeProviders(() => this.observeSessions()));
-		this._register(autorun(reader => this.updateActiveCard(this.chatSidePanel.activeCardId.read(reader))));
+		this._register(autorun(reader => this.updateActiveCard(this.sidePanel.activeCardId.read(reader))));
 		this._register(addDisposableListener(this.container, EventType.FOCUS_OUT, event => {
 			// Native blur can flush microtasks before relatedTarget receives focus.
 			const movingWithinBoard = isHTMLElement(event.relatedTarget) && this.container.contains(event.relatedTarget);
@@ -401,9 +449,20 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			}
 		}));
 		this.observeSessions();
+		if (this.showHeader) {
+			if (this.container.clientHeight) {
+				this.layout(this.container.clientWidth, this.container.clientHeight);
+			} else {
+				this.standaloneWidth = this.container.clientWidth;
+				this.splitView?.layout(this.standaloneWidth);
+			}
+		}
 	}
 
 	private readonly previewPool: ProjectBoardPreviewPool;
+	private get sidePanel(): ProjectBoardChatSidePanel | ProjectBoardStandaloneChatPanel {
+		return this.standaloneChatPanel ?? this.chatSidePanel;
+	}
 	private readonly markSessionDone: (session: ISession) => Promise<void>;
 	private readonly onOpenChat: (resource: URI) => void;
 	private readonly renameBoard: () => Promise<void>;
@@ -495,6 +554,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		return (ignoreState || !this.stateFilter || this.getCardState(card) === this.stateFilter)
 			&& (!this.topicCardIds || this.topicCardIds.has(card.id)) && matchesProjectBoardFilter(this.query, [
 			card.title, card.sessionTitle, card.workspace ?? '', card.description ?? '',
+			this.supervisor?.getSummary(card.id)?.text ?? '',
 			this.getStatusLabel(card), card.session.providerId,
 			...card.pullRequests.map(pr => getProjectBoardPullRequestLabel(pr)),
 		]);
@@ -510,14 +570,15 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 	}
 
 	private updateSupervisor(): void {
-		this.supervisor?.update(this.model.cards.filter(card => (this.showArchived || !card.archived)
-			&& (this.boardState.configuration.get().autoIncludeSessions || this.model.getPlacement(card.id)))
+		this.supervisor?.update([...this.getSupervisorCards()]
 			.sort((a, b) => (this.promptTimes.get(b.id) ?? 0) - (this.promptTimes.get(a.id) ?? 0) || a.id.localeCompare(b.id))
 			.map(card => {
 				const metadata = this.metadataStates.get(card.id);
 				return {
 					id: card.id, title: card.title, description: card.description ?? '', workspace: card.workspace ?? '',
 					status: this.getStatusLabel(card), prompt: metadata?.kind === 'ready' ? metadata.prompt ?? '' : undefined,
+					response: metadata?.kind === 'ready' ? metadata.response : undefined,
+					details: !metadata || metadata.kind === 'loading' ? 'pending' : metadata.kind,
 				};
 			}));
 		this.renderTopics();
@@ -526,11 +587,12 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 	private async toggleSupervisor(): Promise<void> {
 		if (this.supervisor?.enabled) {
 			this.supervisor.setEnabled(false);
+			this.observeSessions();
 			return;
 		}
 		const result = await this.dialogService.confirm({
 			message: localize('projectBoard.enableTopics', "Enable the board supervisor?"),
-			detail: localize('projectBoard.enableTopicsDetail', "Send titles, descriptions, workspace labels, states and already-loaded prompt previews for up to 60 chats to Copilot's summary model. Changed snapshots are analyzed at most once every two minutes while this view is active. This may consume model usage. The supervisor cannot use tools, read files, or send messages to your agents. A local chat transcript records its analyses; monitoring stops when this view closes."),
+			detail: localize('projectBoard.enableTopicsDetail', "As details become available, analyze all eligible board chats in batches of up to eight, at most once every two minutes automatically while this view is active. Existing bounded idle previews supply titles, descriptions, states and limited latest-prompt/completed-response text; full histories are not sent. Chats without readable history receive explicitly limited metadata-only summaries. This may consume model usage. The supervisor cannot use tools, read files, or send messages to your agents. A local read-only transcript records analyses. Stop or close the view to pause monitoring."),
 			primaryButton: localize('projectBoard.enableTopicsButton', "Enable Topics"),
 		});
 		if (!result.confirmed || this._store.isDisposed || !this.active) {
@@ -550,10 +612,48 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 					}
 				}
 				this.renderTopics();
+				this.previewRender.schedule();
 			}));
 		}
 		this.updateSupervisor();
 		this.supervisor.setEnabled(true);
+		this.observeSessions();
+	}
+
+	private getSupervisorCards(): readonly IProjectBoardCard[] {
+		return this.model.cards.filter(card => (this.showArchived || !card.archived)
+			&& (this.boardState.configuration.get().autoIncludeSessions || this.model.getPlacement(card.id)));
+	}
+
+	private getMetadataCards(): readonly IProjectBoardCard[] {
+		return this.supervisor?.enabled ? this.getSupervisorCards() : this.getDisplayedCards();
+	}
+
+	private getSummaryLabel(card: IProjectBoardCard): string | undefined {
+		const supervisor = this.supervisor;
+		if (!supervisor) {
+			return undefined;
+		}
+		const summary = supervisor.getSummary(card.id);
+		if (summary) {
+			const label = summary.stale && summary.limited ? localize('projectBoard.staleLimitedSummary', "Summary (metadata only; earlier snapshot)")
+				: summary.stale ? localize('projectBoard.staleSummary', "Summary (earlier snapshot)")
+				: summary.limited ? localize('projectBoard.limitedSummary', "Summary (metadata only)") : localize('projectBoard.summary', "Summary");
+			return localize('projectBoard.summaryText', "{0}: {1}", label, summary.text);
+		}
+		if (!supervisor.enabled) {
+			return undefined;
+		}
+		if (supervisor.error) {
+			return localize('projectBoard.summaryFailed', "Summary unavailable. Use Refresh Topics to retry.");
+		}
+		const metadata = this.metadataStates.get(card.id);
+		if (metadata?.kind === 'error') {
+			return localize('projectBoard.summaryDetailsFailed', "Summary waiting: chat details could not be loaded. Refresh chat details to retry.");
+		}
+		return metadata?.kind === 'ready' || metadata?.kind === 'unavailable'
+			? localize('projectBoard.summaryQueued', "Summary queued")
+			: localize('projectBoard.summaryWaiting', "Summary waiting for chat details");
 	}
 
 	private topicsRenderKey: string | undefined;
@@ -565,7 +665,8 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 				&& (this.boardState.configuration.get().autoIncludeSessions || this.model.getPlacement(card.id))).length,
 		})).filter(topic => topic.count) ?? [];
 		const key = JSON.stringify([this.supervisor?.enabled, this.supervisor?.busy, this.supervisor?.error,
-			this.supervisor?.omitted, this.supervisor?.hasTranscript, this.supervisor?.stale, this.selectedTopic,
+			this.supervisor?.total, this.supervisor?.completed, this.supervisor?.waiting, this.supervisor?.queued,
+			this.supervisor?.hasTranscript, this.supervisor?.stale, this.selectedTopic,
 			topics.map(({ topic, count }) => [topic.label, [...topic.cardIds], count])]);
 		if (key === this.topicsRenderKey) {
 			return;
@@ -615,12 +716,10 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 				!supervisor.busy && !supervisor.error && supervisor.hasTranscript && !supervisor.topics.length ? localize('projectBoard.noTopics', "No topics found.") : '',
 			].filter(Boolean).join(' ');
 			this.topicElement.appendChild(message);
-			if (supervisor.omitted) {
-				const coverage = mainWindow.document.createElement('span');
-				coverage.className = 'project-board-topic-coverage';
-				coverage.textContent = localize('projectBoard.topicCoverage', "Analysis covers the 60 most recent chats ({0} additional chats not included).", supervisor.omitted);
-				this.topicElement.appendChild(coverage);
-			}
+			const coverage = mainWindow.document.createElement('span');
+			coverage.className = 'project-board-topic-coverage';
+			coverage.textContent = localize('projectBoard.topicCoverage', "Summaries: {0}/{1} chats · {2} waiting for details · {3} queued. Topics include completed analyses; updates are incremental.", supervisor.completed, supervisor.total, supervisor.waiting, supervisor.queued);
+			this.topicElement.appendChild(coverage);
 		}
 		this._onDidChangeContentSize.fire();
 	}
@@ -695,6 +794,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 				}
 			}
 			if (changed) {
+				this.saveViewState();
 				this.observeSessions();
 			}
 		}
@@ -720,9 +820,12 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			?? [...this.controlElements.values()].find(element => element.tabIndex >= 0 && !element.closest('.project-board-card-list[hidden]'))
 			?? this.searchInput.inputElement)?.focus({ preventScroll: true });
 	}
-	layout(_width: number, height: number): void {
+	layout(width: number, height: number): void {
 		if (this.showHeader) {
+			this.standaloneWidth = this.container.clientWidth || width;
+			this.standaloneHeight = height;
 			this.boardElement.style.height = `${height}px`;
+			this.splitView?.layout(this.standaloneWidth);
 		} else {
 			this.boardElement.style.minHeight = `${height}px`;
 		}
@@ -836,10 +939,14 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 	getAccessibleContent(): string {
 		const lines = [this.title];
 		const appendCardDetails = (card: IProjectBoardCard) => {
+			const summary = this.getSummaryLabel(card);
+			if (summary) {
+				lines.push(summary);
+			}
 			if (!this.showSessionList && !this.expandedCards.has(card.id)) {
 				lines.push(localize('projectBoard.accessibleCollapsedDetails', "  Details collapsed"));
 			}
-			if (this.active && !this.showHeader && card.id === this.chatSidePanel.activeCardId.get()) {
+			if (this.active && card.id === this.sidePanel.activeCardId.get()) {
 				lines.push(localize('projectBoard.accessibleCurrentChat', "  Open in Side Panel"));
 			}
 			if (card.pullRequests.length) {
@@ -1114,9 +1221,32 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 					this.creditValues.delete(card.id);
 				}
 				this.rememberPromptTime(card.id, submittedAt);
+				if (this.supervisor?.enabled) {
+					if (model.lastRequest?.response) {
+						this.readPreview(observableSignalFromEvent(this, model.lastRequest.response.onDidChange), reader);
+					}
+					try {
+						const previous = this.metadataSnapshots.get(card.id);
+						const metadata = getProjectBoardLoadedMetadata(model);
+						this.metadataStates.set(card.id, metadata);
+						this.metadataSnapshots.set(card.id, {
+							chat: card.chat, updatedAt: card.chat.updatedAt.read(reader).getTime(), status: card.status,
+							includeCredits: previous?.includeCredits ?? false, includeConfiguration: previous?.includeConfiguration ?? false,
+							configuration: previous?.configuration,
+						});
+					} catch (error) {
+						this.logService.error('[ProjectBoard] Failed to read loaded chat details for analysis', error);
+						const message = localize('projectBoard.analysisDetailsFailed', "Could not read chat details for \"{0}\".", card.title);
+						this.metadataStates.set(card.id, { kind: 'error', message, error: String(error) });
+						if (this.notifiedMetadataErrors.get(card.id) !== String(error)) {
+							this.notifiedMetadataErrors.set(card.id, String(error));
+							this.notificationService.error(message);
+						}
+					}
+				}
 			}
 		}
-		const visible = this.getDisplayedCards();
+		const visible = this.getMetadataCards();
 		const observed = new Set(visible.map(card => card.id));
 		for (const id of this.metadataPreviews.keys()) {
 			if (!observed.has(id)) {
@@ -1184,7 +1314,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			this.metadataRefresh.clear();
 			return;
 		}
-		const pending = () => this.getDisplayedCards().find(card => !this.metadataStates.has(card.id) && !card.connection
+		const pending = () => this.getMetadataCards().find(card => !this.metadataStates.has(card.id) && !card.connection
 			&& this.sessionsProvidersService.getProvider(card.session.providerId));
 		if (!pending()) {
 			this.metadataRefresh.clear();
@@ -1209,7 +1339,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		if (!this.active || this._store.isDisposed) {
 			return;
 		}
-		const card = this.getDisplayedCards().find(card => card.id === cardId);
+		const card = this.getMetadataCards().find(card => card.id === cardId);
 		if (!card || card.connection || !this.sessionsProvidersService.getProvider(card.session.providerId)) {
 			this.notificationService.warn(localize('projectBoard.refreshUnavailable', "This chat is no longer available for refresh."));
 			return;
@@ -1395,15 +1525,28 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			return;
 		}
 		this.rendering = true;
+		let pruned = false;
 		for (const id of this.collapsedRows) {
 			if (!this.model.rows.some(row => row.id === id)) {
 				this.collapsedRows.delete(id);
+				pruned = true;
 			}
 		}
 		for (const id of this.collapsedColumns) {
 			if (!this.model.columns.some(column => column.id === id)) {
 				this.collapsedColumns.delete(id);
+				pruned = true;
 			}
+		}
+		const cells = new Set(this.model.rows.flatMap(row => this.model.columns.map(column => this.cellKey({ rowId: row.id, columnId: column.id }))));
+		for (const key of this.visibleCounts.keys()) {
+			if (!cells.has(key)) {
+				this.visibleCounts.delete(key);
+				pruned = true;
+			}
+		}
+		if (pruned) {
+			this.saveViewState();
 		}
 		const viewport = this.getScrollViewport();
 		const scrollTop = viewport.scrollTop;
@@ -1688,10 +1831,10 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		}
 	}
 
-	private updateActiveCard(activeCardId = this.chatSidePanel.activeCardId.get()): void {
+	private updateActiveCard(activeCardId = this.sidePanel.activeCardId.get()): void {
 		let changed = false;
 		for (const [id, element] of this.cardElements) {
-			const active = this.active && !this.showHeader && id === activeCardId;
+			const active = this.active && id === activeCardId;
 			if (element.classList.contains('project-board-card-active-chat') === active) {
 				continue;
 			}
@@ -1712,7 +1855,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			}
 		}
 		for (const [parentId, { element, children }] of this.monitoredChildLabels) {
-			const child = this.active && !this.showHeader && !this.expandedChats.has(parentId)
+			const child = this.active && !this.expandedChats.has(parentId)
 				? children.find(child => child.id === activeCardId) : undefined;
 			const label = child ? localize('projectBoard.monitoredChild', "Open in Side Panel: {0}", child.title) : '';
 			if (element.hidden === !child && element.textContent === label) {
@@ -1922,6 +2065,12 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 					label: localize('projectBoard.autoIncludeSessions', "Auto-include Sessions"),
 					checked: this.boardState.configuration.get().autoIncludeSessions,
 					run: () => this.toggleAutoIncludeSessions(),
+				}),
+				toAction({
+					id: 'projectBoard.settings.openChatInSidePanel',
+					label: localize('projectBoard.openChatInSidePanel', "Open Chat in Side Panel"),
+					checked: !!this.boardState.configuration.get().openChatInSidePanel,
+					run: () => this.toggleOpenChatInSidePanel(),
 				}),
 				...(this.showSessionList ? [] : [toAction({
 					id: 'projectBoard.settings.stateDuration',
@@ -2149,11 +2298,45 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		if (!placement) {
 			const changed = this.unassignedCollapsed;
 			this.unassignedCollapsed = false;
+			if (changed) {
+				this.saveViewState();
+			}
 			return changed;
 		}
 		const rowChanged = this.collapsedRows.delete(placement.rowId);
 		const columnChanged = this.collapsedColumns.delete(placement.columnId);
+		if (rowChanged || columnChanged) {
+			this.saveViewState();
+		}
 		return rowChanged || columnChanged;
+	}
+
+	private restoreViewState(): void {
+		const state = this.savedViewState.value;
+		for (const [target, values] of [
+			[this.expandedCards, state.expandedCards], [this.expandedChats, state.expandedChats],
+			[this.collapsedRows, state.collapsedRows], [this.collapsedColumns, state.collapsedColumns],
+		] as const) {
+			target.clear();
+			for (const id of values) {
+				target.add(id);
+			}
+		}
+		this.unassignedCollapsed = state.unassignedCollapsed;
+		this.visibleCounts.clear();
+		for (const [key, count] of state.visibleCounts) {
+			this.visibleCounts.set(key, count);
+		}
+		// A restored tree must use the current disclosure state, not its previous native-node defaults.
+		this.sessionLists.clearAndDisposeAll();
+	}
+
+	private saveViewState(): void {
+		this.savedViewState.save({
+			version: 1, expandedCards: [...this.expandedCards], expandedChats: [...this.expandedChats],
+			collapsedRows: [...this.collapsedRows], collapsedColumns: [...this.collapsedColumns],
+			unassignedCollapsed: this.unassignedCollapsed, visibleCounts: [...this.visibleCounts],
+		});
 	}
 
 	private visibleCardElements(): HTMLElement[] {
@@ -2182,6 +2365,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		store.add(this.hoverService.setupDelayedHover(button.element, { content: label }));
 		store.add(button.onDidClick(() => {
 			toggle();
+			this.saveViewState();
 			this.render();
 			if (container.ownerDocument.hasFocus()) {
 				this.controlElements.get(key)?.focus({ preventScroll: true });
@@ -2376,6 +2560,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 				more.label = localize('projectBoard.more', "+{0} more", hidden);
 				store.add(more.onDidClick(() => {
 					this.visibleCounts.set(key, limit + 3);
+					this.saveViewState();
 					this.observeSessions();
 				}));
 			}
@@ -2387,6 +2572,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 				less.label = localize('projectBoard.less', "Show Less");
 				store.add(less.onDidClick(() => {
 					this.visibleCounts.delete(key);
+					this.saveViewState();
 					this.observeSessions();
 				}));
 			}
@@ -2509,6 +2695,16 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 				useCompactQuickChatRows: false,
 				showChatChildren: true,
 				collapseChatChildrenByDefault: true,
+				getChatChildrenCollapsed: session => !this.expandedChats.has(getProjectBoardCardId(session, session.mainChat.get())),
+				onDidChangeChatChildrenCollapsed: (session, collapsed) => {
+					const id = getProjectBoardCardId(session, session.mainChat.get());
+					if (collapsed ? this.expandedChats.delete(id) : !this.expandedChats.has(id)) {
+						if (!collapsed) {
+							this.expandedChats.add(id);
+						}
+						this.saveViewState();
+					}
+				},
 				markSessionReadOnOpen: false,
 				approvalModel: this.approvalModel.value,
 				onSessionOpen: resource => {
@@ -2715,6 +2911,16 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		this.cardLoadingLabels.set(card.id, loading);
 		heading.appendChild(loading);
 		element.appendChild(heading);
+		const summaryLabel = this.getSummaryLabel(card);
+		if (summaryLabel) {
+			const summary = document.createElement('div');
+			summary.className = 'project-board-card-summary';
+			summary.textContent = summaryLabel;
+			summary.id = `project-board-summary-${generateUuid()}`;
+			summaryDescriptions.push(summary.id);
+			element.appendChild(summary);
+			store.add(this.hoverService.setupDelayedHover(summary, { content: summaryLabel }));
+		}
 		const activeChatLabel = document.createElement('div');
 		activeChatLabel.className = 'project-board-card-active-chat-label';
 		activeChatLabel.textContent = localize('projectBoard.activeSidePanelChat', "Open in Side Panel");
@@ -2748,6 +2954,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			if (!this.expandedCards.delete(card.id)) {
 				this.expandedCards.add(card.id);
 			}
+			this.saveViewState();
 			updateDetails();
 			this.scrollable?.scanDomNode();
 			this._onDidChangeContentSize.fire();
@@ -3178,6 +3385,10 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 	private showCardContextMenu(element: HTMLElement, event: MouseEvent, rename: (() => Promise<void>) | undefined, card: IProjectBoardCard | undefined): void {
 		const selected = card && this.selectedCards.has(card.id) ? [...this.selectedCards] : card ? [card.id] : [];
 		const provider = card && this.sessionsProvidersService.getProvider(card.session.providerId);
+		const peerChat = card && createProjectBoardPeerChatAction(() => {
+			const current = this.model.cards.find(current => current.id === card.id);
+			return this.active && !this._store.isDisposed && current && this.sessionsProvidersService.getProvider(current.session.providerId) ? current.session : undefined;
+		}, this.commandService, this.logService, this.notificationService);
 		const anchor = new StandardMouseEvent(getWindow(element), event);
 		this.menuOpen = true;
 		const generation = ++this.menuGeneration;
@@ -3185,6 +3396,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			domForShadowRoot: this.container,
 			getAnchor: () => anchor,
 			getActions: () => [
+				...(peerChat ? [peerChat] : []),
 				...(rename ? [toAction({
 					id: 'projectBoard.card.rename',
 					label: localize('projectBoard.renameChat', "Rename..."),
@@ -3560,8 +3772,8 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			loading.hidden = false;
 		}
 		try {
-			if (!this.showHeader && this.boardState.configuration.get().openChatInSidePanel) {
-				await this.chatSidePanel.open(card, () => {
+			if (this.boardState.configuration.get().openChatInSidePanel) {
+				await this.sidePanel.open(card, () => {
 					if (this.active && !this._store.isDisposed) {
 						this.focusChat(card.chat.resource);
 					}
@@ -3640,6 +3852,7 @@ export class ProjectBoardService extends Disposable implements IProjectBoardServ
 	private focusedView: IProjectBoardOrigin | undefined;
 	private readonly viewOrigins = new WeakMap<ProjectBoardView, IProjectBoardOrigin>();
 	private readonly chatOrigins = new Map<string, IProjectBoardOrigin | undefined>();
+	private readonly standaloneChatStates = new Map<string, ProjectBoardStandaloneChatState>();
 	private readonly chatWindows: ProjectBoardChatWindows;
 	private readonly chatSidePanel: ProjectBoardChatSidePanel;
 	private readonly previewPool: ProjectBoardPreviewPool;
@@ -3680,6 +3893,11 @@ export class ProjectBoardService extends Disposable implements IProjectBoardServ
 		}));
 		this._register(autorun(reader => {
 			const boards = this.catalog.boards.read(reader);
+			for (const boardId of this.standaloneChatStates.keys()) {
+				if (!boards.some(board => board.id === boardId)) {
+					this.standaloneChatStates.delete(boardId);
+				}
+			}
 			for (const boardId of this.windows.keys()) {
 				if (!boards.some(board => board.id === boardId)) {
 					this.windowStores.deleteAndDispose(boardId);
@@ -3883,10 +4101,16 @@ export class ProjectBoardService extends Disposable implements IProjectBoardServ
 
 	private createBoardView(container: HTMLElement, boardId: string, standalone: boolean, window: Window, store: DisposableStore, activate: () => void, isAlive: () => boolean): ProjectBoardView {
 		const state = store.add(this.instantiationService.createInstance(ProjectBoardState, boardId));
+		let chatState = this.standaloneChatStates.get(boardId);
+		if (standalone && !chatState) {
+			chatState = new ProjectBoardStandaloneChatState();
+			this.standaloneChatStates.set(boardId, chatState);
+		}
 		const view = store.add(this.instantiationService.createInstance(ProjectBoardView, container, this.chatWindows, state, standalone, {
 			sessionsManagementService: this.sessionsManagementService, notificationService: this.notificationService,
 			logService: this.logService, contextMenuService: this.contextMenuService, instantiationService: this.instantiationService,
 			chatSidePanel: this.chatSidePanel, previewPool: this.previewPool,
+			createStandalonePanel: container => this.instantiationService.createInstance(ProjectBoardStandaloneChatPanel, container, chatState ?? new ProjectBoardStandaloneChatState()),
 			markSessionDone: session => this.markSessionDone(session),
 			onOpenChat: resource => { this.chatOrigins.set(resource.toString(), origin); },
 			renameBoard: () => this.renameBoard(boardId), deleteBoard: () => this.deleteBoard(boardId),
@@ -4024,7 +4248,9 @@ export class ProjectBoardService extends Disposable implements IProjectBoardServ
 	}
 
 	toggleOpenChatInSidePanel(): void {
-		this.customView?.toggleOpenChatInSidePanel();
+		const view = (this.focusedView?.window === getActiveWindow() && this.focusedView.isAlive() ? this.focusedView.view : undefined)
+			?? this.customView ?? this.focusedView?.view ?? this.windows.values().next().value?.view;
+		view?.toggleOpenChatInSidePanel();
 	}
 
 	async createSession(): Promise<void> {

@@ -8,8 +8,9 @@ import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { isIMenuItem, isISubmenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
-import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { isIMenuItem, isISubmenuItem, MenuId, MenuItemAction, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { Context } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -201,20 +202,51 @@ suite('Project Board Agents routing', () => {
 			],
 		});
 
-		test('board management commands forward an explicit board ID instead of the selected board', async () => {
-			const instantiation = store.add(new TestInstantiationService());
-			const calls: unknown[][] = [];
-			instantiation.stub(IProjectBoardService, upcastPartial<IProjectBoardService>({
-				createBoard: async () => { calls.push(['create']); },
-				renameBoard: async id => { calls.push(['rename', id]); },
-				deleteBoard: async id => { calls.push(['delete', id]); },
-				open: async id => { calls.push(['open', id]); },
-			}));
-			for (const id of [KANBAN_NEW_BOARD_COMMAND_ID, KANBAN_RENAME_BOARD_COMMAND_ID, KANBAN_DELETE_BOARD_COMMAND_ID, KANBAN_OPEN_BOARD_WINDOW_COMMAND_ID]) {
-				await instantiation.invokeFunction(accessor => CommandsRegistry.getCommand(id)!.handler(accessor, 'target-board'));
+	});
+
+	test('board management commands forward an explicit board ID instead of the selected board', async () => {
+		const instantiation = store.add(new TestInstantiationService());
+		const calls: unknown[][] = [];
+		instantiation.stub(IProjectBoardService, upcastPartial<IProjectBoardService>({
+			createBoard: async () => { calls.push(['create']); },
+			renameBoard: async id => { calls.push(['rename', id]); },
+			deleteBoard: async id => { calls.push(['delete', id]); },
+			open: async id => { calls.push(['open', id]); },
+		}));
+		for (const id of [KANBAN_NEW_BOARD_COMMAND_ID, KANBAN_RENAME_BOARD_COMMAND_ID, KANBAN_DELETE_BOARD_COMMAND_ID, KANBAN_OPEN_BOARD_WINDOW_COMMAND_ID]) {
+			await instantiation.invokeFunction(accessor => CommandsRegistry.getCommand(id)!.handler(accessor, 'target-board'));
+		}
+		assert.deepStrictEqual(calls, [['create'], ['rename', 'target-board'], ['delete', 'target-board'], ['open', 'target-board']]);
+	});
+
+	test('header board actions ignore forwarded mouse/key events while preserving explicit menu targets', async () => {
+		const instantiation = store.add(new TestInstantiationService());
+		const calls: unknown[][] = [];
+		instantiation.stub(IProjectBoardService, upcastPartial<IProjectBoardService>({
+			renameBoard: async id => { calls.push(['rename', id]); },
+			deleteBoard: async id => { calls.push(['delete', id]); },
+			open: async id => { calls.push(['open', id]); },
+		}));
+		instantiation.stub(IContextKeyService, upcastPartial<IContextKeyService>({ contextMatchesRules: () => true }));
+		instantiation.stub(ICommandService, upcastPartial<ICommandService>({
+			executeCommand: async (id, ...args) => {
+				await instantiation.invokeFunction(accessor => CommandsRegistry.getCommand(id)!.handler(accessor, ...args));
+				return undefined;
+			},
+		}));
+		const items = MenuRegistry.getMenuItems(Menus.CustomViewKanbanSettings).filter(isIMenuItem);
+		for (const id of [KANBAN_RENAME_BOARD_COMMAND_ID, KANBAN_DELETE_BOARD_COMMAND_ID, KANBAN_OPEN_BOARD_WINDOW_COMMAND_ID]) {
+			const item = items.find(item => item.command.id === id)!;
+			for (const event of [new mainWindow.MouseEvent('click'), new mainWindow.KeyboardEvent('keydown', { key: 'Enter' })]) {
+				const action = instantiation.createInstance(MenuItemAction, item.command, undefined, { shouldForwardArgs: true }, undefined, undefined);
+				await action.run(event);
+				const explicit = instantiation.createInstance(MenuItemAction, item.command, undefined, { args: ['target-board'], shouldForwardArgs: true }, undefined, undefined);
+				await explicit.run(event);
 			}
-			assert.deepStrictEqual(calls, [['create'], ['rename', 'target-board'], ['delete', 'target-board'], ['open', 'target-board']]);
-		});
+		}
+		assert.deepStrictEqual(calls, ['rename', 'delete', 'open'].flatMap(action => [
+			[action, undefined], [action, 'target-board'], [action, undefined], [action, 'target-board'],
+		]));
 	});
 
 	test('routes Kanban header actions to the embedded project board', async () => {

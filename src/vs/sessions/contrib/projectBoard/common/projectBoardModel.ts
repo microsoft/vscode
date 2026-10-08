@@ -59,6 +59,7 @@ export class ProjectBoardModel {
 	private readonly placements = new Map<string, IProjectBoardPlacement>();
 	private _cards: readonly IProjectBoardCard[] = [];
 	private readonly knownChatIds = new Set<string>();
+	private readonly excludedChatIds = new Set<string>();
 	private readonly promptRecency = new Map<string, number>();
 	private frozenOrder: Map<string, number> | undefined;
 	private _rows = projectBoardRows;
@@ -101,7 +102,7 @@ export class ProjectBoardModel {
 	}
 
 	hasChat(cardId: string): boolean {
-		return this.knownChatIds.has(cardId);
+		return this.knownChatIds.has(cardId) || this.excludedChatIds.has(cardId);
 	}
 
 	setPromptRecency(cardId: string, submittedAt: number | undefined): void {
@@ -142,6 +143,21 @@ export class ProjectBoardModel {
 		const cards: IProjectBoardCard[] = [];
 		this.knownChatIds.clear();
 		for (const session of sessions) {
+			const chats = session.chats.read(reader);
+			const parentManaged = !!session.createdBySession?.read(reader);
+			for (const chat of chats) {
+				const id = getProjectBoardCardId(session, chat);
+				this.knownChatIds.add(id);
+				// Remember tool provenance so provider removal does not resurrect saved placements as unavailable cards.
+				if (parentManaged || chat.origin?.kind === ChatOriginKind.Tool) {
+					this.excludedChatIds.add(id);
+				} else {
+					this.excludedChatIds.delete(id);
+				}
+			}
+			if (parentManaged) {
+				continue;
+			}
 			const sessionTitle = session.title.read(reader);
 			const sessionWorkspace = session.workspace?.read(reader);
 			const sharedContext = new Map<string, IProjectBoardCard['sharedContext'][number]>();
@@ -158,9 +174,8 @@ export class ProjectBoardModel {
 				}
 			}
 			const connection = session.remoteConnectionStatus?.read(reader)?.kind;
-			for (const chat of session.chats.read(reader)) {
-				this.knownChatIds.add(getProjectBoardCardId(session, chat));
-				if (chat.interactivity.read(reader) === ChatInteractivity.Hidden) {
+			for (const chat of chats) {
+				if (chat.origin?.kind === ChatOriginKind.Tool || chat.interactivity.read(reader) === ChatInteractivity.Hidden) {
 					continue;
 				}
 				const workspace = chat.workspace?.read(reader) ?? sessionWorkspace;
@@ -208,36 +223,14 @@ export class ProjectBoardModel {
 		this.parents.clear();
 		this.children.clear();
 		const byId = new Map(cards.map(card => [card.id, card]));
-		const bySession = new Map(sessions.map(session => [getProjectBoardSessionKey(session), session]));
 		for (const session of sessions) {
 			const parent = byId.get(getProjectBoardCardId(session, session.mainChat.read(reader)));
-			const creation = session.createdBySession?.read(reader);
-			if (parent && creation) {
-				const creator = bySession.get(getProjectBoardSessionKey({ providerId: session.providerId, resource: creation.session }));
-				if (creator && creator !== session) {
-					const creatorChat = creation.chat ?? creator.mainChat.read(reader).resource;
-					const spawningChat = byId.get(`${getProjectBoardSessionKey(creator)}\0${creatorChat.toString()}`);
-					if (spawningChat) {
-						this.parents.set(parent.id, spawningChat);
-					}
-				}
-			}
 			if (parent) {
 				for (const chat of getSessionChildChats(session, reader)) {
 					const child = byId.get(getProjectBoardCardId(session, chat));
 					if (child) {
 						this.parents.set(child.id, parent);
 					}
-				}
-			}
-			for (const chat of session.chats.read(reader)) {
-				if (chat.origin?.kind !== ChatOriginKind.Tool || !chat.origin.parentChat) {
-					continue;
-				}
-				const child = byId.get(getProjectBoardCardId(session, chat));
-				const spawningChat = byId.get(`${getProjectBoardSessionKey(session)}\0${chat.origin.parentChat.toString()}`);
-				if (child && spawningChat && child !== spawningChat) {
-					this.parents.set(child.id, spawningChat);
 				}
 			}
 		}
@@ -322,22 +315,7 @@ export class ProjectBoardModel {
 				this.sessionPlacements.set(session, undefined);
 			}
 		}
-		return this.getSessionPlacement(card.session, this.sessionPlacements, new Set());
-	}
-
-	private getSessionPlacement(session: ISession, placements: Map<ISession, IProjectBoardPlacement | undefined>, visiting: Set<ISession>): IProjectBoardPlacement | undefined {
-		if (placements.has(session)) {
-			return placements.get(session);
-		}
-		if (visiting.has(session)) {
-			return undefined;
-		}
-		visiting.add(session);
-		const main = this._cards.find(card => card.session === session && card.chat === session.mainChat.get());
-		const creator = main && this.parents.get(main.id);
-		const placement = creator && creator.session !== session ? this.getSessionPlacement(creator.session, placements, visiting) : undefined;
-		placements.set(session, placement);
-		return placement;
+		return this.sessionPlacements.get(card.session);
 	}
 
 	moveCard(cardId: string, placement: IProjectBoardPlacement | undefined): void {

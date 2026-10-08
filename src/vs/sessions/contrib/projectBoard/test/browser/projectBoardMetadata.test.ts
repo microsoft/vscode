@@ -16,7 +16,7 @@ import { IChatModelReference, IChatService } from '../../../../../workbench/cont
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ChatModel, ChatRequestModel, ChatResponseModel, IChatChangeEvent, IChatModelInputState, IChatRequestModelParameters } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
-import { getProjectBoardSubmittedAt, projectBoardMetadataLimits, ProjectBoardMetadata } from '../../browser/projectBoardMetadata.js';
+import { getProjectBoardLoadedMetadata, getProjectBoardSubmittedAt, projectBoardMetadataLimits, ProjectBoardMetadata } from '../../browser/projectBoardMetadata.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { ChatAgentService, IChatAgentService } from '../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
 import { MockChatService } from '../../../../../workbench/contrib/chat/test/common/chatService/mockChatService.js';
@@ -102,6 +102,33 @@ suite('ProjectBoardMetadata', () => {
 		const result = metadata.metadata.get();
 		assert.strictEqual(result.kind, 'ready');
 		assert.deepStrictEqual([result.prompt, result.submittedAt], ['Second', 500]);
+	});
+
+	test('publishes a bounded completed-response preview for asynchronous analysis without streaming churn', () => {
+		const h = setup();
+		const request = h.request();
+		const response = store.add(new ChatResponseModel({ session: h.model, requestId: request.id, responseContent: [], codeBlockInfos: undefined }));
+		request.response = response;
+		h.model.lastRequestObs.set(request, undefined);
+		const metadata = h.create();
+		const before = metadata.metadata.get();
+		response.updateContent({ kind: 'markdownContent', content: { value: 'x'.repeat(5000) + 'Resolved the deployment failure.' } });
+		assert.strictEqual(metadata.metadata.get(), before, 'Streaming tokens must not repeatedly enqueue summaries');
+		response.complete();
+		const completed = metadata.metadata.get();
+		assert.strictEqual(completed.kind, 'ready');
+		assert.ok(completed.response?.endsWith('Resolved the deployment failure.'));
+		assert.ok(completed.response!.length <= 2048);
+		assert.strictEqual(h.state.scans, 0);
+	});
+
+	test('already loaded model snapshots need no acquisition, transcript scan or owning-session navigation', () => {
+		const h = setup();
+		h.model.lastRequestObs.set(h.request('Existing model details', 500), undefined);
+		const metadata = getProjectBoardLoadedMetadata(h.model);
+		assert.strictEqual(metadata.kind, 'ready');
+		assert.strictEqual(metadata.prompt, 'Existing model details');
+		assert.deepStrictEqual({ acquired: h.state.acquired, scans: h.state.scans }, { acquired: 0, scans: 0 });
 	});
 
 	test('PB-20 interrupted-response actions are discovered from the retained metadata model and clear on replacement', () => {

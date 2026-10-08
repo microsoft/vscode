@@ -20,7 +20,7 @@ import { IChatCompleteResponse, IChatService, IChatSessionStartOptions } from '.
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { IChatMessage, IChatResponsePart, ILanguageModelChatRequestOptions, ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IChatModel, IChatRequestModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
-import { IProjectBoardTopicSource, parseProjectBoardTopics, ProjectBoardSupervisor } from '../../browser/projectBoardSupervisor.js';
+import { IProjectBoardTopicSource, parseProjectBoardAnalysis, parseProjectBoardTopics, ProjectBoardSupervisor, projectBoardSupervisorLimits } from '../../browser/projectBoardSupervisor.js';
 import { matchesProjectBoardFilter } from '../../common/projectBoardFilter.js';
 
 suite('ProjectBoardSupervisor', () => {
@@ -31,7 +31,7 @@ suite('ProjectBoardSupervisor', () => {
 
 	function harness() {
 		const state = {
-			available: true, response: '{"topics":[{"label":"Deployment","sessions":[0]}]}',
+			available: true, response: '',
 			requests: [] as { messages: IChatMessage[]; options: ILanguageModelChatRequestOptions; token: CancellationToken }[],
 			starts: [] as (IChatSessionStartOptions | undefined)[],
 			transcript: [] as IChatCompleteResponse[], errors: [] as string[],
@@ -45,7 +45,14 @@ suite('ProjectBoardSupervisor', () => {
 			override async sendChatRequest(_model: string, _from: ExtensionIdentifier | undefined, messages: IChatMessage[], options: ILanguageModelChatRequestOptions, token: CancellationToken) {
 				state.requests.push({ messages, options, token });
 				await state.barrier?.p;
-				return { stream: AsyncIterableObject.fromArray(state.parts ?? [state.part ?? { type: 'text', value: state.response }]), result: Promise.resolve() };
+				const input = messages[1].content[0];
+				if (input.type !== 'text') { throw new Error('Expected text snapshot'); }
+				const sources = JSON.parse(input.value).chats as IProjectBoardTopicSource[];
+				const response = state.response || JSON.stringify({
+					topics: [{ label: 'Deployment', sessions: sources.map((_, index) => index) }],
+					summaries: sources.map((source, session) => ({ session, summary: `Working on ${source.title}.` })),
+				});
+				return { stream: AsyncIterableObject.fromArray(state.parts ?? [state.part ?? { type: 'text', value: response }]), result: Promise.resolve() };
 			}
 		}();
 		const chat = new class extends mock<IChatService>() {
@@ -75,6 +82,149 @@ suite('ProjectBoardSupervisor', () => {
 		return { supervisor, state };
 	}
 
+	test('details readiness queues summary analysis without waiting for every chat to load', async () => {
+		const clock = sinon.useFakeTimers();
+		store.add(toDisposable(() => clock.restore()));
+		const { supervisor, state } = harness();
+		const pending = { ...source(), details: 'pending' as const };
+		supervisor.update([pending]);
+		supervisor.setEnabled(true);
+		await clock.tickAsync(0);
+		assert.strictEqual(state.requests.length, 0, 'A discovered chat must wait for its asynchronous details');
+		state.response = '{"topics":[{"label":"Deployment","sessions":[0]}],"summaries":[{"session":0,"summary":"Investigating deployment API retries."}]}';
+		supervisor.update([{ ...pending, details: 'ready' }]);
+		await clock.tickAsync(1000);
+		assert.strictEqual(state.requests.length, 1);
+		assert.strictEqual(supervisor.getSummary(pending.id)?.text, 'Investigating deployment API retries.');
+		assert.strictEqual(supervisor.completed, 1);
+	});
+
+	test('incremental results preserve other chats and reject stale details or removed chat identities', async () => {
+		const { supervisor, state } = harness();
+		state.response = '{"topics":[{"label":"Deployment","sessions":[0]}],"summaries":[{"session":0,"summary":"First summary."}]}';
+		supervisor.update([{ ...source(), details: 'ready' }]);
+		supervisor.setEnabled(true);
+		await timeout(0);
+		assert.strictEqual(supervisor.getSummary('chat-0')?.text, 'First summary.');
+		state.barrier = new DeferredPromise<void>();
+		const next = { ...source('chat-1'), details: 'ready' as const };
+		supervisor.update([{ ...source(), details: 'ready' }, next]);
+		const refresh = supervisor.refresh();
+		await timeout(0);
+		supervisor.update([{ ...source(), details: 'ready' }, { ...next, prompt: 'Changed after analysis started' }]);
+		await state.barrier.complete();
+		await refresh;
+		assert.strictEqual(supervisor.getSummary('chat-0')?.text, 'First summary.');
+		assert.strictEqual(supervisor.getSummary('chat-1'), undefined, 'A late result must not describe a newer snapshot');
+		supervisor.update([]);
+		assert.deepStrictEqual(supervisor.topics, []);
+		assert.strictEqual(supervisor.getSummary('chat-0'), undefined);
+	});
+
+	test('all seventy chats are covered incrementally with one request at a time and no sixty-chat cutoff', async () => {
+		const clock = sinon.useFakeTimers();
+		store.add(toDisposable(() => clock.restore()));
+		const { supervisor, state } = harness();
+		const sources = Array.from({ length: 70 }, (_, index) => ({ ...source(`chat-${index}`), details: 'ready' as const }));
+		supervisor.update(sources);
+		supervisor.setEnabled(true);
+		await clock.tickAsync(0);
+		const firstSummary = supervisor.getSummary('chat-0')?.text;
+		for (let batch = 1; batch < 9; batch++) {
+			await clock.tickAsync(projectBoardSupervisorLimits.refreshInterval);
+			assert.strictEqual(state.requests.length, batch + 1);
+		}
+		assert.strictEqual(supervisor.completed, 70);
+		assert.strictEqual(supervisor.queued, 0);
+		assert.strictEqual(supervisor.getSummary('chat-0')?.text, firstSummary);
+		assert.ok(supervisor.getSummary('chat-69')?.text);
+		assert.strictEqual(supervisor.topics[0].cardIds.size, 70);
+		assert.ok(state.requests.every(request => {
+			const content = request.messages[1].content[0];
+			return content.type === 'text' && JSON.parse(content.value).chats.length <= 8;
+		}));
+		const count = state.requests.length;
+		supervisor.update(sources);
+		await clock.tickAsync(projectBoardSupervisorLimits.refreshInterval * 2);
+		assert.strictEqual(state.requests.length, count, 'Unchanged snapshots consume no additional model calls');
+	});
+
+	test('summary schema requires exactly one bounded plain-text brief per supplied chat', () => {
+		const sources = [source('a'), source('b')];
+		const summary = (session: number, text = 'Known task.') => ({ session, summary: text });
+		assert.deepStrictEqual([...parseProjectBoardAnalysis(JSON.stringify({ topics: [], summaries: [summary(0), summary(1)] }), sources).summaries], [['a', 'Known task.'], ['b', 'Known task.']]);
+		for (const summaries of [
+			[], [summary(0)], [summary(0), summary(0)], [summary(0), summary(2)],
+			[summary(0), summary(1, '')], [summary(0), summary(1, 'x'.repeat(401))], [summary(0), summary(1, 'Two\nlines')],
+		]) {
+			assert.throws(() => parseProjectBoardAnalysis(JSON.stringify({ topics: [], summaries }), sources));
+		}
+	});
+
+	test('a second refresh cannot overlap inference and arriving details remain queued for a later batch', async () => {
+		const { supervisor, state } = harness();
+		state.barrier = new DeferredPromise<void>();
+		supervisor.update([source()]);
+		supervisor.setEnabled(true);
+		await timeout(0);
+		supervisor.update([source(), source('later')]);
+		await supervisor.refresh();
+		assert.strictEqual(state.requests.length, 1);
+		await state.barrier.complete();
+		await timeout(0);
+		assert.strictEqual(supervisor.completed, 1);
+		assert.strictEqual(supervisor.queued, 1);
+		state.barrier = undefined;
+		await supervisor.refresh();
+		assert.strictEqual(supervisor.completed, 2);
+		assert.strictEqual(supervisor.topics[0].cardIds.size, 2);
+	});
+
+	test('unavailable history produces explicitly limited metadata-only summaries rather than blocking other chats', async () => {
+		const { supervisor, state } = harness();
+		supervisor.update([{ ...source(), details: 'unavailable' }, { ...source('waiting'), details: 'pending' }]);
+		supervisor.setEnabled(true);
+		await timeout(0);
+		assert.strictEqual(supervisor.getSummary('chat-0')?.limited, true);
+		assert.strictEqual(supervisor.getSummary('waiting'), undefined);
+		assert.deepStrictEqual({ completed: supervisor.completed, waiting: supervisor.waiting, requests: state.requests.length }, { completed: 1, waiting: 1, requests: 1 });
+	});
+
+	test('pausing preserves partial results and resumes the unfinished queue without reanalyzing finished chats', async () => {
+		const clock = sinon.useFakeTimers();
+		store.add(toDisposable(() => clock.restore()));
+		const { supervisor, state } = harness();
+		supervisor.update(Array.from({ length: 20 }, (_, index) => source(`chat-${index}`)));
+		supervisor.setEnabled(true);
+		await clock.tickAsync(0);
+		assert.strictEqual(supervisor.completed, 8);
+		supervisor.setActive(false);
+		await clock.tickAsync(240_000);
+		assert.strictEqual(state.requests.length, 1);
+		supervisor.setActive(true);
+		await clock.tickAsync(1000);
+		assert.strictEqual(supervisor.completed, 16);
+		assert.strictEqual(state.requests.length, 2);
+	});
+
+	test('updates topic membership once per chat, replaces old memberships and removes disappeared chats', async () => {
+		const { supervisor, state } = harness();
+		supervisor.update([source()]);
+		supervisor.setEnabled(true);
+		await timeout(0);
+		supervisor.update([source(), source('second')]);
+		state.response = '{"topics":[{"label":"deployment","sessions":[0]}],"summaries":[{"session":0,"summary":"Second task."}]}';
+		await supervisor.refresh();
+		assert.strictEqual(supervisor.topics.length, 1);
+		assert.strictEqual(supervisor.topics[0].cardIds.size, 2);
+		supervisor.update([{ ...source(), prompt: 'New topic' }, source('second')]);
+		state.response = '{"topics":[{"label":"Testing","sessions":[0]}],"summaries":[{"session":0,"summary":"Testing task."}]}';
+		await supervisor.refresh();
+		assert.deepStrictEqual(supervisor.topics.map(topic => [topic.label, [...topic.cardIds]]), [['deployment', ['second']], ['Testing', ['chat-0']]]);
+		supervisor.update([{ ...source(), prompt: 'New topic' }]);
+		assert.deepStrictEqual(supervisor.topics.map(topic => [...topic.cardIds]), [['chat-0']]);
+	});
+
 	test('fuzzy filter combines terms across fields and supports abbreviated noncontiguous matches', () => {
 		assert.strictEqual(matchesProjectBoardFilter('dpl API retry', ['Deployment API', 'Retry network']), true);
 		assert.strictEqual(matchesProjectBoardFilter('dpl missing', ['Deployment API']), false);
@@ -97,7 +247,7 @@ suite('ProjectBoardSupervisor', () => {
 		assert.deepStrictEqual(parseProjectBoardTopics('{"topics":[]}', sources), []);
 	});
 
-	test('does nothing until enabled, bounds snapshots and creates a tool-free native chat transcript', async () => {
+	test('does nothing until enabled, bounds each batch and creates a tool-free native chat transcript', async () => {
 		const { supervisor, state } = harness();
 		supervisor.update(Array.from({ length: 70 }, (_, i) => ({ ...source(`chat-${i}`), prompt: 'p'.repeat(2000) })));
 		await supervisor.refresh();
@@ -105,18 +255,19 @@ suite('ProjectBoardSupervisor', () => {
 		supervisor.setEnabled(true);
 		await timeout(0);
 		assert.strictEqual(supervisor.busy, false);
-		assert.strictEqual(supervisor.omitted, 10);
+		assert.strictEqual(supervisor.total, 70);
+		assert.strictEqual(supervisor.completed, projectBoardSupervisorLimits.batchSize);
 		const payload = state.requests[0].messages[1].content[0];
 		assert.strictEqual(payload.type, 'text');
 		if (payload.type !== 'text') { throw new Error('Expected text'); }
-		const input = JSON.parse(payload.value);
-		assert.strictEqual(input.length, 60);
-		assert.strictEqual(input[0].prompt.length, 500);
+		const input = JSON.parse(payload.value).chats;
+		assert.strictEqual(input.length, projectBoardSupervisorLimits.batchSize);
+		assert.strictEqual(input[0].prompt.length, projectBoardSupervisorLimits.promptLength);
 		assert.strictEqual(input[0].id, 0);
 		assert.deepStrictEqual(state.requests[0].options, {});
 		assert.strictEqual(state.starts[0]?.canUseTools, false);
 		assert.strictEqual(state.transcript.length, 1);
-		assert.deepStrictEqual(supervisor.topics[0].cardIds, new Set(['chat-0']));
+		assert.deepStrictEqual(supervisor.topics[0].cardIds, new Set(Array.from({ length: projectBoardSupervisorLimits.batchSize }, (_, index) => `chat-${index}`)));
 		assert.deepStrictEqual(state.errors, []);
 	});
 
@@ -149,7 +300,7 @@ suite('ProjectBoardSupervisor', () => {
 		state.parts = [
 			{ type: 'thinking', value: ['Not the answer'] },
 			[{ type: 'text', value: '{"topics":[' }, { type: 'data', mimeType: 'application/json', data: VSBuffer.fromString('{"usage":1}') }],
-			{ type: 'text', value: '{"label":"Deployment","sessions":[0]}]}' },
+			{ type: 'text', value: '{"label":"Deployment","sessions":[0]}],"summaries":[{"session":0,"summary":"Working on deployment."}]}' },
 		];
 		supervisor.update([source()]);
 		supervisor.setEnabled(true);
@@ -258,7 +409,7 @@ suite('ProjectBoardSupervisor', () => {
 			assert.deepStrictEqual(state.starts, []);
 			state.available = true;
 			state.part = undefined;
-			state.response = '{"topics":[{"label":"Retry","sessions":[0]}]}';
+			state.response = '{"topics":[{"label":"Retry","sessions":[0]}],"summaries":[{"session":0,"summary":"Retry summary."}]}';
 			await supervisor.refresh();
 			assert.strictEqual(supervisor.error, undefined);
 			assert.strictEqual(supervisor.topics[0].label, 'Retry');

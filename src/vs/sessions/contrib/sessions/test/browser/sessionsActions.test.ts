@@ -76,6 +76,19 @@ suite('Sessions - Actions', () => {
 		});
 	});
 
+	test('contributes New Chat to the session panel title context menu', () => {
+		const action = MenuRegistry.getMenuItems(Menus.SessionHeaderContext)
+			.filter(isIMenuItem)
+			.find(item => item.command.id === 'sessions.chatCompositeBar.addChat');
+		assert.deepStrictEqual({
+			title: action && (typeof action.command.title === 'string' ? action.command.title : action.command.title.value),
+			group: action?.group, when: action?.when?.serialize(),
+		}, {
+			title: 'New Chat in This Session', group: '1_newChat',
+			when: 'sessionIsCreated && sessionSupportsMultipleChats && !isQuickChatSession && !sessionIsArchived',
+		});
+	});
+
 	test('contributes New Chat to the session list toolbar and context menu', () => {
 		const action = (menuId: MenuId) => MenuRegistry.getMenuItems(menuId)
 			.filter(isIMenuItem)

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/projectBoardChatSidePanel.css';
-import { $, append, isAncestorOfActiveElement, size } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventType, isAncestorOfActiveElement, size } from '../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { raceCancellationError, Sequencer } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
@@ -19,6 +19,8 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
@@ -49,13 +51,14 @@ import { setActiveSessionContextKeys } from '../../../services/sessions/common/s
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ChatInteractivity, ISession } from '../../../services/sessions/common/session.js';
 import { getProjectBoardCardId, IProjectBoardCard } from '../common/projectBoardModel.js';
+import { createProjectBoardPeerChatAction } from './projectBoardPeerChatAction.js';
 
 export const PROJECT_BOARD_CHAT_CONTAINER_ID = 'workbench.sessions.auxiliaryBar.kanbanChat';
 export const PROJECT_BOARD_CHAT_VIEW_ID = 'sessions.kanban.chat';
 export const ProjectBoardChatAvailableContext = new RawContextKey<boolean>('kanbanChatAvailable', false);
 export const ProjectBoardChatFocusContext = new RawContextKey<boolean>('kanbanChatFocus', false);
 
-type ProjectBoardChat = Pick<IProjectBoardCard, 'session' | 'chat'>;
+type ProjectBoardChat = Pick<IProjectBoardCard, 'session' | 'chat'> & { readonly container?: HTMLElement };
 
 function createCloseChatAction(onClose: () => void): Action {
 	return new Action('sessions.kanban.closeChat', localize('kanban.closeChat', "Close Chat"), ThemeIcon.asClassName(Codicon.close), true, onClose);
@@ -69,6 +72,26 @@ function appendLoadingMessage(header: HTMLElement): HTMLElement {
 	spinner.setAttribute('aria-hidden', 'true');
 	message.append(spinner, localize('kanban.chatLoading', "Loading..."));
 	return message;
+}
+
+export function createProjectBoardChatLoading(container: HTMLElement, card: ProjectBoardChat, onClose: () => void, instantiationService: IInstantiationService): { element: HTMLElement; dispose(): void } {
+	const store = new DisposableStore();
+	const element = append(container, $('.project-board-chat-content'));
+	store.add(toDisposable(() => element.remove()));
+	try {
+		element.setAttribute('aria-busy', 'true');
+		element.setAttribute('role', 'region');
+		element.setAttribute('aria-label', localize('kanban.chatLoadingLabel', "Loading Agents Hub chat: {0}", card.chat.title.get()));
+		const header = append(element, $('.project-board-chat-header'));
+		append(header, $('h2.project-board-chat-title')).textContent = card.chat.title.get();
+		appendLoadingMessage(header);
+		const toolbar = store.add(instantiationService.createInstance(WorkbenchToolBar, append(header, $('.project-board-chat-actions')), { ariaLabel: localize('kanban.chatActions', "Chat actions") }));
+		toolbar.setActions([store.add(createCloseChatAction(onClose))]);
+		return { element, dispose: () => store.dispose() };
+	} catch (error) {
+		store.dispose();
+		throw error;
+	}
 }
 
 /** Owns a borrowed auxiliary pane without changing the window's active session or chat. */
@@ -318,7 +341,7 @@ export class ProjectBoardChatViewPane extends ViewPane {
 			return;
 		}
 		this.clear();
-		const content = this.instantiationService.createInstance(ProjectBoardChatContent, card, this.viewStates, this.pendingInputs, onClose);
+		const content = this.instantiationService.createInstance(ProjectBoardChatContent, { ...card, container: this.chatContainer }, this.viewStates, this.pendingInputs, onClose);
 		this.content.set(content, undefined);
 		this.chatContainer.appendChild(content.element);
 		if (this.dimensions) {
@@ -333,21 +356,9 @@ export class ProjectBoardChatViewPane extends ViewPane {
 			throw new Error(localize('kanban.chatNotRendered', "The Agents Hub chat side panel has not been rendered."));
 		}
 		this.clear();
-		const store = new DisposableStore();
-		const element = $('.project-board-chat-content');
-		store.add(toDisposable(() => element.remove()));
-		this.loading.value = { element, dispose: () => store.dispose() };
-		element.setAttribute('aria-busy', 'true');
-		element.setAttribute('role', 'region');
-		element.setAttribute('aria-label', localize('kanban.chatLoadingLabel', "Loading Agents Hub chat: {0}", card.chat.title.get()));
-		const header = append(element, $('.project-board-chat-header'));
-		append(header, $('h2.project-board-chat-title')).textContent = card.chat.title.get();
-		appendLoadingMessage(header);
-		const toolbar = store.add(this.instantiationService.createInstance(WorkbenchToolBar, append(header, $('.project-board-chat-actions')), { ariaLabel: localize('kanban.chatActions', "Chat actions") }));
-		toolbar.setActions([store.add(createCloseChatAction(onClose))]);
-		this.chatContainer.appendChild(element);
+		this.loading.value = createProjectBoardChatLoading(this.chatContainer, card, onClose, this.instantiationService);
 		if (this.dimensions) {
-			size(element, this.dimensions.width, this.dimensions.height);
+			size(this.loading.value.element, this.dimensions.width, this.dimensions.height);
 		}
 	}
 
@@ -407,8 +418,12 @@ export class ProjectBoardChatContent extends Disposable {
 		@IHoverService hoverService: IHoverService,
 		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 		@INotificationService notificationService: INotificationService,
+		@ICommandService commandService: ICommandService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@ILogService logService: ILogService,
 	) {
 		super();
+		card.container?.appendChild(this.element);
 		const currentSession = sessionsManagementService.getSession(card.session.resource);
 		if (currentSession?.providerId === card.session.providerId) {
 			this.card = this.replacementCard(currentSession);
@@ -427,6 +442,27 @@ export class ProjectBoardChatContent extends Disposable {
 		)));
 		this._register(autorun(reader => setActiveSessionContextKeys(session.read(reader), scopedContextKeyService, reader)));
 		const title = append(this.header, $('h2.project-board-chat-title'));
+		title.tabIndex = 0;
+		title.setAttribute('aria-haspopup', 'menu');
+		this._register(addDisposableListener(title, EventType.CONTEXT_MENU, event => {
+			event.preventDefault();
+			event.stopPropagation();
+			const action = createProjectBoardPeerChatAction(() => {
+				const current = sessionsManagementService.getSession(this.card.session.resource);
+				return !this._store.isDisposed && !this.chatResourceChanged && current?.providerId === this.card.session.providerId ? current : undefined;
+			}, commandService, logService, notificationService);
+			if (action) {
+				contextMenuService.showContextMenu({
+					getAnchor: () => title,
+					getActions: () => [action],
+					onHide: () => {
+						if (title.isConnected && title.ownerDocument.hasFocus()) {
+							title.focus({ preventScroll: true });
+						}
+					},
+				});
+			}
+		}));
 		this._register(autorun(reader => {
 			title.textContent = session.read(reader).activeChat.read(reader).title.read(reader);
 			this.element.setAttribute('aria-label', localize('kanban.chatLabel', "Agents Hub chat: {0}", title.textContent));
