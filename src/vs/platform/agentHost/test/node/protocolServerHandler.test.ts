@@ -40,7 +40,7 @@ import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomati
 import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type IRootConfigChangedAction, type ProgressParams, type SessionAction, type TerminalAction } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, AhpErrorCodes, AHP_UNSUPPORTED_PROTOCOL_VERSION, AHP_SESSION_NOT_FOUND, AHP_AUTH_REQUIRED, type AhpNotification, type InitializeResult, type ProtocolMessage, type JsonRpcResponse, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot, type SubscribeResult } from '../../common/state/sessionProtocol.js';
-import { ROOT_STATE_URI, AUTOMATION_CATALOG_URI, ChatInteractivity, ChatOriginKind, MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, readSessionExternal, readSessionWorkspaceless, withSessionExternal, withSessionWorkspaceless, type ChangesetState, type ChatState, type SessionState, type SessionSummary } from '../../common/state/sessionState.js';
+import { ROOT_STATE_URI, AUTOMATION_CATALOG_URI, ChatInteractivity, ChatOriginKind, MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, readSessionExternal, readSessionWorkspaceless, withSessionExternal, withSessionWorkspaceless, type AgentInfo, type ChangesetState, type ChatState, type RootState, type SessionState, type SessionSummary } from '../../common/state/sessionState.js';
 import { SessionInputRequestKind, TerminalClaimKind } from '../../common/state/protocol/state.js';
 import type { SessionAddedParams, SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
@@ -2509,6 +2509,142 @@ suite('ProtocolServerHandler', () => {
 			permissions: {},
 		});
 	});
+
+	for (const initiallyAuthenticated of [false, true]) {
+		test(`Mission Control model advertisements hide other agents in snapshots, live updates and replay (initially authenticated: ${initiallyAuthenticated})`, async () => {
+			const agents: AgentInfo[] = [
+				{ provider: 'codex', displayName: 'Codex', description: 'Codex agent', models: [{ id: 'shared-id', provider: 'codex', name: 'Shared name' }], protectedResources: [], capabilities: {} },
+				{ provider: 'copilotcli', displayName: 'Copilot', description: 'Copilot agent', models: [{ id: 'shared-id', provider: 'copilotcli', name: 'Shared name' }, { id: 'copilot-model', provider: 'copilotcli', name: 'Copilot model' }], protectedResources: [], capabilities: {} },
+				{ provider: 'claude', displayName: 'Claude', description: 'Claude agent', models: [{ id: 'claude-model', provider: 'claude', name: 'Claude model' }], protectedResources: [], capabilities: { multipleChats: {} } },
+			];
+			const project = (values: AgentInfo[]) => values.map(agent => agent.provider === 'copilotcli' ? agent : { ...agent, models: [] });
+			const rootAgents = (snapshot: IStateSnapshot | undefined) => {
+				assert.ok(snapshot && hasKey(snapshot.state, { agents: true }));
+				return snapshot.state.agents;
+			};
+			const snapshotFromResponse = (response: ProtocolMessage) => {
+				assert.ok(hasKey(response, { result: true }));
+				return (response.result as InitializeResult).snapshots.find(snapshot => snapshot.resource === ROOT_STATE_URI);
+			};
+			stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootAgentsChanged, agents });
+			const codexSession = 'ahp-session:/codex-conversation';
+			stateManager.createSession({ ...makeSessionSummary(codexSession), provider: 'codex' });
+			const relay = disposables.add(new MockProtocolServer());
+			const relayHandler = disposables.add(new ProtocolServerHandler(
+				agentService, stateManager, relay,
+				{ allowExtensionMethods: false, advertisedModelProviders: ['copilotcli'] },
+				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+			));
+			const connectRelay = () => {
+				const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'model-relay', false, AgentHostClientConnectionKind.WebPubSub));
+				transport.relayAuthenticated = true;
+				relay.simulateConnection(transport);
+				return transport;
+			};
+			const transport = connectRelay();
+			transport.relayAuthenticated = initiallyAuthenticated;
+			const initialPromise = waitForResponse(transport, 1);
+			transport.simulateMessage(request(1, 'initialize', {
+				clientId: 'model-relay', protocolVersions: [PROTOCOL_VERSION], initialSubscriptions: [ROOT_STATE_URI],
+			}));
+			const initial = await initialPromise;
+			assert.deepStrictEqual(rootAgents(snapshotFromResponse(initial)), project(agents));
+			transport.relayAuthenticated = true;
+			const subscribedPromise = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'subscribe', { channel: ROOT_STATE_URI }));
+			const subscribed = await subscribedPromise;
+			assert.ok(hasKey(subscribed, { result: true }));
+			assert.deepStrictEqual(rootAgents((subscribed.result as SubscribeResult).snapshot), project(agents));
+			const sessionPromise = waitForResponse(transport, 3);
+			transport.simulateMessage(request(3, 'subscribe', { channel: codexSession }));
+			const sessionSnapshot = await sessionPromise;
+			assert.ok(hasKey(sessionSnapshot, { result: true }));
+			const subscribedSession = (sessionSnapshot.result as SubscribeResult).snapshot;
+			assert.ok(subscribedSession);
+			assert.strictEqual((subscribedSession.state as SessionState).provider, 'codex');
+
+			const local = disposables.add(connectClient('model-local', [ROOT_STATE_URI]));
+			const localInitial = findResponse(local.sent, 1);
+			assert.ok(localInitial);
+			assert.deepStrictEqual(rootAgents(snapshotFromResponse(localInitial)), agents);
+			const updated = agents.map(agent => ({
+				...agent, models: [...agent.models, { id: `${agent.provider}-new`, provider: agent.provider, name: 'New model' }],
+			}));
+			transport.sent.length = 0;
+			local.sent.length = 0;
+			stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootAgentsChanged, agents: updated });
+			const live = findNotifications(transport.sent, 'action').map(notification => notification.params as ActionEnvelope)
+				.find(envelope => envelope.action.type === ActionType.RootAgentsChanged);
+			const localLive = findNotifications(local.sent, 'action').map(notification => notification.params as ActionEnvelope)
+				.find(envelope => envelope.action.type === ActionType.RootAgentsChanged);
+			assert.ok(live?.action.type === ActionType.RootAgentsChanged && localLive?.action.type === ActionType.RootAgentsChanged);
+			assert.deepStrictEqual({
+				remoteAgents: live.action.agents, localAgents: localLive.action.agents,
+				authoritative: (stateManager.getSnapshot(ROOT_STATE_URI)?.state as RootState).agents,
+			}, { remoteAgents: project(updated), localAgents: updated, authoritative: updated });
+
+			const cursor = stateManager.serverSeq;
+			transport.simulateClose();
+			const withoutCopilot = updated.filter(agent => agent.provider !== 'copilotcli');
+			stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootAgentsChanged, agents: withoutCopilot });
+			const replayTransport = connectRelay();
+			const replayPromise = waitForResponse(replayTransport, 4);
+			replayTransport.simulateMessage(request(4, 'reconnect', {
+				clientId: 'model-relay', lastSeenServerSeq: cursor, subscriptions: [ROOT_STATE_URI],
+			}));
+			const replay = await replayPromise;
+			assert.ok(hasKey(replay, { result: true }));
+			const replayResult = replay.result as ReconnectResult;
+			assert.strictEqual(replayResult.type, 'replay');
+			if (replayResult.type !== 'replay') {
+				assert.fail('Expected buffered model advertisements');
+			}
+			const replayed = replayResult.actions.find(envelope => envelope.action.type === ActionType.RootAgentsChanged);
+			assert.ok(replayed?.action.type === ActionType.RootAgentsChanged);
+			assert.deepStrictEqual(replayed.action.agents, project(withoutCopilot));
+			await relayHandler.whenIdle();
+			replayTransport.simulateClose();
+
+			const snapshotTransport = connectRelay();
+			const snapshotPromise = waitForResponse(snapshotTransport, 5);
+			snapshotTransport.simulateMessage(request(5, 'reconnect', {
+				clientId: 'model-relay', lastSeenServerSeq: -1, subscriptions: [ROOT_STATE_URI],
+			}));
+			const reconnect = await snapshotPromise;
+			assert.ok(hasKey(reconnect, { result: true }));
+			const reconnectResult = reconnect.result as ReconnectResult;
+			assert.strictEqual(reconnectResult.type, 'snapshot');
+			if (reconnectResult.type !== 'snapshot') {
+				assert.fail('Expected fresh model advertisement snapshot');
+			}
+			assert.deepStrictEqual(rootAgents(reconnectResult.snapshots.find(snapshot => snapshot.resource === ROOT_STATE_URI)), project(withoutCopilot));
+			local.simulateClose();
+		});
+	}
+
+	for (const kind of [AgentHostClientConnectionKind.Local, AgentHostClientConnectionKind.SSH, AgentHostClientConnectionKind.DevTunnel]) {
+		test(`model advertisements preserve all providers on ${kind} connections`, () => {
+			const agents: AgentInfo[] = ['copilotcli', 'codex', 'claude'].map(provider => ({
+				provider, displayName: provider, description: provider,
+				models: [{ id: 'shared-model', provider, name: 'Shared model' }],
+			}));
+			stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootAgentsChanged, agents });
+			const transport = disposables.add(connectClient(`models-${kind}`, [ROOT_STATE_URI], editorWindowAgentHostClientInfo,
+				{ 'vscode.clientConnectionKind': kind }, kind === AgentHostClientConnectionKind.Local ? AgentHostTransportKind.MessagePort : AgentHostTransportKind.WebSocket));
+			const response = findResponse(transport.sent, 1);
+			assert.ok(response && hasKey(response, { result: true }));
+			assert.deepStrictEqual(((response.result as InitializeResult).snapshots.find(snapshot => snapshot.resource === ROOT_STATE_URI)?.state as RootState).agents, agents);
+			transport.sent.length = 0;
+			const withoutCopilot = agents.filter(agent => agent.provider !== 'copilotcli');
+			stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootAgentsChanged, agents: withoutCopilot });
+			const live = findNotifications(transport.sent, 'action').map(notification => notification.params as ActionEnvelope)
+				.find(envelope => envelope.action.type === ActionType.RootAgentsChanged);
+			assert.ok(live?.action.type === ActionType.RootAgentsChanged);
+			assert.deepStrictEqual(live.action.agents, withoutCopilot);
+			transport.simulateClose();
+		});
+	}
 
 	test('pre-authentication root snapshots omit host configuration and MCP notifications', async () => {
 		stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { mcpServers: { private: { env: { SECRET: 'test-private-secret' } } } } });

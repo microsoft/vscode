@@ -66,7 +66,7 @@ import {
 	type ListSessionsResult,
 	type DispatchActionParams,
 } from '../common/state/sessionProtocol.js';
-import { isAhpRootChannel, isAhpAutomationCatalogChannel, isAhpResourceWatchChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, isAhpChatChannel, parseChatUri, parseRequiredSessionUriFromChatUri, withSessionStatusFlag, type ISessionWithDefaultChat, type SessionState } from '../common/state/sessionState.js';
+import { isAhpRootChannel, isAhpAutomationCatalogChannel, isAhpResourceWatchChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, isAhpChatChannel, parseChatUri, parseRequiredSessionUriFromChatUri, withSessionStatusFlag, type ISessionWithDefaultChat, type RootState, type SessionState } from '../common/state/sessionState.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
 import { IAgentHostManagedSettingsService } from './agentHostManagedSettingsService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
@@ -366,6 +366,8 @@ export interface IProtocolServerConfig {
 	/** Restricts experimental relay clients to explicitly granted local roots. */
 	readonly relayRoots?: readonly string[];
 	readonly relayRootMeta?: Record<string, unknown>;
+	/** When set, only these providers' model lists are advertised on this server's ingress. */
+	readonly advertisedModelProviders?: readonly string[];
 	/** Locally known workspace/content roots exposed by the Mission Control host. */
 	readonly relayResourceRoots?: (readOnly: boolean) => readonly string[];
 	/** Copilot-compatible data-plane extensions on the native Mission Control listener. */
@@ -2354,6 +2356,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	private _projectRelayRootSnapshot(client: IConnectedClient, snapshot: IStateSnapshot): IStateSnapshot {
+		snapshot = this._projectModelSnapshot(snapshot);
 		if (client.transport.relayClientId === undefined || !isAhpRootChannel(snapshot.resource) || !hasKey(snapshot.state, { agents: true })) {
 			return snapshot;
 		}
@@ -2382,7 +2385,8 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	private _getSnapshot(channel: string): IStateSnapshot | undefined {
-		const snapshot = this._stateManager.getSnapshot(channel);
+		const source = this._stateManager.getSnapshot(channel);
+		const snapshot = source && this._projectModelSnapshot(source);
 		if (snapshot && (this._config.relayRootMeta || this._config.copilotProjects) && isAhpRootChannel(channel) && hasKey(snapshot.state, { agents: true })) {
 			return {
 				...snapshot, state: {
@@ -2394,6 +2398,18 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			};
 		}
 		return snapshot;
+	}
+
+	private _projectModelSnapshot(snapshot: IStateSnapshot): IStateSnapshot {
+		if (!this._config.advertisedModelProviders || !isAhpRootChannel(snapshot.resource) || !hasKey(snapshot.state, { agents: true })) {
+			return snapshot;
+		}
+		return { ...snapshot, state: { ...snapshot.state, agents: this._projectAgentModels(snapshot.state.agents) } };
+	}
+
+	private _projectAgentModels(agents: RootState['agents']): RootState['agents'] {
+		const providers = this._config.advertisedModelProviders;
+		return providers ? agents.map(agent => providers.includes(agent.provider) ? agent : { ...agent, models: [] }) : agents;
 	}
 
 	private _requireRelayMutation(client: IConnectedClient): void {
@@ -2776,6 +2792,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	// ---- Broadcasting -------------------------------------------------------
 
 	private _recordAndBroadcastAction(envelope: ActionEnvelope): void {
+		if (this._config.advertisedModelProviders && envelope.action.type === ActionType.RootAgentsChanged) {
+			envelope = { ...envelope, action: { ...envelope.action, agents: this._projectAgentModels(envelope.action.agents) } };
+		}
 		this._replayBuffer.push(envelope);
 		if (this._replayBuffer.length > REPLAY_BUFFER_CAPACITY) {
 			this._replayBuffer.shift();
