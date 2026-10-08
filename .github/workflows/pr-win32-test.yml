@@ -232,13 +232,21 @@ jobs:
         run: .\build\azure-pipelines\win32\listprocesses.bat
         continue-on-error: true
 
+      - name: 🧪 Run Agent Host E2E tests (Electron)
+        if: ${{ inputs.electron_tests && inputs.integration_tests && steps.agent-host-e2e-changes.outputs.affected != 'false' }}
+        timeout-minutes: 30
+        shell: pwsh
+        run: node .\test\integration\agentHost\runner.ts --tfs "Agent Host E2E"
+        env:
+          VSCODE_SKIP_PRELAUNCH: '1'
+
       - name: 🧪 Run integration tests (Electron)
         if: ${{ inputs.electron_tests && inputs.integration_tests }}
         timeout-minutes: 30
         shell: pwsh
         run: .\scripts\test-integration.bat --tfs "Integration Tests"
         env:
-          VSCODE_SKIP_AGENT_HOST_E2E: ${{ steps.agent-host-e2e-changes.outputs.affected == 'false' && '1' || '0' }}
+          VSCODE_SKIP_AGENT_HOST_E2E: '1'
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run integration tests (Browser, Chromium)

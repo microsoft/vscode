@@ -33,6 +33,8 @@ AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run src/vs/platfor
 
 Plugin hook fixtures run their `.cjs` helper scripts with the Node executable supplied by npm (`npm_node_execpath`), or `node` from the pinned development toolchain's `PATH` when invoking the shell scripts directly. The Electron test process's `process.execPath` is not used for these shell commands: it would start Chromium, require a GUI sandbox, and generate unnecessary background network traffic.
 
+GitHub PR validation runs the complete Agent Host E2E runner in its own Electron step when Agent Host inputs are affected, followed by the remaining integration tests with `VSCODE_SKIP_AGENT_HOST_E2E=1`. The two steps retain their platform-specific deadlines and cover disjoint suites; Linux retains both its tmpfs and disk-backed lifecycle passes.
+
 ---
 
 ## Mental model
