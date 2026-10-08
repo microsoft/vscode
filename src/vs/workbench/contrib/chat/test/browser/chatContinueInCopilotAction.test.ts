@@ -43,7 +43,7 @@ suite('Continue in Copilot policy recovery', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	for (const sidebar of [false, true]) {
-		for (const scenario of ['local', SessionType.AgentHostClaude, SessionType.AgentHostCodex, 'empty', 'unavailable', 'prepare-failed', 'import-failed', 'import-missing', 'open-failed', 'open-cancelled', 'double-click', 'archived', 'unresolved-history', 'missing-history', 'cancelled', 'in-progress']) {
+		for (const scenario of ['local', SessionType.AgentHostClaude, SessionType.AgentHostCodex, 'empty', 'unavailable', 'prepare-failed', 'import-failed', 'import-missing', 'open-failed', 'open-cancelled', 'double-click', 'archived', 'unresolved-history', 'missing-history', 'cancelled', 'in-progress', 'hidden', 'switched', 'hidden-during-preparation']) {
 			test(`preserves draft and does not send for ${scenario} in ${sidebar ? 'panel' : 'editor'}`, async () => {
 				const services = store.add(new TestInstantiationService());
 				const imports = new AgentHostImportConversationStore();
@@ -59,6 +59,7 @@ suite('Continue in Copilot policy recovery', () => {
 				const model = upcastPartial<IChatModel>({ sessionResource: source, getRequests: () => scenario === 'empty' ? [] : [request], requestInProgress: constObservable(scenario === 'in-progress') });
 				const attachment = { kind: 'file' as const, id: 'file', name: 'example.txt', value: URI.file('/workspace/example.txt') };
 				const widget = upcastPartial<IChatWidget>({
+					visible: true,
 					viewModel: upcastPartial<ChatViewModel>({ sessionResource: source, model }),
 					viewContext: sidebar ? { viewId: ChatViewId } : {},
 					input: upcastPartial<ChatInputPart>({
@@ -116,6 +117,11 @@ suite('Continue in Copilot policy recovery', () => {
 						if (scenario === 'cancelled') {
 							throw new CancellationError();
 						}
+						if (scenario === 'hidden') {
+							Object.defineProperty(widget, 'visible', { value: false });
+						} else if (scenario === 'switched') {
+							Object.defineProperty(widget, 'viewModel', { value: undefined });
+						}
 						return scenario !== 'unavailable';
 					},
 					createNewChatSessionItem: async (_type, request) => {
@@ -134,7 +140,13 @@ suite('Continue in Copilot policy recovery', () => {
 					notifySessionMaterialized: () => { },
 				});
 				services.stub(IAgentHostUntitledProvisionalSessionService, {
-					getOrCreate: async () => { preparation.push('prepare'); return scenario === 'prepare-failed' ? undefined : real; },
+					getOrCreate: async () => {
+						preparation.push('prepare');
+						if (scenario === 'hidden-during-preparation') {
+							Object.defineProperty(widget, 'visible', { value: false });
+						}
+						return scenario === 'prepare-failed' ? undefined : real;
+					},
 					get: () => real,
 					disposeSession: async () => { preparation.push('release draft'); },
 					releaseSession: () => { preparation.push('retain imported session'); },
@@ -182,6 +194,15 @@ suite('Continue in Copilot policy recovery', () => {
 						opening.complete();
 					}
 					await duplicate;
+				}
+				if (scenario === 'hidden' || scenario === 'switched' || scenario === 'hidden-during-preparation') {
+					await assert.rejects(run, CancellationError);
+					assertTelemetry('cancelled');
+					assert.deepStrictEqual({ target, archived, draft, preparation }, {
+						target: undefined, archived: false, draft: undefined,
+						preparation: scenario === 'hidden-during-preparation' ? ['prepare', 'release draft'] : [],
+					});
+					return;
 				}
 				if (scenario === 'unavailable' || scenario === 'prepare-failed' || scenario === 'import-failed' || scenario === 'import-missing' || scenario === 'open-failed' || scenario === 'open-cancelled' || scenario === 'archived' || scenario === 'missing-history' || scenario === 'cancelled' || scenario === 'in-progress') {
 					const error = scenario === 'import-failed' ? /Import rejected/

@@ -2156,6 +2156,37 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.setReadOnly(model.isReadOnly.read(reader) || policyRequired, !policyRequired && model.isInputBlocked.read(reader));
 	}
 
+	private autoMigrateLocalSession(model: IChatModel, archived: IObservable<boolean>): IDisposable {
+		if (model.initialLocation !== ChatAgentLocation.Chat || !isLocalChatSessionSubjectToManagedPolicy(model.sessionResource, model.initialLocation)) {
+			return Disposable.None;
+		}
+		let attempted = false;
+		return autorun(reader => {
+			if (attempted || !this._visible.read(reader) || !this.policyRequiresAgentHost.read(reader) || archived.read(reader) || model.requestInProgress.read(reader) || !model.hasRequests) {
+				return;
+			}
+			// Let the widget finish binding the transcript and restoring the draft first.
+			reader.store.add(disposableTimeout(async () => {
+				attempted = true;
+				this.readOnlyBanner?.setMessage(localize('chatReadOnlyBanner.movingToCopilot', "Moving this chat to Copilot…"));
+				try {
+					await this.readOnlyBanner?.runAction();
+				} catch (error) {
+					if (isCancellationError(error)) {
+						if (this.viewModel?.model === model) {
+							this.setReadOnly(this._readOnly);
+						}
+					} else {
+						this.logService.error('Failed to automatically move Local chat to Copilot', error);
+						if (this.viewModel?.model === model) {
+							this.readOnlyBanner?.setMessage(localize('chatReadOnlyBanner.moveFailed', "Couldn't move this chat to Copilot. Use Move to Copilot to try again."));
+						}
+					}
+				}
+			}, 0));
+		});
+	}
+
 	/**
 	 * Applies the renderer's `editable` option, forcing it off while the chat is
 	 * read-only so the lock/unlock transitions can never re-enable request
@@ -2957,6 +2988,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (!this.viewOptions.isSessionsWindow) {
 			const archived = this.observeLocalSessionArchived(model);
 			this.viewModelDisposables.add(autorun(reader => this.updateReadOnlyState(model, archived.read(reader), reader)));
+			this.viewModelDisposables.add(this.autoMigrateLocalSession(model, archived));
 		}
 
 		this.listWidget.setViewModel(this.viewModel);
