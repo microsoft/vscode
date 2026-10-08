@@ -74,6 +74,10 @@ class MockProtocolTransport implements IProtocolTransport {
 	get relayClientId(): string | undefined { return this.clientId; }
 	get relayPassive(): boolean | undefined { return this.passive; }
 	relayAuthenticated: boolean | undefined;
+	relayAuthenticationResource = 'https://api.github.com';
+	get relayAuthentication(): IProtocolTransport['relayAuthentication'] {
+		return this.relayAuthenticated === undefined ? undefined : { authenticated: this.relayAuthenticated, resource: this.relayAuthenticationResource };
+	}
 	relayAuthenticate?: IProtocolTransport['relayAuthenticate'];
 
 	isDisposed = false;
@@ -2358,14 +2362,101 @@ suite('ProtocolServerHandler', () => {
 		}
 		transport.simulateMessage(notification('dispatchAction', { channel: sessionUri, clientSeq: 2, action: { type: ActionType.SessionTitleChanged, title: 'Must not change' } }));
 		await handler.whenIdle();
-		const denied = transport.sent.filter(isJsonRpcResponse).filter(message => message.id !== 1).map(message => hasKey(message, { error: true }) ? message.error.code : undefined);
+		const denied = transport.sent.filter(isJsonRpcResponse).filter(message => message.id !== 1).map(message => hasKey(message, { error: true }) ? message.error : undefined);
 		assert.deepStrictEqual({ denied, dispatched: agentService.handledActions, created: agentService.createSessionConfigs.length }, {
-			denied: Array(8).fill(AHP_AUTH_REQUIRED), dispatched: [], created: 0,
+			denied: Array(8).fill({
+				code: AHP_AUTH_REQUIRED,
+				message: 'Relay identity authentication is required',
+				data: { resources: [{ resource: 'https://api.github.com', required: true }] },
+			}), dispatched: [], created: 0,
 		});
 		transport.relayAuthenticated = true;
 		transport.simulateMessage(request(10, 'dispatchAction', { channel: sessionUri, clientSeq: 3, action: { type: ActionType.SessionTitleChanged, title: 'Authorized' } }));
 		await handler.whenIdle();
 		assert.strictEqual(stateManager.getSessionState(sessionUri)?.title, 'Authorized');
+	});
+
+	test('relay identity errors advertise the owning authority without requiring a Copilot provider', async () => {
+		stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootAgentsChanged, agents: [] });
+		const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'enterprise-relay', true));
+		transport.relayAuthenticated = false;
+		transport.relayAuthenticationResource = 'https://api.enterprise.example';
+		server.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', { clientId: 'enterprise-relay', protocolVersions: [PROTOCOL_VERSION] }));
+		transport.simulateMessage(request(2, 'listSessions', {}));
+		await handler.whenIdle();
+		assert.deepStrictEqual(findResponse(transport.sent, 2), {
+			jsonrpc: '2.0', id: 2, error: {
+				code: AHP_AUTH_REQUIRED,
+				message: 'Relay identity authentication is required',
+				data: { resources: [{ resource: 'https://api.enterprise.example', required: true }] },
+			},
+		});
+	});
+
+	test('active relay identity authentication succeeds without provider acceptance and admits session listing', async () => {
+		stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootAgentsChanged, agents: [] });
+		const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'enterprise-relay', false));
+		transport.relayAuthenticated = false;
+		transport.relayAuthenticationResource = 'https://api.enterprise.example';
+		transport.relayAuthenticate = async params => {
+			transport.relayAuthenticated = true;
+			return { resource: params.resource, token: 'verified-owner-token' };
+		};
+		const forwarded: AuthenticateParams[] = [];
+		agentService.authenticate = async params => {
+			forwarded.push(params);
+			return { authenticated: false };
+		};
+		server.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', { clientId: 'enterprise-relay', protocolVersions: [PROTOCOL_VERSION] }));
+		transport.simulateMessage(request(2, 'listSessions', {}));
+		transport.simulateMessage(request(3, 'authenticate', {
+			resource: transport.relayAuthenticationResource, token: 'copilot-sealed.v1.test.owner-token',
+		}));
+		await handler.whenIdle();
+		transport.simulateMessage(request(4, 'listSessions', {}));
+		await handler.whenIdle();
+		assert.deepStrictEqual({
+			before: findResponse(transport.sent, 2),
+			authentication: findResponse(transport.sent, 3),
+			after: findResponse(transport.sent, 4),
+			forwarded,
+		}, {
+			before: {
+				jsonrpc: '2.0', id: 2, error: {
+					code: AHP_AUTH_REQUIRED,
+					message: 'Relay identity authentication is required',
+					data: { resources: [{ resource: transport.relayAuthenticationResource, required: true }] },
+				}
+			},
+			authentication: { jsonrpc: '2.0', id: 3, result: {} },
+			after: { jsonrpc: '2.0', id: 4, result: { items: [] } },
+			forwarded: [{ resource: transport.relayAuthenticationResource, token: 'verified-owner-token' }],
+		});
+	});
+
+	test('authenticated relay identity does not substitute for provider or MCP resource authentication', async () => {
+		const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'relay-client', false));
+		transport.relayAuthenticated = true;
+		transport.relayAuthenticate = async params => ({ ...params, token: 'opened-mcp-token' });
+		const forwarded: AuthenticateParams[] = [];
+		agentService.authenticate = async params => {
+			forwarded.push(params);
+			return { authenticated: false };
+		};
+		server.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', { clientId: 'relay-client', protocolVersions: [PROTOCOL_VERSION] }));
+		transport.simulateMessage(request(2, 'authenticate', { resource: 'https://mcp.example.test', token: 'copilot-sealed.v1.test.mcp-token' }));
+		await handler.whenIdle();
+		const response = findResponse(transport.sent, 2);
+		assert.deepStrictEqual({
+			code: response && hasKey(response, { error: true }) ? response.error.code : undefined,
+			forwarded,
+		}, {
+			code: AHP_AUTH_REQUIRED,
+			forwarded: [{ resource: 'https://mcp.example.test', token: 'opened-mcp-token' }],
+		});
 	});
 
 	test('relay authentication forwards a delegated credential internally without publishing it to clients', async () => {

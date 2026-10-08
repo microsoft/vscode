@@ -249,6 +249,10 @@ export class MissionControlAuthentication {
 		return this._authenticated && !this._closed && this._isCurrentIdentityAuthority();
 	}
 
+	get resource(): string {
+		return this._apiOrigin;
+	}
+
 	dispose(): void {
 		this._closed = true;
 		this._generation++;
