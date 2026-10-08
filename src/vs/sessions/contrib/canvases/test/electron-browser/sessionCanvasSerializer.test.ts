@@ -8,14 +8,17 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { ISessionCanvasService, SessionCanvasInput } from '../../common/sessionCanvas.js';
+import { CanvasInput, ICanvasService } from '../../../../../workbench/contrib/canvases/common/canvas.js';
+import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { SessionCanvasSerializer } from '../../electron-browser/sessionCanvasSerializer.js';
 
 suite('SessionCanvasSerializer', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createHarness() {
-		const input = store.add(new SessionCanvasInput({
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IEditorGroupsService, {});
+		const input = store.add(instantiationService.createInstance(CanvasInput, {
 			providerId: 'host-advertised-provider',
 			session: URI.parse('opaque-session:/exact'),
 			chat: URI.parse('opaque-chat:/exact'),
@@ -29,8 +32,7 @@ suite('SessionCanvasSerializer', () => {
 		input.setSerializationId('runtime-capability');
 		const requests: string[] = [];
 		const warnings: string[] = [];
-		const instantiationService = store.add(new TestInstantiationService());
-		instantiationService.stub(ISessionCanvasService, {
+		instantiationService.stub(ICanvasService, {
 			restoreCanvasInput: serializationId => {
 				requests.push(serializationId);
 				return input;
@@ -69,8 +71,8 @@ suite('SessionCanvasSerializer', () => {
 	});
 
 	test('does not serialize a presentation before its live open is admitted', () => {
-		const { input, serializer } = createHarness();
-		const pending = store.add(new SessionCanvasInput(input.reference, input.canvas.get()));
+		const { input, instantiationService, serializer } = createHarness();
+		const pending = store.add(instantiationService.createInstance(CanvasInput, input.reference, input.canvas.get()));
 
 		assert.strictEqual(serializer.serialize(pending), undefined);
 	});
@@ -102,7 +104,7 @@ suite('SessionCanvasSerializer', () => {
 
 	test('a valid capability has no authority in a fresh service instance', () => {
 		const { input, instantiationService, serializer } = createHarness();
-		instantiationService.stub(ISessionCanvasService, { restoreCanvasInput: () => undefined });
+		instantiationService.stub(ICanvasService, { restoreCanvasInput: () => undefined });
 
 		assert.strictEqual(serializer.deserialize(instantiationService, serializer.serialize(input)!), undefined);
 	});

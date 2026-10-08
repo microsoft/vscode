@@ -25,6 +25,12 @@ import { MissionControlSessionMirror } from '../../node/missionControl/missionCo
 import { NullLogService } from '../../../log/common/log.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
+import { AhpJsonlLogger, isAhpLogFileFor } from '../../common/ahpJsonlLogger.js';
+import { MISSION_CONTROL_AHP_LOG_ID } from '../../common/missionControlEnvironment.js';
+import { FileService } from '../../../files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { URI } from '../../../../base/common/uri.js';
+import { basename } from '../../../../base/common/resources.js';
 
 const prefix = 'user.owner.env.environment';
 const order = BigInt('0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551');
@@ -354,6 +360,76 @@ suite('Mission Control WPS', () => {
 		assert.ok(Number.isSafeInteger(frames[0].generation));
 		assert.notStrictEqual(frames[0].generation, frames[2].generation);
 		assert.strictEqual(lanes.length, 2);
+	});
+
+	test('records incoming and outgoing AHP traffic and errors per client and connection generation', async () => {
+		const { key, signed } = signingFixture();
+		const socket = new FakeWpsSocket();
+		const log = new NullLogService();
+		const files = store.add(new FileService(log));
+		store.add(files.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
+		const loggers: AhpJsonlLogger[] = [];
+		const generations: string[] = [];
+		const disposals: sinon.SinonSpy[] = [];
+		const lanes: IProtocolTransport[] = [];
+		const failure = { code: -32603, message: 'ENOENT: no such file or directory, realpath \'/missing/worktree\'' };
+		const server = store.add(new MissionControlProtocolServer(
+			{ url: 'ws://127.0.0.1/fake', access_token: 'fake-token', groups: { control: `${prefix}.control` } },
+			'owner', 'environment', new MissionControlControlVerifier('environment', 'owner', [key]), () => socket,
+			undefined, undefined, undefined, undefined,
+			(clientId, generation) => {
+				const connectionId = `${clientId}-${generation}`;
+				generations.push(connectionId);
+				const logger = new AhpJsonlLogger({
+					logsHome: URI.file('/logs'), logId: MISSION_CONTROL_AHP_LOG_ID, connectionId, transport: 'mission-control',
+				}, files, log);
+				const dispose = sinon.spy(logger, 'dispose');
+				disposals.push(dispose);
+				store.add({ dispose: () => dispose.restore() });
+				loggers.push(logger);
+				return logger;
+			},
+		));
+		store.add(server.onConnection(lane => {
+			lanes.push(lane);
+			store.add(lane.onMessage(message => {
+				if (hasKey(message, { id: true })) {
+					lane.send({ jsonrpc: '2.0', id: message.id, error: failure });
+				}
+			}));
+		}));
+		const ready = server.connect();
+		socket.emit('message', JSON.stringify({ type: 'system', event: 'connected' }));
+		await ready;
+		let sequence = 0;
+		for (const clientId of ['client-a', 'client-b']) {
+			socket.deliver(`${prefix}.control`, signed(clientId, clientId), ++sequence);
+			socket.deliver(`${prefix}.client.${clientId}.to-host`, { jsonrpc: '2.0', id: sequence, method: 'initialize', params: { clientId } }, ++sequence);
+		}
+		lanes[0].dispose();
+		socket.deliver(`${prefix}.client.client-a.to-host`, { jsonrpc: '2.0', id: 5, method: 'reconnect', params: { clientId: 'client-a' } }, ++sequence);
+		await Promise.all(loggers.map(logger => logger.flush()));
+		const records = await Promise.all(loggers.map(async logger => {
+			const text = (await files.readFile(logger.resource)).value.toString();
+			return text.trim().split('\n').map(line => JSON.parse(line));
+		}));
+		server.dispose();
+		assert.deepStrictEqual({
+			directions: records.map(entries => entries.map(entry => entry._ahpLog.dir)),
+			methods: records.map(entries => entries[0].method),
+			errors: records.map(entries => entries[1].error),
+			connectionIdsMatch: records.every((entries, index) => entries.every(entry => entry._ahpLog.connectionId === generations[index] && entry._ahpLog.transport === 'mission-control')),
+			separateGenerations: new Set(generations).size,
+			exportable: loggers.every(logger => isAhpLogFileFor(MISSION_CONTROL_AHP_LOG_ID, basename(logger.resource))),
+			publishedResponses: socket.publishes.filter(frame => frame.data.kind === 'message').map(frame => frame.data.data),
+			disposed: disposals.every(dispose => dispose.calledOnce),
+		}, {
+			directions: [['c2s', 's2c'], ['c2s', 's2c'], ['c2s', 's2c']],
+			methods: ['initialize', 'initialize', 'reconnect'],
+			errors: [failure, failure, failure],
+			connectionIdsMatch: true, separateGenerations: 3, exportable: true,
+			publishedResponses: [1, 3, 5].map(id => ({ jsonrpc: '2.0', id, error: failure })), disposed: true,
+		});
 	});
 
 	test('reclaims a silent lane after the advertised window without a closure notice', async () => {

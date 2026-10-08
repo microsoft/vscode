@@ -91,6 +91,7 @@ import { DevContainerAgentHostProtocol } from './devContainerAgentHostProtocol.j
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import type { AuthRequiredErrorData } from '../common/state/protocol/common/errors.js';
 import type { MissionControlProjects } from './missionControl/missionControlProjects.js';
+import { fromMissionControlConfigValues, toMissionControlConfigValues, toMissionControlSessionConfig } from './missionControl/missionControlSessionConfig.js';
 
 /** Default capacity of the server-side action replay buffer. */
 const REPLAY_BUFFER_CAPACITY = 1000;
@@ -368,6 +369,8 @@ export interface IProtocolServerConfig {
 	readonly relayRootMeta?: Record<string, unknown>;
 	/** When set, only these providers' model lists are advertised on this server's ingress. */
 	readonly advertisedModelProviders?: readonly string[];
+	/** Publishes the Copilot Host session approvals vocabulary on Mission Control. */
+	readonly copilotSessionConfig?: boolean;
 	/** Locally known workspace/content roots exposed by the Mission Control host. */
 	readonly relayResourceRoots?: (readOnly: boolean) => readonly string[];
 	/** Copilot-compatible data-plane extensions on the native Mission Control listener. */
@@ -1759,7 +1762,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					_meta: _client.clientInfo ? withSessionInitiator(params._meta, _client.clientInfo) : params._meta,
 					workingDirectories: params.workingDirectories?.map(d => URI.parse(d)),
 					session: URI.parse(params.channel),
-					config: params.config,
+					config: this._config.copilotSessionConfig ? fromMissionControlConfigValues(params.config) : params.config,
 					activeClient: params.activeClient,
 					progressToken: params.progressToken,
 				});
@@ -1903,18 +1906,19 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			return this._agentService.fetchAutomationRuns(params);
 		},
 		resolveSessionConfig: async (_client, params) => {
-			return this._agentService.resolveSessionConfig({
+			const result = await this._agentService.resolveSessionConfig({
 				provider: params.provider,
 				workingDirectory: params.workingDirectory ? URI.parse(params.workingDirectory) : undefined,
-				config: params.config,
+				config: this._config.copilotSessionConfig ? fromMissionControlConfigValues(params.config) : params.config,
 			});
+			return this._config.copilotSessionConfig ? toMissionControlSessionConfig(result) : result;
 		},
 		sessionConfigCompletions: async (_client, params) => {
 			return this._agentService.sessionConfigCompletions({
 				provider: params.provider,
 				workingDirectory: params.workingDirectory ? URI.parse(params.workingDirectory) : undefined,
-				config: params.config,
-				property: params.property,
+				config: this._config.copilotSessionConfig ? fromMissionControlConfigValues(params.config) : params.config,
+				property: this._config.copilotSessionConfig && params.property === 'approvalMode' ? 'autoApprove' : params.property,
 				query: params.query,
 			});
 		},
@@ -2203,7 +2207,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	private async _dispatchClientActionNow(client: IConnectedClient, params: DispatchActionParams, checkAuthorization: () => void): Promise<void> {
 		checkAuthorization();
 		this._logService.trace(`[ProtocolServer] dispatchAction: ${JSON.stringify(params.action.type)}`);
-		const action = params.action;
+		let action = params.action;
 		const origin = { clientId: client.clientId, clientSeq: params.clientSeq };
 		let rejection: string | undefined;
 		if (client.transport.relayAuthentication?.authenticated === false) {
@@ -2231,6 +2235,16 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			return;
 		}
 		checkAuthorization();
+		if (!rejection && this._config.copilotSessionConfig && action.type === ActionType.SessionConfigChanged) {
+			try {
+				action = { ...action, config: fromMissionControlConfigValues(action.config) };
+			} catch (error) {
+				if (!(error instanceof ProtocolError)) {
+					throw error;
+				}
+				rejection = error.message;
+			}
+		}
 		if (rejection) {
 			this._logService.warn(`[ProtocolServer] rejecting client action: ${rejection}`);
 			this._stateManager.rejectClientAction(params.channel, action, origin, rejection);
@@ -2407,7 +2421,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	private _projectRelayRootSnapshot(client: IConnectedClient, snapshot: IStateSnapshot): IStateSnapshot {
-		snapshot = this._projectModelSnapshot(snapshot);
+		snapshot = this._projectSnapshot(snapshot);
 		if (client.transport.relayClientId === undefined || !isAhpRootChannel(snapshot.resource) || !hasKey(snapshot.state, { agents: true })) {
 			return snapshot;
 		}
@@ -2453,7 +2467,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 
 	private _getSnapshot(channel: string): IStateSnapshot | undefined {
 		const source = this._stateManager.getSnapshot(channel);
-		const snapshot = source && this._projectModelSnapshot(source);
+		const snapshot = source && this._projectSnapshot(source);
 		if (snapshot && (this._config.relayRootMeta || this._config.copilotProjects) && isAhpRootChannel(channel) && hasKey(snapshot.state, { agents: true })) {
 			return {
 				...snapshot, state: {
@@ -2467,7 +2481,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		return snapshot;
 	}
 
-	private _projectModelSnapshot(snapshot: IStateSnapshot): IStateSnapshot {
+	private _projectSnapshot(snapshot: IStateSnapshot): IStateSnapshot {
+		if (this._config.copilotSessionConfig && hasKey(snapshot.state, { chats: true }) && snapshot.state.config) {
+			snapshot = { ...snapshot, state: { ...snapshot.state, config: toMissionControlSessionConfig(snapshot.state.config) } };
+		}
 		if (!this._config.advertisedModelProviders || !isAhpRootChannel(snapshot.resource) || !hasKey(snapshot.state, { agents: true })) {
 			return snapshot;
 		}
@@ -2890,6 +2907,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	// ---- Broadcasting -------------------------------------------------------
 
 	private _recordAndBroadcastAction(envelope: ActionEnvelope): void {
+		if (this._config.copilotSessionConfig && envelope.action.type === ActionType.SessionConfigChanged
+			&& !(envelope.rejectionReason && Object.hasOwn(envelope.action.config, 'approvalMode'))) {
+			envelope = { ...envelope, action: { ...envelope.action, config: toMissionControlConfigValues(envelope.action.config) } };
+		}
 		if (this._config.advertisedModelProviders && envelope.action.type === ActionType.RootAgentsChanged) {
 			envelope = { ...envelope, action: { ...envelope.action, agents: this._projectAgentModels(envelope.action.agents) } };
 		}

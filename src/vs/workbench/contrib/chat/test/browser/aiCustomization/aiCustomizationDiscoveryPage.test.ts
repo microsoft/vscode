@@ -1371,6 +1371,54 @@ suite('AICustomizationDiscoveryPage', () => {
 		});
 	});
 
+	test('marketplace navigation applies its source and clears stale sources for general browse', async () => {
+		const fixture = createPage(
+			['agentFinder'],
+			[AICustomizationManagementSection.McpServers, AICustomizationManagementSection.Plugins],
+		);
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [] });
+
+		fixture.page.showMarketplace('@type:plugin', configuredMarketplaceSourceId);
+		await timeout(0);
+		await fixture.requests[1].result.complete({ items: [] });
+		const configuredPluginSource = fixture.container.querySelector('.customization-discovery-source .monaco-button')?.textContent;
+
+		fixture.page.showMarketplace('@type:mcp', undefined);
+		await timeout(0);
+		await fixture.requests[2].result.complete({ items: [] });
+		const generalMcpSource = fixture.container.querySelector('.customization-discovery-source .monaco-button')?.textContent;
+
+		fixture.page.showMarketplace('@type:mcp', CustomizationMarketplaceSources.AgentFinderPublicFeed.id);
+		await timeout(0);
+		await fixture.requests[3].result.complete({ items: [] });
+
+		fixture.page.showMarketplace('@type:plugin', undefined);
+		await timeout(0);
+		await fixture.requests[4].result.complete({ items: [] });
+		const generalPluginSource = fixture.container.querySelector('.customization-discovery-source .monaco-button')?.textContent;
+
+		assert.deepStrictEqual({
+			requests: fixture.requests.slice(1).map(request => ({
+				query: request.options.query,
+				sourceIds: request.options.sourceIds,
+			})),
+			configuredPluginSource,
+			generalMcpSource,
+			generalPluginSource,
+		}, {
+			requests: [
+				{ query: undefined, sourceIds: [configuredMarketplaceSourceId] },
+				{ query: undefined, sourceIds: undefined },
+				{ query: undefined, sourceIds: [CustomizationMarketplaceSources.AgentFinderPublicFeed.id] },
+				{ query: undefined, sourceIds: undefined },
+			],
+			configuredPluginSource: 'owner/catalog',
+			generalMcpSource: 'All Sources',
+			generalPluginSource: 'All Sources',
+		});
+	});
+
 	test('different configured plugins with the same name remain available', async () => {
 		const installedPlugin = new class extends mock<IAgentPlugin>() {
 			override readonly uri = URI.file('/plugins/review');

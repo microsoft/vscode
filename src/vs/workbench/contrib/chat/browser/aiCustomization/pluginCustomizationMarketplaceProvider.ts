@@ -37,6 +37,12 @@ export function getPluginCustomizationMarketplaceSourceId(reference: IMarketplac
 	return `${CustomizationMarketplaceSources.PluginMarketplaces.id}.${reference.canonicalId}`;
 }
 
+export function getPluginCustomizationMarketplaceNavigationSourceId(configurationService: IConfigurationService, reference: IMarketplaceReference): string {
+	return isPluginMarketplaceReferenceAvailableInDiscover(configurationService, reference)
+		? getPluginCustomizationMarketplaceSourceId(reference)
+		: CustomizationMarketplaceSources.AgentFinderPublicFeed.id;
+}
+
 export function getPluginCustomizationMarketplaceSourceIdFromIdentifier(identifier: string): string | undefined {
 	try {
 		const value: unknown = JSON.parse(identifier);
