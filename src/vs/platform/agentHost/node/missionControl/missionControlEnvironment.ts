@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createHash, randomUUID } from 'crypto';
-import { link, mkdir, open, readFile, realpath, rename, rm, unlink } from 'fs/promises';
+import { link, mkdir, open, readFile, realpath, rm, unlink } from 'fs/promises';
 import { join } from '../../../../base/common/path.js';
 import { disposableLongTimeout, raceTimeout, Sequencer } from '../../../../base/common/async.js';
 import { combinedDisposable, Disposable, MutableDisposable, toDisposable, type IDisposable } from '../../../../base/common/lifecycle.js';
 import type { Event } from '../../../../base/common/event.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
+import { Promises as FSPromises } from '../../../../base/node/pfs.js';
 import { CloudSandboxRequestError } from '../../common/cloudSandboxAgentHost.js';
 import { emitConnectionDiagnostic, getGitHubRequestId, sanitizeConnectionDiagnosticText, traceConnectionOperation, type ConnectionDiagnosticObserver } from '../../common/connectionDiagnostics.js';
 import type { IMissionControlOptions } from '../../common/agentService.js';
@@ -391,7 +392,7 @@ export class MissionControlEnvironment extends Disposable {
 				await file.close();
 			}
 			if (overwrite) {
-				await rename(temporaryPath, path);
+				await FSPromises.rename(temporaryPath, path, 5_000);
 			} else {
 				try {
 					await link(temporaryPath, path);

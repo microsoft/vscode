@@ -7,9 +7,10 @@ import assert from 'assert';
 import { createHash, createPublicKey, generateKeyPairSync, randomUUID, sign, verify, type JsonWebKey } from 'crypto';
 import { EventEmitter } from 'events';
 import { copyFile, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'fs/promises';
-import { realpathSync } from 'fs';
+import { promises as fs, realpathSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from '../../../../base/common/path.js';
+import { isWindows } from '../../../../base/common/platform.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
@@ -1421,6 +1422,34 @@ suite('Mission Control WPS', () => {
 			await rm(path, { recursive: true });
 		}
 	});
+
+	for (const code of ['EPERM', 'EACCES', 'EBUSY']) {
+		// Windows can deny atomic replacement while another host is reading the identity.
+		(isWindows ? test : test.skip)(`retries transient ${code} when publishing the compute identity on Windows`, async () => {
+			const path = await mkdtemp(join(process.cwd(), '.build', 'mission-control-rename-'));
+			const computeIds: string[] = [];
+			const service = createIdentityService(path, computeIds);
+			const rename = sinon.stub(fs, 'rename').callThrough();
+			rename.onFirstCall().rejects(Object.assign(new Error('Identity is being read'), { code }));
+			try {
+				await service.configure({ baseUrl: 'http://127.0.0.1:9999/', accountId: 'owner', credential: 'fake-token', roots: [path] });
+				const record: { id: string } = JSON.parse(await readFile(join(path, 'agent-host-mission-control-id'), 'utf8'));
+				assert.deepStrictEqual({
+					renameAttempts: rename.callCount,
+					computeIds,
+					files: await readdir(path),
+				}, {
+					renameAttempts: 2,
+					computeIds: [record.id],
+					files: ['agent-host-mission-control-id'],
+				});
+			} finally {
+				rename.restore();
+				service.dispose();
+				await rm(path, { recursive: true });
+			}
+		});
+	}
 
 	for (const initialState of ['missing', 'legacy', 'copied', 'interrupted', 'completed'] as const) {
 		test(`concurrent hosts converge on one compute identity with a ${initialState} record`, async () => {
