@@ -7,6 +7,7 @@ import { CancellationToken } from '../../base/common/cancellation.js';
 import { Event } from '../../base/common/event.js';
 import { IDisposable } from '../../base/common/lifecycle.js';
 import { URI } from '../../base/common/uri.js';
+import { IObservable } from '../../base/common/observable.js';
 import { IProtocolTransport } from '../../platform/agentHost/common/state/sessionTransport.js';
 import { createDecorator } from '../../platform/instantiation/common/instantiation.js';
 import { IDevContainerRepository } from '../../platform/agentHost/common/devContainerSamples.js';
@@ -47,6 +48,7 @@ export interface IDevContainerAgentHostConnection {
 	readonly hostWorkspaceFolder?: string;
 	readonly repository?: IDevContainerRepository;
 	readonly defaultDirectory?: string;
+	readonly waitingForGitCredentialApproval?: IObservable<boolean>;
 }
 
 /** Creates a Dev Container and connects to its Agent Host. */

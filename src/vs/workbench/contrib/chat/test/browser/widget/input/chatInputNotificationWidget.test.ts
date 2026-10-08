@@ -10,6 +10,7 @@ import { IStringDictionary } from '../../../../../../../base/common/collections.
 import { IDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
+import { isEqual } from '../../../../../../../base/common/resources.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
 import type { AgentChatInputState } from '../../../../../../../platform/agentHost/common/meta/agentHostChatInputState.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
@@ -140,6 +141,39 @@ suite('ChatInputNotificationWidget', () => {
 			dismissible: true,
 			autoDismissOnMessage: false,
 			sessionResources: [sessionResource],
+		});
+
+		test('keeps informational approvals above warnings only in their matching chat', () => {
+			const notificationService = createNotificationService();
+			const sessionResource = URI.parse('opaque-chat:/requested');
+			notificationService.setNotification({
+				id: 'credential-approval',
+				severity: ChatInputNotificationSeverity.Info,
+				priority: 1,
+				message: 'Allow Git credential forwarding?',
+				description: undefined,
+				actions: [],
+				sessionResources: [sessionResource],
+				dismissible: false,
+				autoDismissOnMessage: false,
+			});
+			notificationService.setNotification({
+				id: 'sandbox-warning',
+				severity: ChatInputNotificationSeverity.Warning,
+				message: 'Sandboxing is unavailable in this environment',
+				description: undefined,
+				actions: [],
+				dismissible: true,
+				autoDismissOnMessage: false,
+			});
+			const matches = (resource: URI) => notificationService.getActiveNotification(notice =>
+				!notice.sessionResources || notice.sessionResources.some(candidate => isEqual(candidate, resource)))?.id;
+			const matching = matches(sessionResource);
+			const unrelated = matches(URI.parse('opaque-chat:/other'));
+			notificationService.deleteNotification('credential-approval');
+			assert.deepStrictEqual({ matching, unrelated, afterApproval: matches(sessionResource) }, {
+				matching: 'credential-approval', unrelated: 'sandbox-warning', afterApproval: 'sandbox-warning',
+			});
 		});
 		const snapshot = () => {
 			const notice = notificationService.getActiveNotification();

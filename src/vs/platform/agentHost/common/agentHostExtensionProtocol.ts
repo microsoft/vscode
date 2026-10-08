@@ -36,7 +36,7 @@ export const DevContainerOutputNotification = 'vscode/devContainers/output';
 
 export const devContainerConnectionParamsValidator = vObj({ connectionId: vString() });
 export const devContainerGitCredentialForwardingParamsValidator = vObj({ connectionId: vString(), enabled: vBoolean() });
-export const devContainerGitCredentialRequestValidator = vObj({ connectionId: vString(), requestId: vString() });
+export const devContainerGitCredentialRequestValidator = vObj({ connectionId: vString(), requestId: vString(), canceled: vOptionalProp(vBoolean()) });
 export const devContainerGitCredentialResponseValidator = vObj({ connectionId: vString(), requestId: vString(), allowed: vBoolean() });
 export const devContainerConnectParamsValidator = vObj({ connectionId: vString(), workspaceFolder: vString(), name: vString(), resume: vOptionalProp(vBoolean()) });
 export const devContainerWorkspaceParamsValidator = vObj({ workspaceFolder: vString() });

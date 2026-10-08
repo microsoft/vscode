@@ -8,7 +8,7 @@ import { CancellationError, getErrorMessage, isCancellationError } from '../../.
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { StringSHA1 } from '../../../../../base/common/hash.js';
 import { basename, getComparisonKey } from '../../../../../base/common/resources.js';
-import { combinedDisposable, Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { waitForState } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
@@ -20,7 +20,7 @@ import { supportsAgentHostDevContainers } from '../../../../../platform/agentHos
 import { AgentHostClientConnectionKind } from '../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { AgentHostAhpJsonlLoggingSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { AhpJsonlLogger } from '../../../../../platform/agentHost/common/ahpJsonlLogger.js';
-import { DEV_CONTAINER_AGENT_HOST_CHANNEL, DEV_CONTAINER_GIT_CREDENTIAL_REQUEST_TIMEOUT_MS, IDevContainerAgentHostConfig, IDevContainerAgentHostMainService, IDevContainerAgentHostOutput, IDevContainerGitCredentialRequest } from '../../../../../platform/agentHost/common/devContainerAgentHost.js';
+import { DEV_CONTAINER_AGENT_HOST_CHANNEL, IDevContainerAgentHostConfig, IDevContainerAgentHostMainService, IDevContainerAgentHostOutput, IDevContainerGitCredentialRequest } from '../../../../../platform/agentHost/common/devContainerAgentHost.js';
 import { findDevContainerSample, IDevContainerSampleSource } from '../../../../../platform/agentHost/common/devContainerSamples.js';
 import { ReconnectingRelayTransport, type IRelayConnectionHandle, type IRelayMessage } from '../../../../../platform/agentHost/common/relayTransport.js';
 import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -412,23 +412,29 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 			forwardingRegistrations.add(registration);
 			const tokenSource = new CancellationTokenSource();
 			registration.add(toDisposable(() => tokenSource.dispose(true)));
+			const requests = registration.add(new DisposableMap<string>());
 			const containerKey = `${workspaceUri.authority}:${containerAddress}`;
-			const handleRequest = async ({ requestId }: IDevContainerGitCredentialRequest) => {
+			const handleRequest = async ({ requestId, canceled }: IDevContainerGitCredentialRequest) => {
+				if (canceled) {
+					requests.deleteAndDispose(requestId);
+					return;
+				}
 				const requestTokenSource = new CancellationTokenSource(tokenSource.token);
-				const timeout = setTimeout(() => requestTokenSource.cancel(), DEV_CONTAINER_GIT_CREDENTIAL_REQUEST_TIMEOUT_MS);
+				requests.set(requestId, toDisposable(() => requestTokenSource.dispose(true)));
 				let allowed = false;
+				let requestCanceled = false;
 				try {
 					ensureDevContainerAgentHostsEnabled(this._configurationService);
 					allowed = await this._gitCredentialForwarding.request(workspaceUri, containerKey, address, requestTokenSource.token);
 				} catch (error) {
-					if (!isCancellationError(error)) {
+					requestCanceled = isCancellationError(error);
+					if (!requestCanceled) {
 						this._logService.error('[DevContainerAgentHost] Failed to request Git credential permission', error);
 					}
 				} finally {
-					clearTimeout(timeout);
-					requestTokenSource.dispose();
+					requests.deleteAndDispose(requestId);
 				}
-				if (!tokenSource.token.isCancellationRequested) {
+				if (!requestCanceled && !tokenSource.token.isCancellationRequested) {
 					await mainService.respondToGitCredentialRequest(id, requestId, allowed);
 				}
 			};
@@ -566,6 +572,7 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 					path: result.remoteWorkspaceFolder,
 				}),
 				defaultDirectory: result.remoteWorkspaceFolder,
+				waitingForGitCredentialApproval: this._gitCredentialForwarding.getWaitingForApproval(address),
 			};
 		} catch (error) {
 			try {

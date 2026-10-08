@@ -66,74 +66,79 @@ suite('Dev Container Agent Host Connector', () => {
 		});
 	});
 
-	test('the shared-process connector starts without an approval notice and responds only after a lookup is approved', async () => {
-		const responses = new DeferredPromise<void>();
-		const approvalShown = new DeferredPromise<void>();
-		const notices: IChatInputNotification[] = [];
-		const instantiationService = store.add(new TestInstantiationService());
-		const service = store.add(new class extends MockDevContainerService {
-			override async respondToGitCredentialRequest(connectionId: string, requestId: string, allowed: boolean): Promise<void> {
-				await super.respondToGitCredentialRequest(connectionId, requestId, allowed);
-				if (this.gitCredentialResponses.length === 2) { void responses.complete(); }
-			}
-		}());
-		const configuration = new TestConfigurationService({
-			[DevContainerAgentHostEnabledSettingId]: true,
-			[RemoteAgentHostsEnabledSettingId]: true,
-			[DevContainerGitCredentialForwardingSettingId]: 'prompt',
-		});
-		store.add(configuration.onDidChangeConfigurationEmitter);
-		const connector = store.add(new DevContainerAgentHostConnector(
-			new class extends mock<ISharedProcessService>() {
-				override getChannel(): IChannel {
-					const channel = ProxyChannel.fromService(service, store.add(new DisposableStore()));
-					return {
-						listen: (event, arg) => channel.listen(undefined, event, arg),
-						call: (command, arg) => channel.call(undefined, command, arg),
-					};
+	for (const cancelFirst of [false, true]) {
+		test(`the shared-process connector waits for approval and handles client cancellation: ${cancelFirst}`, async () => {
+			const responses = new DeferredPromise<void>();
+			const approvalShown = new DeferredPromise<void>();
+			const notices: IChatInputNotification[] = [];
+			const instantiationService = store.add(new TestInstantiationService());
+			const service = store.add(new class extends MockDevContainerService {
+				override async respondToGitCredentialRequest(connectionId: string, requestId: string, allowed: boolean): Promise<void> {
+					await super.respondToGitCredentialRequest(connectionId, requestId, allowed);
+					if (this.gitCredentialResponses.length === (cancelFirst ? 1 : 2)) { void responses.complete(); }
 				}
-			}(),
-			instantiationService,
-			new NullLogService(),
-			configuration,
-			new class extends mock<IEnvironmentService>() { }(),
-			new class extends mock<IOutputService>() {
-				override getChannel(): IOutputChannel { return new class extends mock<IOutputChannel>() { override append() { } }(); }
-			}(),
-			new class extends mock<IFileService>() { }(),
-			new class extends mock<IRemoteAgentHostService>() { }(),
-			new class extends mock<ISessionsProvidersService>() { }(),
-			new class extends mock<IChatInputNotificationService>() {
-				override setNotification(notification: IChatInputNotification): void { notices.push(notification); void approvalShown.complete(); }
-				override deleteNotification(): void { }
-				override refresh(): void { }
-			}(),
-			new class extends mock<IAgentHostConnectionsService>() { override readonly onDidChangeSessionResolution = Event.None; }(),
-		));
-		const connection = await connector.createConnection(URI.file('/project'), 'devcontainer:test', CancellationToken.None);
-		store.add(connection.transportDisposable!);
-		const startupNotices = notices.length;
-		const connectionId = service.connects[0].connectionId;
-		service.gitCredentialRequest.fire({ connectionId, requestId: 'first' });
-		service.gitCredentialRequest.fire({ connectionId, requestId: 'second' });
-		await approvalShown.p;
-		const responsesBeforeApproval = service.gitCredentialResponses.length;
-		const action = notices[0].actions[0];
-		if (action.kind !== ChatInputNotificationActionKind.Command) { assert.fail('Expected an approval command'); }
-		const command = CommandsRegistry.getCommand(action.commandId);
-		assert.ok(command);
-		instantiationService.invokeFunction(command.handler);
-		await responses.p;
-		assert.deepStrictEqual({
-			startupNotices, notices: notices.length, responsesBeforeApproval,
-			helper: service.gitCredentialForwarding.map(request => request.enabled),
-			responses: service.gitCredentialResponses.map(({ requestId, allowed }) => ({ requestId, allowed })),
-		}, {
-			startupNotices: 0, notices: 1, responsesBeforeApproval: 0,
-			helper: [true],
-			responses: [{ requestId: 'first', allowed: true }, { requestId: 'second', allowed: true }],
+			}());
+			const configuration = new TestConfigurationService({
+				[DevContainerAgentHostEnabledSettingId]: true,
+				[RemoteAgentHostsEnabledSettingId]: true,
+				[DevContainerGitCredentialForwardingSettingId]: 'prompt',
+			});
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			const connector = store.add(new DevContainerAgentHostConnector(
+				new class extends mock<ISharedProcessService>() {
+					override getChannel(): IChannel {
+						const channel = ProxyChannel.fromService(service, store.add(new DisposableStore()));
+						return {
+							listen: (event, arg) => channel.listen(undefined, event, arg),
+							call: (command, arg) => channel.call(undefined, command, arg),
+						};
+					}
+				}(),
+				instantiationService,
+				new NullLogService(),
+				configuration,
+				new class extends mock<IEnvironmentService>() { }(),
+				new class extends mock<IOutputService>() {
+					override getChannel(): IOutputChannel { return new class extends mock<IOutputChannel>() { override append() { } }(); }
+				}(),
+				new class extends mock<IFileService>() { }(),
+				new class extends mock<IRemoteAgentHostService>() { }(),
+				new class extends mock<ISessionsProvidersService>() { }(),
+				new class extends mock<IChatInputNotificationService>() {
+					override setNotification(notification: IChatInputNotification): void { notices.push(notification); void approvalShown.complete(); }
+					override deleteNotification(): void { }
+					override refresh(): void { }
+				}(),
+				new class extends mock<IAgentHostConnectionsService>() { override readonly onDidChangeSessionResolution = Event.None; }(),
+			));
+			const connection = await connector.createConnection(URI.file('/project'), 'devcontainer:test', CancellationToken.None);
+			store.add(connection.transportDisposable!);
+			const startupNotices = notices.length;
+			const connectionId = service.connects[0].connectionId;
+			service.gitCredentialRequest.fire({ connectionId, requestId: 'first' });
+			service.gitCredentialRequest.fire({ connectionId, requestId: 'second' });
+			await approvalShown.p;
+			if (cancelFirst) {
+				service.gitCredentialRequest.fire({ connectionId, requestId: 'first', canceled: true });
+			}
+			const responsesBeforeApproval = service.gitCredentialResponses.length;
+			const action = notices[0].actions[0];
+			if (action.kind !== ChatInputNotificationActionKind.Command) { assert.fail('Expected an approval command'); }
+			const command = CommandsRegistry.getCommand(action.commandId);
+			assert.ok(command);
+			instantiationService.invokeFunction(command.handler);
+			await responses.p;
+			assert.deepStrictEqual({
+				startupNotices, notices: notices.length, responsesBeforeApproval,
+				helper: service.gitCredentialForwarding.map(request => request.enabled),
+				responses: service.gitCredentialResponses.map(({ requestId, allowed }) => ({ requestId, allowed })),
+			}, {
+				startupNotices: 0, notices: 1, responsesBeforeApproval: 0,
+				helper: [true],
+				responses: [...(cancelFirst ? [] : [{ requestId: 'first', allowed: true }]), { requestId: 'second', allowed: true }],
+			});
 		});
-	});
+	}
 
 	for (const failure of [new Error('Git is not installed'), new Error('Global Git config is read-only'), new CancellationError()]) {
 		test(`handles Git credential helper setup failure: ${failure.message}`, async () => {

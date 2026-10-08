@@ -18,7 +18,7 @@ import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { hasKey } from '../../../base/common/types.js';
 import { findExecutable } from '../../../base/node/processes.js';
-import { DeferredPromise, raceCancellationError, raceTimeout, SequencerByKey } from '../../../base/common/async.js';
+import { DeferredPromise, raceCancellationError, SequencerByKey } from '../../../base/common/async.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { vArray, vLiteral, vObj, vOptionalProp, vString } from '../../../base/common/validation.js';
 import { localize } from '../../../nls.js';
@@ -30,7 +30,7 @@ import { INativeEnvironmentService } from '../../environment/common/environment.
 import { IRequestService } from '../../request/common/request.js';
 import { IGitHubService } from '../../github/common/githubService.js';
 import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
-import { DEV_CONTAINER_GIT_CREDENTIAL_REQUEST_TIMEOUT_MS, IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerGitCredentialRequest, VSCODE_REMOTE_CONTAINERS_SESSION_ENV } from '../common/devContainerAgentHost.js';
+import { IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerGitCredentialRequest, VSCODE_REMOTE_CONTAINERS_SESSION_ENV } from '../common/devContainerAgentHost.js';
 import { IRelayMessage } from '../common/relayTransport.js';
 import { telemetryLevelToAgentHostValue } from '../common/agentHostTelemetry.js';
 import type { AgentHostEndpointAddress } from '../common/agentHostEndpointRegistry.js';
@@ -1063,9 +1063,9 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 					getDevContainerExecArgs(context.workspaceSelector, buildDevContainerGitCredentialRelayCommand(context.cliDataDir)),
 					devContainerEnvironment,
 				);
-				const relay = store.add(new DevContainerGitCredentialRelay(child, async input => {
-					await this._requestGitCredentialPermission(connectionId, tokenSource.token);
-					const lookupTokenSource = new CancellationTokenSource(tokenSource.token);
+				const relay = store.add(new DevContainerGitCredentialRelay(child, async (input, requestToken) => {
+					await this._requestGitCredentialPermission(connectionId, requestToken);
+					const lookupTokenSource = new CancellationTokenSource(requestToken);
 					const timeout = setTimeout(() => lookupTokenSource.cancel(), 30_000);
 					try {
 						const result = await this._runLocalCommand(
@@ -1109,12 +1109,15 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		this._gitCredentialRequests.set(requestId, { connectionId, response });
 		try {
 			this._onDidRequestGitCredentials.fire({ connectionId, requestId });
-			const allowed = await raceCancellationError(raceTimeout(response.p, DEV_CONTAINER_GIT_CREDENTIAL_REQUEST_TIMEOUT_MS), token);
+			const allowed = await raceCancellationError(response.p, token);
 			if (allowed !== true) {
-				throw new Error(localize('devContainerGitCredentials.permissionDenied', "Git credential forwarding was declined or its permission request timed out."));
+				throw new Error(localize('devContainerGitCredentials.permissionDenied', "Git credential forwarding was declined."));
 			}
 		} finally {
 			this._gitCredentialRequests.delete(requestId);
+			if (token.isCancellationRequested) {
+				this._onDidRequestGitCredentials.fire({ connectionId, requestId, canceled: true });
+			}
 			await response.complete(false);
 		}
 	}

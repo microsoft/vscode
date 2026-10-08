@@ -332,6 +332,7 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 		let stagedAddress: string | undefined;
 		try {
 			const provider = this._ensureProvider(workspaceUri, connected.name, connected.address);
+			provider.setGitCredentialApproval(connected.waitingForGitCredentialApproval);
 
 			const sourceEntry = getDevContainerSourceEntry(workspaceUri, this._remoteAgentHostService);
 			const entry = this._connectionFactory.stageConnection(connector, workspaceUri, connected, sourceEntry && resolveRemoteAgentHostEntryAuthority(sourceEntry));
@@ -568,6 +569,7 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 		active.state = 'connecting';
 		try {
 			const connected = await active.connector.createConnection(active.workspaceUri, active.address, this._lifecycleTokenSource.token, { resume: true });
+			active.provider.setGitCredentialApproval(connected.waitingForGitCredentialApproval);
 			const sourceEntry = getDevContainerSourceEntry(active.workspaceUri, this._remoteAgentHostService);
 			this._connectionFactory.stageConnection(active.connector, active.workspaceUri, connected, sourceEntry && resolveRemoteAgentHostEntryAuthority(sourceEntry));
 			this._remoteAgentHostService.reconnect(active.address, true);

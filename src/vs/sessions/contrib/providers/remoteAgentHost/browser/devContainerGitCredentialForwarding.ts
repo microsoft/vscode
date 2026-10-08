@@ -10,6 +10,7 @@ import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../..
 import { basename } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
+import { IObservable, ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
@@ -21,7 +22,7 @@ import { DevContainerGitCredentialForwardingSettingId } from '../../../../common
 interface IPendingGitCredentialApproval {
 	readonly response: DeferredPromise<boolean>;
 	readonly store: DisposableStore;
-	readonly addresses: Set<string>;
+	readonly addresses: Map<string, number>;
 	waiters: number;
 }
 
@@ -29,6 +30,7 @@ interface IPendingGitCredentialApproval {
 export class DevContainerGitCredentialForwarding extends Disposable {
 	private readonly _decisions = new Map<string, boolean>();
 	private readonly _pending = new Map<string, IPendingGitCredentialApproval>();
+	private readonly _waiting = new Map<string, ISettableObservable<boolean>>();
 	private readonly _connections = new Set<{ update: (enabled: boolean) => Promise<void> }>();
 	private _disposed = false;
 
@@ -60,6 +62,19 @@ export class DevContainerGitCredentialForwarding extends Disposable {
 		return this._configurationService.getValue<'off' | 'prompt' | 'on'>(DevContainerGitCredentialForwardingSettingId) ?? 'prompt';
 	}
 
+	getWaitingForApproval(address: string): IObservable<boolean> {
+		return this._getWaiting(address);
+	}
+
+	private _getWaiting(address: string) {
+		let waiting = this._waiting.get(address);
+		if (!waiting) {
+			waiting = observableValue(this, false);
+			this._waiting.set(address, waiting);
+		}
+		return waiting;
+	}
+
 	async request(workspaceUri: URI, containerKey: string, address: string, token: CancellationToken): Promise<boolean> {
 		if (this._disposed || token.isCancellationRequested) {
 			throw new CancellationError();
@@ -75,11 +90,12 @@ export class DevContainerGitCredentialForwarding extends Disposable {
 		let pending = this._pending.get(containerKey);
 		const isNew = !pending;
 		if (!pending) {
-			pending = { response: new DeferredPromise<boolean>(), store: new DisposableStore(), addresses: new Set(), waiters: 0 };
+			pending = { response: new DeferredPromise<boolean>(), store: new DisposableStore(), addresses: new Map(), waiters: 0 };
 			this._pending.set(containerKey, pending);
 		}
 		pending.waiters++;
-		pending.addresses.add(address);
+		pending.addresses.set(address, (pending.addresses.get(address) ?? 0) + 1);
+		this._getWaiting(address).set(true, undefined);
 		try {
 			if (isNew) {
 				this._showApproval(workspaceUri, containerKey, pending);
@@ -91,6 +107,15 @@ export class DevContainerGitCredentialForwarding extends Disposable {
 			pending.waiters--;
 			if (pending.waiters === 0) {
 				this._completeApproval(containerKey, pending, false);
+			} else if (this._pending.get(containerKey) === pending) {
+				const addressWaiters = pending.addresses.get(address)! - 1;
+				if (addressWaiters > 0) {
+					pending.addresses.set(address, addressWaiters);
+				} else {
+					pending.addresses.delete(address);
+					this._getWaiting(address).set([...this._pending.values()].some(other => other.addresses.has(address)), undefined);
+					this._notificationService.refresh();
+				}
 			}
 		}
 	}
@@ -106,6 +131,7 @@ export class DevContainerGitCredentialForwarding extends Disposable {
 			id,
 			telemetryId: 'devContainer.gitCredentials',
 			severity: ChatInputNotificationSeverity.Info,
+			priority: 1,
 			message: localize('devContainerGitCredentials.confirm', "Allow Git credential forwarding?"),
 			description: localize('devContainerGitCredentials.detail', "A process in the Dev Container for '{0}' is requesting HTTPS Git credentials from the workspace's host. Approval applies to all sessions and processes sharing this container until VS Code restarts or the forwarding setting changes.", basename(workspaceUri)),
 			actions: [
@@ -129,6 +155,11 @@ export class DevContainerGitCredentialForwarding extends Disposable {
 			this._decisions.set(containerKey, allowed);
 		}
 		this._pending.delete(containerKey);
+		transaction(tx => {
+			for (const address of pending.addresses.keys()) {
+				this._getWaiting(address).set([...this._pending.values()].some(other => other.addresses.has(address)), tx);
+			}
+		});
 		void pending.response.complete(allowed);
 		pending.store.dispose();
 	}

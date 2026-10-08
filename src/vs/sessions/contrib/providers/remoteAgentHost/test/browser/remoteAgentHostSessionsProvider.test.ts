@@ -1954,6 +1954,93 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		]);
 	});
 
+	test('a container chat waits for Git credential approval and is not stopped as idle', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		connection.addSession(createSession('git-approval', { status: ProtocolSessionStatus.Idle }));
+		let stops = 0;
+		const waiting = observableValue('waitingForGitCredentialApproval', false);
+		const provider = createProvider(disposables, connection, {
+			configurationService: new TestConfigurationService({ [DevContainerIdleTimeoutSettingId]: 1 }),
+			devContainerLifecycle: {
+				connect: async () => { },
+				stop: async () => { stops++; return true; },
+				remove: async () => true,
+			},
+		});
+		provider.setConnectionStatus(RemoteAgentHostConnectionStatus.connected);
+		provider.setGitCredentialApproval(waiting);
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		assert.ok(session);
+		waiting.set(true, undefined);
+		const pendingStatus = session.status.get();
+		const pendingChatStatus = session.mainChat.get().status.get();
+		await timeout(6 * 60_000);
+		const stoppedWhileWaiting = stops;
+		waiting.set(false, undefined);
+		const restoredStatus = session.status.get();
+		await timeout(1000);
+		assert.deepStrictEqual({ pendingStatus, pendingChatStatus, stoppedWhileWaiting, restoredStatus, stops }, {
+			pendingStatus: SessionStatus.NeedsInput,
+			pendingChatStatus: SessionStatus.NeedsInput,
+			stoppedWhileWaiting: 0,
+			restoredStatus: SessionStatus.Completed,
+			stops: 1,
+		});
+	}));
+
+	test('Git credential approval preserves host status updates and excludes archived and draft chats', () => {
+		const metadata = createSession('git-approval-status', { status: ProtocolSessionStatus.Idle });
+		const defaultChat = URI.parse('opaque-chat:/primary');
+		const peerChat = URI.parse('opaque-chat:/peer');
+		const archivedChat = URI.parse('opaque-chat:/archived');
+		const provider = createProvider(disposables, connection);
+		provider.setConnectionStatus(RemoteAgentHostConnectionStatus.connected);
+		provider.seedSessions([{
+			...metadata,
+			chats: [
+				{ chat: defaultChat, kind: 'default', summary: 'Main' },
+				{ chat: peerChat, kind: 'peer', summary: 'Peer' },
+				{ chat: archivedChat, kind: 'peer', summary: 'Archived' },
+			],
+		}]);
+		const waiting = observableValue('waitingForGitCredentialApproval', true);
+		provider.setGitCredentialApproval(waiting);
+		const session = provider.getSessions()[0];
+		assert.ok(session instanceof AgentHostSessionAdapter);
+		session.applyChatCatalog({
+			provider: 'copilotcli',
+			title: 'Approval',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			defaultChat: defaultChat.toString(),
+			chats: [defaultChat, peerChat, archivedChat].map(resource => createChatState({
+				resource: resource.toString(), title: '', modifiedAt: new Date(0).toISOString(),
+				status: extUri.isEqual(resource, archivedChat) ? ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsArchived : ProtocolSessionStatus.Idle,
+			})),
+		});
+		const pendingChats = session.chats.get().map(chat => chat.status.get());
+		session.status.set(SessionStatus.InProgress, undefined);
+		const pending = session.status.get();
+		waiting.set(false, undefined);
+		const restored = session.status.get();
+		waiting.set(true, undefined);
+		const special = [SessionStatus.Untitled, SessionStatus.Error].map(status => {
+			session.status.set(status, undefined);
+			return session.status.get();
+		});
+		session.status.set(SessionStatus.Completed, undefined);
+		session.isArchived.set(true, undefined);
+		assert.deepStrictEqual({ pendingChats, pending, restored, special, archived: session.status.get() }, {
+			pendingChats: [SessionStatus.NeedsInput, SessionStatus.NeedsInput, SessionStatus.Completed],
+			pending: SessionStatus.NeedsInput,
+			restored: SessionStatus.InProgress,
+			special: [SessionStatus.Untitled, SessionStatus.Error],
+			archived: SessionStatus.Completed,
+		});
+	});
+
 	for (const seconds of [1, 10, 65]) {
 		test(`stops a Dev Container after the configured ${seconds} seconds of inactivity`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 			let stops = 0;

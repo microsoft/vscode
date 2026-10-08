@@ -110,6 +110,8 @@ export interface IChatInputNotification {
 	readonly inputUri?: URI;
 	readonly telemetryId?: string;
 	readonly severity: ChatInputNotificationSeverity;
+	/** Higher priority notices take precedence regardless of severity. Defaults to 0. */
+	readonly priority?: number;
 	/** Optional header icon. Defaults to the severity icon. */
 	readonly icon?: ThemeIcon;
 	readonly message: string | IMarkdownString;
@@ -231,8 +233,7 @@ export interface IChatInputNotificationService {
 	dismissNotification(id: string, notification?: IChatInputNotification): void;
 
 	/**
-	 * Get the single active notification to display. Returns the highest-severity
-	 * notification that has not been dismissed. Ties are broken by most-recent insertion.
+	 * Get the highest-priority eligible notification, then by severity and most-recent insertion.
 	 * An optional `filter` can be provided to restrict the set of notifications considered,
 	 * so a non-matching higher-priority notification doesn't mask other eligible ones.
 	 */
@@ -338,10 +339,13 @@ class ChatInputNotificationService extends Disposable implements IChatInputNotif
 			}
 
 			const order = this._insertionOrder.get(notification.id) ?? 0;
+			const priority = notification.priority ?? 0;
+			const bestPriority = best?.priority ?? 0;
 
 			if (!best
-				|| notification.severity > best.severity
-				|| (notification.severity === best.severity && order > bestOrder)
+				|| priority > bestPriority
+				|| (priority === bestPriority && (notification.severity > best.severity
+					|| (notification.severity === best.severity && order > bestOrder)))
 			) {
 				best = notification;
 				bestOrder = order;

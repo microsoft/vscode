@@ -10,7 +10,6 @@ import { IDevContainerRepository, IDevContainerSampleSource } from './devContain
 
 export const DEV_CONTAINER_AGENT_HOST_CHANNEL = 'devContainerAgentHost';
 export const VSCODE_REMOTE_CONTAINERS_SESSION_ENV = 'VSCODE_REMOTE_CONTAINERS_SESSION';
-export const DEV_CONTAINER_GIT_CREDENTIAL_REQUEST_TIMEOUT_MS = 300_000;
 
 /** Inputs required to start or reuse a workspace's Dev Container Agent Host. */
 export interface IDevContainerAgentHostWorkspaceConfig {
@@ -45,6 +44,7 @@ export interface IDevContainerAgentHostOutput {
 export interface IDevContainerGitCredentialRequest {
 	readonly connectionId: string;
 	readonly requestId: string;
+	readonly canceled?: boolean;
 }
 
 export const IDevContainerAgentHostMainService = createDecorator<IDevContainerAgentHostMainService>('devContainerAgentHostMainService');

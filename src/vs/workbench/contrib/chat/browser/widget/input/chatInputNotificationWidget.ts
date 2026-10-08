@@ -106,7 +106,7 @@ export interface IChatInputNotificationDelegate {
 
 /**
  * Widget that renders a single notification banner above the chat input area.
- * Subscribes to {@link IChatInputNotificationService} and shows the highest-severity
+ * Subscribes to {@link IChatInputNotificationService} and shows the highest-priority
  * active notification with severity-colored borders, action buttons, and a dismiss button.
  */
 export class ChatInputNotificationWidget extends Disposable implements IChatInputNoticeFocusTarget {

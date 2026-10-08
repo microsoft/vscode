@@ -63,13 +63,19 @@ suite('DevContainerAgentHostProtocol', () => {
 		service.gitCredentialRequest.fire({ connectionId: 'unrelated', requestId: 'hidden' });
 		service.gitCredentialRequest.fire({ connectionId: internalConnectionId, requestId: 'pending' });
 		await client.respondToGitCredentialRequest(config.connectionId, 'pending', true);
+		service.gitCredentialRequest.fire({ connectionId: internalConnectionId, requestId: 'canceled' });
+		service.gitCredentialRequest.fire({ connectionId: internalConnectionId, requestId: 'canceled', canceled: true });
 		await assert.rejects(protocol.handleRequest(DevContainerRespondToGitCredentialRequestExtensionMethod, { connectionId: 'unrelated', requestId: 'pending', allowed: true })!, { code: AhpErrorCodes.NotFound });
 		await assert.rejects(protocol.handleRequest(DevContainerRespondToGitCredentialRequestExtensionMethod, { connectionId: config.connectionId, requestId: 'pending', allowed: 'on' })!, { code: JsonRpcErrorCodes.InvalidParams });
 		assert.throws(() => client.handleNotification(DevContainerGitCredentialRequestNotification, { connectionId: config.connectionId, requestId: false }), /Invalid/);
 		await client.disconnect(config.connectionId);
 		client.handleNotification(DevContainerGitCredentialRequestNotification, { connectionId: config.connectionId, requestId: 'stale' });
 		assert.deepStrictEqual({ requests, responses: service.gitCredentialResponses }, {
-			requests: [{ connectionId: config.connectionId, requestId: 'pending' }],
+			requests: [
+				{ connectionId: config.connectionId, requestId: 'pending' },
+				{ connectionId: config.connectionId, requestId: 'canceled' },
+				{ connectionId: config.connectionId, requestId: 'canceled', canceled: true },
+			],
 			responses: [{ connectionId: internalConnectionId, requestId: 'pending', allowed: true }],
 		});
 	});

@@ -5,16 +5,17 @@
 
 import { ChildProcessWithoutNullStreams } from 'child_process';
 import { createInterface } from 'readline';
-import { DeferredPromise } from '../../../base/common/async.js';
-import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { DeferredPromise, raceCancellationError } from '../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../base/common/errors.js';
+import { Disposable, DisposableMap, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { hasKey } from '../../../base/common/types.js';
 import { vBoolean, vNumber, vObj, vString, vUnion } from '../../../base/common/validation.js';
 import { ILogService } from '../../log/common/log.js';
-import { DEV_CONTAINER_GIT_CREDENTIAL_REQUEST_TIMEOUT_MS } from '../common/devContainerAgentHost.js';
 import { shellEscape } from './sshRemoteAgentHostHelpers.js';
 
 const MAX_CREDENTIAL_INPUT_LENGTH = 64 * 1024;
-const relayMessageValidator = vUnion(vObj({ ready: vBoolean() }), vObj({ id: vNumber(), input: vString() }));
+const relayMessageValidator = vUnion(vObj({ ready: vBoolean() }), vObj({ id: vNumber(), input: vString() }), vObj({ canceled: vNumber() }));
 
 const credentialHelperSource = String.raw`
 const net = require('net');
@@ -27,8 +28,8 @@ process.stdin.on('data', chunk => {
 });
 process.stdin.on('end', () => {
 	const socket = net.connect(process.argv[3]);
-	socket.setTimeout(${DEV_CONTAINER_GIT_CREDENTIAL_REQUEST_TIMEOUT_MS + 30_000}, () => socket.destroy(new Error('Git credential forwarding timed out')));
-	socket.on('connect', () => socket.write(JSON.stringify({ input }) + '\n'));
+	socket.setTimeout(30000, () => socket.destroy(new Error('Git credential forwarding timed out')));
+	socket.on('connect', () => { socket.setTimeout(0); socket.write(JSON.stringify({ input }) + '\n'); });
 	let response = '';
 	socket.setEncoding('utf8');
 	socket.on('data', chunk => response += chunk);
@@ -140,8 +141,11 @@ const server = net.createServer({ allowHalfOpen: true }, socket => {
 	let requested = false;
 	socket.setEncoding('utf8');
 	socket.setTimeout(30000, () => socket.destroy());
-	socket.on('error', () => sockets.delete(id));
-	socket.on('close', () => sockets.delete(id));
+	socket.on('error', () => socket.destroy());
+	socket.on('end', () => socket.destroy());
+	socket.on('close', () => {
+		if (sockets.delete(id)) { process.stdout.write(JSON.stringify({ canceled: id }) + '\n'); }
+	});
 	socket.on('data', chunk => {
 		if (requested) { socket.destroy(); return; }
 		input += chunk;
@@ -149,7 +153,7 @@ const server = net.createServer({ allowHalfOpen: true }, socket => {
 		const end = input.indexOf('\n');
 		if (end < 0) { return; }
 		requested = true;
-		socket.setTimeout(${DEV_CONTAINER_GIT_CREDENTIAL_REQUEST_TIMEOUT_MS + 30_000});
+		socket.setTimeout(0);
 		let request;
 		try {
 			request = JSON.parse(input.slice(0, end));
@@ -227,12 +231,12 @@ export function validateGitCredentialInput(input: string): void {
 export class DevContainerGitCredentialRelay extends Disposable {
 	private readonly _ready = new DeferredPromise<void>();
 	readonly ready = this._ready.p;
-	private _pending = 0;
+	private readonly _requests = this._register(new DisposableMap<number, IDisposable>());
 	private _closed = false;
 
 	constructor(
 		private readonly _child: ChildProcessWithoutNullStreams,
-		private readonly _readCredential: (input: string) => Promise<string>,
+		private readonly _readCredential: (input: string, token: CancellationToken) => Promise<string>,
 		private readonly _logService: ILogService,
 		private readonly _onClose: () => void,
 	) {
@@ -256,7 +260,12 @@ export class DevContainerGitCredentialRelay extends Disposable {
 					clearTimeout(timeout);
 					void this._ready.complete();
 				} else if (hasKey(message, { id: true, input: true }) && Number.isSafeInteger(message.id) && message.id > 0) {
+					if (this._requests.has(message.id)) {
+						throw new Error('Duplicate Git credential forwarding request');
+					}
 					void this._forward(message.id, message.input);
+				} else if (hasKey(message, { canceled: true }) && Number.isSafeInteger(message.canceled) && message.canceled > 0) {
+					this._requests.deleteAndDispose(message.canceled);
 				} else {
 					throw new Error('Invalid Git credential forwarding request');
 				}
@@ -286,18 +295,21 @@ export class DevContainerGitCredentialRelay extends Disposable {
 
 	private async _forward(id: number, input: string): Promise<void> {
 		let response: { id: number; output?: string; error?: boolean };
-		this._pending++;
 		try {
-			if (this._closed || this._pending > 16) {
+			if (this._closed || this._requests.size >= 16) {
 				throw new Error('Git credential forwarding is unavailable');
 			}
 			validateGitCredentialInput(input);
-			response = { id, output: await this._readCredential(`${input.replace(/\n+$/, '')}\n\n`) };
-		} catch {
-			this._logService.warn('[DevContainerAgentHost] Git credential lookup failed');
+			const tokenSource = new CancellationTokenSource();
+			this._requests.set(id, toDisposable(() => tokenSource.dispose(true)));
+			response = { id, output: await raceCancellationError(this._readCredential(`${input.replace(/\n+$/, '')}\n\n`, tokenSource.token), tokenSource.token) };
+		} catch (error) {
+			if (!isCancellationError(error)) {
+				this._logService.warn('[DevContainerAgentHost] Git credential lookup failed');
+			}
 			response = { id, error: true };
 		} finally {
-			this._pending--;
+			this._requests.deleteAndDispose(id);
 		}
 		if (!this._closed) {
 			this._child.stdin.write(`${JSON.stringify(response)}\n`);

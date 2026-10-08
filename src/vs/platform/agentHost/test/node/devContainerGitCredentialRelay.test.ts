@@ -8,6 +8,9 @@ import { spawn, spawnSync } from 'child_process';
 import { once } from 'events';
 import { mkdtemp, readFile, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
+import { connect } from 'net';
+import { DeferredPromise, raceCancellationError } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { basename, join } from '../../../../base/common/path.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -52,7 +55,7 @@ suite('Dev Container Git credential relay', () => {
 		return { code, stdout, stderr };
 	}
 
-	async function startRelay(readCredential: (input: string) => Promise<string>, logService = new NullLogService()) {
+	async function startRelay(readCredential: (input: string, token: CancellationToken) => Promise<string>, logService = new NullLogService()) {
 		const child = spawn(process.execPath, [...getDevContainerGitCredentialRelayArgs()], { env: environment, cwd: directory, stdio: 'pipe' });
 		store.add(toDisposable(() => child.kill()));
 		const relay = store.add(new DevContainerGitCredentialRelay(child, readCredential, logService, () => { }));
@@ -77,6 +80,33 @@ suite('Dev Container Git credential relay', () => {
 		const socket = process.platform === 'win32' ? `\\\\.\\pipe\\vscode-git-${basename(join(script, '..'))}` : join(script, '..', 'socket');
 		return `!f() { ${shellEscape(process.execPath.replace(/\\/g, '/'))} ${shellEscape(normalized)} "$1" ${shellEscape(socket)}; }; f`;
 	}
+
+	test('closing a credential client cancels its permission wait without canceling another client', async () => {
+		const requested = new DeferredPromise<void>();
+		const canceled = new DeferredPromise<void>();
+		let requests = 0;
+		const running = await startRelay(async (input, token) => {
+			if (++requests > 1) {
+				return 'username=forwarded-user\npassword=fixture-secret\n\n';
+			}
+			const pending = new DeferredPromise<string>();
+			store.add(token.onCancellationRequested(() => { void canceled.complete(); }));
+			void requested.complete();
+			return raceCancellationError(pending.p, token);
+		});
+		const helper = gitConfig(['--get-all', 'credential.helper']).trim().split('\n').at(-1)!;
+		const socketPath = [...helper.matchAll(/'(?<value>(?:[^']|'\\'')*)'/g)].at(-1)!.groups!.value.replace(/'\\''/g, '\'');
+		const client = connect(socketPath);
+		store.add(toDisposable(() => client.destroy()));
+		await once(client, 'connect');
+		client.write(`${JSON.stringify({ input: 'protocol=https\nhost=example.invalid\n\n' })}\n`);
+		await requested.p;
+		client.end();
+		await canceled.p;
+		const result = await runGit('fill', 'protocol=https\nhost=example.invalid\n\n');
+		await stopRelay(running);
+		assert.deepStrictEqual({ requests, code: result.code, stderr: result.stderr }, { requests: 2, code: 0, stderr: '' });
+	});
 
 	test('removes stale legacy helpers without touching unrelated helpers or a live relay', async () => {
 		const unrelated = '!f() { : "/tmp/vscode-git-unmanaged/helper.cjs"; }; f';

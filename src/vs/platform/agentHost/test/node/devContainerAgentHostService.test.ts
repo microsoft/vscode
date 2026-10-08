@@ -10,7 +10,7 @@ import { existsSync } from 'fs';
 import { lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { join } from '../../../../base/common/path.js';
@@ -479,7 +479,8 @@ suite('Dev Container Agent Host Main Service', () => {
 		const service = store.add(new TestDevContainerAgentHostMainService());
 		const tokenSource = store.add(new CancellationTokenSource());
 		let request: IDevContainerGitCredentialRequest | undefined;
-		store.add(service.onDidRequestGitCredentials(event => request = event));
+		const events: IDevContainerGitCredentialRequest[] = [];
+		store.add(service.onDidRequestGitCredentials(event => { request = event; events.push(event); }));
 		const permission = service.requestGitCredentialPermission('connection', tokenSource.token);
 		const rejected = assert.rejects(permission, CancellationError);
 		assert.ok(request);
@@ -487,16 +488,25 @@ suite('Dev Container Agent Host Main Service', () => {
 		tokenSource.cancel();
 		await rejected;
 		await assert.rejects(service.respondToGitCredentialRequest('connection', request.requestId, true), /not pending/);
+		assert.deepStrictEqual(events, [
+			{ connectionId: 'connection', requestId: request.requestId },
+			{ connectionId: 'connection', requestId: request.requestId, canceled: true },
+		]);
 	});
 
-	test('unanswered Git credential permission requests time out without authorization', async () => {
+	test('Git credential permission waits for user input rather than expiring after five minutes', async () => {
 		await runWithFakedTimers({}, async () => {
 			const service = store.add(new TestDevContainerAgentHostMainService());
 			let request: IDevContainerGitCredentialRequest | undefined;
 			store.add(service.onDidRequestGitCredentials(event => request = event));
-			await assert.rejects(service.requestGitCredentialPermission('connection', CancellationToken.None), /timed out/);
+			let completed = false;
+			const permission = service.requestGitCredentialPermission('connection', CancellationToken.None).then(() => completed = true);
+			await timeout(6 * 60_000);
 			assert.ok(request);
-			await assert.rejects(service.respondToGitCredentialRequest('connection', request.requestId, true), /not pending/);
+			const beforeApproval = completed;
+			await service.respondToGitCredentialRequest('connection', request.requestId, true);
+			await permission;
+			assert.deepStrictEqual({ beforeApproval, completed }, { beforeApproval: false, completed: true });
 		});
 	});
 

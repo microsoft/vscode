@@ -201,7 +201,8 @@ suite('Dev Container Git credential forwarding consent', () => {
 	});
 
 	test('canceling the first lookup does not cancel another live waiter', async () => {
-		const { notices, active, request, respond } = setup('prompt');
+		const { notices, active, forwarding, request, respond } = setup('prompt');
+		const waiting = forwarding.getWaitingForApproval(address);
 		const tokenSource = store.add(new CancellationTokenSource());
 		const first = request(containerKey, tokenSource.token);
 		const second = request();
@@ -209,14 +210,35 @@ suite('Dev Container Git credential forwarding consent', () => {
 		tokenSource.cancel();
 		await rejected;
 		const visibleBeforeApproval = active.size;
+		const waitingBeforeApproval = waiting.get();
 		respond(notices[0], true);
-		assert.deepStrictEqual({ visibleBeforeApproval, allowed: await second, notices: notices.length, active: active.size }, {
-			visibleBeforeApproval: 1, allowed: true, notices: 1, active: 0,
+		assert.deepStrictEqual({ visibleBeforeApproval, waitingBeforeApproval, allowed: await second, notices: notices.length, active: active.size, waiting: waiting.get() }, {
+			visibleBeforeApproval: 1, waitingBeforeApproval: true, allowed: true, notices: 1, active: 0, waiting: false,
+		});
+	});
+
+	test('canceling one connection clears only its waiting state for a shared approval', async () => {
+		const { notices, forwarding, request, respond } = setup('prompt');
+		const tokenSource = store.add(new CancellationTokenSource());
+		const otherAddress = 'devcontainer:another';
+		const first = request(containerKey, tokenSource.token);
+		const second = request(containerKey, CancellationToken.None, otherAddress);
+		const waiting = forwarding.getWaitingForApproval(address);
+		const otherWaiting = forwarding.getWaitingForApproval(otherAddress);
+		const before = [waiting.get(), otherWaiting.get()];
+		const rejected = assert.rejects(first, /Canceled/);
+		tokenSource.cancel();
+		await rejected;
+		const afterCancel = [waiting.get(), otherWaiting.get()];
+		respond(notices[0], true);
+		const allowed = await second;
+		assert.deepStrictEqual({ before, afterCancel, allowed, afterApproval: [waiting.get(), otherWaiting.get()] }, {
+			before: [true, true], afterCancel: [false, true], allowed: true, afterApproval: [false, false],
 		});
 	});
 
 	test('canceling all waiters removes the approval and its commands without granting access', async () => {
-		const { notices, active, request } = setup('prompt', []);
+		const { notices, active, forwarding, request } = setup('prompt', []);
 		const tokenSource = store.add(new CancellationTokenSource());
 		const pending = request(containerKey, tokenSource.token);
 		const rejected = assert.rejects(pending, /Canceled/);
@@ -226,22 +248,23 @@ suite('Dev Container Git credential forwarding consent', () => {
 		});
 		tokenSource.cancel();
 		await rejected;
-		assert.deepStrictEqual({ active: active.size, commands: commandIds.map(id => CommandsRegistry.getCommand(id)) }, {
-			active: 0, commands: [undefined, undefined],
+		assert.deepStrictEqual({ active: active.size, commands: commandIds.map(id => CommandsRegistry.getCommand(id)), waiting: forwarding.getWaitingForApproval(address).get() }, {
+			active: 0, commands: [undefined, undefined], waiting: false,
 		});
 	});
 
 	test('revocation removes a pending approval and requires a new decision on the next lookup', async () => {
-		const { notices, active, request, configuration, respond } = setup('prompt');
+		const { notices, active, forwarding, request, configuration, respond } = setup('prompt');
 		const pending = request();
 		await changeMode(configuration, 'off');
 		const revoked = await pending;
 		const activeAfterRevocation = active.size;
+		const waitingAfterRevocation = forwarding.getWaitingForApproval(address).get();
 		await changeMode(configuration, 'prompt');
 		const next = request();
 		respond(notices[1], false);
-		assert.deepStrictEqual({ revoked, activeAfterRevocation, allowed: await next, notices: notices.length }, {
-			revoked: false, activeAfterRevocation: 0, allowed: false, notices: 2,
+		assert.deepStrictEqual({ revoked, activeAfterRevocation, waitingAfterRevocation, allowed: await next, notices: notices.length, waiting: forwarding.getWaitingForApproval(address).get() }, {
+			revoked: false, activeAfterRevocation: 0, waitingAfterRevocation: false, allowed: false, notices: 2, waiting: false,
 		});
 	});
 });

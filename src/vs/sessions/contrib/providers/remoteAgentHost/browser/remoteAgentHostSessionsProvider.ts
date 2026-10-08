@@ -197,6 +197,8 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 
 	private readonly _activitySources = new WeakMap<AgentHostSessionAdapter, { readonly source: 'host' } | { readonly source: 'discovery'; readonly modifiedTime: number }>();
 	private readonly _connectionStatus = observableValue<RemoteAgentHostConnectionStatus>('connectionStatus', RemoteAgentHostConnectionStatus.disconnected);
+	private readonly _gitCredentialApproval = observableValue<IObservable<boolean> | undefined>(this, undefined);
+	private readonly _requiresUserAction = derived(this, reader => this._gitCredentialApproval.read(reader)?.read(reader) ?? false);
 	private readonly _readOnly: IObservable<boolean>;
 	readonly connectionStatus: IObservable<RemoteAgentHostConnectionStatus> = this._connectionStatus;
 	private readonly _environmentIsConnected = derived(this, reader => RemoteAgentHostConnectionStatus.isConnected(this._connectionStatus.read(reader)));
@@ -330,6 +332,10 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		}));
 		this._devContainerWorktreeScope = config.devContainerWorktreeScope;
 		this._devContainerLifecycle = config.devContainerLifecycle;
+		this._register(autorun(reader => {
+			this._requiresUserAction.read(reader);
+			this._scheduleDevContainerStopIfIdle();
+		}));
 		this._resolveDevContainerWorktreeConnection = config.resolveDevContainerWorktreeConnection;
 		this.onDidReportConnectProgress = config.onDidReportConnectProgress;
 		this.showConnectionLog = config.showConnectionLog;
@@ -573,6 +579,9 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	}
 
 	private _isDevContainerIdle(): boolean {
+		if (this._requiresUserAction.get()) {
+			return false;
+		}
 		const sessions = this.getKnownSessions();
 		return !!this.connection && !sessions.some(session => {
 			const status = session.status.get();
@@ -769,6 +778,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		const typeIcon = this._workspaceTypeIcon;
 		return {
 			readOnly: this._readOnly,
+			requiresUserAction: this._requiresUserAction,
 			allowOfflineDrafts: this._allowOfflineDrafts,
 			defaultChangesetKind: this._defaultChangesetKind,
 			buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectories: readonly URI[] | undefined, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState: ISessionGitState | undefined) => {
@@ -779,6 +789,11 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 				return RemoteAgentHostSessionsProvider.buildWorkspace(project, workingDirectories, this._workspaceHostLabel, gitHubInfo, gitState, description, branchProtectionPatterns, typeIcon);
 			},
 		};
+	}
+
+	setGitCredentialApproval(waiting: IObservable<boolean> | undefined): void {
+		this._gitCredentialApproval.set(waiting, undefined);
+		this._scheduleDevContainerStopIfIdle();
 	}
 
 	protected resourceSchemeForProvider(provider: string): string {
