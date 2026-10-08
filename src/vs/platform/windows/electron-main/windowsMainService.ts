@@ -60,12 +60,14 @@ import { ICSSDevelopmentService } from '../../cssDev/node/cssDevService.js';
 import { ResourceSet } from '../../../base/common/map.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { resolveAgentsWindowFolder, sendAgentsWindowOpenIntent } from './agentsWindow.js';
+import { restoreNativeTabGroups, selectNativeTab } from './nativeTabs.js';
 
 //#region Helper Interfaces
 
 type RestoreWindowsSetting = 'preserve' | 'all' | 'folders' | 'one' | 'none';
 
 interface IOpenBrowserWindowOptions {
+	readonly restoreNativeTabs?: boolean;
 	readonly userEnv?: IProcessEnvironment;
 	readonly cli?: NativeParsedArgs;
 
@@ -273,6 +275,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 	openEmptyWindow(openConfig: IOpenEmptyConfiguration, options?: IOpenEmptyWindowOptions): Promise<ICodeWindow[]> {
 		const cli = this.environmentMainService.args;
+		if (openConfig.context === OpenContext.DOCK && this.getWindowCount() === 0 && this.windowsStateHandler.useNativeTabSession() && this.windowsStateHandler.hasClosedNativeTabSession) {
+			return this.open({ ...openConfig, cli });
+		}
 		const remoteAuthority = options?.remoteAuthority || undefined;
 		const forceEmpty = true;
 		const forceReuseWindow = options?.forceReuseWindow;
@@ -330,12 +335,16 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			context: openConfig.context,
 			contextWindowId: openConfig.contextWindowId,
 			initialStartup: openConfig.initialStartup,
+			restoreNativeTabs: openConfig.restoreNativeTabs,
 			forceNewWindow: true,
 		};
 	}
 
 	async open(openConfig: IOpenConfiguration): Promise<ICodeWindow[]> {
 		this.logService.trace('windowsManager#open');
+		const restoreNativeTabs = this.getWindowCount() === 0 && this.windowsStateHandler.useNativeTabSession() && !openConfig.forceNewTabbedWindow;
+		const nativeTabSession = restoreNativeTabs ? [...this.windowsStateHandler.state.openedWindows, ...(this.windowsStateHandler.state.lastActiveWindow ? [this.windowsStateHandler.state.lastActiveWindow] : [])] : [];
+		openConfig = { ...openConfig, restoreNativeTabs };
 
 		// Make sure addMode/removeMode is only enabled if we have an active window
 		if ((openConfig.addMode || openConfig.removeMode) && (openConfig.initialStartup || !this.getLastActiveWindow())) {
@@ -419,6 +428,23 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		// Open based on config
 		const { windows: usedWindows, filesOpenedInWindow } = await this.doOpen(openConfig, workspacesToOpen, foldersToOpen, emptyWindowsWithBackupsToRestore, maybeOpenEmptyWindow, filesToOpen, foldersToAdd, foldersToRemove);
+		if (restoreNativeTabs) {
+			const selectedTabs = restoreNativeTabGroups(usedWindows.flatMap(window => window.win ? [{ window: window.win, state: this.windowsStateHandler.getWindowState(window, nativeTabSession)?.nativeTabs }] : []));
+			// Renderers can show and focus their windows while loading. Restore the
+			// selected tab after all startup windows have finished becoming ready.
+			void Promise.all(usedWindows.map(window => window.ready())).then(() => {
+				for (const tab of selectedTabs) {
+					selectNativeTab(tab);
+				}
+				const lastActiveState = this.windowsStateHandler.state.lastActiveWindow;
+				const lastActive = lastActiveState && usedWindows.find(window => this.windowsStateHandler.getWindowState(window, [lastActiveState]));
+				if (filesOpenedInWindow?.win && !filesOpenedInWindow.win.isDestroyed()) {
+					filesOpenedInWindow.focus();
+				} else if (lastActive?.win && !lastActive.win.isDestroyed() && !openConfig.forceEmpty && !openConfig.cli._.length && !openConfig.cli['file-uri'] && !openConfig.cli['folder-uri'] && !openConfig.urisToOpen?.length) {
+					lastActive.focus();
+				}
+			});
+		}
 
 		this.logService.trace(`windowsManager#open used window count ${usedWindows.length} (workspacesToOpen: ${workspacesToOpen.length}, foldersToOpen: ${foldersToOpen.length}, emptyToRestore: ${emptyWindowsWithBackupsToRestore.length}, maybeOpenEmptyWindow: ${maybeOpenEmptyWindow})`);
 
@@ -626,6 +652,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 					userEnv: openConfig.userEnv,
 					cli: openConfig.cli,
 					initialStartup: openConfig.initialStartup,
+					restoreNativeTabs: openConfig.restoreNativeTabs,
 					filesToOpen,
 					forceNewWindow: true,
 					remoteAuthority: filesToOpen.remoteAuthority,
@@ -788,6 +815,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			userEnv: openConfig.userEnv,
 			cli: openConfig.cli,
 			initialStartup: openConfig.initialStartup,
+			restoreNativeTabs: openConfig.restoreNativeTabs,
 			remoteAuthority,
 			forceNewWindow: resolved.forceNewWindow,
 			forceNewTabbedWindow: openConfig.forceNewTabbedWindow,
@@ -813,6 +841,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			userEnv: openConfig.userEnv,
 			cli: openConfig.cli,
 			initialStartup: openConfig.initialStartup,
+			restoreNativeTabs: openConfig.restoreNativeTabs,
 			remoteAuthority: folderOrWorkspace.remoteAuthority,
 			forceNewWindow,
 			forceNewTabbedWindow: openConfig.forceNewTabbedWindow,
@@ -1607,6 +1636,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			mark('code/willCreateCodeWindow');
 			const createdWindow = window = this.instantiationService.createInstance(CodeWindow, {
 				state,
+				restoreNativeTabs: options.restoreNativeTabs,
 				extensionDevelopmentPath: configuration.extensionDevelopmentPath,
 				isExtensionTestHost: !!configuration.extensionTestsPath,
 				isSessionsWindow: configuration.isSessionsWindow

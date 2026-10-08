@@ -16,6 +16,7 @@ import { INativeWindowConfiguration, IWindowSettings } from '../../window/common
 import { IWindowsMainService } from './windows.js';
 import { defaultWindowState, ICodeWindow, IWindowState as IWindowUIState, WindowMode } from '../../window/electron-main/window.js';
 import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from '../../workspace/common/workspace.js';
+import { getNativeTabState, INativeTabState, supportsNativeTabSession } from './nativeTabs.js';
 
 export interface IWindowState {
 	readonly windowId?: number;
@@ -24,6 +25,7 @@ export interface IWindowState {
 	backupPath?: string;
 	remoteAuthority?: string;
 	uiState: IWindowUIState;
+	nativeTabs?: INativeTabState;
 }
 
 export interface IWindowsState {
@@ -48,6 +50,7 @@ interface ISerializedWindowState {
 	readonly backupPath?: string;
 	readonly remoteAuthority?: string;
 	readonly uiState: IWindowUIState;
+	readonly nativeTabs?: INativeTabState;
 }
 
 export class WindowsStateHandler extends Disposable {
@@ -58,6 +61,9 @@ export class WindowsStateHandler extends Disposable {
 	private readonly _state: IWindowsState;
 
 	private lastClosedState: IWindowState | undefined = undefined;
+	private readonly closedNativeTabGroups: IWindowState[][] = [];
+
+	get hasClosedNativeTabSession(): boolean { return this.closedNativeTabGroups.length > 0; }
 
 	private shuttingDown = false;
 
@@ -95,6 +101,10 @@ export class WindowsStateHandler extends Disposable {
 				// otherwise closing the last window, opening a new window and then quitting would
 				// use the state of the previously closed window when restarting.
 				this.lastClosedState = undefined;
+				this.closedNativeTabGroups.length = 0;
+			}
+			if (e.newCount === 0 && this.closedNativeTabGroups.length > 0) {
+				this.saveWindowsState();
 			}
 		}));
 
@@ -146,6 +156,24 @@ export class WindowsStateHandler extends Disposable {
 	}
 
 	private saveWindowsState(): void {
+		if ((this.shuttingDown || this.windowsMainService.getWindowCount() === 0) && this.closedNativeTabGroups.length > 0) {
+			const openedWindows = this.closedNativeTabGroups.flat();
+			const liveWindows = this.windowsMainService.getWindows().filter(window => !window.isExtensionDevelopmentHost);
+			for (const window of liveWindows) {
+				if (!openedWindows.some(state => state.windowId === window.id)) {
+					openedWindows.push(this.toWindowState(window));
+				}
+			}
+			const activeWindow = this.windowsMainService.getLastActiveWindow();
+			const activeGroup = activeWindow && this.closedNativeTabGroups.find(group => group.some(state => state.windowId === activeWindow.id));
+			this._state.openedWindows = openedWindows;
+			this._state.lastActiveWindow = activeGroup?.find(window => window.nativeTabs?.selected)
+				?? (activeWindow && this.toWindowState(activeWindow))
+				?? this.closedNativeTabGroups.at(-1)?.find(window => window.nativeTabs?.selected)
+				?? this.lastClosedState;
+			this.stateService.setItem(WindowsStateHandler.windowsStateStorageKey, getWindowsStateStoreData(this._state));
+			return;
+		}
 
 		// TODO@electron workaround for Electron not being able to restore
 		// multiple (native) fullscreen windows on the same display at once
@@ -229,6 +257,21 @@ export class WindowsStateHandler extends Disposable {
 			return; // during quit, many windows close in parallel so let it be handled in the before-quit handler
 		}
 
+		// Retain the complete group before AppKit detaches its first closed tab.
+		// Until another window opens, quitting or reopening from the Dock should
+		// restore that group rather than only the last surviving project.
+		if (this.useNativeTabSession() && window.win && !window.win.isDestroyed() && !window.isExtensionDevelopmentHost) {
+			const tabState = getNativeTabState(window.win);
+			if (tabState && !this.closedNativeTabGroups.some(group => group.some(state => state.windowId === window.id))) {
+				const group = this.windowsMainService.getWindows()
+					.filter(candidate => !candidate.isExtensionDevelopmentHost && candidate.win && !candidate.win.isDestroyed() && getNativeTabState(candidate.win)?.group === tabState.group)
+					.map(candidate => this.toWindowState(candidate));
+				if (group.length > 0) {
+					this.closedNativeTabGroups.push(group);
+				}
+			}
+		}
+
 		// On Window close, update our stored UI state of this window
 		const state: IWindowState = this.toWindowState(window);
 		if (window.isExtensionDevelopmentHost && !window.isExtensionTestHost) {
@@ -263,8 +306,28 @@ export class WindowsStateHandler extends Disposable {
 			folderUri: isSingleFolderWorkspaceIdentifier(window.openedWorkspace) ? window.openedWorkspace.uri : undefined,
 			backupPath: window.backupPath,
 			remoteAuthority: window.remoteAuthority,
-			uiState: window.serializeWindowState()
+			uiState: window.serializeWindowState(),
+			nativeTabs: this.useNativeTabSession() && window.win && !window.win.isDestroyed() ? getNativeTabState(window.win) : undefined
 		};
+	}
+
+	useNativeTabSession(): boolean {
+		return supportsNativeTabSession() && this.configurationService.getValue<IWindowSettings | undefined>('window')?.nativeTabs === true;
+	}
+
+	getWindowState(window: ICodeWindow, states: readonly IWindowState[] = this.state.openedWindows): IWindowState | undefined {
+		return states.find(state => {
+			if (state.remoteAuthority !== window.remoteAuthority) {
+				return false;
+			}
+			if (isWorkspaceIdentifier(window.openedWorkspace)) {
+				return state.workspace?.id === window.openedWorkspace.id;
+			}
+			if (isSingleFolderWorkspaceIdentifier(window.openedWorkspace)) {
+				return !!state.folderUri && extUriBiasedIgnorePathCase.isEqual(state.folderUri, window.openedWorkspace.uri);
+			}
+			return !!window.backupPath && state.backupPath === window.backupPath;
+		});
 	}
 
 	getNewWindowState(configuration: INativeWindowConfiguration): INewWindowState {
@@ -449,6 +512,9 @@ export function restoreWindowsState(data: ISerializedWindowsState | undefined): 
 
 function restoreWindowState(windowState: ISerializedWindowState): IWindowState {
 	const result: IWindowState = { uiState: windowState.uiState };
+	if (windowState.nativeTabs && Number.isSafeInteger(windowState.nativeTabs.group) && Number.isSafeInteger(windowState.nativeTabs.index) && windowState.nativeTabs.index >= 0 && typeof windowState.nativeTabs.selected === 'boolean') {
+		result.nativeTabs = windowState.nativeTabs;
+	}
 	if (windowState.backupPath) {
 		result.backupPath = windowState.backupPath;
 	}
@@ -482,6 +548,7 @@ function serializeWindowState(windowState: IWindowState): ISerializedWindowState
 		folder: windowState.folderUri?.toString(),
 		backupPath: windowState.backupPath,
 		remoteAuthority: windowState.remoteAuthority,
-		uiState: windowState.uiState
+		uiState: windowState.uiState,
+		nativeTabs: windowState.nativeTabs
 	};
 }

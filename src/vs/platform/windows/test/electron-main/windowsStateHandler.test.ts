@@ -53,6 +53,7 @@ suite('Windows State Storing', () => {
 		assert.strictEqual(expected.remoteAuthority, actual.remoteAuthority, message);
 		assertEqualWorkspace(expected.workspace, actual.workspace, message);
 		assert.deepStrictEqual(expected.uiState, actual.uiState, message);
+		assert.deepStrictEqual(expected.nativeTabs, actual.nativeTabs, message);
 	}
 
 	function assertEqualWindowsState(expected: IWindowsState, actual: IWindowsState, message?: string) {
@@ -77,6 +78,27 @@ suite('Windows State Storing', () => {
 	const testFolderURI = URI.file(join(tmpdir(), 'windowStateTest', 'testFolder'));
 
 	const testRemoteFolderURI = URI.parse('foo://bar/c/d');
+
+	test('stores native tab order and selection independently for groups', () => {
+		assertRestoring({
+			openedWindows: [
+				{ folderUri: testFolderURI, uiState: getUIState(), nativeTabs: { group: 7, index: 1, selected: true } },
+				{ workspace: toWorkspace(testWSPath), uiState: getUIState(), nativeTabs: { group: 7, index: 0, selected: false } },
+				{ backupPath: testBackupPath1, uiState: getUIState(), nativeTabs: { group: 12, index: 0, selected: true } }
+			]
+		});
+	});
+
+	test('ignores invalid native tab metadata without losing the project', () => {
+		const restored = restoreWindowsState({ openedWindows: [
+			{ folder: testFolderURI.toString(), uiState: getUIState(), nativeTabs: { group: 1, index: -1, selected: true } },
+			{ backupPath: testBackupPath1, uiState: getUIState(), nativeTabs: { group: NaN, index: 0, selected: false } }
+		] });
+		assert.deepStrictEqual(restored.openedWindows.map(window => ({ folder: window.folderUri?.toString(), backupPath: window.backupPath, tabs: window.nativeTabs })), [
+			{ folder: testFolderURI.toString(), backupPath: undefined, tabs: undefined },
+			{ folder: undefined, backupPath: testBackupPath1, tabs: undefined }
+		]);
+	});
 
 	test('storing and restoring', () => {
 		let windowState: IWindowsState;
