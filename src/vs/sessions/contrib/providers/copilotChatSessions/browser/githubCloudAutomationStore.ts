@@ -168,10 +168,20 @@ export class GitHubCloudAutomationStore extends Disposable {
 	}
 
 	/** The preflight callback may decline an update after comparing the latest authoritative definition. */
-	update(entry: ICloudAutomationEntry, patch: (current: AutomationDetail) => EditAutomationRequest | undefined, guard?: () => void): Promise<{ readonly entry: ICloudAutomationEntry; readonly updated: boolean }> {
+	update(entry: ICloudAutomationEntry, patch: (current: AutomationDetail) => EditAutomationRequest | undefined, guard?: () => void): Promise<{ readonly entry: ICloudAutomationEntry; readonly updated: boolean } | { readonly entry: undefined; readonly updated: false }> {
 		const account = this.requireAccount();
 		return this.mutate(entry.repository, async (client, ref, signal) => {
-			const current = await client.automations.get(ref, entry.definition.id, signal);
+			let current: AutomationDetail;
+			try {
+				current = await client.automations.get(ref, entry.definition.id, signal);
+			} catch (error) {
+				this.assertCurrent(account, signal);
+				if (!(error instanceof ApiRequestError) || error.statusCode !== 404) {
+					throw error;
+				}
+				this.removeEntry(entry);
+				return { entry: undefined, updated: false };
+			}
 			this.assertCurrent(account, signal);
 			this.publish(entry.repository, current);
 			const value = patch(current);
@@ -191,10 +201,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 			guard?.();
 			await client.automations.delete(ref, entry.definition.id, signal);
 			this.assertCurrent(account, signal);
-			transaction(tx => {
-				this.cachedEntries.set(this.cachedEntries.get().filter(candidate => !sameEntry(candidate, entry)), tx);
-				this.cachedHistory.set(this.cachedHistory.get().filter(candidate => !sameEntry(candidate.entry, entry)), tx);
-			});
+			this.removeEntry(entry);
 		});
 	}
 
@@ -282,6 +289,13 @@ export class GitHubCloudAutomationStore extends Disposable {
 		const entry = { repository, definition };
 		this.cachedEntries.set([...this.cachedEntries.get().filter(candidate => !sameEntry(candidate, entry)), entry], undefined);
 		return entry;
+	}
+
+	private removeEntry(entry: ICloudAutomationEntry): void {
+		transaction(tx => {
+			this.cachedEntries.set(this.cachedEntries.get().filter(candidate => !sameEntry(candidate, entry)), tx);
+			this.cachedHistory.set(this.cachedHistory.get().filter(candidate => !sameEntry(candidate.entry, entry)), tx);
+		});
 	}
 
 	private async refreshRepositories(account: IDefaultAccount, signal: AbortSignal, client: IGitHubClient, identity: AccountHandle): Promise<void> {
@@ -378,7 +392,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 			this.cachedEntries.set([], tx);
 			this.cachedHistory.set([], tx);
 			this.uncertain.set(false, tx);
-			this.state.set(account && !account.enterprise ? 'ready' : 'unavailable', tx);
+			this.state.set(account && !account.enterprise ? 'loading' : 'unavailable', tx);
 		});
 	}
 

@@ -23,6 +23,7 @@ import { AutomationTarget, IAutomationDescriptor, IAutomationRun, IAutomationSch
 import { AutomationCatalogueState, AutomationMutationGuard, AutomationUnavailableError, assertAutomationSessionTemplateAuthority, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions, serializeAutomationEditableState } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { IWorkbenchGitHubService } from '../../../../../workbench/services/github/common/githubService.js';
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../services/sessions/common/session.js';
 import { ISessionsProviderAutomations } from '../../../../services/sessions/common/sessionsProvider.js';
 import { GitHubCloudAutomationStore, ICloudAutomationEntry, ICloudAutomationHistoryEntry } from './githubCloudAutomationStore.js';
@@ -49,11 +50,13 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		@IChatEntitlementService entitlementService: IChatEntitlementService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
+		@IWorkbenchGitHubService gitHubService: IWorkbenchGitHubService,
 	) {
 		super();
 		const configurationChanged = observableSignalFromEvent(this, configurationService.onDidChangeConfiguration);
 		const sentimentChanged = observableSignalFromEvent(this, entitlementService.onDidChangeSentiment);
 		const accountChanged = observableSignalFromEvent(this, defaultAccountService.onDidChangeDefaultAccount);
+		const clientChanged = observableSignalFromEvent(this, gitHubService.onDidChangeDefaultClient);
 		this.enabled = derived(this, reader => {
 			configurationChanged.read(reader);
 			sentimentChanged.read(reader);
@@ -64,6 +67,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		});
 		this._register(autorun(reader => {
 			accountChanged.read(reader);
+			clientChanged.read(reader);
 			const account = defaultAccountService.currentDefaultAccount;
 			let store: GitHubCloudAutomationStore | undefined;
 			if (this.enabled.read(reader) && account && !account.enterprise) {
@@ -74,7 +78,12 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 				this.refreshError.set(undefined, tx);
 			});
 			if (store) {
-				void this.refresh().catch(error => {
+				void (async () => {
+					// Let synchronous account and client invalidations settle before starting requests.
+					await Promise.resolve();
+					this.assertCurrentStore(store);
+					await this.refresh();
+				})().catch(error => {
 					if (!isCancellationError(error)) {
 						this.logService.warn('[CloudAutomations] Initial refresh failed', error);
 					}
@@ -130,7 +139,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		this.validateTarget(options.target);
 		validateLocalOptions(options);
 		const value: CreateAutomationRequest = {
-			name: options.name, description: '', prompt: options.prompt, disabled: !(options.enabled ?? false),
+			name: options.name, description: '', prompt: options.prompt, disabled: !(options.enabled ?? true),
 			triggers: cloudAutomationTriggers(options.schedule), ...templateMutation(options.sessionTemplate),
 			...(options.modelId !== undefined && options.sessionTemplate === undefined ? { model: options.modelId } : {}),
 		};
@@ -143,6 +152,9 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		const store = this.requireWritableStore();
 		const { entry } = await store.update(this.requireEntry(id), current => this.updateValue(current, id, patch));
 		this.assertCurrentStore(store);
+		if (!entry) {
+			throw new AutomationUnavailableError(localize('cloudAutomations.missing', "This cloud automation is no longer available. Refresh the catalogue."));
+		}
 		return this.toAutomation(entry);
 	}
 
@@ -155,6 +167,9 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 				? this.updateValue(current, id, patch) : undefined;
 		}, guard);
 		this.assertCurrentStore(store);
+		if (!result.entry) {
+			return { kind: 'conflict', current: undefined };
+		}
 		const automation = this.toAutomation(result.entry);
 		return result.updated ? { kind: 'updated', automation } : { kind: 'conflict', current: automation };
 	}

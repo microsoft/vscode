@@ -219,7 +219,7 @@ suite('GitHubCloudAutomationStore', () => {
 		changeAccount(account);
 		await timeout(60_000);
 		assert.deepStrictEqual({ calls: api.calls, entries: store.entries.get(), state: store.catalogueState.get() }, {
-			calls: [], entries: [], state: 'ready',
+			calls: [], entries: [], state: 'loading',
 		});
 	}));
 
@@ -228,6 +228,7 @@ suite('GitHubCloudAutomationStore', () => {
 		const entry = await store.create(workspace, createValue);
 		const conflict = await store.update(entry, () => undefined);
 		const updated = await store.update(entry, current => ({ name: `${current.name} updated` }));
+		assert.ok(updated.updated);
 		const acknowledgement = await store.run(updated.entry);
 		await store.delete(updated.entry);
 		assert.deepStrictEqual({
@@ -485,7 +486,7 @@ suite('GitHubCloudAutomationStore', () => {
 		recents.workspaces = [recentWorkspace(workspace)];
 		await store.refresh();
 		clientChanged.fire();
-		assert.deepStrictEqual({ entries: store.entries.get(), state: store.catalogueState.get() }, { entries: [], state: 'ready' });
+		assert.deepStrictEqual({ entries: store.entries.get(), state: store.catalogueState.get() }, { entries: [], state: 'loading' });
 	});
 
 	test('releases a late client lease without making requests after account reset', async () => {
@@ -632,7 +633,7 @@ suite('GitHubCloudAutomationStore', () => {
 		await pending.complete([definition]);
 		await Promise.all([first, second]);
 		assert.deepStrictEqual({ states, methods: api.calls.map(call => call.method) }, {
-			states: ['ready', 'loading', 'ready'], methods: ['visibility', 'list'],
+			states: ['loading', 'ready'], methods: ['visibility', 'list'],
 		});
 	});
 
@@ -733,7 +734,7 @@ suite('GitHubCloudAutomationStore', () => {
 				stored: storage.get(storageKey, StorageScope.PROFILE), state: store.catalogueState.get(),
 			}, {
 				entries: [], cancelled: [true, true], stored: undefined,
-				state: reset === 'sign out' || reset === 'dispose' ? 'unavailable' : 'ready',
+				state: reset === 'sign out' || reset === 'dispose' ? 'unavailable' : 'loading',
 			});
 		});
 	}
