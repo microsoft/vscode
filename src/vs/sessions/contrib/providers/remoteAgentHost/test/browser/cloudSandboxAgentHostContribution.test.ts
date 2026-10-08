@@ -35,7 +35,7 @@ import {
 	type ICloudSandboxEnvironment as ICloudSandboxEnvironmentRecord,
 } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { SessionStatus } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { readSessionWorkspaceless, SessionStatus } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { RootStateSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { RootState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { constObservable, IObservable, observableValue } from '../../../../../../base/common/observable.js';
@@ -1892,6 +1892,26 @@ suite('CloudSandboxAgentHostContribution provisioning', () => {
 			connectionSource: 'created',
 			resolvedSession: '/sess-new',
 			progress: ['Setting up cloud container', 'Connecting to cloud container'],
+		});
+	});
+
+	test('provisions a repo-less sandbox with workspace-less session metadata', async () => {
+		const harness = await createContribution(store, []);
+
+		const provisioned = await harness.contribution.provisionSession({ prompt: 'hello' }, CancellationToken.None);
+
+		const provider = harness.contribution.stubProviders.get(cloudSandboxAddress(provisioned.environmentId));
+		assert.deepStrictEqual({
+			seeded: provider?.seeded.map(meta => ({
+				session: meta.session.toString(),
+				workspaceless: readSessionWorkspaceless(meta._meta),
+				project: meta.project,
+				workingDirectories: meta.workingDirectories,
+			})),
+			connectedTo: harness.connectedTo,
+		}, {
+			seeded: [{ session: 'ahp-session:/sess-new', workspaceless: true, project: undefined, workingDirectories: undefined }],
+			connectedTo: ['env-new'],
 		});
 	});
 

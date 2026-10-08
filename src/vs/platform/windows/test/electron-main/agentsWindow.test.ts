@@ -5,12 +5,93 @@
 
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
+import { upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NativeParsedArgs } from '../../../environment/common/argv.js';
 import { AgentsWindowOpenSource } from '../../../window/common/window.js';
+import { ICodeWindow } from '../../../window/electron-main/window.js';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from '../../../workspace/common/workspace.js';
-import { resolveAgentsWindowFolder } from '../../electron-main/agentsWindow.js';
+import { resolveAgentsWindowFolder, sendAgentsWindowOpenIntent } from '../../electron-main/agentsWindow.js';
 import { IOpenConfiguration, OpenContext } from '../../electron-main/windows.js';
+
+suite('Agents window reveal intent', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+	const folder = URI.file('/project');
+	const session = URI.parse('agent-host-copilot:/session');
+	const cli = { _: [] };
+
+	function createHarness() {
+		const messages: { channel: string; args: unknown[] }[] = [];
+		const window = upcastPartial<ICodeWindow>({
+			sendWhenReady: (channel, _token, ...args) => { messages.push({ channel, args }); },
+		});
+		return { window, messages };
+	}
+
+	for (const initiallyOpen of [false, true]) {
+		for (const reveal of [undefined, session, 'new'] as const) {
+			test(`${initiallyOpen ? 'existing' : 'new'} window with reveal ${reveal ?? 'omitted'}`, () => {
+				const harness = createHarness();
+				sendAgentsWindowOpenIntent(harness.window, initiallyOpen, { context: OpenContext.API, cli }, {
+					folderUri: folder, reveal, source: AgentsWindowOpenSource.TitleBar,
+				});
+				assert.deepStrictEqual(harness.messages, initiallyOpen && reveal === undefined ? [] : [{
+					channel: 'vscode:selectAgentsFolder',
+					args: [folder.toJSON(), reveal === 'new' ? 'new' : reveal?.toJSON(), AgentsWindowOpenSource.TitleBar, false, undefined, undefined],
+				}]);
+			});
+		}
+	}
+
+	test('a focus-only open does not supersede a pending explicit reveal', () => {
+		const harness = createHarness();
+		const config = { context: OpenContext.API, cli };
+		sendAgentsWindowOpenIntent(harness.window, false, config, { reveal: session });
+		sendAgentsWindowOpenIntent(harness.window, true, config, { folderUri: folder });
+		assert.deepStrictEqual(harness.messages, [{
+			channel: 'vscode:selectAgentsFolder',
+			args: [undefined, session.toJSON(), AgentsWindowOpenSource.Unknown, false, undefined, undefined],
+		}]);
+	});
+
+	for (const context of [OpenContext.CLI, OpenContext.LINK]) {
+		test(`preserves workspace handoff when reusing a window from ${context}`, () => {
+			const harness = createHarness();
+			sendAgentsWindowOpenIntent(harness.window, true, { context, cli }, { folderUri: folder });
+			assert.deepStrictEqual(harness.messages, [{
+				channel: 'vscode:selectAgentsFolder',
+				args: [folder.toJSON(), undefined, AgentsWindowOpenSource.Unknown, false, undefined, undefined],
+			}]);
+		});
+	}
+
+	for (const reveal of [undefined, session, 'new'] as const) {
+		test(`serializes reveal ${reveal ?? 'omitted'} and only copies drafts for new-session intent`, () => {
+			const harness = createHarness();
+			const draft = { inputText: 'Editor draft', attachments: '[]' };
+			sendAgentsWindowOpenIntent(harness.window, false, { context: OpenContext.API, cli }, {
+				folderUri: folder.toJSON(),
+				reveal: reveal === 'new' ? 'new' : reveal?.toJSON(),
+				draft,
+				source: AgentsWindowOpenSource.TitleBar,
+			});
+			assert.deepStrictEqual(harness.messages, [{
+				channel: 'vscode:selectAgentsFolder',
+				args: [folder.toJSON(), reveal === 'new' ? 'new' : reveal?.toJSON(), AgentsWindowOpenSource.TitleBar, false, reveal === 'new' ? draft : undefined, undefined],
+			}]);
+		});
+	}
+
+	test('preserves a new-session deep link draft without a separate reveal argument', () => {
+		const harness = createHarness();
+		const draft = { inputText: 'Linked draft', attachments: '[]' };
+		sendAgentsWindowOpenIntent(harness.window, true, { context: OpenContext.LINK, cli }, { draft, source: AgentsWindowOpenSource.Link });
+		assert.deepStrictEqual(harness.messages, [{
+			channel: 'vscode:selectAgentsFolder',
+			args: [undefined, undefined, AgentsWindowOpenSource.Link, false, draft, undefined],
+		}]);
+	});
+});
 
 suite('Agents window CLI folder', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
