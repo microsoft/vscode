@@ -69,9 +69,9 @@ The legacy JSON is logical policy notation, not an OS-specific deployment format
 | 3 | `{}` | `{"permissions":{"disableBypassPermissionsMode":"disable"}}` | ❌ | ❌ | ✅ | ❌ | ✅ | ✅ |
 | 4 | `{"ChatToolsAutoApprove":false}` | `{"permissions":{"disableBypassPermissionsMode":"disable"}}` | ❌ | ❌ | ✅ | ❌ | ✅ | ✅ |
 | 5 | `{}` | `{"permissions":{"disableAssistedPermissionsMode":true}}` | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
-| 6 | `{"ChatToolsAutoApprove":false}` | `{"permissions":{"disableAssistedPermissionsMode":true}}` | ❌ | ❌ | ✅ | ✅ | ❌ | ✅ |
+| 6 ⚠️ | `{"ChatToolsAutoApprove":false}` | `{"permissions":{"disableAssistedPermissionsMode":true}}` | ❌ | ❌ | ✅ | ✅ | ❌ | ✅ |
 | 7 | `{"ChatToolsAutoApprove":false}` | `{"permissions":{"disableBypassPermissionsMode":"disable","disableAssistedPermissionsMode":true}}` | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ |
-| 8 | `{"ChatToolsAutoApprove":false}` | `{"permissions":{"disableBypassPermissionsMode":"enable"}}` | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ |
+| 8 ⚠️ | `{"ChatToolsAutoApprove":false}` | `{"permissions":{"disableBypassPermissionsMode":"enable"}}` | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ |
 
 Host-injected managed settings are startup configuration:
 
