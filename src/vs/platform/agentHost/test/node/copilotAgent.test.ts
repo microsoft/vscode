@@ -15314,6 +15314,85 @@ suite('CopilotAgent', () => {
 			});
 		}
 
+		for (const operation of ['send', 'continue'] as const) {
+			for (const [admission, arrival] of [['pending', 'beforeRunning'], ['pending', 'afterRunning'], ['resolved', 'beforeRunning'], ['resolved', 'afterRunning']] as const) {
+				test(`delivers mid-turn steering immediately after ${operation} dispatch with admission ${admission} (${arrival})`, async () => {
+					const h = await createHarness();
+					const gate = new DeferredPromise<void>();
+					const dispatched = new DeferredPromise<void>();
+					const steeringSent = new DeferredPromise<void>();
+					const sends: Array<{ prompt: string; mode?: string }> = [];
+					let originalSettled = false;
+					const send = stub(h.newRuntime, 'send').callsFake(async (options?: Parameters<CopilotSession['send']>[0]) => {
+						assert.ok(options);
+						sends.push({ prompt: options.prompt, mode: options.mode });
+						if (options.mode === 'immediate') {
+							steeringSent.complete();
+						} else {
+							dispatched.complete();
+							await gate.p;
+						}
+						return '';
+					});
+					Object.assign(h.newRuntime.rpc, {
+						sendMessages: async () => {
+							sends.push({ prompt: 'continuation', mode: undefined });
+							dispatched.complete();
+							await gate.p;
+							return {};
+						},
+					});
+					const sending = (operation === 'send'
+						? h.agent.chats.sendMessage(h.chat, 'original', undefined, undefined, 'turn-original', undefined, h.context)
+						: h.agent.chats.resumeTurn!(h.chat, 'turn-original', h.context))
+						.then(() => { originalSettled = true; });
+					try {
+						await dispatched.p;
+						const steering = { id: 'steering', message: { text: operation === 'send' ? 'original' : 'follow up', origin: { kind: MessageKind.User } } };
+						if (arrival === 'beforeRunning') {
+							h.agent.setPendingMessages(h.chat, steering, []);
+						}
+						if (operation === 'send') {
+							h.newRuntime.emit({
+								id: 'user-message',
+								timestamp: new Date().toISOString(),
+								parentId: null,
+								type: 'user.message',
+								data: { content: 'original', messageId: 'sdk-message', turnId: 'sdk-turn' },
+							});
+						} else {
+							h.newRuntime.emit({
+								id: 'assistant-start',
+								timestamp: new Date().toISOString(),
+								parentId: null,
+								type: 'assistant.turn_start',
+								data: { turnId: 'sdk-turn' },
+							});
+						}
+						if (admission === 'resolved') {
+							gate.complete();
+							await sending;
+						}
+						if (arrival === 'afterRunning') {
+							h.agent.setPendingMessages(h.chat, steering, []);
+						}
+						const delivered = await raceTimeout(steeringSent.p.then(() => true), 1000);
+						assert.deepStrictEqual({ delivered, originalSettled, activeTurn: h.live().currentTurnId, sends }, {
+							delivered: true,
+							originalSettled: admission === 'resolved',
+							activeTurn: 'turn-original',
+							sends: [{ prompt: operation === 'send' ? 'original' : 'continuation', mode: undefined }, { prompt: steering.message.text, mode: 'immediate' }],
+						});
+					} finally {
+						gate.complete();
+						await sending;
+						send.restore();
+						await disposeAgent(h.agent);
+					}
+				});
+			}
+		}
+
 		for (const update of ['remove', 'replace', 'abort'] as const) {
 			test(`respects steering ${update} while send preparation is blocked`, async () => {
 				const h = await createHarness();

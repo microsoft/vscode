@@ -611,6 +611,8 @@ export interface ICopilotAgentSessionOptions {
 	 * could dispose this session off the current stack.
 	 */
 	readonly onTurnEnded?: () => void;
+	/** Invoked after a root SDK message or turn-start event establishes steering readiness. */
+	readonly onSteeringReady?: (session: CopilotAgentSession) => void;
 
 	/**
 	 * Platform used to compute the SDK sandbox policy. Defaults to
@@ -1150,6 +1152,10 @@ export class CopilotAgentSession extends Disposable {
 	 * non-destructive idle release to avoid disconnecting mid-turn.
 	 */
 	get hasActiveTurn(): boolean { return this._currentTurn.value !== undefined; }
+	get hasRunningTurn(): boolean {
+		const turn = this._currentTurn.value;
+		return turn?.isRunning === true && turn.sdkSendInvoked && !this._abortToken.isCancellationRequested;
+	}
 	/**
 	 * Whether a subagent is still in flight: started or resumed and not yet
 	 * confirmed complete. A background subagent can still be finishing after
@@ -1409,6 +1415,7 @@ export class CopilotAgentSession extends Disposable {
 	private _detectInterruptedTurnOnRestore: boolean;
 	/** Notifies the agent that this chat's turn ended. See {@link ICopilotAgentSessionOptions.onTurnEnded}. */
 	private readonly _onTurnEnded: () => void;
+	private readonly _onSteeringReady: ((session: CopilotAgentSession) => void) | undefined;
 	private readonly _shellManager: ShellManager | undefined;
 	/** Streams runtime-executed shell output into output-only (non-pty) terminal channels. */
 	private readonly _nonPtyShellTerminals: NonPtyShellTerminalStreams;
@@ -1545,6 +1552,7 @@ export class CopilotAgentSession extends Disposable {
 		this._sandboxDiagnostics = this._register(this._instantiationService.createInstance(CopilotSandboxDiagnostics, this._ownerSessionUri.toString(), () => this._launchPlan.client.rpc.sandbox.getHostSupport()));
 		this._detectInterruptedTurnOnRestore = options.launchPlan.kind === 'resume';
 		this._onTurnEnded = options.onTurnEnded ?? (() => { });
+		this._onSteeringReady = options.onSteeringReady;
 		this._shellManager = options.shellManager;
 		this._nonPtyShellTerminals = this._register(this._instantiationService.createInstance(NonPtyShellTerminalStreams, options.sessionUri, this._storageUri, options.chatChannelUri));
 		this._workingDirectory = options.workingDirectory;
@@ -6706,6 +6714,7 @@ export class CopilotAgentSession extends Disposable {
 				this._databaseRef.object.setTurnEventId(this._turnId, e.id);
 				this._currentTurn.value?.completeEventId(e.id);
 			}
+			this._onSteeringReady?.(this);
 		}));
 
 		this._register(wrapper.onMessageDelta(e => {
@@ -9247,6 +9256,7 @@ export class CopilotAgentSession extends Disposable {
 						this._currentTurn.value.interactionIds.add(e.data.interactionId);
 					}
 				}
+				this._onSteeringReady?.(this);
 				const telemetryMessageId = this._currentTurn.value?.id ?? e.data.turnId;
 				if (this._activeRepoInfoTurn?.telemetryMessageId === telemetryMessageId) {
 					return;

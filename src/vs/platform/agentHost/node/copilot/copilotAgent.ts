@@ -5116,7 +5116,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return;
 		}
 		this._pendingSteeringMessages.set(chatKey, { message: steeringMessage, sender: steeringSender });
-		if (target && !preparing && !pending && !this._preparedTurnLaunches.has(target)) {
+		if (target && !this._preparedTurnLaunches.has(target) && (target.hasRunningTurn || (!preparing && !pending))) {
 			this._deliverPendingSteering(chat, target);
 		}
 	}
@@ -6343,6 +6343,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 				},
 				serverToolHost: this._serverToolHost,
 				onTurnEnded: () => this._onChatTurnEnded(),
+				onSteeringReady: session => {
+					if (session.hasRunningTurn && !this._preparedTurnLaunches.has(session) && this._findChatByUri(chatChannelUri) === session) {
+						this._deliverPendingSteering(chatChannelUri, session);
+					}
+				},
 				telemetryContext: () => this.getTelemetryContext(),
 			},
 		);
