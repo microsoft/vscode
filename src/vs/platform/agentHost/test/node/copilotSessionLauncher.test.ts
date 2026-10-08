@@ -150,6 +150,69 @@ function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettin
 	);
 }
 
+suite('CopilotSessionLauncher customization policy session', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('creates a hidden no-turn session with every discovered MCP server disabled', async () => {
+		let captured: SessionConfig | undefined;
+		const client = {
+			rpc: {
+				mcp: {
+					discover: async () => ({
+						servers: [{ name: 'zeta' }, { name: 'alpha' }],
+						errors: [],
+					}),
+				},
+			},
+			createSession: async (config: SessionConfig) => {
+				captured = config;
+				return { sessionId: 'hidden-policy' } as CopilotSession;
+			},
+		} as unknown as CopilotClient;
+		const permissions = { deny: ['shell(*)'] };
+		const launcher = createTestLauncher(permissions);
+
+		const session = await launcher.createCustomizationPolicySession(
+			client,
+			'hidden-policy',
+			'/copilot-home',
+			CopilotGitHubSessionCredentials.fromToken('token'),
+		);
+
+		assert.deepStrictEqual({
+			sessionId: session.sessionId,
+			configuredSessionId: captured?.sessionId,
+			workingDirectory: captured?.workingDirectory,
+			disabledMcpServers: captured?.disabledMcpServers,
+			availableTools: captured?.availableTools,
+			excludedTools: captured?.excludedTools,
+			enableSkills: captured?.enableSkills,
+			skipCustomInstructions: captured?.skipCustomInstructions,
+			enableSessionStore: captured?.enableSessionStore,
+			infiniteSessions: captured?.infiniteSessions,
+			memory: captured?.memory,
+			remoteSession: captured?.remoteSession,
+			managedSettings: captured?.managedSettings,
+			gitHubToken: captured?.gitHubToken,
+		}, {
+			sessionId: 'hidden-policy',
+			configuredSessionId: 'hidden-policy',
+			workingDirectory: '/copilot-home',
+			disabledMcpServers: ['alpha', 'github-mcp-server', 'zeta'],
+			availableTools: [],
+			excludedTools: ['builtin:*', 'mcp:*', 'custom:*'],
+			enableSkills: true,
+			skipCustomInstructions: true,
+			enableSessionStore: false,
+			infiniteSessions: { enabled: false },
+			memory: { enabled: false },
+			remoteSession: 'off',
+			managedSettings: { permissions },
+			gitHubToken: 'token',
+		});
+	});
+});
+
 suite('CopilotSessionLauncher sandbox policy', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
