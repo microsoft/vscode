@@ -55,3 +55,12 @@
 	min-width: 0;
 	min-height: 0;
 }
+
+.project-board-standalone-chat {
+	box-sizing: border-box;
+	height: 100%;
+	min-width: 0;
+	min-height: 0;
+	overflow: hidden;
+	border-left: 1px solid var(--vscode-sideBar-border, var(--vscode-panel-border));
+}

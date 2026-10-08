@@ -50,8 +50,8 @@ registerAction2(class RenameAgentsHubBoardAction extends Action2 {
 			menu: [{ id: Menus.CustomViewKanbanSettings, group: 'boards', order: 1 }],
 		});
 	}
-	override run(accessor: ServicesAccessor, boardId?: string): Promise<void> {
-		return accessor.get(IProjectBoardService).renameBoard(boardId);
+	override run(accessor: ServicesAccessor, context?: unknown): Promise<void> {
+		return accessor.get(IProjectBoardService).renameBoard(typeof context === 'string' ? context : undefined);
 	}
 });
 
@@ -64,8 +64,8 @@ registerAction2(class DeleteAgentsHubBoardAction extends Action2 {
 			menu: [{ id: Menus.CustomViewKanbanSettings, group: 'boards', order: 2 }],
 		});
 	}
-	override run(accessor: ServicesAccessor, boardId?: string): Promise<void> {
-		return accessor.get(IProjectBoardService).deleteBoard(boardId);
+	override run(accessor: ServicesAccessor, context?: unknown): Promise<void> {
+		return accessor.get(IProjectBoardService).deleteBoard(typeof context === 'string' ? context : undefined);
 	}
 });
 
@@ -78,8 +78,8 @@ registerAction2(class OpenAgentsHubBoardWindowAction extends Action2 {
 			menu: [{ id: Menus.CustomViewKanbanSettings, group: 'boards', order: 3 }],
 		});
 	}
-	override run(accessor: ServicesAccessor, boardId?: string): Promise<void> {
-		return accessor.get(IProjectBoardService).open(boardId);
+	override run(accessor: ServicesAccessor, context?: unknown): Promise<void> {
+		return accessor.get(IProjectBoardService).open(typeof context === 'string' ? context : undefined);
 	}
 });
 

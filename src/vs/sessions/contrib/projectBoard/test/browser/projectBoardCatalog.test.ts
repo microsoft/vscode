@@ -14,6 +14,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ProjectBoardCatalogService } from '../../browser/projectBoardCatalog.js';
 import { ProjectBoardState } from '../../browser/projectBoardState.js';
+import { defaultProjectBoardViewState, ProjectBoardViewState, validateProjectBoardViewState } from '../../browser/projectBoardViewState.js';
 import { DEFAULT_PROJECT_BOARD_ID, IProjectBoardCollection } from '../../common/projectBoardCatalog.js';
 import { defaultConfiguration, IProjectBoardConfiguration, projectBoardIdentityLabelLimit } from '../../common/projectBoardConfiguration.js';
 
@@ -39,6 +40,45 @@ suite('ProjectBoardCatalog', () => {
 	function collection(configuration = defaultConfiguration()): IProjectBoardCollection {
 		return { version: 2, boards: [{ id: defaultId, name: 'Default', configuration }], selectedBoardId: defaultId };
 	}
+
+	test('deleting a board clears only its two surface states and explicit Hub reset clears even corrupt view state', () => {
+		const h = create();
+		const other = h.catalog.createBoard('Other');
+		const firstEmbedded = ProjectBoardViewState.storageKey(defaultId, 'embedded');
+		const firstStandalone = ProjectBoardViewState.storageKey(defaultId, 'standalone');
+		const otherEmbedded = ProjectBoardViewState.storageKey(other, 'embedded');
+		for (const viewKey of [firstEmbedded, firstStandalone, otherEmbedded]) {
+			h.storage.store(viewKey, '{corrupt view state', StorageScope.PROFILE, StorageTarget.MACHINE);
+		}
+		h.catalog.deleteBoard(defaultId);
+		assert.strictEqual(h.storage.get(firstEmbedded, StorageScope.PROFILE), undefined);
+		assert.strictEqual(h.storage.get(firstStandalone, StorageScope.PROFILE), undefined);
+		assert.strictEqual(h.storage.get(otherEmbedded, StorageScope.PROFILE), '{corrupt view state');
+		h.catalog.reset();
+		assert.strictEqual(h.storage.get(otherEmbedded, StorageScope.PROFILE), undefined);
+	});
+
+	test('canonical identity reconciliation migrates detail and child expansion across boards and surfaces', () => {
+		const h = create();
+		const other = h.catalog.createBoard('Other');
+		for (const boardId of [defaultId, other]) {
+			for (const surface of ['embedded', 'standalone'] as const) {
+				h.storage.store(ProjectBoardViewState.storageKey(boardId, surface), JSON.stringify({
+					...defaultProjectBoardViewState(), expandedCards: ['provisional', 'canonical'], expandedChats: ['provisional'],
+				}), StorageScope.PROFILE, StorageTarget.MACHINE);
+			}
+		}
+		h.catalog.replaceCardPlacements('provisional', 'canonical');
+		for (const boardId of [defaultId, other]) {
+			for (const surface of ['embedded', 'standalone'] as const) {
+				const view = storeView(boardId, surface);
+				assert.deepStrictEqual([view.expandedCards, view.expandedChats], [['canonical'], ['canonical']]);
+			}
+		}
+		function storeView(boardId: string, surface: 'embedded' | 'standalone') {
+			return validateProjectBoardViewState(JSON.parse(h.storage.get(ProjectBoardViewState.storageKey(boardId, surface), StorageScope.PROFILE)!));
+		}
+	});
 
 	test('fresh initialization is memory-only and first mutation writes only profile-machine v2', () => {
 		const { catalog, storage } = create();
