@@ -1182,7 +1182,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		const resubscribed = new Set<string>();
 		for (const connection of record?.state === 'active' ? record.connections : [client]) {
 			for (const sub of connection.subscriptions.values()) {
-				if (sub.kind === ChannelKind.State) {
+				if (sub.kind === ChannelKind.State && sub.active) {
 					resubscribed.add(sub.uri);
 				}
 			}

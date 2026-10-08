@@ -5783,6 +5783,47 @@ suite('ProtocolServerHandler', () => {
 			}
 		}
 
+		for (const outcome of ['success', 'failure', 'cancelled'] as const) {
+			test(`pending sibling chat subscription does not retain released routing when it settles with ${outcome}`, async () => {
+				createSessionWithClientTools();
+				const departing = connectClient(clientId, [defaultChatUri]);
+				const remaining = connectClient(clientId, [sessionUri, peerChatUri]);
+				await handler.whenIdle();
+				const barrier = new DeferredPromise<void>();
+				agentService.subscribeBarriers.set(defaultChatUri, barrier);
+				const response = waitForResponse(remaining, 2);
+				remaining.simulateMessage(request(2, 'subscribe', { channel: defaultChatUri }));
+				await Promise.resolve();
+				departing.simulateClose();
+				const afterClose = {
+					clients: stateManager.getSessionState(sessionUri)?.activeClients.map(client => client.clientId),
+					statuses: toolStatuses(),
+					routing: agentService.clientChatSubscriptions.filter(subscription => subscription.chat === defaultChatUri).at(-1)?.subscribed,
+				};
+				if (outcome === 'cancelled') {
+					remaining.simulateMessage(notification('unsubscribe', { channel: defaultChatUri }));
+				}
+				if (outcome === 'failure') {
+					await barrier.error(new ProtocolError(AhpErrorCodes.NotFound, 'Restore failed'));
+				} else {
+					await barrier.complete();
+				}
+				const result = await response;
+
+				assert.deepStrictEqual({
+					afterClose,
+					subscribed: agentService.clientChatSubscriptions.filter(subscription => subscription.chat === defaultChatUri).at(-1)?.subscribed,
+					succeeded: hasKey(result, { result: true }),
+					membership: stateManager.getSessionState(sessionUri)?.activeClients.map(client => client.clientId),
+				}, {
+					afterClose: { clients: [clientId], statuses: [ToolCallStatus.Completed, ToolCallStatus.Streaming], routing: false },
+					subscribed: outcome === 'success',
+					succeeded: outcome === 'success',
+					membership: [clientId],
+				});
+			});
+		}
+
 		test('a subscription to another session does not retain the active client', () => {
 			createSessionWithClientTools();
 			const otherSession = 'copilot:///other-session';
