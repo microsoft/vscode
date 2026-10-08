@@ -102,9 +102,7 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 	) {
 		super();
 
-		// The onboarding gate reads configuration extensions can contribute, so it has to run once
-		// they are registered. Read any earlier, a `configurationDefaults` value is not applied yet
-		// and the overlay shows to a window that had opted out of it.
+		// The gate reads configuration extensions contribute, so it has to run after they register.
 		this.extensionService.whenInstalledExtensionsRegistered().then(() => this.tryShowOnboarding(), onUnexpectedError);
 		this.run().then(undefined, onUnexpectedError);
 		this._register(this.editorService.onDidCloseEditor((e) => {
