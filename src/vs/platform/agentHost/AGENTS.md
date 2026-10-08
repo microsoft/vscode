@@ -640,6 +640,8 @@ Pending subscription restores retain session membership, but do not retain clien
 
 Reconnect suspends future routing before awaiting subscription restores. Existing calls on requested chats wait for restoration, while omitted chats are released immediately.
 
+Relay authentication expiry releases that connection's subscriptions and reconciles exact-chat routing across the remaining connections, including pending calls whose client no longer has a session-wide contribution.
+
 ### 8d. Prompt-cache metadata
 
 `IAgentHostPromptCache` (`node/agentHostPromptCache.ts`) exposes exactly `read(session)` / `write(session, state)` over the `vscode.promptCache` `_meta` slot. `write` re-reads the persisted value first (several live provider sessions can share one session URI), skips a no-op write, merges rather than replaces `_meta`, and returns the effective state.
