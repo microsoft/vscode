@@ -222,7 +222,8 @@ jobs:
       - name: 🧪 Run smoke tests (Electron)
         if: ${{ inputs.electron_tests && inputs.smoke_tests }}
         timeout-minutes: 20
-        run: npm run smoketest-no-compile -- --tracing
+        # TEMPORARY: Only validate Agents Window. Drop this commit before merge.
+        run: npm run smoketest-no-compile -- --tracing -g 'Agents Window' --fail-zero
         env:
           VSCODE_SMOKE_TEST_POLICY: '1'
 

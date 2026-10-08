@@ -91,9 +91,7 @@ jobs:
         name: copilotVsix
         displayName: Mark Copilot VSIX as published
 
-      - template: copilot/test-steps.yml
-        parameters:
-          runIntegrationTests: false
+      # TEMPORARY: Produce the VSIX for macOS smoke tests without running Copilot tests.
 
       # Source map upload is only needed for builds that ship the extension.
       - ${{ if eq(parameters.VSCODE_UPLOAD_SOURCEMAPS, true) }}:

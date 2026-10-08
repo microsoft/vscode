@@ -334,6 +334,8 @@ extends:
     stages:
 
       - stage: Quality
+        # TEMPORARY: Only validate macOS smoke tests. Drop this commit before merge.
+        condition: false
         dependsOn: []
         pool:
           name: ${{ variables.VSCODE_UBUNTU_POOL }}
@@ -351,6 +353,7 @@ extends:
             parameters:
               VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
               VSCODE_RELEASE: ${{ parameters.VSCODE_RELEASE }}
+              VSCODE_UPLOAD_SOURCEMAPS: false
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true) }}:
         - stage: Windows
@@ -671,40 +674,7 @@ extends:
           variables:
             BUILDSECMON_OPT_IN: true
           jobs:
-            - ${{ if eq(parameters.VSCODE_BUILD_MACOS_ARM64, true) }}:
-              - template: build/azure-pipelines/darwin/product-build-darwin-cli.yml@self
-                parameters:
-                  VSCODE_ARCH: arm64
-                  VSCODE_CHECK_ONLY: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-
-            - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
-              parameters:
-                VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                VSCODE_JOB_NAME: Unit
-                VSCODE_JOB_DISPLAY_NAME: Unit Tests
-                VSCODE_TEST_IDS:
-                  - unit-electron
-                  - unit-node
-                  - unit-browser-webkit
-                  - copilot
-            - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
-              parameters:
-                VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                VSCODE_JOB_NAME: BrowserRemote
-                VSCODE_JOB_DISPLAY_NAME: Browser & Remote Tests
-                VSCODE_TEST_IDS:
-                  - integration-browser-webkit
-                  - integration-remote
-                  - smoke-browser-chromium
-                  - smoke-remote
-            - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
-              parameters:
-                VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                VSCODE_JOB_NAME: Integration
-                VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
-                VSCODE_TEST_IDS:
-                  - integration-electron
+            # TEMPORARY: Only validate the macOS smoke job. Drop this commit before merge.
             - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}

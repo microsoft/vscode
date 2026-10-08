@@ -18,7 +18,9 @@ env:
   VSCODE_QUALITY: 'oss'
 
 jobs:
+  # TEMPORARY: Only validate the macOS Agents Window smoke tests. Drop this commit before merge.
   compile:
+    if: false
     name: Compile & Hygiene
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=compile-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
     steps:
@@ -111,6 +113,7 @@ jobs:
         run: node build/lib/checkCyclicDependencies.ts out-build
 
   linux-cli-tests:
+    if: false
     name: Linux
     uses: ./.github/workflows/pr-linux-cli-test.yml
     with:
@@ -118,6 +121,7 @@ jobs:
       rustup_toolchain: 1.88
 
   linux-electron-unit-tests:
+    if: false
     name: Linux
     uses: ./.github/workflows/pr-linux-test.yml
     with:
@@ -127,6 +131,7 @@ jobs:
       smoke_tests: false
 
   linux-electron-tests:
+    if: false
     name: Linux
     uses: ./.github/workflows/pr-linux-test.yml
     with:
@@ -136,6 +141,7 @@ jobs:
       smoke_tests: false
 
   linux-electron-smoke-tests:
+    if: false
     name: Linux
     uses: ./.github/workflows/pr-linux-test.yml
     with:
@@ -145,6 +151,7 @@ jobs:
       integration_tests: false
 
   linux-browser-tests:
+    if: false
     name: Linux
     uses: ./.github/workflows/pr-linux-test.yml
     with:
@@ -152,6 +159,7 @@ jobs:
       browser_tests: true
 
   linux-remote-tests:
+    if: false
     name: Linux
     uses: ./.github/workflows/pr-linux-test.yml
     with:
@@ -159,6 +167,7 @@ jobs:
       remote_tests: true
 
   macos-electron-unit-tests:
+    if: false
     name: macOS
     uses: ./.github/workflows/pr-darwin-test.yml
     with:
@@ -168,6 +177,7 @@ jobs:
       smoke_tests: false
 
   macos-electron-tests:
+    if: false
     name: macOS
     uses: ./.github/workflows/pr-darwin-test.yml
     with:
@@ -186,6 +196,7 @@ jobs:
       integration_tests: false
 
   macos-browser-tests:
+    if: false
     name: macOS
     uses: ./.github/workflows/pr-darwin-test.yml
     with:
@@ -193,6 +204,7 @@ jobs:
       browser_tests: true
 
   macos-remote-tests:
+    if: false
     name: macOS
     uses: ./.github/workflows/pr-darwin-test.yml
     with:
@@ -200,6 +212,7 @@ jobs:
       remote_tests: true
 
   windows-electron-unit-tests:
+    if: false
     name: Windows
     uses: ./.github/workflows/pr-win32-test.yml
     with:
@@ -209,6 +222,7 @@ jobs:
       smoke_tests: false
 
   windows-electron-tests:
+    if: false
     name: Windows
     uses: ./.github/workflows/pr-win32-test.yml
     with:
@@ -218,6 +232,7 @@ jobs:
       smoke_tests: false
 
   windows-electron-smoke-tests:
+    if: false
     name: Windows
     uses: ./.github/workflows/pr-win32-test.yml
     with:
@@ -227,6 +242,7 @@ jobs:
       integration_tests: false
 
   windows-browser-tests:
+    if: false
     name: Windows
     uses: ./.github/workflows/pr-win32-test.yml
     with:
@@ -234,6 +250,7 @@ jobs:
       browser_tests: true
 
   windows-remote-tests:
+    if: false
     name: Windows
     uses: ./.github/workflows/pr-win32-test.yml
     with:
@@ -241,6 +258,7 @@ jobs:
       remote_tests: true
 
   copilot-check-test-cache:
+    if: false
     name: Copilot - Check Test Cache
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=copilot-check-test-cache-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
     permissions:
@@ -286,6 +304,7 @@ jobs:
           PULL_REQUEST: ${{ github.event.pull_request.number }}
 
   copilot-check-telemetry:
+    if: false
     name: Copilot - Check Telemetry
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=copilot-check-telemetry-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
     permissions:
@@ -307,6 +326,7 @@ jobs:
           npx --package="@vscode/telemetry-extractor@$version" --yes vscode-telemetry-extractor -s . > /dev/null
 
   copilot-linux-tests:
+    if: false
     name: Copilot - Test (Linux)
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64, "JobId=copilot-linux-tests-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
     permissions:
@@ -405,6 +425,7 @@ jobs:
           path: extensions/copilot/.simulation-archive/simulation.tgz
 
   copilot-windows-tests:
+    if: false
     name: Copilot - Test (Windows)
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64, "JobId=copilot-windows-tests-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
     permissions:
