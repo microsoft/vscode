@@ -5,29 +5,33 @@
 
 import assert from 'assert';
 import { existsSync } from 'fs';
-import { mkdtemp, readFile, writeFile } from 'fs/promises';
+import { mkdir, readFile, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
+import { retry } from '../../../../../../base/common/async.js';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../../../common/agent.js';
 import type { IAgentHostManagedSettingsDiagnostics } from '../../../../common/agentService.js';
 import type { IAgentHostManagedSettingsPermissions } from '../../../../common/agentHostManagedSettings.js';
+import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta } from '../../../../common/meta/clientPluginCustomizationMeta.js';
 import { SessionConfigKey } from '../../../../common/sessionConfigKeys.js';
 import type { ListSessionsResult, SubscribeResult } from '../../../../common/state/protocol/commands.js';
+import { CustomizationEnablementKind } from '../../../../common/state/protocol/state.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
-import { buildChatUri, buildDefaultChatUri, MessageKind, ROOT_STATE_URI, ToolCallCancellationReason, ToolCallConfirmationReason } from '../../../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, customizationId, CustomizationLoadStatus, CustomizationType, MessageKind, ROOT_STATE_URI, ToolCallCancellationReason, ToolCallConfirmationReason, type ClientPluginCustomization, type PluginCustomization, type SessionState } from '../../../../common/state/sessionState.js';
 import { getActionEnvelope, isActionNotification, TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
-import { AgentHostE2EServerLease, assertToolCallCompleteText, createRealSession, removeTempDirs, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
+import { AgentHostE2EServerLease, assertToolCallCompleteText, createRealSession, driveTurnToCompletion, removeTempDirs, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
 import { COPILOT_CONFIG } from './copilotTestConfiguration.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 suite('Agent Host E2E — Copilot managed-settings diagnostics', function () {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('fetched server policy appears in sessionless diagnostics and channel layers', async function () {
 		this.timeout(60_000);
-		const directory = await mkdtemp(join(tmpdir(), 'copilot-policy-diagnostics-'));
+		const directory = createTestDirectory(join(tmpdir(), 'copilot-policy-diagnostics-'));
 		const lease = new AgentHostE2EServerLease(COPILOT_CONFIG, {
 			env: {
 				COPILOT_CACHE_HOME: join(directory, 'cache'),
@@ -107,7 +111,7 @@ suite('Agent Host E2E — Copilot managed permissions over AHP', function () {
 
 	setup(async function () {
 		this.timeout(60_000);
-		workspace = await mkdtemp(join(tmpdir(), 'copilot-managed-ahp-'));
+		workspace = createTestDirectory(join(tmpdir(), 'copilot-managed-ahp-'));
 		tempDirs.push(workspace);
 		await writeFile(join(workspace, 'input.txt'), 'MANAGED_READ_CONTENT');
 		clientSeq = 1;
@@ -296,5 +300,177 @@ suite('Agent Host E2E — Copilot managed permissions over AHP', function () {
 		await client.call('subscribe', { channel: buildDefaultChatUri(session) });
 		clientSeq = 1;
 		await fileTurn(buildDefaultChatUri(session), 'managed-after-clear', 'write', 'none');
+	});
+});
+
+suite('Agent Host E2E — Copilot customization lockdown', function () {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	interface ILockdownFixture {
+		readonly workspace: string;
+		readonly plugin: ClientPluginCustomization;
+		readonly standalone: ClientPluginCustomization;
+	}
+
+	interface IRuntimeCustomizations {
+		readonly pluginSkill: boolean;
+		readonly standaloneSkill: boolean;
+		readonly standaloneServer: boolean;
+	}
+
+	async function createFixture(directory: string): Promise<ILockdownFixture> {
+		const workspace = join(directory, 'workspace');
+		const pluginDirectory = join(directory, 'plugin');
+		const standaloneDirectory = join(directory, 'standalone');
+		for (const folder of [
+			workspace,
+			join(pluginDirectory, '.plugin'),
+			join(pluginDirectory, 'skills', 'lockdown-plugin-skill'),
+			join(standaloneDirectory, '.plugin'),
+			join(standaloneDirectory, 'skills', 'lockdown-standalone-skill'),
+		]) {
+			await mkdir(folder, { recursive: true });
+		}
+		await writeFile(join(pluginDirectory, '.plugin', 'plugin.json'), JSON.stringify({ name: 'Lockdown Plugin' }));
+		await writeFile(join(pluginDirectory, 'skills', 'lockdown-plugin-skill', 'SKILL.md'), '---\nname: lockdown-plugin-skill\ndescription: Skill from a genuine plugin\n---\nPlugin skill.');
+		await writeFile(join(standaloneDirectory, '.plugin', 'plugin.json'), JSON.stringify({ name: 'Standalone Customizations' }));
+		await writeFile(join(standaloneDirectory, 'skills', 'lockdown-standalone-skill', 'SKILL.md'), '---\nname: lockdown-standalone-skill\ndescription: Skill from a configured user location\n---\nStandalone skill.');
+		const serverScript = join(standaloneDirectory, 'probe-mcp.cjs');
+		await writeFile(serverScript, [
+			'const readline = require("readline");',
+			'readline.createInterface({ input: process.stdin }).on("line", line => {',
+			'  let request;',
+			'  try { request = JSON.parse(line); } catch { return; }',
+			'  if (request.id === undefined) { return; }',
+			'  const result = request.method === "initialize"',
+			'    ? { protocolVersion: (request.params && request.params.protocolVersion) || "2025-06-18", capabilities: { tools: {} }, serverInfo: { name: "lockdown-standalone-server", version: "1.0.0" } }',
+			'    : request.method === "tools/list" ? { tools: [] } : {};',
+			'  process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: request.id, result }) + "\\n");',
+			'});',
+		].join('\n'));
+		await writeFile(join(standaloneDirectory, '.mcp.json'), JSON.stringify({
+			mcpServers: {
+				'lockdown-standalone-server': { command: process.execPath, args: [serverScript], env: { ELECTRON_RUN_AS_NODE: '1' } },
+			},
+		}));
+		const toCustomization = (folder: string, name: string, meta?: Record<string, unknown>): ClientPluginCustomization => {
+			const uri = URI.file(folder).toString();
+			return {
+				type: CustomizationType.Plugin,
+				id: customizationId(uri),
+				uri,
+				name,
+				nonce: '1',
+				enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }],
+				...(meta ? { _meta: meta } : {}),
+			};
+		};
+		return {
+			workspace,
+			plugin: toCustomization(pluginDirectory, 'Lockdown Plugin'),
+			// Mirrors the standalone bundle VS Code publishes for user and workspace customizations.
+			standalone: toCustomization(standaloneDirectory, 'Standalone Customizations', {
+				...toClientPluginStandaloneMeta(),
+				...toClientPluginMcpDefaultCwdsMeta({ 'lockdown-standalone-server': null }),
+			}),
+		};
+	}
+
+	async function publishCustomizations(client: TestProtocolClient, clientId: string, sessionUri: string, fixture: ILockdownFixture, clientSeq: number): Promise<void> {
+		client.dispatch({
+			channel: sessionUri,
+			clientSeq,
+			action: {
+				type: ActionType.SessionActiveClientSet,
+				activeClient: { clientId, tools: [], customizations: [fixture.plugin, fixture.standalone] },
+			},
+		});
+		await retry(async () => {
+			const result = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+			const customizations = (result.snapshot!.state as SessionState).customizations ?? [];
+			for (const expected of [fixture.plugin, fixture.standalone]) {
+				const plugin = customizations.find((customization): customization is PluginCustomization =>
+					customization.type === CustomizationType.Plugin && customization.uri === expected.uri);
+				if (plugin?.load?.kind !== CustomizationLoadStatus.Loaded) {
+					throw new Error(`${expected.name} has not loaded`);
+				}
+			}
+		}, 100, 300);
+	}
+
+	/** Reads which probe customizations the runtime loaded from its own `/env` report, without a model request. */
+	async function runtimeCustomizations(client: TestProtocolClient, sessionUri: string, turnId: string, clientSeq: number): Promise<IRuntimeCustomizations> {
+		const { responseText } = await driveTurnToCompletion(client, sessionUri, turnId, '/env', clientSeq);
+		assert.match(responseText, /Skills/);
+		return {
+			pluginSkill: responseText.includes('lockdown-plugin-skill'),
+			standaloneSkill: responseText.includes('lockdown-standalone-skill'),
+			standaloneServer: responseText.includes('lockdown-standalone-server'),
+		};
+	}
+
+	async function createReadySession(client: TestProtocolClient, clientId: string, workspace: string, createdSessions: string[]): Promise<string> {
+		return createRealSession(client, COPILOT_CONFIG, clientId, createdSessions, URI.file(workspace), async () => {
+			// A freshly started host opens Copilot sessions only after the runtime publishes its model catalog.
+			await client.waitForNotification(n => {
+				if (!isActionNotification(n, ActionType.RootAgentsChanged)) {
+					return false;
+				}
+				const action = getActionEnvelope(n).action;
+				return action.type === ActionType.RootAgentsChanged
+					&& action.agents.some(agent => agent.provider === COPILOT_CONFIG.provider && agent.models.length > 0);
+			});
+		}, async () => {
+			await client.call('subscribe', { channel: ROOT_STATE_URI });
+		});
+	}
+
+	test('runtime lockdown blocks standalone client customizations until the policy is removed', async function () {
+		this.timeout(240_000);
+		const directory = createTestDirectory(join(tmpdir(), 'copilot-customization-lockdown-'));
+		const lease = new AgentHostE2EServerLease(COPILOT_CONFIG, {
+			env: {
+				COPILOT_CACHE_HOME: join(directory, 'cache'),
+				COPILOT_MANAGED_SETTINGS_CACHE: '0',
+			},
+		});
+		const createdSessions: string[] = [];
+		try {
+			const fixture = await createFixture(directory);
+			const { client, server } = await lease.acquire(this.test!.title, 'none');
+			assert.ok(server.capiReplay);
+			server.capiReplay.setManagedSettings({ strictPluginOnlyCustomization: ['skills', 'agents', 'mcp'] });
+
+			const lockedSession = await createReadySession(client, 'lockdown-locked', fixture.workspace, createdSessions);
+			await publishCustomizations(client, 'lockdown-locked', lockedSession, fixture, 1);
+			const locked = await runtimeCustomizations(client, lockedSession, 'turn-locked', 2);
+			// A command-only session has no provider transcript to restore after a restart, so release it first.
+			await client.call('disposeSession', { channel: lockedSession });
+			createdSessions.splice(createdSessions.indexOf(lockedSession), 1);
+
+			server.capiReplay.setManagedSettings({});
+			const restarted = await lease.restart();
+			const unlockedSession = await createReadySession(restarted, 'lockdown-unlocked', fixture.workspace, createdSessions);
+			await publishCustomizations(restarted, 'lockdown-unlocked', unlockedSession, fixture, 1);
+			const unlocked = await runtimeCustomizations(restarted, unlockedSession, 'turn-unlocked', 2);
+
+			assert.deepStrictEqual({ locked, unlocked }, {
+				locked: { pluginSkill: true, standaloneSkill: false, standaloneServer: false },
+				unlocked: { pluginSkill: true, standaloneSkill: true, standaloneServer: true },
+			});
+		} catch (error) {
+			lease.dumpRuntimeLogsOnFailure(this.test!.title);
+			throw error;
+		} finally {
+			try {
+				await lease.release(createdSessions, this.test?.state === 'failed');
+			} finally {
+				try {
+					await lease.dispose();
+				} finally {
+					await removeTempDirs([directory]);
+				}
+			}
+		}
 	});
 });

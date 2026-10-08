@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
-import { IObservable, IReader, observableValue } from '../../../../base/common/observable.js';
+import { IObservable, IReader, observableValue, transaction } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -12,6 +12,7 @@ import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { EditorInputCapabilities, IUntypedEditorInput, Verbosity } from '../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../workbench/common/editor/editorInput.js';
+import type { IBrowserViewModel } from '../../../../workbench/contrib/browserView/common/browserView.js';
 import { IChat, ISession, ISessionCanvas } from '../../../services/sessions/common/session.js';
 
 export interface ISessionCanvasReference {
@@ -90,6 +91,11 @@ export interface ISessionCanvasReopenTarget {
 	readonly canvas: ISessionCanvas;
 }
 
+export interface ISessionCanvasModelResolution {
+	readonly model: IBrowserViewModel;
+	readonly reused: boolean;
+}
+
 export const ISessionCanvasService = createDecorator<ISessionCanvasService>('sessionCanvasService');
 
 export interface ISessionCanvasService {
@@ -100,6 +106,10 @@ export interface ISessionCanvasService {
 	isActiveOwner(reference: ISessionCanvasReference, reader?: IReader): boolean;
 	revealCanvas(reference: ISessionCanvasReference): Promise<void>;
 	reopenCanvas(reference: ISessionCanvasReference): Promise<void>;
+	/** Restores a canvas admitted by this live service instance from its opaque working-set identifier. */
+	restoreCanvasInput(serializationId: string): SessionCanvasInput | undefined;
+	/** Resolves the live browser model retained for this presentation, creating it once when needed. */
+	resolveCanvasModel(reference: ISessionCanvasReference, source: URI): Promise<ISessionCanvasModelResolution>;
 }
 
 function createInputResource(reference: ISessionCanvasReference): URI {
@@ -122,11 +132,13 @@ export class SessionCanvasInput extends EditorInput {
 
 	readonly resource: URI;
 	readonly canvas = observableValue<ISessionCanvas | undefined>(this, undefined);
+	readonly membershipPending = observableValue(this, false);
+	private _serializationId: string | undefined;
 
-	constructor(readonly reference: ISessionCanvasReference, canvas: ISessionCanvas) {
+	constructor(readonly reference: ISessionCanvasReference, canvas: ISessionCanvas | undefined, membershipPending = false) {
 		super();
 		this.resource = createInputResource(reference);
-		this.canvas.set(canvas, undefined);
+		this.setCanvas(canvas, membershipPending);
 	}
 
 	override get typeId(): string { return SessionCanvasInput.ID; }
@@ -138,10 +150,21 @@ export class SessionCanvasInput extends EditorInput {
 	override getTitle(_verbosity?: Verbosity): string { return this.getName(); }
 	override canReopen(): boolean { return false; }
 
-	setCanvas(canvas: ISessionCanvas): void {
+	get serializationId(): string | undefined {
+		return this._serializationId;
+	}
+
+	setSerializationId(serializationId: string): void {
+		this._serializationId = serializationId;
+	}
+
+	setCanvas(canvas: ISessionCanvas | undefined, membershipPending = false): void {
 		const previous = this.canvas.get();
-		this.canvas.set(canvas, undefined);
-		if (previous?.title !== canvas.title) {
+		transaction(tx => {
+			this.canvas.set(canvas, tx);
+			this.membershipPending.set(membershipPending, tx);
+		});
+		if (previous?.title !== canvas?.title) {
 			this._onDidChangeLabel.fire();
 		}
 	}

@@ -21,7 +21,7 @@ import { IMarkdownString, MarkdownString, markdownStringEqual } from '../../../.
 import { IRenderedMarkdown, renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
 import { marked, type Token, type Tokens, type TokensList } from '../../../../../../base/common/marked/marked.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
-import { extractCodeblockUrisFromText } from '../../../common/widget/annotations.js';
+import { extractCodeblockUrisFromText, extractEditCodeblockUrisFromText } from '../../../common/widget/annotations.js';
 import { basename } from '../../../../../../base/common/resources.js';
 import { ChatThinkingStyleContentPart, createThinkingIcon } from './chatThinkingStyleContentPart.js';
 export { createThinkingIcon };
@@ -47,6 +47,9 @@ import { ChatThinkingExternalResourceWidget } from './chatThinkingExternalResour
 import { LocalChatSessionUri, chatSessionResourceToId } from '../../../common/model/chatUri.js';
 import { IEditSessionDiffStats } from '../../../common/editing/chatEditingService.js';
 import { getToolInvocationIcon, hasToolInvocationError } from './toolInvocationParts/chatToolPartUtilities.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { getToolGroupSummary } from './chatToolGroupSummary.js';
 
 
 // Context key id mirrored from `vs/sessions/common/contextkeys` (`IsPhoneLayoutContext`).
@@ -407,6 +410,7 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 	private readonly _titleDetailRendered = this._register(new MutableDisposable<IRenderedMarkdown>());
 	private readonly _pendingAppendRefresh = this._register(new MutableDisposable<IDisposable>());
 	private readonly diffDataByPartId = new Map<string, IChatContentPartDiffData>();
+	private readonly editResourcesByPartId = new Map<string, readonly URI[]>();
 	private readonly _diffData = observableValue<IChatContentPartDiffData>(this, { added: 0, removed: 0, resources: [] });
 	readonly diffData: IObservable<IChatContentPartDiffData> = this._diffData;
 	private readonly diffButtonStore = this._register(new DisposableStore());
@@ -460,6 +464,7 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		const initialText = extractTextFromPart(content);
 		const containsReasoning = initialText.trim().length > 0;
@@ -2023,6 +2028,13 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		}
 
 		const visibleItemCount = this.appendedItemCount - this.hiddenToolCallIds.size;
+		if (this.isToolChain) {
+			const tools = this.toolInvocations.filter(tool => !this.hiddenToolCallIds.has(tool.toolCallId) && !IChatToolInvocation.isEffectivelyHidden(tool));
+			const summary = getToolGroupSummary(tools, [...this.editResourcesByPartId.values()], visibleItemCount, this.uriIdentityService.extUri);
+			if (summary) {
+				return summary;
+			}
+		}
 		return visibleItemCount > 0
 			? visibleItemCount === 1
 				? localize('chat.thinking.finished.withStepsSingular', 'Finished with 1 step')
@@ -2178,6 +2190,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 	 */
 	public removeEditPillByPartId(partId: string): void {
 		let removed = false;
+		this.editResourcesByPartId.delete(partId);
 
 		const lazyIndex = this.lazyItems.findIndex(item => item.kind === 'tool' && item.toolInvocationId === partId);
 		if (lazyIndex !== -1) {
@@ -2208,6 +2221,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		}
 
 		const removedItem = this.lazyItems[index];
+		this.editResourcesByPartId.delete(toolInvocationId);
 		this.lazyItems.splice(index, 1);
 		this.appendedItemCount--;
 		if (removedItem.kind === 'tool' && removedItem.isHook) {
@@ -2420,7 +2434,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 						this.lastExtractedTitle = updatedMessage;
 
 						// make sure not to set title if expanded
-						if (!this.fixedScrollingMode && !this._isExpanded.read(undefined)) {
+						if (!this.fixedScrollingMode && !this._isExpanded.read(undefined) && (!this.isToolChain || !this.streamingCompleted)) {
 							this.setTitle(updatedTitle);
 						}
 					}
@@ -2471,6 +2485,8 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 						}
 
 						isComplete = true;
+						this.updateDropdownClickability();
+						this._onDidChangeHeight.fire();
 						return;
 					}
 
@@ -2508,6 +2524,10 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			}
 		} else if (toolInvocationOrMarkdown?.kind === 'markdownContent') {
 			const codeblockInfo = extractCodeblockUrisFromText(toolInvocationOrMarkdown.content.value);
+			const resources = extractEditCodeblockUrisFromText(toolInvocationOrMarkdown.content.value);
+			if (resources.length > 0) {
+				this.editResourcesByPartId.set(toolInvocationId, resources);
+			}
 			if (codeblockInfo?.uri) {
 				const filename = basename(codeblockInfo.uri);
 				toolCallLabel = localize('chat.thinking.editedFile', 'Edited {0}', filename);
@@ -2516,6 +2536,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			}
 			toolCallTitle = toolCallLabel;
 		} else if (toolInvocationOrMarkdown?.kind === 'externalEdit') {
+			this.editResourcesByPartId.set(toolInvocationId, [toolInvocationOrMarkdown.uri]);
 			const filename = basename(toolInvocationOrMarkdown.uri);
 			switch (toolInvocationOrMarkdown.editKind) {
 				case 'create':

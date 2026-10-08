@@ -1163,7 +1163,10 @@ export class AddConfigurationAction extends Action2 {
 		const instantiationService = accessor.get(IInstantiationService);
 		const notificationService = accessor.get(INotificationService);
 		try {
-			const target = configUri === undefined ? undefined : instantiationService.createInstance(McpConfigurationDestination).getExplicitTarget(configUri);
+			const target = configUri === undefined ? undefined : await instantiationService.createInstance(McpConfigurationDestination).getExplicitTarget(configUri);
+			if (configUri !== undefined && target === undefined) {
+				return;
+			}
 			await instantiationService.createInstance(McpAddConfigurationCommand, target).run();
 		} catch (error) {
 			if (!isCancellationError(error)) {

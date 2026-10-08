@@ -62,6 +62,33 @@ suite('parseServerConnectionToken', () => {
 		fs.rmSync(testDir, { recursive: true, force: true });
 	});
 
+	test('--connection-token-file strips a trailing LF or CRLF and rejects invalid content', async () => {
+		const root = join(process.cwd(), '.build');
+		await fs.promises.mkdir(root, { recursive: true });
+		const directory = await fs.promises.mkdtemp(join(root, 'server-token-'));
+		const filename = join(directory, 'token');
+		try {
+			const results: (ServerConnectionToken | ServerConnectionTokenParseError)[] = [];
+			for (const contents of ['valid-token\n', 'valid-token\r\n', 'invalid token\n']) {
+				await fs.promises.writeFile(filename, contents);
+				results.push(await parseServerConnectionToken({ 'connection-token-file': filename } as ServerParsedArgs, async () => 'defaultTokenValue'));
+			}
+			assert.deepStrictEqual(results, [
+				new MandatoryServerConnectionToken('valid-token'),
+				new MandatoryServerConnectionToken('valid-token'),
+				new ServerConnectionTokenParseError(`The connection token defined in '${filename} does not adhere to the characters 0-9, a-z, A-Z, _, or -.`),
+			]);
+		} finally {
+			await fs.promises.rm(directory, { recursive: true, force: true });
+		}
+	});
+
+	test('--connection-token-file reports an unreadable file', async () => {
+		const filename = getRandomTestPath(join(process.cwd(), '.build'), 'missing-token');
+		const result = await parseServerConnectionToken({ 'connection-token-file': filename } as ServerParsedArgs, async () => 'defaultTokenValue');
+		assert.deepStrictEqual(result, new ServerConnectionTokenParseError(`Unable to read the connection token file at '${filename}'.`));
+	});
+
 	test('--connection-token', async () => {
 		const connectionToken = `12345-123-abc`;
 		const result = await parseServerConnectionToken({ 'connection-token': connectionToken } as ServerParsedArgs, async () => 'defaultTokenValue');

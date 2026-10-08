@@ -14,7 +14,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable, trackDisposable } from '../../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../../base/common/observable.js';
+import { IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
@@ -1443,6 +1443,9 @@ suite('ChatListRenderer', () => {
 			backgroundTerminal: label([backgroundTerminal('current-shell', true)]),
 			backgroundTerminals: label([backgroundTerminal('first-shell', true), backgroundTerminal('second-shell', true), { kind: 'thinking', value: 'Reviewing changes' }]),
 			backgroundTerminalComplete: label([backgroundTerminal('current-shell', false)]),
+			reportedShellCount: getPersistentActivityLabel([backgroundTerminal('current-shell', true)], inheritedBackgroundActivity, undefined, 1)?.value.replaceAll('&nbsp;', ' '),
+			reportedShellCompletion: getPersistentActivityLabel([backgroundTerminal('current-shell', true)], inheritedBackgroundActivity, undefined, 0),
+			unreportedShellCount: getPersistentActivityLabel([backgroundTerminal('current-shell', true)], inheritedBackgroundActivity, undefined, undefined)?.value.replaceAll('&nbsp;', ' '),
 			previousTurnBackgroundTerminal: getPersistentActivityLabel([
 				{ kind: 'markdownContent', content: new MarkdownString('I answered the steering question.') },
 			], inheritedBackgroundActivity)?.value.replaceAll('&nbsp;', ' '),
@@ -1476,6 +1479,9 @@ suite('ChatListRenderer', () => {
 			backgroundTerminal: '1 background command running',
 			backgroundTerminals: '2 background commands running',
 			backgroundTerminalComplete: undefined,
+			reportedShellCount: '1 background command running',
+			reportedShellCompletion: undefined,
+			unreportedShellCount: '2 background commands running',
 			previousTurnBackgroundTerminal: '1 background command running',
 			combinedBackgroundWork: '1 subagent and 1 background command running',
 			currentAndPreviousAgents: '2 subagents running',
@@ -1691,7 +1697,7 @@ suite('ChatListRenderer', () => {
 		assert.deepStrictEqual({ whileStarting, afterStarting }, { whileStarting: true, afterStarting: false });
 	});
 
-	function createPersistentProgressRenderer(options: { thinkingStyle?: ThinkingDisplayMode; progressVerbosity?: ChatProgressVerbosity; chatMode?: ChatModeKind; collapsedTools?: CollapsedToolsDisplayMode; persistentProgress?: ChatProgressAnimation; dockPlanReview?: boolean; renderFooterActions?: boolean; sessionResource?: URI; rendererOptions?: IChatListItemRendererOptions; editingSession?: IChatEditingSession; chatWidgetService?: IChatWidgetService; requestText?: string } = {}) {
+	function createPersistentProgressRenderer(options: { thinkingStyle?: ThinkingDisplayMode; progressVerbosity?: ChatProgressVerbosity; chatMode?: ChatModeKind; collapsedTools?: CollapsedToolsDisplayMode; persistentProgress?: ChatProgressAnimation; dockPlanReview?: boolean; renderFooterActions?: boolean; sessionResource?: URI; rendererOptions?: IChatListItemRendererOptions; editingSession?: IChatEditingSession; chatWidgetService?: IChatWidgetService; requestText?: string; backgroundShellCount?: IObservable<number | undefined> } = {}) {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		instantiationService.stub(ILanguageModelsService, { onDidChangeLanguageModels: Event.None, lookupLanguageModel: () => undefined });
@@ -1747,7 +1753,7 @@ suite('ChatListRenderer', () => {
 				override createSuggestionId() { return EditSuggestionId.newId(); }
 			}());
 		}
-		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true, resource: options.sessionResource }));
+		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true, resource: options.sessionResource, backgroundShellCount: options.backgroundShellCount }));
 		if (editingSession) {
 			const chatService = instantiationService.get(IChatService);
 			assert.ok(chatService instanceof MockChatService);
@@ -4548,6 +4554,67 @@ suite('ChatListRenderer', () => {
 			statuses: ['This is taking a little longer than usual'],
 		});
 	}));
+
+	for (const incremental of [false, true]) {
+		test(`persistent progress reports provider background shells instead of inactivity (incremental=${incremental})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const backgroundShellCount = observableValue<number | undefined>('backgroundShellCount', 0);
+			const { configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer({ backgroundShellCount });
+			configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, incremental);
+			renderer.renderElement(node, 0, template);
+			const progress = template.renderedParts?.find(part => part instanceof ChatWorkingProgressContentPart);
+			assert.ok(progress instanceof ChatWorkingProgressContentPart);
+			await timeout(90_000);
+			const beforeShell = progress.workingLabel;
+
+			backgroundShellCount.set(1, undefined);
+			await timeout(0);
+			const afterShell = progress.workingLabel;
+			await timeout(90_000);
+			const longRunningShell = progress.workingLabel;
+			backgroundShellCount.set(2, undefined);
+			await timeout(0);
+			const twoShells = progress.workingLabel;
+
+			const agentData: IChatSubagentToolInvocationData = { kind: 'subagent', hasStarted: true, isActive: true };
+			const agent = createSubagentTool('background-agent', agentData);
+			await agent.didExecuteTool(undefined);
+			model.acceptResponseProgress(request, agent);
+			await timeout(0);
+			const combined = progress.workingLabel;
+			backgroundShellCount.set(0, undefined);
+			await timeout(0);
+			const agentOnly = progress.workingLabel;
+			agentData.isActive = false;
+			agent.notifyToolSpecificDataChanged();
+			await timeout(0);
+			const afterBackgroundWork = progress.workingLabel;
+			await timeout(89_999);
+			const beforeDelay = progress.workingLabel;
+			await timeout(1);
+			const afterDelay = progress.workingLabel;
+
+			const sameFooter = template.value.querySelector('.chat-working-progress') === progress.domNode;
+			request.response?.complete();
+			renderer.renderElement(node, 0, template);
+			backgroundShellCount.set(1, undefined);
+			await timeout(0);
+			assert.deepStrictEqual({
+				beforeShell, afterShell, longRunningShell, twoShells, combined, agentOnly, afterBackgroundWork, beforeDelay, afterDelay,
+				sameFooter, footerAfterCompletion: !!template.value.querySelector('.chat-working-progress'),
+			}, {
+				beforeShell: 'This is taking a little longer than usual',
+				afterShell: '1 background command running',
+				longRunningShell: '1 background command running',
+				twoShells: '2 background commands running',
+				combined: '1 subagent and 2 background commands running',
+				agentOnly: '1 subagent running',
+				afterBackgroundWork: 'Working',
+				beforeDelay: 'Working',
+				afterDelay: 'This is taking a little longer than usual',
+				sameFooter: true, footerAfterCompletion: false,
+			});
+		}));
+	}
 
 	test('persistent progress waits for all foreground tools before reporting inactivity', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const setup = createPersistentProgressRenderer();
@@ -7479,6 +7546,77 @@ suite('ChatListRenderer', () => {
 					collapsed: { singleRow: true, sameTextColumn: true, sameTool: true, nextItemGap: 16 },
 					expanded: { sameHeaderPosition: true, connectorAligned: true },
 					collapsedAgain: { sameHeaderPosition: true, singleRow: true },
+				});
+				request.response?.complete();
+				renderer.renderElement(node, 0, template);
+			});
+
+			test(`compact tool summaries reserve their wrapped height after streaming and resizing (fontSize=${fontSize}, reducedMotion=${reducedMotion})`, async () => {
+				const { configurationService, container, model, request, renderer, template, node } = createPersistentProgressRenderer({ progressVerbosity: ChatProgressVerbosity.Compact });
+				configurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, false);
+				configurePersistentProgressTypography(container, fontSize);
+				container.classList.toggle('monaco-reduce-motion', reducedMotion);
+				container.style.width = '170px';
+				renderer.layout(170);
+				const title = 'Finished with 2 steps';
+				for (const pattern of ['order_header_update', 'invoice_print_address']) {
+					const tool = new ChatToolInvocation(
+						{ invocationMessage: `Searching for ${pattern}`, pastTenseMessage: `Searched for ${pattern}` },
+						{ id: 'search', displayName: 'Search', modelDescription: 'Search', source: ToolDataSource.Internal },
+						pattern, undefined, {},
+					);
+					await tool.didExecuteTool(undefined);
+					model.acceptResponseProgress(request, tool);
+				}
+				renderer.renderElement(node, 0, template);
+				const chain = template.value.querySelector<HTMLElement>('.chat-tool-chain-preview');
+				const button = chain?.querySelector<HTMLElement>(':scope > .chat-used-context-label .monaco-button');
+				const label = button?.querySelector<HTMLElement>('.monaco-button-mdlabel');
+				assert.ok(chain && button && label);
+
+				model.acceptResponseProgress(request, {
+					kind: 'thinking', id: 'reasoning',
+					value: '**Confirmed order_header_update endpoint accepted invoice_print_address**\nThe endpoint accepts the updated address.',
+				});
+				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('The update is ready.') });
+				renderer.renderElement(node, 0, template);
+				for (const animation of chain.getAnimations({ subtree: true })) {
+					if (animation instanceof CSSTransition) {
+						animation.finish();
+					}
+				}
+				await timeout(0);
+				const reasoning = template.value.querySelector<HTMLElement>('.chat-persistent-reasoning');
+				assert.ok(reasoning);
+
+				const snapshot = () => ({
+					wrapped: label.getBoundingClientRect().height > fontSize * 1.5 + 0.1,
+					titleContained: label.getBoundingClientRect().bottom <= chain.getBoundingClientRect().bottom + 0.1,
+					noHorizontalOverflow: label.scrollWidth <= label.clientWidth,
+					nextItemGap: Math.round(reasoning.getBoundingClientRect().top - label.getBoundingClientRect().bottom),
+				});
+				const widths = [170, 720, 130, 170];
+				const resized = widths.map(width => {
+					container.style.width = `${width}px`;
+					renderer.layout(width);
+					return snapshot();
+				});
+				for (let toggle = 0; toggle < 2; toggle++) {
+					button.click();
+					for (const animation of chain.getAnimations({ subtree: true })) {
+						if (animation instanceof CSSTransition) {
+							animation.finish();
+						}
+					}
+				}
+				assert.deepStrictEqual({
+					title: label.textContent,
+					resized,
+					collapsedAgain: snapshot(),
+				}, {
+					title,
+					resized: widths.map(width => ({ wrapped: width !== 720, titleContained: true, noHorizontalOverflow: true, nextItemGap: 16 })),
+					collapsedAgain: { wrapped: true, titleContained: true, noHorizontalOverflow: true, nextItemGap: 16 },
 				});
 				request.response?.complete();
 				renderer.renderElement(node, 0, template);

@@ -305,7 +305,6 @@ export class ManagePluginMarketplacesAction extends Action2 {
 			if (!action) {
 				return;
 			}
-
 			switch (action.id) {
 				case 'showPlugins':
 					await commandService.executeCommand(

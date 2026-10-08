@@ -69,6 +69,7 @@
 .automations-cards-state,
 .automations-cards-partial-state,
 .automations-templates,
+.automations-history-state,
 .automations-history {
 	width: 100%;
 	max-width: 900px;
@@ -650,19 +651,34 @@
 	border-radius: 0;
 }
 
-.automations-history-group-runs .automations-temporary-run:not(:first-child),
-.automations-history-group-runs .automations-run-session-list:not(:empty) .monaco-list-row:not(:first-child),
-.automations-history-group-runs .automations-temporary-runs:not(:empty) + .automations-run-session-list:not(:empty) {
+.automations-history-group-runs > :not(:first-child),
+.automations-history-group-runs .automations-run-session-list:not(:empty) .monaco-list-row:not(:first-child) {
 	border-top: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border);
-}
-
-.automations-temporary-runs:empty {
-	display: none;
 }
 
 .automations-temporary-run {
 	height: 54px;
 	width: 100%;
+}
+
+.automations-history-state {
+	margin-top: var(--vscode-spacing-size160);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.automations-temporary-run .automations-run-actions {
+	flex-shrink: 0;
+	margin-left: var(--vscode-spacing-size80);
+	opacity: 0;
+	pointer-events: none;
+}
+
+.automations-temporary-run:hover .automations-run-actions,
+.automations-temporary-run:focus-within .automations-run-actions,
+.agent-sessions-workbench.phone-layout .automations-temporary-run .automations-run-actions {
+	opacity: 1;
+	pointer-events: auto;
 }
 
 .hc-black .automations-card,

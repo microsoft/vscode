@@ -50,10 +50,14 @@ export class McpConfigurationDestination {
 		}
 	}
 
-	getExplicitTarget(resource: URI | string): IWorkspaceMcpConfigurationTarget {
+	async getExplicitTarget(resource: URI | string): Promise<IWorkspaceMcpConfigurationTarget | undefined> {
 		const uri = URI.isUri(resource) ? resource : URI.parse(resource);
 		const folder = this.workspaceService.getWorkspaceFolder(uri);
 		if (folder) {
+			if (this.uriIdentityService.extUri.isEqual(uri, folder.uri)) {
+				const kind = await this.selectForAdd(folder);
+				return kind === undefined ? undefined : { folder, kind };
+			}
 			for (const kind of [WorkspaceMcpConfigKind.Root, WorkspaceMcpConfigKind.LegacyVscode]) {
 				if (this.uriIdentityService.extUri.isEqual(uri, this.resource(folder, kind))) {
 					if (kind === WorkspaceMcpConfigKind.Root && !this.rootEnabled) {

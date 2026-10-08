@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { stub } from 'sinon';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ConfigurationModelParser } from '../../../../../../platform/configuration/common/configurationModels.js';
 import { DefaultConfiguration } from '../../../../../../platform/configuration/common/configurations.js';
 import { AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
 import { Extensions, IConfigurationNode, IConfigurationRegistry } from '../../../../../../platform/configuration/common/configurationRegistry.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
-import { COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_AUTH_GH_KEY, COPILOT_SANDBOX_AUTH_GIT_KEY, COPILOT_SANDBOX_ENABLED_KEY } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_AUTH_GH_KEY, COPILOT_SANDBOX_AUTH_GIT_KEY, COPILOT_SANDBOX_DENIED_PATHS_KEY, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_SANDBOX_READONLY_PATHS_KEY, COPILOT_SANDBOX_READWRITE_PATHS_KEY } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { WorkspaceConfigurationModelParser } from '../../../../../services/configuration/common/configurationModels.js';
 import { sandboxAllowNetworkMigration, terminalChatAgentToolsConfiguration, TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
@@ -135,7 +136,58 @@ suite('Terminal chat agent tools configuration', () => {
 				'This setting will be deprecated soon. For the Copilot Agent Host sandbox, use `#chat.agent.sandbox.fileSystem.userConfiguredPaths#` instead.', true, undefined,
 			]),
 		});
+
 	});
+
+	test('presents managed filesystem paths as a read-only effective value', () => {
+		const setting = terminalChatAgentToolsConfiguration[AgentSandboxSettingId.AgentSandboxUserConfiguredPaths];
+		const values = {
+			[COPILOT_SANDBOX_READWRITE_PATHS_KEY]: '["C:\\\\Work"]',
+			[COPILOT_SANDBOX_READONLY_PATHS_KEY]: '[]',
+			[COPILOT_SANDBOX_DENIED_PATHS_KEY]: '["C:\\\\Secrets"]',
+		};
+		assert.deepStrictEqual(setting.managedSettingsPresentation?.(key => values[key as keyof typeof values]), {
+			readwritePaths: ['C:\\Work'],
+			readonlyPaths: [],
+			deniedPaths: ['C:\\Secrets'],
+		});
+	});
+
+	test('preserves unmanaged filesystem grants and combines local and managed denials', () => {
+		const presentation = terminalChatAgentToolsConfiguration[AgentSandboxSettingId.AgentSandboxUserConfiguredPaths].managedSettingsPresentation!;
+		const local = { readwritePaths: ['local.write'], readonlyPaths: ['local.read'], deniedPaths: ['local.deny'] };
+		assert.deepStrictEqual([
+			presentation(key => key === COPILOT_SANDBOX_DENIED_PATHS_KEY ? '["managed.deny","local.deny"]' : undefined, local),
+			presentation(key => key === COPILOT_SANDBOX_READONLY_PATHS_KEY ? '[]' : undefined, local),
+			presentation(key => key === COPILOT_SANDBOX_READWRITE_PATHS_KEY ? '["managed.write"]' : undefined, local),
+			presentation(() => undefined, local),
+		], [
+			{ ...local, deniedPaths: ['local.deny', 'managed.deny'] },
+			{ ...local, readonlyPaths: [] },
+			{ ...local, readwritePaths: ['managed.write'] },
+			undefined,
+		]);
+	});
+
+	for (const key of [COPILOT_SANDBOX_READWRITE_PATHS_KEY, COPILOT_SANDBOX_READONLY_PATHS_KEY, COPILOT_SANDBOX_DENIED_PATHS_KEY]) {
+		test(`ignores malformed ${key} without logging managed values`, () => {
+			const presentation = terminalChatAgentToolsConfiguration[AgentSandboxSettingId.AgentSandboxUserConfiguredPaths].managedSettingsPresentation!;
+			const consoleWarn = stub(console, 'warn');
+			try {
+				const values = ['private.enterprise.path', 'null', '{}', '[123]', false, 123]
+					.map(value => presentation(managedKey => managedKey === key ? value : undefined));
+				assert.deepStrictEqual({ values, warnings: consoleWarn.args }, {
+					values: Array.from({ length: 6 }, () => undefined),
+					warnings: [
+						['Failed to parse managed sandbox filesystem paths; ignoring the presentation override.'],
+						...Array.from({ length: 5 }, () => ['Managed sandbox filesystem paths must be a string array; ignoring the presentation override.']),
+					],
+				});
+			} finally {
+				consoleWarn.restore();
+			}
+		});
+	}
 
 	test('migrates saved outbound choices without overwriting the new setting', async () => {
 		const results = [];

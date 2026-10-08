@@ -38,6 +38,7 @@ import { HookTypeValue } from '../promptSyntax/hookTypes.js';
 import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { IChatParserContext } from '../requestParser/chatRequestParser.js';
 import { IPreparedToolInvocation, IToolConfirmationMessages, IToolResult, IToolResultInputOutputDetails, ToolDataSource } from '../tools/languageModelToolsService.js';
+import type { ChatToolInvocationSummary } from '../tools/toolInvocationSummary.js';
 import { ConfirmationOptionKind, type McpOAuthClient, type MessageOrigin } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AgentFusionPhaseStatus } from '../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
 import type { IAgentRuntimeModelConfiguration } from '../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
@@ -651,8 +652,12 @@ export interface IChatThinkingPart {
  */
 export interface IChatAutoModeResolutionPart {
 	kind: 'autoModeResolution';
-	/** The model the router picked, or `undefined` while routing is in flight. */
-	resolved?: { readonly id: string; readonly name: string };
+	/**
+	 * The model the router picked, or `undefined` while routing is in flight.
+	 * `reason` is the routing service's display-only, unlocalized explanation
+	 * of the pick; it already names the model.
+	 */
+	resolved?: { readonly id: string; readonly name: string; readonly reason?: string };
 }
 
 /**
@@ -917,6 +922,7 @@ export interface IChatToolInvocation {
 	readonly subAgentInvocationId?: string;
 	readonly icon?: ThemeIcon;
 	readonly state: IObservable<IChatToolInvocation.State>;
+	readonly summary?: ChatToolInvocationSummary;
 	generatedTitle?: string;
 	isAttachedToThinking: boolean;
 
@@ -1212,6 +1218,7 @@ export interface IChatToolInvocationSerialized {
 	readonly icon?: ThemeIcon;
 	source: ToolDataSource | undefined; // undefined on pre-1.104 versions
 	readonly subAgentInvocationId?: string;
+	readonly summary?: ChatToolInvocationSummary;
 	generatedTitle?: string;
 	isAttachedToThinking?: boolean;
 	kind: 'toolInvocationSerialized';

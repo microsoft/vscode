@@ -20,7 +20,7 @@ import { Disposable, DisposableStore, toDisposable, type IDisposable, type IRefe
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isEqualOrParent } from '../../../../base/common/resources.js';
-import { autorun, observableValue, waitForState } from '../../../../base/common/observable.js';
+import { autorun, constObservable, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { PluginFormat } from '../../../agentPlugins/common/pluginParsers.js';
@@ -56,12 +56,13 @@ import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, COPILOT_HYDR
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
+import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type AuthenticateParams, type IAgentChatContext, type IAgentChatMetadata, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDiscoveredChat, type IAgentMaterializeChatEvent, type IAgentModelInfo, type IAgentSpawnChatEvent } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
-import { buildDefaultChatUri, buildChatUri, buildSubagentChatUri, buildSubagentSessionUri, parseRequiredSessionUriFromChatUri, CustomizationLoadStatus, MessageKind, readSessionEhcliAdoptable, readSessionWorkspaceless, ResponsePartKind, ROOT_STATE_URI, ToolResultContentType, TurnState, customizationId, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, type ClientPluginCustomization, type Customization, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, buildChatUri, buildSubagentChatUri, buildSubagentSessionUri, parseRequiredSessionUriFromChatUri, CustomizationLoadStatus, MessageKind, readSessionEhcliAdoptable, readSessionWorkspaceless, ResponsePartKind, ROOT_STATE_URI, ToolResultContentType, TurnState, customizationId, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, type ClientPluginCustomization, type Customization, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
 import { ChatOriginKind, CustomizationEnablementKind, CustomizationType, McpServerStatus, SessionStatus, ToolCallContributorKind, type AgentSelection, type ModelSelection, type ProtectedResourceMetadata, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, AuthRequiredReason, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
 
@@ -313,6 +314,7 @@ class TestAgentHostGitService implements IAgentHostGitService {
 	async getBranch(): Promise<IBranch | undefined> { return undefined; }
 	async getRefs(): Promise<IBranch[]> { return []; }
 	async getBranches(): Promise<IBranch[]> { return []; }
+	hasGitRoot() { return constObservable(undefined); }
 	async getRepositoryRoot(): Promise<URI | undefined> { return this.repositoryRoot; }
 	async getWorktreeRoots(): Promise<URI[]> { return []; }
 	async addWorktree(repositoryRoot: URI, options: IAddWorktreeOptions): Promise<void> {
@@ -545,7 +547,9 @@ class TestSessionDataService extends Disposable implements ISessionDataService {
 	deleteSessionData(): Promise<void> { return Promise.resolve(); }
 	readonly onWillDeleteSessionData = Event.None;
 	cleanupOrphanedData(): Promise<void> { return Promise.resolve(); }
-	whenIdle(): Promise<void> { return Promise.resolve(); }
+	async whenIdle(): Promise<void> {
+		await Promise.all([...this._databases.values()].map(db => db.whenIdle()));
+	}
 }
 type CopilotModelsList = CopilotClient['rpc']['models']['list'];
 type CopilotPluginsUninstall = CopilotClient['rpc']['plugins']['uninstall'];
@@ -591,6 +595,7 @@ interface ITestCopilotClient extends Pick<CopilotClient, 'start' | 'stop' | 'lis
 		readonly models: { readonly list: CopilotModelsList };
 		readonly managedSettings: Pick<CopilotClient['rpc']['managedSettings'], 'resolve'>;
 		readonly plugins: { readonly uninstall: CopilotPluginsUninstall };
+		readonly mcp: { readonly config: Pick<CopilotClient['rpc']['mcp']['config'], 'list'> };
 	};
 }
 
@@ -631,6 +636,7 @@ function toSdkModelInfo(model: ITestCopilotModelInfo): CopilotModelInfo {
 type ManagedSettingsResolveResult = Awaited<ReturnType<CopilotClient['rpc']['managedSettings']['resolve']>>;
 
 class TestCopilotClient implements ITestCopilotClient {
+	mcpConfigListResult: Awaited<ReturnType<CopilotClient['rpc']['mcp']['config']['list']>> = { servers: {} };
 	managedSettingsResolution: ManagedSettingsResolveResult = {
 		resolved: { source: 'none', serverManaged: false, deviceManaged: false, clientManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: [] },
 		layers: [],
@@ -649,6 +655,7 @@ class TestCopilotClient implements ITestCopilotClient {
 	readonly skillDiscoveryRequests: Parameters<CopilotSkillDiscovery['discover']>[0][] = [];
 
 	readonly rpc: ITestCopilotClient['rpc'] = {
+		mcp: { config: { list: async () => this.mcpConfigListResult } },
 		managedSettings: {
 			resolve: params => {
 				this.managedSettingsRequests.push(params);
@@ -907,6 +914,7 @@ class MockCopilotSession {
 	readonly rpc = {
 		mcp: {
 			list: async () => ({ servers: [] }),
+			listConfigured: async () => ({ servers: [] }),
 			enable: async () => ({ success: true }),
 			disable: async () => ({ success: true }),
 			startServer: async ({ serverName }: { serverName: string }) => {
@@ -942,6 +950,10 @@ class MockCopilotSession {
 		},
 		permissions: {
 			setMode: async ({ mode }: { mode: PermissionMode }) => ({ success: true, mode }),
+		},
+		plan: {
+			read: async (): Promise<Awaited<ReturnType<CopilotSession['rpc']['plan']['read']>>> => ({ exists: false, content: null, path: null }),
+			readSqlTodosWithDependencies: async (): Promise<Awaited<ReturnType<CopilotSession['rpc']['plan']['readSqlTodosWithDependencies']>>> => ({ rows: [], dependencies: [] }),
 		},
 		provider: {
 			sync: async ({ models }: { models?: readonly { provider: string; id: string }[] }) => {
@@ -1016,6 +1028,7 @@ class TestSdkError extends Error {
 
 class MockAgentHostOTelService implements IAgentHostOTelService {
 	readonly _serviceBrand: undefined;
+	readonly enabled = false;
 	readonly diagnosticsEnabled = false;
 	emitTurnTiming(): void { }
 	emitFirstResponse(): void { }
@@ -1060,6 +1073,7 @@ class RecordingTitleOTelService extends MockAgentHostOTelService {
  */
 class RecordingReleaseOTelService implements IAgentHostOTelService {
 	declare readonly _serviceBrand: undefined;
+	readonly enabled = false;
 	readonly diagnosticsEnabled = false;
 	emitTurnTiming(): void { }
 	emitFirstResponse(): void { }
@@ -1260,6 +1274,8 @@ function getCreatedClientOptions(agent: CopilotAgent): readonly CopilotClientOpt
 	return agent.createdClientOptions;
 }
 
+const sessionDataServicesByAgent = new WeakMap<CopilotAgent, ISessionDataService>();
+
 function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; fileService?: FileService; copilotApiService?: ICopilotApiService; gitHubEndpointService?: IAgentHostGitHubEndpointService; telemetryService?: ITelemetryService; userHome?: URI; logService?: ILogService; proxyResolver?: IAgentHostProxyResolver; byokBridgeRegistry?: IByokLmBridgeRegistry; byokProxyService?: IByokLmProxyService; otelService?: IAgentHostOTelService; customizationEnablementService?: ICustomizationEnablementService; useRealCustomizationEnablementService?: boolean; worktreeIsolation?: IAgentHostWorktreeIsolation; rootConfig?: Record<string, unknown>; now?: () => number; startupPerformance?: IAgentHostStartupPerformance }): { agent: CopilotAgent; instantiationService: IInstantiationService; authenticationService: AgentHostAuthenticationService; configurationService: IAgentConfigurationService; worktreeIsolation: IAgentHostWorktreeIsolation; managedSettingsService: IAgentHostManagedSettingsService; fileService: FileService; stateManager: AgentHostStateManager } {
 	const services = new ServiceCollection();
 	const logService = options?.logService ?? new NullLogService();
@@ -1338,6 +1354,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 			? instantiationService.createInstance(ResumePathCopilotAgent, options.copilotClient)
 			: instantiationService.createInstance(TestableCopilotAgent, options.copilotClient, options.now ?? Date.now)
 		: instantiationService.createInstance(CopilotAgent);
+	sessionDataServicesByAgent.set(agent, sessionDataService);
 	return { agent, instantiationService, authenticationService, configurationService: configService, worktreeIsolation, managedSettingsService, fileService, stateManager };
 }
 
@@ -1443,6 +1460,8 @@ async function collectDiscoveredChats(agent: CopilotAgent): Promise<Array<{ id: 
 
 async function disposeAgent(agent: CopilotAgent): Promise<void> {
 	await agent.shutdown();
+	await sessionDataServicesByAgent.get(agent)?.whenIdle();
+	sessionDataServicesByAgent.delete(agent);
 	agent.dispose();
 	// CopilotAgent.dispose calls super.dispose() from a promise continuation so
 	// async shutdown can stop SDK sessions before child disposables are released.
@@ -1472,6 +1491,156 @@ suite('CopilotAgent', () => {
 	teardown(() => {
 		clearProxyEnvironment();
 		Object.assign(process.env, savedProxyEnvironment);
+	});
+
+	suite('session metadata persistence', () => {
+		test('persists all supplied fields in one metadata transaction', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const agent = createTestAgent(disposables, { sessionDataService });
+			const session = AgentSession.uri('copilotcli', 'batched-metadata');
+			const ref = sessionDataService.openDatabase(session);
+			const individualWrites = spy(ref.object, 'setMetadata');
+			const batchedWrites = spy(ref.object, 'setMetadataValues');
+			const model: ModelSelection = { id: 'test-model', config: { temperature: 0.2 } };
+			const primary = URI.file('/workspace/primary');
+			const secondary = URI.file('/workspace/secondary');
+			const customizationDirectory = URI.file('/workspace/customizations');
+			const project = { uri: URI.file('/workspace/project'), displayName: 'Project' };
+			const config = { isolation: 'folder' };
+			const expected = {
+				'copilot.model': JSON.stringify(model),
+				[AH_META_IS_ARCHIVED_DB_KEY]: 'true',
+				[AH_META_EHCLI_ADOPTED_DB_KEY]: 'true',
+				[AH_META_EHCLI_LAST_TURN_DB_KEY]: 'last-migrated-turn',
+				'copilot.workingDirectory': primary.toString(),
+				'copilot.workingDirectories': JSON.stringify([primary.toString(), secondary.toString()]),
+				'copilot.customizationDirectory': customizationDirectory.toString(),
+				'copilot.project.resolved': 'true',
+				'copilot.project.uri': project.uri.toString(),
+				'copilot.project.displayName': project.displayName,
+				configValues: JSON.stringify(config),
+			};
+			try {
+				await agent['_storeSessionMetadata'](session, model, primary, [primary, secondary], customizationDirectory, project, true, config, true, true, 'last-migrated-turn');
+
+				assert.deepStrictEqual({
+					individualWrites: individualWrites.callCount,
+					batchedWrites: batchedWrites.callCount,
+					values: batchedWrites.firstCall?.args[0],
+					stored: await ref.object.getMetadataObject(expected),
+				}, {
+					individualWrites: 0,
+					batchedWrites: 1,
+					values: expected,
+					stored: expected,
+				});
+			} finally {
+				individualWrites.restore();
+				batchedWrites.restore();
+				ref.dispose();
+				await disposeAgent(agent);
+			}
+		});
+
+		test('preserves omitted fields and false flags while persisting empty supplied collections', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const agent = createTestAgent(disposables, { sessionDataService });
+			const session = AgentSession.uri('copilotcli', 'partial-metadata');
+			const ref = sessionDataService.openDatabase(session);
+			const existing = {
+				'copilot.model': JSON.stringify({ id: 'existing-model' }),
+				'copilot.workingDirectory': URI.file('/workspace/existing').toString(),
+				'copilot.workingDirectories': JSON.stringify([URI.file('/workspace/existing').toString()]),
+				'copilot.customizationDirectory': URI.file('/workspace/customizations').toString(),
+				'copilot.project.resolved': 'true',
+				'copilot.project.uri': URI.file('/workspace/project').toString(),
+				'copilot.project.displayName': 'Existing project',
+				[AH_META_IS_ARCHIVED_DB_KEY]: 'true',
+				[AH_META_EHCLI_ADOPTED_DB_KEY]: 'true',
+				[AH_META_EHCLI_LAST_TURN_DB_KEY]: 'existing-turn',
+				configValues: JSON.stringify({ isolation: 'folder' }),
+			};
+			await ref.object.setMetadataValues(existing);
+			const batchedWrites = spy(ref.object, 'setMetadataValues');
+			const expected = { 'copilot.workingDirectories': '[]', configValues: '{}' };
+			try {
+				await agent['_storeSessionMetadata'](session, undefined, undefined, [], undefined, undefined, false, {}, false, false, '');
+
+				assert.deepStrictEqual({
+					batchedWrites: batchedWrites.callCount,
+					values: batchedWrites.firstCall?.args[0],
+					stored: await ref.object.getMetadataObject(existing),
+				}, {
+					batchedWrites: 1,
+					values: expected,
+					stored: { ...existing, ...expected },
+				});
+			} finally {
+				batchedWrites.restore();
+				ref.dispose();
+				await disposeAgent(agent);
+			}
+		});
+
+		test('skips an empty transaction and releases the database reference', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const agent = createTestAgent(disposables, { sessionDataService });
+			const session = AgentSession.uri('copilotcli', 'empty-metadata');
+			const ref = sessionDataService.openDatabase(session);
+			const openDatabase = stub(sessionDataService, 'openDatabase').returns(ref);
+			const release = spy(ref, 'dispose');
+			const individualWrites = spy(ref.object, 'setMetadata');
+			const batchedWrites = spy(ref.object, 'setMetadataValues');
+			try {
+				await agent['_storeSessionMetadata'](session, undefined, undefined, undefined, undefined, undefined);
+
+				assert.deepStrictEqual({
+					individualWrites: individualWrites.callCount,
+					batchedWrites: batchedWrites.callCount,
+					releases: release.callCount,
+				}, { individualWrites: 0, batchedWrites: 0, releases: 1 });
+			} finally {
+				openDatabase.restore();
+				release.restore();
+				individualWrites.restore();
+				batchedWrites.restore();
+				ref.dispose();
+				await disposeAgent(agent);
+			}
+		});
+
+		test('surfaces a failed batch without partial writes and releases the database reference', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const agent = createTestAgent(disposables, { sessionDataService });
+			const session = AgentSession.uri('copilotcli', 'failed-metadata');
+			const ref = sessionDataService.openDatabase(session);
+			const existing = {
+				'copilot.workingDirectory': URI.file('/workspace/existing').toString(),
+				configValues: JSON.stringify({ isolation: 'folder' }),
+			};
+			await ref.object.setMetadataValues(existing);
+			const failure = new Error('metadata write failed');
+			sessionDataService.failNextMetadataWrite(session, 'configValues', failure);
+			const openDatabase = stub(sessionDataService, 'openDatabase').returns(ref);
+			const release = spy(ref, 'dispose');
+			try {
+				await assert.rejects(
+					agent['_storeSessionMetadata'](session, undefined, URI.file('/workspace/next'), undefined, undefined, undefined, false, { isolation: 'worktree' }),
+					error => error === failure,
+				);
+				await ref.object.whenIdle();
+
+				assert.deepStrictEqual({
+					stored: await ref.object.getMetadataObject(existing),
+					releases: release.callCount,
+				}, { stored: existing, releases: 1 });
+			} finally {
+				openDatabase.restore();
+				release.restore();
+				ref.dispose();
+				await disposeAgent(agent);
+			}
+		});
 	});
 
 	test('uninstalls plugins through the SDK server API', async () => {
@@ -1542,17 +1711,19 @@ suite('CopilotAgent', () => {
 		const copilotAgentPrototype = CopilotAgent.prototype as unknown as {
 			_disabledRootMcpServers(this: {
 				readonly id: string;
+				_ensureClient(): Promise<{ rpc: { mcp: { config: { list(): Promise<{ servers: Record<string, unknown> }> } } } }>;
 				_isGitHubMcpServerEnabled(): boolean;
-				_rootMcpCustomizations(sessionId: string, mcpServers: Record<string, unknown>): readonly Customization[];
+				_rootMcpCustomizations(sessionId: string, mcpServers: Record<string, unknown>, additionalServerNames?: Iterable<string>): readonly Customization[];
 				readonly _customizationEnablementService: {
 					initializeSession(session: string): Promise<void>;
 					resolve(session: string, target: { readonly name: string }): { kind: 'resolved'; enablement: readonly [{ kind: CustomizationEnablementKind.Session; enabled: boolean }]; enabled: boolean; workingDirectory: { kind: 'workspaceless' } };
 				};
-			}, session: URI, sessionId: string, snapshot: { readonly mcpServers: Record<string, unknown> }): Promise<readonly string[]>;
-			_rootMcpCustomizations(this: { readonly _isGitHubMcpServerEnabled: () => boolean }, sessionId: string, mcpServers: Record<string, unknown>): readonly Customization[];
+			}, session: URI, snapshot: { readonly mcpServers: Record<string, unknown> }): Promise<readonly string[]>;
+			_rootMcpCustomizations(this: { readonly id: string; readonly _isGitHubMcpServerEnabled: () => boolean }, sessionId: string, mcpServers: Record<string, unknown>, additionalServerNames?: Iterable<string>): readonly Customization[];
 		};
 		const result = await copilotAgentPrototype._disabledRootMcpServers.call({
 			id: 'copilotcli',
+			_ensureClient: async () => ({ rpc: { mcp: { config: { list: async () => ({ servers: {} }) } } } }),
 			_isGitHubMcpServerEnabled: () => true,
 			_rootMcpCustomizations: copilotAgentPrototype._rootMcpCustomizations,
 			_customizationEnablementService: {
@@ -1562,12 +1733,102 @@ suite('CopilotAgent', () => {
 					return { kind: 'resolved', enablement: [{ kind: CustomizationEnablementKind.Session, enabled }], enabled, workingDirectory: { kind: 'workspaceless' } };
 				},
 			},
-		}, AgentSession.uri('copilotcli', 'session'), 'sdk-session', { mcpServers: {} });
+		}, AgentSession.uri('copilotcli', 'session'), { mcpServers: {} });
 
 		assert.deepStrictEqual({ initializedSession, result }, {
 			initializedSession: AgentSession.uri('copilotcli', 'session').toString(),
 			result: [GITHUB_MCP_SERVER_NAME],
 		});
+	});
+
+	for (const pending of [false, true]) {
+		test(`disables user-configured MCP servers absent from the client snapshot at launch with pending resolution ${pending}`, async () => {
+			const client = new TestCopilotClient([]);
+			client.mcpConfigListResult = {
+				servers: {
+					context7: { type: 'http', url: 'https://mcp.example.com/context7' },
+					'enabled-user': { type: 'http', url: 'https://mcp.example.com/enabled' },
+				},
+			};
+			let initializedSession: string | undefined;
+			const { agent } = createTestAgentContext(disposables, {
+				copilotClient: client,
+				rootConfig: { [AgentHostGitHubMcpServerEnabledConfigKey]: false },
+				customizationEnablementService: {
+					...createNoopCustomizationEnablementService(),
+					initializeSession: async session => { initializedSession = session; },
+					resolve: (_session, target) => target.name === 'context7'
+						? pending ? { kind: 'pending', reason: 'session' } : {
+							kind: 'resolved',
+							enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+							enabled: false,
+							workingDirectory: { kind: 'workspaceless' },
+						}
+						: { kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } },
+				},
+			});
+			const session = URI.parse('ahp-session:/context7-launch');
+			try {
+				await agent.authenticate('https://api.github.com', 'github-token');
+				const disabled = await agent['_disabledRootMcpServers'](session, { tools: [], plugins: [], mcpServers: {} });
+				assert.deepStrictEqual({ initializedSession, disabled }, {
+					initializedSession: session.toString(),
+					disabled: ['context7'],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+	}
+
+	test('launch uses the owning AHP customization identity for session-scoped MCP disablement with an independent SDK backing', async () => {
+		const client = new TestCopilotClient([]);
+		client.mcpConfigListResult = { servers: { context7: { type: 'http', url: 'https://mcp.example.com/context7' } } };
+		let launchConfig: SessionConfig | undefined;
+		client.createSession = async config => {
+			launchConfig = config;
+			return new MockCopilotSession() as unknown as CopilotSession;
+		};
+		const { agent, instantiationService, stateManager } = createTestAgentContext(disposables, {
+			copilotClient: client,
+			sessionDataService: disposables.add(new TestSessionDataService()),
+			useRealCustomizationEnablementService: true,
+			rootConfig: { [AgentHostGitHubMcpServerEnabledConfigKey]: false },
+		});
+		const session = URI.parse('ahp-session:/context7-launch');
+		const id = 'mcp-top-level:copilotcli:context7-launch:context7';
+		const now = new Date().toISOString();
+		stateManager.createSession({
+			resource: session.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle,
+			createdAt: now, modifiedAt: now, workingDirectories: ['file:///workspace'],
+		});
+		const enablementService = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostCustomizationEnablementService));
+		try {
+			await agent.authenticate('https://api.github.com', 'github-token');
+			await enablementService.initializeSession(session.toString());
+			enablementService.setEnablement(session.toString(), {
+				id, type: CustomizationType.McpServer, name: 'context7', source: URI.parse(id),
+			}, CustomizationEnablementKind.Session, false);
+			await enablementService.whenIdle();
+			const chat = defaultChatUri(session);
+			const result = await agent.chats.createChat(chat, exactChatContext(session, chat, session), {
+				workingDirectories: [URI.file('/workspace')],
+				deferBacking: false,
+			});
+			assert.ok(result);
+
+			assert.deepStrictEqual({
+				session: session.toString(),
+				separateBacking: result.backingSession !== undefined && AgentSession.id(result.backingSession) !== AgentSession.id(session),
+				disabledMcpServers: launchConfig?.disabledMcpServers,
+			}, {
+				session: 'ahp-session:/context7-launch',
+				separateBacking: true,
+				disabledMcpServers: ['context7'],
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
 	});
 
 	suite('MCP authentication during session initialization', () => {
@@ -4660,13 +4921,16 @@ suite('CopilotAgent', () => {
 		let active = true;
 		let resumeCalls = 0;
 		let failureCalls = 0;
+		const recorder = { mark() { } };
+		let recorderForwarded = false;
 		setDefaultSessionStub(agent, 'resume-failure', {
 			sessionId: 'resume-failure',
 			sessionUri: session,
 			chatUri: chat,
 			get hasActiveTurn() { return active; },
 			currentTurnClientContext: undefined,
-			resume: async () => {
+			resume: async (...args: Parameters<CopilotAgentSession['resume']>) => {
+				recorderForwarded = args[6] === recorder;
 				resumeCalls++;
 				throw new Error('Connection is closed.');
 			},
@@ -4682,15 +4946,17 @@ suite('CopilotAgent', () => {
 		}, chat);
 		try {
 			await agent.listChatsToMigrate();
-			await agent.chats.resumeTurn!(chat, 'turn-1', exactChatContext(session, chat));
+			await agent.chats.resumeTurn!(chat, 'turn-1', { ...exactChatContext(session, chat), sendStageRecorder: recorder });
 
 			assert.deepStrictEqual({
 				resumeCalls,
+				recorderForwarded,
 				failureCalls,
 				remainingSessions: chatEntriesBySdkId(agent).size,
 				operation: (telemetryService.errorEvents.find(event => event.eventName === 'agentHost.copilotClientFailure')?.data as Record<string, unknown> | undefined)?.operation,
 			}, {
 				resumeCalls: 1,
+				recorderForwarded: true,
 				failureCalls: 1,
 				remainingSessions: 0,
 				operation: 'resumeTurn',
@@ -4821,6 +5087,152 @@ suite('CopilotAgent', () => {
 				retriedRequests: 5,
 			});
 		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	for (const initialModels of [
+		[{ id: 'gpt-4o', name: 'GPT-4o' }, { id: 'retired', name: 'Retired' }],
+		[{ id: 'auto', name: 'Auto' }],
+	]) {
+		test(`retains the previous model catalog during an empty refresh and recovers on retry (${initialModels[0].id})`, async () => {
+			const client = new TestCopilotClient([], initialModels);
+			const agent = createTestAgent(disposables, { copilotClient: client });
+			let clock: ReturnType<typeof useFakeTimers> | undefined;
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.refreshModels();
+				const previousCatalog = agent.models.get();
+				const catalogs: string[][] = [];
+				disposables.add(autorun(reader => catalogs.push(agent.models.read(reader).map(model => model.id))));
+				clock = useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+				client.modelListResponses.push([], [{ id: 'replacement', name: 'Replacement' }]);
+
+				await agent.refreshModels();
+				const retainedCatalog = agent.models.get();
+				await clock.tickAsync(100);
+
+				assert.deepStrictEqual({ retainedCatalog, catalogs, requestCount: client.modelListRequests.length }, {
+					retainedCatalog: previousCatalog,
+					catalogs: [initialModels.map(model => model.id), ['replacement']],
+					requestCount: 3,
+				});
+			} finally {
+				clock?.restore();
+				await disposeAgent(agent);
+			}
+		});
+	}
+
+	test('retains the previous model catalog after empty refresh retries are exhausted and retries on the next tick', async () => {
+		const client = new TestCopilotClient([], [{ id: 'gpt-4o', name: 'GPT-4o' }]);
+		const logService = new NullLogService();
+		const errorLog = spy(logService, 'error');
+		const agent = createTestAgent(disposables, { copilotClient: client, logService });
+		let clock: ReturnType<typeof useFakeTimers> | undefined;
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			await agent.refreshModels();
+			const previousCatalog = agent.models.get();
+			clock = useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+			for (let i = 0; i < 5; i++) {
+				client.modelListResponses.push([]);
+			}
+
+			await agent.refreshModels();
+			await clock.tickAsync(100);
+			const retainedCatalog = agent.models.get();
+			const requestsAfterRetries = client.modelListRequests.length;
+			await clock.tickAsync(100);
+			const requestsAfterWaiting = client.modelListRequests.length;
+			client.modelListResponses.push([{ id: 'replacement', name: 'Replacement' }]);
+			await agent.refreshModels();
+
+			assert.deepStrictEqual({
+				retainedCatalog,
+				requestsAfterRetries,
+				requestsAfterWaiting,
+				requestsAfterRecovery: client.modelListRequests.length,
+				recoveredModels: agent.models.get().map(model => model.id),
+				errors: errorLog.getCalls().map(call => String(call.args[0])),
+			}, {
+				retainedCatalog: previousCatalog,
+				requestsAfterRetries: 6,
+				requestsAfterWaiting: 6,
+				requestsAfterRecovery: 7,
+				recoveredModels: ['replacement'],
+				errors: ['Error: Model refresh returned an empty catalog; retaining the previous models'],
+			});
+		} finally {
+			clock?.restore();
+			errorLog.restore();
+			await disposeAgent(agent);
+		}
+	});
+
+	test('retains the previous model catalog when a token refresh returns an empty catalog', async () => {
+		const client = new TestCopilotClient([], [{ id: 'gpt-4o', name: 'GPT-4o' }]);
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		let clock: ReturnType<typeof useFakeTimers> | undefined;
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			await agent.refreshModels();
+			const catalogs: string[][] = [];
+			disposables.add(autorun(reader => catalogs.push(agent.models.read(reader).map(model => model.id))));
+			clock = useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+			client.modelListResponses.push([]);
+
+			await agent.authenticate('https://api.github.com', 'replacement-token');
+			await clock.tickAsync(100);
+
+			assert.deepStrictEqual({ catalogs, requests: client.modelListRequests }, {
+				catalogs: [['gpt-4o'], ['gpt-4o']],
+				requests: [
+					{ gitHubToken: 'token' },
+					{ gitHubToken: 'replacement-token' },
+					{ gitHubToken: 'replacement-token' },
+				],
+			});
+		} finally {
+			clock?.restore();
+			await disposeAgent(agent);
+		}
+	});
+
+	test('clears the retained model catalog and cancels empty refresh retries on sign-out', async () => {
+		const client = new TestCopilotClient([], [{ id: 'gpt-4o', name: 'GPT-4o' }]);
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		let clock: ReturnType<typeof useFakeTimers> | undefined;
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			await agent.refreshModels();
+			clock = useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+			client.modelListResponses.push([]);
+			await agent.refreshModels();
+
+			await agent.authenticate('https://api.github.com', '');
+			await clock.tickAsync(100);
+			const signedOutModels = agent.models.get();
+			const requestsAfterSignOut = client.modelListRequests.length;
+			client.modelListResponses.push([]);
+			await agent.authenticate('https://api.github.com', 'replacement-token');
+			const refreshAfterSignIn = agent.refreshModels();
+			await clock.tickAsync(100);
+			await refreshAfterSignIn;
+
+			assert.deepStrictEqual({
+				signedOutModels,
+				requestsAfterSignOut,
+				modelsAfterSignIn: agent.models.get().map(model => model.id),
+				requestsAfterSignIn: client.modelListRequests.length,
+			}, {
+				signedOutModels: [],
+				requestsAfterSignOut: 2,
+				modelsAfterSignIn: ['auto'],
+				requestsAfterSignIn: 3,
+			});
+		} finally {
+			clock?.restore();
 			await disposeAgent(agent);
 		}
 	});
@@ -7662,9 +8074,10 @@ suite('CopilotAgent', () => {
 
 		test('strips inherited HydraFusion flags and preserves unrelated environment', () => {
 			const env = createCopilotCliEnvironment({
-				COPILOT_CLI_ENABLED_FEATURE_FLAGS: 'COMPUTER_USE, HYDRAFUSION, HYDRAFUSION_ROLLOUT',
+				COPILOT_CLI_ENABLED_FEATURE_FLAGS: 'COMPUTER_USE, HYDRAFUSION, HYDRAFUSION_ROLLOUT, HYDRAFUSION_PLAN_V2',
 				HYDRAFUSION: 'true',
 				HYDRAFUSION_ROLLOUT: 'true',
+				HYDRAFUSION_PLAN_V2: 'true',
 				COMPUTER_USE: 'true',
 				PATH: '/usr/bin',
 			});
@@ -7672,12 +8085,14 @@ suite('CopilotAgent', () => {
 			assert.deepStrictEqual({
 				hydraFusion: env['HYDRAFUSION'],
 				hydraFusionRollout: env['HYDRAFUSION_ROLLOUT'],
+				hydraFusionV2: env['HYDRAFUSION_PLAN_V2'],
 				featureFlags: env['COPILOT_CLI_ENABLED_FEATURE_FLAGS'],
 				computerUse: env['COMPUTER_USE'],
 				path: env['PATH'],
 			}, {
 				hydraFusion: undefined,
 				hydraFusionRollout: undefined,
+				hydraFusionV2: undefined,
 				featureFlags: 'COMPUTER_USE',
 				computerUse: 'true',
 				path: '/usr/bin',
@@ -9717,6 +10132,41 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('does not retry an empty refresh with only fallback Auto and HydraFusion and accepts a later catalog', async () => {
+		const client = new TestCopilotClient([], []);
+		const { agent } = createTestAgentContext(disposables, {
+			copilotClient: client,
+			rootConfig: { [CopilotCliConfigKey.HydraFusion]: true },
+		});
+		let clock: ReturnType<typeof useFakeTimers> | undefined;
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			await agent.refreshModels();
+			clock = useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+			await agent.refreshModels();
+			await clock.tickAsync(100);
+			const emptyCatalogModels = agent.models.get().map(model => model.id);
+			const requestsAfterEmptyRefresh = client.modelListRequests.length;
+			client.modelListResponses.push([{ id: 'gpt-4o', name: 'GPT-4o' }]);
+			await agent.refreshModels();
+
+			assert.deepStrictEqual({
+				emptyCatalogModels,
+				requestsAfterEmptyRefresh,
+				models: agent.models.get().map(model => model.id),
+				requestCount: client.modelListRequests.length,
+			}, {
+				emptyCatalogModels: ['auto', 'hydrafusion'],
+				requestsAfterEmptyRefresh: 2,
+				models: ['gpt-4o', 'hydrafusion'],
+				requestCount: 3,
+			});
+		} finally {
+			clock?.restore();
+			await disposeAgent(agent);
+		}
+	});
+
 	test('a runtime that lists no models accepts unlisted models beside HydraFusion, as an empty catalog does', async () => {
 		const { agent } = createTestAgentContext(disposables, {
 			copilotClient: new TestCopilotClient([], []),
@@ -9748,6 +10198,18 @@ suite('CopilotAgent', () => {
 				tokenPrices: {
 					contextMax: 200_000,
 					longContext: { contextMax: 1_000_000, inputPrice: 2 },
+				},
+			},
+		};
+		const freeLongContextModel: ITestCopilotModelInfo = {
+			id: 'free-long-ctx',
+			name: 'Free Long Ctx',
+			capabilities: { limits: { max_context_window_tokens: 200_000 } },
+			billing: {
+				multiplier: 1,
+				tokenPrices: {
+					contextMax: 200_000,
+					longContext: { contextMax: 1_000_000 },
 				},
 			},
 		};
@@ -9807,21 +10269,49 @@ suite('CopilotAgent', () => {
 		});
 
 		test('defaults to long_context when model has no surcharge and no explicit selection (free long context)', async () => {
-			const freeLongContextModel: ITestCopilotModelInfo = {
-				id: 'free-long-ctx',
-				name: 'Free Long Ctx',
-				capabilities: { limits: { max_context_window_tokens: 200_000 } },
-				billing: {
-					multiplier: 1,
-					tokenPrices: {
-						contextMax: 200_000,
-						longContext: { contextMax: 1_000_000 },
-					},
-				},
-			};
 			const config = await captureSessionConfig({ id: 'free-long-ctx' }, [freeLongContextModel]);
 			assert.ok(config);
 			assert.strictEqual(config.contextTier, 'long_context');
+		});
+
+		test('retains free long context metadata during an empty model refresh', async () => {
+			const client = new TestCopilotClient([], [freeLongContextModel]);
+			let capturedConfig: CopilotCreateSessionOptions | undefined;
+			client.createSession = async config => {
+				capturedConfig = config;
+				return new MockCopilotSession() as unknown as CopilotSession;
+			};
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const agent = createTestAgent(disposables, { copilotClient: client, sessionDataService });
+			let clock: ReturnType<typeof useFakeTimers> | undefined;
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.refreshModels();
+				clock = useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+				for (let i = 0; i < 5; i++) {
+					client.modelListResponses.push([]);
+				}
+				await agent.refreshModels();
+				await clock.tickAsync(100);
+				clock.restore();
+				clock = undefined;
+
+				const { session } = await provisionSession(agent, {
+					session: AgentSession.uri('copilotcli', 'retained-context'),
+					workingDirectories: [URI.file('/workspace')],
+					model: { id: 'free-long-ctx' },
+				});
+				const chat = defaultChatUri(session);
+				await agent.chats.sendMessage(chat, 'hello', undefined, undefined, undefined, undefined, exactChatContext(session, chat, session));
+
+				assert.deepStrictEqual({
+					model: capturedConfig?.model,
+					contextTier: capturedConfig?.contextTier,
+				}, { model: 'free-long-ctx', contextTier: 'long_context' });
+			} finally {
+				clock?.restore();
+				await disposeAgent(agent);
+			}
 		});
 	});
 
@@ -12962,6 +13452,7 @@ suite('CopilotAgent', () => {
 					{ name: 'slack-gh', status: 'connected' as const, source: 'user' as const },
 					{ name: 'plugin-server', status: 'connected' as const, source: 'plugin' as const, sourcePlugin: 'acme' },
 					{ name: 'builtin-server', status: 'connected' as const, source: 'builtin' as const },
+					{ name: 'account-server', status: 'connected' as const, source: 'account' as const },
 				];
 				session['_applyMcpServerList'](inventory);
 				const snapshot = (customizations: readonly Customization[]) => customizations
@@ -12986,7 +13477,8 @@ suite('CopilotAgent', () => {
 				}
 				replacement['_applyMcpServerList'](inventory);
 				activeClient.pluginController.removeClient('client');
-				assert.deepStrictEqual({ afterSync, afterRemoval, afterReadd, afterReplacement: snapshot(publications.at(-1) ?? []) }, {
+				assert.deepStrictEqual({ accountSource: expected.find(server => server.name === 'account-server')?.source, afterSync, afterRemoval, afterReadd, afterReplacement: snapshot(publications.at(-1) ?? []) }, {
+					accountSource: 'account',
 					afterSync: expected, afterRemoval: expected.filter(server => server.name !== 'slack-gh'), afterReadd: expected, afterReplacement: expected,
 				});
 			} finally {
@@ -14284,7 +14776,7 @@ suite('CopilotAgent', () => {
 					clientToken: 'connector-session-token',
 					configToken: undefined,
 					hasTokenProvider: false,
-					connectorFlags: { CONNECTORS: true, TGREP: false, CONTENT_EXCLUSION: true, copilot_swe_agent_memory_in_repo_store: false, MANAGED_MCP_SERVERS: true },
+					connectorFlags: { CONNECTORS: true, TGREP: false, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false, MANAGED_MCP_SERVERS: true },
 				});
 			} finally {
 				await disposeAgent(agent);
@@ -14927,6 +15419,104 @@ suite('CopilotAgent', () => {
 					result: 'srv/tools/call',
 					staleRejected: true,
 				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('Copilot host plan reads preserve the wire shape and structured dependency edges', async () => {
+			const { agent, instantiationService } = createTestAgentContext(disposables, { sessionDataService: disposables.add(new TestSessionDataService()) });
+			const mockSession = new MockCopilotSession();
+			mockSession.rpc.plan.read = async () => ({ exists: true, content: '# Plan', path: '/plan.md' });
+			mockSession.rpc.plan.readSqlTodosWithDependencies = async () => ({
+				rows: [{ id: 'first', title: 'First', status: 'done', description: 'Prepare' }, { id: 'second' }],
+				dependencies: [{ todoId: 'second', dependsOn: 'first' }],
+			});
+			const created = createAgentSessionThroughAgent(agent, instantiationService, { mockSession });
+			try {
+				await created.session.initializeSession();
+				setLiveChatStub(agent, created.session.sessionId, created.session, created.session.chatChannelUri);
+				assert.deepStrictEqual(await agent.getSessionPlan(created.session.resourceUri), {
+					plan: { exists: true, content: '# Plan', path: '/plan.md' },
+					todos: [
+						{ id: 'first', title: 'First', status: 'done', description: 'Prepare' },
+						{ id: 'second', title: null, status: null, description: null },
+					],
+					dependencies: [{ todoId: 'second', dependsOn: 'first' }],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('Copilot host approval toggle applies the runtime mode before publishing the selection', async () => {
+			const { agent, instantiationService, configurationService, stateManager } = createTestAgentContext(disposables, { sessionDataService: disposables.add(new TestSessionDataService()) });
+			const mockSession = new MockCopilotSession();
+			const created = createAgentSessionThroughAgent(agent, instantiationService, { mockSession });
+			try {
+				const now = new Date().toISOString();
+				stateManager.createSession({ resource: created.session.resourceUri.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle, createdAt: now, modifiedAt: now });
+				stateManager.setSessionConfig(created.session.resourceUri.toString(), { schema: { type: 'object', properties: {} }, values: { autoApprove: 'default' } });
+				await created.session.initializeSession();
+				setLiveChatStub(agent, created.session.sessionId, created.session, created.session.chatChannelUri);
+				const calls: string[] = [];
+				mockSession.rpc.permissions.setMode = async ({ mode }) => { calls.push(mode); return { success: true, mode }; };
+				await agent.setSessionApproveAll(created.session.resourceUri, true);
+				const enabled = configurationService.getSessionConfigValues(created.session.resourceUri.toString())?.autoApprove;
+				await agent.setSessionApproveAll(created.session.resourceUri, false);
+				assert.deepStrictEqual({ calls, enabled, disabled: configurationService.getSessionConfigValues(created.session.resourceUri.toString())?.autoApprove }, {
+					calls: ['allow-all', 'manual'], enabled: 'autoApprove', disabled: 'default',
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('Copilot host approval refusal does not publish an unapplied allow-all selection', async () => {
+			const { agent, instantiationService, configurationService, stateManager } = createTestAgentContext(disposables, { sessionDataService: disposables.add(new TestSessionDataService()) });
+			const mockSession = new MockCopilotSession();
+			const created = createAgentSessionThroughAgent(agent, instantiationService, { mockSession });
+			try {
+				const now = new Date().toISOString();
+				stateManager.createSession({ resource: created.session.resourceUri.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle, createdAt: now, modifiedAt: now });
+				stateManager.setSessionConfig(created.session.resourceUri.toString(), { schema: { type: 'object', properties: {} }, values: { autoApprove: 'default' } });
+				await created.session.initializeSession();
+				setLiveChatStub(agent, created.session.sessionId, created.session, created.session.chatChannelUri);
+				configurationService.updateSessionConfig(created.session.resourceUri.toString(), { autoApprove: 'default' });
+				mockSession.rpc.permissions.setMode = async ({ mode }) => ({ success: false, mode });
+				await assert.rejects(agent.setSessionApproveAll(created.session.resourceUri, true), /SDK rejected permission mode/);
+				assert.strictEqual(configurationService.getSessionConfigValues(created.session.resourceUri.toString())?.autoApprove, 'default');
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('Copilot host approval toggles reject non-live runtimes without publishing a selection', async () => {
+			const { agent, configurationService, stateManager } = createTestAgentContext(disposables);
+			try {
+				const session = URI.parse('ahp-session:/deferred-copilot-session');
+				const now = new Date().toISOString();
+				stateManager.createSession({ resource: session.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle, createdAt: now, modifiedAt: now });
+				stateManager.setSessionConfig(session.toString(), { schema: { type: 'object', properties: {} }, values: { autoApprove: 'default' } });
+				const changes: Record<string, unknown>[] = [];
+				disposables.add(configurationService.onDidSessionConfigChange(event => changes.push(event.config)));
+				for (const enabled of [true, false]) {
+					await assert.rejects(agent.setSessionApproveAll(session, enabled), /requires a live Copilot session/);
+				}
+				assert.deepStrictEqual({ changes, selection: configurationService.getSessionConfigValues(session.toString())?.autoApprove }, {
+					changes: [], selection: 'default',
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('Copilot host approval toggle respects the host policy restriction', async () => {
+			const { agent, configurationService } = createTestAgentContext(disposables, { rootConfig: { [AgentHostAutoApprovePolicyRestrictedConfigKey]: true } });
+			try {
+				const session = URI.parse('ahp-session:/opaque-provider-session');
+				await assert.rejects(agent.setSessionApproveAll(session, true), /restricted by policy/);
+				assert.strictEqual(configurationService.getSessionConfigValues(session.toString())?.autoApprove, undefined);
 			} finally {
 				await disposeAgent(agent);
 			}
@@ -19157,6 +19747,78 @@ suite('CopilotAgent', () => {
 			);
 		});
 
+	});
+
+	suite('standalone client customizations', () => {
+
+		test('passes a standalone client bundle through non-plugin SDK options', async () => {
+			const fileService = disposables.add(new FileService(new NullLogService()));
+			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const pluginDir = URI.file('/plugins/plugin-a');
+			const standaloneDir = URI.file('/synced/standalone');
+			await fileService.writeFile(URI.joinPath(pluginDir, '.plugin', 'plugin.json'), VSBuffer.fromString(JSON.stringify({ name: 'Plugin A' })));
+			await fileService.writeFile(URI.joinPath(pluginDir, 'skills', 'plugin-skill', 'SKILL.md'), VSBuffer.fromString('---\nname: plugin-skill\ndescription: A plugin skill\n---\nDo plugin things.'));
+			await fileService.writeFile(URI.joinPath(standaloneDir, '.plugin', 'plugin.json'), VSBuffer.fromString(JSON.stringify({ name: 'VS Code Standalone Customizations' })));
+			await fileService.writeFile(URI.joinPath(standaloneDir, 'skills', 'my-skill', 'SKILL.md'), VSBuffer.fromString('---\nname: my-skill\ndescription: A user skill\n---\nDo things.'));
+			await fileService.writeFile(URI.joinPath(standaloneDir, 'agents', 'my-agent.agent.md'), VSBuffer.fromString('---\nname: my-agent\ndescription: A user agent\n---\nBe helpful.'));
+			await fileService.writeFile(URI.joinPath(standaloneDir, '.mcp.json'), VSBuffer.fromString(JSON.stringify({ mcpServers: { 'my-server': { command: 'my-server' } } })));
+
+			class PluginManager extends TestAgentPluginManager {
+				override async syncCustomizations(_clientId: string, customizations: ClientPluginCustomization[]): Promise<ISyncedCustomization[]> {
+					return customizations.map(customization => ({
+						customization: { ...customization, load: { kind: CustomizationLoadStatus.Loaded } },
+						pluginDir: URI.parse(customization.uri),
+					}));
+				}
+			}
+
+			const client = new TestCopilotClient([], [{ id: 'claude-sonnet', name: 'Claude Sonnet' }]);
+			const launchConfigs: (Parameters<ITestCopilotClient['createSession']>[0] | Parameters<ITestCopilotClient['resumeSession']>[1])[] = [];
+			client.createSession = async config => {
+				launchConfigs.push(config);
+				return new MockCopilotSession() as unknown as CopilotSession;
+			};
+			client.resumeSession = async (_sessionId, config) => {
+				launchConfigs.push(config);
+				return new MockCopilotSession() as unknown as CopilotSession;
+			};
+			const { agent } = createTestAgentContext(disposables, { copilotClient: client, sessionDataService: disposables.add(new TestSessionDataService()), pluginManager: new PluginManager(), fileService });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const session = AgentSession.uri('copilotcli', 'standalone-client-bundle');
+				const chat = defaultChatUri(session);
+				const workingDirectory = URI.file('/workspace');
+				const result = await provisionSession(agent, { session, workingDirectories: [workingDirectory] });
+				const context = exactChatContext(result.session, chat, result.session);
+				const activeClient = agent.getOrCreateActiveClient(chat, result.session, { clientId: 'client-1' });
+				activeClient.customizations = [
+					{ type: CustomizationType.Plugin, id: pluginDir.toString(), uri: pluginDir.toString(), name: 'Plugin A' },
+					{
+						type: CustomizationType.Plugin,
+						id: standaloneDir.toString(),
+						uri: standaloneDir.toString(),
+						name: 'VS Code Standalone Customizations',
+						_meta: { ...toClientPluginStandaloneMeta(), ...toClientPluginMcpDefaultCwdsMeta({ 'my-server': null }) },
+					},
+				];
+				await agent.chats.sendMessage(chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, context);
+			} finally {
+				await disposeAgent(agent);
+			}
+
+			const config = launchConfigs.at(-1);
+			assert.deepStrictEqual({
+				pluginDirectories: config?.pluginDirectories,
+				skillDirectories: config?.skillDirectories,
+				customAgents: config?.customAgents?.map(customAgent => customAgent.name),
+				mcpServers: Object.keys(config?.mcpServers ?? {}),
+			}, {
+				pluginDirectories: [pluginDir.fsPath],
+				skillDirectories: [URI.joinPath(standaloneDir, 'skills', 'my-skill').fsPath],
+				customAgents: ['my-agent'],
+				mcpServers: ['my-server'],
+			});
+		});
 	});
 
 	suite('custom agent worktree translation', () => {
