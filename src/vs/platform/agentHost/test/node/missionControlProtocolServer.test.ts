@@ -18,6 +18,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { MissionControlControlVerifier, type IMissionControlSigningKey } from '../../node/missionControl/missionControlControl.js';
 import { MissionControlProtocolServer, type IMissionControlSocket } from '../../node/missionControl/missionControlProtocolServer.js';
 import { MissionControlEnvironment } from '../../node/missionControl/missionControlEnvironment.js';
+import { MissionControlAuthentication, MissionControlSealing, sealMissionControlCredential } from '../../node/missionControl/missionControlAuthentication.js';
 import type { IConnectionDiagnosticEvent } from '../../common/connectionDiagnostics.js';
 import type { IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { MissionControlSessionMirror } from '../../node/missionControl/missionControlSessionMirror.js';
@@ -524,6 +525,41 @@ suite('Mission Control WPS', () => {
 			service.dispose();
 			await rm(path, { recursive: true });
 		}
+	});
+
+	test('relay authentication metadata preserves the identity authority across handshake generations', async () => {
+		await MissionControlSealing.ready();
+		const sealing = store.add(new MissionControlSealing());
+		const resource = 'https://api.enterprise.example';
+		const authentication = new MissionControlAuthentication(sealing, '123', resource, async () => Response.json({ id: 123, type: 'User' }), false);
+		const { key, signed } = signingFixture();
+		const socket = new FakeWpsSocket();
+		const server = store.add(new MissionControlProtocolServer(
+			{ url: 'wss://wps.example.test', access_token: 'fake-token', groups: { control: `${prefix}.control` } },
+			'owner', 'environment', new MissionControlControlVerifier('environment', 'owner', [key]),
+			() => socket, error => { throw error; }, () => authentication,
+		));
+		const lanes: IProtocolTransport[] = [];
+		store.add(server.onConnection(lane => lanes.push(lane)));
+		const ready = server.connect();
+		socket.emit('message', JSON.stringify({ type: 'system', event: 'connected' }));
+		await ready;
+		socket.deliver(`${prefix}.control`, signed('client-a', 'nonce-a'), 1);
+		const lane = lanes[0];
+		const before = lane.relayAuthentication;
+		const recipient = sealing.advertisedKeys.find(key => key.use === 'auth-token');
+		assert.ok(recipient && lane.relayAuthenticate);
+		await lane.relayAuthenticate({
+			resource,
+			token: await sealMissionControlCredential({ resource, token: 'test-owner-token', key: { ...recipient, use: 'auth-token' } }),
+		});
+		const authorized = lane.relayAuthentication;
+		authentication.beginHandshake();
+		assert.deepStrictEqual({ before, authorized, after: lane.relayAuthentication }, {
+			before: { resource, authenticated: false },
+			authorized: { resource, authenticated: true },
+			after: { resource, authenticated: false },
+		});
 	});
 
 	test('joins verified client lanes, binds initialize, and publishes responses on to-client', async () => {
