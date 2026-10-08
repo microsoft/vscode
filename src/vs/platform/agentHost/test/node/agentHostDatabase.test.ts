@@ -14,7 +14,7 @@ import { join } from '../../../../base/common/path.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT, AgentHostDatabase, IAgentHostDatabase, IAgentHostDatabaseChatV2NormalizationCandidate, IAgentHostDatabaseSessionV2Envelope } from '../../node/agentHostDatabase.js';
-import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, AgentHostCatalogData, decodeAgentHostCatalogPayload, projectAgentHostCatalogChatOrigin } from '../../node/agentHostCatalogProjection.js';
+import { AGENT_HOST_CATALOG_CHILD_LIMIT, AGENT_HOST_CATALOG_PAYLOAD_VERSION, AgentHostCatalogData, decodeAgentHostCatalogPayload, projectAgentHostCatalogChatOrigin } from '../../node/agentHostCatalogProjection.js';
 import { ChatInteractivity, ChatOriginKind } from '../../common/state/protocol/channels-chat/state.js';
 import { encodeChatV2Metadata } from '../../node/agentHostChatCatalogV2.js';
 
@@ -30,10 +30,43 @@ function exec(database: Database, sql: string): Promise<void> {
 	return new Promise((resolve, reject) => database.exec(sql, error => error ? reject(error) : resolve()));
 }
 
-function all(database: Database, sql: string): Promise<readonly Record<string, unknown>[]> {
+function all(database: Database, sql: string, parameters: string[] = []): Promise<readonly Record<string, unknown>[]> {
 	return new Promise((resolve, reject) => {
-		database.all(sql, (error: Error | null, rows: Record<string, unknown>[]) => error ? reject(error) : resolve(rows));
+		database.all(sql, parameters, (error: Error | null, rows: Record<string, unknown>[]) => error ? reject(error) : resolve(rows));
 	});
+}
+
+/** The pre-chat-V2 schema-13 reader, without any normalized-authority dispatch. */
+function readLegacySessionChatCatalog(database: Database, session: string): Promise<readonly Record<string, unknown>[]> {
+	return all(database, `SELECT
+		catalog.revision,
+		catalog.legacy_mirrored_revision,
+		(SELECT value FROM metadata WHERE key = ?) AS legacy_mirrored_payload,
+		chat.chat_uri,
+		chat.chat_order,
+		chat.is_read,
+		chat.archived,
+		chat.provider_data,
+		chat.origin,
+		chat.inherited_turn_id
+	FROM session_chat_catalogs AS catalog
+	LEFT JOIN session_chats AS chat ON chat.session_uri = catalog.session_uri
+	WHERE catalog.session_uri = ?
+	ORDER BY chat.chat_order`, [`sessionChatCatalogLegacyMirror:${session}`, session]);
+}
+
+function readLegacySessionV2Registrations(database: Database): Promise<readonly Record<string, unknown>[]> {
+	return all(database, `SELECT session_uri, provider, start_time, modified_time, external, registration_source
+		FROM sessions_v2
+		WHERE NOT EXISTS (
+			SELECT 1 FROM metadata
+			WHERE key = 'sessionTombstone:' || sessions_v2.session_uri AND value = 'true'
+		)
+			AND NOT EXISTS (
+				SELECT 1 FROM metadata
+				WHERE key = 'sessionsV2Excluded:' || sessions_v2.provider || ':' || sessions_v2.session_uri
+			)
+		ORDER BY session_uri`);
 }
 
 function close(database: Database): Promise<void> {
@@ -330,48 +363,6 @@ suite('AgentHostDatabase sessions_v2', () => {
 					{ chat: 'ahp-chat://second', order: 0, inheritedTurnId: 'turn-1' },
 				],
 			},
-		});
-	});
-
-	test('recovery atomically excludes current foreign ownership and preserves source membership', async () => {
-		database = new AgentHostDatabase(':memory:');
-		const source = 'copilotcli:/source';
-		const target = 'copilotcli:/target';
-		for (const session of [source, target]) {
-			await database.registerRuntimeSession(session, { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
-		}
-		await database.replaceSessionChatCatalog(source, [{ chat: 'ahp-chat://existing', order: 0, archived: true, providerData: 'current' }], undefined);
-		await database.replaceSessionChatCatalog(target, [], undefined);
-		const claim = database.replaceSessionChatCatalog(target, [
-			{ chat: 'ahp-chat://moved', order: 0, providerData: 'target-current' },
-		], 1);
-		const recovery = database.recoverSessionChatCatalog(source, [
-			{ chat: 'ahp-chat://existing', order: 0, archived: true, providerData: 'current' },
-			{ chat: 'ahp-chat://moved', order: 1, providerData: 'historical' },
-			{ chat: 'ahp-chat://missing', order: 2, providerData: 'recovered' },
-		], 1);
-		await Promise.all([claim, recovery]);
-		const sourceAfter = await database.getSessionChatCatalog(source);
-		const targetAfter = await database.getSessionChatCatalog(target);
-		const staleRecovery = await database.recoverSessionChatCatalog(source, [], 1);
-		await database.tombstoneAndUnregisterSession(source);
-		const deletedRecovery = await database.recoverSessionChatCatalog(source, [], 2);
-
-		assert.deepStrictEqual({
-			source: sourceAfter?.chats,
-			target: targetAfter?.chats,
-			staleRecovery,
-			deletedRecovery,
-			sourceAfterDeletion: await database.getSessionChatCatalog(source),
-		}, {
-			source: [
-				{ chat: 'ahp-chat://existing', order: 0, archived: true, providerData: 'current' },
-				{ chat: 'ahp-chat://missing', order: 1, providerData: 'recovered' },
-			],
-			target: [{ chat: 'ahp-chat://moved', order: 0, providerData: 'target-current' }],
-			staleRecovery: { status: 'conflict' },
-			deletedRecovery: { status: 'tombstoned' },
-			sourceAfterDeletion: undefined,
 		});
 	});
 
@@ -1702,6 +1693,344 @@ suite('AgentHostDatabase sessions_v2', () => {
 			return { sessionGeneration: source.sessionGeneration, sourceRevision: source.sourceRevision, payloadHash: source.payloadHash, catalogRevision };
 		}
 
+		suite('one-way legacy SQL projection', () => {
+			async function seedNormalized(): Promise<{ instance: AgentHostDatabase; raw: Database }> {
+				const instance = new AgentHostDatabase(':memory:');
+				database = instance;
+				await seed(instance);
+				await instance.ensureChatCatalogV2(session, expectation(), candidate());
+				// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Query the actual legacy SQL tables, not the V2-aware API.
+				return { instance, raw: await instance['_ensureDatabase']() };
+			}
+
+			test('activation projects exact schema13 columns without default/private rows or mirror acknowledgements', async () => {
+				const instance = new AgentHostDatabase(':memory:');
+				database = instance;
+				await seed(instance);
+				await instance.replaceSessionChatCatalog(session, [{
+					chat: peer, order: 0, providerData: 'opaque \'provider\'', origin: '{"kind":"subagent"}',
+					isRead: false, archived: true, inheritedTurnId: 't'.repeat(4096),
+				}], undefined);
+				await instance.markSessionChatCatalogLegacyMirrored(session, 1, 'unchanged-backing-mirror');
+				const aggregate = await instance.getSessionV2(session);
+				const result = await instance.ensureChatCatalogV2(session, expectation(1), candidate());
+				// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Exercise the unchanged schema13 SQL reader.
+				const raw = await instance['_ensureDatabase']();
+				assert.deepStrictEqual({
+					result, rows: await readLegacySessionChatCatalog(raw, session),
+					aggregate: await instance.getSessionV2(session),
+				}, {
+					result: { status: 'applied', catalogRevision: 2 },
+					rows: [{
+						revision: 2, legacy_mirrored_revision: 1, legacy_mirrored_payload: 'unchanged-backing-mirror',
+						chat_uri: peer, chat_order: 0, is_read: 0, archived: 1, provider_data: 'opaque \'provider\'',
+						origin: '{"kind":"subagent"}', inherited_turn_id: 't'.repeat(4096),
+					}],
+					aggregate,
+				});
+			});
+
+			test('direct registration replaces stale retained peers and projects compact order around a nonzero exact default', async () => {
+				const instance = new AgentHostDatabase(':memory:');
+				database = instance;
+				await instance.registerRuntimeSession(session, { provider: 'copilot', startTime: 100, source: 'explicit' }, { checkTombstone: true });
+				// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Seed an orphaned retained legacy row to exercise full snapshot replacement.
+				const raw = await instance['_ensureDatabase']();
+				await exec(raw, `PRAGMA foreign_keys = OFF;
+					INSERT INTO session_chats (session_uri, chat_uri, chat_order) VALUES ('${session}', 'chat://stale-retained', 0);
+					PRAGMA foreign_keys = ON;`);
+				const second = `${session}#default-shaped-peer`;
+				const result = await instance.registerChatCatalogV2(session, {
+					...candidate(), peers: [...candidate().peers, { chat: second, order: 2 }],
+				});
+				assert.deepStrictEqual({
+					result,
+					rows: (await readLegacySessionChatCatalog(raw, session)).map(row => [row.chat_uri, row.chat_order, row.revision]),
+					default: (await instance.readCatalogSnapshot([session]))[0].header?.defaultChatUri,
+				}, { result: { status: 'applied', catalogRevision: 1 }, rows: [[peer, 0, 1], [second, 1, 1]], default: defaultChat });
+			});
+
+			test('add reorder removal and private closure tombstones project final membership with one header advance', async () => {
+				const { instance, raw } = await seedNormalized();
+				const added = `${session}#added`;
+				const initial = (await instance.getSessionChatCatalog(session))!.chats[0];
+				const add = await instance.replaceSessionChatCatalog(session, [initial, { chat: added, order: 1 }], 1);
+				const afterAdd = (await readLegacySessionChatCatalog(raw, session)).map(row => [row.chat_uri, row.chat_order, row.revision]);
+				const reorder = await instance.replaceSessionChatCatalog(session, [{ chat: added, order: 0 }, { ...initial, order: 1 }], 2);
+				const afterReorder = (await readLegacySessionChatCatalog(raw, session)).map(row => [row.chat_uri, row.chat_order, row.revision]);
+				const remove = await instance.replaceSessionChatCatalog(session, [{ chat: added, order: 0 }], 3);
+				const recreate = await instance.replaceSessionChatCatalog(session, [{ chat: added, order: 0 }, { chat: peer, order: 1 }], 4);
+				assert.deepStrictEqual({
+					add, afterAdd, reorder, afterReorder, remove, recreate,
+					final: (await readLegacySessionChatCatalog(raw, session)).map(row => [row.chat_uri, row.chat_order, row.revision]),
+					deleted: await all(raw, 'SELECT chat_uri, tombstoned FROM chats_v2 WHERE chat_uri IN (?, ?) ORDER BY chat_uri', [peer, privateChat]),
+				}, {
+					add: { status: 'applied', revision: 2 }, afterAdd: [[peer, 0, 2], [added, 1, 2]],
+					reorder: { status: 'applied', revision: 3 }, afterReorder: [[added, 0, 3], [peer, 1, 3]],
+					remove: { status: 'applied', revision: 4 }, recreate: { status: 'conflict' }, final: [[added, 0, 4]],
+					deleted: [{ chat_uri: peer, tombstoned: 1 }, { chat_uri: privateChat, tombstoned: 1 }],
+				});
+			});
+
+			test('public legacy metadata updates and clears preserve immutable storage and unrelated aggregate payload', async () => {
+				const { instance, raw } = await seedNormalized();
+				const aggregate = await instance.getSessionV2(session);
+				const update = await instance.updateChatV2Metadata(peer, { ownershipRevision: 0, metadataRevision: 0 }, {
+					providerData: 'opaque', origin: '{"kind":"fork"}', inheritedTurnId: 'updated-turn', isRead: true, archived: false,
+				});
+				const updated = (await readLegacySessionChatCatalog(raw, session))[0];
+				const cleared = await instance.updateChatV2Metadata(peer, { ownershipRevision: 0, metadataRevision: 1 }, {
+					providerData: null, origin: null, inheritedTurnId: null, isRead: false, archived: true,
+				});
+				assert.deepStrictEqual({
+					update, updated, cleared, rows: await readLegacySessionChatCatalog(raw, session),
+					storage: (await instance.readChatV2(session, peer)).chat?.storageResource,
+					aggregateUnchanged: stableStringify(await instance.getSessionV2(session)) === stableStringify(aggregate),
+				}, {
+					update: { status: 'applied', catalogRevision: 2 },
+					updated: {
+						revision: 2, legacy_mirrored_revision: 0, legacy_mirrored_payload: null, chat_uri: peer, chat_order: 0,
+						is_read: 1, archived: 0, provider_data: 'opaque', origin: '{"kind":"fork"}', inherited_turn_id: 'updated-turn',
+					},
+					cleared: { status: 'applied', catalogRevision: 3 },
+					rows: [{
+						revision: 3, legacy_mirrored_revision: 0, legacy_mirrored_payload: null, chat_uri: peer, chat_order: 0,
+						is_read: 0, archived: 1, provider_data: null, origin: null, inherited_turn_id: null,
+					}],
+					storage: 'storage://peer', aggregateUnchanged: true,
+				});
+			});
+
+			test('private lifecycle and default-only metadata advance the header without rewriting peer projection', async () => {
+				const { instance, raw } = await seedNormalized();
+				await exec(raw, `CREATE TRIGGER reject_unnecessary_projection BEFORE DELETE ON session_chats
+					BEGIN SELECT RAISE(ABORT, 'unnecessary public projection'); END`);
+				const inserted = await instance.insertPrivateChatV2(session, {
+					chat: 'chat://nested-private', parentChat: privateChat, metadata: { interactivity: ChatInteractivity.Hidden },
+				}, 1);
+				const metadata = await instance.updateChatV2Metadata(privateChat, { ownershipRevision: 0, metadataRevision: 0 }, { providerData: 'private-only' });
+				const defaultUpdated = await instance.updateChatV2Metadata(defaultChat, { ownershipRevision: 0, metadataRevision: 0 }, { isRead: false });
+				const removed = await instance.removePrivateChatV2(session, privateChat, 4);
+				assert.deepStrictEqual({
+					inserted, metadata, defaultUpdated, removed,
+					rows: (await readLegacySessionChatCatalog(raw, session)).map(row => [row.chat_uri, row.chat_order, row.revision]),
+					tombstones: await all(raw, 'SELECT tombstoned FROM chats_v2 WHERE chat_uri = ?', ['chat://nested-private']),
+				}, {
+					inserted: { status: 'applied', catalogRevision: 2 }, metadata: { status: 'applied', catalogRevision: 3 },
+					defaultUpdated: { status: 'applied', catalogRevision: 4 }, removed: { status: 'applied', catalogRevision: 5 },
+					rows: [[peer, 0, 5]], tombstones: [{ tombstoned: 1 }],
+				});
+			});
+
+			for (const activation of [true, false]) {
+				test(`${activation ? 'activated' : 'directly registered'} single-default sessions preserve both registries with zero legacy peers`, async () => {
+					const instance = new AgentHostDatabase(':memory:');
+					database = instance;
+					await instance.registerRuntimeSession(session, { provider: 'copilot', startTime: 100, source: 'explicit' }, { checkTombstone: true });
+					const singleDefault = { defaultChat: { chat: defaultChat, order: 0 }, peers: [], privateDescendants: [] };
+					if (activation) {
+						const source = createEnvelope(session, 'single-default', 1, {
+							payload: stableStringify({
+								payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
+								data: { modifiedTime: 100, isRead: false, isArchived: false, workingDirectories: [], chats: [{ uri: defaultChat, kind: 'default', order: 0 }] },
+							}),
+						});
+						await instance.upsertSessionV2(source, undefined);
+						await instance.ensureChatCatalogV2(session, {
+							sessionGeneration: source.sessionGeneration, sourceRevision: source.sourceRevision, payloadHash: source.payloadHash, catalogRevision: 0,
+						}, singleDefault);
+					} else {
+						await instance.registerChatCatalogV2(session, singleDefault);
+					}
+					// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Inspect both old identity and peer surfaces.
+					const raw = await instance['_ensureDatabase']();
+					const aggregate = await instance.getSessionV2(session);
+					const before = {
+						registry: await all(raw, 'SELECT session_uri FROM sessions'),
+						v2Registry: (await readLegacySessionV2Registrations(raw)).map(row => row.session_uri),
+						aggregate,
+						header: await all(raw, 'SELECT session_uri, revision, default_chat_uri FROM session_chat_catalogs'),
+						legacy: await readLegacySessionChatCatalog(raw, session),
+					};
+					await instance.tombstoneAndUnregisterSession(session);
+					assert.deepStrictEqual({
+						before,
+						after: {
+							registry: await all(raw, 'SELECT session_uri FROM sessions'),
+							v2Registry: await readLegacySessionV2Registrations(raw),
+							aggregate: await instance.getSessionV2(session),
+							legacy: await readLegacySessionChatCatalog(raw, session),
+							tombstoned: await instance.isSessionTombstoned(session),
+							chat: await all(raw, 'SELECT chat_uri, tombstoned FROM chats_v2'),
+						},
+					}, {
+						before: {
+							registry: [{ session_uri: session }], v2Registry: [session], aggregate,
+							header: [{ session_uri: session, revision: 1, default_chat_uri: defaultChat }],
+							legacy: [{
+								revision: 1, legacy_mirrored_revision: 0, legacy_mirrored_payload: null,
+								chat_uri: null, chat_order: null, is_read: null, archived: null, provider_data: null, origin: null, inherited_turn_id: null,
+							}],
+						},
+						after: { registry: [], v2Registry: [], aggregate: undefined, legacy: [], tombstoned: true, chat: [{ chat_uri: defaultChat, tombstoned: 1 }] },
+					});
+				});
+			}
+
+			test('schema13 registration reader excludes explicit tombstones and provider exclusions without changing authority', async () => {
+				const { instance, raw } = await seedNormalized();
+				const before = (await readLegacySessionV2Registrations(raw)).map(row => row.session_uri);
+				await exec(raw, `INSERT INTO metadata (key, value) VALUES ('sessionTombstone:${session}', 'true')`);
+				const tombstoned = await readLegacySessionV2Registrations(raw);
+				await exec(raw, `DELETE FROM metadata WHERE key = 'sessionTombstone:${session}';
+					INSERT INTO metadata (key, value) VALUES ('sessionsV2Excluded:copilot:${session}', 'excluded')`);
+				const excluded = await readLegacySessionV2Registrations(raw);
+				await exec(raw, `DELETE FROM metadata WHERE key = 'sessionsV2Excluded:copilot:${session}'`);
+				assert.deepStrictEqual({
+					before, tombstoned, excluded, restored: (await readLegacySessionV2Registrations(raw)).map(row => row.session_uri),
+					authority: (await instance.readCatalogSnapshot([session]))[0].authorityVersion,
+				}, { before: [session], tombstoned: [], excluded: [], restored: [session], authority: 2 });
+			});
+
+			for (const operation of ['tombstone', 'unregister', 'exclude'] as const) {
+				test(`${operation} cascades projected peers and leaves globally tombstoned identities`, async () => {
+					const { instance, raw } = await seedNormalized();
+					const before = (await readLegacySessionChatCatalog(raw, session)).map(row => row.chat_uri);
+					if (operation === 'tombstone') {
+						await instance.tombstoneAndUnregisterSession(session);
+					} else if (operation === 'unregister') {
+						await instance.unregisterRuntimeSession(session);
+					} else {
+						await instance.excludeSessionV2({ provider: 'copilot', session, reason: 'staleExternal', fingerprint: '1' }, {
+							identity: await instance.getSessionV2Registration(session), catalog: await instance.getSessionV2(session),
+						});
+					}
+					assert.deepStrictEqual({
+						before, rows: await readLegacySessionChatCatalog(raw, session),
+						chats: (await all(raw, 'SELECT tombstoned FROM chats_v2')).map(row => row.tombstoned),
+						stale: await instance.updateChatV2Metadata(peer, { ownershipRevision: 0, metadataRevision: 0 }, { isRead: true }),
+					}, { before: [peer], rows: [], chats: [1, 1, 1], stale: { status: 'conflict' } });
+				});
+			}
+
+			test('projection insert failure rolls back authoritative membership metadata closure and header after legacy DELETE', async () => {
+				const { instance, raw } = await seedNormalized();
+				const before = {
+					normalized: await instance.readCatalogSnapshot([session]), legacy: await readLegacySessionChatCatalog(raw, session),
+				};
+				await exec(raw, `CREATE TRIGGER reject_projection BEFORE INSERT ON session_chats
+					BEGIN SELECT RAISE(ABORT, 'projection failed'); END`);
+				await assert.rejects(instance.replaceSessionChatCatalog(session, [{ chat: 'chat://replacement', order: 0 }], 1), /projection failed/);
+				await assert.rejects(instance.updateChatV2Metadata(peer, { ownershipRevision: 0, metadataRevision: 0 }, { providerData: 'must-roll-back' }), /projection failed/);
+				assert.deepStrictEqual({
+					normalized: await instance.readCatalogSnapshot([session]), legacy: await readLegacySessionChatCatalog(raw, session),
+				}, before);
+			});
+
+			for (const activation of [true, false]) {
+				test(`${activation ? 'activation' : 'direct registration'} projection failure rolls back header and normalized rows`, async () => {
+					const instance = new AgentHostDatabase(':memory:');
+					database = instance;
+					if (activation) {
+						await seed(instance);
+					} else {
+						await instance.registerRuntimeSession(session, { provider: 'copilot', startTime: 100, source: 'explicit' }, { checkTombstone: true });
+					}
+					// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Inject a failure in the actual SQL projection.
+					const raw = await instance['_ensureDatabase']();
+					const aggregate = await instance.getSessionV2(session);
+					await exec(raw, `CREATE TRIGGER reject_projection BEFORE INSERT ON session_chats
+						BEGIN SELECT RAISE(ABORT, 'projection failed'); END`);
+					await assert.rejects(activation
+						? instance.ensureChatCatalogV2(session, expectation(), candidate())
+						: instance.registerChatCatalogV2(session, candidate()), /projection failed/);
+					assert.deepStrictEqual({
+						normalized: await all(raw, 'SELECT chat_uri FROM chats_v2'),
+						legacy: await readLegacySessionChatCatalog(raw, session),
+						aggregate: await instance.getSessionV2(session),
+					}, { normalized: [], legacy: [], aggregate });
+				});
+			}
+
+			test('legacy-only old writer edits are never imported and the next V2 mutation restores full SQL membership', async () => {
+				const { instance, raw } = await seedNormalized();
+				const normalized = await instance.readCatalogSnapshot([session]);
+				await exec(raw, `DELETE FROM session_chats WHERE session_uri = '${session}';
+					INSERT INTO session_chats (session_uri, chat_uri, chat_order, provider_data) VALUES ('${session}', 'chat://old-only', 0, 'old-write');
+					UPDATE session_chat_catalogs SET revision = 2 WHERE session_uri = '${session}';`);
+				const stale = await instance.replaceSessionChatCatalog(session, [], 1);
+				const replay = await instance.ensureChatCatalogV2(session, expectation(), candidate());
+				const unchanged = (await instance.readCatalogSnapshot([session]))[0].chats;
+				const restored = await instance.replaceSessionChatCatalog(session, (await instance.getSessionChatCatalog(session))!.chats, 2);
+				assert.deepStrictEqual({
+					stale, replay, unchanged, restored,
+					legacy: (await readLegacySessionChatCatalog(raw, session)).map(row => [row.chat_uri, row.chat_order, row.revision]),
+					oldIdentities: await all(raw, 'SELECT chat_uri FROM chats_v2 WHERE chat_uri = ?', ['chat://old-only']),
+					importResult: await instance.upsertSessionV2(envelope(), 'catalog-generation'),
+				}, {
+					stale: { status: 'conflict' }, replay: { status: 'replayed', catalogRevision: 2 },
+					unchanged: normalized[0].chats, restored: { status: 'applied', revision: 3 },
+					legacy: [[peer, 0, 3]], oldIdentities: [], importResult: 'conflict',
+				});
+			});
+
+			test('1000-chat projection uses two bounded SQL writes and retains one-SELECT list and point reads', async () => {
+				const instance = new AgentHostDatabase(':memory:');
+				database = instance;
+				await instance.registerRuntimeSession(session, { provider: 'copilot', startTime: 100, source: 'explicit' }, { checkTombstone: true });
+				const peers = Array.from({ length: AGENT_HOST_CATALOG_CHILD_LIMIT - 1 }, (_, order) => ({ chat: `chat://sql-projection-${order}`, order }));
+				await instance.registerChatCatalogV2(session, {
+					defaultChat: { chat: defaultChat, order: peers.length }, peers, privateDescendants: [],
+				});
+				// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Count actual SQL statements at the maximum supported normalized size.
+				const raw = await instance['_ensureDatabase']();
+				const statements: string[] = [];
+				const committed = new DeferredPromise<void>();
+				const trace = (sql: string) => {
+					statements.push(sql);
+					if (sql === 'COMMIT') {
+						void committed.complete();
+					}
+				};
+				raw.on('trace', trace);
+				try {
+					await instance.replaceSessionChatCatalog(session, [...peers].reverse().map((chat, order) => ({ ...chat, order })), 1);
+					await committed.p;
+				} finally {
+					raw.removeListener('trace', trace);
+				}
+				const reads: string[] = [];
+				const readTraced = new DeferredPromise<void>();
+				const readTrace = (sql: string) => {
+					reads.push(sql);
+					if (/^\s*SELECT h\.authority_version\b/.test(sql)) {
+						void readTraced.complete();
+					}
+				};
+				raw.on('trace', readTrace);
+				try {
+					await instance.readSessionListCatalogs([session]);
+					await instance.readChatV2(session, peers[0].chat);
+					await readTraced.p;
+				} finally {
+					raw.removeListener('trace', readTrace);
+				}
+				const rows = await readLegacySessionChatCatalog(raw, session);
+				assert.deepStrictEqual({
+					projectionWrites: statements.filter(sql => /^(?:DELETE FROM|INSERT INTO) session_chats\b/.test(sql)).map(sql => sql.split(/\s+/).slice(0, 3).join(' ')),
+					readSelects: {
+						total: reads.filter(sql => /^\s*SELECT\b/i.test(sql)).length,
+						list: reads.filter(sql => /^\s*SELECT s\.session_uri, s\.provider\b/.test(sql)).length,
+						point: reads.filter(sql => /^\s*SELECT h\.authority_version\b/.test(sql)).length,
+					},
+					rows: rows.map(row => [row.chat_uri, row.chat_order]),
+				}, {
+					projectionWrites: ['DELETE FROM session_chats', 'INSERT INTO session_chats'], readSelects: { total: 2, list: 1, point: 1 },
+					rows: [...peers].reverse().map((chat, order) => [chat.chat, order]),
+				});
+			});
+		});
+
 		test('activation derives every lightweight field losslessly, including explicit private roles and default semantics', async () => {
 			database = new AgentHostDatabase(':memory:');
 			await seed();
@@ -1967,11 +2296,18 @@ suite('AgentHostDatabase sessions_v2', () => {
 			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Test-only access retains the private method's type.
 			const raw = await instance['_ensureDatabase']();
 			const statements: string[] = [];
-			const trace = (sql: string) => statements.push(sql);
+			const traced = new DeferredPromise<void>();
+			const trace = (sql: string) => {
+				statements.push(sql);
+				if (/^\s*SELECT s\.session_uri, s\.provider\b/.test(sql)) {
+					void traced.complete();
+				}
+			};
 			raw.on('trace', trace);
 			let listed;
 			try {
 				listed = await instance.readSessionListCatalogs([session, legacy]);
+				await traced.p;
 			} finally {
 				raw.removeListener('trace', trace);
 			}
@@ -2064,10 +2400,17 @@ suite('AgentHostDatabase sessions_v2', () => {
 			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Test-only access retains the private method's type.
 			const raw = await instance['_ensureDatabase']();
 			const statements: string[] = [];
-			const trace = (sql: string) => statements.push(sql);
+			const committed = new DeferredPromise<void>();
+			const trace = (sql: string) => {
+				statements.push(sql);
+				if (sql === 'COMMIT') {
+					void committed.complete();
+				}
+			};
 			raw.on('trace', trace);
 			try {
 				const [snapshot] = await instance.readCatalogSnapshot([session]);
+				await committed.p;
 				const selects = statements.filter(sql => /^\s*SELECT\b/i.test(sql));
 				assert.deepStrictEqual({
 					selects: selects.length,
@@ -2306,30 +2649,6 @@ suite('AgentHostDatabase sessions_v2', () => {
 			}, { parent: undefined, order: undefined, interactivity: ChatInteractivity.Hidden, summary: 'Private' });
 		});
 
-		test('terminal recovery conflicts for every divergent field and only acknowledges an exact no-op', async () => {
-			database = new AgentHostDatabase(':memory:');
-			await seed();
-			await database.ensureChatCatalogV2(session, expectation(), candidate());
-			const current = (await database.getSessionChatCatalog(session))!;
-			const actual = current.chats[0];
-			const noop = await database.recoverSessionChatCatalog(session, current.chats, current.revision);
-			const before = await database.readCatalogSnapshot([session]);
-			const conflicts = [];
-			for (const divergent of [
-				{ ...actual, providerData: 'different' }, { ...actual, origin: '' }, { ...actual, workingDirectories: [] },
-				{ ...actual, isRead: true }, { ...actual, archived: false }, { ...actual, inheritedTurnId: '' },
-				{ ...actual, metadata: { ...actual.metadata, summary: 'different' } },
-			]) {
-				conflicts.push(await database.recoverSessionChatCatalog(session, [divergent], current.revision));
-			}
-			conflicts.push(await database.recoverSessionChatCatalog(session, [], current.revision));
-			assert.deepStrictEqual({
-				noop, conflicts, unchanged: stableStringify(before) === stableStringify(await database.readCatalogSnapshot([session])),
-			}, {
-				noop: { status: 'applied', revision: 1 }, conflicts: Array.from({ length: 8 }, () => ({ status: 'conflict' })), unchanged: true,
-			});
-		});
-
 		test('explicit legacy both-empty deletion facts preserve global tombstones before legacy keys are cleaned', async () => {
 			const path = join(temporaryDirectory!, 'legacy-deleted-identity.db');
 			const deletedChat = 'chat://deleted-legacy';
@@ -2347,12 +2666,12 @@ suite('AgentHostDatabase sessions_v2', () => {
 			const raw = await openDatabase(path);
 			try {
 				const current = (await database.getSessionChatCatalog(session))!;
-				const recovery = await database.recoverSessionChatCatalog(session, [...current.chats, { chat: deletedChat, order: 1 }], current.revision);
+				const replacement = await database.replaceSessionChatCatalog(session, [...current.chats, { chat: deletedChat, order: 1 }], current.revision);
 				assert.deepStrictEqual({
-					recovery, detail: await database.getChatV2ProviderDetail(deletedChat),
+					replacement, detail: await database.getChatV2ProviderDetail(deletedChat),
 					tombstone: await all(raw, `SELECT chat_uri, tombstoned, ownership_revision FROM chats_v2 WHERE chat_uri = '${deletedChat}'`),
 				}, {
-					recovery: { status: 'conflict' }, detail: undefined,
+					replacement: { status: 'conflict' }, detail: undefined,
 					tombstone: [{ chat_uri: deletedChat, tombstoned: 1, ownership_revision: 1 }],
 				});
 			} finally {

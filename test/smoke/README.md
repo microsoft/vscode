@@ -69,6 +69,20 @@ npm run watch
 
 ## Troubleshooting
 
+### Agents Window through a macOS PAC proxy
+
+After compiling the smoke tests, run the isolated macOS proxy fixture against a packaged build:
+
+```bash
+bash test/smoke/scripts/run-agents-window-network-proxy.sh --kerberos --build "/path/to/Visual Studio Code - Insiders.app"
+```
+
+Omit `--kerberos` for an unauthenticated proxy. The fixture requires Squid (`brew install squid`) and permission to configure the system PAC URL and packet filter; it restores both during cleanup.
+
+Proxy runs disable worktree isolation. The mandatory Copilot test sends a fresh UUID in its prompt, waits for the actual `/responses` model request containing that marker, and verifies that no worktree was created. Kerberos mode supplies the Copilot runtime's existing `COPILOT_PROXY_KERBEROS_SPN` option for the fixture's `HTTP/localhost` service and requires authentication for all proxy traffic, with no unauthenticated mock-server exception. Setup verifies that an unauthenticated model request receives HTTP 407. Post-run validation excludes the setup curl probe and additionally requires an authenticated tunnel to the mock host in Squid's access log.
+
+Kerberos mode serves the mock API over HTTPS so the runtime exercises proxy CONNECT before TLS, matching production CAPI transport. The fixture generates a one-day test CA and server certificate, passes the CA through `NODE_EXTRA_CA_CERTS` and `SSL_CERT_FILE`, and removes the certificate material during cleanup. The Agent Host includes Node's process-supplied extra certificates alongside system certificates in the proxy-agent certificate callback, so Node-side model discovery uses the same CA without modifying the macOS trust store. TLS verification remains enabled. The unauthenticated proxy fixture continues to use HTTP.
+
 ### Dev Container sessions over SSH, Tunnels, and WSL
 
 The Agents Window Dev Container suites require a reachable Linux Docker daemon. The SSH suite runs by default on Linux, and locally on macOS when Docker is available. SSH/Tunnel suites are limited to Linux in CI. The SSH fixture uses a loopback SSH server with an ephemeral port, password, and host key; it does not require system `sshd` or change your SSH configuration.

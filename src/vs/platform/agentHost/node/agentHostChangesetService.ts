@@ -8,6 +8,7 @@ import { equals } from '../../../base/common/arrays.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../base/common/lifecycle.js';
+import { autorun, derived, observableFromEvent } from '../../../base/common/observable.js';
 import { isObject } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { IAgentHostPeerChatPersistenceService } from './agentHostPeerChatStore.js';
@@ -202,6 +203,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}>();
 	private readonly _unavailableBranchOwners = new Set<ProtocolURI>();
 	private readonly _failedBranchOwners = new Set<ProtocolURI>();
+	private readonly _uncommittedRootObservers = this._register(new DisposableMap<ProtocolURI>());
 	private readonly _branchChangesetOwners = new Map<ProtocolURI, ProtocolURI>();
 	private readonly _restoredBranchChangesetOwners = new Set<ProtocolURI>();
 	private readonly _pendingBranchChangesetRestores = new Map<ProtocolURI, Promise<void>>();
@@ -227,6 +229,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		super();
 		this._worktree = worktree;
 		this._diffComputeService = this._createDiffComputeService();
+		this._register(this._changesetSubscriptions.onDidChangeSessionSubscriptions(owner => this._observeUncommittedRoot(owner)));
 	}
 
 	/** Creates the diff-count service; overridable so tests can supply a synchronous in-process computer. */
@@ -635,7 +638,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 					this.refreshBranchChangeset(parsed.ownerUri);
 					break;
 				case ChangesetKind.Session:
-					this.refreshSessionChangeset(session, 'fileEditTracker');
+					// Keep checkpoint-backed shell edits when a Git state refresh
+					// arrives after the end-of-turn checkpoint computation.
+					this.refreshSessionChangeset(session);
 					break;
 				case ChangesetKind.Uncommitted:
 					void this.computeUncommittedChangeset(session);
@@ -848,9 +853,73 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		return this._queueUncommittedChangeset(session, undefined, false);
 	}
 
+	private _observeUncommittedRoot(owner: ProtocolURI): void {
+		const changeset = buildUncommittedChangesetUri(owner);
+		if (!this._hasSubscription(owner, changeset)) {
+			this._uncommittedRootObservers.deleteAndDispose(owner);
+			return;
+		}
+		if (this._uncommittedRootObservers.has(owner) || this._store.isDisposed) {
+			return;
+		}
+		if (!this._parseUncommittedDirectory(this._getEffectiveWorkingDirectories(owner)?.[0])) {
+			return;
+		}
+		const directory = observableFromEvent(this, this._stateManager.onDidChangeSessionWorkingDirectories, () => this._getEffectiveWorkingDirectories(owner)?.[0]);
+		const availability = derived(this, reader => {
+			const primary = this._parseUncommittedDirectory(directory.read(reader));
+			return primary ? this._gitService.hasGitRoot(primary) : undefined;
+		});
+		let previousDirectory: string | undefined;
+		let previousAvailability: boolean | undefined;
+		this._uncommittedRootObservers.set(owner, autorun(reader => {
+			const primary = directory.read(reader);
+			const hasRoot = availability.read(reader)?.read(reader);
+			const directoryChanged = primary !== previousDirectory;
+			const recovered = !directoryChanged && previousAvailability !== true && hasRoot === true;
+			previousDirectory = primary;
+			previousAvailability = hasRoot;
+			if (directoryChanged && primary && hasRoot === false) {
+				const workingDirectory = this._parseUncommittedDirectory(primary);
+				if (!workingDirectory) {
+					return;
+				}
+				void this._gitService.getRepositoryRoot(workingDirectory, { refreshIfNone: true }).catch(error => {
+					this._logService.warn(`[AgentHostChangesetService] Failed to refresh repository root for ${owner}`, error);
+				});
+			}
+			if (recovered && this._hasSubscription(owner, changeset) && this._stateManager.getChangesetState(changeset)?.status === ChangesetStatus.Error) {
+				void this.computeUncommittedChangeset(owner);
+			}
+		}));
+	}
+
+	private _isUncommittedUnavailable(session: ProtocolURI): boolean {
+		const directory = this._parseUncommittedDirectory(this._getEffectiveWorkingDirectories(session)?.[0]);
+		return !!directory
+			&& this._gitService.hasGitRoot(directory).get() === false
+			&& this._stateManager.getChangesetState(buildUncommittedChangesetUri(session))?.status === ChangesetStatus.Error;
+	}
+
+	private _parseUncommittedDirectory(directory: string | undefined): URI | undefined {
+		if (!directory) {
+			return undefined;
+		}
+		try {
+			return URI.parse(directory);
+		} catch (error) {
+			this._logService.warn(`[AgentHostChangesetService] Failed to parse uncommitted working directory ${directory}`, error);
+			return undefined;
+		}
+	}
+
 	private async _computeUncommittedChangeset(session: ProtocolURI, turnId: string | undefined, provider: string | undefined, clientContext?: IAgentHostClientTelemetryContext, statusBeforeRefresh?: ChangesetState): Promise<ProtocolURI> {
+		if (this._isUncommittedUnavailable(session)) {
+			return buildUncommittedChangesetUri(session);
+		}
 		const uncommittedUri = this._stateManager.registerChangeset(buildUncommittedChangesetUri(session));
-		if (!this._hasSubscription(session, uncommittedUri) || !this._getEffectiveWorkingDirectories(session)?.[0]) {
+		const workingDirectory = this._getEffectiveWorkingDirectories(session)?.[0];
+		if (!this._hasSubscription(session, uncommittedUri) || !workingDirectory) {
 			this._restoreStaticChangesetStatus(uncommittedUri, statusBeforeRefresh);
 			return uncommittedUri;
 		}
@@ -905,15 +974,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	private async _computeUncommittedDiffs(session: ProtocolURI): Promise<readonly ISessionFileDiff[] | undefined> {
-		const workingDirectory = this._getEffectiveWorkingDirectories(session)?.[0];
-		if (!workingDirectory) {
-			return undefined;
-		}
-
-		let workingDirectoryUri: URI;
-		try {
-			workingDirectoryUri = URI.parse(workingDirectory);
-		} catch {
+		const workingDirectoryUri = this._parseUncommittedDirectory(this._getEffectiveWorkingDirectories(session)?.[0]);
+		if (!workingDirectoryUri) {
 			return undefined;
 		}
 
@@ -1437,6 +1499,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		this._debouncedChatSummaryTimers.deleteAndDispose(owner);
 		this._unavailableBranchOwners.delete(owner);
 		this._failedBranchOwners.delete(owner);
+		this._uncommittedRootObservers.deleteAndDispose(owner);
 		for (const [key, scheduled] of this._scheduledStaticRecomputes) {
 			if (key.startsWith(`${owner}\u0000`)) {
 				scheduled.requests.length = 0;
@@ -1672,8 +1735,12 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	private _queueUncommittedChangeset(session: ProtocolURI, turnId: string | undefined, reportTelemetry: boolean, clientContext?: IAgentHostClientTelemetryContext): Promise<ProtocolURI> {
-		const provider = reportTelemetry ? this._getTelemetryProvider(session) : undefined;
 		const changesetUri = buildUncommittedChangesetUri(session);
+		this._observeUncommittedRoot(session);
+		if (this._isUncommittedUnavailable(session)) {
+			return Promise.resolve(changesetUri);
+		}
+		const provider = reportTelemetry ? this._getTelemetryProvider(session) : undefined;
 		let statusBeforeRefresh: ChangesetState | undefined;
 		if (this._hasSubscription(session, changesetUri) && this._getEffectiveWorkingDirectories(session)?.[0]) {
 			statusBeforeRefresh = this._markChangesetComputing(changesetUri);
@@ -1747,6 +1814,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		const changesetUri = staticChangesetUri(session, kind);
 		const stopWatch = StopWatch.create();
 		const summarySession = containingSessionUri(session);
+		// Completed checkpoints cannot include edits from an active turn. Check
+		// all chats when the queued computation starts so auto keeps live edits.
+		const useActiveTurnEdits = strategy === 'auto' && this._stateManager.hasActiveTurn(summarySession);
 		const summaryKind = getSummaryChangesetKind(this._stateManager.getSessionState(summarySession)?.config?.values);
 		const workingDirectories = kind === 'session' && !isAhpChatChannel(session)
 			? this._getSessionSummaryWorkingDirectories(session)
@@ -1825,7 +1895,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			} else if (kind === 'branch') {
 				branchResult = await this._computeBranchDiffs(session, ref.object, workingDirectories?.[0]);
 				diffs = branchResult.kind === 'ready' ? branchResult.diffs : undefined;
-			} else if (strategy !== 'fileEditTracker') {
+			} else if (strategy !== 'fileEditTracker' && !useActiveTurnEdits) {
 				if (isMultiRootSession(workingDirectories)) {
 					const result = await this._computeMultiFolderSessionDiffs(session, ref.object, workingDirectories!, strategy);
 					diffs = result.diffs;
@@ -1857,7 +1927,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				}
 				usedEditTrackerFallback = strategy === 'auto';
 				const folderScope = this._getTrackedEditFolderScope(session, workingDirectories);
-				const peerSources = isAhpChatChannel(session) ? [] : this._openPeerChatSources(session, strategy === 'fileEditTracker');
+				const peerSources = isAhpChatChannel(session) ? [] : this._openPeerChatSources(session, strategy === 'fileEditTracker' || useActiveTurnEdits);
 				try {
 					if (peerSources.length > 0) {
 						const sources: ISessionDiffSource[] = [

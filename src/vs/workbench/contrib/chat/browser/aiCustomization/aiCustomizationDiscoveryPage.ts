@@ -51,6 +51,7 @@ import { isPluginCustomizationItem } from '../../common/customizationHarnessServ
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { AgentPluginItemKind, IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
+import { MANAGE_PLUGIN_MARKETPLACES_COMMAND_ID } from '../actions/chatPluginActions.js';
 import { IAICustomizationListItem } from './aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel, ITEMS_MODEL_SECTIONS, ItemsModelSection } from './aiCustomizationItemsModel.js';
 import { DELETE_AI_CUSTOMIZATION_ID } from './aiCustomizationManagement.js';
@@ -675,7 +676,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.sourceButton.element.setAttribute('aria-haspopup', 'menu');
 		this.updateSourceButton();
 		this._register(this.sourceButton.onDidClick(() => this.showSourceMenu()));
-		this.sourceWarnings = this._register(new CustomizationMarketplaceSourceWarnings(header, this.marketplaceService.allSources ?? this.marketplaceService.sources, () => {
+		this.sourceWarnings = this._register(new CustomizationMarketplaceSourceWarnings(header, () => this.marketplaceService.allSources ?? this.marketplaceService.sources, () => {
 			this.browseCatalogCache.clear();
 			if (!this.visible) {
 				this.pendingRecoveryReload = true;
@@ -840,7 +841,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			localize('customizationDiscovery.configureMarketplaces', "Configure Marketplaces"),
 			ThemeIcon.asClassName(Codicon.settingsGear),
 			true,
-			() => this.commandService.executeCommand('workbench.action.openSettings', 'marketplace'),
+			() => this.commandService.executeCommand(MANAGE_PLUGIN_MARKETPLACES_COMMAND_ID),
 		));
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => this.sourceButton.element,
@@ -1231,7 +1232,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 
 	private getMarketplaceResourceLabel(resource: ICustomizationMarketplaceResource): string {
 		const source = this.getMarketplaceSourceLabel(resource.sourceId);
-		return resource.originLabel ? localize('customizationDiscovery.marketplaceOrigin', "{0} · {1}", source, resource.originLabel) : source;
+		return resource.originLabel && resource.originLabel !== source
+			? localize('customizationDiscovery.marketplaceOrigin', "{0} · {1}", source, resource.originLabel)
+			: resource.originLabel ?? source;
 	}
 
 	private cancelCatalogRequest(): void {
@@ -1987,6 +1990,12 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 
 	setSearchQuery(value: string): void {
 		this.setQuery(CustomizationDiscoveryQuery.parse(value));
+	}
+
+	showMarketplace(query: string, sourceId: string | undefined): void {
+		this.selectedSourceId = sourceId;
+		this.updateSourceButton();
+		this.setQuery(CustomizationDiscoveryQuery.parse(query));
 	}
 
 	layout(dimension: DOM.Dimension | undefined): void {

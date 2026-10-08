@@ -50,6 +50,7 @@ import { AgentPermissionDecisionSource, readAgentPermissionResponseMeta, toAgent
 import { readCompletionAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentCompletionAttachmentMeta.js';
 import { readSlashCommandResource, type ISlashCommandResource } from '../../../../../../platform/agentHost/common/meta/agentSlashCommandOutputMeta.js';
 import { IRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { AgentHostClientConnectionKind, agentHostClientConnectionKindValidator } from '../../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { resolveAgentHostSessionTrustFolders } from '../../../../../../platform/agentHost/common/agentHostWorkspaceTrust.js';
 import { CLIENT_SEMANTIC_SEARCH_TOOL_ID, SEMANTIC_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/semanticSearchConstants.js';
@@ -58,7 +59,7 @@ import type { ChatInputRequestWithPlanReview, IAgentHostPlanReview } from '../..
 import { IAgentSubscription, observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ChatTruncatedAction } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { CompletionItemKind as AhpCompletionItemKind, ContentEncoding, type CompletionItem as AhpCompletionItem } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { ConfirmationOptionKind, CustomizationType, JsonPrimitive, McpServerAuthRequiredState, McpServerStatus, SessionInputRequestKind, TerminalClaimKind, ToolCallContributorKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type SessionActiveClient, type SessionInputRequest, type SessionToolClientExecutionRequest } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { BackgroundWorkKind, ConfirmationOptionKind, CustomizationType, JsonPrimitive, McpServerAuthRequiredState, McpServerStatus, SessionInputRequestKind, TerminalClaimKind, ToolCallContributorKind, ToolResultContentType, type ConfirmationOption, type ProtectedResourceMetadata, type SessionActiveClient, type SessionInputRequest, type SessionToolClientExecutionRequest } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { compareProtocolVersions } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { ActionType, ChatTurnStartedAction, isChatAction, type ClientChatAction, type ClientSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, AHP_NOT_FOUND, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
@@ -754,6 +755,8 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 	private readonly _inputState: AgentHostChatInputState | undefined;
 	private readonly _sessionState = observableValue<IObservable<SessionState | undefined>>(this, constObservable(undefined));
 	private readonly _chatState = observableValue<IObservable<ChatState | undefined>>(this, constObservable(undefined));
+	readonly backgroundShellCount = derived(this, reader =>
+		this._chatState.read(reader).read(reader)?.backgroundWork?.filter(work => work.kind === BackgroundWorkKind.Shell).length);
 	private readonly _promptCacheTracking = this._register(new MutableDisposable<IDisposable>());
 	private readonly _sandboxNotification = this._register(new MutableDisposable<AgentHostSandboxNotification>());
 	private readonly _subagentTurnStores = this._register(new DisposableMap<string, DisposableStore>());
@@ -1903,6 +1906,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		cancellationToken: CancellationToken,
 	): Promise<IChatAgentResult> {
 		const firstResponse = new AgentHostFirstResponseTiming();
+		const connectionKind = agentHostClientConnectionKindValidator.validate(this._config.connection.clientConnectionKind).content ?? AgentHostClientConnectionKind.Unknown;
 		let outcome: AgentHostFirstResponseOutcome = 'notDispatched';
 		let sessionId: string | undefined;
 		let chatId: string | undefined;
@@ -2079,7 +2083,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// so a stale status can never fire after the invocation has ended.
 			preparingStatus.dispose();
 			const timing = firstResponse.finish({
-				requestId: request.requestId, provider: this._config.provider, agentSessionId: sessionId, chatId,
+				requestId: request.requestId, provider: this._config.provider, connectionKind, agentSessionId: sessionId, chatId,
 				sessionTurnKind, invocationKind, outcome: cancellationToken.isCancellationRequested ? 'cancelled' : outcome,
 				rendererRootInvocationOrdinal, trustInteractionRequired,
 			});
@@ -4386,6 +4390,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		// Reuse the invocation whenever a tool enters confirmation to avoid duplicate cards.
 		let previousStatus: ToolCallStatus | undefined = initial.status;
+		let silentAuthenticationAttempted = false;
 		store.add(autorun(reader => {
 			const tc = part$.read(reader).toolCall;
 			const status = tc.status;
@@ -4417,7 +4422,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				invocation.updatePreparedInvocation(prepared, invocation.parameters);
 			} else if (status === ToolCallStatus.AuthRequired) {
 				this._ensureLeftStreaming(invocation, tc, opts);
-				invocation.setAuthenticationRequired(toolCallAuthenticationServer(tc, opts.sessionResource.authority, this._toolAuthenticationServerName(tc, opts)), () => {
+				const onCancelAuthentication = () => {
 					this._dispatchAction(opts.backendSession, {
 						type: ActionType.ChatToolCallComplete,
 						turnId: opts.turnId,
@@ -4428,7 +4433,26 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 							error: { message: localize('agentHost.mcpToolAuthentication.cancelledError', "MCP authentication was cancelled"), code: 'cancelled' },
 						},
 					}, opts.chatURI);
-				});
+				};
+				const showAuthentication = (toolCall: ToolCallState & { status: ToolCallStatus.AuthRequired }) => invocation.setAuthenticationRequired(toolCallAuthenticationServer(toolCall, opts.sessionResource.authority, this._toolAuthenticationServerName(toolCall, opts)), onCancelAuthentication);
+				if (!silentAuthenticationAttempted) {
+					// Try silent authentication once per tool call so an expired token
+					// that is renewed automatically does not flash the authentication UI.
+					// A later challenge means the silent credential was rejected, so it
+					// shows the UI directly instead of retrying silently.
+					silentAuthenticationAttempted = true;
+					const server = toolCallAuthenticationServer(tc, opts.sessionResource.authority);
+					const serverName = this._customizationService.getMcpServers(opts.sessionResource).find(candidate => candidate.id === server.id)?.name ?? server.name;
+					this._autoAuthenticateMcpServer(opts.sessionResource, { ...server, name: serverName }).then(() => {
+						const current = part$.read(undefined).toolCall;
+						if (store.isDisposed || current.status !== ToolCallStatus.AuthRequired || IChatToolInvocation.isComplete(invocation)) {
+							return;
+						}
+						showAuthentication(current);
+					});
+				} else if (priorStatus !== ToolCallStatus.AuthRequired || invocation.state.read(undefined).type === IChatToolInvocation.StateKind.WaitingForAuthentication) {
+					showAuthentication(tc);
+				}
 			} else if (status === ToolCallStatus.Running || status === ToolCallStatus.PendingResultConfirmation) {
 				if (priorStatus === ToolCallStatus.AuthRequired) {
 					invocation.setAuthenticationResolved();

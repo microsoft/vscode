@@ -405,6 +405,39 @@ suite('XtermTerminal', () => {
 		});
 	});
 
+	test('keeps a scrollback override when the configuration changes', async () => {
+		const detached = store.add(instantiationService.createInstance(XtermTerminal, undefined, XTermBaseCtor, {
+			cols: 80,
+			rows: 30,
+			xtermColorProvider: { getBackgroundColor: () => undefined },
+			capabilities: store.add(new TerminalCapabilityStore()),
+			disableShellIntegrationReporting: true,
+			xtermAddonImporter: new TestXtermAddonImporter(),
+			detached: true,
+			scrollback: 5000,
+		}, undefined));
+		const initial = { configured: xterm.raw.options.scrollback, overridden: detached.raw.options.scrollback };
+		await configurationService.setUserConfiguration('terminal.integrated', {
+			...defaultTerminalConfig,
+			scrollback: 20,
+		});
+		configurationService.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+			override affectsConfiguration(section: string): boolean {
+				return section.startsWith('terminal.integrated');
+			}
+		});
+		xterm.updateConfig();
+		detached.updateConfig();
+
+		deepStrictEqual({
+			initial,
+			updated: { configured: xterm.raw.options.scrollback, overridden: detached.raw.options.scrollback },
+		}, {
+			initial: { configured: 10, overridden: 5000 },
+			updated: { configured: 20, overridden: 5000 },
+		});
+	});
+
 	test('keeps custom glyphs enabled when moved out of an auxiliary window', async () => {
 		await configurationService.setUserConfiguration('terminal.integrated', {
 			...defaultTerminalConfig,

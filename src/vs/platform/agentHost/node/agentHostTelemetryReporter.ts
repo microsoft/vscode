@@ -26,6 +26,36 @@ import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type CodexModelProvider, type AgentHostProviderSendStage, type AgentHostTurnFailureStage, type AgentHostTurnSendStage, type IAgentHostClientTelemetryContext, type IAgentProviderTurnTelemetryContext, type ICodexAccountTelemetryContext } from '../common/agentHostTelemetry.js';
 import { isAgentHostTelemetryService } from './agentHostTelemetryService.js';
 import { getCodexAccountTelemetryData, type CodexAccountTelemetryClassification } from './codex/codexAccountTelemetry.js';
+import { groupAgentHostProviderTimings, sanitizeAgentHostProviderTiming, type AgentHostProviderTimingMeasurement, type AgentHostProviderTimingMeasurements, type IAgentHostProviderTiming } from '../common/agentHostProviderTiming.js';
+
+type AgentHostProviderTimingEvent = IAgentHostEventTelemetry & AgentHostProviderTimingMeasurements & {
+	schemaVersion: number;
+	group: string;
+	provider: string;
+	agentSessionId: string;
+	chatSessionId: string;
+	turnId: string;
+	result: AgentHostTurnResult;
+	model: string | TelemetryTrustedValue<string> | undefined;
+};
+
+type AgentHostProviderTimingClassification = IAgentHostEventClassification & {
+	[K in AgentHostProviderTimingMeasurement]?: {
+		classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true;
+		comment: 'Allowlisted operation aggregate: start/end offsets and queue/execution durations in milliseconds, or invocation/error/incomplete counts. Milestone fields are first-observation offsets in milliseconds. See the provider timing contract.';
+	};
+} & {
+	owner: 'roblourens';
+	comment: 'Grouped VS Code provider-operation and SDK-observation timings, correlated to a completed host turn.';
+	schemaVersion: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Version of the provider timing contract.' };
+	group: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Code-defined timing group: input, permissions, sandboxShell, mcp, execution, interactions or milestones.' };
+	provider: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Agent provider identifier.' };
+	agentSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Opaque agent session identifier.' };
+	chatSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Opaque chat correlation identifier.' };
+	turnId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Host turn correlation identifier.' };
+	result: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Terminal host turn outcome, not the operation outcome.' };
+	model: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Privacy-normalized selected model.' };
+};
 
 export type AgentHostUserMessageSentSource = 'direct' | 'queued';
 
@@ -181,6 +211,7 @@ type IAgentHostWorkspaceSnapshotClassification = {
 
 export interface IAgentHostUserMessageSentEvent extends IAgentHostCopilotSkuTelemetry {
 	provider: string;
+	isOtelEnabled: boolean;
 	hostLaunchKind: AgentHostLaunchKind;
 	initiatorClientId: string | undefined;
 	initiatorClientType: AgentHostClientType;
@@ -204,6 +235,7 @@ export interface IAgentHostUserMessageSentEvent extends IAgentHostCopilotSkuTele
 
 export type IAgentHostUserMessageSentClassification = IAgentHostCopilotSkuClassification & {
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
+	isOtelEnabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the resolved Agent Host configuration enables OTel.' };
 	hostLaunchKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the agent host process was launched by the VS Code main process or VS Code CLI.' };
 	initiatorClientId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The opaque AHP client identifier that initiated the message.' };
 	initiatorClientType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of AHP client that initiated the message.' };
@@ -358,7 +390,7 @@ export type IAgentHostTurnCompletedClassification = IAgentHostEventClassificatio
 	codexModelProvider?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded model provider actually used by a Codex turn: openai, copilot, other, or unknown.' };
 	hostRootTurnOrdinal?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'One-based root-turn ordinal over the agent host process lifetime, captured at turn start and excluding subagent turns.' };
 	hostProcessAgeMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Agent host process age in milliseconds captured at root turn start, not completion.' };
-	titleGenerationStrategy?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The effective persisted automatic title generation strategy captured before sending the root turn: activeAgent, utility, or deferred.' };
+	titleGenerationStrategy?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The effective persisted automatic title generation strategy captured before sending the root turn: activeAgent, utility, deferred, or agentReview.' };
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
 	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat identifier within the agent host session.' };
@@ -480,6 +512,7 @@ export interface IAgentHostTurnCompletedReport extends IAgentHostTurnAttributedR
 	sendDispatchedMs?: number;
 	/** Elapsed time of each provider stage between dispatch and first progress, in milliseconds. */
 	providerStageDurationsMs?: ReadonlyMap<AgentHostProviderSendStage, number>;
+	providerTimings?: readonly IAgentHostProviderTiming[];
 	totalTime: number;
 	result: AgentHostTurnResult;
 	model: string | undefined;
@@ -1214,6 +1247,7 @@ export class AgentHostTelemetryReporter {
 		this._telemetryService.publicLog2<IAgentHostUserMessageSentEvent, IAgentHostUserMessageSentClassification>('agentHost.userMessageSent', {
 			...copilotSku,
 			provider,
+			isOtelEnabled: this._otelService.enabled,
 			hostLaunchKind: clientContext.hostLaunchKind,
 			initiatorClientId: clientId,
 			initiatorClientType: clientContext.clientType,
@@ -1611,6 +1645,7 @@ export class AgentHostTelemetryReporter {
 		const subagentKindTelemetry = toSubagentKindTelemetry(isSubagent, report.subagentKind);
 		const model = toTelemetryModel(report.model, report.modelTelemetryKind);
 		const providerStages = toProviderStageMeasurements(report.providerStageDurationsMs);
+		const providerTimings = report.providerTimings?.length ? report.providerTimings.map(sanitizeAgentHostProviderTiming).filter(timing => timing !== undefined) : undefined;
 		this._otelService?.emitTurnTiming({
 			provider: report.provider,
 			agentSessionId: AgentSession.id(session),
@@ -1629,6 +1664,7 @@ export class AgentHostTelemetryReporter {
 			sendStageProviderPreparationMs: report.sendStageDurationsMs?.get('providerPreparation'),
 			sendStageCheckpointMs: report.sendStageDurationsMs?.get('checkpoint'),
 			...providerStages,
+			providerTimings,
 			hostRootTurnOrdinal: report.hostRootTurnOrdinal,
 			hostProcessAgeMs: report.hostProcessAgeMs,
 			titleGenerationStrategy: report.titleGenerationStrategy,
@@ -1682,6 +1718,24 @@ export class AgentHostTelemetryReporter {
 			directBilledNanoAiu: report.directBilledNanoAiu,
 			modelCallCount: report.modelCallCount,
 		});
+		if (providerTimings?.length) {
+			const providerTimingContext = {
+				...toInitiatorTelemetry(report.clientContext),
+				...report.telemetryContext,
+				schemaVersion: 2,
+				provider: report.provider,
+				agentSessionId: AgentSession.id(session),
+				chatSessionId,
+				turnId: report.turnId,
+				result: report.result,
+				model,
+			};
+			for (const [group, measurements] of groupAgentHostProviderTimings(providerTimings)) {
+				this._telemetryService.publicLog2<AgentHostProviderTimingEvent, AgentHostProviderTimingClassification>('agentHost.providerTiming', {
+					...providerTimingContext, group, ...measurements,
+				});
+			}
+		}
 		if (report.failure) {
 			const { providerCallId, serviceRequestId } = readAgentErrorTelemetryMeta(report.failure.error);
 			this._telemetryService.publicLogError2<IAgentHostTurnFailedEvent, IAgentHostTurnFailedClassification>('agentHost.turnFailed', {

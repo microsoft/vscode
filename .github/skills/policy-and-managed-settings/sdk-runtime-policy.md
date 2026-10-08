@@ -31,6 +31,30 @@ Do not add a VS Code `policy:` merely to mirror runtime policy. Do not add a Git
 - Permission authorization never widens sandbox access.
 - Validate rule grammar through the real SDK/runtime boundary.
 
+### Harness eligibility for managed policy
+
+Non-empty effective `permissions.ask`, `permissions.allow`, or `permissions.deny`
+lists, or managed `sandbox.enabled: true`, require Copilot Agent Host. Either
+requirement is sufficient: permission rules do not turn sandboxing on. VS Code
+preserves these lists across native, server, and file delivery for eligibility;
+it does not parse or enforce their rule grammar.
+
+Resolve initial account policy before choosing or activating Local. Governed new
+chats select Copilot Agent Host, including explicit or remembered Local choices.
+An unavailable host must produce an actionable error, never a Local fallback.
+Existing Local transcripts remain readable, but sending, retrying, and queueing
+are blocked by a policy-specific read-only banner. Continue in Copilot imports the
+transcript and unsent draft/attachments without sending or copying model and
+permission settings. The destination uses its normal policy-constrained defaults.
+Removing the requirement restores normal Local eligibility without rewriting preferences.
+Absent or effective empty lists do not impose this requirement; malformed lists
+must reach runtime validation rather than select Local. Other `permissions.*`
+keys and personal sandbox preferences do not automatically require Agent Host.
+The same request gate applies to old Local chats under a managed sandbox floor;
+virtual workspaces and unavailable hosts cannot silently run Local instead.
+Editor inline chat's limited read/edit flow remains available as an explicit
+exception; this gate does not enforce runtime permission rules on those edits.
+
 ## Host-Injection Lifecycle
 
 Host-injected managed settings are startup configuration:
@@ -77,6 +101,10 @@ without changing rollout or harness selection. Report-only gaps do not disable
 supported bridge restrictions.
 
 The runtime composes managed sandbox floors. While sandbox configuration remains host-driven, verify that Agent Host applies the effective floor to session `sandboxConfig`; policy state and containment must not diverge.
+Outbound access is deny-wins: managed `allowOutbound: true` must not override local `allowNetwork: false`, and managed `allowOutbound: false` must deny even when the local setting allows access.
+`addCurrentWorkingDirectory` defaults to `true` in host-supplied SDK sandbox configuration. A runtime-resolved managed `false` overrides the host default or an explicit host `true`; managed `true` does not widen an explicit host `false`.
+Managed host and filesystem grant lists replace their corresponding local lists when present, including explicit empty lists. Managed block and denied-path lists combine with local denials.
+When managed `readonlyPaths` is present, including `[]`, do not add host-generated read grants for attachments or shell init scripts. Removing the managed list restores those grants.
 
 Do not log raw enterprise rules or values.
 

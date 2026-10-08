@@ -657,6 +657,7 @@ export interface IChatRendererDelegate {
 	getListLength(): number;
 	currentChatMode(): ChatModeKind;
 	isStickyScrollEnabled(): boolean;
+	isScrolledToBottom?(): boolean;
 	refreshStickyScroll(): void;
 	readonly stickyScrollTopPadding: number;
 	getEditingValue?(): string | undefined;
@@ -667,6 +668,7 @@ export interface IChatRendererDelegate {
 }
 
 const mostRecentResponseClassName = 'chat-most-recent-response';
+const progressScrollTargetClassName = 'chat-progress-scroll-target';
 
 export function shouldHideChatUserIdentity(username: string, sessionResource: URI, isResponse: boolean, isSessionsWindow: boolean, isSystemInitiatedRequest: boolean): boolean {
 	const sessionType = getChatSessionType(sessionResource);
@@ -778,6 +780,13 @@ class PersistentBackgroundActivityTracker extends Disposable {
 				this.reconcileResponses();
 			}
 		}));
+		const backgroundShellCount = viewModel.model.backgroundShellCount;
+		if (backgroundShellCount) {
+			this._register(autorun(reader => {
+				backgroundShellCount.read(reader);
+				this.onDidChange();
+			}));
+		}
 	}
 
 	getActivity(response: IChatResponseViewModel): IPersistentBackgroundActivity {
@@ -1020,6 +1029,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		const normalizedHeight = Math.ceil(height);
 		const element = template.currentElement;
+		this.updateWorkingProgressRounding(template, height);
 		const update = reconcileChatItemHeight(
 			normalizedHeight,
 			element.currentRenderedHeight,
@@ -1047,6 +1057,21 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					this.fireItemHeightChange(template);
 				}
 			});
+		}
+	}
+
+	private updateWorkingProgressRounding(template: IChatListItemTemplate, measuredHeight?: number): void {
+		if (!template.renderedPersistentProgress || !template.currentElement || !isResponseVM(template.currentElement) || !template.rowContainer.isConnected) {
+			return;
+		}
+		const progress = this.getWorkingProgressContentPart(template);
+		if (!progress) {
+			return;
+		}
+		const height = measuredHeight ?? template.rowContainer.getBoundingClientRect().height;
+		const rounding = `${Math.ceil(height) - height}px`;
+		if (progress.domNode.style.getPropertyValue('--chat-response-height-rounding') !== rounding) {
+			progress.domNode.style.setProperty('--chat-response-height-rounding', rounding);
 		}
 	}
 
@@ -1285,7 +1310,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 			this.stickyScrollSourceWidthRatioByRequestId.clear();
 			this.stickyScrollSourceRangesByRequestId.clear();
-			this.scheduleStickyScrollSourceRangeRefresh();
+			// Refresh before the tree observes the invalidated ranges and renders estimated sticky rows.
+			this.refreshStickyScrollSourceRanges();
 		}
 	}
 
@@ -1556,6 +1582,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this._elementBeingRendered = node.element;
 		try {
 			this.renderChatTreeItem(node.element, index, templateData);
+			const usesIncrementalRendering = isResponseVM(node.element) && !node.element.renderData && this.configService.getValue<boolean>(ChatConfiguration.IncrementalRendering);
+			if (!usesIncrementalRendering && this.delegate.isScrolledToBottom?.() && templateData.rowContainer.classList.contains(progressScrollTargetClassName)) {
+				// Incremental markdown updates alignment through its height-change event after rendering.
+				this.updateWorkingProgressRounding(templateData);
+			}
 		} finally {
 			this._elementBeingRendered = undefined;
 		}
@@ -1878,6 +1909,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// response keeps rendering (and the view keeps following it) even when queued or steering
 		// rows are shown below it.
 		const isStickyScrollTargetItem = getStickyScrollTargetItem(this.viewModel?.getItems() ?? []) === element;
+		templateData.rowContainer.classList.toggle(progressScrollTargetClassName, isResponseVM(element) && isStickyScrollTargetItem);
 
 		// TODO: @justschen decide if we want to hide the header for requests or not
 		const shouldShowHeader = (isResponseVM(element) && !this.rendererOptions.noHeader) && !isSystemInitiatedRequest;
@@ -2277,7 +2309,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				const currentBackgroundActivity = this.persistentBackgroundActivityTracker.value?.getActivity(element) ?? getPersistentBackgroundActivity(partsToRender);
 				const inheritedBackgroundActivity = this.persistentBackgroundActivityTracker.value?.getInheritedActivity(element)
 					?? { activeSubagentCount: 0, activeBackgroundTerminalCount: 0 };
-				const activityLabel = getPersistentActivityLabel(partsToRender, inheritedBackgroundActivity, currentBackgroundActivity);
+				const activityLabel = getPersistentActivityLabel(partsToRender, inheritedBackgroundActivity, currentBackgroundActivity, this.viewModel?.model.backgroundShellCount?.get());
 				const progressLabel = activityLabel ?? getTrailingProgressLabel(partsToRender);
 				return {
 					kind: 'working',
@@ -5989,10 +6021,11 @@ export function getPersistentActivityLabel(
 	parts: readonly IChatRendererContent[],
 	inheritedActivity: IPersistentBackgroundActivity = { activeSubagentCount: 0, activeBackgroundTerminalCount: 0 },
 	currentActivity = getPersistentBackgroundActivity(parts),
+	backgroundShellCount?: number,
 ): IMarkdownString | undefined {
 	const activityLabel = formatPersistentBackgroundActivityLabel({
 		activeSubagentCount: inheritedActivity.activeSubagentCount + currentActivity.activeSubagentCount,
-		activeBackgroundTerminalCount: inheritedActivity.activeBackgroundTerminalCount + currentActivity.activeBackgroundTerminalCount,
+		activeBackgroundTerminalCount: backgroundShellCount ?? inheritedActivity.activeBackgroundTerminalCount + currentActivity.activeBackgroundTerminalCount,
 	});
 	if (activityLabel) {
 		return activityLabel;

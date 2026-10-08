@@ -392,6 +392,11 @@ export interface IModalEditorOptions {
 	 * for editors that provide their own header chrome.
 	 */
 	readonly compactHeader?: boolean;
+
+	/**
+	 * Whether the modal editor can be moved into an editor area.
+	 */
+	readonly canMoveToEditorArea?: boolean;
 }
 
 /**
@@ -404,6 +409,10 @@ export interface IModalEditorOptionsProvider {
 
 export function isModalEditorOptionsProvider(obj: unknown): obj is IModalEditorOptionsProvider {
 	return !!obj && typeof (obj as IModalEditorOptionsProvider).getModalEditorOptions === 'function';
+}
+
+export function canMoveModalEditorToEditorArea(obj: unknown): boolean {
+	return !isModalEditorOptionsProvider(obj) || obj.getModalEditorOptions()?.canMoveToEditorArea !== false;
 }
 
 /**

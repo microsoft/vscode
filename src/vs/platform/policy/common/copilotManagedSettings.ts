@@ -33,6 +33,9 @@ export const GITHUB_COPILOT_MACOS_BUNDLE_ID = 'com.github.copilot';
 /** MDM key for the V0 managed setting. */
 export const COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY = 'permissions.disableBypassPermissionsMode';
 
+/** Runtime-owned rule lists that the Local harness cannot enforce. */
+export const COPILOT_PERMISSION_RULES_KEYS = ['permissions.ask', 'permissions.allow', 'permissions.deny'] as const;
+
 /** Managed-settings key for enterprise plugin enablement (carried as a JSON-encoded `{ [pluginId]: boolean }`). */
 export const COPILOT_ENABLED_PLUGINS_KEY = 'enabledPlugins';
 
@@ -90,6 +93,18 @@ export const COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY = 'sandbox.userPolicy.network.al
 /** Managed-settings key that restricts local-network access from the sandbox. */
 export const COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY = 'sandbox.userPolicy.network.allowLocalNetwork';
 
+/** Managed-settings key that supplies the sandbox's network allowlist. */
+export const COPILOT_SANDBOX_ALLOWED_HOSTS_KEY = 'sandbox.userPolicy.network.allowedHosts';
+
+/** Managed-settings key that supplies writable sandbox paths. */
+export const COPILOT_SANDBOX_READWRITE_PATHS_KEY = 'sandbox.userPolicy.filesystem.readwritePaths';
+
+/** Managed-settings key that supplies read-only sandbox paths. */
+export const COPILOT_SANDBOX_READONLY_PATHS_KEY = 'sandbox.userPolicy.filesystem.readonlyPaths';
+
+/** Managed-settings key that supplies denied sandbox paths. */
+export const COPILOT_SANDBOX_DENIED_PATHS_KEY = 'sandbox.userPolicy.filesystem.deniedPaths';
+
 /** Managed-settings key that restricts developer tool access from the sandbox. */
 export const COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY = 'sandbox.allowDevToolAccess';
 
@@ -101,6 +116,7 @@ export const COPILOT_AUTO_TIER_KEY = 'autoTier';
  * configuration policy. Native MDM must watch these even though no setting declares them.
  */
 export const MANAGED_SETTINGS_CONTROL_DEFINITIONS: IManagedSettingsPolicyDefinitions = {
+	...Object.fromEntries(COPILOT_PERMISSION_RULES_KEYS.map(key => [key, { type: 'string' as const }])),
 	[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: { type: 'boolean' },
 	[COPILOT_SANDBOX_ENABLED_KEY]: { type: 'boolean' },
 	[COPILOT_SANDBOX_MCP_SERVERS_KEY]: { type: 'boolean' },
@@ -110,6 +126,10 @@ export const MANAGED_SETTINGS_CONTROL_DEFINITIONS: IManagedSettingsPolicyDefinit
 	[COPILOT_SANDBOX_ALLOW_BYPASS_KEY]: { type: 'boolean' },
 	[COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY]: { type: 'boolean' },
 	[COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY]: { type: 'boolean' },
+	[COPILOT_SANDBOX_ALLOWED_HOSTS_KEY]: { type: 'string' },
+	[COPILOT_SANDBOX_READWRITE_PATHS_KEY]: { type: 'string' },
+	[COPILOT_SANDBOX_READONLY_PATHS_KEY]: { type: 'string' },
+	[COPILOT_SANDBOX_DENIED_PATHS_KEY]: { type: 'string' },
 	[COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY]: { type: 'boolean' },
 	[COPILOT_AUTO_TIER_KEY]: { type: 'string' },
 	// Observe these only for whole-block source selection; Local does not implement their capture semantics.
@@ -245,9 +265,30 @@ export class NullManagedSettingsService implements IManagedSettingsService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChangeManagedSettings = Event.None;
 
-	getManagedSettingValue(): ManagedSettingValue | undefined {
+	getManagedSettingValue(_key: string): ManagedSettingValue | undefined {
 		return undefined;
 	}
+}
+
+/** Invalid rule lists also require the runtime's validation rather than a Local fallback. */
+export function hasManagedPermissionRules(service: IManagedSettingsService): boolean {
+	return COPILOT_PERMISSION_RULES_KEYS.some(key => {
+		const value = service.getManagedSettingValue(key);
+		if (value === undefined) {
+			return false;
+		}
+		try {
+			const rules: unknown = typeof value === 'string' ? JSON.parse(value) : value;
+			return !Array.isArray(rules) || rules.length > 0;
+		} catch {
+			return true;
+		}
+	});
+}
+
+/** Whether effective policy requires enforcement unavailable in the Local harness. */
+export function requiresCopilotAgentHost(service: IManagedSettingsService): boolean {
+	return service.getManagedSettingValue(COPILOT_SANDBOX_ENABLED_KEY) === true || hasManagedPermissionRules(service);
 }
 
 let managedModelValueCallback: ((policyData: IPolicyData) => ManagedSettingValue | undefined) | undefined;
@@ -614,6 +655,23 @@ function encodeExtraMarketplaces(value: unknown, onWarn?: (msg: string) => void)
 }
 
 const STRUCTURED_MANAGED_SETTINGS: readonly IStructuredManagedSetting[] = [
+	...COPILOT_PERMISSION_RULES_KEYS.map(key => ({ key, encode: (value: unknown) => value })),
+	{
+		key: COPILOT_SANDBOX_ALLOWED_HOSTS_KEY,
+		encode: encodeArray,
+	},
+	{
+		key: COPILOT_SANDBOX_READWRITE_PATHS_KEY,
+		encode: encodeArray,
+	},
+	{
+		key: COPILOT_SANDBOX_READONLY_PATHS_KEY,
+		encode: encodeArray,
+	},
+	{
+		key: COPILOT_SANDBOX_DENIED_PATHS_KEY,
+		encode: encodeArray,
+	},
 	{
 		key: COPILOT_AUTO_TIER_KEY,
 		encode: value => value,
