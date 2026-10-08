@@ -1648,11 +1648,11 @@ suite('WorkspacePicker - Connection Status', () => {
 					onDidChangeRecentlyOpened: historyChanged.event,
 				});
 				const recents = await createResolvedRecentWorkspacesService(disposables, storage, providersService, workspacesService);
-				let shownFolders: URI[] = [];
+				let shownLabels: string[] = [];
 				const actionWidgetService = upcastPartial<IActionWidgetService>({
 					isVisible: false,
-					show: (_id, _supportsPreview, items: IActionListItem<IWorkspacePickerItem>[]) => {
-						shownFolders = items.flatMap(entry => entry.item?.folderUri ?? []);
+					show: (_id, _supportsPreview, items) => {
+						shownLabels = items.flatMap(entry => entry.label ? [entry.label] : []);
 					},
 				});
 				const picker = createTestPicker(disposables, providersService, storage, undefined, undefined, undefined, workspacesService, recents, {
@@ -1672,11 +1672,11 @@ suite('WorkspacePicker - Connection Status', () => {
 				picker.showPicker(false, document.createElement('button'));
 
 				assert.deepStrictEqual({
-					shownFolders,
+					shownLabels,
 					selected: picker.selectedFolderUri,
 					storedRecents: storage.get(STORAGE_KEY_RECENT_WORKSPACES, StorageScope.PROFILE),
 				}, {
-					shownFolders: [newFolder, ...oldFolders.slice(0, 9)],
+					shownLabels: [newFolder, ...oldFolders.slice(0, 9)].map(folder => folder.path.substring(1)),
 					selected: oldFolders[0],
 					storedRecents,
 				});
