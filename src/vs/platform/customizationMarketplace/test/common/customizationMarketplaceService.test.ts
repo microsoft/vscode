@@ -11,7 +11,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ColorScheme } from '../../../theme/common/theme.js';
-import { createLazyCustomizationMarketplaceProvider, CustomizationMarketplaceMediaType, CustomizationMarketplaceService, getCustomizationMarketplaceIconUri, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceCursor, ICustomizationMarketplaceEntry, ICustomizationMarketplacePage, ICustomizationMarketplaceProvider, ICustomizationMarketplaceQuery, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery, isCustomizationMarketplaceIconEqual } from '../../common/customizationMarketplaceService.js';
+import { createLazyCustomizationMarketplaceProvider, CustomizationMarketplaceMediaType, CustomizationMarketplaceService, getCustomizationMarketplaceIconUri, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceCursor, ICustomizationMarketplaceEntry, ICustomizationMarketplacePage, ICustomizationMarketplaceProvider, ICustomizationMarketplaceQuery, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery, isCustomizationMarketplaceCanvasOnlyResource, isCustomizationMarketplaceCanvasResource, isCustomizationMarketplaceIconEqual } from '../../common/customizationMarketplaceService.js';
 
 suite('CustomizationMarketplaceService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -53,6 +53,24 @@ suite('CustomizationMarketplaceService', () => {
 			scalarEqual: true,
 			themedEqual: true,
 			crossSyntaxEqual: false,
+		});
+
+		test('classifies canvas-capable Copilot plugins by catalog tags', () => {
+			const resource = (mediaType: string, tags: readonly string[]) => ({ mediaType, tags });
+
+			assert.deepStrictEqual({
+				canvasOnly: isCustomizationMarketplaceCanvasOnlyResource(resource(CustomizationMarketplaceMediaType.CopilotPlugin, ['canvas', 'canvas-only'])),
+				canvasCapable: isCustomizationMarketplaceCanvasResource(resource(CustomizationMarketplaceMediaType.CopilotPlugin, ['canvas'])),
+				canvasOnlyImpliesCapable: isCustomizationMarketplaceCanvasResource(resource(CustomizationMarketplaceMediaType.CopilotPlugin, ['canvas-only'])),
+				ordinaryPlugin: isCustomizationMarketplaceCanvasResource(resource(CustomizationMarketplaceMediaType.CopilotPlugin, ['github-copilot'])),
+				otherMediaType: isCustomizationMarketplaceCanvasResource(resource(CustomizationMarketplaceMediaType.ClaudePlugin, ['canvas', 'canvas-only'])),
+			}, {
+				canvasOnly: true,
+				canvasCapable: true,
+				canvasOnlyImpliesCapable: true,
+				ordinaryPlugin: false,
+				otherMediaType: false,
+			});
 		});
 	});
 

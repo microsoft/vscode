@@ -22,9 +22,10 @@ import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from '../../configuration/common/configuration.js';
-import { IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agent.js';
+import { type AgentExtensionMode, type AgentExtensionSource, type IAgentCanvasInfo, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, type IAgentExtensionInventory, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agent.js';
 import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, IAgentConnection, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
-import { ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, StopBackgroundWorkExtensionMethod, supportsAgentHostChatStateFile, supportsAgentHostDevContainers, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest } from '../common/agentHostExtensionProtocol.js';
+import { ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, ListAgentExtensionsExtensionMethod, ListSessionCanvasesExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RefreshSessionCanvasesExtensionMethod, RemoveSessionArtifactExtensionMethod, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentExtensionEnabledExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, StopBackgroundWorkExtensionMethod, supportsAgentHostChatStateFile, supportsAgentHostDevContainers, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest } from '../common/agentHostExtensionProtocol.js';
+import { supportsAgentHostCopilotCustomizations } from '../common/meta/agentHostCopilotCustomizationsMeta.js';
 import { McpAuthRequiredReason } from '../common/state/protocol/channels-session/state.js';
 import { supportsAgentHostTiming, supportsChatUserInteractionTiming } from '../common/meta/agentHostTimingMeta.js';
 import { readCodexSessionModel } from '../common/meta/codexSessionModel.js';
@@ -72,6 +73,14 @@ import { DevContainerAgentHostProtocolClient } from '../common/devContainerAgent
 import type { IDevContainerAgentHostMainService } from '../common/devContainerAgentHost.js';
 
 const AHP_CLIENT_CONNECTION_CLOSED = -32000;
+
+function isAgentExtensionMode(value: unknown): value is AgentExtensionMode {
+	return value === 'disabled' || value === 'load_only' || value === 'load_and_augment' || value === 'unknown';
+}
+
+function isAgentExtensionSource(value: unknown): value is AgentExtensionSource {
+	return value === 'user' || value === 'plugin';
+}
 
 /**
  * After this much inbound silence, send an application-level `ping` to
@@ -1637,6 +1646,99 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 	async importSession(session: URI): Promise<void> {
 		await this._sendExtensionRequest(ImportSessionExtensionMethod, { session: session.toString() });
+	}
+
+	async listAgentExtensions(): Promise<IAgentExtensionInventory> {
+		if (!supportsAgentHostCopilotCustomizations(this.initializeResult.get())) {
+			throw new Error('Agent Host does not support Copilot customization inventory.');
+		}
+		const result = await this._sendExtensionRequest(ListAgentExtensionsExtensionMethod);
+		if (!isAgentExtensionMode(result.mode) || !Array.isArray(result.extensions)) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Agent Host returned an invalid extension inventory');
+		}
+		const extensions = result.extensions.map(extension => {
+			if (!extension || typeof extension !== 'object'
+				|| typeof extension.id !== 'string' || !extension.id
+				|| typeof extension.name !== 'string' || !extension.name
+				|| typeof extension.resource !== 'string'
+				|| !isAgentExtensionSource(extension.source)
+				|| typeof extension.enabled !== 'boolean'
+				|| extension.pluginName !== undefined && typeof extension.pluginName !== 'string') {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Agent Host returned an invalid extension inventory item');
+			}
+			let resource: URI;
+			try {
+				const hostResource = URI.parse(extension.resource, true);
+				if (hostResource.scheme !== Schemas.file) {
+					throw new Error('Expected a file resource');
+				}
+				resource = this._toClientUri(hostResource);
+			} catch {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Agent Host returned an invalid extension resource');
+			}
+			return {
+				id: extension.id,
+				name: extension.name,
+				resource,
+				source: extension.source,
+				enabled: extension.enabled,
+				...(extension.pluginName ? { pluginName: extension.pluginName } : {}),
+			};
+		});
+		return { mode: result.mode, extensions };
+	}
+
+	async setAgentExtensionEnabled(extensionId: string, enabled: boolean, session?: URI): Promise<void> {
+		if (!supportsAgentHostCopilotCustomizations(this.initializeResult.get())) {
+			throw new Error('Agent Host does not support Copilot extension management.');
+		}
+		await this._sendExtensionRequest(SetAgentExtensionEnabledExtensionMethod, {
+			extensionId,
+			enabled,
+			...(session ? { session: session.toString() } : {}),
+		});
+	}
+
+	async listSessionCanvases(session: URI): Promise<readonly IAgentCanvasInfo[]> {
+		return this._readSessionCanvases(ListSessionCanvasesExtensionMethod, session);
+	}
+
+	async refreshSessionCanvases(session: URI): Promise<readonly IAgentCanvasInfo[]> {
+		return this._readSessionCanvases(RefreshSessionCanvasesExtensionMethod, session);
+	}
+
+	private async _readSessionCanvases(
+		method: typeof ListSessionCanvasesExtensionMethod | typeof RefreshSessionCanvasesExtensionMethod,
+		session: URI,
+	): Promise<readonly IAgentCanvasInfo[]> {
+		if (!supportsAgentHostCopilotCustomizations(this.initializeResult.get())) {
+			throw new Error('Agent Host does not support Copilot canvas inventory.');
+		}
+		const result = await this._sendExtensionRequest(method, { session: session.toString() });
+		if (!Array.isArray(result.canvases)) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Agent Host returned an invalid canvas inventory');
+		}
+		return result.canvases.map(canvas => {
+			if (!canvas || typeof canvas !== 'object'
+				|| typeof canvas.canvasId !== 'string' || !canvas.canvasId
+				|| typeof canvas.extensionId !== 'string' || !canvas.extensionId
+				|| canvas.extensionName !== undefined && typeof canvas.extensionName !== 'string'
+				|| typeof canvas.displayName !== 'string' || !canvas.displayName
+				|| typeof canvas.description !== 'string'
+				|| typeof canvas.requiresInput !== 'boolean'
+				|| !Number.isSafeInteger(canvas.actionCount) || canvas.actionCount < 0) {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Agent Host returned an invalid canvas inventory item');
+			}
+			return {
+				canvasId: canvas.canvasId,
+				extensionId: canvas.extensionId,
+				...(canvas.extensionName ? { extensionName: canvas.extensionName } : {}),
+				displayName: canvas.displayName,
+				description: canvas.description,
+				requiresInput: canvas.requiresInput,
+				actionCount: canvas.actionCount,
+			};
+		});
 	}
 
 	async createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }> {

@@ -131,12 +131,14 @@ class MockCopilotSession {
 	readonly sessionId = 'test-session-1';
 	readonly openCanvases: CopilotSession['openCanvases'] = [];
 	readonly extensions: Awaited<ReturnType<CopilotSession['rpc']['extensions']['list']>>['extensions'] = [];
+	readonly canvases: Awaited<ReturnType<CopilotSession['rpc']['canvas']['list']>>['canvases'] = [];
 	extensionListGate: Promise<void> | undefined;
 	extensionListError: Error | undefined;
 	canvasListError: Error | undefined;
 	onExtensionList: (() => void) | undefined;
 	extensionReloadCalls = 0;
 	extensionReloadError: Error | undefined;
+	extensionReconcileCalls = 0;
 	readonly eventLogReadRequests: Parameters<CopilotSession['rpc']['eventLog']['read']>[0][] = [];
 	eventLogReadGate: Promise<void> | undefined;
 	readonly sendRequests: unknown[] = [];
@@ -450,13 +452,17 @@ class MockCopilotSession {
 					throw this.extensionReloadError;
 				}
 			},
+			reconcile: async () => {
+				this.extensionReconcileCalls++;
+				return { extensions: this.extensions };
+			},
 		},
 		canvas: {
 			list: async () => {
 				if (this.canvasListError) {
 					throw this.canvasListError;
 				}
-				return { canvases: [] };
+				return { canvases: this.canvases };
 			},
 		},
 		metadata: {
@@ -2987,6 +2993,53 @@ suite('CopilotAgentSession', () => {
 
 		await assert.rejects(() => runtime.reloadExtensions(), /reload failed/);
 		assert.strictEqual(mockSession.extensionReloadCalls, 2);
+		session.dispose();
+	});
+
+	test('reconciles extension membership and reads canvas inventory through the live SDK session', async () => {
+		const { session, mockSession } = await createAgentSession(disposables, {
+			configureMockSession: mock => {
+				mock.canvases.push({
+					canvasId: 'preview',
+					extensionId: 'user:preview',
+					extensionName: 'Preview',
+					displayName: 'Preview Canvas',
+					description: 'Interactive preview.',
+					inputSchema: { type: 'object' },
+					actions: [{ name: 'refresh' }],
+				});
+			},
+		});
+
+		await session.reconcileExtensions();
+		const initial = await session.listCanvases();
+		const refreshed = await session.refreshCanvases();
+
+		assert.deepStrictEqual({
+			reconcileCalls: mockSession.extensionReconcileCalls,
+			initial,
+			refreshed,
+		}, {
+			reconcileCalls: 2,
+			initial: [{
+				canvasId: 'preview',
+				extensionId: 'user:preview',
+				extensionName: 'Preview',
+				displayName: 'Preview Canvas',
+				description: 'Interactive preview.',
+				requiresInput: true,
+				actionCount: 1,
+			}],
+			refreshed: [{
+				canvasId: 'preview',
+				extensionId: 'user:preview',
+				extensionName: 'Preview',
+				displayName: 'Preview Canvas',
+				description: 'Interactive preview.',
+				requiresInput: true,
+				actionCount: 1,
+			}],
+		});
 		session.dispose();
 	});
 

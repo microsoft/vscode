@@ -26,7 +26,7 @@ import { FileChangeType, FileOperationResult, IFileChange, IFileService, toFileO
 import { parsePullRequestUrl } from '../../github/common/githubUrls.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentChatMigrationDeferred, AgentProvider, AgentSession, CLAUDE_AGENT_PROVIDER_ID, COPILOT_CLI_AGENT_PROVIDER_ID, AgentSignal, CODEX_AGENT_PROVIDER_ID, IAgent, type IAgentAdoptedWorktree, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDiscoveredChat, IAgentLegacyChat, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPluginUninstallRequest, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, type IAgentSessionChatMetadata, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
+import { AgentChatMigrationDeferred, AgentProvider, AgentSession, CLAUDE_AGENT_PROVIDER_ID, COPILOT_CLI_AGENT_PROVIDER_ID, AgentSignal, CODEX_AGENT_PROVIDER_ID, IAgent, type IAgentAdoptedWorktree, type IAgentCanvasInfo, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDiscoveredChat, type IAgentExtensionInventory, IAgentLegacyChat, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPluginUninstallRequest, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, type IAgentSessionChatMetadata, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
 import { type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentService } from '../common/agentService.js';
 import { ISessionDatabase, ISessionDataService, ISessionStorageAccessCounts, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionFlushResult, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush, parseEditAttributionResource } from '../common/fileEditAttribution.js';
@@ -5334,6 +5334,38 @@ export class AgentService extends Disposable implements IAgentService {
 			throw new Error(`Plugin uninstall is unavailable for provider '${providerId}'.`);
 		}
 		await provider.uninstallPlugin(request);
+	}
+
+	async listAgentExtensions(): Promise<IAgentExtensionInventory> {
+		const provider = this._providerService.getProvider(COPILOT_CLI_AGENT_PROVIDER_ID);
+		if (!provider?.listAgentExtensions) {
+			throw new Error('Copilot extension inventory is unavailable.');
+		}
+		return provider.listAgentExtensions();
+	}
+
+	async setAgentExtensionEnabled(extensionId: string, enabled: boolean, session?: URI): Promise<void> {
+		const provider = this._providerService.getProvider(COPILOT_CLI_AGENT_PROVIDER_ID);
+		if (!provider?.setAgentExtensionEnabled) {
+			throw new Error('Copilot extension management is unavailable.');
+		}
+		await provider.setAgentExtensionEnabled(extensionId, enabled, session);
+	}
+
+	async listSessionCanvases(session: URI): Promise<readonly IAgentCanvasInfo[]> {
+		const provider = this._providerService.getProviderForSession(session);
+		if (provider?.id !== COPILOT_CLI_AGENT_PROVIDER_ID || !provider.listSessionCanvases) {
+			throw new Error(`Canvas inventory is unavailable for session '${session.toString()}'.`);
+		}
+		return provider.listSessionCanvases(session);
+	}
+
+	async refreshSessionCanvases(session: URI): Promise<readonly IAgentCanvasInfo[]> {
+		const provider = this._providerService.getProviderForSession(session);
+		if (provider?.id !== COPILOT_CLI_AGENT_PROVIDER_ID || !provider.refreshSessionCanvases) {
+			throw new Error(`Canvas refresh is unavailable for session '${session.toString()}'.`);
+		}
+		return provider.refreshSessionCanvases(session);
 	}
 
 	async createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void> {

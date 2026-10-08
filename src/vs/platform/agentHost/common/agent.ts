@@ -279,6 +279,37 @@ export interface IAgentPluginUninstallRequest {
 	readonly marketplace: string;
 	readonly directSourceId?: string;
 }
+
+export type AgentExtensionMode = 'disabled' | 'load_only' | 'load_and_augment' | 'unknown';
+export type AgentExtensionSource = 'user' | 'plugin';
+
+/** One executable agent extension discovered from the provider's persisted inventory. */
+export interface IAgentExtensionInfo {
+	readonly id: string;
+	readonly name: string;
+	readonly resource: URI;
+	readonly source: AgentExtensionSource;
+	readonly enabled: boolean;
+	readonly pluginName?: string;
+}
+
+/** Host-scoped extension inventory and the provider's effective loading mode. */
+export interface IAgentExtensionInventory {
+	readonly mode: AgentExtensionMode;
+	readonly extensions: readonly IAgentExtensionInfo[];
+}
+
+/** One canvas declaration available to an initialized provider session. */
+export interface IAgentCanvasInfo {
+	readonly canvasId: string;
+	readonly extensionId: string;
+	readonly extensionName?: string;
+	readonly displayName: string;
+	readonly description: string;
+	readonly requiresInput: boolean;
+	readonly actionCount: number;
+}
+
 export type AgentTurnProviderCallState = 'notStarted' | 'pending' | 'resolved' | 'rejected';
 export type AgentTurnProviderSessionState = 'active' | 'disconnecting' | 'disconnected' | 'shutdown';
 
@@ -1327,6 +1358,18 @@ export interface IAgent {
 
 	/** Uninstall a plugin through the provider that owns its installation state. */
 	uninstallPlugin?(request: IAgentPluginUninstallRequest): Promise<void>;
+
+	/** Discover executable extensions from the provider's persisted inventory. */
+	listAgentExtensions?(): Promise<IAgentExtensionInventory>;
+
+	/** Persist extension enablement and update one live session when supplied. */
+	setAgentExtensionEnabled?(extensionId: string, enabled: boolean, session?: URI): Promise<void>;
+
+	/** List canvas declarations available to one initialized provider session. */
+	listSessionCanvases?(session: URI): Promise<readonly IAgentCanvasInfo[]>;
+
+	/** Reconcile extension membership, then list the session's canvas declarations. */
+	refreshSessionCanvases?(session: URI): Promise<readonly IAgentCanvasInfo[]>;
 
 	/** Capture the current account without allowing a later account to relabel an in-flight turn. */
 	getTelemetryContext?(): IAgentTelemetryContext;

@@ -47,7 +47,7 @@ import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliCo
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
-import { AgentChatOperationContext, AgentSession, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginUninstallRequest, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent } from '../../common/agent.js';
+import { AgentChatOperationContext, AgentSession, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, type IAgentCanvasInfo, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, type IAgentExtensionInventory, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginUninstallRequest, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent } from '../../common/agent.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
 import { autoModeTiers, defaultAutoModeTier, getAutoModeTierDescription, getAutoModeTierLabel } from '../../common/autoModeTiers.js';
 import { AUTO_MODEL_ID, isAutoModel } from './modelIdentifiers.js';
@@ -1966,6 +1966,66 @@ export class CopilotAgent extends Disposable implements IAgent {
 			name: pluginSpec,
 			directSourceId: request.directSourceId,
 		}));
+	}
+
+	async listAgentExtensions(): Promise<IAgentExtensionInventory> {
+		const inventory = await this._retryAfterClosedConnection('listExtensions', client => client.rpc.extensions.discover());
+		return {
+			mode: inventory.mode === 'disabled' || inventory.mode === 'load_only' || inventory.mode === 'load_and_augment'
+				? inventory.mode
+				: 'unknown',
+			extensions: inventory.extensions.map(extension => {
+				if (typeof extension.id !== 'string' || !extension.id
+					|| typeof extension.name !== 'string' || !extension.name
+					|| typeof extension.path !== 'string' || !isAbsolute(extension.path)
+					|| extension.source !== 'user' && extension.source !== 'plugin'
+					|| typeof extension.enabled !== 'boolean'
+					|| extension.plugin?.name !== undefined && typeof extension.plugin.name !== 'string') {
+					throw new Error(`Copilot returned an invalid extension inventory entry '${extension.id || extension.name || '<unknown>'}'.`);
+				}
+				return {
+					id: extension.id,
+					name: extension.name,
+					resource: URI.file(extension.path),
+					source: extension.source,
+					enabled: extension.enabled,
+					...(extension.plugin?.name ? { pluginName: extension.plugin.name } : {}),
+				};
+			}),
+		};
+	}
+
+	async setAgentExtensionEnabled(extensionId: string, enabled: boolean, session?: URI): Promise<void> {
+		if (!extensionId) {
+			throw new Error('Extension id is required.');
+		}
+		await this._retryAfterClosedConnection('setExtensionEnabled', client => enabled
+			? client.rpc.extensions.enable({ ids: [extensionId] })
+			: client.rpc.extensions.disable({ ids: [extensionId] }));
+		const liveSession = session ? this._findSessionChat(session) : undefined;
+		if (liveSession) {
+			try {
+				await liveSession.reconcileExtensions();
+			} catch (error) {
+				throw new Error(`The extension preference was saved, but the active session could not be updated: ${getErrorMessage(error)}`);
+			}
+		}
+	}
+
+	async listSessionCanvases(session: URI): Promise<readonly IAgentCanvasInfo[]> {
+		const liveSession = this._findSessionChat(session);
+		if (!liveSession) {
+			throw new Error('Canvas inventory requires a live Copilot session. Start or resume the session and try again.');
+		}
+		return liveSession.listCanvases();
+	}
+
+	async refreshSessionCanvases(session: URI): Promise<readonly IAgentCanvasInfo[]> {
+		const liveSession = this._findSessionChat(session);
+		if (!liveSession) {
+			throw new Error('Canvas refresh requires a live Copilot session. Start or resume the session and try again.');
+		}
+		return liveSession.refreshCanvases();
 	}
 
 	async startMcpServer(session: URI, id: string, token: CancellationToken = CancellationToken.None): Promise<void> {

@@ -46,6 +46,8 @@ import {
 	AgentSession,
 	IAgentCreateChatRequestOptions,
 	IAgentCreateSessionConfig,
+	IAgentCanvasInfo,
+	IAgentExtensionInventory,
 	IAgentHostInspectInfo,
 	type IAgentHostDebugLogsArtifact,
 	IAgentHostManagementService,
@@ -490,6 +492,22 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	importSession(session: URI): Promise<void> {
 		return this._requireClient().importSession(session);
+	}
+
+	listAgentExtensions(): Promise<IAgentExtensionInventory> {
+		return this._getManagementService().listAgentExtensions();
+	}
+
+	setAgentExtensionEnabled(extensionId: string, enabled: boolean, session?: URI): Promise<void> {
+		return this._getManagementService().setAgentExtensionEnabled(extensionId, enabled, session);
+	}
+
+	listSessionCanvases(session: URI): Promise<readonly IAgentCanvasInfo[]> {
+		return this._getManagementService().listSessionCanvases(session);
+	}
+
+	refreshSessionCanvases(session: URI): Promise<readonly IAgentCanvasInfo[]> {
+		return this._getManagementService().refreshSessionCanvases(session);
 	}
 
 	setDetachedWorktreeArchived(handle: string, archived: boolean): Promise<void> {

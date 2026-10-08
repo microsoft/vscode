@@ -553,6 +553,9 @@ class TestSessionDataService extends Disposable implements ISessionDataService {
 }
 type CopilotModelsList = CopilotClient['rpc']['models']['list'];
 type CopilotPluginsUninstall = CopilotClient['rpc']['plugins']['uninstall'];
+type CopilotExtensionsDiscover = CopilotClient['rpc']['extensions']['discover'];
+type CopilotExtensionsEnable = CopilotClient['rpc']['extensions']['enable'];
+type CopilotExtensionsDisable = CopilotClient['rpc']['extensions']['disable'];
 type CopilotModelInfo = Awaited<ReturnType<CopilotModelsList>>['models'][number];
 type CopilotAgentDiscovery = Pick<CopilotClient['rpc']['agents'], 'discover' | 'getDiscoveryPaths'>;
 type CopilotInstructionDiscovery = Pick<CopilotClient['rpc']['instructions'], 'discover' | 'getDiscoveryPaths'>;
@@ -595,6 +598,11 @@ interface ITestCopilotClient extends Pick<CopilotClient, 'start' | 'stop' | 'lis
 		readonly models: { readonly list: CopilotModelsList };
 		readonly managedSettings: Pick<CopilotClient['rpc']['managedSettings'], 'resolve'>;
 		readonly plugins: { readonly uninstall: CopilotPluginsUninstall };
+		readonly extensions: {
+			readonly discover: CopilotExtensionsDiscover;
+			readonly enable: CopilotExtensionsEnable;
+			readonly disable: CopilotExtensionsDisable;
+		};
 		readonly mcp: { readonly config: Pick<CopilotClient['rpc']['mcp']['config'], 'list'> };
 	};
 }
@@ -653,6 +661,9 @@ class TestCopilotClient implements ITestCopilotClient {
 	readonly agentDiscoveryRequests: Parameters<CopilotAgentDiscovery['discover']>[0][] = [];
 	readonly instructionDiscoveryRequests: Parameters<CopilotInstructionDiscovery['discover']>[0][] = [];
 	readonly skillDiscoveryRequests: Parameters<CopilotSkillDiscovery['discover']>[0][] = [];
+	extensionInventory: Awaited<ReturnType<CopilotExtensionsDiscover>> = { mode: 'load_and_augment', extensions: [] };
+	readonly extensionEnableRequests: Parameters<CopilotExtensionsEnable>[0][] = [];
+	readonly extensionDisableRequests: Parameters<CopilotExtensionsDisable>[0][] = [];
 
 	readonly rpc: ITestCopilotClient['rpc'] = {
 		mcp: { config: { list: async () => this.mcpConfigListResult } },
@@ -728,6 +739,15 @@ class TestCopilotClient implements ITestCopilotClient {
 		plugins: {
 			uninstall: async params => {
 				this.pluginUninstallRequests.push(params);
+			},
+		},
+		extensions: {
+			discover: async () => this.extensionInventory,
+			enable: async params => {
+				this.extensionEnableRequests.push(params);
+			},
+			disable: async params => {
+				this.extensionDisableRequests.push(params);
 			},
 		},
 	};
@@ -1654,6 +1674,80 @@ suite('CopilotAgent', () => {
 				{ name: 'spark@copilot-plugins', directSourceId: undefined },
 				{ name: 'direct', directSourceId: 'source-id' },
 			]);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('discovers and persistently manages Copilot extensions through the SDK server API', async () => {
+		const client = new TestCopilotClient([]);
+		client.extensionInventory = {
+			mode: 'load_and_augment',
+			extensions: [{
+				id: 'user:preview',
+				name: 'Preview',
+				path: '/home/test/.copilot/extensions/preview/extension.mjs',
+				source: 'user',
+				enabled: true,
+			}, {
+				id: 'plugin:dashboard',
+				name: 'Dashboard',
+				path: '/home/test/.copilot/plugins/dashboard/extensions/dashboard/extension.mjs',
+				source: 'plugin',
+				enabled: false,
+				plugin: { name: 'dashboard' },
+			}],
+		};
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		let reconcileCalls = 0;
+		const liveSession = AgentSession.uri('copilotcli', 'extension-session');
+		setDefaultSessionStub(agent, 'extension-session', {
+			reconcileExtensions: async () => { reconcileCalls++; },
+		});
+		try {
+			const inventory = await agent.listAgentExtensions();
+			await agent.setAgentExtensionEnabled('user:preview', false);
+			await agent.setAgentExtensionEnabled('plugin:dashboard', true);
+			await agent.setAgentExtensionEnabled('user:preview', true, liveSession);
+
+			assert.deepStrictEqual({
+				inventory: {
+					mode: inventory.mode,
+					extensions: inventory.extensions.map(extension => ({
+						id: extension.id,
+						name: extension.name,
+						resource: extension.resource.toString(),
+						source: extension.source,
+						enabled: extension.enabled,
+						pluginName: extension.pluginName,
+					})),
+				},
+				enableRequests: client.extensionEnableRequests,
+				disableRequests: client.extensionDisableRequests,
+				reconcileCalls,
+			}, {
+				inventory: {
+					mode: 'load_and_augment',
+					extensions: [{
+						id: 'user:preview',
+						name: 'Preview',
+						resource: 'file:///home/test/.copilot/extensions/preview/extension.mjs',
+						source: 'user',
+						enabled: true,
+						pluginName: undefined,
+					}, {
+						id: 'plugin:dashboard',
+						name: 'Dashboard',
+						resource: 'file:///home/test/.copilot/plugins/dashboard/extensions/dashboard/extension.mjs',
+						source: 'plugin',
+						enabled: false,
+						pluginName: 'dashboard',
+					}],
+				},
+				enableRequests: [{ ids: ['plugin:dashboard'] }, { ids: ['user:preview'] }],
+				disableRequests: [{ ids: ['user:preview'] }],
+				reconcileCalls: 1,
+			});
 		} finally {
 			await disposeAgent(agent);
 		}

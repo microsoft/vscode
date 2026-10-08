@@ -60,7 +60,7 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 			id: AICustomizationManagementSection.Marketplace,
 			label: localize('customizationMarketplace', "Marketplace"),
 			icon: Codicon.search,
-			description: localize('customizationMarketplaceDesc', "Discover skills, MCP servers, and plugins for your agents. Review their sources before installing."),
+			description: localize('customizationMarketplaceDesc', "Discover skills, MCP servers, plugins, and canvases for your agents. Review their sources before installing."),
 		},
 		{
 			id: AICustomizationManagementSection.Agents,
@@ -101,6 +101,18 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 			label: localize('plugins', "Plugins"),
 			icon: pluginIcon,
 			description: localize('pluginsDesc', "Install reusable packages that extend the agent. Plugins can add tools, skills, agents, hooks, and MCP servers."),
+		},
+		{
+			id: AICustomizationManagementSection.Extensions,
+			label: localize('copilotExtensions', "Extensions"),
+			icon: Codicon.extensions,
+			description: localize('copilotExtensionsDesc', "Manage executable Copilot extensions from your profile and installed plugins."),
+		},
+		{
+			id: AICustomizationManagementSection.Canvases,
+			label: localize('copilotCanvases', "Canvases"),
+			icon: Codicon.preview,
+			description: localize('copilotCanvasesDesc', "Review interactive canvases declared by extensions for the active Copilot session."),
 		},
 		{
 			id: AICustomizationManagementSection.Tools,

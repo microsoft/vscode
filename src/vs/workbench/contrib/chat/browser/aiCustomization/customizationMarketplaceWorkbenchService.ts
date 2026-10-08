@@ -23,6 +23,7 @@ import { CopilotConnectorsMarketplaceProvider, ICopilotConnectorsService } from 
 export class PlatformCustomizationMarketplaceWorkbenchService implements ICustomizationMarketplaceService {
 	declare readonly _serviceBrand: undefined;
 	readonly allSources = getAllMcpGalleryMarketplaceSourceInfos();
+	readonly onDidChangeSources = Event.None;
 	get sources() { return getCustomizationMarketplaceSourceInfos(this.configurationService, this.productService); }
 	private readonly service: Lazy<CustomizationMarketplaceService>;
 
