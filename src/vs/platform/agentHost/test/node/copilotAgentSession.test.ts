@@ -1000,6 +1000,11 @@ type TestPermissionRequest = TestPermissionRequestBase & ({
 	readonly kind: 'custom-tool';
 	readonly toolName?: string;
 	readonly args?: Extract<PermissionRequest, { kind: 'custom-tool' }>['args'];
+} | {
+	readonly kind: 'mcp';
+	readonly serverName?: string;
+	readonly toolName?: string;
+	readonly toolTitle?: string;
 });
 
 function toPermissionRequest(request: TestPermissionRequest): PermissionRequest {
@@ -1021,6 +1026,8 @@ function toPermissionRequest(request: TestPermissionRequest): PermissionRequest 
 			};
 		case 'custom-tool':
 			return { toolDescription: '', toolName: '', ...request };
+		case 'mcp':
+			return { readOnly: false, serverName: '', toolName: '', toolTitle: '', ...request };
 	}
 }
 
@@ -8565,6 +8572,34 @@ suite('CopilotAgentSession', () => {
 			assert.ok(session.respondToPermissionRequest('tc-1', true));
 			const result = await resultPromise;
 			assert.strictEqual(result.kind, 'approve-once');
+		});
+
+		test('MCP permission without a tracked tool start attributes the contributor from the request server', async () => {
+			const { session, runtime, mockSession, waitForSignal } = await createAgentSession(disposables, {
+				configureMockSession: mock => {
+					mock.mcpListResult = { servers: [{ name: 'docs', status: 'connected' }] };
+				},
+			});
+			mockSession.fire('session.mcp_server_status_changed', {
+				serverName: 'docs',
+				status: 'connected',
+			} as SessionEventPayload<'session.mcp_server_status_changed'>['data']);
+			const resultPromise = runtime.handlePermissionRequest({
+				kind: 'mcp',
+				serverName: 'docs',
+				toolName: 'docs-lookup_topic',
+				toolTitle: 'Look up documentation',
+				toolCallId: 'tc-mcp-permission',
+			});
+
+			const pending = await waitForSignal(s => s.kind === 'pending_confirmation' && s.state.toolCallId === 'tc-mcp-permission');
+			assert.deepStrictEqual(pending.kind === 'pending_confirmation' ? pending.state.contributor : undefined, {
+				kind: ToolCallContributorKind.MCP,
+				customizationId: 'mcp-top-level:copilotcli:test-session-1:docs',
+			});
+
+			assert.ok(session.respondToPermissionRequest('tc-mcp-permission', true));
+			assert.strictEqual((await resultPromise).kind, 'approve-once');
 		});
 
 		test('auto-approves read permission for session-state plan files', async () => {
