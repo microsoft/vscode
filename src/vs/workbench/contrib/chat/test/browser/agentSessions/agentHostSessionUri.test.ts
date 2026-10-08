@@ -40,6 +40,7 @@ suite('Agent Host committed configuration identity', () => {
 					}
 				}();
 				const provisionalService = new class extends mock<IAgentHostUntitledProvisionalSessionService>() {
+					override getResolvedConfig(): undefined { return undefined; }
 					override async refreshResolvedConfig(_resource: URI, provider: string): Promise<void> { refreshedProviders.push(provider); }
 				}();
 				const applied = await applyAgentHostSessionConfigChange(resource, { mode: 'plan' }, {
