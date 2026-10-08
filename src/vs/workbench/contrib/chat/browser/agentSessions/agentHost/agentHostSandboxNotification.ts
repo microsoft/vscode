@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { equals } from '../../../../../../base/common/arrays.js';
+import { distinct, equals } from '../../../../../../base/common/arrays.js';
 import { MarkdownString, MarkdownStringTextNewlineStyle } from '../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
@@ -46,7 +46,8 @@ export class AgentHostSandboxNotification extends Disposable {
 		if (this._dismissedSessions.has(this._sessionResource)) {
 			return;
 		}
-		const reasons = state && !(state instanceof Error) ? readAgentSandboxDiagnostics(state) : undefined;
+		const diagnostics = state && !(state instanceof Error) ? readAgentSandboxDiagnostics(state) : undefined;
+		const reasons = diagnostics ? distinct(diagnostics) : undefined;
 		if (equals(this._reasons ?? [], reasons ?? [])) {
 			return;
 		}
