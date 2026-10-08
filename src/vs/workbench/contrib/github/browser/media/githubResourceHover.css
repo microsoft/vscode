@@ -3,6 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+:is(.sessions-issue-hover, .sessions-pr-hover, .sessions-commit-hover) {
+	width: min(520px, calc(100vw - 2 * var(--vscode-spacing-size240) - 2 * var(--vscode-strokeThickness)));
+}
+
 :is(.sessions-issue-hover-header, .sessions-pr-hover-header, .sessions-commit-hover-header) {
 	display: flex;
 	align-items: baseline;

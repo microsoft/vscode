@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { ImmortalReference, IReference } from '../../../../../base/common/lifecycle.js';
+import { ImmortalReference, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -21,11 +22,44 @@ import { IGitHubEndpointProvider } from '../../../../../platform/github/common/g
 import { FragmentState, PullRequestSnapshot } from '../../../../../platform/github/common/githubPullRequestService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IWorkbenchGitHubService } from '../../../../services/github/common/githubService.js';
+import { getChatPillLocationHover } from '../../../../browser/chatPills.js';
 import { createGitHubResourceDetailsHover, getGitHubResourceDetailsPresentation, GitHubResourceDetailsResolver, parseGitHubReferenceTarget } from '../../browser/githubResourceDetails.js';
-import { IGitHubIssueHoverModel, IGitHubPullRequestHoverModel } from '../../browser/githubResourceHover.js';
+import { createIssueResourceHover, IGitHubIssueHoverModel, IGitHubPullRequestHoverModel } from '../../browser/githubResourceHover.js';
 
 suite('GitHubResourceDetails', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const density of ['default', 'compact'] as const) {
+		test(`keeps short text previews content-sized and ${density} GitHub cards bounded`, () => {
+			const measure = (element: HTMLElement): number => {
+				const container = mainWindow.document.createElement('div');
+				container.style.display = 'inline-block';
+				container.style.maxWidth = '700px';
+				container.style.setProperty('--vscode-spacing-size240', '24px');
+				container.style.setProperty('--vscode-strokeThickness', '1px');
+				container.appendChild(element);
+				mainWindow.document.body.appendChild(container);
+				store.add(toDisposable(() => container.remove()));
+				return element.getBoundingClientRect().width;
+			};
+			const location = getChatPillLocationHover('plan.md').content;
+			assert.ok(location instanceof HTMLElement);
+			location.classList.toggle('compact', density === 'compact');
+			const shortWidth = measure(location);
+			const rich = createIssueResourceHover({
+				owner: 'microsoft', repo: 'vscode', number: 1, density,
+				repositoryHref: 'https://github.com/microsoft/vscode',
+				referenceHref: 'https://github.com/microsoft/vscode/issues/1',
+				issue: { title: 'Issue', body: '', state: 'open', author: { login: 'author' } },
+			});
+			const richWidth = measure(rich.element);
+			const expectedRichWidth = Math.min(520, mainWindow.innerWidth - 50);
+			assert.deepStrictEqual({
+				shortUsesContentWidth: shortWidth > 0 && shortWidth < expectedRichWidth,
+				richWidth,
+			}, { shortUsesContentWidth: true, richWidth: expectedRichWidth });
+		});
+	}
 
 	function createResolver() {
 		const operations: string[] = [];
