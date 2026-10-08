@@ -38,7 +38,7 @@ class SessionTimelineAccessibleView implements IAccessibleViewImplementation {
 				localize('sessionTimeline.help.overview', "Session Timeline groups system, user, assistant, tool, and subagent events into user requests. Assistant and tool activity is indented beneath its semantic owner."),
 				localize('sessionTimeline.help.navigation', "Use Tab and Shift+Tab to move between search, filters, request navigation, and event cards. Press Enter or Space on an event card to expand or collapse its readable details."),
 				localize('sessionTimeline.help.requests', "User request cards remain visible while their child events scroll. Use the first, previous, next, and last request buttons in a user card to move between requests."),
-				localize('sessionTimeline.help.search', "Search filters the timeline and highlights matching text. Collapsed cards show a matching detail line when the match is inside hidden content."),
+				localize('sessionTimeline.help.search', "Find highlights matching text without removing events. Use Enter or Next Match to move forward and Shift+Enter or Previous Match to move backward. Navigating to hidden detail expands its card and reveals the exact match."),
 				localize('sessionTimeline.help.view', "Use {0} to read the filtered timeline in the Accessible View.", '<keybinding:editor.action.accessibleView>'),
 			].join('\n\n') : editor.getSessionTimelineAccessibilityContent() ?? '',
 			() => DOM.isHTMLElement(focused) && focused.isConnected ? focused.focus() : editor.focusSessionTimeline(),

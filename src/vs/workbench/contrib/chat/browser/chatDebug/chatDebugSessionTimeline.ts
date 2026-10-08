@@ -34,9 +34,17 @@ const categories: readonly SessionTimelineCategory[] = ['system', 'user', 'assis
 const filterCategories: readonly SessionTimelineCategory[] = ['system', 'assistant', 'tool', 'subagent'];
 
 interface ISessionTimelineSearchMatch {
-	readonly kind: 'visible' | 'section' | 'eventData';
+	readonly kind: 'visible' | 'section';
 	readonly text: string;
 	readonly label?: string;
+}
+
+interface ISessionTimelineFindMatch {
+	readonly eventId: string;
+	readonly field: string;
+	readonly index: number;
+	readonly sectionIndex?: number;
+	readonly start: number;
 }
 
 function getCategoryLabel(category: SessionTimelineCategory): string {
@@ -66,9 +74,13 @@ export class ChatDebugSessionTimeline extends Disposable {
 	private readonly filters: HTMLElement;
 	private readonly content: HTMLElement;
 	private readonly status: HTMLElement;
-	private readonly filterInput: HTMLInputElement;
+	private readonly findInput: HTMLInputElement;
+	private readonly previousFindButton: Button;
+	private readonly nextFindButton: Button;
+	private readonly findMatchCount: HTMLElement;
 	private readonly renderDisposables = this._register(new DisposableStore());
 	private readonly renderedEventElements = new Map<string, { readonly item: HTMLElement; readonly card: HTMLElement; readonly focusTarget: HTMLElement }>();
+	private readonly renderedFindMatches = new Map<number, HTMLElement>();
 	private readonly renderedPromptSections = new Map<string, HTMLElement>();
 	private readonly expandedEventIds = new Set<string>();
 	private readonly enabledCategories = new Set<SessionTimelineCategory>(categories);
@@ -77,6 +89,8 @@ export class ChatDebugSessionTimeline extends Disposable {
 	private currentSessionResource: URI | undefined;
 	private sourceResource: URI | undefined;
 	private model: ISessionTimelineModel | undefined;
+	private findMatches: readonly ISessionTimelineFindMatch[] = [];
+	private currentFindMatchIndex = -1;
 	private loadGeneration = 0;
 
 	constructor(
@@ -127,12 +141,49 @@ export class ChatDebugSessionTimeline extends Disposable {
 		}));
 
 		const controls = DOM.append(this.container, $('.chat-debug-session-timeline-controls'));
-		this.filterInput = DOM.append(controls, $('input.chat-debug-session-timeline-filter', {
+		const find = DOM.append(controls, $('.chat-debug-session-timeline-find'));
+		this.findInput = DOM.append(find, $('input.chat-debug-session-timeline-filter', {
 			type: 'search',
-			placeholder: localize('chatDebug.sessionTimeline.search', "Search messages, tool names, arguments, and results"),
-			'aria-label': localize('chatDebug.sessionTimeline.searchAriaLabel', "Search session events"),
+			placeholder: localize('chatDebug.sessionTimeline.find', "Find"),
+			'aria-label': localize('chatDebug.sessionTimeline.findAriaLabel', "Find in Session Timeline"),
 		}));
-		this._register(DOM.addDisposableListener(this.filterInput, DOM.EventType.INPUT, () => this.render()));
+		this._register(DOM.addDisposableListener(this.findInput, DOM.EventType.INPUT, () => {
+			this.currentFindMatchIndex = this.findInput.value ? 0 : -1;
+			this.render();
+			this.revealCurrentFindMatch();
+		}));
+		this._register(DOM.addDisposableListener(this.findInput, DOM.EventType.KEY_DOWN, event => {
+			if (event.key === 'Enter') {
+				event.preventDefault();
+				this.navigateFindMatch(event.shiftKey ? -1 : 1);
+			} else if (event.key === 'Escape' && this.findInput.value) {
+				event.preventDefault();
+				this.findInput.value = '';
+				this.findMatches = [];
+				this.currentFindMatchIndex = -1;
+				this.updateFindWidget();
+				this.render();
+			}
+		}));
+		this.findMatchCount = DOM.append(find, $('.chat-debug-session-timeline-find-count'));
+		this.previousFindButton = this._register(new Button(find, {
+			...defaultButtonStyles,
+			secondary: true,
+			supportIcons: true,
+			ariaLabel: localize('chatDebug.sessionTimeline.previousMatch', "Previous Match"),
+			title: localize('chatDebug.sessionTimeline.previousMatch', "Previous Match"),
+		}));
+		this.previousFindButton.label = `$(${Codicon.arrowUp.id})`;
+		this._register(this.previousFindButton.onDidClick(() => this.navigateFindMatch(-1)));
+		this.nextFindButton = this._register(new Button(find, {
+			...defaultButtonStyles,
+			secondary: true,
+			supportIcons: true,
+			ariaLabel: localize('chatDebug.sessionTimeline.nextMatch', "Next Match"),
+			title: localize('chatDebug.sessionTimeline.nextMatch', "Next Match"),
+		}));
+		this.nextFindButton.label = `$(${Codicon.arrowDown.id})`;
+		this._register(this.nextFindButton.onDidClick(() => this.navigateFindMatch(1)));
 
 		const actions = DOM.append(controls, $('.chat-debug-session-timeline-actions'));
 		const expandAllButton = this._register(new Button(actions, { ...defaultButtonStyles, secondary: true, title: localize('chatDebug.sessionTimeline.expandAll', "Expand All") }));
@@ -155,6 +206,7 @@ export class ChatDebugSessionTimeline extends Disposable {
 		this.status = DOM.append(controls, $('span.chat-debug-session-timeline-aria-status', { role: 'status', 'aria-live': 'polite' }));
 		this.content = DOM.append(this.container, $('.chat-debug-session-timeline-content'));
 		this.refreshScheduler = this._register(new RunOnceScheduler(() => this.load(), 300));
+		this.updateFindWidget();
 	}
 
 	setSession(sessionResource: URI): void {
@@ -166,7 +218,8 @@ export class ChatDebugSessionTimeline extends Disposable {
 		for (const category of categories) {
 			this.enabledCategories.add(category);
 		}
-		this.filterInput.value = '';
+		this.findInput.value = '';
+		this.currentFindMatchIndex = -1;
 	}
 
 	show(): void {
@@ -188,7 +241,7 @@ export class ChatDebugSessionTimeline extends Disposable {
 	}
 
 	focus(): void {
-		this.filterInput.focus();
+		this.findInput.focus();
 	}
 
 	getAccessibilityContent(): string {
@@ -273,12 +326,7 @@ export class ChatDebugSessionTimeline extends Disposable {
 		if (!this.model) {
 			return [];
 		}
-		const filter = this.filterInput.value.trim();
-		const normalizedFilter = filter.toLowerCase();
-		return this.model.events.filter(event =>
-			this.enabledCategories.has(event.category)
-			&& (!filter || (event.searchableText.includes(normalizedFilter) && !!this.findSearchMatch(event, filter)))
-		);
+		return this.model.events.filter(event => this.enabledCategories.has(event.category));
 	}
 
 	private findSearchMatch(event: ISessionTimelineEvent, query: string): ISessionTimelineSearchMatch | undefined {
@@ -297,38 +345,72 @@ export class ChatDebugSessionTimeline extends Disposable {
 				return { kind: 'section', label: section.label, text: matchingLine.trim() };
 			}
 		}
-		const rawMatch = this.findRawSearchMatch(event.rawRecords, normalizedQuery);
-		return rawMatch ? { kind: 'eventData', label: localize('chatDebug.sessionTimeline.eventData', "Event Data"), text: rawMatch } : undefined;
-	}
-
-	private findRawSearchMatch(value: unknown, normalizedQuery: string, label?: string): string | undefined {
-		if (value === null || typeof value !== 'object') {
-			const text = label ? `${label}: ${String(value ?? '')}` : String(value ?? '');
-			return text.toLowerCase().includes(normalizedQuery) ? text : undefined;
-		}
-		if (Array.isArray(value)) {
-			for (const item of value) {
-				const match = this.findRawSearchMatch(item, normalizedQuery, label);
-				if (match) {
-					return match;
-				}
-			}
-			return undefined;
-		}
-		for (const [key, item] of Object.entries(value)) {
-			const match = this.findRawSearchMatch(item, normalizedQuery, key);
-			if (match) {
-				return match;
-			}
-		}
 		return undefined;
 	}
 
-	private appendHighlightedText(container: HTMLElement, text: string, query: string): void {
+	private rebuildFindMatches(events: readonly ISessionTimelineEvent[], query: string): void {
+		const matches: ISessionTimelineFindMatch[] = [];
+		if (query) {
+			for (const event of events) {
+				this.collectTextMatches(matches, event.id, 'category', getCategoryLabel(event.category), query);
+				this.collectTextMatches(matches, event.id, 'title', event.title, query);
+				this.collectTextMatches(matches, event.id, 'metadata', event.metadata.join(' · '), query);
+				if (event.summaryPath) {
+					this.collectTextMatches(matches, event.id, 'summary-directory', event.summaryPath.directory, query);
+					this.collectTextMatches(matches, event.id, 'summary-basename', event.summaryPath.basename, query);
+				} else {
+					this.collectTextMatches(matches, event.id, 'summary', event.summary, query);
+				}
+				event.sections.forEach((section, sectionIndex) => {
+					this.collectTextMatches(matches, event.id, `section-label-${sectionIndex}`, section.label, query, sectionIndex);
+					this.collectTextMatches(matches, event.id, `section-content-${sectionIndex}`, section.content, query, sectionIndex);
+				});
+			}
+		}
+		this.findMatches = matches;
+		if (matches.length === 0) {
+			this.currentFindMatchIndex = -1;
+		} else if (this.currentFindMatchIndex < 0 || this.currentFindMatchIndex >= matches.length) {
+			this.currentFindMatchIndex = 0;
+		}
+		this.updateFindWidget();
+	}
+
+	private collectTextMatches(matches: ISessionTimelineFindMatch[], eventId: string, field: string, text: string, query: string, sectionIndex?: number): void {
+		const normalizedText = text.toLowerCase();
+		const normalizedQuery = query.toLowerCase();
+		let start = normalizedText.indexOf(normalizedQuery);
+		while (start >= 0) {
+			matches.push({ eventId, field, index: matches.length, sectionIndex, start });
+			start = normalizedText.indexOf(normalizedQuery, start + normalizedQuery.length);
+		}
+	}
+
+	private appendHighlightedText(container: HTMLElement, text: string, query: string, eventId?: string, field?: string): void {
 		if (!query) {
 			container.textContent = text;
 			return;
 		}
+		const matches = eventId && field
+			? this.findMatches.filter(match => match.eventId === eventId && match.field === field)
+			: undefined;
+		if (matches?.length) {
+			let offset = 0;
+			for (const match of matches) {
+				container.append(text.slice(offset, match.start));
+				const mark = DOM.append(container, $('mark.chat-debug-session-timeline-search-match', { tabIndex: -1 }));
+				mark.textContent = text.slice(match.start, match.start + query.length);
+				mark.dataset.findMatchIndex = String(match.index);
+				if (match.index === this.currentFindMatchIndex) {
+					mark.classList.add('current');
+				}
+				this.renderedFindMatches.set(match.index, mark);
+				offset = match.start + query.length;
+			}
+			container.append(text.slice(offset));
+			return;
+		}
+
 		const normalizedText = text.toLowerCase();
 		const normalizedQuery = query.toLowerCase();
 		let offset = 0;
@@ -345,16 +427,17 @@ export class ChatDebugSessionTimeline extends Disposable {
 		}
 	}
 
-	private appendHighlightedPath(container: HTMLElement, path: { readonly directory: string; readonly basename: string }, query: string): void {
+	private appendHighlightedPath(container: HTMLElement, path: { readonly directory: string; readonly basename: string }, query: string, eventId: string): void {
 		const directory = DOM.append(container, $('span.chat-debug-session-timeline-event-path-directory'));
-		this.appendHighlightedText(directory, path.directory, query);
+		this.appendHighlightedText(directory, path.directory, query, eventId, 'summary-directory');
 		const basename = DOM.append(container, $('span.chat-debug-session-timeline-event-path-basename'));
-		this.appendHighlightedText(basename, path.basename, query);
+		this.appendHighlightedText(basename, path.basename, query, eventId, 'summary-basename');
 	}
 
 	private render(): void {
 		this.renderDisposables.clear();
 		this.renderedEventElements.clear();
+		this.renderedFindMatches.clear();
 		this.renderedPromptSections.clear();
 		DOM.clearNode(this.filters);
 		DOM.clearNode(this.content);
@@ -363,7 +446,8 @@ export class ChatDebugSessionTimeline extends Disposable {
 		}
 
 		const filteredEvents = this.getFilteredEvents();
-		const searchQuery = this.filterInput.value.trim();
+		const searchQuery = this.findInput.value;
+		this.rebuildFindMatches(filteredEvents, searchQuery);
 		this.sourceSummary.textContent = this.model.errors.length > 0
 			? localize('chatDebug.sessionTimeline.sourceSummaryWithErrors', "{0} source records · {1} relevant events · {2} malformed lines", this.model.totalRecords, this.model.events.length, this.model.errors.length)
 			: localize('chatDebug.sessionTimeline.sourceSummary', "{0} source records · {1} relevant events", this.model.totalRecords, this.model.events.length);
@@ -456,22 +540,22 @@ export class ChatDebugSessionTimeline extends Disposable {
 			: header;
 		this.renderedEventElements.set(event.id, { item, card, focusTarget: toggle });
 		const category = DOM.append(toggle, $('span.chat-debug-session-timeline-event-category'));
-		this.appendHighlightedText(category, getCategoryLabel(event.category), searchQuery);
+		this.appendHighlightedText(category, getCategoryLabel(event.category), searchQuery, event.id, 'category');
 		if (event.title) {
 			const title = DOM.append(toggle, $('span.chat-debug-session-timeline-event-title'));
-			this.appendHighlightedText(title, event.title, searchQuery);
+			this.appendHighlightedText(title, event.title, searchQuery, event.id, 'title');
 		}
 		if (event.metadata.length > 0) {
 			const metadata = DOM.append(toggle, $('span.chat-debug-session-timeline-event-metadata'));
-			this.appendHighlightedText(metadata, event.metadata.join(' · '), searchQuery);
+			this.appendHighlightedText(metadata, event.metadata.join(' · '), searchQuery, event.id, 'metadata');
 		}
 		if (event.category === 'tool' && event.summary) {
 			const inlineSummary = DOM.append(toggle, $('span.chat-debug-session-timeline-event-inline-summary'));
 			if (event.summaryPath) {
 				inlineSummary.classList.add('chat-debug-session-timeline-event-path');
-				this.appendHighlightedPath(inlineSummary, event.summaryPath, searchQuery);
+				this.appendHighlightedPath(inlineSummary, event.summaryPath, searchQuery, event.id);
 			} else {
-				this.appendHighlightedText(inlineSummary, event.summary, searchQuery);
+				this.appendHighlightedText(inlineSummary, event.summary, searchQuery, event.id, 'summary');
 			}
 		}
 		if (event.category === 'user') {
@@ -496,10 +580,10 @@ export class ChatDebugSessionTimeline extends Disposable {
 			summary = undefined;
 		} else if (event.summaryPath) {
 			summary = DOM.append(card, $('div.chat-debug-session-timeline-event-summary.chat-debug-session-timeline-event-path'));
-			this.appendHighlightedPath(summary, event.summaryPath, searchQuery);
+			this.appendHighlightedPath(summary, event.summaryPath, searchQuery, event.id);
 		} else if (event.summary) {
 			summary = DOM.append(card, $('div.chat-debug-session-timeline-event-summary'));
-			this.appendHighlightedText(summary, event.summary, searchQuery);
+			this.appendHighlightedText(summary, event.summary, searchQuery, event.id, 'summary');
 		}
 		const searchMatch = searchQuery ? this.findSearchMatch(event, searchQuery) : undefined;
 		const toggleExpanded = () => {
@@ -534,23 +618,16 @@ export class ChatDebugSessionTimeline extends Disposable {
 			if (hasDetachedBody) {
 				body.classList.add('chat-debug-session-timeline-event-body-detached');
 			}
-			for (const section of event.sections) {
+			for (const [sectionIndex, section] of event.sections.entries()) {
 				const sectionElement = DOM.append(body, $('section.chat-debug-session-timeline-section'));
 				if (section.id) {
 					sectionElement.tabIndex = -1;
 					this.renderedPromptSections.set(`${event.id}:${section.id}`, sectionElement);
 				}
 				const sectionTitle = DOM.append(sectionElement, $('h3.chat-debug-session-timeline-section-title'));
-				this.appendHighlightedText(sectionTitle, section.label, searchQuery);
+				this.appendHighlightedText(sectionTitle, section.label, searchQuery, event.id, `section-label-${sectionIndex}`);
 				const sectionContent = DOM.append(sectionElement, $('pre.chat-debug-session-timeline-event-content', { tabIndex: 0 }));
-				this.appendHighlightedText(sectionContent, section.content, searchQuery);
-			}
-			if (searchMatch?.kind === 'eventData') {
-				const sectionElement = DOM.append(body, $('section.chat-debug-session-timeline-section'));
-				DOM.append(sectionElement, $('h3.chat-debug-session-timeline-section-title', undefined,
-					localize('chatDebug.sessionTimeline.matchingEventData', "Matching Event Data")));
-				const sectionContent = DOM.append(sectionElement, $('pre.chat-debug-session-timeline-event-content', { tabIndex: 0 }));
-				this.appendHighlightedText(sectionContent, searchMatch.text, searchQuery);
+				this.appendHighlightedText(sectionContent, section.content, searchQuery, event.id, `section-content-${sectionIndex}`);
 			}
 		}
 
@@ -674,10 +751,56 @@ export class ChatDebugSessionTimeline extends Disposable {
 		renderedEvent?.focusTarget.focus();
 	}
 
+	private navigateFindMatch(offset: -1 | 1): void {
+		if (this.findMatches.length === 0) {
+			return;
+		}
+		this.currentFindMatchIndex = (this.currentFindMatchIndex + offset + this.findMatches.length) % this.findMatches.length;
+		this.render();
+		this.revealCurrentFindMatch();
+	}
+
+	private revealCurrentFindMatch(): void {
+		const descriptor = this.findMatches[this.currentFindMatchIndex];
+		if (!descriptor) {
+			return;
+		}
+		const wasExpanded = this.expandedEventIds.has(descriptor.eventId);
+		if (descriptor.sectionIndex !== undefined) {
+			this.expandedEventIds.add(descriptor.eventId);
+		} else if (descriptor.field.startsWith('summary')) {
+			this.expandedEventIds.delete(descriptor.eventId);
+		}
+		const isExpanded = this.expandedEventIds.has(descriptor.eventId);
+		if (wasExpanded !== isExpanded || !this.renderedFindMatches.has(this.currentFindMatchIndex)) {
+			this.render();
+		} else {
+			this.updateFindWidget();
+		}
+		const match = this.renderedFindMatches.get(this.currentFindMatchIndex);
+		match?.scrollIntoView({ block: 'center' });
+		match?.focus();
+	}
+
+	private updateFindWidget(): void {
+		const hasMatches = this.findMatches.length > 0;
+		this.previousFindButton.enabled = hasMatches;
+		this.nextFindButton.enabled = hasMatches;
+		this.findMatchCount.textContent = !this.findInput.value
+			? ''
+			: hasMatches
+				? localize('chatDebug.sessionTimeline.findMatchCount', "{0} of {1}", this.currentFindMatchIndex + 1, this.findMatches.length)
+				: localize('chatDebug.sessionTimeline.noFindMatches', "No results");
+	}
+
 	private renderMessage(message: string): void {
 		this.renderDisposables.clear();
 		this.renderedEventElements.clear();
+		this.renderedFindMatches.clear();
 		this.renderedPromptSections.clear();
+		this.findMatches = [];
+		this.currentFindMatchIndex = -1;
+		this.updateFindWidget();
 		DOM.clearNode(this.filters);
 		DOM.clearNode(this.content);
 		this.sourceSummary.textContent = '';

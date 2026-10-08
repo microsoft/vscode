@@ -74,14 +74,37 @@
 	padding-block: var(--vscode-spacing-size160);
 }
 
-.chat-debug-session-timeline-filter {
+.chat-debug-session-timeline-find {
+	display: flex;
+	align-items: center;
 	flex: 1 0 100%;
+	gap: var(--vscode-spacing-size40);
+}
+
+.chat-debug-session-timeline-filter {
+	flex: 1;
+	min-width: 0;
 	height: 26px;
 	padding: 0 var(--vscode-spacing-size120);
 	color: var(--vscode-input-foreground);
 	background: var(--vscode-input-background);
 	border: var(--vscode-strokeThickness) solid var(--vscode-input-border, transparent);
 	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.chat-debug-session-timeline-find-count {
+	min-width: 72px;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body2);
+	font-variant-numeric: tabular-nums;
+	text-align: center;
+	white-space: nowrap;
+}
+
+.chat-debug-session-timeline-find .monaco-button {
+	width: 26px;
+	min-width: 26px;
+	padding: 0;
 }
 
 .chat-debug-session-timeline-filter:focus {
@@ -458,6 +481,15 @@
 	border-radius: var(--vscode-cornerRadius-xSmall);
 	color: inherit;
 	background-color: var(--vscode-editor-findMatchHighlightBackground);
+}
+
+.chat-debug-session-timeline-search-match.current {
+	background-color: var(--vscode-editor-findMatchBackground);
+}
+
+.chat-debug-session-timeline-search-match:focus {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-spacing-size20);
 }
 
 .chat-debug-session-timeline-event-path {
