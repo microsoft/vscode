@@ -42,7 +42,8 @@ process.stdin.on('end', () => {
 			process.exitCode = 1;
 		}
 	});
-	socket.on('error', () => {
+	socket.on('error', error => {
+		if (error.code === 'ENOENT' || error.code === 'ECONNREFUSED') { return; }
 		console.error('Git credential forwarding is unavailable');
 		process.exitCode = 1;
 	});
@@ -58,17 +59,75 @@ const readline = require('readline');
 const { spawnSync } = require('child_process');
 process.umask(0o077);
 const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-git-'));
-const socketPath = process.platform === 'win32' ? '\\\\.\\pipe\\vscode-git-' + path.basename(directory) : path.join(directory, 'socket');
+const getSocketPath = directory => process.platform === 'win32' ? '\\\\.\\pipe\\vscode-git-' + path.basename(directory) : path.join(directory, 'socket');
+const socketPath = getSocketPath(directory);
 const helperPath = path.join(directory, 'helper.cjs');
 fs.writeFileSync(helperPath, process.argv[1], { mode: 0o600 });
 const quote = value => "'" + value.replace(/'/g, "'\\''") + "'";
-const helper = '!f() { ' + quote(process.execPath.replace(/\\/g, '/')) + ' ' + quote(helperPath.replace(/\\/g, '/')) + ' "$1" ' + quote(socketPath) + '; }; f';
+const makeHelper = (nodePath, helperPath, socketPath, guarded = true) => {
+	const command = quote(nodePath) + ' ' + quote(helperPath) + ' "$1" ' + quote(socketPath);
+	return '!f() { ' + (guarded ? 'if test -f ' + quote(helperPath) + '; then ' + command + '; fi' : command) + '; }; f';
+};
+const helper = makeHelper(process.execPath.replace(/\\/g, '/'), helperPath.replace(/\\/g, '/'), socketPath);
+const retryDelay = new Int32Array(new SharedArrayBuffer(4));
+const gitConfig = (args, expected = [0]) => {
+	let result;
+	for (let attempt = 0; attempt < 20; attempt++) {
+		result = spawnSync('git', ['config', '--global', ...args], { encoding: 'utf8' });
+		if (expected.includes(result.status) || result.error) { return result; }
+		if (attempt < 19) { Atomics.wait(retryDelay, 0, 0, 50); }
+	}
+	return result;
+};
+const parseManagedHelper = value => {
+	if (!value.startsWith('!f() { ')) { return; }
+	const parts = [...value.matchAll(/'(?<value>(?:[^']|'\\'')*)'/g)].map(match => match.groups.value.replace(/'\\''/g, "'"));
+	if (parts.length !== 3 && parts.length !== 4) { return; }
+	const guarded = parts.length === 4;
+	const [nodePath, script, socket] = parts.slice(-3);
+	if (guarded && parts[0] !== script) { return; }
+	if (makeHelper(nodePath, script, socket, guarded) !== value
+		|| !path.isAbsolute(script) || path.basename(script) !== 'helper.cjs'
+		|| !/^vscode-git-[A-Za-z0-9]{6}$/.test(path.basename(path.dirname(script)))
+		|| getSocketPath(path.dirname(script)) !== socket) { return; }
+	return { script, socket };
+};
+const isRelayAvailable = socketPath => new Promise(resolve => {
+	const socket = net.connect(socketPath);
+	const finish = available => { socket.destroy(); resolve(available); };
+	socket.setTimeout(1000, () => {
+		console.error('Could not verify a previous Git credential relay');
+		finish(true);
+	});
+	socket.on('connect', () => finish(true));
+	socket.on('error', error => {
+		if (error.code === 'ENOENT' || error.code === 'ECONNREFUSED') { finish(false); }
+		else { console.error('Could not verify a previous Git credential relay'); finish(true); }
+	});
+});
+const removeStaleHelpers = async () => {
+	const result = spawnSync('git', ['config', '--global', '--null', '--get-all', 'credential.helper'], { encoding: 'utf8' });
+	if (result.status !== 0 && result.status !== 1) { throw new Error('Could not read Git credential helpers'); }
+	for (const value of result.stdout.split('\0')) {
+		const managed = parseManagedHelper(value);
+		if (!managed) { continue; }
+		let scriptExists = true;
+		try { fs.statSync(managed.script); }
+		catch (error) {
+			if (error.code === 'ENOENT') { scriptExists = false; }
+			else { console.error('Could not inspect a previous Git credential helper'); continue; }
+		}
+		if (scriptExists && await isRelayAvailable(managed.socket)) { continue; }
+		const removed = gitConfig(['--fixed-value', '--unset-all', 'credential.helper', value], [0, 5]);
+		if (removed.status !== 0 && removed.status !== 5) { throw new Error('Could not remove a stale Git credential helper'); }
+	}
+};
 const sockets = new Map();
 let nextId = 0;
 let configured = false;
 const cleanup = () => {
 	if (configured) {
-		const result = spawnSync('git', ['config', '--global', '--fixed-value', '--unset-all', 'credential.helper', helper]);
+		const result = gitConfig(['--fixed-value', '--unset-all', 'credential.helper', helper], [0, 5]);
 		if (result.status !== 0 && result.status !== 5) { console.error('Failed to remove Git credential forwarding helper'); }
 	}
 	fs.rmSync(directory, { recursive: true, force: true });
@@ -118,14 +177,17 @@ responses.on('line', line => {
 	}
 });
 responses.on('close', () => process.exit(0));
-server.listen(socketPath, () => {
-	const result = spawnSync('git', ['config', '--global', '--add', 'credential.helper', helper]);
-	if (result.status !== 0) {
+server.listen(socketPath, async () => {
+	try {
+		await removeStaleHelpers();
+		const result = gitConfig(['--add', 'credential.helper', helper]);
+		if (result.status !== 0) { throw new Error('Could not configure Git credential forwarding'); }
+		configured = true;
+		process.stdout.write(JSON.stringify({ ready: true }) + '\n');
+	} catch {
 		console.error('Failed to configure Git credential forwarding');
 		process.exit(1);
 	}
-	configured = true;
-	process.stdout.write(JSON.stringify({ ready: true }) + '\n');
 });
 `;
 

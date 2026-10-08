@@ -105,7 +105,7 @@ export class DevContainerGitCredentialForwarding extends Disposable {
 		this._notificationService.setNotification({
 			id,
 			telemetryId: 'devContainer.gitCredentials',
-			severity: ChatInputNotificationSeverity.Warning,
+			severity: ChatInputNotificationSeverity.Info,
 			message: localize('devContainerGitCredentials.confirm', "Allow Git credential forwarding?"),
 			description: localize('devContainerGitCredentials.detail', "A process in the Dev Container for '{0}' is requesting HTTPS Git credentials from the workspace's host. Approval applies to all sessions and processes sharing this container until VS Code restarts or the forwarding setting changes.", basename(workspaceUri)),
 			actions: [

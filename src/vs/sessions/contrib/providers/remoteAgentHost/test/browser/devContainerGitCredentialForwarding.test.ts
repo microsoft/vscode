@@ -16,7 +16,7 @@ import { IConfigurationChangeEvent } from '../../../../../../platform/configurat
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
-import { ChatInputNotificationActionKind, IChatInputNotification, IChatInputNotificationContext, IChatInputNotificationService } from '../../../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationService.js';
+import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationContext, IChatInputNotificationService } from '../../../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationService.js';
 import { DevContainerGitCredentialForwardingSettingId } from '../../../../../common/devContainerAgentHostService.js';
 import { DevContainerGitCredentialForwarding } from '../../browser/devContainerGitCredentialForwarding.js';
 
@@ -96,10 +96,12 @@ suite('Dev Container Git credential forwarding consent', () => {
 			dismissible: notices[0].dismissible,
 			autoDismissOnMessage: notices[0].autoDismissOnMessage,
 			primaryActions: notices[0].actions.map(action => action.primary),
+			severity: notices[0].severity,
 		}, {
 			startupNotices: 0, allowed: true, reconnected: true, states: [true, true], notices: 1,
 			disclosure: true, dismissible: false, autoDismissOnMessage: false,
 			primaryActions: [true, false],
+			severity: ChatInputNotificationSeverity.Info,
 		});
 	});
 
