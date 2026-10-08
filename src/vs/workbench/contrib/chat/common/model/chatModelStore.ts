@@ -11,6 +11,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ChatAgentLocation, SessionTypeSelectionReason } from '../constants.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../editing/chatEditingService.js';
 import { ChatModel, ISerializableChatModelInputState, ISerializedChatDataReference } from './chatModel.js';
+import type { ICanvasContext } from '../../../canvases/common/canvas.js';
 
 export interface IStartSessionProps {
 	readonly initialData?: ISerializedChatDataReference;
@@ -23,6 +24,7 @@ export interface IStartSessionProps {
 	readonly isReadOnly?: IObservable<boolean>;
 	readonly isInputBlocked?: IObservable<boolean>;
 	readonly backgroundShellCount?: IObservable<number | undefined>;
+	readonly canvasContext?: IObservable<ICanvasContext | undefined>;
 	readonly sessionTypeSelectionReason?: SessionTypeSelectionReason;
 }
 

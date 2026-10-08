@@ -12,14 +12,14 @@ import { affectsCustomizationMarketplaceSources, CustomizationMarketplaceConfigu
 export const customizationMarketplaceConfigurationProperties = {
 	[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: {
 		type: 'boolean',
-		tags: ['experimental'],
+		tags: ['experimental', 'advanced'],
 		description: localize('chat.customizations.marketplace.enabled', "Shows Discover instead of Overview when a customization marketplace source is enabled. When disabled, marketplace discovery remains in the existing customization management pages."),
 		default: false,
 		experiment: { mode: 'auto' },
 	},
 	[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: {
 		type: 'boolean',
-		tags: ['experimental'],
+		tags: ['experimental', 'advanced'],
 		description: localize('chat.customizations.marketplace.sources.publicFeed.enabled', "Enables the SDK-backed GitHub Feed for agent harnesses that provide marketplace search. Local does not provide this source. If Marketplace or this setting is disabled, the GitHub Feed is not queried."),
 		default: true,
 	},

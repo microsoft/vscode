@@ -585,9 +585,9 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly managedPolicy: IObservable<boolean>;
 
 	private _startSession(props: IStartSessionProps): ChatModel {
-		const { initialData, location, sessionResource, canUseTools, transferEditingSession, disableBackgroundKeepAlive, inputState, isReadOnly, isInputBlocked, backgroundShellCount, sessionTypeSelectionReason } = props;
+		const { initialData, location, sessionResource, canUseTools, transferEditingSession, disableBackgroundKeepAlive, inputState, isReadOnly, isInputBlocked, backgroundShellCount, canvasContext, sessionTypeSelectionReason } = props;
 		const blocked = derived(this, reader => (isLocalChatSessionSubjectToManagedPolicy(sessionResource, location) && this.managedPolicy.read(reader)) || (isInputBlocked?.read(reader) ?? false));
-		const model = this.instantiationService.createInstance(ChatModel, initialData, { initialLocation: location, canUseTools, resource: sessionResource, disableBackgroundKeepAlive, inputState, isReadOnly, isInputBlocked: blocked, backgroundShellCount, sessionTypeSelectionReason });
+		const model = this.instantiationService.createInstance(ChatModel, initialData, { initialLocation: location, canUseTools, resource: sessionResource, disableBackgroundKeepAlive, inputState, isReadOnly, isInputBlocked: blocked, backgroundShellCount, canvasContext, sessionTypeSelectionReason });
 		if (this._hasAgentHostContribution(sessionResource)) {
 			this._serverManagedQueueModels.add(model);
 		}
@@ -836,6 +836,7 @@ export class ChatService extends Disposable implements IChatService {
 			isReadOnly: providedSession.isReadOnly,
 			isInputBlocked: providedSession.isInputBlocked,
 			backgroundShellCount: providedSession.backgroundShellCount,
+			canvasContext: providedSession.canvasContext,
 			sessionTypeSelectionReason,
 		}, debugOwner ?? 'ChatService#loadRemoteSession');
 

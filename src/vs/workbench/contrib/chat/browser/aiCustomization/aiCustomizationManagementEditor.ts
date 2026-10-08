@@ -2999,7 +2999,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.welcomePage?.focus();
 	}
 
-	private selectSection(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean }): void {
+	private selectSection(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean; marketplaceSourceId?: string }): void {
 		if (this.showMarketplaceInDiscover(section, options)) {
 			return;
 		}
@@ -3515,7 +3515,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	/**
 	 * Selects a specific section programmatically.
 	 */
-	public selectSectionById(sectionId: AICustomizationManagementSection, options?: { showMarketplace?: boolean }): void {
+	public selectSectionById(sectionId: AICustomizationManagementSection, options?: { showMarketplace?: boolean; marketplaceSourceId?: string }): void {
 		if (this.showMarketplaceInDiscover(sectionId, options)) {
 			return;
 		}
@@ -3565,7 +3565,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 	}
 
-	private showMarketplaceInDiscover(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean }): boolean {
+	private showMarketplaceInDiscover(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean; marketplaceSourceId?: string }): boolean {
 		if (!options?.showMarketplace ||
 			!isCustomizationDiscoveryAvailable(this.configurationService, this.marketplaceService)) {
 			return false;
@@ -3578,7 +3578,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return false;
 		}
 		this.showWelcomePage();
-		this.welcomePage?.setSearchQuery(`@type:${type}`);
+		this.welcomePage?.showMarketplace(`@type:${type}`, options.marketplaceSourceId);
 		return true;
 	}
 

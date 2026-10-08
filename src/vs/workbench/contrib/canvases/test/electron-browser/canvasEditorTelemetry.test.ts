@@ -17,14 +17,13 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IAccessibleViewService } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { IBrowserViewLoadError } from '../../../../../platform/browserView/common/browserView.js';
 import { ITelemetryData, ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { IBrowserViewModel } from '../../../../../workbench/contrib/browserView/common/browserView.js';
-import { WebContentsViewHost } from '../../../../../workbench/contrib/browserView/electron-browser/webContentsViewHost.js';
-import { TestEditorGroupView, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
-import { ISessionCanvas } from '../../../../services/sessions/common/session.js';
-import { ISessionCanvasService, SessionCanvasInput } from '../../common/sessionCanvas.js';
-import { SessionCanvasEditor } from '../../electron-browser/sessionCanvasEditor.js';
+import { IBrowserViewModel } from '../../../browserView/common/browserView.js';
+import { WebContentsViewHost } from '../../../browserView/electron-browser/webContentsViewHost.js';
+import { TestEditorGroupView, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { CanvasInput, ICanvas, ICanvasService } from '../../common/canvas.js';
+import { CanvasEditor } from '../../electron-browser/canvasEditor.js';
 
-suite('SessionCanvasEditor telemetry', () => {
+suite('CanvasEditor telemetry', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createHarness(options: {
@@ -38,13 +37,13 @@ suite('SessionCanvasEditor telemetry', () => {
 		const createRequests: [string, 'canvas'][] = [];
 		const attached: IBrowserViewModel[] = [];
 		const active = observableValue('activeCanvasOwner', true);
-		const canvas: ISessionCanvas = {
+		const canvas: ICanvas = {
 			resource: URI.parse('test-canvas:/private'),
 			instanceId: 'private-instance',
 			title: 'Private canvas title',
 			source: URI.parse('https://example.test/private-source'),
 		};
-		const input = store.add(new SessionCanvasInput({
+		const input = store.add(instantiationService.createInstance(CanvasInput, {
 			providerId: 'test-provider',
 			session: URI.parse('test-session:/owner'),
 			chat: URI.parse('test-chat:/owner'),
@@ -80,9 +79,9 @@ suite('SessionCanvasEditor telemetry', () => {
 		});
 		let retainedModel: { readonly source: string; readonly model: IBrowserViewModel } | undefined;
 		store.add(toDisposable(() => retainedModel?.model.dispose()));
-		instantiationService.stub(ISessionCanvasService, {
+		instantiationService.stub(ICanvasService, {
 			enabled: observableValue('canvasesEnabled', true),
-			isActiveOwner: (_reference, reader) => active.read(reader),
+			isOwnerPresentable: (_reference, reader) => active.read(reader),
 			resolveCanvasModel: async (_reference, source) => {
 				const sourceKey = source.toString();
 				if (retainedModel?.source === sourceKey) {
@@ -109,7 +108,7 @@ suite('SessionCanvasEditor telemetry', () => {
 			layout: () => { },
 			dispose: () => { },
 		});
-		const editor = store.add(instantiationService.createInstance(SessionCanvasEditor, new TestEditorGroupView(1)));
+		const editor = store.add(instantiationService.createInstance(CanvasEditor, new TestEditorGroupView(1)));
 		const parent = $('div');
 		editor.create(parent);
 		const open = () => editor.setInput(input, undefined, {}, CancellationToken.None);
