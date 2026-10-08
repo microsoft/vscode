@@ -41,9 +41,6 @@ KERBEROS_PASSWORD="Placeholder"
 TLS_CA="$TEMP_ROOT/ca.pem"
 TLS_CERT="$TEMP_ROOT/server.pem"
 TLS_KEY="$TEMP_ROOT/server.key"
-TLS_KEYCHAIN="/Library/Keychains/System.keychain"
-tls_ca_fingerprint=""
-tls_trust_configured=false
 
 pac_pid=""
 squid_pid=""
@@ -92,16 +89,6 @@ cleanup() {
 		sudo dseditgroup -o delete "$PROXY_GROUP"
 	elif $member_added; then
 		sudo dseditgroup -o edit -d "$(id -un)" -t user "$PROXY_GROUP"
-	fi
-	if $tls_trust_configured; then
-		if ! sudo security remove-trusted-cert -d "$TLS_CA"; then
-			echo "Failed to remove trust for the fixture CA ($tls_ca_fingerprint)" >&2
-			exit_code=1
-		fi
-		if ! sudo security delete-certificate -Z "$tls_ca_fingerprint" "$TLS_KEYCHAIN"; then
-			echo "Failed to remove the fixture CA from $TLS_KEYCHAIN ($tls_ca_fingerprint)" >&2
-			exit_code=1
-		fi
 	fi
 
 	if [[ $exit_code -ne 0 ]]; then
@@ -175,14 +162,6 @@ EOF
 		-keyout "$TLS_KEY" -out "$TEMP_ROOT/server.csr"
 	openssl x509 -req -in "$TEMP_ROOT/server.csr" -CA "$TLS_CA" -CAkey "$TEMP_ROOT/ca.key" \
 		-CAcreateserial -days 1 -sha256 -extfile "$TEMP_ROOT/tls.cnf" -extensions server -out "$TLS_CERT"
-	tls_ca_fingerprint="$(openssl x509 -in "$TLS_CA" -noout -fingerprint -sha1 | cut -d= -f2 | tr -d ':')"
-	if [[ ! "$tls_ca_fingerprint" =~ ^[0-9A-Fa-f]{40}$ ]]; then
-		echo "Unable to identify the fixture CA for safe keychain cleanup" >&2
-		exit 1
-	fi
-	# Clean up even if certificate import or trust setup fails partway.
-	tls_trust_configured=true
-	sudo security add-trusted-cert -d -r trustRoot -k "$TLS_KEYCHAIN" "$TLS_CA"
 
 	cat > "$KERBEROS_CONFIG" <<EOF
 [libdefaults]
