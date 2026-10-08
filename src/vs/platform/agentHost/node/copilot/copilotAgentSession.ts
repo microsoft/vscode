@@ -1115,6 +1115,12 @@ export class CopilotAgentSession extends Disposable {
 	private _developmentRecoverableError: { readonly turnId: string; remainingFailures: number; readonly totalFailures: number } | undefined;
 	private readonly _developmentErrorInjectionEnabled: boolean;
 	private _dropLateRootTurnEvents = false;
+	/**
+	 * Set when a root `session.error` ends the protocol turn. The SDK still emits
+	 * that failed execution's terminal `session.idle` afterwards, which can arrive
+	 * after the client has already started the next turn.
+	 */
+	private _failedExecutionIdlePending = false;
 	private _agentMergeTurn = false;
 	/** MCP servers whose tools Agent Merge turns deny because they expose GitHub. */
 	private readonly _agentMergeRestrictedMcpServerNames: ReadonlySet<string>;
@@ -6528,6 +6534,7 @@ export class CopilotAgentSession extends Disposable {
 			// A turn-starting notification is an authoritative new root boundary,
 			// even though it completes without an assistant.turn_start event.
 			this._dropLateRootTurnEvents = false;
+			this._failedExecutionIdlePending = false;
 			const turnId = generateUuid();
 			this.resetTurnState(turnId);
 			this._emitAction({
@@ -6570,6 +6577,7 @@ export class CopilotAgentSession extends Disposable {
 			// normal send. Zero-message continuation has no such echo and remains
 			// quarantined until assistant.turn_start instead.
 			this._dropLateRootTurnEvents = false;
+			this._failedExecutionIdlePending = false;
 			// First SDK event for the loop: promote the turn out of `pending`.
 			this._currentTurn.value?.markRunning();
 			const steering = this._takeMatchingPendingSteering(e.data.content);
@@ -7269,6 +7277,10 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onIdle(async e => {
 			this._logService.info(`[Copilot:${sessionId}] Session idle`);
+			const idleFromFailedExecution = !e.agentId && !e.data.aborted && this._failedExecutionIdlePending;
+			if (!e.agentId) {
+				this._failedExecutionIdlePending = false;
+			}
 			const abortingTurn = this._abortingTurn;
 			this._abortingTurn = undefined;
 			if (e.data.aborted) {
@@ -7322,6 +7334,10 @@ export class CopilotAgentSession extends Disposable {
 			}
 			if (turn === this._resumingTurnAwaitingProviderStart && !turn.providerTurnStarted) {
 				this._logService.trace(`[Copilot:${sessionId}] Ignoring idle from the failed execution while resumed turn ${turn.id} awaits provider start`);
+				return;
+			}
+			if (idleFromFailedExecution && !turn.providerTurnStarted) {
+				this._logService.trace(`[Copilot:${sessionId}] Ignoring idle from the failed execution while turn ${turn.id} awaits provider start`);
 				return;
 			}
 			// Only a `running` turn is completed by a normal idle. A `pending`
@@ -7480,6 +7496,7 @@ export class CopilotAgentSession extends Disposable {
 			if (!parentToolCallId) {
 				if (!e.agentId) {
 					this._completeFusionPhaseChats();
+					this._failedExecutionIdlePending = true;
 				}
 				this._clearActiveTurn();
 			}
@@ -9078,6 +9095,9 @@ export class CopilotAgentSession extends Disposable {
 			turn?.markRunning();
 			if (!e.agentId) {
 				this._dropLateRootTurnEvents = false;
+				// The SDK starts the next turn only after it has emitted the failed
+				// execution's idle, so any idle from here on belongs to this turn.
+				this._failedExecutionIdlePending = false;
 				if (this._resumingTurnAwaitingProviderStart === turn) {
 					this._resumingTurnAwaitingProviderStart = undefined;
 				}
