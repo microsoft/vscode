@@ -85,6 +85,11 @@ const suites: readonly ISuite[] = [
 		label: 'Copilot managed settings',
 		file: 'src/vs/platform/agentHost/test/node/e2e/providers/copilotManagedSettingsAgentHostE2E.integrationTest.ts',
 	},
+	{
+		id: 'copilot-repository-plugins',
+		label: 'Copilot repository plugins',
+		file: 'src/vs/platform/agentHost/test/node/e2e/providers/copilotRepositoryPluginAgentHostE2E.integrationTest.ts',
+	},
 ];
 
 async function main(): Promise<void> {
