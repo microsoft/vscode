@@ -1004,7 +1004,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			...(stabilityOrderedPromptEnabled ? { STABILITY_ORDERED_SYSTEM_PROMPT_V2: true } : {}),
 			...(hydraFusionV2Enabled ? { HYDRAFUSION_PLAN_V2: true } : {}),
 		};
-		const enableCustomTerminalTool = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.EnableCustomTerminalTool) === true;
+		const enableCustomTerminalTool = process.platform !== 'win32' && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.EnableCustomTerminalTool) === true;
 		let shellToolsPromise: ReturnType<typeof createShellTools> | Promise<[]> = Promise.resolve([]);
 		if (enableCustomTerminalTool) {
 			if (!plan.shellManager) {

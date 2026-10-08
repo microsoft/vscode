@@ -42,10 +42,13 @@ it does not parse or enforce their rule grammar.
 Resolve initial account policy before choosing or activating Local. Governed new
 chats select Copilot Agent Host, including explicit or remembered Local choices.
 An unavailable host must produce an actionable error, never a Local fallback.
-Existing Local transcripts remain readable, but sending, retrying, and queueing
-are blocked by a policy-specific read-only banner. Continue in Copilot imports the
-transcript and unsent draft/attachments without sending or copying model and
-permission settings. The destination uses its normal policy-constrained defaults.
+Displaying an existing non-archived Local chat automatically moves its transcript
+and unsent draft/attachments to Copilot, without sending or copying model and
+permission settings. Background history loads do not migrate chats. The original
+is archived only after the destination opens, and archived originals remain
+readable without migrating again. On failure, the original remains read-only with
+a Move to Copilot retry action; sending, retrying requests, and queueing stay blocked.
+The destination uses its normal policy-constrained defaults.
 Removing the requirement restores normal Local eligibility without rewriting preferences.
 Absent or effective empty lists do not impose this requirement; malformed lists
 must reach runtime validation rather than select Local. Other `permissions.*`

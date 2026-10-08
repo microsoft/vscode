@@ -455,6 +455,9 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 				store.add(await fixture.launcher.launch({ ...fixture.plan, shellManager }, testRuntime));
 
 				assert.deepStrictEqual(fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.enabled), [selection === 'on']);
+				if (process.platform === 'win32') {
+					assert.deepStrictEqual(fixture.captured?.tools?.filter(tool => tool.name === 'bash' || tool.name === 'powershell'), []);
+				}
 			});
 		}
 
