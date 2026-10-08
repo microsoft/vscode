@@ -5,9 +5,11 @@
 
 import assert from 'assert';
 import type electron from 'electron';
+import { Emitter } from '../../../../base/common/event.js';
+import { ICodeWindow } from '../../../window/electron-main/window.js';
 import { upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { getNativeTabState, restoreNativeTabGroups } from '../../electron-main/nativeTabs.js';
+import { getNativeTabState, restoreNativeTabGroups, waitForNativeTabWindow } from '../../electron-main/nativeTabs.js';
 
 interface ITestWindow extends electron.BrowserWindow {
 	getTabbedWindows(): ITestWindow[];
@@ -17,7 +19,7 @@ interface ITestWindow extends electron.BrowserWindow {
 }
 
 suite('Native Tab Session', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createWindows(ids: number[], destroyed = new Set<number>()): ITestWindow[] {
 		const groups = new Map<number, { tabs: ITestWindow[]; selected: ITestWindow }>();
@@ -42,6 +44,44 @@ suite('Native Tab Session', () => {
 			return window;
 		});
 	}
+
+	for (const event of ['ready', 'close', 'destroy'] as const) {
+		test(`completes startup waiting when a window signals ${event}`, async () => {
+			const ready = disposables.add(new Emitter<void>());
+			const close = disposables.add(new Emitter<void>());
+			const destroy = disposables.add(new Emitter<void>());
+			const window = upcastPartial<ICodeWindow>({
+				win: createWindows([1])[0],
+				isReady: false,
+				onDidSignalReady: ready.event,
+				onDidClose: close.event,
+				onDidDestroy: destroy.event
+			});
+			const pending = waitForNativeTabWindow(window);
+			({ ready, close, destroy })[event].fire();
+			await pending;
+		});
+	}
+
+	test('bounds startup waiting when a renderer never becomes ready', async () => {
+		const ready = disposables.add(new Emitter<void>());
+		const close = disposables.add(new Emitter<void>());
+		const destroy = disposables.add(new Emitter<void>());
+		await waitForNativeTabWindow(upcastPartial<ICodeWindow>({
+			win: createWindows([1])[0],
+			isReady: false,
+			onDidSignalReady: ready.event,
+			onDidClose: close.event,
+			onDidDestroy: destroy.event
+		}), 0);
+	});
+
+	test('does not wait for ready or destroyed windows', async () => {
+		await Promise.all([
+			waitForNativeTabWindow(upcastPartial<ICodeWindow>({ win: createWindows([1])[0], isReady: true })),
+			waitForNativeTabWindow(upcastPartial<ICodeWindow>({ win: createWindows([2], new Set([2]))[0], isReady: false }))
+		]);
+	});
 
 	test('restores independent groups and three tabs in saved order', () => {
 		const windows = createWindows([1, 2, 3, 4, 5]);

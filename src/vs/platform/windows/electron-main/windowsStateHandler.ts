@@ -160,8 +160,9 @@ export class WindowsStateHandler extends Disposable {
 			const openedWindows = this.closedNativeTabGroups.flat();
 			const liveWindows = this.windowsMainService.getWindows().filter(window => !window.isExtensionDevelopmentHost);
 			for (const window of liveWindows) {
-				if (!openedWindows.some(state => state.windowId === window.id)) {
-					openedWindows.push(this.toWindowState(window));
+				const state = this.toWindowState(window);
+				if (!updateNativeTabWindowState(openedWindows, state)) {
+					openedWindows.push(state);
 				}
 			}
 			const activeWindow = this.windowsMainService.getLastActiveWindow();
@@ -274,6 +275,7 @@ export class WindowsStateHandler extends Disposable {
 
 		// On Window close, update our stored UI state of this window
 		const state: IWindowState = this.toWindowState(window);
+		updateNativeTabWindowState(this.closedNativeTabGroups.flat(), state);
 		if (window.isExtensionDevelopmentHost && !window.isExtensionTestHost) {
 			this._state.lastPluginDevelopmentHostWindow = state; // do not let test run window state overwrite our extension development state
 		}
@@ -489,6 +491,17 @@ export class WindowsStateHandler extends Disposable {
 
 		return state;
 	}
+}
+
+export function updateNativeTabWindowState(states: readonly IWindowState[], state: IWindowState): boolean {
+	const savedState = states.find(candidate => candidate.windowId === state.windowId);
+	if (!savedState || state.windowId === undefined) {
+		return false;
+	}
+
+	// Keep the original tab membership while refreshing the project and UI state.
+	Object.assign(savedState, state, { nativeTabs: savedState.nativeTabs });
+	return true;
 }
 
 export function restoreWindowsState(data: ISerializedWindowsState | undefined): IWindowsState {

@@ -4,7 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import electron from 'electron';
+import { disposableTimeout } from '../../../base/common/async.js';
+import { Event } from '../../../base/common/event.js';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { isMacintosh } from '../../../base/common/platform.js';
+import { ICodeWindow } from '../../window/electron-main/window.js';
 
 export interface INativeTabState {
 	readonly group: number;
@@ -47,6 +51,22 @@ export function selectNativeTab(window: electron.BrowserWindow): void {
 		const nativeWindow = window as electron.BrowserWindow & INativeTabAPI;
 		nativeWindow.selectTab?.();
 	}
+}
+
+export function waitForNativeTabWindow(window: Pick<ICodeWindow, 'win' | 'isReady' | 'onDidSignalReady' | 'onDidClose' | 'onDidDestroy'>, timeout = 10000): Promise<void> {
+	if (window.isReady || !window.win || window.win.isDestroyed()) {
+		return Promise.resolve();
+	}
+
+	return new Promise<void>(resolve => {
+		const disposables = new DisposableStore();
+		const complete = () => {
+			disposables.dispose();
+			resolve();
+		};
+		disposables.add(Event.any(window.onDidSignalReady, window.onDidClose, window.onDidDestroy)(complete));
+		disposableTimeout(complete, timeout, disposables);
+	});
 }
 
 export function restoreNativeTabGroups(windows: readonly { window: electron.BrowserWindow; state?: INativeTabState }[]): electron.BrowserWindow[] {

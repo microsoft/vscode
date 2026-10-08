@@ -60,7 +60,7 @@ import { ICSSDevelopmentService } from '../../cssDev/node/cssDevService.js';
 import { ResourceSet } from '../../../base/common/map.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { resolveAgentsWindowFolder, sendAgentsWindowOpenIntent } from './agentsWindow.js';
-import { restoreNativeTabGroups, selectNativeTab } from './nativeTabs.js';
+import { restoreNativeTabGroups, selectNativeTab, waitForNativeTabWindow } from './nativeTabs.js';
 
 //#region Helper Interfaces
 
@@ -431,8 +431,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		if (restoreNativeTabs) {
 			const selectedTabs = restoreNativeTabGroups(usedWindows.flatMap(window => window.win ? [{ window: window.win, state: this.windowsStateHandler.getWindowState(window, nativeTabSession)?.nativeTabs }] : []));
 			// Renderers can show and focus their windows while loading. Restore the
-			// selected tab after all startup windows have finished becoming ready.
-			void Promise.all(usedWindows.map(window => window.ready())).then(() => {
+			// selected tab once startup windows are ready, closed or timed out.
+			void Promise.all(usedWindows.map(window => waitForNativeTabWindow(window))).then(() => {
 				for (const tab of selectedTabs) {
 					selectNativeTab(tab);
 				}
