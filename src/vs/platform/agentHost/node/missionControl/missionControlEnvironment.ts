@@ -165,7 +165,7 @@ export class MissionControlEnvironment extends Disposable {
 				if (registered && previous && Date.now() >= this._heartbeatNotBefore) {
 					await this._request(
 						`cmc_internal/api/agents/environments/${encodeURIComponent(registered.id)}/heartbeat`,
-						this._createHeartbeat('offline'),
+						this._createHeartbeat('offline', undefined, previous),
 						previous,
 					);
 				}
@@ -182,9 +182,9 @@ export class MissionControlEnvironment extends Disposable {
 		return this._host.getIdentityApiBase?.() ?? 'https://api.github.com';
 	}
 
-	private _createHeartbeat(status: 'online' | 'offline', capabilities?: IEnvironmentCapabilities): object {
+	private _createHeartbeat(status: 'online' | 'offline', capabilities?: IEnvironmentCapabilities, options = this._options): object {
 		return {
-			name: this._host.name,
+			name: options?.name ?? this._host.name,
 			status,
 			...(capabilities ? { capabilities } : {}),
 			...(this._sealing.value ? { encryption_keys: this._sealing.value.advertisedKeys } : {}),
@@ -193,7 +193,7 @@ export class MissionControlEnvironment extends Disposable {
 
 	private async _createRegistration(capabilities: IEnvironmentCapabilities, remoteControl: Record<string, unknown> | undefined): Promise<object> {
 		return {
-			name: this._host.name,
+			name: this._options?.name ?? this._host.name,
 			kind: 'user-local',
 			compute_id: await this._computeId(),
 			capabilities,
@@ -233,7 +233,8 @@ export class MissionControlEnvironment extends Disposable {
 		const endpoint = new URL(options.baseUrl);
 		if ((options.live ? endpoint.protocol !== 'https:' : endpoint.protocol !== 'http:' || !['localhost', '127.0.0.1', '[::1]'].includes(endpoint.hostname))
 			|| (options.live && endpoint.pathname !== '/')
-			|| endpoint.username || endpoint.password || endpoint.search || endpoint.hash || !options.credential || !options.accountId || (!options.live && options.roots.length === 0)) {
+			|| endpoint.username || endpoint.password || endpoint.search || endpoint.hash || !options.credential || !options.accountId || (!options.live && options.roots.length === 0)
+			|| (options.name !== undefined && !options.name.trim())) {
 			throw new Error('Mission Control requires a safe origin, credential, account, and project roots');
 		}
 		if (this._ownerAccount && this._ownerAccount !== options.accountId) {
@@ -264,7 +265,7 @@ export class MissionControlEnvironment extends Disposable {
 			throw new Error('Mission Control projects must be absolute local directories');
 		}
 		if (this._options) {
-			if (this._options.baseUrl !== options.baseUrl || this._options.live !== options.live || this._options.requireConnectionBinding !== options.requireConnectionBinding
+			if (this._options.baseUrl !== options.baseUrl || this._options.name !== options.name || this._options.live !== options.live || this._options.requireConnectionBinding !== options.requireConnectionBinding
 				|| (!options.live && JSON.stringify(this._roots) !== JSON.stringify(roots))) {
 				throw new Error('Mission Control is already configured; disable it before changing its scope');
 			}
@@ -308,7 +309,7 @@ export class MissionControlEnvironment extends Disposable {
 				const previous = this._options;
 				this._withdraw();
 				if (registered && previous && Date.now() >= this._heartbeatNotBefore) {
-					await this._request(`cmc_internal/api/agents/environments/${encodeURIComponent(registered.id)}/heartbeat`, this._createHeartbeat('offline'), previous);
+					await this._request(`cmc_internal/api/agents/environments/${encodeURIComponent(registered.id)}/heartbeat`, this._createHeartbeat('offline', undefined, previous), previous);
 				}
 			} catch (offlineError) {
 				this._host.onError(offlineError);

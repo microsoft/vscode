@@ -20,19 +20,10 @@ const NETWORK_PROXY_HEADER_NAME = 'X-VSCode-Smoke-Proxy';
 
 function mockServerStartOptions(logger: (message: string) => void, captureRequests = false) {
 	const requiredRequestHeaderValue = process.env.VSCODE_SMOKE_TEST_PROXY_HEADER;
-	const tlsCertPath = process.env.VSCODE_SMOKE_TEST_TLS_CERT;
-	const tlsKeyPath = process.env.VSCODE_SMOKE_TEST_TLS_KEY;
-	if (!!tlsCertPath !== !!tlsKeyPath) {
-		throw new Error('VSCODE_SMOKE_TEST_TLS_CERT and VSCODE_SMOKE_TEST_TLS_KEY must be set together');
-	}
 	return {
 		logger,
 		verbose: true,
 		captureRequests,
-		tls: tlsCertPath && tlsKeyPath ? {
-			cert: fs.readFileSync(tlsCertPath),
-			key: fs.readFileSync(tlsKeyPath),
-		} : undefined,
 		requiredRequestHeader: requiredRequestHeaderValue ? { name: NETWORK_PROXY_HEADER_NAME, value: requiredRequestHeaderValue } : undefined,
 		trustedRequestHost: requiredRequestHeaderValue ? process.env.VSCODE_SMOKE_TEST_MOCK_HOST : undefined,
 	};
@@ -805,6 +796,8 @@ function setupAgentHostSuite(logger: Logger, config: {
 				// scratch, so set the production default explicitly rather than
 				// relying on configuration registration timing.
 				'http.proxySupport': 'override',
+				// Worktree branch naming exercises the host's Kerberos-authenticated CAPI fetch.
+				...(process.env.VSCODE_SMOKE_TEST_PROXY_HEADER ? { 'sessions.useWorktree': true } : {}),
 				'chat.allowAnonymousAccess': true,
 				'github.copilot.chat.githubMcpServer.enabled': false,
 				'chat.agentHost.ahpJsonlLoggingEnabled': true,

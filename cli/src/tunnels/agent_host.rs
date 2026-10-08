@@ -36,7 +36,7 @@ use crate::state::LauncherPaths;
 use crate::update_service::{
 	unzip_downloaded_release, Platform, Release, TargetKind, UpdateService,
 };
-use crate::util::command::{kill_tree, new_script_command};
+use crate::util::command::{kill_tree, new_script_command, DetachFromParent};
 use crate::util::errors::{wrap, AnyError, CodeError};
 use crate::util::http::{self, BoxedHttp};
 use crate::util::http::{empty_body, full_body, HyperBody};
@@ -62,6 +62,29 @@ pub const STARTUP_TIMEOUT: Duration = Duration::from_secs(30);
 /// startup; its presence is what tells the server that it has a managing
 /// CLI and may therefore advertise the management RPC method to clients.
 pub const MANAGEMENT_SOCKET_ENV: &str = "VSCODE_AGENT_HOST_MANAGEMENT_SOCKET";
+const GITHUB_ENVIRONMENT_OPTIONS_ENV: &str = "VSCODE_CLI_GITHUB_ENVIRONMENT_OPTIONS";
+const GITHUB_ENVIRONMENT_READY_PREFIX: &str = "__VSCODE_GITHUB_ENVIRONMENT_READY__:";
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GithubEnvironmentConfig {
+	pub base_url: String,
+	pub account_id: String,
+	pub credential: String,
+	pub roots: Vec<String>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub name: Option<String>,
+	pub live: bool,
+}
+
+impl std::fmt::Debug for GithubEnvironmentConfig {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		f.debug_struct("GithubEnvironmentConfig")
+			.field("name", &self.name)
+			.field("roots", &self.roots)
+			.finish_non_exhaustive()
+	}
+}
 
 /// Environment variable holding a commit SHA used to override the agent
 /// host version the *first* time it is resolved. When set, the agent host
@@ -98,6 +121,8 @@ const UPGRADE_KILL_DELAY: Duration = Duration::from_secs(3);
 #[derive(Clone, Debug)]
 pub struct AgentHostConfig {
 	pub server_data_dir: Option<String>,
+	pub user_data_dir: Option<String>,
+	pub github_environment: Option<GithubEnvironmentConfig>,
 	pub telemetry_level: Option<TelemetryLevel>,
 	pub without_connection_token: bool,
 	pub connection_token: Option<String>,
@@ -128,6 +153,7 @@ pub struct AgentHostManager {
 	update_service: UpdateService,
 	/// The latest known release, with the time it was checked.
 	latest_release: Mutex<Option<(Instant, Release)>>,
+	starting: Mutex<()>,
 	/// The currently running server, if any.
 	running: Mutex<Option<RunningServer>>,
 	/// Barrier that opens when a server is ready (socket path available).
@@ -170,6 +196,7 @@ impl AgentHostManager {
 			platform,
 			cache,
 			latest_release: Mutex::new(None),
+			starting: Mutex::new(()),
 			running: Mutex::new(None),
 			ready: Mutex::new(None),
 			management_socket_path: get_socket_name(),
@@ -180,7 +207,8 @@ impl AgentHostManager {
 	}
 
 	/// Returns an endpoint to a running agent host, starting one if needed.
-	async fn ensure_server(self: &Arc<Self>) -> Result<PathBuf, CodeError> {
+	pub async fn ensure_server(self: &Arc<Self>) -> Result<PathBuf, CodeError> {
+		let _starting = self.starting.lock().await;
 		// Fast path: if we already have a barrier, wait on it
 		{
 			let ready = self.ready.lock().await;
@@ -188,7 +216,10 @@ impl AgentHostManager {
 				if barrier.is_open() {
 					// Check if the process is still running
 					let running = self.running.lock().await;
-					if running.is_some() {
+					if running
+						.as_ref()
+						.is_some_and(|server| !server.exited.is_open())
+					{
 						return barrier
 							.clone()
 							.wait()
@@ -211,6 +242,22 @@ impl AgentHostManager {
 
 		// Need to start a new server
 		self.start_server().await
+	}
+
+	pub async fn maintain_server(self: &Arc<Self>) -> Result<(), CodeError> {
+		loop {
+			self.ensure_server().await?;
+			let exited = self
+				.running
+				.lock()
+				.await
+				.as_ref()
+				.map(|server| server.exited.clone());
+			if let Some(mut exited) = exited {
+				let _ = exited.wait().await;
+			}
+			warning!(self.log, "GitHub environment server exited; restarting");
+		}
 	}
 
 	/// Starts the server with the latest already-downloaded version.
@@ -265,21 +312,35 @@ impl AgentHostManager {
 
 		let agent_host_socket = get_socket_name();
 		let mut cmd = new_script_command(&executable);
-		cmd.stdin(std::process::Stdio::null());
+		if self.config.github_environment.is_some() {
+			cmd.stdin(std::process::Stdio::piped());
+			cmd.detach_from_parent();
+		} else {
+			cmd.stdin(std::process::Stdio::null());
+		}
 		cmd.stderr(std::process::Stdio::piped());
 		cmd.stdout(std::process::Stdio::piped());
 		cmd.arg("--socket-path");
 		cmd.arg(get_socket_name());
 		cmd.arg("--agent-host-path");
 		cmd.arg(&agent_host_socket);
-		cmd.args([
-			"--start-server",
-			"--accept-server-license-terms",
-			"--enable-remote-auto-shutdown",
-		]);
+		cmd.args(["--start-server", "--accept-server-license-terms"]);
+		if let Some(options) = &self.config.github_environment {
+			cmd.env(
+				GITHUB_ENVIRONMENT_OPTIONS_ENV,
+				serde_json::to_string(options).unwrap(),
+			);
+		} else {
+			cmd.arg("--enable-remote-auto-shutdown");
+			cmd.env_remove(GITHUB_ENVIRONMENT_OPTIONS_ENV);
+		}
 
 		if let Some(a) = &self.config.server_data_dir {
 			cmd.arg("--server-data-dir");
+			cmd.arg(a);
+		}
+		if let Some(a) = &self.config.user_data_dir {
+			cmd.arg("--user-data-dir");
 			cmd.arg(a);
 		}
 		if let Some(level) = self.config.telemetry_level {
@@ -303,6 +364,8 @@ impl AgentHostManager {
 				return;
 			}
 		};
+		// Child::wait closes child.stdin, even when its future is cancelled by select!.
+		let mut stdin = child.stdin.take();
 
 		// Held until this server process ends; see `AgentHostManager::activity`.
 		let activity_guard = self.activity.as_ref().map(|a| a.client_connected());
@@ -316,7 +379,12 @@ impl AgentHostManager {
 		// Wait for readiness with a timeout
 		let mut opener = Some(opener);
 		let socket_path = agent_host_socket.clone();
-		let startup_deadline = tokio::time::sleep(STARTUP_TIMEOUT);
+		let startup_timeout = if self.config.github_environment.is_some() {
+			Duration::from_secs(5 * 60)
+		} else {
+			STARTUP_TIMEOUT
+		};
+		let startup_deadline = tokio::time::sleep(startup_timeout);
 		tokio::pin!(startup_deadline);
 
 		let mut ready = false;
@@ -324,22 +392,37 @@ impl AgentHostManager {
 			tokio::select! {
 				Ok(Some(l)) = stdout.next_line() => {
 					debug!(self.log, "[{} stdout]: {}", commit_prefix, l);
-					if !ready && l.contains("Agent host server listening on") {
-						ready = true;
-						if let Some(o) = opener.take() {
-							o.open(Ok(socket_path.clone()));
+					let is_ready = if self.config.github_environment.is_some() {
+						if let Some(id) = l.strip_prefix(GITHUB_ENVIRONMENT_READY_PREFIX) {
+							info!(self.log, "GitHub environment ready (ID {})", id);
+							true
+						} else {
+							false
 						}
+					} else {
+						l.contains("Agent host server listening on")
+					};
+					if !ready && is_ready {
+						ready = true;
 					}
 				}
 				Ok(Some(l)) = stderr.next_line() => {
 					debug!(self.log, "[{} stderr]: {}", commit_prefix, l);
 				}
 				_ = &mut startup_deadline, if !ready => {
+					if self.config.github_environment.is_some() {
+						if let Some(pid) = child.id() {
+							let _ = kill_tree(pid).await;
+						}
+						let _ = child.start_kill();
+						let _ = child.wait().await;
+						if let Some(o) = opener.take() {
+							o.open(Err("GitHub environment did not become ready within 5 minutes; check the agent host supervisor log".into()));
+						}
+						return;
+					}
 					warning!(self.log, "[{}]: Server did not become ready within {}s", commit_prefix, STARTUP_TIMEOUT.as_secs());
 					// Don't fail — the server may still start up, just slowly
-					if let Some(o) = opener.take() {
-						o.open(Ok(socket_path.clone()));
-					}
 					ready = true;
 				}
 				e = child.wait() => {
@@ -370,6 +453,9 @@ impl AgentHostManager {
 				kill,
 			});
 		}
+		if let Some(opener) = opener.take() {
+			opener.open(Ok(socket_path));
+		}
 
 		info!(self.log, "[{}]: Server ready", commit_prefix);
 
@@ -398,21 +484,37 @@ impl AgentHostManager {
 		let status = tokio::select! {
 			status = child.wait() => status,
 			Ok(reap_timeout) = &mut kill_rx => {
-				if let Some(pid) = child.id() {
-					let _ = kill_tree(pid).await;
-				}
-				// Bound the wait so a process that ignores SIGTERM can't
-				// wedge the supervisor's shutdown or upgrade path.
-				match tokio::time::timeout(reap_timeout, child.wait()).await {
-					Ok(status) => status,
-					Err(_) => {
-						warning!(
-							self.log,
-							"Server did not exit within {:?} after kill_tree; escalating to SIGKILL",
-							reap_timeout
-						);
-						let _ = child.start_kill();
-						child.wait().await
+				let graceful_status = if self.config.github_environment.is_some() {
+					drop(stdin.take());
+					match tokio::time::timeout(reap_timeout, child.wait()).await {
+						Ok(status) => Some(status),
+						Err(_) => {
+							warning!(self.log, "GitHub environment did not shut down gracefully; terminating it");
+							None
+						}
+					}
+				} else {
+					None
+				};
+				if let Some(status) = graceful_status {
+					status
+				} else {
+					if let Some(pid) = child.id() {
+						let _ = kill_tree(pid).await;
+					}
+					// Bound the wait so a process that ignores SIGTERM can't
+					// wedge the supervisor's shutdown or upgrade path.
+					match tokio::time::timeout(reap_timeout, child.wait()).await {
+						Ok(status) => status,
+						Err(_) => {
+							warning!(
+								self.log,
+								"Server did not exit within {:?} after kill_tree; escalating to SIGKILL",
+								reap_timeout
+							);
+							let _ = child.start_kill();
+							child.wait().await
+						}
 					}
 				}
 			}
@@ -646,8 +748,12 @@ impl AgentHostManager {
 	/// The kill is carried out by the task that owns the process, before it
 	/// is reaped, so it can't target a PID the OS has already reused.
 	pub async fn kill_running_server(&self) {
-		self.kill_running_server_within(Duration::from_secs(5))
-			.await
+		let timeout = if self.config.github_environment.is_some() {
+			Duration::from_secs(25)
+		} else {
+			Duration::from_secs(5)
+		};
+		self.kill_running_server_within(timeout).await
 	}
 
 	/// [`Self::kill_running_server`], escalating to a forced kill if the
@@ -878,7 +984,7 @@ impl AgentHostManager {
 			self_clone.kill_running_server().await;
 			// Eagerly spin up the new server so the next dial sees a
 			// ready endpoint instead of paying for startup again.
-			match self_clone.start_server().await {
+			match self_clone.ensure_server().await {
 				Ok(_) => info!(self_clone.log, "Restarted agent host on {}", release_commit),
 				Err(e) => warning!(
 					self_clone.log,
@@ -2231,6 +2337,8 @@ mod tests {
 			Arc::new(ReqwestSimpleHttp::new()),
 			AgentHostConfig {
 				server_data_dir: None,
+				user_data_dir: None,
+				github_environment: None,
 				telemetry_level: None,
 				without_connection_token: true,
 				connection_token: None,
@@ -2277,6 +2385,264 @@ mod tests {
 			tokio::spawn(async move { manager.run_server(release, server_dir, opener).await });
 		assert!(ready.wait().await.unwrap().is_ok());
 		server
+	}
+
+	#[cfg(unix)]
+	#[tokio::test]
+	async fn github_environment_waits_for_remote_readiness_and_forwards_bootstrap() {
+		let dir = tempfile::tempdir().unwrap();
+		let mut manager = make_test_manager_with_activity(dir.path(), None);
+		let options = GithubEnvironmentConfig {
+			base_url: "https://api.github.com".into(),
+			account_id: "123".into(),
+			credential: "test-credential".into(),
+			roots: vec![dir.path().to_string_lossy().into_owned()],
+			name: Some("build-machine".into()),
+			live: true,
+		};
+		let config = &mut Arc::get_mut(&mut manager).unwrap().config;
+		config.github_environment = Some(options.clone());
+		config.user_data_dir = Some(dir.path().join("profile").to_string_lossy().into_owned());
+		let gate = dir.path().join("relay-ready");
+		let bootstrap = dir.path().join("bootstrap.json");
+		let argv = dir.path().join("argv");
+		let manager_for_start = manager.clone();
+		let path = dir.path().to_path_buf();
+		let body = format!(
+			"printf '%s' \"$VSCODE_CLI_GITHUB_ENVIRONMENT_OPTIONS\" > '{}'\n\
+			 printf '%s\\n' \"$@\" > '{}'\n\
+			 i=0; while [ ! -e '{}' ] && [ $i -lt 100 ]; do sleep 0.05; i=$((i+1)); done\n\
+			 echo '{}environment-123'",
+			bootstrap.display(),
+			argv.display(),
+			gate.display(),
+			GITHUB_ENVIRONMENT_READY_PREFIX,
+		);
+		let mut start =
+			tokio::spawn(async move { start_fake_server(&manager_for_start, &path, &body).await });
+		let early = tokio::time::timeout(Duration::from_millis(200), &mut start).await;
+		std::fs::write(&gate, b"").unwrap();
+		let server = tokio::time::timeout(Duration::from_secs(5), start)
+			.await
+			.unwrap()
+			.unwrap();
+		server.await.unwrap();
+		assert!(
+			early.is_err(),
+			"local listener must not report GitHub environment readiness"
+		);
+		assert_eq!(
+			serde_json::from_str::<serde_json::Value>(&std::fs::read_to_string(bootstrap).unwrap())
+				.unwrap(),
+			serde_json::to_value(&options).unwrap()
+		);
+		let argv = std::fs::read_to_string(argv).unwrap();
+		assert!(argv.contains("--user-data-dir\n"));
+		assert!(!argv.contains("--enable-remote-auto-shutdown"));
+		assert!(!argv.contains("test-credential"));
+		assert!(!format!("{options:?}").contains("test-credential"));
+	}
+
+	#[cfg(unix)]
+	#[tokio::test]
+	async fn github_environment_shuts_down_by_closing_parent_stdin() {
+		let dir = tempfile::tempdir().unwrap();
+		let mut manager = make_test_manager_with_activity(dir.path(), None);
+		Arc::get_mut(&mut manager)
+			.unwrap()
+			.config
+			.github_environment = Some(GithubEnvironmentConfig {
+			base_url: "https://api.github.com".into(),
+			account_id: "123".into(),
+			credential: "test-credential".into(),
+			roots: vec![dir.path().to_string_lossy().into_owned()],
+			name: None,
+			live: true,
+		});
+		let stopped = dir.path().join("graceful-stop");
+		let server = start_fake_server(
+			&manager,
+			dir.path(),
+			&format!(
+				"echo '{}environment-123'\nread ignored\nprintf 'withdrawn' > '{}'",
+				GITHUB_ENVIRONMENT_READY_PREFIX,
+				stopped.display(),
+			),
+		)
+		.await;
+		tokio::time::timeout(Duration::from_secs(3), manager.kill_running_server())
+			.await
+			.unwrap();
+		server.await.unwrap();
+		assert_eq!(std::fs::read_to_string(stopped).unwrap(), "withdrawn");
+	}
+
+	#[cfg(unix)]
+	async fn make_cached_github_environment_manager(
+		dir: &Path,
+		body: &str,
+	) -> Arc<AgentHostManager> {
+		use std::os::unix::fs::PermissionsExt;
+
+		let mut manager = make_test_manager(dir);
+		Arc::get_mut(&mut manager)
+			.unwrap()
+			.config
+			.github_environment = Some(GithubEnvironmentConfig {
+			base_url: "https://api.github.com".into(),
+			account_id: "123".into(),
+			credential: "test-credential".into(),
+			roots: vec![dir.to_string_lossy().into_owned()],
+			name: None,
+			live: true,
+		});
+		let release = Release {
+			name: String::new(),
+			commit: "0123456789abcdef".into(),
+			platform: Platform::LinuxX64,
+			target: TargetKind::Server,
+			quality: Quality::Insiders,
+		};
+		let bin = dir
+			.join(get_server_folder_name(release.quality, &release.commit))
+			.join(SERVER_FOLDER_NAME)
+			.join("bin");
+		std::fs::create_dir_all(&bin).unwrap();
+		let script = bin.join(release.quality.server_entrypoint());
+		std::fs::write(&script, format!("#!/bin/sh\n{body}\n")).unwrap();
+		std::fs::set_permissions(script, std::fs::Permissions::from_mode(0o755)).unwrap();
+		*manager.latest_release.lock().await = Some((Instant::now(), release));
+		manager
+	}
+
+	#[cfg(unix)]
+	#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+	async fn github_environment_readiness_waits_for_running_server_state() {
+		let dir = tempfile::tempdir().unwrap();
+		let emitted = dir.path().join("readiness-emitted");
+		let manager = make_cached_github_environment_manager(
+			dir.path(),
+			&format!(
+				"echo '{}environment-123'\nprintf 'ready' > '{}'\nread ignored",
+				GITHUB_ENVIRONMENT_READY_PREFIX,
+				emitted.display(),
+			),
+		)
+		.await;
+		let running = manager.running.lock().await;
+		let manager_for_start = manager.clone();
+		let start = tokio::spawn(async move { manager_for_start.ensure_server().await });
+		tokio::time::timeout(Duration::from_secs(5), async {
+			while !emitted.exists() {
+				tokio::time::sleep(Duration::from_millis(10)).await;
+			}
+		})
+		.await
+		.unwrap();
+		let mut ready = manager.ready.lock().await.as_ref().unwrap().clone();
+		let early = tokio::time::timeout(Duration::from_millis(100), ready.wait()).await;
+		drop(running);
+		tokio::time::timeout(Duration::from_secs(5), start)
+			.await
+			.unwrap()
+			.unwrap()
+			.unwrap();
+		let recorded = manager.running.lock().await.is_some();
+		manager.kill_running_server().await;
+		assert!(
+			early.is_err(),
+			"readiness must wait until the process is tracked"
+		);
+		assert!(recorded);
+	}
+
+	#[cfg(unix)]
+	#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+	async fn github_environment_maintainer_restarts_then_stops_without_orphaning_server() {
+		let dir = tempfile::tempdir().unwrap();
+		let starts = dir.path().join("starts");
+		let crash = dir.path().join("crash");
+		let stopped = dir.path().join("stopped");
+		let manager = make_cached_github_environment_manager(
+			dir.path(),
+			&format!(
+				"echo '{}environment-123'\n\
+			 if [ ! -e '{}' ]; then\n\
+			 printf 'first\\n' > '{}'\n\
+			 while [ ! -e '{}' ]; do sleep 0.01; done\n\
+			 exit 1\n\
+			 fi\n\
+			 printf 'second\\n' >> '{}'\n\
+			 read ignored\n\
+			 printf 'withdrawn' > '{}'",
+				GITHUB_ENVIRONMENT_READY_PREFIX,
+				starts.display(),
+				starts.display(),
+				crash.display(),
+				starts.display(),
+				stopped.display(),
+			),
+		)
+		.await;
+		let manager_for_maintenance = manager.clone();
+		let (shutdown, mut shutdown_rx) = oneshot::channel::<()>();
+		let maintenance = tokio::spawn(async move {
+			tokio::select! {
+				result = manager_for_maintenance.maintain_server() => result.unwrap(),
+				_ = &mut shutdown_rx => {},
+			}
+		});
+		manager.ensure_server().await.unwrap();
+		std::fs::write(crash, b"").unwrap();
+		tokio::time::timeout(Duration::from_secs(5), async {
+			while !starts.exists() || std::fs::read_to_string(&starts).unwrap() != "first\nsecond\n"
+			{
+				tokio::time::sleep(Duration::from_millis(10)).await;
+			}
+		})
+		.await
+		.unwrap();
+		shutdown.send(()).unwrap();
+		maintenance.await.unwrap();
+		tokio::time::timeout(Duration::from_secs(3), manager.kill_running_server())
+			.await
+			.unwrap();
+		assert_eq!(std::fs::read_to_string(starts).unwrap(), "first\nsecond\n");
+		assert_eq!(std::fs::read_to_string(stopped).unwrap(), "withdrawn");
+		assert!(manager.running.lock().await.is_none());
+	}
+
+	#[cfg(unix)]
+	#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+	async fn github_environment_serializes_upgrade_restart_with_maintenance() {
+		let dir = tempfile::tempdir().unwrap();
+		let starts = dir.path().join("starts");
+		let manager = make_cached_github_environment_manager(
+			dir.path(),
+			&format!(
+				"printf 'started\\n' >> '{}'\necho '{}environment-123'\nread ignored",
+				starts.display(),
+				GITHUB_ENVIRONMENT_READY_PREFIX,
+			),
+		)
+		.await;
+		let manager_for_maintenance = manager.clone();
+		let maintenance =
+			tokio::spawn(async move { manager_for_maintenance.maintain_server().await });
+		manager.ensure_server().await.unwrap();
+		manager.kill_running_server().await;
+		tokio::time::timeout(Duration::from_secs(5), manager.ensure_server())
+			.await
+			.unwrap()
+			.unwrap();
+		maintenance.abort();
+		let _ = maintenance.await;
+		manager.kill_running_server().await;
+		assert_eq!(
+			std::fs::read_to_string(starts).unwrap(),
+			"started\nstarted\n"
+		);
+		assert!(manager.running.lock().await.is_none());
 	}
 
 	/// Regression test for managed agent hosts losing in-flight sessions
