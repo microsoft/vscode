@@ -13,7 +13,8 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { Menus } from '../../../browser/menus.js';
-import { getSessionCanvasDefinitionInstanceId, getSessionCanvasDefinitionLabels, getSessionCanvasInstanceLabels, getSessionCanvasReferenceKey, ISessionCanvasReference, ISessionCanvasService, REVEAL_SESSION_CANVAS_COMMAND_ID } from '../common/sessionCanvas.js';
+import { getCanvasReferenceKey, ICanvasReference, ICanvasService } from '../../../../workbench/contrib/canvases/common/canvas.js';
+import { getSessionCanvasDefinitionInstanceId, getSessionCanvasDefinitionLabels, getSessionCanvasInstanceLabels, ISessionCanvasRegistryService, REVEAL_SESSION_CANVAS_COMMAND_ID } from '../common/sessionCanvas.js';
 
 export const OPEN_SESSION_CANVAS_COMMAND_ID = 'workbench.action.agentSessions.openCanvas';
 export const REOPEN_SESSION_CANVAS_COMMAND_ID = 'workbench.action.agentSessions.reopenCanvas';
@@ -60,14 +61,14 @@ class CanvasMenuActionRegistration extends Disposable {
 	}
 }
 
-export function registerSessionCanvasActions(canvasService: ISessionCanvasService): IDisposable {
+export function registerSessionCanvasActions(canvasService: ICanvasService, registryService: ISessionCanvasRegistryService): IDisposable {
 	const store = new DisposableStore();
 	const registrations = store.add(new DisposableMap<string, CanvasMenuActionRegistration>());
 	const submenuRegistration = store.add(new MutableDisposable<IDisposable>());
 	let commandSequence = 0;
-	store.add(CommandsRegistry.registerCommand(REVEAL_SESSION_CANVAS_COMMAND_ID, (_accessor, reference: ISessionCanvasReference) => canvasService.revealCanvas(reference)));
+	store.add(CommandsRegistry.registerCommand(REVEAL_SESSION_CANVAS_COMMAND_ID, (_accessor, reference: ICanvasReference) => canvasService.revealCanvas(reference)));
 	store.add(autorun(reader => {
-		const definitions = canvasService.availableCanvases.read(reader);
+		const definitions = registryService.availableCanvases.read(reader);
 		const definitionLabels = getSessionCanvasDefinitionLabels(definitions);
 		const targets = canvasService.reopenableCanvases.read(reader);
 		const targetLabels = getSessionCanvasInstanceLabels(targets.map(target => target.canvas));
@@ -81,7 +82,7 @@ export function registerSessionCanvasActions(canvasService: ISessionCanvasServic
 			if (!registration) {
 				registration = new CanvasMenuActionRegistration(
 					`${OPEN_SESSION_CANVAS_COMMAND_ID}.${++commandSequence}`,
-					() => canvasService.openCanvas(canvas),
+					() => registryService.openCanvas(canvas),
 				);
 				registrations.set(key, registration);
 			}
@@ -92,7 +93,7 @@ export function registerSessionCanvasActions(canvasService: ISessionCanvasServic
 			if (target.canvas.instanceId && definitionInstanceIds.has(target.canvas.instanceId)) {
 				continue;
 			}
-			const key = `reopen:${getSessionCanvasReferenceKey(target.reference)}`;
+			const key = `reopen:${getCanvasReferenceKey(target.reference)}`;
 			activeKeys.add(key);
 			let registration = registrations.get(key);
 			if (!registration) {

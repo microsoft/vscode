@@ -10,11 +10,14 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { INotification, INotificationHandle, INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IInputOptions, IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { ManagePluginMarketplacesAction } from '../../../browser/actions/chatPluginActions.js';
+import { getPluginCustomizationMarketplaceSourceId } from '../../../browser/aiCustomization/pluginCustomizationMarketplaceProvider.js';
+import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IAgentPluginRepositoryService } from '../../../common/plugins/agentPluginRepositoryService.js';
 import { parseMarketplaceReference } from '../../../common/plugins/pluginMarketplaceService.js';
@@ -66,12 +69,18 @@ suite('ManagePluginMarketplacesAction', () => {
 		const configurationService = new UpdatingConfigurationService(configurationValues);
 		const quickInputService = new TestQuickInputService();
 		const notifications: INotification[] = [];
+		const commands: { id: string; args: unknown[] }[] = [];
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IQuickInputService, quickInputService);
 		instantiationService.stub(IAgentPluginRepositoryService, new class extends mock<IAgentPluginRepositoryService>() {
 			override getRepositoryUri(): URI { return URI.file('/marketplace'); }
 		}());
-		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() { });
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+			override async executeCommand<T>(commandId: string, ...args: unknown[]): Promise<T | undefined> {
+				commands.push({ id: commandId, args });
+				return undefined;
+			}
+		}());
 		instantiationService.stub(IFileService, new class extends mock<IFileService>() {
 			override async exists(): Promise<boolean> { return false; }
 		}());
@@ -81,7 +90,7 @@ suite('ManagePluginMarketplacesAction', () => {
 				return new class extends mock<INotificationHandle>() { };
 			}
 		}());
-		return { instantiationService, configurationService, quickInputService, notifications };
+		return { instantiationService, configurationService, quickInputService, notifications, commands };
 	}
 
 	test('adds a marketplace from the management quick pick', async () => {
@@ -123,20 +132,55 @@ suite('ManagePluginMarketplacesAction', () => {
 		});
 	});
 
-	test('offers only management actions for a configured marketplace', async () => {
+	test('shows plugins from a configured marketplace in Customizations', async () => {
 		const marketplace = parseMarketplaceReference('anthropics/claude-code')!;
+		const otherMarketplace = parseMarketplaceReference('microsoft/vscode-marketplace')!;
+		const fixture = createFixture({
+			[ChatConfiguration.PluginMarketplaces]: [otherMarketplace.rawValue, marketplace.rawValue],
+			[ChatConfiguration.ExtraMarketplaces]: {},
+			[ChatConfiguration.StrictMarketplaces]: null,
+		});
+		fixture.quickInputService.pickIds.push(marketplace.canonicalId, 'showPlugins');
+
+		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
+
+		assert.deepStrictEqual({
+			actions: fixture.quickInputService.pickSnapshots[1],
+			commands: fixture.commands,
+		}, {
+			actions: [
+				{ id: 'showPlugins', label: 'Show Plugins', type: 'item' },
+				{ id: 'removeMarketplace', label: 'Remove Marketplace', type: 'item' },
+			],
+			commands: [{
+				id: AICustomizationManagementCommands.OpenMarketplace,
+				args: [{
+					section: AICustomizationManagementSection.Plugins,
+					sourceId: getPluginCustomizationMarketplaceSourceId(marketplace),
+				}],
+			}],
+		});
+	});
+
+	test('shows plugins from the default marketplace using its public feed replacement', async () => {
+		const marketplace = parseMarketplaceReference('github/awesome-copilot#marketplace')!;
 		const fixture = createFixture({
 			[ChatConfiguration.PluginMarketplaces]: [marketplace.rawValue],
 			[ChatConfiguration.ExtraMarketplaces]: {},
 			[ChatConfiguration.StrictMarketplaces]: null,
+			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true,
 		});
-		fixture.quickInputService.pickIds.push(marketplace.canonicalId, undefined);
+		fixture.quickInputService.pickIds.push(marketplace.canonicalId, 'showPlugins');
 
 		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
 
-		assert.deepStrictEqual(fixture.quickInputService.pickSnapshots[1], [
-			{ id: 'removeMarketplace', label: 'Remove Marketplace', type: 'item' },
-		]);
+		assert.deepStrictEqual(fixture.commands, [{
+			id: AICustomizationManagementCommands.OpenMarketplace,
+			args: [{
+				section: AICustomizationManagementSection.Plugins,
+				sourceId: CustomizationMarketplaceSources.AgentFinderPublicFeed.id,
+			}],
+		}]);
 	});
 
 	test('rejects marketplaces blocked by strict enterprise policy', async () => {

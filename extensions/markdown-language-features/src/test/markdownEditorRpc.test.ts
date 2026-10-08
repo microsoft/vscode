@@ -34,7 +34,7 @@ suite('Markdown editor RPC', () => {
 			openLink: () => { },
 			setReadonly: () => { },
 			editorFocusChanged: () => { },
-			richLinkTargets: () => { },
+			richLinkSubscriptions: () => { },
 			resolveCodeBlockEditor: () => ({}),
 			createCodeBlockEditorHostTransport: () => { },
 			codeBlockEditorHostTransportMessage: () => { },
@@ -75,20 +75,21 @@ suite('Markdown editor RPC', () => {
 	test('sends presentation notifications without request IDs or acknowledgement messages', async () => {
 		const seen: unknown[] = [];
 		const { host, renderer, hostInbox, rendererInbox, errors } = pair({
-			richLinkTargets: params => { seen.push(params); },
+			richLinkSubscriptions: params => { seen.push(params); },
 			codeBlockEditorDiagnostic: params => { seen.push(params); },
 		}, {
 			comments: params => { seen.push(params); },
 			highlightThemeChanged: params => { seen.push(params); },
 		});
-		renderer.get(markdownEditorHost).richLinkTargets({ hrefs: ['target'] });
+		const subscriptions = { subscribe: [{ subscriptionId: 'first', href: 'target' }], unsubscribe: [] };
+		renderer.get(markdownEditorHost).richLinkSubscriptions(subscriptions);
 		renderer.get(markdownEditorHost).codeBlockEditorDiagnostic({ message: 'test' });
 		host.get(markdownEditorRenderer).comments({ comments: [], acceptsComments: true });
 		host.get(markdownEditorRenderer).highlightThemeChanged({});
 		await new Promise<void>(resolve => setImmediate(resolve));
-		assert.deepStrictEqual(seen, [{ hrefs: ['target'] }, { message: 'test' }, { comments: [], acceptsComments: true }, {}]);
+		assert.deepStrictEqual(seen, [subscriptions, { message: 'test' }, { comments: [], acceptsComments: true }, {}]);
 		assert.deepStrictEqual([...hostInbox.messages, ...rendererInbox.messages], [
-			{ channel: 'markdownEditor', messageSecret: 'secret', message: { jsonrpc: '2.0', method: 'markdown.editor.host::richLinkTargets', params: { hrefs: ['target'] } } },
+			{ channel: 'markdownEditor', messageSecret: 'secret', message: { jsonrpc: '2.0', method: 'markdown.editor.host::richLinkSubscriptions', params: subscriptions } },
 			{ channel: 'markdownEditor', messageSecret: 'secret', message: { jsonrpc: '2.0', method: 'markdown.editor.host::codeBlockEditorDiagnostic', params: { message: 'test' } } },
 			{ channel: 'markdownEditor', messageSecret: 'secret', message: { jsonrpc: '2.0', method: 'markdown.editor.renderer::comments', params: { comments: [], acceptsComments: true } } },
 			{ channel: 'markdownEditor', messageSecret: 'secret', message: { jsonrpc: '2.0', method: 'markdown.editor.renderer::highlightThemeChanged', params: {} } },
@@ -100,14 +101,14 @@ suite('Markdown editor RPC', () => {
 		let targets = 0;
 		const failure = new Error('Notification handler failed');
 		const { renderer, hostInbox, rendererInbox, errors } = pair({
-			richLinkTargets: () => { targets++; },
+			richLinkSubscriptions: () => { targets++; },
 			codeBlockEditorDiagnostic: () => { throw failure; },
 		});
-		const message = { jsonrpc: '2.0', method: 'markdown.editor.host::richLinkTargets', params: { hrefs: ['target'] } };
+		const message = { jsonrpc: '2.0', method: 'markdown.editor.host::richLinkSubscriptions', params: { subscribe: [{ subscriptionId: 'first', href: 'target' }], unsubscribe: [] } };
 		hostInbox.deliver({ channel: 'markdownEditor', messageSecret: 'old-secret', message });
-		await renderer.channel.sendNotification(message.method, { hrefs: [42] });
+		await renderer.channel.sendNotification(message.method, { subscribe: [{ subscriptionId: 'first', href: 42 }], unsubscribe: [] });
 		assert.strictEqual(targets, 0);
-		renderer.get(markdownEditorHost).richLinkTargets({ hrefs: ['valid'] });
+		renderer.get(markdownEditorHost).richLinkSubscriptions({ subscribe: [{ subscriptionId: 'first', href: 'valid' }], unsubscribe: [] });
 		renderer.get(markdownEditorHost).codeBlockEditorDiagnostic({ message: 'test' });
 		assert.strictEqual(targets, 1);
 		assert.deepStrictEqual(errors, [{ operation: 'Handle notification markdown.editor.host::codeBlockEditorDiagnostic', error: failure }]);
