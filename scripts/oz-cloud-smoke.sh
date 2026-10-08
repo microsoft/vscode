@@ -64,6 +64,48 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# Mocha's spec reporter can exit 0 when the selected file contributes no tests.
+# The Electron runner also always registers one harness test (assertCleanState),
+# so a positive "N passing" line is not enough on its own.
+require_positive_passing() {
+	local log_file="$1"
+	local plain summary passing_count file_passes
+	plain="$(mktemp)"
+	sed -E $'s/\x1B\\[[0-9;]*[A-Za-z]//g' "$log_file" > "$plain"
+
+	summary="$(grep -E '[[:space:]]*[0-9]+ passing' "$plain" | tail -1 || true)"
+	if [[ -z "$summary" ]]; then
+		rm -f "$plain"
+		echo "unit tests: runner produced no passing count" >&2
+		return 1
+	fi
+	passing_count="$(grep -Eo '[0-9]+ passing' <<<"$summary" | tail -1 | awk '{ print $1 }')"
+	if [[ ! "$passing_count" =~ ^[0-9]+$ ]] || [[ "$passing_count" -lt 1 ]]; then
+		rm -f "$plain"
+		echo "unit tests: passing count is ${passing_count:-missing}" >&2
+		return 1
+	fi
+
+	file_passes="$(
+		{ grep -E '✔|√' "$plain" || true; } |
+			{ grep -v 'assertCleanState' || true; } |
+			wc -l | tr -d '[:space:]'
+	)"
+	rm -f "$plain"
+	if [[ ! "$file_passes" =~ ^[0-9]+$ ]] || [[ "$file_passes" -lt 1 ]]; then
+		echo "unit tests: selected test file ran zero tests (runner passing count ${passing_count})" >&2
+		return 1
+	fi
+
+	PASSING_COUNT="$passing_count"
+	FILE_PASSES="$file_passes"
+	return 0
+}
+
+if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
+	return 0
+fi
+
 echo "oz-cloud-smoke: repo ${ROOT}"
 
 expected_node="v$(tr -d '[:space:]' < .nvmrc)"
@@ -130,14 +172,21 @@ test_status=${PIPESTATUS[0]}
 set -e
 test_ended=$(date +%s.%N)
 test_elapsed=$(awk -v s="$test_started" -v e="$test_ended" 'BEGIN { printf "%.3f", e - s }')
-passing=$(grep -E '[0-9]+ passing' "$test_log" | tail -1 || true)
-failing=$(grep -E '[0-9]+ failing' "$test_log" | tail -1 || true)
 echo "unit tests: ./scripts/test.sh --run ${UNIT_TEST_FILE}"
-echo "unit tests: exit ${test_status}; elapsed ${test_elapsed}s; ${passing:-no passing summary}${failing:+; ${failing}}"
-rm -f "$test_log"
 if [[ "$test_status" -ne 0 ]]; then
+	echo "unit tests: exit ${test_status}; elapsed ${test_elapsed}s" >&2
+	rm -f "$test_log"
 	exit "$test_status"
 fi
+PASSING_COUNT=""
+FILE_PASSES=""
+if ! require_positive_passing "$test_log"; then
+	echo "unit tests: exit ${test_status}; elapsed ${test_elapsed}s; rejected empty result" >&2
+	rm -f "$test_log"
+	exit 1
+fi
+rm -f "$test_log"
+echo "unit tests: exit ${test_status}; elapsed ${test_elapsed}s; passing ${PASSING_COUNT}; selected file ${FILE_PASSES}"
 
 if [[ "$WEB" -ne 1 ]]; then
 	echo "oz-cloud-smoke: ok"
@@ -152,12 +201,11 @@ chmod 600 "$token_file"
 server_log="${smoke_tmp}/server.log"
 server_data="${smoke_tmp}/server-data"
 
-echo "web probe: ./scripts/code-server.sh --host 127.0.0.1 --port ${WEB_PORT_RANGE} --accept-server-license-terms --connection-token-file <token> --server-data-dir <temp> --disable-telemetry"
+echo "web probe: ./scripts/code-server.sh --host 127.0.0.1 --port ${WEB_PORT_RANGE} --connection-token-file <token> --server-data-dir <temp> --disable-telemetry"
 set -m
 ./scripts/code-server.sh \
 	--host 127.0.0.1 \
 	--port "$WEB_PORT_RANGE" \
-	--accept-server-license-terms \
 	--connection-token-file "$token_file" \
 	--server-data-dir "$server_data" \
 	--disable-telemetry \

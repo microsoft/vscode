@@ -25,7 +25,7 @@ The script checks:
 ./scripts/test.sh --run src/vs/server/test/node/serverConnectionToken.test.ts
 ```
 
-That file is the connection-token suite (`parseServerConnectionToken`, `requestHasValidConnectionToken`, and token redaction). `scripts/test.sh` launches it inside Electron.
+That file is the connection-token suite (`parseServerConnectionToken`, `requestHasValidConnectionToken`, and token redaction). `scripts/test.sh` launches it inside Electron. The smoke check rejects the run when that command exits 0 but Mocha prints no positive passing count, or when the only passing test is the runner harness (`assertCleanState`) and the selected file contributed none.
 
 Add `--web` to also start the built server on loopback and request it:
 
@@ -56,10 +56,9 @@ node -e "require('fs').writeFileSync(process.argv[1], require('crypto').randomBy
 
 ./scripts/code-server.sh \
   --host 127.0.0.1 \
-  --accept-server-license-terms \
   --connection-token-file "$token_file"
 ```
 
 `--host` defaults to `localhost` in `src/server-main.ts`. `127.0.0.1` is explicit loopback. With no `--port`, `scripts/code-server.js` sets `VSCODE_SERVER_PORT=9888`. A non-zero `--port`, or a range such as `39200-39220`, is accepted; the server prints `Server bound to 127.0.0.1:<port> (IPv4)` and `Web UI available at http://localhost:<port>?tkn=...`. Open that URL only from this machine. Stop the process with Ctrl+C, then `rm -f "$token_file"`.
 
-`--accept-server-license-terms` is the non-interactive license switch. The development product has an empty `serverLicense`, so the prompt does not appear, and the flag is still the supported way to accept terms when a license is present.
+`product.json` has an empty `serverLicense`, so this development server starts without a license prompt. The commands above leave that default in place and keep the connection token required.
