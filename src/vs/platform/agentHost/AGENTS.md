@@ -640,7 +640,9 @@ Copilot's resolved plugins and MCP customizations remain a session-wide union wh
 
 Pending subscription restores retain session membership, but do not retain client-tool routing; a failed or cancelled restore releases that membership when no other subscription remains.
 
-Reconnect suspends future routing before awaiting subscription restores. Existing calls on requested chats wait for restoration, while omitted chats are released immediately.
+Subscription ownership includes exact chat URIs not yet published in the session's chat catalog. Disconnect grace retains these URIs so reconciliation and timeout cleanup can release their routing without waiting for chat publication.
+
+Reconnect and initialization of a grace record suspend future routing before awaiting subscription restores. Existing calls on requested chats wait for restoration, while omitted chats are released immediately.
 
 Relay authentication expiry releases that connection's subscriptions and reconciles exact-chat routing across the remaining connections, including pending calls whose client no longer has a session-wide contribution.
 

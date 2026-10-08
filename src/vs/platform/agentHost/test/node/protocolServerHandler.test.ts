@@ -6140,7 +6140,7 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
-	test('orphaned client tool call timeout is cleared when the owning client connects within the window', () => {
+	test('orphaned client tool call timeout is cleared when the owning client subscribes to the chat within the window', () => {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
 			stateManager.createSession(makeSessionSummary());
 			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
@@ -6162,7 +6162,8 @@ suite('ProtocolServerHandler', () => {
 			});
 
 			// The owning client reconnects within the grace window.
-			connectClient('late-client', [sessionUri]);
+			connectClient('late-client', [sessionUri, defaultChatUri]);
+			await handler.whenIdle();
 
 			await new Promise(r => setTimeout(r, 30_001));
 
@@ -6251,6 +6252,133 @@ suite('ProtocolServerHandler', () => {
 				return part?.kind === ResponsePartKind.ToolCall ? part.toolCall.status : undefined;
 			});
 		}
+
+		for (const release of ['disconnect', 'rollback', 'expiry', 'reconnect', 'grace'] as const) {
+			test(`releasing an unpublished chat through ${release} suppresses its routing`, async () => {
+				const clock = release === 'grace' ? sinon.useFakeTimers() : undefined;
+				if (clock) {
+					disposables.add(toDisposable(() => clock.restore()));
+				}
+				createSessionWithClientTools();
+				const unpublishedChat = buildChatUri(sessionUri, 'unpublished');
+				const transport = disposables.add(new MockProtocolTransport());
+				const expired = disposables.add(new Emitter<void>());
+				transport.onDidRelayAuthenticationExpire = expired.event;
+				if (release !== 'reconnect' && release !== 'grace') {
+					disposables.add(connectClient(clientId, [sessionUri, defaultChatUri]));
+					await handler.whenIdle();
+				}
+				server.simulateConnection(transport);
+				const barrier = new DeferredPromise<void>();
+				if (release === 'rollback') {
+					agentService.subscribeBarriers.set(buildAnnotationsUri(sessionUri), barrier);
+				}
+				transport.simulateMessage(request(1, 'initialize', {
+					clientId, protocolVersions: [PROTOCOL_VERSION],
+					initialSubscriptions: release === 'rollback'
+						? [unpublishedChat, ROOT_STATE_URI, buildAnnotationsUri(sessionUri)]
+						: [sessionUri, defaultChatUri, unpublishedChat],
+				}));
+				if (release === 'rollback') {
+					const snapshot = stateManager.getSnapshot.bind(stateManager);
+					stateManager.getSnapshot = resource => {
+						if (resource === ROOT_STATE_URI) {
+							throw new Error('Initial snapshot refresh failed');
+						}
+						return snapshot(resource);
+					};
+					await barrier.complete();
+				}
+				await handler.whenIdle();
+				if (release === 'expiry') {
+					expired.fire();
+				} else if (release !== 'rollback') {
+					transport.simulateClose();
+					if (release === 'reconnect') {
+						const reconnecting = disposables.add(new MockProtocolTransport());
+						server.simulateConnection(reconnecting);
+						reconnecting.simulateMessage(request(2, 'reconnect', {
+							clientId, lastSeenServerSeq: 0, subscriptions: [sessionUri, defaultChatUri],
+						}));
+						await handler.whenIdle();
+					} else if (release === 'grace') {
+						clock?.tick(30_000);
+					}
+				}
+
+				assert.deepStrictEqual({
+					published: stateManager.getSessionState(sessionUri)?.chats.some(chat => chat.resource === unpublishedChat),
+					routing: agentService.clientChatSubscriptions.filter(subscription => subscription.chat === unpublishedChat).at(-1)?.subscribed,
+				}, { published: false, routing: false });
+			});
+		}
+
+		test('an unpublished chat subscription retains session membership when the session subscription is released', async () => {
+			createSessionWithClientTools();
+			const unpublishedChat = buildChatUri(sessionUri, 'unpublished');
+			const transport = disposables.add(connectClient(clientId, [sessionUri, unpublishedChat]));
+			await handler.whenIdle();
+			transport.simulateMessage(notification('unsubscribe', { channel: sessionUri }));
+
+			assert.deepStrictEqual({
+				clients: stateManager.getSessionState(sessionUri)?.activeClients.map(client => client.clientId),
+				routing: agentService.clientChatSubscriptions.filter(subscription => subscription.chat === unpublishedChat).at(-1)?.subscribed,
+			}, { clients: [clientId], routing: true });
+		});
+
+		for (const outcome of ['success', 'failure'] as const) {
+			test(`grace-record initialization suspends routing while chat restore settles with ${outcome}`, async () => {
+				createSessionWithClientTools();
+				const previous = disposables.add(connectClient(clientId, [sessionUri, defaultChatUri, peerChatUri]));
+				await handler.whenIdle();
+				previous.simulateClose();
+				const barrier = new DeferredPromise<void>();
+				agentService.subscribeBarriers.set(defaultChatUri, barrier);
+				const transport = disposables.add(new MockProtocolTransport());
+				server.simulateConnection(transport);
+				transport.simulateMessage(request(1, 'initialize', {
+					clientId, protocolVersions: [PROTOCOL_VERSION], initialSubscriptions: [defaultChatUri],
+				}));
+				const pending = {
+					routing: agentService.clientChatSubscriptions.filter(subscription => subscription.chat === defaultChatUri).at(-1)?.subscribed,
+					clients: stateManager.getSessionState(sessionUri)?.activeClients.map(client => client.clientId),
+					statuses: toolStatuses(),
+				};
+				if (outcome === 'success') {
+					await barrier.complete();
+				} else {
+					await barrier.error(new Error('Restore failed'));
+				}
+				await handler.whenIdle();
+
+				assert.deepStrictEqual({
+					pending,
+					routing: agentService.clientChatSubscriptions.filter(subscription => subscription.chat === defaultChatUri).at(-1)?.subscribed,
+					clients: stateManager.getSessionState(sessionUri)?.activeClients.map(client => client.clientId),
+					statuses: toolStatuses(),
+				}, {
+					pending: { routing: false, clients: [clientId], statuses: [ToolCallStatus.Streaming, ToolCallStatus.Completed] },
+					routing: outcome === 'success',
+					clients: outcome === 'success' ? [clientId] : [],
+					statuses: [outcome === 'success' ? ToolCallStatus.Streaming : ToolCallStatus.Completed, ToolCallStatus.Completed],
+				});
+			});
+		}
+
+		test('grace-record initialization releases omitted chats without an asynchronous restore', async () => {
+			createSessionWithClientTools();
+			const previous = disposables.add(connectClient(clientId, [sessionUri, defaultChatUri, peerChatUri]));
+			await handler.whenIdle();
+			previous.simulateClose();
+			disposables.add(connectClient(clientId, [sessionUri]));
+			await handler.whenIdle();
+
+			assert.deepStrictEqual({
+				clients: stateManager.getSessionState(sessionUri)?.activeClients.map(client => client.clientId),
+				statuses: toolStatuses(),
+				routing: [defaultChatUri, peerChatUri].map(chat => agentService.clientChatSubscriptions.filter(subscription => subscription.chat === chat).at(-1)?.subscribed),
+			}, { clients: [clientId], statuses: [ToolCallStatus.Completed, ToolCallStatus.Completed], routing: [false, false] });
+		});
 
 		for (const retainedChannel of [ROOT_STATE_URI, sessionUri, defaultChatUri, peerChatUri]) {
 			test(`failed initialization releases restored chat routing with ${retainedChannel} retained on another connection`, async () => {

@@ -304,6 +304,7 @@ interface IGraceClientRecord {
 	readonly clientInfo: Implementation | undefined;
 	readonly telemetryContext: IAgentHostClientTelemetryContext | undefined;
 	readonly protocolVersion: string | undefined;
+	readonly chatSubscriptions: readonly string[];
 	/**
 	 * Epoch ms when the client last had a live transport, or when this record
 	 * was created for a never-connected orphan tool-call stamp. Pins the grace
@@ -505,8 +506,8 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			disposables.add(transport.onDidRelayAuthenticationExpire(() => {
 				const record = client ? this._clients.get(client.clientId) : undefined;
 				if (client && record?.state === 'active') {
-					this._releaseClientSubscriptions(client, record);
-					this._reconcileActiveClientSubscriptions(client);
+					const chats = this._releaseClientSubscriptions(client, record);
+					this._reconcileActiveClientSubscriptions(client, false, chats);
 					this._rejectPendingReverseRequestsForConnection(client, new ProtocolError(AHP_AUTH_REQUIRED, 'Relay identity authentication expired'));
 				}
 			}));
@@ -661,7 +662,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				if (connectionIndex !== -1) {
 					const subscriptionCount = client.subscriptions.size;
 					record.connections.splice(connectionIndex, 1);
-					this._releaseClientSubscriptions(client, record);
+					const chats = this._releaseClientSubscriptions(client, record);
 					this._rejectPendingReverseRequestsForConnection(client);
 					if (record.connections.length === 0) {
 						this._logService.info(`[ProtocolServer] Client disconnected: ${client.clientId}, subscriptions=${subscriptionCount}`);
@@ -672,13 +673,14 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 							clientInfo: record.clientInfo,
 							telemetryContext: client.telemetryContext,
 							protocolVersion: client.protocolVersion,
+							chatSubscriptions: chats,
 							lastSeenAt: Date.now(),
 							disconnectTimeouts: new DisposableMap(),
 						});
 						this._handleClientDisconnected(client.clientId);
 						this._onDidChangeConnectionCount.fire(this._connectedClientCount);
 					} else {
-						this._reconcileActiveClientSubscriptions(client);
+						this._reconcileActiveClientSubscriptions(client, false, chats);
 					}
 					this._reportClientDisconnected(client, subscriptionCount);
 				}
@@ -765,6 +767,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 						snapshots.push(snapshot);
 					}
 				}
+				if (previousRecord?.state === 'grace') {
+					this._reconcileActiveClientSubscriptions(client, true, previousRecord.chatSubscriptions);
+				}
 			}
 
 			client.telemetryConnectionActive = true;
@@ -795,7 +800,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					...getAgentHostExtensionInitializeResultMeta(!!this._agentService.removeSessionArtifact, !!client.devContainers, this._otelService?.diagnosticsEnabled, !!this._agentService.importSession),
 					...transport.relayHandshakeMeta,
 				},
-				snapshots: snapshots.map(snapshot => this._projectRelayRootSnapshot(client, snapshot)),
+				snapshots: snapshots.map(snapshot => this._projectRelayRootSnapshot(client, previousRecord?.state === 'grace' ? this._getSnapshot(snapshot.resource) ?? snapshot : snapshot)),
 				defaultDirectory: this._config.defaultDirectory,
 				completionTriggerCharacters: this._config.completionTriggerCharacters ? [...this._config.completionTriggerCharacters] : undefined,
 				terminalCommandPrefix: this._config.terminalCommandPrefix,
@@ -804,11 +809,16 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			};
 			return {
 				client,
-				response: pendingSnapshots.length === 0 ? response : Promise.all(pendingSnapshots).then(() => ({
-					...response,
-					serverSeq: this._stateManager.serverSeq,
-					snapshots: snapshots.map(snapshot => this._projectRelayRootSnapshot(client, this._getSnapshot(snapshot.resource) ?? snapshot)),
-				})).catch(error => {
+				response: pendingSnapshots.length === 0 ? response : Promise.all(pendingSnapshots).then(() => {
+					if (previousRecord?.state === 'grace') {
+						this._reconcileActiveClientSubscriptions(client, false, previousRecord.chatSubscriptions);
+					}
+					return {
+						...response,
+						serverSeq: this._stateManager.serverSeq,
+						snapshots: snapshots.map(snapshot => this._projectRelayRootSnapshot(client, this._getSnapshot(snapshot.resource) ?? snapshot)),
+					};
+				}).catch(error => {
 					this._rollbackFailedInitialization(client, previousRecord);
 					throw error;
 				}),
@@ -1019,7 +1029,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			// channel still owes a baseline.
 			const canReplay = params.lastSeenServerSeq >= oldestBuffered
 				&& !this._hasBaselineDebt(params.clientId, params.subscriptions);
-			const responsePromise = this._restoreReconnectSubscriptions(client, params, canReplay).then(result => (
+			const responsePromise = this._restoreReconnectSubscriptions(client, params, canReplay, existingRecord.state === 'grace' ? existingRecord.chatSubscriptions : []).then(result => (
 				transport.relayHandshakeMeta && typeof result === 'object' && result !== null
 					? { ...result, _meta: transport.relayHandshakeMeta }
 					: result
@@ -1086,6 +1096,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		client: IConnectedClient,
 		params: ReconnectParams,
 		canReplay: boolean,
+		releasedChats: readonly string[],
 	): Promise<unknown> {
 		const missing: string[] = [];
 		const restoredUris = new Set<string>();
@@ -1158,7 +1169,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				return undefined;
 			}
 		});
-		this._reconcileActiveClientSubscriptions(client, true);
+		this._reconcileActiveClientSubscriptions(client, true, releasedChats);
 		const snapshots = await Promise.all(restores);
 
 		// Activate the batch only after every restore settles so no channel can
@@ -1171,7 +1182,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				}
 			}
 		}
-		this._reconcileActiveClientSubscriptions(client);
+		this._reconcileActiveClientSubscriptions(client, false, releasedChats);
 
 		if (canReplay) {
 			const actions: ActionEnvelope[] = [];
@@ -1204,12 +1215,26 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	/** Releases active-client and tool ownership not retained by another live connection's subscriptions. */
-	private _reconcileActiveClientSubscriptions(client: IConnectedClient, preserveRestoringCalls = false): void {
-		for (const session of this._stateManager.getSessionUris()) {
+	private _reconcileActiveClientSubscriptions(client: IConnectedClient, preserveRestoringCalls = false, releasedChats: readonly string[] = []): void {
+		const chats = new Set(releasedChats);
+		const record = this._clients.get(client.clientId);
+		for (const connection of record?.state === 'active' ? record.connections : []) {
+			for (const subscription of connection.subscriptions.values()) {
+				if (subscription.kind === ChannelKind.State && isAhpChatChannel(subscription.uri)) {
+					chats.add(subscription.uri);
+				}
+			}
+		}
+		const sessions = new Set(this._stateManager.getSessionUris());
+		for (const chat of chats) {
+			sessions.add(parseRequiredSessionUriFromChatUri(chat));
+		}
+		for (const session of sessions) {
 			const state = this._stateManager.getSessionState(session);
-			if (state && (this._isActiveClient(state, client.clientId)
-				|| state.chats.some(chat => this._hasPendingClientToolCall(this._stateManager.getSessionState(chat.resource), client.clientId)))) {
-				this._releaseClientSession(session, client.clientId, preserveRestoringCalls);
+			const sessionChats = [...chats].filter(chat => parseRequiredSessionUriFromChatUri(chat) === session);
+			if (sessionChats.length || (state && (this._isActiveClient(state, client.clientId)
+				|| state.chats.some(chat => this._hasPendingClientToolCall(this._stateManager.getSessionState(chat.resource), client.clientId))))) {
+				this._releaseClientSession(session, client.clientId, preserveRestoringCalls, sessionChats);
 			}
 		}
 	}
@@ -1221,6 +1246,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				record.disconnectTimeouts.deleteAndDispose('managed-settings');
 				this._managedSettingsService.removeClient(this._managedSettingsContributionId(clientId));
 			}, Math.max(0, CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT - (Date.now() - record.lastSeenAt))));
+			for (const chat of record.chatSubscriptions) {
+				this._startClientToolCallDisconnectTimeout(clientId, parseRequiredSessionUriFromChatUri(chat), chat);
+			}
 		}
 		for (const session of this._stateManager.getSessionUris()) {
 			const state = this._stateManager.getSessionState(session);
@@ -1275,16 +1303,25 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	/** Releases uncovered chats before removing the session-wide contribution. */
-	private _releaseClientSession(session: string, clientId: string, preserveRestoringCalls = false): void {
-		for (const chat of this._stateManager.getSessionState(session)?.chats ?? []) {
-			this._releaseClientChat(session, clientId, chat.resource, preserveRestoringCalls);
+	private _releaseClientSession(session: string, clientId: string, preserveRestoringCalls = false, unpublishedChats: readonly string[] = []): void {
+		const chats = new Set(this._stateManager.getSessionState(session)?.chats.map(chat => chat.resource));
+		for (const chat of unpublishedChats) {
+			if (parseRequiredSessionUriFromChatUri(chat) === session) {
+				chats.add(chat);
+			}
+		}
+		for (const chat of chats) {
+			this._releaseClientChat(session, clientId, chat, preserveRestoringCalls);
 		}
 		this._removeUnsubscribedActiveClient(session, clientId);
 	}
 
 	private _removeUnsubscribedActiveClient(session: string, clientId: string): void {
-		const state = this._stateManager.getSessionState(session);
-		if (!this._hasClientSubscription(clientId, session, true) && !state?.chats.some(chat => this._hasClientSubscription(clientId, chat.resource, true))) {
+		const record = this._clients.get(clientId);
+		const retained = record?.state === 'active' && record.connections.some(connection =>
+			[...connection.subscriptions.values()].some(subscription => subscription.kind === ChannelKind.State
+				&& (subscription.uri === session || (isAhpChatChannel(subscription.uri) && parseRequiredSessionUriFromChatUri(subscription.uri) === session))));
+		if (!retained) {
 			this._removeActiveClient(session, clientId);
 		}
 	}
@@ -1360,7 +1397,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		const elapsed = Date.now() - record.lastSeenAt;
 		const delay = Math.max(0, CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT - elapsed);
 		record.disconnectTimeouts.set(chatChannel, disposableTimeout(() => {
-			this._releaseClientSession(session, clientId);
+			this._releaseClientSession(session, clientId, false, [...record.chatSubscriptions, chatChannel]);
 		}, delay));
 	}
 
@@ -1411,23 +1448,29 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		client.telemetryConnectionActive = false;
 		const record = this._clients.get(client.clientId);
 		if (record?.state === 'active') {
+			let chats: readonly string[] = [];
 			const connectionIndex = record.connections.indexOf(client);
 			if (connectionIndex !== -1) {
 				record.connections.splice(connectionIndex, 1);
-				this._releaseClientSubscriptions(client, record);
+				chats = this._releaseClientSubscriptions(client, record);
 				this._rejectPendingReverseRequestsForConnection(client);
 			}
 			if (record.connections.length === 0) {
 				if (previousRecord?.state === 'grace') {
 					previousRecord.disconnectTimeouts.dispose();
-					this._clients.set(client.clientId, { ...previousRecord, disconnectTimeouts: new DisposableMap() });
+					this._clients.set(client.clientId, {
+						...previousRecord,
+						chatSubscriptions: [...new Set([...previousRecord.chatSubscriptions, ...chats])],
+						disconnectTimeouts: new DisposableMap(),
+					});
 					this._handleClientDisconnected(client.clientId);
 				} else {
 					this._clients.delete(client.clientId);
 					this._baselineDebt.delete(client.clientId);
+					this._reconcileActiveClientSubscriptions(client, false, chats);
 				}
 			} else {
-				this._reconcileActiveClientSubscriptions(client);
+				this._reconcileActiveClientSubscriptions(client, false, chats);
 			}
 		}
 		client.initializationDisposables.dispose();
@@ -1453,6 +1496,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			clientInfo: undefined,
 			telemetryContext: undefined,
 			protocolVersion: undefined,
+			chatSubscriptions: [],
 			lastSeenAt: Date.now(),
 			disconnectTimeouts: new DisposableMap(),
 		};
@@ -1471,9 +1515,13 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		return record.connections[record.connections.length - 1];
 	}
 
-	private _releaseClientSubscriptions(client: IConnectedClient, record: IActiveClientRecord): void {
+	private _releaseClientSubscriptions(client: IConnectedClient, record: IActiveClientRecord): readonly string[] {
+		const chats: string[] = [];
 		for (const sub of client.subscriptions.values()) {
 			if (sub.kind === ChannelKind.State) {
+				if (isAhpChatChannel(sub.uri)) {
+					chats.push(sub.uri);
+				}
 				if (this._hasSubscriptionInOtherConnection(record, client, sub.uri)) {
 					continue;
 				}
@@ -1483,6 +1531,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			}
 		}
 		client.subscriptions.clear();
+		return chats;
 	}
 
 	private _hasSubscriptionInOtherConnection(record: IClientRecord, client: IConnectedClient, uri: string): boolean {
