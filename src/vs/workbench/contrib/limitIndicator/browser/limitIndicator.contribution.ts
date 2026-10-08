@@ -134,7 +134,7 @@ export class DiagnosticDecorationLimitReporter extends Disposable implements IEd
 
 		this._register(editor.onDidChangeModel(() => this._update()));
 		this._register(editor.onDidChangeConfiguration(e => {
-			if (e.hasChanged(EditorOption.renderValidationDecorations)) {
+			if (e.hasChanged(EditorOption.renderValidationDecorations) || e.hasChanged(EditorOption.readOnly)) {
 				this._update();
 			}
 		}));

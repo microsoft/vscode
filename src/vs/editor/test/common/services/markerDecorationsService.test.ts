@@ -65,12 +65,12 @@ suite('MarkerDecorationsService', () => {
 		}
 
 		assert.deepStrictEqual(states, [
-			{ diagnostics: 499, decorations: 499, limited: false },
-			{ diagnostics: 500, decorations: 500, limited: false },
+			{ diagnostics: 499, decorations: 499, limited: undefined },
+			{ diagnostics: 500, decorations: 500, limited: undefined },
 			{ diagnostics: 501, decorations: 500, limited: 500 },
 			{ diagnostics: 600, decorations: 500, limited: 500 },
-			{ diagnostics: 500, decorations: 500, limited: false },
-			{ diagnostics: 0, decorations: 0, limited: false }
+			{ diagnostics: 500, decorations: 500, limited: undefined },
+			{ diagnostics: 0, decorations: 0, limited: undefined }
 		]);
 	});
 
