@@ -210,9 +210,7 @@ suite('SessionCanvasService', () => {
 		const leaving = harness.editorWorkingSetService.beginRestore(owner(upcastPartial<IActiveSession>({
 			resource: URI.parse('agent-host-session:/other'),
 		})));
-		assert.strictEqual(harness.editorWorkingSetService.beginApply(owner(upcastPartial<IActiveSession>({
-			resource: URI.parse('agent-host-session:/other'),
-		}))), true);
+		assert.strictEqual(harness.editorWorkingSetService.beginApply(leaving), true);
 		original.dispose();
 		leaving.dispose();
 		harness.canvases.set([{ ...harness.canvas, instanceId: undefined, title: 'Canvas', source: undefined }], undefined);
@@ -723,9 +721,7 @@ suite('SessionCanvasService', () => {
 			resource: URI.parse('agent-host-session:/other'),
 		})));
 		const disposedBeforeApply = original.isDisposed();
-		assert.strictEqual(harness.editorWorkingSetService.beginApply(owner(upcastPartial<IActiveSession>({
-			resource: URI.parse('agent-host-session:/other'),
-		}))), true);
+		assert.strictEqual(harness.editorWorkingSetService.beginApply(restore), true);
 		original.dispose();
 
 		assert.deepStrictEqual({
@@ -766,7 +762,7 @@ suite('SessionCanvasService', () => {
 		const reference = original.reference;
 		const other = owner(upcastPartial<IActiveSession>({ resource: URI.parse('agent-host-session:/other') }));
 		const leaving = harness.editorWorkingSetService.beginRestore(other);
-		assert.strictEqual(harness.editorWorkingSetService.beginApply(other), true);
+		assert.strictEqual(harness.editorWorkingSetService.beginApply(leaving), true);
 		original.dispose();
 		leaving.dispose();
 
@@ -780,7 +776,7 @@ suite('SessionCanvasService', () => {
 			return Promise.resolve(upcastPartial<ITextDiffEditorPane>({ input }));
 		});
 		const returning = harness.editorWorkingSetService.beginRestore(owner(harness.session));
-		assert.strictEqual(harness.editorWorkingSetService.beginApply(owner(harness.session)), true);
+		assert.strictEqual(harness.editorWorkingSetService.beginApply(returning), true);
 		returning.dispose();
 		const reveal = harness.canvasService.revealCanvas(reference);
 		fallbackGate.complete(upcastPartial<ITextDiffEditorPane>({ input: harness.opened.at(-1) }));
@@ -800,7 +796,7 @@ suite('SessionCanvasService', () => {
 		assert.ok(serializationId);
 		const otherSession = upcastPartial<IActiveSession>({ resource: URI.parse('agent-host-session:/other') });
 		const leaving = harness.editorWorkingSetService.beginRestore(owner(otherSession));
-		assert.strictEqual(harness.editorWorkingSetService.beginApply(owner(otherSession)), true);
+		assert.strictEqual(harness.editorWorkingSetService.beginApply(leaving), true);
 		original.dispose();
 		leaving.dispose();
 
@@ -836,7 +832,7 @@ suite('SessionCanvasService', () => {
 		assert.ok(serializationId);
 		const otherSession = upcastPartial<IActiveSession>({ resource: URI.parse('agent-host-session:/other') });
 		const leaving = harness.editorWorkingSetService.beginRestore(owner(otherSession));
-		assert.strictEqual(harness.editorWorkingSetService.beginApply(owner(otherSession)), true);
+		assert.strictEqual(harness.editorWorkingSetService.beginApply(leaving), true);
 		original.dispose();
 		leaving.dispose();
 
