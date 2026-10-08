@@ -328,7 +328,7 @@ suite('Agents Window draft handoff and Copilot introduction', () => {
 		});
 	});
 
-	for (const surface of ['titleBar', 'chatTitle', 'command', 'workspace', 'chatSession'] as const) {
+	for (const surface of ['titleBar', 'chatTitle', 'workspace', 'chatSession'] as const) {
 		test(`${surface} snapshots the current draft and retains the source`, async () => {
 			const h = createHarness();
 			h.input = 'Current prompt at invocation';
@@ -337,7 +337,6 @@ suite('Agents Window draft handoff and Copilot introduction', () => {
 				switch (surface) {
 					case 'titleBar': return new OpenWorkspaceInAgentsWindowTitleBarAction().run(accessor);
 					case 'chatTitle': return new OpenWorkspaceInAgentsWindowChatTitleAction().run(accessor, { $mid: MarshalledId.ChatViewContext, sessionResource: h.resource, inputUri: h.inputUri });
-					case 'command': return new OpenAgentsWindowAction().run(accessor);
 					case 'workspace': return new OpenWorkspaceInAgentsWindowAction().run(accessor);
 					case 'chatSession': return new OpenChatSessionInAgentsWindowAction().run(accessor, h.resource);
 				}
@@ -354,6 +353,19 @@ suite('Agents Window draft handoff and Copilot introduction', () => {
 			});
 		});
 	}
+
+	test('targetless command reveals without transferring the current workspace or draft', async () => {
+		const h = createHarness();
+		const originalAttachments = h.attachments;
+		await h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor));
+		assert.deepStrictEqual({
+			calls: h.calls,
+			source: { inputText: h.input, attachments: h.attachments },
+		}, {
+			calls: [{ source: AgentsWindowOpenSource.CommandPalette }],
+			source: { inputText: 'Original prompt', attachments: originalAttachments },
+		});
+	});
 
 	for (const surface of ['workspaceTitle', 'sessionTitle'] as const) {
 		for (const inputState of ['available', 'closed', 'rebound'] as const) {
@@ -473,9 +485,9 @@ suite('Agents Window draft handoff and Copilot introduction', () => {
 				h.viewContext = surface === 'view' ? { viewId: 'workbench.panel.chat.view' } : {};
 				h.showBanner();
 				const invitationBeforeSend = !!h.notification;
-				await h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor));
+				await h.instantiation.invokeFunction(accessor => new OpenWorkspaceInAgentsWindowAction().run(accessor));
 				h.hasRequests = true;
-				await h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor));
+				await h.instantiation.invokeFunction(accessor => new OpenWorkspaceInAgentsWindowAction().run(accessor));
 				assert.deepStrictEqual({
 					drafts: h.calls.map(call => !!call.draft),
 					invitationBeforeSend,
@@ -518,10 +530,10 @@ suite('Agents Window draft handoff and Copilot introduction', () => {
 		const h = createHarness();
 		const opened = new DeferredPromise<void>();
 		h.openReady = opened.p;
-		const first = h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor));
+		const first = h.instantiation.invokeFunction(accessor => new OpenWorkspaceInAgentsWindowAction().run(accessor));
 		h.input = 'Newer source edit';
 		h.attachments = [];
-		const second = h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor));
+		const second = h.instantiation.invokeFunction(accessor => new OpenWorkspaceInAgentsWindowAction().run(accessor));
 		await opened.complete();
 		await Promise.all([first, second]);
 		assert.deepStrictEqual({
@@ -546,7 +558,7 @@ suite('Agents Window draft handoff and Copilot introduction', () => {
 			if (!attachments) {
 				h.attachments = [];
 			}
-			await h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor));
+			await h.instantiation.invokeFunction(accessor => new OpenWorkspaceInAgentsWindowAction().run(accessor));
 			results.push({ triggers: h.triggers, transferred: !!h.calls[0].draft });
 		}
 
@@ -562,12 +574,12 @@ suite('Agents Window draft handoff and Copilot introduction', () => {
 	test('does not transfer from hidden AI, inline chat or Quick Chat', async () => {
 		const h = createHarness();
 		h.allowed = false;
-		await h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor));
+		await h.instantiation.invokeFunction(accessor => new OpenWorkspaceInAgentsWindowAction().run(accessor));
 		h.allowed = true;
 		h.viewContext = { isInlineChat: true };
-		await h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor));
+		await h.instantiation.invokeFunction(accessor => new OpenWorkspaceInAgentsWindowAction().run(accessor));
 		h.viewContext = { isQuickChat: true };
-		await h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor));
+		await h.instantiation.invokeFunction(accessor => new OpenWorkspaceInAgentsWindowAction().run(accessor));
 		assert.deepStrictEqual(h.calls.map(call => call.draft), [undefined, undefined, undefined]);
 	});
 
@@ -577,7 +589,7 @@ suite('Agents Window draft handoff and Copilot introduction', () => {
 		const model = disposables.add(createTextModel('Unsaved source contents', 'plaintext', undefined, resource));
 		h.models.set(resource, model);
 		h.attachments = [toFileVariableEntry(resource)];
-		await h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor));
+		await h.instantiation.invokeFunction(accessor => new OpenWorkspaceInAgentsWindowAction().run(accessor));
 		const draft = h.calls[0].draft && reviveChatDraft(h.calls[0].draft);
 		assert.deepStrictEqual({
 			destination: draft?.attachments.map(entry => ({ kind: entry.kind, text: entry.value })),
@@ -592,7 +604,7 @@ suite('Agents Window draft handoff and Copilot introduction', () => {
 	test('warns and retains the source when an untitled attachment has no loaded model', async () => {
 		const h = createHarness();
 		h.attachments = [toFileVariableEntry(URI.from({ scheme: Schemas.untitled, path: '/Unavailable' }))];
-		await h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor));
+		await h.instantiation.invokeFunction(accessor => new OpenWorkspaceInAgentsWindowAction().run(accessor));
 		assert.deepStrictEqual({ warnings: h.warnings.length, draft: h.calls[0].draft, isDefault: h.calls[0].folderUriIsDefault, attachments: h.attachments.length }, {
 			warnings: 1, draft: undefined, isDefault: true, attachments: 1,
 		});
