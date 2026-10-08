@@ -162,6 +162,11 @@ export interface IActionListItem<T> {
 	 */
 	readonly ariaDescription?: string;
 	/**
+	 * Announces that the row opens a dialog, e.g. from a key its owner handles. Rows
+	 * with an expandable hover or submenu announce their popup without this.
+	 */
+	readonly opensDialog?: boolean;
+	/**
 	 * Optional hover configuration shown when focusing/hovering over the item.
 	 */
 	readonly hover?: IActionListItemHover;
@@ -653,7 +658,11 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 			data.container.setAttribute('aria-haspopup', element.hover?.expandable ? 'dialog' : 'menu');
 			data.container.setAttribute('aria-expanded', 'false');
 		} else {
-			data.container.removeAttribute('aria-haspopup');
+			if (element.opensDialog) {
+				data.container.setAttribute('aria-haspopup', 'dialog');
+			} else {
+				data.container.removeAttribute('aria-haspopup');
+			}
 			if (!element.isSectionToggle) {
 				data.container.removeAttribute('aria-expanded');
 			}

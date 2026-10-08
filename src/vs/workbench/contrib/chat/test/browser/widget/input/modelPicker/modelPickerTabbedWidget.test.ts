@@ -1221,6 +1221,7 @@ suite('TabbedModelPicker', () => {
 		const { picker, popup, selections } = createPicker();
 		const list = element(popup, '.monaco-list');
 		const detailsButton = element(popup, '[role="button"][aria-label^="First Details"]');
+		const rowPopup = detailsButton.closest('.monaco-list-row')?.getAttribute('aria-haspopup');
 		const right = new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true, cancelable: true });
 		list.dispatchEvent(right);
 		const opened = {
@@ -1231,14 +1232,14 @@ suite('TabbedModelPicker', () => {
 		goBack(popup);
 		await timeout(0);
 		assert.deepStrictEqual({
-			hasPopup: detailsButton.getAttribute('aria-haspopup'),
+			hasPopup: { row: rowPopup, button: detailsButton.getAttribute('aria-haspopup') },
 			opened,
 			listFocused: document.activeElement === element(popup, '.monaco-list'),
 			focusedRow: popup.querySelector('.monaco-list-row.focused .title')?.textContent,
 			visible: picker.isVisible,
 			selections,
 		}, {
-			hasPopup: 'dialog',
+			hasPopup: { row: 'dialog', button: 'dialog' },
 			opened: { prevented: true, model: 'First', focusedControl: 'Thinking Effort' },
 			listFocused: true,
 			focusedRow: 'First',

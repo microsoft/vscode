@@ -866,6 +866,7 @@ export class TabbedModelPicker extends Disposable {
 		const summary = getModelConfigSummary(model, context.configurationAccess);
 		const defaultModel = this._getOrganizationDefaultForModel(model, context);
 		const defaultDescription = defaultModel && getOrganizationDefaultDescription(defaultModel.metadata.name);
+		const routingModel = isAutoModel(model) || isHydraFusionModel(model);
 		return {
 			item: action,
 			kind: ActionListItemKind.Action,
@@ -874,12 +875,14 @@ export class TabbedModelPicker extends Disposable {
 			badge: badge?.text,
 			additionalBadges: this._getOrganizationDefaultBadges(model, context),
 			ariaDescription: [ariaDescription, getModelConfigDescription(model, context.configurationAccess)].filter(Boolean).join(', '),
+			// Right Arrow on the row opens the same details as its button.
+			opensDialog: !routingModel,
 			group: { title: '', icon: action.icon ?? ThemeIcon.fromId(action.checked ? Codicon.check.id : Codicon.blank.id) },
 			hideIcon: false,
 			section,
 			className: ['chat-model-picker-model', ...(action.checked ? ['chat-model-picker-current'] : []), ...(badge ? [`chat-model-picker-badge-${badge.tone}`] : [])].join(' '),
 			toolbarLabels: true,
-			toolbarActions: isAutoModel(model) || isHydraFusionModel(model) ? undefined : [this._createDetailsAction(model, summary)],
+			toolbarActions: routingModel ? undefined : [this._createDetailsAction(model, summary)],
 			toolbarDialogActionIds: [MODEL_DETAILS_ACTION_ID],
 			tooltip: [model.metadata.name, summary, defaultDescription].filter(Boolean).join(' \u00b7 '),
 		};
