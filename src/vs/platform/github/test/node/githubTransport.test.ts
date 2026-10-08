@@ -167,6 +167,33 @@ suite('GitHubTransport', () => {
 		});
 	});
 
+	for (const status of [200, 304]) {
+		test(`honors no-store on HTTP ${status} without retaining a cached representation`, async () => {
+			const validators: (string | null)[] = [];
+			const transport = disposables.add(new GitHubTransport(async (_url, init) => {
+				validators.push(new Headers(init?.headers).get('If-None-Match'));
+				if (validators.length === 1) {
+					return Response.json({ value: 1 }, { headers: { etag: '"old"' } });
+				}
+				if (validators.length === 2) {
+					const headers = { etag: '"new"', 'cache-control': 'private, No-Store' };
+					return status === 304 ? new Response(null, { status, headers }) : Response.json({ value: 2 }, { headers });
+				}
+				return Response.json({ value: 3 });
+			}));
+			const request = { method: 'GET' as const, url: 'https://github.example.test/repos/o/r' };
+			await transport.rest(accountA, 'token-a', request, signal());
+			const revalidated = await transport.rest(accountA, 'token-a', request, signal());
+			const fresh = await transport.rest(accountA, 'token-a', request, signal());
+			assert.deepStrictEqual({
+				validators, revalidated: revalidated.data, fresh: fresh.data, originalStatus: revalidated.revalidatedStatusCode,
+			}, {
+				validators: [null, '"old"', null], revalidated: { value: status === 304 ? 1 : 2 },
+				fresh: { value: 3 }, originalStatus: status === 304 ? 200 : undefined,
+			});
+		});
+	}
+
 	test('rejects a 304 that answers no cached representation', async () => {
 		await withServer(async server => {
 			server.enqueue(gitHubRestStep({
@@ -443,6 +470,87 @@ suite('GitHubTransport', () => {
 			});
 			server.assertSatisfied();
 		});
+	});
+
+	test('a no-redirect request bypasses a learned redirect without changing ordinary reads', async () => {
+		const requests: { path: string; etag: string | null }[] = [];
+		const transport = disposables.add(new GitHubTransport(async (input, init) => {
+			const path = new URL(String(input)).pathname;
+			const etag = new Headers(init?.headers).get('If-None-Match');
+			requests.push({ path, etag });
+			return path === '/alias'
+				? new Response(null, { status: 302, headers: { location: '/repos/o/r' } })
+				: etag ? new Response(null, { status: 304 }) : Response.json({ value: 1 }, { headers: { etag: '"target"' } });
+		}));
+		const request = { method: 'GET' as const, url: 'https://github.example.test/alias' };
+		await transport.rest(accountA, 'token-a', request, signal());
+		await assert.rejects(transport.rest(accountA, 'token-a', { ...request, followRedirects: false }, signal()), { statusCode: 302 });
+		const ordinary = await transport.rest(accountA, 'token-a', request, signal());
+		assert.deepStrictEqual({ requests, data: ordinary.data, status: ordinary.statusCode }, {
+			requests: [
+				{ path: '/alias', etag: null }, { path: '/repos/o/r', etag: null },
+				{ path: '/alias', etag: null }, { path: '/repos/o/r', etag: '"target"' },
+			],
+			data: { value: 1 }, status: 304,
+		});
+	});
+
+	for (const variant of [
+		{ name: 'rate-limit resource', options: { rateLimitResource: 'agents' }, expectedData: { value: 2 } },
+		{ name: 'response body mode', options: { responseBody: 'none' }, expectedData: undefined },
+	] as const) {
+		test(`isolates concurrent reads and cached validators by ${variant.name}`, async () => {
+			const started = new DeferredPromise<void>();
+			const response = new DeferredPromise<Response>();
+			const validators: (string | null)[] = [];
+			const transport = disposables.add(new GitHubTransport(async (_url, init) => {
+				const etag = new Headers(init?.headers).get('If-None-Match');
+				validators.push(etag);
+				if (validators.length === 1) {
+					void started.complete();
+					return response.p;
+				}
+				return etag ? new Response(null, { status: 304 }) : Response.json({ value: 2 }, { headers: { etag: '"other"' } });
+			}));
+			const request = { method: 'GET' as const, url: 'https://github.example.test/repos/o/r' };
+			const ordinary = transport.rest(accountA, 'token-a', request, signal());
+			await started.p;
+			const different = transport.rest(accountA, 'token-a', { ...request, ...variant.options }, signal());
+			await response.complete(Response.json({ value: 1 }, { headers: { etag: '"original"' } }));
+			const results = await Promise.all([ordinary, different]);
+			const revalidated = await transport.rest(accountA, 'token-a', request, signal());
+			assert.deepStrictEqual({
+				data: results.map(result => result.data), validators, revalidated: revalidated.data,
+			}, {
+				data: [{ value: 1 }, variant.expectedData], validators: [null, null, '"original"'], revalidated: { value: 1 },
+			});
+		});
+	}
+
+	test('dispatch callbacks prevent sharing and do not fire for cancelled queued requests', async () => {
+		const started = new DeferredPromise<void>();
+		const response = new DeferredPromise<Response>();
+		const dispatched: string[] = [];
+		let calls = 0;
+		const transport = disposables.add(new GitHubTransport(async () => {
+			if (++calls === 1) {
+				void started.complete();
+				return response.p;
+			}
+			return Response.json({});
+		}));
+		const request = { method: 'GET' as const, url: 'https://github.example.test/repos/o/r' };
+		const first = transport.rest(accountA, 'token-a', { ...request, onDidDispatch: () => dispatched.push('first') }, signal());
+		await started.p;
+		const controller = new AbortController();
+		const reason = new Error('cancelled before dispatch');
+		const cancelled = transport.rest(accountA, 'token-a', { ...request, onDidDispatch: () => dispatched.push('cancelled') }, controller.signal);
+		const rejected = assert.rejects(cancelled, error => error === reason);
+		controller.abort(reason);
+		const last = transport.rest(accountA, 'token-a', { ...request, onDidDispatch: () => dispatched.push('last') }, signal());
+		await response.complete(Response.json({}));
+		await Promise.all([first, last, rejected]);
+		assert.deepStrictEqual({ calls, dispatched }, { calls: 2, dispatched: ['first', 'last'] });
 	});
 
 	test('shares rate-limit backoff across requests for an account', async () => {

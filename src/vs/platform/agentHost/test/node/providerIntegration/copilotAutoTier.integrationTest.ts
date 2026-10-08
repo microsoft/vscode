@@ -11,7 +11,7 @@ import { tmpdir } from 'os';
 import { join } from '../../../../../base/common/path.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { parseManagedAutoTierDefault, type AutoModeTier } from '../../../common/autoModeTiers.js';
+import { parseManagedAutoTierDefault } from '../../../common/autoModeTiers.js';
 import type { ModelSelection } from '../../../common/state/sessionState.js';
 import { getCopilotAutoTier } from '../../../node/copilot/copilotSessionLauncher.js';
 import { getAncillaryStub } from '../e2e/harness/capiStubs.js';
@@ -170,7 +170,7 @@ suite('Copilot SDK client-selected Auto startup defaults', function () {
 	}
 
 	test('a new untouched session observes policy withdrawal without resetting the earlier session', async () => {
-		const routed: AutoModeTier[] = [];
+		const routed: string[] = [];
 		for (const managed of ['intelligence', undefined] as const) {
 			policy = { autoTier: managed };
 			const session = await client.createSession({

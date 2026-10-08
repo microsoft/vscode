@@ -8,7 +8,7 @@ import { IStringDictionary } from '../../../../base/common/collections.js';
 import { IPolicyData } from '../../../../base/common/defaultAccount.js';
 import { ManagedSettingsData } from '../../../../base/common/policy.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { collectManagedSettingsDefinitions, COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, COPILOT_MODEL_KEY, COPILOT_OTEL_CAPTURE_IDENTITY_KEY, COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY, COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_AUTH_GH_KEY, COPILOT_SANDBOX_AUTH_GIT_KEY, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_SANDBOX_LSP_SERVERS_KEY, COPILOT_SANDBOX_MCP_SERVERS_KEY, COPILOT_TOP_LEVEL_MODEL_KEY, MANAGED_SETTINGS_CONTROL_DEFINITIONS, hasManagedSettingsDefinitions, managedModelValue, managedSettingsDisabledValue, managedSettingValue, normalizeManagedSettings, projectManagedSettings, pickManagedSettings, resolveForceRemoteSettingsRefresh } from '../../common/copilotManagedSettings.js';
+import { collectManagedSettingsDefinitions, COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, COPILOT_MODEL_KEY, COPILOT_OTEL_CAPTURE_IDENTITY_KEY, COPILOT_SANDBOX_ALLOWED_HOSTS_KEY, COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY, COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_AUTH_GH_KEY, COPILOT_SANDBOX_AUTH_GIT_KEY, COPILOT_SANDBOX_DENIED_PATHS_KEY, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_SANDBOX_LSP_SERVERS_KEY, COPILOT_SANDBOX_MCP_SERVERS_KEY, COPILOT_SANDBOX_READONLY_PATHS_KEY, COPILOT_SANDBOX_READWRITE_PATHS_KEY, COPILOT_TOP_LEVEL_MODEL_KEY, MANAGED_SETTINGS_CONTROL_DEFINITIONS, hasManagedSettingsDefinitions, managedModelValue, managedSettingsDisabledValue, managedSettingValue, normalizeManagedSettings, projectManagedSettings, pickManagedSettings, resolveForceRemoteSettingsRefresh } from '../../common/copilotManagedSettings.js';
 import { PolicyDefinition } from '../../common/policy.js';
 
 suite('Copilot managed settings projection', () => {
@@ -194,6 +194,45 @@ suite('Copilot managed settings projection', () => {
 			msg => warnings.push(msg),
 		);
 		assert.strictEqual(warnings.length, 1);
+	});
+
+	test('normalizes and projects managed sandbox allowlists, including an explicitly empty list', () => {
+		const key = COPILOT_SANDBOX_ALLOWED_HOSTS_KEY;
+		assert.deepStrictEqual({
+			definition: MANAGED_SETTINGS_CONTROL_DEFINITIONS[key],
+			values: [undefined, [], ['example.com', '*.example.com']].map(allowedHosts => projectManagedSettings(
+				normalizeManagedSettings({ sandbox: { userPolicy: { network: { allowedHosts } } } }),
+				MANAGED_SETTINGS_CONTROL_DEFINITIONS,
+			)),
+			native: projectManagedSettings({ [key]: '["native.example"]' }, MANAGED_SETTINGS_CONTROL_DEFINITIONS),
+			selected: pickManagedSettings(
+				{ [key]: '[]' }, { [key]: '["server.example"]' }, { [key]: '["file.example"]' },
+			).values,
+		}, {
+			definition: { type: 'string' },
+			values: [{}, { [key]: '[]' }, { [key]: '["example.com","*.example.com"]' }],
+			native: { [key]: '["native.example"]' },
+			selected: { [key]: '[]' },
+		});
+	});
+
+	test('normalizes and projects managed sandbox filesystem lists', () => {
+		const values = projectManagedSettings(normalizeManagedSettings({
+			sandbox: {
+				userPolicy: {
+					filesystem: {
+						readwritePaths: ['C:\\Work'],
+						readonlyPaths: [],
+						deniedPaths: ['C:\\Secrets'],
+					}
+				}
+			},
+		}), MANAGED_SETTINGS_CONTROL_DEFINITIONS);
+		assert.deepStrictEqual(values, {
+			[COPILOT_SANDBOX_READWRITE_PATHS_KEY]: '["C:\\\\Work"]',
+			[COPILOT_SANDBOX_READONLY_PATHS_KEY]: '[]',
+			[COPILOT_SANDBOX_DENIED_PATHS_KEY]: '["C:\\\\Secrets"]',
+		});
 	});
 });
 

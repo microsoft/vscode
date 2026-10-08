@@ -21,7 +21,7 @@ import { ILabelService } from '../../../../../../platform/label/common/label.js'
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { AICustomizationListWidget, getAlwaysVisibleCustomizationGroupKeys, getCollapsedCustomizationGroupKey, getCustomizationItemAriaLabel, getTargetedCreateActionLabel, usesCustomizationTreePresentation } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
+import { AICustomizationListWidget, getAlwaysVisibleCustomizationGroupKeys, getCollapsedCustomizationGroupKey, getCustomizationItemAriaLabel, getMultiRootWorkspaceRelativeFilename, getTargetedCreateActionLabel, usesCustomizationTreePresentation } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
 import { AICustomizationItemNormalizer, IAICustomizationListItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
 import { extractExtensionIdFromPath, getCustomizationSecondaryText, splitPathLabel, truncateToFirstLine } from '../../../browser/aiCustomization/aiCustomizationListWidgetUtils.js';
@@ -35,6 +35,8 @@ import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { createCustomizationCardPrimaryAction, CustomizationCardListController, getVirtualizedSectionMinimumHeight, layoutVirtualizedSectionList, layoutVirtualizedSections, renderVirtualizedSectionLoadingPlaceholder, setVirtualizedRowActionsTabbable, setupCollapsibleSection } from '../../../browser/aiCustomization/customizationCardList.js';
+import { getAICustomizationWorkspaceGroupForResource, getAICustomizationWorkspaceGroups } from '../../../browser/aiCustomization/aiCustomizationWorkspaceGroups.js';
+import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 
 suite('aiCustomizationListWidget', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -70,6 +72,76 @@ suite('aiCustomizationListWidget', () => {
 			hooks: [PromptsStorage.local, PromptsStorage.user],
 			filtered: [],
 			prompts: [PromptsStorage.local, PromptsStorage.user],
+		});
+
+	});
+
+	test('splits workspace groups only for multi-root workspaces', () => {
+		const firstUri = URI.file('/workspace/first');
+		const secondUri = URI.file('/workspace/second');
+		const createWorkspaceService = (folders: IWorkspaceFolder[]) => new class extends mock<IWorkspaceContextService>() {
+			override getWorkspace() {
+				return { id: 'test', folders };
+			}
+			override getWorkspaceFolder(resource: URI) {
+				return folders.find(folder => resource.path.startsWith(folder.uri.path)) ?? null;
+			}
+		}();
+		const singleRoot = createWorkspaceService([{ uri: firstUri, name: 'First', index: 0, toResource: path => URI.joinPath(firstUri, path) }]);
+		const multiRoot = createWorkspaceService([
+			{ uri: firstUri, name: 'First', index: 0, toResource: path => URI.joinPath(firstUri, path) },
+			{ uri: secondUri, name: 'Second', index: 1, toResource: path => URI.joinPath(secondUri, path) },
+		]);
+
+		assert.deepStrictEqual({
+			singleRoot: getAICustomizationWorkspaceGroups(singleRoot),
+			multiRoot: getAICustomizationWorkspaceGroups(multiRoot).map(group => ({ label: group.label, uri: group.uri.path })),
+			secondOwner: getAICustomizationWorkspaceGroupForResource(URI.joinPath(secondUri, '.github/skills/review/SKILL.md'), multiRoot)?.label,
+		}, {
+			singleRoot: [],
+			multiRoot: [
+				{ label: 'First', uri: '/workspace/first' },
+				{ label: 'Second', uri: '/workspace/second' },
+			],
+			secondOwner: 'Second',
+		});
+	});
+
+	test('removes the workspace prefix from paths only in multi-root workspaces', () => {
+		const firstUri = URI.file('/workspace/first');
+		const secondUri = URI.file('/workspace/second');
+		const createWorkspaceService = (folders: IWorkspaceFolder[]) => new class extends mock<IWorkspaceContextService>() {
+			override getWorkspace() {
+				return { id: 'test', folders };
+			}
+			override getWorkspaceFolder(resource: URI) {
+				return folders.find(folder => resource.path.startsWith(folder.uri.path)) ?? null;
+			}
+		}();
+		const firstFolder = { uri: firstUri, name: 'First', index: 0, toResource: (path: string) => URI.joinPath(firstUri, path) };
+		const secondFolder = { uri: secondUri, name: 'Second', index: 1, toResource: (path: string) => URI.joinPath(secondUri, path) };
+		const item: IAICustomizationListItem = {
+			id: 'agents',
+			uri: URI.joinPath(firstUri, 'AGENTS.md'),
+			name: 'AGENTS.md',
+			filename: 'First \u2022 AGENTS.md',
+			source: PromptsStorage.local,
+			promptType: PromptsType.instructions,
+			disabled: false,
+		};
+		const labelService = new class extends mock<ILabelService>() {
+			override getUriLabel(resource: URI, options?: Parameters<ILabelService['getUriLabel']>[1]): string {
+				assert.deepStrictEqual(options, { relative: true, noPrefix: true });
+				return resource.path.slice(firstUri.path.length + 1);
+			}
+		}();
+
+		assert.deepStrictEqual({
+			singleRoot: getMultiRootWorkspaceRelativeFilename(item, createWorkspaceService([firstFolder]), labelService),
+			multiRoot: getMultiRootWorkspaceRelativeFilename(item, createWorkspaceService([firstFolder, secondFolder]), labelService),
+		}, {
+			singleRoot: 'First \u2022 AGENTS.md',
+			multiRoot: 'AGENTS.md',
 		});
 	});
 

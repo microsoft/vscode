@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import { Sequencer, SequencerByKey } from '../../../base/common/async.js';
 import type { Database, RunResult } from '@vscode/sqlite3';
-import { MAX_TERMINAL_OUTPUT_BYTES, type IFileEditContent, type IFileEditRecord, type IPersistedTurnRecord, type IReviewedFileRecord, type ISessionCatalogSyncAcknowledgement, type ISessionCatalogSyncPendingSnapshot, type ISessionCatalogSyncSnapshot, type ISessionDatabase, type SessionCatalogSyncWriteResult } from '../common/sessionDataService.js';
+import { MAX_TERMINAL_OUTPUT_BYTES, type IFileEditContent, type IFileEditRecord, type IPersistedTurnRecord, type IReviewedFileRecord, type ISessionCatalogSyncAcknowledgement, type ISessionCatalogSyncPendingSnapshot, type ISessionCatalogSyncSnapshot, type ISessionDatabase, type SessionCatalogSyncTransitionResult, type SessionCatalogSyncWriteResult, type SessionCatalogSyncWriteValidator } from '../common/sessionDataService.js';
 import { dirname } from '../../../base/common/path.js';
 import { URI } from '../../../base/common/uri.js';
 import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, type Message } from '../common/state/sessionState.js';
@@ -290,6 +290,14 @@ function validateCatalogSyncAcknowledgement(acknowledgement: ISessionCatalogSync
 	validateCatalogSyncIdentity('payloadHash', acknowledgement.payloadHash);
 }
 
+class SessionDatabaseWriteCancelledError extends Error { }
+
+function validateCatalogSyncWriteBoundary(validate?: SessionCatalogSyncWriteValidator): void {
+	if (validate && !validate()) {
+		throw new SessionDatabaseWriteCancelledError();
+	}
+}
+
 function toCatalogSyncSnapshot(row: Record<string, unknown>): ISessionCatalogSyncSnapshot {
 	validateCatalogSyncIdentity('sessionGeneration', row.session_generation);
 	validateCatalogSyncInteger('sourceRevision', row.source_revision as number);
@@ -471,6 +479,7 @@ export class SessionDatabase implements ISessionDatabase {
 	constructor(
 		private readonly _path: string,
 		private readonly _migrations: readonly ISessionDatabaseMigration[] = sessionDatabaseMigrations,
+		private readonly _onDidRunStatement?: (sql: string) => Promise<void>,
 	) { }
 
 	/**
@@ -1042,7 +1051,7 @@ export class SessionDatabase implements ISessionDatabase {
 		}));
 	}
 
-	async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<SessionCatalogSyncWriteResult> {
+	async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot, validate?: SessionCatalogSyncWriteValidator): Promise<SessionCatalogSyncWriteResult> {
 		validateCatalogSyncSnapshot(snapshot);
 		return this._track(() => this._metadataSequencer.queue(async () => {
 			const db = await this._ensureDb();
@@ -1067,6 +1076,7 @@ export class SessionDatabase implements ISessionDatabase {
 						}
 					}
 
+					validateCatalogSyncWriteBoundary(validate);
 					const result: SessionCatalogSyncWriteResult = existing?.sourceRevision === snapshot.sourceRevision ? 'replayed' : 'applied';
 					if (result === 'replayed') {
 						await dbExec(db, 'COMMIT');
@@ -1076,17 +1086,21 @@ export class SessionDatabase implements ISessionDatabase {
 						await dbRun(db, 'INSERT OR REPLACE INTO session_metadata (key, value) VALUES (?, ?)', [key, value]);
 					}
 					await this._writeCatalogSyncSnapshot(db, snapshot, existing?.acknowledgedHash);
+					validateCatalogSyncWriteBoundary(validate);
 					await dbExec(db, 'COMMIT');
 					return result;
 				} catch (err) {
 					await dbExec(db, 'ROLLBACK');
+					if (err instanceof SessionDatabaseWriteCancelledError) {
+						return 'cancelled';
+					}
 					throw err;
 				}
 			});
 		}));
 	}
 
-	async transitionMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, expectedSessionGeneration: string, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<boolean> {
+	async transitionMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, expectedSessionGeneration: string, snapshot: ISessionCatalogSyncPendingSnapshot, validate?: SessionCatalogSyncWriteValidator): Promise<SessionCatalogSyncTransitionResult> {
 		validateCatalogSyncIdentity('expectedSessionGeneration', expectedSessionGeneration);
 		validateCatalogSyncSnapshot(snapshot);
 		if (snapshot.sessionGeneration === expectedSessionGeneration) {
@@ -1099,18 +1113,23 @@ export class SessionDatabase implements ISessionDatabase {
 				try {
 					const existingRow = await dbGet(db, 'SELECT session_generation, source_revision, projection_version, acknowledged_hash, pending_hash, pending_payload FROM catalog_sync_snapshot WHERE singleton_id = 1', []);
 					const existing = existingRow ? toCatalogSyncSnapshot(existingRow) : undefined;
+					validateCatalogSyncWriteBoundary(validate);
 					if (!existing || existing.sessionGeneration !== expectedSessionGeneration) {
 						await dbExec(db, 'COMMIT');
-						return false;
+						return 'generationMismatch';
 					}
 					for (const [key, value] of Object.entries(values)) {
 						await dbRun(db, 'INSERT OR REPLACE INTO session_metadata (key, value) VALUES (?, ?)', [key, value]);
 					}
 					await this._writeCatalogSyncSnapshot(db, snapshot, undefined);
+					validateCatalogSyncWriteBoundary(validate);
 					await dbExec(db, 'COMMIT');
-					return true;
+					return 'applied';
 				} catch (err) {
 					await dbExec(db, 'ROLLBACK');
+					if (err instanceof SessionDatabaseWriteCancelledError) {
+						return 'cancelled';
+					}
 					throw err;
 				}
 			});
@@ -1168,7 +1187,7 @@ export class SessionDatabase implements ISessionDatabase {
 	}
 
 	private async _writeCatalogSyncSnapshot(db: Database, snapshot: ISessionCatalogSyncPendingSnapshot, acknowledgedHash: string | undefined): Promise<void> {
-		await dbRun(db, `INSERT INTO catalog_sync_snapshot (
+		const sql = `INSERT INTO catalog_sync_snapshot (
 			singleton_id, session_generation, source_revision, projection_version, acknowledged_hash, pending_hash, pending_payload
 		) VALUES (1, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(singleton_id) DO UPDATE SET
@@ -1177,7 +1196,8 @@ export class SessionDatabase implements ISessionDatabase {
 			projection_version = excluded.projection_version,
 			acknowledged_hash = excluded.acknowledged_hash,
 			pending_hash = excluded.pending_hash,
-			pending_payload = excluded.pending_payload`, [
+			pending_payload = excluded.pending_payload`;
+		await dbRun(db, sql, [
 			snapshot.sessionGeneration,
 			snapshot.sourceRevision,
 			snapshot.projectionVersion,
@@ -1185,6 +1205,7 @@ export class SessionDatabase implements ISessionDatabase {
 			snapshot.payloadHash,
 			snapshot.payload,
 		]);
+		await this._onDidRunStatement?.(sql);
 	}
 
 	setChatDraft(chat: URI, draft: Message | undefined): Promise<void> {

@@ -899,7 +899,7 @@ async function forceAuthenticationInteractively(
 /** Supplies a previously authorized MCP token without creating sessions or prompting for access. */
 export function autoAuthenticateMcpServer(
 	accessor: ServicesAccessor,
-	connection: IAgentConnection,
+	connection: Pick<IAgentConnection, 'authenticate'>,
 	agentHost: { readonly scheme: string; readonly authority: string },
 	serverName: string,
 	auth: Pick<McpAuthRequirement, 'resource' | 'oauthClient' | 'requiredScopes'>,

@@ -8,6 +8,7 @@ import { getErrorMessage } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, type IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
+import { AgentHostProviderTiming } from '../common/agentHostProviderTiming.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { URI } from '../../../base/common/uri.js';
 import type { AgentModelCallFinishedOutcome, AgentSubagentKind, AgentSubagentTaskModelSource, IAgent, IAgentTelemetryContext, IAgentTokenUsageSummary, IAgentTurnDiagnosticSnapshot, IAgentTurnTokenUsage } from '../common/agent.js';
@@ -15,7 +16,7 @@ import type { SessionMode } from '../common/agentHostSchema.js';
 import { type CodexModelProvider, createUnknownAgentHostClientTelemetryContext, type AgentHostProviderSendStage, type IAgentHostClientTelemetryContext, type IAgentProviderSendStageRecorder, type IAgentProviderTurnTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { IAgentHostClientConnectionService } from './agentHostClientConnectionService.js';
-import { ILogService } from '../../log/common/log.js';
+import { ILogService, LogLevel } from '../../log/common/log.js';
 import type { AutomaticTitleGenerationStrategy } from './agentHostSessionTitleController.js';
 import { captureProviderTurnTelemetryContext, getModelTelemetryContext } from './agentHostTurnTelemetryContext.js';
 import { canRefineContributor, toolSourceKindFromContributor } from './shared/toolCallContributor.js';
@@ -65,6 +66,7 @@ interface IRootTurnTiming {
 /** Per-turn timing state, keyed by `session:turnId`. */
 interface ITurnTiming {
 	readonly stopWatch: StopWatch;
+	readonly providerTiming: AgentHostProviderTiming;
 	readonly agent: IAgent;
 	readonly session: string;
 	readonly providerChat: URI;
@@ -92,7 +94,6 @@ interface ITurnTiming {
 	readonly finishedModelCallIds: Set<string>;
 	modelCallDispatchDurationMs: number;
 	timeToFirstEditMs: number | undefined;
-	timeToFirstEditClassifierVersion: number | undefined;
 	startedWithSteering: boolean;
 	receivedSteering: boolean;
 	firstProgressMs: number | undefined;
@@ -188,7 +189,7 @@ export interface IAgentHostTurnTracker extends IDisposable {
 	updateDirectUsage(session: string, turnId: string, tokenTotals: readonly ITurnTokenTotal[] | undefined, billedNanoAiu: number | undefined): void;
 	modelCallCompleted(session: string, turnId: string, modelCallId: string): void;
 	markSteering(session: string, turnId: string, kind: 'started' | 'received'): void;
-	modelCallFinished(session: string, turnId: string, modelCallId: string, dispatchDurationMs: number, outcome: AgentModelCallFinishedOutcome, containsBuiltInFileEditRequest: boolean | undefined, editClassifierVersion: number): void;
+	modelCallFinished(session: string, turnId: string, modelCallId: string, dispatchDurationMs: number, outcome: AgentModelCallFinishedOutcome, containsBuiltInFileEditRequest: boolean | undefined): void;
 	getModelTelemetryContext(session: string, turnId: string): { model: string | undefined; modelTelemetryKind: AgentHostModelTelemetryKind | undefined } | undefined;
 	getClientTelemetryContext(session: string, turnId: string): IAgentHostClientTelemetryContext | undefined;
 	getTelemetryContext(session: string, turnId: string): IAgentTelemetryContext | undefined;
@@ -242,6 +243,9 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 	) {
 		super();
 		this._register(toDisposable(() => {
+			for (const timing of this._turnTimings.values()) {
+				timing.providerTiming.finish(timing.stopWatch.elapsed());
+			}
 			this._turnTimings.clear();
 			this._rootTurnTimings.clear();
 			this._turnUsages.clear();
@@ -261,8 +265,10 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 			};
 			this._rootTurnTimings.set(key, rootTiming);
 		}
+		const stopWatch = StopWatch.create(false);
 		const timing: ITurnTiming = {
-			stopWatch: StopWatch.create(false),
+			stopWatch,
+			providerTiming: new AgentHostProviderTiming(() => stopWatch.elapsed()),
 			agent,
 			session,
 			providerChat,
@@ -288,7 +294,6 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 			finishedModelCallIds: new Set(),
 			modelCallDispatchDurationMs: 0,
 			timeToFirstEditMs: undefined,
-			timeToFirstEditClassifierVersion: undefined,
 			startedWithSteering: false,
 			receivedSteering: false,
 			firstProgressMs: undefined,
@@ -375,11 +380,18 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 		const elapsed = timing.stopWatch.elapsed();
 		if (timing.firstProgressMs === undefined) {
 			timing.firstProgressMs = elapsed;
+			timing.providerTiming.markFirstProgress(elapsed);
+			if (timing.providerTiming.hasTimings) {
+				timing.providerTiming.markMilestone('hostProgress');
+			}
 			this._closeProviderStage(timing, elapsed);
 			this._logProviderStages(timing);
 		}
 		if (substantive && timing.firstSubstantiveProgressMs === undefined) {
 			timing.firstSubstantiveProgressMs = elapsed;
+			if (timing.providerTiming.hasTimings) {
+				timing.providerTiming.markMilestone('hostSubstantiveProgress');
+			}
 		}
 	}
 
@@ -457,7 +469,22 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 
 	/** Creates a recorder that forwards a provider's stage marks for one turn. */
 	createProviderStageRecorder(session: string, turnId: string): IAgentProviderSendStageRecorder {
-		return { mark: stage => this.markProviderStage(session, turnId, stage) };
+		const key = this._key(session, turnId);
+		const timing = this._turnTimings.get(key);
+		const active = () => timing && this._turnTimings.get(key) === timing;
+		return {
+			mark: stage => {
+				if (active()) {
+					this.markProviderStage(session, turnId, stage);
+				}
+			},
+			startOperation: operation => active() ? timing?.providerTiming.startOperation(operation) : undefined,
+			markMilestone: milestone => {
+				if (active()) {
+					timing?.providerTiming.markMilestone(milestone);
+				}
+			},
+		};
 	}
 
 	private _closeProviderStage(timing: ITurnTiming, now: number): void {
@@ -651,7 +678,7 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 		}
 	}
 
-	modelCallFinished(session: string, turnId: string, modelCallId: string, dispatchDurationMs: number, outcome: AgentModelCallFinishedOutcome, containsBuiltInFileEditRequest: boolean | undefined, editClassifierVersion: number): void {
+	modelCallFinished(session: string, turnId: string, modelCallId: string, dispatchDurationMs: number, outcome: AgentModelCallFinishedOutcome, containsBuiltInFileEditRequest: boolean | undefined): void {
 		const timing = this._turnTimings.get(this._key(session, turnId));
 		if (!timing || timing.finishedModelCallIds.has(modelCallId)) {
 			return;
@@ -663,7 +690,6 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 		timing.modelCallDispatchDurationMs += dispatchDurationMs;
 		if (outcome === 'success' && containsBuiltInFileEditRequest === true) {
 			timing.timeToFirstEditMs = timing.modelCallDispatchDurationMs;
-			timing.timeToFirstEditClassifierVersion = editClassifierVersion;
 		}
 	}
 
@@ -722,6 +748,10 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 		this._closeSendStage(timing);
 		// Capture terminal timing before collecting or reporting additional telemetry.
 		const totalTime = timing.stopWatch.elapsed();
+		const providerTimings = timing.providerTiming.finish(totalTime);
+		if (providerTimings.length > 0 && this._logService.getLevel() <= LogLevel.Debug) {
+			this._logService.debug(`[AgentHostProviderTiming] ${JSON.stringify({ schemaVersion: 1, provider: timing.agent.id, turnId, result, timings: providerTimings })}`);
+		}
 		// A turn that ends before first progress retains its partial provider stage.
 		this._closeProviderStage(timing, totalTime);
 		const timeAfterHangMs = timing.lastHangStopWatch?.elapsed() ?? 0;
@@ -757,12 +787,12 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 			timeToFirstProgress: timing.firstProgressMs,
 			timeToFirstSubstantiveProgress: timing.firstSubstantiveProgressMs,
 			timeToFirstEditMs: timing.timeToFirstEditMs,
-			timeToFirstEditClassifierVersion: timing.timeToFirstEditClassifierVersion,
 			startedWithSteering: timing.startedWithSteering,
 			receivedSteering: timing.receivedSteering,
 			sendStageDurationsMs: timing.sendStageDurationsMs,
 			sendDispatchedMs: timing.sendDispatchedMs,
 			providerStageDurationsMs: timing.providerStageDurationsMs,
+			providerTimings,
 			totalTime,
 			result,
 			model: timing.model,
@@ -864,6 +894,7 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 	}
 
 	private _disposeTurn(key: string, timing: ITurnTiming): void {
+		timing.providerTiming.finish(timing.stopWatch.elapsed());
 		this._turnTimings.delete(key);
 		this._turnUsages.delete(key);
 		this._hangWatchdogs.deleteAndDispose(key);

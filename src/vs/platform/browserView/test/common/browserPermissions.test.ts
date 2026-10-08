@@ -10,6 +10,7 @@ import {
 	ISerializedBrowserPermissionsSnapshot,
 	PermissionCategory,
 	electronPermissionToCategories,
+	isAlwaysAllowedPermission,
 	toOriginKey,
 } from '../../common/browserPermissions.js';
 
@@ -130,6 +131,21 @@ suite('electronPermissionToCategories', () => {
 		assert.deepStrictEqual(electronPermissionToCategories('media'), [PermissionCategory.Camera, PermissionCategory.Microphone]);
 		assert.deepStrictEqual(electronPermissionToCategories('media', ['video']), [PermissionCategory.Camera]);
 		assert.deepStrictEqual(electronPermissionToCategories('media', ['audio']), [PermissionCategory.Microphone]);
+	});
+});
+
+suite('isAlwaysAllowedPermission', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('allows legacy and split local network permissions', () => {
+		const permissions = ['local-network-access', 'local-network', 'loopback-network'];
+		assert.deepStrictEqual(permissions.map(isAlwaysAllowedPermission), [true, true, true]);
+	});
+
+	test('does not bypass managed or unrecognized permissions', () => {
+		const permissions = ['geolocation', 'media', 'unrecognized'];
+		assert.deepStrictEqual(permissions.map(isAlwaysAllowedPermission), [false, false, false]);
 	});
 });
 

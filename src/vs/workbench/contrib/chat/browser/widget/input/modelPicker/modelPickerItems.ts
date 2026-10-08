@@ -13,14 +13,6 @@ import { ICommandService } from '../../../../../../../platform/commands/common/c
 import { ChatEntitlement, IChatEntitlementService, isProUser } from '../../../../../../services/chat/common/chatEntitlementService.js';
 import { MANAGE_CHAT_COMMAND_ID } from '../../../../common/constants.js';
 import { IModelControlEntry, ILanguageModelChatMetadataAndIdentifier, IModelsControlManifest } from '../../../../common/languageModels.js';
-import { buildFlatModelItems, buildGroupedModelItems, buildUnavailableStateItems, RESTRICTED_MODE_TRUST_ACTION_ID, SETUP_REQUIRED_SIGN_IN_ACTION_ID } from './modelPickerItemSections.js';
-import type { IBuildModelPickerItemsOptions } from './modelPickerItemTypes.js';
-import { filterModelPickerControlModelsForEntitlement, filterModelPickerModelsForEntitlement } from './modelPickerPresentation.js';
-
-export type { IBuildModelPickerItemsOptions } from './modelPickerItemTypes.js';
-export { ModelPickerSection } from './modelPickerItemSections.js';
-
-const PICKER_COMMAND_ACTION_IDS: ReadonlySet<string> = new Set([RESTRICTED_MODE_TRUST_ACTION_ID, SETUP_REQUIRED_SIGN_IN_ACTION_ID]);
 
 export function getControlModelsForEntitlement(manifest: IModelsControlManifest, entitlement: ChatEntitlement): IStringDictionary<IModelControlEntry> {
 	return isProUser(entitlement) && entitlement !== ChatEntitlement.EDU ? manifest.paid : manifest.free;
@@ -78,22 +70,6 @@ export function createManageModelsAction(commandService: ICommandService, sessio
 	};
 }
 
-/** Builds the ordered model picker sections for the current presentation state. */
-export function buildModelPickerItems(options: IBuildModelPickerItemsOptions): IActionListItem<IActionWidgetDropdownAction>[] {
-	const pickerOptions = {
-		...options,
-		models: filterModelPickerModelsForEntitlement(options.models, options.chatEntitlementService.entitlement, options.languageModelsService),
-		controlModels: filterModelPickerControlModelsForEntitlement(options.controlModels, options.models, options.chatEntitlementService.entitlement, options.languageModelsService),
-	};
-	const unavailableItems = buildUnavailableStateItems(pickerOptions);
-	if (unavailableItems) {
-		return unavailableItems;
-	}
-	return pickerOptions.presentation.useGroupedModelPicker
-		? buildGroupedModelItems(pickerOptions)
-		: buildFlatModelItems(pickerOptions);
-}
-
 export function getModelPickerAccessibilityProvider(isSearch = false, multiple = false) {
 	return {
 		getAriaLabel(element: IActionListItem<IActionWidgetDropdownAction>) {
@@ -110,10 +86,7 @@ export function getModelPickerAccessibilityProvider(isSearch = false, multiple =
 			if (isSearch || element.isSectionToggle) {
 				return undefined;
 			}
-			if (element.kind === ActionListItemKind.Action && !(element.item?.id && PICKER_COMMAND_ACTION_IDS.has(element.item.id))) {
-				return !!element.item?.checked;
-			}
-			return undefined;
+			return element.kind === ActionListItemKind.Action ? !!element.item?.checked : undefined;
 		},
 		getRole: (element: IActionListItem<IActionWidgetDropdownAction>) => {
 			if (isSearch) {
@@ -124,7 +97,7 @@ export function getModelPickerAccessibilityProvider(isSearch = false, multiple =
 			}
 			switch (element.kind) {
 				case ActionListItemKind.Action:
-					return element.item?.id && PICKER_COMMAND_ACTION_IDS.has(element.item.id) ? 'menuitem' : multiple ? 'menuitemcheckbox' : 'menuitemradio';
+					return multiple ? 'menuitemcheckbox' : 'menuitemradio';
 				case ActionListItemKind.Separator:
 				default:
 					return 'separator';

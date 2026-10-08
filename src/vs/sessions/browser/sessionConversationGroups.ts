@@ -21,7 +21,7 @@ export function getSessionConversationStatusLabel(status: SessionStatus): string
 		case SessionStatus.InProgress:
 			return localize('sessionConversationStatus.inProgress', "In Progress");
 		case SessionStatus.NeedsInput:
-			return localize('sessionConversationStatus.needsInput', "Input Needed");
+			return localize('sessionConversationStatus.needsInput', "Attention Needed");
 		case SessionStatus.Completed:
 			return localize('sessionConversationStatus.completed', "Completed");
 		case SessionStatus.Error:

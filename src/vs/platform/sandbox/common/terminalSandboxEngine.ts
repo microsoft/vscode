@@ -138,6 +138,7 @@ export class TerminalSandboxEngine extends Disposable {
 	private _srtPath: string | undefined;
 	private _rgPath: string | undefined;
 	private _mxcPath: string | undefined;
+	private _mxcRunnerPath: string | undefined;
 	private _windowsMxcFilesystemPolicy: IWindowsMxcFilesystemPolicy | undefined;
 	private _windowsMxcEnvironment: string[] | undefined;
 	private _sandboxConfigPath: string | undefined;
@@ -271,11 +272,11 @@ export class TerminalSandboxEngine extends Disposable {
 		} : undefined;
 
 		if (this._os === OperatingSystem.Windows) {
-			if (!this._mxcPath) {
-				throw new Error('MXC executable path not resolved');
+			if (!this._mxcPath || !this._execPath || !this._mxcRunnerPath) {
+				throw new Error('MXC SDK runner paths not resolved');
 			}
 			return {
-				command: this._windowsMxcRuntime.wrapCommand(this._mxcPath, this._sandboxConfigPath),
+				command: this._windowsMxcRuntime.wrapCommand(this._mxcPath, this._sandboxConfigPath, this._execPath, this._mxcRunnerPath, this._runAsNode),
 				isSandboxWrapped: true,
 				requiresAllowNetworkConfirmation: allowNetworkForCommand && !this._isSandboxAllowNetworkConfigured() ? true : undefined,
 				...allowNetworkConfirmationMetadata,
@@ -644,6 +645,7 @@ export class TerminalSandboxEngine extends Disposable {
 		const rgBinary = this._os === OperatingSystem.Windows ? 'rg.exe' : 'rg';
 		this._rgPath = this._pathJoin(this._appRoot, nativeModulesDir, '@vscode', 'ripgrep-universal', 'bin', `${rgPlatform}-${arch}`, rgBinary);
 		this._mxcPath = this._windowsMxcRuntime.getExecutablePath(this._appRoot, nativeModulesDir, runtimeInfo.arch);
+		this._mxcRunnerPath = this._pathJoin(this._appRoot, 'out', 'vs', 'platform', 'sandbox', 'node', 'mxcMain.js');
 	}
 
 	private async _createSandboxConfig(): Promise<string | undefined> {
@@ -664,9 +666,6 @@ export class TerminalSandboxEngine extends Disposable {
 		const windowsFileSystemSetting = this._os === OperatingSystem.Windows
 			? this._host.getSandboxSetting<ITerminalSandboxFileSystemSetting>(AgentSandboxSettingId.AgentSandboxWindowsFileSystem) ?? {}
 			: {};
-		const windowsSchemaVersion = this._os === OperatingSystem.Windows
-			? this._host.getSandboxSetting<string>(AgentSandboxSettingId.AgentSandboxWindowsSchemaVersion)
-			: undefined;
 		const runtimeSetting = {
 			...this._host.getSandboxSetting<Record<string, unknown>>(AgentSandboxSettingId.AgentSandboxAdvancedRuntime),
 			...(this._enableWeakerNestedSandbox ? { enableWeakerNestedSandbox: true } : undefined),
@@ -706,7 +705,6 @@ export class TerminalSandboxEngine extends Disposable {
 			shell: this._commandShell,
 			cwd: this._commandCwd ?? this._getDefaultWindowsMxcCwd(),
 			tempDir: this._tempDir,
-			schemaVersion: windowsSchemaVersion,
 			allowNetwork,
 			allowReadPaths,
 			allowWritePaths,

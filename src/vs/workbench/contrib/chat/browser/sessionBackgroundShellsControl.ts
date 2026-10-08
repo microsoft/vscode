@@ -29,7 +29,7 @@ export interface IChatBackgroundShellsSource {
 
 /** Describes the Background Shells pill in a chat's accessibility help. */
 export function getBackgroundShellsPillAccessibilityHelp(): string {
-	return localize('backgroundShells.accessibilityHelp', "The Background Shells pill opens a picker above the chat input, including for a single shell. Each entry includes its elapsed time, and is marked Detached when the shell runs independently of the agent. Use the arrow keys to choose a shell, then Enter or Right Arrow to open its live command details beside the picker. Left Arrow or Escape returns to the list; Escape from the list returns focus to the pill. Elapsed time continues updating while details are open, and a shell disappears when it finishes. When a shell's output is available, its details show the command and its status above a read-only terminal that streams the output. A shell that can be stopped shows a Stop Shell button beside its command. Press Tab to move through the details to the output, then use Open Accessible View{0} to read the command, its status, and its output as text.", '<keybinding:editor.action.accessibleView>');
+	return localize('backgroundShells.accessibilityHelp', "The Background Shells pill opens a picker above the chat input, including for a single shell. Each entry includes its elapsed time, and is marked Detached when the shell runs independently of the agent. Use the arrow keys to choose a shell, then Enter or Right Arrow to open its live command details beside the picker. Left Arrow or Escape returns to the list; Escape from the list returns focus to the pill. Elapsed time continues updating while details are open, and a shell disappears when it finishes. The details start with the shell's full description, unless it only repeats the command. When a shell's output is available, its details show the command and its status above a read-only terminal that streams the output. A shell that can be stopped shows a Stop Shell button beside its command. Press Tab to move through the details to the output, then use Open Accessible View{0} to read the command, its status, and its output as text.", '<keybinding:editor.action.accessibleView>');
 }
 
 function getShellName(shell: IChatBackgroundShell): string {
@@ -38,6 +38,8 @@ function getShellName(shell: IChatBackgroundShell): string {
 
 interface IShellDetails {
 	readonly element: HTMLElement;
+	/** The shell's full description, which its picker row can truncate. */
+	readonly title: HTMLElement;
 	readonly summary: HTMLElement;
 	/** The command and, while the shell can be stopped, its Stop button. */
 	readonly commandRow: HTMLElement;
@@ -108,6 +110,7 @@ export class SessionBackgroundShellsControl extends Disposable {
 	}
 
 	private _entry(shell: IChatBackgroundShell, now: number): IChatPillEntry {
+		const description = shell.description.trim();
 		const name = getShellName(shell);
 		// Attached is the common case, so only detached shells carry a label.
 		const attachment = shell.attachmentMode === 'detached'
@@ -126,6 +129,7 @@ export class SessionBackgroundShellsControl extends Disposable {
 		this._details.set(shell.id, content);
 		content.shell = shell;
 		for (const [element, text] of [
+			[content.title, description],
 			[content.summary, badge ?? ''],
 			[content.command, localize('backgroundShells.command', "Command: {0}", shell.command)],
 			[content.shellId, shell.shellId !== undefined ? localize('backgroundShells.id', "Shell ID: {0}", shell.shellId) : ''],
@@ -143,6 +147,8 @@ export class SessionBackgroundShellsControl extends Disposable {
 			}
 		}
 		const output = shell.output;
+		// The description titles the details above the command, unless the command already names the shell.
+		content.title.hidden = !description || description === shell.command;
 		// The live output view shows the command and its status, so it replaces the other details.
 		content.summary.hidden = !!output;
 		content.commandRow.hidden = !!output;
@@ -178,6 +184,7 @@ export class SessionBackgroundShellsControl extends Disposable {
 	private _createDetails(): IShellDetails {
 		const store = new DisposableStore();
 		const element = $('.chat-pill-location-hover');
+		const title = append(element, $('.chat-background-shell-title'));
 		const summary = append(element, $('div'));
 		const commandRow = append(element, $('.chat-background-shell-command'));
 		const command = append(commandRow, $('span.chat-background-shell-command-text'));
@@ -185,6 +192,7 @@ export class SessionBackgroundShellsControl extends Disposable {
 		const output = store.add(new MutableDisposable<BackgroundShellOutputView>());
 		const details: IShellDetails = {
 			element,
+			title,
 			summary,
 			commandRow,
 			command,

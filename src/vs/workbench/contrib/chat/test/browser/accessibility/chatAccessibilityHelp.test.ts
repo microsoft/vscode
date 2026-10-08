@@ -15,6 +15,19 @@ suite('Chat Accessibility Help', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	for (const type of ['panelChat', 'agentView', 'editsView', 'inlineChat', 'quickChat'] as const) {
+		test(`documents the sharing toggle and backend selection (${type})`, () => {
+			const help = getAccessibilityHelpText(type, new MockKeybindingService(), false);
+			assert.deepStrictEqual({
+				backend: help.includes('chat.agentHost.remoteConnections setting selects Dev Tunnel or GitHub environment'),
+				explicitOptIn: help.includes('Selecting a backend does not enable sharing; changing it turns sharing off'),
+				keyboard: help.includes('Enter or Space to enable or disable sharing'),
+			}, {
+				backend: type !== 'inlineChat' && type !== 'quickChat',
+				explicitOptIn: type !== 'inlineChat' && type !== 'quickChat',
+				keyboard: type !== 'inlineChat' && type !== 'quickChat',
+			});
+		});
+
 		test(`only describes visible Codex continuation UI (${type})`, () => {
 			const keybindings = new MockKeybindingService();
 			const hidden = getAccessibilityHelpText(type, keybindings, false);
@@ -77,6 +90,8 @@ suite('Chat Accessibility Help', () => {
 		test(`documents Copilot introduction and Agents Window invitation behavior in ${type}`, () => {
 			const help = getAccessibilityHelpText(type, new MockKeybindingService(), false);
 			assert.deepStrictEqual({
+				preserveSessions: help.includes('without changing its active or visible sessions, unless the action explicitly requests a session or New Session'),
+				preserveNewSessionDraft: help.includes('Revealing New Session preserves any unsent draft'),
 				introductionModes: help.includes('when the session starts or after the first request is submitted'),
 				introductionPersists: help.includes('sending messages does not dismiss it'),
 				introductionActions: help.includes('let us know, Learn More, Got it!, or Not Helpful'),
@@ -95,9 +110,11 @@ suite('Chat Accessibility Help', () => {
 				preserve: help.includes('Sending another message or completing a task does not dismiss the invitation'),
 				mute: help.includes('Don\'t Show Again turns off all future Agents Window invitations'),
 				dismiss: help.includes('created five more Agent Host sessions in editor windows and at least 24 hours have passed'),
-				input: help.includes('temporarily hidden while the session needs input'),
+				input: help.includes('temporarily hidden while the session needs attention'),
 				hiddenInAgents: !getAccessibilityHelpText(type, new MockKeybindingService(), false, true).includes('new Copilot harness chat'),
 			}, {
+				preserveSessions: true,
+				preserveNewSessionDraft: true,
 				introductionModes: true,
 				introductionPersists: true,
 				introductionActions: true,
