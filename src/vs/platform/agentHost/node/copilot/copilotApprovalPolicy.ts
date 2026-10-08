@@ -37,7 +37,7 @@ export function getCopilotApprovalPolicy(
 	resolved: SessionEventPayload<'session.managed_settings_resolved'>['data'],
 	legacyRestricted: boolean,
 	bridged: ManagedSettingsPermissions = {},
-): { available: AutoApproveLevel[]; defaultMode: AutoApproveLevel; permissions: ManagedSettingsPermissions } {
+): { available: readonly AutoApproveLevel[]; defaultMode: AutoApproveLevel; permissions: ManagedSettingsPermissions } {
 	const settings = resolved.settings;
 	const value = settings && typeof settings === 'object' && !Array.isArray(settings) ? settings.permissions : undefined;
 	const modes = value && typeof value === 'object' && !Array.isArray(value) ? value : undefined;
@@ -53,6 +53,71 @@ export function getCopilotApprovalPolicy(
 	];
 	const requestedDefault = modes?.defaultMode === 'assisted' ? 'assisted' : modes?.defaultMode === 'allow-all' ? 'autoApprove' : 'default';
 	return { available, defaultMode: available.includes(requestedDefault) ? requestedDefault : 'default', permissions };
+}
+
+interface ICopilotApprovalInputs {
+	readonly requested: AutoApproveLevel | undefined;
+	readonly legacyRestricted: boolean;
+	readonly globalAutoApprove: boolean;
+}
+
+/** Session-owned policy snapshots and decisions; SDK calls and their sequencing remain with the session. */
+export class CopilotSessionApprovalPolicy {
+	private _policy: ReturnType<typeof getCopilotApprovalPolicy> | undefined;
+	private _nativePolicy: SessionEventPayload<'session.managed_settings_resolved'>['data'] | undefined;
+	private _bridgedPermissions: ManagedSettingsPermissions = {};
+	private _runtimeModes: readonly AutoApproveLevel[] | undefined;
+
+	setLaunchPolicy(resolved: SessionEventPayload<'session.managed_settings_resolved'>['data'], bridged: ManagedSettingsPermissions): void {
+		this._nativePolicy = resolved;
+		this._bridgedPermissions = bridged;
+	}
+
+	observeRuntimePolicy(resolved: SessionEventPayload<'session.managed_settings_resolved'>['data']): void {
+		this._policy = getCopilotApprovalPolicy(resolved, false);
+		this._runtimeModes = this._policy.available;
+	}
+
+	resolveSelection(inputs: ICopilotApprovalInputs): { mode: PermissionMode; configuredLevel: AutoApproveLevel } {
+		if (this._nativePolicy) {
+			const policy = getCopilotApprovalPolicy(this._nativePolicy, inputs.legacyRestricted, this._bridgedPermissions);
+			const runtimeModes = this._runtimeModes;
+			this._policy = runtimeModes ? { ...policy, available: policy.available.filter(mode => runtimeModes.includes(mode)) } : policy;
+		}
+		const configuredLevel = this._getConfiguredLevel(inputs);
+		const mode = this._nativePolicy && inputs.globalAutoApprove
+			? this._policy?.available.includes('autoApprove') ? 'allow-all' : 'manual'
+			: this.isBypassApprovals(inputs) ? 'allow-all' : configuredLevel === 'assisted' ? 'assisted' : 'manual';
+		return { mode, configuredLevel };
+	}
+
+	isBypassApprovals(inputs: ICopilotApprovalInputs): boolean {
+		if (this._policy ? !this._policy.available.includes('autoApprove') : inputs.legacyRestricted) {
+			return false;
+		}
+		return inputs.globalAutoApprove || inputs.requested === 'autoApprove';
+	}
+
+	canAcceptRuntimeResult(requested: PermissionMode, result: { success: boolean; mode: PermissionMode }): boolean {
+		return result.success || !!this._policy
+			&& !this._policy.available.includes(fromCopilotPermissionMode(requested))
+			&& this._policy.available.includes(fromCopilotPermissionMode(result.mode));
+	}
+
+	getAppliedConfig(mode: PermissionMode): { effectiveApprovalMode: AutoApproveLevel; availableApprovalModes?: readonly AutoApproveLevel[] } {
+		return {
+			effectiveApprovalMode: fromCopilotPermissionMode(mode),
+			...(this._policy ? { availableApprovalModes: this._policy.available } : {}),
+		};
+	}
+
+	private _getConfiguredLevel(inputs: ICopilotApprovalInputs): AutoApproveLevel {
+		if (!this._policy && inputs.legacyRestricted) {
+			return 'default';
+		}
+		const requested = inputs.requested ?? this._policy?.defaultMode ?? 'default';
+		return this._policy && !this._policy.available.includes(requested) ? 'default' : requested;
+	}
 }
 
 export function getCopilotApprovalConfig(

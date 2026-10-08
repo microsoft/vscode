@@ -59,7 +59,7 @@ import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { toToolCallMeta, type IToolCallMeta, type IToolCallUiMeta, type IToolSearchCandidate } from '../../common/meta/agentToolCallMeta.js';
 import { OtelData, type OtelAttributeValue } from '../../common/otlp/otlpLogEmitter.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { fromCopilotPermissionMode, getCopilotApprovalPolicy } from './copilotApprovalPolicy.js';
+import { CopilotSessionApprovalPolicy, fromCopilotPermissionMode } from './copilotApprovalPolicy.js';
 import { isShellInitScriptList, type IShellInitScript } from '../../common/shellInitScript.js';
 import { getVSCodeSandboxReadRoots } from '../../common/vscodeSandboxPaths.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
@@ -1316,10 +1316,7 @@ export class CopilotAgentSession extends Disposable {
 	/** Last agent mode pushed to the SDK via {@link applyMode}, to elide redundant `rpc.mode.set` calls. */
 	private _lastAppliedMode: CopilotSdkMode | undefined;
 	private _lastAppliedPermissionMode: PermissionMode | undefined;
-	private _approvalPolicy: ReturnType<typeof getCopilotApprovalPolicy> | undefined;
-	private _nativeApprovalPolicy: SessionEventPayload<'session.managed_settings_resolved'>['data'] | undefined;
-	private _bridgedApprovalPolicy: Parameters<typeof getCopilotApprovalPolicy>[2];
-	private _runtimeApprovalModes: ReturnType<typeof getCopilotApprovalPolicy>['available'] | undefined;
+	private readonly _approvalPolicy = new CopilotSessionApprovalPolicy();
 	private _experimentalModeEnabled = false;
 	private readonly _permissionModeSequencer = new Sequencer();
 	/** Settles when this session observes the runtime's top-level `session.managed_settings_resolved` event. */
@@ -3452,14 +3449,12 @@ export class CopilotAgentSession extends Disposable {
 	private _createRuntimeAdapter(): ICopilotSessionRuntime {
 		return {
 			setApprovalPolicy: (resolved, bridged) => {
-				this._nativeApprovalPolicy = resolved;
-				this._bridgedApprovalPolicy = bridged;
+				this._approvalPolicy.setLaunchPolicy(resolved, bridged);
 			},
 			onSessionEvent: event => {
 				if (!this._store.isDisposed) {
 					if (event.type === 'session.managed_settings_resolved' && !event.agentId) {
-						this._approvalPolicy = getCopilotApprovalPolicy(event.data, false);
-						this._runtimeApprovalModes = this._approvalPolicy.available;
+						this._approvalPolicy.observeRuntimePolicy(event.data);
 						void this._managedSettingsResolved.complete();
 					}
 					this._recordSdkTiming(event);
@@ -5831,49 +5826,12 @@ export class CopilotAgentSession extends Disposable {
 		return URI.joinPath(this._shellInitScriptDirectory(), this._shellInitScriptInstanceId);
 	}
 
-	/**
-	 * `true` when the session runs with bypass approvals — either the global
-	 * auto-approve setting or the session's `autoApprove` ("Allow All")
-	 * level. Agent mode is an orthogonal axis and does not affect approvals.
-	 */
-	private _isBypassApprovals(): boolean {
-		if (this._approvalPolicy ? !this._approvalPolicy.available.includes('autoApprove') : this._configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true) {
-			return false;
-		}
-		if (this._configurationService.getRootValue(platformRootSchema, AgentHostGlobalAutoApproveEnabledConfigKey) === true) {
-			return true;
-		}
-		return this._configurationService.getEffectiveValue(this._ownerSessionUri.toString(), platformSessionSchema, SessionConfigKey.AutoApprove) === 'autoApprove';
-	}
-
-	private _getSdkPermissionMode(): PermissionMode {
-		if (this._nativeApprovalPolicy) {
-			this._approvalPolicy = getCopilotApprovalPolicy(this._nativeApprovalPolicy,
-				this._configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true, this._bridgedApprovalPolicy);
-			const runtimeModes = this._runtimeApprovalModes;
-			if (runtimeModes) {
-				this._approvalPolicy.available = this._approvalPolicy.available.filter(mode => runtimeModes.includes(mode));
-			}
-			if (this._configurationService.getRootValue(platformRootSchema, AgentHostGlobalAutoApproveEnabledConfigKey) === true) {
-				return this._approvalPolicy.available.includes('autoApprove') ? 'allow-all' : 'manual';
-			}
-		}
-		if (this._isBypassApprovals()) {
-			return 'allow-all';
-		}
-		return this._getConfiguredApprovalLevel() === 'assisted'
-			? 'assisted'
-			: 'manual';
-	}
-
-	private _getConfiguredApprovalLevel(): string {
-		if (!this._approvalPolicy && this._configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true) {
-			return 'default';
-		}
-		const requested = this._configurationService.getEffectiveValue(this._ownerSessionUri.toString(), platformSessionSchema, SessionConfigKey.AutoApprove)
-			?? this._approvalPolicy?.defaultMode
-			?? 'default';
-		return this._approvalPolicy && !this._approvalPolicy.available.includes(requested) ? 'default' : requested;
+	private _getApprovalInputs() {
+		return {
+			requested: this._configurationService.getEffectiveValue(this._ownerSessionUri.toString(), platformSessionSchema, SessionConfigKey.AutoApprove),
+			legacyRestricted: this._configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true,
+			globalAutoApprove: this._configurationService.getRootValue(platformRootSchema, AgentHostGlobalAutoApproveEnabledConfigKey) === true,
+		};
 	}
 
 	private _getConfiguredAgentMode(): string {
@@ -5978,8 +5936,7 @@ export class CopilotAgentSession extends Disposable {
 
 	syncPermissionMode(source: 'config-change' | 'turn-start', recorder?: IAgentProviderSendStageRecorder): Promise<void> {
 		return measureAgentProviderOperation(recorder, 'permission', async () => {
-			const mode = this._getSdkPermissionMode();
-			const configuredLevel = this._getConfiguredApprovalLevel();
+			const { mode, configuredLevel } = this._approvalPolicy.resolveSelection(this._getApprovalInputs());
 			this._logService.info(`[Copilot:${this.sessionId}] Syncing permission mode: source=${source}, agentMode=${this._getConfiguredAgentMode()}, configuredLevel=${configuredLevel}, sdkMode=${mode}, previousSdkMode=${this._lastAppliedPermissionMode ?? 'unknown'}, globalAutoApprove=${this._configurationService.getRootValue(platformRootSchema, AgentHostGlobalAutoApproveEnabledConfigKey) === true}`);
 			const experimentalModeEnabled = mode === 'assisted' || this._isHydraFusionEnabled();
 			if (this._experimentalModeEnabled !== experimentalModeEnabled) {
@@ -6012,8 +5969,7 @@ export class CopilotAgentSession extends Disposable {
 
 	private async _trySetSdkPermissionMode(mode: PermissionMode): Promise<PermissionMode | undefined> {
 		const result = await this._wrapper.session.rpc.permissions.setMode({ mode });
-		if (!result.success && (!this._approvalPolicy || this._approvalPolicy.available.includes(fromCopilotPermissionMode(mode))
-			|| !this._approvalPolicy.available.includes(fromCopilotPermissionMode(result.mode)))) {
+		if (!this._approvalPolicy.canAcceptRuntimeResult(mode, result)) {
 			return undefined;
 		}
 		this._acceptPermissionMode(result.mode);
@@ -6023,12 +5979,10 @@ export class CopilotAgentSession extends Disposable {
 	private _acceptPermissionMode(mode: PermissionMode): void {
 		this._lastAppliedPermissionMode = mode;
 		const current = this._configurationService.getSessionConfigValues(this._ownerSessionUri.toString());
-		if (current && isDefaultChatUri(this._chatChannelUri.toString()) && (current.effectiveApprovalMode !== fromCopilotPermissionMode(mode)
-			|| !equals(current.availableApprovalModes, this._approvalPolicy?.available))) {
-			this._configurationService.updateSessionConfig(this._ownerSessionUri.toString(), {
-				effectiveApprovalMode: fromCopilotPermissionMode(mode),
-				...(this._approvalPolicy ? { availableApprovalModes: this._approvalPolicy.available } : {}),
-			});
+		const applied = this._approvalPolicy.getAppliedConfig(mode);
+		if (current && isDefaultChatUri(this._chatChannelUri.toString()) && (current.effectiveApprovalMode !== applied.effectiveApprovalMode
+			|| !equals(current.availableApprovalModes, applied.availableApprovalModes))) {
+			this._configurationService.updateSessionConfig(this._ownerSessionUri.toString(), applied);
 		}
 	}
 
@@ -6579,7 +6533,7 @@ export class CopilotAgentSession extends Disposable {
 		return {
 			approved: true,
 			selectedAction,
-			...(isAutopilot && this._isBypassApprovals() ? { autoApproveEdits: true } : {}),
+			...(isAutopilot && this._approvalPolicy.isBypassApprovals(this._getApprovalInputs()) ? { autoApproveEdits: true } : {}),
 		};
 	}
 
