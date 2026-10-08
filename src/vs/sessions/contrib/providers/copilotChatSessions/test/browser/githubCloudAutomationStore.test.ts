@@ -16,12 +16,13 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { COPILOT_INTEGRATION_ID } from '../../../../../../platform/endpoint/common/licenseAgreement.js';
-import { GitHubAutomation, GitHubAutomationListOptions, IGitHubAutomations } from '../../../../../../platform/github/common/cloud/automation.js';
-import { GitHubCloudList } from '../../../../../../platform/github/common/cloud/cloudApi.js';
+import { AutomationDetail, IAutomationsClient, ListAutomationsOptions, ListRepoAutomationsResponse } from '../../../../../../platform/github/common/missionControl/automations.js';
+import { PaginatedResponse, RepositoryRef } from '../../../../../../platform/github/common/missionControl/missionControl.js';
 import { GitHubCredential, IGitHubCredentials } from '../../../../../../platform/github/common/githubCredentialService.js';
-import { GitHubRepositoryRef } from '../../../../../../platform/github/common/githubQueryService.js';
+import { GitHubRepository, GitHubRepositoryRef } from '../../../../../../platform/github/common/githubQueryService.js';
+import { IGitHubQuery } from '../../../../../../platform/github/common/githubQueryServiceImpl.js';
 import { GitHubService, IGitHubClient } from '../../../../../../platform/github/common/githubService.js';
-import { GitHubClientOptions, IGitHubEndpointProvider } from '../../../../../../platform/github/common/githubTypes.js';
+import { IGitHubEndpointProvider } from '../../../../../../platform/github/common/githubTypes.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
@@ -34,21 +35,25 @@ const account: IDefaultAccount = { accountName: 'octocat', sessionId: 'auth-1', 
 const repository = { owner: 'microsoft', name: 'vscode-internalbacklog' };
 const workspace = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/microsoft/vscode-internalbacklog/HEAD' });
 const storageKey = 'cloudAutomations.repositories.octocat';
-const definition: GitHubAutomation = {
-	id: 'automation-1', name: 'Review', prompt: 'Review issues.', disabled: true,
+const definition: AutomationDetail = {
+	id: 'automation-1', name: 'Review', prompt: 'Review issues.', disabled: true, description: '', created_by: { login: 'octocat' },
 	triggers: { custom: { types: ['future-trigger'], future_option: true } },
 	created_at: '2026-09-22T00:00:00Z', updated_at: '2026-09-22T00:00:00Z',
 };
 
-class TestApi extends mock<IGitHubAutomations>() {
+class TestApi extends mock<IAutomationsClient>() {
 	readonly calls: { method: string; account: string; repository: typeof repository; token: AbortSignal }[] = [];
 	readonly visibility = new Map<string, boolean | Error | Promise<boolean>>();
-	readonly definitions = new Map<string, readonly GitHubAutomation[] | Error | Promise<readonly GitHubAutomation[]>>();
+	readonly definitions = new Map<string, readonly AutomationDetail[] | Error | Promise<readonly AutomationDetail[]>>();
+	readonly detailCalls: { id: string; signal: AbortSignal }[] = [];
+	readonly pages: number[] = [];
+	detailResult: ((id: string, signal: AbortSignal) => Promise<AutomationDetail>) | undefined;
+	accountName = account.accountName;
 	complete = true;
 	readonly visibilityStarted = new DeferredPromise<void>();
 	readonly listStarted = new DeferredPromise<void>();
 
-	override async isPrivateRepository(ref: GitHubRepositoryRef, token: AbortSignal): Promise<boolean> {
+	async isPrivateRepository(ref: GitHubRepositoryRef, token: AbortSignal): Promise<boolean> {
 		assert.strictEqual(ref.host, 'api.github.com');
 		this.calls.push({ method: 'visibility', account: ref.accountId, repository: { owner: ref.owner, name: ref.repo }, token });
 		const result = this.visibility.get(ref.repo) ?? true;
@@ -59,15 +64,29 @@ class TestApi extends mock<IGitHubAutomations>() {
 		return result;
 	}
 
-	override async list(ref: GitHubRepositoryRef, token: AbortSignal, options?: GitHubAutomationListOptions): Promise<GitHubCloudList<GitHubAutomation>> {
-		assert.deepStrictEqual(options, { ownership: 'user' });
-		this.calls.push({ method: 'list', account: ref.accountId, repository: { owner: ref.owner, name: ref.repo }, token });
-		const result = this.definitions.get(ref.repo) ?? [definition];
+	override async list(ref: RepositoryRef, token: AbortSignal, options?: ListAutomationsOptions): Promise<PaginatedResponse<ListRepoAutomationsResponse>> {
+		assert.deepStrictEqual(options, { ownership: 'user', page: options?.page, per_page: 100 });
+		this.pages.push(options!.page!);
+		this.calls.push({ method: 'list', account: this.accountName, repository: ref, token });
+		const result = this.definitions.get(ref.name) ?? [definition];
 		await this.listStarted.complete();
 		if (result instanceof Error) {
 			throw result;
 		}
-		return this.complete ? { items: await result, complete: true } : { items: await result, complete: false, nextPage: 11 };
+		const automations = await result;
+		return { data: { automations, total_count: automations.length }, nextLink: this.complete ? undefined : 'https://untrusted.example/next' };
+	}
+
+	override async get(ref: RepositoryRef, id: string, signal: AbortSignal): Promise<AutomationDetail> {
+		this.detailCalls.push({ id, signal });
+		if (this.detailResult) {
+			return this.detailResult(id, signal);
+		}
+		const values = await (this.definitions.get(ref.name) ?? [definition]);
+		assert.ok(!(values instanceof Error));
+		const result = values.find(value => value.id === id);
+		assert.ok(result);
+		return result;
 	}
 }
 
@@ -96,28 +115,28 @@ suite('GitHubCloudAutomationStore', () => {
 		const clientChanged = disposables.add(new Emitter<void>());
 		const credentialLifetime = new AbortController();
 		const leases = { acquired: 0, released: 0 };
-		const clientOptions: GitHubClientOptions[] = [];
+		const clientInvalidated = disposables.add(new Emitter<void>());
 		let acquisition: Promise<void> | undefined;
 		const service = new class extends mock<IWorkbenchGitHubService>() {
 			override readonly onDidChangeDefaultClient = clientChanged.event;
 			override async acquireDefaultAccountClient() {
 				await acquisition;
 				const selected = accounts.currentDefaultAccount!;
+				api.accountName = selected.accountName;
 				const client = new class extends mock<IGitHubClient>() {
+					override readonly onDidInvalidate = clientInvalidated.event;
 					override readonly authorization = { providerId: 'github', sessionId: selected.sessionId, scopes: ['repo'] };
 					override readonly endpoint = new class extends mock<IGitHubEndpointProvider>() {
 						override getApiBaseUri() { return 'https://api.github.com'; }
 						override getGraphQlUri() { return 'https://api.github.com/graphql'; }
 					}();
-				}();
-				leases.acquired++;
-				return Object.assign(toDisposable(() => leases.released++), { object: client });
-			}
-			override acquireClient(options: GitHubClientOptions) {
-				clientOptions.push(options);
-				const selected = accounts.currentDefaultAccount!;
-				const client = new class extends mock<IGitHubClient>() {
 					override readonly automations = api;
+					override readonly query = new class extends mock<IGitHubQuery>() {
+						override async getRepository(ref: GitHubRepositoryRef, signal: AbortSignal): Promise<GitHubRepository> {
+							const isPrivate = await api.isPrivateRepository(ref, signal);
+							return new class extends mock<GitHubRepository>() { override readonly private = isPrivate; }();
+						}
+					}();
 					override readonly credentials = new class extends mock<IGitHubCredentials>() {
 						override readonly onDidInvalidate = Event.None;
 						override async getCredential(): Promise<GitHubCredential> {
@@ -137,7 +156,7 @@ suite('GitHubCloudAutomationStore', () => {
 			accounts.currentDefaultAccount = value;
 			accountChanged.fire(value);
 		};
-		return { store, api, accounts, recents, storage, changeAccount, clientChanged, credentialLifetime, leases, clientOptions, delayAcquisition: (promise: Promise<void>) => { acquisition = promise; } };
+		return { store, api, accounts, recents, storage, changeAccount, clientChanged, clientInvalidated, credentialLifetime, leases, delayAcquisition: (promise: Promise<void>) => { acquisition = promise; } };
 	}
 
 	test('construction, account changes and observing the cache do not fetch or poll', () => runWithFakedTimers({}, async () => {
@@ -184,18 +203,14 @@ suite('GitHubCloudAutomationStore', () => {
 		assert.deepStrictEqual(store.entries.get(), [{ repository, definition }]);
 	});
 
-	test('uses the selected authorization and releases both client leases', async () => {
-		const { store, recents, clientOptions, leases } = setup();
+	test('retains one default client lease across refreshes and releases it on disposal', async () => {
+		const { store, recents, leases } = setup();
 		recents.workspaces = [recentWorkspace(workspace)];
 		await store.refresh();
-		assert.deepStrictEqual({ clientOptions, leases }, {
-			clientOptions: [{
-				authorization: { providerId: 'github', sessionId: 'auth-1', scopes: ['repo'] },
-				apiBaseUri: 'https://api.github.com', graphQlUri: 'https://api.github.com/graphql',
-				cloud: { apiBaseUri: 'https://api.githubcopilot.com/agents', integrationId: COPILOT_INTEGRATION_ID },
-			}],
-			leases: { acquired: 2, released: 2 },
-		});
+		await store.refresh();
+		assert.deepStrictEqual(leases, { acquired: 1, released: 0 });
+		store.dispose();
+		assert.deepStrictEqual(leases, { acquired: 1, released: 1 });
 	});
 
 	test('an incomplete shared-service list preserves the previous complete catalogue', async () => {
@@ -205,9 +220,70 @@ suite('GitHubCloudAutomationStore', () => {
 		api.complete = false;
 		api.definitions.set(repository.name, [{ ...definition, name: 'Partial' }]);
 		await assert.rejects(store.refresh(), /Some GitHub repositories/);
-		assert.deepStrictEqual({ entries: store.entries.get(), state: store.catalogueState.get(), leases }, {
-			entries: [{ repository, definition }], state: 'error', leases: { acquired: 4, released: 4 },
+		assert.deepStrictEqual({ entries: store.entries.get(), state: store.catalogueState.get(), leases, pages: api.pages }, {
+			entries: [{ repository, definition }], state: 'error', leases: { acquired: 1, released: 0 },
+			pages: [1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
 		});
+	});
+
+	test('hydrates summaries in order with at most five pending detail reads', async () => {
+		const { store, api, recents } = setup();
+		recents.workspaces = [recentWorkspace(workspace)];
+		const definitions = Array.from({ length: 12 }, (_, index) => ({ ...definition, id: `automation-${index}` }));
+		api.definitions.set(repository.name, definitions);
+		const firstBatch = new DeferredPromise<void>();
+		const release = new DeferredPromise<void>();
+		let pending = 0;
+		let maximum = 0;
+		api.detailResult = async id => {
+			maximum = Math.max(maximum, ++pending);
+			if (pending === 5) {
+				await firstBatch.complete();
+			}
+			await release.p;
+			pending--;
+			return definitions.find(value => value.id === id)!;
+		};
+		const refresh = store.refresh();
+		await firstBatch.p;
+		assert.strictEqual(api.detailCalls.length, 5);
+		await release.complete();
+		await refresh;
+		assert.deepStrictEqual({ ids: store.entries.get().map(entry => entry.definition.id), maximum }, {
+			ids: definitions.map(value => value.id), maximum: 5,
+		});
+	});
+
+	test('a failed detail cancels sibling reads without starting the next batch', async () => {
+		const { store, api, recents } = setup();
+		recents.workspaces = [recentWorkspace(workspace)];
+		api.definitions.set(repository.name, Array.from({ length: 6 }, (_, index) => ({ ...definition, id: `automation-${index}` })));
+		api.detailResult = async id => {
+			if (id === 'automation-0') {
+				throw new Error('Detail unavailable');
+			}
+			return { ...definition, id };
+		};
+		await assert.rejects(store.refresh(), /Some GitHub repositories/);
+		assert.deepStrictEqual({
+			details: api.detailCalls.map(call => ({ id: call.id, cancelled: call.signal.aborted })),
+			entries: store.entries.get(),
+		}, {
+			details: Array.from({ length: 5 }, (_, index) => ({ id: `automation-${index}`, cancelled: true })),
+			entries: [],
+		});
+	});
+
+	test('client invalidation releases the retained lease and reacquires on the next refresh', async () => {
+		const { store, recents, clientInvalidated, leases } = setup();
+		recents.workspaces = [recentWorkspace(workspace)];
+		await store.refresh();
+		clientInvalidated.fire();
+		assert.deepStrictEqual({ entries: store.entries.get(), leases: { ...leases } }, {
+			entries: [], leases: { acquired: 1, released: 1 },
+		});
+		await store.refresh();
+		assert.deepStrictEqual(leases, { acquired: 2, released: 1 });
 	});
 
 	test('shared-service grant changes clear the cache even when the default account is unchanged', async () => {
@@ -233,7 +309,7 @@ suite('GitHubCloudAutomationStore', () => {
 	test('credential invalidation prevents a late domain response from publishing', async () => {
 		const { store, api, recents, credentialLifetime, leases } = setup();
 		recents.workspaces = [recentWorkspace(workspace)];
-		const pending = new DeferredPromise<readonly GitHubAutomation[]>();
+		const pending = new DeferredPromise<readonly AutomationDetail[]>();
 		api.definitions.set(repository.name, pending.p);
 		const refresh = store.refresh();
 		await api.listStarted.p;
@@ -242,7 +318,7 @@ suite('GitHubCloudAutomationStore', () => {
 		await pending.complete([definition]);
 		await rejected;
 		assert.deepStrictEqual({ entries: store.entries.get(), state: store.catalogueState.get(), leases }, {
-			entries: [], state: 'error', leases: { acquired: 2, released: 2 },
+			entries: [], state: 'error', leases: { acquired: 1, released: 0 },
 		});
 	});
 
@@ -263,10 +339,12 @@ suite('GitHubCloudAutomationStore', () => {
 				if (url.pathname === '/user') {
 					data = { id: 101 };
 				} else if (url.pathname === '/repos/microsoft/vscode-internalbacklog') {
-					data = { private: true };
+					data = { private: true, owner: { login: 'microsoft' }, name: repository.name, full_name: `microsoft/${repository.name}`, default_branch: 'main', html_url: 'https://github.com/microsoft/vscode-internalbacklog' };
+				} else if (url.pathname.endsWith('/automation-1')) {
+					data = definition;
 				} else {
 					assert.strictEqual(url.href, 'https://api.githubcopilot.com/agents/repos/microsoft/vscode-internalbacklog/automations/v2?ownership=user&page=1&per_page=100');
-					data = { automations: [definition] };
+					data = { automations: [definition], total_count: 1 };
 				}
 				return new Response(JSON.stringify(data), { status: 200 });
 			},
@@ -277,9 +355,9 @@ suite('GitHubCloudAutomationStore', () => {
 				return engine.acquireClient({
 					authorization: { providerId: 'github', sessionId: account.sessionId, scopes: ['repo'] },
 					apiBaseUri: 'https://api.github.com', graphQlUri: 'https://api.github.com/graphql',
+					missionControl: { endpoint: { apiBaseUri: 'https://api.githubcopilot.com/agents', integrationId: COPILOT_INTEGRATION_ID } },
 				});
 			}
-			override acquireClient(options: GitHubClientOptions) { return engine.acquireClient(options); }
 		}();
 		const storage = disposables.add(new InMemoryStorageService());
 		const store = disposables.add(new GitHubCloudAutomationStore(() => undefined, service,
@@ -298,6 +376,7 @@ suite('GitHubCloudAutomationStore', () => {
 				{ url: 'https://api.github.com/user', integration: null },
 				{ url: 'https://api.github.com/repos/microsoft/vscode-internalbacklog', integration: null },
 				{ url: 'https://api.githubcopilot.com/agents/repos/microsoft/vscode-internalbacklog/automations/v2?ownership=user&page=1&per_page=100', integration: COPILOT_INTEGRATION_ID },
+				{ url: 'https://api.githubcopilot.com/agents/repos/microsoft/vscode-internalbacklog/automations/automation-1', integration: COPILOT_INTEGRATION_ID },
 			],
 		});
 	});
@@ -323,7 +402,7 @@ suite('GitHubCloudAutomationStore', () => {
 	test('publishes loading synchronously and coalesces refreshes', async () => {
 		const { store, api, recents } = setup();
 		recents.workspaces = [recentWorkspace(workspace)];
-		const pending = new DeferredPromise<readonly GitHubAutomation[]>();
+		const pending = new DeferredPromise<readonly AutomationDetail[]>();
 		api.definitions.set(repository.name, pending.p);
 		const states: string[] = [];
 		disposables.add(autorun(reader => states.push(store.catalogueState.read(reader))));
@@ -418,7 +497,7 @@ suite('GitHubCloudAutomationStore', () => {
 		test(`cancels and discards in-flight definitions on ${reset}`, async () => {
 			const { store, api, recents, changeAccount, storage } = setup();
 			recents.workspaces = [recentWorkspace(workspace), recentWorkspace(workspace.with({ path: '/microsoft/queued/HEAD' }))];
-			const pending = new DeferredPromise<readonly GitHubAutomation[]>();
+			const pending = new DeferredPromise<readonly AutomationDetail[]>();
 			api.definitions.set(repository.name, pending.p);
 			const refresh = store.refresh();
 			await api.listStarted.p;
@@ -443,13 +522,13 @@ suite('GitHubCloudAutomationStore', () => {
 	test('a previous account refresh cannot clear or overwrite the new account refresh', async () => {
 		const { store, api, recents, changeAccount } = setup();
 		recents.workspaces = [recentWorkspace(workspace)];
-		const old = new DeferredPromise<readonly GitHubAutomation[]>();
+		const old = new DeferredPromise<readonly AutomationDetail[]>();
 		api.definitions.set(repository.name, old.p);
 		const first = store.refresh();
 		await api.listStarted.p;
 		const rejected = assert.rejects(first, isCancellationError);
 		changeAccount({ ...account, sessionId: 'auth-2' });
-		const current = new DeferredPromise<readonly GitHubAutomation[]>();
+		const current = new DeferredPromise<readonly AutomationDetail[]>();
 		api.definitions.set(repository.name, current.p);
 		const second = store.refresh();
 		await old.complete([definition]);
@@ -479,7 +558,7 @@ suite('GitHubCloudAutomationStore', () => {
 	test('registration during refresh is retained for the next refresh', async () => {
 		const { store, api, recents, storage } = setup();
 		recents.workspaces = [recentWorkspace(workspace)];
-		const pending = new DeferredPromise<readonly GitHubAutomation[]>();
+		const pending = new DeferredPromise<readonly AutomationDetail[]>();
 		api.definitions.set(repository.name, pending.p);
 		const refresh = store.refresh();
 		await api.listStarted.p;
