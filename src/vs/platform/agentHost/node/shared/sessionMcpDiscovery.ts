@@ -8,9 +8,8 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { URI } from '../../../../base/common/uri.js';
-import { makeMcpServerCustomization, readJsonFile, resolveMcpServersMap, type IMcpServerDefinition } from '../../../agentPlugins/common/pluginParsers.js';
+import { makeMcpServerCustomization, normalizeMcpServerConfiguration, readJsonFile, resolveMcpServersMap, type IMcpServerDefinition } from '../../../agentPlugins/common/pluginParsers.js';
 import type { IFileService } from '../../../files/common/files.js';
-import { fromCopilotMcpServerConfiguration } from '../../../mcp/common/mcpCopilotConfiguration.js';
 
 class RootMcpDiscovery extends Disposable {
 
@@ -81,7 +80,7 @@ class RootMcpDiscovery extends Disposable {
 			return definitions;
 		}
 		for (const [name, value] of Object.entries(raw)) {
-			const configuration = fromCopilotMcpServerConfiguration(value);
+			const configuration = normalizeMcpServerConfiguration(value);
 			if (configuration) {
 				definitions.push({
 					name,
