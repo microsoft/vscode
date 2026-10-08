@@ -10,6 +10,7 @@ import {
 	cloudSandboxAddress,
 	CloudSandboxAuthenticationRequiredError,
 	CloudSandboxRequestError,
+	CloudSandboxTransportError,
 	ICloudSandboxClientToken,
 	isRetryableCloudSandboxError,
 } from '../../common/cloudSandboxAgentHost.js';
@@ -69,25 +70,27 @@ suite('isRetryableCloudSandboxError', () => {
 		assert.deepStrictEqual(
 			{
 				transport: isRetryableCloudSandboxError(new Error('socket hang up')),
+				requestTransport: isRetryableCloudSandboxError(new CloudSandboxTransportError(new Error('socket hang up'))),
 				statusless: isRetryableCloudSandboxError(new CloudSandboxRequestError(undefined, 'no status')),
 				// Raised before any request goes out, and covers the auth provider not having
 				// registered yet — so callers bound it with their own ceiling rather than here.
 				authNotReady: isRetryableCloudSandboxError(new CloudSandboxAuthenticationRequiredError()),
 			},
-			{ transport: true, statusless: true, authNotReady: true },
+			{ transport: true, requestTransport: true, statusless: true, authNotReady: true },
 		);
 	});
 
 	test('an answered request is distinguishable from an unanswered one', () => {
-		// `_throwForStatus` is the sole source of CloudSandboxRequestError and always carries the
-		// replied status, so the type alone separates "Mission Control refused" from "no answer" —
-		// which is what lets a caller report a refusal rather than an inconclusive timeout.
+		const cause = new Error('Fetch timeout: 180000ms');
+		const transportError = new CloudSandboxTransportError(cause);
 		assert.deepStrictEqual(
 			{
 				refused: new CloudSandboxRequestError(500, 'HTTP 500') instanceof CloudSandboxRequestError,
-				transport: new Error('Fetch timeout: 10000ms') instanceof CloudSandboxRequestError,
+				transport: transportError instanceof CloudSandboxRequestError,
+				message: transportError.message,
+				cause: transportError.cause,
 			},
-			{ refused: true, transport: false },
+			{ refused: true, transport: false, message: cause.message, cause },
 		);
 	});
 });
