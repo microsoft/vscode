@@ -20808,7 +20808,7 @@ Use the attached image as context.
 			const { session, mockSession, signals } = await createAgentSession(disposables, {
 				sessionCustomizations: () => retained,
 				configureMockSession: mock => {
-					mock.mcpConfiguredListResult = { servers: [{ name: serverName, enabled: false, source: 'user' }] };
+					mock.mcpConfiguredListResult = { servers: [{ name: serverName, enabled: false, source: 'user', live: { status: 'disabled' } }] };
 				},
 			});
 			await timeout(0);
@@ -20834,7 +20834,7 @@ Use the attached image as context.
 			const first = await createAgentSession(disposables, {
 				sessionCustomizations: () => retained,
 				configureMockSession: mock => {
-					mock.mcpConfiguredListResult = { servers: [{ name: serverName, enabled: false, source: 'user' }] };
+					mock.mcpConfiguredListResult = { servers: [{ name: serverName, enabled: false, source: 'user', live: { status: 'disabled' } }] };
 				},
 			});
 			await timeout(0);
@@ -20844,7 +20844,7 @@ Use the attached image as context.
 				resume: true,
 				sessionCustomizations: () => retained,
 				configureMockSession: mock => {
-					mock.mcpConfiguredListResult = { servers: [{ name: serverName, enabled: false, source: 'user' }] };
+					mock.mcpConfiguredListResult = { servers: [{ name: serverName, enabled: false, source: 'user', live: { status: 'disabled' } }] };
 				},
 			});
 			await restored.session.send('preserve the configured-disabled server after restart');
@@ -20882,7 +20882,7 @@ Use the attached image as context.
 							kind: 'resolved', enablement, enabled, workingDirectory: { kind: 'workspaceless' },
 						}),
 						configureMockSession: mock => {
-							mock.mcpConfiguredListResult = { servers: [{ name: serverName, enabled: !enabled, source: 'user' }] };
+							mock.mcpConfiguredListResult = { servers: [{ name: serverName, enabled: !enabled, source: 'user', live: { status: enabled ? 'disabled' : 'stopped' } }] };
 						},
 					});
 
@@ -20907,7 +20907,7 @@ Use the attached image as context.
 				}],
 				resolveCustomizationEnablement: () => ({ kind: 'pending', reason: 'session' }),
 				configureMockSession: mock => {
-					mock.mcpConfiguredListResult = { servers: [{ name: serverName, enabled: true, source: 'user' }] };
+					mock.mcpConfiguredListResult = { servers: [{ name: serverName, enabled: true, source: 'user', live: { status: 'stopped' } }] };
 				},
 			});
 
@@ -20926,7 +20926,7 @@ Use the attached image as context.
 					mcpServers: { [serverName]: { type: McpServerType.REMOTE, url: 'https://mcp.example.com/context7' } },
 				},
 				configureMockSession: mock => {
-					mock.mcpConfiguredListResult = { servers: [{ name: serverName, enabled: false }] };
+					mock.mcpConfiguredListResult = { servers: [{ name: serverName, enabled: false, live: { status: 'disabled' } }] };
 				},
 			});
 
@@ -20966,7 +20966,7 @@ Use the attached image as context.
 					name: 'Context7', children: [child],
 				}],
 				configureMockSession: mock => {
-					mock.mcpConfiguredListResult = { servers: [{ name: serverName, enabled: false, source: 'plugin' }] };
+					mock.mcpConfiguredListResult = { servers: [{ name: serverName, enabled: false, source: 'plugin', live: { status: 'disabled' } }] };
 				},
 			});
 
@@ -21031,7 +21031,7 @@ Use the attached image as context.
 					workingDirectory: { kind: 'workspaceless' },
 				}),
 				configureMockSession: mock => {
-					mock.mcpConfiguredListResult = { servers: [{ name: serverName, enabled: false, source: 'user' }] };
+					mock.mcpConfiguredListResult = { servers: [{ name: serverName, enabled: false, source: 'user', live: { status: 'disabled' } }] };
 				},
 			});
 			await timeout(0);
@@ -21271,9 +21271,9 @@ Use the attached image as context.
 				configureMockSession: mock => {
 					mock.mcpConfiguredListResult = {
 						servers: [
-							{ name: 'sleepy', enabled: true, source: 'user' },
-							{ name: 'disabled', enabled: false, source: 'workspace' },
-							{ name: 'plugin-server', enabled: true, source: 'plugin', sourcePlugin: 'acme', sourcePluginVersion: '1.0.0' },
+							{ name: 'sleepy', enabled: true, source: 'user', live: { status: 'not_configured' } },
+							{ name: 'disabled', enabled: false, source: 'workspace', live: { status: 'not_configured' } },
+							{ name: 'plugin-server', enabled: true, source: 'plugin', sourcePlugin: 'acme', sourcePluginVersion: '1.0.0', live: { status: 'not_configured' } },
 						]
 					};
 				},
@@ -21303,7 +21303,7 @@ Use the attached image as context.
 			});
 		});
 
-		for (const liveStatus of [undefined, 'disabled', 'not_configured', 'stopped', 'connected', 'pending', 'needs-auth', 'failed'] as const) {
+		for (const liveStatus of ['disabled', 'not_configured', 'stopped', 'connected', 'pending', 'needs-auth', 'failed'] as const) {
 			for (const enabled of [false, true]) {
 				for (const desired of [false, true]) {
 					test(`reconciles configured enablement ${enabled} with desired ${desired} and live status ${liveStatus}`, async () => {
@@ -21323,13 +21323,13 @@ Use the attached image as context.
 							configureMockSession: mock => {
 								mock.mcpConfiguredListResult = {
 									servers: [{
-										name: serverName, enabled, live: liveStatus ? { status: liveStatus } : undefined,
+										name: serverName, enabled, live: { status: liveStatus },
 									}]
 								};
 							},
 						});
 
-						const runtimeEnabled = liveStatus === undefined ? enabled : liveStatus !== 'disabled' && liveStatus !== 'not_configured';
+						const runtimeEnabled = liveStatus !== 'disabled' && liveStatus !== 'not_configured';
 						await session.send('reconcile sleepy');
 
 						assert.deepStrictEqual({
