@@ -2400,6 +2400,26 @@ suite('ProtocolServerHandler', () => {
 			server.simulateConnection(transport);
 			transport.simulateMessage(request(1, 'initialize', { clientId: 'expiring-client', protocolVersions: [PROTOCOL_VERSION] }));
 			stateManager.createSession(makeSessionSummary());
+			if (!passive) {
+				stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady });
+				stateManager.dispatchServerAction(sessionUri, {
+					type: ActionType.SessionActiveClientSet,
+					activeClient: { clientId: 'expiring-client', tools: [{ name: 'runTask', description: 'Runs a task' }] },
+				});
+				stateManager.dispatchServerAction(defaultChatUri, {
+					type: ActionType.ChatTurnStarted, turnId: 'expiring-turn', startedAt: new Date().toISOString(),
+					message: { text: 'run it', origin: { kind: MessageKind.User } },
+				});
+				stateManager.dispatchServerAction(defaultChatUri, {
+					type: ActionType.ChatToolCallStart, turnId: 'expiring-turn', toolCallId: 'expiring-tool',
+					toolName: 'runTask', displayName: 'Run Task',
+					contributor: { kind: ToolCallContributorKind.Client, clientId: 'expiring-client' },
+				});
+				stateManager.dispatchServerAction(defaultChatUri, {
+					type: ActionType.ChatToolCallReady, turnId: 'expiring-turn', toolCallId: 'expiring-tool',
+					invocationMessage: 'Run Task', confirmed: ToolCallConfirmationReason.NotNeeded,
+				});
+			}
 			const key = sealing.advertisedKeys.find(key => key.use === 'auth-token')!;
 			const authenticate = async (id: number) => {
 				const token = await sealMissionControlCredential({ resource: 'https://api.github.com', token: 'owner-token', key: { ...key, use: 'auth-token' } });
@@ -2409,18 +2429,31 @@ suite('ProtocolServerHandler', () => {
 			await authenticate(2);
 			transport.simulateMessage(request(3, 'subscribe', { channel: sessionUri }));
 			await handler.whenIdle();
+			clock.tick(1999);
 			transport.sent.length = 0;
-			clock.tick(2000);
+			clock.tick(1);
 			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Hidden after lapse' });
 			agentService.emitMcpNotification({ channel: 'mcp://copilot/session/server', method: 'notifications/tools/list_changed' });
 			transport.simulateMessage(request(4, 'listSessions', {}));
 			await handler.whenIdle();
+			const expiredPart = stateManager.getSessionState(defaultChatUri)?.activeTurn?.responseParts[0];
 			assert.deepStrictEqual({
 				notifications: transport.sent.filter(isJsonRpcNotification),
 				denied: findResponse(transport.sent, 4),
+				activeClients: stateManager.getSessionState(sessionUri)?.activeClients,
+				tool: expiredPart?.kind === ResponsePartKind.ToolCall ? {
+					status: expiredPart.toolCall.status,
+					success: expiredPart.toolCall.status === ToolCallStatus.Completed ? expiredPart.toolCall.success : undefined,
+					error: expiredPart.toolCall.status === ToolCallStatus.Completed ? expiredPart.toolCall.error?.message : undefined,
+				} : undefined,
 			}, {
 				notifications: [],
 				denied: { jsonrpc: '2.0', id: 4, error: { code: AHP_AUTH_REQUIRED, message: 'Relay identity authentication is required' } },
+				activeClients: [],
+				tool: passive ? undefined : {
+					status: ToolCallStatus.Completed, success: false,
+					error: 'Client expiring-client disconnected before completing Run Task',
+				},
 			});
 			expiration = '2030-01-01T00:00:06Z';
 			await authenticate(5);
@@ -2433,6 +2466,55 @@ suite('ProtocolServerHandler', () => {
 			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Visible after resubscribe' });
 			assert.strictEqual(transport.sent.filter(isJsonRpcNotification).length, 1);
 		});
+	}
+
+	for (const activeClient of [false, true]) {
+		for (const retainedChannel of [undefined, sessionUri, defaultChatUri]) {
+			test(`expiry reconciles ${activeClient ? 'active-client' : 'orphaned'} tool ownership with ${retainedChannel ?? 'no'} overlapping subscription`, async () => {
+				const clientId = 'expiring-client';
+				stateManager.createSession(makeSessionSummary());
+				stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady });
+				if (activeClient) {
+					stateManager.dispatchServerAction(sessionUri, {
+						type: ActionType.SessionActiveClientSet,
+						activeClient: { clientId, tools: [{ name: 'runTask', description: 'Runs a task' }] },
+					});
+				}
+				stateManager.dispatchServerAction(defaultChatUri, {
+					type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: new Date().toISOString(),
+					message: { text: 'run it', origin: { kind: MessageKind.User } },
+				});
+				stateManager.dispatchServerAction(defaultChatUri, {
+					type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'tool-1',
+					toolName: 'runTask', displayName: 'Run Task',
+					contributor: { kind: ToolCallContributorKind.Client, clientId },
+				});
+				if (retainedChannel) {
+					const overlapping = disposables.add(connectClient(clientId, [retainedChannel]));
+					await handler.whenIdle();
+					assert.ok(overlapping.sent.some(isJsonRpcResponse));
+				}
+				const expired = disposables.add(new Emitter<void>());
+				const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, clientId, false));
+				transport.relayAuthenticated = true;
+				transport.onDidRelayAuthenticationExpire = expired.event;
+				server.simulateConnection(transport);
+				transport.simulateMessage(request(1, 'initialize', { clientId, protocolVersions: [PROTOCOL_VERSION], initialSubscriptions: [sessionUri] }));
+				await handler.whenIdle();
+				transport.relayAuthenticated = false;
+				expired.fire();
+				const part = stateManager.getSessionState(defaultChatUri)?.activeTurn?.responseParts[0];
+				assert.deepStrictEqual({
+					activeClients: stateManager.getSessionState(sessionUri)?.activeClients.map(client => client.clientId),
+					status: part?.kind === ResponsePartKind.ToolCall ? part.toolCall.status : undefined,
+					unsubscribedRetainedChannel: retainedChannel !== undefined && agentService.unsubscribeCalls.some(call => call.resource === retainedChannel),
+				}, {
+					activeClients: activeClient && retainedChannel ? [clientId] : [],
+					status: retainedChannel ? ToolCallStatus.Streaming : ToolCallStatus.Completed,
+					unsubscribedRetainedChannel: false,
+				});
+			});
+		}
 	}
 
 	for (const method of ['listSessions', 'resourceRead', 'mcp/test', 'authenticate']) {

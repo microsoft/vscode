@@ -533,7 +533,7 @@ suite('Mission Control sealed authentication', () => {
 		});
 	});
 
-	for (const expiration of ['2030-01-01 00:00:02 UTC', '2030-01-01T00:00:02Z']) {
+	for (const expiration of ['2030-01-01 00:00:02 UTC', '2030-01-01T00:00:02Z', '2030-01-01T00:00:02.000Z']) {
 		test(`uses GitHub deadline ${expiration} rather than caller expiry and lapses exactly once`, async () => {
 			const clock = useFakeTimers({ now: Date.parse('2030-01-01T00:00:00Z'), toFake: ['Date', 'setTimeout', 'clearTimeout'] });
 			const sealing = store.add(new MissionControlSealing());
@@ -552,6 +552,42 @@ suite('Mission Control sealed authentication', () => {
 			clock.tick(5000);
 			assert.deepStrictEqual({ expiresIn: accepted.expiresIn, authenticated: auth.authenticated, lapses }, {
 				expiresIn: 2, authenticated: false, lapses: 1,
+			});
+		});
+	}
+
+	for (const expiration of [
+		'2030-02-31T00:00:00Z', '2030-02-31 00:00:00 UTC',
+		'2030-02-29T00:00:00Z', '2100-02-29T00:00:00Z', '2030-04-31T00:00:00Z',
+		'2030-00-01T00:00:00Z', '2030-13-01T00:00:00Z', '2030-01-00T00:00:00Z',
+		'2030-01-01T24:00:00Z', '2030-01-01T00:60:00Z', '2030-01-01T00:00:60Z',
+		'2030-01-01T00:00:00', '2030-01-01 00:00:00', '2030-01-01',
+		'2030-01-01T00:00:00+01:00', 'Tue, 01 Jan 2030 00:00:00 GMT',
+		'2030-01-01T00:00:00.0001Z',
+	]) {
+		test(`rejects malformed or unsupported GitHub expiration ${expiration}`, async () => {
+			useFakeTimers({ now: Date.parse('2030-01-01T00:00:00Z'), toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+			const sealing = store.add(new MissionControlSealing());
+			const auth = store.add(new MissionControlAuthentication(sealing, '123', resource, async () => Response.json(
+				{ id: 123, type: 'User' }, { headers: { 'GitHub-Authentication-Token-Expiration': expiration } },
+			), false));
+			await assert.rejects(auth.authenticate({ resource, token: seal(sealing, 'owner-token') }), {
+				code: JsonRpcErrorCodes.InvalidParams, message: 'GitHub returned an invalid credential expiration',
+			});
+			assert.strictEqual(auth.authenticated, false);
+		});
+	}
+
+	for (const expiration of ['2032-02-29 00:00:00 UTC', '2032-02-29T00:00:00.1Z', '2032-02-29T00:00:00.12Z', '2000-02-29T00:00:00.123Z']) {
+		test(`accepts calendar-valid UTC deadline ${expiration}`, async () => {
+			useFakeTimers({ now: Date.parse('1999-01-01T00:00:00Z'), toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+			const sealing = store.add(new MissionControlSealing());
+			const auth = store.add(new MissionControlAuthentication(sealing, '123', resource, async () => Response.json(
+				{ id: 123, type: 'User' }, { headers: { 'GitHub-Authentication-Token-Expiration': expiration } },
+			), false));
+			const accepted = await auth.authenticate({ resource, token: seal(sealing, 'owner-token') });
+			assert.deepStrictEqual({ expiresIn: accepted.expiresIn, authenticated: auth.authenticated }, {
+				expiresIn: (Date.parse(expiration) - Date.now()) / 1000, authenticated: true,
 			});
 		});
 	}

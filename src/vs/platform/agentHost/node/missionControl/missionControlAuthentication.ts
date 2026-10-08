@@ -194,6 +194,20 @@ export async function resolveMissionControlOwner(fetcher: typeof fetch, apiOrigi
 	return (await resolveMissionControlIdentity(fetcher, apiOrigin, credential)).owner;
 }
 
+function parseMissionControlExpiration(expiration: string): number {
+	const normalized = expiration.replace(/^(?<date>\d{4}-\d{2}-\d{2}) (?<time>\d{2}:\d{2}:\d{2}) UTC$/, '$<date>T$<time>Z');
+	const fields = /^(?<date>\d{4}-\d{2}-\d{2})T(?<time>\d{2}:\d{2}:\d{2})(?:\.(?<milliseconds>\d{1,3}))?Z$/.exec(normalized)?.groups;
+	if (!fields) {
+		throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'GitHub returned an invalid credential expiration');
+	}
+	const canonical = `${fields.date}T${fields.time}.${(fields.milliseconds ?? '').padEnd(3, '0')}Z`;
+	const expiresAt = Date.parse(canonical);
+	if (!Number.isFinite(expiresAt) || new Date(expiresAt).toISOString() !== canonical) {
+		throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'GitHub returned an invalid credential expiration');
+	}
+	return expiresAt;
+}
+
 async function resolveMissionControlIdentity(fetcher: typeof fetch, apiOrigin: string, credential: string): Promise<{ owner: string; expiresAt?: number }> {
 	if (!/^[\x21-\x7e]+$/.test(credential)) {
 		throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Invalid GitHub credential encoding');
@@ -221,10 +235,7 @@ async function resolveMissionControlIdentity(fetcher: typeof fetch, apiOrigin: s
 		throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Mission Control requires a canonical GitHub user identity');
 	}
 	const expiration = response.headers.get('GitHub-Authentication-Token-Expiration');
-	const expiresAt = expiration === null ? undefined : Date.parse(expiration);
-	if (expiresAt !== undefined && !Number.isFinite(expiresAt)) {
-		throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'GitHub returned an invalid credential expiration');
-	}
+	const expiresAt = expiration === null ? undefined : parseMissionControlExpiration(expiration);
 	if (expiresAt !== undefined && expiresAt <= Date.now()) {
 		throw new ProtocolError(AhpErrorCodes.AuthRequired, 'GitHub credential has expired');
 	}

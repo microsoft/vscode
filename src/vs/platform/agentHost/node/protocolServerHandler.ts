@@ -503,6 +503,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				const record = client ? this._clients.get(client.clientId) : undefined;
 				if (client && record?.state === 'active') {
 					this._releaseClientSubscriptions(client, record);
+					this._reconcileActiveClientSubscriptions(client);
 					this._rejectPendingReverseRequestsForConnection(client, new ProtocolError(AHP_AUTH_REQUIRED, 'Relay identity authentication expired'));
 				}
 			}));
@@ -1157,7 +1158,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				client.subscriptions.set(active.uri, active);
 			}
 		}
-		this._reconcileActiveClientsAfterReconnect(client);
+		this._reconcileActiveClientSubscriptions(client);
 
 		if (canReplay) {
 			const actions: ActionEnvelope[] = [];
@@ -1189,14 +1190,8 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		return { type: 'snapshot', snapshots: refreshedSnapshots.filter((s): s is IStateSnapshot => s !== undefined).map(snapshot => this._projectRelayRootSnapshot(client, snapshot)) };
 	}
 
-	/**
-	 * Release a client from every session where it is still an active client
-	 * but did not resubscribe during a reconnect. The set of resubscribed
-	 * sessions is gathered from every live connection the client currently
-	 * holds (not just the reconnecting one) so an overlapping connection that
-	 * still subscribes to a session keeps the client active there.
-	 */
-	private _reconcileActiveClientsAfterReconnect(client: IConnectedClient): void {
+	/** Releases active-client and tool ownership not retained by another live connection's subscriptions. */
+	private _reconcileActiveClientSubscriptions(client: IConnectedClient): void {
 		const record = this._clients.get(client.clientId);
 		const resubscribed = new Set<string>();
 		for (const connection of record?.state === 'active' ? record.connections : [client]) {
@@ -1208,9 +1203,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		}
 		for (const session of this._stateManager.getSessionUris()) {
 			const state = this._stateManager.getSessionState(session);
-			if (state && this._isActiveClient(state, client.clientId)) {
+			if (state) {
 				for (const chat of state.chats) {
-					if (!resubscribed.has(session) && !resubscribed.has(chat.resource)) {
+					if (!resubscribed.has(session) && !resubscribed.has(chat.resource)
+						&& (this._isActiveClient(state, client.clientId) || this._hasPendingClientToolCall(this._stateManager.getSessionState(chat.resource), client.clientId))) {
 						this._releaseActiveClientForSession(session, client.clientId, chat.resource);
 					}
 				}
