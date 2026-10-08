@@ -8,10 +8,11 @@ import './media/chatDebugSessionTimeline.css';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { BreadcrumbsWidget } from '../../../../../base/browser/ui/breadcrumbs/breadcrumbsWidget.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
-import { RunOnceScheduler } from '../../../../../base/common/async.js';
+import { RunOnceScheduler, timeout } from '../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
@@ -85,12 +86,16 @@ export class ChatDebugSessionTimeline extends Disposable {
 	private readonly expandedEventIds = new Set<string>();
 	private readonly enabledCategories = new Set<SessionTimelineCategory>(categories);
 	private readonly refreshScheduler: RunOnceScheduler;
+	private readonly findScheduler: RunOnceScheduler;
+	private readonly findCancellation = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly focusedContextKey: IContextKey<boolean>;
 	private currentSessionResource: URI | undefined;
 	private sourceResource: URI | undefined;
 	private model: ISessionTimelineModel | undefined;
 	private findMatches: readonly ISessionTimelineFindMatch[] = [];
 	private currentFindMatchIndex = -1;
+	private activeFindQuery = '';
+	private findSearching = false;
 	private loadGeneration = 0;
 
 	constructor(
@@ -148,9 +153,7 @@ export class ChatDebugSessionTimeline extends Disposable {
 			'aria-label': localize('chatDebug.sessionTimeline.findAriaLabel', "Find in Session Timeline"),
 		}));
 		this._register(DOM.addDisposableListener(this.findInput, DOM.EventType.INPUT, () => {
-			this.currentFindMatchIndex = this.findInput.value ? 0 : -1;
-			this.render();
-			this.revealCurrentFindMatch();
+			this.scheduleFindSearch();
 		}));
 		this._register(DOM.addDisposableListener(this.findInput, DOM.EventType.KEY_DOWN, event => {
 			if (event.key === 'Enter') {
@@ -159,13 +162,16 @@ export class ChatDebugSessionTimeline extends Disposable {
 			} else if (event.key === 'Escape' && this.findInput.value) {
 				event.preventDefault();
 				this.findInput.value = '';
+				this.activeFindQuery = '';
 				this.findMatches = [];
 				this.currentFindMatchIndex = -1;
+				this.findSearching = false;
+				this.cancelFindSearch();
 				this.updateFindWidget();
 				this.render();
 			}
 		}));
-		this.findMatchCount = DOM.append(find, $('.chat-debug-session-timeline-find-count'));
+		this.findMatchCount = DOM.append(find, $('.chat-debug-session-timeline-find-count', { 'aria-live': 'polite' }));
 		this.previousFindButton = this._register(new Button(find, {
 			...defaultButtonStyles,
 			secondary: true,
@@ -206,6 +212,7 @@ export class ChatDebugSessionTimeline extends Disposable {
 		this.status = DOM.append(controls, $('span.chat-debug-session-timeline-aria-status', { role: 'status', 'aria-live': 'polite' }));
 		this.content = DOM.append(this.container, $('.chat-debug-session-timeline-content'));
 		this.refreshScheduler = this._register(new RunOnceScheduler(() => this.load(), 300));
+		this.findScheduler = this._register(new RunOnceScheduler(() => void this.runFindSearch(), 200));
 		this.updateFindWidget();
 	}
 
@@ -219,7 +226,12 @@ export class ChatDebugSessionTimeline extends Disposable {
 			this.enabledCategories.add(category);
 		}
 		this.findInput.value = '';
+		this.activeFindQuery = '';
+		this.findMatches = [];
 		this.currentFindMatchIndex = -1;
+		this.findSearching = false;
+		this.cancelFindSearch();
+		this.updateFindWidget();
 	}
 
 	show(): void {
@@ -232,6 +244,10 @@ export class ChatDebugSessionTimeline extends Disposable {
 		DOM.hide(this.container);
 		this.loadGeneration++;
 		this.refreshScheduler.cancel();
+		this.findScheduler.cancel();
+		this.cancelFindSearch();
+		this.findSearching = false;
+		this.updateFindWidget();
 	}
 
 	refresh(): void {
@@ -311,6 +327,9 @@ export class ChatDebugSessionTimeline extends Disposable {
 			}
 			this.sourceResource = sourceResource;
 			this.model = createSessionTimelineModel(content.value.toString());
+			if (this.findInput.value && !this.findSearching && !this.findScheduler.isScheduled()) {
+				this.scheduleFindSearch();
+			}
 			this.render();
 		} catch (error) {
 			if (generation !== this.loadGeneration) {
@@ -348,32 +367,74 @@ export class ChatDebugSessionTimeline extends Disposable {
 		return undefined;
 	}
 
-	private rebuildFindMatches(events: readonly ISessionTimelineEvent[], query: string): void {
+	private scheduleFindSearch(): void {
+		this.findScheduler.cancel();
+		this.cancelFindSearch();
+		this.findMatches = [];
+		this.currentFindMatchIndex = -1;
+		this.activeFindQuery = '';
+		if (!this.findInput.value) {
+			this.activeFindQuery = '';
+			this.findSearching = false;
+			this.updateFindWidget();
+			this.render();
+			return;
+		}
+		this.findSearching = true;
+		this.updateFindWidget();
+		this.findScheduler.schedule();
+	}
+
+	private cancelFindSearch(): void {
+		this.findCancellation.value?.cancel();
+		this.findCancellation.clear();
+	}
+
+	private async runFindSearch(): Promise<void> {
+		this.cancelFindSearch();
+		const query = this.findInput.value;
+		if (!query) {
+			return;
+		}
+		const cancellation = new CancellationTokenSource();
+		this.findCancellation.value = cancellation;
+		const matches = await this.computeFindMatches(this.getFilteredEvents(), query, cancellation.token);
+		if (!matches || cancellation.token.isCancellationRequested || query !== this.findInput.value) {
+			return;
+		}
+		this.activeFindQuery = query;
+		this.findMatches = matches;
+		this.currentFindMatchIndex = matches.length ? 0 : -1;
+		this.findSearching = false;
+		this.findCancellation.clear();
+		this.render();
+		this.revealCurrentFindMatch();
+	}
+
+	private async computeFindMatches(events: readonly ISessionTimelineEvent[], query: string, token: CancellationToken): Promise<readonly ISessionTimelineFindMatch[] | undefined> {
 		const matches: ISessionTimelineFindMatch[] = [];
-		if (query) {
-			for (const event of events) {
-				this.collectTextMatches(matches, event.id, 'category', getCategoryLabel(event.category), query);
-				this.collectTextMatches(matches, event.id, 'title', event.title, query);
-				this.collectTextMatches(matches, event.id, 'metadata', event.metadata.join(' · '), query);
-				if (event.summaryPath) {
-					this.collectTextMatches(matches, event.id, 'summary-directory', event.summaryPath.directory, query);
-					this.collectTextMatches(matches, event.id, 'summary-basename', event.summaryPath.basename, query);
-				} else {
-					this.collectTextMatches(matches, event.id, 'summary', event.summary, query);
-				}
-				event.sections.forEach((section, sectionIndex) => {
-					this.collectTextMatches(matches, event.id, `section-label-${sectionIndex}`, section.label, query, sectionIndex);
-					this.collectTextMatches(matches, event.id, `section-content-${sectionIndex}`, section.content, query, sectionIndex);
-				});
+		for (const [eventIndex, event] of events.entries()) {
+			if (token.isCancellationRequested) {
+				return undefined;
+			}
+			this.collectTextMatches(matches, event.id, 'category', getCategoryLabel(event.category), query);
+			this.collectTextMatches(matches, event.id, 'title', event.title, query);
+			this.collectTextMatches(matches, event.id, 'metadata', event.metadata.join(' · '), query);
+			if (event.summaryPath) {
+				this.collectTextMatches(matches, event.id, 'summary-directory', event.summaryPath.directory, query);
+				this.collectTextMatches(matches, event.id, 'summary-basename', event.summaryPath.basename, query);
+			} else {
+				this.collectTextMatches(matches, event.id, 'summary', event.summary, query);
+			}
+			event.sections.forEach((section, sectionIndex) => {
+				this.collectTextMatches(matches, event.id, `section-label-${sectionIndex}`, section.label, query, sectionIndex);
+				this.collectTextMatches(matches, event.id, `section-content-${sectionIndex}`, section.content, query, sectionIndex);
+			});
+			if (eventIndex > 0 && eventIndex % 100 === 0) {
+				await timeout(0);
 			}
 		}
-		this.findMatches = matches;
-		if (matches.length === 0) {
-			this.currentFindMatchIndex = -1;
-		} else if (this.currentFindMatchIndex < 0 || this.currentFindMatchIndex >= matches.length) {
-			this.currentFindMatchIndex = 0;
-		}
-		this.updateFindWidget();
+		return token.isCancellationRequested ? undefined : matches;
 	}
 
 	private collectTextMatches(matches: ISessionTimelineFindMatch[], eventId: string, field: string, text: string, query: string, sectionIndex?: number): void {
@@ -446,8 +507,7 @@ export class ChatDebugSessionTimeline extends Disposable {
 		}
 
 		const filteredEvents = this.getFilteredEvents();
-		const searchQuery = this.findInput.value;
-		this.rebuildFindMatches(filteredEvents, searchQuery);
+		const searchQuery = this.activeFindQuery;
 		this.sourceSummary.textContent = this.model.errors.length > 0
 			? localize('chatDebug.sessionTimeline.sourceSummaryWithErrors', "{0} source records · {1} relevant events · {2} malformed lines", this.model.totalRecords, this.model.events.length, this.model.errors.length)
 			: localize('chatDebug.sessionTimeline.sourceSummary', "{0} source records · {1} relevant events", this.model.totalRecords, this.model.events.length);
@@ -478,6 +538,9 @@ export class ChatDebugSessionTimeline extends Disposable {
 					this.enabledCategories.delete(category);
 				} else {
 					this.enabledCategories.add(category);
+				}
+				if (this.findInput.value) {
+					this.scheduleFindSearch();
 				}
 				this.render();
 			}));
@@ -784,13 +847,15 @@ export class ChatDebugSessionTimeline extends Disposable {
 
 	private updateFindWidget(): void {
 		const hasMatches = this.findMatches.length > 0;
-		this.previousFindButton.enabled = hasMatches;
-		this.nextFindButton.enabled = hasMatches;
-		this.findMatchCount.textContent = !this.findInput.value
-			? ''
-			: hasMatches
-				? localize('chatDebug.sessionTimeline.findMatchCount', "{0} of {1}", this.currentFindMatchIndex + 1, this.findMatches.length)
-				: localize('chatDebug.sessionTimeline.noFindMatches', "No results");
+		this.previousFindButton.enabled = hasMatches && !this.findSearching;
+		this.nextFindButton.enabled = hasMatches && !this.findSearching;
+		this.findMatchCount.textContent = this.findSearching
+			? localize('chatDebug.sessionTimeline.findSearching', "Searching…")
+			: !this.findInput.value
+				? ''
+				: hasMatches
+					? localize('chatDebug.sessionTimeline.findMatchCount', "{0} of {1}", this.currentFindMatchIndex + 1, this.findMatches.length)
+					: localize('chatDebug.sessionTimeline.noFindMatches', "No results");
 	}
 
 	private renderMessage(message: string): void {
@@ -800,6 +865,8 @@ export class ChatDebugSessionTimeline extends Disposable {
 		this.renderedPromptSections.clear();
 		this.findMatches = [];
 		this.currentFindMatchIndex = -1;
+		this.activeFindQuery = '';
+		this.findSearching = false;
 		this.updateFindWidget();
 		DOM.clearNode(this.filters);
 		DOM.clearNode(this.content);
