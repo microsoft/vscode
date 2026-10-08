@@ -9,7 +9,7 @@ import { tmpdir } from 'os';
 import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { devContainerSandboxRunArgs, devContainerSandboxSecurityOptions, isDevContainerSandboxSupported, prepareDevContainerSandboxConfiguration } from '../../node/devContainerSandbox.js';
+import { devContainerSandboxRunArgs, devContainerSandboxSecurityOptions, isDevContainerSandboxSupported, parseDevContainerSandboxConfiguration, prepareDevContainerSandboxConfiguration } from '../../node/devContainerSandbox.js';
 
 suite('Dev Container sandbox configuration', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -31,6 +31,14 @@ suite('Dev Container sandbox configuration', () => {
 	function configurationOutput(): string {
 		return JSON.stringify({ configuration: { configFilePath: URI.file(configPath).toJSON() } });
 	}
+
+	test('preserves UNC configuration authorities without accessing the network share', () => {
+		const configFilePath = URI.from({ scheme: 'file', authority: 'server', path: '/share/project/.devcontainer/devcontainer.json' });
+		assert.deepStrictEqual(parseDevContainerSandboxConfiguration(JSON.stringify({ configuration: { configFilePath: configFilePath.toJSON() } })), {
+			configPath: configFilePath.fsPath,
+			service: undefined,
+		});
+	});
 
 	test('preserves the source config and its relative paths while adding all required Docker options', async () => {
 		const config = {

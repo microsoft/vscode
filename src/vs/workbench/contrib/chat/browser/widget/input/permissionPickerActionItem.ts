@@ -76,6 +76,7 @@ export interface IPermissionPickerDelegate {
 	readonly managedSandboxEnforced?: IObservable<boolean>;
 	readonly managedSandboxAllowsBypass?: IObservable<boolean>;
 	readonly sandboxEnabled?: IObservable<boolean | undefined>;
+	readonly sandboxDevContainerSupported?: IObservable<boolean | undefined>;
 	readonly isApplicable?: IObservable<boolean>;
 	readonly isResolving?: IObservable<boolean>;
 	readonly getSandboxToggle?: () => IActionListItemInlineToggle | undefined;
@@ -332,6 +333,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 			delegate.isApplicable?.read(reader);
 			delegate.isResolving?.read(reader);
 			delegate.sandboxEnabled?.read(reader);
+			delegate.sandboxDevContainerSupported?.read(reader);
 			delegate.managedSandboxEnforced?.read(reader);
 			delegate.managedSandboxAllowsBypass?.read(reader);
 			if (this.element) {
@@ -341,6 +343,9 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 	}
 
 	private isSandboxingEnabled(): boolean {
+		if (this.delegate.sandboxDevContainerSupported?.get() === false) {
+			return false;
+		}
 		if (this.delegate.getSandboxToggle) {
 			return this.delegate.getSandboxToggle()?.checked ?? false;
 		}

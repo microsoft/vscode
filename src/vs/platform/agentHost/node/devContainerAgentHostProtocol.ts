@@ -12,7 +12,7 @@ import { URI, uriToFsPath } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import type { IValidator } from '../../../base/common/validation.js';
 import { ILogService } from '../../log/common/log.js';
-import { DevContainerCloseConnectionNotification, DevContainerConnectExtensionMethod, devContainerConnectParamsValidator, devContainerConnectionParamsValidator, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayCloseNotification, DevContainerRelayMessageNotification, devContainerRelayMessageValidator, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, devContainerWorkspaceParamsValidator, type IAgentHostExtensionNotificationMap } from '../common/agentHostExtensionProtocol.js';
+import { DevContainerCloseConnectionNotification, DevContainerConnectExtensionMethod, devContainerConnectParamsValidator, devContainerConnectionParamsValidator, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerSandboxSupportNotification, DevContainerRelayCloseNotification, DevContainerRelayMessageNotification, devContainerRelayMessageValidator, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, devContainerWorkspaceParamsValidator, type IAgentHostExtensionNotificationMap } from '../common/agentHostExtensionProtocol.js';
 import { IDevContainerAgentHostMainService, type IDevContainerAgentHostWorkspaceConfig, type IDevContainerAgentHostConnectResult } from '../common/devContainerAgentHost.js';
 import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 
@@ -48,6 +48,9 @@ export class DevContainerAgentHostProtocol extends Disposable {
 		super();
 		this._register(_service.onDidRelayMessage(event => this._forward(DevContainerRelayMessageNotification, event)));
 		this._register(_service.onDidOutput(event => this._forward(DevContainerOutputNotification, event)));
+		if (_service.onDidChangeSandboxSupport) {
+			this._register(_service.onDidChangeSandboxSupport(event => this._forward(DevContainerSandboxSupportNotification, event)));
+		}
 		this._register(_service.onDidRelayClose(id => this._forward(DevContainerRelayCloseNotification, { connectionId: id })));
 		this._register(_service.onDidCloseConnection(id => {
 			this._forward(DevContainerCloseConnectionNotification, { connectionId: id });

@@ -71,6 +71,7 @@ suite('Dev Container Agent Host Connector', () => {
 		});
 		const service = new class extends mock<IDevContainerAgentHostMainService>() {
 			override readonly onDidOutput = Event.None;
+			override readonly onDidChangeSandboxSupport = Event.None;
 			override readonly onDidRelayMessage = Event.None;
 			override readonly onDidRelayActivity = Event.None;
 			override readonly onDidRelayClose = Event.None;
@@ -84,10 +85,10 @@ suite('Dev Container Agent Host Connector', () => {
 			override async stopContainer(source: string | IDevContainerSampleSource) { lifecycle.push(source); return true; }
 			override async removeContainer(source: string | IDevContainerSampleSource) { lifecycle.push(source); return true; }
 		}();
-		const connector = new DevContainerAgentHostConnector(
+		const connector = store.add(new DevContainerAgentHostConnector(
 			new class extends mock<ISharedProcessService>() {
 				override getChannel(): IChannel {
-					const channel = ProxyChannel.fromService(service, store.add(new DisposableStore()));
+					const channel = ProxyChannel.fromService(service, store.add(new DisposableStore()), { unbufferedEvents: ['onDidChangeSandboxSupport'] });
 					return {
 						listen: (event, arg) => channel.listen(undefined, event, arg),
 						call: (command, arg) => channel.call(undefined, command, arg),
@@ -108,7 +109,7 @@ suite('Dev Container Agent Host Connector', () => {
 			}(),
 			new class extends mock<IRemoteAgentHostService>() { }(),
 			new class extends mock<ISessionsProvidersService>() { }(),
-		);
+		));
 		const source = devContainerSampleUri(devContainerSamples[0]);
 		await connector.isAvailable(source);
 		const beforeConnect = configs.length;
@@ -140,6 +141,53 @@ suite('Dev Container Agent Host Connector', () => {
 			workspace: '/workspaces/vscode-remote-try-go',
 		});
 	});
+
+	for (const remote of [false, true]) {
+		test(`publishes observed support before a failed connection (remote facade: ${remote})`, async () => {
+			const support = store.add(new Emitter<{ connectionId: string; supported: boolean }>());
+			const main = new class extends mock<IDevContainerAgentHostMainService>() {
+				override readonly onDidOutput = Event.None;
+				override readonly onDidRelayMessage = Event.None;
+				override readonly onDidRelayActivity = Event.None;
+				override readonly onDidRelayClose = Event.None;
+				override readonly onDidCloseConnection = Event.None;
+				override readonly onDidChangeSandboxSupport = support.event;
+				override async connect(config: IDevContainerAgentHostConfig): Promise<never> {
+					support.fire({ connectionId: config.connectionId, supported: false });
+					throw new Error('Unsupported sandbox startup');
+				}
+				override async disconnect(): Promise<void> { }
+			}();
+			const service = remote ? store.add(new RemoteDevContainerService(async () => main, new NullLogService())) : main;
+			const channel = ProxyChannel.fromService(service, store.add(new DisposableStore()), { unbufferedEvents: ['onDidChangeSandboxSupport'] });
+			const connector = store.add(new DevContainerAgentHostConnector(
+				new class extends mock<ISharedProcessService>() {
+					override getChannel(): IChannel {
+						return {
+							listen: (event, arg) => channel.listen(undefined, event, arg),
+							call: (command, arg) => channel.call(undefined, command, arg),
+						};
+					}
+				}(),
+				store.add(new TestInstantiationService()),
+				new NullLogService(),
+				new TestConfigurationService({ [DevContainerAgentHostEnabledSettingId]: true, [RemoteAgentHostsEnabledSettingId]: true }),
+				new class extends mock<IEnvironmentService>() { }(),
+				new class extends mock<IOutputService>() {
+					override getChannel() { return new class extends mock<IOutputChannel>() { override append() { } }(); }
+					override async showChannel(): Promise<void> { }
+				}(),
+				new class extends mock<IFileService>() { }(),
+				new class extends mock<IRemoteAgentHostService>() { }(),
+				new class extends mock<ISessionsProvidersService>() { }(),
+			));
+			const workspace = URI.file('/unsupported-project');
+			const observed: { workspace: string; supported: boolean }[] = [];
+			store.add(connector.onDidChangeSandboxSupport(event => observed.push({ workspace: event.workspaceUri.toString(), supported: event.supported })));
+			await assert.rejects(connector.createConnection(workspace, 'devcontainer:unsupported', CancellationToken.None, { resume: true, sandboxEnabled: true }), /Unsupported sandbox startup/);
+			assert.deepStrictEqual(observed, [{ workspace: workspace.toString(), supported: false }]);
+		});
+	}
 
 	test('sample availability requires its setting and Docker without reading a host workspace', async () => {
 		let dockerChecks = 0;
@@ -378,7 +426,7 @@ suite('Dev Container Agent Host Connector', () => {
 				}
 				override readonly devContainerService = remoteService;
 			}();
-			const connector = new DevContainerAgentHostConnector(
+			const connector = store.add(new DevContainerAgentHostConnector(
 				new class extends mock<ISharedProcessService>() {
 					override getChannel(): IChannel {
 						return new class extends mock<IChannel>() {
@@ -412,7 +460,7 @@ suite('Dev Container Agent Host Connector', () => {
 					override getConnection(): IAgentConnection { return connection; }
 				}(),
 				new class extends mock<ISessionsProvidersService>() { }(),
-			);
+			));
 			const available = await connector.isAvailable(workspaceUri);
 			supported = false;
 			const oldHostAvailable = await connector.isAvailable(workspaceUri);
@@ -622,7 +670,7 @@ suite('Dev Container Agent Host Connector', () => {
 				calls.push(`show:${id}:${preserveFocus}`);
 			}
 		}();
-		const connector = new DevContainerAgentHostConnector(
+		const connector = store.add(new DevContainerAgentHostConnector(
 			sharedProcessService,
 			new TestInstantiationService(),
 			new class extends mock<ILogService>() { }(),
@@ -635,7 +683,7 @@ suite('Dev Container Agent Host Connector', () => {
 			new class extends mock<IFileService>() { }(),
 			new class extends mock<IRemoteAgentHostService>() { }(),
 			new class extends mock<ISessionsProvidersService>() { }(),
-		);
+		));
 
 		await assert.rejects(
 			connector.createConnection(URI.file('/workspace'), 'devcontainer:test', token),

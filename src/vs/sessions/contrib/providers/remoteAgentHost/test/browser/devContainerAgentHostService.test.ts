@@ -223,6 +223,30 @@ class TestDevContainerAgentHostService extends DevContainerAgentHostService {
 suite('Dev Container Agent Host Service', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('publishes inspected sandbox support even when the first connection fails', async () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const service = store.add(new TestDevContainerAgentHostService(
+			instantiationService, store.add(new TestRemoteAgentHostService()), store.add(new TestSessionsProvidersService()), store.add(new InMemoryStorageService()),
+		));
+		const source = URI.file('/unsupported-project');
+		const changes = store.add(new Emitter<{ workspaceUri: URI; supported: boolean }>());
+		const observed: (boolean | undefined)[] = [];
+		store.add(service.onDidChangeAvailability(() => observed.push(service.getSandboxSupported(source))));
+		const connector = {
+			isAvailable: async () => true,
+			showLog: async () => { },
+			onDidChangeSandboxSupport: changes.event,
+			createConnection: async () => {
+				changes.fire({ workspaceUri: source, supported: false });
+				throw new Error('Unsupported sandbox startup');
+			},
+		};
+		store.add(service.registerConnector(connector));
+		observed.length = 0;
+		await assert.rejects(service.connect(source, CancellationToken.None, { sandboxEnabled: true }), /Unsupported sandbox startup/);
+		assert.deepStrictEqual({ support: service.getSandboxSupported(source), observed }, { support: false, observed: [false] });
+	});
+
 	for (const sandboxSupported of [false, true]) {
 		test(`propagates sandbox startup options and gates reuse (supported: ${sandboxSupported})`, async () => {
 			const instantiationService = store.add(new TestInstantiationService());

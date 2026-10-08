@@ -243,7 +243,7 @@ suite('AgentHostModePicker', () => {
 		devContainer.set(false, undefined);
 		assert.deepStrictEqual({ source, container, restored: read(), selection: config.values[SessionConfigKey.SandboxEnabled], writes }, {
 			source: { checked: true, icon: true, ariaLabel: 'Pick Permissions, Manual permissions, terminal sandboxed' },
-			container: { checked: true, icon: true, ariaLabel: 'Pick Permissions, Manual permissions, terminal sandboxed' },
+			container: { checked: true, icon: true, ariaLabel: 'Pick Permissions, Manual permissions (sandbox-ready container), terminal sandboxed' },
 			restored: { checked: true, icon: true, ariaLabel: 'Pick Permissions, Manual permissions, terminal sandboxed' },
 			selection: undefined,
 			writes: [],

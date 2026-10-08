@@ -498,9 +498,10 @@ suite('Copilot PermissionPicker', () => {
 			labels: Array.from(trigger.querySelectorAll('.sessions-chat-dropdown-label')).map(element => element.textContent),
 			shield: trigger.querySelector('.sessions-chat-sandbox-icon'),
 			toggleDisabled: picker['_getSandboxStandaloneToggle']()?.disabled,
+			requestedOn: picker['_getSandboxStandaloneToggle']()?.checked,
 			presentation: picker.presentation,
 		}, {
-			labels: ['Manual permissions'], shield: null, toggleDisabled: true,
+			labels: ['Manual permissions'], shield: null, toggleDisabled: false, requestedOn: true,
 			presentation: { label: 'Manual permissions', level: ChatPermissionLevel.Default, sandboxed: false },
 		});
 		sandboxDevContainer.set(false, undefined);

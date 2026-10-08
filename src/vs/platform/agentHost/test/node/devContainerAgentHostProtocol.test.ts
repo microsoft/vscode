@@ -10,11 +10,12 @@ import { CancellationError } from '../../../../base/common/errors.js';
 import { OperatingSystem, OS } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { DevContainerCloseConnectionNotification, DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayCloseNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { DevContainerCloseConnectionNotification, DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerSandboxSupportNotification, DevContainerRelayCloseNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
 import type { IDevContainerAgentHostConnectResult } from '../../common/devContainerAgentHost.js';
 import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { DevContainerAgentHostProtocol, normalizeDevContainerWorkspaceFolder } from '../../node/devContainerAgentHostProtocol.js';
 import { MockDevContainerService } from '../common/mockDevContainerService.js';
+import { DevContainerAgentHostProtocolClient } from '../../common/devContainerAgentHostProtocolClient.js';
 
 suite('DevContainerAgentHostProtocol', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -59,6 +60,39 @@ suite('DevContainerAgentHostProtocol', () => {
 		const { service, protocol } = setup();
 		await protocol.handleRequest(DevContainerConnectExtensionMethod, { ...config, sandboxEnabled: true });
 		assert.strictEqual(service.connects[0].sandboxEnabled, true);
+	});
+
+	test('forwards observed support with the client ID before a failed startup releases ownership', async () => {
+		const { service, protocol, notifications } = setup();
+		const result = new DeferredPromise<IDevContainerAgentHostConnectResult>();
+		service.connectResult = result.p;
+		const request = protocol.handleRequest(DevContainerConnectExtensionMethod, config)!;
+		const rejected = assert.rejects(request, /Unsupported sandbox startup/);
+		await Promise.resolve();
+		service.sandboxSupport.fire({ connectionId: service.connects[0].connectionId, supported: false });
+		await result.error(new Error('Unsupported sandbox startup'));
+		await rejected;
+		assert.deepStrictEqual(notifications, [{
+			method: DevContainerSandboxSupportNotification,
+			params: { connectionId: config.connectionId, supported: false },
+		}]);
+	});
+
+	test('the remote client publishes support before a rejected connection and ignores late observations', async () => {
+		const pending = new DeferredPromise<void>();
+		const client = store.add(new DevContainerAgentHostProtocolClient(async () => {
+			await pending.p;
+			throw new Error('Unsupported sandbox startup');
+		}));
+		const observed: boolean[] = [];
+		store.add(client.onDidChangeSandboxSupport(event => observed.push(event.supported)));
+		const request = client.connect(config);
+		const rejected = assert.rejects(request, /Unsupported sandbox startup/);
+		client.handleNotification(DevContainerSandboxSupportNotification, { connectionId: config.connectionId, supported: false });
+		await pending.complete();
+		await rejected;
+		client.handleNotification(DevContainerSandboxSupportNotification, { connectionId: config.connectionId, supported: true });
+		assert.deepStrictEqual(observed, [false]);
 	});
 
 	test('isolates IDs and notifications between transports', async () => {

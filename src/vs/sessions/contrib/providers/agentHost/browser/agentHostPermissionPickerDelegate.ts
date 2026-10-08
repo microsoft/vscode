@@ -179,9 +179,6 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 		});
 		this.sandboxEnabled = derived(this, reader => {
 			this._configChangedSignal.read(reader);
-			if (this.sandboxDevContainerSupported.read(reader) === false) {
-				return false;
-			}
 			const session = this._session.read(reader);
 			const provider = session && this._getProvider(session.providerId);
 			const value = session && provider?.getSessionConfig(session.sessionId)?.values[SessionConfigKey.SandboxEnabled];
@@ -284,7 +281,7 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 
 	getPermissionLevelHover(level: ChatPermissionLevel, _meta: IPermissionLevelMeta): string {
 		const hover = this._getPermissionLevelHover(level);
-		if (this.sandboxDevContainer.get() && this.getSandboxToggle()?.checked) {
+		if (this.sandboxDevContainer.get() && this.sandboxDevContainerSupported.get() !== false && this.getSandboxToggle()?.checked) {
 			return localize('agentHostPermissionPicker.devContainerSandboxHover', "{0}\n\nThe Dev Container will start with relaxed Docker security options and access to /dev/net/tun so terminal commands can run in a nested sandbox.", hover);
 		}
 		return hover;

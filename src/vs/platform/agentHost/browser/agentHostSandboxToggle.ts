@@ -22,14 +22,11 @@ export function getAgentHostSandboxToggleState(state: IAgentHostSandboxToggleSta
 	if (state.provider !== 'copilotcli') {
 		return undefined;
 	}
-	if (state.devContainerSandboxSupported === false) {
-		return { checked: false, disabled: true };
-	}
 	const authorizedDisable = state.allowsBypass && state.confirmedEnabled === false;
 	const checked = state.managedEnabled && !authorizedDisable ? true : (state.sessionEnabled ?? (state.managedEnabled || state.globalEnabled));
 	return {
 		checked,
-		disabled: state.managedEnabled && checked,
+		disabled: (state.managedEnabled && checked) || (state.devContainerSandboxSupported === false && !checked),
 	};
 }
 
@@ -53,7 +50,7 @@ export function createAgentHostSandboxToggle(readState: () => IAgentHostSandboxT
 			? localize('agentHostSandboxToggle.devContainerLabel', "Sandboxing in Dev Container")
 			: localize('agentHostSandboxToggle.label', "Sandboxing for terminal"),
 		title: state.devContainerSandboxSupported === false
-			? localize('agentHostSandboxToggle.devContainerUnavailableTitle', "This Dev Container was started without the Docker options required for sandboxing. Recreate it with sandboxing enabled to use this option.")
+			? localize('agentHostSandboxToggle.devContainerUnavailableTitle', "This Dev Container was started without the Docker options required for sandboxing. Recreate it with sandboxing enabled to use this option, or turn sandboxing off for this session if your organization permits it.")
 			: state.devContainer
 				? localize('agentHostSandboxToggle.devContainerTitle', "Start the Dev Container with the Docker options needed for terminal sandboxing: unconfined seccomp, AppArmor and system paths, and access to /dev/net/tun. This relaxes the outer container's isolation; terminal commands still run inside their own sandbox.")
 				: state.managedEnabled
@@ -62,11 +59,11 @@ export function createAgentHostSandboxToggle(readState: () => IAgentHostSandboxT
 						: localize('agentHostSandboxToggle.reenableManagedTitle', "Sandboxing was disabled for this session through an approved bypass. You can enable it again.")
 					: localize('agentHostSandboxToggle.title', "Run this session's terminal commands inside a sandbox that restricts file system and network access. The applied setting is saved for this session and checked against current organization policy when restored."),
 		get checked() { return displayedChecked; },
-		get disabled() { return disabled || (state.managedEnabled && displayedChecked); },
+		get disabled() { return disabled || (state.managedEnabled && displayedChecked) || (state.devContainerSandboxSupported === false && !displayedChecked); },
 		onChange: enabled => {
 			const latest = readState();
 			const currentState = getAgentHostSandboxToggleState(latest);
-			if (currentState && !currentState.disabled && !(latest.managedEnabled && displayedChecked) && displayedChecked !== enabled) {
+			if (currentState && !currentState.disabled && !(latest.managedEnabled && displayedChecked) && !(latest.devContainerSandboxSupported === false && enabled) && displayedChecked !== enabled) {
 				displayedChecked = enabled;
 				onChange(enabled);
 			}

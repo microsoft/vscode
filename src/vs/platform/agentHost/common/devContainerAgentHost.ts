@@ -44,6 +44,12 @@ export interface IDevContainerAgentHostOutput {
 	readonly data: string;
 }
 
+/** Docker sandbox prerequisites observed during an attempted connection, including failed startup. */
+export interface IDevContainerAgentHostSandboxSupport {
+	readonly connectionId: string;
+	readonly supported: boolean;
+}
+
 export const IDevContainerAgentHostMainService = createDecorator<IDevContainerAgentHostMainService>('devContainerAgentHostMainService');
 
 /** Host-side service that owns Dev Container CLI processes and protocol relays. */
@@ -53,6 +59,7 @@ export interface IDevContainerAgentHostMainService extends IRelayChannel {
 	readonly onDidCloseConnection: Event<string>;
 	/** Streaming stdout and stderr from Dev Container CLI processes. */
 	readonly onDidOutput: Event<IDevContainerAgentHostOutput>;
+	readonly onDidChangeSandboxSupport?: Event<IDevContainerAgentHostSandboxSupport>;
 
 	/** Whether Docker can be resolved from the user's shell environment. */
 	isDockerAvailable(): Promise<boolean>;

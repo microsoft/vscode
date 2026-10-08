@@ -30,11 +30,13 @@ export const DevContainerRelayMessageNotification = 'vscode/devContainers/relayM
 export const DevContainerRelayCloseNotification = 'vscode/devContainers/relayClose';
 export const DevContainerCloseConnectionNotification = 'vscode/devContainers/closeConnection';
 export const DevContainerOutputNotification = 'vscode/devContainers/output';
+export const DevContainerSandboxSupportNotification = 'vscode/devContainers/sandboxSupport';
 
 export const devContainerConnectionParamsValidator = vObj({ connectionId: vString() });
 export const devContainerConnectParamsValidator = vObj({ connectionId: vString(), workspaceFolder: vString(), name: vString(), resume: vOptionalProp(vBoolean()), sandboxEnabled: vOptionalProp(vBoolean()) });
 export const devContainerWorkspaceParamsValidator = vObj({ workspaceFolder: vString() });
 export const devContainerRelayMessageValidator = vObj({ connectionId: vString(), data: vString() });
+export const devContainerSandboxSupportValidator = vObj({ connectionId: vString(), supported: vBoolean() });
 export const devContainerConnectResultValidator = vObj({
 	connectionId: vString(),
 	address: vString(),
@@ -191,6 +193,7 @@ export interface IAgentHostExtensionNotificationMap {
 	[DevContainerRelayCloseNotification]: ValidatorType<typeof devContainerConnectionParamsValidator>;
 	[DevContainerCloseConnectionNotification]: ValidatorType<typeof devContainerConnectionParamsValidator>;
 	[DevContainerOutputNotification]: ValidatorType<typeof devContainerRelayMessageValidator>;
+	[DevContainerSandboxSupportNotification]: ValidatorType<typeof devContainerSandboxSupportValidator>;
 }
 
 export interface IAgentHostWorkspaceTrustRequest {

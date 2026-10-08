@@ -9,7 +9,7 @@ import { raceCancellationError, raceTimeout, SequencerByKey } from '../../../../
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { getComparisonKey } from '../../../../../base/common/resources.js';
 import { StringSHA1 } from '../../../../../base/common/hash.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableFromEvent, observableValue, waitForState } from '../../../../../base/common/observable.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -175,6 +175,7 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 	private readonly _providerStores = this._register(new DisposableMap<string>());
 	private readonly _providers = new Map<string, RemoteAgentHostSessionsProvider>();
 	private readonly _activeConnections = new Map<string, IActiveDevContainerAgentHost>();
+	private readonly _knownSandboxSupport = new Map<string, boolean>();
 	private readonly _pendingConnections = new Map<string, IPendingDevContainerAgentHost>();
 	private readonly _storedConnections = new Map<string, IStoredDevContainerAgentHost>();
 	private readonly _connectionFactory: DevContainerConnectionFactory;
@@ -216,14 +217,15 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 			throw new Error(localize('devContainerAgentHost.connectorAlreadyRegistered', "A Dev Container Agent Host connector is already registered."));
 		}
 		this._connector = connector;
+		const sandboxSupportListener = connector.onDidChangeSandboxSupport?.(event => this._setSandboxSupported(event.workspaceUri, event.supported));
 		this._onDidRegisterConnector.fire(connector);
 		this._onDidChangeAvailability.fire();
-		return toDisposable(() => {
+		return combinedDisposable(sandboxSupportListener ?? Disposable.None, toDisposable(() => {
 			if (this._connector === connector) {
 				this._connector = undefined;
 				this._onDidChangeAvailability.fire();
 			}
-		});
+		}));
 	}
 
 	isAvailable(workspaceUri: URI): Promise<boolean> {
@@ -231,8 +233,21 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 	}
 
 	getSandboxSupported(workspaceUri: URI): boolean | undefined {
-		const active = this._activeConnections.get(getComparisonKey(workspaceUri));
-		return active && active.state !== 'removed' ? active.sandboxSupported : undefined;
+		return this._knownSandboxSupport.get(getComparisonKey(workspaceUri));
+	}
+
+	private _setSandboxSupported(workspaceUri: URI, supported: boolean): void {
+		const key = getComparisonKey(workspaceUri);
+		const previous = this._knownSandboxSupport.get(key);
+		this._knownSandboxSupport.set(key, supported);
+		const active = this._activeConnections.get(key);
+		if (active) {
+			active.sandboxSupported = supported;
+		}
+		this._providers.get(key)?.setDevContainerSandboxSupported(supported);
+		if (previous !== supported) {
+			this._onDidChangeAvailability.fire();
+		}
 	}
 
 	async connect(workspaceUri: URI, token: CancellationToken, options?: { readonly sandboxEnabled: boolean }): Promise<IDevContainerAgentHostTarget> {
@@ -348,7 +363,7 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 		let stagedAddress: string | undefined;
 		try {
 			const provider = this._ensureProvider(workspaceUri, connected.name, connected.address);
-			provider.setDevContainerSandboxSupported(connected.sandboxSupported === true);
+			this._setSandboxSupported(workspaceUri, connected.sandboxSupported === true);
 
 			const sourceEntry = getDevContainerSourceEntry(workspaceUri, this._remoteAgentHostService);
 			const entry = this._connectionFactory.stageConnection(connector, workspaceUri, connected, sourceEntry && resolveRemoteAgentHostEntryAuthority(sourceEntry));
@@ -564,6 +579,7 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 				}
 				await this._disconnectActiveTransport(active);
 				active.state = 'removed';
+				this._knownSandboxSupport.delete(key);
 				active.provider.setDevContainerSandboxSupported(undefined);
 				this._onDidChangeAvailability.fire();
 				return removed;
@@ -589,8 +605,7 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 		active.state = 'connecting';
 		try {
 			const connected = await active.connector.createConnection(active.workspaceUri, active.address, this._lifecycleTokenSource.token, { resume: true, ...(sandboxEnabled !== undefined ? { sandboxEnabled } : active.sandboxSupported ? { sandboxEnabled: true } : {}) });
-			active.sandboxSupported = connected.sandboxSupported === true;
-			active.provider.setDevContainerSandboxSupported(active.sandboxSupported);
+			this._setSandboxSupported(active.workspaceUri, connected.sandboxSupported === true);
 			const sourceEntry = getDevContainerSourceEntry(active.workspaceUri, this._remoteAgentHostService);
 			this._connectionFactory.stageConnection(active.connector, active.workspaceUri, connected, sourceEntry && resolveRemoteAgentHostEntryAuthority(sourceEntry));
 			this._remoteAgentHostService.reconnect(active.address, true);
@@ -646,9 +661,7 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 			if (RemoteAgentHostConnectionStatus.isConnected(connectionInfo.status)) {
 				const sandboxSupported = this._connectionFactory.getSandboxSupported(active.address);
 				if (sandboxSupported !== undefined && sandboxSupported !== active.sandboxSupported) {
-					active.sandboxSupported = sandboxSupported;
-					active.provider.setDevContainerSandboxSupported(sandboxSupported);
-					this._onDidChangeAvailability.fire();
+					this._setSandboxSupported(active.workspaceUri, sandboxSupported);
 				}
 				const connection = this._remoteAgentHostService.getConnection(active.address);
 				if (connection) {

@@ -30,7 +30,7 @@ import { INativeEnvironmentService } from '../../environment/common/environment.
 import { IRequestService } from '../../request/common/request.js';
 import { IGitHubService } from '../../github/common/githubService.js';
 import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
-import { IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, VSCODE_REMOTE_CONTAINERS_SESSION_ENV } from '../common/devContainerAgentHost.js';
+import { IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostSandboxSupport, VSCODE_REMOTE_CONTAINERS_SESSION_ENV } from '../common/devContainerAgentHost.js';
 import { IRelayMessage } from '../common/relayTransport.js';
 import { telemetryLevelToAgentHostValue } from '../common/agentHostTelemetry.js';
 import type { AgentHostEndpointAddress } from '../common/agentHostEndpointRegistry.js';
@@ -192,6 +192,8 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 
 	private readonly _onDidOutput = this._register(new Emitter<{ readonly connectionId: string; readonly data: string }>());
 	readonly onDidOutput = this._onDidOutput.event;
+	private readonly _onDidChangeSandboxSupport = this._register(new Emitter<IDevContainerAgentHostSandboxSupport>());
+	readonly onDidChangeSandboxSupport = this._onDidChangeSandboxSupport.event;
 
 	private readonly _connections = this._register(new DisposableMap<string, IDevContainerRelay>());
 	private readonly _connectionStores = this._register(new DisposableMap<string, DisposableStore>());
@@ -296,6 +298,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			}
 
 			const sandboxSupported = await this._getSandboxSupported(config.connectionId, upResult.containerId, tokenSource.token);
+			this._onDidChangeSandboxSupport.fire({ connectionId: config.connectionId, supported: sandboxSupported });
 			if (config.sandboxEnabled && !sandboxSupported) {
 				throw new Error(localize('devContainerAgentHost.sandboxUnsupported', "This Dev Container was started without the Docker options required for sandboxing. Recreate the container with sandboxing enabled before starting this session."));
 			}

@@ -109,6 +109,9 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 			return this._devContainerSandboxSupported;
 		}
 		const workspace = this._getNewSession(sessionId)?.session.workspace.get()?.folders[0]?.root;
+		if (workspace && !findDevContainerSample(workspace) && this.getSessionConfig(sessionId)?.values[SessionConfigKey.Isolation] === 'worktree') {
+			return undefined;
+		}
 		return workspace && this.isDevContainerRequested(sessionId) ? this._devContainerSupport?.service.getSandboxSupported?.(workspace) : undefined;
 	}
 

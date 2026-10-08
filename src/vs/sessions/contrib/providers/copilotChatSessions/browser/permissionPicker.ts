@@ -566,7 +566,8 @@ export class PermissionPicker extends Disposable {
 	}
 
 	private _isSandboxingEnabled(): boolean {
-		return getAgentHostSandboxToggleState(this._readSandboxToggleState())?.checked ?? false;
+		return this._delegate.sandboxDevContainerSupported?.get() !== false
+			&& (getAgentHostSandboxToggleState(this._readSandboxToggleState())?.checked ?? false);
 	}
 
 	private _readSandboxToggleState() {

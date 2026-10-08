@@ -14,7 +14,7 @@ export const devContainerSandboxRunArgs = [...devContainerSandboxSecurityOptions
 
 const configurationValidator = vObj({
 	configuration: vObj({
-		configFilePath: vObj({ scheme: vLiteral('file'), path: vString() }),
+		configFilePath: vObj({ scheme: vLiteral('file'), path: vString(), authority: vOptionalProp(vString()) }),
 		service: vOptionalProp(vString()),
 	}),
 });
@@ -34,13 +34,20 @@ function isConfiguration(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-/** Writes an override while retaining the original config as the base for relative paths and identity. */
-export async function prepareDevContainerSandboxConfiguration(output: string, directory: string): Promise<readonly string[]> {
+export function parseDevContainerSandboxConfiguration(output: string): { configPath: string; service: string | undefined } {
 	const result = configurationValidator.validate(JSON.parse(output));
 	if (result.error) {
 		throw new Error(`Invalid Dev Container configuration: ${result.error.message}`);
 	}
-	const configPath = URI.from(result.content.configuration.configFilePath).fsPath;
+	return {
+		configPath: URI.from(result.content.configuration.configFilePath).fsPath,
+		service: result.content.configuration.service,
+	};
+}
+
+/** Writes an override while retaining the original config as the base for relative paths and identity. */
+export async function prepareDevContainerSandboxConfiguration(output: string, directory: string): Promise<readonly string[]> {
+	const { configPath, service: resolvedService } = parseDevContainerSandboxConfiguration(output);
 	const errors: ParseError[] = [];
 	const configuration: unknown = parse(await readFile(configPath, 'utf8'), errors);
 	if (errors.length || !isConfiguration(configuration)) {
@@ -49,7 +56,7 @@ export async function prepareDevContainerSandboxConfiguration(output: string, di
 	const override = { ...configuration };
 	if (configuration.dockerComposeFile !== undefined) {
 		const composeFiles = vUnion(vString(), vArray(vString())).validate(configuration.dockerComposeFile);
-		const service = result.content.configuration.service ?? configuration.service;
+		const service = resolvedService ?? configuration.service;
 		if (composeFiles.error || !composeFiles.content.length || typeof service !== 'string' || !service) {
 			throw new Error('Sandboxing requires a Dev Container Compose configuration with explicit files and a service.');
 		}

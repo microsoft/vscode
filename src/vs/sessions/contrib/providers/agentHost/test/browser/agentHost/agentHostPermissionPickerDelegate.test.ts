@@ -376,20 +376,30 @@ suite('AgentHostPermissionPickerDelegate', () => {
 		});
 	}
 
-	test('container support gates sandboxing without changing the global setting', () => {
+	test('container support preserves the requested choice and permits opting out without changing global settings', () => {
 		const { delegate, provider } = setup(store, makeActiveSession(), 'default');
+		provider.config!.values[SessionConfigKey.SandboxEnabled] = 'on';
 		provider.devContainerSandboxSupported = false;
 		provider.fireChange();
 		const toggle = delegate.getSandboxToggle()!;
+		const requested = delegate.sandboxEnabled.get();
 		toggle.onChange(true);
 		assert.throws(() => delegate.setSandboxEnabled(true), /Recreate the Dev Container/);
+		const before = { checked: toggle.checked, disabled: toggle.disabled };
+		toggle.onChange(false);
 		provider.devContainerSandboxSupported = true;
 		provider.fireChange();
 		assert.deepStrictEqual({
+			requested,
+			before,
 			unsupported: { checked: toggle.checked, disabled: toggle.disabled },
 			supported: delegate.getSandboxToggle()?.disabled,
 			writes: provider.setCalls,
-		}, { unsupported: { checked: false, disabled: true }, supported: false, writes: [] });
+		}, {
+			requested: true, before: { checked: true, disabled: false },
+			unsupported: { checked: false, disabled: true }, supported: false,
+			writes: [[SESSION_ID, SessionConfigKey.SandboxEnabled, 'off']],
+		});
 	});
 
 	test('Dev Container drafts expose sandbox-aware startup copy', () => {

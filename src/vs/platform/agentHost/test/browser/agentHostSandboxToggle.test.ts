@@ -103,16 +103,31 @@ suite('AgentHostSandboxToggle', () => {
 		});
 	});
 
-	test('disables sandbox enablement for a container lacking the startup options, even with a global default', () => {
+	test('preserves a requested On choice for unsupported containers and allows only an explicit opt-out', () => {
 		const writes: boolean[] = [];
-		const toggle = createAgentHostSandboxToggle(() => ({
+		const state = {
 			provider: 'copilotcli', sessionEnabled: undefined, globalEnabled: true, managedEnabled: false, allowsBypass: false,
 			devContainerSandboxSupported: false,
-		}), enabled => writes.push(enabled))!;
+		};
+		const toggle = createAgentHostSandboxToggle(() => state, enabled => writes.push(enabled))!;
+		const before = { checked: toggle.checked, disabled: toggle.disabled };
+		toggle.onChange(false);
 		toggle.onChange(true);
-		assert.deepStrictEqual({ checked: toggle.checked, disabled: toggle.disabled, writes, explainsRecovery: toggle.title?.includes('Recreate it with sandboxing enabled') }, {
-			checked: false, disabled: true, writes: [], explainsRecovery: true,
+		assert.deepStrictEqual({ before, after: { checked: toggle.checked, disabled: toggle.disabled }, writes }, {
+			before: { checked: true, disabled: false },
+			after: { checked: false, disabled: true },
+			writes: [false],
 		});
+	});
+
+	test('an unsupported container does not permit opting out of a managed requirement', () => {
+		const writes: boolean[] = [];
+		const toggle = createAgentHostSandboxToggle(() => ({
+			provider: 'copilotcli', sessionEnabled: true, globalEnabled: true, managedEnabled: true, allowsBypass: false,
+			devContainerSandboxSupported: false,
+		}), enabled => writes.push(enabled))!;
+		toggle.onChange(false);
+		assert.deepStrictEqual({ checked: toggle.checked, disabled: toggle.disabled, writes }, { checked: true, disabled: true, writes: [] });
 	});
 
 	test('explains relaxed Docker isolation before starting a sandboxed Dev Container', () => {
