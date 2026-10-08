@@ -119,7 +119,7 @@ export interface IAgentHostUntitledProvisionalSessionService {
 	 * Returns `undefined` in the Agents window, where the sessions provider owns
 	 * the initial config supplied on the request.
 	 */
-	getInitialSessionConfig(provider?: string): Record<string, unknown> | undefined;
+	getInitialSessionConfig(): Record<string, unknown> | undefined;
 
 	/** Initial session metadata, including any metadata registered for the resource. */
 	getInitialSessionMetadata(sessionResource?: URI): Record<string, unknown> | undefined;
@@ -502,8 +502,8 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		this._sessionCreationMetadata.delete(sessionResource);
 	}
 
-	getInitialSessionConfig(provider?: string): Record<string, unknown> | undefined {
-		return this._getInitialConfig(provider);
+	getInitialSessionConfig(): Record<string, unknown> | undefined {
+		return this._getInitialConfig();
 	}
 
 	async waitForPending(sessionResource: URI): Promise<URI | undefined> {
@@ -562,7 +562,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		if (this._rebound.has(sessionResource)) {
 			return undefined;
 		}
-		const entry = this._createEntry(provider, { ...(this._getInitialConfig(provider) ?? {}) }, 0, workingDirectory);
+		const entry = this._createEntry(provider, { ...(this._getInitialConfig() ?? {}) }, 0, workingDirectory);
 		this._entries.set(sessionResource, entry);
 		return entry;
 	}
@@ -1181,14 +1181,14 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 	 * Skipped entirely in the Agents window, where the sessions provider
 	 * supplies config via `request.agentHostSessionConfig` instead.
 	 */
-	private _getInitialConfig(provider?: string): Record<string, unknown> | undefined {
+	private _getInitialConfig(): Record<string, unknown> | undefined {
 		if (this._environmentService.isSessionsWindow) {
 			return undefined;
 		}
 		const config: Record<string, unknown> = { [SessionConfigKey.Isolation]: 'folder' };
 
 		const configuredDefaults = this._configurationService.getValue<IChatDefaultConfiguration>(ChatConfiguration.DefaultConfiguration);
-		const configuredApprovals = getAgentHostApprovalDefault(this._configurationService, provider === 'copilotcli');
+		const configuredApprovals = getAgentHostApprovalDefault(this._configurationService);
 		if (configuredApprovals) {
 			config[SessionConfigKey.AutoApprove] = configuredApprovals;
 		}

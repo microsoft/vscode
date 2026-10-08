@@ -71,7 +71,9 @@ validates client writes, and reconciles runtime refusals to the actual applied m
 Desktop and remote Copilot Agent Hosts use the same policy path. Native settings
 resolve where the host runs; this does not replicate desktop device policies to
 remote hosts. The UI must not reapply the legacy clamp to host-reported choices.
-Legacy Local and other providers keep their existing controls.
+Legacy Local and other providers keep their existing controls. Local offers
+Default, Allow All, and Autopilot, not Assisted; runtime `defaultMode` does not
+configure Local's starting permission level.
 Clients retain the legacy guard until a host advertises its approval-policy report.
 Both standard `approvalMode` and VS Code `autoApprove` reports follow this contract.
 Explicit and remembered approval preferences are normalized after schema discovery,
@@ -90,18 +92,18 @@ its current coarse restriction. Other managed/per-tool restrictions still apply.
 These rows assume all modes are supported and show selectable modes, not defaults.
 The legacy JSON is logical policy notation, not an OS-specific deployment format.
 
-✅ Allowed; ❌ Blocked.
+✅ Allowed; ❌ Blocked; N/A: not supported by that harness.
 
 | # | Legacy policy JSON | Managed-settings JSON | Local: Allow All | Local: Assisted | Local: Manual | Copilot/Agent Host: Allow All | Copilot/Agent Host: Assisted | Copilot/Agent Host: Manual |
 |---|---|---|:---:|:---:|:---:|:---:|:---:|:---:|
-| 1 | `{}` | `{}` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 2 | `{"ChatToolsAutoApprove":false}` | `{}` | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ |
-| 3 | `{}` | `{"permissions":{"disableBypassPermissionsMode":"disable"}}` | ❌ | ❌ | ✅ | ❌ | ✅ | ✅ |
-| 4 | `{"ChatToolsAutoApprove":false}` | `{"permissions":{"disableBypassPermissionsMode":"disable"}}` | ❌ | ❌ | ✅ | ❌ | ✅ | ✅ |
-| 5 | `{}` | `{"permissions":{"disableAssistedPermissionsMode":true}}` | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
-| 6 ⚠️ | `{"ChatToolsAutoApprove":false}` | `{"permissions":{"disableAssistedPermissionsMode":true}}` | ❌ | ❌ | ✅ | ✅ | ❌ | ✅ |
-| 7 | `{"ChatToolsAutoApprove":false}` | `{"permissions":{"disableBypassPermissionsMode":"disable","disableAssistedPermissionsMode":true}}` | ❌ | ❌ | ✅ | ❌ | ❌ | ✅ |
-| 8 ⚠️ | `{"ChatToolsAutoApprove":false}` | `{"permissions":{"disableBypassPermissionsMode":"enable"}}` | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ |
+| 1 | `{}` | `{}` | ✅ | N/A | ✅ | ✅ | ✅ | ✅ |
+| 2 | `{"ChatToolsAutoApprove":false}` | `{}` | ❌ | N/A | ✅ | ❌ | ❌ | ✅ |
+| 3 | `{}` | `{"permissions":{"disableBypassPermissionsMode":"disable"}}` | ❌ | N/A | ✅ | ❌ | ✅ | ✅ |
+| 4 | `{"ChatToolsAutoApprove":false}` | `{"permissions":{"disableBypassPermissionsMode":"disable"}}` | ❌ | N/A | ✅ | ❌ | ✅ | ✅ |
+| 5 | `{}` | `{"permissions":{"disableAssistedPermissionsMode":true}}` | ✅ | N/A | ✅ | ✅ | ❌ | ✅ |
+| 6 ⚠️ | `{"ChatToolsAutoApprove":false}` | `{"permissions":{"disableAssistedPermissionsMode":true}}` | ❌ | N/A | ✅ | ✅ | ❌ | ✅ |
+| 7 | `{"ChatToolsAutoApprove":false}` | `{"permissions":{"disableBypassPermissionsMode":"disable","disableAssistedPermissionsMode":true}}` | ❌ | N/A | ✅ | ❌ | ❌ | ✅ |
+| 8 ⚠️ | `{"ChatToolsAutoApprove":false}` | `{"permissions":{"disableBypassPermissionsMode":"enable"}}` | ❌ | N/A | ✅ | ✅ | ✅ | ✅ |
 
 Host-injected managed settings are startup configuration:
 

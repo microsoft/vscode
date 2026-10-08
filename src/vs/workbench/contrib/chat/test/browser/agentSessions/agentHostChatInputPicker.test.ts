@@ -293,7 +293,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		rig.permissionPicker.render(rig.permissionContainer);
 		const context = rig.permissionPicker['_readContext']();
 		await rig.modePicker['_showPicker'](rig.modeContainer.querySelector<HTMLElement>('.agent-host-permissions-button')!, true);
-		const choices = rig.actionWidget.items.filter(item => ['Manual permissions', 'Assisted permissions', 'Allow all'].includes(item.label ?? '')).map(item => item.label);
+		const choices = rig.actionWidget.items.filter(item => ['Manual permissions', 'Assisted permissions', 'Allow all'].includes(item.label ?? '')).map(item => ({ label: item.label, disabled: !!item.disabled }));
 		await rig.actionWidget.select('Assisted permissions');
 		assert.deepStrictEqual({
 			choices,
@@ -303,7 +303,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			dispatches: rig.dispatches,
 			refreshes: rig.resolvedRefreshes,
 		}, {
-			choices: ['Manual permissions', 'Assisted permissions'],
+			choices: [{ label: 'Manual permissions', disabled: false }, { label: 'Assisted permissions', disabled: false }, { label: 'Allow all', disabled: true }],
 			effective: 'default',
 			hover: 'Effective permissions: manual. Requested permissions: allow-all.',
 			standaloneHidden: 'none',

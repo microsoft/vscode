@@ -29,10 +29,8 @@ import { IChatInputCompletionItem, IChatSessionsService, isAgentHostTarget } fro
 import { getChatSessionType } from '../../../../common/model/chatUri.js';
 import { IChatWidget, IChatWidgetService } from '../../../chat.js';
 import { applyAgentHostCompletionAction, isPolicyBlockedCompletionAction } from '../../../agentHostCompletionAction.js';
-import { applyAgentHostSessionConfigChange } from '../../../agentSessions/agentHost/applyAgentHostSessionConfig.js';
+import { applyAgentHostSessionConfigChange, getAgentHostSessionConfig } from '../../../agentSessions/agentHost/applyAgentHostSessionConfig.js';
 import { IAgentHostConnectionsService } from '../../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { StateComponents } from '../../../../../../../platform/agentHost/common/state/sessionState.js';
-import { resolveAgentHostChatSession } from '../../../agentSessions/agentHost/agentHostSessionUri.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { AgentHostInputCompletionsBase } from './agentHostInputCompletionsBase.js';
@@ -109,7 +107,8 @@ export class AgentHostInputCompletions extends AgentHostInputCompletionsBase<ICh
 				workspaceContextService: accessor.get(IWorkspaceContextService),
 				configurationService: accessor.get(IConfigurationService),
 			};
-			const applied = await applyAgentHostCompletionAction(arg.action, dialogService, storageService, async config => { await applyAgentHostSessionConfigChange(sessionResource, config, services); });
+			const applied = await applyAgentHostCompletionAction(arg.action, dialogService, storageService, async config => { await applyAgentHostSessionConfigChange(sessionResource, config, services); },
+				getAgentHostSessionConfig(sessionResource, this._provisionalService, this._connectionsService));
 			if (applied && arg.reference) {
 				arg.widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.addReference({
 					id: arg.reference.id,
@@ -186,14 +185,8 @@ export class AgentHostInputCompletions extends AgentHostInputCompletionsBase<ICh
 			case 'command': {
 				const action = getCompletionAction(attachment._meta);
 				if (action) {
-					// Omit an elevated auto-approve toggle (Allow all / Assisted)
-					// when enterprise policy disables global auto-approval, rather
-					// than offering an item that would warn then clamp to Default.
 					const resource = widget.viewModel?.model.sessionResource;
-					const resolution = resource ? resolveAgentHostChatSession(resource, this._provisionalService.get(resource), this._connectionsService) : undefined;
-					const snapshot = resolution?.connection.getSubscriptionUnmanaged(StateComponents.Session, resolution.backendSession)?.value;
-					const state = snapshot instanceof Error ? undefined : snapshot;
-					const config = state?.config ?? (resource ? this._provisionalService.getResolvedConfig(resource) : undefined);
+					const config = resource ? getAgentHostSessionConfig(resource, this._provisionalService, this._connectionsService) : undefined;
 					if (isPolicyBlockedCompletionAction(action, this._configurationService, config)) {
 						return undefined;
 					}

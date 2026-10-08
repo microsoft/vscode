@@ -769,9 +769,7 @@ export class AgentHostChatInputPicker extends Disposable {
 			return undefined;
 		}
 		if (property === SessionConfigKey.AutoApprove && approval) {
-			const configValues = approval.key === SessionConfigKey.AutoApprove
-				? (propertySchema.enum ?? []).filter((value): value is string => typeof value === 'string')
-				: getAvailableSessionApprovalValues(approval, configSchema, values);
+			const configValues = (propertySchema.enum ?? []).filter((value): value is string => typeof value === 'string');
 			const levels = configValues.flatMap(value => {
 				const level = readSessionApprovalLevel(approval, value);
 				return level ? [level] : [];

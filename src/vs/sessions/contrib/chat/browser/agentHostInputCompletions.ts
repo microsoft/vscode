@@ -6,6 +6,7 @@
 import { MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { Position } from '../../../../editor/common/core/position.js';
@@ -462,12 +463,13 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 		const dialogService = accessor.get(IDialogService);
 		const storageService = accessor.get(IStorageService);
 		const sessionsProvidersService = accessor.get(ISessionsProvidersService);
+		const provider = sessionsProvidersService.getProvider(session.providerId);
+		if (!provider || !isAgentHostProvider(provider)) {
+			throw new Error(localize('agentHost.completion.providerUnavailable', "Agent Host session provider is not available."));
+		}
 		const applied = await applyAgentHostCompletionAction(arg.action, dialogService, storageService, async config => {
-			const provider = sessionsProvidersService.getProvider(session.providerId);
-			if (provider && isAgentHostProvider(provider)) {
-				await Promise.all(Object.entries(config).map(([key, value]) => provider.setSessionConfigValue(session.sessionId, key, value).catch(() => { /* best-effort */ })));
-			}
-		});
+			await Promise.all(Object.entries(config).map(([key, value]) => provider.setSessionConfigValue(session.sessionId, key, value)));
+		}, provider.getSessionConfig(session.sessionId));
 		// Keep-text items add their argument-hint reference once applied. Toggle
 		// items insert nothing, so there is no text to remove.
 		if (applied && arg.entry) {

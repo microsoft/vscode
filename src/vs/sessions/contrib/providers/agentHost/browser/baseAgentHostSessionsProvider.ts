@@ -4829,7 +4829,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				...this._derivedNewSessionConfig(workspace),
 				...initialSessionTemplate?.config,
 			}
-			: this._initialNewSessionConfig(workspace, sessionType.id);
+			: this._initialNewSessionConfig(workspace);
 		const permissionConfig = initialPermissionId
 			? getAgentHostSessionPermissionConfig(
 				sessionType.id,
@@ -5120,7 +5120,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * first folder) is seeded into the `worktreeBranchPrefix` slot so the agent
 	 * host can prepend it to the branch it creates for an isolated worktree.
 	 */
-	protected _initialNewSessionConfig(workspace?: ISessionWorkspace, provider?: string): Record<string, unknown> | undefined {
+	protected _initialNewSessionConfig(workspace?: ISessionWorkspace): Record<string, unknown> | undefined {
 		const config = Object.create(null) as Record<string, unknown>;
 
 		// Seed session config values from the last user picks, migrating any
@@ -5153,7 +5153,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const resolvedAutoApprove =
 			normalizeAutoApproveValue(policyDefaults?.approvals)
 			?? normalizeAutoApproveValue(remembered[SessionConfigKey.AutoApprove])
-			?? normalizeAutoApproveValue(getAgentHostApprovalDefault(this._baseConfigurationService, provider === 'copilotcli'));
+			?? normalizeAutoApproveValue(getAgentHostApprovalDefault(this._baseConfigurationService));
 		if (resolvedAutoApprove) {
 			remembered[SessionConfigKey.AutoApprove] = resolvedAutoApprove;
 		} else {

@@ -20,10 +20,10 @@ export function usesHostApprovalPolicy(schema: SessionConfigSchema | undefined):
 }
 
 /** A schema default is not an explicit preference that overrides the host's managed default. */
-export function getAgentHostApprovalDefault(configurationService: IConfigurationService, hostPolicy: boolean): ChatPermissionLevel | undefined {
+export function getAgentHostApprovalDefault(configurationService: IConfigurationService): ChatPermissionLevel | undefined {
 	const inspected = configurationService.inspect<IChatDefaultConfiguration>(ChatConfiguration.DefaultConfiguration);
-	const configured = hostPolicy ? [inspected.policyValue, inspected.workspaceFolderValue, inspected.workspaceValue, inspected.userRemoteValue,
-	inspected.userLocalValue, inspected.userValue, inspected.applicationValue].find(value => value?.approvals !== undefined) : inspected.value;
+	const configured = [inspected.policyValue, inspected.workspaceFolderValue, inspected.workspaceValue, inspected.userRemoteValue,
+	inspected.userLocalValue, inspected.userValue, inspected.applicationValue].find(value => value?.approvals !== undefined);
 	return getChatPermissionLevelFromDefaultConfiguration(configured?.approvals);
 }
 

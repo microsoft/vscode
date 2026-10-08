@@ -894,6 +894,35 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
+	for (const explicit of [false, true]) {
+		test(`standard host default survives schema-only Manual preference (explicit=${explicit})`, async () => {
+			const configurationService = createSchemaDefaultConfigurationService();
+			if (explicit) {
+				await configurationService.setUserConfiguration('chat.defaultConfiguration', { approvals: 'manual' });
+			}
+			agentHost.setAgents([{ provider: 'other', displayName: 'Other', description: '', models: [], capabilities: {} }]);
+			agentHost.resolveSessionConfigResult = {
+				schema: {
+					type: 'object', properties: {
+						approvalMode: { type: 'string', title: 'Approvals', enum: ['manual', 'assisted', 'allow-all'], default: 'assisted', sessionMutable: true },
+						availableApprovalModes: { type: 'array', title: 'Available', readOnly: true },
+						target: { type: 'string', title: 'Target', enum: ['workspace', 'worktree'], default: 'workspace' },
+					}
+				},
+				values: { approvalMode: 'assisted', availableApprovalModes: ['manual', 'assisted', 'allow-all'], target: 'workspace' },
+			};
+			const provider = createProvider(disposables, agentHost, [
+				{ type: 'agent-host-other', name: 'other', displayName: 'Other', description: 'test', icon: undefined },
+			], { configurationService });
+			const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+			await provider.whenSessionConfigResolved(session.sessionId, CancellationToken.None);
+			assert.deepStrictEqual({
+				initial: agentHost.resolveSessionConfigRequests[0]?.config,
+				approval: provider.getCreateSessionConfig(session.sessionId)?.approvalMode,
+			}, { initial: undefined, approval: explicit ? 'manual' : 'assisted' });
+		});
+	}
+
 	test('Copilot worktree configuration resolves conditional baseBranch without writing the new branch key', async () => {
 		agentHost.resolveSessionConfigHandler = request => {
 			const target = request.config?.target ?? 'workspace';

@@ -300,6 +300,9 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		configurationService = new class extends TestConfigurationService {
 			override inspect<T>(key: string): IConfigurationValue<T> {
 				const inspected = super.inspect<T>(key);
+				if (key === ChatConfiguration.DefaultConfiguration && inspected.value === undefined) {
+					return { ...inspected, value: { approvals: 'manual' } as T, defaultValue: { approvals: 'manual' } as T };
+				}
 				return key === ChatConfiguration.GlobalAutoApprove && legacyApprovalRestricted ? { ...inspected, policyValue: false as T } : inspected;
 			}
 		}();
@@ -377,6 +380,18 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 				discovery: agentHost.resolveCalls.map(call => call.config),
 				created: agentHost.createCalls.map(call => call.config),
 			}, { discovery: [undefined], created: [{ isolation: 'folder', autoApprove: hostPolicy ? 'autoApprove' : 'default' }] });
+		});
+	}
+
+	for (const explicit of [false, true]) {
+		test(`a non-Copilot provider receives only explicit approval seeds (explicit=${explicit})`, async () => {
+			if (explicit) {
+				await configurationService.setUserConfiguration(ChatConfiguration.DefaultConfiguration, { approvals: 'manual' });
+			}
+			await provisional.getOrCreate(URI.parse('agent-host-other:/untitled-default'), 'other', undefined);
+			assert.deepStrictEqual(agentHost.createCalls.map(call => call.config), [
+				{ isolation: 'folder', ...(explicit ? { autoApprove: 'default' } : {}) },
+			]);
 		});
 	}
 

@@ -8,13 +8,12 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { ChatPermissionLevel } from '../../../common/constants.js';
-import { isAutoApprovePolicyRestricted } from '../../../common/agentHostConfigPolicy.js';
+import { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import { isAutoApprovePolicyRestricted, normalizeSessionConfigValue } from '../../../common/agentHostConfigPolicy.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
-import { getLocalAgentHostSessionProvider, toAgentHostBackendSessionUri } from './agentHostSessionUri.js';
+import { getLocalAgentHostSessionProvider, resolveAgentHostChatSession, toAgentHostBackendSessionUri } from './agentHostSessionUri.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 
@@ -29,6 +28,16 @@ export interface IApplyAgentHostSessionConfigServices {
 	readonly workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver;
 	readonly workspaceContextService: IWorkspaceContextService;
 	readonly configurationService: IConfigurationService;
+}
+
+export function getAgentHostSessionConfig(
+	sessionResource: URI,
+	provisionalService: IAgentHostUntitledProvisionalSessionService,
+	connectionsService: IAgentHostConnectionsService,
+): ResolveSessionConfigResult | undefined {
+	const resolution = resolveAgentHostChatSession(sessionResource, provisionalService.get(sessionResource), connectionsService);
+	const snapshot = resolution?.connection.getSubscriptionUnmanaged(StateComponents.Session, resolution.backendSession)?.value;
+	return (snapshot && !(snapshot instanceof Error) ? snapshot.config : undefined) ?? provisionalService.getResolvedConfig(sessionResource);
 }
 
 /**
@@ -60,11 +69,7 @@ export async function applyAgentHostSessionConfigChange(
 	const state = backendSession ? agentHostService.getSubscriptionUnmanaged(StateComponents.Session, backendSession)?.value : undefined;
 	const currentConfig = (state && !(state instanceof Error) ? state.config : undefined) ?? provisionalService.getResolvedConfig(sessionResource);
 	const policyRestricted = isAutoApprovePolicyRestricted(configurationService, currentConfig?.schema);
-	const partial: Record<string, string> = { ...config };
-	const autoApprove = partial[SessionConfigKey.AutoApprove];
-	if (policyRestricted && autoApprove !== undefined && autoApprove !== ChatPermissionLevel.Default) {
-		partial[SessionConfigKey.AutoApprove] = ChatPermissionLevel.Default;
-	}
+	const partial = Object.fromEntries(Object.entries(config).map(([key, value]) => [key, normalizeSessionConfigValue(key, value, policyRestricted)]));
 
 	const workingDirectory = workingDirectoryResolver.resolve(sessionResource)
 		?? workspaceContextService.getWorkspace().folders[0]?.uri;
