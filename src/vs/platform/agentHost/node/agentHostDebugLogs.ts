@@ -61,7 +61,8 @@ export class AgentHostDebugLogsCollector extends Disposable {
 			}
 
 			await this._copyAgentHostLogs(staging);
-			await this._copyMissionControlLogs(staging);
+			const remainingEntries = AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES - (await collectFiles(staging)).length;
+			await this._copyMissionControlLogs(staging, remainingEntries);
 
 			const files = await collectFiles(staging);
 			let uncompressedSize = 0;
@@ -162,7 +163,7 @@ export class AgentHostDebugLogsCollector extends Disposable {
 	}
 
 	/** Connection-scoped history includes authentication failures before any session is selected. */
-	private async _copyMissionControlLogs(staging: string): Promise<void> {
+	private async _copyMissionControlLogs(staging: string, remainingEntries: number): Promise<void> {
 		const directory = join(this._environment.logsHome.fsPath, 'ahp');
 		try {
 			const entries = (await readdir(directory, { withFileTypes: true }))
@@ -178,15 +179,16 @@ export class AgentHostDebugLogsCollector extends Disposable {
 			}));
 			const candidates = files.filter(file => file !== undefined)
 				.sort((a, b) => b.mtime - a.mtime || b.name.localeCompare(a.name));
-			if (candidates.length > MAX_MISSION_CONTROL_AHP_LOG_FILES) {
-				this._logService.warn(`[AgentHostDebugLogs] Omitted ${candidates.length - MAX_MISSION_CONTROL_AHP_LOG_FILES} Mission Control AHP files; exporting the ${MAX_MISSION_CONTROL_AHP_LOG_FILES} most recent files`);
+			const limit = Math.min(MAX_MISSION_CONTROL_AHP_LOG_FILES, remainingEntries);
+			if (candidates.length > limit) {
+				this._logService.warn(`[AgentHostDebugLogs] Omitted ${candidates.length - limit} Mission Control AHP files; exporting the ${limit} most recent files`);
 			}
-			if (candidates.length === 0) {
+			if (candidates.length === 0 || limit === 0) {
 				return;
 			}
 			const target = join(staging, 'ahp', 'mission-control');
 			await mkdir(target, { recursive: true });
-			for (const file of candidates.slice(0, MAX_MISSION_CONTROL_AHP_LOG_FILES)) {
+			for (const file of candidates.slice(0, limit)) {
 				try {
 					await copyFile(file.source, join(target, file.name));
 				} catch (error) {

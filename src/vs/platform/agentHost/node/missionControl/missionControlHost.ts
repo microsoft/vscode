@@ -34,7 +34,7 @@ import { MissionControlProjects } from './missionControlProjects.js';
 import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { isObject } from '../../../../base/common/types.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { AhpJsonlLogger } from '../../common/ahpJsonlLogger.js';
+import { AhpJsonlLogger, AhpJsonlLogRetention } from '../../common/ahpJsonlLogger.js';
 import { MISSION_CONTROL_AHP_LOG_ID } from '../../common/missionControlEnvironment.js';
 
 interface IMissionControlHostOptions {
@@ -93,6 +93,12 @@ export class MissionControlHost extends Disposable {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
+		const retention = this._instantiationService.createInstance(AhpJsonlLogRetention, {
+			logsHome: environmentService.logsHome,
+			logId: MISSION_CONTROL_AHP_LOG_ID,
+			maxFiles: 10,
+			maxSizeBytes: 750 * 1024 * 1024,
+		});
 		this._projects = this._register(this._instantiationService.createInstance(MissionControlProjects, {
 			getRoots: () => this._grantedRoots(),
 		}));
@@ -114,6 +120,7 @@ export class MissionControlHost extends Disposable {
 				logId: MISSION_CONTROL_AHP_LOG_ID,
 				connectionId: `${clientId}-${generation}`,
 				transport: 'mission-control',
+				retention,
 			}),
 		}));
 	}

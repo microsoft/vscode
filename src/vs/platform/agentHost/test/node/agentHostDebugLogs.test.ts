@@ -159,7 +159,7 @@ suite('AgentHostDebugLogsCollector', () => {
 			}, {
 				names: [first, logger.resource].map(resource => `ahp/mission-control/${basename(resource)}`).sort(),
 				records: [
-					{ message: { ...request, params: { ...request.params, token: '<redacted authentication token>' } }, dir: 'c2s', connectionId: 'mobile-client', transport: 'mission-control' },
+					{ message: { ...request, params: { ...request.params, token: '<redacted>' } }, dir: 'c2s', connectionId: 'mobile-client', transport: 'mission-control' },
 					{ message: response, dir: 's2c', connectionId: 'mobile-client', transport: 'mission-control' },
 				],
 				containsCredential: false,
@@ -199,6 +199,47 @@ suite('AgentHostDebugLogsCollector', () => {
 		});
 		await collector.cleanup();
 	});
+
+	for (const entryCount of [990, 991, 999, 1000]) {
+		test(`fits optional Mission Control logs in the remaining budget after ${entryCount} prior files`, async () => {
+			const logsHome = join(testRoot, 'logs');
+			const ahp = join(logsHome, 'ahp');
+			await mkdir(ahp, { recursive: true });
+			await writeFile(join(logsHome, 'agenthost.log'), 'host');
+			const hash = new StringSHA1();
+			hash.update(MISSION_CONTROL_AHP_LOG_ID);
+			for (let index = 0; index < 10; index++) {
+				await writeFile(join(ahp, `ahp-${hash.digest()}-client-${index}.jsonl`), '{}\n');
+			}
+			const warnings: string[] = [];
+			const collector = disposables.add(new AgentHostDebugLogsCollector({
+				logsHome: URI.file(logsHome), tmpDir: URI.file(join(testRoot, 'tmp')),
+			}, new class extends NullLogService {
+				override warn(message: string): void { warnings.push(message); }
+			}()));
+			const artifact = await collector.collect([{
+				id: 'test',
+				collectDebugLogs: async (_session, output) => {
+					const nested = join(output.fsPath, 'provider');
+					await mkdir(nested);
+					await Promise.all(Array.from({ length: entryCount - 1 }, (_, index) =>
+						writeFile(join(nested, `${index}.log`), 'provider')));
+					return true;
+				},
+			}], URI.parse('copilotcli:/shared-session'), 'directory');
+			const included = 1000 - entryCount;
+			assert.deepStrictEqual({
+				count: artifact.entries.length,
+				providerCount: artifact.entries.filter(entry => entry.path.startsWith('provider/')).length,
+				missionControlCount: artifact.entries.filter(entry => entry.path.startsWith('ahp/mission-control/')).length,
+				warnings,
+			}, {
+				count: 1000, providerCount: entryCount - 1, missionControlCount: included,
+				warnings: included < 10 ? [`[AgentHostDebugLogs] Omitted ${10 - included} Mission Control AHP files; exporting the ${included} most recent files`] : [],
+			});
+			await collector.cleanup();
+		});
+	}
 
 	test('rejects and cleans an artifact with too many files', async () => {
 		const logsHome = join(testRoot, 'logs');

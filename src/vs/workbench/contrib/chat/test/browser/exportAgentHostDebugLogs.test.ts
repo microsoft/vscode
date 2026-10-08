@@ -321,7 +321,9 @@ suite('collectAgentHostDebugLogs', () => {
 			...artifactOfSize(hostEntryCount),
 			kind: hostArtifactKind,
 			...(hostArtifactKind === 'directory' ? { resource: URI.file('/staging') } : {}),
-			entries: Array.from({ length: hostEntryCount }, (_, index) => ({ path: missionControlLogsIncluded && index === 0 ? 'ahp/mission-control/connection.jsonl' : `host-${index}.log`, size: 1 })),
+			entries: Array.from({ length: hostEntryCount }, (_, index) => ({
+				path: missionControlLogsIncluded && index === 0 ? `ahp/mission-control/${ahpFiles.find(file => isAhpLogFileFor(MISSION_CONTROL_AHP_LOG_ID, file.name))!.name}` : `host-${index}.log`, size: 1,
+			})),
 		};
 		const fileStat = (folder: URI, name: string, mtime = 0) => upcastPartial<IFileStatWithMetadata>({
 			name,
@@ -493,6 +495,37 @@ suite('collectAgentHostDebugLogs', () => {
 			hostCopyFailureReported: true,
 		});
 	});
+
+	for (const sessionScoped of [true, false]) {
+		for (const outcome of ['success', 'missing', 'corrupt'] as const) {
+			test(`preserves Mission Control directory fallback for ${outcome} host copies (sessionScoped=${sessionScoped})`, async () => {
+				const relay = ahpFile(MISSION_CONTROL_AHP_LOG_ID, 1);
+				const { result, warnings, instantiationService } = await collectWithFiles([relay], 1, 1, sessionScoped, 'directory', true);
+				const fileService = disposables.add(new FileService(new NullLogService()));
+				disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+				disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+				for (const file of result.files) {
+					assert.ok(hasKey(file, { resource: true }));
+					await fileService.writeFile(file.resource, VSBuffer.fromString('x'));
+				}
+				const hostPath = `ahp/mission-control/${relay.name}`;
+				if (outcome !== 'missing') {
+					await fileService.writeFile(URI.file(`/staging/${hostPath}`), VSBuffer.fromString(outcome === 'success' ? 'h' : 'corrupt'));
+				}
+				instantiationService.stub(IFileService, fileService);
+				instantiationService.stub(IFileDialogService, upcastPartial<IFileDialogService>({}));
+				instantiationService.stub(IConfigurationService, new TestConfigurationService());
+				const service = instantiationService.createInstance(BrowserAgentHostDebugLogsExportService);
+				const destination = URI.from({ scheme: Schemas.inMemory, path: '/exports/logs' });
+				await service.save(destination, result.files, result.hostArtifact);
+				assert.deepStrictEqual({
+					hostSaved: await fileService.exists(URI.joinPath(destination, hostPath)),
+					fallbackSaved: await fileService.exists(URI.joinPath(destination, 'ahp', relay.name)),
+					failureReported: warnings.some(warning => warning.includes('Failed to save Agent Host logs:')),
+				}, { hostSaved: outcome === 'success', fallbackSaved: outcome !== 'success', failureReported: outcome !== 'success' });
+			});
+		}
+	}
 
 	test('keeps process logs ahead of the newest transport history when the combined export reaches the limit', async () => {
 		const ahpFiles = Array.from({ length: 20 }, (_, index) => ahpFile('a', index));
