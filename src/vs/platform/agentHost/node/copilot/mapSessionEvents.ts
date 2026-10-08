@@ -163,11 +163,18 @@ export function appendSdkToolResultContent(content: ToolResultContent[], sdkCont
 
 /** Prefers UI output and avoids duplicating text already carried by structured result blocks. */
 export function getSdkToolResultText(result: ToolExecutionCompleteResult | undefined): string | undefined {
-	if (result?.contents?.some(block => block.type === 'text' && block.text.length > 0
-		|| block.type === 'resource' && hasKey(block.resource, { text: true }) && block.resource.text.length > 0)) {
+	const displayText = result?.detailedContent ?? result?.content;
+	const structuredText = result?.contents?.flatMap(block => {
+		if (block.type === 'text') {
+			return [block.text];
+		}
+		return block.type === 'resource' && hasKey(block.resource, { text: true }) ? [block.resource.text] : [];
+	}) ?? [];
+	const normalizedText = displayText?.trim();
+	if (normalizedText && (structuredText.some(text => text.trim() === normalizedText) || structuredText.join('\n\n').trim() === normalizedText)) {
 		return undefined;
 	}
-	return result?.detailedContent ?? result?.content;
+	return displayText;
 }
 
 // =============================================================================

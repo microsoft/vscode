@@ -1298,6 +1298,7 @@ suite('mapSessionEvents — history replay', () => {
 				{ type: ToolResultContentType.EmbeddedResource, data: asset.data, contentType: 'image/png' },
 			],
 			[
+				{ type: ToolResultContentType.Text, text: 'Summary' },
 				{ type: ToolResultContentType.Text, text: 'Structured text' },
 				{ type: ToolResultContentType.EmbeddedResource, data: asset.data, contentType: 'image/png' },
 			],
@@ -2219,14 +2220,19 @@ suite('appendSdkToolResultContent', () => {
 	const terminalDescriptor = { storage: session, session, chat, toolCallId: 'tc-1', title: 'Run Shell Command' };
 	const terminalResource = buildNonPtyShellTerminalUri(session, session, chat, 'tc-1');
 
-	test('prefers detailed output unless structured blocks carry nonempty text', () => {
+	test('retains detailed output unless structured text reproduces it', () => {
 		assert.deepStrictEqual([
 			getSdkToolResultText(undefined),
 			getSdkToolResultText({ content: 'Short' }),
 			getSdkToolResultText({ content: 'Short', detailedContent: 'Full' }),
 			getSdkToolResultText({ content: 'Short', detailedContent: 'Full', contents: [{ type: 'text', text: '' }] }),
 			getSdkToolResultText({ content: 'Short', contents: [{ type: 'text', text: 'Structured' }] }),
-		], [undefined, 'Short', 'Full', 'Full', undefined]);
+			getSdkToolResultText({ content: 'Short', detailedContent: 'Complete diff', contents: [{ type: 'text', text: 'Summary' }] }),
+			getSdkToolResultText({ content: 'Short', detailedContent: 'Full', contents: [{ type: 'text', text: ' \n\t' }] }),
+			getSdkToolResultText({ content: 'Short', detailedContent: 'Full', contents: [{ type: 'text', text: ' Full\n' }] }),
+			getSdkToolResultText({ content: 'Short', detailedContent: 'First\n\nSecond', contents: [{ type: 'text', text: 'First' }, { type: 'text', text: 'Second' }] }),
+			getSdkToolResultText({ content: 'Short', detailedContent: 'Full', contents: [{ type: 'resource', resource: { uri: 'mcp:/text', text: 'Full' } }] }),
+		], [undefined, 'Short', 'Full', 'Full', 'Short', 'Complete diff', 'Full', undefined, undefined, undefined]);
 	});
 
 	test('maps structured text, audio, and inline resources', () => {
