@@ -31,6 +31,8 @@ import { IChatWidget, IChatWidgetService } from '../../../chat.js';
 import { applyAgentHostCompletionAction, isPolicyBlockedCompletionAction } from '../../../agentHostCompletionAction.js';
 import { applyAgentHostSessionConfigChange } from '../../../agentSessions/agentHost/applyAgentHostSessionConfig.js';
 import { IAgentHostConnectionsService } from '../../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { StateComponents } from '../../../../../../../platform/agentHost/common/state/sessionState.js';
+import { resolveAgentHostChatSession } from '../../../agentSessions/agentHost/agentHostSessionUri.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { AgentHostInputCompletionsBase } from './agentHostInputCompletionsBase.js';
@@ -64,6 +66,8 @@ export class AgentHostInputCompletions extends AgentHostInputCompletionsBase<ICh
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
+		@IAgentHostUntitledProvisionalSessionService private readonly _provisionalService: IAgentHostUntitledProvisionalSessionService,
 	) {
 		super(languageFeaturesService, chatSessionsService);
 
@@ -185,7 +189,12 @@ export class AgentHostInputCompletions extends AgentHostInputCompletionsBase<ICh
 					// Omit an elevated auto-approve toggle (Allow all / Assisted)
 					// when enterprise policy disables global auto-approval, rather
 					// than offering an item that would warn then clamp to Default.
-					if (isPolicyBlockedCompletionAction(action, this._configurationService)) {
+					const resource = widget.viewModel?.model.sessionResource;
+					const resolution = resource ? resolveAgentHostChatSession(resource, this._provisionalService.get(resource), this._connectionsService) : undefined;
+					const snapshot = resolution?.connection.getSubscriptionUnmanaged(StateComponents.Session, resolution.backendSession)?.value;
+					const state = snapshot instanceof Error ? undefined : snapshot;
+					const config = state?.config ?? (resource ? this._provisionalService.getResolvedConfig(resource) : undefined);
+					if (isPolicyBlockedCompletionAction(action, this._configurationService, config)) {
 						return undefined;
 					}
 					// Config-action completion (permission/mode toggle). Keep-text

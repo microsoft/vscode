@@ -4499,6 +4499,32 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('validates approval requests against host-advertised modes and preserves them on replacement', async () => {
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			registerTestAgentProvider(svc, agent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			const state = getStateManager(svc);
+			state.setSessionConfig(session.toString(), {
+				schema: { type: 'object', properties: {
+					autoApprove: { type: 'string', title: 'Approvals', enum: ['default', 'assisted'], sessionMutable: true },
+					availableApprovalModes: { type: 'array', title: 'Available', readOnly: true },
+				} },
+				values: { autoApprove: 'default', availableApprovalModes: ['default', 'assisted'] },
+			});
+			const results = [];
+			for (const [index, config] of [{ autoApprove: 'autoApprove' }, { availableApprovalModes: ['default', 'autoApprove'] }, { autoApprove: 'assisted' }].entries()) {
+				const response = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === index + 1));
+				svc.dispatchAction(session.toString(), { type: ActionType.SessionConfigChanged, config, replace: true }, 'client', index + 1);
+				results.push(!!(await response).rejectionReason);
+			}
+			assert.deepStrictEqual({ rejected: results, values: state.getSessionState(session.toString())?.config?.values }, {
+				rejected: [true, true, false],
+				values: { autoApprove: 'assisted', availableApprovalModes: ['default', 'assisted'] },
+			});
+		});
+
 		test('rejects client writes to host-owned Agent Merge controller state', async () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = new MockAgent('copilot');
@@ -28910,6 +28936,27 @@ suite('AgentService (node dispatcher)', () => {
 	});
 
 	suite('session config persistence', () => {
+
+		test('workspaceless Copilot sessions resolve host approval defaults without client config', async () => {
+			const sessionDataService = createSessionDataService(new TestSessionDatabase());
+			const agent = new MockAgent('copilotcli');
+			disposables.add(toDisposable(() => agent.dispose()));
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			registerTestAgentProvider(svc, agent);
+			agent.resolveChatConfig = async () => ({
+				schema: { type: 'object', properties: {
+					autoApprove: { type: 'string', title: 'Approvals', enum: ['default', 'assisted', 'autoApprove'], sessionMutable: true },
+					availableApprovalModes: { type: 'array', title: 'Available', readOnly: true },
+					effectiveApprovalMode: { type: 'string', title: 'Effective', readOnly: true },
+				} },
+				values: { autoApprove: 'assisted', availableApprovalModes: ['default', 'assisted'], effectiveApprovalMode: 'assisted' },
+			});
+
+			const session = await svc.createSession({ provider: 'copilotcli' });
+			assert.deepStrictEqual(getStateManager(svc).getSessionState(session.toString())?.config?.values, {
+				autoApprove: 'assisted', availableApprovalModes: ['default', 'assisted'], effectiveApprovalMode: 'assisted',
+			});
+		});
 
 		test('restoreSession replaces persisted off with applied on when current managed policy requires sandboxing', async () => {
 			const sessionDb = disposables.add(await SessionDatabase.open(':memory:'));

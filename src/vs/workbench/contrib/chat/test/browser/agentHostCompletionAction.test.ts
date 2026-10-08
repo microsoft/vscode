@@ -5,13 +5,14 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { SessionConfigSchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IConfigurationOverrides, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
 import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { applyAgentHostCompletionAction, isPolicyBlockedCompletionAction } from '../../browser/agentHostCompletionAction.js';
-import { autoApprovePolicyValue } from '../../common/agentHostConfigPolicy.js';
+import { autoApprovePolicyValue, getAgentHostApprovalDefault, isAutoApprovePolicyRestricted } from '../../common/agentHostConfigPolicy.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { resetShownWarnings } from '../../common/chatPermissionWarnings.js';
 
@@ -34,6 +35,33 @@ suite('applyAgentHostCompletionAction', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(() => resetShownWarnings());
+
+	test('only advertised host-owned approval reports replace the client legacy guard', () => {
+		const config = new PolicyTestConfigurationService(false);
+		const schemas: (SessionConfigSchema | undefined)[] = [
+			undefined,
+			{ type: 'object', properties: {} },
+			{ type: 'object', properties: { autoApprove: { type: 'string', title: 'Approvals' } } },
+			{ type: 'object', properties: { availableApprovalModes: { type: 'array', title: 'Available', readOnly: true } } },
+			...[false, true].map(readOnly => ({
+				type: 'object' as const,
+				properties: { autoApprove: { type: 'string' as const, title: 'Approvals' }, availableApprovalModes: { type: 'array' as const, title: 'Available', readOnly } },
+			})),
+		];
+		assert.deepStrictEqual(schemas.map(schema => isAutoApprovePolicyRestricted(config, schema)), [true, true, true, true, true, false]);
+	});
+
+	test('schema Manual is not an explicit preference, but configured Manual is', async () => {
+		const config = new class extends TestConfigurationService {
+			override inspect<T>(key: string): IConfigurationValue<T> {
+				const value = super.inspect<T>(key);
+				return key === ChatConfiguration.DefaultConfiguration ? { ...value, value: value.value ?? { approvals: 'manual' } as T } : value;
+			}
+		}();
+		const initial = [getAgentHostApprovalDefault(config, true), getAgentHostApprovalDefault(config, false)];
+		await config.setUserConfiguration(ChatConfiguration.DefaultConfiguration, { approvals: 'manual' });
+		assert.deepStrictEqual({ initial, explicit: getAgentHostApprovalDefault(config, true) }, { initial: [undefined, 'default'], explicit: 'default' });
+	});
 
 	test('auto-approve policy ignores preview policy and honors the bypass restriction', () => {
 		assert.deepStrictEqual([

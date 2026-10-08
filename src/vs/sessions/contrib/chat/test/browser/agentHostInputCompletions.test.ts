@@ -19,6 +19,7 @@ import { ServiceCollection } from '../../../../../platform/instantiation/common/
 import { IChatInputCompletionItem, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatRequestVariableEntry, toAgentHostCompletionVariableEntry, AgentHostCompletionReferenceKind } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ISessionContext } from '../../../../services/sessions/browser/sessionContext.js';
+import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { AgentHostInputCompletionHandler, getAgentHostCompletionAttachmentRange, getCommandArgumentHintPlaceholder } from '../../browser/agentHostInputCompletions.js';
 import { INewChatAttachments } from '../../browser/newChatContextAttachments.js';
 
@@ -35,6 +36,7 @@ suite('AgentHostInputCompletions', () => {
 	test('shows plain-text sandbox slash commands without adding an attachment', async () => {
 		const services = new ServiceCollection(
 			[ISessionContext, { _serviceBrand: undefined, session: constObservable(undefined) }],
+			[ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() { override getProvider() { return undefined; } }()],
 			[IChatSessionsService, new class extends mock<IChatSessionsService>() { }],
 		);
 		const model = store.add(createTextModel('/', null, undefined, URI.parse('test:input')));

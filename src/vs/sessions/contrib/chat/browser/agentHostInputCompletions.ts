@@ -208,6 +208,7 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super(languageFeaturesService, chatSessionsService);
 
@@ -306,7 +307,10 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 					// Omit an elevated auto-approve toggle (Allow all / Assisted)
 					// when enterprise policy disables global auto-approval, rather
 					// than offering an item that would warn then clamp to Default.
-					if (isPolicyBlockedCompletionAction(action, this._configurationService)) {
+					const session = this._sessionContext.session.get();
+					const provider = session ? this._sessionsProvidersService.getProvider(session.providerId) : undefined;
+					const host = provider && isAgentHostProvider(provider) ? provider : undefined;
+					if (isPolicyBlockedCompletionAction(action, this._configurationService, session ? host?.getSessionConfig(session.sessionId) : undefined)) {
 						return undefined;
 					}
 					// Config-action completion (permission/mode toggle). Keep-text

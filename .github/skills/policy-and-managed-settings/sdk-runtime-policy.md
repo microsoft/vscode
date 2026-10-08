@@ -33,6 +33,44 @@ Do not add a VS Code `policy:` merely to mirror runtime policy. Do not add a Git
 
 ## Host-Injection Lifecycle
 
+### Approval modes
+
+Copilot Agent Host resolves native mode restrictions before applying the legacy
+global approval fallback. An explicitly configured new mode restriction replaces
+the legacy blanket restriction; `defaultMode` alone does not. Other bridged
+restrictions, including the per-tool bypass lock and terminal asks, remain in force.
+The host publishes selectable modes and the starting selection in session config,
+validates client writes, and reconciles runtime refusals to the actual applied mode.
+Desktop and remote Copilot Agent Hosts use the same policy path. Native settings
+resolve where the host runs; this does not replicate desktop device policies to
+remote hosts. The UI must not reapply the legacy clamp to host-reported choices.
+Legacy Local and other providers keep their existing controls.
+Clients retain the legacy guard until a host advertises its approval-policy report.
+Defaults are only startup preferences; no additional durable pre-override
+restoration state is maintained. Restart to apply changed managed settings.
+
+**Simple rule:** an explicitly configured valid new mode restriction replaces the
+legacy blanket mode policy on the supported Copilot Agent Host; otherwise the old
+policy is the fallback. `defaultMode` alone never removes restrictions.
+
+**Potential surprise:** scenarios 6 and 8 below allow Allow All despite the old
+key being false. Setting a new mode restriction opts into the new group, so an
+unspecified mode is not implicitly restricted by the legacy key. Local retains
+its current coarse restriction. Other managed/per-tool restrictions still apply.
+These rows assume all modes are supported and show selectable modes, not defaults.
+The legacy JSON is logical policy notation, not an OS-specific deployment format.
+
+| # | Legacy policy JSON | Managed-settings JSON | Local: Allow All | Local: Assisted | Local: Manual | Copilot/Agent Host: Allow All | Copilot/Agent Host: Assisted | Copilot/Agent Host: Manual |
+|---|---|---|:---:|:---:|:---:|:---:|:---:|:---:|
+| 1 | `{}` | `{}` | Yes | Yes | Yes | Yes | Yes | Yes |
+| 2 | `{"ChatToolsAutoApprove":false}` | `{}` | No | No | Yes | No | No | Yes |
+| 3 | `{}` | `{"permissions":{"disableBypassPermissionsMode":"disable"}}` | No | No | Yes | No | Yes | Yes |
+| 4 | `{"ChatToolsAutoApprove":false}` | `{"permissions":{"disableBypassPermissionsMode":"disable"}}` | No | No | Yes | No | Yes | Yes |
+| 5 | `{}` | `{"permissions":{"disableAssistedPermissionsMode":true}}` | Yes | Yes | Yes | Yes | No | Yes |
+| 6 | `{"ChatToolsAutoApprove":false}` | `{"permissions":{"disableAssistedPermissionsMode":true}}` | No | No | Yes | Yes | No | Yes |
+| 7 | `{"ChatToolsAutoApprove":false}` | `{"permissions":{"disableBypassPermissionsMode":"disable","disableAssistedPermissionsMode":true}}` | No | No | Yes | No | No | Yes |
+| 8 | `{"ChatToolsAutoApprove":false}` | `{"permissions":{"disableBypassPermissionsMode":"enable"}}` | No | No | Yes | Yes | Yes | Yes |
+
 Host-injected managed settings are startup configuration:
 
 - supply them on local create and resume;
@@ -56,6 +94,7 @@ Bridge invariants:
 - mappings select one VS Code setting and use a callback typed against the host-owned managed permissions DTO;
 - mappings contribute only fields that can be flattened restrictively (`disable`, `deny`, and `ask`); do not flatten independent `allow` lists in VS Code;
 - approval-setting mappings use only exact enterprise `policyValue`; user, application, default, workspace, and folder values do not become managed approval restrictions;
+- global auto-approval is resolved by the Copilot host against native mode settings, rather than flattened into an unconditional bypass ban by this table;
 - the network-domain composite retains global precedence (policy, user, then application) and registered global defaults to preserve the filter's empty-list deny-all behavior;
 - personal approval settings remain on the ordinary root-config path, where session/global Allow All overrides them and default mode honors them; user/application settings are not an administrator enforcement boundary;
 - administrator terminal approval restrictions become managed asks and still require confirmation under Allow All or assisted approval;

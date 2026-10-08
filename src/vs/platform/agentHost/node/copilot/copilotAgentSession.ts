@@ -57,6 +57,7 @@ import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { toToolCallMeta, type IToolCallMeta, type IToolCallUiMeta, type IToolSearchCandidate } from '../../common/meta/agentToolCallMeta.js';
 import { OtelData, type OtelAttributeValue } from '../../common/otlp/otlpLogEmitter.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
+import { fromCopilotPermissionMode, getCopilotApprovalPolicy } from './copilotApprovalPolicy.js';
 import { isShellInitScriptList, type IShellInitScript } from '../../common/shellInitScript.js';
 import { getVSCodeSandboxReadRoots } from '../../common/vscodeSandboxPaths.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
@@ -69,7 +70,7 @@ import { ISessionDatabase, ISessionDataService, MAX_TERMINAL_OUTPUT_BYTES } from
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { BackgroundWorkKind, MessageAttachmentKind, ToolCallContributorKind, type BackgroundWork, type FileEdit, type MessageAttachment, type ToolCallContributor } from '../../common/state/protocol/state.js';
 import { ActionType, isChatAction, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
-import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, isSubagentSession, parseRequiredSessionUriFromChatUri, type CanvasState, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, isDefaultChatUri, isSubagentSession, parseRequiredSessionUriFromChatUri, type CanvasState, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
 import { buildCanvasUri } from '../../common/canvasUri.js';
 import { IAgentConfigurationService, type IAgentSessionConfigurationChangeEvent } from '../agentConfigurationService.js';
 import { CopilotSessionWrapper, type ICopilotByokSessionConfig, type ICopilotModelCallFinishedEvent } from './copilotSessionWrapper.js';
@@ -1238,6 +1239,10 @@ export class CopilotAgentSession extends Disposable {
 	/** Last agent mode pushed to the SDK via {@link applyMode}, to elide redundant `rpc.mode.set` calls. */
 	private _lastAppliedMode: CopilotSdkMode | undefined;
 	private _lastAppliedPermissionMode: PermissionMode | undefined;
+	private _approvalPolicy: ReturnType<typeof getCopilotApprovalPolicy> | undefined;
+	private _nativeApprovalPolicy: SessionEventPayload<'session.managed_settings_resolved'>['data'] | undefined;
+	private _bridgedApprovalPolicy: Parameters<typeof getCopilotApprovalPolicy>[2];
+	private _runtimeApprovalModes: ReturnType<typeof getCopilotApprovalPolicy>['available'] | undefined;
 	private _experimentalModeEnabled = false;
 	private readonly _permissionModeSequencer = new Sequencer();
 	/** Settles when this session observes the runtime's top-level `session.managed_settings_resolved` event. */
@@ -3291,8 +3296,17 @@ export class CopilotAgentSession extends Disposable {
 
 	private _createRuntimeAdapter(): ICopilotSessionRuntime {
 		return {
+			setApprovalPolicy: (resolved, bridged) => {
+				this._nativeApprovalPolicy = resolved;
+				this._bridgedApprovalPolicy = bridged;
+			},
 			onSessionEvent: event => {
 				if (!this._store.isDisposed) {
+					if (event.type === 'session.managed_settings_resolved' && !event.agentId) {
+						this._approvalPolicy = getCopilotApprovalPolicy(event.data, false);
+						this._runtimeApprovalModes = this._approvalPolicy.available;
+						void this._managedSettingsResolved.complete();
+					}
 					this._onSessionEvent?.(event);
 				}
 			},
@@ -5550,7 +5564,7 @@ export class CopilotAgentSession extends Disposable {
 	 * level. Agent mode is an orthogonal axis and does not affect approvals.
 	 */
 	private _isBypassApprovals(): boolean {
-		if (this._configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true) {
+		if (this._approvalPolicy ? !this._approvalPolicy.available.includes('autoApprove') : this._configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true) {
 			return false;
 		}
 		if (this._configurationService.getRootValue(platformRootSchema, AgentHostGlobalAutoApproveEnabledConfigKey) === true) {
@@ -5560,6 +5574,17 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _getSdkPermissionMode(): PermissionMode {
+		if (this._nativeApprovalPolicy) {
+			this._approvalPolicy = getCopilotApprovalPolicy(this._nativeApprovalPolicy,
+				this._configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true, this._bridgedApprovalPolicy);
+			const runtimeModes = this._runtimeApprovalModes;
+			if (runtimeModes) {
+				this._approvalPolicy.available = this._approvalPolicy.available.filter(mode => runtimeModes.includes(mode));
+			}
+			if (this._configurationService.getRootValue(platformRootSchema, AgentHostGlobalAutoApproveEnabledConfigKey) === true) {
+				return this._approvalPolicy.available.includes('autoApprove') ? 'allow-all' : 'manual';
+			}
+		}
 		if (this._isBypassApprovals()) {
 			return 'allow-all';
 		}
@@ -5569,10 +5594,13 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _getConfiguredApprovalLevel(): string {
-		if (this._configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true) {
+		if (!this._approvalPolicy && this._configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true) {
 			return 'default';
 		}
-		return this._configurationService.getEffectiveValue(this._ownerSessionUri.toString(), platformSessionSchema, SessionConfigKey.AutoApprove) ?? 'default';
+		const requested = this._configurationService.getEffectiveValue(this._ownerSessionUri.toString(), platformSessionSchema, SessionConfigKey.AutoApprove)
+			?? this._approvalPolicy?.defaultMode
+			?? 'default';
+		return this._approvalPolicy && !this._approvalPolicy.available.includes(requested) ? 'default' : requested;
 	}
 
 	private _getConfiguredAgentMode(): string {
@@ -5690,6 +5718,7 @@ export class CopilotAgentSession extends Disposable {
 				this._logService.info(`[Copilot:${this.sessionId}] ${experimentalModeEnabled ? 'Enabled' : 'Disabled'} SDK experimental mode`);
 			}
 			if (this._lastAppliedPermissionMode === mode) {
+				this._acceptPermissionMode(mode);
 				return;
 			}
 			const managedSettingsResolvedBeforeSet = this._managedSettingsResolved.isSettled;
@@ -5705,13 +5734,29 @@ export class CopilotAgentSession extends Disposable {
 			if (!applied) {
 				throw new Error(`Copilot SDK rejected permission mode '${mode}'`);
 			}
-			this._lastAppliedPermissionMode = mode;
 		});
 	}
 
 	private async _trySetSdkPermissionMode(mode: PermissionMode): Promise<boolean> {
 		const result = await this._wrapper.session.rpc.permissions.setMode({ mode });
-		return result.success && (result.mode === undefined || result.mode === mode);
+		if (!result.success && (!this._approvalPolicy || this._approvalPolicy.available.includes(fromCopilotPermissionMode(mode))
+			|| !this._approvalPolicy.available.includes(fromCopilotPermissionMode(result.mode)))) {
+			return false;
+		}
+		this._acceptPermissionMode(result.mode);
+		return true;
+	}
+
+	private _acceptPermissionMode(mode: PermissionMode): void {
+		this._lastAppliedPermissionMode = mode;
+		const current = this._configurationService.getSessionConfigValues(this._ownerSessionUri.toString());
+		if (current && isDefaultChatUri(this._chatChannelUri.toString()) && (current.effectiveApprovalMode !== fromCopilotPermissionMode(mode)
+			|| !equals(current.availableApprovalModes, this._approvalPolicy?.available))) {
+			this._configurationService.updateSessionConfig(this._ownerSessionUri.toString(), {
+				effectiveApprovalMode: fromCopilotPermissionMode(mode),
+				...(this._approvalPolicy ? { availableApprovalModes: this._approvalPolicy.available } : {}),
+			});
+		}
 	}
 
 	/**

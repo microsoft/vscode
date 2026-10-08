@@ -960,14 +960,16 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			});
 		});
 
-		test(`preserves enterprise approval restrictions (${combined ? 'combined' : 'separate'} picker)`, async () => {
-			const { modePicker, permissionPicker, configuration, actionWidget, dispatches } = setup(combined);
+		test(`renders host approval restrictions as disabled rows (${combined ? 'combined' : 'separate'} picker)`, async () => {
+			const { modePicker, permissionPicker, configuration, config, actionWidget, dispatches } = setup(combined);
 			configuration.policyRestricted = true;
+			config.schema.properties.availableApprovalModes = { type: 'array', title: 'Available', readOnly: true };
+			config.values.availableApprovalModes = ['default'];
 			const picker = combined ? modePicker : permissionPicker;
 			await picker['_showPicker'](document.createElement('div'));
 			const levels = actionWidget.items.filter(item => ['Manual permissions', 'Assisted permissions', 'Allow all'].includes(item.label ?? ''))
 				.map(item => ({ label: item.label, disabled: item.disabled, badge: item.badge }));
-			await actionWidget.select('Assisted permissions');
+			await assert.rejects(actionWidget.select('Assisted permissions'), /does not offer/);
 
 			assert.deepStrictEqual({ levels, dispatches }, {
 				levels: [
@@ -975,7 +977,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 					{ label: 'Assisted permissions', disabled: true, badge: 'Experimental' },
 					{ label: 'Allow all', disabled: true, badge: undefined },
 				],
-				dispatches: [{ type: ActionType.SessionConfigChanged, config: { autoApprove: 'default' } }],
+				dispatches: [],
 			});
 		});
 

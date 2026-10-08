@@ -641,6 +641,21 @@ suite('SessionPermissionManager', () => {
 		}
 	}
 
+	test('global approval cannot bypass the host-reported permission policy', async () => {
+		configService.updateRootConfig({ [AgentHostGlobalAutoApproveEnabledConfigKey]: true });
+		const config = {
+			schema: { ...platformSessionSchema.toProtocol(), properties: {
+				...platformSessionSchema.toProtocol().properties,
+				availableApprovalModes: { type: 'array' as const, title: 'Available', readOnly: true },
+				effectiveApprovalMode: { type: 'string' as const, title: 'Effective', readOnly: true },
+			} },
+			values: { autoApprove: 'autoApprove', availableApprovalModes: ['default'], effectiveApprovalMode: 'default' },
+		};
+		manager.setSessionConfig(sessionUri, config);
+		const result = await permissions.getAutoApproval(writeEvent(join(outsideDir, 'outside.txt')), sessionUri);
+		assert.deepStrictEqual({ result, level: permissions.getEffectiveApprovalLevel(sessionUri) }, { result: undefined, level: 'default' });
+	});
+
 	test('auto-approves any write when global auto-approve is enabled, even in default permission mode', async () => {
 		configService.updateRootConfig({ [AgentHostGlobalAutoApproveEnabledConfigKey]: true });
 

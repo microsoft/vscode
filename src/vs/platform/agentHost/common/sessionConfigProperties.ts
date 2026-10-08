@@ -95,12 +95,12 @@ export function writeSessionIsolation(property: ISessionConfigProperty | undefin
 export function getAvailableSessionApprovalValues(property: ISessionConfigProperty, schema: SessionConfigSchema, values: Readonly<Record<string, unknown>>): readonly string[] {
 	const offered = (property.schema.enum ?? []).filter((value): value is string => isString(value) && readSessionApprovalLevel(property, value) !== undefined);
 	const available = values.availableApprovalModes;
-	return property.key === 'approvalMode' && schema.properties.availableApprovalModes?.type === 'array' && schema.properties.availableApprovalModes.readOnly === true && Array.isArray(available)
+	return schema.properties.availableApprovalModes?.type === 'array' && schema.properties.availableApprovalModes.readOnly === true && Array.isArray(available)
 		? offered.filter(value => available.includes(value)) : offered;
 }
 
 export function getEffectiveSessionApprovalValue(property: ISessionConfigProperty, schema: SessionConfigSchema, values: Readonly<Record<string, unknown>>): unknown {
-	return property.key === 'approvalMode' && schema.properties.effectiveApprovalMode?.type === 'string' && schema.properties.effectiveApprovalMode.readOnly === true && isString(values.effectiveApprovalMode)
+	return schema.properties.effectiveApprovalMode?.type === 'string' && schema.properties.effectiveApprovalMode.readOnly === true && isString(values.effectiveApprovalMode)
 		? values.effectiveApprovalMode : values[property.key] ?? property.schema.default;
 }
 
@@ -134,6 +134,7 @@ export function validateSessionConfigWrite(schema: SessionConfigSchema, values: 
 /** Retains advertised values without inventing defaults, renaming aliases, or enforcing UI readOnly hints. */
 export function filterSessionConfigValues(schema: SessionConfigSchema, values: Readonly<Record<string, unknown>> | undefined, isNewSession = true): Record<string, unknown> {
 	return Object.fromEntries(Object.entries(values ?? {}).filter(([key, value]) =>
-		value !== undefined && !getSessionConfigWriteError(schema, values ?? {}, key, value, isNewSession)
+		value !== undefined && !((key === 'availableApprovalModes' || key === 'effectiveApprovalMode') && Object.hasOwn(schema.properties, SessionConfigKey.AutoApprove))
+		&& !getSessionConfigWriteError(schema, values ?? {}, key, value, isNewSession)
 	));
 }

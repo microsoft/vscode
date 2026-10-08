@@ -77,7 +77,7 @@ import { IChatSessionFileChange, IChatSessionFileChange2, IChatSessionsService }
 import { assertAutomationSessionTemplate, IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationModelConfiguration } from '../../../automations/browser/automationModelConfiguration.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, getChatPermissionLevelFromDefaultConfiguration, isChatPermissionLevel, type IChatDefaultConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
-import { isAutoApprovePolicyRestricted, normalizeSessionConfigValue } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
+import { getAgentHostApprovalDefault, isAutoApprovePolicyRestricted, normalizeSessionConfigValue } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { getRegisteredLanguageModels, getVisibleLanguageModelsForTarget, resolveConfiguredModel, resolveModelIdentifier, resolveModelIdentifierFromLanguageModels } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
 import { canInitializeCodexWithoutGitHub } from '../../../../../workbench/services/agentHost/browser/codexAccountService.js';
@@ -3898,7 +3898,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return undefined;
 		}
 		const permissionId = getAgentHostSessionPermissionId(sessionType, config);
-		const option = getAgentHostSessionPermissionOptions(sessionType, isAutoApprovePolicyRestricted(this._baseConfigurationService), true, config)
+		const option = getAgentHostSessionPermissionOptions(sessionType, isAutoApprovePolicyRestricted(this._baseConfigurationService, config?.schema), true, config)
 			.find(option => option.id === permissionId);
 		const mode = config.values[SessionConfigKey.Mode] ?? config.schema.properties[SessionConfigKey.Mode]?.default;
 		return option ? { ...option, comparisonModeId: typeof mode === 'string' ? mode : undefined } : undefined;
@@ -4867,7 +4867,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				...this._derivedNewSessionConfig(workspace),
 				...this._normalizeAutomationSessionConfig(initialSessionTemplate?.config),
 			}
-			: this._initialNewSessionConfig(workspace);
+			: this._initialNewSessionConfig(workspace, sessionType.id);
 		const permissionConfig = initialPermissionId
 			? getAgentHostSessionPermissionConfig(
 				sessionType.id,
@@ -4902,7 +4902,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				initialModeId,
 				initialPullRequestUrl,
 				resolveInitialPermissionConfig: initialPermissionId ? config => {
-					const permissions = getAgentHostSessionPermissionConfig(sessionType.id, initialPermissionId, isAutoApprovePolicyRestricted(this._baseConfigurationService), true, config);
+					const permissions = getAgentHostSessionPermissionConfig(sessionType.id, initialPermissionId, isAutoApprovePolicyRestricted(this._baseConfigurationService, config.schema), true, config);
 					if (!permissions) {
 						throw new Error(localize('agentHost.initialPermissionUnsupported', "The selected session permissions could not be applied: agent '{0}' does not support permission '{1}'.", sessionType.id, initialPermissionId));
 					}
@@ -5168,7 +5168,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * first folder) is seeded into the `worktreeBranchPrefix` slot so the agent
 	 * host can prepend it to the branch it creates for an isolated worktree.
 	 */
-	protected _initialNewSessionConfig(workspace?: ISessionWorkspace): Record<string, unknown> | undefined {
+	protected _initialNewSessionConfig(workspace?: ISessionWorkspace, provider?: string): Record<string, unknown> | undefined {
 		const config = Object.create(null) as Record<string, unknown>;
 		const policyRestricted = isAutoApprovePolicyRestricted(this._baseConfigurationService);
 
@@ -5202,7 +5202,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const resolvedAutoApprove =
 			normalizeAutoApproveValue(policyDefaults?.approvals, policyRestricted)
 			?? normalizeAutoApproveValue(remembered[SessionConfigKey.AutoApprove], policyRestricted)
-			?? normalizeAutoApproveValue(effectiveDefaults?.approvals, policyRestricted);
+			?? normalizeAutoApproveValue(getAgentHostApprovalDefault(this._baseConfigurationService, provider === 'copilotcli'), policyRestricted);
 		if (resolvedAutoApprove) {
 			remembered[SessionConfigKey.AutoApprove] = resolvedAutoApprove;
 		} else {
@@ -5461,7 +5461,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	async setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void> {
-		const policyRestricted = isAutoApprovePolicyRestricted(this._baseConfigurationService);
+		const policyRestricted = isAutoApprovePolicyRestricted(this._baseConfigurationService, this.getSessionConfig(sessionId)?.schema);
 		const normalizedValue = normalizeSessionConfigValue(property, value, policyRestricted);
 
 		// Mark resolution before firing so the first picker render is already inert.
@@ -5548,7 +5548,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// (`sessionMutable: true` and not `readOnly`), otherwise force the
 		// current value through. This guarantees replace semantics never
 		// alter a non-editable property even if the caller included it.
-		const policyRestricted = isAutoApprovePolicyRestricted(this._baseConfigurationService);
+		const policyRestricted = isAutoApprovePolicyRestricted(this._baseConfigurationService, runningConfig?.schema);
 		const nextValues: Record<string, unknown> = {};
 		for (const [key, schema] of Object.entries(runningConfig.schema.properties)) {
 			const editable = schema.sessionMutable === true && schema.readOnly !== true;

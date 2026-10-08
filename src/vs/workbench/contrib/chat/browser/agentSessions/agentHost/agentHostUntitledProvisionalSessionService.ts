@@ -77,7 +77,8 @@ import { IUriIdentityService } from '../../../../../../platform/uriIdentity/comm
 import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
-import { ChatConfiguration, getChatPermissionLevelFromDefaultConfiguration, type IChatDefaultConfiguration } from '../../../common/constants.js';
+import { ChatConfiguration, type IChatDefaultConfiguration } from '../../../common/constants.js';
+import { getAgentHostApprovalDefault, isAutoApprovePolicyRestricted } from '../../../common/agentHostConfigPolicy.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IAgentHostNewSessionFolderService, computeDesiredWorkingDirectories, computeWorkingDirectories, hasImmutablePrimaryWorkingDirectory, supportsMultipleWorkingDirectories } from './agentHostNewSessionFolderService.js';
@@ -118,7 +119,7 @@ export interface IAgentHostUntitledProvisionalSessionService {
 	 * Returns `undefined` in the Agents window, where the sessions provider owns
 	 * the initial config supplied on the request.
 	 */
-	getInitialSessionConfig(): Record<string, unknown> | undefined;
+	getInitialSessionConfig(provider?: string): Record<string, unknown> | undefined;
 
 	/** Initial session metadata, including any metadata registered for the resource. */
 	getInitialSessionMetadata(sessionResource?: URI): Record<string, unknown> | undefined;
@@ -498,8 +499,8 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		this._sessionCreationMetadata.delete(sessionResource);
 	}
 
-	getInitialSessionConfig(): Record<string, unknown> | undefined {
-		return this._getInitialConfig();
+	getInitialSessionConfig(provider?: string): Record<string, unknown> | undefined {
+		return this._getInitialConfig(provider);
 	}
 
 	async waitForPending(sessionResource: URI): Promise<URI | undefined> {
@@ -558,7 +559,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		if (this._rebound.has(sessionResource)) {
 			return undefined;
 		}
-		const entry = this._createEntry(provider, { ...(this._getInitialConfig() ?? {}) }, 0, workingDirectory);
+		const entry = this._createEntry(provider, { ...(this._getInitialConfig(provider) ?? {}) }, 0, workingDirectory);
 		this._entries.set(sessionResource, entry);
 		return entry;
 	}
@@ -1156,18 +1157,16 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 	 * Skipped entirely in the Agents window, where the sessions provider
 	 * supplies config via `request.agentHostSessionConfig` instead.
 	 */
-	private _getInitialConfig(): Record<string, unknown> | undefined {
+	private _getInitialConfig(provider?: string): Record<string, unknown> | undefined {
 		if (this._environmentService.isSessionsWindow) {
 			return undefined;
 		}
 		const config: Record<string, unknown> = { [SessionConfigKey.Isolation]: 'folder' };
 
 		const configuredDefaults = this._configurationService.getValue<IChatDefaultConfiguration>(ChatConfiguration.DefaultConfiguration);
-		const policyValue = this._configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue;
-
-		const configuredApprovals = getChatPermissionLevelFromDefaultConfiguration(configuredDefaults?.approvals);
+		const configuredApprovals = getAgentHostApprovalDefault(this._configurationService, provider === 'copilotcli');
 		if (configuredApprovals) {
-			const policyRestricted = policyValue === false;
+			const policyRestricted = isAutoApprovePolicyRestricted(this._configurationService);
 			// Bypass and (legacy) Autopilot auto-approve at least some tool
 			// calls, so clamp anything but Default under policy.
 			config[SessionConfigKey.AutoApprove] = policyRestricted && configuredApprovals !== 'default' ? 'default' : configuredApprovals;

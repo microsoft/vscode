@@ -35,8 +35,9 @@ import { ChangesetStatus, CustomizationType, MessageKind, ResponsePartKind, Sess
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, createChatState, isAhpAutomationCatalogChannel, SessionStatus as ProtocolSessionStatus, StateComponents, withSessionExternal } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
-import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ChatConfiguration } from '../../../../../../workbench/contrib/chat/common/constants.js';
 import { IDialogService, IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
@@ -3266,6 +3267,48 @@ suite('RemoteAgentHostSessionsProvider', () => {
 	}));
 
 	// ---- Running session config seeding (from SessionState.config) -------
+
+	test('remote Copilot host choices are not clamped again by client legacy policy', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const configurationService = new class extends TestConfigurationService {
+			override inspect<T>(key: string): IConfigurationValue<T> {
+				const value = super.inspect<T>(key);
+				return key === ChatConfiguration.GlobalAutoApprove ? { ...value, policyValue: false as T } : value;
+			}
+		}();
+		connection.addSession(createSession('managed-modes'));
+		const provider = createProvider(disposables, connection, { configurationService });
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		const config: SessionConfigState = {
+			schema: { type: 'object', properties: {
+				autoApprove: { type: 'string', title: 'Approvals', enum: ['default', 'assisted', 'autoApprove'], sessionMutable: true },
+				availableApprovalModes: { type: 'array', title: 'Available', readOnly: true },
+				effectiveApprovalMode: { type: 'string', title: 'Effective', readOnly: true },
+			} },
+			values: { autoApprove: 'default', availableApprovalModes: ['default', 'autoApprove'], effectiveApprovalMode: 'default' },
+		};
+		connection.resolveSessionConfigResult = config;
+		connection.setSessionState('managed-modes', 'copilotcli', {
+			provider: 'copilotcli', title: 'Managed', status: ProtocolSessionStatus.Idle, lifecycle: SessionLifecycle.Ready, activeClients: [], chats: [], config,
+		});
+		await waitForSessionConfig(provider, session.sessionId, state => state?.values.autoApprove === 'default');
+		await provider.setSessionConfigValue(session.sessionId, 'autoApprove', 'autoApprove');
+		assert.deepStrictEqual({
+			requests: connection.dispatchedActions.filter(entry => entry.action.type === ActionType.SessionConfigChanged).map(entry => entry.action),
+		}, { requests: [{ type: ActionType.SessionConfigChanged, config: { autoApprove: 'autoApprove' } }] });
+
+		delete config.schema.properties.availableApprovalModes;
+		connection.setSessionState('managed-modes', 'copilotcli', {
+			provider: 'copilotcli', title: 'Managed', status: ProtocolSessionStatus.Idle, lifecycle: SessionLifecycle.Ready, activeClients: [], chats: [], config,
+		});
+		await waitForSessionConfig(provider, session.sessionId, state => state?.schema.properties.availableApprovalModes === undefined);
+		connection.dispatchedActions.length = 0;
+		await provider.setSessionConfigValue(session.sessionId, 'autoApprove', 'autoApprove');
+		assert.deepStrictEqual(connection.dispatchedActions.filter(entry => entry.action.type === ActionType.SessionConfigChanged).map(entry => entry.action), [
+			{ type: ActionType.SessionConfigChanged, config: { autoApprove: 'default' } },
+		]);
+	}));
 
 	test('getSessionConfig seeds running config from session state subscription with full schema', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		connection.addSession(createSession('seed-1', { summary: 'Seeded Session' }));

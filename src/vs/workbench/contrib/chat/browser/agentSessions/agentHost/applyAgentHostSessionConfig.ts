@@ -11,7 +11,8 @@ import { IAgentHostConnectionsService } from '../../../../../../platform/agentHo
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { ChatConfiguration, ChatPermissionLevel } from '../../../common/constants.js';
+import { ChatPermissionLevel } from '../../../common/constants.js';
+import { isAutoApprovePolicyRestricted } from '../../../common/agentHostConfigPolicy.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { getLocalAgentHostSessionProvider, toAgentHostBackendSessionUri } from './agentHostSessionUri.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
@@ -55,7 +56,10 @@ export async function applyAgentHostSessionConfigChange(
 	}
 
 	const { agentHostService, connectionsService, provisionalService, workingDirectoryResolver, workspaceContextService, configurationService } = services;
-	const policyRestricted = configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
+	const backendSession = toAgentHostBackendSessionUri(sessionResource, connectionsService);
+	const state = backendSession ? agentHostService.getSubscriptionUnmanaged(StateComponents.Session, backendSession)?.value : undefined;
+	const currentConfig = (state && !(state instanceof Error) ? state.config : undefined) ?? provisionalService.getResolvedConfig(sessionResource);
+	const policyRestricted = isAutoApprovePolicyRestricted(configurationService, currentConfig?.schema);
 	const partial: Record<string, string> = { ...config };
 	const autoApprove = partial[SessionConfigKey.AutoApprove];
 	if (policyRestricted && autoApprove !== undefined && autoApprove !== ChatPermissionLevel.Default) {
@@ -70,7 +74,6 @@ export async function applyAgentHostSessionConfigChange(
 		return true;
 	}
 
-	const backendSession = toAgentHostBackendSessionUri(sessionResource, connectionsService);
 	if (!backendSession) {
 		return false;
 	}
@@ -78,7 +81,6 @@ export async function applyAgentHostSessionConfigChange(
 		type: ActionType.SessionConfigChanged,
 		config: partial,
 	});
-	const state = agentHostService.getSubscriptionUnmanaged(StateComponents.Session, backendSession)?.value;
 	const currentValues = state && !(state instanceof Error) ? state.config?.values : undefined;
 	const nextConfig = { ...(currentValues ?? {}), ...partial };
 	void provisionalService.refreshResolvedConfig(sessionResource, provider, workingDirectory, nextConfig);

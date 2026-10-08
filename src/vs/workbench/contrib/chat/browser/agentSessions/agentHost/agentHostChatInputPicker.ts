@@ -82,6 +82,7 @@ interface IConfigPickerItem {
 	readonly label: string;
 	readonly description?: string;
 	readonly checked?: boolean;
+	readonly disabled?: boolean;
 }
 
 interface IConfigPickerTarget {
@@ -142,11 +143,11 @@ function getConfigIcon(property: string, value: unknown | undefined): ThemeIcon 
 }
 
 function toActionItems(property: string, items: readonly IConfigPickerItem[], currentValue: unknown | undefined, policyRestricted = false, sandboxToggle?: IActionListItemInlineToggle, query?: string): IActionListItem<IConfigPickerItem>[] {
-	const pickerItems = property === SessionConfigKey.Branch
+	const pickerItems: readonly IConfigPickerItem[] = property === SessionConfigKey.Branch
 		? ensureSelectedBranchPickerItem(items, currentValue, query)
 		: items;
 	const actionItems: IActionListItem<IConfigPickerItem>[] = pickerItems.map(item => {
-		const disabled = property === SessionConfigKey.AutoApprove && isAutoApproveValuePolicyRestricted(item.value, policyRestricted);
+		const disabled = item.disabled === true || (property === SessionConfigKey.AutoApprove && isAutoApproveValuePolicyRestricted(item.value, policyRestricted));
 		const hover = getConfigPickerItemHover(property, item, disabled);
 		return {
 			kind: ActionListItemKind.Action,
@@ -768,7 +769,9 @@ export class AgentHostChatInputPicker extends Disposable {
 			return undefined;
 		}
 		if (property === SessionConfigKey.AutoApprove && approval) {
-			const configValues = getAvailableSessionApprovalValues(approval, configSchema, values);
+			const configValues = approval.key === SessionConfigKey.AutoApprove
+				? (propertySchema.enum ?? []).filter((value): value is string => typeof value === 'string')
+				: getAvailableSessionApprovalValues(approval, configSchema, values);
 			const levels = configValues.flatMap(value => {
 				const level = readSessionApprovalLevel(approval, value);
 				return level ? [level] : [];
@@ -840,8 +843,14 @@ export class AgentHostChatInputPicker extends Disposable {
 
 	private async _getActionItems(property: string, schema: SessionConfigPropertySchema, value: unknown, branchItems?: readonly IConfigPickerItem[]): Promise<IActionListItem<IConfigPickerItem>[]> {
 		const items = branchItems ?? await this._getItems(schema, undefined, property);
-		const policyRestricted = isAutoApprovePolicyRestricted(this._configurationService);
-		const actionItems = toActionItems(this._generic ? '' : property, items, value, policyRestricted, this._generic ? undefined : this._getSandboxStandaloneToggle(property));
+		const context = this._readContext(property);
+		const policyRestricted = isAutoApprovePolicyRestricted(this._configurationService, context?.configSchema);
+		const approval = property === SessionConfigKey.AutoApprove && context ? getSessionApprovalProperty(context.configSchema) : undefined;
+		const available = approval && context ? getAvailableSessionApprovalValues(approval, context.configSchema, context.values) : undefined;
+		const choices = approval && available ? items.map(item => ({
+			...item, disabled: !available.some(value => readSessionApprovalLevel(approval, value) === item.value),
+		})) : items;
+		const actionItems = toActionItems(this._generic ? '' : property, choices, value, policyRestricted, this._generic ? undefined : this._getSandboxStandaloneToggle(property));
 		const permissionsLearnMoreUrl = this._generic ? undefined : getPermissionsLearnMoreUrl(property);
 		if (permissionsLearnMoreUrl) {
 			const learnMoreLabel = localize('agentHostChatInputPicker.learnMorePermissions', "Learn more about permissions");
@@ -926,11 +935,11 @@ export class AgentHostChatInputPicker extends Disposable {
 						return [];
 					}
 					if (branches) {
-						return toActionItems(this._generic ? '' : this._property, filterBranchPickerItems(branches, query), refreshed.value, isAutoApprovePolicyRestricted(this._configurationService), this._getSandboxStandaloneToggle(), query);
+						return toActionItems(this._generic ? '' : this._property, filterBranchPickerItems(branches, query), refreshed.value, isAutoApprovePolicyRestricted(this._configurationService, refreshed.configSchema), this._getSandboxStandaloneToggle(), query);
 					}
 					return this._filterDelayer.trigger(async () => {
 						const items = await this._getItems(refreshed.schema, query);
-						return toActionItems(this._generic ? '' : this._property, items, refreshed.value, isAutoApprovePolicyRestricted(this._configurationService), this._getSandboxStandaloneToggle());
+						return toActionItems(this._generic ? '' : this._property, items, refreshed.value, isAutoApprovePolicyRestricted(this._configurationService, refreshed.configSchema), this._getSandboxStandaloneToggle());
 					});
 				}
 				: undefined,
@@ -1161,13 +1170,13 @@ export class AgentHostChatInputPicker extends Disposable {
 		const workingDirectory = this._readWorkingDirectory();
 		const approval = property === SessionConfigKey.AutoApprove ? getSessionApprovalProperty(ctx.configSchema) : undefined;
 		const approvalValue = approval?.key === SessionConfigKey.AutoApprove
-			? normalizeSessionConfigValue(SessionConfigKey.AutoApprove, value, isAutoApprovePolicyRestricted(this._configurationService))
+			? normalizeSessionConfigValue(SessionConfigKey.AutoApprove, value, isAutoApprovePolicyRestricted(this._configurationService, ctx.configSchema))
 			: value;
 		const normalizedValue = ctx.schema.type === 'boolean'
 			? value === 'true'
 			: this._generic ? value
 				: approval ? writeSessionApprovalLevel(approval, approvalValue)
-					: normalizeSessionConfigValue(ctx.key, value, isAutoApprovePolicyRestricted(this._configurationService));
+					: normalizeSessionConfigValue(ctx.key, value, isAutoApprovePolicyRestricted(this._configurationService, ctx.configSchema));
 		validateSessionConfigWrite(ctx.configSchema, ctx.values, ctx.key, normalizedValue, isUntitledChatSession(sessionResource));
 		const partial = { [ctx.key]: normalizedValue };
 		const nextConfig = filterSessionConfigValues(ctx.configSchema, { ...this._readCurrentValues(), ...partial });

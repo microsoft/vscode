@@ -7,8 +7,10 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { SessionConfigKey } from '../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { ResolveSessionConfigResult } from '../../../../platform/agentHost/common/state/protocol/commands.js';
+import { getAvailableSessionApprovalValues, getSessionApprovalProperty } from '../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { IAgentHostCompletionAction } from '../../../../platform/agentHost/common/meta/agentCompletionAttachmentMeta.js';
-import { isAutoApprovePolicyRestricted } from '../common/agentHostConfigPolicy.js';
+import { isAutoApprovePolicyRestricted, usesHostApprovalPolicy } from '../common/agentHostConfigPolicy.js';
 import { maybeConfirmElevatedPermissionLevel } from '../common/chatPermissionWarnings.js';
 import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../common/constants.js';
 
@@ -76,7 +78,12 @@ function getElevatedAutoApproveLevel(value: string | undefined): ChatPermissionL
  * The node producer cannot see the (client-side) policy, so this gating lives on
  * the client, mirroring how the permission pickers disable elevated levels.
  */
-export function isPolicyBlockedCompletionAction(action: IAgentHostCompletionAction, configurationService: IConfigurationService): boolean {
+export function isPolicyBlockedCompletionAction(action: IAgentHostCompletionAction, configurationService: IConfigurationService, config?: ResolveSessionConfigResult): boolean {
+	const mode = action.applyConfig?.[SessionConfigKey.AutoApprove];
+	if (usesHostApprovalPolicy(config?.schema) && mode !== undefined) {
+		const approval = getSessionApprovalProperty(config?.schema);
+		return !config || !approval || !getAvailableSessionApprovalValues(approval, config.schema, config.values).includes(mode);
+	}
 	return getElevatedAutoApproveLevel(action.applyConfig?.[SessionConfigKey.AutoApprove]) !== undefined
 		&& isAutoApprovePolicyRestricted(configurationService);
 }

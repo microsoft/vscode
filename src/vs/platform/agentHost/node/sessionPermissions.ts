@@ -262,7 +262,9 @@ export class SessionPermissionManager extends Disposable {
 		}
 
 		// 1. Global auto-approve setting
-		if (this.isGlobalAutoApproveEnabled()) {
+		const approvalConfig = this._stateManager.getSessionState(resolveAgentHostSession(URI.parse(sessionKey)).toString())?.config;
+		const hostPolicy = approvalConfig?.schema.properties.availableApprovalModes?.readOnly === true;
+		if (this.isGlobalAutoApproveEnabled() && (!hostPolicy || this.isSessionAutoApproveEnabled(sessionKey))) {
 			return ToolCallConfirmationReason.Setting;
 		}
 
@@ -420,7 +422,13 @@ export class SessionPermissionManager extends Disposable {
 	}
 
 	getEffectiveApprovalLevel(sessionKey: ProtocolURI): string {
-		if (this._configService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true) {
+		const config = this._stateManager.getSessionState(resolveAgentHostSession(URI.parse(sessionKey)).toString())?.config;
+		const policyOwned = config?.schema.properties.availableApprovalModes?.readOnly === true;
+		if (policyOwned) {
+			const effective = config.values.effectiveApprovalMode;
+			return typeof effective === 'string' && Array.isArray(config.values.availableApprovalModes) && config.values.availableApprovalModes.includes(effective) ? effective : 'default';
+		}
+		if (!policyOwned && this._configService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true) {
 			return 'default';
 		}
 		return this._configService.getEffectiveValue(sessionKey, platformSessionSchema, SessionConfigKey.AutoApprove) ?? 'default';
