@@ -834,6 +834,30 @@ suite('AutomationsCardsWidget', () => {
 		assert.deepStrictEqual(messages, ['', '', '', 'No runs yet. Run an automation now or wait for its next scheduled run.']);
 	});
 
+	test('accessible empty history requires ready definitions, ready history and an existing automation', () => {
+		const emptyAnnouncements: string[] = [];
+		for (const catalogue of ['loading', 'unavailable', 'error', 'ready'] as const) {
+			for (const history of ['loading', 'unavailable', 'error', 'ready', undefined] as const) {
+				for (const hasDefinitions of [false, true]) {
+					const content = buildAutomationsAccessibleContent(hasDefinitions ? [automation()] : [], [], catalogue, [], [], history);
+					if (content.split('\n').includes('No runs.')) {
+						emptyAnnouncements.push(`${catalogue}/${history}/${hasDefinitions}`);
+					}
+				}
+			}
+		}
+		assert.deepStrictEqual(emptyAnnouncements, ['ready/ready/true', 'ready/undefined/true']);
+	});
+
+	test('first history failure does not claim to show cached history', () => {
+		const { widget, automationService } = setup();
+		automationService.setCatalogueState('ready');
+		automationService.setAutomations([automation()]);
+		automationService.historyState.set('error', undefined);
+		const message = widget.element.querySelector('.automations-history-state')!.textContent;
+		assert.strictEqual(message, 'Run history could not be loaded. Use Refresh to try again.');
+	});
+
 	test('completed cloud history uses cloud repository, separator and relative updated time', () => {
 		const { widget, automationService } = setup();
 		automationService.setAutomations([automation()]);

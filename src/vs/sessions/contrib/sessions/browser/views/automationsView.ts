@@ -208,8 +208,11 @@ export class AutomationsCardsWidget extends Disposable {
 			const catalogueState = this.automationService.catalogueState.read(reader);
 			const hasAutomations = this.automationService.automations.read(reader).length > 0;
 			const hasRuns = this.automationService.runs.read(reader).length > 0;
-			const message = state === 'error' ? localize('historyRefreshFailed', "Run history could not be refreshed. Showing the last available history. Use Refresh to try again.")
-				: catalogueState === 'ready' && state !== 'loading' && hasAutomations && !hasRuns ? localize('historyEmpty', "No runs yet. Run an automation now or wait for its next scheduled run.") : '';
+			const message = state === 'error'
+				? hasRuns
+					? localize('historyRefreshFailed', "Run history could not be refreshed. Showing the last available history. Use Refresh to try again.")
+					: localize('historyLoadFailed', "Run history could not be loaded. Use Refresh to try again.")
+				: catalogueState === 'ready' && (state === undefined || state === 'ready') && hasAutomations && !hasRuns ? localize('historyEmpty', "No runs yet. Run an automation now or wait for its next scheduled run.") : '';
 			historyState.textContent = message;
 			historyState.style.display = message ? '' : 'none';
 		}));

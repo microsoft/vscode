@@ -187,6 +187,7 @@ interface IAutomationsFixtureOptions {
 	readonly showDropTarget?: boolean;
 	readonly cloud?: boolean;
 	readonly historyState?: AutomationCatalogueState;
+	readonly emptyHistory?: boolean;
 }
 
 const UNAVAILABLE_PROVIDERS: readonly IAutomationProviderDescriptor[] = [
@@ -280,6 +281,9 @@ export default defineThemedFixtureGroup({ path: 'sessions/automations/' }, {
 	CloudHistoryError: defineComponentFixture({
 		render: ctx => renderAutomations(ctx, { width: 1000, height: 850, populated: true, cloud: true, historyState: 'error' }),
 	}),
+	CloudHistoryInitialError: defineComponentFixture({
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 620, populated: true, cloud: true, historyState: 'error', emptyHistory: true }),
+	}),
 	CloudHistoryLoading: defineComponentFixture({
 		render: ctx => renderAutomations(ctx, { width: 520, height: 850, populated: true, cloud: true, historyState: 'loading' }),
 	}),
@@ -293,9 +297,10 @@ function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFi
 	const contextKeyService = new ContextKeyService(configurationService);
 	const actionViewItemService = new FixtureActionViewItemService();
 	const customViewService = ctx.disposableStore.add(new CustomViewService(new NullLogService(), ctx.disposableStore.add(new InMemoryStorageService())));
-	const automationService = new FixtureAutomationService(data.automations, data.runs, options.catalogueState ?? 'ready', options.unavailableProviders ?? []);
+	const runs = options.emptyHistory ? [] : data.runs;
+	const automationService = new FixtureAutomationService(data.automations, runs, options.catalogueState ?? 'ready', options.unavailableProviders ?? []);
 	automationService.historyState = constObservable(options.historyState ?? 'ready');
-	const sessionsManagementService = new FixtureSessionsManagementService(data.runs);
+	const sessionsManagementService = new FixtureSessionsManagementService(runs);
 	const agentPluginService = new class extends mock<IAgentPluginService>() {
 		override readonly plugins = constObservable(options.pluginTemplate ? [
 			new class extends mock<IAgentPlugin>() {

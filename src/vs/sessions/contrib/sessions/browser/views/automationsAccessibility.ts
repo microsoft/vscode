@@ -177,7 +177,9 @@ export function buildAutomationsAccessibleContent(automations: readonly IAutomat
 		lines.push(localize('automationsAccessibleView.historyError', "Run history could not be refreshed. Use Refresh to try again."));
 	}
 	if (runs.length === 0) {
-		lines.push(localize('automationsAccessibleView.noRuns', "No runs."));
+		if (catalogueState === 'ready' && (historyState === undefined || historyState === 'ready') && automations.length > 0) {
+			lines.push(localize('automationsAccessibleView.noRuns', "No runs."));
+		}
 	} else {
 		const automationNames = new Map(automations.map(automation => [automation.id, automation.name]));
 		for (const run of runs) {
