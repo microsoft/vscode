@@ -129,10 +129,6 @@ We like and miss our utilities from the 'microsoft/vscode' repo, esp those from 
 
 We have developed a TSX-based framework for composing prompts. This section describes the problems it solves and how to use it.
 
-### Next edit suggestion eagerness
-
-The `patchBased02UnifiedEagernessLowMedium` prompting strategy inherits the unified patch model configuration and sets `eagernessPrompt` to `aggressionLowMedium`. Low includes the low aggression tag; Medium (including Auto's default Medium level) uses the untagged prompt without timing overrides. High uses the same untagged prompt as Medium and the existing High debounce setting. The `aggressionLowMedium` option can also be supplied directly in a patch-based model configuration. The existing `patchBased02UnifiedEagerness` strategy and `aggressionHighLow` option retain their behavior.
-
 ### Motivations for TSX prompt crafting
 * Enable dynamic composition of OpenAI API request messages with respect to the token budget.
    * Prompts are bare strings, which makes them hard to edit once they are composed via string concatenation. Instead, with TSX prompting, messages are represented as a tree of TSX components. Each node in the tree has a `priority` that is conceptually similar to a `zIndex` (higher number == higher priority). If an intent declares more messages than can fit into the token budget, the prompt renderer prunes messages with the lowest priority from the `ChatMessage` array that is eventually sent to the Copilot API, preserving the order in which they were declared.
