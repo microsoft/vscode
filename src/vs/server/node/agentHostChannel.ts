@@ -15,7 +15,9 @@
 import { Emitter, Event } from '../../base/common/event.js';
 import { Disposable, IDisposable } from '../../base/common/lifecycle.js';
 import { connectionTokenQueryName } from '../../base/common/network.js';
+import { isObject } from '../../base/common/types.js';
 import { IPCServer, IServerChannel } from '../../base/parts/ipc/common/ipc.js';
+import type { IAgentHostIpcConnectionOptions } from '../../platform/agentHost/common/agentService.js';
 import { ILogService } from '../../platform/log/common/log.js';
 import type * as wsTypes from 'ws';
 import type * as netTypes from 'net';
@@ -34,7 +36,13 @@ export interface IAgentHostUpstreamEndpoint {
 	readonly connectionToken?: string;
 }
 
-export type AgentHostUpstreamEndpointResolver = () => Promise<IAgentHostUpstreamEndpoint>;
+export type AgentHostUpstreamEndpointResolver = (options?: IAgentHostIpcConnectionOptions) => Promise<IAgentHostUpstreamEndpoint>;
+
+function isConnectionOptions(value: unknown): value is IAgentHostIpcConnectionOptions {
+	return isObject(value) && (!('env' in value) || value.env === undefined || (
+		isObject(value.env) && Object.values(value.env).every(entry => typeof entry === 'string' || entry === null)
+	));
+}
 
 /**
  * Lazy-loaded `ws` module. Imported once on first connection so renderers
@@ -58,7 +66,7 @@ async function loadNet(): Promise<typeof netTypes> {
 export interface IUpstreamConnection extends IDisposable {
 	readonly onFrame: Event<string>;
 	readonly onClose: Event<void>;
-	connect(): Promise<void>;
+	connect(options?: IAgentHostIpcConnectionOptions): Promise<void>;
 	send(frame: string): void;
 }
 
@@ -117,12 +125,12 @@ class LazyUpstreamConnection extends Disposable implements IUpstreamConnection {
 		super();
 	}
 
-	async connect(): Promise<void> {
+	async connect(options?: IAgentHostIpcConnectionOptions): Promise<void> {
 		if (this._store.isDisposed) {
 			throw new Error('UpstreamConnection is disposed');
 		}
 
-		const connectPromise = this._connectPromise ??= this._connect();
+		const connectPromise = this._connectPromise ??= this._connect(options);
 		try {
 			await connectPromise;
 		} catch (error) {
@@ -143,8 +151,8 @@ class LazyUpstreamConnection extends Disposable implements IUpstreamConnection {
 		connection.send(frame);
 	}
 
-	private async _connect(): Promise<void> {
-		const endpoint = await this._resolveEndpoint();
+	private async _connect(options?: IAgentHostIpcConnectionOptions): Promise<void> {
+		const endpoint = await this._resolveEndpoint(options);
 		if (this._store.isDisposed) {
 			throw new Error('UpstreamConnection is disposed');
 		}
@@ -333,8 +341,11 @@ export class AgentHostChannel<TContext> extends Disposable implements IServerCha
 		const conn = this._getOrCreate(ctx);
 		switch (command) {
 			case 'connect':
+				if (arg !== undefined && !isConnectionOptions(arg)) {
+					throw new Error('Invalid agent host connection environment: expected string or null values');
+				}
 				this._logService.info(`[AgentHostChannel] Renderer ctx=${String(ctx)} requested connect to upstream`);
-				await conn.connect();
+				await conn.connect(arg);
 				return undefined as T;
 			case 'send':
 				if (typeof arg !== 'string') {
@@ -360,7 +371,7 @@ export class AgentHostChannel<TContext> extends Disposable implements IServerCha
 	private _getOrCreate(ctx: TContext): IUpstreamConnection {
 		let conn = this._perCtx.get(ctx);
 		if (!conn) {
-			conn = new LazyUpstreamConnection(() => this._resolveEndpoint(), endpoint => this._createUpstream(endpoint), this._logService);
+			conn = new LazyUpstreamConnection(options => this._resolveEndpoint(options), endpoint => this._createUpstream(endpoint), this._logService);
 			this._perCtx.set(ctx, conn);
 			// If the upstream closes on its own (e.g. agent host restart or
 			// connection drop), evict it from the cache so the next
@@ -382,7 +393,7 @@ export class AgentHostChannel<TContext> extends Disposable implements IServerCha
 		return this._upstreamFactory(endpoint);
 	}
 
-	private async _resolveEndpoint(): Promise<IAgentHostUpstreamEndpoint> {
+	private async _resolveEndpoint(options?: IAgentHostIpcConnectionOptions): Promise<IAgentHostUpstreamEndpoint> {
 		const endpoint = this._endpoint;
 		if (typeof endpoint !== 'function') {
 			return endpoint;
@@ -392,7 +403,7 @@ export class AgentHostChannel<TContext> extends Disposable implements IServerCha
 		// collapse into one call. It is dropped once settled: in the lazy server
 		// path resolution *is* `ensureStarted()`, so caching a success would let a
 		// later reconnect dial a dead socket instead of restarting the host.
-		const endpointPromise = this._endpointPromise ??= Promise.resolve().then(() => endpoint());
+		const endpointPromise = this._endpointPromise ??= Promise.resolve().then(() => endpoint(options));
 		try {
 			return await endpointPromise;
 		} finally {

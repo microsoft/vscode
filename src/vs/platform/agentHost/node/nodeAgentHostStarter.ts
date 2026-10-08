@@ -6,6 +6,7 @@
 import * as fs from 'fs';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { FileAccess, Schemas } from '../../../base/common/network.js';
+import { IProcessEnvironment } from '../../../base/common/platform.js';
 import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { Client, IIPCOptions } from '../../../base/parts/ipc/node/ipc.cp.js';
 import { AiAgentEnvValue, AiAgentEnvVar } from '../../chat/common/aiAgentEnv.js';
@@ -42,6 +43,7 @@ export interface IAgentHostWebSocketConfig {
 export class NodeAgentHostStarter extends Disposable implements IAgentHostStarter {
 
 	private _wsConfig: IAgentHostWebSocketConfig | undefined;
+	private _environment: IProcessEnvironment | undefined;
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -60,13 +62,19 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 		this._wsConfig = config;
 	}
 
+	/** Applies resolver overrides to subsequent launches without changing the server's environment. */
+	setEnvironment(environment: Readonly<Record<string, string | null>>): void {
+		this._environment = Object.fromEntries(Object.entries(environment).map(([key, value]) => [key, value ?? undefined]));
+	}
+
 	async start(): Promise<IAgentHostConnection> {
 		// Resolve user shell environment so spawned tools/terminals inherit
 		// PATH and other vars from the user's login shell (macOS/Linux).
 		const shellEnv = await this._resolveShellEnv();
 
-		const env: Record<string, string> = {
-			...shellEnv as Record<string, string>,
+		const env: IProcessEnvironment = {
+			...shellEnv,
+			...this._environment,
 			// Announce that everything spawned below this process is driven by
 			// VS Code's agent, so `gh` inherits it. Set after the inherited
 			// env so it wins.
@@ -144,9 +152,8 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 
 		await this._removeStaleSocket();
 
-		const client = new Client(FileAccess.asFileUri('bootstrap-fork').fsPath, opts);
 		const store = new DisposableStore();
-		store.add(client);
+		const client = store.add(this._createClient(opts));
 
 		return {
 			client,
@@ -154,6 +161,10 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 			onDidProcessExit: client.onDidProcessExit,
 			shutdown: () => ProxyChannel.toService<IAgentHostManagementService>(client.getChannel(AgentHostIpcChannels.Management)).shutdown(),
 		};
+	}
+
+	protected _createClient(options: IIPCOptions): Client {
+		return new Client(FileAccess.asFileUri('bootstrap-fork').fsPath, options);
 	}
 
 	/**
@@ -180,7 +191,7 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 		}
 	}
 
-	private async _resolveShellEnv(): Promise<typeof process.env> {
+	protected async _resolveShellEnv(): Promise<typeof process.env> {
 		try {
 			return await getResolvedShellEnv(this._configurationService, this._logService, this._environmentService.args, process.env);
 		} catch (error) {

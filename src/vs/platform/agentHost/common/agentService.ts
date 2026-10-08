@@ -73,6 +73,11 @@ export const enum AgentHostIpcChannels {
 	RemoteProxy = 'agentHostProxy',
 }
 
+/** VS Code IPC-only launch options, never forwarded over the Agent Host Protocol. */
+export interface IAgentHostIpcConnectionOptions {
+	readonly env?: Readonly<Record<string, string | null>>;
+}
+
 /** Configuration key that controls whether AHP JSONL logs are written for agent host transports. */
 export const AgentHostAhpJsonlLoggingSettingId = 'chat.agentHost.ahpJsonlLoggingEnabled';
 

@@ -259,6 +259,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	//    agent host lifecycle).
 	// 3. DEFAULT: without either set of flags, lazily start a local agent host
 	//    on a fresh socket when the first renderer connects.
+	//    Resolver environment overrides are retained for this launch and crash recovery.
 	//
 	// The explicit configurations are deliberately separable so that scenarios
 	// with an externally-managed agent host don't accidentally fork a duplicate.
@@ -354,7 +355,10 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 			));
 			const agentHostBridge = disposables.add(new AgentHostChannel<RemoteAgentConnectionContext>(
 				socketServer,
-				async () => {
+				async options => {
+					if (options?.env) {
+						agentHostStarter.setEnvironment(options.env);
+					}
 					await agentHostManager.ensureStarted();
 					return { socketPath, connectionToken };
 				},

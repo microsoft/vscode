@@ -29,6 +29,7 @@ import { ILabelService, type ResourceLabelFormatter } from '../../../../../platf
 import { NullLogService, ILogService } from '../../../../../platform/log/common/log.js';
 import type { RemoteAgentConnectionContext, IRemoteAgentEnvironment } from '../../../../../platform/remote/common/remoteAgentEnvironment.js';
 import type { PersistentConnectionEvent } from '../../../../../platform/remote/common/remoteAgentConnection.js';
+import { IRemoteAuthorityResolverService, type ResolverResult } from '../../../../../platform/remote/common/remoteAuthorityResolver.js';
 import { EditorRemoteAgentHostServiceClient } from '../../browser/editorRemoteAgentHostServiceClient.js';
 import { IAgentHostFileSystemService } from '../../common/agentHostFileSystemService.js';
 import { EditorRemoteAgentHostTransport } from '../../common/editorRemoteAgentHostTransport.js';
@@ -36,12 +37,11 @@ import { IRemoteAgentService, type IRemoteAgentConnection } from '../../../remot
 import { TestRemoteAgentService } from '../../../../test/browser/workbenchTestServices.js';
 
 class TestRemoteAgentConnection extends Disposable implements IRemoteAgentConnection {
-	readonly remoteAuthority = 'ssh-remote+test';
 	readonly isConnected = true;
 	readonly onReconnecting = Event.None;
 	readonly onDidStateChange = Event.None as Event<PersistentConnectionEvent>;
 
-	constructor(private readonly channel: IChannel) {
+	constructor(private readonly channel: IChannel, readonly remoteAuthority = 'ssh-remote+test') {
 		super();
 	}
 
@@ -86,6 +86,63 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	teardown(() => sinon.restore());
 
+	for (const isSessionsWindow of [false, true]) {
+		test(`forwards the resolver environment on each connection in the ${isSessionsWindow ? 'Agents' : 'editor'} window`, async () => {
+			const calls: { command: string; arg: unknown }[] = [];
+			const channel: IChannel = {
+				call: <T>(command: string, arg?: unknown) => {
+					calls.push({ command, arg });
+					return Promise.resolve(undefined as T);
+				},
+				listen: () => Event.None,
+			};
+			const remoteAuthority = 'codespaces+test';
+			const remoteAgentService = new DeferredRemoteAgentService(disposables.add(new TestRemoteAgentConnection(channel, remoteAuthority)));
+			const resolvedAuthorities: string[] = [];
+			let token = 'codespace-token';
+			const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection(
+				[IRemoteAgentService, remoteAgentService],
+				[IRemoteAuthorityResolverService, upcastPartial<IRemoteAuthorityResolverService>({
+					resolveAuthority: async authority => {
+						resolvedAuthorities.push(authority);
+						return upcastPartial<ResolverResult>({ options: { extensionHostEnv: { GITHUB_TOKEN: token, GH_TOKEN: null, EMPTY: '' } } });
+					},
+				})],
+				[IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(false), managedSandboxEnforced: constObservable(false) }],
+				[ILogService, new NullLogService()],
+				[IWorkbenchEnvironmentService, { isSessionsWindow, debugExtensionHost: { env: { GITHUB_TOKEN: 'debug-token', DEBUG_ENV: 'debug-value' } } }],
+				[ILabelService, upcastPartial<ILabelService>({ registerFormatter: () => Disposable.None })],
+				[IAgentHostFileSystemService, {
+					_serviceBrand: undefined,
+					registerAuthority: () => Disposable.None,
+					ensureSyncedCustomizationProvider: () => { },
+				}],
+			)));
+			instantiationService.stubInstance(AgentHostProtocolClient, {
+				onDidClose: Event.None,
+				onDidChangeConnectionState: Event.None,
+				dispose: () => { },
+			});
+			instantiationService.set(IInstantiationService, instantiationService);
+			const createInstanceSpy = sinon.spy(instantiationService, 'createInstance');
+			disposables.add(instantiationService.createInstance(EditorRemoteAgentHostServiceClient));
+			const protocolClientCall = createInstanceSpy.getCalls().find(call => call.args[0] === AgentHostProtocolClient);
+			const createTransport = protocolClientCall?.args[2] as () => IClientTransport;
+
+			await disposables.add(createTransport()).connect();
+			token = 'refreshed-codespace-token';
+			await disposables.add(createTransport()).connect();
+
+			assert.deepStrictEqual({ resolvedAuthorities, calls }, {
+				resolvedAuthorities: [remoteAuthority, remoteAuthority],
+				calls: ['codespace-token', 'refreshed-codespace-token'].map(token => ({
+					command: 'connect',
+					arg: { env: { GITHUB_TOKEN: token, GH_TOKEN: null, EMPTY: '', DEBUG_ENV: 'debug-value' } },
+				})),
+			});
+		});
+	}
+
 	test('waits for enablement and the remote environment before connecting to Agent Host', async () => {
 		const channel: IChannel = {
 			call: <T>() => Promise.resolve(undefined as T),
@@ -121,6 +178,7 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 		const agentHostEnabled = observableValue('agentHostEnabled', false);
 		const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection(
 			[IRemoteAgentService, remoteAgentService],
+			[IRemoteAuthorityResolverService, upcastPartial<IRemoteAuthorityResolverService>({})],
 			[IAgentHostEnablementService, { _serviceBrand: undefined, enabled: agentHostEnabled, managedSandboxEnforced: constObservable(false) }],
 			[ILogService, new NullLogService()],
 			[IWorkbenchEnvironmentService, { isSessionsWindow: false }],
@@ -199,6 +257,7 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 		}));
 		const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection(
 			[IRemoteAgentService, remoteAgentService],
+			[IRemoteAuthorityResolverService, upcastPartial<IRemoteAuthorityResolverService>({})],
 			[IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(false), managedSandboxEnforced: constObservable(false) }],
 			[ILogService, new NullLogService()],
 			[IWorkbenchEnvironmentService, { isSessionsWindow: false }],
