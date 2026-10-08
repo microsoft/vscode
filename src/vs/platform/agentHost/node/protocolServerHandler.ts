@@ -1426,6 +1426,8 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					this._clients.delete(client.clientId);
 					this._baselineDebt.delete(client.clientId);
 				}
+			} else {
+				this._reconcileActiveClientSubscriptions(client);
 			}
 		}
 		client.initializationDisposables.dispose();

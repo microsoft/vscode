@@ -6252,6 +6252,50 @@ suite('ProtocolServerHandler', () => {
 			});
 		}
 
+		for (const retainedChannel of [ROOT_STATE_URI, sessionUri, defaultChatUri, peerChatUri]) {
+			test(`failed initialization releases restored chat routing with ${retainedChannel} retained on another connection`, async () => {
+				createSessionWithClientTools();
+				disposables.add(connectClient(clientId, [retainedChannel]));
+				await handler.whenIdle();
+				const barrier = new DeferredPromise<void>();
+				agentService.subscribeBarriers.set(defaultChatUri, barrier);
+				const snapshot = stateManager.getSnapshot.bind(stateManager);
+				let fail = false;
+				stateManager.getSnapshot = resource => {
+					if (fail && resource === ROOT_STATE_URI) {
+						throw new Error('Initial snapshot refresh failed');
+					}
+					return snapshot(resource);
+				};
+				const transport = disposables.add(new MockProtocolTransport());
+				server.simulateConnection(transport);
+				transport.simulateMessage(request(1, 'initialize', {
+					clientId,
+					protocolVersions: [PROTOCOL_VERSION],
+					initialSubscriptions: [ROOT_STATE_URI, defaultChatUri],
+				}));
+				fail = true;
+				await barrier.complete();
+				await handler.whenIdle();
+				const response = findResponse(transport.sent, 1);
+
+				assert.deepStrictEqual({
+					failed: response !== undefined && hasKey(response, { error: true }),
+					routing: agentService.clientChatSubscriptions.filter(subscription => subscription.chat === defaultChatUri).at(-1)?.subscribed,
+					clients: stateManager.getSessionState(sessionUri)?.activeClients.map(client => client.clientId),
+					statuses: toolStatuses(),
+				}, {
+					failed: true,
+					routing: retainedChannel === defaultChatUri,
+					clients: retainedChannel === ROOT_STATE_URI ? [] : [clientId],
+					statuses: [
+						retainedChannel === defaultChatUri ? ToolCallStatus.Streaming : ToolCallStatus.Completed,
+						retainedChannel === peerChatUri ? ToolCallStatus.Streaming : ToolCallStatus.Completed,
+					],
+				});
+			});
+		}
+
 		for (const overlappingConnection of [false, true]) {
 			for (const { name, removed, retained, statuses } of [
 				{ name: 'peer chat with session retained', removed: peerChatUri, retained: sessionUri, statuses: [ToolCallStatus.Streaming, ToolCallStatus.Completed] },
