@@ -5205,9 +5205,11 @@ suite('CopilotAgent', () => {
 			await clock.tickAsync(100);
 			const signedOutModels = agent.models.get();
 			const requestsAfterSignOut = client.modelListRequests.length;
+			clock.restore();
+			clock = undefined;
 			client.modelListResponses.push([]);
 			await agent.authenticate('https://api.github.com', 'replacement-token');
-			await clock.tickAsync(100);
+			await waitForState(agent.models, models => models.length === 1 && models[0].id === 'auto');
 
 			assert.deepStrictEqual({
 				signedOutModels,
