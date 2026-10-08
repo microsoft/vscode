@@ -8228,17 +8228,23 @@ export class AgentService extends Disposable implements IAgentService {
 						throw new Error('Reported permission modes are host-owned.');
 					}
 					if (Object.hasOwn(configAction.config, SessionConfigKey.AutoApprove)) {
-						validateSessionConfigWrite(current.schema, current.values, SessionConfigKey.AutoApprove, configAction.config[SessionConfigKey.AutoApprove], true);
+						if (current.schema.properties[SessionConfigKey.AutoApprove]?.readOnly) {
+							throw new Error('Session approval mode is read-only.');
+						}
+						validateSessionConfigWrite(current.schema, current.values, SessionConfigKey.AutoApprove, configAction.config[SessionConfigKey.AutoApprove], false);
 					}
 				} catch (error) {
 					this._stateManager.rejectClientAction(channel, action, origin, toErrorMessage(error));
 					return;
 				}
 				if (configAction.replace) {
-					action = { ...configAction, config: { ...configAction.config,
-						availableApprovalModes: current.values.availableApprovalModes,
-						...(current.values.effectiveApprovalMode === undefined ? {} : { effectiveApprovalMode: current.values.effectiveApprovalMode }),
-					} };
+					action = {
+						...configAction, config: {
+							...configAction.config,
+							availableApprovalModes: current.values.availableApprovalModes,
+							...(current.values.effectiveApprovalMode === undefined ? {} : { effectiveApprovalMode: current.values.effectiveApprovalMode }),
+						}
+					};
 				}
 			}
 			const forbidden = HOST_WRITTEN_SESSION_CONFIG_KEYS.filter(key => Object.hasOwn(configAction.config, key));

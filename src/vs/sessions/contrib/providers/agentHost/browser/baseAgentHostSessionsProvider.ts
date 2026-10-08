@@ -77,7 +77,7 @@ import { IChatSessionFileChange, IChatSessionFileChange2, IChatSessionsService }
 import { assertAutomationSessionTemplate, IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationModelConfiguration } from '../../../automations/browser/automationModelConfiguration.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, getChatPermissionLevelFromDefaultConfiguration, isChatPermissionLevel, type IChatDefaultConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
-import { getAgentHostApprovalDefault, isAutoApprovePolicyRestricted, normalizeSessionConfigValue } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
+import { getAgentHostApprovalDefault, isAutoApprovePolicyRestricted, normalizeAgentHostApprovalConfig, normalizeSessionConfigValue } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { getRegisteredLanguageModels, getVisibleLanguageModelsForTarget, resolveConfiguredModel, resolveModelIdentifier, resolveModelIdentifierFromLanguageModels } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
 import { canInitializeCodexWithoutGitHub } from '../../../../../workbench/services/agentHost/browser/codexAccountService.js';
@@ -487,21 +487,11 @@ function isGloballyRememberedSessionConfigKey(property: string): boolean {
 		&& !UNSAFE_SESSION_CONFIG_KEYS.has(property);
 }
 
-function normalizeAutoApproveValue(value: unknown, policyRestricted: boolean): ChatPermissionLevel | undefined {
+function normalizeAutoApproveValue(value: unknown): ChatPermissionLevel | undefined {
 	// `KNOWN_AUTO_APPROVE_VALUES` is intentionally tolerant of legacy values
 	// that are not real `ChatPermissionLevel`s. Validate against the enum here
 	// so this function never returns a value outside its declared contract.
-	const normalized = getChatPermissionLevelFromDefaultConfiguration(value) ?? (isChatPermissionLevel(value) ? value : undefined);
-	if (!normalized) {
-		return undefined;
-	}
-	// Bypass and (legacy) Autopilot auto-approve at least some
-	// tool calls, so clamp them to Default when enterprise policy disables
-	// global auto-approval.
-	if (policyRestricted && normalized !== ChatPermissionLevel.Default) {
-		return ChatPermissionLevel.Default;
-	}
-	return normalized;
+	return getChatPermissionLevelFromDefaultConfiguration(value) ?? (isChatPermissionLevel(value) ? value : undefined);
 }
 
 function isGitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | undefined): boolean {
@@ -3149,6 +3139,7 @@ class NewSession extends Disposable {
 		private readonly _options: IAgentHostAdapterOptions,
 		@ISessionsService sessionsService: ISessionsService,
 		@ILanguageModelsService languageModelsService: ILanguageModelsService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 		const initialSessionTemplate = ctx.initialSessionTemplate;
@@ -3421,7 +3412,9 @@ class NewSession extends Disposable {
 
 	/** Whether the backend session may only be created with the resolved initial permissions, mode, or pull request. */
 	private get _requiresResolvedInitialConfig(): boolean {
-		return !!this._resolveInitialPermissionConfig || !!this._initialModeId || !!this._initialPullRequestUrl;
+		const values = this._config?.values ?? this._unresolvedConfigValues;
+		return !!this._resolveInitialPermissionConfig || !!this._initialModeId || !!this._initialPullRequestUrl
+			|| values?.[SessionConfigKey.AutoApprove] !== undefined || values?.approvalMode !== undefined;
 	}
 
 	async waitForConfigurationReady(): Promise<void> {
@@ -3523,7 +3516,7 @@ class NewSession extends Disposable {
 			let result = discovered;
 			if (!this._hasResolvedConfig || !this._config) {
 				const permissions = !this._hasResolvedConfig ? this._resolveInitialPermissionConfig?.(discovered) : undefined;
-				const initial = { ...filterSessionConfigValues(discovered.schema, values), ...permissions };
+				const initial = { ...filterSessionConfigValues(discovered.schema, normalizeAgentHostApprovalConfig(this._configurationService, discovered, values ?? {})), ...permissions };
 				if (Object.entries(initial).some(([key, value]) => !equals(value, discovered.values[key]))) {
 					result = await connection.resolveSessionConfig({
 						provider: this.agentProvider,
@@ -4865,18 +4858,18 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const baseInitialConfigValues = initialAutomationConfiguration
 			? {
 				...this._derivedNewSessionConfig(workspace),
-				...this._normalizeAutomationSessionConfig(initialSessionTemplate?.config),
+				...initialSessionTemplate?.config,
 			}
 			: this._initialNewSessionConfig(workspace, sessionType.id);
 		const permissionConfig = initialPermissionId
 			? getAgentHostSessionPermissionConfig(
 				sessionType.id,
 				initialPermissionId,
-				isAutoApprovePolicyRestricted(this._baseConfigurationService),
+				false,
 				true,
 			)
 			: undefined;
-		if (initialPermissionId && !permissionConfig && getAgentHostSessionPermissionOptions(sessionType.id, isAutoApprovePolicyRestricted(this._baseConfigurationService), true).length > 0) {
+		if (initialPermissionId && !permissionConfig && getAgentHostSessionPermissionOptions(sessionType.id, false, true).length > 0) {
 			throw new Error(`Agent '${sessionType.id}' does not support permission '${initialPermissionId}'.`);
 		}
 		const initialConfigValues = {
@@ -4987,14 +4980,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			...(configuration.modelId ? { modelId: configuration.modelId } : {}),
 			...(Object.keys(config).length > 0 ? { config } : {}),
 		};
-	}
-
-	private _normalizeAutomationSessionConfig(config: Readonly<Record<string, unknown>> | undefined): Record<string, unknown> {
-		const policyRestricted = isAutoApprovePolicyRestricted(this._baseConfigurationService);
-		return Object.fromEntries(Object.entries(config ?? {}).map(([key, value]) => [
-			key,
-			normalizeSessionConfigValue(key, value, policyRestricted),
-		]));
 	}
 
 	protected _resumeNewSessionAfterAuthenticationSettles(): void {
@@ -5159,10 +5144,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * local-only `chat.permissions.default` setting is intentionally NOT
 	 * consulted here.
 	 *
-	 * If enterprise policy disables global auto-approval
-	 * (`chat.tools.global.autoApprove` policy value `false`), the approval seed
-	 * is clamped to `default` so the agent host never starts in an elevated
-	 * permission level the user is not allowed to pick.
+	 * Approval seeds retain the user's preference until schema discovery decides
+	 * whether host-reported policy or the legacy client restriction applies.
 	 *
 	 * The user's `git.branchPrefix` setting (resource-scoped to the workspace's
 	 * first folder) is seeded into the `worktreeBranchPrefix` slot so the agent
@@ -5170,7 +5153,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 */
 	protected _initialNewSessionConfig(workspace?: ISessionWorkspace, provider?: string): Record<string, unknown> | undefined {
 		const config = Object.create(null) as Record<string, unknown>;
-		const policyRestricted = isAutoApprovePolicyRestricted(this._baseConfigurationService);
 
 		// Seed session config values from the last user picks, migrating any
 		// legacy `autoApprove='autopilot'` remembered value into the new
@@ -5200,9 +5182,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 		// Approval axis: policy > remembered > effective.
 		const resolvedAutoApprove =
-			normalizeAutoApproveValue(policyDefaults?.approvals, policyRestricted)
-			?? normalizeAutoApproveValue(remembered[SessionConfigKey.AutoApprove], policyRestricted)
-			?? normalizeAutoApproveValue(getAgentHostApprovalDefault(this._baseConfigurationService, provider === 'copilotcli'), policyRestricted);
+			normalizeAutoApproveValue(policyDefaults?.approvals)
+			?? normalizeAutoApproveValue(remembered[SessionConfigKey.AutoApprove])
+			?? normalizeAutoApproveValue(getAgentHostApprovalDefault(this._baseConfigurationService, provider === 'copilotcli'));
 		if (resolvedAutoApprove) {
 			remembered[SessionConfigKey.AutoApprove] = resolvedAutoApprove;
 		} else {

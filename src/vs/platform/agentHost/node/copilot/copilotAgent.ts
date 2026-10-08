@@ -1920,7 +1920,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	async setSessionApproveAll(session: URI, enabled: boolean): Promise<void> {
-		if (enabled && this._configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true) {
+		const entry = this._findSessionChat(session);
+		if (!entry && enabled && this._configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true) {
 			throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'Auto approval is restricted by policy');
 		}
 		if (!enabled && this._configurationService.getRootValue(platformRootSchema, AgentHostGlobalAutoApproveEnabledConfigKey) === true) {
@@ -1929,7 +1930,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (!this._configurationService.getSessionConfigValues(session.toString())) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidRequest, 'Session configuration is not available');
 		}
-		const entry = this._findSessionChat(session);
 		if (!entry) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidRequest, 'Approval mode requires a live Copilot session');
 		}

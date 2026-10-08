@@ -1366,7 +1366,7 @@ function createTestAgent(disposables: Pick<DisposableStore, 'add'>, options?: { 
 
 type CopilotCreateSessionOptions = Parameters<CopilotClient['createSession']>[0];
 
-function createAgentSessionThroughAgent(agent: CopilotAgent, instantiationService: IInstantiationService, options?: { readonly mockSession?: MockCopilotSession; readonly activeClientToolSet?: ActiveClientToolSet; readonly snapshot?: IActiveClientSnapshot; readonly workingDirectory?: URI; readonly additionalDirectories?: readonly URI[] }): { readonly session: CopilotAgentSession; readonly activeClient: unknown; readonly createOptions: () => CopilotCreateSessionOptions | undefined } {
+function createAgentSessionThroughAgent(agent: CopilotAgent, instantiationService: IInstantiationService, options?: { readonly mockSession?: MockCopilotSession; readonly managedSettings?: CopilotClient['rpc']['managedSettings']; readonly activeClientToolSet?: ActiveClientToolSet; readonly snapshot?: IActiveClientSnapshot; readonly workingDirectory?: URI; readonly additionalDirectories?: readonly URI[] }): { readonly session: CopilotAgentSession; readonly activeClient: unknown; readonly createOptions: () => CopilotCreateSessionOptions | undefined } {
 	const sessionUri = AgentSession.uri('copilotcli', 'test-session-1');
 	const shellManager = instantiationService.createInstance(ShellManager, sessionUri, options?.workingDirectory);
 	let createOptions: CopilotCreateSessionOptions | undefined;
@@ -1379,7 +1379,7 @@ function createAgentSessionThroughAgent(agent: CopilotAgent, instantiationServic
 	const launchPlan: CopilotSessionLaunchPlan = {
 		kind: 'create',
 		client: {
-			rpc: { managedSettings: createUnmanagedCopilotSettings(), account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { }, getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
+			rpc: { managedSettings: options?.managedSettings ?? createUnmanagedCopilotSettings(), account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { }, getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
 			createSession: async options => {
 				createOptions = options;
 				reportManagedSettings(options);
@@ -15488,6 +15488,35 @@ suite('CopilotAgent', () => {
 				mockSession.rpc.permissions.setMode = async ({ mode }) => ({ success: false, mode });
 				await assert.rejects(agent.setSessionApproveAll(created.session.resourceUri, true), /SDK rejected permission mode/);
 				assert.strictEqual(configurationService.getSessionConfigValues(created.session.resourceUri.toString())?.autoApprove, 'default');
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('Copilot host approval toggle honors native mode policy replacing the legacy restriction', async () => {
+			const { agent, instantiationService, configurationService, stateManager } = createTestAgentContext(disposables, {
+				sessionDataService: disposables.add(new TestSessionDataService()),
+				rootConfig: { [AgentHostAutoApprovePolicyRestrictedConfigKey]: true },
+			});
+			const managedSettings = createUnmanagedCopilotSettings();
+			managedSettings.resolve = async () => ({
+				resolved: { source: 'server', serverManaged: true, deviceManaged: false, clientManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: ['permissions'], settings: { permissions: { disableAssistedPermissionsMode: true } } },
+				layers: [], diagnostics: [],
+			});
+			const mockSession = new MockCopilotSession();
+			const created = createAgentSessionThroughAgent(agent, instantiationService, { mockSession, managedSettings });
+			try {
+				const now = new Date().toISOString();
+				stateManager.createSession({ resource: created.session.resourceUri.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle, createdAt: now, modifiedAt: now });
+				stateManager.setSessionConfig(created.session.resourceUri.toString(), { schema: { type: 'object', properties: {} }, values: { autoApprove: 'default' } });
+				await created.session.initializeSession();
+				setLiveChatStub(agent, created.session.sessionId, created.session, created.session.chatChannelUri);
+				const calls: string[] = [];
+				mockSession.rpc.permissions.setMode = async ({ mode }) => { calls.push(mode); return { success: true, mode }; };
+				await agent.setSessionApproveAll(created.session.resourceUri, true);
+				assert.deepStrictEqual({ calls, selection: configurationService.getSessionConfigValues(created.session.resourceUri.toString())?.autoApprove }, {
+					calls: ['allow-all'], selection: 'autoApprove',
+				});
 			} finally {
 				await disposeAgent(agent);
 			}

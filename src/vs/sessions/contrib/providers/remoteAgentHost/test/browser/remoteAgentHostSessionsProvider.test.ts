@@ -3281,11 +3281,13 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		await timeout(0);
 		const session = provider.getSessions()[0];
 		const config: SessionConfigState = {
-			schema: { type: 'object', properties: {
-				autoApprove: { type: 'string', title: 'Approvals', enum: ['default', 'assisted', 'autoApprove'], sessionMutable: true },
-				availableApprovalModes: { type: 'array', title: 'Available', readOnly: true },
-				effectiveApprovalMode: { type: 'string', title: 'Effective', readOnly: true },
-			} },
+			schema: {
+				type: 'object', properties: {
+					autoApprove: { type: 'string', title: 'Approvals', enum: ['default', 'assisted', 'autoApprove'], sessionMutable: true },
+					availableApprovalModes: { type: 'array', title: 'Available', readOnly: true },
+					effectiveApprovalMode: { type: 'string', title: 'Effective', readOnly: true },
+				}
+			},
 			values: { autoApprove: 'default', availableApprovalModes: ['default', 'autoApprove'], effectiveApprovalMode: 'default' },
 		};
 		connection.resolveSessionConfigResult = config;

@@ -3757,6 +3757,12 @@ export class CopilotAgentSession extends Disposable {
 				throw new Error('Cannot set approval mode without an initialized session');
 			}
 			const mode = enabled ? 'allow-all' : 'manual';
+			const selection = this._approvalPolicy.resolveSelection({
+				...this._getApprovalInputs(), requested: enabled ? 'autoApprove' : 'default', globalAutoApprove: false,
+			});
+			if (selection.mode !== mode) {
+				throw new Error('Auto approval is restricted by policy');
+			}
 			const applied = await this._trySetSdkPermissionMode(mode);
 			if (!applied) {
 				throw new Error(`Copilot SDK rejected permission mode '${mode}'`);

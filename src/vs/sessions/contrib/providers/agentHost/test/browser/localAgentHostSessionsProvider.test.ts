@@ -5529,6 +5529,44 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}
 
+	for (const native of [false, true]) {
+		for (const hostPolicy of [false, true]) {
+			for (const source of ['setting', 'remembered'] as const) {
+				test(`preserves ${source} approval until discovery (native=${native}, hostPolicy=${hostPolicy})`, async () => {
+					const configurationService = createPolicyRestrictedConfigurationService();
+					const storageService = disposables.add(new InMemoryStorageService());
+					if (source === 'setting') {
+						await configurationService.setUserConfiguration('chat.defaultConfiguration', { approvals: 'allowAll' });
+					} else {
+						storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify({ autoApprove: 'autoApprove' }), StorageScope.PROFILE, StorageTarget.MACHINE);
+					}
+					const property = native ? 'approvalMode' : 'autoApprove';
+					const manual = native ? 'manual' : 'default';
+					const allowAll = native ? 'allow-all' : 'autoApprove';
+					agentHost.resolveSessionConfigResult = {
+						schema: {
+							type: 'object', properties: {
+								[property]: { type: 'string', title: 'Approvals', enum: [manual, 'assisted', allowAll], sessionMutable: true },
+								[native ? 'target' : 'isolation']: { type: 'string', title: 'Workspace', enum: [native ? 'workspace' : 'folder', 'worktree'], default: native ? 'workspace' : 'folder' },
+								...(hostPolicy ? { availableApprovalModes: { type: 'array', title: 'Available', readOnly: true } } : {}),
+							}
+						},
+						values: { [property]: manual, [native ? 'target' : 'isolation']: native ? 'workspace' : 'folder', ...(hostPolicy ? { availableApprovalModes: [manual, allowAll] } : {}) },
+					};
+					const provider = createProvider(disposables, agentHost, undefined, { configurationService, storageService });
+					const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+					await provider.whenSessionConfigResolved(session.sessionId, CancellationToken.None);
+					await timeout(0);
+					assert.deepStrictEqual({
+						firstDiscovery: agentHost.resolveSessionConfigRequests[0]?.config,
+						selected: provider.getSessionConfig(session.sessionId)?.values[property],
+						created: agentHost.createSessionConfigs.at(-1)?.config?.[property],
+					}, { firstDiscovery: undefined, selected: hostPolicy ? allowAll : manual, created: hostPolicy ? allowAll : manual });
+				});
+			}
+		}
+	}
+
 	for (const useWorktree of [true, false]) {
 		test(`remembers the last started isolation per workspace with useWorktree=${useWorktree} as fallback`, async () => {
 			const storageService = disposables.add(new InMemoryStorageService());
@@ -7067,7 +7105,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				schema: {
 					type: 'object', properties: {
 						approvalMode: { type: 'string', title: 'Approvals', enum: ['manual', 'allow-all'], default: 'manual', readOnly: restriction === 'readOnly' },
-						availableApprovalModes: { type: 'array', title: 'Available approvals', readOnly: true },
+						availableApprovalModes: { type: 'array', title: 'Available approvals', readOnly: restriction !== 'policy' },
 						effectiveApprovalMode: { type: 'string', title: 'Effective approvals', readOnly: true },
 					}
 				},

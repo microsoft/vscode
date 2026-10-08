@@ -18,7 +18,8 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IAgentCreateSessionConfig, IAgentHostService, IAgentResolveSessionConfigParams } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
@@ -258,6 +259,8 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 	let customizations: ReturnType<typeof observableValue<readonly ClientPluginCustomization[]>>;
 	let onDidChangeWorkspaceFolders: Emitter<IWorkspaceFoldersChangeEvent>;
 	let acquiredScopeRoots: string[][];
+	let configurationService: TestConfigurationService;
+	let legacyApprovalRestricted: boolean;
 
 	setup(async () => {
 		agentHost = ds.add(new MockAgentHostService());
@@ -273,6 +276,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		workbenchState = WorkbenchState.EMPTY;
 		isSessionsWindow = false;
 		acquiredScopeRoots = [];
+		legacyApprovalRestricted = false;
 		onDidChangeWorkspaceFolders = ds.add(new Emitter<IWorkspaceFoldersChangeEvent>());
 		const insta = ds.add(new TestInstantiationService());
 		insta.stub(IAgentHostService, agentHost);
@@ -293,7 +297,13 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		insta.stub(IChatService, new class extends MockChatService {
 			override readonly onDidDisposeSession = onDidDisposeChatSession.event;
 		}());
-		insta.stub(IConfigurationService, new TestConfigurationService());
+		configurationService = new class extends TestConfigurationService {
+			override inspect<T>(key: string): IConfigurationValue<T> {
+				const inspected = super.inspect<T>(key);
+				return key === ChatConfiguration.GlobalAutoApprove && legacyApprovalRestricted ? { ...inspected, policyValue: false as T } : inspected;
+			}
+		}();
+		insta.stub(IConfigurationService, configurationService);
 		insta.stub(IWorkbenchEnvironmentService, { get isSessionsWindow() { return isSessionsWindow; } } as Partial<IWorkbenchEnvironmentService>);
 		insta.stub(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
 			override readonly onDidChangeWorkspaceFolders = onDidChangeWorkspaceFolders.event;
@@ -346,6 +356,27 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 				usage: undefined,
 				state: TurnState.Complete,
 			}],
+		});
+	}
+
+	for (const hostPolicy of [false, true]) {
+		test(`prewarming preserves configured approval until host discovery (hostPolicy=${hostPolicy})`, async () => {
+			legacyApprovalRestricted = true;
+			await configurationService.setUserConfiguration(ChatConfiguration.DefaultConfiguration, { approvals: 'allowAll' });
+			agentHost.resolveQueue.push({
+				schema: {
+					type: 'object', properties: {
+						autoApprove: { type: 'string', title: 'Approvals', enum: ['default', 'assisted', 'autoApprove'] },
+						...(hostPolicy ? { availableApprovalModes: { type: 'array', title: 'Available', readOnly: true } } : {}),
+					}
+				},
+				values: { autoApprove: 'default', availableApprovalModes: ['default', 'autoApprove'] },
+			});
+			await provisional.getOrCreate(URI.parse('agent-host-copilotcli:/untitled-policy'), 'copilotcli', undefined);
+			assert.deepStrictEqual({
+				discovery: agentHost.resolveCalls.map(call => call.config),
+				created: agentHost.createCalls.map(call => call.config),
+			}, { discovery: [undefined], created: [{ isolation: 'folder', autoApprove: hostPolicy ? 'autoApprove' : 'default' }] });
 		});
 	}
 

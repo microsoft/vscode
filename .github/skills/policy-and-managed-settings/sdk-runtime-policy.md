@@ -70,6 +70,9 @@ resolve where the host runs; this does not replicate desktop device policies to
 remote hosts. The UI must not reapply the legacy clamp to host-reported choices.
 Legacy Local and other providers keep their existing controls.
 Clients retain the legacy guard until a host advertises its approval-policy report.
+Both standard `approvalMode` and VS Code `autoApprove` reports follow this contract.
+Explicit and remembered approval preferences are normalized after schema discovery,
+before prewarming a backend; they must not be irreversibly clamped before discovery.
 Defaults are only startup preferences; no additional durable pre-override
 restoration state is maintained. Restart to apply changed managed settings.
 

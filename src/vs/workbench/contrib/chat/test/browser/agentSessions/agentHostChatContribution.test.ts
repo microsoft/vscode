@@ -925,6 +925,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	});
 	instantiationService.stub(IConfigurationService, {
 		onDidChangeConfiguration: Event.None,
+		inspect: () => ({ policyValue: undefined }),
 		getValue: (...args: any[]) => {
 			const key = args[0];
 			if (typeof key === 'string') {

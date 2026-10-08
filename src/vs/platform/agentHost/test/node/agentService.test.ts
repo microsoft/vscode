@@ -4508,10 +4508,12 @@ suite('AgentService (node dispatcher)', () => {
 			const session = await svc.createSession({ provider: 'copilot' });
 			const state = getStateManager(svc);
 			state.setSessionConfig(session.toString(), {
-				schema: { type: 'object', properties: {
-					autoApprove: { type: 'string', title: 'Approvals', enum: ['default', 'assisted'], sessionMutable: true },
-					availableApprovalModes: { type: 'array', title: 'Available', readOnly: true },
-				} },
+				schema: {
+					type: 'object', properties: {
+						autoApprove: { type: 'string', title: 'Approvals', enum: ['default', 'assisted'], sessionMutable: true },
+						availableApprovalModes: { type: 'array', title: 'Available', readOnly: true },
+					}
+				},
 				values: { autoApprove: 'default', availableApprovalModes: ['default', 'assisted'] },
 			});
 			const results = [];
@@ -4525,6 +4527,31 @@ suite('AgentService (node dispatcher)', () => {
 				values: { autoApprove: 'assisted', availableApprovalModes: ['default', 'assisted'] },
 			});
 		});
+
+		for (const approvalSchema of [{ sessionMutable: false }, { sessionMutable: true, readOnly: true }]) {
+			test(`rejects runtime writes to immutable approval configuration ${JSON.stringify(approvalSchema)}`, async () => {
+				const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+				const agent = new MockAgent('copilot');
+				disposables.add(toDisposable(() => agent.dispose()));
+				registerTestAgentProvider(svc, agent);
+				const session = await svc.createSession({ provider: 'copilot' });
+				const state = getStateManager(svc);
+				state.setSessionConfig(session.toString(), {
+					schema: {
+						type: 'object', properties: {
+							autoApprove: { type: 'string', title: 'Approvals', enum: ['default', 'assisted'], ...approvalSchema },
+							availableApprovalModes: { type: 'array', title: 'Available', readOnly: true },
+						}
+					},
+					values: { autoApprove: 'default', availableApprovalModes: ['default', 'assisted'] },
+				});
+				const response = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+				svc.dispatchAction(session.toString(), { type: ActionType.SessionConfigChanged, config: { autoApprove: 'assisted' } }, 'client', 1);
+				assert.deepStrictEqual({
+					rejected: !!(await response).rejectionReason, selected: state.getSessionState(session.toString())?.config?.values.autoApprove,
+				}, { rejected: true, selected: 'default' });
+			});
+		}
 
 		test('rejects client writes to host-owned Agent Merge controller state', async () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
@@ -29010,11 +29037,13 @@ suite('AgentService (node dispatcher)', () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			registerTestAgentProvider(svc, agent);
 			agent.resolveChatConfig = async () => ({
-				schema: { type: 'object', properties: {
-					autoApprove: { type: 'string', title: 'Approvals', enum: ['default', 'assisted', 'autoApprove'], sessionMutable: true },
-					availableApprovalModes: { type: 'array', title: 'Available', readOnly: true },
-					effectiveApprovalMode: { type: 'string', title: 'Effective', readOnly: true },
-				} },
+				schema: {
+					type: 'object', properties: {
+						autoApprove: { type: 'string', title: 'Approvals', enum: ['default', 'assisted', 'autoApprove'], sessionMutable: true },
+						availableApprovalModes: { type: 'array', title: 'Available', readOnly: true },
+						effectiveApprovalMode: { type: 'string', title: 'Effective', readOnly: true },
+					}
+				},
 				values: { autoApprove: 'assisted', availableApprovalModes: ['default', 'assisted'], effectiveApprovalMode: 'assisted' },
 			});
 
