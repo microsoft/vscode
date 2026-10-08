@@ -257,7 +257,7 @@
 		}
 	}
 
-	.monaco-list-row:is(:hover, .hovered),
+	.monaco-list-row:is(:hover, .hovered):not(.external-application-badge-hovered),
 	.monaco-list-row.focused:not(.selected),
 	.monaco-list:focus-within .monaco-list-row.focused,
 	.session-item.archive-onboarding {
@@ -572,7 +572,9 @@
 	.session-external-application-badge {
 		display: flex;
 		align-items: center;
-		flex-shrink: 0;
+		flex-shrink: 1;
+		min-width: 0;
+		max-width: 50%;
 		box-sizing: border-box;
 		padding: 0 var(--vscode-spacing-size60);
 		border: var(--vscode-strokeThickness) solid var(--vscode-widget-border, var(--vscode-contrastBorder, transparent));
@@ -580,11 +582,19 @@
 		background-color: var(--vscode-list-hoverBackground);
 		color: var(--vscode-descriptionForeground);
 		font-size: var(--vscode-fontSize-label2);
+
+		.session-external-application-badge-label {
+			min-width: 0;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
 	}
 
 	.session-external-application-badge-title {
 		display: none;
 		height: 17px;
+		max-width: 40%;
 		margin-left: var(--vscode-spacing-size60);
 
 		&.visible {

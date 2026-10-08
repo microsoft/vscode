@@ -227,6 +227,23 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['External sessions show a rounded application badge after the title without the "From" prefix.'],
 	}),
+	SessionsList_ExternalApplicationBadgeLongLabel: defineSessionsListFixture({
+		sessions: [
+			EXTERNAL_SESSIONS[0],
+			{
+				...EXTERNAL_SESSIONS[1],
+				application: 'external_tool_with_an_exceptionally_long_application_name',
+			},
+		],
+		view: { height: 220, width: 260 },
+		settings: {
+			[SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING]: false,
+			[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING]: ExternalSessionApplicationBadgeMode.Title,
+		},
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The long external application badge is capped and ellipsized so the session title remains visible in the narrow list.'],
+	}),
 	SessionsList_ExternalApplicationBadgeHovered: defineSessionsListFixture({
 		sessions: EXTERNAL_SESSIONS.filter(session => !session.isArchived),
 		view: { height: 270 },

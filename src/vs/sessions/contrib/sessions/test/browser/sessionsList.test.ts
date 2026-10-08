@@ -1783,6 +1783,7 @@ suite('Sessions - SessionsList', () => {
 				[ExternalSessionApplicationBadgeMode.Details, true],
 				[ExternalSessionApplicationBadgeMode.Title, false],
 			] as const).map(([mode, showFrom]) => {
+				let badgeHover: string | undefined;
 				const session = createTestSession('External session', {
 					application: 'github/cli',
 					environment: 'cloud',
@@ -1792,6 +1793,17 @@ suite('Sessions - SessionsList', () => {
 					const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
 					configurationService.setUserConfiguration(SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, mode);
 					configurationService.setUserConfiguration(SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, showFrom);
+					instantiationService.stub(IHoverService, {
+						...NullHoverService,
+						setupDelayedHover: (...args: Parameters<IHoverService['setupDelayedHover']>) => {
+							const target = args[0];
+							const options = args[1];
+							if (target.classList.contains('session-external-application-badge') && typeof options !== 'function' && typeof options.content === 'string') {
+								badgeHover = options.content;
+							}
+							return NullHoverService.setupDelayedHover(...args);
+						},
+					});
 				});
 				list.layout(300, 400);
 				const titleBadge = container.querySelector<HTMLElement>('.session-external-application-badge-title.visible');
@@ -1800,24 +1812,56 @@ suite('Sessions - SessionsList', () => {
 				return {
 					titleBadge: titleBadge?.textContent,
 					detailsBadge: detailsBadge?.textContent,
+					badgeHover,
 					ariaIncludesApplication: row?.getAttribute('aria-label')?.includes('created in Copilot CLI'),
 					triggers,
 				};
 			});
 
-			const modeTriggers = () => [
+			const explicitTriggers = () => [`config.${SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING}`];
+			assert.deepStrictEqual(results, [
+				{ titleBadge: undefined, detailsBadge: undefined, badgeHover: undefined, ariaIncludesApplication: false, triggers: explicitTriggers() },
+				{ titleBadge: 'From Copilot CLI', detailsBadge: undefined, badgeHover: 'From Copilot CLI', ariaIncludesApplication: true, triggers: explicitTriggers() },
+				{ titleBadge: undefined, detailsBadge: 'From Copilot CLI', badgeHover: 'From Copilot CLI', ariaIncludesApplication: true, triggers: explicitTriggers() },
+				{ titleBadge: 'Copilot CLI', detailsBadge: undefined, badgeHover: 'Copilot CLI', ariaIncludesApplication: true, triggers: explicitTriggers() },
+			]);
+		});
+
+		test('triggers external application badge experiments only while their values come from defaults', () => {
+			const results = ([
+				ExternalSessionApplicationBadgeMode.Off,
+				ExternalSessionApplicationBadgeMode.Title,
+			] as const).map(mode => {
+				const session = createTestSession('External session', {
+					application: 'github/cli',
+					environment: 'cloud',
+					isExternal: true,
+				}).session;
+				const { triggers } = renderList([session], instantiationService => {
+					instantiationService.stub(IConfigurationService, new class extends TestConfigurationService {
+						constructor() {
+							super({
+								[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING]: mode,
+								[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING]: true,
+							});
+						}
+
+						override inspect<T>(key: string) {
+							const value = this.getValue<T>(key);
+							return { value, defaultValue: value };
+						}
+					}());
+				});
+				return triggers;
+			});
+
+			const baseTriggers = [
 				`config.${SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING}`,
 				`config.${SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING}`,
 			];
-			const visibleBadgeTriggers = () => [
-				...modeTriggers(),
-				`config.${SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING}`,
-			];
 			assert.deepStrictEqual(results, [
-				{ titleBadge: undefined, detailsBadge: undefined, ariaIncludesApplication: false, triggers: modeTriggers() },
-				{ titleBadge: 'From Copilot CLI', detailsBadge: undefined, ariaIncludesApplication: true, triggers: visibleBadgeTriggers() },
-				{ titleBadge: undefined, detailsBadge: 'From Copilot CLI', ariaIncludesApplication: true, triggers: visibleBadgeTriggers() },
-				{ titleBadge: 'Copilot CLI', detailsBadge: undefined, ariaIncludesApplication: true, triggers: visibleBadgeTriggers() },
+				baseTriggers,
+				[...baseTriggers, `config.${SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING}`],
 			]);
 		});
 
