@@ -25,7 +25,8 @@
  */
 
 import assert from 'assert';
-import { mkdtemp, writeFile } from 'fs/promises';
+import { promises as fs } from 'fs';
+import { writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -44,6 +45,7 @@ import { defineAgentHostE2ETests } from '../suites/agentHostE2ESuites.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification, TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
 import { COPILOT_CONFIG } from './copilotTestConfiguration.js';
 
+const { mkdtemp } = fs;
 const RECORD_ONLY = process.env['AGENT_HOST_REPLAY_RECORD'] === '1';
 const RECORD = RECORD_ONLY || process.env['AGENT_HOST_UPDATE_SNAPSHOTS'] === '1';
 const isWindows = process.platform === 'win32';
