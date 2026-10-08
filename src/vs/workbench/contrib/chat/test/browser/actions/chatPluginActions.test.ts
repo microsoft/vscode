@@ -37,11 +37,13 @@ suite('ManagePluginMarketplacesAction', () => {
 
 	class TestQuickInputService extends mock<IQuickInputService>() {
 		readonly pickSnapshots: { id: string | undefined; label: string; type: string }[][] = [];
+		readonly picks: QuickPickInput<IQuickPickItem>[][] = [];
 		inputOptions: IInputOptions | undefined;
 		inputValue: string | undefined;
 		pickIds: (string | undefined)[] = [];
 
 		override async pick<T extends IQuickPickItem>(picks: QuickPickInput<T>[]): Promise<T | undefined> {
+			this.picks.push(picks);
 			this.pickSnapshots.push(picks.map(pick => ({
 				id: pick.id,
 				label: pick.label ?? '',
@@ -233,6 +235,45 @@ suite('ManagePluginMarketplacesAction', () => {
 				sourceId: getPluginCustomizationMarketplaceSourceId(marketplace),
 			}],
 		}]);
+	});
+
+	test('disables marketplaces outside strict policy and labels organization-managed marketplaces', async () => {
+		const defaultMarketplace = parseMarketplaceReference('github/awesome-copilot#marketplace')!;
+		const managedMarketplace = parseMarketplaceReference('microsoft/vscode-team-kit')!;
+		const fixture = createFixture({
+			[ChatConfiguration.PluginMarketplaces]: [defaultMarketplace.rawValue],
+			[ChatConfiguration.ExtraMarketplaces]: {
+				'vscode-team-kit': managedMarketplace.rawValue,
+			},
+			[ChatConfiguration.StrictMarketplaces]: [{ source: 'github', repo: managedMarketplace.rawValue }],
+		});
+
+		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
+
+		assert.deepStrictEqual(
+			fixture.quickInputService.picks[0]
+				.filter((pick): pick is IQuickPickItem => pick.type !== 'separator' && pick.id !== 'addMarketplace')
+				.map(pick => ({
+					id: pick.id,
+					label: pick.label,
+					description: pick.description,
+					disabled: pick.disabled,
+				})),
+			[
+				{
+					id: defaultMarketplace.canonicalId,
+					label: defaultMarketplace.displayLabel,
+					description: undefined,
+					disabled: true,
+				},
+				{
+					id: managedMarketplace.canonicalId,
+					label: 'vscode-team-kit',
+					description: 'Managed by Organization',
+					disabled: false,
+				},
+			],
+		);
 	});
 
 	test('rejects marketplaces blocked by strict enterprise policy', async () => {
