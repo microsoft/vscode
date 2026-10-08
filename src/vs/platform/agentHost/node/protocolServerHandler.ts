@@ -2843,10 +2843,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		this._clearBaselineDebt(client.clientId, classified.uri);
 		if (sub.kind === ChannelKind.State) {
 			const record = this._clients.get(client.clientId);
-			if (record && this._hasSubscriptionInOtherConnection(record, client, sub.uri)) {
-				return;
+			if (!record || !this._hasSubscriptionInOtherConnection(record, client, sub.uri)) {
+				this._agentService.unsubscribe(URI.parse(sub.uri), client.clientId);
 			}
-			this._agentService.unsubscribe(URI.parse(sub.uri), client.clientId);
 			if (!sub.active) {
 				return;
 			}

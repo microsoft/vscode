@@ -5783,8 +5783,15 @@ suite('ProtocolServerHandler', () => {
 			}
 		}
 
-		for (const outcome of ['success', 'failure', 'cancelled'] as const) {
-			test(`pending sibling chat subscription does not retain released routing when it settles with ${outcome}`, async () => {
+		for (const { release, outcome } of [
+			{ release: 'disconnect', outcome: 'success' },
+			{ release: 'disconnect', outcome: 'failure' },
+			{ release: 'disconnect', outcome: 'cancelled' },
+			{ release: 'unsubscribe', outcome: 'success' },
+			{ release: 'unsubscribe', outcome: 'failure' },
+			{ release: 'unsubscribe', outcome: 'cancelled' },
+		]) {
+			test(`pending sibling chat subscription does not retain routing after ${release} when it settles with ${outcome}`, async () => {
 				createSessionWithClientTools();
 				const departing = connectClient(clientId, [defaultChatUri]);
 				const remaining = connectClient(clientId, [sessionUri, peerChatUri]);
@@ -5794,7 +5801,11 @@ suite('ProtocolServerHandler', () => {
 				const response = waitForResponse(remaining, 2);
 				remaining.simulateMessage(request(2, 'subscribe', { channel: defaultChatUri }));
 				await Promise.resolve();
-				departing.simulateClose();
+				if (release === 'disconnect') {
+					departing.simulateClose();
+				} else {
+					departing.simulateMessage(notification('unsubscribe', { channel: defaultChatUri }));
+				}
 				const afterClose = {
 					clients: stateManager.getSessionState(sessionUri)?.activeClients.map(client => client.clientId),
 					statuses: toolStatuses(),
