@@ -601,6 +601,33 @@ suite('GitHubCloudAutomationStore', () => {
 		assert.deepStrictEqual({ calls: api.calls, mutations: api.mutations }, { calls: [], mutations: [] });
 	});
 
+	test('client invalidation during local resolution cannot move creation into the new lifetime', async () => {
+		const resolved = new DeferredPromise<URI>();
+		const { store, api, clientInvalidated } = setup(() => resolved.p);
+		await store.registerRepository(workspace);
+		api.calls.length = 0;
+		const create = assert.rejects(store.create(URI.file('C:\\cold-repository'), createValue), isCancellationError);
+		clientInvalidated.fire();
+		await resolved.complete(workspace);
+		await create;
+		assert.deepStrictEqual({ calls: api.calls, mutations: api.mutations, entries: store.entries.get() }, {
+			calls: [], mutations: [], entries: [],
+		});
+	});
+
+	test('client invalidation prevents a late creation from publishing into the reset store', async () => {
+		const { store, api, clientInvalidated } = setup();
+		const pending = new DeferredPromise<AutomationDetail>();
+		api.mutationResult = pending.p;
+		const create = store.create(workspace, createValue);
+		await timeout(0);
+		const rejected = assert.rejects(create, isCancellationError);
+		clientInvalidated.fire();
+		await pending.complete(definition);
+		await rejected;
+		assert.deepStrictEqual({ mutations: api.mutations, entries: store.entries.get() }, { mutations: ['create'], entries: [] });
+	});
+
 	test('skips public repositories and rechecks known repository visibility on refresh', async () => {
 		const { store, api, recents } = setup();
 		recents.workspaces = [recentWorkspace(workspace)];
