@@ -55,7 +55,9 @@ suite('SessionsChatAccessibilityHelp', () => {
 			back: content.includes('Go back through visited sessions, the New Session view, and custom views such as Automations<keybinding:sessions.goBack>'),
 			forward: content.includes('Go forward through visited sessions and views<keybinding:sessions.goForward>'),
 			singletonViews: content.includes('moves its single history entry to the most recent position'),
-		}, { back: true, forward: true, singletonViews: true });
+			gitCredentialApproval: content.includes('an approval notice appears above the chat input for that container')
+				&& content.includes('Use Shift+Tab from the input to reach its Allow and Don\'t Allow buttons'),
+		}, { back: true, forward: true, singletonViews: true, gitCredentialApproval: true });
 	});
 
 	test('documents repo-less Cloud chats in the harness picker', () => {

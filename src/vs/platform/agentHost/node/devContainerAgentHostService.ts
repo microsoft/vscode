@@ -18,7 +18,7 @@ import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { hasKey } from '../../../base/common/types.js';
 import { findExecutable } from '../../../base/node/processes.js';
-import { SequencerByKey } from '../../../base/common/async.js';
+import { DeferredPromise, raceCancellationError, SequencerByKey } from '../../../base/common/async.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { vArray, vLiteral, vObj, vOptionalProp, vString } from '../../../base/common/validation.js';
 import { localize } from '../../../nls.js';
@@ -30,7 +30,7 @@ import { INativeEnvironmentService } from '../../environment/common/environment.
 import { IRequestService } from '../../request/common/request.js';
 import { IGitHubService } from '../../github/common/githubService.js';
 import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
-import { IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, VSCODE_REMOTE_CONTAINERS_SESSION_ENV } from '../common/devContainerAgentHost.js';
+import { IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerGitCredentialRequest, VSCODE_REMOTE_CONTAINERS_SESSION_ENV } from '../common/devContainerAgentHost.js';
 import { IRelayMessage } from '../common/relayTransport.js';
 import { telemetryLevelToAgentHostValue } from '../common/agentHostTelemetry.js';
 import type { AgentHostEndpointAddress } from '../common/agentHostEndpointRegistry.js';
@@ -52,6 +52,7 @@ import { prepareOwnerOnlyDirectory } from './localAgentHostMetadata.js';
 import { buildCreateDevContainerCacheCommand, buildLinkDevContainerServerCacheCommand, canAddDevContainerServerCacheMount, devContainerServerCacheMount, getDevContainerCliCachePath, getDevContainerServerCachePath } from './devContainerServerCache.js';
 import { DevContainerSample, devContainerSamples, devContainerSampleUri, getDevContainerSampleFolder, IDevContainerRepository, IDevContainerSampleSource } from '../common/devContainerSamples.js';
 import { IPreparedDevContainerSample, prepareDevContainerSample } from './devContainerSamples.js';
+import { buildDevContainerGitCredentialRelayCommand, DevContainerGitCredentialRelay } from './devContainerGitCredentialRelay.js';
 
 const LOG_PREFIX = '[DevContainerAgentHost]';
 const DETECT_MUSL_COMMAND = 'if [ -e /etc/alpine-release ]; then printf musl; elif command -v ldd >/dev/null 2>&1; then case "$(ldd --version 2>&1)" in *musl*) printf musl;; esac; fi';
@@ -191,11 +192,16 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 
 	private readonly _onDidOutput = this._register(new Emitter<{ readonly connectionId: string; readonly data: string }>());
 	readonly onDidOutput = this._onDidOutput.event;
+	private readonly _onDidRequestGitCredentials = this._register(new Emitter<IDevContainerGitCredentialRequest>());
+	readonly onDidRequestGitCredentials = this._onDidRequestGitCredentials.event;
 
 	private readonly _connections = this._register(new DisposableMap<string, IDevContainerRelay>());
 	private readonly _connectionStores = this._register(new DisposableMap<string, DisposableStore>());
 	private readonly _connectionTokenSources = new Map<string, CancellationTokenSource>();
 	private readonly _connectionWorkspaces = new Map<string, string>();
+	private readonly _gitCredentialRelays = this._register(new DisposableMap<string, DisposableStore>());
+	private readonly _gitCredentialContexts = new Map<string, { workspaceSelector: string | readonly string[]; cliDataDir: string; hostWorkspaceFolder?: string }>();
+	private readonly _gitCredentialRequests = new Map<string, { connectionId: string; response: DeferredPromise<boolean> }>();
 	private readonly _containerIds = new Map<string, string>();
 	private readonly _suspendedWorkspaces = new Set<string>();
 	private readonly _containerOperations = new SequencerByKey<string>();
@@ -383,6 +389,15 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			}
 			this._connections.set(config.connectionId, relay);
 			store.add(toDisposable(() => this._connections.deleteAndDispose(config.connectionId)));
+			this._gitCredentialContexts.set(config.connectionId, {
+				workspaceSelector,
+				cliDataDir,
+				hostWorkspaceFolder: hasKey(config, { workspaceFolder: true }) ? config.workspaceFolder : undefined,
+			});
+			store.add(toDisposable(() => {
+				this._gitCredentialContexts.delete(config.connectionId);
+				this._gitCredentialRelays.deleteAndDispose(config.connectionId);
+			}));
 			if (config.resume === true) {
 				this._suspendedWorkspaces.delete(workspaceKey);
 			}
@@ -634,7 +649,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		};
 	}
 
-	protected _runLocalCommand(command: string, args: readonly string[], environment: NodeJS.ProcessEnv, token: CancellationToken, cwd?: string): Promise<{ stdout: string; stderr: string; code: number }> {
+	protected _runLocalCommand(command: string, args: readonly string[], environment: NodeJS.ProcessEnv, token: CancellationToken, cwd?: string, input?: string): Promise<{ stdout: string; stderr: string; code: number }> {
 		return new Promise((resolve, reject) => {
 			if (token.isCancellationRequested) {
 				reject(new CancellationError());
@@ -643,9 +658,10 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			const child = spawn(command, args, {
 				cwd,
 				env: environment,
-				stdio: ['ignore', 'pipe', 'pipe'],
+				stdio: [input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'],
 				windowsHide: true,
 			});
+			child.stdin?.end(input);
 			let stdout = '';
 			let stderr = '';
 			let settled = false;
@@ -668,8 +684,9 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 					child.kill();
 				}
 			});
-			child.stdout.on('data', data => stdout += data.toString());
-			child.stderr.on('data', data => stderr += data.toString());
+			child.stdout?.on('data', data => stdout += data.toString());
+			child.stderr?.on('data', data => stderr += data.toString());
+			child.stdin?.once('error', error => finish(error, null));
 			child.once('error', error => finish(error, null));
 			child.once('close', code => finish(undefined, code));
 		});
@@ -1013,6 +1030,104 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			throw new Error(`Dev Container Agent Host connection '${connectionId}' is not available.`);
 		}
 		relay.send(message);
+	}
+
+	async setGitCredentialForwarding(connectionId: string, enabled: boolean): Promise<void> {
+		const workspaceKey = this._connectionWorkspaces.get(connectionId);
+		if (!workspaceKey) {
+			throw new Error('Dev Container connection is not available for Git credential forwarding');
+		}
+		await this._containerOperations.queue(workspaceKey, async () => {
+			const context = this._gitCredentialContexts.get(connectionId);
+			if (!context) {
+				throw new CancellationError();
+			}
+			if (!enabled) {
+				this._gitCredentialRelays.deleteAndDispose(connectionId);
+				return;
+			}
+			if (this._gitCredentialRelays.has(connectionId)) {
+				return;
+			}
+			const store = new DisposableStore();
+			this._gitCredentialRelays.set(connectionId, store);
+			const tokenSource = new CancellationTokenSource();
+			store.add(toDisposable(() => tokenSource.dispose(true)));
+			try {
+				const environment = await this._resolveShellEnvironment();
+				const devContainerEnvironment = await this._resolveDevContainerEnvironment();
+				if (tokenSource.token.isCancellationRequested) {
+					throw new CancellationError();
+				}
+				const child = this._spawnDevContainer(
+					getDevContainerExecArgs(context.workspaceSelector, buildDevContainerGitCredentialRelayCommand(context.cliDataDir)),
+					devContainerEnvironment,
+				);
+				const relay = store.add(new DevContainerGitCredentialRelay(child, async (input, requestToken) => {
+					await this._requestGitCredentialPermission(connectionId, requestToken);
+					const lookupTokenSource = new CancellationTokenSource(requestToken);
+					const timeout = setTimeout(() => lookupTokenSource.cancel(), 30_000);
+					try {
+						const result = await this._runLocalCommand(
+							'git',
+							['-c', 'credential.interactive=false', '-c', 'core.askPass=', 'credential', 'fill'],
+							{ ...environment, GIT_TERMINAL_PROMPT: '0', GCM_INTERACTIVE: 'Never', GIT_ASKPASS: '' },
+							lookupTokenSource.token,
+							context.hostWorkspaceFolder,
+							input,
+						);
+						if (result.code !== 0) {
+							throw new Error('Host Git credential lookup failed');
+						}
+						return result.stdout;
+					} finally {
+						clearTimeout(timeout);
+						lookupTokenSource.dispose();
+					}
+				}, this._logService, () => {
+					if (this._gitCredentialRelays.get(connectionId) === store) {
+						this._gitCredentialRelays.deleteAndDispose(connectionId);
+					}
+				}));
+				await raceCancellationError(relay.ready, tokenSource.token);
+				if (tokenSource.token.isCancellationRequested || !this._connections.has(connectionId)) {
+					throw new CancellationError();
+				}
+			} catch (error) {
+				this._gitCredentialRelays.deleteAndDispose(connectionId);
+				throw error;
+			}
+		});
+	}
+
+	protected async _requestGitCredentialPermission(connectionId: string, token: CancellationToken): Promise<void> {
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		const requestId = randomUUID();
+		const response = new DeferredPromise<boolean>();
+		this._gitCredentialRequests.set(requestId, { connectionId, response });
+		try {
+			this._onDidRequestGitCredentials.fire({ connectionId, requestId });
+			const allowed = await raceCancellationError(response.p, token);
+			if (allowed !== true) {
+				throw new Error(localize('devContainerGitCredentials.permissionDenied', "Git credential forwarding was declined."));
+			}
+		} finally {
+			this._gitCredentialRequests.delete(requestId);
+			if (token.isCancellationRequested) {
+				this._onDidRequestGitCredentials.fire({ connectionId, requestId, canceled: true });
+			}
+			await response.complete(false);
+		}
+	}
+
+	async respondToGitCredentialRequest(connectionId: string, requestId: string, allowed: boolean): Promise<void> {
+		const pending = this._gitCredentialRequests.get(requestId);
+		if (!pending || pending.connectionId !== connectionId || pending.response.isSettled) {
+			throw new Error('Git credential permission request is not pending on this connection');
+		}
+		await pending.response.complete(allowed);
 	}
 
 	async disconnect(connectionId: string): Promise<void> {

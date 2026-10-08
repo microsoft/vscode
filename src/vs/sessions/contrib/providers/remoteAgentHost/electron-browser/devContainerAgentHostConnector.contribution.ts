@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
+import { CancellationError, getErrorMessage, isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { StringSHA1 } from '../../../../../base/common/hash.js';
 import { basename, getComparisonKey } from '../../../../../base/common/resources.js';
-import { combinedDisposable, Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { waitForState } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
@@ -20,7 +20,7 @@ import { supportsAgentHostDevContainers } from '../../../../../platform/agentHos
 import { AgentHostClientConnectionKind } from '../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { AgentHostAhpJsonlLoggingSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { AhpJsonlLogger } from '../../../../../platform/agentHost/common/ahpJsonlLogger.js';
-import { DEV_CONTAINER_AGENT_HOST_CHANNEL, IDevContainerAgentHostConfig, IDevContainerAgentHostMainService, IDevContainerAgentHostOutput } from '../../../../../platform/agentHost/common/devContainerAgentHost.js';
+import { DEV_CONTAINER_AGENT_HOST_CHANNEL, IDevContainerAgentHostConfig, IDevContainerAgentHostMainService, IDevContainerAgentHostOutput, IDevContainerGitCredentialRequest } from '../../../../../platform/agentHost/common/devContainerAgentHost.js';
 import { findDevContainerSample, IDevContainerSampleSource } from '../../../../../platform/agentHost/common/devContainerSamples.js';
 import { ReconnectingRelayTransport, type IRelayConnectionHandle, type IRelayMessage } from '../../../../../platform/agentHost/common/relayTransport.js';
 import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -28,6 +28,8 @@ import { NonReconnectableTransportError } from '../../../../../platform/agentHos
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ISharedProcessService } from '../../../../../platform/ipc/electron-browser/services.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { supportsAgentHostDevContainerGitCredentials } from '../../../../../platform/agentHost/common/meta/agentHostDevContainersMeta.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
@@ -36,10 +38,12 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ITelemetryService, TelemetryLevel } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { Extensions, IOutputChannelRegistry, IOutputService } from '../../../../../workbench/services/output/common/output.js';
-import { areDevContainerSamplesEnabled, DevContainerAgentHostEnabledSettingId, DevContainerIdleTimeoutSettingId, DevContainerSamplesEnabledSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostConnection, IDevContainerAgentHostConnector, IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
+import { areDevContainerSamplesEnabled, DevContainerAgentHostEnabledSettingId, DevContainerGitCredentialForwardingSettingId, DevContainerIdleTimeoutSettingId, DevContainerSamplesEnabledSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostConnection, IDevContainerAgentHostConnector, IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { devContainerSourcePath, getDevContainerSourceEntry, resolveDevContainerSourceConnection } from '../browser/devContainerSource.js';
+import { DevContainerGitCredentialForwarding } from '../browser/devContainerGitCredentialForwarding.js';
+import { IChatInputNotificationService } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationService.js';
 
 type DevContainerEnvironmentEvent = {
 	dockerAvailable: boolean;
@@ -161,6 +165,8 @@ export class RemoteDevContainerService extends Disposable implements IDevContain
 	readonly onDidCloseConnection = this._close.event;
 	private readonly _output = this._register(new Emitter<IDevContainerAgentHostOutput>());
 	readonly onDidOutput = this._output.event;
+	private readonly _gitCredentialRequests = this._register(new Emitter<IDevContainerGitCredentialRequest>());
+	readonly onDidRequestGitCredentials = this._gitCredentialRequests.event;
 	private readonly _connections = new Map<string, { store: DisposableStore; tokenSource: CancellationTokenSource; service?: IDevContainerAgentHostMainService }>();
 	private _disposed = false;
 
@@ -199,6 +205,7 @@ export class RemoteDevContainerService extends Disposable implements IDevContain
 			store.add(Event.filter(service.onDidRelayClose, id => id === config.connectionId)(id => this._relayClose.fire(id)));
 			store.add(Event.filter(service.onDidCloseConnection, id => id === config.connectionId)(id => this._close.fire(id)));
 			store.add(Event.filter(service.onDidOutput, event => event.connectionId === config.connectionId)(event => this._output.fire(event)));
+			store.add(Event.filter(service.onDidRequestGitCredentials, event => event.connectionId === config.connectionId)(event => this._gitCredentialRequests.fire(event)));
 			return await service.connect(config);
 		} catch (error) {
 			if (this._connections.get(config.connectionId) === entry) {
@@ -214,6 +221,22 @@ export class RemoteDevContainerService extends Disposable implements IDevContain
 			throw new Error(`Dev Container relay '${connectionId}' is not connected.`);
 		}
 		await service.relaySend(connectionId, message);
+	}
+
+	async setGitCredentialForwarding(connectionId: string, enabled: boolean): Promise<void> {
+		const service = this._connections.get(connectionId)?.service;
+		if (!service) {
+			throw new Error(`Dev Container relay '${connectionId}' is not connected.`);
+		}
+		await service.setGitCredentialForwarding(connectionId, enabled);
+	}
+
+	async respondToGitCredentialRequest(connectionId: string, requestId: string, allowed: boolean): Promise<void> {
+		const service = this._connections.get(connectionId)?.service;
+		if (!service) {
+			throw new Error(`Dev Container relay '${connectionId}' is not connected.`);
+		}
+		await service.respondToGitCredentialRequest(connectionId, requestId, allowed);
 	}
 
 	async disconnect(connectionId: string): Promise<void> {
@@ -302,8 +325,9 @@ class DevContainerOutputWriter extends Disposable {
 	}
 }
 
-export class DevContainerAgentHostConnector implements IDevContainerAgentHostConnector {
+export class DevContainerAgentHostConnector extends Disposable implements IDevContainerAgentHostConnector {
 	private readonly _mainService: IDevContainerAgentHostMainService;
+	private readonly _gitCredentialForwarding: DevContainerGitCredentialForwarding;
 
 	constructor(
 		@ISharedProcessService sharedProcessService: ISharedProcessService,
@@ -315,7 +339,11 @@ export class DevContainerAgentHostConnector implements IDevContainerAgentHostCon
 		@IFileService private readonly _fileService: IFileService,
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
+		@IChatInputNotificationService notificationService: IChatInputNotificationService,
+		@IAgentHostConnectionsService connectionsService: IAgentHostConnectionsService,
 	) {
+		super();
+		this._gitCredentialForwarding = this._register(new DevContainerGitCredentialForwarding(_configurationService, notificationService, connectionsService, _logService));
 		this._mainService = ProxyChannel.toService<IDevContainerAgentHostMainService>(
 			sharedProcessService.getChannel(DEV_CONTAINER_AGENT_HOST_CHANNEL),
 		);
@@ -378,6 +406,65 @@ export class DevContainerAgentHostConnector implements IDevContainerAgentHostCon
 		const source = sample ? { sampleId: sample.id } : { workspaceFolder: devContainerSourcePath(workspaceUri) };
 		const name = sourceEntry ? `${basename(workspaceUri)} Dev Container (${sourceEntry.name})` : `${basename(workspaceUri)} Dev Container`;
 		const outputWriter = new DevContainerOutputWriter(mainService, connectionId, workspaceUri, this._outputService);
+		const forwardingRegistrations = new DisposableStore();
+		const registerForwarding = async (id: string, containerAddress: string) => {
+			const registration = new DisposableStore();
+			forwardingRegistrations.add(registration);
+			const tokenSource = new CancellationTokenSource();
+			registration.add(toDisposable(() => tokenSource.dispose(true)));
+			const requests = registration.add(new DisposableMap<string>());
+			const containerKey = `${workspaceUri.authority}:${containerAddress}`;
+			const handleRequest = async ({ requestId, canceled }: IDevContainerGitCredentialRequest) => {
+				if (canceled) {
+					requests.deleteAndDispose(requestId);
+					return;
+				}
+				const requestTokenSource = new CancellationTokenSource(tokenSource.token);
+				requests.set(requestId, toDisposable(() => requestTokenSource.dispose(true)));
+				let allowed = false;
+				let requestCanceled = false;
+				try {
+					ensureDevContainerAgentHostsEnabled(this._configurationService);
+					allowed = await this._gitCredentialForwarding.request(workspaceUri, containerKey, address, requestTokenSource.token);
+				} catch (error) {
+					requestCanceled = isCancellationError(error);
+					if (!requestCanceled) {
+						this._logService.error('[DevContainerAgentHost] Failed to request Git credential permission', error);
+					}
+				} finally {
+					requests.deleteAndDispose(requestId);
+				}
+				if (!requestCanceled && !tokenSource.token.isCancellationRequested) {
+					await mainService.respondToGitCredentialRequest(id, requestId, allowed);
+				}
+			};
+			registration.add(Event.filter(mainService.onDidRequestGitCredentials, request => request.connectionId === id)(request => {
+				void handleRequest(request).catch(error => this._logService.error('[DevContainerAgentHost] Failed to respond to Git credential permission request', error));
+			}));
+			registration.add(Event.filter(mainService.onDidCloseConnection, closedId => closedId === id)(() => forwardingRegistrations.delete(registration)));
+			registration.add(await this._gitCredentialForwarding.registerConnection(async enabled => {
+				if (sourceEntry) {
+					const sourceConnection = await resolveDevContainerSourceConnection(workspaceUri, this._remoteAgentHostService, this._sessionsProvidersService, CancellationToken.None);
+					if (!supportsAgentHostDevContainerGitCredentials(sourceConnection.initializeResult.get())) {
+						if (enabled) {
+							throw new Error(localize('devContainerGitCredentials.unsupported', "This workspace host does not support Git credential forwarding. Update VS Code on the workspace host or disable Git credential forwarding."));
+						}
+						return;
+					}
+				}
+				try {
+					await mainService.setGitCredentialForwarding(id, enabled);
+				} catch (error) {
+					if (!enabled || isCancellationError(error)) {
+						throw error;
+					}
+					this._logService.warn('[DevContainerAgentHost] Git credential forwarding is unavailable', error);
+					this._outputService.getChannel(getDevContainerOutputChannel(workspaceUri))?.append(
+						localize('devContainerGitCredentials.setupFailed', "Git credential forwarding is unavailable for this container: {0}\n", getErrorMessage(error)));
+				}
+			}));
+			return registration;
+		};
 		const cancellationListener = token.onCancellationRequested(() => {
 			void mainService.disconnect(connectionId).catch(error => {
 				this._logService.warn('[DevContainerAgentHostConnector] Failed to cancel connection', error);
@@ -393,13 +480,20 @@ export class DevContainerAgentHostConnector implements IDevContainerAgentHostCon
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
+			const initialForwarding = await registerForwarding(connectionId, result.address);
 
 			let seed = true;
 			const establish = async (): Promise<IRelayConnectionHandle> => {
 				if (seed) {
 					seed = false;
 					// The initial relay is owned by the connection cancellation and teardown path below.
-					return { connectionId };
+					return {
+						connectionId,
+						close: async () => {
+							forwardingRegistrations.delete(initialForwarding);
+							await mainService.disconnect(connectionId);
+						},
+					};
 				}
 
 				try {
@@ -414,21 +508,24 @@ export class DevContainerAgentHostConnector implements IDevContainerAgentHostCon
 				const reconnectConnectionId = generateUuid();
 				outputWriter.addConnection(reconnectConnectionId);
 				try {
-					await mainService.connect({
+					const reconnected = await mainService.connect({
 						connectionId: reconnectConnectionId,
 						...source,
 						name,
 						resume: false,
 					});
+					const forwarding = await registerForwarding(reconnectConnectionId, reconnected.address);
 					return {
 						connectionId: reconnectConnectionId,
 						close: async () => {
+							forwardingRegistrations.delete(forwarding);
 							outputWriter.removeConnection(reconnectConnectionId);
 							await mainService.disconnect(reconnectConnectionId);
 						},
 					};
 				} catch (error) {
 					outputWriter.removeConnection(reconnectConnectionId);
+					await mainService.disconnect(reconnectConnectionId);
 					if (isCancellationError(error)) {
 						throw new NonReconnectableTransportError('Dev Container Agent Host connection was cancelled.');
 					}
@@ -461,6 +558,7 @@ export class DevContainerAgentHostConnector implements IDevContainerAgentHostCon
 				transportFactory,
 				transportDisposable: combinedDisposable(
 					outputWriter,
+					forwardingRegistrations,
 					toDisposable(() => {
 						void mainService.disconnect(connectionId).catch(error => {
 							this._logService.warn('[DevContainerAgentHostConnector] Failed to disconnect transport', error);
@@ -474,6 +572,7 @@ export class DevContainerAgentHostConnector implements IDevContainerAgentHostCon
 					path: result.remoteWorkspaceFolder,
 				}),
 				defaultDirectory: result.remoteWorkspaceFolder,
+				waitingForGitCredentialApproval: this._gitCredentialForwarding.getWaitingForApproval(address),
 			};
 		} catch (error) {
 			try {
@@ -482,6 +581,7 @@ export class DevContainerAgentHostConnector implements IDevContainerAgentHostCon
 				}
 			} finally {
 				outputWriter.dispose();
+				forwardingRegistrations.dispose();
 				try {
 					await mainService.disconnect(connectionId);
 				} finally {
@@ -507,7 +607,7 @@ class DevContainerAgentHostConnectorContribution extends Disposable implements I
 		@ILogService logService: ILogService,
 	) {
 		super();
-		const connector = instantiationService.createInstance(DevContainerAgentHostConnector);
+		const connector = this._register(instantiationService.createInstance(DevContainerAgentHostConnector));
 		this._register(service.registerConnector(connector));
 		void reportDevContainerEnvironment(
 			recentWorkspacesService,
@@ -520,6 +620,19 @@ class DevContainerAgentHostConnectorContribution extends Disposable implements I
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	properties: {
+		[DevContainerGitCredentialForwardingSettingId]: {
+			type: 'string',
+			enum: ['off', 'prompt', 'on'],
+			enumDescriptions: [
+				localize('devContainerGitCredentials.off', "Do not forward HTTPS Git credentials to Dev Containers."),
+				localize('devContainerGitCredentials.prompt', "Ask when a shared Dev Container first requests HTTPS Git credentials."),
+				localize('devContainerGitCredentials.on', "Always forward HTTPS Git credentials to Dev Containers without asking."),
+			],
+			description: localize('devContainerGitCredentials.setting', "Control forwarding of HTTPS Git credentials from the workspace host to Dev Container Agent Hosts and their agents. Forwarded credentials are available to all sessions and processes sharing the container."),
+			default: 'prompt',
+			scope: ConfigurationScope.APPLICATION,
+			experiment: { mode: 'auto' },
+		},
 		[DevContainerAgentHostEnabledSettingId]: {
 			type: 'boolean',
 			description: localize('chat.agentHost.devContainer.enabled', "Enable running Agent Host sessions in Dev Containers."),

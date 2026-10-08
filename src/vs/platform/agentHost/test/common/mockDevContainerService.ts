@@ -5,7 +5,7 @@
 
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import type { IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostOutput } from '../../common/devContainerAgentHost.js';
+import type { IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostOutput, IDevContainerGitCredentialRequest } from '../../common/devContainerAgentHost.js';
 import type { IRelayMessage } from '../../common/relayTransport.js';
 
 export class MockDevContainerService extends Disposable implements IDevContainerAgentHostMainService {
@@ -20,11 +20,15 @@ export class MockDevContainerService extends Disposable implements IDevContainer
 	readonly onDidCloseConnection = this.closeConnection.event;
 	readonly output = this._register(new Emitter<IDevContainerAgentHostOutput>());
 	readonly onDidOutput = this.output.event;
+	readonly gitCredentialRequest = this._register(new Emitter<IDevContainerGitCredentialRequest>());
+	readonly onDidRequestGitCredentials = this.gitCredentialRequest.event;
 	readonly connects: IDevContainerAgentHostConfig[] = [];
 	readonly disconnects: string[] = [];
 	readonly stops: string[] = [];
 	readonly removes: string[] = [];
 	readonly sent: IRelayMessage[] = [];
+	readonly gitCredentialForwarding: { connectionId: string; enabled: boolean }[] = [];
+	readonly gitCredentialResponses: { connectionId: string; requestId: string; allowed: boolean }[] = [];
 	connectResult: Promise<IDevContainerAgentHostConnectResult> | undefined;
 
 	async isDockerAvailable(): Promise<boolean> {
@@ -52,5 +56,13 @@ export class MockDevContainerService extends Disposable implements IDevContainer
 
 	async relaySend(connectionId: string, data: string): Promise<void> {
 		this.sent.push({ connectionId, data });
+	}
+
+	async setGitCredentialForwarding(connectionId: string, enabled: boolean): Promise<void> {
+		this.gitCredentialForwarding.push({ connectionId, enabled });
+	}
+
+	async respondToGitCredentialRequest(connectionId: string, requestId: string, allowed: boolean): Promise<void> {
+		this.gitCredentialResponses.push({ connectionId, requestId, allowed });
 	}
 }

@@ -14,7 +14,7 @@ import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, Mu
 import { mapsStrictEqualIgnoreOrder, ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { deepClone, equals } from '../../../../../base/common/objects.js';
-import { constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, mapObservableArrayCached, observableFromEvent, observableSignal, observableSignalFromEvent, observableValueOpts, subtransaction, transaction, waitForState, autorun, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, derivedOpts, derivedWithSetter, IObservable, IReader, ISettableObservable, ITransaction, mapObservableArrayCached, observableFromEvent, observableSignal, observableSignalFromEvent, observableValueOpts, subtransaction, transaction, waitForState, autorun, observableValue } from '../../../../../base/common/observable.js';
 import { basename, dirname, extUriIgnorePathCase, getComparisonKey, isEqual, isEqualOrParent, joinPath, relativePath } from '../../../../../base/common/resources.js';
 import { themeColorFromId, ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -838,6 +838,8 @@ export interface IAgentHostAdapterOptions {
 	 * host that no longer exists.
 	 */
 	readonly readOnly?: IObservable<boolean>;
+	/** Presents connection-owned approvals without changing the host's reported status. */
+	readonly requiresUserAction?: IObservable<boolean>;
 	/** Keeps normally interactive chats draftable while their connection is unavailable. */
 	readonly allowOfflineDrafts?: IObservable<boolean>;
 	/**
@@ -914,14 +916,16 @@ function toSessionRemoteConnectionStatus(owner: object, connectionStatus: IObser
  * but present an error rather than a perpetual activity spinner while it is
  * known to be unreachable.
  */
-function toPresentedSessionStatus(owner: object, status: IObservable<SessionStatus>, connectionStatus: IObservable<RemoteAgentHostConnectionStatus> | undefined): IObservable<SessionStatus> {
-	if (!connectionStatus) {
+function toPresentedSessionStatus(owner: object, status: IObservable<SessionStatus>, connectionStatus: IObservable<RemoteAgentHostConnectionStatus> | undefined, requiresUserAction?: IObservable<boolean>, isArchived?: IObservable<boolean>): IObservable<SessionStatus> {
+	if (!connectionStatus && !requiresUserAction) {
 		return status;
 	}
 	return derived(owner, reader => {
-		const value = status.read(reader);
-		const connection = connectionStatus.read(reader);
-		return isActiveSessionStatus(value) && (connection.kind === 'disconnected' || connection.kind === 'incompatible')
+		const reported = status.read(reader);
+		const value = requiresUserAction?.read(reader) && !isArchived?.read(reader) && reported !== SessionStatus.Untitled && reported !== SessionStatus.Error
+			? SessionStatus.NeedsInput : reported;
+		const connection = connectionStatus?.read(reader);
+		return isActiveSessionStatus(value) && (connection?.kind === 'disconnected' || connection?.kind === 'incompatible')
 			? SessionStatus.Error
 			: value;
 	});
@@ -1078,7 +1082,7 @@ class AdditionalChat extends Disposable {
 	private readonly _origin: ChatOrigin | undefined;
 	private readonly _changesSummary: ISettableObservable<ISessionChangesSummary | undefined>;
 
-	constructor(resource: URI, summary: AgentHostChatSummary, createdAtFallback: Date, changesets: IObservable<readonly ISessionChangeset[] | undefined>, backgroundShells: IObservable<readonly IChatBackgroundShell[]>, private readonly _acquireDetails: () => IDisposable, sessionWorkspace: IObservable<ISessionWorkspace | undefined>, mapWorkingDirectoryUri: AgentHostUriMapper, isNew: boolean = false, parentChat?: URI, sessionIsArchived: IObservable<boolean> = constObservable(false), canArchive: IObservable<boolean> = constObservable(false), output?: IChatOutputObs, sessionIsReadOnly: IObservable<boolean> = constObservable(false), connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>, allowOfflineDrafts: IObservable<boolean> = constObservable(false)) {
+	constructor(resource: URI, summary: AgentHostChatSummary, createdAtFallback: Date, changesets: IObservable<readonly ISessionChangeset[] | undefined>, backgroundShells: IObservable<readonly IChatBackgroundShell[]>, private readonly _acquireDetails: () => IDisposable, sessionWorkspace: IObservable<ISessionWorkspace | undefined>, mapWorkingDirectoryUri: AgentHostUriMapper, isNew: boolean = false, parentChat?: URI, sessionIsArchived: IObservable<boolean> = constObservable(false), canArchive: IObservable<boolean> = constObservable(false), output?: IChatOutputObs, sessionIsReadOnly: IObservable<boolean> = constObservable(false), connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>, allowOfflineDrafts: IObservable<boolean> = constObservable(false), requiresUserAction?: IObservable<boolean>) {
 		super();
 		this.backendUri = URI.parse(summary.resource);
 		this._origin = summary.origin;
@@ -1121,7 +1125,7 @@ class AdditionalChat extends Disposable {
 			workspace: this._withDetails(workspace),
 			title: this._withDetails(this._title),
 			updatedAt: this._withDetails(this._updatedAt),
-			status: toPresentedSessionStatus(this, status, connectionStatus),
+			status: toPresentedSessionStatus(this, status, connectionStatus, requiresUserAction, derived(this, reader => this._isArchived.read(reader) || sessionIsArchived.read(reader))),
 			changes: createChangesObservable(changesets),
 			changesets,
 			// Catalog-backed, so session lists can read it without acquiring chat details.
@@ -1524,7 +1528,9 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this.title = observableValue('title', metadata.summary || `Session ${rawId.substring(0, 8)}`);
 		this.updatedAt = observableValue('updatedAt', new Date(metadata.modifiedTime));
 		this.modelSelection = undefined;
-		this.status = observableValue<SessionStatus>('status', metadata.status !== undefined ? mapProtocolStatus(metadata.status) : SessionStatus.Completed);
+		const reportedStatus = observableValue<SessionStatus>('status', metadata.status !== undefined ? mapProtocolStatus(metadata.status) : SessionStatus.Completed);
+		const presentedStatus = toPresentedSessionStatus(this, reportedStatus, undefined, _options.requiresUserAction, this.isArchived);
+		this.status = _options.requiresUserAction ? derivedWithSetter(this, reader => presentedStatus.read(reader), (value, tx) => reportedStatus.set(value, tx)) : reportedStatus;
 		this.modelId = observableValue<string | undefined>('modelId', undefined);
 		this.modelSource = observableValue<ChatModelSource | undefined>('modelSource', undefined);
 		this.mode = observableValueOpts<{ readonly id: string; readonly kind: string } | undefined>({ owner: this, debugName: 'mode', equalsFn: structuralEquals }, undefined);
@@ -1686,7 +1692,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			workspace: defaultChatWorkspace,
 			title: this._options.useSessionTitleForDefaultChat ? this.title : derived(this, reader => this._defaultChatTitleOverride.read(reader) ?? this.title.read(reader)),
 			updatedAt: this._withChatDetails(this._defaultChatUpdatedAt),
-			status: toPresentedSessionStatus(this, defaultChatStatus, this._options.preserveStatusWhenDisconnected ? undefined : connectionStatus),
+			status: toPresentedSessionStatus(this, defaultChatStatus, this._options.preserveStatusWhenDisconnected ? undefined : connectionStatus, _options.requiresUserAction, this.isArchived),
 			changes: defaultChatChanges,
 			changesets: defaultChatChangesets,
 			changesSummary: this._defaultChatChangesSummary,
@@ -2136,6 +2142,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			this._options.readOnly,
 			this._options.preserveStatusWhenDisconnected ? undefined : this._options.connectionStatus,
 			this._options.allowOfflineDrafts,
+			this._options.requiresUserAction,
 		);
 		const selection = this._chatModelSelections.get(chatId);
 		if (selection) {
@@ -4264,7 +4271,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * the bits that are uniform across hosts (`icon`, `loading`,
 	 * `mapDiffUri`) from the corresponding hooks.
 	 */
-	protected abstract _adapterOptions(): Pick<IAgentHostAdapterOptions, 'buildWorkspace' | 'readOnly' | 'defaultChangesetKind' | 'preserveStatusWhenDisconnected' | 'externalSessionState' | 'useSessionTitleForDefaultChat' | 'supportsCanvasPresentation'>;
+	protected abstract _adapterOptions(): Pick<IAgentHostAdapterOptions, 'buildWorkspace' | 'readOnly' | 'requiresUserAction' | 'defaultChangesetKind' | 'preserveStatusWhenDisconnected' | 'externalSessionState' | 'useSessionTitleForDefaultChat' | 'supportsCanvasPresentation'>;
 
 	/**
 	 * Hook to normalize a session's metadata before it is cached, keyed, or

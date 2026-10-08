@@ -173,6 +173,8 @@ class TestProvider extends mock<RemoteAgentHostSessionsProvider>() {
 		this.defaultDirectory = defaultDirectory;
 	}
 
+	override setGitCredentialApproval(): void { }
+
 	override setConnectionStatus(status: RemoteAgentHostConnectionStatus): void {
 		this.status = status;
 	}

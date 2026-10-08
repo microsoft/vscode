@@ -40,6 +40,13 @@ export interface IDevContainerAgentHostOutput {
 	readonly data: string;
 }
 
+/** Permission request emitted before the host reads credentials for a container lookup. */
+export interface IDevContainerGitCredentialRequest {
+	readonly connectionId: string;
+	readonly requestId: string;
+	readonly canceled?: boolean;
+}
+
 export const IDevContainerAgentHostMainService = createDecorator<IDevContainerAgentHostMainService>('devContainerAgentHostMainService');
 
 /** Host-side service that owns Dev Container CLI processes and protocol relays. */
@@ -49,10 +56,14 @@ export interface IDevContainerAgentHostMainService extends IRelayChannel {
 	readonly onDidCloseConnection: Event<string>;
 	/** Streaming stdout and stderr from Dev Container CLI processes. */
 	readonly onDidOutput: Event<IDevContainerAgentHostOutput>;
+	readonly onDidRequestGitCredentials: Event<IDevContainerGitCredentialRequest>;
 
 	/** Whether Docker can be resolved from the user's shell environment. */
 	isDockerAvailable(): Promise<boolean>;
 	connect(config: IDevContainerAgentHostConfig): Promise<IDevContainerAgentHostConnectResult>;
+	/** Enables or revokes HTTPS Git credential forwarding for this connection's container. */
+	setGitCredentialForwarding(connectionId: string, enabled: boolean): Promise<void>;
+	respondToGitCredentialRequest(connectionId: string, requestId: string, allowed: boolean): Promise<void>;
 	disconnect(connectionId: string): Promise<void>;
 	stopContainer(source: string | IDevContainerSampleSource): Promise<boolean>;
 	removeContainer(source: string | IDevContainerSampleSource): Promise<boolean>;
