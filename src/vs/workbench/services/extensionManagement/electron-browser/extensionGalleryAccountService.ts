@@ -7,7 +7,7 @@ import { IDefaultAccount } from '../../../../base/common/defaultAccount.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { fetchResourceMetadata, getClaimsFromJWT, parseWWWAuthenticateHeader } from '../../../../base/common/oauth.js';
+import { AUTH_SCOPE_SEPARATOR, fetchAuthorizationServerMetadata, fetchResourceMetadata, getClaimsFromJWT, GRANT_TYPE_TOKEN_EXCHANGE, IAuthorizationTokenResponse, isAuthorizationTokenResponse, parseWWWAuthenticateHeader, TOKEN_TYPE_ACCESS_TOKEN } from '../../../../base/common/oauth.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -68,8 +68,107 @@ interface IPreferredAccount {
 interface IMarketplaceProtectedResource {
 	readonly authorizationServer: string;
 	readonly scopes: readonly string[];
+	readonly resource: string;
 }
 
+function isSameSecureOrigin(targetUrl: string, baseUrl: string): boolean {
+	try {
+		const target = URI.parse(targetUrl, true);
+		const base = URI.parse(baseUrl, true);
+		return target.scheme === 'https' && base.scheme === 'https' && target.authority.toLowerCase() === base.authority.toLowerCase();
+	} catch {
+		return false;
+	}
+}
+
+function createRequestFetcher(requestService: IRequestService, callSite: string) {
+	return async (input: string, init: { method: string; headers: Record<string, string> }) => {
+		const context = await requestService.request({ type: init.method, url: input, headers: init.headers, callSite }, CancellationToken.None);
+		return {
+			status: context.res.statusCode ?? 0,
+			statusText: '',
+			json: async (): Promise<unknown> => await asJson(context),
+			text: async (): Promise<string> => (await asText(context)) ?? '',
+		};
+	};
+}
+
+/**
+ * Discovers the marketplace's Protected Resource Metadata (RFC 9728). The `resource_metadata` hint
+ * in the server's challenge is untrusted, so it is honored only when it is same-origin HTTPS with
+ * the service index; otherwise discovery falls back to the well-known endpoint derived from the
+ * trusted service index origin.
+ */
+async function discoverMarketplaceProtectedResource(requestService: IRequestService, serviceIndexUrl: string, wwwAuthenticate: string | undefined): Promise<IMarketplaceProtectedResource | undefined> {
+	let resourceMetadataUrl: string | undefined;
+	if (wwwAuthenticate) {
+		for (const challenge of parseWWWAuthenticateHeader(wwwAuthenticate)) {
+			if (challenge.scheme.toLowerCase() === 'bearer' && challenge.params.resource_metadata) {
+				resourceMetadataUrl = challenge.params.resource_metadata;
+				break;
+			}
+		}
+	}
+	if (resourceMetadataUrl && !isSameSecureOrigin(resourceMetadataUrl, serviceIndexUrl)) {
+		resourceMetadataUrl = undefined;
+	}
+	try {
+		const { metadata } = await fetchResourceMetadata(serviceIndexUrl, resourceMetadataUrl, { fetch: createRequestFetcher(requestService, 'extensionGalleryAccountService.discoverProtectedResource') });
+		const authorizationServer = metadata.authorization_servers?.[0];
+		if (!authorizationServer) {
+			return undefined;
+		}
+		return { authorizationServer, scopes: metadata.scopes_supported ?? [], resource: metadata.resource };
+	} catch {
+		return undefined;
+	}
+}
+
+/**
+ * Exchanges a GitHub session token for a marketplace-audience token with the RFC 8693 token-exchange
+ * grant. The subject token is sent only to the advertised authorization server's token endpoint, and
+ * only when both that server and the endpoint are same-origin HTTPS with the service index. Never
+ * throws; returns `undefined` on any failure.
+ */
+async function exchangeMarketplaceResourceToken(requestService: IRequestService, serviceIndexUrl: string, protectedResource: IMarketplaceProtectedResource, subjectToken: string): Promise<string | undefined> {
+	if (!isSameSecureOrigin(protectedResource.authorizationServer, serviceIndexUrl)) {
+		return undefined;
+	}
+	try {
+		const { metadata } = await fetchAuthorizationServerMetadata(protectedResource.authorizationServer, {
+			fetch: createRequestFetcher(requestService, 'extensionGalleryAccountService.exchangeMarketplaceResourceToken'),
+			validateIssuer: true
+		});
+		const tokenEndpoint = metadata.token_endpoint;
+		if (!tokenEndpoint || !isSameSecureOrigin(tokenEndpoint, serviceIndexUrl)) {
+			return undefined;
+		}
+		const body = new URLSearchParams();
+		body.append('grant_type', GRANT_TYPE_TOKEN_EXCHANGE);
+		body.append('subject_token', subjectToken);
+		body.append('subject_token_type', TOKEN_TYPE_ACCESS_TOKEN);
+		body.append('resource', protectedResource.resource);
+		if (protectedResource.scopes.length) {
+			body.append('scope', protectedResource.scopes.join(AUTH_SCOPE_SEPARATOR));
+		}
+		const context = await requestService.request({
+			type: 'POST',
+			url: tokenEndpoint,
+			headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+			data: body.toString(),
+			callSite: 'extensionGalleryAccountService.exchangeMarketplaceResourceToken',
+			// The subject token is in the body; a followed redirect would replay it to another origin.
+			followRedirects: 0,
+		}, CancellationToken.None);
+		if (context.res.statusCode !== 200) {
+			return undefined;
+		}
+		const response = await asJson<IAuthorizationTokenResponse>(context);
+		return response && isAuthorizationTokenResponse(response) ? response.access_token || undefined : undefined;
+	} catch {
+		return undefined;
+	}
+}
 /** Status bookkeeping and eligibility reporting shared by the provider implementations. */
 abstract class AbstractGalleryAccountProvider extends Disposable implements IExtensionGalleryAccountProvider {
 
@@ -128,12 +227,21 @@ export class GitHubGalleryAccountProvider extends AbstractGalleryAccountProvider
 
 	constructor(
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
+		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
+		@IRequestService private readonly requestService: IRequestService,
 		@IProductService private readonly productService: IProductService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ILogService logService: ILogService,
 	) {
 		super('github', telemetryService, logService);
 		this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => this._onDidChangeAccount.fire()));
+		this._register(this.authenticationService.onDidChangeSessions(e => {
+			// The marketplace token is minted from the GitHub session token, so a rotated or
+			// re-consented session can leave a previously negotiated token stale.
+			if (e.providerId === 'github' || e.providerId === 'github-enterprise') {
+				this._onDidChangeAccount.fire();
+			}
+		}));
 	}
 
 	protected override async doGetAccount(): Promise<IExtensionGalleryAccount | undefined> {
@@ -149,6 +257,37 @@ export class GitHubGalleryAccountProvider extends AbstractGalleryAccountProvider
 		// A result is returned even when ineligible, so the caller can tell "signed in but denied"
 		// apart from "no account" — the two map to different statuses.
 		return {};
+	}
+
+	/**
+	 * VS Code's GitHub provider cannot mint resource-scoped tokens, so the marketplace's own
+	 * authorization server exchanges the account's GitHub session token for one (RFC 8693).
+	 */
+	override async getMarketplaceAccessToken(serviceIndexUrl: string, wwwAuthenticate: string | undefined): Promise<string | undefined> {
+		const protectedResource = await discoverMarketplaceProtectedResource(this.requestService, serviceIndexUrl, wwwAuthenticate);
+		if (!protectedResource) {
+			return undefined;
+		}
+		const subjectToken = await this.getSubjectToken();
+		if (!subjectToken) {
+			return undefined;
+		}
+		return exchangeMarketplaceResourceToken(this.requestService, serviceIndexUrl, protectedResource, subjectToken);
+	}
+
+	/** The raw session token backing the default account. Never prompts. */
+	private async getSubjectToken(): Promise<string | undefined> {
+		try {
+			const account = await this.defaultAccountService.getDefaultAccount();
+			if (!account) {
+				return undefined;
+			}
+			const sessions = await this.authenticationService.getSessions(account.authenticationProvider.id);
+			return sessions.find(session => session.id === account.sessionId)?.accessToken;
+		} catch (error) {
+			this.logService.error('[Marketplace] Unable to resolve the GitHub session token for the marketplace token exchange', error);
+			return undefined;
+		}
 	}
 
 	override async signIn(): Promise<void> {
@@ -246,7 +385,7 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 	}
 
 	override async getMarketplaceAccessToken(serviceIndexUrl: string, wwwAuthenticate: string | undefined): Promise<string | undefined> {
-		const protectedResource = await this.discoverProtectedResource(serviceIndexUrl, wwwAuthenticate);
+		const protectedResource = await discoverMarketplaceProtectedResource(this.requestService, serviceIndexUrl, wwwAuthenticate);
 		if (!protectedResource) {
 			return undefined;
 		}
@@ -277,37 +416,6 @@ export class MicrosoftGalleryAccountProvider extends AbstractGalleryAccountProvi
 			return sessions.at(0);
 		} catch (error) {
 			this.logService.error('[Marketplace] Unable to acquire a resource-scoped marketplace token', error);
-			return undefined;
-		}
-	}
-
-	private async discoverProtectedResource(serviceIndexUrl: string, wwwAuthenticate: string | undefined): Promise<IMarketplaceProtectedResource | undefined> {
-		let resourceMetadataUrl: string | undefined;
-		if (wwwAuthenticate) {
-			for (const challenge of parseWWWAuthenticateHeader(wwwAuthenticate)) {
-				if (challenge.scheme.toLowerCase() === 'bearer' && challenge.params.resource_metadata) {
-					resourceMetadataUrl = challenge.params.resource_metadata;
-					break;
-				}
-			}
-		}
-		const fetcher = async (input: string, init: { method: string; headers: Record<string, string> }) => {
-			const context = await this.requestService.request({ type: init.method, url: input, headers: init.headers, callSite: 'extensionGalleryAccountService.discoverProtectedResource' }, CancellationToken.None);
-			return {
-				status: context.res.statusCode ?? 0,
-				statusText: '',
-				json: async (): Promise<unknown> => await asJson(context),
-				text: async (): Promise<string> => (await asText(context)) ?? '',
-			};
-		};
-		try {
-			const { metadata } = await fetchResourceMetadata(serviceIndexUrl, resourceMetadataUrl, { fetch: fetcher });
-			const authorizationServer = metadata.authorization_servers?.[0];
-			if (!authorizationServer) {
-				return undefined;
-			}
-			return { authorizationServer, scopes: metadata.scopes_supported ?? [] };
-		} catch {
 			return undefined;
 		}
 	}

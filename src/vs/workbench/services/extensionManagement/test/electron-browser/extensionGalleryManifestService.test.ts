@@ -982,6 +982,129 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		assert.strictEqual(await authorizationService.getAccessToken(MARKETPLACE_URL), 'resource-token');
 	});
 
+	// --- Gated service index, GitHub (RFC 8693 token exchange) ---
+
+	const GITHUB_AUTHORIZATION_SERVER = 'https://marketplace.example.com/oauth';
+	const GITHUB_PROTECTED_RESOURCE_METADATA = {
+		resource: 'https://marketplace.example.com',
+		authorization_servers: [GITHUB_AUTHORIZATION_SERVER],
+		scopes_supported: ['marketplace.read'],
+	};
+
+	function stubGitHubSession(): void {
+		instantiationService.stub(IAuthenticationService, new class extends mock<IAuthenticationService>() {
+			override readonly onDidChangeSessions = onDidChangeSessions.event;
+			override async getSessions(providerId: string) {
+				return providerId === 'github'
+					? [{ id: 'session-1', accessToken: 'github-token', account: { id: 'gh-1', label: 'testuser' }, scopes: [] }]
+					: [];
+			}
+		}());
+	}
+
+	/** A gated index whose authorization server exchanges `github-token` for `exchanged-token`. */
+	function gatedGitHubMarketplace(exchangeRequests: IRequestOptions[], options: { tokenEndpoint?: string; exchangeStatus?: number } = {}): (request: IRequestOptions) => IRequestContext {
+		const tokenEndpoint = options.tokenEndpoint ?? `${GITHUB_AUTHORIZATION_SERVER}/token`;
+		return request => {
+			if (request.url?.includes('/.well-known/oauth-protected-resource')) {
+				return mockResponse(200, GITHUB_PROTECTED_RESOURCE_METADATA);
+			}
+			if (request.url?.includes('/.well-known/oauth-authorization-server') || request.url?.includes('/.well-known/openid-configuration')) {
+				return mockResponse(200, { issuer: GITHUB_AUTHORIZATION_SERVER, token_endpoint: tokenEndpoint, response_types_supported: ['code'] });
+			}
+			if (request.url === tokenEndpoint) {
+				exchangeRequests.push(request);
+				return options.exchangeStatus && options.exchangeStatus !== 200
+					? mockResponse(options.exchangeStatus, { error: 'invalid_grant' })
+					: mockResponse(200, { access_token: 'exchanged-token', token_type: 'Bearer', expires_in: 3600 });
+			}
+			return request.headers?.Authorization === 'Bearer exchanged-token'
+				? mockResponse(200, createGalleryManifest())
+				: mockResponse(401, { message: 'authentication required' });
+		};
+	}
+
+	test('GitHub — gated index exchanges the session token (RFC 8693) and becomes Available', async () => {
+		defaultAccount = createDefaultAccount({ enterprise: true });
+		stubGitHubSession();
+		const exchangeRequests: IRequestOptions[] = [];
+		requestHandler = gatedGitHubMarketplace(exchangeRequests);
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+
+		assert.deepStrictEqual({
+			status: service.extensionGalleryManifestStatus,
+			token: await authorizationService.getAccessToken(MARKETPLACE_URL),
+			exchanges: exchangeRequests.map(request => ({ type: request.type, followRedirects: request.followRedirects, body: Object.fromEntries(new URLSearchParams(request.data as string)) })),
+		}, {
+			status: ExtensionGalleryManifestStatus.Available,
+			token: 'exchanged-token',
+			exchanges: [{
+				type: 'POST',
+				followRedirects: 0,
+				body: {
+					grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange',
+					subject_token: 'github-token',
+					subject_token_type: 'urn:ietf:params:oauth:token-type:access_token',
+					resource: 'https://marketplace.example.com',
+					scope: 'marketplace.read',
+				}
+			}],
+		});
+	});
+
+	test('GitHub — an index that is not gated needs no exchange', async () => {
+		defaultAccount = createDefaultAccount({ enterprise: true });
+		stubGitHubSession();
+		const exchangeRequests: IRequestOptions[] = [];
+		requestHandler = request => request.url?.includes('/oauth/') ? (exchangeRequests.push(request), mockResponse(500, {})) : mockResponse(200, createGalleryManifest());
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
+		assert.strictEqual(exchangeRequests.length, 0);
+		assert.strictEqual(await authorizationService.getAccessToken(MARKETPLACE_URL), undefined);
+	});
+
+	test('GitHub — the session token is never sent to a token endpoint on another origin', async () => {
+		defaultAccount = createDefaultAccount({ enterprise: true });
+		stubGitHubSession();
+		const exchangeRequests: IRequestOptions[] = [];
+		requestHandler = gatedGitHubMarketplace(exchangeRequests, { tokenEndpoint: 'https://attacker.example.com/token' });
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.RequiresSignIn);
+		assert.strictEqual(exchangeRequests.length, 0);
+		assert.strictEqual(await authorizationService.getAccessToken(MARKETPLACE_URL), undefined);
+	});
+
+	test('GitHub — a rejected exchange asks to sign in without publishing a token', async () => {
+		defaultAccount = createDefaultAccount({ enterprise: true });
+		stubGitHubSession();
+		requestHandler = gatedGitHubMarketplace([], { exchangeStatus: 400 });
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.RequiresSignIn);
+		assert.strictEqual(await authorizationService.getAccessToken(MARKETPLACE_URL), undefined);
+	});
+
+	test('GitHub — no session token for the account → RequiresSignIn without an exchange', async () => {
+		defaultAccount = createDefaultAccount({ enterprise: true });
+		const exchangeRequests: IRequestOptions[] = [];
+		requestHandler = gatedGitHubMarketplace(exchangeRequests);
+
+		const service = createService();
+		await service.getExtensionGalleryManifest();
+
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.RequiresSignIn);
+		assert.strictEqual(exchangeRequests.length, 0);
+	});
 	test('Microsoft — follows an explicit resource metadata challenge', async () => {
 		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'microsoft');
 		microsoftSessions = [createMicrosoftSession('signin-token')];
