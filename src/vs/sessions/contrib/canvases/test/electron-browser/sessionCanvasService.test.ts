@@ -285,6 +285,221 @@ suite('SessionCanvasService', () => {
 		});
 	});
 
+	test('applies explicit membership states across catalog transitions', async () => {
+		const harness = createHarness();
+		await harness.openSettled[0];
+		await Promise.resolve();
+		const input = harness.opened[0];
+		const serializationId = input.serializationId;
+		assert.ok(serializationId);
+		const stableCanvas = { ...harness.canvas, title: 'Preview Live', status: 'connected' };
+		const stableSource = stableCanvas.source!;
+		const replacementSource = URI.parse('https://example.test/replacement');
+		harness.canvases.set([stableCanvas], undefined);
+
+		const models: { readonly source: string; disposed: boolean }[] = [];
+		harness.setCreateBrowserModelHandler(async url => {
+			const onWillDispose = store.add(new Emitter<void>());
+			const record = { source: url, disposed: false };
+			models.push(record);
+			return upcastPartial<IBrowserViewModel>({
+				onWillDispose: onWillDispose.event,
+				dispose: () => {
+					if (!record.disposed) {
+						record.disposed = true;
+						onWillDispose.fire();
+					}
+				},
+			});
+		});
+		const initialResolution = await harness.canvasService.resolveCanvasModel(input.reference, stableSource);
+		const peer = upcastPartial<IChat>({
+			resource: URI.parse('agent-host-chat:/session/peer'),
+			canvases: observableValue<readonly ISessionCanvas[] | undefined>('peerCanvases', []),
+		});
+		harness.chats.set([harness.chat, peer], undefined);
+		harness.activeChat.set(peer, undefined);
+
+		const transitions: readonly {
+			readonly state: string;
+			readonly apply: () => Promise<URI | undefined>;
+		readonly expected: {
+				readonly title: string | undefined;
+				readonly status: string | undefined;
+				readonly source: string | undefined;
+				readonly membershipPending: boolean | undefined;
+				readonly restorable: boolean;
+				readonly reused: boolean | undefined;
+				readonly models: readonly { readonly source: string; readonly disposed: boolean }[];
+			};
+		}[] = [
+			{
+				state: 'available',
+				apply: async () => stableSource,
+				expected: {
+					title: 'Preview Live',
+					status: 'connected',
+					source: stableSource.toString(),
+					membershipPending: false,
+					restorable: true,
+					reused: true,
+					models: [{ source: stableSource.toString(true), disposed: false }],
+				},
+			},
+			{
+				state: 'hydrating catalog',
+				apply: async () => {
+					harness.canvases.set(undefined, undefined);
+					return undefined;
+				},
+				expected: {
+					title: 'Preview Live',
+					status: 'connected',
+					source: undefined,
+					membershipPending: true,
+					restorable: true,
+					reused: undefined,
+					models: [{ source: stableSource.toString(true), disposed: false }],
+				},
+			},
+			{
+				state: 'hydrating placeholder',
+				apply: async () => {
+					harness.canvases.set([{ ...stableCanvas, instanceId: undefined, title: 'Canvas', status: 'placeholder', source: undefined }], undefined);
+					return undefined;
+				},
+				expected: {
+					title: 'Preview Live',
+					status: 'connected',
+					source: undefined,
+					membershipPending: true,
+					restorable: true,
+					reused: undefined,
+					models: [{ source: stableSource.toString(true), disposed: false }],
+				},
+			},
+			{
+				state: 'unknown',
+				apply: async () => {
+					harness.chats.set([peer], undefined);
+					return undefined;
+				},
+				expected: {
+					title: 'Preview Live',
+					status: 'connected',
+					source: undefined,
+					membershipPending: true,
+					restorable: true,
+					reused: undefined,
+					models: [{ source: stableSource.toString(true), disposed: false }],
+				},
+			},
+			{
+				state: 'available from sibling catalog',
+				apply: async () => {
+					harness.chats.set([harness.chat, peer], undefined);
+					harness.canvases.set([{ ...stableCanvas, title: 'Preview Returned', status: 'ready' }], undefined);
+					return stableSource;
+				},
+				expected: {
+					title: 'Preview Returned',
+					status: 'ready',
+					source: stableSource.toString(),
+					membershipPending: false,
+					restorable: true,
+					reused: true,
+					models: [{ source: stableSource.toString(true), disposed: false }],
+				},
+			},
+			{
+				state: 'available with replacement source',
+				apply: async () => {
+					harness.canvases.set([{ ...stableCanvas, title: 'Preview Fresh', status: 'fresh', source: replacementSource }], undefined);
+					return replacementSource;
+				},
+				expected: {
+					title: 'Preview Fresh',
+					status: 'fresh',
+					source: replacementSource.toString(),
+					membershipPending: false,
+					restorable: true,
+					reused: false,
+					models: [
+						{ source: stableSource.toString(true), disposed: true },
+						{ source: replacementSource.toString(true), disposed: false },
+					],
+				},
+			},
+			{
+				state: 'unavailable',
+				apply: async () => {
+					harness.canvases.set([{ ...stableCanvas, title: 'Preview Offline', status: 'offline', source: undefined }], undefined);
+					return undefined;
+				},
+				expected: {
+					title: 'Preview Offline',
+					status: 'offline',
+					source: undefined,
+					membershipPending: false,
+					restorable: true,
+					reused: undefined,
+					models: [
+						{ source: stableSource.toString(true), disposed: true },
+						{ source: replacementSource.toString(true), disposed: true },
+					],
+				},
+			},
+			{
+				state: 'removed',
+				apply: async () => {
+					harness.canvases.set([], undefined);
+					await harness.closeSettled.at(-1);
+					return undefined;
+				},
+				expected: {
+					title: undefined,
+					status: undefined,
+					source: undefined,
+					membershipPending: undefined,
+					restorable: false,
+					reused: undefined,
+					models: [
+						{ source: stableSource.toString(true), disposed: true },
+						{ source: replacementSource.toString(true), disposed: true },
+					],
+				},
+			},
+		];
+
+		const actual = [];
+		for (const transition of transitions) {
+			const source = await transition.apply();
+			const restore = harness.editorWorkingSetService.beginRestore(owner(harness.session));
+			const restored = harness.canvasService.restoreCanvasInput(serializationId);
+			restore.dispose();
+			const resolution = source && await harness.canvasService.resolveCanvasModel(input.reference, source);
+			const visibleCanvas = input.isDisposed() ? undefined : input.canvas.get();
+			actual.push({
+				state: transition.state,
+				title: visibleCanvas?.title,
+				status: visibleCanvas?.status,
+				source: visibleCanvas?.source?.toString(),
+				membershipPending: input.isDisposed() ? undefined : input.membershipPending.get(),
+				restorable: restored !== undefined,
+				reused: resolution?.reused,
+				models: models.map(model => ({ ...model })),
+			});
+		}
+
+		assert.deepStrictEqual({
+			initialReused: initialResolution.reused,
+			transitions: actual,
+		}, {
+			initialReused: false,
+			transitions: transitions.map(transition => ({ state: transition.state, ...transition.expected })),
+		});
+	});
+
 	test('does not reveal Canvases while the setting is disabled', () => {
 		const { opened } = createHarness(false);
 
@@ -514,7 +729,7 @@ suite('SessionCanvasService', () => {
 			{ resource: URI.parse('agent-host-canvas:/preview-sidebar'), instanceId: 'sidebar', title: 'Preview', source: URI.parse('https://example.test/sidebar') },
 			{ resource: URI.parse('agent-host-canvas:/preview-editor-title'), instanceId: 'dashboard', title: 'Preview (editor)', source: URI.parse('https://example.test/editor-title') },
 			{ resource: URI.parse('agent-host-canvas:/dashboard'), instanceId: 'dashboard', title: 'Dashboard', source: URI.parse('https://example.test/dashboard') },
-			{ resource: URI.parse('agent-host-canvas:/logs-numbered'), instanceId: undefined, title: 'Logs', source: URI.parse('https://example.test/logs-numbered') },
+			{ resource: URI.parse('agent-host-canvas:/logs-numbered'), instanceId: 'dashboard', title: 'Logs', source: URI.parse('https://example.test/logs-numbered') },
 			{ resource: URI.parse('agent-host-canvas:/logs-semantic'), instanceId: '1', title: 'Logs', source: URI.parse('https://example.test/logs-semantic') },
 		];
 		const { canvasService, canvases: canvasStates, opened } = createHarness(true, canvases);
