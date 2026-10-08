@@ -96,6 +96,33 @@ suite('SessionMcpDiscovery', () => {
 		assert.strictEqual(definitions[2].uri.toString(), URI.joinPath(additional, '.mcp.json').toString());
 	});
 
+	for (const wrapped of [true, false]) {
+		test(`discovers migrated local servers from ${wrapped ? 'wrapped' : 'flat'} workspace configuration`, async () => {
+			const servers = {
+				migrated: { type: 'local', command: 'server', args: ['--stdio'], env: { MODE: 'test' }, cwd: './custom', tools: ['*'] },
+				legacy: { command: 'legacy' },
+				remote: { type: 'http', url: 'https://example.com/mcp' },
+				invalid: { type: 'local', command: 42 },
+			};
+			await write(primary, wrapped ? { mcpServers: servers } : servers);
+
+			const discovery = store.add(new SessionMcpDiscovery([primary], fileService));
+			const definitions = await discovery.refresh();
+
+			assert.deepStrictEqual({
+				names: definitions.map(definition => definition.name),
+				configuration: definitions[0]?.configuration,
+				defaultCwd: definitions[0]?.defaultCwd?.toString(),
+				uri: definitions[0]?.uri.toString(),
+			}, {
+				names: ['migrated', 'legacy', 'remote'],
+				configuration: { type: McpServerType.LOCAL, command: 'server', args: ['--stdio'], env: { MODE: 'test' }, envFile: undefined, cwd: './custom', dev: undefined },
+				defaultCwd: primary.toString(),
+				uri: URI.joinPath(primary, '.mcp.json').toString(),
+			});
+		});
+	}
+
 	test('preserves an explicit cwd while retaining the owning root as the default', async () => {
 		await write(primary, {
 			mcpServers: {
