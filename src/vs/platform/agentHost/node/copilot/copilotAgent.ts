@@ -55,6 +55,7 @@ import { AUTO_MODEL_ID, isAutoModel } from './modelIdentifiers.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
+import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ICopilotConfigSlashCommandState } from '../../common/copilotConfigSlashCommands.js';
 import { getCopilotHomePath } from '../../../environment/common/copilotHome.js';
 import { ISessionDataService, SESSION_DB_FILENAME } from '../../common/sessionDataService.js';
@@ -1908,6 +1909,31 @@ export class CopilotAgent extends Disposable implements IAgent {
 			throw new Error(`Method not found: no active chat ${chat.toString()}`);
 		}
 		return entry.handleMcpRequest(serverName, method, params);
+	}
+
+	async getSessionPlan(session: URI) {
+		const entry = this._findSessionChat(session);
+		if (!entry) {
+			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `No active Copilot session ${session.toString()}`);
+		}
+		return entry.getSessionPlan();
+	}
+
+	async setSessionApproveAll(session: URI, enabled: boolean): Promise<void> {
+		if (enabled && this._configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true) {
+			throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'Auto approval is restricted by policy');
+		}
+		if (!enabled && this._configurationService.getRootValue(platformRootSchema, AgentHostGlobalAutoApproveEnabledConfigKey) === true) {
+			throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'Global auto approval must be disabled on the host before selecting manual approval');
+		}
+		if (!this._configurationService.getSessionConfigValues(session.toString())) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidRequest, 'Session configuration is not available');
+		}
+		const entry = this._findSessionChat(session);
+		if (!entry) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidRequest, 'Approval mode requires a live Copilot session');
+		}
+		await entry.setSessionApproveAll(enabled);
 	}
 
 	getMcpServerOwners(session: URI): ReadonlyMap<string, string> | undefined {

@@ -87,7 +87,7 @@ import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js'
 import { buildCopilotSystemNotification, getCopilotSubagentDisplayNames } from '../../node/copilot/copilotSystemNotification.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpToolRoutingEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpToolRoutingEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { AgentHostHydraFusionEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey } from '../../common/copilotCliConfig.js';
 import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/common/experimentTriggerTestUtils.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
@@ -17249,6 +17249,166 @@ Use the attached image as context.
 
 	suite('elicitation handling', () => {
 
+		test('structured ask_user presents related questions together and round-trips all answers', async () => {
+			const { session, runtime, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-ask-user');
+
+			const resultPromise = runtime.handleElicitationRequest({
+				sessionId: 'test-session-1',
+				message: 'Choose deployment preferences',
+				requestedSchema: {
+					type: 'object',
+					properties: {
+						environment: { type: 'string', title: 'Environment', description: 'Where should we deploy?', enum: ['dev', 'prod'], enumNames: ['Development', 'Production'] },
+						region: { type: 'string', oneOf: [{ const: 'us', title: 'United States' }, { const: 'eu', title: 'Europe' }] },
+						features: { type: 'array', items: { type: 'string', enum: ['logs', 'metrics'] } },
+						tags: { type: 'array', items: { anyOf: [{ const: 'web', title: 'Web' }, { const: 'api', title: 'API' }] } },
+						confirm: { type: 'boolean' },
+						replicas: { type: 'integer', default: 3 },
+						name: { type: 'string', default: 'deployment' },
+					},
+				},
+			});
+
+			const request = getInputRequest(signals[0]);
+			session.respondToUserInputRequest(request.id, ChatInputResponseKind.Accept, {
+				environment: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Selected, value: 'prod' } },
+				region: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Selected, value: '', freeformValues: ['Asia'] } },
+				features: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.SelectedMany, value: ['logs'], freeformValues: ['tracing'] } },
+				tags: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Selected, value: 'api', freeformValues: ['internal'] } },
+				confirm: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Selected, value: 'true' } },
+				replicas: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Text, value: '5' } },
+				name: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Text, value: 'production' } },
+			});
+
+			assert.deepStrictEqual({
+				requestCount: signals.length,
+				purpose: readChatInputRequestPurpose(request),
+				message: request.message,
+				questions: request.questions?.map(question => ({
+					id: question.id,
+					kind: question.kind,
+					required: question.required,
+					title: question.title,
+					message: question.message,
+					options: question.kind === ChatInputQuestionKind.SingleSelect || question.kind === ChatInputQuestionKind.MultiSelect ? question.options : undefined,
+					defaultValue: question.kind === ChatInputQuestionKind.Text || question.kind === ChatInputQuestionKind.Number || question.kind === ChatInputQuestionKind.Integer ? question.defaultValue : undefined,
+				})),
+				result: await resultPromise,
+			}, {
+				requestCount: 1,
+				purpose: ChatInputRequestPurpose.AskUser,
+				message: 'Choose deployment preferences',
+				questions: [
+					{ id: 'environment', kind: ChatInputQuestionKind.SingleSelect, required: false, title: 'Environment', message: 'Where should we deploy?', options: [{ id: 'dev', label: 'Development' }, { id: 'prod', label: 'Production' }], defaultValue: undefined },
+					{ id: 'region', kind: ChatInputQuestionKind.SingleSelect, required: false, title: 'region', message: 'region', options: [{ id: 'us', label: 'United States' }, { id: 'eu', label: 'Europe' }], defaultValue: undefined },
+					{ id: 'features', kind: ChatInputQuestionKind.MultiSelect, required: false, title: 'features', message: 'features', options: [{ id: 'logs', label: 'logs' }, { id: 'metrics', label: 'metrics' }], defaultValue: undefined },
+					{ id: 'tags', kind: ChatInputQuestionKind.MultiSelect, required: false, title: 'tags', message: 'tags', options: [{ id: 'web', label: 'Web' }, { id: 'api', label: 'API' }], defaultValue: undefined },
+					{ id: 'confirm', kind: ChatInputQuestionKind.SingleSelect, required: false, title: 'confirm', message: 'confirm', options: [{ id: 'true', label: 'True' }, { id: 'false', label: 'False' }], defaultValue: undefined },
+					{ id: 'replicas', kind: ChatInputQuestionKind.Integer, required: false, title: 'replicas', message: 'replicas', options: undefined, defaultValue: 3 },
+					{ id: 'name', kind: ChatInputQuestionKind.Text, required: false, title: 'name', message: 'name', options: undefined, defaultValue: 'deployment' },
+				],
+				result: {
+					action: 'accept',
+					content: { environment: 'prod', region: 'Asia', features: ['logs', 'tracing'], tags: ['api', 'internal'], confirm: true, replicas: 5, name: 'production' },
+				},
+			});
+		});
+
+		test('structured ask_user preserves freeform boolean and numeric replies without coercing or dropping them', async () => {
+			const { session, runtime, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-ask-user');
+			const resultPromise = runtime.handleElicitationRequest({
+				sessionId: 'test-session-1',
+				message: 'Clarify preferences',
+				requestedSchema: {
+					type: 'object',
+					properties: {
+						confirm: { type: 'boolean' },
+						explain: { type: 'boolean' },
+						count: { type: 'integer' },
+						fraction: { type: 'integer' },
+						skipped: { type: 'string' },
+						missing: { type: 'string' },
+					},
+				},
+			});
+			const request = getInputRequest(signals[0]);
+			session.respondToUserInputRequest(request.id, ChatInputResponseKind.Accept, {
+				confirm: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Selected, value: '', freeformValues: ['Only after tests pass'] } },
+				explain: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Text, value: 'Ask me later' } },
+				count: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Text, value: 'Choose a sensible default' } },
+				fraction: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Text, value: '2.5' } },
+				skipped: { state: ChatInputAnswerState.Skipped },
+			});
+
+			assert.deepStrictEqual({
+				booleanAllowsFreeform: request.questions?.[0].kind === ChatInputQuestionKind.SingleSelect && request.questions[0].allowFreeformInput,
+				result: await resultPromise,
+			}, {
+				booleanAllowsFreeform: true,
+				result: { action: 'accept', content: { confirm: 'Only after tests pass', explain: 'Ask me later', count: 'Choose a sensible default', fraction: 2.5 } },
+			});
+		});
+
+		for (const mode of ['autopilot', 'autoReply']) {
+			test(`structured ask_user ${mode} answers every question and records one completed request`, async () => {
+				const { runtime, signals } = await createAgentSession(disposables, {
+					configValues: { [SessionConfigKey.Mode]: mode === 'autopilot' ? 'autopilot' : 'interactive' },
+					rootValues: { [AgentHostAutoReplyEnabledConfigKey]: mode === 'autoReply' },
+				});
+				const result = await runtime.handleElicitationRequest({
+					sessionId: 'test-session-1',
+					message: 'Choose preferences',
+					requestedSchema: { type: 'object', properties: { environment: { type: 'string', enum: ['dev', 'prod'] }, confirm: { type: 'boolean' } } },
+				});
+				const actions = getActions(signals);
+				const completed = actions[1];
+				assert.deepStrictEqual({
+					result,
+					actions: actions.map(action => action.type),
+					response: completed.type === ActionType.ChatInputCompleted ? completed.response : undefined,
+					answers: completed.type === ActionType.ChatInputCompleted ? completed.answers : undefined,
+				}, {
+					result: { action: 'accept', content: { environment: AgentHostAutoReplyAnswer, confirm: AgentHostAutoReplyAnswer } },
+					actions: [ActionType.ChatInputRequested, ActionType.ChatInputCompleted],
+					response: ChatInputResponseKind.Accept,
+					answers: {
+						environment: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Text, value: AgentHostAutoReplyAnswer } },
+						confirm: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Text, value: AgentHostAutoReplyAnswer } },
+					},
+				});
+			});
+		}
+
+		for (const response of [ChatInputResponseKind.Decline, ChatInputResponseKind.Cancel]) {
+			test(`structured ask_user returns ${response} for the whole question batch`, async () => {
+				const { session, runtime, signals } = await createAgentSession(disposables);
+				session.resetTurnState('turn-ask-user');
+				const resultPromise = runtime.handleElicitationRequest({
+					sessionId: 'test-session-1',
+					message: 'Choose preferences',
+					requestedSchema: { type: 'object', properties: { first: { type: 'string' }, second: { type: 'string' } } },
+				});
+				session.respondToUserInputRequest(getInputRequest(signals[0]).id, response);
+				assert.deepStrictEqual(await resultPromise, { action: response });
+			});
+		}
+
+		for (const cancellation of ['abort', 'dispose'] as const) {
+			test(`structured ask_user cancels all pending questions on ${cancellation}`, async () => {
+				const { session, runtime } = await createAgentSession(disposables);
+				session.resetTurnState('turn-ask-user');
+				const resultPromise = runtime.handleElicitationRequest({
+					sessionId: 'test-session-1',
+					message: 'Choose preferences',
+					requestedSchema: { type: 'object', properties: { first: { type: 'string' }, second: { type: 'string' } } },
+				});
+				await session[cancellation]();
+				assert.deepStrictEqual(await resultPromise, { action: 'cancel' });
+			});
+		}
+
 		test('form-mode request projects schema fields to questions and accept round-trips content', async () => {
 			const { session, runtime, signals } = await createAgentSession(disposables);
 			session.resetTurnState('turn-elicitation');
@@ -17256,6 +17416,7 @@ Use the attached image as context.
 			const resultPromise = runtime.handleElicitationRequest({
 				sessionId: 'test-session-1',
 				message: 'Configure deployment',
+				elicitationSource: 'deployment-mcp',
 				mode: 'form',
 				requestedSchema: {
 					type: 'object',
@@ -17335,6 +17496,41 @@ Use the attached image as context.
 			});
 
 			assert.deepStrictEqual(await resultPromise, { action: 'accept', content: {} });
+		});
+
+		test('MCP forms retain schema coercion and wait for user input even with auto-reply enabled', async () => {
+			const { session, runtime, signals } = await createAgentSession(disposables, {
+				rootValues: { [AgentHostAutoReplyEnabledConfigKey]: true },
+			});
+			session.resetTurnState('turn-elicitation');
+			const resultPromise = runtime.handleElicitationRequest({
+				sessionId: 'test-session-1',
+				elicitationSource: 'deployment-mcp',
+				message: 'Configure deployment',
+				requestedSchema: {
+					type: 'object',
+					properties: { confirm: { type: 'boolean' }, count: { type: 'integer' }, invalid: { type: 'number' } },
+				},
+			});
+			const request = getInputRequest(signals[0]);
+			const requestCount = signals.length;
+			session.respondToUserInputRequest(request.id, ChatInputResponseKind.Accept, {
+				confirm: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Text, value: 'true' } },
+				count: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Text, value: '2.5' } },
+				invalid: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Text, value: 'Choose a default' } },
+			});
+
+			assert.deepStrictEqual({
+				requestCount,
+				purpose: readChatInputRequestPurpose(request),
+				kinds: request.questions?.map(question => question.kind),
+				result: await resultPromise,
+			}, {
+				requestCount: 1,
+				purpose: ChatInputRequestPurpose.Elicitation,
+				kinds: [ChatInputQuestionKind.Boolean, ChatInputQuestionKind.Integer, ChatInputQuestionKind.Number],
+				result: { action: 'accept', content: { confirm: true, count: 2 } },
+			});
 		});
 
 		test('url-mode request surfaces url and accept returns no content', async () => {
@@ -17417,6 +17613,7 @@ Use the attached image as context.
 			const result = await runtime.handleElicitationRequest({
 				sessionId: 'test-session-1',
 				message: 'Need input',
+				elicitationSource: 'test-mcp',
 				mode: 'form',
 				requestedSchema: { type: 'object', properties: { ok: { type: 'boolean' } } },
 			});

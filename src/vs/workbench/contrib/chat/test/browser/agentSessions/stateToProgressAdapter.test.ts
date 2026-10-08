@@ -2402,6 +2402,40 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(carousel.answerPresentation, 'conversation');
 		});
 
+		test('presents a structured ask_user batch as one carousel with stable question IDs and freeform choices', () => {
+			const carousel = createInputRequestCarousel({
+				id: 'bulk-input',
+				message: 'Choose deployment preferences',
+				questions: [
+					{ id: 'environment', kind: ChatInputQuestionKind.SingleSelect, title: 'Environment', message: 'Where should we deploy?', options: [{ id: 'dev', label: 'Development' }, { id: 'prod', label: 'Production' }], allowFreeformInput: true },
+					{ id: 'features', kind: ChatInputQuestionKind.MultiSelect, message: 'Which features?', options: [{ id: 'logs', label: 'Logs' }], allowFreeformInput: true },
+					{ id: 'name', kind: ChatInputQuestionKind.Text, message: 'Deployment name', defaultValue: 'deployment' },
+				],
+			}, 'local');
+
+			assert.deepStrictEqual({
+				resolveId: carousel.resolveId,
+				message: typeof carousel.message === 'string' ? carousel.message : carousel.message?.value,
+				answerPresentation: carousel.answerPresentation,
+				questions: carousel.questions.map(question => ({
+					id: question.id,
+					type: question.type,
+					allowFreeformInput: question.allowFreeformInput,
+					options: question.options,
+					defaultValue: question.defaultValue,
+				})),
+			}, {
+				resolveId: 'bulk-input',
+				message: 'Choose deployment preferences',
+				answerPresentation: 'conversation',
+				questions: [
+					{ id: 'environment', type: 'singleSelect', allowFreeformInput: true, options: [{ id: 'dev', label: 'Development', value: 'dev' }, { id: 'prod', label: 'Production', value: 'prod' }], defaultValue: undefined },
+					{ id: 'features', type: 'multiSelect', allowFreeformInput: true, options: [{ id: 'logs', label: 'Logs', value: 'logs' }], defaultValue: undefined },
+					{ id: 'name', type: 'text', allowFreeformInput: undefined, options: undefined, defaultValue: 'deployment' },
+				],
+			});
+		});
+
 		test('does not repeat the question as the carousel message', () => {
 			const question = {
 				id: 'q1',
