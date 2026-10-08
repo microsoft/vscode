@@ -291,7 +291,7 @@ export class ChatArtifactsWidget extends Disposable {
 
 	private async _saveArtifact(artifact: IChatArtifact): Promise<void> {
 		const sourceUri = URI.parse(artifact.uri);
-		const defaultFileName = sourceUri.path.split('/').pop() ?? artifact.label;
+		const defaultFileName = artifact.fileName ?? sourceUri.path.split('/').pop() ?? artifact.label;
 		const defaultPath = await this._fileDialogService.defaultFilePath();
 		const defaultUri = URI.joinPath(defaultPath, defaultFileName);
 

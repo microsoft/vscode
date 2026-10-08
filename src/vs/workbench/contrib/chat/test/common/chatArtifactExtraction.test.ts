@@ -14,7 +14,7 @@ import { InMemoryStorageService } from '../../../../../platform/storage/common/s
 import { extractArtifactsFromResponse } from '../../common/chatArtifactExtraction.js';
 import { getGeneratedImageResources } from '../../common/chatImageExtraction.js';
 import { IChatService, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../common/chatService/chatService.js';
-import { ChatResponseResource, IChatModel, IChatRequestModel, IChatResponseModel, IResponse } from '../../common/model/chatModel.js';
+import { IChatModel, IChatRequestModel, IChatResponseModel, IResponse } from '../../common/model/chatModel.js';
 import { ChatToolInvocation } from '../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatArtifactsService } from '../../common/tools/chatArtifactsService.js';
 import { IToolResultInputOutputDetails, ToolDataSource } from '../../common/tools/languageModelToolsService.js';
@@ -22,11 +22,11 @@ import { IToolResultInputOutputDetails, ToolDataSource } from '../../common/tool
 suite('Chat generated image artifacts', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const sessionResource = URI.parse('chat-session://test/generated-images');
-	const referencedImage = URI.parse('vscode-agent-host://remote/generated-images/image?version=1');
+	const referencedImage = URI.parse('vscode-agent-host://remote/generated-images/image.jpeg?version=1');
 	const details: IToolResultInputOutputDetails = {
 		input: 'Draw two images',
 		output: [
-			{ type: 'ref', uri: referencedImage, mimeType: 'image/png' },
+			{ type: 'ref', uri: referencedImage, mimeType: 'image/jpeg' },
 			{ type: 'embed', value: 'AQID', mimeType: 'image/png' },
 			{ type: 'embed', value: 'Description', mimeType: 'image/png', isText: true },
 		],
@@ -56,14 +56,20 @@ suite('Chat generated image artifacts', () => {
 		const withRules = extractArtifactsFromResponse(response, sessionResource, { 'image/*': { groupName: 'Images' } }, {});
 
 		assert.deepStrictEqual([withoutRules, withRules].map(artifacts => artifacts.map(artifact => ({
+			label: artifact.label,
+			fileName: artifact.fileName,
 			uri: artifact.uri,
 			type: artifact.type,
 			toolCallId: artifact.toolCallId,
 			dataPartIndex: artifact.dataPartIndex,
-		}))), [0, 1].map(() => [
-			{ uri: referencedImage.toString(), type: 'screenshot', toolCallId: 'image-call', dataPartIndex: 0 },
-			{ uri: ChatResponseResource.createUri(sessionResource, 'image-call', 1, 'generated-image.png').toString(), type: 'screenshot', toolCallId: 'image-call', dataPartIndex: 1 },
-		]));
+		}))), [0, 1].map(() => getGeneratedImageResources(response, sessionResource).map(image => ({
+			label: image.name,
+			fileName: image.name,
+			uri: image.uri.toString(),
+			type: 'screenshot',
+			toolCallId: image.toolCallId,
+			dataPartIndex: image.index,
+		}))));
 	});
 
 	test('does not promote ordinary, failed, denied, or cancelled tool images to generated artifacts', () => {
@@ -102,9 +108,13 @@ suite('Chat generated image artifacts', () => {
 				onDidCreateModel: Event.None,
 				getSession: () => model,
 			}), configuration));
-			let artifacts: string[] = [];
+			let artifacts: { uri: string; label: string; fileName: string | undefined }[] = [];
 			store.add(autorun(reader => {
-				artifacts = service.getArtifacts(sessionResource).artifactGroups.read(reader).flatMap(group => group.artifacts.map(artifact => artifact.uri));
+				artifacts = service.getArtifacts(sessionResource).artifactGroups.read(reader).flatMap(group => group.artifacts.map(artifact => ({
+					uri: artifact.uri,
+					label: artifact.label,
+					fileName: artifact.fileName,
+				})));
 			}));
 			const before = artifacts;
 			await invocation.didExecuteTool({ content: [], toolSpecificData: { kind: 'generatedImage' }, toolResultDetails: details });
@@ -116,7 +126,11 @@ suite('Chat generated image artifacts', () => {
 			assert.deepStrictEqual({ before, beforeConfirmation, artifacts }, {
 				before: [],
 				beforeConfirmation: confirmResults ? [] : undefined,
-				artifacts: [referencedImage.toString(), ChatResponseResource.createUri(sessionResource, 'image-call', 1, 'generated-image.png').toString()],
+				artifacts: getGeneratedImageResources(response.response, sessionResource).map(image => ({
+					uri: image.uri.toString(),
+					label: image.name,
+					fileName: image.name,
+				})),
 			});
 		});
 	}

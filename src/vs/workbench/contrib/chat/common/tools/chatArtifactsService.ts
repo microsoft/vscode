@@ -23,6 +23,8 @@ export interface IArtifactGroupConfig {
 export interface IChatArtifact {
 	readonly label: string;
 	readonly uri: string;
+	/** Suggested filename when saving, independent of the source URI. */
+	readonly fileName?: string;
 	readonly toolCallId?: string;
 	readonly dataPartIndex?: number;
 	readonly type: 'devServer' | 'screenshot' | 'plan' | undefined;

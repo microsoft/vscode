@@ -55,6 +55,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	private readonly _progress = observableValue<{ message?: string | IMarkdownString; progress: number | undefined }>(this, { progress: 0 });
 	private readonly _state: ISettableObservable<IChatToolInvocation.State>;
 	private _executionStartedAt: number | undefined;
+	private _executionDurationMs: number | undefined;
 
 	// Streaming-related observables
 	private readonly _partialInput = observableValue<unknown>(this, undefined);
@@ -232,6 +233,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		if (IChatToolInvocation.isComplete(this)) {
 			return;
 		}
+		this._stopExecutionTimer();
 		this._state.set({
 			type: IChatToolInvocation.StateKind.Cancelled,
 			reason: reason.type,
@@ -345,12 +347,20 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			return; // nothing to confirm
 		}
 
+		this._stopExecutionTimer();
 		this._state.set({
 			type: IChatToolInvocation.StateKind.WaitingForConfirmation,
 			parameters: this.parameters,
 			confirmationMessages: this.confirmationMessages,
 			confirm: reason => this._confirm(reason),
 		}, undefined);
+	}
+
+	private _stopExecutionTimer(): void {
+		if (this._executionStartedAt !== undefined) {
+			this._executionDurationMs = (this._executionDurationMs ?? 0) + Math.max(0, Date.now() - this._executionStartedAt);
+			this._executionStartedAt = undefined;
+		}
 	}
 
 	private _setCompleted(result: IToolResult | undefined, postConfirmed?: ConfirmedReason | undefined) {
@@ -383,11 +393,12 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			return currentState;
 		}
 
+		this._stopExecutionTimer();
 		if (result?.toolSpecificData) {
 			this.toolSpecificData = result.toolSpecificData;
 		}
-		if (this.toolSpecificData?.kind === 'generatedImage' && this.toolSpecificData.durationMs === undefined && this._executionStartedAt !== undefined) {
-			this.toolSpecificData = { ...this.toolSpecificData, durationMs: Math.max(0, Date.now() - this._executionStartedAt) };
+		if (this.toolSpecificData?.kind === 'generatedImage' && this.toolSpecificData.durationMs === undefined && this._executionDurationMs !== undefined) {
+			this.toolSpecificData = { ...this.toolSpecificData, durationMs: this._executionDurationMs };
 		}
 		if (result?.toolResultMessage) {
 			this.pastTenseMessage = result.toolResultMessage;
@@ -422,6 +433,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		if (state.type !== IChatToolInvocation.StateKind.Executing && state.type !== IChatToolInvocation.StateKind.WaitingForAuthentication) {
 			return;
 		}
+		this._stopExecutionTimer();
 		this._state.set({
 			type: IChatToolInvocation.StateKind.WaitingForAuthentication,
 			server,
@@ -441,6 +453,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		if (state.type !== IChatToolInvocation.StateKind.WaitingForAuthentication) {
 			return;
 		}
+		this._executionStartedAt = Date.now();
 		this._state.set({
 			type: IChatToolInvocation.StateKind.Executing,
 			confirmed: state.confirmed,

@@ -129,7 +129,8 @@ export function extractArtifactsFromResponse(
 		}
 		seenUris.add(key);
 		artifacts.push({
-			label: basename(image.uri),
+			label: image.name,
+			fileName: image.name,
 			uri: image.uri.toString(),
 			toolCallId: image.toolCallId,
 			dataPartIndex: image.index,
