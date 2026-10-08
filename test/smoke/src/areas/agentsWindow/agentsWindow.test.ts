@@ -21,12 +21,21 @@ const NETWORK_PROXY_HEADER_NAME = 'X-VSCode-Smoke-Proxy';
 
 function mockServerStartOptions(logger: (message: string) => void, captureRequests = false) {
 	const requiredRequestHeaderValue = process.env.VSCODE_SMOKE_TEST_PROXY_HEADER;
+	const certificatePath = process.env.VSCODE_SMOKE_TEST_MOCK_CERT;
+	const keyPath = process.env.VSCODE_SMOKE_TEST_MOCK_KEY;
+	if (!!certificatePath !== !!keyPath) {
+		throw new Error('Mock HTTPS requires both VSCODE_SMOKE_TEST_MOCK_CERT and VSCODE_SMOKE_TEST_MOCK_KEY');
+	}
 	return {
 		logger,
 		verbose: true,
 		captureRequests,
 		requiredRequestHeader: requiredRequestHeaderValue ? { name: NETWORK_PROXY_HEADER_NAME, value: requiredRequestHeaderValue } : undefined,
 		trustedRequestHost: requiredRequestHeaderValue ? process.env.VSCODE_SMOKE_TEST_MOCK_HOST : undefined,
+		tls: certificatePath && keyPath ? {
+			cert: fs.readFileSync(certificatePath, 'utf8'),
+			key: fs.readFileSync(keyPath, 'utf8'),
+		} : undefined,
 	};
 }
 
