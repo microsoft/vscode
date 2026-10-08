@@ -707,7 +707,7 @@ export function defineCopilotRuntimeModelCapabilityCoverageTests(context: IAgent
 				availableTools: [], reasoningEffort: 'none',
 				modelCapabilities: {
 					supports: { vision: true },
-					limits: { max_output_tokens: 512, vision: { supported_media_types: ['image/png'], max_prompt_images: 1, max_prompt_image_size: 3145728 } },
+					limits: { vision: { supported_media_types: ['image/png'], max_prompt_images: 1, max_prompt_image_size: 3145728 } },
 				},
 			}
 		},
