@@ -6,14 +6,14 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: Call ask_user exactly once to ask "Which fruit?" with choices "Apple" and "Banana". After the answer, reply with only the selected fruit.
+          content: 'Call ask_user exactly once with message "Choose preferences" and two string fields in requestedSchema.properties: fruit with enum ["Apple", "Banana"], then color with enum ["Blue", "Green"]. After both answers, reply exactly "preferences collected". Do not call any other tool.'
     response:
       content:
         - type: tool_use
           id: toolcall_0
           name: ask_user
           input:
-            message: Which fruit?
+            message: Choose preferences
             requestedSchema:
               properties:
                 fruit:
@@ -22,20 +22,26 @@ exchanges:
                   enum:
                     - Apple
                     - Banana
+                color:
+                  type: string
+                  title: Color
+                  enum:
+                    - Blue
+                    - Green
       stopReason: tool_use
   - request:
       model: claude-sonnet-5
       system: ${system}
       messages:
         - role: user
-          content: Call ask_user exactly once to ask "Which fruit?" with choices "Apple" and "Banana". After the answer, reply with only the selected fruit.
+          content: 'Call ask_user exactly once with message "Choose preferences" and two string fields in requestedSchema.properties: fruit with enum ["Apple", "Banana"], then color with enum ["Blue", "Green"]. After both answers, reply exactly "preferences collected". Do not call any other tool.'
         - role: assistant
           content:
             - type: thinking
             - type: tool_use
               name: ask_user
               input:
-                message: Which fruit?
+                message: Choose preferences
                 requestedSchema:
                   properties:
                     fruit:
@@ -44,11 +50,17 @@ exchanges:
                       enum:
                         - Apple
                         - Banana
+                    color:
+                      type: string
+                      title: Color
+                      enum:
+                        - Blue
+                        - Green
         - role: user
           content:
             - type: tool_result
               tool_use_id: toolcall_0
-              content: 'User responded: Apple'
+              content: 'User responded: fruit=Apple, color=Blue'
     response:
-      content: Apple
+      content: preferences collected
       stopReason: end_turn

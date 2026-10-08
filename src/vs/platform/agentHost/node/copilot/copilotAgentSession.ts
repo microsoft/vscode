@@ -339,7 +339,7 @@ function toCopilotSdkMode(mode: string | undefined): CopilotSdkMode | undefined 
  * {@link ChatInputQuestion}. The schema's property key becomes the
  * question id so we can route the answer back by field name.
  */
-function elicitationFieldToQuestion(fieldName: string, field: ElicitationSchemaField, required: boolean): ChatInputQuestion {
+function elicitationFieldToQuestion(fieldName: string, field: ElicitationSchemaField, required: boolean, isAskUser = false): ChatInputQuestion {
 	const base = {
 		id: fieldName,
 		title: field.title ?? fieldName,
@@ -349,6 +349,18 @@ function elicitationFieldToQuestion(fieldName: string, field: ElicitationSchemaF
 
 	switch (field.type) {
 		case 'boolean':
+			if (isAskUser) {
+				// Boolean questions disable freeform input, but ask_user permits replies beyond True/False.
+				return {
+					...base,
+					kind: ChatInputQuestionKind.SingleSelect,
+					options: [
+						{ id: 'true', label: localize('agentHost.askUser.true', "True") },
+						{ id: 'false', label: localize('agentHost.askUser.false', "False") },
+					],
+					allowFreeformInput: true,
+				};
+			}
 			return { ...base, kind: ChatInputQuestionKind.Boolean, defaultValue: field.default };
 		case 'integer':
 		case 'number':
@@ -440,6 +452,49 @@ function elicitationAnswerToFieldValue(field: ElicitationSchemaField, answer: Ch
 	if (value.kind === ChatInputAnswerValueKind.Text) { return value.value; }
 	if (value.kind === ChatInputAnswerValueKind.Selected) { return value.value; }
 	return undefined;
+}
+
+/**
+ * Converts structured ask_user answers while preserving freeform replies and fractional numeric values.
+ */
+function askUserAnswerToFieldValue(field: ElicitationSchemaField, answer: ChatInputAnswer | undefined): ElicitationFieldValue | undefined {
+	if (!answer || answer.state === ChatInputAnswerState.Skipped) {
+		return undefined;
+	}
+	const value = answer.value;
+	switch (value.kind) {
+		case ChatInputAnswerValueKind.Text:
+			if (field.type === 'array') {
+				return value.value ? [value.value] : [];
+			}
+			if (field.type === 'boolean' && (value.value === 'true' || value.value === 'false')) {
+				return value.value === 'true';
+			}
+			if ((field.type === 'number' || field.type === 'integer') && value.value.trim() !== '') {
+				const number = Number(value.value);
+				if (Number.isFinite(number)) {
+					return number;
+				}
+			}
+			return value.value;
+		case ChatInputAnswerValueKind.Boolean:
+			return field.type === 'boolean' ? value.value : undefined;
+		case ChatInputAnswerValueKind.Number:
+			return field.type === 'number' || field.type === 'integer' ? value.value : undefined;
+		case ChatInputAnswerValueKind.Selected:
+			if (field.type === 'array') {
+				return value.value ? [value.value, ...(value.freeformValues ?? [])] : [...(value.freeformValues ?? [])];
+			}
+			if (value.freeformValues?.length) {
+				return value.freeformValues[0];
+			}
+			if (field.type === 'boolean') {
+				return value.value === 'true' ? true : value.value === 'false' ? false : value.value;
+			}
+			return field.type === 'string' ? value.value : undefined;
+		case ChatInputAnswerValueKind.SelectedMany:
+			return field.type === 'array' ? [...value.value, ...(value.freeformValues ?? [])] : undefined;
+	}
 }
 
 function getCopilotCLISessionStateDir(userHome: string): string {
@@ -6105,27 +6160,18 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
-	 * Handles an elicitation request from the SDK (MCP server / tool prompt)
-	 * by firing a `session/inputRequested` action and waiting for the
-	 * renderer to respond via {@link respondToUserInputRequest}.
-	 *
-	 * - `form` mode requests are projected from the SDK's
-	 *   {@link ElicitationSchema} into a list of
-	 *   {@link ChatInputQuestion}s.
-	 * - `url` mode requests surface as a question-less input request whose
-	 *   {@link ChatInputRequest.url} drives the renderer's "open URL"
-	 *   affordance.
-	 *
-	 * Under autopilot the request is auto-cancelled — there is no user
-	 * available to fill in a form, and accepting with empty content would
-	 * be misleading to the MCP server.
+	 * Projects structured ask_user and MCP elicitation requests into the question carousel.
+	 * Ask-user replies are permissive; MCP forms retain their schema coercion and autopilot cancellation.
 	 */
 	private async _handleElicitationRequest(context: ElicitationContext): Promise<ElicitationResult> {
+		// The runtime supplies a source for MCP forms, but not for its built-in ask_user tool.
+		const isAskUser = context.mode !== 'url' && !context.elicitationSource;
 		const isAutopilot = this._isAutopilotMode();
-		if (isAutopilot) {
+		if (!isAskUser && isAutopilot) {
 			return { action: 'cancel' };
 		}
-		if (!this.hasActiveTurn) {
+		const autoReply = isAskUser && (isAutopilot || this._isAutoReplyEnabled());
+		if (!autoReply && !this.hasActiveTurn) {
 			this._logService.warn(`[Copilot:${this.sessionId}] Rejecting elicitation request without an active turn`);
 			return { action: 'decline' };
 		}
@@ -6138,21 +6184,36 @@ export class CopilotAgentSession extends Disposable {
 			const schema = context.mode === 'url' ? undefined : context.requestedSchema;
 			const requiredSet = new Set(schema?.required ?? []);
 			const questions: ChatInputQuestion[] | undefined = schema
-				? Object.entries(schema.properties).map(([fieldName, field]) => elicitationFieldToQuestion(fieldName, field, requiredSet.has(fieldName)))
+				? Object.entries(schema.properties).map(([fieldName, field]) => elicitationFieldToQuestion(fieldName, field, requiredSet.has(fieldName), isAskUser))
 				: undefined;
 
-			const pendingElicitation = this._pendingElicitations.register(requestId, { schema });
-
-			const inputRequest = withChatInputRequestPurpose<ChatInputRequest>({
+			const inputRequest: ChatInputRequest = {
 				id: requestId,
 				message: context.message,
 				...(context.mode === 'url' && context.url ? { url: context.url } : {}),
 				...(questions && questions.length > 0 ? { questions } : {}),
-			}, ChatInputRequestPurpose.Elicitation);
+			};
+
+			if (autoReply) {
+				const answers: Record<string, ChatInputAnswer> = {};
+				const content: Record<string, ElicitationFieldValue> = {};
+				for (const questionId of questions?.map(question => question.id) ?? ['answer']) {
+					answers[questionId] = {
+						state: ChatInputAnswerState.Submitted,
+						value: { kind: ChatInputAnswerValueKind.Text, value: AgentHostAutoReplyAnswer },
+					};
+					content[questionId] = AgentHostAutoReplyAnswer;
+				}
+				this._emitAction({ type: ActionType.ChatInputRequested, request: inputRequest });
+				this._emitAction({ type: ActionType.ChatInputCompleted, requestId, response: ChatInputResponseKind.Accept, answers });
+				return { action: 'accept', content };
+			}
+
+			const pendingElicitation = this._pendingElicitations.register(requestId, { schema });
 
 			this._emitAction({
 				type: ActionType.ChatInputRequested,
-				request: inputRequest,
+				request: withChatInputRequestPurpose(inputRequest, isAskUser ? ChatInputRequestPurpose.AskUser : ChatInputRequestPurpose.Elicitation),
 			});
 
 			const result = await pendingElicitation;
@@ -6173,8 +6234,9 @@ export class CopilotAgentSession extends Disposable {
 				return { action: 'accept' };
 			}
 			const content: Record<string, ElicitationFieldValue> = {};
+			const answerToFieldValue = isAskUser ? askUserAnswerToFieldValue : elicitationAnswerToFieldValue;
 			for (const [fieldName, field] of Object.entries(schema.properties)) {
-				const value = elicitationAnswerToFieldValue(field, answers[fieldName]);
+				const value = answerToFieldValue(field, answers[fieldName]);
 				if (value !== undefined) {
 					content[fieldName] = value;
 				}

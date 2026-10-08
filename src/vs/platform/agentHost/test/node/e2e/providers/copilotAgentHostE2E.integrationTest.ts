@@ -31,8 +31,8 @@ import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { CollectAgentHostDebugLogsExtensionMethod, type IAgentHostExtensionCommandMap } from '../../../../common/agentHostExtensionProtocol.js';
 import { readToolCallMeta } from '../../../../common/meta/agentToolCallMeta.js';
-import { MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildDefaultChatUri, getErrorResponsePart, getInlineToolInput, type MessageAttachment } from '../../../../common/state/sessionState.js';
-import { ActionType, type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatUsageAction } from '../../../../common/state/sessionActions.js';
+import { ChatInputQuestionKind, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildDefaultChatUri, getErrorResponsePart, getInlineToolInput, type MessageAttachment } from '../../../../common/state/sessionState.js';
+import { ActionType, type ChatErrorAction, type ChatInputRequestedAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatUsageAction } from '../../../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import {
 	AgentHostE2EServerLease, assertToolCallCompleteText, createRealSession, dispatchTurn,
@@ -132,6 +132,39 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 		}, {
 			providerLogsIncluded: true,
 			hasEventsLog: true,
+		});
+	});
+
+	test('structured ask_user collects multiple answers in one request', async function () {
+		this.timeout(180_000);
+		const workingDirectory = await mkdtemp(join(tmpdir(), 'ahp-copilot-bulk-input-'));
+		tempDirs.push(workingDirectory);
+		const session = await createRealSession(client, COPILOT_CONFIG, 'copilot-bulk-input', createdSessions, URI.file(workingDirectory));
+		const turnId = 'turn-bulk-input';
+		const result = await driveTurnToCompletion(client, session, turnId,
+			'Call ask_user exactly once with message "Choose preferences" and two string fields in requestedSchema.properties: fruit with enum ["Apple", "Banana"], then color with enum ["Blue", "Green"]. After both answers, reply exactly "preferences collected". Do not call any other tool.',
+			1);
+		const requests = client.receivedNotifications(notification => isActionNotification(notification, ActionType.ChatInputRequested))
+			.map(notification => (getActionEnvelope(notification).action as ChatInputRequestedAction).request);
+
+		assertToolCallCompleteText(client, {
+			channel: buildDefaultChatUri(session),
+			turnId,
+			toolNames: ['ask_user'],
+			expected: [/\bfruit=Apple\b/, /\bcolor=Blue\b/],
+			success: true,
+		});
+		assert.deepStrictEqual({
+			requestCount: requests.length,
+			questions: requests[0]?.questions?.map(question => ({ id: question.id, kind: question.kind })),
+			response: result.responseText.trim(),
+		}, {
+			requestCount: 1,
+			questions: [
+				{ id: 'fruit', kind: ChatInputQuestionKind.SingleSelect },
+				{ id: 'color', kind: ChatInputQuestionKind.SingleSelect },
+			],
+			response: 'preferences collected',
 		});
 	});
 
