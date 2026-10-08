@@ -9,7 +9,7 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
-import { AgentHostRemoteConnectionsBackend, AgentHostRemoteConnectionsSettingId, IMissionControlSharingService } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { AgentHostRemoteConnectionsBackend, AgentHostRemoteConnectionsSettingId, IMissionControlSharingService, isGitHubEnvironmentBackend } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
@@ -119,7 +119,7 @@ export class MissionControlSharingService extends Disposable implements IMission
 
 	async setEnabled(enabled: boolean): Promise<void> {
 		if (enabled && (!this._agentHost.configureMissionControl || !this._usesMissionControl() || this._entitlement.sentiment.hidden)) {
-			throw new Error(localize('missionControlSharing.unavailable', "Mission Control sharing is unavailable."));
+			throw new Error(localize('missionControlSharing.unavailable', "GitHub environment sharing is unavailable."));
 		}
 		this._enabled = enabled;
 		this._generation++;
@@ -134,7 +134,7 @@ export class MissionControlSharingService extends Disposable implements IMission
 	}
 
 	private _usesMissionControl(): boolean {
-		return this._configuration.getValue<AgentHostRemoteConnectionsBackend>(AgentHostRemoteConnectionsSettingId) === 'missionControl';
+		return isGitHubEnvironmentBackend(this._configuration.getValue<AgentHostRemoteConnectionsBackend>(AgentHostRemoteConnectionsSettingId));
 	}
 
 	private _reportWithdrawalError(error: Error): void {

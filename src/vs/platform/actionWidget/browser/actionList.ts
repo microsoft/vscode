@@ -212,6 +212,8 @@ export interface IActionListItem<T> {
 	 * Optional badge text to display after the label (e.g., "New").
 	 */
 	readonly badge?: string;
+	/** Displays the badge before the label instead of after it. */
+	readonly badgeBeforeLabel?: boolean;
 	/** Badges displayed alongside {@link badge}, each with an optional single CSS class and hover. */
 	readonly additionalBadges?: readonly {
 		readonly label: string;
@@ -455,6 +457,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		data.previousClassNames = classNames;
 
 		data.text.textContent = stripNewlines(element.label);
+		data.container.insertBefore(data.badge, element.badgeBeforeLabel ? data.text : data.text.nextSibling);
 
 		// Render optional badge
 		if (element.badge) {
@@ -1078,7 +1081,9 @@ export class ActionListWidget<T> extends Disposable {
 					if (element.kind === ActionListItemKind.Action) {
 						let label = element.label ? stripNewlines(element?.label) : '';
 						if (element.badge) {
-							label = label + ', ' + stripNewlines(element.badge);
+							label = element.badgeBeforeLabel
+								? stripNewlines(element.badge) + ', ' + label
+								: label + ', ' + stripNewlines(element.badge);
 						}
 						for (const badge of element.additionalBadges ?? []) {
 							label = label + ', ' + stripNewlines(badge.label);

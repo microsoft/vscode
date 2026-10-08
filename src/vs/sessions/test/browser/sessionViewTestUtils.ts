@@ -101,6 +101,7 @@ export function createSessionViewTestServices(store: Pick<DisposableStore, 'add'
 	}());
 	instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 		override readonly onDidChangeSessions = Event.None;
+		override readonly onDidChangeSessionTypes = Event.None;
 	}());
 	instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
 	instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
