@@ -124,7 +124,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 
 	test('structured ask_user collects multiple answers in one request', async function () {
 		this.timeout(180_000);
-		const workingDirectory = await mkdtemp(join(tmpdir(), 'ahp-copilot-bulk-input-'));
+		const workingDirectory = createTestDirectory(join(tmpdir(), 'ahp-copilot-bulk-input-'));
 		tempDirs.push(workingDirectory);
 		const session = await createRealSession(client, COPILOT_CONFIG, 'copilot-bulk-input', createdSessions, URI.file(workingDirectory));
 		const turnId = 'turn-bulk-input';
