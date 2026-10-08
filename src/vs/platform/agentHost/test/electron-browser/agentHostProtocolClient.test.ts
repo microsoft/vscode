@@ -474,6 +474,31 @@ suite('AgentHostProtocolClient', () => {
 			return envelope;
 		}
 
+		test('deduplicates an active client already applied optimistically', async () => {
+			const { client, transport } = await createSubscribedClient();
+			const action: SessionActiveClientSetAction = {
+				type: ActionType.SessionActiveClientSet,
+				activeClient: {
+					clientId: client.clientId,
+					tools: [],
+					customizations: [],
+				},
+			};
+
+			client.dispatch(channel, action);
+			client.dispatch(channel, {
+				...action,
+				activeClient: { ...action.activeClient, displayName: undefined },
+			});
+
+			assert.strictEqual(transport.sentMessages.filter(message =>
+				hasKey(message, { method: true })
+				&& message.method === 'dispatchAction'
+				&& (message.params as DispatchActionParams).channel === channel
+				&& (message.params as DispatchActionParams).action.type === ActionType.SessionActiveClientSet
+			).length, 1);
+		});
+
 		test('waits for the held snapshot before dispatching and preserves opaque host identity', async () => {
 			const { client, transport, ref, initialize } = await createSubscribedClient(false);
 			const confirmed = client.dispatchConfirmed(channel, ref.object, action, CancellationToken.None);

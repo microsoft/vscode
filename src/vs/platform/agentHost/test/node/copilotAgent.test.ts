@@ -13161,6 +13161,49 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('identical active-client republishes do not retry failed customization sync', async () => {
+			let syncCalls = 0;
+			const firstSync = new DeferredPromise<void>();
+			class FailingPluginManager extends TestAgentPluginManager {
+				override async syncCustomizations(_clientId: string, customizations: ClientPluginCustomization[]): Promise<ISyncedCustomization[]> {
+					syncCalls++;
+					firstSync.complete();
+					return customizations.map(customization => ({
+						customization: { ...customization, load: { kind: CustomizationLoadStatus.Error, message: 'sync failed' } },
+					}));
+				}
+			}
+
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+			const { agent } = createTestAgentContext(disposables, {
+				sessionDataService,
+				copilotClient: client,
+				pluginManager: new FailingPluginManager(),
+			});
+
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const session = AgentSession.uri('copilotcli', 'failed-customization-republish');
+				const customization: ClientPluginCustomization = {
+					type: CustomizationType.Plugin,
+					id: 'file:///failed-plugin',
+					uri: 'file:///failed-plugin',
+					name: 'Failed Plugin',
+				};
+				const activeClient = agent.getOrCreateActiveClient(defaultChatUri(session), session, { clientId: 'client-1' });
+				activeClient.customizations = [customization];
+				await firstSync.p;
+				await timeout(0);
+				activeClient.customizations = [{ ...customization }];
+				await timeout(0);
+
+				assert.strictEqual(syncCalls, 1);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('client plugin states shadow matching discovered plugins without hiding different same-named plugins', async () => {
 			const fileService = disposables.add(new FileService(new NullLogService()));
 			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
