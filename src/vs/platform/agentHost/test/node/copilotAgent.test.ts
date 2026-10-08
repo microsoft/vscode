@@ -58,7 +58,7 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabl
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
-import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type AuthenticateParams, type IAgentChatContext, type IAgentChatMetadata, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDiscoveredChat, type IAgentMaterializeChatEvent, type IAgentModelInfo, type IAgentSpawnChatEvent } from '../../common/agent.js';
+import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type AuthenticateParams, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatMetadata, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDiscoveredChat, type IAgentMaterializeChatEvent, type IAgentModelInfo, type IAgentSpawnChatEvent } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
@@ -19988,6 +19988,11 @@ suite('CopilotAgent', () => {
 
 	suite('ensureChatAdopted (legacy Copilot CLI migration)', () => {
 
+		const uninspectedStorage = {
+			sessionIdStatus: 'opaque', copilotHomeSource: 'userHome',
+			sessionStateRootStatus: 'notChecked', sessionDirectoryStatus: 'notChecked', eventsFileStatus: 'notChecked',
+			workspaceMetadataStatus: 'missing', lastKnownClient: 'unavailable',
+		};
 		let previousCopilotHome: string | undefined;
 		setup(() => {
 			previousCopilotHome = process.env['COPILOT_HOME'];
@@ -20700,7 +20705,7 @@ suite('CopilotAgent', () => {
 
 				assert.deepStrictEqual(
 					{ adopted, getSessionMetadataCalls: client.getSessionMetadataCalls, openedDatabases: sessionDataService.openedSessions },
-					{ adopted: { adopted: false, eligible: false, reason: 'notLegacyChat', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false } }, getSessionMetadataCalls: [], openedDatabases: [] },
+					{ adopted: { adopted: false, eligible: false, reason: 'notLegacyChat', diagnostics: { ...uninspectedStorage, sessionStateRootStatus: 'missing', markerOrigin: 'unavailable', markerStatus: 'missing', provenance: 'unknown', markerFromCache: false } }, getSessionMetadataCalls: [], openedDatabases: [] },
 				);
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
@@ -20730,7 +20735,7 @@ suite('CopilotAgent', () => {
 
 				assert.deepStrictEqual(
 					{ adopted, getSessionMetadataCalls: client.getSessionMetadataCalls, openedDatabases: sessionDataService.openedSessions },
-					{ adopted: { adopted: false, eligible: false, reason: 'notLegacyChat', diagnostics: { markerStatus: 'valid', provenance: 'external', markerFromCache: false } }, getSessionMetadataCalls: [], openedDatabases: [] },
+					{ adopted: { adopted: false, eligible: false, reason: 'notLegacyChat', diagnostics: { ...uninspectedStorage, markerOrigin: 'other', markerStatus: 'valid', provenance: 'external', markerFromCache: false } }, getSessionMetadataCalls: [], openedDatabases: [] },
 				);
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
@@ -20738,11 +20743,13 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		for (const { name, raw, markerStatus, errorCode } of [
-			{ name: 'malformed JSON', raw: '{"private-marker-content":', markerStatus: 'invalid', errorCode: undefined },
-			{ name: 'non-object JSON', raw: '[]', markerStatus: 'invalid', errorCode: undefined },
-			{ name: 'unrecognized origin', raw: '{"origin":"private-marker-content"}', markerStatus: 'valid', errorCode: undefined },
-			{ name: 'unreadable marker', raw: undefined, markerStatus: 'readError', errorCode: 'EISDIR' },
+		for (const { name, raw, markerStatus, errorCode, markerOrigin } of [
+			{ name: 'malformed JSON', raw: '{"private-marker-content":', markerStatus: 'invalid', errorCode: undefined, markerOrigin: 'unavailable' },
+			{ name: 'non-object JSON', raw: '[]', markerStatus: 'invalid', errorCode: undefined, markerOrigin: 'unavailable' },
+			{ name: 'unrecognized origin', raw: '{"origin":"private-marker-content"}', markerStatus: 'valid', errorCode: undefined, markerOrigin: 'unrecognized' },
+			{ name: 'invalid origin type', raw: '{"origin":23}', markerStatus: 'valid', errorCode: undefined, markerOrigin: 'invalidType' },
+			{ name: 'empty marker', raw: '{}', markerStatus: 'valid', errorCode: undefined, markerOrigin: 'missing' },
+			{ name: 'unreadable marker', raw: undefined, markerStatus: 'readError', errorCode: 'EISDIR', markerOrigin: 'unavailable' },
 		] as const) {
 			test(`reports bounded eligibility evidence for ${name}`, async () => {
 				const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-diagnostics-`));
@@ -20765,13 +20772,14 @@ suite('CopilotAgent', () => {
 					assert.deepStrictEqual({
 						adopted: result.adopted, eligible: result.eligible, reason: result.reason,
 						markerStatus: result.diagnostics?.markerStatus, provenance: result.diagnostics?.provenance,
+						markerOrigin: result.diagnostics?.markerOrigin,
 						markerFromCache: result.diagnostics?.markerFromCache, errorCode: result.diagnostics?.errorCode,
 						hasErrorMessage: !!result.diagnostics?.errorMessage,
 						containsMarkerContents: JSON.stringify(result.diagnostics).includes('private-marker-content'),
 						metadataCalls: client.getSessionMetadataCalls, openedDatabases: sessionDataService.openedSessions,
 					}, {
 						adopted: false, eligible: false, reason: 'notLegacyChat',
-						markerStatus, provenance: 'unknown', markerFromCache: false, errorCode,
+						markerStatus, markerOrigin, provenance: 'unknown', markerFromCache: false, errorCode,
 						hasErrorMessage: errorCode !== undefined, containsMarkerContents: false,
 						metadataCalls: [], openedDatabases: [],
 					});
@@ -20795,10 +20803,185 @@ suite('CopilotAgent', () => {
 				const fresh = await ensureDefaultChatAdopted(agent, session);
 				const cached = await ensureDefaultChatAdopted(agent, session);
 				assert.deepStrictEqual([missing.diagnostics, fresh.diagnostics, cached.diagnostics], [
-					{ markerStatus: 'missing', provenance: 'unknown', markerFromCache: false },
-					{ markerStatus: 'valid', provenance: 'external', markerFromCache: false },
-					{ markerStatus: 'valid', provenance: 'external', markerFromCache: true },
+					{ ...uninspectedStorage, sessionStateRootStatus: 'missing', markerOrigin: 'unavailable', markerStatus: 'missing', provenance: 'unknown', markerFromCache: false },
+					{ ...uninspectedStorage, markerOrigin: 'other', markerStatus: 'valid', provenance: 'external', markerFromCache: false },
+					{ ...uninspectedStorage, markerOrigin: 'other', markerStatus: 'valid', provenance: 'external', markerFromCache: true },
 				]);
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
+		for (const layout of ['rootMissing', 'sessionMissing', 'eventsMissing', 'eventsPresent', 'rootIsFile', 'sessionIsFile', 'eventsIsDirectory'] as const) {
+			test(`reports missing-marker storage evidence: ${layout}`, async () => {
+				const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-storage-`));
+				const sessionId = 'storage-evidence';
+				const sessionDataService = disposables.add(new TestSessionDataService());
+				const client = new TestCopilotClient([sdkSession(sessionId, '/workspace')]);
+				const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
+				try {
+					process.env.COPILOT_HOME = join(userHome.fsPath, 'custom-home');
+					await fs.mkdir(process.env.COPILOT_HOME, { recursive: true });
+					const root = join(process.env.COPILOT_HOME, 'session-state');
+					if (layout === 'rootIsFile') {
+						await fs.writeFile(root, '');
+					} else if (layout !== 'rootMissing') {
+						await fs.mkdir(root);
+					}
+					const directory = join(root, sessionId);
+					if (layout === 'sessionIsFile') {
+						await fs.writeFile(directory, '');
+					} else if (layout === 'eventsMissing' || layout === 'eventsPresent' || layout === 'eventsIsDirectory') {
+						await fs.mkdir(directory);
+					}
+					if (layout === 'eventsPresent') {
+						await fs.writeFile(join(directory, 'events.jsonl'), 'private event contents');
+					} else if (layout === 'eventsIsDirectory') {
+						await fs.mkdir(join(directory, 'events.jsonl'));
+					}
+					await agent.authenticate('https://api.github.com', 'token');
+					const result = await ensureDefaultChatAdopted(agent, AgentSession.uri('copilotcli', sessionId));
+					const pathError = layout === 'rootIsFile' || layout === 'sessionIsFile';
+					assert.deepStrictEqual({
+						adopted: result.adopted, eligible: result.eligible,
+						provenance: result.diagnostics?.provenance,
+						home: result.diagnostics?.copilotHomeSource,
+						root: result.diagnostics?.sessionStateRootStatus,
+						directory: result.diagnostics?.sessionDirectoryStatus,
+						events: result.diagnostics?.eventsFileStatus,
+						workspaceMetadata: result.diagnostics?.workspaceMetadataStatus, lastKnownClient: result.diagnostics?.lastKnownClient,
+						metadataCalls: client.getSessionMetadataCalls, databases: sessionDataService.openedSessions,
+					}, {
+						adopted: false, eligible: false, provenance: 'unknown', home: 'environment',
+						root: layout === 'rootIsFile' ? 'file' : layout === 'rootMissing' ? 'missing' : 'directory',
+						directory: layout === 'rootIsFile' || layout === 'rootMissing' ? 'notChecked' : layout === 'sessionIsFile' ? 'file' : layout === 'sessionMissing' ? 'missing' : 'directory',
+						events: pathError || layout === 'rootMissing' || layout === 'sessionMissing' ? 'notChecked' : layout === 'eventsPresent' ? 'file' : layout === 'eventsIsDirectory' ? 'directory' : 'missing',
+						workspaceMetadata: pathError && os.platform() !== 'win32' ? 'readError' : 'missing', lastKnownClient: 'unavailable',
+						metadataCalls: [], databases: [],
+					});
+				} finally {
+					delete process.env.COPILOT_HOME;
+					await fs.rm(userHome.fsPath, { recursive: true, force: true });
+					await disposeAgent(agent);
+				}
+			});
+		}
+
+		for (const { name, raw, status, clientName } of [
+			{ name: 'extension host', raw: 'client_name: vscode', status: 'valid', clientName: 'vscode' },
+			{ name: 'agent host', raw: 'client_name: vscode-agent-host', status: 'valid', clientName: 'vscode-agent-host' },
+			{ name: 'standalone CLI', raw: 'client_name: github/cli', status: 'valid', clientName: 'github/cli' },
+			{ name: 'Copilot app', raw: 'client_name: "github/autopilot"', status: 'valid', clientName: 'github/autopilot' },
+			{ name: 'unrecognized client', raw: 'client_name: private-client-name', status: 'valid', clientName: 'unrecognized' },
+			{ name: 'absent client', raw: 'cwd: /private-path', status: 'valid', clientName: 'missing' },
+			{ name: 'invalid client type', raw: 'client_name: [github/cli]', status: 'valid', clientName: 'invalidType' },
+			{ name: 'invalid YAML', raw: 'client_name: [unterminated', status: 'invalid', clientName: 'unavailable' },
+			{ name: 'duplicate client', raw: 'client_name: github/cli\nclient_name: vscode', status: 'invalid', clientName: 'unavailable' },
+			{ name: 'non-object metadata', raw: '[github/cli]', status: 'invalid', clientName: 'unavailable' },
+			{ name: 'empty metadata', raw: '', status: 'invalid', clientName: 'unavailable' },
+			{ name: 'directory metadata', raw: undefined, status: 'notFile', clientName: 'unavailable' },
+			{ name: 'metadata at size limit', raw: 'client_name: github/cli\n#'.padEnd(16 * 1024, ' '), status: 'valid', clientName: 'github/cli' },
+			{ name: 'metadata over size limit', raw: 'client_name: github/cli\n#'.padEnd(16 * 1024 + 1, ' '), status: 'tooLarge', clientName: 'unavailable' },
+			{ name: 'multibyte metadata over byte limit', raw: `client_name: github/cli\n#${'\u00E9'.repeat(8 * 1024)}`, status: 'tooLarge', clientName: 'unavailable' },
+		] as const) {
+			test(`reports bounded last-client evidence without inferring creator: ${name}`, async () => {
+				const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-client-`));
+				const sessionId = 'client-evidence';
+				const sessionDataService = disposables.add(new TestSessionDataService());
+				const client = new TestCopilotClient([]);
+				const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, userHome });
+				try {
+					const directory = join(getCopilotHomePath(userHome.fsPath, process.env), 'session-state', sessionId);
+					await fs.mkdir(directory, { recursive: true });
+					const metadataPath = join(directory, 'workspace.yaml');
+					if (raw === undefined) {
+						await fs.mkdir(metadataPath);
+					} else {
+						await fs.writeFile(metadataPath, raw, 'utf8');
+					}
+					const result = await ensureDefaultChatAdopted(agent, AgentSession.uri('copilotcli', sessionId));
+					assert.deepStrictEqual({
+						adopted: result.adopted, eligible: result.eligible, reason: result.reason,
+						provenance: result.diagnostics?.provenance,
+						status: result.diagnostics?.workspaceMetadataStatus, clientName: result.diagnostics?.lastKnownClient,
+						containsPrivateContent: JSON.stringify(result.diagnostics).includes('private-'),
+						metadataCalls: client.getSessionMetadataCalls, openedDatabases: sessionDataService.openedSessions,
+					}, {
+						adopted: false, eligible: false, reason: 'notLegacyChat', provenance: 'unknown',
+						status, clientName, containsPrivateContent: false, metadataCalls: [], openedDatabases: [],
+					});
+				} finally {
+					await fs.rm(userHome.fsPath, { recursive: true, force: true });
+					await disposeAgent(agent);
+				}
+			});
+		}
+
+		test('refreshes last-client evidence without overwriting explicit marker provenance', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-client-retry-`));
+			const sessionId = 'client-retry';
+			const agent = createTestAgent(disposables, { userHome });
+			try {
+				process.env.COPILOT_HOME = join(userHome.fsPath, 'custom-home');
+				await writeExtensionHostMarker(userHome, sessionId, { origin: 'other' });
+				const path = join(process.env.COPILOT_HOME, 'session-state', sessionId, 'workspace.yaml');
+				const results: IAgentChatAdoptionResult[] = [];
+				for (const client of ['vscode', 'github/cli']) {
+					await fs.writeFile(path, `client_name: ${client}`);
+					results.push(await ensureDefaultChatAdopted(agent, AgentSession.uri('copilotcli', sessionId)));
+				}
+				assert.deepStrictEqual(results.map(result => ({
+					reason: result.reason, provenance: result.diagnostics?.provenance,
+					client: result.diagnostics?.lastKnownClient, cachedMarker: result.diagnostics?.markerFromCache,
+				})), [
+					{ reason: 'notLegacyChat', provenance: 'external', client: 'vscode', cachedMarker: false },
+					{ reason: 'notLegacyChat', provenance: 'external', client: 'github/cli', cachedMarker: true },
+				]);
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
+		test('does not follow path separators for last-client evidence', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-client-path-`));
+			const sessionId = 'nested/session';
+			const agent = createTestAgent(disposables, { userHome });
+			try {
+				const directory = join(getCopilotHomePath(userHome.fsPath, process.env), 'session-state', sessionId);
+				await fs.mkdir(directory, { recursive: true });
+				await fs.writeFile(join(directory, 'workspace.yaml'), 'client_name: github/cli');
+				const result = await ensureDefaultChatAdopted(agent, AgentSession.uri('copilotcli', sessionId));
+				assert.deepStrictEqual({
+					reason: result.reason, identifier: result.diagnostics?.sessionIdStatus,
+					status: result.diagnostics?.workspaceMetadataStatus, client: result.diagnostics?.lastKnownClient,
+				}, {
+					reason: 'notLegacyChat', identifier: 'pathSeparators',
+					status: 'notChecked', client: 'unavailable',
+				});
+			} finally {
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+				await disposeAgent(agent);
+			}
+		});
+
+		test('reports malformed identifier shape without emitting the inspected path or throwing', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/adopt-invalid-id-`));
+			const sessionId = 'private-session\0suffix';
+			const client = new TestCopilotClient([]);
+			const agent = createTestAgent(disposables, { copilotClient: client, userHome });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const result = await ensureDefaultChatAdopted(agent, AgentSession.uri('copilotcli', sessionId));
+				assert.deepStrictEqual(result, {
+					adopted: false, eligible: false, reason: 'notLegacyChat',
+					diagnostics: {
+						...uninspectedStorage, workspaceMetadataStatus: 'notChecked', sessionIdStatus: 'controlCharacters', markerOrigin: 'unavailable',
+						markerStatus: 'readError', provenance: 'unknown', markerFromCache: false,
+						errorCode: 'ERR_INVALID_ARG_VALUE', errorMessage: 'Invalid session marker path',
+					},
+				});
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
 				await disposeAgent(agent);
@@ -20848,7 +21031,7 @@ suite('CopilotAgent', () => {
 
 				assert.deepStrictEqual(
 					{ adopted, getSessionMetadataCalls: client.getSessionMetadataCalls, openedDatabases: sessionDataService.openedSessions },
-					{ adopted: { adopted: false, eligible: false, reason: 'notLegacyChat', diagnostics: { markerStatus: 'valid', provenance: 'unknown', markerFromCache: false } }, getSessionMetadataCalls: [], openedDatabases: [] },
+					{ adopted: { adopted: false, eligible: false, reason: 'notLegacyChat', diagnostics: { ...uninspectedStorage, markerOrigin: 'missing', markerStatus: 'valid', provenance: 'unknown', markerFromCache: false } }, getSessionMetadataCalls: [], openedDatabases: [] },
 				);
 			} finally {
 				await fs.rm(userHome.fsPath, { recursive: true, force: true });
