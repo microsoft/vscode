@@ -136,7 +136,7 @@ export class VscodePrompt extends PromptElement<VscodePromptProps, VscodePromptS
 			return { settings: [], commands: [], query: userQuery };
 		}
 
-		const embeddingResult = await this.embeddingsComputer.computeEmbeddings(EmbeddingType.text3small_512, [userQuery], {}, undefined);
+		const embeddingResult = await this.embeddingsComputer.computeEmbeddings(EmbeddingType.metis_1024_I16_Binary, [userQuery], { inputType: 'query' }, undefined);
 		if (token.isCancellationRequested) {
 			return { settings: [], commands: [], query: userQuery };
 		}

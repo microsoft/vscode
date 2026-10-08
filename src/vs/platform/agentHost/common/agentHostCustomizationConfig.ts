@@ -28,23 +28,17 @@ export const enum AgentHostConfigKey {
 	 * feature is dark (today's always-proxy behavior).
 	 */
 	AllowSignedOutWhenUsable = 'allowSignedOutWhenUsable',
-	/** Controls whether session-scoped file customizations come from local scan or SDK discovery. */
-	SessionCustomizationDiscoveryMode = 'sessionCustomizationDiscoveryMode',
 	/**
 	 * Optional GitHub Enterprise base URI (e.g. `https://ghe.example.com` for a
 	 * GitHub Enterprise Server, or `https://tenant.ghe.com` for GitHub Enterprise
 	 * Cloud). When set, the agent host computes its GitHub protected resources and
 	 * REST/GraphQL endpoints from this base instead of github.com. Normally pushed
-	 * by the local VS Code client from the workbench `github-enterprise.uri`
-	 * setting; remote operators set it directly in the remote
+	 * by the local VS Code client from the selected enterprise account's
+	 * authorization server; remote operators set it directly in the remote
 	 * `agent-host-config.json`.
 	 */
 	GithubEnterpriseUri = 'githubEnterpriseUri',
 }
-
-export const SESSION_CUSTOMIZATION_DISCOVERY_MODES = ['scan', 'discover'] as const;
-export type SessionCustomizationDiscoveryMode = typeof SESSION_CUSTOMIZATION_DISCOVERY_MODES[number];
-export const DEFAULT_SESSION_CUSTOMIZATION_DISCOVERY_MODE: SessionCustomizationDiscoveryMode = 'scan';
 
 /**
  * Persisted on-disk shape for a host-configured plugin. Kept stable across
@@ -96,17 +90,10 @@ export const agentHostCustomizationConfigSchema = createSchema({
 		description: localize('agentHost.config.allowSignedOutWhenUsable.description', "Experimental. When enabled, Agent Host sessions remain available while signed out as long as the selected agent has a usable model and authentication (for example Codex with ChatGPT authentication or Claude in native mode with your own Anthropic credentials). When disabled (the default), GitHub sign-in is required."),
 		default: false,
 	}),
-	[AgentHostConfigKey.SessionCustomizationDiscoveryMode]: schemaProperty<SessionCustomizationDiscoveryMode>({
-		type: 'string',
-		enum: [...SESSION_CUSTOMIZATION_DISCOVERY_MODES],
-		title: localize('agentHost.config.sessionCustomizationDiscoveryMode.title', "Session Customization Discovery Mode"),
-		description: localize('agentHost.config.sessionCustomizationDiscoveryMode.description', "Controls whether session-scoped customizations are populated from local file scanning or from Copilot SDK discovery."),
-		default: DEFAULT_SESSION_CUSTOMIZATION_DISCOVERY_MODE,
-	}),
 	[AgentHostConfigKey.GithubEnterpriseUri]: schemaProperty<string>({
 		type: 'string',
 		title: localize('agentHost.config.githubEnterpriseUri.title', "GitHub Enterprise URI"),
-		description: localize('agentHost.config.githubEnterpriseUri.description', "Optional base URI of a GitHub Enterprise instance (for example \"https://ghe.example.com\" for GitHub Enterprise Server, or \"https://tenant.ghe.com\" for GitHub Enterprise Cloud). When set, the agent host authenticates and makes GitHub API calls against this instance instead of github.com. Normally pushed by the connected VS Code client from the `github-enterprise.uri` setting; remote agent host operators can set it directly in the remote `agent-host-config.json`."),
+		description: localize('agentHost.config.githubEnterpriseUri.description', "Optional base URI of a GitHub Enterprise instance (for example \"https://ghe.example.com\" for GitHub Enterprise Server, or \"https://tenant.ghe.com\" for GitHub Enterprise Cloud). When set, the agent host authenticates and makes GitHub API calls against this instance instead of github.com. Normally pushed by the connected VS Code client from the selected enterprise account's authorization server; remote agent host operators can set it directly in the remote `agent-host-config.json`."),
 	}),
 });
 

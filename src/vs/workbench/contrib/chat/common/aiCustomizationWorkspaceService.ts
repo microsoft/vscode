@@ -36,6 +36,7 @@ export const BUILTIN_STORAGE = AICustomizationSources.builtin;
  * Possible section IDs for the AI Customization Management Editor sidebar.
  */
 export const AICustomizationManagementSection = {
+	Marketplace: 'marketplace',
 	Agents: 'agents',
 	Skills: 'skills',
 	Instructions: 'instructions',
@@ -89,6 +90,11 @@ export interface IAICustomizationWorkspaceService {
 	readonly activeProjectRoot: IObservable<URI | undefined>;
 
 	/**
+	 * Display label for the active project.
+	 */
+	readonly activeProjectLabel: IObservable<string | undefined>;
+
+	/**
 	 * Returns the current active project root, if any.
 	 */
 	getActiveProjectRoot(): URI | undefined;
@@ -123,9 +129,10 @@ export interface IAICustomizationWorkspaceService {
 	deleteFiles(projectRoot: URI, fileUris: URI[]): Promise<void>;
 
 	/**
-	 * Launches the AI-guided creation flow for the given customization type.
+	 * Launches the AI-guided creation flow for the given customization type,
+	 * optionally scoped to a workspace folder.
 	 */
-	generateCustomization(type: PromptsType): Promise<void>;
+	generateCustomization(type: PromptsType, workspaceFolder?: URI): Promise<void>;
 
 	/**
 	 * Whether a transient project root override is currently active.

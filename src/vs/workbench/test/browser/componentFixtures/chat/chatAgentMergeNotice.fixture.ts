@@ -94,7 +94,21 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 				...defaultAgentMergeConfiguration,
 				fixCI: false,
 				mergePullRequest: 'always',
-			})!,
+			}, 'session')!,
+			AgentSystemNotificationKind.AgentMergeConfigurationChanged,
+		),
+	}),
+
+	/** The same change made to the defaults, which every session follows. */
+	DefaultsChanged: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: (ctx) => renderNotice(
+			ctx,
+			agentMergeConfigurationChangedNotice(defaultAgentMergeConfiguration, {
+				...defaultAgentMergeConfiguration,
+				fixCI: false,
+				mergePullRequest: 'always',
+			}, 'global')!,
 			AgentSystemNotificationKind.AgentMergeConfigurationChanged,
 		),
 	}),
@@ -118,12 +132,12 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 		),
 	}),
 
-	DisabledByMerge: defineComponentFixture({
+	PullRequestMerged: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: (ctx) => renderNotice(
 			ctx,
-			agentMergeDisableReasons.pullRequestMerged().notice,
-			AgentSystemNotificationKind.AgentMergeDisabled,
+			agentMergeDisableReasons.pullRequestMerged(123, 'https://github.com/microsoft/vscode/pull/123').notice,
+			AgentSystemNotificationKind.AgentMergePullRequestMerged,
 		),
 	}),
 

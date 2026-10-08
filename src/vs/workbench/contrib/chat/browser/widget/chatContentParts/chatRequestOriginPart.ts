@@ -53,7 +53,9 @@ export class ChatRequestOriginPart extends Disposable {
 		this._register(hoverService.setupManagedHover(
 			getDefaultHoverDelegate('element'),
 			this.domNode,
-			localize('chat.requestOrigin.openSource', "Open source chat"),
+			requestOrigin?.delegationScope === 'session'
+				? localize('chat.requestOrigin.openSourceSession', "Open source session")
+				: localize('chat.requestOrigin.openSource', "Open source chat"),
 		));
 
 		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {

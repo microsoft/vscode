@@ -902,6 +902,8 @@ export class DefaultStyleController implements IStyleController {
 	style(styles: IListStyles): void {
 		const suffix = this.selectorSuffix && `.${this.selectorSuffix}`;
 		const content: string[] = [];
+		// `.hovered` renders a row's pointer-hover state without a pointer, e.g. in component fixtures.
+		const hover = ':is(:hover, .hovered)';
 
 		if (styles.listBackground) {
 			content.push(`.monaco-list${suffix} .monaco-list-rows { background: ${styles.listBackground}; }`);
@@ -909,7 +911,7 @@ export class DefaultStyleController implements IStyleController {
 
 		if (styles.listFocusBackground) {
 			content.push(`.monaco-list${suffix}:focus .monaco-list-row.focused { background-color: ${styles.listFocusBackground}; }`);
-			content.push(`.monaco-list${suffix}:focus .monaco-list-row.focused:hover { background-color: ${styles.listFocusBackground}; }`); // overwrite :hover style in this case!
+			content.push(`.monaco-list${suffix}:focus .monaco-list-row.focused${hover} { background-color: ${styles.listFocusBackground}; }`); // overwrite :hover style in this case!
 		}
 
 		if (styles.listFocusForeground) {
@@ -918,7 +920,7 @@ export class DefaultStyleController implements IStyleController {
 
 		if (styles.listActiveSelectionBackground) {
 			content.push(`.monaco-list${suffix}:focus .monaco-list-row.selected { background-color: ${styles.listActiveSelectionBackground}; }`);
-			content.push(`.monaco-list${suffix}:focus .monaco-list-row.selected:hover { background-color: ${styles.listActiveSelectionBackground}; }`); // overwrite :hover style in this case!
+			content.push(`.monaco-list${suffix}:focus .monaco-list-row.selected${hover} { background-color: ${styles.listActiveSelectionBackground}; }`); // overwrite :hover style in this case!
 		}
 
 		if (styles.listActiveSelectionForeground) {
@@ -945,7 +947,7 @@ export class DefaultStyleController implements IStyleController {
 
 		if (styles.listInactiveFocusForeground) {
 			content.push(`.monaco-list${suffix} .monaco-list-row.focused { color:  ${styles.listInactiveFocusForeground}; }`);
-			content.push(`.monaco-list${suffix} .monaco-list-row.focused:hover { color:  ${styles.listInactiveFocusForeground}; }`); // overwrite :hover style in this case!
+			content.push(`.monaco-list${suffix} .monaco-list-row.focused${hover} { color:  ${styles.listInactiveFocusForeground}; }`); // overwrite :hover style in this case!
 		}
 
 		if (styles.listInactiveSelectionIconForeground) {
@@ -954,12 +956,12 @@ export class DefaultStyleController implements IStyleController {
 
 		if (styles.listInactiveFocusBackground) {
 			content.push(`.monaco-list${suffix} .monaco-list-row.focused { background-color:  ${styles.listInactiveFocusBackground}; }`);
-			content.push(`.monaco-list${suffix} .monaco-list-row.focused:hover { background-color:  ${styles.listInactiveFocusBackground}; }`); // overwrite :hover style in this case!
+			content.push(`.monaco-list${suffix} .monaco-list-row.focused${hover} { background-color:  ${styles.listInactiveFocusBackground}; }`); // overwrite :hover style in this case!
 		}
 
 		if (styles.listInactiveSelectionBackground) {
 			content.push(`.monaco-list${suffix} .monaco-list-row.selected { background-color:  ${styles.listInactiveSelectionBackground}; }`);
-			content.push(`.monaco-list${suffix} .monaco-list-row.selected:hover { background-color:  ${styles.listInactiveSelectionBackground}; }`); // overwrite :hover style in this case!
+			content.push(`.monaco-list${suffix} .monaco-list-row.selected${hover} { background-color:  ${styles.listInactiveSelectionBackground}; }`); // overwrite :hover style in this case!
 		}
 
 		if (styles.listInactiveSelectionForeground) {
@@ -967,11 +969,11 @@ export class DefaultStyleController implements IStyleController {
 		}
 
 		if (styles.listHoverBackground) {
-			content.push(`.monaco-list${suffix}:not(.drop-target):not(.dragging) .monaco-list-row:hover:not(.selected):not(.focused) { background-color: ${styles.listHoverBackground}; }`);
+			content.push(`.monaco-list${suffix}:not(.drop-target):not(.dragging) .monaco-list-row${hover}:not(.selected):not(.focused) { background-color: ${styles.listHoverBackground}; }`);
 		}
 
 		if (styles.listHoverForeground) {
-			content.push(`.monaco-list${suffix}:not(.drop-target):not(.dragging) .monaco-list-row:hover:not(.selected):not(.focused) { color:  ${styles.listHoverForeground}; }`);
+			content.push(`.monaco-list${suffix}:not(.drop-target):not(.dragging) .monaco-list-row${hover}:not(.selected):not(.focused) { color:  ${styles.listHoverForeground}; }`);
 		}
 
 		/**
@@ -1004,7 +1006,7 @@ export class DefaultStyleController implements IStyleController {
 		}
 
 		if (styles.listHoverOutline) {  // default: activeContrastBorder
-			content.push(`.monaco-list${suffix} .monaco-list-row:hover { outline: 1px dashed ${styles.listHoverOutline}; outline-offset: -1px; }`);
+			content.push(`.monaco-list${suffix} .monaco-list-row${hover} { outline: 1px dashed ${styles.listHoverOutline}; outline-offset: -1px; }`);
 		}
 
 		if (styles.listDropOverBackground) {

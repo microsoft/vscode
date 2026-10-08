@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { agentHostModelSupportsToolSearch, NON_DEFERRED_CLIENT_TOOL_NAMES } from '../../node/copilot/toolSearchDeferral.js';
+import { agentHostModelSupportsToolSearch, NON_DEFERRED_CLIENT_TOOL_NAMES, searchToolsWithoutClient } from '../../node/copilot/toolSearchDeferral.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
@@ -19,7 +19,8 @@ suite('toolSearchDeferral', () => {
 				'claude-sonnet-4-6', 'claude-sonnet-4.6', 'claude-sonnet-4-6@1.0.0',
 				'claude-opus-4-5', 'claude-opus-4.5', 'claude-opus-4-5-20251101',
 				'claude-opus-4-6', 'claude-opus-4.6', 'claude-opus-4.7',
-				'claude-opus-4-7@1.0.0', 'claude-opus-4-8', 'claude-opus-4.8', 'claude-opus-5',
+				'claude-opus-4-7@1.0.0', 'claude-opus-4-8', 'claude-opus-4.8',
+				'claude-opus-5', 'claude-opus-5-5', 'claude-opus-5.5',
 				'claude-future-version',
 			]) {
 				assert.strictEqual(agentHostModelSupportsToolSearch(id), true, id);
@@ -48,17 +49,51 @@ suite('toolSearchDeferral', () => {
 			}
 		});
 
-		test('supports OpenAI GPT-5.4, GPT-5.5, and GPT-5.6 variants', () => {
-			for (const id of ['gpt-5.4', 'gpt-5.5', 'gpt-5-4', 'gpt-5-5', 'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna']) {
+		test('supports OpenAI GPT-5.4, GPT-5.5, GPT-5.6 variants, and GPT-6 families', () => {
+			for (const id of [
+				'gpt-5.4', 'gpt-5.5', 'gpt-5-4', 'gpt-5-5',
+				'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna',
+				'gpt-6', 'gpt-6-preview', 'gpt-6-codex', 'gpt-6.1',
+				'gpt-6.1-mini', 'gpt-6-astra', 'gpt-6-luna', 'gpt-6-sol',
+			]) {
 				assert.strictEqual(agentHostModelSupportsToolSearch(id), true, id);
 			}
 		});
 
+		test('supports HydraFusion', () => {
+			assert.strictEqual(agentHostModelSupportsToolSearch('hydrafusion'), true);
+		});
+
 		test('rejects suffixed GPT variants and other non-Claude models', () => {
-			for (const id of ['gpt-5', 'gpt-5.3', 'gpt-5.4-mini', 'gpt-5.4-preview', 'gpt-5.5-preview', 'gpt5.5-preview', 'gpt-5-6-luna', 'gpt-6', 'gemini-2.5-pro', '']) {
+			for (const id of ['gpt-5', 'gpt-5.3', 'gpt-5.4-mini', 'gpt-5.4-preview', 'gpt-5.5-preview', 'gpt5.5-preview', 'gpt-5-6-luna', 'custom-gpt-6', 'gpt-7', 'gemini-2.5-pro', '']) {
 				assert.strictEqual(agentHostModelSupportsToolSearch(id), false, id);
 			}
 			assert.strictEqual(agentHostModelSupportsToolSearch(undefined), false);
+		});
+	});
+
+	suite('searchToolsWithoutClient', () => {
+		test('loads exactly named tools, otherwise lists the loadable names', () => {
+			const preamble = 'No client is connected, so tool search only matches exact tool names and client tools are unavailable.';
+			const candidates = [
+				{ name: 'list_sessions', description: 'List the agent sessions on this host.' },
+				{ name: 'readAgentMergeCI', description: 'Read CI diagnostics for failed required checks.' },
+				{ name: 'rerunAgentMergeWorkflow', description: 'Rerun a GitHub Actions workflow for a failed required check.' },
+			];
+			assert.deepStrictEqual(
+				[
+					searchToolsWithoutClient('readAgentMergeCI rerunAgentMergeWorkflow', candidates),
+					searchToolsWithoutClient('Use `RERUNAGENTMERGEWORKFLOW`, then list_sessions.', candidates),
+					searchToolsWithoutClient('rerun the failed workflow', candidates),
+					searchToolsWithoutClient('readAgentMergeCI', []),
+				],
+				[
+					{ toolNames: ['readAgentMergeCI', 'rerunAgentMergeWorkflow'], textResultForLlm: `${preamble} Loaded: readAgentMergeCI, rerunAgentMergeWorkflow.` },
+					{ toolNames: ['rerunAgentMergeWorkflow', 'list_sessions'], textResultForLlm: `${preamble} Loaded: rerunAgentMergeWorkflow, list_sessions.` },
+					{ toolNames: [], textResultForLlm: `${preamble} No tool name matched. Search again with the exact name of one of these tools: list_sessions, readAgentMergeCI, rerunAgentMergeWorkflow.` },
+					{ toolNames: [], textResultForLlm: `${preamble} No other deferred tools can be loaded.` },
+				],
+			);
 		});
 	});
 
@@ -71,8 +106,8 @@ suite('toolSearchDeferral', () => {
 
 		test('non-deferred client allowlist holds the core VS Code tools, not the search tool', () => {
 			assert.ok(NON_DEFERRED_CLIENT_TOOL_NAMES.has('runTests'));
-			assert.ok(NON_DEFERRED_CLIENT_TOOL_NAMES.has('rename'));
-			assert.ok(NON_DEFERRED_CLIENT_TOOL_NAMES.has('usages'));
+			assert.strictEqual(NON_DEFERRED_CLIENT_TOOL_NAMES.has('rename'), false);
+			assert.strictEqual(NON_DEFERRED_CLIENT_TOOL_NAMES.has('usages'), false);
 			assert.strictEqual(NON_DEFERRED_CLIENT_TOOL_NAMES.has(CLIENT_TOOL_SEARCH_REFERENCE_NAME), false);
 		});
 	});

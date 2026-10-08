@@ -561,10 +561,6 @@ function isIsolationOptionFeatureEnabled(configurationService: IConfigurationSer
 	return configurationService.getConfig(ConfigKey.Advanced.CLIIsolationOption);
 }
 
-function isReasoningEffortFeatureEnabled(configurationService: IConfigurationService): boolean {
-	return configurationService.getConfig(ConfigKey.Advanced.CLIThinkingEffortEnabled);
-}
-
 export class CopilotCLIChatSessionContentProvider extends Disposable implements vscode.ChatSessionContentProvider {
 	private readonly _onDidChangeChatSessionOptions = this._register(new Emitter<vscode.ChatSessionOptionChangeEvent>());
 	readonly onDidChangeChatSessionOptions = this._onDidChangeChatSessionOptions.event;
@@ -1987,7 +1983,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 		// Get model from request.
 		const preferredModelInRequest = request?.model?.id ? await this.copilotCLIModels.resolveModel(request.model.id) : undefined;
 		if (preferredModelInRequest) {
-			const reasoningEffort = isReasoningEffortFeatureEnabled(this.configurationService) ? request?.modelConfiguration?.[COPILOT_CLI_REASONING_EFFORT_PROPERTY] : undefined;
+			const reasoningEffort = request?.modelConfiguration?.[COPILOT_CLI_REASONING_EFFORT_PROPERTY];
 			const contextSize = request?.modelConfiguration?.[COPILOT_CLI_CONTEXT_SIZE_PROPERTY];
 			const resolvedModels = await this.copilotCLIModels.getModels();
 			const modelInfo = resolvedModels.find(m => m.id === preferredModelInRequest);

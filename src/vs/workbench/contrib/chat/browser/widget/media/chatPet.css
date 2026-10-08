@@ -13,6 +13,23 @@
 	pointer-events: none;
 }
 
+.chat-pet-overlay.relocating {
+	position: fixed;
+	z-index: 14;
+}
+
+.chat-pet-overlay.relocating > .chat-pet-button {
+	pointer-events: none;
+}
+
+.interactive-session.chat-floating-persistent-content .chat-pet-overlay.chat-pet-run-layer {
+	isolation: isolate;
+}
+
+.interactive-session.chat-floating-persistent-content .chat-pet-overlay.chat-pet-run-layer > .chat-pet-button {
+	z-index: 1;
+}
+
 .chat-pet-button {
 	position: absolute;
 	right: var(--vscode-spacing-size320);
@@ -84,6 +101,10 @@
 	cursor: default;
 	pointer-events: none;
 	transition: top 180ms cubic-bezier(0.42, 0, 1, 1);
+}
+
+.chat-pet-overlay.relocating > .chat-pet-button.falling {
+	transition-property: top, left;
 }
 
 .chat-pet-button.throwing {
@@ -316,6 +337,7 @@
 }
 
 .chat-pet-eyes {
+	color: #191a1b;
 	position: absolute;
 	inset: 0;
 	visibility: hidden;
@@ -365,7 +387,7 @@
 	left: 2px;
 	width: 4px;
 	height: 4px;
-	background: #191a1b;
+	background: currentColor;
 }
 
 .chat-pet-button[data-state='idle'] .chat-pet-eye,
@@ -424,7 +446,7 @@
 	left: 0;
 	width: 8px;
 	height: 2px;
-	background: #191a1b;
+	background: currentColor;
 }
 
 .chat-pet-button.dragging .chat-pet-eye::before {

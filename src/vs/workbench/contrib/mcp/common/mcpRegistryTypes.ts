@@ -33,6 +33,11 @@ export interface IMcpHostDelegate {
 	waitForInitialProviderPromises(): Promise<void>;
 	canStart(collectionDefinition: McpCollectionDefinition, serverDefinition: McpServerDefinition): boolean;
 	substituteVariables(serverDefinition: McpServerDefinition, launch: McpServerLaunch): Promise<McpServerLaunch>;
+	/**
+	 * Applies the definition's {@link McpServerDefinition.environmentVariableExpansion} to
+	 * the launch, using the environment of the host that will run or connect to the server.
+	 */
+	expandEnvironmentVariables(serverDefinition: McpServerDefinition, launch: McpServerLaunch): Promise<McpServerLaunch>;
 	start(collectionDefinition: McpCollectionDefinition, serverDefinition: McpServerDefinition, resolvedLaunch: McpServerLaunch, options?: { errorOnUserInteraction?: boolean }): IMcpMessageTransport;
 }
 
@@ -95,6 +100,6 @@ export interface IMcpRegistry {
 	setSavedInput(inputId: string, target: ConfigurationTarget, value: string): Promise<void>;
 	/** Gets saved inputs from storage. */
 	getSavedInputs(scope: StorageScope): Promise<{ [id: string]: IResolvedValue }>;
-	/** Creates a connection for the collection and definition. */
+	/** Creates a connection, or returns undefined if startup is cancelled or the collection or definition is no longer registered. */
 	resolveConnection(options: IMcpResolveConnectionOptions): Promise<IMcpServerConnection | undefined>;
 }
