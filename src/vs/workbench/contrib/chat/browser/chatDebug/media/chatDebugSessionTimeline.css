@@ -186,6 +186,11 @@
 	box-shadow: 0 var(--vscode-strokeThickness) var(--vscode-spacing-size40) color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
 }
 
+.vscode-high-contrast .chat-debug-session-timeline-event-card {
+	border-color: var(--vscode-contrastBorder);
+	box-shadow: none;
+}
+
 .chat-debug-session-timeline-event-system > .chat-debug-session-timeline-event-card {
 	border-left-color: var(--vscode-descriptionForeground);
 }

@@ -82,7 +82,8 @@ export const enum AccessibilityVerbositySettingId {
 	Automations = 'accessibility.verbosity.automations',
 	ConnectionDiagnostics = 'accessibility.verbosity.connectionDiagnostics',
 	BrowserElementCommenting = 'accessibility.verbosity.browserElementCommenting',
-	ChatPetAchievements = 'accessibility.verbosity.chatPetAchievements'
+	ChatPetAchievements = 'accessibility.verbosity.chatPetAchievements',
+	SessionTimeline = 'accessibility.verbosity.sessionTimeline'
 }
 
 const baseVerbosityProperty: IConfigurationPropertySchema = {
@@ -153,6 +154,10 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityVerbositySettingId.Chat]: {
 			description: localize('verbosity.chat.description', 'Provide information about how to access the chat help menu when the chat input is focused.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.SessionTimeline]: {
+			description: localize('verbosity.sessionTimeline.description', "Provide information about how to access Session Timeline accessibility help when the timeline is focused."),
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.CustomizationMigrations]: {

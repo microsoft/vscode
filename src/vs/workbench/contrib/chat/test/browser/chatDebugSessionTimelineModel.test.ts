@@ -65,24 +65,24 @@ suite('ChatDebugSessionTimelineModel', () => {
 				{ line: 3, hasMessage: true },
 			],
 		});
+	});
 
-		test('shows response and reasoning sizes in assistant metadata', () => {
-			const record = {
-				type: 'assistant.message',
-				id: 'assistant',
-				parentId: null,
-				timestamp: '2026-10-07T10:00:00.000Z',
-				data: { content: 'answer', reasoningText: 'x'.repeat(1200), model: 'model' },
-			};
-			const model = createSessionTimelineModel(JSON.stringify(record));
+	test('shows response and reasoning sizes in assistant metadata', () => {
+		const record = {
+			type: 'assistant.message',
+			id: 'assistant',
+			parentId: null,
+			timestamp: '2026-10-07T10:00:00.000Z',
+			data: { content: 'answer', reasoningText: 'x'.repeat(1200), model: 'model' },
+		};
+		const model = createSessionTimelineModel(JSON.stringify(record));
 
-			assert.deepStrictEqual(model.events.map(event => ({
-				summary: event.summary,
-				metadata: event.metadata,
-			})), [
-				{ summary: 'answer', metadata: ['model', 'response (6 chars)', 'reasoning (1.2k chars)'] },
-			]);
-		});
+		assert.deepStrictEqual(model.events.map(event => ({
+			summary: event.summary,
+			metadata: event.metadata,
+		})), [
+			{ summary: 'answer', metadata: ['model', 'response (6 chars)', 'reasoning (1.2k chars)'] },
+		]);
 	});
 
 	test('pairs external tools and subagents while retaining standalone completions', () => {
@@ -101,11 +101,12 @@ suite('ChatDebugSessionTimelineModel', () => {
 			title: event.title,
 			summary: event.summary,
 			metadata: event.metadata,
+			sectionContent: event.sections.map(section => section.content),
 			rawRecordIds: event.rawRecords.map(record => record.id),
 		})), [
-			{ category: 'tool', title: 'browser', summary: 'https://example.com', metadata: ['100 ms'], rawRecordIds: ['external-start', 'external-end'] },
-			{ category: 'subagent', title: 'Explore', summary: 'Subagent completed.', metadata: ['model', '50 ms'], rawRecordIds: ['subagent-start', 'subagent-end'] },
-			{ category: 'subagent', title: 'Subagent', summary: 'Subagent completed.', metadata: [], rawRecordIds: ['orphan-subagent'] },
+			{ category: 'tool', title: 'browser', summary: 'https://example.com', metadata: ['100 ms'], sectionContent: ['url: https://example.com', 'done'], rawRecordIds: ['external-start', 'external-end'] },
+			{ category: 'subagent', title: 'Explore', summary: 'Subagent completed.', metadata: ['model', '50 ms'], sectionContent: ['- agentName: Explore\n  model: model\n- result: found it'], rawRecordIds: ['subagent-start', 'subagent-end'] },
+			{ category: 'subagent', title: 'Subagent', summary: 'Subagent completed.', metadata: [], sectionContent: ['result: standalone'], rawRecordIds: ['orphan-subagent'] },
 		]);
 	});
 
@@ -130,6 +131,30 @@ suite('ChatDebugSessionTimelineModel', () => {
 			{ id: 'tool', parentEventId: 'assistant' },
 			{ id: 'subagent', parentEventId: 'tool' },
 			{ id: 'followup', parentEventId: 'user' },
+		]);
+	});
+
+	test('keeps agent streams separate and resolves parent tool calls', () => {
+		const records = [
+			{ type: 'user.message', id: 'main-user', parentId: null, timestamp: '2026-10-07T10:00:00.000Z', data: { content: 'request' } },
+			{ type: 'assistant.message', id: 'main-assistant', parentId: 'main-user', timestamp: '2026-10-07T10:00:01.000Z', data: { content: '', toolRequests: [{ toolCallId: 'spawn', name: 'task' }, { toolCallId: 'main-tool', name: 'view' }] } },
+			{ type: 'tool.execution_start', id: 'spawn-tool', parentId: 'main-assistant', timestamp: '2026-10-07T10:00:02.000Z', data: { toolCallId: 'spawn', toolName: 'task', arguments: { description: 'Explore' } } },
+			{ type: 'assistant.message', id: 'sub-assistant', parentId: 'spawn-tool', agentId: 'subagent-1', timestamp: '2026-10-07T10:00:03.000Z', data: { parentToolCallId: 'spawn', content: 'subagent response' } },
+			{ type: 'tool.execution_start', id: 'nested-tool', parentId: 'sub-assistant', timestamp: '2026-10-07T10:00:04.000Z', data: { toolCallId: 'nested', parentToolCallId: 'spawn', toolName: 'rg', arguments: { pattern: 'needle' } } },
+			{ type: 'tool.execution_start', id: 'main-tool', parentId: 'nested-tool', timestamp: '2026-10-07T10:00:05.000Z', data: { toolCallId: 'main-tool', toolName: 'view', arguments: { path: '/workspace/file.ts' } } },
+		];
+		const model = createSessionTimelineModel(records.map(record => JSON.stringify(record)).join('\n'));
+
+		assert.deepStrictEqual(model.events.map(event => ({
+			id: event.id,
+			parentEventId: event.parentEventId,
+		})), [
+			{ id: 'main-user', parentEventId: undefined },
+			{ id: 'main-assistant', parentEventId: 'main-user' },
+			{ id: 'spawn-tool', parentEventId: 'main-assistant' },
+			{ id: 'sub-assistant', parentEventId: 'spawn-tool' },
+			{ id: 'nested-tool', parentEventId: 'spawn-tool' },
+			{ id: 'main-tool', parentEventId: 'main-assistant' },
 		]);
 	});
 

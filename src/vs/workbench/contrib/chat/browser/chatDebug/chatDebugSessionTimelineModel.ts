@@ -208,6 +208,10 @@ function withParent(event: ISessionTimelineEvent, parentEventId: string | undefi
 	return parentEventId ? { ...event, parentEventId } : event;
 }
 
+function correlationKey(record: IAgentHostJsonlRecord, id: string): string {
+	return `${record.agentId ?? ''}\0${id}`;
+}
+
 function parseRecords(text: string): { records: IAgentHostJsonlRecord[]; errors: ISessionTimelineParseError[] } {
 	const records: IAgentHostJsonlRecord[] = [];
 	const errors: ISessionTimelineParseError[] = [];
@@ -266,29 +270,32 @@ export function createSessionTimelineModel(text: string): ISessionTimelineModel 
 		} else if (record.type === 'tool.execution_complete') {
 			const toolCallId = asString(data.toolCallId);
 			if (toolCallId) {
-				toolCompletions.set(toolCallId, record);
+				toolCompletions.set(correlationKey(record, toolCallId), record);
 			}
 		} else if (record.type === 'external_tool.completed') {
 			const requestId = asString(data.requestId);
 			if (requestId) {
-				externalCompletions.set(requestId, record);
+				externalCompletions.set(correlationKey(record, requestId), record);
 			}
 		} else if (record.type === 'subagent.completed') {
 			const toolCallId = asString(data.toolCallId);
 			if (toolCallId) {
-				subagentCompletions.set(toolCallId, record);
+				subagentCompletions.set(correlationKey(record, toolCallId), record);
 			}
 		}
 	}
 
 	const events: ISessionTimelineEvent[] = [];
-	let currentUserEventId: string | undefined;
-	let currentAssistantEventId: string | undefined;
+	const currentUserEventByAgent = new Map<string, string>();
+	const currentAssistantEventByAgent = new Map<string, string>();
 	for (const record of records) {
 		if (pairedRecordIds.has(record.id)) {
 			continue;
 		}
 		const data = record.data;
+		const agentKey = record.agentId ?? '';
+		const currentUserEventId = currentUserEventByAgent.get(agentKey);
+		const currentAssistantEventId = currentAssistantEventByAgent.get(agentKey);
 		switch (record.type) {
 			case 'system.message': {
 				const content = asString(data.content) ?? '';
@@ -303,8 +310,8 @@ export function createSessionTimelineModel(text: string): ISessionTimelineModel 
 				break;
 			}
 			case 'user.message': {
-				currentUserEventId = record.id;
-				currentAssistantEventId = undefined;
+				currentUserEventByAgent.set(agentKey, record.id);
+				currentAssistantEventByAgent.delete(agentKey);
 				const content = asString(data.content) ?? '';
 				const sections: ISessionTimelineSection[] = [{ label: localize('chatDebug.sessionTimeline.userRequest', "User Request"), content }];
 				const transformedContent = asString(data.transformedContent);
@@ -338,6 +345,8 @@ export function createSessionTimelineModel(text: string): ISessionTimelineModel 
 				if (toolRequests.length > 0) {
 					sections.push({ label: localize('chatDebug.sessionTimeline.toolRequests', "Tool Requests"), content: formatReadable(toolRequests) });
 				}
+				const parentToolCallId = asString(data.parentToolCallId);
+				const parentToolEventId = parentToolCallId ? toolStartIds.get(parentToolCallId) : undefined;
 				events.push(withParent(createEvent(
 					record,
 					'assistant',
@@ -352,16 +361,19 @@ export function createSessionTimelineModel(text: string): ISessionTimelineModel 
 							: localize('chatDebug.sessionTimeline.toolRequestCount', "{0} tool requests", toolRequests.length)) : undefined,
 					].filter((value): value is string => !!value),
 					sections,
-				), currentUserEventId));
-				currentAssistantEventId = record.id;
+				), parentToolEventId ?? currentUserEventId));
+				currentAssistantEventByAgent.set(agentKey, record.id);
 				break;
 			}
 			case 'tool.execution_start': {
 				const toolCallId = asString(data.toolCallId);
-				const completion = toolCallId ? toolCompletions.get(toolCallId) : undefined;
-				if (completion && toolCallId) {
+				const toolCallKey = toolCallId ? correlationKey(record, toolCallId) : undefined;
+				const parentToolCallId = asString(data.parentToolCallId);
+				const parentToolEventId = parentToolCallId ? toolStartIds.get(parentToolCallId) : undefined;
+				const completion = toolCallKey ? toolCompletions.get(toolCallKey) : undefined;
+				if (completion && toolCallKey) {
 					pairedRecordIds.add(completion.id);
-					toolCompletions.delete(toolCallId);
+					toolCompletions.delete(toolCallKey);
 				}
 				const completionData = completion?.data;
 				const toolName = asString(data.toolName) ?? localize('chatDebug.sessionTimeline.unknownTool', "Tool");
@@ -387,37 +399,52 @@ export function createSessionTimelineModel(text: string): ISessionTimelineModel 
 					sections,
 					completion ? [record, completion] : [record],
 					toolSummary.path,
-				), toolCallId ? toolRequestOwners.get(toolCallId) ?? currentAssistantEventId : currentAssistantEventId));
+				), parentToolEventId ?? (toolCallId ? toolRequestOwners.get(toolCallId) : undefined) ?? currentAssistantEventId));
 				break;
 			}
 			case 'external_tool.requested': {
 				const requestId = asString(data.requestId);
 				const toolCallId = asString(data.toolCallId);
-				const completion = requestId ? externalCompletions.get(requestId) : undefined;
-				if (completion && requestId) {
+				const requestKey = requestId ? correlationKey(record, requestId) : undefined;
+				const parentToolCallId = asString(data.parentToolCallId);
+				const parentToolEventId = parentToolCallId ? toolStartIds.get(parentToolCallId) : undefined;
+				const completion = requestKey ? externalCompletions.get(requestKey) : undefined;
+				if (completion && requestKey) {
 					pairedRecordIds.add(completion.id);
-					externalCompletions.delete(requestId);
+					externalCompletions.delete(requestKey);
 				}
 				const toolName = asString(data.toolName) ?? localize('chatDebug.sessionTimeline.externalTool', "External Tool");
 				const toolSummary = getToolSummary(toolName, data.arguments);
+				const completionData = completion?.data;
+				const completionResult = completionData?.result ?? completionData?.error;
+				const sections: ISessionTimelineSection[] = [
+					{ label: localize('chatDebug.sessionTimeline.arguments', "Arguments"), content: formatReadable(data.arguments) },
+				];
+				if (completionResult !== undefined) {
+					sections.push({
+						label: completionData?.success === false ? localize('chatDebug.sessionTimeline.error', "Error") : localize('chatDebug.sessionTimeline.result', "Result"),
+						content: formatReadable(completionResult),
+					});
+				}
 				events.push(withParent(createEvent(
 					record,
 					'tool',
 					toolName,
 					toolSummary.text,
 					[completion ? duration(record, completion) : localize('chatDebug.sessionTimeline.pending', "Pending")].filter((value): value is string => !!value),
-					[{ label: localize('chatDebug.sessionTimeline.arguments', "Arguments"), content: formatReadable(data.arguments) }],
+					sections,
 					completion ? [record, completion] : [record],
 					toolSummary.path,
-				), toolCallId ? toolRequestOwners.get(toolCallId) ?? currentAssistantEventId : currentAssistantEventId));
+				), parentToolEventId ?? (toolCallId ? toolRequestOwners.get(toolCallId) : undefined) ?? currentAssistantEventId));
 				break;
 			}
 			case 'subagent.started': {
 				const toolCallId = asString(data.toolCallId);
-				const completion = toolCallId ? subagentCompletions.get(toolCallId) : undefined;
-				if (completion && toolCallId) {
+				const toolCallKey = toolCallId ? correlationKey(record, toolCallId) : undefined;
+				const completion = toolCallKey ? subagentCompletions.get(toolCallKey) : undefined;
+				if (completion && toolCallKey) {
 					pairedRecordIds.add(completion.id);
-					subagentCompletions.delete(toolCallId);
+					subagentCompletions.delete(toolCallKey);
 				}
 				const name = asString(data.agentDisplayName) ?? asString(data.agentName) ?? localize('chatDebug.sessionTimeline.subagent', "Subagent");
 				events.push(withParent(createEvent(

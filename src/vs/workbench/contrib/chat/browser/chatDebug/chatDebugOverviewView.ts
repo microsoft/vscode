@@ -24,6 +24,7 @@ import { getChatSessionType, LocalChatSessionUri } from '../../common/model/chat
 import { IChatWidgetService } from '../chat.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 import { isAgentHostSession } from './agentHostLogSources.js';
+import { getCopilotCliSessionRawId } from '../copilotCliEventsUri.js';
 import { isChatDebugLoggingEnabledForSession, renderChatDebugLoggingDisabledMessage } from './chatDebugEnablement.js';
 import { setupBreadcrumbKeyboardNavigation, TextBreadcrumbItem } from './chatDebugTypes.js';
 
@@ -265,7 +266,7 @@ export class ChatDebugOverviewView extends Disposable {
 			this._onNavigate.fire(OverviewNavigation.Logs);
 		}));
 
-		if (isAgentHostSession(this.currentSessionResource)) {
+		if (getCopilotCliSessionRawId(this.currentSessionResource)) {
 			const sessionTimelineButton = this.loadDisposables.add(new Button(row, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: localize('chatDebug.sessionTimeline', "Session Timeline") }));
 			sessionTimelineButton.element.classList.add('chat-debug-overview-action-button');
 			sessionTimelineButton.label = `$(comment-discussion) ${localize('chatDebug.sessionTimeline', "Session Timeline")}`;

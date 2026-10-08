@@ -348,6 +348,7 @@ export class ChatDebugEditor extends EditorPane {
 
 		if (state === ViewState.SessionTimeline && !dataViewDisabled) {
 			this.sessionTimeline?.show();
+			this.sessionTimeline?.focus();
 		} else {
 			this.sessionTimeline?.hide();
 		}
@@ -438,6 +439,14 @@ export class ChatDebugEditor extends EditorPane {
 	// =====================================================================
 	// EditorPane overrides
 	// =====================================================================
+
+	getSessionTimelineAccessibilityContent(): string | undefined {
+		return this.viewState === ViewState.SessionTimeline ? this.sessionTimeline?.getAccessibilityContent() : undefined;
+	}
+
+	focusSessionTimeline(): void {
+		this.sessionTimeline?.focus();
+	}
 
 	override focus(): void {
 		if (this.viewState === ViewState.Logs) {

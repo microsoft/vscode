@@ -11,13 +11,13 @@ import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { dirname } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { localize } from '../../../../../nls.js';
 import { defaultBreadcrumbsWidgetStyles, defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IChatService } from '../../common/chatService/chatService.js';
@@ -26,7 +26,7 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { resolveEventsUri } from '../copilotCliEventsUri.js';
 import { createSessionTimelineModel, ISessionTimelineEvent, ISessionTimelineModel, SessionTimelineCategory } from './chatDebugSessionTimelineModel.js';
-import { setupBreadcrumbKeyboardNavigation, TextBreadcrumbItem } from './chatDebugTypes.js';
+import { CHAT_DEBUG_SESSION_TIMELINE_FOCUSED, setupBreadcrumbKeyboardNavigation, TextBreadcrumbItem } from './chatDebugTypes.js';
 
 const $ = DOM.$;
 const categories: readonly SessionTimelineCategory[] = ['system', 'user', 'assistant', 'tool', 'subagent'];
@@ -36,6 +36,16 @@ interface ISessionTimelineSearchMatch {
 	readonly kind: 'visible' | 'section' | 'eventData';
 	readonly text: string;
 	readonly label?: string;
+}
+
+function getCategoryLabel(category: SessionTimelineCategory): string {
+	switch (category) {
+		case 'system': return localize('chatDebug.sessionTimeline.category.system', "System");
+		case 'user': return localize('chatDebug.sessionTimeline.category.user', "User");
+		case 'assistant': return localize('chatDebug.sessionTimeline.category.assistant', "Assistant");
+		case 'tool': return localize('chatDebug.sessionTimeline.category.tool', "Tool");
+		case 'subagent': return localize('chatDebug.sessionTimeline.category.subagent', "Subagent");
+	}
 }
 
 export const enum SessionTimelineNavigation {
@@ -61,7 +71,7 @@ export class ChatDebugSessionTimeline extends Disposable {
 	private readonly expandedEventIds = new Set<string>();
 	private readonly enabledCategories = new Set<SessionTimelineCategory>(categories);
 	private readonly refreshScheduler: RunOnceScheduler;
-	private readonly liveWatch = this._register(new MutableDisposable<DisposableStore>());
+	private readonly focusedContextKey: IContextKey<boolean>;
 	private currentSessionResource: URI | undefined;
 	private sourceResource: URI | undefined;
 	private model: ISessionTimelineModel | undefined;
@@ -74,10 +84,18 @@ export class ChatDebugSessionTimeline extends Disposable {
 		@IPathService private readonly pathService: IPathService,
 		@IRemoteAgentHostService private readonly remoteAgentHostService: IRemoteAgentHostService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
+		this.focusedContextKey = CHAT_DEBUG_SESSION_TIMELINE_FOCUSED.bindTo(contextKeyService);
+		this._register(toDisposable(() => this.focusedContextKey.reset()));
 		this.container = DOM.append(parent, $('.chat-debug-session-timeline'));
+		this.container.setAttribute('role', 'region');
+		this.container.setAttribute('aria-label', localize('chatDebug.sessionTimeline.ariaLabel', "Session Timeline"));
 		DOM.hide(this.container);
+		const focusTracker = this._register(DOM.trackFocus(this.container));
+		this._register(focusTracker.onDidFocus(() => this.focusedContextKey.set(true)));
+		this._register(focusTracker.onDidBlur(() => this.focusedContextKey.set(false)));
 
 		const breadcrumbContainer = DOM.append(this.container, $('.chat-debug-breadcrumb'));
 		this.breadcrumbWidget = this._register(new BreadcrumbsWidget(breadcrumbContainer, 3, undefined, Codicon.chevronRight, defaultBreadcrumbsWidgetStyles));
@@ -156,8 +174,8 @@ export class ChatDebugSessionTimeline extends Disposable {
 
 	hide(): void {
 		DOM.hide(this.container);
+		this.loadGeneration++;
 		this.refreshScheduler.cancel();
-		this.liveWatch.clear();
 	}
 
 	refresh(): void {
@@ -168,6 +186,29 @@ export class ChatDebugSessionTimeline extends Disposable {
 
 	focus(): void {
 		this.filterInput.focus();
+	}
+
+	getAccessibilityContent(): string {
+		const events = this.getFilteredEvents();
+		const visibleEvents = new Map(events.map(event => [event.id, event]));
+		return events.map(event => {
+			let depth = 0;
+			let parentEventId = event.parentEventId;
+			while (parentEventId && visibleEvents.has(parentEventId)) {
+				depth++;
+				parentEventId = visibleEvents.get(parentEventId)?.parentEventId;
+			}
+			const indent = '  '.repeat(depth);
+			const header = [getCategoryLabel(event.category), event.title, ...event.metadata].filter(Boolean).join(' · ');
+			const lines = [`${indent}${header}`];
+			if (event.summary) {
+				lines.push(`${indent}${event.summary}`);
+			}
+			for (const section of event.sections) {
+				lines.push(`${indent}${section.label}:`, ...section.content.split(/\r?\n/).map(line => `${indent}  ${line}`));
+			}
+			return lines.join('\n');
+		}).join('\n\n');
 	}
 
 	updateBreadcrumb(): void {
@@ -214,7 +255,6 @@ export class ChatDebugSessionTimeline extends Disposable {
 			}
 			this.sourceResource = sourceResource;
 			this.model = createSessionTimelineModel(content.value.toString());
-			this.setupLiveWatch(sourceResource);
 			this.render();
 		} catch (error) {
 			if (generation !== this.loadGeneration) {
@@ -224,21 +264,6 @@ export class ChatDebugSessionTimeline extends Disposable {
 			this.sourceResource = sourceResource;
 			this.renderMessage(localize('chatDebug.sessionTimeline.readError', "Failed to read events.jsonl: {0}", error instanceof Error ? error.message : String(error)));
 		}
-	}
-
-	private setupLiveWatch(sourceResource: URI): void {
-		this.liveWatch.clear();
-		if (sourceResource.scheme !== Schemas.file) {
-			return;
-		}
-		const store = new DisposableStore();
-		const watcher = store.add(this.fileService.createWatcher(dirname(sourceResource), { recursive: false, excludes: [] }));
-		store.add(watcher.onDidChange(event => {
-			if (event.affects(sourceResource)) {
-				this.refresh();
-			}
-		}));
-		this.liveWatch.value = store;
 	}
 
 	private getFilteredEvents(): readonly ISessionTimelineEvent[] {
@@ -255,7 +280,7 @@ export class ChatDebugSessionTimeline extends Disposable {
 
 	private findSearchMatch(event: ISessionTimelineEvent, query: string): ISessionTimelineSearchMatch | undefined {
 		const normalizedQuery = query.toLowerCase();
-		const visibleValues = [event.category, event.title, ...event.metadata, event.summary];
+		const visibleValues = [getCategoryLabel(event.category), event.title, ...event.metadata, event.summary];
 		const visibleMatch = visibleValues.find(value => value.toLowerCase().includes(normalizedQuery));
 		if (visibleMatch !== undefined) {
 			return { kind: 'visible', text: visibleMatch };
@@ -348,16 +373,17 @@ export class ChatDebugSessionTimeline extends Disposable {
 		}, { system: 0, user: 0, assistant: 0, tool: 0, subagent: 0 });
 		for (const category of filterCategories) {
 			const enabled = this.enabledCategories.has(category);
+			const categoryLabel = getCategoryLabel(category);
 			const button = this.renderDisposables.add(new Button(this.filters, {
 				...defaultButtonStyles,
 				secondary: true,
 				supportIcons: true,
 				title: enabled
-					? localize('chatDebug.sessionTimeline.hideCategoryWithCount', "Hide {0} events ({1} total)", category, counts[category])
-					: localize('chatDebug.sessionTimeline.showCategoryWithCount', "Show {0} events ({1} total)", category, counts[category]),
+					? localize('chatDebug.sessionTimeline.hideCategoryWithCount', "Hide {0} events ({1} total)", categoryLabel, counts[category])
+					: localize('chatDebug.sessionTimeline.showCategoryWithCount', "Show {0} events ({1} total)", categoryLabel, counts[category]),
 			}));
 			button.element.classList.add('chat-debug-session-timeline-filter-chip');
-			button.label = `$(${enabled ? Codicon.check.id : Codicon.blank.id}) ${category}`;
+			button.label = `$(${enabled ? Codicon.check.id : Codicon.blank.id}) ${categoryLabel}`;
 			button.element.setAttribute('aria-pressed', String(enabled));
 			this.renderDisposables.add(button.onDidClick(() => {
 				if (this.enabledCategories.has(category)) {
@@ -425,7 +451,7 @@ export class ChatDebugSessionTimeline extends Disposable {
 			: header;
 		this.renderedEventElements.set(event.id, { item, focusTarget: toggle });
 		const category = DOM.append(toggle, $('span.chat-debug-session-timeline-event-category'));
-		this.appendHighlightedText(category, event.category, searchQuery);
+		this.appendHighlightedText(category, getCategoryLabel(event.category), searchQuery);
 		if (event.title) {
 			const title = DOM.append(toggle, $('span.chat-debug-session-timeline-event-title'));
 			this.appendHighlightedText(title, event.title, searchQuery);
@@ -590,7 +616,8 @@ export class ChatDebugSessionTimeline extends Disposable {
 	}
 
 	private updateSourcePath(): void {
-		const path = this.sourceResource?.scheme === Schemas.file ? this.sourceResource.fsPath : this.sourceResource?.toString() ?? '';
+		const sourceResource = this.sourceResource;
+		const path = sourceResource ? sourceResource.scheme === Schemas.file ? sourceResource.fsPath : sourceResource.toString() : '';
 		this.sourcePath.textContent = path;
 		this.sourcePath.disabled = !this.sourceResource;
 		this.sourcePath.title = this.sourceResource ? localize('chatDebug.sessionTimeline.openSource', "Open {0}", path) : '';
