@@ -18,11 +18,12 @@ import { ChatAIDisabledSettingId } from '../../../../../../platform/chat/common/
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { GitHubAutomation, GitHubAutomationCreate, GitHubAutomationUpdate, IGitHubAutomations } from '../../../../../../platform/github/common/cloud/automation.js';
-import { GitHubCloudList } from '../../../../../../platform/github/common/cloud/cloudApi.js';
-import { GitHubCloudTask, IGitHubCloudTasks } from '../../../../../../platform/github/common/cloud/cloudTasks.js';
+import { AutomationDetail, CreateAutomationRequest, CreateAutomationTaskResponse, EditAutomationRequest, IAutomationsClient, ListRepoAutomationsResponse } from '../../../../../../platform/github/common/missionControl/automations.js';
+import { PaginatedResponse, RepositoryRef } from '../../../../../../platform/github/common/missionControl/missionControl.js';
+import { ITasksClient, ListTasksResponse, Task } from '../../../../../../platform/github/common/missionControl/tasks.js';
 import { IGitHubCredentials } from '../../../../../../platform/github/common/githubCredentialService.js';
-import { GitHubRepositoryRef } from '../../../../../../platform/github/common/githubQueryService.js';
+import { GitHubRepository, GitHubRepositoryRef } from '../../../../../../platform/github/common/githubQueryService.js';
+import { IGitHubQuery } from '../../../../../../platform/github/common/githubQueryServiceImpl.js';
 import { IGitHubClient } from '../../../../../../platform/github/common/githubService.js';
 import { IGitHubEndpointProvider } from '../../../../../../platform/github/common/githubTypes.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -37,52 +38,52 @@ import { ISessionsRecentWorkspacesService } from '../../../../../services/sessio
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../../services/sessions/common/session.js';
 import { CloudAutomationStore, cloudAutomationSchedule, cloudAutomationTriggers } from '../../browser/cloudAutomationStore.js';
 
-const definition: GitHubAutomation = { id: 'one', name: 'Review', prompt: 'Review issues', created_at: '2026-09-01T00:00:00Z', updated_at: '2026-09-01T00:00:00Z', triggers: {} };
+const definition: AutomationDetail = { id: 'one', name: 'Review', description: '', created_by: { login: 'user' }, prompt: 'Review issues', created_at: '2026-09-01T00:00:00Z', updated_at: '2026-09-01T00:00:00Z', triggers: {} };
 const workspace = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/owner/private/HEAD' });
 const account: IDefaultAccount = { accountName: 'user', sessionId: 'one', enterprise: false, authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false } };
 const manual: IAutomationSchedule = { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
 
-class TestApi extends mock<IGitHubAutomations>() {
+class TestApi extends mock<IAutomationsClient>() {
 	readonly calls: string[] = [];
-	definitions: readonly GitHubAutomation[] = [definition];
-	tasks: readonly GitHubCloudTask[] = [];
+	definitions: readonly AutomationDetail[] = [definition];
+	tasks: readonly Task[] = [];
 	listError: Error | undefined;
 	historyError: Error | undefined;
 	pendingVisibility: Promise<boolean> | undefined;
 	readonly visibilityStarted = new DeferredPromise<void>();
 	lastSignal: AbortSignal | undefined;
-	patch: GitHubAutomationUpdate | undefined;
-	override async isPrivateRepository(_repository: GitHubRepositoryRef, signal: AbortSignal): Promise<boolean> {
+	patch: EditAutomationRequest | undefined;
+	async isPrivateRepository(_repository: GitHubRepositoryRef, signal: AbortSignal): Promise<boolean> {
 		this.calls.push('visibility');
 		this.lastSignal = signal;
 		await this.visibilityStarted.complete();
 		return this.pendingVisibility ?? true;
 	}
-	override async list(): Promise<GitHubCloudList<GitHubAutomation>> {
+	override async list(): Promise<PaginatedResponse<ListRepoAutomationsResponse>> {
 		this.calls.push('list');
 		if (this.listError) {
 			throw this.listError;
 		}
-		return { items: this.definitions, complete: true };
+		return { data: { automations: this.definitions, total_count: this.definitions.length } };
 	}
-	override async listRuns(): Promise<GitHubCloudList<GitHubCloudTask>> {
+	override async listRuns(): Promise<PaginatedResponse<ListTasksResponse>> {
 		this.calls.push('history');
 		if (this.historyError) {
 			throw this.historyError;
 		}
-		return { items: this.tasks, complete: true };
+		return { data: { tasks: this.tasks } };
 	}
-	override async get(): Promise<GitHubAutomation> { return this.definitions[0]; }
-	override async create(_repository: GitHubRepositoryRef, value: GitHubAutomationCreate): Promise<GitHubAutomation> {
+	override async get(): Promise<AutomationDetail> { return this.definitions[0]; }
+	override async create(_repository: RepositoryRef, value: CreateAutomationRequest): Promise<AutomationDetail> {
 		this.calls.push('create');
 		return { ...definition, ...value };
 	}
-	override async update(_repository: GitHubRepositoryRef, _id: string, value: GitHubAutomationUpdate): Promise<GitHubAutomation> {
+	override async update(_repository: RepositoryRef, _id: string, value: EditAutomationRequest): Promise<AutomationDetail> {
 		this.patch = value;
 		this.calls.push('update');
 		return { ...this.definitions[0], ...value };
 	}
-	override async dispatch(): Promise<void> { this.calls.push('run'); }
+	override async dispatch(): Promise<CreateAutomationTaskResponse> { this.calls.push('run'); return {}; }
 }
 
 suite('CloudAutomationStore', () => {
@@ -103,13 +104,20 @@ suite('CloudAutomationStore', () => {
 		const api = new TestApi();
 		const credentialLifetime = new AbortController();
 		const client = new class extends mock<IGitHubClient>() {
+			override readonly onDidInvalidate = Event.None;
 			override readonly authorization = { providerId: 'github', sessionId: account.sessionId, scopes: ['repo'] };
 			override readonly endpoint = new class extends mock<IGitHubEndpointProvider>() {
 				override getApiBaseUri() { return 'https://api.github.com'; }
 				override getGraphQlUri() { return 'https://api.github.com/graphql'; }
 			}();
 			override readonly automations = api;
-			override readonly cloudTasks = new class extends mock<IGitHubCloudTasks>() {
+			override readonly query = new class extends mock<IGitHubQuery>() {
+				override async getRepository(ref: GitHubRepositoryRef, signal: AbortSignal): Promise<GitHubRepository> {
+					const isPrivate = await api.isPrivateRepository(ref, signal);
+					return new class extends mock<GitHubRepository>() { override readonly private = isPrivate; }();
+				}
+			}();
+			override readonly tasks = new class extends mock<ITasksClient>() {
 				override async get() { return api.tasks[0]; }
 			}();
 			override readonly credentials = new class extends mock<IGitHubCredentials>() {
@@ -186,7 +194,7 @@ suite('CloudAutomationStore', () => {
 	for (const previousDefinitionError of [false, true]) {
 		test(`history failure preserves a ready catalogue${previousDefinitionError ? ' after a definition failure' : ''}`, async () => {
 			const { provider, api, set } = setup();
-			api.tasks = [{ id: 'task', state: 'completed', created_at: definition.created_at }];
+			api.tasks = [{ id: 'task', state: 'completed', created_at: definition.created_at, remote_steerable: false }];
 			await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
 			await provider.refresh();
 			const runs = provider.runs.get();
@@ -252,7 +260,7 @@ suite('CloudAutomationStore', () => {
 
 	test('202 remains acknowledgement only and cloud history has no native session resource', async () => {
 		const { provider, api, set } = setup();
-		api.tasks = [{ id: 'task', state: 'waiting_for_user', created_at: definition.created_at }];
+		api.tasks = [{ id: 'task', state: 'waiting_for_user', created_at: definition.created_at, remote_steerable: true }];
 		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
 		await provider.refresh();
 		const automation = provider.automations.get()[0];
@@ -269,9 +277,10 @@ suite('CloudAutomationStore', () => {
 		}();
 		const { provider, api, set } = setup(logService);
 		api.tasks = [
-			{ id: 'completed', state: 'completed', created_at: definition.created_at },
-			{ id: 'unknown', state: 'future_state', created_at: definition.created_at },
-			{ id: 'failed', state: 'failed', created_at: definition.created_at },
+			{ id: 'completed', state: 'completed', created_at: definition.created_at, remote_steerable: false },
+			// Simulate a future domain state reaching the projection despite the current closed API union.
+			{ id: 'unknown', state: 'future_state' as Task['state'], created_at: definition.created_at, remote_steerable: false },
+			{ id: 'failed', state: 'failed', created_at: definition.created_at, remote_steerable: false },
 		];
 		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
 		await provider.refresh();

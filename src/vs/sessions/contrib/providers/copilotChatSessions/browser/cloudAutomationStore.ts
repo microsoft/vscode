@@ -15,8 +15,8 @@ import { localize } from '../../../../../nls.js';
 import { ChatAIDisabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { GitHubAutomation, GitHubAutomationCreate, GitHubAutomationTrigger, GitHubAutomationUpdate } from '../../../../../platform/github/common/cloud/automation.js';
-import { GitHubCloudTask } from '../../../../../platform/github/common/cloud/cloudTasks.js';
+import { AutomationDetail, AutomationTrigger, CreateAutomationRequest, EditAutomationRequest } from '../../../../../platform/github/common/missionControl/automations.js';
+import { Task } from '../../../../../platform/github/common/missionControl/tasks.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { AutomationTarget, IAutomationDescriptor, IAutomationRun, IAutomationSchedule, IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
@@ -129,8 +129,8 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		const store = this.requireWritableStore();
 		this.validateTarget(options.target);
 		validateLocalOptions(options);
-		const value: GitHubAutomationCreate = {
-			name: options.name, prompt: options.prompt, disabled: !(options.enabled ?? false),
+		const value: CreateAutomationRequest = {
+			name: options.name, description: '', prompt: options.prompt, disabled: !(options.enabled ?? false),
 			triggers: cloudAutomationTriggers(options.schedule), ...templateMutation(options.sessionTemplate),
 			...(options.modelId !== undefined && options.sessionTemplate === undefined ? { model: options.modelId } : {}),
 		};
@@ -181,7 +181,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		await store.stop(entry);
 	}
 
-	private updateValue(definition: GitHubAutomation, id: string, patch: IUpdateAutomationOptions): GitHubAutomationUpdate {
+	private updateValue(definition: AutomationDetail, id: string, patch: IUpdateAutomationOptions): EditAutomationRequest {
 		validateLocalOptions(patch);
 		if (patch.sessionTemplate === null) {
 			throw new Error(localize('cloudAutomations.resetUnsupported', "Resetting cloud automation configuration is not supported."));
@@ -291,7 +291,7 @@ function validateLocalOptions(options: IUpdateAutomationOptions): void {
 	}
 }
 
-function templateMutation(template: IAutomationSessionTemplate | undefined): GitHubAutomationUpdate {
+function templateMutation(template: IAutomationSessionTemplate | undefined): EditAutomationRequest {
 	const tools = template?.config?.tools;
 	const reasoning = template?.config?.reasoningEffort;
 	if (template?.agent || template?.modelConfiguration || Object.keys(template?.config ?? {}).some(key => key !== 'tools' && key !== 'reasoningEffort')
@@ -301,13 +301,13 @@ function templateMutation(template: IAutomationSessionTemplate | undefined): Git
 	return { model: template?.modelId ?? '', ...(isStringArray(tools) ? { tools } : {}), ...(typeof reasoning === 'string' ? { reasoning_effort: reasoning } : {}) };
 }
 
-export function cloudAutomationSchedule(triggers: GitHubAutomation['triggers']): IAutomationSchedule {
+export function cloudAutomationSchedule(triggers: AutomationDetail['triggers']): IAutomationSchedule {
 	const base = { scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0, timeZone: 'UTC' as const };
 	if (Object.keys(triggers ?? {}).length === 0) {
 		return { ...base, interval: 'manual' };
 	}
 	const trigger = triggers?.interval;
-	if (Object.keys(triggers ?? {}).length !== 1 || !trigger || trigger.types.length !== 1) {
+	if (Object.keys(triggers ?? {}).length !== 1 || !trigger || trigger.types?.length !== 1) {
 		return { ...base, interval: 'custom' };
 	}
 	const interval = trigger.types[0];
@@ -325,22 +325,24 @@ export function cloudAutomationSchedule(triggers: GitHubAutomation['triggers']):
 	return { ...base, interval: 'custom' };
 }
 
-export function cloudAutomationTriggers(schedule: IAutomationSchedule): Readonly<Record<string, GitHubAutomationTrigger>> {
+export function cloudAutomationTriggers(schedule: IAutomationSchedule): Readonly<Record<string, AutomationTrigger>> {
 	if (schedule.interval === 'manual') {
 		return {};
 	}
 	if (schedule.interval === 'hourly') {
 		return { interval: { types: ['hourly'] } };
 	}
+	const minute = schedule.scheduleMinute;
 	if (schedule.timeZone !== 'UTC' || schedule.interval === 'custom' || !Number.isInteger(schedule.scheduleHour) || schedule.scheduleHour < 0 || schedule.scheduleHour > 23
-		|| ![0, 15, 30, 45].includes(schedule.scheduleMinute) || !Number.isInteger(schedule.scheduleDay) || schedule.scheduleDay < 0 || schedule.scheduleDay > 6) {
+		|| (minute !== 0 && minute !== 15 && minute !== 30 && minute !== 45) || !Number.isInteger(schedule.scheduleDay) || schedule.scheduleDay < 0 || schedule.scheduleDay > 6) {
 		throw new Error(localize('cloudAutomations.invalidSchedule', "Choose a daily or weekly UTC schedule with minutes 00, 15, 30, or 45."));
 	}
-	return { interval: { types: [schedule.interval], hour_utc: schedule.scheduleHour, minute_utc: schedule.scheduleMinute, ...(schedule.interval === 'weekly' ? { day_of_week: schedule.scheduleDay } : {}) } };
+	return { interval: { types: [schedule.interval], hour_utc: schedule.scheduleHour, minute_utc: minute, ...(schedule.interval === 'weekly' ? { day_of_week: schedule.scheduleDay } : {}) } };
 }
 
-function cloudTaskStatus(task: GitHubCloudTask): IAutomationRun['status'] | undefined {
-	switch (task.state) {
+function cloudTaskStatus(task: Task): IAutomationRun['status'] | undefined {
+	const state: string = task.state;
+	switch (state) {
 		case 'queued': return 'pending';
 		case 'in_progress': case 'running': case 'waiting_for_user': return 'running';
 		case 'completed': case 'idle': return 'completed';
