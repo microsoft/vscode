@@ -20,6 +20,7 @@ import { IAuthenticationService } from '../../../../services/authentication/comm
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 
 const sharingStorageKey = 'agentHost.missionControl.sharing';
+const missionControlUseLocalCredentials = 'chat.agentHost.experimentalMissionControl.useLocalCredentials';
 
 export class MissionControlSharingService extends Disposable implements IMissionControlSharingService {
 	declare readonly _serviceBrand: undefined;
@@ -56,6 +57,9 @@ export class MissionControlSharingService extends Disposable implements IMission
 		this._register(this._configuration.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AgentHostRemoteConnectionsSettingId)) {
 				void this.setEnabled(false).catch(error => this._reportWithdrawalError(error));
+			} else if (e.affectsConfiguration(missionControlUseLocalCredentials)) {
+				void this._withdraw().catch(error => this._reportWithdrawalError(error));
+				this._update.schedule();
 			}
 		}));
 		this._register(this._storage.onDidChangeValue(StorageScope.APPLICATION, sharingStorageKey, this._store)(e => {
@@ -180,12 +184,18 @@ export class MissionControlSharingService extends Disposable implements IMission
 			}
 			this._accountId = sessions[0].account.id;
 			this._accountSessionIds = new Set(sessions.map(session => session.id));
+			const localCredentialSetting = this._configuration.inspect<boolean>(missionControlUseLocalCredentials);
+			const useLocalCredentials = (localCredentialSetting.userLocalValue ?? localCredentialSetting.applicationValue) === true;
+			if (useLocalCredentials) {
+				this._logService.warn('[Mission Control] Local credential delegation enabled: same-owner remote clients will run Copilot work with the desktop credential and its permissions');
+			}
 			await this._agentHost.configureMissionControl?.({
 				baseUrl: 'https://api.github.com',
 				accountId: sessions[0].account.id,
 				credential: sessions[0].accessToken,
 				roots,
 				live: true,
+				...(useLocalCredentials ? { useLocalCredentials: true } : {}),
 			});
 			if (generation === this._generation && !this._store.isDisposed) {
 				this._configured = true;

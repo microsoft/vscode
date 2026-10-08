@@ -810,6 +810,8 @@ export interface IMissionControlOptions {
 	readonly roots: readonly string[];
 	readonly live?: boolean;
 	readonly requireConnectionBinding?: boolean;
+	/** Explicit host-owner opt-in; validated relay clients use the local credential for Copilot authentication. */
+	readonly useLocalCredentials?: boolean;
 }
 
 /** Stateless sealing on trusted local IPC; this surface is not exposed through AHP. */

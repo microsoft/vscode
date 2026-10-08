@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { restore, stub } from 'sinon';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -12,7 +13,7 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/timeTrave
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostService, IMissionControlOptions } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostRemoteConnectionsBackend, AgentHostRemoteConnectionsSettingId } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
-import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../../platform/configuration/common/configurationRegistry.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -28,8 +29,10 @@ import { IChatEntitlementService } from '../../../../../services/chat/common/cha
 import '../../../browser/remoteAgentHost/remoteAgentHost.contribution.js';
 import { MissionControlSharingService } from '../../../browser/remoteAgentHost/missionControlSharingService.js';
 
+const localCredentialSetting = 'chat.agentHost.experimentalMissionControl.useLocalCredentials';
 const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 const remoteConnectionsSetting = configurationProperties[AgentHostRemoteConnectionsSettingId];
+const localCredentialSettingRegistered = configurationProperties[localCredentialSetting] !== undefined;
 const registeredMissionControlSettings = Object.keys(configurationProperties)
 	.filter(key => key.startsWith('chat.agentHost.experimentalMissionControl'))
 	.map(key => ({ key, default: configurationProperties[key].default }));
@@ -51,6 +54,7 @@ const expectedOptions: IMissionControlOptions = {
 
 suite('Mission Control sharing service', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	teardown(() => restore());
 
 	function fixture(options: {
 		backend?: AgentHostRemoteConnectionsBackend;
@@ -58,11 +62,15 @@ suite('Mission Control sharing service', () => {
 		storage?: InMemoryStorageService;
 		getSessions?: () => Promise<readonly AuthenticationSession[]>;
 		configure?: (options: IMissionControlOptions | undefined) => Promise<void>;
+		localCredentialConfig?: IConfigurationValue<boolean>;
 	} = {}) {
 		const instantiation = store.add(new TestInstantiationService());
 		const configuration = new TestConfigurationService({ [AgentHostRemoteConnectionsSettingId]: options.backend ?? 'missionControl', ...removedSettings });
 		const storage = options.storage ?? store.add(new InMemoryStorageService());
 		store.add(configuration.onDidChangeConfigurationEmitter);
+		if (options.localCredentialConfig) {
+			stub(configuration, 'inspect').withArgs(localCredentialSetting).returns(options.localCredentialConfig);
+		}
 		const sentimentChanged = store.add(new Emitter<void>());
 		const hostStarted = store.add(new Emitter<void>());
 		const sessionsChanged = store.add(new Emitter<{ providerId: string; label: string; event: AuthenticationSessionsChangeEvent }>());
@@ -93,7 +101,7 @@ suite('Mission Control sharing service', () => {
 			override readonly onDidChangeWorkspaceFolders = Event.None;
 			override getWorkspace() { return new Workspace('workspace', options.emptyWindow ? [] : [toWorkspaceFolder(workspaceRoot)], false, null, () => false); }
 		}());
-		instantiation.stub(IProductService, {});
+		instantiation.stub(IProductService, { quality: 'insider' });
 		instantiation.stub(ILogService, store.add(new NullLogService()));
 		instantiation.stub(IStorageService, storage);
 		instantiation.stub(INotificationService, new TestNotificationService());
@@ -107,11 +115,12 @@ suite('Mission Control sharing service', () => {
 	test('registers a backend selector rather than an enablement setting', () => {
 		assert.deepStrictEqual({
 			removed: registeredMissionControlSettings,
+			localCredentialSettingRegistered,
 			backend: {
 				default: remoteConnectionsSetting.default,
 				enum: remoteConnectionsSetting.enum,
 			},
-		}, { removed: [], backend: { default: 'devTunnel', enum: ['devTunnel', 'missionControl'] } });
+		}, { removed: [], localCredentialSettingRegistered: false, backend: { default: 'devTunnel', enum: ['devTunnel', 'missionControl'] } });
 	});
 
 	for (const backend of ['devTunnel', 'missionControl'] as const) {
@@ -121,6 +130,56 @@ suite('Mission Control sharing service', () => {
 			assert.deepStrictEqual({ state: sharing.state.get(), starts: starts(), calls }, { state: 'disabled', starts: 0, calls: [] });
 		}));
 	}
+
+	for (const scenario of [
+		{ name: 'local user opt-in in Insiders', config: { value: false, userLocalValue: true }, enabled: true },
+		{ name: 'application user opt-in', config: { value: true, applicationValue: true }, enabled: true },
+		{ name: 'local user refusal overrides application opt-in', config: { applicationValue: true, userLocalValue: false }, enabled: false },
+		{ name: 'workspace value', config: { value: true, workspaceValue: true }, enabled: false },
+		{ name: 'workspace folder value', config: { value: true, workspaceFolderValue: true }, enabled: false },
+		{ name: 'remote user value', config: { value: true, userRemoteValue: true }, enabled: false },
+		{ name: 'default value', config: { value: true, defaultValue: true }, enabled: false },
+	]) {
+		test(`uses only explicit local-user credential delegation: ${scenario.name}`, () => runWithFakedTimers({}, async () => {
+			const { calls, sharing } = fixture({ localCredentialConfig: scenario.config });
+			await sharing.setEnabled(true);
+			await timeout(0);
+			assert.deepStrictEqual(calls, [{
+				options: { ...expectedOptions, ...(scenario.enabled ? { useLocalCredentials: true } : {}) },
+				withdrawingAccountId: undefined,
+			}]);
+		}));
+	}
+
+	test('withdraws the previous delegation when its setting changes and reconfigures', () => runWithFakedTimers({}, async () => {
+		const { calls, configuration, sharing } = fixture();
+		await sharing.setEnabled(true);
+		await timeout(0);
+		for (const enabled of [true, false]) {
+			await configuration.setUserConfiguration(localCredentialSetting, enabled);
+			configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+				override affectsConfiguration(section: string) { return section === localCredentialSetting; }
+			}());
+			await timeout(0);
+		}
+		assert.deepStrictEqual(calls, [
+			{ options: expectedOptions, withdrawingAccountId: undefined },
+			{ options: undefined, withdrawingAccountId: 'account' },
+			{ options: { ...expectedOptions, useLocalCredentials: true }, withdrawingAccountId: undefined },
+			{ options: undefined, withdrawingAccountId: 'account' },
+			{ options: expectedOptions, withdrawingAccountId: undefined },
+		]);
+	}));
+
+	test('changing local credential delegation does not enable sharing', () => runWithFakedTimers({}, async () => {
+		const { calls, configuration, sharing } = fixture();
+		await configuration.setUserConfiguration(localCredentialSetting, true);
+		configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+			override affectsConfiguration(section: string) { return section === localCredentialSetting; }
+		}());
+		await timeout(0);
+		assert.deepStrictEqual({ calls, state: sharing.state.get() }, { calls: [], state: 'disabled' });
+	}));
 
 	for (const enabled of [false, true]) {
 		test(`ignores removed settings when registration is ${enabled ? 'enabled' : 'disabled'}`, () => runWithFakedTimers({}, async () => {

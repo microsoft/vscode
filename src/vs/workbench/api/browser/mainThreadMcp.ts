@@ -108,6 +108,13 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 				const ser = await proxy.$substituteVariables(serverDefinition.variableReplacement?.folder?.uri, McpServerLaunch.toSerialized(launch));
 				return McpServerLaunch.fromSerialized(ser);
 			},
+			async expandEnvironmentVariables(serverDefinition, launch) {
+				if (!serverDefinition.environmentVariableExpansion) {
+					return launch;
+				}
+				const ser = await proxy.$expandEnvironmentVariables(McpServerLaunch.toSerialized(launch), serverDefinition.environmentVariableExpansion);
+				return McpServerLaunch.fromSerialized(ser);
+			},
 			start: (_collection, serverDefiniton, resolveLaunch, options) => {
 				const id = ++this._serverIdCounter;
 				const launch = new ExtHostMcpServerLaunch(

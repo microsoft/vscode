@@ -56,6 +56,20 @@ Registration accepts unbound sealed tokens for compatibility with deployed pre-s
 
 The SDK's canonical device `remoteControl` branch is read before registration and forwarded to MC for enforcement. Failed initial reads do not register as unrestricted. The host does not introduce a second enterprise-policy parser or claim local enforcement of every predicate against a compromised MC signer.
 
+### Explicit local credential delegation
+
+The unregistered `chat.agentHost.experimentalMissionControl.useLocalCredentials` setting is a default-off testing override available in built products, including Insiders. Set it to `true` in the host owner's **local User settings** to authorize same-owner remote clients to use the desktop GitHub credential for the host's GitHub Copilot protected resource. Application user settings also apply; workspace, workspace-folder, remote-user, and default values cannot enable it. The setting is intentionally absent from the Settings UI and schema.
+
+```json
+"chat.agentHost.experimentalMissionControl.useLocalCredentials": true
+```
+
+Remote credentials are still required, decrypted, checked for purpose/resource and any supplied connection binding, and validated directly with GitHub against the registered owner. For the exact Copilot resource, the host also validates the current local credential and forwards it internally without the remote token's scopes or expiry. The local credential is never sent to the mobile client or published on the relay. Repository-specific and MCP credentials are not substituted. All providers sharing the Copilot protected resource can receive the local credential, and SDK agent work can use its broader GitHub permissions; this is not an inference-only grant.
+
+Changing this setting, rotating the local registration credential, signing out, or withdrawing registration closes the affected relay lanes. Reconnect the mobile client after changes. A missing, rejected, foreign-owner, or concurrently changed local credential fails authentication instead of borrowing a previous credential. Ongoing provider credential retention and per-session sponsorship remain subject to S03's shared-store limitations.
+
+This explicit host-owner delegation is a VS Code testing exception to the user-local sponsorship and control-plane separation contract (S03/S05), not the normal client-token mode or a managed-sandbox principal. Existing enterprise remote-control checks, workspace grants, and tool permissions still apply. Remove the setting or set it to `false` to restore client credentials.
+
 ## Lifecycle and mirroring
 
 The host uses proxy-aware bounded HTTP, a normal heartbeat cadence, and service-requested `Retry-After` waits. Recovery does not bypass those waits; disabling closes ingress even when its offline heartbeat must be delayed. WPS bootstrap/key refresh and relay keep-alive are independent of ordinary inbound traffic.
