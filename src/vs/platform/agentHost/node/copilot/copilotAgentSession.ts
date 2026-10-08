@@ -7205,17 +7205,18 @@ export class CopilotAgentSession extends Disposable {
 						outputDatabase.dispose();
 					}
 				}
-				for (const filePath of filePaths) {
-					if (!isCurrent()) {
-						return;
-					}
-					try {
-						const fileEdit = await this._editTracker.takeCompletedEdit(turnId, e.data.toolCallId, filePath, tracked.toolName, tracked.parameters, modelId, turn?.clientContext, chatUri, tracked.autoTier);
-						if (fileEdit) {
-							content.push(fileEdit);
-						}
-					} catch (err) {
+				if (!isCurrent()) {
+					return;
+				}
+				// Claim every file before awaiting so a later tool cannot take this tool's snapshots.
+				const fileEdits = filePaths.map(filePath => this._editTracker.takeCompletedEdit(turnId, e.data.toolCallId, filePath, tracked.toolName, tracked.parameters, modelId, turn?.clientContext, chatUri, tracked.autoTier)
+					.catch(err => {
 						this._logService.warn(`[Copilot:${sessionId}] Failed to take completed edit`, err);
+						return undefined;
+					}));
+				for (const fileEdit of await Promise.all(fileEdits)) {
+					if (fileEdit) {
+						content.push(fileEdit);
 					}
 				}
 				if (isCurrent()) {

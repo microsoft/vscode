@@ -14312,26 +14312,26 @@ Use the attached image as context.
 				return { ...result, sessionDatabase, writes };
 			}
 
-			test('claims same-file edits before a pending Auto tier read resolves', async () => {
+			test('claims multi-file and same-file edits in order while an Auto tier read is pending', async () => {
 				const sessionDatabase = new TestSessionDatabase();
 				const tierRead = new DeferredPromise<void>();
 				const capturedRuntime: { current?: ICopilotSessionRuntime } = {};
-				const recorded: { toolCallId: string; autoTier: string | undefined }[] = [];
-				const surveyed: { toolCallId: string; autoTier: string | undefined }[] = [];
-				const { session, mockSession, waitForSignal } = await createAgentSession(disposables, {
+				const recorded: { toolCallId: string; filePath: string; autoTier: string | undefined }[] = [];
+				const surveyed: { toolCallId: string; filePath: string; autoTier: string | undefined }[] = [];
+				const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables, {
 					sessionDatabase,
 					captureRuntime: capturedRuntime,
 					editServices: {
 						attribution: new class extends NullAgentEditAttributionService {
 							override async recordEdit(edit: IAgentEditAttribution) {
-								recorded.push({ toolCallId: edit.toolCallId, autoTier: edit.autoTier });
+								recorded.push({ toolCallId: edit.toolCallId, filePath: edit.filePath, autoTier: edit.autoTier });
 								return undefined;
 							}
 						}(),
 						survival: {
 							_serviceBrand: undefined,
 							launch: params => {
-								surveyed.push({ toolCallId: params.toolCallId, autoTier: params.autoTier });
+								surveyed.push({ toolCallId: params.toolCallId, filePath: params.filePath, autoTier: params.autoTier });
 								return Disposable.None;
 							},
 						},
@@ -14342,35 +14342,43 @@ Use the attached image as context.
 					},
 				});
 				session.resetTurnState('turn-edit');
-				mockSession.fire('user.message', { content: 'Edit the file twice' });
-				const completions: Promise<AgentSignal>[] = [];
-				for (const toolCallId of ['0', '1']) {
-					const hook = {
-						sessionId: 'test-session-1',
-						timestamp: new Date(0),
-						workingDirectory: '/repo',
-						toolName: 'edit',
-						toolArgs: { path: '/repo/file.txt', old_str: 'before', new_str: `after-${toolCallId}` },
-					};
+				mockSession.fire('user.message', { content: 'Edit the files' });
+				const run = async (toolCallId: string, toolName: string, toolArgs: unknown) => {
+					const hook = { sessionId: 'test-session-1', timestamp: new Date(0), workingDirectory: '/repo', toolName, toolArgs };
+					mockSession.fire('tool.execution_start', { toolCallId, toolName, arguments: toolArgs } as unknown as SessionEventPayload<'tool.execution_start'>['data']);
 					await capturedRuntime.current!.handlePreToolUse(hook);
 					await capturedRuntime.current!.handlePostToolUse({ ...hook, toolResult: { textResultForLlm: '', resultType: 'success' } });
-					mockSession.fire('tool.execution_start', { toolCallId, toolName: hook.toolName, arguments: hook.toolArgs });
-					completions.push(waitForSignal(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallComplete && signal.action.toolCallId === toolCallId));
+					const completion = waitForSignal(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallComplete && signal.action.toolCallId === toolCallId);
 					mockSession.fire('tool.execution_complete', { toolCallId, success: true });
-				}
-				await tierRead.complete();
-				await Promise.all(completions);
+					return { completion };
+				};
 
-				const byToolCall = (a: { toolCallId: string }, b: { toolCallId: string }) => a.toolCallId.localeCompare(b.toolCallId);
-				const bothBalance = [{ toolCallId: '0', autoTier: 'balance' }, { toolCallId: '1', autoTier: 'balance' }];
+				// A two-file patch completes while the initial tier read is pending.
+				const patch = await run('patch', 'apply_patch', ['*** Begin Patch', '*** Update File: /repo/a.txt', '@@', '+a', '*** Update File: /repo/b.txt', '@@', '+b', '*** End Patch'].join('\n'));
+				// A known tier then arrives and a later tool edits the patch's second file.
+				mockSession.fire('session.model_change', { previousModel: 'auto', newModel: 'auto', autoTier: 'intelligence' });
+				const later = await run('later', 'edit', { path: '/repo/b.txt', old_str: 'b', new_str: 'b2' });
+				await tierRead.complete();
+				await Promise.all([patch.completion, later.completion]);
+
+				const patchResult = getActions(signals).find((action): action is ChatToolCallCompleteAction => action.type === ActionType.ChatToolCallComplete && action.toolCallId === 'patch');
+				const expected = [
+					{ toolCallId: 'patch', filePath: '/repo/a.txt', autoTier: undefined },
+					{ toolCallId: 'patch', filePath: '/repo/b.txt', autoTier: undefined },
+					{ toolCallId: 'later', filePath: '/repo/b.txt', autoTier: 'intelligence' },
+				];
 				assert.deepStrictEqual({
-					persisted: (await sessionDatabase.getAllFileEdits()).map(edit => edit.toolCallId).toSorted(),
-					recorded: recorded.toSorted(byToolCall),
-					surveyed: surveyed.toSorted(byToolCall),
+					persisted: (await sessionDatabase.getAllFileEdits()).map(edit => `${edit.toolCallId}:${edit.filePath}`).toSorted(),
+					patchFileEdits: patchResult?.result.content?.filter(part => part.type === ToolResultContentType.FileEdit).length,
+					recordedOrderForB: recorded.filter(edit => edit.filePath === '/repo/b.txt').map(edit => edit.toolCallId),
+					recorded: recorded.toSorted((a, b) => `${a.toolCallId}${a.filePath}`.localeCompare(`${b.toolCallId}${b.filePath}`)),
+					surveyed: surveyed.toSorted((a, b) => `${a.toolCallId}${a.filePath}`.localeCompare(`${b.toolCallId}${b.filePath}`)),
 				}, {
-					persisted: ['0', '1'],
-					recorded: bothBalance,
-					surveyed: bothBalance,
+					persisted: ['later:/repo/b.txt', 'patch:/repo/a.txt', 'patch:/repo/b.txt'],
+					patchFileEdits: 2,
+					recordedOrderForB: ['patch', 'later'],
+					recorded: expected.toSorted((a, b) => `${a.toolCallId}${a.filePath}`.localeCompare(`${b.toolCallId}${b.filePath}`)),
+					surveyed: expected.toSorted((a, b) => `${a.toolCallId}${a.filePath}`.localeCompare(`${b.toolCallId}${b.filePath}`)),
 				});
 			});
 
