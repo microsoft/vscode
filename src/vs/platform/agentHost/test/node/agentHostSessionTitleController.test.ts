@@ -387,6 +387,24 @@ suite('AgentHostSessionTitleController', () => {
 		assert.deepStrictEqual(offered, [true, true, true, false]);
 	});
 
+	test('agent review keeps the reminder cap when the last peer is removed', async () => {
+		const { controller, stateManager, session } = setup(undefined, 'Given title', undefined, undefined, undefined, undefined, undefined, 'agentReview');
+		const defaultChat = buildDefaultChatUri(session);
+		const peer = buildChatUri(session.toString(), 'peer');
+		controller.markTitleAuto(session.toString(), undefined, 'Given title');
+		stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Investigate flaky test', [textPart('Done')])]);
+		const offered: boolean[] = [];
+		offered.push(await controller.prepareInstructionForAgent(session.toString(), defaultChat) !== undefined);
+		stateManager.addChat(session.toString(), peer, {});
+		controller.markTitleAuto(session.toString(), defaultChat, 'Given title');
+		for (let i = 0; i < 2; i++) {
+			offered.push(await controller.prepareInstructionForAgent(session.toString(), defaultChat) !== undefined);
+		}
+		stateManager.removeChat(session.toString(), peer);
+		offered.push(await controller.prepareInstructionForAgent(session.toString(), defaultChat) !== undefined);
+		assert.deepStrictEqual(offered, [true, true, true, false]);
+	});
+
 	test('agent review offers the reminder after a cancelled first response, which settles refinement without refining', async () => {
 		const { controller, stateManager, session, copilotApiService } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, 'agentReview');
 		const defaultChat = buildDefaultChatUri(session);

@@ -578,7 +578,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		if (this._renamedTitles.has(key)) {
 			return undefined;
 		}
-		this._migrateTitleReviewReminderCount(channel, independentChat);
+		this._syncDefaultChatTitleReviewReminderCount(channel, key);
 		// Review mode leaves a fresh seed to the host's first-response refinement before inviting a rename.
 		if (strategy === 'agentReview' && !this._canOfferTitleReview(channel, independentChat, key)) {
 			return undefined;
@@ -625,17 +625,19 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 	}
 
 	/**
-	 * Carries the session-keyed review reminder count over to the default chat
-	 * once a peer makes it independently titled, so the per-chat cap survives
-	 * the key transition.
+	 * The default chat is titled under the session key while it is the only chat
+	 * and under its own URI once a peer exists. Adding or removing peers moves
+	 * between the two keys, so carry the higher count onto the active `key` to
+	 * keep the per-chat cap across the transition.
 	 */
-	private _migrateTitleReviewReminderCount(channel: ProtocolURI, independentChat: ProtocolURI | undefined): void {
-		if (!independentChat || !isDefaultChatUri(independentChat) || this._titleReviewReminderCounts.has(independentChat)) {
+	private _syncDefaultChatTitleReviewReminderCount(channel: ProtocolURI, key: ProtocolURI): void {
+		if (key !== channel && !isDefaultChatUri(key)) {
 			return;
 		}
-		const count = this._titleReviewReminderCounts.get(channel);
-		if (count !== undefined) {
-			this._titleReviewReminderCounts.set(independentChat, count);
+		const defaultChat = key === channel ? buildDefaultChatUri(channel) : key;
+		const count = Math.max(this._titleReviewReminderCounts.get(channel) ?? 0, this._titleReviewReminderCounts.get(defaultChat) ?? 0);
+		if (count > 0) {
+			this._titleReviewReminderCounts.set(key, count);
 		}
 	}
 
