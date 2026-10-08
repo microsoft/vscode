@@ -10,7 +10,6 @@ import { CommandsRegistry } from '../../../../platform/commands/common/commands.
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { IURLService } from '../../../../platform/url/common/url.js';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { ExternalUriResolverContribution } from './externalUriResolver.js';
 import { manageTrustedDomainSettingsCommand } from './trustedDomains.js';
@@ -23,6 +22,7 @@ import { workbenchConfigurationNodeBase } from '../../../common/configuration.js
 import { ITrustedDomainService, TrustedDomainService } from './trustedDomainService.js';
 import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 
 class OpenUrlAction extends Action2 {
 
@@ -39,7 +39,7 @@ class OpenUrlAction extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const quickInputService = accessor.get(IQuickInputService);
-		const urlService = accessor.get(IURLService);
+		const openerService = accessor.get(IOpenerService);
 		const storageService = accessor.get(IStorageService);
 
 		const value = storageService.get(OpenUrlAction.STORAGE_KEY, StorageScope.WORKSPACE, '');
@@ -47,7 +47,7 @@ class OpenUrlAction extends Action2 {
 		return quickInputService.input({ prompt: localize('urlToOpen', "URL to open"), value }).then(input => {
 			if (input) {
 				const uri = URI.parse(input);
-				urlService.open(uri, { originalUrl: input });
+				openerService.open(uri, { allowContributedOpeners: true });
 				storageService.store(OpenUrlAction.STORAGE_KEY, input, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 			}
 		});
