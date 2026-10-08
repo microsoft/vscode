@@ -11,7 +11,7 @@ Reusable GitHub engine and cross-target architecture.
 
 ## Current implementation
 
-[GitHubService](common/githubService.ts) owns shared admission, cooldowns and telemetry. It supplies explicit authorization-scoped clients composing credentials, capabilities, transport, queries, mutations, and PR subscriptions.
+[GitHubService](common/githubService.ts) owns shared admission, cooldowns and telemetry. It supplies explicit authorization-scoped clients composing credentials, capabilities, transport, queries, mutations, PR subscriptions, and Mission Control domains.
 
 - The [workbench binding](../../workbench/services/github/browser/githubService.ts) runs per editor or Agents window. Existing features explicitly acquire a client for the selected default account; other callers can select a specific existing session.
 - The [Agent Host binding](../agentHost/node/agentHostGitHubService.ts) selects its host-owned repository credential resource without an attached workbench. Repository/PR association, creation, merge settings, auto-merge and issue/PR title context use its explicit clients. Copilot discovery and model requests still use the existing [Agent Host Copilot service](../agentHost/node/shared/copilotApiService.ts); migrating them is a separate change.
@@ -26,8 +26,6 @@ The [client inventory](client-inventory.md) maps runtime callers, migration boun
 
 The GitHub engine uses shared [types](common/types.ts), [queue](common/requestQueue.ts), [scheduler](common/scheduler.ts), [backoff](common/backoff.ts), [cooldown state](common/cooldownState.ts), [response readers](common/responseReader.ts) and [operation waiters](common/operationWaiters.ts) with neutral names. These mechanisms do not interpret service-specific payloads. GitHub header/GraphQL policy stays in [GitHubRateLimitCoordinator](common/githubRateLimitCoordinator.ts).
 
-The policy-driven [control transport](common/controlTransport.ts) and explicit-credential bootstrap capability are available for future service migrations; existing Copilot consumers are not wired to them. Copilot extraction and hosting/authentication changes are deferred separately, so this infrastructure refactor does not change the current Copilot runtime.
-
 An in-flight operation owns its controller and shared deadline. `OperationWaiters` owns individual callers' waiting, cancellation and result delivery, not network execution. One caller can detach without cancelling peers; the operation owner decides what happens when its last waiter leaves. This also supports service-wide metadata initialization, which is not an HTTP request.
 
 ### Authorization clients
@@ -40,23 +38,31 @@ At most 64 clients are retained across authorization, anonymous and bootstrap co
 
 Each workbench/Agent Host binding retains one reference for its selected default/repository client so short-lived consumers reuse identity, ETags and capability observations. Selection changes and binding disposal release that reference. Other explicit clients remain caller-owned.
 
-### Cloud API domains
+### Mission Control domains
 
-Authorization-scoped clients also expose [automations](common/cloud/automation.ts), [cloud tasks](common/cloud/cloudTasks.ts), and [environments](common/cloud/environments.ts), grouped under [cloud](common/cloud) with their [shared API helper](common/cloud/cloudApi.ts). They are inert until called. No existing automation or cloud-sandbox consumer is migrated to them.
+The acquired account client exposes [automations](common/missionControl/automations.ts), [tasks](common/missionControl/tasks.ts), [environments](common/missionControl/environments.ts), and [missionControlModels](common/missionControl/models.ts). Each operation requires an `AbortSignal`; callers do not supply authentication, transport, or endpoint options:
 
-The hosting binding must explicitly supply `GitHubClientOptions.cloud`: the complete approved agents API base, its `Copilot-Integration-Id`, and an API version only if that endpoint requires one. For the current Copilot gateway, the base is `https://api.githubcopilot.com/agents`. There is no automatic GitHub REST/internal-proxy fallback, enterprise endpoint derivation, or endpoint discovery. REST identification headers are not inherited, even on a shared origin. Cloud endpoint and header selections participate in lease identity alongside provider, session, account provenance, scopes and issuer. The selected grant supplies the bearer credential; choosing compatible scopes, consent and account-specific enterprise endpoints remains the binding's responsibility.
+```ts
+const reference = await service.acquireDefaultAccountClient(signal);
+try {
+	const page = await reference.object.automations.list({ owner: 'dmitrivMS', name: 'myRepo' }, signal);
+	// Use page.data.automations; pagination remains explicit.
+} finally {
+	reference.dispose();
+}
+```
 
-- Automation definitions support bounded, ordered list/detail hydration, CRUD (including `disabled`), and dispatch requiring HTTP 202. Repository privacy is data, not an engine-enforced eligibility policy. Create and PATCH forward the caller's fields; permission and trigger policy remain caller-owned. PATCH uses `application/merge-patch+json`.
-- Repository-scoped automation inputs reuse [GitHubRepositoryRef](common/githubQueryService.ts): `host` and `accountId` must match the captured GitHub credential, while `owner` and `repo` select the repository. A mismatch rejects before dispatch without invalidating that credential. The server's automation repository payload retains its `{ owner, name }` shape.
-- Automation run history delegates to the task domain. Task operations expose list/detail, creation, deletion, steering/abort and raw events. Creating an environment-bound task does not send a first turn. AHP history selects `application/vnd.github.ahp+json` and validates completeness without replaying events or projecting session state.
-- Lists fetch at most ten pages of at most 100 items each, hydrating definitions in batches of five. A capped result explicitly reports `complete: false` and `nextPage`; failed or malformed pages reject rather than appear empty or complete. One credential generation is captured for the entire operation.
-- Connect/reconnect return either a validated connection token or a waking result. HTTP 202 `Retry-After` is returned to the caller, not treated as a rate limit. An absent header remains `undefined`; reconnect timing belongs to the caller.
+`automations.listTools(signal)` and `automations.listTriggers(signal)` read the authenticated caller's unpaginated catalogs from `/agents/automations/tools` and `/agents/automations/triggers`. They return tool groups and trigger definitions, respectively, preserving field options, labels, permission scopes, and optional run-now support metadata without hard-coding the server's available tools or triggers.
 
-All domains use the existing client transport, runtime admission queue and telemetry. Agents quota feedback is isolated from ordinary REST/GraphQL quotas and uses explicit HTTP 429/rate-limited 403 refusals, not assumed REST quota headers. Unclassified REST resource waits remain REST-only. Cloud requests never follow redirects. Connection-credential GETs are non-coalesced, non-cached, and non-retried; connection material and cloud error bodies are never retained in diagnostics. Ordinary reads retain authorization-scoped conditional caching and bounded transient retries.
+The [Mission Control adapter](common/missionControl/missionControlClient.ts) uses that client's existing credentials and transport. The workbench configures github.com requests through `https://api.githubcopilot.com/agents`, with its integration ID and without the GitHub REST API-version default. `missionControlModels` uses `/agents/swe/models`, not Copilot's general `/models` catalog. Other hosts must explicitly supply approved service endpoints through `GitHubClientOptions.missionControl`; no Copilot endpoint is inferred from an Enterprise REST URL. Without this configuration, only the Mission Control operations reject. Endpoint/header configuration participates in client lease identity.
 
-Writes, including credential-minting GETs, are never automatically replayed. Definite pre-dispatch failures and HTTP 4xx refusals reject normally; unconfirmed post-dispatch outcomes throw `GitHubCloudMutationUncertainError`. Callers own reconciliation and any subsequent decision to retry. UI/provider registration, scheduling, policy, relay/WebSocket/AHP lifecycle and shared-process authentication are outside these capabilities.
+Ordinary reads reuse account-scoped coalescing and ETag revalidation, including the original success status after a 304. They retain the transport's single retry on network or 5xx failures when no server cooldown applies. Task event reads opt out of retries. Mutations and environment connect/reconnect requests are never replayed or coalesced; environment responses are not cached or shared because they can contain credentials. Mission Control redirects are not followed, and bodyless acknowledgements are not parsed as JSON. Dispatched writes with uncertain outcomes must be reconciled rather than blindly resubmitted.
 
-These contracts are covered by offline tests; mocks do not establish deployed gateway parity, token-scope support or live CRUD success.
+Mission Control uses a separate cooldown identity keyed by the service host and originating GitHub account. Confirmed 403/429 throttling and 5xx `Retry-After` hints gate queued and subsequent requests; the original failure is surfaced rather than slept and replayed. Confirmed throttling without a usable hint uses a conservative 60-second delay. A successful 202 waking response's `Retry-After` is returned only as a polling hint. Header metadata is optional because browser CORS can hide it.
+
+All domains share existing admission: four active requests overall, two per host and caller, and one per service-host/account pair; retained limits are 256 overall and 64 per account and caller, including cooldown waiters. The caller label is `github.missionControl`. Coalesced reads have at most 64 waiters, and the domains do not add client-acquisition slots. These are runtime-local bounds, not a claim about deployed server quotas. Credential resolution and transport execution retain separate five-minute budgets; responses remain bounded to 16 MiB.
+
+Existing sandbox consumers are not migrated by this wiring.
 
 ### Anonymous public reads
 
