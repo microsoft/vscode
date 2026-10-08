@@ -28,7 +28,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { EditorPane } from '../../../../workbench/browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../../workbench/common/editor.js';
 import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
-import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../../../workbench/contrib/browserView/common/browserView.js';
+import { IBrowserViewModel } from '../../../../workbench/contrib/browserView/common/browserView.js';
 import { focusWebContentsViewContainer, WebContentsViewHost } from '../../../../workbench/contrib/browserView/electron-browser/webContentsViewHost.js';
 import { IEditorGroup } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { ISessionCanvasService, SessionCanvasInput } from '../common/sessionCanvas.js';
@@ -59,7 +59,6 @@ export class SessionCanvasEditor extends EditorPane {
 	private host!: WebContentsViewHost;
 	private model: IBrowserViewModel | undefined;
 	private readonly modelLifetime = this._register(new DisposableStore());
-	private readonly browserModel = this._register(new MutableDisposable<IBrowserViewModel>());
 	private readonly pendingVisibleLayout = this._register(new MutableDisposable());
 	private readonly currentInput = observableValue<SessionCanvasInput | undefined>(this, undefined);
 	private readonly presentationVisible = observableValue(this, false);
@@ -79,7 +78,6 @@ export class SessionCanvasEditor extends EditorPane {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ISessionCanvasService private readonly canvasService: ISessionCanvasService,
-		@IBrowserViewWorkbenchService private readonly browserViewService: IBrowserViewWorkbenchService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IAccessibleViewService private readonly accessibleViewService: IAccessibleViewService,
 		@ILogService private readonly logService: ILogService,
@@ -122,6 +120,10 @@ export class SessionCanvasEditor extends EditorPane {
 				return;
 			}
 			const canvas = input.canvas.read(reader);
+			if (input.membershipPending.read(reader)) {
+				this._detach(localize('canvas.pending', "Waiting for this canvas to become available."));
+				return;
+			}
 			if (!canvas) {
 				this._detach(localize('canvas.closed', "This canvas is no longer available."));
 				return;
@@ -155,16 +157,17 @@ export class SessionCanvasEditor extends EditorPane {
 		this.loadingKey = key;
 		const stopwatch = StopWatch.create();
 		let outcome: CanvasLoadEvent['outcome'] = 'error';
+		let reused = false;
 		try {
 			const source = canvas.source;
-			const model = await this.browserViewService.createExternalBrowserView(source.toString(true), 'canvas');
+			const resolution = await this.canvasService.resolveCanvasModel(input.reference, source);
+			const model = resolution.model;
+			reused = resolution.reused;
 			if (!this._isCurrent(input, source, sequence)) {
 				outcome = 'interrupted';
-				model.dispose();
 				return;
 			}
 			this._setModel(model);
-			this.browserModel.value = model;
 			this.message.textContent = localize('canvas.pageLoading', "Loading canvas page…");
 			this.loadedKey = key;
 			this.message.textContent = model.error ? localize('canvas.pageFailed', "The canvas page failed to load.") : '';
@@ -172,7 +175,7 @@ export class SessionCanvasEditor extends EditorPane {
 		} catch (error) {
 			const current = this._isCurrent(input, canvas.source, sequence);
 			outcome = !current ? 'interrupted' : isCancellationError(error) ? 'cancelled' : 'error';
-			if (current) {
+			if (current && !isCancellationError(error)) {
 				this._detach(localize('canvas.loadFailed', "The canvas could not be loaded."));
 				this.logService.error('[SessionCanvasEditor] Failed to load canvas');
 			}
@@ -180,11 +183,13 @@ export class SessionCanvasEditor extends EditorPane {
 			if (sequence === this.loadSequence && this.loadingKey === key) {
 				this.loadingKey = undefined;
 			}
-			this.telemetryService.publicLog2<CanvasLoadEvent, CanvasLoadClassification>('agentCanvas.loadCompleted', {
-				schemaVersion: 1,
-				outcome,
-				durationMs: stopwatch.elapsed(),
-			});
+			if (!reused) {
+				this.telemetryService.publicLog2<CanvasLoadEvent, CanvasLoadClassification>('agentCanvas.loadCompleted', {
+					schemaVersion: 1,
+					outcome,
+					durationMs: stopwatch.elapsed(),
+				});
+			}
 		}
 	}
 
@@ -247,14 +252,11 @@ export class SessionCanvasEditor extends EditorPane {
 		this.layout();
 	}
 
-	private _detach(message: string, disposeInput = true): void {
+	private _detach(message: string): void {
 		this.loadSequence++;
 		this.loadingKey = undefined;
 		this.loadedKey = undefined;
 		this._setModel(undefined);
-		if (disposeInput) {
-			this.browserModel.clear();
-		}
 		this.message.textContent = message;
 	}
 
