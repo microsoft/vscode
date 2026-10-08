@@ -24,6 +24,13 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../browserView/common/browserView.js';
 import { CanvasInput, canvasOwnerKey, getCanvasReferenceKey, ICanvas, ICanvasContextService, ICanvasModelResolution, ICanvasOwner, ICanvasReference, ICanvasReopenTarget, ICanvasService, ICanvasWorkingSetOwner, ICanvasWorkingSetState, isCanvasOwner } from '../common/canvas.js';
 
+type CanvasMembershipState =
+	| { readonly kind: 'unknown' }
+	| { readonly kind: 'hydrating'; readonly canvas: ICanvas }
+	| { readonly kind: 'available'; readonly canvas: ICanvas; readonly source: URI }
+	| { readonly kind: 'unavailable'; readonly canvas: ICanvas }
+	| { readonly kind: 'removed' };
+
 class CanvasPresentation extends Disposable {
 
 	readonly key: string;
@@ -33,6 +40,7 @@ class CanvasPresentation extends Disposable {
 	private _opened = false;
 	private _restoreActive = false;
 	private _requestId: string | undefined;
+	private _membership: CanvasMembershipState;
 	private _canvas: ICanvas | undefined;
 	private _model: IBrowserViewModel | undefined;
 	private _modelSource: URI | undefined;
@@ -42,14 +50,15 @@ class CanvasPresentation extends Disposable {
 
 	constructor(
 		reference: ICanvasReference,
-		canvas: ICanvas | undefined,
+		membership: CanvasMembershipState,
 		private readonly browserViewService: IBrowserViewWorkbenchService,
 	) {
 		super();
 		this.key = getCanvasReferenceKey(reference);
 		this.reference = reference;
 		this.serializationId = generateUuid();
-		this._canvas = canvas;
+		this._membership = { kind: 'unknown' };
+		this.updateMembership(membership);
 	}
 
 	get admitted(): boolean {
@@ -68,15 +77,31 @@ class CanvasPresentation extends Disposable {
 		return this._requestId;
 	}
 
-	get canvas(): ICanvas | undefined {
-		return this._canvas;
+	get inputCanvas(): ICanvas | undefined {
+		switch (this._membership.kind) {
+			case 'available':
+			case 'unavailable':
+				return this._canvas;
+			case 'unknown':
+			case 'hydrating':
+				return this._canvas && { ...this._canvas, source: undefined };
+			case 'removed':
+				return undefined;
+		}
 	}
 
-	get pendingCanvas(): ICanvas | undefined {
-		return this._canvas && { ...this._canvas, source: undefined };
+	get membershipPending(): boolean {
+		return this._membership.kind === 'unknown' || this._membership.kind === 'hydrating';
 	}
 
-	updateCanvas(canvas: ICanvas): void {
+	updateMembership(membership: CanvasMembershipState): void {
+		this._membership = membership;
+		if (membership.kind === 'available' || membership.kind === 'unavailable') {
+			this._updateCanvas(membership.canvas);
+		}
+	}
+
+	private _updateCanvas(canvas: ICanvas): void {
 		const disposeModel = !canvas.source || this._modelSource && !isEqual(this._modelSource, canvas.source);
 		this._canvas = canvas;
 		if (disposeModel) {
@@ -116,7 +141,7 @@ class CanvasPresentation extends Disposable {
 	}
 
 	resolveModel(source: URI): Promise<ICanvasModelResolution> {
-		if (this._store.isDisposed || !isEqual(this._canvas?.source, source)) {
+		if (this._store.isDisposed || this._membership.kind !== 'available' || !isEqual(this._membership.source, source)) {
 			return Promise.reject(new CancellationError());
 		}
 		if (this._model && isEqual(this._modelSource, source)) {
@@ -130,7 +155,8 @@ class CanvasPresentation extends Disposable {
 		const value = this.browserViewService.createExternalBrowserView(source.toString(true), 'canvas', { type: 'agent', sessionId: this.reference.chat.toString() }).then(model => {
 			const retained = !this._store.isDisposed
 				&& this._modelGeneration === generation
-				&& isEqual(this._canvas?.source, source);
+				&& this._membership.kind === 'available'
+				&& isEqual(this._membership.source, source);
 			if (retained) {
 				this._model = model;
 				this._modelSource = source;
@@ -173,11 +199,6 @@ class CanvasPresentation extends Disposable {
 		this._modelSource = undefined;
 		model?.dispose();
 	}
-}
-
-interface ICanvasLookup {
-	readonly known: boolean;
-	readonly canvas: ICanvas | undefined;
 }
 
 const settledWorkingSet: ICanvasWorkingSetState = Object.freeze({ owner: undefined, restoring: false, applying: false });
@@ -231,7 +252,7 @@ export class CanvasService extends Disposable implements ICanvasService {
 				}
 				const context = contextService.contexts.read(reader).find(context => isCanvasOwner(context.owner, reference));
 				const canvas = context?.canvases.read(reader)?.find(canvas => isEqual(canvas.resource, reference.canvas));
-				if (canvas?.source !== undefined) {
+				if (canvas && getCanvasMembershipState(canvas).kind === 'available') {
 					targets.push({ reference, canvas });
 				}
 			}
@@ -286,20 +307,22 @@ export class CanvasService extends Disposable implements ICanvasService {
 					liveKeys.add(key);
 					const existingInput = this.inputs.get(key);
 					const presentation = this.presentations.get(key);
-					const membershipPending = canvas.instanceId === undefined;
-					existingInput?.setCanvas(membershipPending ? presentation?.pendingCanvas : canvas, membershipPending);
+					const membership = getCanvasMembershipState(canvas);
+					if (existingInput && presentation) {
+						existingInput.setCanvas(presentation.inputCanvas, presentation.membershipPending);
+					}
 					const request = canvas.instanceId ? requests?.get(canvas.instanceId) : undefined;
 					if (request || !this.requests.has(key)) {
 						this.requests.set(key, request?.id);
 					}
 					const requestId = this.requests.get(key);
 					const dismissed = this.dismissed.get(key);
-					if (!visible || !workingSetPresented || canvas.source === undefined
+					if (!visible || !workingSetPresented || membership.kind !== 'available'
 						|| (dismissed && (dismissed.requestId === requestId || !request?.succeeded))
 						|| (presentation?.opened && (presentation.requestId === requestId || !request?.succeeded))) {
 						continue;
 					}
-					const input = existingInput ?? this.getOrCreateInput(reference, canvas);
+					const input = existingInput ?? this.getOrCreateInput(reference, membership);
 					if (this.opening.has(input)) {
 						continue;
 					}
@@ -353,11 +376,11 @@ export class CanvasService extends Disposable implements ICanvasService {
 		}
 		const key = getCanvasReferenceKey(reference);
 		this.deleteDismissed(key);
-		if (canvas.source === undefined) {
+		const membership = getCanvasMembershipState(canvas);
+		if (membership.kind !== 'available') {
 			return;
 		}
-		const input = this.getOrCreateInput(reference, canvas);
-		input.setCanvas(canvas);
+		const input = this.getOrCreateInput(reference, membership);
 		await this.openInput(key, input);
 	}
 
@@ -376,20 +399,15 @@ export class CanvasService extends Disposable implements ICanvasService {
 			|| !workingSetIncludes(owner, presentation.reference)) {
 			return undefined;
 		}
-		const lookup = this.lookupCanvas(presentation.reference);
-		if (!lookup) {
+		const membership = this.resolveMembership(presentation.reference);
+		if (!membership) {
 			return undefined;
 		}
-		if (lookup.known && !lookup.canvas) {
+		if (membership.kind === 'removed') {
 			this.removePresentation(presentation);
 			return undefined;
 		}
-		const membershipPending = !lookup.known || lookup.canvas?.instanceId === undefined;
-		const canvas = membershipPending
-			? presentation.pendingCanvas
-			: lookup.canvas;
-		const input = this.getOrCreateInput(presentation.reference, canvas, membershipPending);
-		input.setCanvas(canvas, membershipPending);
+		const input = this.getOrCreateInput(presentation.reference, membership);
 		input.setSerializationId(serializationId);
 		presentation.markRestored();
 		return input;
@@ -428,11 +446,10 @@ export class CanvasService extends Disposable implements ICanvasService {
 	}
 
 	private async doOpenInput(key: string, input: CanvasInput, restoreFallback: boolean): Promise<void> {
-		const canvas = input.canvas.get();
-		if (!canvas) {
+		const presentation = this.presentations.get(key);
+		if (!presentation) {
 			throw new Error(localize('canvas.closed', "This canvas is no longer available."));
 		}
-		const presentation = this.getOrCreatePresentation(input.reference, canvas);
 		const suppression = restoreFallback ? this.contextService.workingSets?.suppressEditorPartAutoVisibility() : undefined;
 		try {
 			if (!this.isOwnerPresentable(input.reference)) {
@@ -475,15 +492,16 @@ export class CanvasService extends Disposable implements ICanvasService {
 		}
 	}
 
-	private getOrCreateInput(reference: ICanvasReference, canvas: ICanvas | undefined, membershipPending = false): CanvasInput {
+	private getOrCreateInput(reference: ICanvasReference, membership: CanvasMembershipState): CanvasInput {
 		const key = getCanvasReferenceKey(reference);
-		const presentation = this.getOrCreatePresentation(reference, membershipPending ? undefined : canvas);
+		const presentation = this.getOrCreatePresentation(reference, membership);
 		const existing = this.inputs.get(key);
 		if (existing && !existing.isDisposed()) {
+			existing.setCanvas(presentation.inputCanvas, presentation.membershipPending);
 			return existing;
 		}
-		const input = this.instantiationService.createInstance(CanvasInput, reference, canvas);
-		input.setCanvas(canvas, membershipPending);
+		const input = this.instantiationService.createInstance(CanvasInput, reference, presentation.inputCanvas);
+		input.setCanvas(presentation.inputCanvas, presentation.membershipPending);
 		if (presentation.admitted) {
 			input.setSerializationId(presentation.serializationId);
 		}
@@ -517,16 +535,14 @@ export class CanvasService extends Disposable implements ICanvasService {
 		return input;
 	}
 
-	private getOrCreatePresentation(reference: ICanvasReference, canvas?: ICanvas): CanvasPresentation {
+	private getOrCreatePresentation(reference: ICanvasReference, membership: CanvasMembershipState): CanvasPresentation {
 		const key = getCanvasReferenceKey(reference);
 		let presentation = this.presentations.get(key);
 		if (presentation) {
-			if (canvas) {
-				presentation.updateCanvas(canvas);
-			}
+			presentation.updateMembership(membership);
 			return presentation;
 		}
-		presentation = new CanvasPresentation(reference, canvas, this.browserViewService);
+		presentation = new CanvasPresentation(reference, membership, this.browserViewService);
 		this.presentations.set(presentation.key, presentation);
 		this.presentationsBySerializationId.set(presentation.serializationId, presentation);
 		return presentation;
@@ -564,33 +580,31 @@ export class CanvasService extends Disposable implements ICanvasService {
 
 	private reconcilePresentations(reader: IReader): void {
 		for (const [key, presentation] of this.presentations) {
-			const lookup = this.lookupCanvas(presentation.reference, reader);
-			if (!lookup) {
+			const membership = this.resolveMembership(presentation.reference, reader);
+			if (!membership) {
 				continue;
 			}
 			const input = this.inputs.get(key);
-			if (lookup.known && !lookup.canvas) {
+			if (membership.kind === 'removed') {
 				this.removePresentation(presentation);
 				continue;
 			}
-			if (lookup.canvas?.instanceId === undefined) {
-				input?.setCanvas(presentation.pendingCanvas, true);
-				continue;
-			}
-			presentation.updateCanvas(lookup.canvas);
-			input?.setCanvas(lookup.canvas, false);
+			presentation.updateMembership(membership);
+			input?.setCanvas(presentation.inputCanvas, presentation.membershipPending);
 		}
 	}
 
-	private lookupCanvas(reference: ICanvasReference, reader?: IReader): ICanvasLookup | undefined {
+	private resolveMembership(reference: ICanvasReference, reader?: IReader): CanvasMembershipState | undefined {
 		const canvases = this.contextService.getContext(reference, reader)?.canvases;
 		if (!canvases) {
 			return undefined;
 		}
 		const current = canvases.read(reader);
-		return current === undefined
-			? { known: false, canvas: undefined }
-			: { known: true, canvas: current.find(candidate => isEqual(candidate.resource, reference.canvas)) };
+		if (current === undefined) {
+			return { kind: 'unknown' };
+		}
+		const canvas = current.find(candidate => isEqual(candidate.resource, reference.canvas));
+		return canvas ? getCanvasMembershipState(canvas) : { kind: 'removed' };
 	}
 
 	private removeOwner(owner: ICanvasOwner): void {
@@ -690,6 +704,16 @@ export class CanvasService extends Disposable implements ICanvasService {
 			this.dismissedChanged.trigger(undefined);
 		}
 	}
+}
+
+function getCanvasMembershipState(canvas: ICanvas): CanvasMembershipState {
+	if (canvas.instanceId === undefined) {
+		return { kind: 'hydrating', canvas };
+	}
+	if (canvas.source === undefined) {
+		return { kind: 'unavailable', canvas };
+	}
+	return { kind: 'available', canvas, source: canvas.source };
 }
 
 function workingSetIncludes(owner: ICanvasWorkingSetOwner, canvasOwner: ICanvasOwner): boolean {
