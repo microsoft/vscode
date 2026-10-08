@@ -94,6 +94,7 @@ export class ChatDebugSessionTimeline extends Disposable {
 	private model: ISessionTimelineModel | undefined;
 	private findMatches: readonly ISessionTimelineFindMatch[] = [];
 	private findMatchesByField = new Map<string, readonly ISessionTimelineFindMatch[]>();
+	private findEventIds = new Set<string>();
 	private currentFindMatchIndex = -1;
 	private activeFindQuery = '';
 	private findSearching = false;
@@ -166,6 +167,7 @@ export class ChatDebugSessionTimeline extends Disposable {
 				this.activeFindQuery = '';
 				this.findMatches = [];
 				this.findMatchesByField.clear();
+				this.findEventIds.clear();
 				this.currentFindMatchIndex = -1;
 				this.findSearching = false;
 				this.cancelFindSearch();
@@ -231,6 +233,7 @@ export class ChatDebugSessionTimeline extends Disposable {
 		this.activeFindQuery = '';
 		this.findMatches = [];
 		this.findMatchesByField.clear();
+		this.findEventIds.clear();
 		this.currentFindMatchIndex = -1;
 		this.findSearching = false;
 		this.cancelFindSearch();
@@ -330,9 +333,6 @@ export class ChatDebugSessionTimeline extends Disposable {
 			}
 			this.sourceResource = sourceResource;
 			this.model = createSessionTimelineModel(content.value.toString());
-			if (this.findInput.value && !this.findSearching && !this.findScheduler.isScheduled()) {
-				this.scheduleFindSearch();
-			}
 			this.render();
 		} catch (error) {
 			if (generation !== this.loadGeneration) {
@@ -375,6 +375,7 @@ export class ChatDebugSessionTimeline extends Disposable {
 		this.cancelFindSearch();
 		this.findMatches = [];
 		this.findMatchesByField.clear();
+		this.findEventIds.clear();
 		this.currentFindMatchIndex = -1;
 		this.activeFindQuery = '';
 		if (!this.findInput.value) {
@@ -408,6 +409,7 @@ export class ChatDebugSessionTimeline extends Disposable {
 		}
 		this.activeFindQuery = query;
 		this.findMatches = matches;
+		this.findEventIds = new Set(matches.map(match => match.eventId));
 		const matchesByField = new Map<string, ISessionTimelineFindMatch[]>();
 		for (const match of matches) {
 			const key = this.findMatchFieldKey(match.eventId, match.field);
@@ -466,6 +468,10 @@ export class ChatDebugSessionTimeline extends Disposable {
 		const matches = eventId && field
 			? this.findMatchesByField.get(this.findMatchFieldKey(eventId, field))
 			: undefined;
+		if (eventId && field && !matches?.length) {
+			container.textContent = text;
+			return;
+		}
 		if (matches?.length) {
 			let offset = 0;
 			for (const match of matches) {
@@ -663,7 +669,7 @@ export class ChatDebugSessionTimeline extends Disposable {
 			summary = DOM.append(card, $('div.chat-debug-session-timeline-event-summary'));
 			this.appendHighlightedText(summary, event.summary, searchQuery, event.id, 'summary');
 		}
-		const searchMatch = searchQuery ? this.findSearchMatch(event, searchQuery) : undefined;
+		const searchMatch = searchQuery && this.findEventIds.has(event.id) ? this.findSearchMatch(event, searchQuery) : undefined;
 		const toggleExpanded = () => {
 			if (expanded) {
 				this.expandedEventIds.delete(event.id);
@@ -880,6 +886,7 @@ export class ChatDebugSessionTimeline extends Disposable {
 		this.renderedPromptSections.clear();
 		this.findMatches = [];
 		this.findMatchesByField.clear();
+		this.findEventIds.clear();
 		this.currentFindMatchIndex = -1;
 		this.activeFindQuery = '';
 		this.findSearching = false;
