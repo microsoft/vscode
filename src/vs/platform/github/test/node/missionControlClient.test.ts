@@ -144,6 +144,7 @@ suite('Mission Control client', () => {
 		assert.deepStrictEqual({
 			results,
 			requests: requests.map(({ url, init }) => [init.method, url.pathname + url.search, init.body]),
+			contentTypes: requests.map(({ init }) => new Headers(init.headers).get('Content-Type')),
 			authentication: [...identities, ...requests].map(({ init }) => new Headers(init.headers).get('Authorization')),
 			headers: requests.map(({ init }) => {
 				const headers = new Headers(init.headers);
@@ -168,6 +169,7 @@ suite('Mission Control client', () => {
 				['GET', '/agents/automations/tools', undefined],
 				['GET', '/agents/automations/triggers', undefined],
 			],
+			contentTypes: [null, null, 'application/json', 'application/json', 'application/json', null, null, null, null],
 			authentication: Array(10).fill('Bearer token-selected'),
 			headers: Array(9).fill(['test-integration', null, 'omit', 'manual', 'no-store', 'no-referrer']),
 			identityUrl: ['https://api.github.com/user'],
@@ -635,6 +637,27 @@ suite('Mission Control client', () => {
 		assert.deepStrictEqual({ results, routes: requests.map(request => request.url.pathname) }, {
 			results: [task, task, task, task, task, undefined, models],
 			routes: ['/agents/tasks', '/agents/tasks/task-1', '/agents/tasks/task-1', '/agents/tasks/task-1/archive', '/agents/tasks/task-1/unarchive', '/agents/tasks/task-1', '/agents/swe/models'],
+		});
+	});
+
+	test('AHP history checks its complete frame count without restricting paginated raw events', async () => {
+		const frames = [{
+			session_id: 'session-1', ns: 'ahp', seq: 0, at: date,
+			payload: { kind: 'message', data: { channel: 'session:1', action: { type: 'session/delta', extra: 'preserved' }, serverSeq: 1 } },
+		}];
+		const rawEvents = [{ id: 'event-1', timestamp: date, parentId: null, type: 'message', data: { content: 'hello' } }];
+		let total = frames.length;
+		const { client } = setup(({ init }) => Response.json(new Headers(init.headers).get('Accept') === 'application/vnd.github.ahp+json'
+			? { events: frames, total }
+			: { events: rawEvents, total: 2 }));
+		const history = await client.tasks.getAhpEvents(task.id, signal());
+		for (const inconsistentTotal of [0, 2]) {
+			total = inconsistentTotal;
+			await assert.rejects(client.tasks.getAhpEvents(task.id, signal()), SchemaError);
+		}
+		const page = await client.tasks.getEvents(task.id, signal());
+		assert.deepStrictEqual({ history, page: page.data }, {
+			history: { events: frames, total: 1 }, page: { events: rawEvents, total: 2 },
 		});
 	});
 

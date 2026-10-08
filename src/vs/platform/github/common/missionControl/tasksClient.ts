@@ -327,21 +327,25 @@ const parseAhpChunk = parse.refine(
 	'Invalid AHP chunk',
 );
 
-const parseTaskAhpEventsResponse = parse.object<TaskAHPEventsResponse>({
-	events: parse.arrayOf(parse.amend(parse.jsonObject, parse.object({
-		environment_id: parse.optional(parse.string),
-		session_id: parse.nonEmptyString,
-		ns: parse.oneOf('ahp', 'sdk'),
-		seq: parse.nonNegativeInteger,
-		at: parse.dateTime,
-		project: parse.optional(parse.amend(parse.jsonObject, parse.object({
-			uri: parse.optional(parse.string),
-			display_name: parse.optional(parse.string),
+const parseTaskAhpEventsResponse = parse.refine(
+	parse.object<TaskAHPEventsResponse>({
+		events: parse.arrayOf(parse.amend(parse.jsonObject, parse.object({
+			environment_id: parse.optional(parse.string),
+			session_id: parse.nonEmptyString,
+			ns: parse.oneOf('ahp', 'sdk'),
+			seq: parse.nonNegativeInteger,
+			at: parse.dateTime,
+			project: parse.optional(parse.amend(parse.jsonObject, parse.object({
+				uri: parse.optional(parse.string),
+				display_name: parse.optional(parse.string),
+			}))),
+			payload: parse.amend(
+				parse.jsonObject,
+				payload => payload.kind === 'message' ? parseAhpMessage(payload) : parseAhpChunk(payload),
+			),
 		}))),
-		payload: parse.amend(
-			parse.jsonObject,
-			payload => payload.kind === 'message' ? parseAhpMessage(payload) : parseAhpChunk(payload),
-		),
-	}))),
-	total: parse.nonNegativeInteger,
-});
+		total: parse.nonNegativeInteger,
+	}),
+	response => response.total === response.events.length,
+	'AHP history total does not match the returned frame count',
+);

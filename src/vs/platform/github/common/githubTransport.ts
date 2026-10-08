@@ -645,6 +645,8 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			}
 			signal.throwIfAborted();
 			const metadata = this._responseMetadata(response);
+			const noStore = /\bno-store\b/i.test(response.headers.get('cache-control') ?? '');
+			const finalCacheKey = this._restCacheKey(account, request, finalUrl);
 			this._logRateLimit(account, request.rateLimitResource ?? response.headers.get('x-ratelimit-resource') ?? resource);
 			if (response.status === 304) {
 				if (!cached) {
@@ -658,12 +660,17 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 				if (revalidatedEtag !== cached.etag) {
 					this._logService?.trace(`[GitHubTransport] Adopting reissued validator for ${operation}`);
 				}
-				this._restCache.set(cacheKey, {
-					...cached,
-					etag: revalidatedEtag,
-					link: revalidatedLink,
-					fetchedAt: this._scheduler.now(),
-				});
+				if (noStore) {
+					this._restCache.delete(cacheKey);
+					this._restCache.delete(finalCacheKey);
+				} else {
+					this._restCache.set(cacheKey, {
+						...cached,
+						etag: revalidatedEtag,
+						link: revalidatedLink,
+						fetchedAt: this._scheduler.now(),
+					});
+				}
 				this._logService?.trace(`[GitHubTransport] Reused cached representation for ${operation}`);
 				return {
 					...metadata,
@@ -683,9 +690,8 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			}
 			const responseEtag = response.headers.get('etag') ?? undefined;
 			const representationVersion = request.representationVersion ?? 1;
-			const finalCacheKey = this._restCacheKey(account, request, finalUrl);
 			if (request.method === 'GET' && request.etag !== false && request.responseBody !== 'none') {
-				if (responseEtag && !/\bno-store\b/i.test(response.headers.get('cache-control') ?? '')) {
+				if (responseEtag && !noStore) {
 					const entry: IRestCacheEntry = {
 						accountKey: RequestQueue.accountKey(account),
 						etag: responseEtag,

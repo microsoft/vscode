@@ -536,7 +536,7 @@ export interface AhpEvent {
 export interface TaskAHPEventsResponse {
 	/** Raw frames in emission order per session. */
 	readonly events: readonly AhpEvent[];
-	/** The total number of frames across all sessions. */
+	/** The number of returned frames across all sessions; equals events.length. */
 	readonly total: number;
 }
 
