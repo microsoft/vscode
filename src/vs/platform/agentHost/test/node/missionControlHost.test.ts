@@ -221,7 +221,9 @@ suite('Mission Control host integration', () => {
 		assert.deepStrictEqual({
 			hostManagement: config.allowExtensionMethods,
 			diagnosticLogs: config.otlpLogEmitter,
-		}, { hostManagement: false, diagnosticLogs: undefined });
+			modelProviders: config.advertisedModelProviders,
+			sessionConfig: config.copilotSessionConfig,
+		}, { hostManagement: false, diagnosticLogs: undefined, modelProviders: ['copilotcli'], sessionConfig: true });
 	});
 
 	test('reports bounded host lifecycle metadata without exporting errors or successful heartbeat traffic', () => {

@@ -85,10 +85,12 @@ export interface IOpenAgentsWindowOptions {
 	readonly folderUri?: UriComponents;
 	/** Use the invoking editor's folder only for a fresh composer, without replacing an existing session or user choice. */
 	readonly folderUriIsDefault?: boolean;
-	readonly sessionResource?: UriComponents;
+	/** Reveal a session or the new-session composer; otherwise preserve the view of an already-open window. */
+	readonly reveal?: UriComponents | 'new';
 	/** Session to spotlight after a contextual invitation, even when it is not opened. */
 	readonly onboardingSessionResource?: UriComponents;
 	readonly source?: AgentsWindowOpenSource;
+	/** Copy a draft only when explicitly revealing the new-session composer. */
 	readonly draft?: IAgentsWindowDraft;
 }
 

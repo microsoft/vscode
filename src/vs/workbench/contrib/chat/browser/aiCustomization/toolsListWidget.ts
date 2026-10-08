@@ -1150,12 +1150,11 @@ export class ToolsListWidget extends Disposable {
 				buttonSecondaryBorder: undefined,
 			}),
 			secondary: true,
-			supportIcons: true,
 			title: browseLabel,
 			ariaLabel: browseLabel,
 		}));
 		browseButton.element.classList.add('plugin-installed-action', 'plugin-card-ghost-button');
-		browseButton.label = `$(${Codicon.library.id}) ${browseLabel}`;
+		browseButton.label = browseLabel;
 		disposables.add(browseButton.onDidClick(() => void this._browseMarketplace()));
 	}
 

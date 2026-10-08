@@ -546,7 +546,7 @@ export interface IAgentChatContext {
 	readonly customizations?: readonly Customization[];
 	/** Per-operation host instructions that providers add to model context without persisting as user content. */
 	readonly hostInstructions?: readonly string[];
-	/** Records provider stage timing for the turn being sent; supplied only for a send. */
+	/** Records provider timing for the current send or resumed execution. */
 	readonly sendStageRecorder?: IAgentProviderSendStageRecorder;
 	/** Whether the current turn is an automated Agent Merge repair turn. */
 	readonly agentMergeTurn?: boolean;
@@ -1371,6 +1371,12 @@ export interface IAgent {
 
 	/** Optional history mutation for providers with a native truncation operation. */
 	truncateChat?(chat: URI, turnId: string | undefined, context?: URI | IAgentChatContext): Promise<void>;
+
+	/**
+	 * Stops an entry of the chat's background work that this provider marked
+	 * stoppable. Resolves false when the entry is unknown or had already finished.
+	 */
+	stopBackgroundWork?(chat: URI, id: string): Promise<boolean>;
 
 	/**
 	 * Changes the working directory of an exact chat's existing provider-native

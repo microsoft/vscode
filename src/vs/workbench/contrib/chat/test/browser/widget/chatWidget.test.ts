@@ -10,7 +10,7 @@ import { DeferredPromise, timeout } from '../../../../../../base/common/async.js
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, IReader, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mockObject, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -21,6 +21,8 @@ import { IDialogService } from '../../../../../../platform/dialogs/common/dialog
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { ILinkDescriptor, ILinkOptions, Link } from '../../../../../../platform/opener/browser/link.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
@@ -54,6 +56,9 @@ import { observePromptTimelineHostWidth } from '../../../browser/promptTimeline/
 import { ChatContentMarkdownRenderer } from '../../../browser/widget/chatContentMarkdownRenderer.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { createChatUserInteractionTestHarness } from '../chatUserInteractionTestUtils.js';
+import { ChatReadOnlyBanner } from '../../../browser/widget/chatReadOnlyBanner.js';
+import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
+import { SessionType } from '../../../common/chatSessionsService.js';
 
 suite('ChatWidget', () => {
 
@@ -1180,6 +1185,123 @@ suite('ChatWidget', () => {
 			rendererOptions: [{ editable: false, readOnly: true }, { editable: false, readOnly: true }, { editable: true, readOnly: false }],
 			rerenders: 3,
 			inputVisibility: [false, true, true],
+		});
+	});
+
+	test('policy read-only banner follows history switches and does not relabel other read-only states', () => {
+		const instantiation = store.add(new TestInstantiationService());
+		instantiation.stub(IHoverService, NullHoverService);
+		instantiation.stub(IOpenerService, { open: async () => true });
+		const banner = store.add(instantiation.createInstance(ChatReadOnlyBanner, 'This chat is read-only'));
+		const container = dom.$('div');
+		container.appendChild(banner.domNode);
+		dom.append(container, dom.$('div'));
+		const policy = observableValue('policy', true);
+		const sessionChanges = store.add(new Emitter<void>());
+		let archivedState = false;
+		let readOnlyUpdates = 0;
+		const local = upcastPartial<IChatModel>({
+			sessionResource: LocalChatSessionUri.forSession('old-local'), hasRequests: true,
+			isReadOnly: constObservable(false), isInputBlocked: policy,
+		});
+		const copilot = upcastPartial<IChatModel>({
+			sessionResource: URI.from({ scheme: SessionType.AgentHostCopilot, path: '/new' }), hasRequests: true,
+			isReadOnly: constObservable(false), isInputBlocked: constObservable(false),
+		});
+		const inline = upcastPartial<IChatModel>({
+			sessionResource: LocalChatSessionUri.forSession('inline'), initialLocation: ChatAgentLocation.EditorInline,
+			hasRequests: true, isReadOnly: constObservable(false), isInputBlocked: constObservable(false),
+		});
+		const archived = upcastPartial<IChatModel>({
+			sessionResource: LocalChatSessionUri.forSession('archived'), hasRequests: true,
+			isReadOnly: constObservable(true), isInputBlocked: constObservable(false),
+		});
+		const selected = observableValue('selected', local);
+		const widget: {
+			observeLocalSessionArchived(model: IChatModel): IObservable<boolean>;
+			updateReadOnlyState(model: IChatModel, archived: boolean, reader: IReader): void;
+			_viewModel: { sessionResource: URI; model: IChatModel };
+		} = Object.assign(Object.create(ChatWidget.prototype), {
+			_readOnly: false, _draftOnly: observableValue('draftOnly', false), _visible: constObservable(false),
+			_readOnlyContextKey: { set: () => { } }, policyRequiresAgentHost: policy, readOnlyBanner: banner,
+			agentSessionsService: {
+				model: { onDidChangeSessions: sessionChanges.event },
+				getSession: () => ({ isArchived: () => archivedState }),
+			},
+			chatSuggestNextWidget: { hide: () => { } }, hasInputFocus: () => false,
+			setInputVisible: () => { }, renderChatSuggestNextWidget: () => { },
+			listWidget: { updateRendererOptions: () => { readOnlyUpdates++; } },
+			inputPartDisposable: { value: { inputUri: URI.parse('vscode-chat-input:policy-banner') } },
+		});
+		store.add(autorun(reader => {
+			const model = selected.read(reader);
+			widget._viewModel = { sessionResource: model.sessionResource, model };
+			const archived = widget.observeLocalSessionArchived(model);
+			reader.store.add(autorun(reader => widget.updateReadOnlyState(model, archived.read(reader), reader)));
+		}));
+		const snapshot = () => ({
+			visible: banner.visible, text: banner.domNode.querySelector('.chat-readonly-banner-text')?.textContent,
+			action: banner.domNode.querySelector('a')?.textContent,
+			atTop: container.firstChild === banner.domNode,
+		});
+		const original = snapshot();
+		const initialUpdates = readOnlyUpdates;
+		sessionChanges.fire();
+		const unrelatedUpdateChangedBanner = readOnlyUpdates !== initialUpdates;
+		selected.set(copilot, undefined);
+		const away = snapshot();
+		selected.set(inline, undefined);
+		const inlineUnderPolicy = snapshot();
+		selected.set(local, undefined);
+		const returned = snapshot();
+		archivedState = true;
+		sessionChanges.fire();
+		const archivedUnderPolicy = snapshot();
+		selected.set(copilot, undefined);
+		const otherProviderWhileArchived = snapshot();
+		selected.set(local, undefined);
+		policy.set(false, undefined);
+		const archivedAfterRemoval = snapshot();
+		archivedState = false;
+		sessionChanges.fire();
+		const removed = snapshot();
+		selected.set(archived, undefined);
+		assert.deepStrictEqual({ original, unrelatedUpdateChangedBanner, away, inlineUnderPolicy, returned, archivedUnderPolicy, otherProviderWhileArchived, archivedAfterRemoval, removed, archived: snapshot() }, {
+			original: { visible: true, text: 'This chat is read-only because your organization requires the new Copilot experience.', action: 'Move to Copilot', atTop: true },
+			unrelatedUpdateChangedBanner: false,
+			away: { visible: false, text: 'This chat is read-only', action: '', atTop: true },
+			inlineUnderPolicy: { visible: false, text: 'This chat is read-only', action: '', atTop: true },
+			returned: original,
+			archivedUnderPolicy: { visible: true, text: 'This chat is read-only', action: '', atTop: true },
+			otherProviderWhileArchived: { visible: false, text: 'This chat is read-only', action: '', atTop: true },
+			archivedAfterRemoval: { visible: false, text: 'This chat is read-only', action: '', atTop: true },
+			removed: { visible: false, text: 'This chat is read-only', action: '', atTop: true },
+			archived: { visible: true, text: 'This chat is read-only', action: '', atTop: true },
+		});
+	});
+
+	test('read-only banner disables its action while it is running', async () => {
+		const instantiation = store.add(new TestInstantiationService());
+		instantiation.stub(IHoverService, NullHoverService);
+		instantiation.stub(IOpenerService, { open: async () => true });
+		const banner = store.add(instantiation.createInstance(ChatReadOnlyBanner, undefined));
+		const pending = new DeferredPromise<void>();
+		let calls = 0;
+		banner.setAction({ label: 'Move to Copilot', run: () => { calls++; return pending.p; } });
+		banner.setVisible(true);
+		const link = banner.domNode.querySelector('a')!;
+		const snapshot = () => ({ calls, disabled: link.getAttribute('aria-disabled'), tabIndex: link.tabIndex });
+		link.click();
+		link.click();
+		const running = snapshot();
+		await pending.complete();
+		const finished = snapshot();
+		link.click();
+		await pending.p;
+		assert.deepStrictEqual({ running, finished, retried: snapshot() }, {
+			running: { calls: 1, disabled: 'true', tabIndex: -1 },
+			finished: { calls: 1, disabled: 'false', tabIndex: 0 },
+			retried: { calls: 2, disabled: 'false', tabIndex: 0 },
 		});
 	});
 

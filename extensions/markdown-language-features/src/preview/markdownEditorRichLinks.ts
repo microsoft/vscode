@@ -59,14 +59,10 @@ export class MarkdownEditorRichLinkController extends Disposable {
 		super.dispose();
 	}
 
-	async #publishPresentation(href: string, presentation: LinkPresentation | undefined): Promise<void> {
-		try {
-			await this.#publish({
-				presentations: [{ href, presentation }],
-			});
-		} catch (error) {
-			this.#logger.trace('Markdown rich link', `Failed to publish ${href}`, error);
-		}
+	#publishPresentation(href: string, presentation: LinkPresentation | undefined): void {
+		this.#publish({
+			presentations: [{ href, presentation }],
+		});
 	}
 }
 
