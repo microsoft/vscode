@@ -31,6 +31,7 @@ import { ServiceCollection } from '../../../../../../platform/instantiation/comm
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { CloudSandboxSessionTrace } from '../../../common/cloudSandboxSessionTrace.js';
 import { IStorageService, StorageScope, WillSaveStateReason } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
@@ -3471,6 +3472,10 @@ suite('ChatService', () => {
 		});
 
 		test('promotes recorded history to a live turn without replacing the model, input, or unchanged requests', async () => {
+			const traceMessages: string[] = [];
+			const loadTrace = testDisposables.add(new CloudSandboxSessionTrace(new class extends NullLogService {
+				override info(message: string): void { traceMessages.push(message); }
+			}()));
 			const historyChanges = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
 			const serverRequests = testDisposables.add(new Emitter<IChatSessionServerRequest>());
 			const progressObs = observableValue<IChatProgress[]>('progress', []);
@@ -3481,11 +3486,12 @@ suite('ChatService', () => {
 				{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString('Finished') }], participant: remoteScheme },
 			];
 			const active: IChatSessionHistoryItem = { id: 'active', type: 'request', prompt: 'Continue', participant: remoteScheme };
-			const { resource, resolutionCount } = setupRemoteProvider({
+			const { resource, provided, resolutionCount } = setupRemoteProvider({
 				history: [...first, active, { type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString('Recorded prefix') }], participant: remoteScheme }],
 				onDidChangeHistory: historyChanges.event, onDidStartServerRequest: serverRequests.event,
 				progressObs, isCompleteObs, isReadOnly, interruptActiveResponseCallback: async () => true,
 			});
+			loadTrace.associate(provided);
 			const service = createChatService();
 			instantiationService.stub(IChatService, service);
 			const ref = testDisposables.add((await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None))!);
@@ -3505,11 +3511,14 @@ suite('ChatService', () => {
 			const reopened = testDisposables.add((await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None))!);
 			assert.deepStrictEqual({
 				sameModel: reopened.object === model, sameInput: model.inputModel === input,
+				sameTrace: CloudSandboxSessionTrace.get(model) === loadTrace,
+				modelReadyEvents: traceMessages.filter(message => message.includes('event=modelReady')).length,
 				sameFirstRequest: model.getRequests()[0] === firstRequest, resolutions: resolutionCount(),
 				draft: input.state.get()?.inputText, readOnly: model.isReadOnly.get(),
 				requests: model.getRequests().map(request => [request.id, request.response?.response.toString()]),
 			}, {
 				sameModel: true, sameInput: true, sameFirstRequest: true, resolutions: 1,
+				sameTrace: true, modelReadyEvents: 1,
 				draft: 'Unsent draft', readOnly: false,
 				requests: [['first', 'Finished'], ['active', 'Recorded prefix and live continuation']],
 			});

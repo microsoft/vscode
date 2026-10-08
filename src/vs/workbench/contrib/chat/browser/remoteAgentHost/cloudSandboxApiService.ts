@@ -12,6 +12,7 @@ import { isObject } from '../../../../../base/common/types.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
+import { clearMarks, mark } from '../../../../../base/common/performance.js';
 import { getGitHubRequestId, sanitizeConnectionDiagnosticText } from '../../../../../platform/agentHost/common/connectionDiagnostics.js';
 import {
 	CLOUD_SANDBOX_AGENT_SLUG,
@@ -660,11 +661,18 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	 * mirror, not the environment. The `vnd.github.ahp+json` media type selects the raw relayed
 	 * frames rather than the cloud-task event summaries the endpoint serves by default.
 	 */
-	async getSessionHistory(taskId: string, token: CancellationToken): Promise<IReplayedTaskHistory | undefined> {
+	async getSessionHistory(taskId: string, token: CancellationToken, diagnosticId?: string): Promise<IReplayedTaskHistory | undefined> {
 		// Temporary first-open diagnostics: correlate phases without logging task IDs, content, or credentials.
 		const loadId = ++this._historyRequestId;
+		const traceId = diagnosticId ?? `history-${loadId}`;
 		const watch = StopWatch.create(false);
-		const logTiming = (message: string) => this._logService.info(`${LOG_PREFIX} historyTiming loadId=${loadId} ${message} totalMs=${watch.elapsed()}`);
+		const marks: string[] = [];
+		const logTiming = (event: string, details = '') => {
+			const name = `code/cloudSandbox/${traceId}/history-${loadId}/${event}`;
+			marks.push(name);
+			mark(name);
+			this._logService.info(`${LOG_PREFIX} historyTiming loadId=${loadId} traceId=${traceId} ${event}${details ? ` ${details}` : ''} totalMs=${watch.elapsed()}`);
+		};
 		let phase = 'authentication';
 		let phaseStarted = 0;
 		logTiming('started');
@@ -675,12 +683,13 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 				'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
 			}, token, DISCOVERY_TIMEOUT_MS, undefined, undefined, () => {
 				phaseStarted = watch.elapsed();
-				logTiming(`requestIssued authenticationMs=${phaseStarted}`);
+				logTiming('requestIssued', `authenticationMs=${phaseStarted}`);
 				phase = 'request';
-			});
+			}, `${traceId}/history-${loadId}`);
 			const responseReceived = watch.elapsed();
 			const requestMs = responseReceived - phaseStarted;
-			logTiming(`responseReceived requestMs=${requestMs} status=${context.res.statusCode ?? 'unknown'}`);
+			const requestId = getGitHubRequestId(context.res.headers['x-github-request-id']);
+			logTiming('responseReceived', `requestMs=${requestMs} status=${context.res.statusCode ?? 'unknown'} responseHeadersMs=${context.timings?.responseHeadersMs ?? 'unavailable'} downloadMs=${context.timings?.responseBodyMs ?? 'unavailable'} decodedBodyBytes=${context.timings?.decodedBodyBytes ?? 'unavailable'} requestId=${requestId ?? 'unavailable'}`);
 			phase = 'responseBody';
 			phaseStarted = responseReceived;
 			if (!isSuccess(context)) {
@@ -689,7 +698,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			const body = await this._readJson<unknown>(context);
 			const bodyRead = watch.elapsed();
 			const bodyReadAndParseMs = bodyRead - phaseStarted;
-			logTiming(`bodyRead bodyReadAndParseMs=${bodyReadAndParseMs}`);
+			logTiming('bodyRead', `bodyReadAndParseMs=${bodyReadAndParseMs}`);
 			if (body === undefined) {
 				throw new TaskEventReplayError('Task AHP history response was empty or not JSON.');
 			}
@@ -697,11 +706,15 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			phaseStarted = bodyRead;
 			const events = parseTaskEventsResponse(body);
 			const history = replayTaskAhpEvents(events);
-			logTiming(`completed apiMs=${requestMs + bodyReadAndParseMs} replayMs=${watch.elapsed() - phaseStarted} events=${events.length} sessions=${history?.sessions.length ?? 0} truncated=${history?.truncated ?? false}`);
+			logTiming('completed', `apiMs=${requestMs + bodyReadAndParseMs} replayMs=${watch.elapsed() - phaseStarted} events=${events.length} sessions=${history?.sessions.length ?? 0} truncated=${history?.truncated ?? false}`);
 			return history;
 		} catch (error) {
-			logTiming(`${isCancellationError(error) || token.isCancellationRequested ? 'cancelled' : 'failed'} phase=${phase} phaseMs=${watch.elapsed() - phaseStarted}`);
+			logTiming(isCancellationError(error) || token.isCancellationRequested ? 'cancelled' : 'failed', `phase=${phase} phaseMs=${watch.elapsed() - phaseStarted}`);
 			throw error;
+		} finally {
+			for (const name of marks) {
+				clearMarks(name);
+			}
 		}
 	}
 
@@ -838,7 +851,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		}
 	}
 
-	private async _request(url: string, callSite: string, action: CloudSandboxRequestAction, headers: Record<string, string>, token: CancellationToken, timeoutMs: number = REQUEST_TIMEOUT_MS, body?: unknown, method?: 'GET' | 'POST' | 'DELETE' | 'PATCH', onRequest?: ICloudSandboxConnectionRequest['onRequest']): Promise<IRequestContext> {
+	private async _request(url: string, callSite: string, action: CloudSandboxRequestAction, headers: Record<string, string>, token: CancellationToken, timeoutMs: number = REQUEST_TIMEOUT_MS, body?: unknown, method?: 'GET' | 'POST' | 'DELETE' | 'PATCH', onRequest?: ICloudSandboxConnectionRequest['onRequest'], diagnosticId?: string): Promise<IRequestContext> {
 		const accessToken = (await this._resolveGitHubSession())?.accessToken;
 		if (!accessToken) {
 			// No request is issued, so there is no request outcome to count.
@@ -863,6 +876,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 				...(body === undefined ? undefined : { data: JSON.stringify(body) }),
 				timeout: timeoutMs,
 				callSite,
+				...(diagnosticId ? { diagnosticId } : {}),
 			}, token);
 			this._telemetry.reportRequest(action, requestOutcomeForStatus(context.res.statusCode));
 			// Latency against its budget: `/connect` blocks on a compute resume, so how close a reply

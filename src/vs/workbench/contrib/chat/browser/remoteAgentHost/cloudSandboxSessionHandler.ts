@@ -11,6 +11,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
+import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -18,6 +19,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { IChatProgress } from '../../common/chatService/chatService.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionServerRequest } from '../../common/chatSessionsService.js';
+import { CloudSandboxSessionTrace } from '../../common/cloudSandboxSessionTrace.js';
 import { CloudSandboxReadOnlySessionHandler, ICloudSandboxReadOnlyConfig, ReadOnlyChatSession } from './cloudSandboxReadOnlySessionHandler.js';
 
 /** Keeps the contributed session and its model alive while recorded history becomes live. */
@@ -136,6 +138,7 @@ interface ISandboxChatEntry extends IDisposable {
 	readonly historyToken: CancellationToken;
 	readonly ready: DeferredPromise<PromotableCloudSandboxChatSession>;
 	readonly notification: MutableDisposable<IDisposable>;
+	readonly trace: CloudSandboxSessionTrace;
 	session?: PromotableCloudSandboxChatSession;
 	liveRequested: boolean;
 	live: boolean;
@@ -165,6 +168,9 @@ export class CloudSandboxSessionHandler extends Disposable implements IChatSessi
 		if (!this._liveReady.isSettled) {
 			void this._liveReady.complete(provider);
 		}
+		for (const entry of this._sessions.values()) {
+			entry.trace.record('liveProviderReady');
+		}
 		this.retryLiveSessions();
 	}
 
@@ -179,15 +185,21 @@ export class CloudSandboxSessionHandler extends Disposable implements IChatSessi
 		if (!entry) {
 			const store = new DisposableStore();
 			const historyStore = store.add(new DisposableStore());
+			const entryToken = cancelOnDispose(store);
+			const historyToken = cancelOnDispose(historyStore);
+			const trace = store.add(new CloudSandboxSessionTrace(this._logService));
 			entry = {
-				resource, store, token: cancelOnDispose(store),
-				historyStore, historyToken: cancelOnDispose(historyStore),
+				resource, store, token: entryToken,
+				historyStore, historyToken, trace,
 				ready: new DeferredPromise<PromotableCloudSandboxChatSession>(),
 				notification: store.add(new MutableDisposable<IDisposable>()),
 				liveRequested: false, live: false, waiters: 0, claimed: false,
 				dispose: () => store.dispose(),
 			};
 			this._sessions.set(resource, entry);
+			if (this._liveProvider) {
+				entry.trace.record('liveProviderReady');
+			}
 			void this._loadHistory(entry);
 			this._loadLive(entry);
 		}
@@ -204,8 +216,10 @@ export class CloudSandboxSessionHandler extends Disposable implements IChatSessi
 		}
 	}
 
-	private _accept(entry: ISandboxChatEntry, source: IChatSession, live: boolean): void {
+	private _accept(entry: ISandboxChatEntry, source: IChatSession, kind: 'history' | 'live' | 'historyError'): void {
+		const live = kind === 'live';
 		if (entry.token.isCancellationRequested || entry.live) {
+			entry.trace.record('discarded', { source: kind, reason: entry.live ? 'liveAlreadyAccepted' : 'disposed' });
 			source.dispose();
 			return;
 		}
@@ -215,14 +229,17 @@ export class CloudSandboxSessionHandler extends Disposable implements IChatSessi
 		}
 		if (entry.session) {
 			entry.session.promote(source);
+			entry.trace.record('promoted', { source: kind, historyItems: source.history.length });
 		} else {
 			const session = entry.store.add(new PromotableCloudSandboxChatSession(source));
+			entry.trace.associate(session);
 			entry.session = session;
 			entry.store.add(Event.once(session.onWillDispose)(() => {
 				if (this._sessions.get(entry.resource) === entry) {
 					this._sessions.deleteAndDispose(entry.resource);
 				}
 			}));
+			entry.trace.record('contentReady', { source: kind, historyItems: source.history.length });
 			void entry.ready.complete(session);
 		}
 		entry.live = live;
@@ -233,16 +250,25 @@ export class CloudSandboxSessionHandler extends Disposable implements IChatSessi
 	}
 
 	private async _loadHistory(entry: ISandboxChatEntry): Promise<void> {
+		const watch = StopWatch.create(false);
+		entry.trace.record('historyStarted');
+		const cancellationListener = entry.historyStore.add(entry.historyToken.onCancellationRequested(() => {
+			entry.trace.record('historyCancelled', { reason: entry.live ? 'liveWon' : 'disposed', durationMs: watch.elapsed() });
+		}));
 		try {
-			this._accept(entry, await this._readOnlyHandler.provideChatSessionContent(entry.resource, entry.historyToken), false);
+			const source = await this._readOnlyHandler.provideChatSessionContent(entry.resource, entry.historyToken, entry.trace.id);
+			entry.trace.record('historyReady', { durationMs: watch.elapsed(), historyItems: source.history.length });
+			this._accept(entry, source, 'history');
 		} catch (error) {
 			if (entry.historyToken.isCancellationRequested || entry.live) {
 				return;
 			}
 			if (isCancellationError(error)) {
+				entry.trace.record('historyCancelled', { reason: 'providerCancelled', durationMs: watch.elapsed() });
 				void entry.ready.error(error);
 				return;
 			}
+			entry.trace.record('historyFailed', { durationMs: watch.elapsed() });
 			this._logService.error('[CloudSandbox] Failed to load recorded conversation', error);
 			this._accept(entry, new ReadOnlyChatSession(entry.resource, [{
 				type: 'request', prompt: '', participant: this._config.agentId, isSystemInitiated: true,
@@ -250,7 +276,9 @@ export class CloudSandboxSessionHandler extends Disposable implements IChatSessi
 			}, {
 				type: 'response', parts: [], participant: this._config.agentId,
 				errorDetails: { message: toErrorMessage(error) },
-			}], undefined, constObservable(true)), false);
+			}], undefined, constObservable(true)), 'historyError');
+		} finally {
+			cancellationListener.dispose();
 		}
 	}
 
@@ -261,11 +289,16 @@ export class CloudSandboxSessionHandler extends Disposable implements IChatSessi
 		}
 		entry.notification.clear();
 		entry.liveRequested = true;
+		const watch = StopWatch.create(false);
+		entry.trace.record('liveStarted');
 		void (async () => {
 			try {
-				this._accept(entry, await provider.provideChatSessionContent(entry.resource, entry.token), true);
+				const source = await provider.provideChatSessionContent(entry.resource, entry.token);
+				entry.trace.record('liveReady', { durationMs: watch.elapsed(), historyItems: source.history.length });
+				this._accept(entry, source, 'live');
 			} catch (error) {
 				entry.liveRequested = false;
+				entry.trace.record(entry.token.isCancellationRequested || isCancellationError(error) ? 'liveCancelled' : 'liveFailed', { durationMs: watch.elapsed() });
 				if (!entry.token.isCancellationRequested && !isCancellationError(error)) {
 					this._logService.error('[CloudSandbox] Failed to load live conversation; retaining recorded history', error);
 					const notification = this._notificationService.prompt(Severity.Error,

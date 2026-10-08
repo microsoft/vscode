@@ -307,10 +307,10 @@ export interface ICloudSandboxApiService {
 	setTaskArchived(taskId: string, archived: boolean, token: CancellationToken): Promise<void>;
 
 	/**
-	 * Read a task's persisted AHP history and fold it back into session and chat state. Served by
-	 * Mission Control's mirror, so it works without the sandbox. `undefined` when there is none.
+	 * Read recorded history from Mission Control without a live sandbox (`undefined` when absent).
+	 * `diagnosticId` links local logs and performance marks only; it is never sent to the server.
 	 */
-	getSessionHistory(taskId: string, token: CancellationToken): Promise<IReplayedTaskHistory | undefined>;
+	getSessionHistory(taskId: string, token: CancellationToken, diagnosticId?: string): Promise<IReplayedTaskHistory | undefined>;
 }
 
 /** Only a complete scan permits removing absent sessions; other results may name explicit removals. */

@@ -40,6 +40,7 @@ import { IChatAcceptInputOptions, IChatListItemRendererOptions, IChatWidgetViewM
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import { ChatRequestVariableSet } from '../../../common/attachments/chatVariableEntries.js';
 import { clearChatMarks } from '../../../common/chatPerf.js';
+import { CloudSandboxSessionTrace } from '../../../common/cloudSandboxSessionTrace.js';
 import { ChatRequestQueueKind, ChatSendResult, ChatSendResultSent, IChatSendRequestData, IChatSendRequestOptions, IChatService } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
 import { IChatMode } from '../../../common/chatModes.js';
@@ -58,6 +59,39 @@ import { createChatUserInteractionTestHarness } from '../chatUserInteractionTest
 suite('ChatWidget', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('records the first visible transcript refresh once on the correlated local trace', () => {
+		const messages: string[] = [];
+		const logService = new class extends NullLogService {
+			override info(message: string): void { messages.push(message); }
+		}();
+		const trace = store.add(new CloudSandboxSessionTrace(logService));
+		const resource = URI.parse('test:/private-session');
+		const model = upcastPartial<IChatModel>({ sessionResource: resource });
+		trace.associate(model);
+		const visible = observableValue('visible', false);
+		const widget = Object.assign(Object.create(ChatWidget.prototype), {
+			_visible: visible,
+			_viewModel: upcastPartial<ChatViewModel>({ model, sessionResource: resource, getItems: () => [] }),
+			_pendingFirstRenderSessionResource: resource,
+			_onWillMaybeChangeHeight: store.add(new Emitter<void>()),
+			logService,
+			listWidget: { setVisibleChangeCount: () => { }, refresh: () => { } },
+			renderWelcomeViewContentIfNeeded: () => { },
+			renderFollowups: () => { },
+		}) as { onDidChangeItems(): void };
+		widget.onDidChangeItems();
+		const whileHidden = messages.filter(message => message.includes('event=firstRender')).length;
+		visible.set(true, undefined);
+		widget.onDidChangeItems();
+		widget.onDidChangeItems();
+
+		assert.deepStrictEqual({
+			whileHidden,
+			whenVisible: messages.filter(message => message.includes(`traceId=${trace.id} event=firstRender`)).length,
+			privateData: messages.some(message => message.includes('private-session')),
+		}, { whileHidden: 0, whenVisible: 1, privateData: false });
+	});
 
 	function createRequestToolsWidget() {
 		const sessionA = upcastPartial<ChatViewModel>({ sessionResource: URI.parse('test:/a') });

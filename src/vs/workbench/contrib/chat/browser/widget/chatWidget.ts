@@ -28,6 +28,7 @@ import { extUri, isEqual } from '../../../../../base/common/resources.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ChatPerfMark, clearChatMarks, markChat } from '../../common/chatPerf.js';
+import { CloudSandboxSessionTrace } from '../../common/cloudSandboxSessionTrace.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
@@ -1503,6 +1504,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (this._pendingFirstRenderSessionResource && this.viewModel && isEqual(this.viewModel.sessionResource, this._pendingFirstRenderSessionResource)) {
 				this._pendingFirstRenderSessionResource = undefined;
 				this.logService.trace(`ChatWidget#firstRender: session=${this.viewModel.sessionResource.toString()} items=${items.length}`);
+				CloudSandboxSessionTrace.get(this.viewModel.model)?.record('firstRender', { items: items.length });
 			}
 
 			if (!skipDynamicLayout && this._dynamicMessageLayoutData) {
@@ -2930,6 +2932,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		this.listWidget.setViewModel(this.viewModel);
+		CloudSandboxSessionTrace.get(model)?.record('widgetBound');
 		// Armed only once the list is bound, so a render triggered while the
 		// outgoing model was torn down cannot consume it.
 		this._pendingFirstRenderSessionResource = model.sessionResource;

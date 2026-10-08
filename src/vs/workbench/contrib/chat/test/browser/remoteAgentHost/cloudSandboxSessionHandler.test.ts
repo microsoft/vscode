@@ -4,16 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { DeferredPromise, raceCancellationError, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../../base/common/observable.js';
+import { observableValue, waitForState } from '../../../../../../base/common/observable.js';
+import { getMarks } from '../../../../../../base/common/performance.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
 import { ICloudSandboxApiService } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { createChatState, createDefaultChatSummary, createSessionState, MessageKind, SessionStatus, TurnState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IReplayedTaskHistory } from '../../../../../../platform/agentHost/common/taskEventReplay.js';
@@ -24,6 +26,7 @@ import { TestNotificationService } from '../../../../../../platform/notification
 import { CloudSandboxSessionHandler } from '../../../browser/remoteAgentHost/cloudSandboxSessionHandler.js';
 import { IChatProgress } from '../../../common/chatService/chatService.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionServerRequest } from '../../../common/chatSessionsService.js';
+import { CloudSandboxSessionTrace } from '../../../common/cloudSandboxSessionTrace.js';
 import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM } from '../../../common/constants.js';
 
 const resource = URI.parse('remote-agent-host-test-copilot:/session');
@@ -91,15 +94,96 @@ class LiveSession extends Disposable implements IChatSession {
 suite('CloudSandboxSessionHandler', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createHandler(read: (token: CancellationToken) => Promise<IReplayedTaskHistory | undefined> = async () => recordedHistory(), notificationService: INotificationService = new TestNotificationService()) {
+	function createHandler(read: (token: CancellationToken, diagnosticId?: string) => Promise<IReplayedTaskHistory | undefined> = async () => recordedHistory(), notificationService: INotificationService = new TestNotificationService(), logService: ILogService = new NullLogService()) {
 		const instantiationService = store.add(new TestInstantiationService());
-		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ILogService, logService);
 		instantiationService.stub(INotificationService, notificationService);
 		instantiationService.stub(ICloudSandboxApiService, new class extends mock<ICloudSandboxApiService>() {
-			override getSessionHistory(_taskId: string, token: CancellationToken) { return read(token); }
+			override getSessionHistory(_taskId: string, token: CancellationToken, diagnosticId?: string) { return read(token, diagnosticId); }
 		}());
 		return store.add(instantiationService.createInstance(CloudSandboxSessionHandler, {
 			taskId: 'task', agentId: 'copilot', connectionAuthority: 'test',
+		}));
+	}
+
+	function captureTrace() {
+		const messages: string[] = [];
+		const logService = new class extends NullLogService {
+			override info(message: string): void {
+				if (message.startsWith('[CloudSandboxTrace]')) {
+					messages.push(message);
+				}
+			}
+		}();
+		return { logService, messages };
+	}
+
+	test('correlates recorded content and live promotion with API diagnostics and cleans up performance marks', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { logService, messages } = captureTrace();
+		let apiTraceId: string | undefined;
+		const handler = createHandler(async (_token, diagnosticId) => {
+			apiTraceId = diagnosticId;
+			await timeout(30);
+			return recordedHistory();
+		}, undefined, logService);
+		const session = await handler.provideChatSessionContent(resource, CancellationToken.None);
+		const trace = CloudSandboxSessionTrace.get(session)!;
+		await timeout(20);
+		const live = store.add(new LiveSession());
+		handler.setLiveProvider({ provideChatSessionContent: async () => { await timeout(40); return live; } });
+		await waitForState(session.isReadOnly!, readOnly => !readOnly);
+		const events = messages.map(message => message.replace(`[CloudSandboxTrace] traceId=${trace.id} `, ''));
+		const marksBefore = getMarks().filter(mark => mark.name.startsWith(`code/cloudSandbox/${trace.id}/`)).length;
+		session.dispose();
+		const marksAfter = getMarks().filter(mark => mark.name.startsWith(`code/cloudSandbox/${trace.id}/`)).length;
+		trace.record('modelReady');
+
+		assert.deepStrictEqual({
+			correlated: apiTraceId === trace.id, events, marksBefore, marksAfter,
+			lastEvent: messages.at(-1)?.replace(`[CloudSandboxTrace] traceId=${trace.id} `, ''),
+		}, {
+			correlated: true,
+			events: [
+				'event=contentRequested elapsedMs=0',
+				'event=historyStarted elapsedMs=0',
+				'event=historyReady elapsedMs=30 durationMs=30 historyItems=2',
+				'event=contentReady elapsedMs=30 source=history historyItems=2',
+				'event=liveProviderReady elapsedMs=50',
+				'event=liveStarted elapsedMs=50',
+				'event=liveReady elapsedMs=90 durationMs=40 historyItems=2',
+				'event=promoted elapsedMs=90 source=live historyItems=2',
+			],
+			marksBefore: 8, marksAfter: 0, lastEvent: 'event=disposed elapsedMs=90',
+		});
+	}));
+
+	for (const reason of ['liveWon', 'disposed']) {
+		test(`explains history cancellation when ${reason}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { logService, messages } = captureTrace();
+			let traceId: string | undefined;
+			const handler = createHandler((token, diagnosticId) => {
+				traceId = diagnosticId;
+				return raceCancellationError(new DeferredPromise<IReplayedTaskHistory>().p, token);
+			}, undefined, logService);
+			const cancellation = store.add(new CancellationTokenSource());
+			const opened = handler.provideChatSessionContent(resource, cancellation.token);
+			if (reason === 'liveWon') {
+				handler.setLiveProvider({ provideChatSessionContent: async () => store.add(new LiveSession()) });
+				await opened;
+			} else {
+				const rejected = assert.rejects(opened, isCancellationError);
+				cancellation.cancel();
+				await rejected;
+			}
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				cancelled: messages.filter(message => message.includes('event=historyCancelled')),
+				liveWon: messages.some(message => message.includes('event=contentReady') && message.includes('source=live')),
+			}, {
+				cancelled: [`[CloudSandboxTrace] traceId=${traceId} event=historyCancelled elapsedMs=0 reason=${reason} durationMs=0`],
+				liveWon: reason === 'liveWon',
+			});
 		}));
 	}
 

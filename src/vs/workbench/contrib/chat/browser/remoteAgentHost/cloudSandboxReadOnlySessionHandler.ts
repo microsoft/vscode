@@ -64,11 +64,11 @@ export class CloudSandboxReadOnlySessionHandler extends Disposable implements IC
 		super();
 	}
 
-	async provideChatSessionContent(sessionResource: URI, token: CancellationToken): Promise<IChatSession> {
+	async provideChatSessionContent(sessionResource: URI, token: CancellationToken, diagnosticId?: string): Promise<IChatSession> {
 		// Resolve from the *requested* resource, not the handler's config: one handler serves a
 		// whole session type, and an environment can own several sessions.
 		const sessionId = AgentSession.id(sessionResource);
-		const replayed = await this._apiService.getSessionHistory(this._config.taskId, token);
+		const replayed = await this._apiService.getSessionHistory(this._config.taskId, token, diagnosticId);
 		const session = replayed?.sessions.find(s => AgentSession.id(URI.parse(s.session)) === sessionId);
 		if (!session) {
 			// A newly created task may not have recorded a conversation yet.

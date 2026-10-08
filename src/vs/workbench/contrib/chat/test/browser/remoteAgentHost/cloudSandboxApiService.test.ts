@@ -474,11 +474,11 @@ suite('CloudSandboxApiService history timings', () => {
 			title: 'private-title',
 			requests: ['/agents/tasks/private-task/events'],
 			logs: [
-				'[CloudSandboxApi] historyTiming loadId=1 started totalMs=0',
-				'[CloudSandboxApi] historyTiming loadId=1 requestIssued authenticationMs=25 totalMs=25',
-				'[CloudSandboxApi] historyTiming loadId=1 responseReceived requestMs=50 status=200 totalMs=75',
-				'[CloudSandboxApi] historyTiming loadId=1 bodyRead bodyReadAndParseMs=75 totalMs=150',
-				'[CloudSandboxApi] historyTiming loadId=1 completed apiMs=125 replayMs=0 events=1 sessions=1 truncated=false totalMs=150',
+				'[CloudSandboxApi] historyTiming loadId=1 traceId=history-1 started totalMs=0',
+				'[CloudSandboxApi] historyTiming loadId=1 traceId=history-1 requestIssued authenticationMs=25 totalMs=25',
+				'[CloudSandboxApi] historyTiming loadId=1 traceId=history-1 responseReceived requestMs=50 status=200 responseHeadersMs=unavailable downloadMs=unavailable decodedBodyBytes=unavailable requestId=unavailable totalMs=75',
+				'[CloudSandboxApi] historyTiming loadId=1 traceId=history-1 bodyRead bodyReadAndParseMs=75 totalMs=150',
+				'[CloudSandboxApi] historyTiming loadId=1 traceId=history-1 completed apiMs=125 replayMs=0 events=1 sessions=1 truncated=false totalMs=150',
 			],
 		});
 	}));
@@ -522,7 +522,7 @@ suite('CloudSandboxApiService history timings', () => {
 				completed: logService.infos.some(message => message.includes(' completed ')),
 				privateData: logService.infos.some(message => message.includes('private-')),
 			}, {
-				terminalLog: `[CloudSandboxApi] historyTiming loadId=1 ${failure === 'cancellation' ? 'cancelled' : 'failed'} phase=${phase} phaseMs=${phase === 'authentication' || phase === 'request' ? 35 : 0} totalMs=35`,
+				terminalLog: `[CloudSandboxApi] historyTiming loadId=1 traceId=history-1 ${failure === 'cancellation' ? 'cancelled' : 'failed'} phase=${phase} phaseMs=${phase === 'authentication' || phase === 'request' ? 35 : 0} totalMs=35`,
 				completed: false, privateData: false,
 			});
 		}));
@@ -547,11 +547,38 @@ suite('CloudSandboxApiService history timings', () => {
 		}, {
 			histories: [undefined, undefined],
 			completions: [
-				'[CloudSandboxApi] historyTiming loadId=2 completed apiMs=20 replayMs=0 events=0 sessions=0 truncated=false totalMs=20',
-				'[CloudSandboxApi] historyTiming loadId=1 completed apiMs=40 replayMs=0 events=0 sessions=0 truncated=false totalMs=40',
+				'[CloudSandboxApi] historyTiming loadId=2 traceId=history-2 completed apiMs=20 replayMs=0 events=0 sessions=0 truncated=false totalMs=20',
+				'[CloudSandboxApi] historyTiming loadId=1 traceId=history-1 completed apiMs=40 replayMs=0 events=0 sessions=0 truncated=false totalMs=40',
 			],
 		});
 	}));
+
+	for (const requestId of ['ABCD:1234:5678:90AB:CDEF', 'private-invalid-header']) {
+		test(`correlates transport timings and includes only a validated upstream request ID (${requestId})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const logService = new TestLogService();
+			let diagnosticId: string | undefined;
+			const { service } = createService(store, {
+				tasks: [], repositories: new Map(), logService,
+				onRequest: async (_url, _token, options) => {
+					diagnosticId = options.diagnosticId;
+					await timeout(200);
+					return {
+						...jsonResponse({ events: [], total: 0 }, 200, { 'x-github-request-id': requestId }),
+						timings: { responseHeadersMs: 150, responseBodyMs: 50, decodedBodyBytes: 23 },
+					};
+				},
+			});
+			await service.getSessionHistory('private-task', CancellationToken.None, 'sandbox-1');
+
+			assert.deepStrictEqual({
+				diagnosticId,
+				response: logService.infos.find(message => message.includes(' responseReceived ')),
+			}, {
+				diagnosticId: 'sandbox-1/history-1',
+				response: `[CloudSandboxApi] historyTiming loadId=1 traceId=sandbox-1 responseReceived requestMs=200 status=200 responseHeadersMs=150 downloadMs=50 decodedBodyBytes=23 requestId=${requestId.startsWith('private-') ? 'unavailable' : requestId} totalMs=200`,
+			});
+		}));
+	}
 });
 
 suite('Mission Control environment discovery', () => {
