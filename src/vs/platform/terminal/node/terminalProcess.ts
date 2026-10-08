@@ -311,6 +311,10 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	): Promise<void> {
 		const args = shellIntegrationInjection?.newArgs || shellLaunchConfig.args || [];
 		await this._throttleKillSpawn();
+		// Validation or spawn throttling can finish after the terminal was disposed.
+		if (this._store.isDisposed) {
+			return;
+		}
 		const sanitizedOptions = { ...options, env: sanitizeEnvForLogging(options.env as IProcessEnvironment | undefined) };
 		this._logService.trace('node-pty.IPty#spawn', shellLaunchConfig.executable, args, sanitizedOptions);
 		const ptyProcess = spawn(shellLaunchConfig.executable!, args, options);
