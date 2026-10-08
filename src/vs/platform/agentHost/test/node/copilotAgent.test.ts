@@ -18625,6 +18625,33 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('release before membership fan-out prevents fallback to sibling client tools until restored', async () => {
+			const agent = createTestAgent(disposables);
+			try {
+				const session = AgentSession.uri('copilotcli', 'membership-early-release');
+				const main = defaultChatUri(session);
+				const peer = URI.parse(buildChatUri(session, 'peer-new'));
+				agent.getOrCreateActiveClient(main, session, { clientId: 'client-A' }).tools = [toolA];
+				const active = membership(agent, session);
+				const beforeRelease = active.toolsForChat(peer.toString()).map(tool => tool.name);
+				agent.removeActiveClient(peer, session, 'client-A');
+				const released = {
+					reachesPeer: active.contributesTo('client-A', peer.toString()),
+					peerTools: active.toolsForChat(peer.toString()).map(tool => tool.name),
+					mainTools: active.toolsForChat(main.toString()).map(tool => tool.name),
+				};
+				agent.getOrCreateActiveClient(peer, session, { clientId: 'client-A' });
+
+				assert.deepStrictEqual({ beforeRelease, released, restored: active.toolsForChat(peer.toString()).map(tool => tool.name) }, {
+					beforeRelease: ['tool_a'],
+					released: { reachesPeer: false, peerTools: [], mainTools: ['tool_a'] },
+					restored: ['tool_a'],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('a chat the host has published no membership for yet keeps every client in scope', async () => {
 			// A peer chat's SDK runtime is provisioned before the host's
 			// follow-up fan-out reaches the provider. A client tool call issued

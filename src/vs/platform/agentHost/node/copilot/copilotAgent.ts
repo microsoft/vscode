@@ -8065,6 +8065,7 @@ class ActiveClient extends Disposable {
 	/** Removes `chat` from `clientId` and reports whether that client now has no chats left. */
 	removeClientChat(clientId: string, chat: URI): boolean {
 		const chatKey = chat.toString();
+		this._knownChats.add(chatKey);
 		const chats = this._chatsByClient.get(clientId);
 		if (!chats?.has(chatKey)) {
 			return false;
