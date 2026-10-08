@@ -352,6 +352,7 @@ export function createSessionTimelineModel(text: string): ISessionTimelineModel 
 
 	const events: ISessionTimelineEvent[] = [];
 	const currentUserEventByAgent = new Map<string, string>();
+	const currentSystemEventByAgent = new Map<string, string>();
 	const currentAssistantEventByAgent = new Map<string, string>();
 	for (const record of records) {
 		if (pairedRecordIds.has(record.id)) {
@@ -360,6 +361,7 @@ export function createSessionTimelineModel(text: string): ISessionTimelineModel 
 		const data = record.data;
 		const agentKey = record.agentId ?? '';
 		const currentUserEventId = currentUserEventByAgent.get(agentKey);
+		const currentSystemEventId = currentSystemEventByAgent.get(agentKey);
 		const currentAssistantEventId = currentAssistantEventByAgent.get(agentKey);
 		switch (record.type) {
 			case 'system.message': {
@@ -386,10 +388,12 @@ export function createSessionTimelineModel(text: string): ISessionTimelineModel 
 					undefined,
 					promptCapabilities,
 				), currentUserEventId));
+				currentSystemEventByAgent.set(agentKey, record.id);
 				break;
 			}
 			case 'user.message': {
 				currentUserEventByAgent.set(agentKey, record.id);
+				currentSystemEventByAgent.delete(agentKey);
 				currentAssistantEventByAgent.delete(agentKey);
 				const content = asString(data.content) ?? '';
 				const sections: ISessionTimelineSection[] = [{ label: localize('chatDebug.sessionTimeline.userRequest', "User Request"), content }];
@@ -440,7 +444,7 @@ export function createSessionTimelineModel(text: string): ISessionTimelineModel 
 							: localize('chatDebug.sessionTimeline.toolRequestCount', "{0} tool requests", toolRequests.length)) : undefined,
 					].filter((value): value is string => !!value),
 					sections,
-				), parentToolEventId ?? currentUserEventId));
+				), parentToolEventId ?? currentSystemEventId ?? currentUserEventId));
 				currentAssistantEventByAgent.set(agentKey, record.id);
 				break;
 			}

@@ -203,6 +203,13 @@
 	background: var(--vscode-editor-background);
 }
 
+.chat-debug-session-timeline-event-system > .chat-debug-session-timeline-event-card {
+	position: sticky;
+	top: 0;
+	z-index: 1;
+	background: var(--vscode-editor-background);
+}
+
 .chat-debug-session-timeline-event-assistant > .chat-debug-session-timeline-event-card {
 	border-left-color: var(--vscode-charts-purple);
 }

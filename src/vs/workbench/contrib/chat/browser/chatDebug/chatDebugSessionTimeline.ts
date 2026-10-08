@@ -68,7 +68,7 @@ export class ChatDebugSessionTimeline extends Disposable {
 	private readonly status: HTMLElement;
 	private readonly filterInput: HTMLInputElement;
 	private readonly renderDisposables = this._register(new DisposableStore());
-	private readonly renderedEventElements = new Map<string, { readonly item: HTMLElement; readonly focusTarget: HTMLElement }>();
+	private readonly renderedEventElements = new Map<string, { readonly item: HTMLElement; readonly card: HTMLElement; readonly focusTarget: HTMLElement }>();
 	private readonly renderedPromptSections = new Map<string, HTMLElement>();
 	private readonly expandedEventIds = new Set<string>();
 	private readonly enabledCategories = new Set<SessionTimelineCategory>(categories);
@@ -438,9 +438,9 @@ export class ChatDebugSessionTimeline extends Disposable {
 		userEvents: readonly ISessionTimelineEvent[],
 		userEventIndexes: ReadonlyMap<string, number>,
 		searchQuery: string,
-	): void {
+	): HTMLElement | undefined {
 		if (renderedEventIds.has(event.id)) {
-			return;
+			return undefined;
 		}
 		renderedEventIds.add(event.id);
 		const item = DOM.append(timeline, $('li.chat-debug-session-timeline-event'));
@@ -454,7 +454,7 @@ export class ChatDebugSessionTimeline extends Disposable {
 		const toggle = hasHeaderActions
 			? DOM.append(header, $('button.chat-debug-session-timeline-event-header-toggle', { type: 'button', 'aria-expanded': String(expanded) }))
 			: header;
-		this.renderedEventElements.set(event.id, { item, focusTarget: toggle });
+		this.renderedEventElements.set(event.id, { item, card, focusTarget: toggle });
 		const category = DOM.append(toggle, $('span.chat-debug-session-timeline-event-category'));
 		this.appendHighlightedText(category, getCategoryLabel(event.category), searchQuery);
 		if (event.title) {
@@ -529,8 +529,9 @@ export class ChatDebugSessionTimeline extends Disposable {
 			if (summary) {
 				summary.hidden = true;
 			}
-			const body = DOM.append(event.category === 'user' ? item : card, $('div.chat-debug-session-timeline-event-body'));
-			if (event.category === 'user') {
+			const hasDetachedBody = event.category === 'user' || event.category === 'system';
+			const body = DOM.append(hasDetachedBody ? item : card, $('div.chat-debug-session-timeline-event-body'));
+			if (hasDetachedBody) {
 				body.classList.add('chat-debug-session-timeline-event-body-detached');
 			}
 			for (const section of event.sections) {
@@ -557,9 +558,26 @@ export class ChatDebugSessionTimeline extends Disposable {
 		if (children?.length) {
 			const childList = DOM.append(item, $('ol.chat-debug-session-timeline-children'));
 			for (const child of children) {
-				this.renderEvent(childList, child, childrenByParentId, renderedEventIds, userEvents, userEventIndexes, searchQuery);
+				const childItem = this.renderEvent(childList, child, childrenByParentId, renderedEventIds, userEvents, userEventIndexes, searchQuery);
+				if (event.category === 'user' && child.category === 'system' && childItem) {
+					const systemCard = this.renderedEventElements.get(child.id)?.card;
+					if (systemCard) {
+						this.trackStickySystemOffset(card, systemCard);
+					}
+				}
 			}
 		}
+		return item;
+	}
+
+	private trackStickySystemOffset(userCard: HTMLElement, systemCard: HTMLElement): void {
+		const updateOffset = () => {
+			systemCard.style.top = `${userCard.offsetHeight}px`;
+		};
+		updateOffset();
+		const observer = new (DOM.getWindow(userCard).ResizeObserver)(updateOffset);
+		observer.observe(userCard);
+		this.renderDisposables.add(toDisposable(() => observer.disconnect()));
 	}
 
 	private renderPromptCapabilities(header: HTMLElement, event: ISessionTimelineEvent): void {

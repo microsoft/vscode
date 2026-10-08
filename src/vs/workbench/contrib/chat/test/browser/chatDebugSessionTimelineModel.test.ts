@@ -170,10 +170,10 @@ suite('ChatDebugSessionTimelineModel', () => {
 		})), [
 			{ id: 'user', parentEventId: undefined },
 			{ id: 'system', parentEventId: 'user' },
-			{ id: 'assistant', parentEventId: 'user' },
+			{ id: 'assistant', parentEventId: 'system' },
 			{ id: 'tool', parentEventId: 'assistant' },
 			{ id: 'subagent', parentEventId: 'tool' },
-			{ id: 'followup', parentEventId: 'user' },
+			{ id: 'followup', parentEventId: 'system' },
 		]);
 	});
 
