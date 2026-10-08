@@ -143,7 +143,7 @@ export class MissionControlProjects extends Disposable {
 		});
 	}
 
-	handleRequest(method: string, params: unknown): Promise<unknown> | undefined {
+	handleRequest(method: string, params: unknown, checkAuthorization?: () => void): Promise<unknown> | undefined {
 		switch (method) {
 			case 'extensions/listProjects':
 			case 'extensions/addProject':
@@ -151,14 +151,15 @@ export class MissionControlProjects extends Disposable {
 			case 'extensions/cloneProject':
 				return this._mutations.queue(async () => {
 					await (this._loaded ??= this._load());
+					checkAuthorization?.();
 					if (!isRecord(params)) {
 						throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'params must be an object');
 					}
 					switch (method) {
 						case 'extensions/listProjects': return { projects: [...this._projects.values()] };
-						case 'extensions/addProject': return this._add(params);
+						case 'extensions/addProject': return this._add(params, checkAuthorization);
 						case 'extensions/removeProject': return this._remove(params);
-						default: return this._clone(params);
+						default: return this._clone(params, checkAuthorization);
 					}
 				});
 			default: return undefined;
@@ -215,7 +216,7 @@ export class MissionControlProjects extends Disposable {
 		};
 	}
 
-	private async _add(params: Record<string, unknown>): Promise<unknown> {
+	private async _add(params: Record<string, unknown>, checkAuthorization?: () => void): Promise<unknown> {
 		if (typeof params.path !== 'string' || !isAbsolute(params.path)) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'path must be an absolute directory');
 		}
@@ -225,6 +226,7 @@ export class MissionControlProjects extends Disposable {
 		}
 		const existing = this._projects.get(this._id(path));
 		const project = existing ?? await this._entry(path, 'pinned');
+		checkAuthorization?.();
 		this._projects.set(project.id, project);
 		try {
 			await this._persist();
@@ -262,7 +264,7 @@ export class MissionControlProjects extends Disposable {
 		return { removed: true };
 	}
 
-	private async _clone(params: Record<string, unknown>): Promise<unknown> {
+	private async _clone(params: Record<string, unknown>, checkAuthorization?: () => void): Promise<unknown> {
 		if (typeof params.url !== 'string' || !params.url || /[\0\r\n]/.test(params.url)
 			|| (params.branch !== undefined && (typeof params.branch !== 'string' || !params.branch || /[\0\r\n]/.test(params.branch)))
 			|| (params.depth !== undefined && (typeof params.depth !== 'number' || !Number.isInteger(params.depth) || params.depth < 0 || params.depth > 0xffffffff))
@@ -288,6 +290,7 @@ export class MissionControlProjects extends Disposable {
 			throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'targetRoot is outside the host workspace grants');
 		}
 		const parent = join(root, segments[0]);
+		checkAuthorization?.();
 		await mkdir(parent, { recursive: true });
 		if (!extUriBiasedIgnorePathCase.isEqual(URI.file(await realpath(parent)), URI.file(parent))) {
 			throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'Clone destination must not traverse a symbolic link');
@@ -299,6 +302,7 @@ export class MissionControlProjects extends Disposable {
 			return { project: existing };
 		}
 		try {
+			checkAuthorization?.();
 			await mkdir(path);
 		} catch (error) {
 			if (isRecord(error) && error.code === 'EEXIST') {
@@ -308,6 +312,12 @@ export class MissionControlProjects extends Disposable {
 		}
 		if (!extUriBiasedIgnorePathCase.isEqual(URI.file(await realpath(path)), URI.file(path)) || (await lstat(path)).isSymbolicLink()) {
 			throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'Clone destination must not traverse a symbolic link');
+		}
+		try {
+			checkAuthorization?.();
+		} catch (error) {
+			await this._removeEmptyCloneDirectory(path);
+			throw error;
 		}
 		const project: IMissionControlProject = {
 			id, name: segments[1], path, origin: 'cloned', git: true, status: 'cloning', progress: 0, remoteUrl: url.toString(),

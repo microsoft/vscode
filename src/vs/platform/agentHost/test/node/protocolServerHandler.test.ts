@@ -46,6 +46,7 @@ import type { SessionAddedParams, SessionSummaryChangedParams } from '../../comm
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
 import { MissionControlEnvironment } from '../../node/missionControl/missionControlEnvironment.js';
+import { MissionControlAuthentication, MissionControlSealing, sealMissionControlCredential } from '../../node/missionControl/missionControlAuthentication.js';
 import { MissionControlProjects } from '../../node/missionControl/missionControlProjects.js';
 import type { IMissionControlSocket } from '../../node/missionControl/missionControlProtocolServer.js';
 import { CompositeProtocolServer } from '../../node/compositeProtocolServer.js';
@@ -79,6 +80,8 @@ class MockProtocolTransport implements IProtocolTransport {
 		return this.relayAuthenticated === undefined ? undefined : { authenticated: this.relayAuthenticated, resource: this.relayAuthenticationResource };
 	}
 	relayAuthenticate?: IProtocolTransport['relayAuthenticate'];
+	relayCaptureAuthorization?: IProtocolTransport['relayCaptureAuthorization'];
+	onDidRelayAuthenticationExpire?: IProtocolTransport['onDidRelayAuthenticationExpire'];
 
 	isDisposed = false;
 	private readonly _onMessage = new Emitter<ProtocolMessage>();
@@ -2486,6 +2489,228 @@ suite('ProtocolServerHandler', () => {
 			response: { jsonrpc: '2.0', id: 2, result: {} },
 			credentialPublished: false,
 		});
+	});
+
+	for (const passive of [false, true]) {
+		test(`GitHub deadline ends ${passive ? 'passive' : 'active'} relay observation and requires fresh subscriptions after reauthentication`, async () => {
+			await MissionControlSealing.ready();
+			const clock = sinon.useFakeTimers({ now: Date.parse('2030-01-01T00:00:00Z'), toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+			const sealing = disposables.add(new MissionControlSealing());
+			let expiration = '2030-01-01T00:00:02Z';
+			const auth = disposables.add(new MissionControlAuthentication(sealing, '123', 'https://api.github.com', async () => Response.json(
+				{ id: 123, type: 'User' }, { headers: { 'GitHub-Authentication-Token-Expiration': expiration } },
+			), false));
+			disposables.add(toDisposable(() => clock.restore()));
+			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'expiring-client', passive));
+			Object.defineProperty(transport, 'relayAuthenticated', { get: () => auth.authenticated });
+			transport.relayAuthenticate = params => auth.authenticate(params);
+			transport.relayCaptureAuthorization = () => auth.captureAuthorization();
+			transport.onDidRelayAuthenticationExpire = auth.onDidExpire;
+			server.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', { clientId: 'expiring-client', protocolVersions: [PROTOCOL_VERSION] }));
+			stateManager.createSession(makeSessionSummary());
+			if (!passive) {
+				stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady });
+				stateManager.dispatchServerAction(sessionUri, {
+					type: ActionType.SessionActiveClientSet,
+					activeClient: { clientId: 'expiring-client', tools: [{ name: 'runTask', description: 'Runs a task' }] },
+				});
+				stateManager.dispatchServerAction(defaultChatUri, {
+					type: ActionType.ChatTurnStarted, turnId: 'expiring-turn', startedAt: new Date().toISOString(),
+					message: { text: 'run it', origin: { kind: MessageKind.User } },
+				});
+				stateManager.dispatchServerAction(defaultChatUri, {
+					type: ActionType.ChatToolCallStart, turnId: 'expiring-turn', toolCallId: 'expiring-tool',
+					toolName: 'runTask', displayName: 'Run Task',
+					contributor: { kind: ToolCallContributorKind.Client, clientId: 'expiring-client' },
+				});
+				stateManager.dispatchServerAction(defaultChatUri, {
+					type: ActionType.ChatToolCallReady, turnId: 'expiring-turn', toolCallId: 'expiring-tool',
+					invocationMessage: 'Run Task', confirmed: ToolCallConfirmationReason.NotNeeded,
+				});
+			}
+			const key = sealing.advertisedKeys.find(key => key.use === 'auth-token')!;
+			const authenticate = async (id: number) => {
+				const token = await sealMissionControlCredential({ resource: 'https://api.github.com', token: 'owner-token', key: { ...key, use: 'auth-token' } });
+				transport.simulateMessage(request(id, 'authenticate', { resource: 'https://api.github.com', token }));
+				await handler.whenIdle();
+			};
+			await authenticate(2);
+			transport.simulateMessage(request(3, 'subscribe', { channel: sessionUri }));
+			await handler.whenIdle();
+			clock.tick(1999);
+			transport.sent.length = 0;
+			clock.tick(1);
+			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Hidden after lapse' });
+			agentService.emitMcpNotification({ channel: 'mcp://copilot/session/server', method: 'notifications/tools/list_changed' });
+			transport.simulateMessage(request(4, 'listSessions', {}));
+			await handler.whenIdle();
+			const expiredPart = stateManager.getSessionState(defaultChatUri)?.activeTurn?.responseParts[0];
+			assert.deepStrictEqual({
+				notifications: transport.sent.filter(isJsonRpcNotification),
+				denied: findResponse(transport.sent, 4),
+				activeClients: stateManager.getSessionState(sessionUri)?.activeClients,
+				tool: expiredPart?.kind === ResponsePartKind.ToolCall ? {
+					status: expiredPart.toolCall.status,
+					success: expiredPart.toolCall.status === ToolCallStatus.Completed ? expiredPart.toolCall.success : undefined,
+					error: expiredPart.toolCall.status === ToolCallStatus.Completed ? expiredPart.toolCall.error?.message : undefined,
+				} : undefined,
+			}, {
+				notifications: [],
+				denied: {
+					jsonrpc: '2.0', id: 4, error: {
+						code: AHP_AUTH_REQUIRED, message: 'Relay identity authentication is required',
+						data: { resources: [{ resource: 'https://api.github.com', required: true }] },
+					},
+				},
+				activeClients: [],
+				tool: passive ? undefined : {
+					status: ToolCallStatus.Completed, success: false,
+					error: 'Client expiring-client disconnected before completing Run Task',
+				},
+			});
+			expiration = '2030-01-01T00:00:06Z';
+			await authenticate(5);
+			transport.sent.length = 0;
+			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Still unsubscribed' });
+			assert.deepStrictEqual(transport.sent, []);
+			transport.simulateMessage(request(6, 'subscribe', { channel: sessionUri }));
+			await handler.whenIdle();
+			transport.sent.length = 0;
+			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Visible after resubscribe' });
+			assert.strictEqual(transport.sent.filter(isJsonRpcNotification).length, 1);
+		});
+	}
+
+	for (const activeClient of [false, true]) {
+		for (const retainedChannel of [undefined, sessionUri, defaultChatUri]) {
+			test(`expiry reconciles ${activeClient ? 'active-client' : 'orphaned'} tool ownership with ${retainedChannel ?? 'no'} overlapping subscription`, async () => {
+				const clientId = 'expiring-client';
+				stateManager.createSession(makeSessionSummary());
+				stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady });
+				if (activeClient) {
+					stateManager.dispatchServerAction(sessionUri, {
+						type: ActionType.SessionActiveClientSet,
+						activeClient: { clientId, tools: [{ name: 'runTask', description: 'Runs a task' }] },
+					});
+				}
+				stateManager.dispatchServerAction(defaultChatUri, {
+					type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: new Date().toISOString(),
+					message: { text: 'run it', origin: { kind: MessageKind.User } },
+				});
+				stateManager.dispatchServerAction(defaultChatUri, {
+					type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'tool-1',
+					toolName: 'runTask', displayName: 'Run Task',
+					contributor: { kind: ToolCallContributorKind.Client, clientId },
+				});
+				if (retainedChannel) {
+					const overlapping = disposables.add(connectClient(clientId, [retainedChannel]));
+					await handler.whenIdle();
+					assert.ok(overlapping.sent.some(isJsonRpcResponse));
+				}
+				const expired = disposables.add(new Emitter<void>());
+				const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, clientId, false));
+				transport.relayAuthenticated = true;
+				transport.onDidRelayAuthenticationExpire = expired.event;
+				server.simulateConnection(transport);
+				transport.simulateMessage(request(1, 'initialize', { clientId, protocolVersions: [PROTOCOL_VERSION], initialSubscriptions: [sessionUri] }));
+				await handler.whenIdle();
+				transport.relayAuthenticated = false;
+				expired.fire();
+				const part = stateManager.getSessionState(defaultChatUri)?.activeTurn?.responseParts[0];
+				assert.deepStrictEqual({
+					activeClients: stateManager.getSessionState(sessionUri)?.activeClients.map(client => client.clientId),
+					status: part?.kind === ResponsePartKind.ToolCall ? part.toolCall.status : undefined,
+					unsubscribedRetainedChannel: retainedChannel !== undefined && agentService.unsubscribeCalls.some(call => call.resource === retainedChannel),
+				}, {
+					activeClients: activeClient && retainedChannel ? [clientId] : [],
+					status: retainedChannel ? ToolCallStatus.Streaming : ToolCallStatus.Completed,
+					unsubscribedRetainedChannel: false,
+				});
+			});
+		}
+	}
+
+	for (const method of ['listSessions', 'resourceRead', 'mcp/test', 'authenticate']) {
+		test(`relay ${method} completion cannot disclose success after authorization lapses`, async () => {
+			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'expiring-client', false));
+			transport.relayAuthenticated = true;
+			const pending = new DeferredPromise<unknown>();
+			const started = new DeferredPromise<void>();
+			const wait = async () => {
+				void started.complete();
+				return pending.p;
+			};
+			if (method === 'listSessions') {
+				agentService.listSessions = async () => { await wait(); return []; };
+			} else if (method === 'resourceRead') {
+				agentService.resourceRead = async () => { await wait(); return { data: 'private-content', encoding: ContentEncoding.Utf8 }; };
+			} else if (method === 'authenticate') {
+				transport.relayAuthenticate = async params => params;
+				agentService.authenticate = async () => { await wait(); return { authenticated: true }; };
+			} else {
+				agentService.handleMcpRequest = wait;
+			}
+			server.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', { clientId: 'expiring-client', protocolVersions: [PROTOCOL_VERSION] }));
+			transport.simulateMessage(request(2, method, { channel: 'mcp://copilot/session/server', resource: 'https://api.github.com', uri: 'file:///test.txt' }));
+			await started.p;
+			transport.relayAuthenticated = false;
+			await pending.complete('private-result');
+			await handler.whenIdle();
+			const response = findResponse(transport.sent, 2);
+			assert.strictEqual(response && hasKey(response, { error: true }) ? response.error.code : undefined, AHP_AUTH_REQUIRED);
+		});
+	}
+
+	for (const method of ['resourceRead', 'createSession', 'dispatchAction']) {
+		test(`relay ${method} cannot begin protected work when authorization expires during a filesystem grant check`, async () => {
+			stateManager.createSession(makeSessionSummary());
+			const relay = disposables.add(new MockProtocolServer());
+			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'grant-client', false));
+			transport.relayAuthenticated = true;
+			const relayHandler = disposables.add(new ProtocolServerHandler(
+				agentService, stateManager, relay,
+				{
+					allowExtensionMethods: false, relayResourceRoots: () => {
+						transport.relayAuthenticated = false;
+						return [process.cwd()];
+					}
+				},
+				fileSystemProvider, logService, telemetryService, managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+			));
+			let reads = 0;
+			agentService.resourceRead = async () => { reads++; return { data: 'protected', encoding: ContentEncoding.Utf8 }; };
+			relay.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', { clientId: 'grant-client', protocolVersions: [PROTOCOL_VERSION] }));
+			const root = URI.file(process.cwd()).toString();
+			transport.simulateMessage(request(2, method, {
+				channel: sessionUri, uri: root, workingDirectories: [root], provider: 'copilot',
+				clientSeq: 1, action: { type: ActionType.SessionWorkingDirectorySet, directory: root },
+			}));
+			await relayHandler.whenIdle();
+			const response = findResponse(transport.sent, 2);
+			assert.deepStrictEqual({
+				code: response && hasKey(response, { error: true }) ? response.error.code : undefined,
+				reads, created: agentService.createSessionConfigs.length, actions: agentService.handledActions,
+			}, { code: AHP_AUTH_REQUIRED, reads: 0, created: 0, actions: [] });
+		});
+	}
+
+	test('relay expiry rejects a pending reverse request and ignores its late response', async () => {
+		const expired = disposables.add(new Emitter<void>());
+		const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'reverse-client', false));
+		transport.relayAuthenticated = true;
+		transport.onDidRelayAuthenticationExpire = expired.event;
+		server.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', { clientId: 'reverse-client', protocolVersions: [PROTOCOL_VERSION] }));
+		const pending = handler.requestWorkspaceTrust('reverse-client', { workspace: 'file:///workspace/project' });
+		const rejected = assert.rejects(pending, { code: AHP_AUTH_REQUIRED });
+		const reverseRequest = findRequest(transport.sent, RequestAgentHostWorkspaceTrustExtensionMethod)!;
+		transport.relayAuthenticated = false;
+		expired.fire();
+		transport.simulateMessage({ jsonrpc: '2.0', id: reverseRequest.id, result: { trusted: true } });
+		await rejected;
 	});
 
 	test('relay root-config and managed-permission changes cannot affect local host state', async () => {
