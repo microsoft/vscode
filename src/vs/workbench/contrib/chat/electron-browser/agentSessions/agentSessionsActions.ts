@@ -342,9 +342,15 @@ export class OpenAgentsWindowAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, args?: IOpenAgentsWindowOptions): Promise<void> {
 		ensureAgentModeEnabled(accessor.get(IConfigurationService));
-		// Targetless opens only reveal the window; callers that intend to navigate provide an explicit target.
-		await accessor.get(INativeHostService).openAgentsWindow({
+		const nativeHostService = accessor.get(INativeHostService);
+		const draftOptions: Pick<IOpenAgentsWindowOptions, 'draft' | 'folderUriIsDefault'> = !args?.preserveActiveSession && !args?.folderUri && !args?.sessionResource && !args?.draft ? getDraftHandoffOptions(accessor) : {};
+		const folderUri = !args?.preserveActiveSession && !args?.folderUri && !args?.sessionResource
+			? getInvokingWorkspaceFolder(accessor) ?? (draftOptions.draft ? accessor.get(IWorkspaceContextService).getWorkspace().folders[0]?.uri : undefined)
+			: undefined;
+		await nativeHostService.openAgentsWindow({
 			...args,
+			...(folderUri ? { folderUri, folderUriIsDefault: !draftOptions.draft } : undefined),
+			...draftOptions,
 			source: args?.source ?? AgentsWindowOpenSource.CommandPalette,
 		});
 	}
