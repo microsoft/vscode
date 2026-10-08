@@ -652,6 +652,8 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 						});
 						this._handleClientDisconnected(client.clientId);
 						this._onDidChangeConnectionCount.fire(this._connectedClientCount);
+					} else {
+						this._reconcileClientChatSubscriptions(client);
 					}
 					this._reportClientDisconnected(client, subscriptionCount);
 				}
@@ -1142,7 +1144,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				}
 			}
 		}
-		this._reconcileActiveClientsAfterReconnect(client);
+		this._reconcileClientChatSubscriptions(client);
 
 		if (canReplay) {
 			const actions: ActionEnvelope[] = [];
@@ -1174,14 +1176,8 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		return { type: 'snapshot', snapshots: refreshedSnapshots.filter((s): s is IStateSnapshot => s !== undefined) };
 	}
 
-	/**
-	 * Release a client from every session where it is still an active client
-	 * but did not resubscribe during a reconnect. The set of resubscribed
-	 * sessions is gathered from every live connection the client currently
-	 * holds (not just the reconnecting one) so an overlapping connection that
-	 * still subscribes to a session keeps the client active there.
-	 */
-	private _reconcileActiveClientsAfterReconnect(client: IConnectedClient): void {
+	/** Releases chat routing absent from all live connections after a reconnect or partial disconnect. */
+	private _reconcileClientChatSubscriptions(client: IConnectedClient): void {
 		const record = this._clients.get(client.clientId);
 		const resubscribed = new Set<string>();
 		for (const connection of record?.state === 'active' ? record.connections : [client]) {

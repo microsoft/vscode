@@ -5228,8 +5228,9 @@ suite('ProtocolServerHandler', () => {
 				contributor: { kind: ToolCallContributorKind.Client, clientId: 'client-tools' },
 			});
 
-			const fallbackTransport = connectClient('client-tools', [sessionUri]);
-			const latestTransport = connectClient('client-tools', [sessionUri]);
+			const fallbackTransport = connectClient('client-tools', [sessionUri, defaultChatUri]);
+			const latestTransport = connectClient('client-tools', [sessionUri, defaultChatUri]);
+			await handler.whenIdle();
 
 			latestTransport.simulateClose();
 
@@ -5271,8 +5272,9 @@ suite('ProtocolServerHandler', () => {
 				contributor: { kind: ToolCallContributorKind.Client, clientId: 'client-tools' },
 			});
 
-			const fallbackTransport = connectClient('client-tools', [sessionUri]);
-			const latestTransport = connectClient('client-tools', [sessionUri]);
+			const fallbackTransport = connectClient('client-tools', [sessionUri, defaultChatUri]);
+			const latestTransport = connectClient('client-tools', [sessionUri, defaultChatUri]);
+			await handler.whenIdle();
 			latestTransport.simulateClose();
 
 			await new Promise(r => setTimeout(r, 30_001));
@@ -5716,6 +5718,32 @@ suite('ProtocolServerHandler', () => {
 				afterLastUnsubscribe: { clients: [], statuses: [ToolCallStatus.Completed, ToolCallStatus.Completed] },
 			});
 		});
+
+		for (const { name, closedChat, retained, statuses, released } of [
+			{ name: 'main chat', closedChat: peerChatUri, retained: [defaultChatUri], statuses: [ToolCallStatus.Streaming, ToolCallStatus.Completed], released: [peerChatUri] },
+			{ name: 'session and main chat', closedChat: peerChatUri, retained: [sessionUri, defaultChatUri], statuses: [ToolCallStatus.Streaming, ToolCallStatus.Completed], released: [peerChatUri] },
+			{ name: 'peer chat', closedChat: defaultChatUri, retained: [peerChatUri], statuses: [ToolCallStatus.Completed, ToolCallStatus.Streaming], released: [defaultChatUri] },
+			{ name: 'session only', closedChat: peerChatUri, retained: [sessionUri], statuses: [ToolCallStatus.Completed, ToolCallStatus.Completed], released: [defaultChatUri, peerChatUri] },
+			{ name: 'the same chat and session', closedChat: peerChatUri, retained: [sessionUri, defaultChatUri, peerChatUri], statuses: [ToolCallStatus.Streaming, ToolCallStatus.Streaming], released: [] },
+		]) {
+			test(`partial transport disconnect narrows routing while retaining ${name}`, async () => {
+				createSessionWithClientTools();
+				const transport = connectClient(clientId, [closedChat]);
+				connectClient(clientId, retained);
+				await handler.whenIdle();
+				transport.simulateClose();
+
+				assert.deepStrictEqual({
+					clients: stateManager.getSessionState(sessionUri)?.activeClients.map(client => client.clientId),
+					statuses: toolStatuses(),
+					releasedRouting: agentService.clientChatSubscriptions.filter(subscription => !subscription.subscribed).map(subscription => subscription.chat),
+				}, {
+					clients: [clientId],
+					statuses,
+					releasedRouting: released,
+				});
+			});
+		}
 
 		for (const retainedChat of [defaultChatUri, peerChatUri, sessionUri]) {
 			for (const overlappingConnection of [false, true]) {
