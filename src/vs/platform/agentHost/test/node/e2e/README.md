@@ -658,6 +658,10 @@ Codex's native plugin marketplace starts a background Git fetch of `openai/plugi
 
 Codex record/replay servers disable `features.plugins` to keep this unrelated marketplace bootstrap out of the tests. Client-provided plugin skills, agents, and MCP servers are configured by the host independently and remain covered by the same tests. Keep cleanup strict and retain its underlying filesystem errors so other teardown failures remain diagnosable.
 
+### Linux suites pass but tmpfs cannot be unmounted
+
+An `umount: target is busy` failure means a process or kernel reference still holds the mount; passing test bodies do not prove that cleanup finished. The wrapper runs a read-only `fuser -vm` probe for at most ten seconds to report holder PIDs, command names, and access types in the task log. Probe errors are reported separately, and the original cleanup failure remains fatal. Correlate the holders with server/provider cleanup logs before changing ownership; do not use lazy unmounts, process-name kills, or retries to conceal a leak.
+
 ### Fixture leaks a username / absolute path / token
 
 Normalization missed something (e.g. a path that `ls` line-wrapped, or a new secret field). Add/extend a placeholder in `capiReplayProxy.ts` (`_normalize` + the `*_RE` redactors), then re-record. Never hand-edit secrets back in.

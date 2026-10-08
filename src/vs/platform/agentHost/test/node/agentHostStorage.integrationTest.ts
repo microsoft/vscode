@@ -29,7 +29,13 @@ if [ "$FAILURE" = filesystem ]; then printf "ext4\\n"; else printf "tmpfs\\n"; f
 			sudo: `shift
 printf '%s\\n' "$*" >> "$COMMANDS"
 if [ "$1" = mount ] && [ "$FAILURE" = mount ]; then exit 17; fi
-if [ "$1" = umount ] && [ "$FAILURE" = umount ]; then exit 18; fi`,
+if [ "$1" = umount ] && { [ "$FAILURE" = umount ] || [ "$FAILURE" = diagnostic ]; }; then exit 18; fi
+if [ "$1" = timeout ]; then exec "$@"; fi`,
+			timeout: `printf 'budget %s\\n' "$*" >> "$COMMANDS"
+shift 2
+exec "$@"`,
+			fuser: `if [ "$FAILURE" = diagnostic ]; then printf 'holder probe failed\\n' >&2; exit 29; fi
+printf 'test-user 12345 .c..m provider-child\\n' >&2`,
 		};
 		for (const [name, script] of Object.entries(scripts)) {
 			writeFileSync(join(directory, name), '#!/bin/sh\n' + script + '\n', { mode: 0o755 });
@@ -90,6 +96,33 @@ if [ "$1" = umount ] && [ "$FAILURE" = umount ]; then exit 18; fi`,
 
 	(isWindows ? test.skip : test)('unmount failure fails an otherwise passing run without removing a mounted directory', () => {
 		const result = run('umount', 0);
-		assert.deepStrictEqual({ status: result.status, errorReported: result.stderr.includes('Failed to unmount'), directoryRetained: existsSync(result.mountDirectory) }, { status: 1, errorReported: true, directoryRetained: true });
+		assert.deepStrictEqual({
+			status: result.status,
+			errorReported: result.stderr.includes('Failed to unmount'),
+			directoryRetained: existsSync(result.mountDirectory),
+			holdersReported: result.stderr.includes('test-user 12345 .c..m provider-child'),
+			diagnosticCalls: result.calls.slice(2),
+		}, {
+			status: 1,
+			errorReported: true,
+			directoryRetained: true,
+			holdersReported: true,
+			diagnosticCalls: [`timeout --signal=KILL 10s fuser -vm -- ${result.mountDirectory}`, `budget --signal=KILL 10s fuser -vm -- ${result.mountDirectory}`],
+		});
+	});
+
+	(isWindows ? test.skip : test)('holder diagnostic failures cannot mask a failed unmount or remove its mounted directory', () => {
+		const result = run('diagnostic', 0);
+		assert.deepStrictEqual({
+			status: result.status,
+			directoryRetained: existsSync(result.mountDirectory),
+			unmountFailureReported: result.stderr.includes('Failed to unmount'),
+			diagnosticFailureReported: result.stderr.includes('holder diagnostics exited with status 29'),
+		}, {
+			status: 1,
+			directoryRetained: true,
+			unmountFailureReported: true,
+			diagnosticFailureReported: true,
+		});
 	});
 });
