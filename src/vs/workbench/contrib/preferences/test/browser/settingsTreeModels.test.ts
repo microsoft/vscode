@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { stub } from 'sinon';
 import { Event } from '../../../../../base/common/event.js';
+import { ManagedSettingValue } from '../../../../../base/common/policy.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { settingKeyToDisplayFormat, parseQuery, IParsedQuery, sanitizeId, SearchResultModel, SearchResultIdx, ISettingsEditorViewState, SettingsTreeSettingElement, SettingsTreeModel } from '../../browser/settingsTreeModels.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -16,7 +18,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { AgentNetworkDomainSettingId } from '../../../../../platform/networkFilter/common/settings.js';
-import { COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY, COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_SANDBOX_LSP_SERVERS_KEY, COPILOT_SANDBOX_MCP_SERVERS_KEY, IManagedSettingsService, NullManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_SANDBOX_ALLOWED_HOSTS_KEY, COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY, COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_DENIED_PATHS_KEY, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_SANDBOX_LSP_SERVERS_KEY, COPILOT_SANDBOX_MCP_SERVERS_KEY, COPILOT_SANDBOX_READONLY_PATHS_KEY, IManagedSettingsService, NullManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';
 import { IWorkbenchConfigurationService } from '../../../../services/configuration/common/configuration.js';
 import { ExperimentalSettingsService, IExperimentalSettingsService } from '../../../../services/configuration/common/experimentalSettings.js';
@@ -30,6 +32,7 @@ import { LayoutSettings, ModernUIDensity } from '../../../../services/layout/bro
 import { IManagedSettingsPresentationService, ManagedSettingsPresentationService } from '../../../../services/configuration/common/managedSettingsPresentation.js';
 import { terminalContribConfiguration } from '../../../terminal/terminalContribExports.js';
 import { SettingMatches } from '../../browser/preferencesSearch.js';
+import { chatNetworkDomainConfigurationProperties } from '../../../chat/browser/chatNetworkConfiguration.js';
 
 suite('SettingsTree Agents Window density', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -111,11 +114,11 @@ suite('SettingsTree managed sandbox', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const registry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 	assert.ok(terminalContribConfiguration);
-	const configurationNode = { id: 'sandboxPresentationTest', properties: Object.fromEntries(Object.entries(terminalContribConfiguration).filter(([, property]) => property.managedSettingsPresentation)) };
+	const configurationNode = { id: 'sandboxPresentationTest', properties: Object.fromEntries(Object.entries({ ...terminalContribConfiguration, ...chatNetworkDomainConfigurationProperties }).filter(([, property]) => property.managedSettingsPresentation)) };
 	suiteSetup(() => registry.registerConfiguration(configurationNode));
 	suiteTeardown(() => registry.deregisterConfigurations([configurationNode]));
 
-	function createModel(settingsTarget: SettingsTarget = ConfigurationTarget.USER_LOCAL, localAccess = true, settingKeys?: AgentSandboxSettingId[]) {
+	function createModel(settingsTarget: SettingsTarget = ConfigurationTarget.USER_LOCAL, localAccess = true, settingKeys?: (AgentSandboxSettingId | AgentNetworkDomainSettingId)[], managed: Record<string, ManagedSettingValue | undefined> = {}) {
 		const instantiationService = store.add(new TestInstantiationService());
 		const configuration = new class extends TestConfigurationService {
 			isSettingAppliedForAllProfiles(): boolean { return false; }
@@ -127,9 +130,10 @@ suite('SettingsTree managed sandbox', () => {
 			[AgentSandboxSettingId.AgentSandboxLspServers]: localAccess,
 			[AgentSandboxSettingId.AgentSandboxAllowDevToolAccess]: localAccess,
 			[AgentSandboxSettingId.AgentSandboxAllowLocalNetwork]: localAccess,
+			[AgentNetworkDomainSettingId.AllowedNetworkDomains]: ['local.example'],
+			[AgentSandboxSettingId.AgentSandboxUserConfiguredPaths]: { readwritePaths: ['local.write'], readonlyPaths: ['local.read'], deniedPaths: ['local.deny'] },
 		});
 		store.add(configuration.onDidChangeConfigurationEmitter);
-		const managed: Record<string, boolean | undefined> = {};
 		instantiationService.stub(IManagedSettingsService, new class extends mock<IManagedSettingsService>() {
 			override readonly onDidChangeManagedSettings = Event.None;
 			override getManagedSettingValue(key: string) { return managed[key]; }
@@ -148,7 +152,8 @@ suite('SettingsTree managed sandbox', () => {
 			filterMatches: keys.map(key => ({
 				setting: new class extends mock<ISetting>() {
 					override key = key;
-					override type = key === AgentSandboxSettingId.AgentSandboxEnabled ? 'string' : 'boolean';
+					override type = key === AgentSandboxSettingId.AgentSandboxUserConfiguredPaths ? 'object' : key === AgentNetworkDomainSettingId.AllowedNetworkDomains ? 'array' : key === AgentSandboxSettingId.AgentSandboxEnabled ? 'string' : 'boolean';
+					override arrayItemType = key === AgentNetworkDomainSettingId.AllowedNetworkDomains ? 'string' : undefined;
 					override description = [];
 					override scope = ConfigurationScope.RESOURCE;
 				}(),
@@ -167,6 +172,87 @@ suite('SettingsTree managed sandbox', () => {
 		});
 		return { model, managed, configuration, read, keys, viewState };
 	}
+
+	for (const allowedHosts of [[], ['managed.example', '*.managed.example']]) {
+		test(`managed allowlist ${JSON.stringify(allowedHosts)} locks allowed domains and restores local preferences after removal`, () => {
+			const key = AgentNetworkDomainSettingId.AllowedNetworkDomains;
+			const { managed, configuration, read } = createModel(ConfigurationTarget.USER_LOCAL, true, [key]);
+			const initial = read();
+			managed[COPILOT_SANDBOX_ALLOWED_HOSTS_KEY] = JSON.stringify(allowedHosts);
+			const locked = read();
+			delete managed[COPILOT_SANDBOX_ALLOWED_HOSTS_KEY];
+			assert.deepStrictEqual({ initial, locked, removed: read(), stored: configuration.getValue(key) }, {
+				initial: [{ value: ['local.example'], managed: false, policyFilter: false }],
+				locked: [{ value: allowedHosts, managed: true, policyFilter: true }],
+				removed: initial,
+				stored: ['local.example'],
+			});
+		});
+	}
+
+	test('ignores malformed managed allowlists in the presentation and preserves local values', () => {
+		const key = AgentNetworkDomainSettingId.AllowedNetworkDomains;
+		const { managed, configuration, read } = createModel(ConfigurationTarget.USER_LOCAL, true, [key]);
+		const consoleWarn = stub(console, 'warn');
+		try {
+			const settings = ['not JSON', '["managed.example",1]', '{}', 'null', false].map(value => {
+				managed[COPILOT_SANDBOX_ALLOWED_HOSTS_KEY] = value;
+				return read();
+			});
+
+			test('composes managed filesystem presentation with local paths and restores preferences on removal', () => {
+				const key = AgentSandboxSettingId.AgentSandboxUserConfiguredPaths;
+				const { managed, configuration, read } = createModel(ConfigurationTarget.USER_LOCAL, true, [key]);
+				const initial = read();
+				managed[COPILOT_SANDBOX_DENIED_PATHS_KEY] = '["managed.deny"]';
+				const denied = read();
+				managed[COPILOT_SANDBOX_READONLY_PATHS_KEY] = '[]';
+				const restricted = read();
+				delete managed[COPILOT_SANDBOX_DENIED_PATHS_KEY];
+				delete managed[COPILOT_SANDBOX_READONLY_PATHS_KEY];
+				const local = { readwritePaths: ['local.write'], readonlyPaths: ['local.read'], deniedPaths: ['local.deny'] };
+				assert.deepStrictEqual({ initial, denied, restricted, removed: read(), stored: configuration.getValue(key) }, {
+					initial: [{ value: local, managed: false, policyFilter: false }],
+					denied: [{ value: { ...local, deniedPaths: ['local.deny', 'managed.deny'] }, managed: true, policyFilter: true }],
+					restricted: [{ value: { ...local, readonlyPaths: [], deniedPaths: ['local.deny', 'managed.deny'] }, managed: true, policyFilter: true }],
+					removed: initial,
+					stored: local,
+				});
+			});
+
+			test('ignores malformed managed filesystem paths without hiding saved local paths', () => {
+				const key = AgentSandboxSettingId.AgentSandboxUserConfiguredPaths;
+				const consoleWarn = stub(console, 'warn');
+				try {
+					const { managed, configuration, read } = createModel(ConfigurationTarget.USER_LOCAL, true, [key], {
+						[COPILOT_SANDBOX_DENIED_PATHS_KEY]: 'private.enterprise.path',
+					});
+					const settings = ['private.enterprise.path', '[123]', '{}', 'null', false].map(value => {
+						managed[COPILOT_SANDBOX_DENIED_PATHS_KEY] = value;
+						return read();
+					});
+					const local = { readwritePaths: ['local.write'], readonlyPaths: ['local.read'], deniedPaths: ['local.deny'] };
+					assert.deepStrictEqual({ settings, stored: configuration.getValue(key) }, {
+						settings: Array.from({ length: 5 }, () => [{ value: local, managed: false, policyFilter: false }]),
+						stored: local,
+					});
+				} finally {
+					consoleWarn.restore();
+				}
+			});
+			assert.deepStrictEqual({
+				settings,
+				stored: configuration.getValue(key),
+				warnings: consoleWarn.callCount,
+			}, {
+				settings: Array.from({ length: 5 }, () => [{ value: ['local.example'], managed: false, policyFilter: false }]),
+				stored: ['local.example'],
+				warnings: 5,
+			});
+		} finally {
+			consoleWarn.restore();
+		}
+	});
 
 	for (const enabled of [undefined, false, true]) {
 		for (const allowBypass of [undefined, false, true]) {
@@ -518,6 +604,92 @@ suite('SettingsTree sandbox network search ordering', () => {
 			key,
 			matchType: SettingMatchType.AllWordsInSettingsLabel | SettingMatchType.ContiguousQueryInSettingId,
 		})));
+	});
+});
+
+suite('SettingsTree search results', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createModel() {
+		const configuration = new class extends TestConfigurationService {
+			isSettingAppliedForAllProfiles(): boolean { return false; }
+		}();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IWorkbenchConfigurationService, configuration);
+		instantiationService.stub(ILanguageService, { isRegisteredLanguageId: () => true });
+		instantiationService.stub(IUserDataProfileService, new TestUserDataProfileService());
+		instantiationService.stub(IProductService, TestProductService);
+		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: false });
+		instantiationService.stub(IExperimentalSettingsService, store.add(new ExperimentalSettingsService()));
+		instantiationService.stub(IManagedSettingsService, new NullManagedSettingsService());
+		instantiationService.stub(IManagedSettingsPresentationService, store.add(instantiationService.createInstance(ManagedSettingsPresentationService)));
+		return store.add(instantiationService.createInstance(SearchResultModel,
+			{ settingsTarget: ConfigurationTarget.USER_LOCAL, query: 'test' }, null, true));
+	}
+
+	function createMatch(key: string) {
+		return {
+			setting: new class extends mock<ISetting>() {
+				override key = key;
+				override type = 'boolean';
+				override description = [];
+				override scope = ConfigurationScope.APPLICATION;
+			}(),
+			matches: [], matchType: SettingMatchType.RemoteMatch, keyMatchScore: 0, score: 0,
+		};
+	}
+
+	test('refreshes after local results are cleared', () => {
+		const model = createModel();
+		model.setResult(SearchResultIdx.Local, { filterMatches: [createMatch('test.local')], exactMatch: true });
+		model.setResult(SearchResultIdx.Local, null);
+		model.updateChildren();
+
+		assert.deepStrictEqual({
+			results: model.getUniqueSearchResults(),
+			count: model.getUniqueResultsCount(),
+		}, { results: { filterMatches: [], exactMatch: false }, count: 0 });
+	});
+
+	test('retains remote results without local results', () => {
+		const model = createModel();
+		const match = createMatch('test.remote');
+		model.setResult(SearchResultIdx.Local, null);
+		model.setResult(SearchResultIdx.Remote, { filterMatches: [match], exactMatch: false });
+		model.updateChildren();
+
+		assert.deepStrictEqual({
+			results: model.getUniqueSearchResults(),
+			keys: model.root.children.map(child => child instanceof SettingsTreeSettingElement ? child.setting.key : child.id),
+			count: model.getUniqueResultsCount(),
+		}, { results: { filterMatches: [match], exactMatch: false }, keys: ['test.remote'], count: 1 });
+	});
+
+	test('switches from AI results without local results', () => {
+		const model = createModel();
+		model.showAiResults = true;
+		model.setResult(SearchResultIdx.Embeddings, { filterMatches: [createMatch('test.ai')], exactMatch: false });
+		model.showAiResults = false;
+		model.updateChildren();
+
+		assert.deepStrictEqual({
+			results: model.getUniqueSearchResults(),
+			count: model.getUniqueResultsCount(),
+		}, { results: { filterMatches: [], exactMatch: false }, count: 0 });
+	});
+
+	test('preserves local exact matches and remote deduplication', () => {
+		const model = createModel();
+		const localMatch = createMatch('test.local');
+		const remoteMatch = createMatch('test.remote');
+		model.setResult(SearchResultIdx.Local, { filterMatches: [localMatch], exactMatch: true });
+		model.setResult(SearchResultIdx.Remote, { filterMatches: [localMatch, remoteMatch], exactMatch: false });
+
+		assert.deepStrictEqual(model.getUniqueSearchResults(), {
+			filterMatches: [localMatch, remoteMatch],
+			exactMatch: true,
+		});
 	});
 });
 

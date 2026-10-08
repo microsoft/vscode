@@ -26,6 +26,27 @@ suite('mapSessionEvents — history replay', () => {
 
 	const session = AgentSession.uri('copilot', 'test-session');
 
+	test('declares native input contracts only when replay knows the client tool set', async () => {
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', data: { interactionId: 'message', content: 'Read files' } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'native', toolName: 'view', arguments: { path: '/workspace/File.ts', view_range: [1, 10] } } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'native', success: true } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'client', toolName: 'edit', arguments: { path: '/workspace/File.ts' } } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'client', success: true } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'mcp', toolName: 'grep', arguments: { pattern: 'query' }, mcpServerName: 'server', mcpToolName: 'grep' } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'mcp', success: true } },
+		];
+		const summaries = await Promise.all([undefined, new Set(['edit'])].map(async clientToolNames => {
+			const result = await mapSessionEvents(session, undefined, toSessionEvents(events), { clientToolNames });
+			return result.turns.flatMap(turn => turn.responseParts.flatMap(part =>
+				part.kind === ResponsePartKind.ToolCall ? [readToolCallMeta(part.toolCall)['vscode.toolInputContract']] : []));
+		}));
+		assert.deepStrictEqual(summaries, [
+			[undefined, undefined, undefined],
+			['copilot-cli-v1', undefined, undefined],
+		]);
+	});
+
 	function partKinds(parts: readonly ResponsePart[]): Array<{ kind: ResponsePartKind; content?: StringOrMarkdown }> {
 		return parts.map(p => p.kind === ResponsePartKind.Markdown || p.kind === ResponsePartKind.SystemNotification ? { kind: p.kind, content: p.content } : { kind: p.kind });
 	}
@@ -597,6 +618,7 @@ suite('mapSessionEvents — history replay', () => {
 			predictedLabel: 'needs_reasoning',
 			confidence: 0.93,
 			candidateModels: ['claude-opus-4.8', 'claude-sonnet-4.6'],
+			selectionReason: 'Auto selected claude-opus-4.8 for its fit to your request because of high reasoning needs.',
 		};
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', id: 'turn-before-auto', data: { interactionId: 'm0', content: 'First prompt' } },
@@ -1088,6 +1110,7 @@ suite('mapSessionEvents — history replay', () => {
 
 	for (const scheme of ['copilot', 'ahp-session']) {
 		test(`restores MCP app data for completed tool calls on ${scheme} resources`, async () => {
+			const structuredContent = { titleId: 'example-title', branding: null };
 			const events: ISessionEvent[] = [
 				{ type: 'user.message', data: { interactionId: 'm1', content: 'call an MCP app tool' } },
 				{
@@ -1127,7 +1150,7 @@ suite('mapSessionEvents — history replay', () => {
 					data: {
 						toolCallId: 'tc-1',
 						success: true,
-						result: { content: '{"login":"octocat"}' },
+						result: { content: 'Opened the accent-color editor.', structuredContent },
 					},
 				},
 			];
@@ -1143,6 +1166,7 @@ suite('mapSessionEvents — history replay', () => {
 			assert.deepStrictEqual({
 				contributor: part.toolCall.contributor,
 				meta: readToolCallMeta(part.toolCall),
+				structuredContent: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.structuredContent : undefined,
 			}, {
 				contributor: {
 					kind: ToolCallContributorKind.MCP,
@@ -1156,6 +1180,7 @@ suite('mapSessionEvents — history replay', () => {
 						channel: `mcp://${providerId}/${encodeURIComponent(chatUri.toString())}/GitHub`,
 					},
 				},
+				structuredContent,
 			});
 		});
 	}

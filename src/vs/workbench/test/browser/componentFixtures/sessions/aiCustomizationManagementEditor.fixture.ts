@@ -4113,6 +4113,8 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// Standalone embedded plugin detail widget — installed plugin.
 	EmbeddedPluginDetailInstalled: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The installed plugin detail has Uninstall and Disable actions. The Disable split-button divider is visible without leaking through the outer border at its top or bottom edge.'],
 		render: ctx => renderEmbeddedPluginDetail(ctx, makeInstalledPluginItem('Linear', 'Issue tracking and project management integration')),
 	}),
 

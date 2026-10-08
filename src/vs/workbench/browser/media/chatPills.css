@@ -4,9 +4,36 @@
  *--------------------------------------------------------------------------------------------*/
 
 /* Shared workbench chat-pill presentation. */
-.chat-pill-location-hover-panel .action-list-submenu-hover-header {
-	width: min(420px, 70vw);
+.chat-pill-hover-panel .action-list-submenu-hover-header {
 	max-width: 100%;
+}
+
+.chat-pill-hover-content {
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size80);
+	max-width: 100%;
+	padding: var(--vscode-spacing-size120) var(--vscode-spacing-size160);
+	color: var(--vscode-editorHoverWidget-foreground);
+}
+
+.chat-pill-hover-content.compact {
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
+}
+
+.chat-pill-hover-content a {
+	color: var(--vscode-textLink-foreground);
+}
+
+.chat-pill-hover-content a:hover,
+.chat-pill-hover-content a:active {
+	color: var(--vscode-textLink-activeForeground);
+}
+
+.chat-pill-hover-content :is(a, button):focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-spacing-size20);
 }
 
 .chat-pill-location-hover {
@@ -181,8 +208,9 @@
 	margin-right: 0;
 }
 
-.action-widget.chat-pill-dropdown .monaco-list-row.chat-pill-github-reference .action-item-badge {
-	margin-left: var(--vscode-spacing-size40);
+.action-widget.chat-pill-dropdown .monaco-list-row.chat-pill-reference .action-item-badge {
+	margin-left: 0;
+	margin-right: var(--vscode-spacing-size40);
 	padding: 0;
 	border-radius: 0;
 	background: transparent;
@@ -192,18 +220,15 @@
 }
 
 .chat-pill-image-preview {
-	display: flex;
-	flex-direction: column;
-	width: min(320px, calc(100vw - var(--vscode-spacing-size240)));
-	color: var(--vscode-foreground);
+	width: 320px;
+}
+
+.chat-pill-image-preview .chat-image-hover {
+	padding: 0;
 }
 
 .chat-pill-image-preview-unavailable {
-	padding: var(--vscode-spacing-size80);
 	overflow-wrap: anywhere;
-}
-
-.chat-pill-image-preview-unavailable {
 	color: var(--vscode-descriptionForeground);
 }
 

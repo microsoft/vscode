@@ -11,6 +11,7 @@ import { IDisposable, toDisposable } from '../../../../../../../base/common/life
 import { constObservable, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
+import type { AgentChatInputState } from '../../../../../../../platform/agentHost/common/meta/agentHostChatInputState.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { ICommandEvent, ICommandService } from '../../../../../../../platform/commands/common/commands.js';
@@ -32,6 +33,7 @@ import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, IL
 import { localChatSessionType, SessionType } from '../../../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../../../common/model/chatUri.js';
 import { getCopilotHarnessIntroductionContent } from '../../../../browser/agentSessions/copilotHarnessIntroduction.js';
+import { AgentHostChatInputState } from '../../../../browser/agentSessions/agentHost/agentHostChatInputState.js';
 
 class TestCommandService implements ICommandService {
 	declare readonly _serviceBrand: undefined;
@@ -123,6 +125,39 @@ suite('ChatInputNotificationWidget', () => {
 		store.add(notificationService as IChatInputNotificationService & IDisposable);
 		return notificationService;
 	}
+
+	test('keeps the blocking conversation notice above a session warning until input is available', () => {
+		const notificationService = createNotificationService();
+		const sessionResource = URI.parse('agent-host-codex:/locked');
+		const input = observableValue<AgentChatInputState | undefined>('input', { kind: 'checking' });
+		store.add(new AgentHostChatInputState(sessionResource, input, async () => { }, notificationService));
+		notificationService.setNotification({
+			id: 'sandbox-warning',
+			severity: ChatInputNotificationSeverity.Warning,
+			message: 'Sandboxing is unavailable in this environment',
+			description: undefined,
+			actions: [],
+			dismissible: true,
+			autoDismissOnMessage: false,
+			sessionResources: [sessionResource],
+		});
+		const snapshot = () => {
+			const notice = notificationService.getActiveNotification();
+			return { message: notice?.message, actions: notice?.actions.map(action => action.label) };
+		};
+		const checking = snapshot();
+		input.set({ kind: 'blocked', error: { errorType: 'CodexThreadInUse', message: 'Thread is in use' } }, undefined);
+		const locked = snapshot();
+		input.set({ kind: 'checking' }, undefined);
+		const rechecking = snapshot();
+		input.set(undefined, undefined);
+		assert.deepStrictEqual({ checking, locked, rechecking, available: snapshot() }, {
+			checking: { message: 'Checking Conversation', actions: [] },
+			locked: { message: 'This chat is open in another app', actions: ['Retry'] },
+			rechecking: { message: 'This chat is open in another app', actions: ['Retry'] },
+			available: { message: 'Sandboxing is unavailable in this environment', actions: [] },
+		});
+	});
 
 	test('reactively applies session type filter when pending delegation target changes', () => {
 		const currentSessionType = observableValue<string | undefined>('currentSessionType', localChatSessionType);

@@ -1181,12 +1181,6 @@ per-word capitalization does not survive translation. */
 	margin-inline: auto;
 }
 
-.ai-customization-management-editor .tools-content-container > .tools-list-widget > .tools-gallery-container {
-	width: min(calc(100% - var(--vscode-spacing-size400) - var(--vscode-spacing-size400) - var(--vscode-spacing-size40)), 840px);
-	margin-inline: auto;
-	box-sizing: border-box;
-}
-
 .ai-customization-management-editor .mcp-content-container > .mcp-list-widget > .plugin-card-scrollable,
 .ai-customization-management-editor .plugin-content-container > .plugin-list-widget > .plugin-card-scrollable {
 	max-width: none;
@@ -1244,27 +1238,6 @@ per-word capitalization does not survive translation. */
 
 .ai-customization-management-editor .tools-list-search-container .monaco-inputbox {
 	width: 100%;
-}
-
-.ai-customization-management-editor .tools-list-browse-button-container {
-	flex-shrink: 0;
-}
-
-.ai-customization-management-editor .tools-list-browse-button-container .monaco-button {
-	white-space: nowrap;
-}
-
-/* Marketplace browse (gallery) list */
-.ai-customization-management-editor .tools-gallery-container {
-	display: flex;
-	flex-direction: column;
-	flex: 1;
-	min-height: 0;
-}
-
-.ai-customization-management-editor .tools-gallery-list {
-	flex: 1;
-	min-height: 0;
 }
 
 /* Shared gallery row used by the tools, MCP server and plugin marketplace lists. See galleryItemRenderer.ts */
@@ -1354,8 +1327,7 @@ per-word capitalization does not survive translation. */
 	gap: var(--vscode-spacing-size60);
 }
 
-.ai-customization-management-editor .tools-inventory-section-title,
-.ai-customization-management-editor .tools-marketplace-title {
+.ai-customization-management-editor .tools-inventory-section-title {
 	margin: 0;
 	font-size: var(--vscode-agents-fontSize-heading3);
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
@@ -1375,8 +1347,7 @@ per-word capitalization does not survive translation. */
 	box-sizing: border-box;
 }
 
-.ai-customization-management-editor .tools-inventory-section-description,
-.ai-customization-management-editor .tools-marketplace-description {
+.ai-customization-management-editor .tools-inventory-section-description {
 	margin: var(--vscode-spacing-size20) 0 0;
 	font-size: var(--vscode-agents-fontSize-body2);
 	line-height: 16px;
@@ -1421,11 +1392,6 @@ per-word capitalization does not survive translation. */
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-agents-fontSize-body2);
 	line-height: 16px;
-}
-
-.ai-customization-management-editor .tools-marketplace-header {
-	flex-shrink: 0;
-	margin-bottom: var(--vscode-spacing-size120);
 }
 
 /* Top-level tool-set row */
@@ -1747,8 +1713,7 @@ per-word capitalization does not survive translation. */
 /* Embedded plugin detail view */
 .ai-customization-management-editor .marketplace-detail-container,
 .ai-customization-management-editor .plugin-detail-container,
-.ai-customization-management-editor .connector-detail-container,
-.ai-customization-management-editor .tools-detail-container {
+.ai-customization-management-editor .connector-detail-container {
 	position: relative;
 	height: 100%;
 	display: flex;
@@ -1766,24 +1731,21 @@ per-word capitalization does not survive translation. */
 .ai-customization-management-editor .mcp-detail-container .ai-customization-embedded-detail,
 .ai-customization-management-editor .marketplace-detail-container .ai-customization-embedded-detail,
 .ai-customization-management-editor .plugin-detail-container .ai-customization-embedded-detail,
-.ai-customization-management-editor .connector-detail-container .ai-customization-embedded-detail,
-.ai-customization-management-editor .tools-detail-container .ai-customization-embedded-detail {
+.ai-customization-management-editor .connector-detail-container .ai-customization-embedded-detail {
 	padding: 0;
 }
 
 .ai-customization-management-editor .mcp-detail-container .ai-customization-embedded-detail .embedded-detail-header,
 .ai-customization-management-editor .marketplace-detail-container .ai-customization-embedded-detail .embedded-detail-header,
 .ai-customization-management-editor .plugin-detail-container .ai-customization-embedded-detail .embedded-detail-header,
-.ai-customization-management-editor .connector-detail-container .ai-customization-embedded-detail .embedded-detail-header,
-.ai-customization-management-editor .tools-detail-container .ai-customization-embedded-detail .embedded-detail-header {
+.ai-customization-management-editor .connector-detail-container .ai-customization-embedded-detail .embedded-detail-header {
 	align-items: center;
 }
 
 .ai-customization-management-editor .mcp-detail-container .ai-customization-embedded-detail .embedded-detail-leading-slot:not(:empty),
 .ai-customization-management-editor .marketplace-detail-container .ai-customization-embedded-detail .embedded-detail-leading-slot:not(:empty),
 .ai-customization-management-editor .plugin-detail-container .ai-customization-embedded-detail .embedded-detail-leading-slot:not(:empty),
-.ai-customization-management-editor .connector-detail-container .ai-customization-embedded-detail .embedded-detail-leading-slot:not(:empty),
-.ai-customization-management-editor .tools-detail-container .ai-customization-embedded-detail .embedded-detail-leading-slot:not(:empty) {
+.ai-customization-management-editor .connector-detail-container .ai-customization-embedded-detail .embedded-detail-leading-slot:not(:empty) {
 	display: flex;
 	align-items: center;
 	margin-inline-end: var(--vscode-spacing-size200);
@@ -1841,13 +1803,63 @@ per-word capitalization does not survive translation. */
 }
 
 .ai-customization-management-editor .marketplace-detail-query-list {
-	display: flex;
-	flex-direction: column;
-	gap: var(--vscode-spacing-size40);
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: var(--vscode-spacing-size80);
 	margin: 0;
-	padding: var(--vscode-spacing-size100) var(--vscode-spacing-size120) var(--vscode-spacing-size100) var(--vscode-spacing-size320);
+	padding: var(--vscode-spacing-size60);
 	border-radius: var(--vscode-cornerRadius-medium);
 	background: var(--vscode-textCodeBlock-background);
+	list-style: none;
+}
+
+.ai-customization-management-editor .marketplace-detail-query-list > li {
+	min-width: 0;
+}
+
+.ai-customization-management-editor .monaco-button.marketplace-detail-query-button {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size120);
+	width: 100%;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size60);
+	border-radius: var(--vscode-cornerRadius-small);
+	text-align: left;
+}
+
+.ai-customization-management-editor .monaco-button.marketplace-detail-query-button.disabled {
+	cursor: wait;
+}
+
+.ai-customization-management-editor .marketplace-detail-query-text {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.ai-customization-management-editor .marketplace-detail-query-action {
+	display: flex;
+	flex-shrink: 0;
+	align-items: center;
+	justify-content: center;
+	width: var(--vscode-spacing-size200);
+	height: var(--vscode-spacing-size200);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background: transparent;
+	color: var(--vscode-button-background);
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.ai-customization-management-editor .marketplace-detail-query-button:hover .marketplace-detail-query-action {
+	background: var(--vscode-button-hoverBackground);
+	color: var(--vscode-button-foreground);
+}
+
+.ai-customization-management-editor .marketplace-detail-query-button:focus-visible .marketplace-detail-query-action {
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
 }
 
 .ai-customization-management-editor .marketplace-detail-container.narrow .embedded-detail-header {
@@ -1892,14 +1904,6 @@ per-word capitalization does not survive translation. */
 	position: absolute;
 	inset: 0;
 	box-sizing: border-box;
-	display: flex;
-	justify-content: center;
-}
-
-.ai-customization-management-editor .tools-detail-editor-container {
-	flex: 1;
-	overflow: auto;
-	min-height: 0;
 	display: flex;
 	justify-content: center;
 }

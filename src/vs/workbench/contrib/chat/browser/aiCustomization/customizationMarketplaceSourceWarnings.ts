@@ -23,13 +23,14 @@ export class CustomizationMarketplaceSourceWarnings extends Disposable {
 	private readonly recovery = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly buttons: Button[] = [];
 	private readonly actions = new Map<string, ICustomizationMarketplaceSourceRecoveryAction | undefined>();
+	private readonly sourceNames = new Map<string, string>();
 	private errors: readonly ICustomizationMarketplaceSourceError[] = [];
 	private recoveringSourceId: string | undefined;
 	private loading = false;
 
 	constructor(
 		parent: HTMLElement,
-		private readonly sources: readonly ICustomizationMarketplaceSourceInfo[],
+		private readonly getSources: () => readonly ICustomizationMarketplaceSourceInfo[],
 		private readonly onRetry: () => void,
 		private readonly getRecoveryAction: (sourceId: string) => ICustomizationMarketplaceSourceRecoveryAction | undefined,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -57,13 +58,16 @@ export class CustomizationMarketplaceSourceWarnings extends Disposable {
 		if (this.recoveringSourceId && !errors.some(error => error.sourceId === this.recoveringSourceId)) {
 			this.recovery.value?.cancel();
 		}
-		if (!equals(this.errors, errors, (a, b) => a.sourceId === b.sourceId && a.message === b.message)) {
+		const sourceNamesChanged = errors.some(error => this.sourceNames.get(error.sourceId) !== this.getSourceName(error));
+		if (sourceNamesChanged || !equals(this.errors, errors, (a, b) => a.sourceId === b.sourceId && a.message === b.message)) {
 			this.errors = errors;
 			this.rows.clear();
 			this.buttons.length = 0;
 			this.actions.clear();
+			this.sourceNames.clear();
 			DOM.clearNode(this.element);
 			for (const error of errors) {
+				this.sourceNames.set(error.sourceId, this.getSourceName(error));
 				const action = this.getRecoveryAction(error.sourceId);
 				this.actions.set(error.sourceId, action);
 				const signIn = action?.kind === 'signIn';
@@ -147,7 +151,7 @@ export class CustomizationMarketplaceSourceWarnings extends Disposable {
 	}
 
 	private getSourceName(error: ICustomizationMarketplaceSourceError): string {
-		return this.sources.find(source => source.id === error.sourceId)?.displayName ?? error.sourceId;
+		return this.getSources().find(source => source.id === error.sourceId)?.displayName ?? error.sourceId;
 	}
 
 	private getMessage(error: ICustomizationMarketplaceSourceError): string {

@@ -94,7 +94,7 @@ export class MissionControlSdkEventSource extends Disposable {
 	}
 
 	observeSession(session: string): void {
-		if (!this._isEnabled() || this._store.isDisposed) {
+		if (!this._isEnabled() || this._store.isDisposed || this._stateManager.isIdleProvisionalSession(session)) {
 			return;
 		}
 		const summary = this._stateManager.getSessionSummary(session);

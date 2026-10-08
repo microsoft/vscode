@@ -23,7 +23,70 @@ function request(transport: GitHubTransport, kind: 'rest' | 'graphql', options: 
 suite('GitHub request lifecycle', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	function createQueuedTransport(kind: 'rest' | 'graphql') {
+		const scheduler = store.add(new FakeScheduler());
+		const release = new DeferredPromise<Response>();
+		const started = new DeferredPromise<void>();
+		const targetStarted = new DeferredPromise<void>();
+		const paths: string[] = [];
+		const transport = store.add(new GitHubTransport(async (input, options) => {
+			const path = kind === 'rest' ? new URL(String(input)).pathname.slice(1) : JSON.parse(String(options?.body)).variables.path;
+			paths.push(path);
+			if (path === 'busy') {
+				started.complete();
+				return release.p;
+			}
+			if (path === 'target') {
+				targetStarted.complete();
+			}
+			return new Response('{"data":{}}');
+		}, scheduler, false, undefined, {
+			queue: { maximumConcurrency: 1, maximumHostConcurrency: 1, maximumCallerConcurrency: 1 },
+		}));
+		const read = (path: string, priority: 'background' | 'visible', signal = new AbortController().signal) => kind === 'rest'
+			? transport.rest(account, 'token', { method: 'GET', url: `https://github.example.test/${path}`, priority }, signal)
+			: transport.graphql(account, 'token', 'https://github.example.test/graphql', 'query Read($path: String!) { value }', { path }, signal, priority);
+		return { transport, scheduler, release, started, targetStarted, paths, read };
+	}
+
 	for (const kind of ['rest', 'graphql'] as const) {
+		test(`${kind}: a detached caller cannot promote a coalesced peer's queued request`, async () => {
+			const { transport, scheduler, release, started, paths, read } = createQueuedTransport(kind);
+			const busy = read('busy', 'background');
+			await started.p;
+			const peer = read('target', 'background');
+			const controller = new AbortController();
+			const detached = read('target', 'background', controller.signal);
+			const reason = new Error('detached');
+			const rejected = assert.rejects(detached, error => error === reason);
+			const visible = read('visible', 'visible');
+			controller.abort(reason);
+			await rejected;
+			transport.promote(controller.signal, 'interactive');
+			release.complete(new Response('{"data":{}}'));
+			await Promise.all([busy, peer, visible]);
+			assert.deepStrictEqual({ paths, timers: scheduler.pendingCount }, {
+				paths: ['busy', 'visible', 'target'], timers: 0,
+			});
+		});
+
+		test(`${kind}: promotes an existing caller's queued request without restarting it`, async () => {
+			const { transport, scheduler, release, started, targetStarted, paths, read } = createQueuedTransport(kind);
+			const target = new AbortController();
+			const busy = read('busy', 'background');
+			await started.p;
+			const visible = read('visible', 'visible');
+			const pending = read('target', 'background', target.signal);
+			transport.promote(target.signal, 'interactive');
+			release.complete(new Response('{"data":{}}'));
+			await targetStarted.p;
+			transport.promote(target.signal, 'interactive');
+			await Promise.all([busy, visible, pending]);
+			assert.deepStrictEqual({ paths, timers: scheduler.pendingCount }, {
+				paths: ['busy', 'target', 'visible'], timers: 0,
+			});
+		});
+
 		for (const boundary of ['task', 'payload'] as const) {
 			test(`${kind}: rejects a mutation whose deadline expires before ${boundary === 'task' ? 'its task starts' : 'wire dispatch'}`, async () => {
 				const scheduler = store.add(new FakeScheduler());

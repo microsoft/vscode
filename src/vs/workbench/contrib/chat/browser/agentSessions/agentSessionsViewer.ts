@@ -106,7 +106,6 @@ interface IAgentSessionApprovalTemplate {
 class AgentSessionStatusIcon extends Disposable {
 
 	private static readonly PIXEL_SPINNER_GRID_KEY = '__pixel_spinner_grid__';
-	private static readonly PIXEL_SPINNER_RING_KEY = '__pixel_spinner_ring__';
 
 	private _currentCacheKey: string | undefined;
 	private _lastSession: IAgentSession | undefined;
@@ -144,10 +143,9 @@ class AgentSessionStatusIcon extends Disposable {
 		this.container.className = `${this.containerClassName}${statusKnown && session.status === AgentSessionStatus.NeedsInput ? ' needs-input' : ''}`;
 		this.container.style.color = '';
 
-		if (statusKnown && (session.status === AgentSessionStatus.InProgress || session.status === AgentSessionStatus.NeedsInput) && !this.accessibilityService.isMotionReduced()) {
-			const isNeedsInput = session.status === AgentSessionStatus.NeedsInput;
-			const cacheKey = isNeedsInput ? AgentSessionStatusIcon.PIXEL_SPINNER_RING_KEY : AgentSessionStatusIcon.PIXEL_SPINNER_GRID_KEY;
-			const color = isNeedsInput ? asCssVariable('list.warningForeground') : asCssVariable('textLink.foreground');
+		if (statusKnown && session.status === AgentSessionStatus.InProgress && !this.accessibilityService.isMotionReduced()) {
+			const cacheKey = AgentSessionStatusIcon.PIXEL_SPINNER_GRID_KEY;
+			const color = asCssVariable('textLink.foreground');
 			if (this._currentCacheKey === cacheKey) {
 				this.updateActiveIconColor(color);
 				return;
@@ -156,7 +154,7 @@ class AgentSessionStatusIcon extends Disposable {
 			this._currentCacheKey = cacheKey;
 			this.spinner.clear();
 			clearNode(this.container);
-			const spinner = createPixelSpinner(undefined, { variant: isNeedsInput ? 'ring' : 'grid' });
+			const spinner = createPixelSpinner(undefined, { variant: 'grid' });
 			this.spinner.value = spinner;
 			spinner.element.style.color = color;
 			this.container.appendChild(spinner.element);
@@ -197,7 +195,7 @@ export function getAgentSessionStatusIcon(session: IAgentSession): ThemeIcon {
 	}
 
 	if (session.status === AgentSessionStatus.NeedsInput) {
-		return { ...Codicon.circleFilled, color: themeColorFromId('list.warningForeground') };
+		return { ...Codicon.report, color: themeColorFromId('list.warningForeground') };
 	}
 
 	if (session.status === AgentSessionStatus.Failed) {
@@ -593,7 +591,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			template.description.textContent = localize('chat.session.status.inProgress', "Working...");
 			return true;
 		} else if (session.element.status === AgentSessionStatus.NeedsInput) {
-			template.description.textContent = localize('chat.session.status.needsInput', "Input needed.");
+			template.description.textContent = localize('chat.session.status.needsInput', "Attention needed");
 			return true;
 		} else if (session.element.status === AgentSessionStatus.Failed) {
 			template.description.textContent = localize('chat.session.status.failed', "Failed");
@@ -861,7 +859,7 @@ export function toStatusLabel(status: AgentSessionStatus): string {
 	let statusLabel: string;
 	switch (status) {
 		case AgentSessionStatus.NeedsInput:
-			statusLabel = localize('agentSessionNeedsInput', "Needs Input");
+			statusLabel = localize('agentSessionNeedsInput', "Needs Attention");
 			break;
 		case AgentSessionStatus.InProgress:
 			statusLabel = localize('agentSessionInProgress', "In Progress");

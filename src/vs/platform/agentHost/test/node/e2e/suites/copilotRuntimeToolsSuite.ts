@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mkdtempSync, readFileSync, writeFileSync } from 'fs';
+import { readFileSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -18,6 +18,7 @@ import { fetchSessionWithChat, getActionEnvelope, isActionNotification, type Tes
 import { createRealSession, dispatchTurn, driveChatTurnToCompletion, driveTurnToCompletion, driveTurnWithModelToCompletion, resolveGitHubToken, textFromContent } from '../harness/agentHostE2ETestHarness.js';
 import { anthropicMessageToSse } from '../harness/capiWireCodec.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 const imageData = 'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAF0lEQVR4nGP4z8BAEiJN9aiGUQ1DSgMAkPn/Afnh+ngAAAAASUVORK5CYII=';
 const RECORD = process.env.AGENT_HOST_REPLAY_RECORD === '1' || process.env.AGENT_HOST_UPDATE_SNAPSHOTS === '1';
@@ -28,7 +29,7 @@ export function defineCopilotRuntimeToolsTests(context: IAgentHostE2ETestContext
 	}
 
 	async function createSession(prefix: string): Promise<{ sessionUri: string; workspace: string }> {
-		const workspace = mkdtempSync(join(tmpdir(), `ahp-${prefix}-`));
+		const workspace = createTestDirectory(join(tmpdir(), `ahp-${prefix}-`));
 		context.tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, context.config, prefix, context.createdSessions, URI.file(workspace));
 		return { sessionUri, workspace };
