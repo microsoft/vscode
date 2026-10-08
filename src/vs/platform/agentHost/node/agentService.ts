@@ -26,7 +26,7 @@ import { FileChangeType, FileOperationResult, IFileChange, IFileService, toFileO
 import { parsePullRequestUrl } from '../../github/common/githubUrls.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentChatMigrationDeferred, AgentProvider, AgentSession, CLAUDE_AGENT_PROVIDER_ID, COPILOT_CLI_AGENT_PROVIDER_ID, AgentSignal, CODEX_AGENT_PROVIDER_ID, IAgent, type IAgentAdoptedWorktree, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDiscoveredChat, IAgentLegacyChat, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPluginUninstallRequest, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, type IAgentSessionChatMetadata, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
+import { AgentChatMigrationDeferred, AgentProvider, AgentSession, CLAUDE_AGENT_PROVIDER_ID, COPILOT_CLI_AGENT_PROVIDER_ID, AgentSignal, CODEX_AGENT_PROVIDER_ID, IAgent, type IAgentAdoptedWorktree, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDiscoveredChat, IAgentLegacyChat, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, type IAgentSessionChatMetadata, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
 import { type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentService } from '../common/agentService.js';
 import { ISessionDatabase, ISessionDataService, ISessionStorageAccessCounts, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionFlushResult, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush, parseEditAttributionResource } from '../common/fileEditAttribution.js';
@@ -5350,6 +5350,54 @@ export class AgentService extends Disposable implements IAgentService {
 			throw new Error(`Opening canvases is unavailable for session '${session.toString()}'.`);
 		}
 		await provider.openSessionCanvas(session, request, chat);
+	}
+
+	async installPlugin(providerId: AgentProvider, request: IAgentPluginInstallRequest): Promise<void> {
+		const provider = this._providerService.getProvider(providerId);
+		if (!provider?.installPlugin) {
+			throw new Error(`Plugin install is unavailable for provider '${providerId}'.`);
+		}
+		await provider.installPlugin(request);
+	}
+
+	searchCustomizationMarketplace(providerId: AgentProvider, session: URI, request: IAgentCustomizationMarketplaceSearchRequest): Promise<IAgentCustomizationMarketplaceSearchResult> {
+		const provider = this._providerService.getProvider(providerId);
+		if (!provider?.searchCustomizationMarketplace) {
+			return Promise.resolve({ kind: 'unavailable', reason: 'unsupported' });
+		}
+		return provider.searchCustomizationMarketplace(session, request);
+	}
+
+	listCustomizationInstallations(providerId: AgentProvider, session: URI): Promise<readonly IAgentCustomizationInstallation[]> {
+		const provider = this._providerService.getProvider(providerId);
+		if (!provider?.listCustomizationInstallations) {
+			throw new Error(`Customization installation inventory is unavailable for provider '${providerId}'.`);
+		}
+		return provider.listCustomizationInstallations(session);
+	}
+
+	prepareCustomizationInstallation(providerId: AgentProvider, session: URI, request: IAgentCustomizationInstallationRequest | { readonly installationId: string }): Promise<IAgentCustomizationInstallationReview> {
+		const provider = this._providerService.getProvider(providerId);
+		if (!provider?.prepareCustomizationInstallation) {
+			throw new Error(`Customization installation preparation is unavailable for provider '${providerId}'.`);
+		}
+		return provider.prepareCustomizationInstallation(session, request);
+	}
+
+	async applyCustomizationInstallation(providerId: AgentProvider, operationId: string): Promise<void> {
+		const provider = this._providerService.getProvider(providerId);
+		if (!provider?.applyCustomizationInstallation) {
+			throw new Error(`Customization installation apply is unavailable for provider '${providerId}'.`);
+		}
+		await provider.applyCustomizationInstallation(operationId);
+	}
+
+	recoverCustomizationInstallations(providerId: AgentProvider, session: URI): Promise<readonly IAgentCustomizationInstallation[]> {
+		const provider = this._providerService.getProvider(providerId);
+		if (!provider?.recoverCustomizationInstallations) {
+			throw new Error(`Customization installation recovery is unavailable for provider '${providerId}'.`);
+		}
+		return provider.recoverCustomizationInstallations(session);
 	}
 
 	async createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void> {
