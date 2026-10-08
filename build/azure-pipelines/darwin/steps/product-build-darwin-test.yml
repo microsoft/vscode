@@ -190,7 +190,31 @@ steps:
             set -e
             APP_ROOT=$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
             APP_NAME="`ls $APP_ROOT | head -n 1`"
-            bash test/smoke/scripts/run-agents-window-network-proxy.sh --kerberos --build "$APP_ROOT/$APP_NAME"
+            export TMPDIR="$PWD/.build/kerberos-deep-fixture"
+            export RUNNER_TEMP="$TMPDIR"
+            mkdir -p "$TMPDIR" .build/logs/kerberos-deep
+            TEST_FILE=test/smoke/out/areas/agentsWindow/agentsWindow.test.js
+            cp "$TEST_FILE" .build/kerberos-deep-candidate.js
+            node --input-type=module -e "import fs from 'node:fs'; const p = '$TEST_FILE'; const s = fs.readFileSync(p, 'utf8'); const anchor = \"'sessions.useWorktree': true\"; if (s.split(anchor).length !== 2) { throw new Error('Expected one worktree setting'); } fs.writeFileSync(p, s.replace(anchor, \"'sessions.useWorktree': false\"));"
+            set +e
+            bash test/smoke/scripts/run-agents-window-network-proxy.sh --kerberos --build "$APP_ROOT/$APP_NAME" > .build/logs/kerberos-deep/baseline.log 2>&1
+            baseline_result=$?
+            set -e
+            mkdir -p .build/logs/kerberos-deep/baseline
+            cp -R .build/logs/agents-window-network-proxy .build/logs/smoke-tests-electron .build/logs/kerberos-deep/baseline/
+            cat .build/logs/kerberos-deep/baseline.log
+            test "$baseline_result" -ne 0
+            grep -Fq '4 passing' .build/logs/kerberos-deep/baseline.log
+            grep -Fq 'The Agents Window smoke test did not establish a Kerberos-authenticated tunnel through Squid' .build/logs/kerberos-deep/baseline.log
+            cp .build/kerberos-deep-candidate.js "$TEST_FILE"
+            for iteration in 1 2; do
+              bash test/smoke/scripts/run-agents-window-network-proxy.sh --kerberos --build "$APP_ROOT/$APP_NAME" > ".build/logs/kerberos-deep/candidate-$iteration.log" 2>&1
+              mkdir -p ".build/logs/kerberos-deep/candidate-$iteration"
+              cp -R .build/logs/agents-window-network-proxy .build/logs/smoke-tests-electron ".build/logs/kerberos-deep/candidate-$iteration/"
+              cat ".build/logs/kerberos-deep/candidate-$iteration.log"
+              awk '/TCP_TUNNEL\/200/ && /CONNECT vscode-smoke.test/ && /PlaceholderUsername@VSCODE.PROXY.TEST/ { count++ } END { print "Authenticated candidate tunnels:", count; exit !count }' .build/logs/agents-window-network-proxy/squid-access.log
+            done
+            rm .build/kerberos-deep-candidate.js
           timeoutInMinutes: 40
           displayName: 🧪 Run Agents Window smoke tests through Kerberos-authenticated macOS PAC proxy
 
