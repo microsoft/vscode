@@ -40,6 +40,12 @@ The cloud provider reports verified PR-closing issues through `linkedIssues` met
 
 The Task API does not report which client started a task, so the Copilot extension records the tasks VS Code creates or sends a message to. Every other task carries `external: true` metadata, which the adapter exposes as `ISession.isExternal`. The extension lists external tasks according to `chat.agentSessions.showExternal`, and a sent message adopts a task by clearing the flag.
 
+## Cloud automation read cache
+
+`GitHubCloudAutomationStore` owns a provider-local, explicitly refreshed cache of user-owned GitHub cloud automation definitions. It retains the default-account client lease from `IWorkbenchGitHubService` until account/grant invalidation or disposal; the service supplies Mission Control endpoints. The shared `client.query` and `client.automations` domains own repository reads and automation requests/response validation; the store bounds page collection and detail hydration. Discovery is limited to Agents Window recent workspaces and explicitly registered GitHub.com repositories, with private/internal visibility verified before listing. Only account-scoped repository references persist in profile-local machine storage; definitions stay in memory, and account/grant changes or disposal cancel pending reads and clear the cache.
+
+Refresh failures, including incomplete paginated results, retain the affected repository's last successful definitions while reporting an error; successful repositories still update. The cache does not implement the shared Automation mutation/run contract or initiate requests on construction, observation, or account changes.
+
 ## Request lifecycle
 
 The provider separates chat creation from request sending:
