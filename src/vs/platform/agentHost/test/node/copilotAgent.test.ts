@@ -14974,9 +14974,11 @@ suite('CopilotAgent', () => {
 			let createConfig: Parameters<ITestCopilotClient['createSession']>[0] | undefined;
 			client.createSession = async config => {
 				createConfig = config;
+				refreshStarted.complete();
+				await resumeGate;
 				return newRuntime as unknown as CopilotSession;
 			};
-			const { agent, stateManager } = createTestAgentContext(disposables, {
+			const { agent, stateManager, worktreeIsolation } = createTestAgentContext(disposables, {
 				copilotClient: client, useRealResumePath: true, sessionDataService, fileService, pluginManager: new PluginManager(),
 			});
 			disposables.add(toDisposable(() => agent.dispose()));
@@ -15009,7 +15011,7 @@ suite('CopilotAgent', () => {
 			}));
 			await syncStarted.p;
 			return {
-				agent, session, chat, context, oldRuntime, newRuntime, resumeConfigs, resumedIds, syncCalls, pluginDirectory, healthyDirectory, refreshStarted, disconnectStarted,
+				agent, session, chat, context, oldRuntime, newRuntime, resumeConfigs, resumedIds, syncCalls, pluginDirectory, healthyDirectory, refreshStarted, disconnectStarted, sessionDataService, worktreeIsolation,
 				serverId: `${URI.joinPath(pluginDirectory, '.mcp.json')}#mcp=late-server`,
 				otherId: `${URI.joinPath(pluginDirectory, '.mcp.json')}#mcp=other-server`,
 				live: () => chatEntriesBySdkId(agent).get(sdkSessionId)!.chatSession,
@@ -15245,6 +15247,116 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		for (const phase of ['prepare', 'create', 'disconnect', 'resume', 'continue'] as const) {
+			test(`delivers steering after send preparation ${phase} to the current runtime`, async () => {
+				const h = await createHarness({ cold: phase === 'create' || phase === 'prepare' });
+				const gate = new DeferredPromise<void>();
+				const steeringSent = new DeferredPromise<void>();
+				const sends: Parameters<CopilotSession['send']>[0][] = [];
+				const send = stub(h.newRuntime, 'send').callsFake(async (options?: Parameters<CopilotSession['send']>[0]) => {
+					assert.ok(options);
+					sends.push(options);
+					if (options.mode === 'immediate') {
+						steeringSent.complete();
+					}
+					return '';
+				});
+				try {
+					if (phase === 'continue') {
+						Object.assign(h.newRuntime.rpc, {
+							sendMessages: async () => {
+								sends.push({ prompt: 'continuation' });
+								return {};
+							},
+						});
+					}
+					if (phase === 'disconnect') {
+						h.oldRuntime.disconnectGate = gate.p;
+					} else {
+						h.blockResume(gate.p);
+					}
+					const sending = phase === 'prepare'
+						? h.agent.chats.prepareTurn!(h.chat, 'turn-1', undefined, h.context)
+						: phase === 'continue'
+							? h.agent.chats.resumeTurn!(h.chat, 'turn-1', h.context)
+							: h.agent.chats.sendMessage(h.chat, 'original', undefined, undefined, 'turn-1', undefined, h.context);
+					await (phase === 'disconnect' ? h.disconnectStarted.p : h.refreshStarted.p);
+					const steering = { id: 'steering', message: { text: 'follow up', origin: { kind: MessageKind.User } } };
+					h.agent.setPendingMessages(h.chat, steering, []);
+					h.agent.setPendingMessages(h.chat, steering, []);
+					await timeout(0);
+					const beforeReady = { sends: sends.length, oldSends: h.oldRuntime.sendCalls };
+					gate.complete();
+					await sending;
+					if (phase === 'prepare') {
+						await timeout(0);
+						assert.deepStrictEqual(sends, []);
+						await h.agent.chats.sendMessage(h.chat, 'original', undefined, undefined, 'turn-1', undefined, h.context);
+					}
+					const delivered = await raceTimeout(steeringSent.p.then(() => true), 1000);
+					assert.deepStrictEqual({
+						beforeReady, delivered, oldSends: h.oldRuntime.sendCalls,
+						sends: sends.map(options => ({ prompt: options.prompt, mode: options.mode })),
+					}, {
+						beforeReady: { sends: 0, oldSends: 0 }, delivered: true, oldSends: 0,
+						sends: [{ prompt: phase === 'continue' ? 'continuation' : 'original', mode: undefined }, { prompt: 'follow up', mode: 'immediate' }],
+					});
+				} finally {
+					gate.complete();
+					send.restore();
+					await disposeAgent(h.agent);
+				}
+			});
+		}
+
+		for (const update of ['remove', 'replace', 'abort'] as const) {
+			test(`respects steering ${update} while send preparation is blocked`, async () => {
+				const h = await createHarness();
+				const gate = new DeferredPromise<void>();
+				const consumed: string[] = [];
+				const sends: Parameters<CopilotSession['send']>[0][] = [];
+				const send = stub(h.newRuntime, 'send').callsFake(async (options?: Parameters<CopilotSession['send']>[0]) => {
+					assert.ok(options);
+					sends.push(options);
+					return '';
+				});
+				const listener = h.agent.onDidChatProgress(signal => {
+					if (signal.kind === 'steering_consumed') {
+						consumed.push(signal.id);
+					}
+				});
+				try {
+					h.blockResume(gate.p);
+					const sending = h.agent.chats.sendMessage(h.chat, 'original', undefined, undefined, 'turn-1', undefined, h.context);
+					await h.refreshStarted.p;
+					h.agent.setPendingMessages(h.chat, { id: 'steering', message: { text: 'follow up', origin: { kind: MessageKind.User } } }, []);
+					if (update === 'abort') {
+						await h.agent.chats.abort(h.chat, h.context);
+					} else {
+						h.agent.setPendingMessages(h.chat, update === 'remove' ? undefined : { id: 'replacement', message: { text: 'replacement', origin: { kind: MessageKind.User } } }, []);
+					}
+					gate.complete();
+					await sending;
+					await timeout(0);
+					assert.deepStrictEqual({
+						sends: sends.map(options => ({ prompt: options.prompt, mode: options.mode })),
+						consumed,
+					}, {
+						sends: update === 'abort' ? [] : [
+							{ prompt: 'original', mode: undefined },
+							...(update === 'replace' ? [{ prompt: 'replacement', mode: 'immediate' }] : []),
+						],
+						consumed: update === 'abort' ? ['steering'] : [],
+					});
+				} finally {
+					gate.complete();
+					listener.dispose();
+					send.restore();
+					await disposeAgent(h.agent);
+				}
+			});
+		}
+
 		for (const phase of ['disconnect', 'resume'] as const) {
 			test(`Stop during send refresh ${phase} skips dispatch and preserves the replacement`, async () => {
 				const h = await createHarness();
@@ -15284,6 +15396,108 @@ suite('CopilotAgent', () => {
 				}
 			});
 		}
+
+		test('does not deliver replacement steering before its prompt after aborting an in-flight send', async () => {
+			const h = await createHarness();
+			const gate = new DeferredPromise<void>();
+			const sendStarted = new DeferredPromise<void>();
+			const sends: string[] = [];
+			const send = stub(h.newRuntime, 'send').callsFake(async (options?: Parameters<CopilotSession['send']>[0]) => {
+				assert.ok(options);
+				sends.push(options.prompt);
+				if (options.prompt === 'original') {
+					sendStarted.complete();
+					await gate.p;
+				}
+				return '';
+			});
+			try {
+				const original = h.agent.chats.sendMessage(h.chat, 'original', undefined, undefined, 'turn-1', undefined, h.context);
+				await sendStarted.p;
+				h.agent.setPendingMessages(h.chat, { id: 'old-steering', message: { text: 'old steering', origin: { kind: MessageKind.User } } }, []);
+				await h.agent.chats.abort(h.chat, h.context);
+				const replacement = h.agent.chats.sendMessage(h.chat, 'replacement', undefined, undefined, 'turn-2', undefined, h.context);
+				h.agent.setPendingMessages(h.chat, { id: 'new-steering', message: { text: 'new steering', origin: { kind: MessageKind.User } } }, []);
+				gate.complete();
+				await Promise.all([original, replacement]);
+				await timeout(0);
+				assert.deepStrictEqual(sends, ['original', 'replacement', 'new steering']);
+			} finally {
+				gate.complete();
+				send.restore();
+				await disposeAgent(h.agent);
+			}
+		});
+
+		for (const [failure, sameId] of [['resume', false], ['resume', true], ['send', false], ['send', true]] as const) {
+			test(`replaces buffered steering after ${failure} failure and waits for a successful retry (${sameId ? 'same' : 'new'} ID)`, async () => {
+				const h = await createHarness();
+				const gate = new DeferredPromise<void>();
+				const sends: string[] = [];
+				const send = stub(h.newRuntime, 'send').callsFake(async (options?: Parameters<CopilotSession['send']>[0]) => {
+					assert.ok(options);
+					sends.push(options.prompt);
+					if (options.prompt === 'failed') {
+						throw new Error('send failed');
+					}
+					return '';
+				});
+				try {
+					h.blockResume(gate.p);
+					const sending = h.agent.chats.sendMessage(h.chat, 'failed', undefined, undefined, 'turn-1', undefined, h.context);
+					const rejected = assert.rejects(sending, /failed/);
+					await h.refreshStarted.p;
+					h.agent.setPendingMessages(h.chat, { id: 'steering', message: { text: 'follow up', origin: { kind: MessageKind.User } } }, []);
+					if (failure === 'resume') {
+						gate.error(new Error('resume failed'));
+					} else {
+						gate.complete();
+					}
+					await rejected;
+					h.agent.setPendingMessages(h.chat, { id: sameId ? 'steering' : 'replacement', message: { text: 'replacement', origin: { kind: MessageKind.User } } }, []);
+					await timeout(0);
+					const afterFailure = [...sends];
+					h.blockResume(Promise.resolve());
+					await h.agent.chats.sendMessage(h.chat, 'retry', undefined, undefined, 'turn-2', undefined, h.context);
+					await timeout(0);
+					assert.deepStrictEqual({ afterFailure, sends }, {
+						afterFailure: failure === 'resume' ? [] : ['failed'],
+						sends: [...(failure === 'resume' ? [] : ['failed']), 'retry', 'replacement'],
+					});
+				} finally {
+					gate.complete();
+					send.restore();
+					await disposeAgent(h.agent);
+				}
+			});
+		}
+
+		test('does not deliver buffered steering when the working-directory guard rejects the original send', async () => {
+			const h = await createHarness();
+			const gate = new DeferredPromise<void>();
+			try {
+				await writeSessionAdditionalWorktrees(h.sessionDataService, h.session, [{
+					handle: 'c9373c68-e1ee-47c8-9466-cab0e4791f8d', chat: h.chat.toString(),
+					workingDirectory: URI.file('/workspace').toString(), repositoryRoot: URI.file('/fallback').toString(),
+				}]);
+				h.worktreeIsolation.resolveWorkingDirectoryForResume = async () => URI.file('/fallback');
+				h.blockResume(gate.p);
+				const sending = h.agent.chats.sendMessage(h.chat, 'original', undefined, undefined, 'turn-1', undefined, h.context);
+				const rejected = assert.rejects(sending, /fallback directory for history only/);
+				await h.refreshStarted.p;
+				h.agent.setPendingMessages(h.chat, { id: 'steering', message: { text: 'follow up', origin: { kind: MessageKind.User } } }, []);
+				gate.complete();
+				await rejected;
+				h.agent.setPendingMessages(h.chat, { id: 'replacement', message: { text: 'replacement', origin: { kind: MessageKind.User } } }, []);
+				await timeout(0);
+				assert.deepStrictEqual({ original: h.oldRuntime.sendCalls, replacement: h.newRuntime.sendCalls }, {
+					original: 0, replacement: 0,
+				});
+			} finally {
+				gate.complete();
+				await disposeAgent(h.agent);
+			}
+		});
 
 		test('Start rejects before the session runtime exists', async () => {
 			const agent = createTestAgent(disposables);
