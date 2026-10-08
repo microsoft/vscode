@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
+import { hash } from '../../../../base/common/hash.js';
 import { IObservable, IReader, observableValue, transaction } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -13,7 +14,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { EditorInputCapabilities, IUntypedEditorInput, Verbosity } from '../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../workbench/common/editor/editorInput.js';
 import type { IBrowserViewModel } from '../../../../workbench/contrib/browserView/common/browserView.js';
-import { IChat, ISession, ISessionCanvas } from '../../../services/sessions/common/session.js';
+import { IChat, ISession, ISessionCanvas, ISessionCanvasDefinition } from '../../../services/sessions/common/session.js';
 
 export interface ISessionCanvasReference {
 	readonly providerId: string;
@@ -80,6 +81,46 @@ export function getSessionCanvasInstanceLabels(canvases: readonly ISessionCanvas
 	return labels;
 }
 
+export function getSessionCanvasDefinitionLabels(canvases: readonly ISessionCanvasDefinition[]): readonly string[] {
+	const displayNameCounts = new Map<string, number>();
+	for (const canvas of canvases) {
+		const displayName = canvas.displayName || canvas.canvasId;
+		displayNameCounts.set(displayName, (displayNameCounts.get(displayName) ?? 0) + 1);
+	}
+
+	const labels: string[] = [];
+	const usedLabels = new Set<string>();
+	for (const canvas of canvases) {
+		const displayName = canvas.displayName || canvas.canvasId;
+		let label = displayNameCounts.get(displayName) === 1
+			? displayName
+			: localize('canvas.definitionTitle', "{0} ({1})", displayName, canvas.extensionName || canvas.extensionId);
+		if (usedLabels.has(label)) {
+			label = localize('canvas.definitionTitleWithId', "{0} ({1}, {2})", displayName, canvas.extensionName || canvas.extensionId, canvas.canvasId);
+		}
+		let collisionIndex = 2;
+		const baseLabel = label;
+		while (usedLabels.has(label)) {
+			label = localize('canvas.definitionTitleCollision', "{0} ({1})", baseLabel, String(collisionIndex++));
+		}
+		labels.push(label);
+		usedLabels.add(label);
+	}
+	return labels;
+}
+
+const CANVAS_INSTANCE_ID_MAX_LENGTH = 128;
+
+export function getSessionCanvasDefinitionInstanceId(canvas: ISessionCanvasDefinition): string {
+	const raw = `${canvas.extensionId}-${canvas.canvasId}`;
+	const instanceId = raw
+		.replace(/[^A-Za-z0-9._-]+/g, '-')
+		.replace(/^[._-]+/, '')
+		.slice(0, CANVAS_INSTANCE_ID_MAX_LENGTH)
+		.replace(/[._-]+$/, '');
+	return instanceId || `canvas-${(hash(raw) >>> 0).toString(36)}`;
+}
+
 export interface ISessionCanvasTarget {
 	readonly session: ISession;
 	readonly chat: IChat;
@@ -101,9 +142,12 @@ export const ISessionCanvasService = createDecorator<ISessionCanvasService>('ses
 export interface ISessionCanvasService {
 	readonly _serviceBrand: undefined;
 	readonly enabled: IObservable<boolean>;
+	readonly availableCanvases: IObservable<readonly ISessionCanvasDefinition[]>;
 	readonly reopenableCanvases: IObservable<readonly ISessionCanvasReopenTarget[]>;
 	getTarget(reference: ISessionCanvasReference, reader?: IReader): ISessionCanvasTarget | undefined;
 	isActiveOwner(reference: ISessionCanvasReference, reader?: IReader): boolean;
+	refreshAvailableCanvases(): Promise<void>;
+	openCanvas(canvas: ISessionCanvasDefinition): Promise<void>;
 	revealCanvas(reference: ISessionCanvasReference): Promise<void>;
 	reopenCanvas(reference: ISessionCanvasReference): Promise<void>;
 	/** Restores a canvas admitted by this live service instance from its opaque working-set identifier. */
@@ -145,7 +189,7 @@ export class SessionCanvasInput extends EditorInput {
 	override get editorId(): string { return SessionCanvasInput.EDITOR_ID; }
 	override get capabilities(): EditorInputCapabilities { return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton | EditorInputCapabilities.ForceReveal; }
 	override getName(): string { return this.canvas.get()?.title ?? localize('canvas.editorName', "Canvas"); }
-	override getDescription(): string { return localize('canvas.editorDescription', "Closing this tab hides the canvas. Reopen it from the Add Tab menu while it remains available."); }
+	override getDescription(): string { return localize('canvas.editorDescription', "Closing this tab hides the canvas. Reopen it from the Canvas submenu in Add Tab while it remains available."); }
 	override getIcon(): ThemeIcon { return Codicon.preview; }
 	override getTitle(_verbosity?: Verbosity): string { return this.getName(); }
 	override canReopen(): boolean { return false; }

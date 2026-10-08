@@ -650,6 +650,18 @@ export interface ISessionCanvas {
 	readonly source: URI | undefined;
 }
 
+export type SessionCanvasExtensionSource = 'user' | 'project' | 'session' | 'plugin' | 'unknown';
+
+/** A canvas type registered by an extension in one live session. */
+export interface ISessionCanvasDefinition {
+	readonly canvasId: string;
+	readonly extensionId: string;
+	readonly extensionSource: SessionCanvasExtensionSource;
+	readonly extensionName?: string;
+	readonly displayName: string;
+	readonly description: string;
+}
+
 /**
  * Whether a chat's model is the chat's own or one put there on its behalf. This is the only
  * question model selection asks of it: `chat.defaultModel` seeds a chat that has no model of its

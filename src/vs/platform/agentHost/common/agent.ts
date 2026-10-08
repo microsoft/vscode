@@ -279,6 +279,28 @@ export interface IAgentPluginUninstallRequest {
 	readonly marketplace: string;
 	readonly directSourceId?: string;
 }
+
+export type AgentCanvasExtensionSource = 'user' | 'project' | 'session' | 'plugin' | 'unknown';
+
+/** One canvas declaration available to an initialized provider session. */
+export interface IAgentCanvasInfo {
+	readonly canvasId: string;
+	readonly extensionId: string;
+	readonly extensionSource: AgentCanvasExtensionSource;
+	readonly extensionName?: string;
+	readonly displayName: string;
+	readonly description: string;
+	readonly requiresInput: boolean;
+	readonly actionCount: number;
+}
+
+/** Opens or focuses one stable canvas instance in an initialized provider session. */
+export interface IAgentCanvasOpenRequest {
+	readonly canvasId: string;
+	readonly extensionId?: string;
+	readonly instanceId: string;
+}
+
 export type AgentTurnProviderCallState = 'notStarted' | 'pending' | 'resolved' | 'rejected';
 export type AgentTurnProviderSessionState = 'active' | 'disconnecting' | 'disconnected' | 'shutdown';
 
@@ -1327,6 +1349,12 @@ export interface IAgent {
 
 	/** Uninstall a plugin through the provider that owns its installation state. */
 	uninstallPlugin?(request: IAgentPluginUninstallRequest): Promise<void>;
+
+	/** List canvas declarations available to one initialized provider session. */
+	listSessionCanvases?(session: URI): Promise<readonly IAgentCanvasInfo[]>;
+
+	/** Open or focus one canvas instance in an initialized provider session. */
+	openSessionCanvas?(session: URI, request: IAgentCanvasOpenRequest): Promise<void>;
 
 	/** Capture the current account without allowing a later account to relabel an in-flight turn. */
 	getTelemetryContext?(): IAgentTelemetryContext;

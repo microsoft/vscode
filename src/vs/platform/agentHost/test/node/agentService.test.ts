@@ -2789,6 +2789,59 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(calls, [{ name: 'spark', marketplace: 'copilot-plugins' }]);
 		});
 
+		test('lists and opens canvases through the owning provider', async () => {
+			const calls: unknown[] = [];
+			const provider: IAgent = copilotAgent;
+			provider.listSessionCanvases = async session => {
+				calls.push(['list', session.toString()]);
+				return [{
+					canvasId: 'preview',
+					extensionId: 'project:preview',
+					extensionSource: 'project',
+					displayName: 'Preview',
+					description: 'Preview generated content.',
+					requiresInput: false,
+					actionCount: 0,
+				}];
+			};
+			provider.openSessionCanvas = async (session, request) => {
+				calls.push(['open', session.toString(), request]);
+			};
+			registerTestAgentProvider(service, provider);
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService());
+			const session = AgentSession.uri('copilot', 'canvas-session');
+
+			const canvases = await managementService.listSessionCanvases(session);
+			await managementService.openSessionCanvas(session, {
+				canvasId: 'preview',
+				extensionId: 'project:preview',
+				instanceId: 'project-preview-preview',
+			});
+
+			assert.deepStrictEqual({
+				canvases,
+				calls,
+			}, {
+				canvases: [{
+					canvasId: 'preview',
+					extensionId: 'project:preview',
+					extensionSource: 'project',
+					displayName: 'Preview',
+					description: 'Preview generated content.',
+					requiresInput: false,
+					actionCount: 0,
+				}],
+				calls: [
+					['list', 'copilot:/canvas-session'],
+					['open', 'copilot:/canvas-session', {
+						canvasId: 'preview',
+						extensionId: 'project:preview',
+						instanceId: 'project-preview-preview',
+					}],
+				],
+			});
+		});
+
 		test('maps progress events to protocol actions via onDidAction', async () => {
 			registerTestAgentProvider(service, copilotAgent);
 			const session = await service.createSession({ provider: 'copilot' });

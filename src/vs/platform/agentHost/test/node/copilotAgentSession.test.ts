@@ -131,6 +131,8 @@ class MockCopilotSession {
 	readonly sessionId = 'test-session-1';
 	readonly openCanvases: CopilotSession['openCanvases'] = [];
 	readonly extensions: Awaited<ReturnType<CopilotSession['rpc']['extensions']['list']>>['extensions'] = [];
+	readonly canvases: Awaited<ReturnType<CopilotSession['rpc']['canvas']['list']>>['canvases'] = [];
+	readonly canvasOpenCalls: Parameters<CopilotSession['rpc']['canvas']['open']>[0][] = [];
 	extensionListGate: Promise<void> | undefined;
 	extensionListError: Error | undefined;
 	canvasListError: Error | undefined;
@@ -456,7 +458,15 @@ class MockCopilotSession {
 				if (this.canvasListError) {
 					throw this.canvasListError;
 				}
-				return { canvases: [] };
+				return { canvases: this.canvases };
+			},
+			open: async (params: Parameters<CopilotSession['rpc']['canvas']['open']>[0]) => {
+				this.canvasOpenCalls.push(params);
+				return {
+					instanceId: params.instanceId,
+					extensionId: params.extensionId ?? 'project:preview',
+					canvasId: params.canvasId,
+				};
 			},
 		},
 		metadata: {
@@ -2593,6 +2603,52 @@ suite('CopilotAgentSession', () => {
 			included: false,
 			callCount: 1,
 		});
+	});
+
+	test('lists registered canvases and opens a stable instance', async () => {
+		const { session, mockSession } = await createAgentSession(disposables, {
+			configureMockSession: mock => {
+				mock.extensions.push({ id: 'project:preview', name: 'Preview extension', source: 'project', status: 'running' });
+				mock.canvases.push({
+					canvasId: 'preview',
+					extensionId: 'project:preview',
+					extensionName: 'Preview extension',
+					displayName: 'Preview',
+					description: 'Preview generated content.',
+					inputSchema: { type: 'object' },
+					actions: [{ name: 'refresh' }],
+				});
+			},
+		});
+
+		const canvases = await session.listCanvases();
+		await session.openCanvas({
+			canvasId: 'preview',
+			extensionId: 'project:preview',
+			instanceId: 'project-preview-preview',
+		});
+
+		assert.deepStrictEqual({
+			canvases,
+			openCalls: mockSession.canvasOpenCalls,
+		}, {
+			canvases: [{
+				canvasId: 'preview',
+				extensionId: 'project:preview',
+				extensionSource: 'project',
+				extensionName: 'Preview extension',
+				displayName: 'Preview',
+				description: 'Preview generated content.',
+				requiresInput: true,
+				actionCount: 1,
+			}],
+			openCalls: [{
+				canvasId: 'preview',
+				extensionId: 'project:preview',
+				instanceId: 'project-preview-preview',
+			}],
+		});
+		session.dispose();
 	});
 
 	test('projects live canvas channels after resume and clears unavailable sources', async () => {

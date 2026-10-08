@@ -7,7 +7,7 @@ import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, IReader, observableFromEvent, observableSignal, runOnChange } from '../../../../base/common/observable.js';
+import { autorun, derived, IReader, observableFromEvent, observableSignal, observableValue, runOnChange } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -21,10 +21,10 @@ import { IEditorGroupsService } from '../../../../workbench/services/editor/comm
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { IChat, ISession, ISessionCanvas } from '../../../services/sessions/common/session.js';
+import { IChat, ISession, ISessionCanvas, ISessionCanvasDefinition } from '../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { editorWorkingSetOwnerIncludes, ISessionEditorWorkingSetOwner, ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
-import { createSessionCanvasReference, getSessionCanvasReferenceKey, ISessionCanvasModelResolution, ISessionCanvasReference, ISessionCanvasReopenTarget, ISessionCanvasService, ISessionCanvasTarget, SessionCanvasInput } from '../common/sessionCanvas.js';
+import { createSessionCanvasReference, getSessionCanvasDefinitionInstanceId, getSessionCanvasReferenceKey, ISessionCanvasModelResolution, ISessionCanvasReference, ISessionCanvasReopenTarget, ISessionCanvasService, ISessionCanvasTarget, SessionCanvasInput } from '../common/sessionCanvas.js';
 
 interface ICanvasPresentation {
 	readonly reference: ISessionCanvasReference;
@@ -49,6 +49,7 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 
 	declare readonly _serviceBrand: undefined;
 	readonly enabled;
+	readonly availableCanvases = observableValue<readonly ISessionCanvasDefinition[]>(this, []);
 	readonly reopenableCanvases;
 
 	private readonly _inputs = this._register(new DisposableMap<string, SessionCanvasInput>());
@@ -62,10 +63,11 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 	private readonly _dismissedChanged = observableSignal(this);
 	private readonly _presentationsChanged = observableSignal(this);
 	private _restoreSettled: DeferredPromise<boolean> | undefined;
+	private _availableCanvasesRequest = 0;
 
 	constructor(
 		@ISessionsService private readonly sessionsService: ISessionsService,
-		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
+		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IBrowserViewWorkbenchService private readonly browserViewService: IBrowserViewWorkbenchService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
@@ -99,6 +101,17 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 			}
 			return reopenable;
 		});
+		this._register(autorun(reader => {
+			const session = this.sessionsService.activeSession.read(reader);
+			const supported = this.enabled.read(reader) && session?.capabilities.read(reader).supportsCanvases === true;
+			const request = ++this._availableCanvasesRequest;
+			if (!session || !supported) {
+				this.availableCanvases.set([], undefined);
+				return;
+			}
+			this.availableCanvases.set([], undefined);
+			void this._loadAvailableCanvases(session, request);
+		}));
 		this._register(sessionsManagementService.onDidChangeSessions(event => {
 			const archived = event.changed.filter(session => session.isArchived.read(undefined));
 			for (const session of [...event.removed, ...archived]) {
@@ -213,6 +226,31 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 			&& isEqual(session.activeChat.read(reader).resource, reference.chat);
 	}
 
+	async refreshAvailableCanvases(): Promise<void> {
+		const session = this.sessionsService.activeSession.get();
+		const request = ++this._availableCanvasesRequest;
+		if (!session || !this.enabled.get() || session.capabilities.get().supportsCanvases !== true) {
+			this.availableCanvases.set([], undefined);
+			return;
+		}
+		await this._loadAvailableCanvases(session, request);
+	}
+
+	async openCanvas(canvas: ISessionCanvasDefinition): Promise<void> {
+		const session = this.sessionsService.activeSession.get();
+		if (!session || !this.enabled.get() || session.capabilities.get().supportsCanvases !== true) {
+			return;
+		}
+		const chat = session.activeChat.get();
+		const instanceId = getSessionCanvasDefinitionInstanceId(canvas);
+		const existing = chat.canvases?.get()?.find(candidate => candidate.instanceId === instanceId);
+		if (existing?.source) {
+			await this.revealCanvas(createSessionCanvasReference(session, chat, existing));
+			return;
+		}
+		await this.sessionsManagementService.openCanvas(session, canvas, instanceId);
+	}
+
 	async revealCanvas(reference: ISessionCanvasReference): Promise<void> {
 		if (this.editorWorkingSetService.restoreState.get().restoring && !await this._waitForWorkingSetRestore()) {
 			return;
@@ -227,6 +265,27 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 		input.setCanvas(target.canvas);
 		this._deleteDismissed(key);
 		await this._openInput(key, input);
+	}
+
+	private async _loadAvailableCanvases(session: IActiveSession, request: number): Promise<void> {
+		try {
+			const canvases = await this.sessionsManagementService.listCanvases(session);
+			if (this._store.isDisposed || request !== this._availableCanvasesRequest || this.sessionsService.activeSession.get() !== session || !this.enabled.get()) {
+				return;
+			}
+			this.availableCanvases.set(
+				canvases
+					.filter(isExtensionCanvasDefinition)
+					.sort(compareCanvasDefinitions),
+				undefined,
+			);
+		} catch (error) {
+			if (this._store.isDisposed || request !== this._availableCanvasesRequest || this.sessionsService.activeSession.get() !== session) {
+				return;
+			}
+			this.availableCanvases.set([], undefined);
+			this.logService.error('[SessionCanvasService] Failed to list registered canvases', error);
+		}
 	}
 
 	async reopenCanvas(reference: ISessionCanvasReference): Promise<void> {
@@ -635,4 +694,18 @@ function ownsSession(reference: ISessionCanvasReference, session: ISession): boo
 
 function ownsChat(reference: ISessionCanvasReference, session: ISession, chat: IChat): boolean {
 	return ownsSession(reference, session) && isEqual(chat.resource, reference.chat);
+}
+
+function isExtensionCanvasDefinition(canvas: ISessionCanvasDefinition): boolean {
+	return canvas.extensionSource !== 'unknown'
+		|| canvas.extensionId.startsWith('user:')
+		|| canvas.extensionId.startsWith('project:')
+		|| canvas.extensionId.startsWith('session:')
+		|| canvas.extensionId.startsWith('plugin:');
+}
+
+function compareCanvasDefinitions(first: ISessionCanvasDefinition, second: ISessionCanvasDefinition): number {
+	return (first.extensionName || first.extensionId).localeCompare(second.extensionName || second.extensionId)
+		|| (first.displayName || first.canvasId).localeCompare(second.displayName || second.canvasId)
+		|| first.canvasId.localeCompare(second.canvasId);
 }

@@ -6,7 +6,7 @@
 import { Promises, raceTimeout } from '../../../base/common/async.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
-import { type AgentProvider, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, type IAgentPluginUninstallRequest } from '../common/agent.js';
+import { type AgentProvider, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, type IAgentPluginUninstallRequest } from '../common/agent.js';
 import { IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostManagementService, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, type IMissionControlOptions, type IMissionControlCredentialSealingRequest } from '../common/agentService.js';
 import { sealMissionControlCredential } from './missionControl/missionControlAuthentication.js';
 import { MissionControlEnvironment } from './missionControl/missionControlEnvironment.js';
@@ -109,6 +109,20 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 			throw new Error('Agent Host plugin uninstall is unavailable');
 		}
 		return this._runMutation(() => this._agentService.uninstallPlugin!(provider, request));
+	}
+
+	listSessionCanvases(session: URI): Promise<readonly IAgentCanvasInfo[]> {
+		if (!this._agentService.listSessionCanvases) {
+			throw new Error('Copilot canvas inventory is unavailable');
+		}
+		return this._agentService.listSessionCanvases(session);
+	}
+
+	openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest): Promise<void> {
+		if (!this._agentService.openSessionCanvas) {
+			throw new Error('Opening Copilot canvases is unavailable');
+		}
+		return this._runMutation(() => this._agentService.openSessionCanvas!(session, request));
 	}
 
 	shutdown(): Promise<void> {
