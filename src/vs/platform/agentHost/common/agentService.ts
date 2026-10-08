@@ -16,7 +16,7 @@ import type { IActiveSubscriptionInfo, IAgentSubscription } from './state/agentS
 import type { IRemoteWatchHandle } from './agentHostFileSystemProvider.js';
 import type { IAgentHostResourceUriMapper } from './agentHostUri.js';
 import type { AgentHostClientType } from './agentHostClientInfo.js';
-import type { IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
+import type { AgentHostClientConnectionKind, IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
 import type { IAgentHostFirstResponseDiagnostic } from './otel/agentHostTiming.js';
 import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
 import type { IDevContainerAgentHostMainService } from './devContainerAgentHost.js';
@@ -115,7 +115,10 @@ export const AgentHostSystemProxyEnabledSettingId = 'chat.agentHost.systemProxy.
 /** Configuration key controlling the GitHub MCP server in agent-host sessions. */
 export const AgentHostGitHubMcpServerEnabledSettingId = 'chat.agentHost.githubMcpServer.enabled';
 
-/** Configuration keys controlling automatic session and chat title generation. */
+/** Configuration key selecting the automatic session and chat title generation strategy. */
+export const AgentHostTitleGenerationSettingId = 'chat.agentHost.experimental.titleGeneration';
+
+/** Legacy boolean settings migrated to {@link AgentHostTitleGenerationSettingId}. */
 export const AgentHostActiveAgentTitleGenerationSettingId = 'chat.agentHost.experimental.activeAgentTitleGeneration';
 export const AgentHostDeferredTitleGenerationSettingId = 'chat.agentHost.experimental.deferredTitleGeneration';
 
@@ -805,11 +808,14 @@ export interface IConnectionTrackerService {
  */
 export interface IMissionControlOptions {
 	readonly baseUrl: string;
+	readonly name?: string;
 	readonly accountId: string;
 	readonly credential: string;
 	readonly roots: readonly string[];
 	readonly live?: boolean;
 	readonly requireConnectionBinding?: boolean;
+	/** Explicit host-owner opt-in; validated relay clients use the local credential for Copilot authentication. */
+	readonly useLocalCredentials?: boolean;
 }
 
 /** Stateless sealing on trusted local IPC; this surface is not exposed through AHP. */
@@ -888,6 +894,8 @@ export interface IAgentService {
 	importSession?(session: URI): Promise<void>;
 	/** Removes a recorded artifact or reference, awaiting host metadata persistence. */
 	removeSessionArtifact?(session: URI, artifactId: string): Promise<void>;
+	/** Stops a chat's background work entry. Resolves false when it had already finished or is not tracked. */
+	stopBackgroundWork?(chat: URI, id: string): Promise<boolean>;
 	createDetachedWorktree?(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }>;
 	claimDetachedWorktree?(handle: string): Promise<void>;
 	setDetachedWorktreeArchived?(handle: string, archived: boolean): Promise<void>;
@@ -1138,6 +1146,8 @@ export interface IAgentConnection {
 	/** Available for capable hosts, including while reconnecting; absent after permanent disconnection. */
 	readonly devContainerService?: IDevContainerAgentHostMainService;
 	readonly clientId: string;
+	/** Client-owned connection classification, independent of host identities and provider names. */
+	readonly clientConnectionKind?: AgentHostClientConnectionKind;
 	readonly resourceUris: IAgentHostResourceUriMapper;
 
 	// ---- State subscriptions ------------------------------------------------
@@ -1175,6 +1185,9 @@ export interface IAgentConnection {
 	 * `ahp-root://` survive the wire format without normalization.
 	 */
 	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction): void;
+
+	/** Wait for the authoritative action echo, including any rejection, or cancellation; the caller must hold the subscription until settlement. */
+	dispatchConfirmed<T>(channel: string, subscription: IAgentSubscription<T>, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction, token: CancellationToken): Promise<ActionEnvelope>;
 
 	// ---- Events (connection-level) ------------------------------------------
 	readonly onDidNotification: Event<INotification>;
@@ -1214,6 +1227,8 @@ export interface IAgentConnection {
 	importSession?(session: URI): Promise<void>;
 	/** Requires the VS Code artifact removal capability advertised by initialize. */
 	removeSessionArtifact?(session: URI, artifactId: string): Promise<void>;
+	/** Only for background work whose `_meta` the host marked stoppable. Resolves false when it had already finished. */
+	stopBackgroundWork?(chat: URI, id: string): Promise<boolean>;
 	/** Refresh a held subscription through the standard subscribe request, preserving pending actions. */
 	refreshSubscription?(resource: URI): Promise<void>;
 	createDetachedWorktree?(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }>;

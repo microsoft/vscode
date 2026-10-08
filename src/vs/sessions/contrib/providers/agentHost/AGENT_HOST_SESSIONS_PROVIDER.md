@@ -8,6 +8,12 @@ The Agent Host provider family adapts Agent Host Protocol sessions into the prov
 
 Remote connection-specific behavior is specified in [REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md](../remoteAgentHost/REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md).
 
+## Protocol compatibility
+
+Clients offer the released compatibility baselines from [the generated AHP registry](../../../../platform/agentHost/common/state/protocol/version/registry.ts), independently of its development version, plus VS Code's wire-compatible `0.10.0` alias. Hosts select the highest exact client-offered version within `>=1.0.0 <2.0.0` or `>=0.9.0 <0.10.0`, or the exact `0.10.0` alias. Client offers and unsupported-version errors list `1.0.0`, `0.10.0`, and `0.9.0` in descending order; malformed offers fail with Invalid Params.
+
+Current chat summaries encode archiving in `SessionStatus.IsArchived`. The shared adapter also recognizes a boolean `archived` flag from AHP 0.9 hosts without adding that legacy field to the generated protocol types.
+
 ## Implementations
 
 | Implementation | Responsibility |
@@ -203,7 +209,7 @@ The indexed envelope also carries payload-derived top-level eligibility. Chat-ba
 
 Session listing resolves each registered session independently from its verified current-version payload. A missing, outdated, or malformed payload falls back to the legacy/provider source for that row and schedules reconciliation. A valid chat-backing envelope remains authoritative and never falls back into the top-level session list.
 
-The verified payload's ordered chat identities, titles, and interactivity are projected into the session facade during listing without opening the per-session database. Observing a peer chat's transient details acquires the existing session-state subscription; the subscription reconciles volatile status and activity onto the same stable chat facades and follows the observer lifetime before returning to the existing idle-release policy.
+The verified payload's ordered chat identities, titles, and interactivity are projected into the session facade during listing without opening the per-session database. Each chat's status travels with the catalog in listings and `root/sessionSummaryChanged`, so observing chat status never acquires a subscription. Observing a peer chat's other transient details, such as activity text and timestamps, acquires the existing session-state subscription; the subscription reconciles them onto the same stable chat facades and follows the observer lifetime before returning to the existing idle-release policy. The provider's session cache persists each chat's last known modification time and working directories alongside its catalog fields, but never its activity bits.
 
 ## Local and remote boundary
 

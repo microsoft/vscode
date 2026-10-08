@@ -23,7 +23,7 @@ import { NullTelemetryServiceShape } from '../../../../../../../platform/telemet
 import { ChatCollapsibleContentPart } from '../../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
 import { ChatThinkingContentPart, maybePickFunWorkingMessage, splitReasoningSummaryRows } from '../../../../browser/widget/chatContentParts/chatThinkingContentPart.js';
 import { getToolInvocationIcon } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolPartUtilities.js';
-import { IChatExternalEdit, IChatMarkdownContent, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
+import { IChatExternalEdit, IChatMarkdownContent, IChatTerminalToolInvocationData, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
 import { IChatContentPartDiffData, IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { IChatRendererContent, IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
 import { ChatToolInvocation } from '../../../../common/model/chatProgressTypes/chatToolInvocation.js';
@@ -36,6 +36,7 @@ import { EditorPool, DiffEditorPool } from '../../../../browser/widget/chatConte
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { ILanguageModelsService } from '../../../../common/languageModels.js';
 import { ToolDataSource } from '../../../../common/tools/languageModelToolsService.js';
+import { ChatToolInvocationSummary } from '../../../../common/tools/toolInvocationSummary.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
 import { chatSessionResourceToId } from '../../../../common/model/chatUri.js';
@@ -242,6 +243,7 @@ suite('ChatThinkingContentPart', () => {
 				{ id: 'read_file', displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal },
 				id, undefined, {},
 			);
+			void tool.didExecuteTool(undefined);
 			const isVisible = observableValue(id, visible);
 			const element = $('div', undefined, `Read ${id}`);
 			let materialized = 0;
@@ -355,6 +357,203 @@ suite('ChatThinkingContentPart', () => {
 			}, {
 				title: 'Finished with 2 steps',
 				modelSelections: 0,
+			});
+		});
+
+		for (const restored of [false, true]) {
+			test(`summarizes host read facts locally and preserves their accessible title (restored=${restored})`, async () => {
+				mockConfigurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, true);
+				const selectModel = sinon.spy(mockLanguageModelsService, 'selectLanguageModels');
+				const sendRequest = sinon.spy(mockLanguageModelsService, 'sendChatRequest');
+				const part = createToolChain(restored);
+				for (const [startLine, endLine] of [[1, 60], [40, 100]]) {
+					const tool = new ChatToolInvocation(
+						{ invocationMessage: 'Read file' },
+						{ id: 'copilot_readFile', displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal },
+						`read-${startLine}`, undefined, { filePath: '/workspace/file.ts', startLine, endLine },
+					);
+					tool.summary = { kind: 'read', resources: [{ uri: URI.file('/workspace/file.ts') }] };
+					await tool.didExecuteTool({ content: [] });
+					part.appendItem(() => ({ domNode: $('div', undefined, 'Read file') }), tool.toolId, restored ? tool.toJSON() : tool);
+				}
+				part.finalizeTitleIfDefault();
+				part.finalizeTitleIfDefault();
+				const button = part.domNode.querySelector<HTMLElement>(':scope > .chat-used-context-label .monaco-button');
+				assert.deepStrictEqual({
+					title: button?.textContent,
+					ariaLabel: button?.ariaLabel,
+					modelSelections: selectModel.callCount,
+					utilityRequests: sendRequest.callCount,
+				}, { title: 'Read file.ts', ariaLabel: 'Read file.ts', modelSelections: 0, utilityRequests: 0 });
+			});
+		}
+
+		test('refreshes deterministic summaries when tools finish and visibility changes', async () => {
+			const part = createToolChain();
+			const visible = observableValue('visible', true);
+			const tools = ['first', 'second'].map(query => new ChatToolInvocation(
+				{ invocationMessage: 'Search files' },
+				{ id: 'grep_search', displayName: 'Search', modelDescription: 'Search', source: ToolDataSource.Internal },
+				query, undefined, { query },
+			));
+			for (const tool of tools) {
+				part.appendItem(() => ({ domNode: $('div', undefined, 'Search files'), isVisible: tool === tools[1] ? visible : undefined }), tool.toolId, tool);
+			}
+			part.finalizeTitleIfDefault();
+			const button = part.domNode.querySelector<HTMLElement>(':scope > .chat-used-context-label .monaco-button')!;
+			const titles = [button.textContent];
+			tools[0].summary = { kind: 'search', queries: ['first'], searchKind: 'text' };
+			await tools[0].didExecuteTool({ content: [] });
+			tools[1].acceptProgress({ message: 'Still searching' });
+			titles.push(button.textContent);
+			tools[1].summary = { kind: 'search', queries: ['second'], searchKind: 'text' };
+			await tools[1].didExecuteTool({ content: [] });
+			titles.push(button.textContent);
+			visible.set(false, undefined);
+			titles.push(button.textContent);
+			visible.set(true, undefined);
+			titles.push(button.textContent);
+			assert.deepStrictEqual(titles, [
+				'2 unfinished tool calls', 'Searched for 1 phrase, 1 unfinished tool call', 'Searched for 2 phrases', 'Searched for 1 phrase', 'Searched for 2 phrases',
+			]);
+		});
+
+		test('summarizes edit pills and refreshes titles for late diff statistics', () => {
+			const part = createToolChain();
+			const firstDiff = store.add(new Emitter<IChatContentPartDiffData>());
+			const secondDiff = store.add(new Emitter<IChatContentPartDiffData>());
+			const first: IChatExternalEdit = { kind: 'externalEdit', uri: URI.file('/workspace/first.ts'), editKind: 'edit' };
+			const second: IChatExternalEdit = { kind: 'externalEdit', uri: URI.file('/workspace/second.ts'), editKind: 'edit' };
+			part.appendItem(() => ({ domNode: $('div') }), 'first', first, undefined, { onDidChangeDiff: firstDiff.event, diffData: undefined });
+			part.appendItem(() => ({ domNode: $('div') }), 'second', second, undefined, { onDidChangeDiff: secondDiff.event, diffData: undefined });
+			part.finalizeTitleIfDefault();
+			const title = () => part.domNode.querySelector('.monaco-button-mdlabel')?.textContent;
+			const titles = [title()];
+			firstDiff.fire(createDiffData(10, 0, 'first.ts'));
+			secondDiff.fire(createDiffData(5, 0, 'second.ts'));
+			titles.push(title());
+			part.removeEditPillByPartId('second');
+			titles.push(title());
+			assert.deepStrictEqual(titles, ['Edited 2 files', 'Edited 2 files', 'Edited first.ts']);
+		});
+
+		test('keeps partial edit statistics in the existing badge rather than the title', () => {
+			const part = createToolChain();
+			const firstDiff = store.add(new Emitter<IChatContentPartDiffData>());
+			const secondDiff = store.add(new Emitter<IChatContentPartDiffData>());
+			const edit: IChatExternalEdit = { kind: 'externalEdit', uri: URI.file('/workspace/File.ts'), editKind: 'edit' };
+			part.appendItem(() => ({ domNode: $('div') }), 'first', edit, undefined, { onDidChangeDiff: firstDiff.event, diffData: undefined });
+			part.appendItem(() => ({ domNode: $('div') }), 'second', edit, undefined, { onDidChangeDiff: secondDiff.event, diffData: undefined });
+			part.finalizeTitleIfDefault();
+			firstDiff.fire(createDiffData(10, 0, 'File.ts'));
+			const title = () => part.domNode.querySelector('.monaco-button-mdlabel')?.textContent;
+			const partial = title();
+			secondDiff.fire(createDiffData(0, 0, 'File.ts', '2'));
+			const { added, removed } = part.diffData.get();
+			assert.deepStrictEqual({ partial, complete: title(), added, removed }, {
+				partial: 'Edited File.ts', complete: 'Edited File.ts', added: 10, removed: 0,
+			});
+		});
+
+		test('counts every edit resource in a combined markdown part', async () => {
+			const part = createToolChain();
+			const command = new ChatToolInvocation(
+				{ invocationMessage: 'Run tests', toolSpecificData: { kind: 'terminal', commandLine: { original: 'test' }, language: 'shellscript', terminalCommandState: { exitCode: 0 } } },
+				{ id: 'run_in_terminal', displayName: 'Run', modelDescription: 'Run', source: ToolDataSource.Internal }, 'command', undefined, { command: 'test' },
+			);
+			command.summary = { kind: 'command' };
+			await command.didExecuteTool({ content: [] });
+			part.appendItem(() => ({ domNode: $('div') }), command.toolId, command);
+			const markdown: IChatMarkdownContent = {
+				kind: 'markdownContent',
+				content: new MarkdownString(['First.ts', 'Second.ts'].map(name => `<vscode_codeblock_uri isEdit>${URI.file(`/workspace/${name}`)}</vscode_codeblock_uri>\n\`\`\`ts\ncode\n\`\`\``).join('\n')),
+			};
+			part.appendItem(() => ({ domNode: $('div') }), 'edits', markdown);
+			part.finalizeTitleIfDefault();
+			assert.strictEqual(part.domNode.querySelector('.monaco-button-mdlabel')?.textContent, 'Edited 2 files, ran 1 command');
+		});
+
+		test('keeps a background command header unchanged when its process exits', async () => {
+			const part = createToolChain();
+			const terminalData: IChatTerminalToolInvocationData = { kind: 'terminal', commandLine: { original: 'build' }, language: 'shellscript', isBackground: true };
+			const terminal = new ChatToolInvocation(
+				{ invocationMessage: 'Run build', toolSpecificData: terminalData },
+				{ id: 'run_in_terminal', displayName: 'Run', modelDescription: 'Run', source: ToolDataSource.Internal }, 'command', undefined, { command: 'build' },
+			);
+			terminal.summary = { kind: 'command' };
+			const search = new ChatToolInvocation(
+				{ invocationMessage: 'Search files' },
+				{ id: 'grep_search', displayName: 'Search', modelDescription: 'Search', source: ToolDataSource.Internal }, 'search', undefined, { query: 'layout' },
+			);
+			search.summary = { kind: 'search', queries: ['layout'], searchKind: 'text' };
+			for (const tool of [terminal, search]) {
+				await tool.didExecuteTool({ content: [] });
+				part.appendItem(() => ({ domNode: $('div') }), tool.toolId, tool);
+			}
+			part.finalizeTitleIfDefault();
+			const button = part.domNode.querySelector<HTMLElement>('.monaco-button')!;
+			const running = button.textContent;
+			terminalData.terminalCommandState = { exitCode: 1 };
+			part.expandContent();
+			part.finalizeTitleIfDefault();
+			assert.deepStrictEqual({ running, completed: button.textContent, aria: button.ariaLabel }, {
+				running: 'Ran 1 command, searched for 1 phrase', completed: 'Ran 1 command, searched for 1 phrase', aria: 'Ran 1 command, searched for 1 phrase',
+			});
+		});
+
+		test('shows failed calls alongside completed activity and refreshes the accessible title', async () => {
+			const part = createToolChain();
+			const tools = ['pwd', 'git --version', 'node --version'].map((command, index) => new ChatToolInvocation(
+				{ invocationMessage: command },
+				{ id: 'bash', displayName: 'Run', modelDescription: 'Run', source: ToolDataSource.Internal },
+				`command-${index}`, undefined, undefined,
+			));
+			for (const tool of tools) {
+				part.appendItem(() => ({ domNode: $('div') }), tool.toolId, tool);
+			}
+			part.finalizeTitleIfDefault();
+			tools[0].summary = { kind: 'command' };
+			await tools[0].didExecuteTool({ content: [] });
+			await tools[1].didExecuteTool({ content: [], toolResultError: true });
+			await tools[2].didExecuteTool({ content: [], toolResultError: true });
+			const button = part.domNode.querySelector<HTMLElement>('.monaco-button')!;
+			assert.deepStrictEqual({ title: button.textContent, aria: button.ariaLabel }, {
+				title: 'Ran 1 command, 2 tool calls failed', aria: 'Ran 1 command, 2 tool calls failed',
+			});
+		});
+
+		test('caps the visible and accessible title without hiding grouped calls', async () => {
+			const part = createToolChain();
+			const file = URI.file('/workspace/File.ts');
+			const summaries: ChatToolInvocationSummary[] = [
+				{ kind: 'search', queries: ['layout'], searchKind: 'text' },
+				{ kind: 'read', resources: [{ uri: file }] },
+				{ kind: 'diagnostics', resources: [{ uri: file }] },
+				{ kind: 'edit', resources: [{ uri: file }] },
+				{ kind: 'command' },
+				{ kind: 'failed' },
+			];
+			for (const [index, summary] of summaries.entries()) {
+				const tool = new ChatToolInvocation(
+					{ invocationMessage: `Tool ${index}` },
+					{ id: `tool-${index}`, displayName: 'Tool', modelDescription: 'Tool', source: ToolDataSource.Internal },
+					`call-${index}`, undefined, undefined,
+				);
+				tool.summary = summary;
+				await tool.didExecuteTool({ content: [] });
+				part.appendItem(() => ({ domNode: $('div', undefined, `Tool ${index}`) }), tool.toolId, tool);
+			}
+			part.finalizeTitleIfDefault();
+			part.expandContent();
+			const button = part.domNode.querySelector<HTMLElement>(':scope > .chat-used-context-label .monaco-button')!;
+			assert.deepStrictEqual({
+				title: button.textContent,
+				aria: button.ariaLabel,
+				rows: part.domNode.querySelectorAll('.chat-thinking-tool-wrapper').length,
+			}, {
+				title: 'Edited File.ts, ran 1 command, read File.ts, 3 other steps (1 failed)',
+				aria: 'Edited File.ts, ran 1 command, read File.ts, 3 other steps (1 failed)',
+				rows: 6,
 			});
 		});
 

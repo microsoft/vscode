@@ -17,10 +17,8 @@ export interface IAgentHostChangesetSubscriptionService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Fires with the session URI whenever that session transitions between
-	 * having and not having changeset subscribers. Services that hold
-	 * per-session resources only while a client is watching (e.g. the pull
-	 * request status watcher) key off this rather than polling.
+	 * Fires with the owner URI after each actual subscription-set membership change.
+	 * Consumers read the current set to retain resources only while their changesets are observed.
 	 */
 	readonly onDidChangeSessionSubscriptions: Event<ProtocolURI>;
 

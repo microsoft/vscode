@@ -8,8 +8,10 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { renderMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
+import { extUri } from '../../../../../../base/common/resources.js';
+import { renderAsPlaintext, renderMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { getChatMarkdownRenderOptions } from '../../../browser/widget/chatContentMarkdownRenderer.js';
+import { getToolGroupSummary } from '../../../browser/widget/chatContentParts/chatToolGroupSummary.js';
 import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
@@ -1199,6 +1201,26 @@ suite('stateToProgressAdapter', () => {
 			]);
 		});
 
+		test('restores the Auto selection reason with the routing part', () => {
+			const reason = 'Auto selected gpt-5.4-mini to prioritize cost efficiency, alongside model fit for this task.';
+			const turn = createTurn({
+				usage: {
+					model: 'gpt-5.4-mini',
+					_meta: { autoModeResolved: { chosenModel: 'gpt-5.4-mini', selectionReason: reason } },
+				},
+			});
+			const lookup = makeLookup('agent-host-copilot:', { 'gpt-5.4-mini': 'GPT-5.4 mini' });
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p', lookup);
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+
+			assert.deepStrictEqual(response.parts, [
+				{ kind: 'autoModeResolution', resolved: { id: 'gpt-5.4-mini', name: 'GPT-5.4 mini', reason } },
+			]);
+		});
+
 		test('drops a routing part that never resolved from restored history', () => {
 			const turn = createTurn({ message: message('first'), usage: { model: 'auto' } });
 			const lookup = makeLookup('agent-host-copilot:', { 'auto': 'Auto' }, 'auto');
@@ -1696,6 +1718,48 @@ suite('stateToProgressAdapter', () => {
 		});
 	});
 
+	suite('MCP App results', () => {
+		const textContent = [{ type: ToolResultContentType.Text, text: 'Opened the accent-color editor.' }] satisfies ToolResultContent[];
+		for (const toolInput of ['{}', undefined]) {
+			for (const content of [textContent, []]) {
+				for (const structuredContent of [{ titleId: 'example-title', branding: null }, {}, undefined]) {
+					for (const success of [true, false]) {
+						test(`preserves live and restored results (input=${toolInput}, text=${content.length > 0}, structured=${JSON.stringify(structuredContent)}, success=${success})`, () => {
+							const backendSession = URI.parse('other-host:/opaque-session');
+							const running = createToolCallState({
+								toolInput,
+								contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'remote-server' },
+								_meta: { ui: { resourceUri: 'ui://remote/app', channel: 'mcp://other-host/opaque-channel' } },
+							});
+							const completed = createCompletedToolCall({
+								...running,
+								status: ToolCallStatus.Completed,
+								success,
+								content,
+								structuredContent,
+							});
+							const live = rawToolCallStateToInvocation(running, undefined, backendSession, 'other-host');
+							rawFinalizeToolInvocation(live, completed, backendSession, 'other-host');
+							const restored = completedToolCallToSerialized(completed, undefined, backendSession, 'other-host');
+							const expected = content.length === 0 && structuredContent === undefined && success
+								? undefined
+								: {
+									content: content.map(block => ({ type: 'text', text: block.text })),
+									...(structuredContent !== undefined ? { structuredContent } : {}),
+									isError: success ? undefined : true,
+								};
+							assert.deepStrictEqual([live, restored].map(part => {
+								const details = part.kind === 'toolInvocation' ? IChatToolInvocation.resultDetails(part) : part.resultDetails;
+								assert.ok(isToolResultInputOutputDetails(details));
+								return details.mcpOutput;
+							}), [expected, expected]);
+						});
+					}
+				}
+			}
+		}
+	});
+
 	suite('image generation', () => {
 		test('preserves metadata-only image failure details and classification in live and restored state', () => {
 			const backendSession = URI.parse('other-host:/opaque-image-session');
@@ -1976,6 +2040,213 @@ suite('stateToProgressAdapter', () => {
 	});
 
 	suite('toolCallStateToInvocation', () => {
+		const nativeToolMeta = { 'vscode.toolInputContract': 'copilot-cli-v1' };
+
+		test('preserves deterministic tool summaries in live and restored host calls', () => {
+			const resourceUris = createAgentHostResourceUriMapper('remote-test');
+			const session = URI.parse('ahp-session:/opaque-session');
+			const input = JSON.stringify({ path: '/workspace/file.ts', view_range: [10, 29] });
+			const running = createToolCallState({ toolName: 'view', toolInput: input, _meta: nativeToolMeta });
+			const completed = createCompletedToolCall({ toolName: 'view', toolInput: input, _meta: nativeToolMeta });
+			const live = rawToolCallStateToInvocation(running, undefined, session, 'remote-test', undefined, undefined, resourceUris);
+			rawFinalizeToolInvocation(live, completed, session, 'remote-test', resourceUris);
+			const restored = completedToolCallToSerialized(completed, undefined, session, 'remote-test', resourceUris);
+			const mcp = completedToolCallToSerialized(createCompletedToolCall({
+				toolName: 'view', toolInput: input,
+				contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'server' },
+			}), undefined, session, 'remote-test', resourceUris);
+			const expected = {
+				kind: 'read',
+				resources: [{ uri: resourceUris.fromAgentHost(URI.file('/workspace/file.ts')) }],
+			};
+			assert.deepStrictEqual({ live: live.summary, serialized: live.toJSON().summary, restored: restored.summary, mcp: mcp.summary }, {
+				live: expected, serialized: expected, restored: expected, mcp: { kind: 'unknown' },
+			});
+		});
+
+		test('requires an explicit native input contract and excludes client and MCP implementations', () => {
+			const resourceUris = createAgentHostResourceUriMapper('remote-test');
+			const session = URI.parse('ahp-session:/unrelated-peer/session-id');
+			const calls = [
+				createCompletedToolCall({ toolName: 'view', toolInput: '{"path":"/workspace/File.ts","view_range":[1,10]}' }),
+				createCompletedToolCall({ toolName: 'edit', toolInput: '{"path":"/workspace/File.ts"}' }),
+				createCompletedToolCall({ toolName: 'grep', toolInput: '{"pattern":"layout"}', _meta: { 'vscode.toolInputContract': 'different-v1' } }),
+				createCompletedToolCall({ toolName: 'view', toolInput: '{"path":"/workspace/File.ts","view_range":[1,10]}', _meta: { 'vscode.toolInputContract': {} } }),
+				createCompletedToolCall({
+					toolName: 'view', toolInput: '{"path":"/workspace/File.ts","view_range":[1,10]}', _meta: nativeToolMeta,
+					contributor: { kind: ToolCallContributorKind.Client, clientId: 'another-client' },
+				}),
+				createCompletedToolCall({
+					toolName: 'edit', toolInput: '{"path":"/workspace/File.ts"}', _meta: nativeToolMeta,
+					contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'server' },
+				}),
+				createCompletedToolCall({
+					toolName: 'bash', toolInput: '{"command":"not a shell","mode":"async"}', _meta: { ...nativeToolMeta, toolKind: 'terminal' },
+					contributor: { kind: ToolCallContributorKind.Client, clientId: 'another-client' },
+				}),
+			];
+			const summaries = calls.map(call => {
+				const live = rawToolCallStateToInvocation(createToolCallState({
+					toolCallId: call.toolCallId, toolName: call.toolName, toolInput: call.toolInput, contributor: call.contributor, _meta: call._meta,
+				}), undefined, session, 'remote-test', undefined, undefined, resourceUris);
+				rawFinalizeToolInvocation(live, call, session, 'remote-test', resourceUris);
+				const restored = completedToolCallToSerialized(call, undefined, session, 'remote-test', resourceUris);
+				return { live: live.summary, serialized: live.toJSON().summary, restored: restored.summary };
+			});
+			assert.deepStrictEqual(summaries, calls.map(() => ({
+				live: { kind: 'unknown' }, serialized: { kind: 'unknown' }, restored: { kind: 'unknown' },
+			})));
+		});
+
+		test('keeps cancelled and disposal-settled host calls out of successful summaries', async () => {
+			const running = createToolCallState({ toolCallId: 'skipped', toolName: 'grep', toolInput: '{"pattern":"skipped"}' });
+			const cancelled: ICompletedToolCall = {
+				status: ToolCallStatus.Cancelled,
+				toolCallId: running.toolCallId, toolName: running.toolName,
+				displayName: running.displayName, invocationMessage: running.invocationMessage,
+				reason: ToolCallCancellationReason.Skipped,
+				toolInput: running.toolInput,
+			};
+			const live = toolCallStateToInvocation(running);
+			finalizeToolInvocation(live, cancelled);
+			const settled = toolCallStateToInvocation(running);
+			await settled.didExecuteTool(undefined);
+			const success = completedToolCallToSerialized(createCompletedToolCall({
+				toolCallId: 'success', toolName: 'grep', toolInput: '{"pattern":"success"}', _meta: nativeToolMeta,
+			}), undefined, URI.file('/'), 'local');
+			const summaries = [live, live.toJSON(), settled, settled.toJSON(), completedToolCallToSerialized(cancelled, undefined, URI.file('/'), 'local')]
+				.map(tool => getToolGroupSummary([success, tool], [], 2, extUri));
+			assert.deepStrictEqual(summaries, [
+				'Searched for 1 phrase, 1 tool call skipped',
+				'Searched for 1 phrase, 1 tool call skipped',
+				'Searched for 1 phrase, 1 unfinished tool call',
+				'Searched for 1 phrase, 1 unfinished tool call',
+				'Searched for 1 phrase, 1 tool call skipped',
+			]);
+		});
+
+		test('distinguishes denied results from skipped calls in live and restored summaries', () => {
+			const summaries = [ToolCallCancellationReason.Skipped, ToolCallCancellationReason.Denied, ToolCallCancellationReason.ResultDenied].map(reason => {
+				const running = createToolCallState({ toolName: 'view', toolInput: '{"path":"/workspace/File.ts"}' });
+				const cancelled: ICompletedToolCall = {
+					status: ToolCallStatus.Cancelled, toolCallId: running.toolCallId, toolName: running.toolName,
+					displayName: running.displayName, invocationMessage: running.invocationMessage, toolInput: running.toolInput, reason,
+				};
+				const live = toolCallStateToInvocation(running);
+				finalizeToolInvocation(live, cancelled);
+				const restored = completedToolCallToSerialized(cancelled, undefined, URI.parse('ahp-session:/opaque-session'), 'remote');
+				return [live, live.toJSON(), restored].map(tool => getToolGroupSummary([tool], [], 1, extUri));
+			});
+			assert.deepStrictEqual(summaries, [
+				['1 tool call skipped', '1 tool call skipped', '1 tool call skipped'],
+				['1 tool call denied', '1 tool call denied', '1 tool call denied'],
+				['1 tool call denied', '1 tool call denied', '1 tool call denied'],
+			]);
+		});
+
+		test('summarizes successful host commands without requiring optional process exit metadata', () => {
+			const calls = ['pwd', 'git --version', 'node --version'].map((command, index) => createCompletedToolCall({
+				toolCallId: `command-${index}`,
+				toolName: 'bash',
+				toolInput: JSON.stringify({ command, mode: 'sync' }),
+				content: [{ type: ToolResultContentType.Terminal, resource: `terminal:/command-${index}`, title: command, isPty: false }],
+			}));
+			const summarizeCalls = (failed: boolean, restored: boolean) => {
+				const tools = calls.map((call, index) => {
+					const completed = { ...call, success: !failed || index === 0 };
+					if (restored) {
+						return completedToolCallToSerialized(completed, undefined, URI.file('/'), 'local');
+					}
+					const live = toolCallStateToInvocation(createToolCallState({ toolCallId: call.toolCallId, toolName: call.toolName, toolInput: call.toolInput }));
+					finalizeToolInvocation(live, completed);
+					return live;
+				});
+				return getToolGroupSummary(tools, [], tools.length, extUri);
+			};
+			assert.deepStrictEqual({
+				live: summarizeCalls(false, false),
+				restored: summarizeCalls(false, true),
+				liveErrors: summarizeCalls(true, false),
+				restoredErrors: summarizeCalls(true, true),
+			}, {
+				live: 'Ran 3 commands',
+				restored: 'Ran 3 commands',
+				liveErrors: 'Ran 1 command, 2 tool calls failed',
+				restoredErrors: 'Ran 1 command, 2 tool calls failed',
+			});
+		});
+
+		test('counts completed asynchronous invocations without tracking the background process', () => {
+			const running = createCompletedToolCall({
+				toolName: 'bash',
+				toolInput: '{"command":"build","mode":"async"}',
+				content: [{ type: ToolResultContentType.Terminal, resource: 'terminal:/background', title: 'build', isPty: false }],
+			});
+			const completed = createCompletedToolCall({
+				...running,
+				status: ToolCallStatus.Completed,
+				content: [{ type: ToolResultContentType.Terminal, resource: 'terminal:/background', title: 'build', isPty: false, result: { exitCode: 0 } }],
+			});
+			const titles = [running, completed].map(call => {
+				const tool = completedToolCallToSerialized(call, undefined, URI.file('/'), 'local');
+				return {
+					title: getToolGroupSummary([tool], [], 1, extUri),
+					inferredBackground: tool.toolSpecificData?.kind === 'terminal' ? tool.toolSpecificData.isBackground : undefined,
+				};
+			});
+			assert.deepStrictEqual(titles, [
+				{ title: 'Ran 1 command', inferredBackground: undefined },
+				{ title: 'Ran 1 command', inferredBackground: undefined },
+			]);
+		});
+
+		test('recognizes raw native shell input alongside failed commands', () => {
+			const calls = ['pwd', 'git --version', 'node --version'].map((command, index) => createCompletedToolCall({
+				toolCallId: `shell-${index}`, toolName: 'shell', toolInput: command, success: index === 0,
+				_meta: { toolKind: 'terminal' },
+				content: [{ type: ToolResultContentType.Terminal, resource: `terminal:/shell-${index}`, title: command, isPty: false }],
+			}));
+			const live = calls.map(call => {
+				const invocation = toolCallStateToInvocation(createToolCallState({
+					toolCallId: call.toolCallId, toolName: call.toolName, toolInput: call.toolInput, _meta: call._meta,
+				}));
+				finalizeToolInvocation(invocation, call);
+				return invocation;
+			});
+			const restored = calls.map(call => completedToolCallToSerialized(call, undefined, URI.file('/'), 'local'));
+			assert.deepStrictEqual([live, live.map(tool => tool.toJSON()), restored].map(tools => getToolGroupSummary(tools, [], 3, extUri)), [
+				'Ran 1 command, 2 tool calls failed', 'Ran 1 command, 2 tool calls failed', 'Ran 1 command, 2 tool calls failed',
+			]);
+		});
+
+		test('uses native terminal metadata rather than requiring a particular tool name', () => {
+			const call = createCompletedToolCall({
+				toolName: 'host-command',
+				toolInput: 'pwd',
+				_meta: { toolKind: 'terminal' },
+				content: [{ type: ToolResultContentType.Terminal, resource: 'terminal:/opaque-command', title: 'pwd', isPty: false }],
+			});
+			const invocation = completedToolCallToSerialized(call, undefined, URI.parse('ahp-session:/opaque-session'), 'local');
+			assert.strictEqual(getToolGroupSummary([invocation], [], 1, extUri), 'Ran 1 command');
+		});
+
+		test('uses reported patch files instead of inferring paths from patch text', () => {
+			const resourceUris = createAgentHostResourceUriMapper('remote-test');
+			const session = URI.parse('ahp-session:/opaque-session');
+			const completed = createCompletedToolCall({
+				toolName: 'apply_patch',
+				toolInput: JSON.stringify({ patch: 'opaque patch content' }),
+				content: ['first.ts', 'second.ts'].map(name => ({
+					type: ToolResultContentType.FileEdit,
+					after: { uri: `file:///workspace/${name}`, content: { uri: `opaque-content:/${name}` } },
+				})),
+			});
+			const live = rawToolCallStateToInvocation(createToolCallState({ toolName: 'apply_patch' }), undefined, session, 'remote-test', undefined, undefined, resourceUris);
+			rawFinalizeToolInvocation(live, completed, session, 'remote-test', resourceUris);
+			const restored = completedToolCallToSerialized(completed, undefined, session, 'remote-test', resourceUris);
+			const expected = { kind: 'edit', resources: ['first.ts', 'second.ts'].map(name => ({ uri: resourceUris.fromAgentHost(URI.file(`/workspace/${name}`)) })) };
+			assert.deepStrictEqual({ live: live.summary, restored: restored.summary }, { live: expected, restored: expected });
+		});
 
 		test('keeps image prompt input and image identity while running and reconnecting', () => {
 			const imageGeneration = { requestedModel: { id: 'provider/image-preview', name: 'Image Preview' } };
@@ -2129,6 +2400,40 @@ suite('stateToProgressAdapter', () => {
 			}, 'local');
 
 			assert.strictEqual(carousel.answerPresentation, 'conversation');
+		});
+
+		test('presents a structured ask_user batch as one carousel with stable question IDs and freeform choices', () => {
+			const carousel = createInputRequestCarousel({
+				id: 'bulk-input',
+				message: 'Choose deployment preferences',
+				questions: [
+					{ id: 'environment', kind: ChatInputQuestionKind.SingleSelect, title: 'Environment', message: 'Where should we deploy?', options: [{ id: 'dev', label: 'Development' }, { id: 'prod', label: 'Production' }], allowFreeformInput: true },
+					{ id: 'features', kind: ChatInputQuestionKind.MultiSelect, message: 'Which features?', options: [{ id: 'logs', label: 'Logs' }], allowFreeformInput: true },
+					{ id: 'name', kind: ChatInputQuestionKind.Text, message: 'Deployment name', defaultValue: 'deployment' },
+				],
+			}, 'local');
+
+			assert.deepStrictEqual({
+				resolveId: carousel.resolveId,
+				message: typeof carousel.message === 'string' ? carousel.message : carousel.message?.value,
+				answerPresentation: carousel.answerPresentation,
+				questions: carousel.questions.map(question => ({
+					id: question.id,
+					type: question.type,
+					allowFreeformInput: question.allowFreeformInput,
+					options: question.options,
+					defaultValue: question.defaultValue,
+				})),
+			}, {
+				resolveId: 'bulk-input',
+				message: 'Choose deployment preferences',
+				answerPresentation: 'conversation',
+				questions: [
+					{ id: 'environment', type: 'singleSelect', allowFreeformInput: true, options: [{ id: 'dev', label: 'Development', value: 'dev' }, { id: 'prod', label: 'Production', value: 'prod' }], defaultValue: undefined },
+					{ id: 'features', type: 'multiSelect', allowFreeformInput: true, options: [{ id: 'logs', label: 'Logs', value: 'logs' }], defaultValue: undefined },
+					{ id: 'name', type: 'text', allowFreeformInput: undefined, options: undefined, defaultValue: 'deployment' },
+				],
+			});
 		});
 
 		test('does not repeat the question as the carousel message', () => {
@@ -3641,6 +3946,37 @@ suite('stateToProgressAdapter', () => {
 				}, {
 					links: ['command:aiCustomization.openManagementEditor?%5B%22tools%22%5D'],
 					text: `Some tools were dropped. <${injected}> <a href="${injected}">hooks</a> &lt;b&gt; Configure Tools`,
+				});
+			} finally {
+				rendered.dispose();
+			}
+		});
+
+		test('keeps a managed plugin preparation failure visible and its host text inert', () => {
+			const text = 'Some plugins required by your organization admin could not be prepared. Continuing with the current setup. <command:evil> [details](command:evil) <b>security-guard</b> https://evil.example/x www.evil.example admin@evil.example';
+			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState([{
+				kind: ResponsePartKind.SystemNotification,
+				content: text,
+				_meta: toAgentSystemNotificationMeta({
+					kind: AgentSystemNotificationKind.ManagedPluginPreparationFailure,
+					severity: AgentSystemNotificationSeverity.Warning,
+				}),
+			}]), undefined);
+			const warning = result[0];
+			assert.ok(warning.kind === 'warning');
+
+			const rendered = renderMarkdown(warning.content);
+			try {
+				assert.deepStrictEqual({
+					keepVisibleWhenCollapsed: warning.keepVisibleWhenCollapsed,
+					links: rendered.element.querySelectorAll('a').length,
+					text: rendered.element.textContent,
+					plaintext: renderAsPlaintext(warning.content, { useLinkFormatter: true }),
+				}, {
+					keepVisibleWhenCollapsed: true,
+					links: 0,
+					text,
+					plaintext: text,
 				});
 			} finally {
 				rendered.dispose();

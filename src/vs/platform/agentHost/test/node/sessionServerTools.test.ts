@@ -384,39 +384,62 @@ suite('SessionServerTools', () => {
 		}
 	});
 
-	test('rename_chat is eager only for active agent title generation', () => {
+	test('agent review naming keeps rename_chat deferred with judgement-based automatic renames', async () => {
 		const stateManager = new AgentHostStateManager(new NullLogService());
-		const activeAgentSession = 'copilot:/active-agent';
-		const deferredSession = 'copilot:/deferred';
-		for (const resource of [activeAgentSession, deferredSession]) {
+		try {
+			const session = 'copilot:/s1';
 			stateManager.createSession({
-				resource,
-				provider: 'copilot',
-				title: 'Session',
-				status: SessionStatus.Idle,
-				createdAt: new Date(0).toISOString(),
-				modifiedAt: new Date(0).toISOString(),
+				resource: session, provider: 'copilot', title: 'Seed title', status: SessionStatus.Idle,
+				createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
 			});
+			const host = new AgentServerToolHost(stateManager, [createSessionServerToolGroup(createAccessor({
+				getAutomaticTitleGenerationStrategy: () => 'agentReview',
+			}))]);
+			host.advertise(session);
+			const definition = host.getDefinitionsForSession(session).find(tool => tool.name === SessionServerToolName.RenameChat);
+			assert.ok(definition?.inputSchema && definition.description);
+			assert.deepStrictEqual({
+				deferLoading: definition.deferLoading,
+				reviewGuidance: definition.description.includes('no longer reflects the user\'s goal'),
+				noAutomaticNaming: definition.description.includes('do not call this tool to name a fresh chat'),
+				hasAutomaticArgument: definition.inputSchema.properties?.automatic !== undefined,
+				result: await host.executeTool(buildDefaultChatUri(session), SessionServerToolName.RenameChat, { title: 'Reviewed title', automatic: true }),
+			}, {
+				deferLoading: true, reviewGuidance: true, noAutomaticNaming: true, hasAutomaticArgument: true,
+				result: 'Renaming chat.',
+			});
+		} finally {
+			stateManager.dispose();
 		}
-		const host = new AgentServerToolHost(stateManager, [
-			createSessionServerToolGroup(createAccessor({
-				getAutomaticTitleGenerationStrategy: session => session === activeAgentSession ? 'activeAgent' : 'deferred',
-			})),
-		]);
+	});
 
-		host.advertise(activeAgentSession);
-		host.advertise(deferredSession);
-
-		assert.deepStrictEqual({
-			baseDefinition: sessionServerToolDefinitions.find(tool => tool.name === SessionServerToolName.RenameChat)?.deferLoading,
-			activeAgentDefinition: host.getDefinitionsForSession(activeAgentSession).find(tool => tool.name === SessionServerToolName.RenameChat)?.deferLoading,
-			deferredDefinition: host.getDefinitionsForSession(deferredSession).find(tool => tool.name === SessionServerToolName.RenameChat)?.deferLoading,
-		}, {
-			baseDefinition: true,
-			activeAgentDefinition: false,
-			deferredDefinition: true,
-		});
-		stateManager.dispose();
+	test('rename_chat loads eagerly only for active agent title generation', () => {
+		const stateManager = new AgentHostStateManager(new NullLogService());
+		try {
+			const strategies = ['utility', 'activeAgent', 'agentReview', 'deferred'] as const;
+			for (const strategy of strategies) {
+				stateManager.createSession({
+					resource: `copilot:/${strategy}`, provider: 'copilot', title: 'Session', status: SessionStatus.Idle,
+					createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
+				});
+			}
+			const host = new AgentServerToolHost(stateManager, [createSessionServerToolGroup(createAccessor({
+				getAutomaticTitleGenerationStrategy: session => strategies.find(strategy => session === `copilot:/${strategy}`) ?? 'utility',
+			}))]);
+			const renameChat = (session: string) => {
+				host.advertise(session);
+				const definition = host.getDefinitionsForSession(session).find(tool => tool.name === SessionServerToolName.RenameChat);
+				return definition ? { deferLoading: definition.deferLoading } : 'absent';
+			};
+			assert.deepStrictEqual(Object.fromEntries(strategies.map(strategy => [strategy, renameChat(`copilot:/${strategy}`)])), {
+				utility: 'absent',
+				activeAgent: { deferLoading: false },
+				agentReview: { deferLoading: true },
+				deferred: { deferLoading: true },
+			});
+		} finally {
+			stateManager.dispose();
+		}
 	});
 
 	test('set_workspace deferral follows whether the session is workspaceless', () => {

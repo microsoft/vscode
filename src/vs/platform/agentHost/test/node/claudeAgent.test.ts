@@ -1073,6 +1073,7 @@ const ALL_MODELS: readonly CCAModel[] = [
  */
 class RecordingOTelService implements IAgentHostOTelService {
 	readonly _serviceBrand: undefined;
+	readonly enabled = false;
 	readonly diagnosticsEnabled = false;
 	emitTurnTiming(): void { }
 	emitFirstResponse(): void { }

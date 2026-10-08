@@ -192,6 +192,44 @@ suite('MainThreadMcp - launch', () => {
 		assert.ok(startOptions?.defaultCwd);
 		assert.strictEqual(URI.revive(startOptions.defaultCwd).toString(), defaultCwd.toString());
 	});
+
+	test('expands environment variables in the extension host only for flagged definitions', async () => {
+		const requests: Parameters<ExtHostMcpShape['$expandEnvironmentVariables']>[] = [];
+		const proxy: Partial<ExtHostMcpShape> = {
+			async $expandEnvironmentVariables(launch, expansion) {
+				requests.push([launch, expansion]);
+				return { ...launch, uri: URI.parse('https://expanded.example/mcp').toJSON(), headers: [['Authorization', 'Bearer expanded']] } as McpServerLaunch.Serialized;
+			},
+			$onDidChangeMcpServerDefinitions() { },
+		};
+
+		let capturedDelegate: IMcpHostDelegate | undefined;
+		const mcpRegistry = new class extends mock<IMcpRegistry>() {
+			override readonly collections = observableValue<readonly McpCollectionDefinition[]>('collections', []);
+			override registerDelegate(delegate: IMcpHostDelegate) {
+				capturedDelegate = delegate;
+				return { dispose() { } };
+			}
+		};
+		createMainThreadMcp(disposables, proxy, mcpRegistry);
+		assert.ok(capturedDelegate);
+
+		const url = 'https://${HOST}/mcp';
+		const launch: McpServerLaunch = { type: McpServerTransportType.HTTP, uri: URI.parse(url), headers: [['Authorization', 'Bearer ${TOKEN}']] };
+		const definition: McpServerDefinition = { id: 'server', label: 'Server', launch, cacheNonce: 'nonce' };
+		const unflagged = await capturedDelegate.expandEnvironmentVariables(definition, launch);
+		const expanded = await capturedDelegate.expandEnvironmentVariables({ ...definition, environmentVariableExpansion: { url } }, launch);
+
+		assert.deepStrictEqual({
+			unflaggedIsSame: unflagged === launch,
+			requests: requests.map(([, expansion]) => expansion),
+			expanded: expanded.type === McpServerTransportType.HTTP ? { isUri: URI.isUri(expanded.uri), url: expanded.uri.toString(true), headers: expanded.headers } : undefined,
+		}, {
+			unflaggedIsSame: true,
+			requests: [{ url }],
+			expanded: { isUri: true, url: 'https://expanded.example/mcp', headers: [['Authorization', 'Bearer expanded']] },
+		});
+	});
 });
 
 suite('MainThreadMcp - re-validation', () => {

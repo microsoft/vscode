@@ -79,7 +79,10 @@ import { ICustomizationHarnessService } from '../../../common/customizationHarne
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
+import { IAuthenticationService, type AuthenticationSession } from '../../../../../services/authentication/common/authentication.js';
+import { IAuthenticationMcpAccessService } from '../../../../../services/authentication/browser/authenticationMcpAccessService.js';
+import { IAuthenticationMcpService } from '../../../../../services/authentication/browser/authenticationMcpService.js';
+import { IAuthenticationMcpUsageService } from '../../../../../services/authentication/browser/authenticationMcpUsageService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { IMcpServer, IMcpService, IMcpWorkbenchService, LazyCollectionState, McpCollectionDefinition, McpCollectionProvenance, McpServerDefinition, McpServerTransportType, McpServerTrust } from '../../../../mcp/common/mcpTypes.js';
@@ -1025,7 +1028,7 @@ suite('AgentHostClientTools', () => {
 				connectionAuthority: 'local',
 			}));
 
-			return { handler, connection, toolsService, configValues, onDidChangeConfig, inputNotifications };
+			return { handler, connection, toolsService, configValues, onDidChangeConfig, inputNotifications, instantiationService };
 		}
 
 		const testRunTestsTool: IToolData = {
@@ -2607,6 +2610,152 @@ suite('AgentHostClientTools', () => {
 			await timeout(5001);
 
 			assert.strictEqual(connection.dispatchedActions.some(entry => entry.action.type === ActionType.ChatToolCallComplete && entry.action.toolCallId === 'mcp-call-1'), false);
+		}));
+
+		/**
+		 * Renders a running MCP tool call in an observed turn, then pauses it for
+		 * authentication. `sessions` are the remembered accounts the silent
+		 * authentication attempt can reuse. Like the real host, a forwarded token
+		 * resolves the tool call's pending authentication. With
+		 * `challengeBeforeRender`, the tool call is already waiting for
+		 * authentication when the chat is first rendered, as after a reconnect.
+		 */
+		async function renderMcpToolCallRequiringAuthentication(sessions: AuthenticationSession[], challengeBeforeRender = false) {
+			const { handler, connection, instantiationService } = createHandlerWithMocks(disposables, []);
+			const sessionResource = URI.parse('agent-host-copilot:/session-1');
+			const chatURI = URI.parse(buildDefaultChatUri(AgentSession.uri('copilot', 'session-1').toString()));
+			instantiationService.stub(IAuthenticationService, {
+				onDidChangeSessions: Event.None,
+				getOrActivateProviderIdForServer: async () => 'notion-provider',
+				getSessions: async () => sessions,
+			});
+			instantiationService.stub(IAuthenticationMcpAccessService, { isAccessAllowedForUrl: () => true });
+			instantiationService.stub(IAuthenticationMcpService, { getAccountPreference: () => undefined });
+			instantiationService.stub(IAuthenticationMcpUsageService, { addAccountUsage: () => { } });
+			const authenticateRequests: { resource: string; token: string }[] = [];
+			connection.authenticate = async params => {
+				authenticateRequests.push({ resource: params.resource, token: params.token });
+				connection.applySessionAction(chatURI, {
+					type: ActionType.ChatToolCallAuthResolved,
+					turnId: 'turn-1',
+					toolCallId: 'mcp-call-1',
+				} as ChatAction);
+				return { authenticated: true };
+			};
+			const challenge = async () => {
+				connection.applySessionAction(chatURI, {
+					type: ActionType.ChatToolCallAuthRequired,
+					turnId: 'turn-1',
+					toolCallId: 'mcp-call-1',
+					auth: { reason: McpAuthRequiredReason.Required, resource: { resource: 'https://mcp.notion.com/mcp', authorization_servers: ['https://auth.notion.com'] } },
+				} as ChatAction);
+				await timeout(0);
+				await timeout(0);
+			};
+
+			connection.applySessionAction(chatURI, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'search notion', origin: { kind: MessageKind.User } },
+			} as ChatAction);
+			connection.applySessionAction(chatURI, {
+				type: ActionType.ChatToolCallStart,
+				turnId: 'turn-1',
+				toolCallId: 'mcp-call-1',
+				toolName: 'notionSearch',
+				displayName: 'Notion Search',
+				contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'notion-mcp' },
+			} as ChatAction);
+			connection.applySessionAction(chatURI, {
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn-1',
+				toolCallId: 'mcp-call-1',
+				invocationMessage: 'Search Notion',
+				toolInput: '{}',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			} as ChatAction);
+			if (challengeBeforeRender) {
+				await challenge();
+			}
+			const session = await handler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			await timeout(0);
+
+			const invocation = (session as unknown as { progressObs: { get(): IChatProgress[] } }).progressObs.get()
+				.find((part): part is ChatToolInvocation => part instanceof ChatToolInvocation && part.toolCallId === 'mcp-call-1');
+			assert.ok(invocation, 'the turn observer should render the MCP tool call');
+			const stateKinds: IChatToolInvocation.StateKind[] = [];
+			disposables.add(autorun(reader => {
+				stateKinds.push(invocation.state.read(reader).type);
+			}));
+
+			if (!challengeBeforeRender) {
+				await challenge();
+			}
+
+			return { invocation, stateKinds, authenticateRequests, sessionResource, challenge };
+		}
+
+		const rememberedNotionSession: AuthenticationSession = {
+			id: 'notion-session',
+			accessToken: 'notion-token',
+			account: { id: 'notion-account', label: 'Notion Account' },
+			scopes: [],
+		};
+
+		test('does not show authentication UI when silent MCP authentication resolves the tool call', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { stateKinds, authenticateRequests } = await renderMcpToolCallRequiringAuthentication([rememberedNotionSession]);
+
+			assert.deepStrictEqual({
+				showedAuthentication: stateKinds.includes(IChatToolInvocation.StateKind.WaitingForAuthentication),
+				authenticateRequests,
+			}, {
+				showedAuthentication: false,
+				authenticateRequests: [{ resource: 'https://mcp.notion.com/mcp', token: 'notion-token' }],
+			});
+		}));
+
+		test('shows authentication UI once silent MCP authentication fails', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { invocation, authenticateRequests, sessionResource } = await renderMcpToolCallRequiringAuthentication([]);
+
+			const state = invocation.state.get();
+			assert.deepStrictEqual({
+				state: state.type,
+				server: state.type === IChatToolInvocation.StateKind.WaitingForAuthentication ? { id: state.server.id, resource: state.server.resource } : undefined,
+				authenticateRequests,
+			}, {
+				state: IChatToolInvocation.StateKind.WaitingForAuthentication,
+				server: { id: `${sessionResource.authority}/notion-mcp`, resource: 'https://mcp.notion.com/mcp' },
+				authenticateRequests: [],
+			});
+		}));
+
+		test('shows authentication UI when the server rejects the silently supplied credential', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { invocation, authenticateRequests, challenge } = await renderMcpToolCallRequiringAuthentication([rememberedNotionSession]);
+
+			// The server challenges again after the silent token resolved the first challenge.
+			await challenge();
+
+			assert.deepStrictEqual({
+				state: invocation.state.get().type,
+				authenticateRequests: authenticateRequests.length,
+			}, {
+				state: IChatToolInvocation.StateKind.WaitingForAuthentication,
+				authenticateRequests: 1,
+			});
+		}));
+
+		test('silently authenticates a tool call that already required authentication when rendered', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { invocation, authenticateRequests } = await renderMcpToolCallRequiringAuthentication([rememberedNotionSession], true);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				state: invocation.state.get().type,
+				authenticateRequests: authenticateRequests.length,
+			}, {
+				state: IChatToolInvocation.StateKind.Executing,
+				authenticateRequests: 1,
+			});
 		}));
 
 		test('renders a subagent client tool as the same invocation the watcher executes', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

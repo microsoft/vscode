@@ -977,21 +977,29 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// renderer reports no BYOK models), merged into the returned config so both
 		// createSession and resumeSession advertise the models to the runtime.
 		const hydraFusionEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusion) === true;
+		const hydraFusionV2Enabled = hydraFusionEnabled && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusionV2) === true;
 		// Throwaway chat surfaces skip memory, like the other heavyweight features they omit.
 		const memoryEnabled = !plan.isEphemeral && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Memory) === true;
 		const localMemoryEnabled = memoryEnabled && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.LocalMemory) === true;
 		const tgrepEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Tgrep) === true;
 		const copilotConnectorsEnabled = this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) === true;
+		const stabilityOrderedPromptEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.StabilityOrderedPrompt) === true;
 		// The runtime defaults CONNECTORS on, so the VS Code rollout gate must explicitly disable it.
 		const featureFlags = {
 			CONNECTORS: copilotConnectorsEnabled,
 			TGREP: tgrepEnabled,
 			CONTENT_EXCLUSION: true,
+			// Attached long-lived services prevent the runtime from reaching session idle.
+			DETACH_LONG_LIVED_SERVICES: true,
 			// When on, the runtime uses the in-repo memory store instead of cloud memory.
 			// Always explicit so only the VS Code opt-in can switch the store.
 			[COPILOT_LOCAL_MEMORY_FEATURE_FLAG]: localMemoryEnabled,
 			...(copilotConnectorsEnabled ? { MANAGED_MCP_SERVERS: true } : {}),
 			...(hydraFusionEnabled ? { HYDRAFUSION: true, HYDRAFUSION_ROLLOUT: true } : {}),
+			// The runtime regroups the system prompt into global, repository and
+			// per-session cache blocks so a new session reuses the stable prefix.
+			...(stabilityOrderedPromptEnabled ? { STABILITY_ORDERED_SYSTEM_PROMPT_V2: true } : {}),
+			...(hydraFusionV2Enabled ? { HYDRAFUSION_PLAN_V2: true } : {}),
 		};
 		const enableCustomTerminalTool = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.EnableCustomTerminalTool) === true;
 		let shellToolsPromise: ReturnType<typeof createShellTools> | Promise<[]> = Promise.resolve([]);
@@ -1153,6 +1161,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			...(canvasRuntimeEnabled ? { extensionSdkPath: plan.extensionSdkPath } : {}),
 			onPermissionRequest: request => runtime.handlePermissionRequest(request),
 			onUserInputRequest: (request, invocation) => runtime.handleUserInputRequest(request, invocation),
+			askUserVariant: 'elicitation',
 			onElicitationRequest: context => runtime.handleElicitationRequest(context),
 			// VS Code owns durable MCP credentials; the runtime must not consult its keychain store.
 			mcpOAuthTokenStorage: 'in-memory',

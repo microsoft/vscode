@@ -13,6 +13,7 @@ import { ILogService } from '../../../log/common/log.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { AgentSession } from '../../common/agent.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
+import type { AutoModeRoutingTier } from '../../common/autoModeTiers.js';
 import { isAhpChatChannel, parseRequiredSessionUriFromChatUri } from '../../common/state/sessionState.js';
 import { toInitiatorTelemetry, type IAgentHostEventClassification, type IAgentHostEventTelemetry } from '../agentHostTelemetryReporter.js';
 import { computeChunkedEditSurvival, computeWholeFileEditSurvival } from './editSurvivalTracker.js';
@@ -51,6 +52,7 @@ export interface IEditSurvivalReporterLaunchParams {
 	 * defensively, but always expected to be set
 	 */
 	readonly modelId?: string;
+	readonly autoTier?: AutoModeRoutingTier;
 	/**
 	 * Explicit AI-written text chunks extracted from the tool input
 	 * (see `editChunkExtractor.ts`). When provided, survival is scored
@@ -88,6 +90,7 @@ export class NullEditSurvivalReporterFactory implements IEditSurvivalReporterFac
 interface IEditSurvivalTelemetryEvent extends IAgentHostEventTelemetry {
 	provider: string;
 	modelId: string;
+	autoTier?: string;
 	toolName: string;
 	agentSessionId: string;
 	turnId: string;
@@ -109,6 +112,7 @@ interface IEditSurvivalTelemetryEvent extends IAgentHostEventTelemetry {
 type IEditSurvivalTelemetryClassification = IAgentHostEventClassification & {
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
 	modelId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model that produced the edit, e.g. "claude-sonnet-4.5" or "gpt-5-mini". Empty if the host could not determine the per-edit model.' };
+	autoTier?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The committed Copilot Auto tier (efficiency, balance, intelligence or fast) when the edit was produced under Auto. Omitted when unknown or not Auto.' };
 	toolName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Name of the edit tool that produced the edit, e.g. "Edit", "apply_patch". Empty if unknown.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
 	turnId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host turn identifier this edit belongs to.' };
@@ -207,6 +211,7 @@ class SessionEditSurvivalReporter extends Disposable {
 					...toInitiatorTelemetry(this._params.clientContext),
 					provider: this._params.provider ?? AgentSession.provider(sessionUri) ?? 'unknown',
 					modelId: this._params.modelId ?? '',
+					...(this._params.autoTier !== undefined ? { autoTier: this._params.autoTier } : {}),
 					toolName: this._params.toolName ?? '',
 					agentSessionId: AgentSession.id(sessionUri),
 					turnId: this._params.turnId,

@@ -120,7 +120,7 @@ export function getSessionStatusMessage(status: SessionStatus, description: IMar
 		case SessionStatus.InProgress:
 			return description ?? localize('working', "Working...");
 		case SessionStatus.NeedsInput:
-			return description ?? localize('needsInput', "Input needed");
+			return description ?? localize('needsInput', "Attention needed");
 		case SessionStatus.Error:
 			return description ?? localize('failed', "Failed");
 		default:

@@ -48,6 +48,7 @@ suite('Markdown editor bridge', () => {
 			const updates: { content: string; editEpoch: number }[] = [];
 			let updated: (() => void) | undefined;
 			renderer.register(markdownEditorRenderer, {
+				diagnosticsChanged: () => { },
 				update: update => { updates.push(update); updated?.(); },
 				codeBlockEditorProviders: () => { },
 				codeBlockEditorHostTransportMessage: () => { },

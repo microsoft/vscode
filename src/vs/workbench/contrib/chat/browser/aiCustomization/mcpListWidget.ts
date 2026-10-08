@@ -85,6 +85,8 @@ import { asTreeRenderer, customizationTreeStyles, getCustomizationTreeContentHei
 import { CustomizationToggle } from './customizationToggle.js';
 import { affectsCustomizationDiscoveryAvailability, isCustomizationDiscoveryAvailable } from './customizationMarketplaceConfiguration.js';
 import { renderCustomizationMarketplaceIcon } from './aiCustomizationPresentation.js';
+import { getAICustomizationWorkspaceGroupForResource, getAICustomizationWorkspaceGroups, isAICustomizationWorkspaceGroupKey } from './aiCustomizationWorkspaceGroups.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 
 export type { AgentHostMcpServer } from './mcpServerCount.js';
 
@@ -217,6 +219,7 @@ interface IMcpMarketplaceEntry {
 
 interface IMcpGroupHeaderEntry extends ICustomizationGroupHeaderEntry {
 	readonly group: string;
+	readonly workspaceFolder?: URI;
 }
 
 type IMcpSectionEntry = IMcpGroupHeaderEntry | IMcpInstalledEntry | IMcpMarketplaceEntry;
@@ -1296,8 +1299,9 @@ export function getActiveSessionServerProvenance(server: AgentHostMcpServer, age
 					: localize('mcpSourceBuiltin', "Built-in: {0}", agentLabel),
 			};
 		case 'managed':
-		case 'account':
 			return { label: localize('mcpSourceManaged', "Managed by {0}", agentLabel) };
+		case 'account':
+			return { label: localize('mcpSourceAccount', "Signed-in account") };
 		case 'plugin':
 			return server.sourcePluginName ? { label: localize('fromPlugin', "Plugin: {0}", server.sourcePluginName) } : undefined;
 		case 'workspace':
@@ -1323,9 +1327,13 @@ export function getActiveSessionServerDefinitionUnavailable(server: AgentHostMcp
 				...(settingId ? { settingId } : {}),
 			};
 		case 'managed':
-		case 'account':
 			return {
 				message: localize('mcpDefinitionManaged', "{0} manages this server, so its definition can't be viewed or edited.", agentLabel),
+				...(settingId ? { settingId } : {}),
+			};
+		case 'account':
+			return {
+				message: localize('mcpDefinitionAccount', "Your signed-in account provides this server, so its definition can't be viewed or edited."),
 				...(settingId ? { settingId } : {}),
 			};
 		default:
@@ -1960,6 +1968,7 @@ export class McpListWidget extends Disposable {
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@ILogService private readonly logService: ILogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
 		this.agentHostCustomizationsChanged = observableSignalFromEvent(this, this.agentHostCustomizationService.onDidChangeCustomizations);
@@ -2032,6 +2041,7 @@ export class McpListWidget extends Disposable {
 		if (this.customizationMarketplaceService.onDidChangeSources) {
 			this._register(this.customizationMarketplaceService.onDidChangeSources(() => void this.refresh()));
 		}
+		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => this.renderMcpTree()));
 		this._register({
 			dispose: () => {
 				this.delayedFilter.cancel();
@@ -2751,9 +2761,12 @@ export class McpListWidget extends Disposable {
 
 		const showGallery = !this.isGalleryDiscoveryEnabled();
 		const allInstalledEntries = this.installedEntries.map(presentation => presentation.entry);
+		const workspaceGroups = getAICustomizationWorkspaceGroups(this.workspaceContextService);
 		const grouped = new Map<string, IMcpSectionEntry[]>([
 			['user', []],
-			['workspace', []],
+			...(workspaceGroups.length > 0
+				? workspaceGroups.map(group => [group.key, []] as [string, IMcpSectionEntry[]])
+				: [['workspace', []] as [string, IMcpSectionEntry[]]]),
 			['plugins', []],
 			['extensions', []],
 			['builtin', []],
@@ -2761,19 +2774,26 @@ export class McpListWidget extends Disposable {
 		]);
 
 		for (const entry of allInstalledEntries) {
-			grouped.get(getMcpEntryGroup(entry))!.push(entry);
+			const group = getMcpEntryGroup(entry);
+			const sourceUri = getMcpEntrySourceUri(entry);
+			const groupKey = group === 'workspace' && workspaceGroups.length > 0
+				? (sourceUri ? getAICustomizationWorkspaceGroupForResource(sourceUri, this.workspaceContextService)?.key : undefined) ?? workspaceGroups[0].key
+				: group;
+			grouped.get(groupKey)!.push(entry);
 		}
 
 		const definitions = [
 			{ id: 'user', label: localize('userMcpServersGroup', "User"), description: localize('userMcpServersGroupDescription', "MCP servers configured for your profile and available across workspaces."), icon: Codicon.account },
-			{ id: 'workspace', label: localize('workspaceMcpServersGroup', "Workspace"), description: localize('workspaceMcpServersGroupDescription', "MCP servers configured by this workspace."), icon: Codicon.folder },
+			...(workspaceGroups.length > 0
+				? workspaceGroups.map(group => ({ id: group.key, label: group.label, description: localize('workspaceMcpServersGroupDescription', "MCP servers configured by this workspace."), icon: Codicon.folder, workspaceFolder: group.uri }))
+				: [{ id: 'workspace', label: localize('workspaceMcpServersGroup', "Workspace"), description: localize('workspaceMcpServersGroupDescription', "MCP servers configured by this workspace."), icon: Codicon.folder, workspaceFolder: undefined }]),
 			{ id: 'plugins', label: localize('pluginMcpServersGroup', "Plugins"), description: localize('pluginMcpServersGroupDescription', "MCP servers provided by installed plugins or connected connectors."), icon: Codicon.plug },
 			{ id: 'extensions', label: localize('extensionMcpServersGroup', "Extensions"), description: localize('extensionMcpServersGroupDescription', "MCP servers provided by installed extensions."), icon: Codicon.extensions },
 			{ id: 'builtin', label: localize('builtinMcpServersGroup', "Built-In"), description: localize('builtinMcpServersGroupDescription', "MCP servers built into the application or active agent host."), icon: mcpServerIcon },
 			{ id: 'available', label: localize('availableMcpServersSection', "Available"), description: localize('availableMcpServersSectionDescription', "Browse and install MCP servers from the marketplace."), icon: Codicon.globe },
 		].filter(group => group.id === 'available'
 			? showGallery
-			: group.id === 'user' || group.id === 'workspace' || grouped.get(group.id)!.length > 0);
+			: group.id === 'user' || group.id === 'workspace' || isAICustomizationWorkspaceGroupKey(group.id) || grouped.get(group.id)!.length > 0);
 
 		this.currentTreeGroups = definitions.map((group, index): ICustomizationTreeGroup<IMcpSectionEntry> => {
 			const entries = grouped.get(group.id)!;
@@ -2787,6 +2807,7 @@ export class McpListWidget extends Disposable {
 				isFirst: index === 0,
 				description: group.description,
 				collapsed: false,
+				workspaceFolder: group.workspaceFolder,
 			};
 			return {
 				id: group.id,
@@ -2845,13 +2866,13 @@ export class McpListWidget extends Disposable {
 	}
 
 	private renderMcpTreeGroupActions(entry: IMcpGroupHeaderEntry, container: HTMLElement, disposables: DisposableStore): void {
-		if (entry.group !== 'user' && entry.group !== 'workspace') {
+		if (entry.group !== 'user' && entry.group !== 'workspace' && !isAICustomizationWorkspaceGroupKey(entry.group)) {
 			return;
 		}
-		this.renderInstalledSectionActionsWithDisposables(container, disposables, entry.group === 'user');
+		this.renderInstalledSectionActionsWithDisposables(container, disposables, entry.group === 'user', entry.workspaceFolder);
 	}
 
-	private renderInstalledSectionActionsWithDisposables(header: HTMLElement, disposables: DisposableStore, showBrowse: boolean): void {
+	private renderInstalledSectionActionsWithDisposables(header: HTMLElement, disposables: DisposableStore, showBrowse: boolean, workspaceFolder?: URI): void {
 		const actions = DOM.append(header, $('.plugin-card-section-actions'));
 		const addLabel = localize('addServer', "Add Server");
 		const add = disposables.add(new Button(actions, {
@@ -2869,7 +2890,7 @@ export class McpListWidget extends Disposable {
 		add.element.classList.add('plugin-installed-action', 'plugin-card-ghost-button', 'plugin-card-icon-button');
 		add.icon = Codicon.add;
 		this.firstCardFocusElement ??= add.element;
-		disposables.add(add.onDidClick(() => this.commandService.executeCommand(McpCommandIds.AddConfiguration)));
+		disposables.add(add.onDidClick(() => this.commandService.executeCommand(McpCommandIds.AddConfiguration, workspaceFolder)));
 		if (showBrowse && isCustomizationDiscoveryAvailable(this.configurationService, this.customizationMarketplaceService)) {
 			const browseLabel = localize('browseMcps', "Browse MCPs");
 			const browse = disposables.add(new Button(actions, {

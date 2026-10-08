@@ -6,8 +6,8 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ChatSessionArchiveActionWording } from '../../../../../../platform/chat/common/sessionArchiveActions.js';
-import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { MockKeybindingService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { getTabbedActionListKeybindingLabels } from '../../../../../../platform/actionWidget/browser/tabbedActionListWidget.js';
 import { getAccessibilityHelpText } from '../../../browser/actions/chatAccessibilityHelp.js';
 import { AGENT_SESSION_RENAME_ACTION_ID } from '../../../browser/agentSessions/agentSessions.js';
 
@@ -15,6 +15,19 @@ suite('Chat Accessibility Help', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	for (const type of ['panelChat', 'agentView', 'editsView', 'inlineChat', 'quickChat'] as const) {
+		test(`documents the sharing toggle and backend selection (${type})`, () => {
+			const help = getAccessibilityHelpText(type, new MockKeybindingService(), false);
+			assert.deepStrictEqual({
+				backend: help.includes('chat.agentHost.remoteConnections setting selects Dev Tunnel or GitHub environment'),
+				explicitOptIn: help.includes('Selecting a backend does not enable sharing; changing it turns sharing off'),
+				keyboard: help.includes('Enter or Space to enable or disable sharing'),
+			}, {
+				backend: type !== 'inlineChat' && type !== 'quickChat',
+				explicitOptIn: type !== 'inlineChat' && type !== 'quickChat',
+				keyboard: type !== 'inlineChat' && type !== 'quickChat',
+			});
+		});
+
 		test(`only describes visible Codex continuation UI (${type})`, () => {
 			const keybindings = new MockKeybindingService();
 			const hidden = getAccessibilityHelpText(type, keybindings, false);
@@ -77,6 +90,8 @@ suite('Chat Accessibility Help', () => {
 		test(`documents Copilot introduction and Agents Window invitation behavior in ${type}`, () => {
 			const help = getAccessibilityHelpText(type, new MockKeybindingService(), false);
 			assert.deepStrictEqual({
+				preserveSessions: help.includes('without changing its active or visible sessions, unless the action explicitly requests a session or New Session'),
+				preserveNewSessionDraft: help.includes('Revealing New Session preserves any unsent draft'),
 				introductionModes: help.includes('when the session starts or after the first request is submitted'),
 				introductionPersists: help.includes('sending messages does not dismiss it'),
 				introductionActions: help.includes('let us know, Learn More, Got it!, or Not Helpful'),
@@ -95,9 +110,11 @@ suite('Chat Accessibility Help', () => {
 				preserve: help.includes('Sending another message or completing a task does not dismiss the invitation'),
 				mute: help.includes('Don\'t Show Again turns off all future Agents Window invitations'),
 				dismiss: help.includes('created five more Agent Host sessions in editor windows and at least 24 hours have passed'),
-				input: help.includes('temporarily hidden while the session needs input'),
+				input: help.includes('temporarily hidden while the session needs attention'),
 				hiddenInAgents: !getAccessibilityHelpText(type, new MockKeybindingService(), false, true).includes('new Copilot harness chat'),
 			}, {
+				preserveSessions: true,
+				preserveNewSessionDraft: true,
 				introductionModes: true,
 				introductionPersists: true,
 				introductionActions: true,
@@ -190,6 +207,19 @@ suite('Chat Accessibility Help', () => {
 		}, { details: true, inspection: true, inputShortcut: true, defaults: true, visibility: true, inlinePreferences: true, hydra: true, hydraDescription: true, activation: true, autoEntry: true, noAutoDetails: true });
 	});
 
+	test('documents Right Arrow details, provider tab keys, and the Back keys', () => {
+		const keybindingService = new MockKeybindingService();
+		const keys = getTabbedActionListKeybindingLabels(keybindingService);
+		const help = getAccessibilityHelpText('agentView', keybindingService, true);
+		assert.deepStrictEqual({
+			rightArrow: help.includes('without selecting it, press Right Arrow'),
+			selection: help.includes('Use Up and Down Arrow to focus a model and Enter to select it'),
+			tabs: help.includes(`use ${keys.nextTab} and ${keys.previousTab} to switch to the next or previous provider tab`),
+			tabBar: help.includes('When a provider tab is focused, Left and Right Arrow also switch tabs'),
+			back: help.includes(`Back to Models, or ${keys.back}, returns to the previous provider`),
+		}, { rightArrow: true, selection: true, tabs: true, tabBar: true, back: true });
+	});
+
 	test('documents keyboard search in the model picker', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({
@@ -279,9 +309,7 @@ suite('Chat Accessibility Help', () => {
 	});
 
 	test('only describes inline attachment references when supported', () => {
-		const keybindingService = {
-			lookupKeybindings: () => [],
-		} as unknown as IKeybindingService;
+		const keybindingService = new MockKeybindingService();
 
 		assert.deepStrictEqual({
 			supported: getAccessibilityHelpText('agentView', keybindingService, true).includes('type # or @'),
@@ -293,9 +321,7 @@ suite('Chat Accessibility Help', () => {
 	});
 
 	test('describes long pasted text attachments regardless of line count', () => {
-		const keybindingService = {
-			lookupKeybindings: () => [],
-		} as unknown as IKeybindingService;
+		const keybindingService = new MockKeybindingService();
 
 		assert.deepStrictEqual({
 			agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes('Long pasted text, including single-line text'),
@@ -307,9 +333,7 @@ suite('Chat Accessibility Help', () => {
 	});
 
 	test('describes the VS Code pet context menu', () => {
-		const keybindingService = {
-			lookupKeybindings: () => [],
-		} as unknown as IKeybindingService;
+		const keybindingService = new MockKeybindingService();
 		const helpText = getAccessibilityHelpText('agentView', keybindingService, true);
 
 		assert.deepStrictEqual({
@@ -338,9 +362,7 @@ suite('Chat Accessibility Help', () => {
 	});
 
 	test('only describes the selection side chat affordance in the sessions window', () => {
-		const keybindingService = {
-			lookupKeybindings: () => [],
-		} as unknown as IKeybindingService;
+		const keybindingService = new MockKeybindingService();
 
 		assert.deepStrictEqual({
 			sessionsWindow: getAccessibilityHelpText('agentView', keybindingService, true, true).includes('Ask Question'),
@@ -352,9 +374,7 @@ suite('Chat Accessibility Help', () => {
 	});
 
 	test('only describes the sticky prompt header when it is shown', () => {
-		const keybindingService = {
-			lookupKeybindings: () => [],
-		} as unknown as IKeybindingService;
+		const keybindingService = new MockKeybindingService();
 		const shownHelp = getAccessibilityHelpText('agentView', keybindingService, true, false, true);
 		const hiddenHelp = getAccessibilityHelpText('agentView', keybindingService, true, false, false);
 
@@ -372,9 +392,7 @@ suite('Chat Accessibility Help', () => {
 	});
 
 	test('only describes spoken agent progress in agent mode', () => {
-		const keybindingService = {
-			lookupKeybindings: () => [],
-		} as unknown as IKeybindingService;
+		const keybindingService = new MockKeybindingService();
 
 		assert.deepStrictEqual({
 			agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes('brief progress updates'),
@@ -439,9 +457,7 @@ suite('Chat Accessibility Help', () => {
 	});
 
 	test('documents session status pill keyboard interaction', () => {
-		const keybindingService = {
-			lookupKeybindings: () => [],
-		} as unknown as IKeybindingService;
+		const keybindingService = new MockKeybindingService();
 
 		assert.deepStrictEqual({
 			panelChat: getAccessibilityHelpText('panelChat', keybindingService, true).includes('left and right arrow keys to move between pills'),
@@ -485,9 +501,7 @@ suite('Chat Accessibility Help', () => {
 	});
 
 	test('documents transcript Find everywhere it is enabled, but not in quick chat', () => {
-		const keybindingService = {
-			lookupKeybindings: () => [],
-		} as unknown as IKeybindingService;
+		const keybindingService = new MockKeybindingService();
 
 		assert.deepStrictEqual({
 			panelChat: getAccessibilityHelpText('panelChat', keybindingService, true).includes('<keybinding:workbench.action.chat.find>'),
@@ -505,9 +519,7 @@ suite('Chat Accessibility Help', () => {
 	});
 
 	test('documents session rename where the focused-chat keybinding is enabled', () => {
-		const keybindingService = {
-			lookupKeybindings: () => [],
-		} as unknown as IKeybindingService;
+		const keybindingService = new MockKeybindingService();
 		const keybinding = `<keybinding:${AGENT_SESSION_RENAME_ACTION_ID}>`;
 
 		assert.deepStrictEqual({

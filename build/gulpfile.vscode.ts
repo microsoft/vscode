@@ -504,6 +504,9 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 			glob('**/*explorer_command*.dll', { cwd }),
 			// TODO@anthonykim1 Remove once @github/copilot ships OneAuthInterop.dll with complete version information.
 			glob('**/OneAuthInterop.dll', { cwd }),
+			// The @microsoft/mxc-sdk nested node-pty ships winpty binaries without a ProductName
+			// VersionInfo resource, so stamp them here to satisfy artifact sanity validation.
+			glob('**/@microsoft/mxc-sdk/node_modules/node-pty/build/Release/winpty{,-agent}.{dll,exe}', { cwd }),
 		])).flatMap(o => o);
 		const packageJson = JSON.parse(await fs.promises.readFile(path.join(cwd, versionedResourcesFolder, 'resources', 'app', 'package.json'), 'utf8'));
 		const product = JSON.parse(await fs.promises.readFile(path.join(cwd, versionedResourcesFolder, 'resources', 'app', 'product.json'), 'utf8'));
