@@ -8,6 +8,7 @@ import { ConfigurationScope, IConfigurationPropertySchema } from '../../configur
 import product from '../../product/common/product.js';
 import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostDeferredTitleGenerationConfigKey, AgentHostTitleGenerationConfigKey, AgentHostTitleGenerationStrategies, type AgentHostSelectableTitleGenerationStrategy, type AgentHostTitleGenerationStrategy } from './agentHostSchema.js';
 import { AgentHostTitleGenerationSettingId } from './agentService.js';
+import type { IRootConfigChangedAction } from './state/sessionActions.js';
 
 export const titleGenerationConfigurationProperties = {
 	[AgentHostTitleGenerationSettingId]: {
@@ -49,6 +50,25 @@ function titleGenerationStrategyFromLegacySettings(deferred: unknown, activeAgen
 export function migrateLegacyTitleGenerationSettings(deferred: unknown, activeAgent: unknown): AgentHostSelectableTitleGenerationStrategy | undefined {
 	const strategy = titleGenerationStrategyFromLegacySettings(deferred, activeAgent);
 	return strategy === 'deferred' ? 'agentReview' : strategy;
+}
+
+/**
+ * Lets a client that predates `titleGeneration` change the strategy on a host that persisted one from a newer client.
+ * Newer clients always send the strategy with its derived legacy keys, so a merge patch that changes only the legacy
+ * keys comes from an older client. It is rewritten as a replacement of the merged values without the stored strategy,
+ * which makes the host fall back to the legacy keys and keeps client mirrors of the root config in step.
+ */
+export function supersedeTitleGenerationStrategyForLegacyUpdate(currentValues: Readonly<Record<string, unknown>> | undefined, action: IRootConfigChangedAction): IRootConfigChangedAction {
+	const patch = action.config;
+	if (action.replace || !currentValues || !Object.hasOwn(currentValues, AgentHostTitleGenerationConfigKey) || Object.hasOwn(patch, AgentHostTitleGenerationConfigKey)) {
+		return action;
+	}
+	const changesLegacyKey = [AgentHostDeferredTitleGenerationConfigKey, AgentHostActiveAgentTitleGenerationConfigKey].some(key => Object.hasOwn(patch, key) && patch[key] !== currentValues[key]);
+	if (!changesLegacyKey) {
+		return action;
+	}
+	const { [AgentHostTitleGenerationConfigKey]: _supersededStrategy, ...config } = { ...currentValues, ...patch };
+	return { ...action, config, replace: true };
 }
 
 /** Resolves the strategy for new sessions, falling back to the legacy boolean root keys sent by older clients. */

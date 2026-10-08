@@ -40,7 +40,8 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { AgentChatMigrationDeferred, AgentSession, AgentWorkingDirectoryChangedError, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agent.js';
 import { IConnectionTrackerService } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
-import { AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostArtifactToolsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostSessionCatalogEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, platformRootSchema, AgentHostDeferredTitleGenerationConfigKey, AgentHostTitleGenerationConfigKey, AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostArtifactToolsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostSessionCatalogEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
+import { resolveTitleGenerationStrategy } from '../../common/titleGenerationConfiguration.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { buildCanvasUri } from '../../common/canvasUri.js';
 import type { CanvasState } from '../../common/state/protocol/channels-canvas/state.js';
@@ -5028,6 +5029,44 @@ suite('AgentService (node dispatcher)', () => {
 				localDisposables.dispose();
 				await rm(tempDir.fsPath, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 			}
+		});
+
+		test('an older client can change the title strategy after a newer client persisted one', () => {
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const configurationService = getConfigurationService(svc);
+			const resolveHostStrategy = () => resolveTitleGenerationStrategy(
+				configurationService.getRootValue(platformRootSchema, AgentHostTitleGenerationConfigKey),
+				configurationService.getRootValue(platformRootSchema, AgentHostDeferredTitleGenerationConfigKey),
+				configurationService.getRootValue(platformRootSchema, AgentHostActiveAgentTitleGenerationConfigKey),
+			);
+			const strategies: string[] = [];
+
+			svc.dispatchAction(ROOT_STATE_URI, {
+				type: ActionType.RootConfigChanged,
+				config: { [AgentHostTitleGenerationConfigKey]: 'agentReview', [AgentHostActiveAgentTitleGenerationConfigKey]: false, [AgentHostDeferredTitleGenerationConfigKey]: true },
+			}, 'new-client', 1);
+			strategies.push(resolveHostStrategy());
+
+			// Reconnecting with legacy values that already match keeps the newer strategy.
+			svc.dispatchAction(ROOT_STATE_URI, {
+				type: ActionType.RootConfigChanged,
+				config: { [AgentHostActiveAgentTitleGenerationConfigKey]: false, [AgentHostDeferredTitleGenerationConfigKey]: true },
+			}, 'old-client', 1);
+			strategies.push(resolveHostStrategy());
+
+			svc.dispatchAction(ROOT_STATE_URI, {
+				type: ActionType.RootConfigChanged,
+				config: { [AgentHostActiveAgentTitleGenerationConfigKey]: true, [AgentHostDeferredTitleGenerationConfigKey]: false },
+			}, 'old-client', 2);
+			strategies.push(resolveHostStrategy());
+
+			svc.dispatchAction(ROOT_STATE_URI, {
+				type: ActionType.RootConfigChanged,
+				config: { [AgentHostTitleGenerationConfigKey]: 'utility', [AgentHostActiveAgentTitleGenerationConfigKey]: false, [AgentHostDeferredTitleGenerationConfigKey]: false },
+			}, 'new-client', 2);
+			strategies.push(resolveHostStrategy());
+
+			assert.deepStrictEqual(strategies, ['agentReview', 'agentReview', 'activeAgent', 'utility']);
 		});
 
 		test('generates and persists an AI title after first-turn fallback title', async () => {

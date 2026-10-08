@@ -8,7 +8,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { ConfigurationScope } from '../../../configuration/common/configurationRegistry.js';
 import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostDeferredTitleGenerationConfigKey, AgentHostTitleGenerationConfigKey, AgentHostTitleGenerationStrategies } from '../../common/agentHostSchema.js';
 import { AgentHostTitleGenerationSettingId } from '../../common/agentService.js';
-import { migrateLegacyTitleGenerationSettings, resolveTitleGenerationStrategy, titleGenerationConfigurationProperties } from '../../common/titleGenerationConfiguration.js';
+import { ActionType } from '../../common/state/sessionActions.js';
+import { migrateLegacyTitleGenerationSettings, resolveTitleGenerationStrategy, supersedeTitleGenerationStrategyForLegacyUpdate, titleGenerationConfigurationProperties } from '../../common/titleGenerationConfiguration.js';
 
 suite('TitleGenerationConfiguration', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -61,5 +62,25 @@ suite('TitleGenerationConfiguration', () => {
 			resolveTitleGenerationStrategy(undefined, false, true),
 			resolveTitleGenerationStrategy(undefined, undefined, undefined),
 		], ['agentReview', 'utility', 'deferred', 'activeAgent', 'utility']);
+	});
+
+	test('a legacy-only root update that changes a legacy key supersedes the stored strategy', () => {
+		const stored = { other: 1, [AgentHostTitleGenerationConfigKey]: 'agentReview', [AgentHostActiveAgentTitleGenerationConfigKey]: false, [AgentHostDeferredTitleGenerationConfigKey]: true };
+		const update = (config: Record<string, unknown>, replace?: boolean, currentValues: Record<string, unknown> | undefined = stored) =>
+			supersedeTitleGenerationStrategyForLegacyUpdate(currentValues, { type: ActionType.RootConfigChanged, config, replace });
+
+		assert.deepStrictEqual([
+			update({ [AgentHostActiveAgentTitleGenerationConfigKey]: true, [AgentHostDeferredTitleGenerationConfigKey]: false }),
+			update({ [AgentHostActiveAgentTitleGenerationConfigKey]: false, [AgentHostDeferredTitleGenerationConfigKey]: true }),
+			update({ [AgentHostTitleGenerationConfigKey]: 'utility', [AgentHostActiveAgentTitleGenerationConfigKey]: false, [AgentHostDeferredTitleGenerationConfigKey]: false }),
+			update({ [AgentHostActiveAgentTitleGenerationConfigKey]: true }, true),
+			update({ [AgentHostActiveAgentTitleGenerationConfigKey]: true }, undefined, { other: 1 }),
+		], [
+			{ type: ActionType.RootConfigChanged, config: { other: 1, [AgentHostActiveAgentTitleGenerationConfigKey]: true, [AgentHostDeferredTitleGenerationConfigKey]: false }, replace: true },
+			{ type: ActionType.RootConfigChanged, config: { [AgentHostActiveAgentTitleGenerationConfigKey]: false, [AgentHostDeferredTitleGenerationConfigKey]: true }, replace: undefined },
+			{ type: ActionType.RootConfigChanged, config: { [AgentHostTitleGenerationConfigKey]: 'utility', [AgentHostActiveAgentTitleGenerationConfigKey]: false, [AgentHostDeferredTitleGenerationConfigKey]: false }, replace: undefined },
+			{ type: ActionType.RootConfigChanged, config: { [AgentHostActiveAgentTitleGenerationConfigKey]: true }, replace: true },
+			{ type: ActionType.RootConfigChanged, config: { [AgentHostActiveAgentTitleGenerationConfigKey]: true }, replace: undefined },
+		]);
 	});
 });
