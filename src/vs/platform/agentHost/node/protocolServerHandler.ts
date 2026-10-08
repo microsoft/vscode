@@ -3040,16 +3040,12 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			if (!record || !this._hasSubscriptionInOtherConnection(record, client, sub.uri)) {
 				this._agentService.unsubscribe(URI.parse(sub.uri), client.clientId);
 			}
-			if (!sub.active) {
-				this._reconcileActiveClientSubscriptions(client);
-				return;
-			}
-			if (isAhpChatChannel(sub.uri)) {
+			if (!sub.active || !isAhpChatChannel(sub.uri)) {
+				this._reconcileActiveClientSubscriptions(client, false, isAhpChatChannel(sub.uri) ? [sub.uri] : []);
+			} else {
 				const session = parseRequiredSessionUriFromChatUri(sub.uri);
 				this._releaseClientChat(session, client.clientId, sub.uri);
 				this._removeUnsubscribedActiveClient(session, client.clientId);
-			} else {
-				this._releaseClientSession(sub.uri, client.clientId);
 			}
 		} else if (sub.kind === ChannelKind.ResourceWatch) {
 			this._agentService.onResourceWatchUnsubscribed(sub.uri);

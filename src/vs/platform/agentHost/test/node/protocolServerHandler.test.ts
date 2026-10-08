@@ -6326,6 +6326,47 @@ suite('ProtocolServerHandler', () => {
 			}, { clients: [clientId], routing: true });
 		});
 
+		for (const outcome of ['success', 'failure', 'cancelled'] as const) {
+			test(`session unsubscribe suspends a pending unpublished chat that settles with ${outcome}`, async () => {
+				createSessionWithClientTools();
+				const unpublishedChat = buildChatUri(sessionUri, 'unpublished');
+				const departing = disposables.add(connectClient(clientId, [sessionUri]));
+				const restoring = disposables.add(connectClient(clientId));
+				await handler.whenIdle();
+				const barrier = new DeferredPromise<void>();
+				agentService.subscribeBarriers.set(unpublishedChat, barrier);
+				restoring.simulateMessage(request(2, 'subscribe', { channel: unpublishedChat }));
+				departing.simulateMessage(notification('unsubscribe', { channel: sessionUri }));
+				const pending = {
+					routing: agentService.clientChatSubscriptions.filter(subscription => subscription.chat === unpublishedChat).at(-1)?.subscribed,
+					clients: stateManager.getSessionState(sessionUri)?.activeClients.map(client => client.clientId),
+				};
+				if (outcome === 'cancelled') {
+					restoring.simulateMessage(notification('unsubscribe', { channel: unpublishedChat }));
+				}
+				if (outcome === 'failure') {
+					await barrier.error(new Error('Restore failed'));
+				} else {
+					stateManager.addChat(sessionUri, unpublishedChat);
+					await barrier.complete();
+				}
+				await handler.whenIdle();
+				const response = findResponse(restoring.sent, 2);
+
+				assert.deepStrictEqual({
+					pending,
+					succeeded: response !== undefined && hasKey(response, { result: true }),
+					routing: agentService.clientChatSubscriptions.filter(subscription => subscription.chat === unpublishedChat).at(-1)?.subscribed,
+					clients: stateManager.getSessionState(sessionUri)?.activeClients.map(client => client.clientId),
+				}, {
+					pending: { routing: false, clients: [clientId] },
+					succeeded: outcome === 'success',
+					routing: outcome === 'success',
+					clients: outcome === 'success' ? [clientId] : [],
+				});
+			});
+		}
+
 		for (const outcome of ['success', 'failure'] as const) {
 			test(`grace-record initialization suspends routing while chat restore settles with ${outcome}`, async () => {
 				createSessionWithClientTools();
