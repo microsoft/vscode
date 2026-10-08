@@ -8,7 +8,7 @@ import * as cp from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { Application, ApplicationOptions, Logger, Quality } from '../../../../automation';
-import { createApp, dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, getMockLlmServerUrl, installAppAfterHandler, installDiagnosticsHandler, MockLlmServer, suiteCrashPath, suiteLogsPath } from '../../utils';
+import { createApp, dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, getMockLlmServerUrl, installAppAfterHandler, installDiagnosticsHandler, latestUserInputCarriesTag, MockLlmServer, suiteCrashPath, suiteLogsPath } from '../../utils';
 import { shellEchoResponseMatcher, shellEchoScenario } from '../chat/shellScenarios';
 import { createRemoteDevContainerFixture, getDevContainerCliInstallCommand, getTunnelSmokeTestAvailability, IRemoteDevContainerFixture, RemoteDevContainerTransport } from './remoteDevContainerFixtures';
 
@@ -146,11 +146,22 @@ export function setup(logger: Logger, quality: Quality) {
 			const app = this.app as Application;
 
 			try {
+				const requestsBefore = agentHost.mockServer.getRequests().length;
 				await app.workbench.agentsWindow.waitForNewSessionView();
 				await app.workbench.agentsWindow.selectSessionType('Copilot');
 				await app.workbench.agentsWindow.submitNewSessionPrompt(`replace the new session UI [scenario:${AGENT_HOST_REPLACEMENT_SCENARIO_ID}]`);
 				await app.workbench.agentsWindow.waitForActiveSessionView();
 				await app.workbench.agentsWindow.waitForAssistantText(AGENT_HOST_REPLACEMENT_REPLY);
+				if (process.env.VSCODE_SMOKE_TEST_PROXY_HEADER) {
+					assert.ok(
+						agentHost.mockServer.getRequests().slice(requestsBefore).some(request =>
+							request.path === '/chat/completions' &&
+							request.method === 'POST' &&
+							latestUserInputCarriesTag(request.body, 'Please write a brief branch name for the following request:') &&
+							latestUserInputCarriesTag(request.body, `[scenario:${AGENT_HOST_REPLACEMENT_SCENARIO_ID}]`)),
+						'Expected worktree branch generation to reach the mock CAPI server through the proxy; a chat reply alone does not exercise authenticated Agent Host fetch'
+					);
+				}
 				await app.workbench.agentsWindow.startNewSession();
 			} catch (error) {
 				logger.log(`Agents Window (AgentHost replacement) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
@@ -728,7 +739,7 @@ function setupAgentHostSuite(logger: Logger, config: {
 		config.registerScenarios({ ScenarioBuilder, registerScenario });
 
 		mockServer = await startServer(0, {
-			...mockServerStartOptions((msg: string) => logger.log(msg)),
+			...mockServerStartOptions((msg: string) => logger.log(msg), !!process.env.VSCODE_SMOKE_TEST_PROXY_HEADER),
 			host: config.mockServerHost,
 		});
 		logger.log(`Mock LLM server (${config.serverLabel}) started at ${getMockLlmServerUrl(mockServer)}`);

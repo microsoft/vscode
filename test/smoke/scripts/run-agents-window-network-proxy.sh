@@ -336,6 +336,7 @@ if [[ "$PROXY_AUTH" == "kerberos" ]]; then
 	fi
 	KRB5_CONFIG="$KERBEROS_CONFIG" KRB5CCNAME="$KERBEROS_CACHE" \
 		curl --fail --silent --connect-timeout 3 --proxy http://localhost:43144 --noproxy '' --proxy-negotiate --proxy-user : "$PAC_URL" >/dev/null
+	kerberos_auth_requests_before_smoke="$(wc -l < "$KERBEROS_AUTH_LOG")"
 fi
 
 cd "$ROOT"
@@ -363,7 +364,7 @@ if ! grep -Fq "$MOCK_HOST" "$SQUID_ACCESS_LOG"; then
 	exit 1
 fi
 if [[ "$PROXY_AUTH" == "kerberos" ]]; then
-	if ! grep -Fq "$KERBEROS_USERNAME@$KERBEROS_REALM" "$KERBEROS_AUTH_LOG"; then
+	if ! awk -v before="$kerberos_auth_requests_before_smoke" -v user="$KERBEROS_USERNAME@$KERBEROS_REALM" 'NR > before && $0 == user { found=1 } END { exit !found }' "$KERBEROS_AUTH_LOG"; then
 		echo "Squid did not validate a Kerberos token from the Agents Window smoke test" >&2
 		exit 1
 	fi
