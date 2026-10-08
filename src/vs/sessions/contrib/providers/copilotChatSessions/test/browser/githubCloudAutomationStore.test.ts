@@ -223,6 +223,63 @@ suite('GitHubCloudAutomationStore', () => {
 		});
 	}));
 
+	test('checks only the requested folder and resolves a canonical repository without discovery', async () => {
+		const { store, api } = setup(() => workspace);
+		const target = store.getWorkspaceTarget(URI.file('/repo'));
+		assert.ok(target.get().disabledReason);
+		await timeout(0);
+		assert.deepStrictEqual({
+			target: target.get(), calls: api.calls.map(call => call.method), entries: store.entries.get(),
+			cached: target === store.getWorkspaceTarget(URI.file('/repo')),
+		}, { target: { workspace }, calls: ['visibility'], entries: [], cached: true });
+	});
+
+	for (const visibility of [false, new Error('Offline')]) {
+		test(`fails closed for ${visibility === false ? 'public' : 'unverifiable'} repositories`, async () => {
+			const { store, api } = setup();
+			api.visibility.set(repository.name, visibility);
+			const target = store.getWorkspaceTarget(workspace);
+			await timeout(0);
+			assert.deepStrictEqual({ blocked: !!target.get().disabledReason, public: target.get().isPublicRepository, workspace: target.get().workspace, calls: api.calls.map(call => call.method) }, {
+				blocked: true, public: visibility === false ? true : undefined, workspace: undefined, calls: ['visibility'],
+			});
+		});
+	}
+
+	for (const invalidate of ['account', 'dispose'] as const) {
+		test(`invalidates observed eligibility on ${invalidate} and ignores late responses`, async () => {
+			const { store, api, changeAccount } = setup();
+			const pending = new DeferredPromise<boolean>();
+			api.visibility.set(repository.name, pending.p);
+			const target = store.getWorkspaceTarget(workspace);
+			await timeout(0);
+			if (invalidate === 'account') {
+				changeAccount({ ...account, sessionId: 'other-session' });
+			} else {
+				store.dispose();
+			}
+			await pending.complete(true);
+			await timeout(0);
+			assert.deepStrictEqual({ blocked: !!target.get().disabledReason, workspace: target.get().workspace, cancelled: api.calls[0].token.aborted }, {
+				blocked: true, workspace: undefined, cancelled: true,
+			});
+		});
+	}
+
+	test('bounds parallel eligibility reads and never enumerates account repositories', async () => {
+		const { store, api } = setup();
+		const pending = new DeferredPromise<boolean>();
+		for (let i = 0; i < 12; i++) {
+			api.visibility.set(`repo-${i}`, pending.p);
+			store.getWorkspaceTarget(URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/owner/repo-${i}/HEAD` }));
+		}
+		await timeout(0);
+		assert.strictEqual(api.calls.length, 5);
+		await pending.complete(true);
+		await timeout(0);
+		assert.deepStrictEqual(api.calls.map(call => call.method), Array(12).fill('visibility'));
+	});
+
 	test('coordinates create, preflight update, acknowledgement-only run and deletion', async () => {
 		const { store, api } = setup();
 		const entry = await store.create(workspace, createValue);

@@ -45,6 +45,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, AutomationTarget } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationDialogResult, IAutomationDialogService, IShowAutomationDialogOptions } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
+import { automationScheduleToLocal, DAYS_OF_WEEK } from '../../../../../workbench/contrib/chat/common/automations/schedule.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { AutomationCatalogueState, AutomationMutationGuard, IAutomationProviderDescriptor, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
@@ -160,6 +161,7 @@ class FakeAutomationService extends mock<IAutomationService>() {
 	override readonly runs: IObservable<readonly IAutomationRun[]> = this.runValue;
 	override readonly catalogueState: IObservable<AutomationCatalogueState> = this.catalogueStateValue;
 	override readonly unavailableProviders: IObservable<readonly IAutomationProviderDescriptor[]> = this.unavailableProvidersValue;
+	override readonly availableProviders = constObservable<readonly IAutomationProviderDescriptor[]>([]);
 	updateResult: IGuardedAutomationUpdateResult | undefined;
 	updateCalls = 0;
 	createError: Error | undefined;
@@ -736,6 +738,25 @@ suite('AutomationsCardsWidget', () => {
 			fallbackRows: 0,
 		});
 	});
+
+	for (const interval of ['daily', 'weekly'] as const) {
+		test(`renders ${interval} UTC schedule in local time consistently in cards and accessible view`, () => {
+			const { automationService, widget } = setup();
+			const item = automation({ schedule: { interval, timeZone: 'UTC', scheduleHour: 2, scheduleMinute: 45, scheduleDay: 0 } });
+			const local = automationScheduleToLocal(item.schedule);
+			const time = new Date(Date.UTC(2000, 0, 1, local.scheduleHour, local.scheduleMinute))
+				.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' });
+			const expected = `${interval === 'daily' ? 'Daily' : DAYS_OF_WEEK[local.scheduleDay]} at ${time} (local)`;
+			automationService.setAutomations([item]);
+			const accessible = buildAutomationsAccessibleContent([item], [], 'ready');
+			assert.deepStrictEqual({
+				card: widget.element.querySelector('.automations-card-schedule')?.textContent,
+				accessible: accessible.includes(`Schedule: ${expected}`),
+				canonicalHour: item.schedule.scheduleHour,
+				canonicalZone: item.schedule.timeZone,
+			}, { card: expected, accessible: true, canonicalHour: 2, canonicalZone: 'UTC' });
+		});
+	}
 
 	test('renders card metadata below the prompt and updates enabled and workspace states', async () => {
 		const { automationService, automationDialogService, widget } = setup();

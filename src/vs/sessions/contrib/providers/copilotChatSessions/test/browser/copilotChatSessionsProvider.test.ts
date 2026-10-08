@@ -2345,6 +2345,17 @@ suite('CopilotChatSessionsProvider', () => {
 	suite('Automation session configuration', () => {
 		const workspace = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/owner/repo/HEAD' });
 
+		test('enabled cloud automations capture model and opaque tools without local approval defaults', async () => {
+			const configurationService = new TestConfigurationService({ chat: { automations: { enabled: true, cloud: { enabled: true } } } });
+			const provider = createProviderForSendTests(disposables, model, async () => { throw new Error('Configuration must not send a request.'); }, { configurationService });
+			const sessionTemplate = { modelId: 'cloud-model', config: { tools: ['read', 'future-tool'], reasoningEffort: 'high' } };
+			const session = provider.createNewSession(workspace, CopilotCloudSessionType.id, { automationConfiguration: { sessionTemplate } });
+			assert.deepStrictEqual({
+				canConfigure: provider.supportsAutomationSessionConfiguration,
+				captured: await provider.getAutomationSessionConfiguration(session.sessionId),
+			}, { canConfigure: true, captured: { sessionTemplate } });
+		});
+
 		test('restores and captures Automation session configuration', async () => {
 			const provider = createProviderForSendTests(disposables, model, () => new Promise(() => { }));
 			const sessionTemplate = {
