@@ -6,7 +6,7 @@
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IReader, observableFromEvent, observableSignal, runOnChange } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -26,18 +26,145 @@ import { IActiveSession, ISessionsManagementService } from '../../../services/se
 import { editorWorkingSetOwnerIncludes, ISessionEditorWorkingSetOwner, ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
 import { createSessionCanvasReference, getSessionCanvasReferenceKey, ISessionCanvasModelResolution, ISessionCanvasReference, ISessionCanvasReopenTarget, ISessionCanvasService, ISessionCanvasTarget, SessionCanvasInput } from '../common/sessionCanvas.js';
 
-interface ICanvasPresentation {
+class CanvasPresentation extends Disposable {
+
+	readonly key: string;
 	readonly reference: ISessionCanvasReference;
 	readonly serializationId: string;
-	admitted: boolean;
-	opened: boolean;
-	restoreActive: boolean;
-	canvas: ISessionCanvas | undefined;
-	model: IBrowserViewModel | undefined;
-	modelSource: URI | undefined;
-	modelPromise: { readonly source: URI; readonly value: Promise<IBrowserViewModel> } | undefined;
-	modelDisposeListener: IDisposable | undefined;
-	modelGeneration: number;
+	private _admitted = false;
+	private _opened = false;
+	private _restoreActive = false;
+	private _currentCanvas: ISessionCanvas | undefined;
+	private _model: IBrowserViewModel | undefined;
+	private _modelSource: URI | undefined;
+	private _modelPromise: { readonly source: URI; readonly value: Promise<IBrowserViewModel> } | undefined;
+	private readonly _modelDisposeListener = this._register(new MutableDisposable());
+	private _modelGeneration = 0;
+
+	constructor(
+		reference: ISessionCanvasReference,
+		canvas: ISessionCanvas | undefined,
+		private readonly browserViewService: IBrowserViewWorkbenchService,
+	) {
+		super();
+		this.key = getSessionCanvasReferenceKey(reference);
+		this.reference = reference;
+		this.serializationId = generateUuid();
+		this._currentCanvas = canvas;
+	}
+
+	get admitted(): boolean {
+		return this._admitted;
+	}
+
+	get opened(): boolean {
+		return this._opened;
+	}
+
+	get restoreActive(): boolean {
+		return this._restoreActive;
+	}
+
+	get currentCanvas(): ISessionCanvas | undefined {
+		return this._currentCanvas;
+	}
+
+	get pendingCanvas(): ISessionCanvas | undefined {
+		return this._currentCanvas && { ...this._currentCanvas, source: undefined };
+	}
+
+	updateCanvas(canvas: ISessionCanvas): void {
+		const disposeModel = !canvas.source || this._modelSource && !isEqual(this._modelSource, canvas.source);
+		this._currentCanvas = canvas;
+		if (disposeModel) {
+			this._disposeModel();
+		}
+	}
+
+	markAdmitted(): void {
+		this._admitted = true;
+		this._opened = true;
+		this._restoreActive = false;
+	}
+
+	markRestored(): void {
+		this._opened = true;
+	}
+
+	prepareForSuspension(active: boolean): void {
+		this._restoreActive = this._opened && active;
+	}
+
+	markSuspended(): void {
+		this._opened = false;
+	}
+
+	reconcileOpened(opened: boolean): boolean {
+		if (!this._opened || opened) {
+			return false;
+		}
+		this._opened = false;
+		return true;
+	}
+
+	resolveModel(source: URI): Promise<ISessionCanvasModelResolution> {
+		if (this._store.isDisposed || !isEqual(this._currentCanvas?.source, source)) {
+			return Promise.reject(new CancellationError());
+		}
+		if (this._model && isEqual(this._modelSource, source)) {
+			return Promise.resolve({ model: this._model, reused: true });
+		}
+		if (this._modelPromise && isEqual(this._modelPromise.source, source)) {
+			return this._modelPromise.value.then(model => ({ model, reused: true }));
+		}
+		this._disposeModel();
+		const generation = ++this._modelGeneration;
+		const value = this.browserViewService.createExternalBrowserView(source.toString(true), 'canvas').then(model => {
+			const retained = !this._store.isDisposed
+				&& this._modelGeneration === generation
+				&& isEqual(this._currentCanvas?.source, source);
+			if (retained) {
+				this._model = model;
+				this._modelSource = source;
+				this._modelDisposeListener.value = Event.once(model.onWillDispose)(() => {
+					if (this._model !== model) {
+						return;
+					}
+					this._model = undefined;
+					this._modelSource = undefined;
+					this._modelDisposeListener.clear();
+					this._modelGeneration++;
+				});
+			} else {
+				model.dispose();
+			}
+			return model;
+		}).finally(() => {
+			if (this._modelPromise?.value === value) {
+				this._modelPromise = undefined;
+			}
+		});
+		this._modelPromise = { source, value };
+		return value.then(model => ({ model, reused: false }));
+	}
+
+	override dispose(): void {
+		if (this._store.isDisposed) {
+			return;
+		}
+		this._disposeModel();
+		super.dispose();
+	}
+
+	private _disposeModel(): void {
+		this._modelGeneration++;
+		this._modelPromise = undefined;
+		this._modelDisposeListener.clear();
+		const model = this._model;
+		this._model = undefined;
+		this._modelSource = undefined;
+		model?.dispose();
+	}
 }
 
 interface ICanvasLookup {
@@ -54,8 +181,8 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 	private readonly _inputs = this._register(new DisposableMap<string, SessionCanvasInput>());
 	private readonly _inputLifetimes = this._register(new DisposableMap<string, DisposableStore>());
 	private readonly _dismissed = new Map<string, ISessionCanvasReference>();
-	private readonly _presentations = new Map<string, ICanvasPresentation>();
-	private readonly _presentationsBySerializationId = new Map<string, ICanvasPresentation>();
+	private readonly _presentations = new Map<string, CanvasPresentation>();
+	private readonly _presentationsBySerializationId = new Map<string, CanvasPresentation>();
 	private readonly _opening = new Map<SessionCanvasInput, { readonly value: Promise<void>; readonly restoreFallback: boolean }>();
 	private readonly _programmaticCloses = new Set<SessionCanvasInput>();
 	private readonly _workingSetSuspensions = new Set<SessionCanvasInput>();
@@ -123,9 +250,11 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 		}));
 		this._register(toDisposable(() => this._restoreSettled?.complete(false)));
 		this._register(toDisposable(() => {
+			this._presentationsBySerializationId.clear();
 			for (const presentation of this._presentations.values()) {
-				this._disposePresentationModel(presentation);
+				presentation.dispose();
 			}
+			this._presentations.clear();
 		}));
 		this._register(autorun(reader => {
 			this._presentationsChanged.read(reader);
@@ -151,8 +280,8 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 					const presentation = this._presentations.get(key);
 					const membershipPending = canvas.instanceId === undefined;
 					existingInput?.setCanvas(
-						membershipPending && presentation?.canvas
-							? { ...presentation.canvas, source: undefined }
+						membershipPending
+							? presentation?.pendingCanvas
 							: canvas,
 						membershipPending,
 					);
@@ -256,56 +385,22 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 
 		const membershipPending = !lookup.known || lookup.canvas?.instanceId === undefined;
 		const canvas = membershipPending
-			? presentation.canvas && { ...presentation.canvas, source: undefined }
+			? presentation.pendingCanvas
 			: lookup.canvas;
 		const input = this._getOrCreateInput(presentation.reference, canvas, membershipPending);
 		input.setCanvas(canvas, membershipPending);
 		input.setSerializationId(serializationId);
-		presentation.opened = true;
+		presentation.markRestored();
 		return input;
 	}
 
 	resolveCanvasModel(reference: ISessionCanvasReference, source: URI): Promise<ISessionCanvasModelResolution> {
 		const key = getSessionCanvasReferenceKey(reference);
 		const presentation = this._presentations.get(key);
-		if (this._store.isDisposed || !presentation || !isEqual(presentation.canvas?.source, source)) {
+		if (this._store.isDisposed || !presentation) {
 			return Promise.reject(new CancellationError());
 		}
-		if (presentation.model && isEqual(presentation.modelSource, source)) {
-			return Promise.resolve({ model: presentation.model, reused: true });
-		}
-		if (presentation.modelPromise && isEqual(presentation.modelPromise.source, source)) {
-			return presentation.modelPromise.value.then(model => ({ model, reused: true }));
-		}
-		this._disposePresentationModel(presentation);
-		const generation = ++presentation.modelGeneration;
-		const value = this.browserViewService.createExternalBrowserView(source.toString(true), 'canvas').then(model => {
-			const retained = this._presentations.get(key) === presentation
-				&& presentation.modelGeneration === generation
-				&& isEqual(presentation.canvas?.source, source);
-			if (retained) {
-				presentation.model = model;
-				presentation.modelSource = source;
-				presentation.modelDisposeListener = Event.once(model.onWillDispose)(() => {
-					if (presentation.model !== model) {
-						return;
-					}
-					presentation.model = undefined;
-					presentation.modelSource = undefined;
-					presentation.modelDisposeListener = undefined;
-					presentation.modelGeneration++;
-				});
-			} else {
-				model.dispose();
-			}
-			return model;
-		}).finally(() => {
-			if (presentation.modelPromise?.value === value) {
-				presentation.modelPromise = undefined;
-			}
-		});
-		presentation.modelPromise = { source, value };
-		return value.then(model => ({ model, reused: false }));
+		return presentation.resolveModel(source);
 	}
 
 	private async _waitForWorkingSetRestore(): Promise<boolean> {
@@ -352,9 +447,7 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 			if (this._inputs.get(key) !== input || input.isDisposed() || this._presentations.get(key) !== presentation) {
 				return;
 			}
-			presentation.admitted = true;
-			presentation.opened = true;
-			presentation.restoreActive = false;
+			presentation.markAdmitted();
 			input.setSerializationId(presentation.serializationId);
 			this._presentationsChanged.trigger(undefined);
 			if (!this.isActiveOwner(input.reference)) {
@@ -396,7 +489,7 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 				if (workingSetSuspension) {
 					const presentation = this._presentations.get(key);
 					if (presentation?.admitted) {
-						presentation.opened = false;
+						presentation.markSuspended();
 						this._presentationsChanged.trigger(undefined);
 					}
 				} else if (!programmaticClose) {
@@ -415,29 +508,17 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 		return input;
 	}
 
-	private _getOrCreatePresentation(reference: ISessionCanvasReference, canvas?: ISessionCanvas): ICanvasPresentation {
+	private _getOrCreatePresentation(reference: ISessionCanvasReference, canvas?: ISessionCanvas): CanvasPresentation {
 		const key = getSessionCanvasReferenceKey(reference);
 		let presentation = this._presentations.get(key);
 		if (presentation) {
 			if (canvas) {
-				this._setPresentationCanvas(presentation, canvas);
+				presentation.updateCanvas(canvas);
 			}
 			return presentation;
 		}
-		presentation = {
-			reference,
-			serializationId: generateUuid(),
-			admitted: false,
-			opened: false,
-			restoreActive: false,
-			canvas,
-			model: undefined,
-			modelSource: undefined,
-			modelPromise: undefined,
-			modelDisposeListener: undefined,
-			modelGeneration: 0,
-		};
-		this._presentations.set(key, presentation);
+		presentation = new CanvasPresentation(reference, canvas, this.browserViewService);
+		this._presentations.set(presentation.key, presentation);
 		this._presentationsBySerializationId.set(presentation.serializationId, presentation);
 		return presentation;
 	}
@@ -446,7 +527,7 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 		for (const [key, input] of this._inputs) {
 			const presentation = this._presentations.get(key);
 			if (presentation) {
-				presentation.restoreActive = presentation.opened && this.editorService.activeEditor === input;
+				presentation.prepareForSuspension(this.editorService.activeEditor === input);
 			}
 			this._workingSetSuspensions.add(input);
 		}
@@ -463,8 +544,7 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 			}
 			const input = this._inputs.get(key);
 			const opened = !!input && this.editorService.findEditors(input.resource).some(identifier => identifier.editor === input && !input.isDisposed());
-			if (!opened) {
-				presentation.opened = false;
+			if (presentation.reconcileOpened(opened)) {
 				changed = true;
 			}
 		}
@@ -481,7 +561,7 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 			const lookup = this._lookupCanvas(presentation.reference, session, reader);
 			const input = this._inputs.get(key);
 			if (!lookup.known || lookup.canvas?.instanceId === undefined) {
-				input?.setCanvas(presentation.canvas && { ...presentation.canvas, source: undefined }, true);
+				input?.setCanvas(presentation.pendingCanvas, true);
 				continue;
 			}
 			if (!lookup.canvas) {
@@ -493,7 +573,7 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 				}
 				continue;
 			}
-			this._setPresentationCanvas(presentation, lookup.canvas);
+			presentation.updateCanvas(lookup.canvas);
 			input?.setCanvas(lookup.canvas, false);
 		}
 	}
@@ -553,7 +633,7 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 			this._deleteDismissed(key);
 			const presentation = this._presentations.get(key);
 			if (suspend && presentation?.admitted) {
-				presentation.opened = false;
+				presentation.markSuspended();
 				this._presentationsChanged.trigger(undefined);
 			} else {
 				this._deletePresentation(key);
@@ -573,14 +653,13 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 		}
 	}
 
-	private _removePresentation(presentation: ICanvasPresentation): void {
-		const key = getSessionCanvasReferenceKey(presentation.reference);
-		const input = this._inputs.get(key);
-		this._deleteDismissed(key);
+	private _removePresentation(presentation: CanvasPresentation): void {
+		const input = this._inputs.get(presentation.key);
+		this._deleteDismissed(presentation.key);
 		if (input) {
-			void this._closeInput(key, input).catch(error => this.logService.error('[SessionCanvasService] Failed to close invalid canvas', error));
+			void this._closeInput(presentation.key, input).catch(error => this.logService.error('[SessionCanvasService] Failed to close invalid canvas', error));
 		} else {
-			this._deletePresentation(key);
+			this._deletePresentation(presentation.key);
 		}
 	}
 
@@ -593,27 +672,8 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 		if (this._presentationsBySerializationId.get(presentation.serializationId) === presentation) {
 			this._presentationsBySerializationId.delete(presentation.serializationId);
 		}
-		this._disposePresentationModel(presentation);
+		presentation.dispose();
 		this._presentationsChanged.trigger(undefined);
-	}
-
-	private _setPresentationCanvas(presentation: ICanvasPresentation, canvas: ISessionCanvas): void {
-		const disposeModel = !canvas.source || presentation.modelSource && !isEqual(presentation.modelSource, canvas.source);
-		presentation.canvas = canvas;
-		if (disposeModel) {
-			this._disposePresentationModel(presentation);
-		}
-	}
-
-	private _disposePresentationModel(presentation: ICanvasPresentation): void {
-		presentation.modelGeneration++;
-		presentation.modelPromise = undefined;
-		presentation.modelDisposeListener?.dispose();
-		presentation.modelDisposeListener = undefined;
-		const model = presentation.model;
-		presentation.model = undefined;
-		presentation.modelSource = undefined;
-		model?.dispose();
 	}
 
 	private _rememberDismissed(key: string, reference: ISessionCanvasReference): void {
