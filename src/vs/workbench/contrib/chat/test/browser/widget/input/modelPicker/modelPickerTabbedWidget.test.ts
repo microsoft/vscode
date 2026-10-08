@@ -229,7 +229,7 @@ suite('TabbedModelPicker', () => {
 	}
 
 	function goBack(popup: HTMLElement): void {
-		element(popup, '[role="button"][aria-label="Back to Models"]').click();
+		element(popup, '[role="button"][aria-label^="Back to Models"]').click();
 	}
 
 	test('dialog-hosted details preserve the requested popup layer and below-anchor placement', () => {
@@ -490,7 +490,7 @@ suite('TabbedModelPicker', () => {
 				search: 'input',
 				details: '.tabbed-action-list-details',
 				detailsControl: '.tabbed-action-list-details [role="radio"]',
-				back: '[aria-label="Back to Models"]',
+				back: '[aria-label^="Back to Models"]',
 			};
 			const control = element(popup, selectors[target]);
 			control.focus();
@@ -1178,7 +1178,7 @@ suite('TabbedModelPicker', () => {
 			}
 			openDetails(popup, 'Second');
 			element(popup, '[aria-label^="Second Details"]').style.visibility = 'hidden';
-			const back = element(popup, '[role="button"][aria-label="Back to Models"]');
+			const back = element(popup, '[role="button"][aria-label^="Back to Models"]');
 			back.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
 			back.click();
 			await timeout(0);
@@ -1192,7 +1192,7 @@ suite('TabbedModelPicker', () => {
 		const result = createPicker({ details: models[0].identifier });
 		const header = element(result.popup, '.tabbed-action-list-details-header');
 		const viewport = element(result.popup, '.tabbed-action-list-details-viewport');
-		const back = element(header, '[role="button"][aria-label="Back to Models"]');
+		const back = element(header, '[role="button"][aria-label^="Back to Models"]');
 		assert.deepStrictEqual({
 			backText: back.textContent,
 			backIcon: back.classList.contains('codicon-arrow-left'),
@@ -1217,6 +1217,36 @@ suite('TabbedModelPicker', () => {
 		});
 	}
 
+	test('Right Arrow opens a model\'s details on its configuration and Back returns to its row', async () => {
+		const { picker, popup, selections } = createPicker();
+		const list = element(popup, '.monaco-list');
+		const detailsButton = element(popup, '[role="button"][aria-label^="First Details"]');
+		const right = new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true, cancelable: true });
+		list.dispatchEvent(right);
+		const opened = {
+			prevented: right.defaultPrevented,
+			model: popup.querySelector('.tabbed-action-list-details .chat-model-card-name')?.textContent,
+			focusedControl: document.activeElement?.closest('[role="radiogroup"]')?.getAttribute('aria-label'),
+		};
+		goBack(popup);
+		await timeout(0);
+		assert.deepStrictEqual({
+			hasPopup: detailsButton.getAttribute('aria-haspopup'),
+			opened,
+			listFocused: document.activeElement === element(popup, '.monaco-list'),
+			focusedRow: popup.querySelector('.monaco-list-row.focused .title')?.textContent,
+			visible: picker.isVisible,
+			selections,
+		}, {
+			hasPopup: 'dialog',
+			opened: { prevented: true, model: 'First', focusedControl: 'Thinking Effort' },
+			listFocused: true,
+			focusedRow: 'First',
+			visible: true,
+			selections: [],
+		});
+	});
+
 	for (const direct of [false, true]) {
 		test(`hovering Back preserves focus after ${direct ? 'direct' : 'configuration readout'} details entry`, () => {
 			const result = createPicker({ details: direct ? models[0].identifier : undefined });
@@ -1224,7 +1254,7 @@ suite('TabbedModelPicker', () => {
 				openDetails(result.popup, 'First');
 			}
 			const page = element(result.popup, '.tabbed-action-list-details');
-			const back = element(page, '[role="button"][aria-label="Back to Models"]');
+			const back = element(page, '[role="button"][aria-label^="Back to Models"]');
 			back.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
 			back.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
 			assert.deepStrictEqual({
