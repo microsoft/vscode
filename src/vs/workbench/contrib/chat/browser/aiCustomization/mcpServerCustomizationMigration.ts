@@ -16,17 +16,19 @@ import { equals } from '../../../../../base/common/objects.js';
 import { basename, dirname, getComparisonKey, isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { normalizeMcpServerConfiguration } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
+import { hasConfigurationVariable, parseConfigurationVariable } from '../../../../../platform/configuration/common/configurationVariables.js';
 import { FileOperationError, FileOperationResult, IFileService, IFileStatWithMetadata, toFileOperationResult } from '../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { MAX_ENV_VAR_RESOLVE_LENGTH } from '../../../../../platform/mcp/common/envVarResolution.js';
 import { toCopilotMcpServerConfiguration } from '../../../../../platform/mcp/common/mcpCopilotConfiguration.js';
 import { parseCopilotGlobalMcpConfiguration } from '../../../../../platform/mcp/common/mcpCopilotGlobalConfiguration.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IWorkspaceFolderData } from '../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationResolverService } from '../../../../services/configurationResolver/common/configurationResolver.js';
-import { ConfigurationResolverExpression } from '../../../../services/configurationResolver/common/configurationResolverExpression.js';
+import { ConfigurationResolverExpression, Replacement } from '../../../../services/configurationResolver/common/configurationResolverExpression.js';
 import { CustomizationMigrationType, IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationFailure, IMcpServerCustomizationMigrationResult, McpServerCustomizationMigrationFailureReason, mcpServerCustomizationMigrationRemovableProperties } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
-import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerSourceKind, IAgentHostMcpServerSupport, IAgentHostMcpServerSupportSnapshot } from '../agentSessions/agentHost/agentHostMcpServerSupport.js';
+import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerSourceKind, AgentHostMcpSupportReason, IAgentHostMcpServerSupport, IAgentHostMcpServerSupportSnapshot } from '../agentSessions/agentHost/agentHostMcpServerSupport.js';
 
 const LOG_PREFIX = '[MCP Customization Migration]';
 
@@ -60,13 +62,19 @@ interface IMcpServerCustomizationMigrationExecutionOptions {
 /**
  * Whether the migration planner can assess this server's projected configuration. Besides servers the
  * client forwards, this includes `.vscode/mcp.json` servers shadowed by a same-named server in another
- * workspace folder, since each moves into its own folder's `.mcp.json`.
+ * workspace folder, since each moves into its own folder's `.mcp.json`. User servers are forwarded with
+ * their variables unresolved, so they are also assessed when that is their only problem: the planner
+ * migrates their `${env:}` references and rejects any other variable.
  */
 export function isMcpServerMigrationDeliverable(server: IAgentHostMcpServerSupport): server is IAgentHostMcpServerSupport & { readonly projectedConfiguration: IMcpServerConfiguration } {
 	return server.applicability === AgentHostMcpServerApplicability.Applicable
 		&& (server.delivery === AgentHostMcpServerDelivery.ClientForwarded
 			|| (server.delivery === AgentHostMcpServerDelivery.NotDelivered && server.shadowedBy !== undefined && server.source.kind === AgentHostMcpServerSourceKind.VscodeWorkspaceFolder))
-		&& (server.compatibility.kind === 'supported' || server.compatibility.kind === 'partiallySupported')
+		&& (server.compatibility.kind === 'supported'
+			|| server.compatibility.kind === 'partiallySupported'
+			|| (server.compatibility.kind === 'unsupported'
+				&& (server.source.kind === AgentHostMcpServerSourceKind.UserProfile || server.source.kind === AgentHostMcpServerSourceKind.RemoteUser)
+				&& server.compatibility.reasons.every(reason => reason === AgentHostMcpSupportReason.UnresolvedConfiguration)))
 		&& server.projectedConfiguration !== undefined;
 }
 
@@ -147,17 +155,15 @@ export class McpServerCustomizationMigrator {
 				continue;
 			}
 			const rawConfiguration = servers[server.name];
-			const sourceConfiguration = await resolveSourceConfiguration(rawConfiguration, root, this.configurationResolverService);
-			const projectedConfiguration = canonicalizeConfiguration(server.projectedConfiguration);
-			if (!sourceConfiguration) {
-				excluded(normalizeMcpServerConfiguration(rawConfiguration)
-					? McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration
-					: McpServerCustomizationMigrationFailureReason.InvalidSource);
+			const analysis = await analyzeSourceConfiguration(rawConfiguration, root, storage, this.configurationResolverService);
+			if (typeof analysis === 'string') {
+				excluded(analysis);
 				continue;
 			}
 			if (!isConfigurationRepresentable(server.projectedConfiguration)
-				|| !Iterable.isEmpty(ConfigurationResolverExpression.parse(server.projectedConfiguration).unresolved())
-				|| !equals(sourceConfiguration, projectedConfiguration)) {
+				|| !isConfigurationRepresentable(analysis.migration)
+				|| Iterable.some(ConfigurationResolverExpression.parse(server.projectedConfiguration).unresolved(), replacement => !isForwardedUnresolved(replacement, storage))
+				|| !equals(analysis.projection, canonicalizeConfiguration(server.projectedConfiguration))) {
 				excluded(McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration);
 				continue;
 			}
@@ -170,6 +176,7 @@ export class McpServerCustomizationMigrator {
 				sourceUri,
 				targetUri,
 				projectedConfiguration: server.projectedConfiguration,
+				...(analysis.migration !== analysis.projection ? { migratedConfiguration: analysis.migration } : {}),
 				...(removedProperties ? { removedProperties } : {}),
 			});
 		}
@@ -301,7 +308,7 @@ async function migrateGroup(
 	};
 
 	for (const candidate of group.candidates) {
-		if (!isConfigurationRepresentable(candidate.projectedConfiguration)) {
+		if (!isConfigurationRepresentable(candidate.projectedConfiguration) || !isConfigurationRepresentable(getMigratedConfiguration(candidate))) {
 			reject(candidate, McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration);
 			continue;
 		}
@@ -310,15 +317,12 @@ async function migrateGroup(
 			continue;
 		}
 		const root = group.storage === PromptsStorage.local ? dirname(group.targetUri) : undefined;
-		const sourceConfiguration = await resolveSourceConfiguration(sourceServers[candidate.name], root, configurationResolverService);
-		const migrationConfiguration = canonicalizeConfiguration(candidate.projectedConfiguration);
-		if (!sourceConfiguration) {
-			reject(candidate, normalizeMcpServerConfiguration(sourceServers[candidate.name])
-				? McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration
-				: McpServerCustomizationMigrationFailureReason.InvalidSource);
+		const analysis = await analyzeSourceConfiguration(sourceServers[candidate.name], root, group.storage, configurationResolverService);
+		if (typeof analysis === 'string') {
+			reject(candidate, analysis);
 			continue;
 		}
-		if (!equals(sourceConfiguration, migrationConfiguration)
+		if (!isAnalysisOfCandidate(analysis, candidate)
 			|| !equals(getRemovedProperties(sourceServers[candidate.name]), candidate.removedProperties)) {
 			reject(candidate, McpServerCustomizationMigrationFailureReason.SourceChanged);
 			continue;
@@ -583,7 +587,11 @@ function getTargetServers(target: IMcpTargetDocument): Record<string, unknown> {
 }
 
 function getTargetConfiguration(candidate: IMcpServerCustomizationMigrationCandidate) {
-	return toCopilotMcpServerConfiguration(candidate.projectedConfiguration);
+	return toCopilotMcpServerConfiguration(getMigratedConfiguration(candidate));
+}
+
+function getMigratedConfiguration(candidate: IMcpServerCustomizationMigrationCandidate): IMcpServerConfiguration {
+	return candidate.migratedConfiguration ?? candidate.projectedConfiguration;
 }
 
 function isEquivalentTargetConfiguration(raw: unknown, candidate: IMcpServerCustomizationMigrationCandidate): boolean {
@@ -659,11 +667,11 @@ async function rollbackTarget(
 					throw new Error(`Source ${group.sourceUri.toString()} no longer contains all entries added to ${resource.toString()}.`);
 				}
 				for (const candidate of addedCandidates) {
-					if (!Object.hasOwn(sourceServers, candidate.name)
-						|| !equals(
-							await resolveSourceConfiguration(sourceServers[candidate.name], group.storage === PromptsStorage.local ? dirname(group.targetUri) : undefined, configurationResolverService),
-							canonicalizeConfiguration(candidate.projectedConfiguration),
-						)) {
+					if (!Object.hasOwn(sourceServers, candidate.name)) {
+						throw new Error(`Source ${group.sourceUri.toString()} no longer contains all entries added to ${resource.toString()}.`);
+					}
+					const analysis = await analyzeSourceConfiguration(sourceServers[candidate.name], group.storage === PromptsStorage.local ? dirname(group.targetUri) : undefined, group.storage, configurationResolverService);
+					if (typeof analysis === 'string' || !isAnalysisOfCandidate(analysis, candidate)) {
 						throw new Error(`Source ${group.sourceUri.toString()} no longer contains all entries added to ${resource.toString()}.`);
 					}
 				}
@@ -715,7 +723,7 @@ function isJsonObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function canonicalizeConfiguration(configuration: IMcpServerConfiguration): Record<string, unknown> {
+function canonicalizeConfiguration(configuration: IMcpServerConfiguration): IMcpServerConfiguration {
 	if (configuration.type === McpServerType.LOCAL) {
 		return {
 			type: configuration.type,
@@ -746,7 +754,7 @@ function isConfigurationRepresentable(configuration: IMcpServerConfiguration): b
 	return configuration.oauth === undefined && configuration.transport !== 'sse';
 }
 
-function canonicalizeSourceConfiguration(rawConfiguration: unknown): Record<string, unknown> | undefined {
+function canonicalizeSourceConfiguration(rawConfiguration: unknown): IMcpServerConfiguration | undefined {
 	if (!isJsonObject(rawConfiguration)) {
 		return undefined;
 	}
@@ -766,30 +774,230 @@ function canonicalizeSourceConfiguration(rawConfiguration: unknown): Record<stri
 	return canonicalizeConfiguration(configuration);
 }
 
-async function resolveSourceConfiguration(
+interface IMcpServerSourceAnalysis {
+	/** The source server as the client forwards it, to compare with its projected configuration. */
+	readonly projection: IMcpServerConfiguration;
+	/** The source server as written to the destination. Identical to {@link projection} unless it uses `${env:}`. */
+	readonly migration: IMcpServerConfiguration;
+}
+
+/**
+ * Analyzes a source server deterministically, so planning, the checks before writing and rollback
+ * agree on what is migrated. Portable variables are resolved to literals. `${env:NAME}` is rewritten
+ * to `${NAME}`, never to its current value, so the destination reads the variable at server start.
+ */
+async function analyzeSourceConfiguration(
 	rawConfiguration: unknown,
 	root: URI | undefined,
+	storage: PromptsStorage.local | PromptsStorage.user,
 	configurationResolverService: IConfigurationResolverService,
-): Promise<Record<string, unknown> | undefined> {
+): Promise<IMcpServerSourceAnalysis | McpServerCustomizationMigrationFailureReason> {
 	const configuration = canonicalizeSourceConfiguration(rawConfiguration);
 	if (!configuration) {
-		return undefined;
+		return normalizeMcpServerConfiguration(rawConfiguration)
+			? McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration
+			: McpServerCustomizationMigrationFailureReason.InvalidSource;
 	}
 
-	const expression = ConfigurationResolverExpression.parse(configuration);
-	for (const replacement of expression.unresolved()) {
-		if (!isPortableMigrationVariable(replacement.name, replacement.arg)
-			|| (!root && replacement.name !== 'pathSeparator' && replacement.name !== '/')) {
-			return undefined;
+	const isPortable = (replacement: Replacement) => isPortableMigrationVariable(replacement.name, replacement.arg)
+		&& (!!root || replacement.name === 'pathSeparator' || replacement.name === '/');
+	let hasEnvironmentVariables = false;
+	for (const replacement of ConfigurationResolverExpression.parse(configuration).unresolved()) {
+		if (replacement.name === 'env') {
+			hasEnvironmentVariables = true;
+		} else if (!isPortable(replacement)) {
+			return McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration;
 		}
 	}
+
 	const folder: IWorkspaceFolderData | undefined = root ? { uri: root, name: basename(root), index: 0 } : undefined;
+	if (!hasEnvironmentVariables) {
+		const resolved = await resolveVariables(configuration, folder, configurationResolverService);
+		return resolved ? { projection: resolved, migration: resolved } : McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration;
+	}
+
+	const withEnvironmentVariables = await resolvePortableVariables(configuration, folder, isPortable, configurationResolverService);
+	if (!withEnvironmentVariables) {
+		return McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration;
+	}
+	const migration = rewriteEnvironmentVariables(withEnvironmentVariables);
+	if (typeof migration === 'string') {
+		return migration;
+	}
+	if (await hasVariablesInEnvironmentValues(configuration, folder, configurationResolverService)) {
+		return McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration;
+	}
+	// The client resolves the variables of `.vscode/mcp.json` servers before forwarding them, but forwards user servers as written.
+	const projection = storage === PromptsStorage.user
+		? withEnvironmentVariables
+		: await resolveVariables(configuration, folder, configurationResolverService);
+	return projection ? { projection, migration } : McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration;
+}
+
+function isAnalysisOfCandidate(analysis: IMcpServerSourceAnalysis, candidate: IMcpServerCustomizationMigrationCandidate): boolean {
+	return equals(analysis.projection, canonicalizeConfiguration(candidate.projectedConfiguration))
+		&& equals(analysis.migration, canonicalizeConfiguration(getMigratedConfiguration(candidate)));
+}
+
+/** Whether a variable may remain in a projected configuration: only user servers are forwarded unresolved, and only their `${env:}` is migrated. */
+function isForwardedUnresolved(replacement: Replacement, storage: PromptsStorage.local | PromptsStorage.user): boolean {
+	return storage === PromptsStorage.user && replacement.name === 'env';
+}
+
+async function resolveVariables(
+	configuration: IMcpServerConfiguration,
+	folder: IWorkspaceFolderData | undefined,
+	configurationResolverService: IConfigurationResolverService,
+): Promise<IMcpServerConfiguration | undefined> {
+	const expression = ConfigurationResolverExpression.parse(configuration);
 	try {
 		await configurationResolverService.resolveAsync(folder, expression);
 	} catch {
 		return undefined;
 	}
 	return Iterable.isEmpty(expression.unresolved()) ? expression.toObject() : undefined;
+}
+
+/**
+ * Whether the value of a referenced environment variable contains a variable. VS Code resolves those
+ * nested variables, while the destination substitutes `${NAME}` once and keeps its value verbatim.
+ */
+async function hasVariablesInEnvironmentValues(
+	configuration: IMcpServerConfiguration,
+	folder: IWorkspaceFolderData | undefined,
+	configurationResolverService: IConfigurationResolverService,
+): Promise<boolean> {
+	const expression = ConfigurationResolverExpression.parse(configuration);
+	try {
+		await configurationResolverService.resolveAsync(folder, expression);
+	} catch {
+		return true;
+	}
+	return Iterable.some(expression.resolved(), ([replacement, resolved]) => replacement.name === 'env'
+		&& resolved.value !== undefined
+		&& hasConfigurationVariable(resolved.value));
+}
+
+/**
+ * Resolves every variable except `${env:}`, which stays verbatim. Resolving `${env:NAME}` to `${NAME}`
+ * inside the expression is not possible, since it parses resolved values for further variables.
+ */
+async function resolvePortableVariables(
+	configuration: IMcpServerConfiguration,
+	folder: IWorkspaceFolderData | undefined,
+	isPortable: (replacement: Replacement) => boolean,
+	configurationResolverService: IConfigurationResolverService,
+): Promise<IMcpServerConfiguration | undefined> {
+	const expression = ConfigurationResolverExpression.parse(configuration);
+	for (const replacement of expression.unresolved()) {
+		if (replacement.name === 'env') {
+			continue;
+		}
+		if (!isPortable(replacement)) {
+			return undefined;
+		}
+		let value: string;
+		try {
+			value = await configurationResolverService.resolveAsync(folder, replacement.id);
+		} catch {
+			return undefined;
+		}
+		if (value === replacement.id) {
+			return undefined;
+		}
+		expression.resolve(replacement, value);
+	}
+	return expression.toObject();
+}
+
+/**
+ * Rewrites `${env:NAME}` to `${NAME}` in the fields that both the Copilot runtime and the local harness
+ * expand: stdio `command`, `args` and `env` values, and the remote URL and header values. Every other
+ * variable must already be resolved.
+ */
+function rewriteEnvironmentVariables(configuration: IMcpServerConfiguration): IMcpServerConfiguration | McpServerCustomizationMigrationFailureReason {
+	const names = Object.keys((configuration.type === McpServerType.LOCAL ? configuration.env : configuration.headers) ?? {});
+	if (names.some(hasEnvironmentVariableReference)) {
+		return McpServerCustomizationMigrationFailureReason.EnvironmentVariableInName;
+	}
+
+	const failures: McpServerCustomizationMigrationFailureReason[] = [];
+	const rewrite = (value: string): string => {
+		let rewritten = false;
+		const result = replaceConfigurationVariables(value, variable => {
+			if (variable.name !== 'env') {
+				failures.push(McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration);
+			} else if (variable.arg === undefined || !environmentVariableNamePattern.test(variable.arg)) {
+				failures.push(McpServerCustomizationMigrationFailureReason.InvalidEnvironmentVariableName);
+			} else {
+				rewritten = true;
+				return `\${${variable.arg}}`;
+			}
+			return variable.id;
+		});
+		if (rewritten && result.length > MAX_ENV_VAR_RESOLVE_LENGTH) {
+			failures.push(McpServerCustomizationMigrationFailureReason.EnvironmentVariableValueTooLong);
+		}
+		return result;
+	};
+
+	let migration: IMcpServerConfiguration;
+	if (configuration.type === McpServerType.LOCAL) {
+		if (configuration.cwd !== undefined && hasEnvironmentVariableReference(configuration.cwd)) {
+			return McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration;
+		}
+		migration = {
+			...configuration,
+			command: rewrite(configuration.command),
+			...(configuration.args ? { args: configuration.args.map(rewrite) } : {}),
+			...(configuration.env ? { env: Object.fromEntries(Object.entries(configuration.env).map(([name, value]) => [name, typeof value === 'string' ? rewrite(value) : value])) } : {}),
+		};
+	} else {
+		const url = rewrite(configuration.url);
+		// The Copilot runtime validates the URL before expanding it, so a reference in the port, the scheme or the whole URL is rejected.
+		if (url !== configuration.url && failures.length === 0 && !URL.canParse(url)) {
+			failures.push(McpServerCustomizationMigrationFailureReason.UnsupportedEnvironmentVariableInUrl);
+		}
+		migration = {
+			...configuration,
+			url,
+			...(configuration.headers ? { headers: Object.fromEntries(Object.entries(configuration.headers).map(([name, value]) => [name, rewrite(value)])) } : {}),
+		};
+	}
+	return failures[0] ?? migration;
+}
+
+/** Environment variable names that the Copilot runtime and the local harness expand in `${NAME}`. */
+const environmentVariableNamePattern = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+function hasEnvironmentVariableReference(value: string): boolean {
+	let found = false;
+	replaceConfigurationVariables(value, variable => {
+		found ||= variable.name === 'env';
+		return variable.id;
+	});
+	return found;
+}
+
+/** Replaces each VS Code variable in `value`, found the same way as {@link ConfigurationResolverExpression} finds them. */
+function replaceConfigurationVariables(value: string, replace: (variable: Replacement) => string): string {
+	let result = '';
+	let copied = 0;
+	let position = 0;
+	while (position < value.length) {
+		const start = value.indexOf('${', position);
+		if (start === -1) {
+			break;
+		}
+		const parsed = parseConfigurationVariable(value, start);
+		if (!parsed) {
+			position = start + 2;
+			continue;
+		}
+		result += value.slice(copied, start) + replace(parsed.replacement);
+		copied = position = parsed.end + 1;
+	}
+	return result + value.slice(copied);
 }
 
 function isPortableMigrationVariable(name: string, argument: string | undefined): boolean {

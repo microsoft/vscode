@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposableTimeout, raceCancellationError } from '../../../../../base/common/async.js';
+import { disposableTimeout, raceCancellationError, timeout } from '../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
@@ -167,7 +167,7 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 		return this._ensureCredentials(false);
 	}
 
-	/** Repair rejected or missing connection setup even when the cached ticket has not expired. */
+	/** Repair connection setup even with a valid cached ticket, waiting for any refresh backoff or rate limit. */
 	refreshConnectionCredentials(): Promise<void> {
 		return this._ensureCredentials(true);
 	}
@@ -190,12 +190,25 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 		if (!refreshConnection && this._hasUnexpiredCredentials()) {
 			return;
 		}
-		const awaitingRetry = this._refreshState.hasRefreshed && this._refreshState.unhealthyCycles > 0
-			&& this._refreshState.nextRefreshAt !== undefined && Date.now() < this._refreshState.nextRefreshAt;
-		const rateLimited = refreshConnection && this._refreshState.lastRefreshAt !== undefined
-			&& Date.now() < this._refreshState.lastRefreshAt + MIN_CREDENTIAL_REFRESH_DELAY_MS;
-		if (!this._refreshInFlight && (this._refreshState.stopped || awaitingRetry || rateLimited)) {
-			throw new Error('Sandbox credential refresh is stopped or waiting to retry.');
+		const previousToken = this._creds.token;
+		let waited = false;
+		while (!this._refreshInFlight) {
+			if (this._refreshState.stopped) {
+				throw new Error('Sandbox credential refresh is stopped.');
+			}
+			if (waited && this._creds.token !== previousToken && this._hasUnexpiredCredentials()) {
+				return;
+			}
+			const retryAt = this._refreshState.hasRefreshed && this._refreshState.unhealthyCycles > 0
+				? this._refreshState.nextRefreshAt ?? 0 : 0;
+			const rateLimitAt = refreshConnection && this._refreshState.lastRefreshAt !== undefined
+				? this._refreshState.lastRefreshAt + MIN_CREDENTIAL_REFRESH_DELAY_MS : 0;
+			const delay = Math.max(retryAt, rateLimitAt) - Date.now();
+			if (delay <= 0) {
+				break;
+			}
+			waited = true;
+			await timeout(Math.min(MAX_CREDENTIAL_REFRESH_DELAY_MS, delay), this._cts.token);
 		}
 		const refreshed = await raceCancellationError(this._refresh(), this._cts.token);
 		if (!this._hasUnexpiredCredentials()) {
