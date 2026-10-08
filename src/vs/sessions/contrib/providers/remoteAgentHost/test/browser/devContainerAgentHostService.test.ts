@@ -248,7 +248,7 @@ suite('Dev Container Agent Host Service', () => {
 	});
 
 	for (const sandboxSupported of [false, true]) {
-		test(`propagates sandbox startup options and gates reuse (supported: ${sandboxSupported})`, async () => {
+		test(`preserves sandbox startup options and permits reuse while reporting support (supported: ${sandboxSupported})`, async () => {
 			const instantiationService = store.add(new TestInstantiationService());
 			const remoteService = store.add(new TestRemoteAgentHostService());
 			const providersService = store.add(new TestSessionsProvidersService());
@@ -265,18 +265,14 @@ suite('Dev Container Agent Host Service', () => {
 				},
 				stopContainer: async () => true,
 			}));
-			const first = await service.connect(source, CancellationToken.None, { sandboxEnabled: false });
-			if (sandboxSupported) {
-				const reused = await service.connect(source, CancellationToken.None, { sandboxEnabled: true });
-				await reused.release();
-			} else {
-				await assert.rejects(service.connect(source, CancellationToken.None, { sandboxEnabled: true }), /Recreate the container with sandboxing enabled/);
-			}
+			const first = await service.connect(source, CancellationToken.None, { sandboxEnabled: true });
+			const reused = await service.connect(source, CancellationToken.None, { sandboxEnabled: true });
+			await reused.release();
 			assert.deepStrictEqual({
 				options,
 				knownSupport: service.getSandboxSupported(source),
 				providerSupport: service.provider?.sandboxSupported,
-			}, { options: [{ resume: true, sandboxEnabled: false }], knownSupport: sandboxSupported, providerSupport: sandboxSupported });
+			}, { options: [{ resume: true, sandboxEnabled: true }], knownSupport: sandboxSupported, providerSupport: sandboxSupported });
 			await first.release();
 		});
 	}

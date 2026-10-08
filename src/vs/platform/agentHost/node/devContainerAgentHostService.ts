@@ -299,9 +299,6 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 
 			const sandboxSupported = await this._getSandboxSupported(config.connectionId, upResult.containerId, tokenSource.token);
 			this._onDidChangeSandboxSupport.fire({ connectionId: config.connectionId, supported: sandboxSupported });
-			if (config.sandboxEnabled && !sandboxSupported) {
-				throw new Error(localize('devContainerAgentHost.sandboxUnsupported', "This Dev Container was started without the Docker options required for sandboxing. Recreate the container with sandboxing enabled before starting this session."));
-			}
 			const exec = this._createExec(config.connectionId, workspaceSelector, tokenSource.token);
 			const safeDirectoryStopWatch = StopWatch.create(false);
 			try {

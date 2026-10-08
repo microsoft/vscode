@@ -256,9 +256,6 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 		const target = active && this._acquireConnection(key, active);
 		try {
 			const connected = await this._ensureConnection(workspaceUri, token, options?.sandboxEnabled);
-			if (options?.sandboxEnabled && !connected.sandboxSupported) {
-				throw new Error(localize('devContainerAgentHost.sandboxUnsupported', "This Dev Container was started without the Docker options required for sandboxing. Recreate the container with sandboxing enabled before starting this session."));
-			}
 			return target ?? this._acquireConnection(key, connected);
 		} catch (error) {
 			await target?.release();

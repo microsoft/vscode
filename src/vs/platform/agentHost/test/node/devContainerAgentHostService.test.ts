@@ -658,12 +658,19 @@ suite('Dev Container Agent Host Main Service', () => {
 		});
 	});
 
-	test('refuses to enable sandboxing when up reuses a container without the required options', async () => {
+	test('continues connecting when up reuses a container without sandbox options and reports unsupported status', async () => {
 		const service = store.add(new TestDevContainerAgentHostMainService('', false, undefined, process.env, true, [], new Set(), tmpdir()));
 		const observed: boolean[] = [];
 		store.add(service.onDidChangeSandboxSupport(event => observed.push(event.supported)));
-		await assert.rejects(service.connect({ connectionId: 'sandbox', workspaceFolder: '/workspace', name: 'Project', sandboxEnabled: true }), /Recreate the container with sandboxing enabled/);
-		assert.deepStrictEqual({ observed, relay: service.relayCommand }, { observed: [false], relay: undefined });
+		const result = await service.connect({ connectionId: 'sandbox', workspaceFolder: '/workspace', name: 'Project', sandboxEnabled: true });
+		await service.relaySend('sandbox', 'session request');
+		assert.deepStrictEqual({
+			observed, support: result.sandboxSupported, relayStarted: service.relayCommand !== undefined,
+			overrideRequested: service.sandboxConfigurationPrepared, sent: service.relay.sent,
+		}, {
+			observed: [false], support: false, relayStarted: true,
+			overrideRequested: true, sent: ['session request'],
+		});
 	});
 
 	test('partitions the shared cache by container libc and configures it before running the CLI', async () => {
