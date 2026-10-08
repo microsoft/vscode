@@ -508,7 +508,8 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		};
 		const store = new DisposableStore();
 		const emitters = createBrowserViewEventEmitters(store);
-		this._remoteEvents.set(info.id, { emitters, dispose: () => store.dispose() });
+		const eventLifetime = Object.assign(toDisposable(() => store.dispose()), { emitters });
+		this._remoteEvents.set(info.id, eventLifetime);
 		let model: BrowserViewModel;
 		try {
 			model = this.instantiationService.createInstance(BrowserViewModel, info.id, info.host, info.owner, associatedResource, state, this._browserViewService, emitters);
@@ -521,7 +522,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 				this._remoteEvents.deleteAndLeak(info.id);
 			}
 			// Let an in-flight close event reach the remaining model consumers.
-			queueMicrotask(() => store.dispose());
+			queueMicrotask(() => eventLifetime.dispose());
 		}));
 
 		if (registerInput) {
