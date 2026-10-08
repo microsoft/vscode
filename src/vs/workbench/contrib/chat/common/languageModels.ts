@@ -1517,6 +1517,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 			this._modelsGroups.delete(vendor);
 			this._providers.delete(vendor);
 			modelChangeListener.dispose();
+			this._onLanguageModelChange.fire(vendor);
 		});
 	}
 

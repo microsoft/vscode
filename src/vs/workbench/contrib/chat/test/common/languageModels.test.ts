@@ -852,6 +852,63 @@ suite('LanguageModels - Model Change Events', function () {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('notifies model consumers after disposing a resolved provider', async function () {
+		const registration = disposables.add(languageModelsService.registerLanguageModelProvider('test-vendor', {
+			onDidChange: Event.None,
+			provideLanguageModelChatInfo: async () => [{
+				identifier: 'test-vendor/model',
+				metadata: {
+					extension: nullExtensionDescription.identifier,
+					name: 'Model', vendor: 'test-vendor', family: 'family', version: '1', id: 'model',
+					maxInputTokens: 100, maxOutputTokens: 100, isDefaultForLocation: {}
+				}
+			}],
+			sendChatRequest: async () => { throw new Error(); },
+			provideTokenCount: async () => 0
+		}));
+		await languageModelsService.selectLanguageModels({ vendor: 'test-vendor' });
+
+		const changes: { vendor: string; models: string[]; groups: number; resolved: boolean }[] = [];
+		disposables.add(languageModelsService.onDidChangeLanguageModels(vendor => changes.push({
+			vendor,
+			models: languageModelsService.getLanguageModelIds(),
+			groups: languageModelsService.getLanguageModelGroups(vendor).length,
+			resolved: languageModelsService.hasResolvedVendor(vendor)
+		})));
+		registration.dispose();
+
+		assert.deepStrictEqual(changes, [{ vendor: 'test-vendor', models: [], groups: 0, resolved: false }]);
+	});
+
+	test('provider disposal preserves other models and only notifies once', async function () {
+		languageModelsService.deltaLanguageModelChatProviderDescriptors([
+			{ vendor: 'other-vendor', displayName: 'Other Vendor', configuration: undefined, managementCommand: undefined, when: undefined }
+		], []);
+		const register = (vendor: string) => disposables.add(languageModelsService.registerLanguageModelProvider(vendor, {
+			onDidChange: Event.None,
+			provideLanguageModelChatInfo: async () => [{
+				identifier: `${vendor}/model`,
+				metadata: {
+					extension: nullExtensionDescription.identifier,
+					name: 'Model', vendor, family: 'family', version: '1', id: 'model',
+					maxInputTokens: 100, maxOutputTokens: 100, isDefaultForLocation: {}
+				}
+			}],
+			sendChatRequest: async () => { throw new Error(); },
+			provideTokenCount: async () => 0
+		}));
+		const registration = register('test-vendor');
+		register('other-vendor');
+		await languageModelsService.selectLanguageModels({});
+
+		const changes: { vendor: string; models: string[] }[] = [];
+		disposables.add(languageModelsService.onDidChangeLanguageModels(vendor => changes.push({ vendor, models: languageModelsService.getLanguageModelIds() })));
+		registration.dispose();
+		registration.dispose();
+
+		assert.deepStrictEqual(changes, [{ vendor: 'test-vendor', models: ['other-vendor/model'] }]);
+	});
+
 	test('fires onChange event when new models are added', async function () {
 		// Create a promise that resolves when the event fires
 		const eventPromise = new Promise<string>((resolve) => {
