@@ -1635,12 +1635,6 @@ per-word capitalization does not survive translation. */
 	min-width: 0;
 }
 
-.ai-customization-management-editor .mcp-detail-diagnostics-empty {
-	margin: 0;
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-fontSize-body2);
-}
-
 .ai-customization-management-editor .mcp-detail-diagnostic-card {
 	min-height: 72px;
 	padding: var(--vscode-spacing-size120);
