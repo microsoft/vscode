@@ -1,6 +1,6 @@
 # Mission Control remaining gaps
 
-Only outstanding work and intentionally deferred limitations belong here. [Security requirement coverage](./MISSION_CONTROL_SECURITY_REQUIREMENTS.md) provides the implementation and test references; [operation and configuration](./MISSION_CONTROL.md) describes usage.
+Only outstanding work and intentionally deferred limitations belong here. [Security requirement coverage](./MISSION_CONTROL_SECURITY_REQUIREMENTS.md) provides the implementation and test references; [operation and configuration](./MISSION_CONTROL.md) describes usage. [Gaps, explained](./MISSION_CONTROL_GAPS_EXPLAINED.md) describes each open item in plain language and compares it with Copilot Host and the Copilot app.
 
 ## Validation and release gaps
 
