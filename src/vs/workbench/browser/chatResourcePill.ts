@@ -14,7 +14,7 @@ import { IObservable, autorun } from '../../base/common/observable.js';
 import { ThemeIcon } from '../../base/common/themables.js';
 import { localize } from '../../nls.js';
 import { FileKind, IFileService } from '../../platform/files/common/files.js';
-import { ChatPillActionViewItemBase, createChatPillImagePreview, getChatPillEntryHoverActions, type IChatPillEntry } from './chatPills.js';
+import { ChatPillActionViewItemBase, getChatPillEntryHoverContents, getChatPillEntryHoverOptions, type IChatPillEntry } from './chatPills.js';
 import { ResourceLabels } from './labels.js';
 
 /**
@@ -65,34 +65,11 @@ export class ChatResourcePillActionViewItem extends ChatPillActionViewItemBase {
 	}
 
 	protected override getHoverContents(): IManagedHoverContent {
-		const entry = this._entry.get();
-		if (!entry?.imagePreview) {
-			return entry?.pillHover ?? super.getHoverContents();
-		}
-		const imagePreview = entry.imagePreview;
-		let content = this._imageHoverContents.get(entry);
-		if (!content) {
-			content = {
-				element: token => createChatPillImagePreview({ ...entry, imagePreview }, this._fileService, token).element,
-				contentOwnsPadding: true,
-			};
-			this._imageHoverContents.set(entry, content);
-		}
-		return content;
+		return getChatPillEntryHoverContents(this._entry.get(), this._fileService, this._imageHoverContents) ?? super.getHoverContents();
 	}
 
 	protected override getHoverOptions(): IManagedHoverOptions | undefined {
-		const entry = this._entry.get();
-		const hoverActions = entry ? getChatPillEntryHoverActions(entry) : undefined;
-		return hoverActions?.length ? {
-			trapFocus: true,
-			actions: hoverActions.map(action => ({
-				commandId: action.id,
-				label: action.hoverLabel ?? action.label,
-				iconClass: action.class,
-				run: () => { void action.run(); },
-			})),
-		} : undefined;
+		return getChatPillEntryHoverOptions(this._entry.get());
 	}
 
 	protected override onDidClickButton(): void {
