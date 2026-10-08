@@ -628,25 +628,11 @@ The contract for provider-internal work that has no host call of its own (a plug
 
 ### 8c. Active-client fan-out
 
-`AgentSideEffects` resolves the exact chat set with `getSessionChatsForFanOut` and calls `getOrCreateActiveClient(chat, context, client, hostCustomizations)` once per exact chat. Providers receive no session identity or sibling list at this seam; exact-chat membership scopes client-tool execution.
+`AgentSideEffects` resolves the exact chat set with `getSessionChatsForFanOut` and calls `getOrCreateActiveClient(chat, context, client, hostCustomizations)` once per exact chat. Providers receive no session identity or sibling list at this seam; each handle controls one client's contribution to one chat.
 
 `getSessionChatsForFanOut` returns `undefined` when the host holds no state for the session, which is **not** the same as "the session has only its default chat". With no authoritative membership to hand over, the fan-out is skipped (and logged) instead of inventing one; the client's contribution stays in session state and is replayed at the next `session/activeClientSet`.
 
 Membership changes re-enter the same seam: a `session/chatAdded` envelope fans every current active client into the new exact chat. Client removal is likewise fanned out as `removeActiveClient(chat, context, clientId)`.
-
-The protocol server retains a session's active-client contribution while any live connection for that client subscribes to the session or one of its chats. Releasing an exact chat subscription narrows the provider's client-tool contribution for that chat and fails its pending client tools; resubscribing restores its tool routing. Session-only subscriptions retain session membership but do not receive chat actions or execute tools in released chats. Active-client refreshes and catalog fan-out preserve this narrowing, and the session-wide contribution is removed only after its last session/chat subscription is gone.
-
-Copilot's resolved plugins and MCP customizations remain a session-wide union while their client contributes to another chat. These run on the host rather than requiring a client subscriber for execution; releasing one chat's client-tool route does not isolate its customization snapshot.
-
-Pending subscription restores retain session membership, but do not retain client-tool routing; a failed or cancelled restore releases that membership when no other subscription remains.
-
-Subscription ownership includes exact chat URIs not yet published in the session's chat catalog. Disconnect grace retains these URIs so reconciliation and timeout cleanup can release their routing without waiting for chat publication.
-
-Reconnect and initialization of a grace record suspend future routing before awaiting subscription restores. Existing calls on requested chats wait for restoration, while omitted chats are released immediately.
-
-Relay authentication expiry releases that connection's subscriptions and reconciles exact-chat routing across the remaining connections, including pending calls whose client no longer has a session-wide contribution.
-
-Failed initialization on an overlapping connection releases its subscriptions and reconciles chat routing against the surviving connections.
 
 ### 8d. Prompt-cache metadata
 
