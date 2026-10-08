@@ -1520,6 +1520,9 @@ export class TestContext {
 
 	private isNonFatalCliStderr(text: string): boolean {
 		return /ECONNRESET|ECONNABORTED|ECANCELED|EPIPE|SIGPIPE/.test(text)
-			|| /(^|\n)(?:\[[^\]]+\]\s*)?(?:\(node:\d+\)\s*)?(?:\[[A-Z0-9]+\]\s*)?(?:[A-Za-z]+Warning|Warning):/.test(text);
+			|| /(^|\n)(?:\[[^\]]+\]\s*)?(?:\(node:\d+\)\s*)?(?:\[[A-Z0-9]+\]\s*)?(?:[A-Za-z]+Warning|Warning):/.test(text)
+			// The extension downloader logs a warning before retrying a failed or corrupt download.
+			// If all retries fail, the extension install check in the UI test still fails.
+			|| /^(?:\[[^\]\n]+\]\s*)+Failed downloading (?:vsix|sigzip)\. [^\n]*Retry again\.\.\.[^\n]*$/.test(text);
 	}
 }
