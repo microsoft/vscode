@@ -11,15 +11,450 @@ import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { IGitHubClient } from '../../../../../platform/github/common/githubService.js';
+import { IGitHubCredentials } from '../../../../../platform/github/common/githubCredentialService.js';
 import { GitHubIssue } from '../../../../../platform/github/common/githubQueryService.js';
+import { GitHubQueryService } from '../../../../../platform/github/common/githubQueryServiceImpl.js';
+import { GitHubTransport } from '../../../../../platform/github/common/githubTransport.js';
+import { IGitHubEndpointProvider } from '../../../../../platform/github/common/githubTypes.js';
 import { FragmentState, PullRequestSnapshot } from '../../../../../platform/github/common/githubPullRequestService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IWorkbenchGitHubService } from '../../../../services/github/common/githubService.js';
-import { createLazyGitHubResourceHover, LazyGitHubResourceResolver, parseGitHubReferenceTarget } from '../../browser/lazyGitHubResourceHover.js';
+import { createGitHubResourceDetailsHover, getGitHubResourceDetailsPresentation, GitHubResourceDetailsResolver, parseGitHubReferenceTarget } from '../../browser/githubResourceDetails.js';
+import { IGitHubIssueHoverModel, IGitHubPullRequestHoverModel } from '../../browser/githubResourceHover.js';
 
-suite('LazyGitHubResourceHover', () => {
+suite('GitHubResourceDetails', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createResolver() {
+		const operations: string[] = [];
+		const requests: { readonly kind: string; readonly number: number; readonly priority: string | undefined }[] = [];
+		const warnings: string[] = [];
+		const issue = observableValue<FragmentState<GitHubIssue>>('issue', {
+			status: 'ready', complete: true,
+			value: upcastPartial<GitHubIssue>({ title: 'Issue title', body: '', state: 'open', author: { login: 'author' } }),
+		});
+		const snapshot = observableValue<PullRequestSnapshot>('pullRequest', upcastPartial<PullRequestSnapshot>({
+			core: {
+				status: 'ready', complete: true,
+				value: {
+					repositoryNameWithOwner: 'microsoft/vscode', number: 1, title: 'PR title',
+					url: 'https://github.com/microsoft/vscode/pull/1', state: 'open', draft: false,
+					headSha: 'head', headRef: 'feature', baseSha: 'base', baseRef: 'main',
+				},
+			},
+			checks: {
+				status: 'ready', complete: true,
+				value: {
+					headSha: 'head', checks: [{ id: 'build', type: 'checkRun', name: 'Build', status: 'COMPLETED', conclusion: 'SUCCESS' }],
+					requirednessComplete: true, expectedSuites: [], expectedSuitesComplete: true,
+				},
+			},
+		}));
+		let refresh = async (_fragment: string, _number: number) => { };
+		const client = upcastPartial<IGitHubClient>({
+			credentials: upcastPartial<IGitHubClient['credentials']>({
+				getCredential: async signal => ({ account: { host: 'api.github.com', accountId: 'test' }, token: 'token', generation: 1, signal }),
+			}),
+			query: upcastPartial<IGitHubClient['query']>({
+				subscribeIssue: (ref, options) => {
+					requests.push({ kind: 'issue', number: ref.number, priority: options?.priority });
+					return upcastPartial<ReturnType<IGitHubClient['query']['subscribeIssue']>>({
+						resource: { ref: upcastPartial({}), state: issue },
+						update: () => { },
+						refresh: async () => { operations.push('issue'); await refresh('issue', ref.number); },
+						dispose: () => { },
+					});
+				},
+			}),
+			pullRequests: upcastPartial<IGitHubClient['pullRequests']>({
+				subscribePullRequest: (ref, options) => {
+					requests.push({ kind: 'pullRequest', number: ref.number, priority: options.priority });
+					return upcastPartial<ReturnType<IGitHubClient['pullRequests']['subscribePullRequest']>>({
+						resource: { ref: upcastPartial({}), snapshot },
+						update: () => { },
+						refresh: async fragment => { operations.push(String(fragment)); await refresh(String(fragment), ref.number); },
+						dispose: () => { },
+					});
+				},
+			}),
+		});
+		const resolver = store.add(new GitHubResourceDetailsResolver(upcastPartial<IWorkbenchGitHubService>({
+			onDidChangeDefaultClient: Event.None,
+			acquireDefaultAccountClient: async () => new ImmortalReference(client),
+		}), new class extends NullLogService {
+			override warn(message: string): void { warnings.push(message); }
+		}()));
+		return { resolver, issue, snapshot, operations, requests, warnings, setRefresh: (callback: typeof refresh) => { refresh = callback; } };
+	}
+
+	test('keeps reference identity and recorded labels stable before details resolve', () => {
+		const target = { owner: 'microsoft', repo: 'vscode', number: 1 };
+		assert.deepStrictEqual((['idle', 'loading', 'failed'] as const).map(status =>
+			getGitHubResourceDetailsPresentation('issue', target, { status }, 'Recorded title')),
+		Array.from({ length: 3 }, () => ({
+			label: 'Recorded title', badge: '#1', badgeBeforeLabel: true, className: 'chat-pill-reference', preserveLabelOnRefresh: false,
+			pillLabel: '#1', ariaLabel: 'Open Issue #1: Recorded title', dropdownAriaLabel: '#1, Open Issue: Recorded title',
+		})));
+	});
+
+	test('uses a meaningful fallback for missing titles in every state', () => {
+		const target = { owner: 'microsoft', repo: 'vscode', number: 1 };
+		assert.deepStrictEqual([
+			getGitHubResourceDetailsPresentation('pullRequest', target, { status: 'idle' }, '').label,
+			getGitHubResourceDetailsPresentation('issue', target, { status: 'loading' }, '').label,
+			getGitHubResourceDetailsPresentation('issue', target, { status: 'resolved', value: { title: '', body: '', state: 'open', author: { login: 'author' } } }, 'Recorded title').label,
+		], ['Pull Request', 'Issue', 'Recorded title']);
+	});
+
+	test('uses resolved status icons for fresh and stale pull requests', () => {
+		const target = { owner: 'microsoft', repo: 'vscode', number: 1 };
+		const pullRequest: IGitHubPullRequestHoverModel = {
+			title: 'Live title', body: '', state: 'open', isDraft: false,
+			author: { login: 'author' }, headRef: 'feature', baseRef: 'main',
+		};
+		const cases = [
+			{ state: 'open', isDraft: false, checksStatus: 'success', icon: 'git-pull-request', color: 'charts.green' },
+			{ state: 'open', isDraft: true, checksStatus: 'failure', icon: 'git-pull-request-draft', color: 'descriptionForeground' },
+			{ state: 'closed', isDraft: false, checksStatus: 'failure', icon: 'git-pull-request-closed', color: 'charts.red' },
+			{ state: 'merged', isDraft: false, checksStatus: 'success', icon: 'git-pull-request-done', color: 'charts.purple' },
+			{ state: 'open', isDraft: false, checksStatus: 'failure', icon: 'git-pull-request-error', color: 'charts.orange' },
+		] as const;
+		assert.deepStrictEqual(cases.flatMap(testCase => [false, true].map(stale => {
+			const entry = getGitHubResourceDetailsPresentation('pullRequest', target, {
+				status: 'resolved', stale,
+				value: { pullRequest: { ...pullRequest, state: testCase.state, isDraft: testCase.isDraft }, checksStatus: testCase.checksStatus },
+			}, 'Recorded title');
+			return { label: entry.label, badge: entry.badge, icon: entry.icon?.id, color: entry.icon?.color?.id };
+		})), cases.flatMap(testCase => Array.from({ length: 2 }, () => ({
+			label: 'Live title', badge: '#1', icon: testCase.icon, color: testCase.color,
+		}))));
+	});
+
+	test('uses resolved issue state and completion reason icons', () => {
+		const target = { owner: 'microsoft', repo: 'vscode', number: 1 };
+		const issue: IGitHubIssueHoverModel = { title: 'Live title', body: '', state: 'open', author: { login: 'author' } };
+		const cases = [
+			{ state: 'open', stateReason: undefined, icon: 'issue-opened', color: 'charts.green' },
+			{ state: 'closed', stateReason: 'completed', icon: 'issue-closed', color: 'charts.purple' },
+			{ state: 'closed', stateReason: 'not_planned', icon: 'issue-closed', color: 'descriptionForeground' },
+			{ state: 'closed', stateReason: 'duplicate', icon: 'issue-closed', color: 'descriptionForeground' },
+		] as const;
+		assert.deepStrictEqual(cases.map(testCase => {
+			const entry = getGitHubResourceDetailsPresentation('issue', target, {
+				status: 'resolved', value: { ...issue, state: testCase.state, stateReason: testCase.stateReason },
+			}, 'Recorded title');
+			return { label: entry.label, badge: entry.badge, icon: entry.icon?.id, color: entry.icon?.color?.id };
+		}), cases.map(testCase => ({
+			label: 'Live title', badge: '#1', icon: testCase.icon, color: testCase.color,
+		})));
+	});
+
+	test('shows fresh cached hover details synchronously without a loading or refreshing state', async () => {
+		const { resolver, operations } = createResolver();
+		const target = { owner: 'microsoft', repo: 'vscode', number: 1 };
+		await resolver.resolvePullRequest(target);
+		const hover = createGitHubResourceDetailsHover({
+			kind: 'pullRequest', target, resource: URI.parse('https://github.com/microsoft/vscode/pull/1'), resolver,
+			onDidClickRepository: () => { }, onDidClickReference: () => { }, onDidClickBaseBranch: () => { }, onDidClickHeadBranch: () => { },
+		});
+		assert.ok(typeof hover.hover.content === 'function');
+		const element = hover.hover.content();
+		assert.ok(element instanceof HTMLElement);
+		assert.deepStrictEqual({ title: element.querySelector('.sessions-pr-hover-title')?.textContent, busy: element.getAttribute('aria-busy'), refreshHidden: element.querySelector<HTMLElement>('.github-reference-refresh-status')?.hidden, operations }, {
+			title: 'PR title\u00a0#1', busy: 'false', refreshHidden: true, operations: ['core', 'checks'],
+		});
+	});
+
+	test('warms new references with bounded concurrency, but not restored history', async () => {
+		const { resolver, operations, setRefresh } = createResolver();
+		const finish = new DeferredPromise<void>();
+		setRefresh(async () => finish.p);
+		const reference = (number: number) => ({ identity: {}, resource: URI.parse(`https://github.com/microsoft/vscode/pull/${number}`) });
+		const restored = [reference(1)];
+		resolver.retain(restored, 'session-1');
+		await timeout(0);
+		const initial = [...operations];
+		const added = Array.from({ length: 5 }, (_, index) => reference(index + 2));
+		resolver.retain([...restored, ...added], 'session-1');
+		resolver.retain([...restored, ...added, { ...added[0], identity: {} }], 'session-1');
+		await timeout(0);
+		const inFlight = [...operations];
+		finish.complete();
+		await timeout(0);
+		resolver.retain([...restored, ...added, reference(7)], 'session-2');
+		await timeout(0);
+		assert.deepStrictEqual({ initial, inFlight, afterSessionSwitch: operations }, {
+			initial: [], inFlight: ['core', 'core', 'core'], afterSessionSwitch: ['core', 'core', 'core', 'core', 'core'],
+		});
+	});
+
+	for (const kind of ['issue', 'pullRequest'] as const) {
+		test(`promotes a queued ${kind} on interactive intent without duplicate requests`, async () => {
+			const { resolver, requests, setRefresh } = createResolver();
+			const finish = new DeferredPromise<void>();
+			setRefresh(async (_fragment, number) => {
+				if (number !== 4) {
+					await finish.p;
+				}
+			});
+			const target = (number: number) => ({ owner: 'microsoft', repo: 'vscode', number });
+			const prefetches = [1, 2, 3, 4, 5].map(number => kind === 'issue'
+				? resolver.prefetchIssue(target(number))
+				: resolver.prefetchPullRequest(target(number)));
+			await timeout(0);
+			const resolve = () => kind === 'issue' ? resolver.resolveIssue(target(4)) : resolver.resolvePullRequest(target(4));
+			const interactive = [resolve(), resolve()];
+			await timeout(0);
+			const beforeBackgroundCompletes = {
+				requests: [...requests],
+				fresh: resolver.isFresh(kind, target(4)),
+			};
+			finish.complete();
+			await Promise.all([...prefetches, ...interactive]);
+			assert.deepStrictEqual({ beforeBackgroundCompletes, requests }, {
+				beforeBackgroundCompletes: {
+					requests: [1, 2, 3, 4].map(number => ({ kind, number, priority: number === 4 ? 'interactive' : 'background' })),
+					fresh: true,
+				},
+				requests: [1, 2, 3, 4, 5].map(number => ({ kind, number, priority: number === 4 ? 'interactive' : 'background' })),
+			});
+		});
+	}
+
+	test('does not retry a failed promoted request when its old queue slot becomes available', async () => {
+		const { resolver, requests, warnings, setRefresh } = createResolver();
+		const finish = new DeferredPromise<void>();
+		setRefresh(async (_fragment, number) => {
+			if (number === 4) {
+				throw new Error('offline');
+			}
+			await finish.p;
+		});
+		const target = (number: number) => ({ owner: 'microsoft', repo: 'vscode', number });
+		const prefetches = [1, 2, 3, 4].map(number => resolver.prefetchIssue(target(number)));
+		await timeout(0);
+		const interactive = resolver.resolveIssue(target(4));
+		await timeout(0);
+		const failedBeforeRelease = resolver.getIssueState(target(4)).get().status;
+		finish.complete();
+		const results = await Promise.all([...prefetches, interactive]);
+		assert.deepStrictEqual({
+			failedBeforeRelease, requests, warnings: warnings.length,
+			prefetchResult: results[3], interactiveResult: results[4],
+		}, {
+			failedBeforeRelease: 'failed',
+			requests: [1, 2, 3, 4].map(number => ({ kind: 'issue', number, priority: number === 4 ? 'interactive' : 'background' })),
+			warnings: 1, prefetchResult: undefined, interactiveResult: undefined,
+		});
+	});
+
+	test('promotes a running prefetch through the real query service and transport queue', async () => {
+		const account = { host: 'api.github.com', accountId: 'test' };
+		const credentials = upcastPartial<IGitHubCredentials>({
+			onDidInvalidate: Event.None,
+			getCredential: async signal => ({ account, token: 'token', generation: 1, signal }),
+			handleRequestError: () => { },
+		});
+		const release = new DeferredPromise<Response>();
+		const started = new DeferredPromise<void>();
+		const paths: string[] = [];
+		const transport = store.add(new GitHubTransport(async input => {
+			const path = new URL(String(input)).pathname;
+			paths.push(path);
+			if (path === '/busy') {
+				started.complete();
+				return release.p;
+			}
+			return new Response(JSON.stringify({
+				number: 4, title: 'Authoritative title', body: '', state: 'open',
+				html_url: 'https://github.com/microsoft/vscode/issues/4',
+				user: { login: 'author' }, assignees: [], labels: [],
+				created_at: '2026-10-07T00:00:00Z', updated_at: '2026-10-07T00:00:00Z',
+			}));
+		}, undefined, false, undefined, {
+			queue: { maximumConcurrency: 1, maximumHostConcurrency: 1, maximumCallerConcurrency: 1 },
+		}));
+		const endpoint: IGitHubEndpointProvider = {
+			onDidChange: Event.None,
+			getApiBaseUri: () => 'https://api.github.com',
+			getGraphQlUri: () => 'https://api.github.com/graphql',
+		};
+		const query = store.add(new GitHubQueryService(undefined, undefined, credentials, transport, endpoint, upcastPartial({}), new NullLogService()));
+		const client = upcastPartial<IGitHubClient>({ credentials, query });
+		const resolver = store.add(new GitHubResourceDetailsResolver(upcastPartial<IWorkbenchGitHubService>({
+			onDidChangeDefaultClient: Event.None,
+			acquireDefaultAccountClient: async () => new ImmortalReference(client),
+		}), new NullLogService()));
+		const busy = transport.rest(account, 'token', { method: 'GET', url: 'https://api.github.com/busy', priority: 'background' }, new AbortController().signal);
+		await started.p;
+		const visible = transport.rest(account, 'token', { method: 'GET', url: 'https://api.github.com/visible', priority: 'visible' }, new AbortController().signal);
+		const target = { owner: 'microsoft', repo: 'vscode', number: 4 };
+		const background = resolver.prefetchIssue(target);
+		await timeout(0);
+		const interactive = resolver.resolveIssue(target);
+		release.complete(new Response('{}'));
+		await Promise.all([busy, visible, background, interactive]);
+		assert.deepStrictEqual({ paths, fresh: resolver.isFresh('issue', target) }, {
+			paths: ['/busy', '/repos/microsoft/vscode/issues/4', '/visible'], fresh: true,
+		});
+	});
+
+	test('does not fetch evicted queued references', async () => {
+		const { resolver, operations, setRefresh } = createResolver();
+		const finish = new DeferredPromise<void>();
+		setRefresh(async () => finish.p);
+		const pending = Array.from({ length: 5 }, (_, number) => resolver.prefetchIssue({ owner: 'microsoft', repo: 'vscode', number: number + 1 }));
+		await timeout(0);
+		resolver.retain([]);
+		finish.complete();
+		await Promise.all(pending);
+		assert.deepStrictEqual(operations, ['issue', 'issue', 'issue']);
+	});
+
+	test('settles canceled queued prefetches on disposal', async () => {
+		const { resolver, setRefresh } = createResolver();
+		const finish = new DeferredPromise<void>();
+		setRefresh(async () => finish.p);
+		const pending = Array.from({ length: 5 }, (_, number) => resolver.prefetchIssue({ owner: 'microsoft', repo: 'vscode', number: number + 1 }));
+		await timeout(0);
+		resolver.dispose();
+		const results = await Promise.all(pending);
+		finish.complete();
+		assert.deepStrictEqual(results, Array.from({ length: 5 }, () => undefined));
+	});
+
+	test('revalidates titles and issue state after the interactive freshness budget', () => runWithFakedTimers({}, async () => {
+		const { resolver, issue, operations, setRefresh } = createResolver();
+		const target = { owner: 'microsoft', repo: 'vscode', number: 1 };
+		await resolver.prefetchIssue(target);
+		await timeout(59_999);
+		await resolver.resolveIssue(target);
+		const beforeExpiry = [...operations];
+		await timeout(1);
+		const finish = new DeferredPromise<void>();
+		setRefresh(async () => finish.p);
+		const pending = resolver.resolveIssue(target);
+		const whileRefreshing = resolver.getIssueState(target).get();
+		issue.set({ status: 'ready', complete: true, value: upcastPartial<GitHubIssue>({ title: 'Renamed issue', body: '', state: 'closed', author: { login: 'author' } }) }, undefined);
+		finish.complete();
+		const updated = await pending;
+		assert.deepStrictEqual({ beforeExpiry, operations, whileRefreshing, updated: { title: updated?.title, state: updated?.state } }, {
+			beforeExpiry: ['issue'], operations: ['issue', 'issue'],
+			whileRefreshing: { status: 'resolved', value: { title: 'Issue title', body: '', state: 'open', stateReason: undefined, author: { login: 'author' }, createdAt: undefined } },
+			updated: { title: 'Renamed issue', state: 'closed' },
+		});
+	}));
+
+	test('reuses prefetched titles until the background freshness budget expires', () => runWithFakedTimers({}, async () => {
+		const { resolver, operations } = createResolver();
+		const target = { owner: 'microsoft', repo: 'vscode', number: 1 };
+		await Promise.all([resolver.prefetchIssue(target), resolver.prefetchPullRequest(target)]);
+		await timeout(15 * 60_000 - 1);
+		await Promise.all([resolver.prefetchIssue(target), resolver.prefetchPullRequest(target)]);
+		const beforeExpiry = [...operations];
+		await timeout(1);
+		await Promise.all([resolver.prefetchIssue(target), resolver.prefetchPullRequest(target)]);
+		assert.deepStrictEqual({ beforeExpiry, operations }, {
+			beforeExpiry: ['issue', 'core'], operations: ['issue', 'core', 'issue', 'core'],
+		});
+	}));
+
+	test('does not mark an errored service snapshot as freshly resolved', () => runWithFakedTimers({}, async () => {
+		const { resolver, issue, warnings } = createResolver();
+		const target = { owner: 'microsoft', repo: 'vscode', number: 1 };
+		const original = await resolver.resolveIssue(target);
+		await timeout(60_000);
+		issue.set({ ...issue.get(), status: 'error' }, undefined);
+		await resolver.resolveIssue(target);
+		assert.deepStrictEqual({ state: resolver.getIssueState(target).get(), fresh: resolver.isFresh('issue', target), warnings: warnings.length }, {
+			state: { status: 'resolved', value: original, stale: true }, fresh: false, warnings: 1,
+		});
+	}));
+
+	test('retains stale details and logs failed revalidation', () => runWithFakedTimers({}, async () => {
+		const { resolver, operations, warnings, setRefresh } = createResolver();
+		const target = { owner: 'microsoft', repo: 'vscode', number: 1 };
+		const original = await resolver.resolveIssue(target);
+		await timeout(60_000);
+		setRefresh(async () => { throw new Error('offline'); });
+		await resolver.resolveIssue(target);
+		assert.deepStrictEqual({ state: resolver.getIssueState(target).get(), operations, warnings: warnings.length }, {
+			state: { status: 'resolved', value: original, stale: true }, operations: ['issue', 'issue'], warnings: 1,
+		});
+	}));
+
+	test('refreshes PR merge status and checks without claiming success from a different head', () => runWithFakedTimers({}, async () => {
+		const { resolver, snapshot, operations } = createResolver();
+		const target = { owner: 'microsoft', repo: 'vscode', number: 1 };
+		const initial = await resolver.resolvePullRequest(target);
+		await timeout(29_999);
+		await resolver.resolvePullRequest(target);
+		const beforeExpiry = [...operations];
+		await timeout(1);
+		const current = snapshot.get();
+		assert.ok(current.core.value);
+		snapshot.set({ ...current, core: { ...current.core, value: { ...current.core.value, title: 'Renamed PR', state: 'merged', headSha: 'new-head' } } }, undefined);
+		const updated = await resolver.resolvePullRequest(target);
+		assert.deepStrictEqual({
+			initial: initial?.checksStatus, beforeExpiry, operations,
+			updated: { title: updated?.pullRequest.title, state: updated?.pullRequest.state, checks: updated?.checksStatus },
+		}, {
+			initial: 'success', beforeExpiry: ['core', 'checks'], operations: ['core', 'checks', 'core', 'checks'],
+			updated: { title: 'Renamed PR', state: 'merged', checks: undefined },
+		});
+	}));
+
+	test('does not show cached checks as current when checks refresh fails', () => runWithFakedTimers({}, async () => {
+		const { resolver, setRefresh, warnings } = createResolver();
+		const target = { owner: 'microsoft', repo: 'vscode', number: 1 };
+		await resolver.resolvePullRequest(target);
+		await timeout(30_000);
+		setRefresh(async fragment => {
+			if (fragment === 'checks') {
+				throw new Error('offline');
+			}
+		});
+		const updated = await resolver.resolvePullRequest(target);
+		assert.deepStrictEqual({ checks: updated?.checksStatus, unavailable: updated?.checksUnavailable, warnings: warnings.length }, {
+			checks: undefined, unavailable: true, warnings: 1,
+		});
+	}));
+
+	test('refreshes cached hover status without replacing focused links, and adopts renamed titles on reopening', () => runWithFakedTimers({}, async () => {
+		const { resolver, issue, setRefresh } = createResolver();
+		const target = { owner: 'microsoft', repo: 'vscode', number: 1 };
+		await resolver.prefetchIssue(target);
+		await timeout(60_000);
+		const finish = new DeferredPromise<void>();
+		setRefresh(async () => finish.p);
+		const hover = createGitHubResourceDetailsHover({
+			kind: 'issue', target, resource: URI.parse('https://github.com/microsoft/vscode/issues/1'), resolver,
+			onDidClickRepository: () => { }, onDidClickReference: () => { }, onDidClickBaseBranch: () => { }, onDidClickHeadBranch: () => { },
+		});
+		assert.ok(typeof hover.hover.content === 'function');
+		const element = hover.hover.content();
+		assert.ok(element instanceof HTMLElement);
+		document.body.appendChild(element);
+		store.add({ dispose: () => element.remove() });
+		const link = element.querySelector<HTMLElement>('.sessions-issue-hover-reference')!;
+		link.focus();
+		const initialText = element.textContent;
+		issue.set({ status: 'ready', complete: true, value: upcastPartial<GitHubIssue>({ title: 'Renamed issue', body: '', state: 'closed', author: { login: 'author' } }) }, undefined);
+		finish.complete();
+		await timeout(0);
+		const whileOpen = { sameLink: element.querySelector('.sessions-issue-hover-reference') === link, focused: document.activeElement === link, title: element.querySelector('.sessions-issue-hover-title')?.textContent, status: element.querySelector('.sessions-issue-hover-status-label')?.textContent };
+		element.remove();
+		hover.hover.content();
+		const reopenedTitle = element.querySelector('.sessions-issue-hover-title')?.textContent;
+		await timeout(0);
+		assert.deepStrictEqual({ showedCachedTitle: initialText?.includes('Issue title'), whileOpen, reopenedTitle }, {
+			showedCachedTitle: true,
+			whileOpen: { sameLink: true, focused: true, title: 'Issue title\u00a0#1', status: 'Closed' },
+			reopenedTitle: 'Renamed issue\u00a0#1',
+		});
+	}));
 
 	test('never subscribes to public references through enterprise credentials', async () => {
 		const subscriptions: string[] = [];
@@ -37,7 +472,7 @@ suite('LazyGitHubResourceHover', () => {
 				subscribePullRequest: () => { subscriptions.push('pullRequest'); throw new Error('Must not subscribe'); },
 			}),
 		});
-		const resolver = store.add(new LazyGitHubResourceResolver(upcastPartial<IWorkbenchGitHubService>({
+		const resolver = store.add(new GitHubResourceDetailsResolver(upcastPartial<IWorkbenchGitHubService>({
 			onDidChangeDefaultClient: Event.None,
 			acquireDefaultAccountClient: async () => new ImmortalReference(client),
 		}), new class extends NullLogService {
@@ -91,7 +526,7 @@ suite('LazyGitHubResourceHover', () => {
 						}),
 					}),
 				});
-				const resolver = store.add(new LazyGitHubResourceResolver(upcastPartial<IWorkbenchGitHubService>({
+				const resolver = store.add(new GitHubResourceDetailsResolver(upcastPartial<IWorkbenchGitHubService>({
 					onDidChangeDefaultClient: changed.event,
 					acquireDefaultAccountClient: async () => new ImmortalReference(client),
 				}), new class extends NullLogService {
@@ -191,10 +626,10 @@ suite('LazyGitHubResourceHover', () => {
 				return { object: client, dispose: () => operations.push('client.dispose') };
 			},
 		});
-		const resolver = store.add(new LazyGitHubResourceResolver(service, new NullLogService()));
+		const resolver = store.add(new GitHubResourceDetailsResolver(service, new NullLogService()));
 		const issueResource = URI.parse('https://github.com/microsoft/vscode/issues/1');
 		const pullRequestResource = URI.parse('https://github.com/microsoft/vscode/pull/2');
-		const issueHover = createLazyGitHubResourceHover({
+		const issueHover = createGitHubResourceDetailsHover({
 			kind: 'issue',
 			target: parseGitHubReferenceTarget(issueResource, 'issue')!,
 			resource: issueResource,
@@ -204,7 +639,7 @@ suite('LazyGitHubResourceHover', () => {
 			onDidClickBaseBranch: () => { },
 			onDidClickHeadBranch: () => { },
 		});
-		const pullRequestHover = createLazyGitHubResourceHover({
+		const pullRequestHover = createGitHubResourceDetailsHover({
 			kind: 'pullRequest',
 			target: parseGitHubReferenceTarget(pullRequestResource, 'pullRequest')!,
 			resource: pullRequestResource,
@@ -243,11 +678,11 @@ suite('LazyGitHubResourceHover', () => {
 				'pullRequest.dispose',
 				'client.dispose',
 			],
-			initialIssueText: 'Loading issue #1…',
-			initialPullRequestText: 'Loading pull request #2…',
-			issue: { className: 'sessions-issue-hover compact', text: 'microsoft/vscodeon Sep 1Issue title #1OpenIssue body@issue-author opened this issue' },
-			issuePill: { className: 'sessions-issue-hover', text: 'microsoft/vscodeon Sep 1Issue title #1OpenIssue body@issue-author opened this issue' },
-			pullRequest: { className: 'sessions-pr-hover compact', text: 'microsoft/vscodePull request title #2OpenChecks passedPull request bodymain←feature@pr-author opened this pull request' },
+			initialIssueText: 'Issue #1',
+			initialPullRequestText: 'Pull Request #2',
+			issue: { className: 'chat-pill-hover-content sessions-issue-hover compact', text: 'microsoft/vscodeon Sep 1Issue title #1OpenIssue body@issue-author opened this issue' },
+			issuePill: { className: 'chat-pill-hover-content sessions-issue-hover', text: 'microsoft/vscodeon Sep 1Issue title #1OpenIssue body@issue-author opened this issue' },
+			pullRequest: { className: 'chat-pill-hover-content sessions-pr-hover compact', text: 'microsoft/vscodePull request title #2OpenChecks passedPull request bodymain←feature@pr-author opened this pull request' },
 		});
 	});
 
@@ -274,7 +709,7 @@ suite('LazyGitHubResourceHover', () => {
 	});
 
 	test('retains only current metadata and hover descriptors', () => {
-		const resolver = store.add(new LazyGitHubResourceResolver(upcastPartial<IWorkbenchGitHubService>({
+		const resolver = store.add(new GitHubResourceDetailsResolver(upcastPartial<IWorkbenchGitHubService>({
 			onDidChangeDefaultClient: Event.None,
 		}), new NullLogService()));
 		const target = { owner: 'microsoft', repo: 'vscode', number: 1 };
@@ -376,7 +811,7 @@ suite('LazyGitHubResourceHover', () => {
 					},
 				}),
 			});
-			const resolver = store.add(new LazyGitHubResourceResolver(upcastPartial<IWorkbenchGitHubService>({
+			const resolver = store.add(new GitHubResourceDetailsResolver(upcastPartial<IWorkbenchGitHubService>({
 				onDidChangeDefaultClient: Event.None,
 				acquireDefaultAccountClient: async () => new ImmortalReference(client),
 			}), new NullLogService()));
@@ -413,7 +848,7 @@ suite('LazyGitHubResourceHover', () => {
 		let acquisitions = 0;
 		let acquisitionSignal: AbortSignal | undefined;
 		const refreshCancellation: boolean[] = [];
-		const resolver = store.add(new LazyGitHubResourceResolver(upcastPartial<IWorkbenchGitHubService>({
+		const resolver = store.add(new GitHubResourceDetailsResolver(upcastPartial<IWorkbenchGitHubService>({
 			onDidChangeDefaultClient: Event.None,
 			acquireDefaultAccountClient: signal => { acquisitions++; acquisitionSignal = signal; return acquired.p; },
 		}), new NullLogService()));
@@ -483,7 +918,7 @@ suite('LazyGitHubResourceHover', () => {
 				}),
 			}),
 		});
-		const resolver = store.add(new LazyGitHubResourceResolver(upcastPartial<IWorkbenchGitHubService>({
+		const resolver = store.add(new GitHubResourceDetailsResolver(upcastPartial<IWorkbenchGitHubService>({
 			onDidChangeDefaultClient: Event.None,
 			acquireDefaultAccountClient: async () => {
 				acquisitions++;
@@ -494,7 +929,7 @@ suite('LazyGitHubResourceHover', () => {
 			},
 		}), new NullLogService()));
 		const resource = URI.parse('https://github.com/microsoft/vscode/issues/1');
-		const hover = createLazyGitHubResourceHover({
+		const hover = createGitHubResourceDetailsHover({
 			kind: 'issue',
 			target: parseGitHubReferenceTarget(resource, 'issue')!,
 			resource,
@@ -524,9 +959,9 @@ suite('LazyGitHubResourceHover', () => {
 		}, {
 			acquisitions: 2,
 			failedText: resource.toString(true),
-			retry: { text: 'Loading issue #1…', busy: 'true' },
+			retry: { text: 'Issue #1', busy: 'true' },
 			busy: 'false',
-			className: 'sessions-issue-hover compact',
+			className: 'chat-pill-hover-content sessions-issue-hover compact',
 			text: 'microsoft/vscodeRecovered issue #1OpenRecovered body@issue-author opened this issue',
 		});
 	});
