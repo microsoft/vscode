@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import * as cp from 'child_process';
+import { randomUUID } from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 import { Application, ApplicationOptions, Logger, Quality } from '../../../../automation';
@@ -147,19 +148,21 @@ export function setup(logger: Logger, quality: Quality) {
 
 			try {
 				const requestsBefore = agentHost.mockServer.getRequests().length;
+				const requestTag = `[proxy-request:${randomUUID()}]`;
+				const worktreesBefore = process.env.VSCODE_SMOKE_TEST_PROXY_HEADER
+					? cp.execFileSync('git', ['worktree', 'list', '--porcelain'], { cwd: app.workspacePathOrFolder, encoding: 'utf8' })
+					: undefined;
 				await app.workbench.agentsWindow.waitForNewSessionView();
 				await app.workbench.agentsWindow.selectSessionType('Copilot');
-				await app.workbench.agentsWindow.submitNewSessionPrompt(`replace the new session UI [scenario:${AGENT_HOST_REPLACEMENT_SCENARIO_ID}]`);
+				await app.workbench.agentsWindow.submitNewSessionPrompt(`replace the new session UI [scenario:${AGENT_HOST_REPLACEMENT_SCENARIO_ID}] ${requestTag}`);
 				await app.workbench.agentsWindow.waitForActiveSessionView();
 				await app.workbench.agentsWindow.waitForAssistantText(AGENT_HOST_REPLACEMENT_REPLY);
 				if (process.env.VSCODE_SMOKE_TEST_PROXY_HEADER) {
-					assert.ok(
-						agentHost.mockServer.getRequests().slice(requestsBefore).some(request =>
-							request.path === '/chat/completions' &&
-							request.method === 'POST' &&
-							latestUserInputCarriesTag(request.body, 'Please write a brief branch name for the following request:') &&
-							latestUserInputCarriesTag(request.body, `[scenario:${AGENT_HOST_REPLACEMENT_SCENARIO_ID}]`)),
-						'Expected worktree branch generation to reach the mock CAPI server through the proxy; a chat reply alone does not exercise authenticated Agent Host fetch'
+					await waitForCapiRequest(agentHost.mockServer, requestsBefore, requestTag);
+					assert.strictEqual(
+						cp.execFileSync('git', ['worktree', 'list', '--porcelain'], { cwd: app.workspacePathOrFolder, encoding: 'utf8' }),
+						worktreesBefore,
+						'Expected authenticated CAPI validation without creating a worktree'
 					);
 				}
 				await app.workbench.agentsWindow.startNewSession();
@@ -807,8 +810,10 @@ function setupAgentHostSuite(logger: Logger, config: {
 				// scratch, so set the production default explicitly rather than
 				// relying on configuration registration timing.
 				'http.proxySupport': 'override',
-				// Worktree branch naming exercises the host's Kerberos-authenticated CAPI fetch.
-				...(process.env.VSCODE_SMOKE_TEST_PROXY_HEADER ? { 'sessions.useWorktree': true } : {}),
+				...(process.env.VSCODE_SMOKE_TEST_PROXY_HEADER ? {
+					'sessions.useWorktree': false,
+					'chat.agentHost.experimental.titleGeneration': 'utility',
+				} : {}),
 				'chat.allowAnonymousAccess': true,
 				'github.copilot.chat.githubMcpServer.enabled': false,
 				'chat.agentHost.ahpJsonlLoggingEnabled': true,
@@ -874,6 +879,20 @@ function setupAgentHostSuite(logger: Logger, config: {
 		get logsPath() { return logsPath; },
 		get remoteFixture() { return remoteFixture; },
 	};
+}
+
+async function waitForCapiRequest(mockServer: MockLlmServer, requestsBefore: number, requestTag: string): Promise<void> {
+	const deadline = Date.now() + 30_000;
+	while (Date.now() < deadline) {
+		if (mockServer.getRequests().slice(requestsBefore).some(request =>
+			request.path === '/chat/completions' &&
+			request.method === 'POST' &&
+			latestUserInputCarriesTag(request.body, requestTag))) {
+			return;
+		}
+		await new Promise(resolve => setTimeout(resolve, 100));
+	}
+	throw new Error(`Timed out waiting for the Agent Host CAPI title request with ${requestTag}; a chat reply alone does not exercise authenticated fetch`);
 }
 
 async function assertRemoteDevContainerRouting(logsPath: string, transport: RemoteDevContainerTransport, workspacePath: string, reply: string): Promise<void> {

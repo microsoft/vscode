@@ -208,8 +208,9 @@ auth_param negotiate children 5
 auth_param negotiate keep_alive on
 acl connect method CONNECT
 acl smoke_mock url_regex ^http://$MOCK_HOST:
+acl smoke_utility urlpath_regex ^/chat/completions
 acl authenticated proxy_auth REQUIRED
-http_access allow smoke_mock !connect
+http_access allow smoke_mock !connect !smoke_utility
 http_access allow authenticated
 http_access deny all
 EOF
@@ -332,6 +333,11 @@ fi
 if [[ "$PROXY_AUTH" == "kerberos" ]]; then
 	if curl --fail --silent --connect-timeout 3 --proxy http://localhost:43144 --noproxy '' "$PAC_URL" >/dev/null 2>&1; then
 		echo "The Kerberos proxy accepted an unauthenticated request" >&2
+		exit 1
+	fi
+	utility_status="$(curl --silent --show-error --connect-timeout 3 --proxy http://localhost:43144 --noproxy '' --request POST --output /dev/null --write-out '%{http_code}' "http://$MOCK_HOST:44444/chat/completions")"
+	if [[ "$utility_status" != "407" ]]; then
+		echo "Expected HTTP 407 for an unauthenticated CAPI utility request, got $utility_status" >&2
 		exit 1
 	fi
 	KRB5_CONFIG="$KERBEROS_CONFIG" KRB5CCNAME="$KERBEROS_CACHE" \

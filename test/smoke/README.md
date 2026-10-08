@@ -79,7 +79,7 @@ bash test/smoke/scripts/run-agents-window-network-proxy.sh --kerberos --build "/
 
 Omit `--kerberos` for an unauthenticated proxy. The fixture requires Squid (`brew install squid`) and permission to configure the system PAC URL and packet filter; it restores both during cleanup.
 
-Proxy runs pin worktree isolation so the mandatory Copilot session exercises the Agent Host's CAPI fetch for branch generation, independently of the production isolation default or optional Codex availability. The test checks that the mock server received the branch-generation request for that session, rather than accepting only a chat reply. Kerberos validation excludes the setup curl probe and additionally requires an authenticated tunnel to the mock host in Squid's access log.
+Proxy runs disable worktree isolation and use utility-model title generation to exercise the Agent Host's CAPI fetch, independently of the production title-generation default or optional Codex availability. The mandatory Copilot test sends a fresh UUID in its prompt, waits for a `/chat/completions` request containing that marker, and verifies that no worktree was created. In Kerberos mode, Squid requires authentication for this endpoint even though ordinary mock HTTP traffic remains unauthenticated; setup checks that the endpoint rejects unauthenticated requests. Post-run validation excludes the setup curl probe and additionally requires an authenticated tunnel to the mock host in Squid's access log.
 
 ### Dev Container sessions over SSH, Tunnels, and WSL
 
