@@ -196,7 +196,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 	 * so subsequent failures and recoveries land in the channel history.
 	 */
 	private readonly _mcpDiagnosticSessions = new ResourceSet();
-	private readonly _mcpAutoAuthentication = new Map<string, { readonly challenge: string; authenticated: boolean | undefined }>();
+	private readonly _mcpAutoAuthentication = new Map<string, { readonly challenge: string; tokenForwarded: boolean | undefined; restarted: boolean; rejected: boolean }>();
 
 	protected constructor(
 		protected readonly _instantiationService: IInstantiationService,
@@ -291,11 +291,15 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 	private _isAutoAuthenticatingMcpServer(sessionResource: URI, target: IAgentHostCustomizationTarget, server: McpServerCustomization): boolean {
 		const key = `${sessionResource.toString()}\n${server.id}`;
 		const state = server.state;
+		let entry = this._mcpAutoAuthentication.get(key);
 		if (state.kind !== McpServerStatus.AuthRequired) {
-			this._mcpAutoAuthentication.delete(key);
+			if (state.kind === McpServerStatus.Starting && entry && entry.tokenForwarded !== false) {
+				entry.restarted = true;
+			} else {
+				this._mcpAutoAuthentication.delete(key);
+			}
 			return false;
 		}
-		// Every input the silent attempt uses, so republished auth metadata gets a fresh attempt.
 		const challenge = JSON.stringify([
 			state.reason,
 			state.resource.resource,
@@ -305,9 +309,11 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 			state.oauthClient?.clientId,
 			state.oauthClient?.clientSecret,
 		]);
-		let entry = this._mcpAutoAuthentication.get(key);
+		if (entry?.challenge === challenge && entry.restarted) {
+			entry.rejected = true;
+		}
 		if (!entry || entry.challenge !== challenge) {
-			entry = { challenge, authenticated: undefined };
+			entry = { challenge, tokenForwarded: undefined, restarted: false, rejected: false };
 			this._mcpAutoAuthentication.set(key, entry);
 			const currentEntry = entry;
 			this._instantiationService.invokeFunction(autoAuthenticateMcpServer, {
@@ -317,12 +323,12 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 				return false;
 			}).then(result => {
 				if (!this._store.isDisposed && this._mcpAutoAuthentication.get(key) === currentEntry) {
-					currentEntry.authenticated = result;
+					currentEntry.tokenForwarded = result;
 					this._fireCustomizationsChanged();
 				}
 			});
 		}
-		return entry.authenticated !== false;
+		return !entry.rejected && entry.tokenForwarded !== false;
 	}
 
 	showMcpServerLog(sessionResource: URI, serverId: string, beforeShow?: () => Promise<void>): Promise<void> {
