@@ -193,7 +193,14 @@ export class ChatGroupsView extends Themable {
 		store.add(this._instantiationService.createInstance(ChatGroupDropTarget, this.element, dropDelegate));
 
 		store.add(autorun(reader => this._reconcile(reader)));
-		this._applyLayout();
+		store.add(autorun(reader => {
+			session.chats.read(reader);
+			this._groupCount.read(reader);
+			for (const group of this._groups) {
+				group.activeResourceId.read(reader);
+			}
+			this._applyLayout();
+		}));
 	}
 
 	private _createSingleGroupGrid(session: IActiveSession, store: DisposableStore): SerializableGrid<ChatGroupView> {
@@ -825,6 +832,7 @@ export class ChatGroupsView extends Themable {
 			return;
 		}
 		const groups = this._groups.filter(shouldRemove);
+		let removed = false;
 		for (const group of groups) {
 			if (this._groups.length <= 1) {
 				break;
@@ -832,6 +840,7 @@ export class ChatGroupsView extends Themable {
 			const hadFocus = group.view.element.contains(group.view.element.ownerDocument.activeElement);
 			this._grid.removeView(group.view, Sizing.Distribute);
 			this._groups = this._groups.filter(g => g !== group);
+			removed = true;
 			if (this._activeGroup === group) {
 				this._activeGroup = this._groups[0];
 				this._activeGroup?.view.setGroupActive(true);
@@ -842,6 +851,9 @@ export class ChatGroupsView extends Themable {
 			}
 		}
 		this._setGroupCount(this._groups.length);
+		if (removed) {
+			this._applyLayout();
+		}
 	}
 
 	private _setActiveGroup(entry: IGroupEntry): void {
@@ -906,7 +918,6 @@ export class ChatGroupsView extends Themable {
 
 		this._setActiveGroup(target);
 		this._removeGroups(group => group === source);
-		this._applyLayout();
 		this._persistLayout();
 		return true;
 	}
@@ -1088,7 +1099,7 @@ export class ChatGroupsView extends Themable {
 		this._activeGroup?.view.focus();
 	}
 
-	layout(width: number, height: number, top: number, left: number): void {
+	layout(width: number, height: number, top: number, left: number, _gap = 0): void {
 		this._lastLayout = { width, height, top, left };
 		this._applyLayout();
 	}
@@ -1102,6 +1113,7 @@ export class ChatGroupsView extends Themable {
 		if (this._grid) {
 			this._grid.layout(width, height, top, left);
 			this._gridDidLayout = true;
+			this._grid.style({ separatorBorder: this._separatorBorder });
 		}
 	}
 
@@ -1111,7 +1123,7 @@ export class ChatGroupsView extends Themable {
 
 	override updateStyles(): void {
 		super.updateStyles();
-		this._grid?.style({ separatorBorder: this._separatorBorder });
+		this._applyLayout();
 	}
 
 	/** Persists the current grid layout for the active session (or clears it when a single group). */

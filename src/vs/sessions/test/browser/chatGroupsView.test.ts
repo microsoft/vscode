@@ -28,6 +28,7 @@ import { workbenchInstantiationService } from '../../../workbench/test/browser/w
 import { IChatSessionHistoryStatus } from '../../../platform/chat/common/chatSessionHistory.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../browser/parts/chatView.js';
 import { ChatGroupsView } from '../../browser/parts/chatGroupsView.js';
+import { GRID_GAP_SASH_CLASS } from '../../browser/parts/gridGap.js';
 import { SessionDropTarget } from '../../browser/parts/sessionDropTarget.js';
 import { DraggedSessionIdentifier, SessionsDataTransfers } from '../../browser/dnd.js';
 import { SessionActiveChatCanArchiveContext, SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionActiveChatIsUntitledContext, SessionActiveChatResourceContext, SessionFocusedChatIsRenameTargetContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionHeaderTargetsChatContext, SessionToolbarShowsSessionContext } from '../../common/contextkeys.js';
@@ -359,6 +360,272 @@ suite('Sessions - ChatGroupsView', () => {
 		}, {
 			scrollDownRight: '24px',
 			transcriptContextMaxWidth: 'none',
+		});
+	});
+
+	test('uses a single divider between vertically split chats', async () => {
+		const { view } = createHarness(disposables);
+		const main = createChat('main');
+		const secondary = createChat('secondary');
+		view.setSession(new TestActiveSession([main, secondary]), options);
+		view.layout(800, 600, 0, 0);
+
+		view.splitActiveChat('bottom');
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			hasGaps: view.element.classList.contains('chat-groups-view-has-gaps'),
+			gapSashes: view.element.querySelectorAll(`.${GRID_GAP_SASH_CLASS}`).length,
+			boundaryOverlays: view.element.querySelectorAll('.chat-groups-view-boundary-segment').length,
+			insets: Array.from(view.element.querySelectorAll<HTMLElement>('.chat-group-view')).map(group => {
+				const style = mainWindow.getComputedStyle(group);
+				return [style.borderTopWidth, style.borderRightWidth, style.borderBottomWidth, style.borderLeftWidth].join(' ');
+			}).sort(),
+			splitViews: view.element.querySelectorAll('.monaco-split-view2').length,
+		}, {
+			hasGaps: false,
+			gapSashes: 0,
+			boundaryOverlays: 0,
+			insets: ['0px 0px 0px 0px', '0px 0px 0px 0px'],
+			splitViews: 1,
+		});
+	});
+
+	test('uses dividers between every split chat in the session', async () => {
+		const { view } = createHarness(disposables);
+		const main = createChat('main');
+		const firstChild = createChat('firstChild', SessionStatus.Completed, main.resource);
+		const secondChild = createChat('secondChild', SessionStatus.Completed, main.resource);
+		const unrelated = createChat('unrelated');
+		const session = new TestActiveSession([main, firstChild, secondChild, unrelated]);
+		view.setSession(session, options);
+		view.layout(1200, 600, 0, 0);
+
+		view.splitChatToSide(firstChild.resource);
+		await timeout(0);
+		await view.openChatInNewGroup(secondChild.resource, firstChild.resource);
+		await view.openChatInNewGroup(unrelated.resource, secondChild.resource);
+
+		const insets = Object.fromEntries(view['_groups'].map(group => {
+			const style = mainWindow.getComputedStyle(group.view.element);
+			return [group.activeResourceId.get(), [style.borderTopWidth, style.borderRightWidth, style.borderBottomWidth, style.borderLeftWidth].join(' ')];
+		}));
+		assert.deepStrictEqual({
+			hasGaps: view.element.classList.contains('chat-groups-view-has-gaps'),
+			gapSashes: view.element.querySelectorAll(`.${GRID_GAP_SASH_CLASS}`).length,
+			boundaryOverlays: view.element.querySelectorAll('.chat-groups-view-boundary-segment').length,
+			sashes: view.element.querySelectorAll('.monaco-sash').length,
+			insets,
+		}, {
+			hasGaps: false,
+			gapSashes: 0,
+			boundaryOverlays: 0,
+			sashes: 3,
+			insets: {
+				[main.resource.toString()]: '0px 0px 0px 0px',
+				[firstChild.resource.toString()]: '0px 0px 0px 0px',
+				[secondChild.resource.toString()]: '0px 0px 0px 0px',
+				[unrelated.resource.toString()]: '0px 0px 0px 0px',
+			},
+		});
+	});
+
+	test('uses only dividers in a nested chat grid', async () => {
+		const { sessionsService, view } = createHarness(disposables);
+		const main = createChat('main');
+		const child = createChat('child', SessionStatus.Completed, main.resource);
+		const unrelated = createChat('unrelated');
+		const session = new TestActiveSession([main, child, unrelated]);
+		view.setSession(session, options);
+		view.layout(1000, 600, 0, 0);
+
+		view.splitActiveChat('right');
+		await timeout(0);
+		await sessionsService.openChat(session, unrelated.resource);
+		view.splitActiveChat('bottom');
+		await timeout(0);
+
+		const insets = Object.fromEntries(view['_groups'].map(group => {
+			const style = mainWindow.getComputedStyle(group.view.element);
+			return [group.activeResourceId.get(), [style.borderTopWidth, style.borderRightWidth, style.borderBottomWidth, style.borderLeftWidth].join(' ')];
+		}));
+		assert.deepStrictEqual({
+			hasGaps: view.element.classList.contains('chat-groups-view-has-gaps'),
+			gapSashes: view.element.querySelectorAll(`.${GRID_GAP_SASH_CLASS}`).length,
+			boundaryOverlays: view.element.querySelectorAll('.chat-groups-view-boundary-segment').length,
+			splitViews: view.element.querySelectorAll('.monaco-split-view2').length,
+			insets,
+		}, {
+			hasGaps: false,
+			gapSashes: 0,
+			boundaryOverlays: 0,
+			splitViews: 2,
+			insets: {
+				[main.resource.toString()]: '0px 0px 0px 0px',
+				[child.resource.toString()]: '0px 0px 0px 0px',
+				[unrelated.resource.toString()]: '0px 0px 0px 0px',
+			},
+		});
+	});
+
+	test('keeps a divider when the active chat changes', async () => {
+		const { sessionsService, view } = createHarness(disposables);
+		const main = createChat('main');
+		const child = createChat('child', SessionStatus.Completed, main.resource);
+		const unrelated = createChat('unrelated');
+		const session = new TestActiveSession([main, child, unrelated]);
+		view.setSession(session, options);
+		view.layout(800, 600, 0, 0);
+
+		view.splitChatToSide(child.resource);
+		await timeout(0);
+
+		const snapshot = () => ({
+			hasGaps: view.element.classList.contains('chat-groups-view-has-gaps'),
+			gapSashes: view.element.querySelectorAll(`.${GRID_GAP_SASH_CLASS}`).length,
+			insets: Array.from(view.element.querySelectorAll<HTMLElement>('.chat-group-view')).map(group => {
+				const style = mainWindow.getComputedStyle(group);
+				return [style.borderTopWidth, style.borderRightWidth, style.borderBottomWidth, style.borderLeftWidth].join(' ');
+			}).sort(),
+		});
+		const related = snapshot();
+		await sessionsService.openChat(session, unrelated.resource);
+		const unrelatedActive = snapshot();
+		await sessionsService.openChat(session, main.resource);
+
+		assert.deepStrictEqual({ related, unrelatedActive, restored: snapshot() }, {
+			related: {
+				hasGaps: false,
+				gapSashes: 0,
+				insets: ['0px 0px 0px 0px', '0px 0px 0px 0px'],
+			},
+			unrelatedActive: {
+				hasGaps: false,
+				gapSashes: 0,
+				insets: ['0px 0px 0px 0px', '0px 0px 0px 0px'],
+			},
+			restored: {
+				hasGaps: false,
+				gapSashes: 0,
+				insets: ['0px 0px 0px 0px', '0px 0px 0px 0px'],
+			},
+		});
+	});
+
+	test('recomputes floating-panel insets as split chat groups are removed', async () => {
+		const { sessionsService, view } = createHarness(disposables);
+		const main = createChat('main');
+		const secondary = createChat('secondary');
+		const tertiary = createChat('tertiary');
+		const session = new TestActiveSession([main, secondary, tertiary]);
+		view.setSession(session, options);
+		view.layout(1200, 600, 0, 0);
+		await view.openChatInNewGroup(secondary.resource);
+		await sessionsService.openChat(session, tertiary.resource);
+		view.splitActiveChat('bottom');
+		await timeout(0);
+
+		const snapshot = () => ({
+			groupCount: view.groupCount.get(),
+			hasGaps: view.element.classList.contains('chat-groups-view-has-gaps'),
+			gapSashes: view.element.querySelectorAll(`.${GRID_GAP_SASH_CLASS}`).length,
+			insets: Object.fromEntries(view['_groups'].map(group => {
+				const style = mainWindow.getComputedStyle(group.view.element);
+				return [group.resourceIds.get().join(','), [style.borderTopWidth, style.borderRightWidth, style.borderBottomWidth, style.borderLeftWidth].join(' ')];
+			})),
+		});
+		const threeGroups = snapshot();
+
+		transaction(tx => {
+			session.visibleChatTabs.set([main, secondary], tx);
+			session.activeChat.set(secondary, tx);
+		});
+		const twoGroups = snapshot();
+
+		transaction(tx => {
+			session.visibleChatTabs.set([main], tx);
+			session.activeChat.set(main, tx);
+		});
+
+		assert.deepStrictEqual({ threeGroups, twoGroups, oneGroup: snapshot() }, {
+			threeGroups: {
+				groupCount: 3,
+				hasGaps: false,
+				gapSashes: 0,
+				insets: {
+					[main.resource.toString()]: '0px 0px 0px 0px',
+					[tertiary.resource.toString()]: '0px 0px 0px 0px',
+					[secondary.resource.toString()]: '0px 0px 0px 0px',
+				},
+			},
+			twoGroups: {
+				groupCount: 2,
+				hasGaps: false,
+				gapSashes: 0,
+				insets: {
+					[main.resource.toString()]: '0px 0px 0px 0px',
+					[secondary.resource.toString()]: '0px 0px 0px 0px',
+				},
+			},
+			oneGroup: {
+				groupCount: 1,
+				hasGaps: false,
+				gapSashes: 0,
+				insets: {
+					[main.resource.toString()]: '0px 0px 0px 0px',
+				},
+			},
+		});
+	});
+
+	test('uses the same split-chat divider in multiple and single presentation', async () => {
+		const { configurationService, view } = createHarness(disposables);
+		const main = createChat('main');
+		const secondary = createChat('secondary');
+		view.setSession(new TestActiveSession([main, secondary]), options);
+		view.layout(800, 600, 0, 0);
+		view.splitChatToSide(secondary.resource);
+		await timeout(0);
+
+		const snapshot = () => ({
+			hasGaps: view.element.classList.contains('chat-groups-view-has-gaps'),
+			gapSashes: view.element.querySelectorAll(`.${GRID_GAP_SASH_CLASS}`).length,
+			insets: Array.from(view.element.querySelectorAll<HTMLElement>('.chat-group-view')).map(group => {
+				const style = mainWindow.getComputedStyle(group);
+				return [style.borderTopWidth, style.borderRightWidth, style.borderBottomWidth, style.borderLeftWidth].join(' ');
+			}).sort(),
+		});
+		const setChatTabsMode = async (mode: SessionsChatTabsMode) => {
+			await configurationService.setUserConfiguration(SESSIONS_CHAT_TABS_SETTING, mode);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				source: ConfigurationTarget.USER,
+				affectedKeys: new Set([SESSIONS_CHAT_TABS_SETTING]),
+				change: { keys: [SESSIONS_CHAT_TABS_SETTING], overrides: [] },
+				affectsConfiguration: key => key === SESSIONS_CHAT_TABS_SETTING,
+			});
+		};
+
+		const multiple = snapshot();
+		await setChatTabsMode(SessionsChatTabsMode.Single);
+		const single = snapshot();
+		await setChatTabsMode(SessionsChatTabsMode.Multiple);
+
+		assert.deepStrictEqual({ multiple, single, restored: snapshot() }, {
+			multiple: {
+				hasGaps: false,
+				gapSashes: 0,
+				insets: ['0px 0px 0px 0px', '0px 0px 0px 0px'],
+			},
+			single: {
+				hasGaps: false,
+				gapSashes: 0,
+				insets: ['0px 0px 0px 0px', '0px 0px 0px 0px'],
+			},
+			restored: {
+				hasGaps: false,
+				gapSashes: 0,
+				insets: ['0px 0px 0px 0px', '0px 0px 0px 0px'],
+			},
 		});
 	});
 

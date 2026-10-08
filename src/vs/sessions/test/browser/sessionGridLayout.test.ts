@@ -10,6 +10,7 @@ import { mainWindow } from '../../../base/browser/window.js';
 import { Event } from '../../../base/common/event.js';
 import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
+import { GRID_GAP_SASH_CLASS } from '../../browser/parts/gridGap.js';
 import { ISessionGridEntry, ISessionGridView, SessionGridLayout } from '../../browser/parts/sessionGridLayout.js';
 import { getSessionDropDirection } from '../../browser/parts/sessionDropTarget.js';
 import { ISessionGridState, isSessionGridState, projectSessionGrid } from '../../services/sessions/browser/sessionGridState.js';
@@ -28,6 +29,7 @@ suite('Sessions - Grid Layout', () => {
 		readonly onDidChange = Event.None;
 		visible = true;
 		size = { width: 0, height: 0 };
+		readonly contentGaps: number[] = [];
 		onLayoutContainer: (() => void) | undefined;
 		onLayoutContents: (() => void) | undefined;
 		onVisibilityChange: ((visible: boolean) => void) | undefined;
@@ -39,7 +41,10 @@ suite('Sessions - Grid Layout', () => {
 			this.size = { width, height };
 			this.onLayoutContainer?.();
 		}
-		layoutContents(): void { this.onLayoutContents?.(); }
+		layoutContents(gap = 0): void {
+			this.contentGaps.push(gap);
+			this.onLayoutContents?.();
+		}
 		setVisible(visible: boolean): void {
 			this.visible = visible;
 			this.onVisibilityChange?.(visible);
@@ -73,6 +78,78 @@ suite('Sessions - Grid Layout', () => {
 		grid.layout(1400, 700, 0, 0, false);
 		grid.layout(1400, 700, 0, 0, false);
 		assert.deepStrictEqual(operations, ['geometry a', 'geometry b', 'contents a', 'contents b']);
+	});
+
+	test('insets adjacent views by the configured gap and restores flush compact allocations', () => {
+		const { grid, a, b, c } = harness();
+		grid.reconcile([a, b, c], 'a');
+		const leafElements = new Map([a, b, c].map(entry => [entry.id, entry.view.element.parentElement!]));
+		const grippers = () => Array.from(grid.element.querySelectorAll<HTMLElement>('.monaco-sash'))
+			.filter(sash => sash.closest('.monaco-grid-view')?.parentElement === grid.element)
+			.map(sash => sash.classList.contains(GRID_GAP_SASH_CLASS));
+		const snapshot = () => ({
+			hasGaps: grid.element.classList.contains('session-grid-has-gaps'),
+			grippers: grippers(),
+			views: [a, b, c].map(entry => {
+				const style = leafElements.get(entry.id)!.style;
+				return {
+					size: entry.view.size,
+					insets: [style.borderTopWidth, style.borderRightWidth, style.borderBottomWidth, style.borderLeftWidth],
+				};
+			}),
+		});
+
+		grid.layout(1200, 600, 0, 0, false, 4);
+		const gapped = snapshot();
+		grid.toggleMaximized('a');
+		const maximized = {
+			hasGaps: grid.element.classList.contains('session-grid-has-gaps'),
+			grippers: grippers(),
+			size: a.view.size,
+			insets: snapshot().views[0].insets,
+		};
+		grid.toggleMaximized('a');
+		grid.layout(1200, 600, 0, 0, false);
+		const compact = snapshot();
+
+		assert.deepStrictEqual({ gapped, maximized, compact }, {
+			gapped: {
+				hasGaps: true,
+				grippers: [true, true],
+				views: [
+					{ size: { width: 398, height: 600 }, insets: ['0px', '2px', '0px', '0px'] },
+					{ size: { width: 798, height: 298 }, insets: ['0px', '0px', '2px', '2px'] },
+					{ size: { width: 798, height: 298 }, insets: ['2px', '0px', '0px', '2px'] },
+				],
+			},
+			maximized: {
+				hasGaps: false,
+				grippers: [false, false],
+				size: { width: 1200, height: 600 },
+				insets: ['0px', '0px', '0px', '0px'],
+			},
+			compact: {
+				hasGaps: false,
+				grippers: [false, false],
+				views: [
+					{ size: { width: 400, height: 600 }, insets: ['0px', '0px', '0px', '0px'] },
+					{ size: { width: 800, height: 300 }, insets: ['0px', '0px', '0px', '0px'] },
+					{ size: { width: 800, height: 300 }, insets: ['0px', '0px', '0px', '0px'] },
+				],
+			},
+		});
+	});
+
+	test('propagates density gap changes when a single leaf keeps the same geometry', () => {
+		const { grid, a } = harness();
+		grid.reconcile([a], 'a');
+		grid.layout(1200, 600, 0, 0, false);
+		a.view.contentGaps.length = 0;
+
+		grid.layout(1200, 600, 0, 0, false, 4);
+		grid.layout(1200, 600, 0, 0, false);
+
+		assert.deepStrictEqual(a.view.contentGaps, [4, 0]);
 	});
 
 	test('coalesces direct grid allocations into one cancellable frame using the latest dimensions', () => {
@@ -158,10 +235,10 @@ suite('Sessions - Grid Layout', () => {
 		});
 	});
 
-	test('only exposed session-grid corners use the native connected-tabs radius', () => {
+	test('connected-tab styling preserves complete panel frames and exposed grid corners', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench agent-sessions-workbench mac modern-ui-tabs modern-ui-connected-editor-tabs nopanel noeditorpane nosidebar';
-		root.style.cssText = '--vscode-cornerRadius-large: 8px; --vscode-agents-layout-floatingPanelGap: 4px; --vscode-strokeThickness: 1px; --window-corner-radius: 16px;';
+		root.style.cssText = '--vscode-cornerRadius-large: 8px; --vscode-agents-layout-floatingPanelGap: 4px; --vscode-strokeThickness: 1px; --window-corner-radius: 16px; --modern-ui-connected-tab-border: #445566;';
 		const card = document.createElement('div');
 		card.className = 'part sessionspart agents-part-card';
 		root.appendChild(card);
@@ -197,9 +274,13 @@ suite('Sessions - Grid Layout', () => {
 			return [style.borderBottomLeftRadius, style.borderBottomRightRadius];
 		});
 		grid.reconcile([a, b], 'a');
-		grid.layout(1200, 600, 20, 100, false);
+		grid.layout(1200, 600, 20, 100, false, 4);
 		grid.reconcile([a, d, b, c], 'a');
 		const split = corners();
+		const frames = [a, b, c, d].map(({ view }) => {
+			const style = mainWindow.getComputedStyle(view.element, '::after');
+			return [style.borderTopWidth, style.borderRightWidth, style.borderBottomWidth, style.borderLeftWidth];
+		});
 		grid.reconcile([d, a, c, b].map(({ id, view }) => ({ id, view })), 'a');
 		const reordered = corners();
 		grid.toggleMaximized('c');
@@ -211,8 +292,14 @@ suite('Sessions - Grid Layout', () => {
 		grid.reconcile([a], 'a');
 		const single = corners()[0];
 
-		assert.deepStrictEqual({ split, reordered, maximized, unmaximized, resized, single }, {
+		assert.deepStrictEqual({ split, frames, reordered, maximized, unmaximized, resized, single }, {
 			split: [['7px', '7px'], ['7px', '7px'], ['7px', '11px'], ['11px', '7px']],
+			frames: [
+				['1px', '1px', '1px', '1px'],
+				['1px', '1px', '1px', '1px'],
+				['1px', '1px', '1px', '1px'],
+				['1px', '1px', '1px', '1px'],
+			],
 			reordered: [['11px', '7px'], ['7px', '11px'], ['7px', '7px'], ['7px', '7px']],
 			maximized: [['7px', '7px'], ['7px', '7px'], ['11px', '11px'], ['7px', '7px']],
 			unmaximized: [['11px', '7px'], ['7px', '11px'], ['7px', '7px'], ['7px', '7px']],

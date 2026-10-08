@@ -29,6 +29,7 @@ import { SessionRemoteConnection } from './sessionRemoteConnection.js';
 import { ISessionReadOnlyBannerContent, SessionReadOnlyBanner } from './sessionReadOnlyBanner.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from './chatView.js';
 import { ChatHeader } from './chatHeader.js';
+import { IGridEdgeInsets, NO_GRID_EDGE_INSETS } from './gridGap.js';
 
 /**
  * The data + callbacks a {@link ChatGroupView} needs from its owning
@@ -132,6 +133,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 	private readonly _archiveActionWording: IObservable<ReturnType<typeof getChatSessionArchiveActionWording>>;
 
 	private _lastLayout: { readonly width: number; readonly height: number; readonly top: number; readonly left: number } | undefined;
+	private _layoutInsets = NO_GRID_EDGE_INSETS;
 
 	/** Whether this group is the active (focused) group within the session. */
 	private _groupActive = false;
@@ -496,11 +498,30 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		this._layoutChildren();
 	}
 
+	setLayoutInsets(insets: IGridEdgeInsets): void {
+		if (
+			this._layoutInsets.top === insets.top && this._layoutInsets.right === insets.right
+			&& this._layoutInsets.bottom === insets.bottom && this._layoutInsets.left === insets.left
+		) {
+			return;
+		}
+		this._layoutInsets = insets;
+		this.element.style.borderTopWidth = `${insets.top}px`;
+		this.element.style.borderRightWidth = `${insets.right}px`;
+		this.element.style.borderBottomWidth = `${insets.bottom}px`;
+		this.element.style.borderLeftWidth = `${insets.left}px`;
+		this._layoutChildren();
+	}
+
 	private _layoutChildren(): void {
 		if (!this._lastLayout || !this._sessionVisible) {
 			return;
 		}
-		const { width, height, top, left } = this._lastLayout;
+		const dimensions = this._lastLayout;
+		const width = Math.max(0, dimensions.width - this._layoutInsets.left - this._layoutInsets.right);
+		const height = Math.max(0, dimensions.height - this._layoutInsets.top - this._layoutInsets.bottom);
+		const top = dimensions.top + this._layoutInsets.top;
+		const left = dimensions.left + this._layoutInsets.left;
 		const headerHeight = this._chatHeader.visible ? this._chatHeader.height : 0;
 		const tabsHeight = this._compositeBar.visible ? this._compositeBar.height : 0;
 		const bannerHeight = this._readOnlyBanner.visible ? this._readOnlyBanner.domNode.offsetHeight : 0;

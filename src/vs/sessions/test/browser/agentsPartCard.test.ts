@@ -16,7 +16,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/comm
 import { MainEditorPart as MainEditorPartBase } from '../../../workbench/browser/parts/editor/editorPart.js';
 import { AbstractPaneCompositePart } from '../../../workbench/browser/parts/paneCompositePart.js';
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
-import { getAgentsPartCardContentSize } from '../../browser/parts/agentsPartCard.js';
+import { getAgentsPartCardContentSize, hasInsetConnectedFramePair } from '../../browser/parts/agentsPartCard.js';
 import { CustomViewGridPart } from '../../browser/parts/customViewGridPart.js';
 import { AgentWorkbenchLayout } from '../../browser/workbench.js';
 import { MainEditorPart } from '../../browser/parts/editorPart.js';
@@ -35,6 +35,7 @@ suite('Sessions - Agents Part Card', () => {
 		container.style.width = '800px';
 		container.style.setProperty('--vscode-agents-layout-floatingPanelGap', '4px');
 		container.style.setProperty('--vscode-cornerRadius-large', '8px');
+		container.style.setProperty('--vscode-sash-size', '4px');
 		container.style.setProperty('--vscode-strokeThickness', '1px');
 		container.style.setProperty('--vscode-spacing-size20', '2px');
 		container.style.setProperty('--vscode-spacing-size40', '4px');
@@ -94,6 +95,65 @@ suite('Sessions - Agents Part Card', () => {
 			rightGap: 0,
 			contentWidth: 800,
 			contentSize: { width: 800, height: 600 },
+		});
+	});
+
+	test('matches the connected side-pane gap to the floating-panel gap', () => {
+		const { container, card } = createCard(true, true);
+		container.classList.add('modern-ui-tabs', 'modern-ui-connected-editor-tabs', 'dock-detail-panel');
+		card.classList.add('part', 'sessionspart');
+		const row = append(container, $('.monaco-grid-view'));
+		row.style.display = 'flex';
+		const sessionAllocation = append(row, $('.session-allocation'));
+		sessionAllocation.style.width = '500px';
+		sessionAllocation.style.height = '400px';
+		sessionAllocation.style.flex = '0 0 auto';
+		append(sessionAllocation, card);
+		card.style.height = '100%';
+		const insetConnectedFramePair = hasInsetConnectedFramePair(container);
+		const contentSize = getAgentsPartCardContentSize(500, 400, true, true, false, false, insetConnectedFramePair);
+		const content = append(card, $('.content'));
+		content.style.width = `${contentSize.width}px`;
+		content.style.height = `${contentSize.height}px`;
+		const session = append(content, $('.session-view'));
+		session.style.width = '100%';
+		session.style.height = '100%';
+		const editor = append(row, $('.part.editor.editor-tabs-multiple'));
+		editor.style.width = '300px';
+		editor.style.height = '400px';
+		editor.style.flex = '0 0 auto';
+		const divider = append(row, $('.monaco-sash.vertical.sessions-side-pane-divider'));
+		const dividerStyle = mainWindow.getComputedStyle(divider);
+		const gripStyle = mainWindow.getComputedStyle(divider, '::after');
+
+		assert.deepStrictEqual({
+			insetConnectedFramePair,
+			marginRight: mainWindow.getComputedStyle(card).marginRight,
+			backgroundClip: mainWindow.getComputedStyle(card).backgroundClip,
+			renderedContentWidth: card.clientWidth,
+			contentSize,
+			frameGap: editor.getBoundingClientRect().left + parseFloat(mainWindow.getComputedStyle(editor).borderLeftWidth) - session.getBoundingClientRect().right,
+			divider: {
+				transform: dividerStyle.transform,
+				width: dividerStyle.width,
+				gripContent: gripStyle.content,
+				gripWidth: gripStyle.width,
+				gripHeight: gripStyle.height,
+			},
+		}, {
+			insetConnectedFramePair: true,
+			marginRight: '2px',
+			backgroundClip: 'padding-box',
+			renderedContentWidth: 496,
+			contentSize: { width: 496, height: 398 },
+			frameGap: 4,
+			divider: {
+				transform: 'matrix(1, 0, 0, 1, -1, 0)',
+				width: '4px',
+				gripContent: '""',
+				gripWidth: '2px',
+				gripHeight: '2px',
+			},
 		});
 	});
 
