@@ -54,6 +54,7 @@ class TestApi extends mock<IAutomationsClient>() {
 	tasks: readonly Task[] = [];
 	listError: Error | undefined;
 	historyError: Error | undefined;
+	pendingHistory: Promise<void> | undefined;
 	getError: Error | undefined;
 	createError: Error | undefined;
 	dispatchError: Error | undefined;
@@ -78,6 +79,7 @@ class TestApi extends mock<IAutomationsClient>() {
 	}
 	override async listRuns(): Promise<PaginatedResponse<ListTasksResponse>> {
 		this.calls.push('history');
+		await this.pendingHistory;
 		if (this.historyError) {
 			throw this.historyError;
 		}
@@ -205,6 +207,57 @@ suite('CloudAutomationStore', () => {
 			await provider.runAutomation(provider.automations.get()[0].id);
 			await clock.tickAsync(120_000);
 			assert.deepStrictEqual(api.calls.filter(call => call !== 'visibility'), ['run', 'history', 'history', 'history', 'history', 'history']);
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('concurrent refreshes share history and cannot republish rows after the cloud gate closes', async () => {
+		const { provider, api, set } = setup();
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		const pending = new DeferredPromise<void>();
+		api.pendingHistory = pending.p;
+		api.tasks = [{ id: 'late', state: 'completed', created_at: definition.created_at, remote_steerable: true }];
+		api.calls.length = 0;
+		const first = provider.refresh();
+		const second = provider.refresh();
+		await timeout(0);
+		const loading = { state: provider.historyState.get(), reads: api.calls.filter(call => call === 'history').length };
+		const rejected = Promise.all([assert.rejects(first, isCancellationError), assert.rejects(second, isCancellationError)]);
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, false);
+		await pending.complete();
+		await rejected;
+		assert.deepStrictEqual({
+			loading, history: provider.historyState.get(), definitions: provider.automations.get(), runs: provider.runs.get(),
+		}, { loading: { state: 'loading', reads: 1 }, history: 'ready', definitions: [], runs: [] });
+	});
+
+	test('history poll failures stop automatic retries and manual refresh restores polling', async () => {
+		const clock = useFakeTimers();
+		try {
+			const { provider, api, set } = setup();
+			api.tasks = [{ id: 'task', state: 'in_progress', created_at: definition.created_at, remote_steerable: true }];
+			await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+			await provider.refresh();
+			const runId = provider.runs.get()[0].id;
+			api.calls.length = 0;
+			api.historyError = new Error('Offline');
+			await clock.tickAsync(15_000);
+			const failed = { history: provider.historyState.get(), catalogue: provider.catalogueState.get(), runId: provider.runs.get()[0].id };
+			await clock.tickAsync(300_000);
+			const failedReads = api.calls.filter(call => call === 'history').length;
+			api.historyError = undefined;
+			await provider.refresh();
+			api.calls.length = 0;
+			await clock.tickAsync(15_000);
+			assert.deepStrictEqual({ failed, failedReads, recovered: provider.historyState.get(), calls: api.calls }, {
+				failed: { history: 'error', catalogue: 'ready', runId }, failedReads: 1, recovered: 'ready', calls: ['history'],
+			});
+			provider.dispose();
+			api.calls.length = 0;
+			await clock.tickAsync(60_000);
+			assert.deepStrictEqual(api.calls, []);
 		} finally {
 			clock.restore();
 		}

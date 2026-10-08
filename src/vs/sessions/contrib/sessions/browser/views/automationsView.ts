@@ -205,10 +205,11 @@ export class AutomationsCardsWidget extends Disposable {
 		const historyState = DOM.append(scrollContent, $('.automations-history-state', { role: 'status' }));
 		this._register(autorun(reader => {
 			const state = this.automationService.historyState?.read(reader);
+			const catalogueState = this.automationService.catalogueState.read(reader);
 			const hasAutomations = this.automationService.automations.read(reader).length > 0;
 			const hasRuns = this.automationService.runs.read(reader).length > 0;
 			const message = state === 'error' ? localize('historyRefreshFailed', "Run history could not be refreshed. Showing the last available history. Use Refresh to try again.")
-				: state !== 'loading' && hasAutomations && !hasRuns ? localize('historyEmpty', "No runs yet. Run an automation now or wait for its next scheduled run.") : '';
+				: catalogueState === 'ready' && state !== 'loading' && hasAutomations && !hasRuns ? localize('historyEmpty', "No runs yet. Run an automation now or wait for its next scheduled run.") : '';
 			historyState.textContent = message;
 			historyState.style.display = message ? '' : 'none';
 		}));

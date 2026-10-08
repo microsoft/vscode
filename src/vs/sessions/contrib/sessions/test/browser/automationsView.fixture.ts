@@ -274,6 +274,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/automations/' }, {
 		render: ctx => renderAutomations(ctx, { width: 520, height: 720, populated: true }),
 	}),
 	CloudHistory: defineComponentFixture({
+		additionalThemes: ['darkHighContrast'],
 		render: ctx => renderAutomations(ctx, { width: 1000, height: 850, populated: true, cloud: true }),
 	}),
 	CloudHistoryError: defineComponentFixture({

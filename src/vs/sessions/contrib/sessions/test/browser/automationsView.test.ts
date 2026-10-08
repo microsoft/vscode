@@ -789,6 +789,7 @@ suite('AutomationsCardsWidget', () => {
 
 	test('history states distinguish failed refresh from confirmed empty without hiding cached runs', () => {
 		const { widget, automationService } = setup();
+		automationService.setCatalogueState('ready');
 		automationService.setAutomations([automation()]);
 		const state = widget.element.querySelector('.automations-history-state')!;
 		const empty = state.textContent;
@@ -820,6 +821,17 @@ suite('AutomationsCardsWidget', () => {
 			historyState: widget.element.querySelector<HTMLElement>('.automations-history-state')?.style.display,
 			partialState: widget.element.querySelector<HTMLElement>('.automations-cards-partial-state')?.style.display,
 		}, { top, historyState: 'none', partialState: 'none' });
+	});
+
+	test('incomplete catalogues do not claim an empty run history', () => {
+		const { widget, automationService } = setup();
+		automationService.setAutomations([automation()]);
+		const state = widget.element.querySelector<HTMLElement>('.automations-history-state')!;
+		const messages = (['loading', 'unavailable', 'error', 'ready'] as const).map(value => {
+			automationService.setCatalogueState(value);
+			return state.textContent;
+		});
+		assert.deepStrictEqual(messages, ['', '', '', 'No runs yet. Run an automation now or wait for its next scheduled run.']);
 	});
 
 	test('completed cloud history uses cloud repository, separator and relative updated time', () => {
