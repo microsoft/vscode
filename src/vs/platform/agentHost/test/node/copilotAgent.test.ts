@@ -15583,6 +15583,48 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('rejects steering updates while shutdown waits for a live session to disconnect', async () => {
+			const h = await createHarness();
+			const gate = new DeferredPromise<void>();
+			const disconnectStarted = new DeferredPromise<void>();
+			const disconnect = stub(h.newRuntime, 'disconnect').callsFake(async () => {
+				h.newRuntime.disconnectCalls++;
+				disconnectStarted.complete();
+				await gate.p;
+			});
+			try {
+				await h.agent.chats.sendMessage(h.chat, 'original', undefined, undefined, 'turn-original', undefined, h.context);
+				h.newRuntime.emit({
+					id: 'user-message',
+					timestamp: new Date().toISOString(),
+					parentId: null,
+					type: 'user.message',
+					data: { content: 'original', messageId: 'sdk-message', turnId: 'sdk-turn' },
+				});
+				const shutdown = h.agent.shutdown();
+				await disconnectStarted.p;
+				assert.strictEqual(h.live().hasRunningTurn, true);
+				h.agent.setPendingMessages(h.chat, { id: 'steering', message: { text: 'follow up', origin: { kind: MessageKind.User } } }, []);
+				await timeout(0);
+				const sendsDuringShutdown = h.newRuntime.sendCalls;
+				gate.complete();
+				await shutdown;
+				h.agent.setPendingMessages(h.chat, { id: 'late-steering', message: { text: 'late follow up', origin: { kind: MessageKind.User } } }, []);
+				await timeout(0);
+				assert.deepStrictEqual({
+					sendsDuringShutdown,
+					sendsAfterShutdown: h.newRuntime.sendCalls,
+				}, {
+					sendsDuringShutdown: 1,
+					sendsAfterShutdown: 1,
+				});
+			} finally {
+				gate.complete();
+				await disposeAgent(h.agent);
+				disconnect.restore();
+			}
+		});
+
 		test('Start rejects before the session runtime exists', async () => {
 			const agent = createTestAgent(disposables);
 			try {

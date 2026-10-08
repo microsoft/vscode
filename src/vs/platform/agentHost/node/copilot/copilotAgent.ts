@@ -5103,6 +5103,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	setPendingMessages(chat: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[], steeringSender?: IAgentPendingMessageSender): void {
+		if (this._isShuttingDown) {
+			return;
+		}
 		const chatKey = chat.toString();
 		if (!steeringMessage) {
 			this._pendingSteeringMessages.delete(chatKey);
