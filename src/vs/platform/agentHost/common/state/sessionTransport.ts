@@ -46,7 +46,7 @@ export interface IProtocolTransport extends IDisposable {
 	readonly relayPassive?: boolean;
 	readonly relayHandshakeMeta?: Record<string, unknown>;
 	/** Owner-validated identity for the current relay handshake, independent of transport access. */
-	readonly relayAuthenticated?: boolean;
+	readonly relayAuthentication?: { readonly authenticated: boolean; readonly resource: string };
 	/** Captures the current credential lifetime for checks after awaited work. */
 	relayCaptureAuthorization?(): () => void;
 	readonly onDidRelayAuthenticationExpire?: Event<void>;

@@ -33,7 +33,7 @@ import { ContentEncoding, ReconnectResultType } from '../../common/state/protoco
 import { ChatSourceKind } from '../../common/state/protocol/channels-chat/commands.js';
 import { ChatInteractivity, ResourceChangeType, ResponsePartKind, SessionLifecycle } from '../../common/state/protocol/state.js';
 import { AhpErrorCodes, JsonRpcErrorCodes } from '../../common/state/protocol/errors.js';
-import { isActionKnownToVersion, PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS } from '../../common/state/protocol/version/registry.js';
+import { isActionKnownToVersion, PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { ActionType, type ActionEnvelope, type ChatTurnCompleteAction, type ChatTurnStartedAction, type SessionActiveClientSetAction, type SessionActiveClientRemovedAction, type SessionTitleChangedAction } from '../../common/state/sessionActions.js';
 import { chatReducer } from '../../common/state/sessionReducers.js';
 import { ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
@@ -993,6 +993,39 @@ suite('AgentHostProtocolClient', () => {
 		}]);
 	});
 
+	test('listSessions preserves legacy chat archive flags without requiring them on current summaries', async () => {
+		const { client, transport } = createClient();
+		const listing = client.listSessions();
+		const sent = transport.sentMessages[0] as JsonRpcRequest;
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: sent.id,
+			result: {
+				items: [{
+					resource: 'session-store://tenant/session',
+					provider: 'other-agent',
+					title: 'Session',
+					status: SessionStatus.Idle,
+					createdAt: new Date(1000).toISOString(),
+					modifiedAt: new Date(2000).toISOString(),
+					chats: [
+						{ resource: 'conversation://tenant/legacy', title: 'Legacy', archived: true },
+						{ resource: 'conversation://tenant/current', title: 'Current', status: SessionStatus.Idle | SessionStatus.IsArchived },
+						{ resource: 'conversation://tenant/absent', title: 'Absent' },
+						{ resource: 'conversation://tenant/invalid', title: 'Invalid', archived: 'true' },
+					],
+				}],
+			},
+		});
+		const sessions = await listing;
+		assert.deepStrictEqual(sessions[0].chats?.map(chat => ({ resource: chat.chat.toString(), archived: chat.archived })), [
+			{ resource: 'conversation://tenant/legacy', archived: true },
+			{ resource: 'conversation://tenant/current', archived: true },
+			{ resource: 'conversation://tenant/absent', archived: undefined },
+			{ resource: 'conversation://tenant/invalid', archived: undefined },
+		]);
+	});
+
 	test('unmarked conforming hosts retain opaque session and chat resources through listing, subscription and dispatch', async () => {
 		const { client, transport } = createClient();
 		await connectClient(client, transport);
@@ -1041,14 +1074,16 @@ suite('AgentHostProtocolClient', () => {
 		});
 	});
 
-	test('chat read-state actions require AHP 0.10', () => {
+	test('chat read-state actions require AHP 0.9', () => {
 		const action = { type: ActionType.ChatIsReadChanged, isRead: true } as const;
 		assert.deepStrictEqual({
+			v08: isActionKnownToVersion(action, '0.8.0'),
 			v09: isActionKnownToVersion(action, '0.9.0'),
-			v10: isActionKnownToVersion(action, '0.10.0'),
+			v1: isActionKnownToVersion(action, '1.0.0'),
 		}, {
-			v09: false,
-			v10: true,
+			v08: false,
+			v09: true,
+			v1: true,
 		});
 	});
 
@@ -1890,9 +1925,7 @@ suite('AgentHostProtocolClient', () => {
 			clientInfo: params.clientInfo,
 			_meta: params._meta,
 		}, {
-			// Every compatible version is offered so an older host can negotiate down,
-			// newest first so a current host still picks it.
-			protocolVersions: SUPPORTED_PROTOCOL_VERSIONS.filter(version => version !== '0.8.0'),
+			protocolVersions: ['1.0.0', '0.10.0', '0.9.0'],
 			clientId: 'renderer-client-id',
 			clientInfo,
 			_meta: {
@@ -1903,7 +1936,7 @@ suite('AgentHostProtocolClient', () => {
 				'vscode.clientDevDeviceId': 'client-dev-device-id',
 			},
 		});
-		assert.strictEqual(params.protocolVersions[0], PROTOCOL_VERSION);
+		assert.strictEqual(params.protocolVersions[0], '1.0.0');
 		assert.ok(!params.protocolVersions.includes('0.8.0'));
 
 		// Reply with a successful handshake so `connect()` resolves and the
@@ -1911,9 +1944,10 @@ suite('AgentHostProtocolClient', () => {
 		transport.fireMessage({
 			jsonrpc: '2.0',
 			id: sent.id,
-			result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] },
+			result: { protocolVersion: '0.10.0', serverSeq: 0, snapshots: [] },
 		});
 		await connectPromise;
+		assert.strictEqual(client.initializeResult.get()?.protocolVersion, '0.10.0');
 		const telemetryLevel = findRootConfigNotification(transport.sentMessages, AgentHostTelemetryLevelConfigKey);
 		assert.deepStrictEqual(telemetryLevel, {
 			jsonrpc: '2.0',
@@ -3623,7 +3657,7 @@ suite('AgentHostProtocolClient', () => {
 		 * client plus a `transports` array recording each transport handed
 		 * out, so tests can drive handshake/reconnect interactions.
 		 */
-		function createFactoryClient(permissionService = createPermissionService(), clientInfo?: Implementation, telemetryService: ITelemetryService = NullTelemetryService, reconnectPolicy?: IRemoteAgentHostReconnectPolicy, loadEstimator?: { hasHighLoad(): boolean }, prepareReconnect?: () => Promise<void>, authentication?: Pick<IAgentHostProtocolClientOptions, 'prepareAuthentication' | 'resolveInitialAuthentication'>): { client: AgentHostProtocolClient; transports: TestClientProtocolTransport[]; configurationService: TestConfigurationService } {
+		function createFactoryClient(permissionService = createPermissionService(), clientInfo?: Implementation, telemetryService: ITelemetryService = NullTelemetryService, reconnectPolicy?: IRemoteAgentHostReconnectPolicy, loadEstimator?: { hasHighLoad(): boolean }, prepareReconnect?: () => Promise<void>, authentication?: Pick<IAgentHostProtocolClientOptions, 'prepareAuthentication' | 'resolveInitialAuthentication'>, power?: { onDidSuspend: Event<void>; onDidResume: Event<void> }): { client: AgentHostProtocolClient; transports: TestClientProtocolTransport[]; configurationService: TestConfigurationService } {
 			const transports: TestClientProtocolTransport[] = [];
 			const factory = () => {
 				const t = disposables.add(new TestClientProtocolTransport());
@@ -3633,7 +3667,7 @@ suite('AgentHostProtocolClient', () => {
 			const workspaceTrust = createWorkspaceTrustServices();
 			const configurationService = new TestConfigurationService();
 			const client = disposables.add(new AgentHostProtocolClient(
-				'test.example:1234', factory, clientInfo !== undefined || reconnectPolicy !== undefined || loadEstimator !== undefined || prepareReconnect !== undefined || authentication !== undefined ? { clientInfo, reconnectPolicy, loadEstimator, prepareReconnect, ...authentication } : undefined, new NullLogService(), permissionService, configurationService, telemetryService, workspaceTrustEnablementService, workspaceTrust.management, workspaceTrust.request,
+				'test.example:1234', factory, clientInfo !== undefined || reconnectPolicy !== undefined || loadEstimator !== undefined || prepareReconnect !== undefined || authentication !== undefined || power !== undefined ? { clientInfo, reconnectPolicy, loadEstimator, prepareReconnect, ...authentication, ...power } : undefined, new NullLogService(), permissionService, configurationService, telemetryService, workspaceTrustEnablementService, workspaceTrust.management, workspaceTrust.request,
 			));
 			return { client, transports, configurationService };
 		}
@@ -3869,6 +3903,80 @@ suite('AgentHostProtocolClient', () => {
 				});
 			}));
 		}
+
+		for (const recover of [false, true]) {
+			test(`OS sleep does not consume the recovery budget (${recover ? 'network resumes' : 'network stays unavailable'})`, async () => {
+				const clock = sinon.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+				try {
+					const suspend = disposables.add(new Emitter<void>());
+					const resume = disposables.add(new Emitter<void>());
+					const policy: IRemoteAgentHostReconnectPolicy = {
+						autoRestore: true, initialDelayMs: 10, maxDelayMs: 10, maxAttempts: 10, maxElapsedTimeMs: 100,
+					};
+					const { client, transports } = createFactoryClient(undefined, undefined, undefined, policy, { hasHighLoad: () => false }, undefined, undefined,
+						{ onDidSuspend: suspend.event, onDidResume: resume.event });
+					await completeHandshake(transports[0], client.connect());
+					transports[0].fireClose();
+					await clock.tickAsync(40);
+					suspend.fire();
+					clock.setSystemTime(Date.now() + 600_000);
+					resume.fire();
+					await clock.tickAsync(20);
+					suspend.fire();
+					clock.setSystemTime(Date.now() + 600_000);
+					resume.fire();
+					resume.fire();
+					const stateAfterWake = client.connectionState;
+					if (recover) {
+						transports[1].connectDeferred.complete();
+						await flushMicrotasks();
+						const reconnect = findRequest(transports[1], 'reconnect')!;
+						assert.ok(reconnect, 'replacement transport must get a chance to recover after wake');
+						transports[1].fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+					}
+					await clock.tickAsync(39);
+					const stateBeforeDeadline = client.connectionState;
+					await clock.tickAsync(1);
+					assert.deepStrictEqual({ stateAfterWake, stateBeforeDeadline, stateAtDeadline: client.connectionState, transports: transports.length }, {
+						stateAfterWake: AgentHostClientState.Reconnecting,
+						stateBeforeDeadline: recover ? AgentHostClientState.Connected : AgentHostClientState.Reconnecting,
+						stateAtDeadline: recover ? AgentHostClientState.Connected : AgentHostClientState.Closed,
+						transports: 2,
+					});
+					client.dispose();
+				} finally {
+					clock.restore();
+				}
+			});
+		}
+
+		test('recovery begun during OS sleep gets its bounded budget on resume', async () => {
+			const clock = sinon.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+			try {
+				const suspend = disposables.add(new Emitter<void>());
+				const resume = disposables.add(new Emitter<void>());
+				const policy: IRemoteAgentHostReconnectPolicy = {
+					autoRestore: true, initialDelayMs: 10, maxDelayMs: 10, maxAttempts: 10, maxElapsedTimeMs: 100,
+				};
+				const { client, transports } = createFactoryClient(undefined, undefined, undefined, policy, { hasHighLoad: () => false }, undefined, undefined,
+					{ onDidSuspend: suspend.event, onDidResume: resume.event });
+				await completeHandshake(transports[0], client.connect());
+				resume.fire();
+				suspend.fire();
+				transports[0].fireClose();
+				clock.setSystemTime(Date.now() + 600_000);
+				resume.fire();
+				await clock.tickAsync(99);
+				const stateBeforeDeadline = client.connectionState;
+				await clock.tickAsync(1);
+				assert.deepStrictEqual({ stateBeforeDeadline, stateAtDeadline: client.connectionState, transports: transports.length }, {
+					stateBeforeDeadline: AgentHostClientState.Reconnecting, stateAtDeadline: AgentHostClientState.Closed, transports: 2,
+				});
+				client.dispose();
+			} finally {
+				clock.restore();
+			}
+		});
 
 		test('failed attempts and immediate retries do not restart the recovery deadline', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const policy: IRemoteAgentHostReconnectPolicy = {
@@ -4657,9 +4765,11 @@ suite('AgentHostProtocolClient', () => {
 				const initialize = await waitForRequest(reconnectTransport, 'initialize');
 				assert.deepStrictEqual({
 					clientInfo: (initialize.params as { clientInfo?: Implementation }).clientInfo,
+					protocolVersions: (initialize.params as { protocolVersions: readonly string[] }).protocolVersions,
 					meta: (initialize.params as { _meta?: Record<string, unknown> })._meta,
 				}, {
 					clientInfo: agentsWindowAgentHostClientInfo,
+					protocolVersions: ['1.0.0', '0.10.0', '0.9.0'],
 					meta: {
 						[AgentHostSessionUrisCapabilityMetaKey]: true,
 						'vscode.telemetryLevel': 'all',
@@ -4670,7 +4780,7 @@ suite('AgentHostProtocolClient', () => {
 				reconnectTransport.fireMessage({
 					jsonrpc: '2.0',
 					id: initialize.id,
-					result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] },
+					result: { protocolVersion: '0.10.0', serverSeq: 0, snapshots: [] },
 				});
 				await flushMicrotasks();
 				const managedSettingsIndex = reconnectTransport.sentMessages.findIndex(message => hasKey(message, { method: true }) && message.method === 'setClientManagedSettingsPermissions');

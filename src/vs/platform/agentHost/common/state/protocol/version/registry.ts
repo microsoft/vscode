@@ -16,7 +16,7 @@ import type { ServerNotificationMap } from '../messages.js';
  *
  * Formatted as a [SemVer](https://semver.org) `MAJOR.MINOR.PATCH` string.
  */
-export const PROTOCOL_VERSION = '0.10.0';
+export const PROTOCOL_VERSION = '1.1.0';
 
 /**
  * Every protocol version a client built from this source tree is willing
@@ -24,10 +24,9 @@ export const PROTOCOL_VERSION = '0.10.0';
  * first** so a server picking the first acceptable entry honors the
  * client's preference (see [versioning](../../docs/specification/versioning.md)).
  *
- * The first entry MUST equal {@link PROTOCOL_VERSION} — the version
- * "new code speaks" is by definition the most preferred one. Older
- * versions may be appended if a client retains the ability to fall back
- * to them; today only one version is advertised.
+ * These are released compatibility baselines, independent of the current
+ * development {@link PROTOCOL_VERSION}. Hosts accept client-offered versions
+ * in the caret-compatible range of either baseline.
  *
  * Every generated client (Rust, Kotlin, Swift) re-exports this constant
  * verbatim. The TypeScript client consumes it directly. The per-client
@@ -35,13 +34,8 @@ export const PROTOCOL_VERSION = '0.10.0';
  * `scripts/verify-release-metadata.ts`.
  */
 export const SUPPORTED_PROTOCOL_VERSIONS: readonly string[] = Object.freeze([
-	'0.10.0',
+	'1.0.0',
 	'0.9.0',
-	'0.8.0',
-	'0.7.0',
-	'0.6.0',
-	'0.5.2',
-	'0.5.1',
 ]);
 
 // ─── SemVer Comparison ───────────────────────────────────────────────────────
@@ -54,11 +48,35 @@ export const SUPPORTED_PROTOCOL_VERSIONS: readonly string[] = Object.freeze([
  * Throws if `version` is not a well-formed `MAJOR.MINOR.PATCH` string.
  */
 function parseSemver(version: string): readonly [number, number, number] {
-	const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(version);
-	if (!match) {
+	const match = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.exec(version);
+	if (!match || match[0] !== version) {
 		throw new Error(`Invalid protocol version: ${version}`);
 	}
-	return [Number(match[1]), Number(match[2]), Number(match[3])] as const;
+	const parts = [Number(match[1]), Number(match[2]), Number(match[3])] as const;
+	return parts;
+}
+
+/**
+ * Selects the highest client-offered version in a supported caret range.
+ * Returns undefined when none match; the host must send UnsupportedProtocolVersion
+ * with SUPPORTED_PROTOCOL_VERSIONS and close the connection. Malformed versions throw.
+ */
+export function negotiateProtocolVersion(offered: readonly string[]): string | undefined {
+	let selected: string | undefined;
+	for (const version of offered) {
+		const [major, minor, patch] = parseSemver(version);
+		const compatible = SUPPORTED_PROTOCOL_VERSIONS.some(baseline => {
+			const [baseMajor, baseMinor, basePatch] = parseSemver(baseline);
+			return major === baseMajor
+				&& (major > 0 || minor === baseMinor)
+				&& (major > 0 || minor > 0 || patch === basePatch)
+				&& compareProtocolVersions(version, baseline) >= 0;
+		});
+		if (compatible && (selected === undefined || compareProtocolVersions(version, selected) > 0)) {
+			selected = version;
+		}
+	}
+	return selected;
 }
 
 /**
@@ -145,7 +163,7 @@ export const ACTION_INTRODUCED_IN: { readonly [K in StateAction['type']]: string
 	[ActionType.ChatPendingMessageRemoved]: '0.4.0',
 	[ActionType.ChatQueuedMessagesReordered]: '0.4.0',
 	[ActionType.ChatDraftChanged]: '0.5.0',
-	[ActionType.ChatIsReadChanged]: '0.10.0',
+	[ActionType.ChatIsReadChanged]: '0.9.0',
 	[ActionType.ChatIsArchivedChanged]: '0.9.0',
 	[ActionType.ChatInputRequested]: '0.4.0',
 	[ActionType.ChatInputAnswerChanged]: '0.4.0',

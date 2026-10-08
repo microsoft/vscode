@@ -50,7 +50,9 @@ class MissionControlLane extends Disposable implements IProtocolTransport {
 	readonly transportKind = AgentHostTransportKind.WebSocket;
 	get relayClientId(): string { return this.clientId; }
 	get relayPassive(): boolean { return this.passive; }
-	get relayAuthenticated(): boolean | undefined { return this._authentication?.authenticated; }
+	get relayAuthentication(): IProtocolTransport['relayAuthentication'] {
+		return this._authentication ? { authenticated: this._authentication.authenticated, resource: this._authentication.resource } : undefined;
+	}
 	get onDidRelayAuthenticationExpire() { return this._authentication?.onDidExpire; }
 	readonly relayCaptureAuthorization?: () => () => void;
 	get relayHandshakeMeta(): Record<string, unknown> | undefined {
@@ -83,7 +85,7 @@ class MissionControlLane extends Disposable implements IProtocolTransport {
 			this._register(_authentication.onDidExpire(() => this.send({
 				jsonrpc: '2.0',
 				method: 'auth/required',
-				params: { channel: ROOT_STATE_URI, resource: _authentication.identityResource, reason: AuthRequiredReason.Expired },
+				params: { channel: ROOT_STATE_URI, resource: { resource: _authentication.resource }, reason: AuthRequiredReason.Expired },
 			})));
 		}
 	}

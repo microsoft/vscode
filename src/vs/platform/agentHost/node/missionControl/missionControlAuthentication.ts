@@ -283,11 +283,17 @@ export class MissionControlAuthentication extends Disposable {
 		return this._authenticated && !this._closed && this._isCurrentIdentityAuthority();
 	}
 
+	get resource(): string {
+		return this._apiOrigin;
+	}
+
 	captureAuthorization(): () => void {
 		const generation = this._authorizationGeneration;
 		const check = () => {
 			if (!this.authenticated || generation !== this._authorizationGeneration) {
-				throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Relay identity authentication is required');
+				throw new ProtocolError(AhpErrorCodes.AuthRequired, 'Relay identity authentication is required', {
+					resources: [{ resource: this.resource, required: true }],
+				});
 			}
 		};
 		check();
@@ -325,10 +331,6 @@ export class MissionControlAuthentication extends Disposable {
 			'copilot.encryptionRequired': ['auth-token', 'mcp-auth-token'],
 			'copilot.authChallenge': { challenge: this._challenge, responseMaxAgeSeconds: 300, required: this._requireBinding },
 		};
-	}
-
-	get identityResource(): { resource: string } {
-		return { resource: this._apiOrigin };
 	}
 
 	async authenticate(params: AuthenticateParams): Promise<AuthenticateParams> {
