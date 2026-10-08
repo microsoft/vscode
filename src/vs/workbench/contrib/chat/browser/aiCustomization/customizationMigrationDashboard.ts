@@ -265,17 +265,27 @@ export class CustomizationMigrationDashboard extends Disposable {
 
 	showLoading(title: string, description: string, retry?: () => void): void {
 		this.allMigrationsComplete = false;
-		this.pendingFocus ??= this.getFocusedKey();
+		const activeElement = DOM.getActiveElement();
+		if (this.element.contains(activeElement)) {
+			this.pendingFocus ??= this.getFocusedKey() ?? focusPreferredTarget;
+		}
+		const shouldFocusError = retry !== undefined
+			&& this.pendingFocus !== undefined
+			&& (this.element.contains(activeElement) || activeElement === DOM.getWindow(this.element).document.body);
 		this.prepareRender();
 		const page = this.renderHeader(title, description);
 		page.setAttribute('aria-busy', String(!retry));
+		let retryButton: Button | undefined;
 		if (retry) {
-			this.button(page, 'retry', localize('retry', "Retry"), localize('retryMigrations', "Retry loading migrations"), () => {
+			retryButton = this.button(page, 'retry', localize('retry', "Retry"), localize('retryMigrations', "Retry loading migrations"), () => {
 				this.callbacks.actionClicked('retryClicked');
 				retry();
 			});
 		}
 		this.callbacks.onDidChangeContent?.();
+		if (shouldFocusError) {
+			(retryButton?.element ?? this.focusTargets.get('title'))?.focus();
+		}
 	}
 
 	showOverview(overview: ICustomizationMigrationDashboardOverview): void {

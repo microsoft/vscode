@@ -2590,9 +2590,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const picks: IMigrationDestinationQuickPickItem[] = availableFolders.map(folder => ({
 			label: folder.label,
 			description: this.getCustomizationMigrationFolderPickDescription(folder, this.getCustomizationMigrationFolderLabel(folder)),
-			picked: currentFolder ? isEqual(folder.uri, currentFolder.uri) : false,
 			folder,
 		}));
+		const activeItem = currentFolder ? picks.find(pick => pick.folder && isEqual(pick.folder.uri, currentFolder.uri)) : undefined;
 		picks.push({
 			label: localize('chooseAnotherMigrationFolder', "Choose another folder..."),
 			description: localize('chooseAnotherMigrationFolderDescription', "Use a custom migration destination"),
@@ -2603,6 +2603,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			canPickMany: false,
 			placeHolder: localize('chooseMigrationDestination', "Choose a destination for {0}", destination.contextLabel),
 			matchOnDescription: true,
+			activeItem,
 		});
 		if (!selected || !this.isCustomizationMigrationSessionActive(sessionResource)) {
 			return;

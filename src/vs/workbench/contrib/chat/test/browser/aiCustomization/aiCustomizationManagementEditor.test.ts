@@ -173,6 +173,17 @@ suite('aiCustomizationManagementEditor', () => {
 		assert.deepStrictEqual(states, [true, false]);
 	});
 
+	type TestQuickPickItem = {
+		label: string;
+		description?: string;
+		picked?: boolean;
+		folder?: ICustomizationSourceFolder;
+		destination?: ICustomizationMigrationDashboardDestination;
+		chooseAnother?: boolean;
+	};
+
+	type TestQuickPickResult = Omit<TestQuickPickItem, 'label'> & { label?: string };
+
 	type TestableEditor = {
 		currentEditingPromptType: PromptsType | undefined;
 		currentEditingSource: string | undefined;
@@ -245,7 +256,7 @@ suite('aiCustomizationManagementEditor', () => {
 		customizationMigrationTelemetryService: ICustomizationMigrationTelemetryService;
 		dialogService: Pick<IDialogService, 'confirm'>;
 		quickInputService: {
-			pick(items: readonly { label: string; description?: string; folder?: ICustomizationSourceFolder; destination?: ICustomizationMigrationDashboardDestination; chooseAnother?: boolean }[]): Promise<{ label?: string; folder?: ICustomizationSourceFolder; destination?: ICustomizationMigrationDashboardDestination; chooseAnother?: boolean } | undefined>;
+			pick(items: readonly TestQuickPickItem[], options?: { activeItem?: TestQuickPickItem }): Promise<TestQuickPickResult | undefined>;
 		};
 		notificationService: { error(message: string): void; info(message: string): void; warn(message: string): void };
 		fileDialogService: { showOpenDialog(): Promise<URI[]> };
@@ -1623,6 +1634,44 @@ suite('aiCustomizationManagementEditor', () => {
 			selectedPath: '/workspace/custom/skills',
 			pickerLabels: ['skills', 'skills', 'Choose another folder...'],
 			pickerDescriptions: ['/workspace/.github/skills (Recommended)', '/workspace/.agents/skills', 'Use a custom migration destination'],
+		});
+		editor.editorPreviewDisposables.dispose();
+	});
+
+	test('focuses the current migration destination when reopening the picker', async () => {
+		const editor = createTestEditor();
+		const currentFolder: ICustomizationSourceFolder = {
+			uri: URI.file('/workspace/.agents/skills'),
+			label: 'skills',
+			source: PromptsStorage.local,
+		};
+		editor.customizationMigrationTargetFoldersByType.set(PromptsType.skill, [
+			{ uri: URI.file('/workspace/.github/skills'), label: 'skills', source: PromptsStorage.local },
+			currentFolder,
+		]);
+		editor.selectedCustomizationMigrationTargets.set(`${PromptsType.skill}:${PromptsStorage.local}`, currentFolder);
+		let pickerState: { activeFolder: string | undefined; pickedCount: number } | undefined;
+		editor.quickInputService = {
+			pick: async (items, options) => {
+				pickerState = {
+					activeFolder: options?.activeItem?.folder?.uri.path,
+					pickedCount: items.filter(item => item.picked).length,
+				};
+				return undefined;
+			},
+		};
+
+		await editor.chooseCustomizationMigrationDestination({
+			targetType: PromptsType.skill,
+			storage: PromptsStorage.local,
+			contextLabel: 'Workspace skills',
+			label: '.agents/skills',
+			ariaLabel: 'Change destination for workspace skills',
+		});
+
+		assert.deepStrictEqual(pickerState, {
+			activeFolder: '/workspace/.agents/skills',
+			pickedCount: 0,
 		});
 		editor.editorPreviewDisposables.dispose();
 	});
