@@ -352,7 +352,10 @@ export class CopilotCustomizationInstallations extends Disposable {
 				throw new Error(localize('copilot.customizationInstallation.unsupported', "This customization does not provide an SDK installation identity."));
 			}
 			const search = await client.rpc.catalog.search({
-				contract: catalogContract,
+				contract: {
+					protocolVersion: 3,
+					requiredCapabilities: catalogSearchCapabilities,
+				},
 				policySessionId,
 				query: request.displayName,
 				limit: 50,

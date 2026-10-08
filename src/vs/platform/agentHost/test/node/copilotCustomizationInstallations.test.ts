@@ -461,6 +461,16 @@ suite('CopilotCustomizationInstallations', () => {
 			source: 'agentfinder.github.com',
 		};
 		const itemUrl = 'https://agentfinder.github.com/items/demo';
+		const observedAt = new Date().toISOString();
+		const trust = {
+			schemaVersion: 'v1' as const,
+			status: 'absent' as const,
+			eligibility: 'unknown' as const,
+			provenance: {
+				source: 'agent-finder' as const,
+				observedAt,
+			},
+		};
 		const candidate: McpCatalogCandidate = {
 			handle: 'candidate-handle',
 			handleExpiresAt: expiresAt,
@@ -472,9 +482,10 @@ suite('CopilotCustomizationInstallations', () => {
 			source: { kind: 'url', url: itemUrl },
 			provenance: {
 				authority: 'agentfinder.github.com',
-				observedAt: new Date().toISOString(),
+				observedAt,
 				mediaType: 'application/mcp-server+json',
 			},
+			trust,
 		};
 		const identity = {
 			canonicalName: 'io.github.example/demo',
@@ -522,6 +533,7 @@ suite('CopilotCustomizationInstallations', () => {
 			action: 'install',
 			identity,
 			provenance,
+			catalogueTrust: trust,
 			catalogue,
 			target,
 			policy,
@@ -550,6 +562,7 @@ suite('CopilotCustomizationInstallations', () => {
 		const serviceRef: { value?: CopilotCustomizationInstallations } = {};
 		const decisions: string[] = [];
 		const uninstallDecisions: string[] = [];
+		const searchCapabilities: string[][] = [];
 		let installed = false;
 		const confirmation = (id: string, effectiveConfiguration: McpEffectiveConfiguration): InstallationConfirmationRequest => ({
 			policySessionId: 'policy-session',
@@ -663,13 +676,19 @@ suite('CopilotCustomizationInstallations', () => {
 			};
 		}();
 		const catalog = new class extends mock<CopilotClient['rpc']['catalog']>() {
-			override readonly search: CopilotClient['rpc']['catalog']['search'] = async () => ({
-				kind: 'succeeded',
-				searchId: 'refreshed-search',
-				candidates: [candidate],
-				truncated: false,
-				negotiated,
-			});
+			override readonly search: CopilotClient['rpc']['catalog']['search'] = async request => {
+				searchCapabilities.push([...request.contract.requiredCapabilities]);
+				return {
+					kind: 'succeeded',
+					searchId: 'refreshed-search',
+					candidates: [{
+						...candidate,
+						trust: request.contract.requiredCapabilities.includes('trust-snapshot') ? candidate.trust : undefined,
+					}],
+					truncated: false,
+					negotiated,
+				};
+			};
 		}();
 		const client = {
 			rpc: {
@@ -704,7 +723,7 @@ suite('CopilotCustomizationInstallations', () => {
 		});
 		await service.apply(uninstallReview.operationId);
 
-		assert.deepStrictEqual({ review, decisions, uninstallReview, uninstallDecisions, installed }, {
+		assert.deepStrictEqual({ review, decisions, uninstallReview, uninstallDecisions, installed, searchCapabilities }, {
 			review: {
 				operationId: review.operationId,
 				action: 'install',
@@ -729,6 +748,15 @@ suite('CopilotCustomizationInstallations', () => {
 			},
 			uninstallDecisions: ['confirm'],
 			installed: false,
+			searchCapabilities: [[
+				'catalog-search-credential-required',
+				'catalog-search-session-bound',
+				'catalog-selection',
+				'catalog-search-pagination',
+				'trust-snapshot',
+				'ai-skill-discovery',
+				'skill-confirmed-installation',
+			]],
 		});
 	});
 
