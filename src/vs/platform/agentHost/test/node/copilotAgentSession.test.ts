@@ -390,10 +390,14 @@ class MockCopilotSession {
 	}
 
 	currentModel: { modelId?: string; autoTier?: AutoTier } = {};
+	currentModelGate: Promise<void> | undefined;
 
 	readonly rpc = {
 		model: {
-			getCurrent: async () => this.currentModel,
+			getCurrent: async () => {
+				await this.currentModelGate;
+				return this.currentModel;
+			},
 		},
 		agent: {
 			select: async () => { await this.agentSelectGate; },
@@ -14179,6 +14183,82 @@ Use the attached image as context.
 				{ toolCallId: 'root-not-auto', autoTier: undefined },
 				{ toolCallId: 'root-back-to-auto', autoTier: 'fast' },
 			]);
+		});
+
+		test('tool_complete uses the Auto tier in effect at tool start, including pending runtime reads', async () => {
+			const seed = new DeferredPromise<void>();
+			const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables, {
+				configureMockSession: mockSession => {
+					mockSession.currentModel = { modelId: 'auto', autoTier: 'balance' };
+					mockSession.currentModelGate = seed.p;
+				},
+			});
+			const sessionInternals = session as unknown as ISessionInternalsForTest;
+			const taken: { toolCallId: string; autoTier: string | undefined }[] = [];
+			sessionInternals._editTracker.takeCompletedEdit = async (_turnId, toolCallId, _path, _toolName, _toolInput, _modelId, _clientContext, _chat, autoTier) => {
+				taken.push({ toolCallId, autoTier });
+				return undefined;
+			};
+			const start = (toolCallId: string, agentId?: string) => mockSession.fire('tool.execution_start', {
+				toolCallId, toolName: 'apply_patch', arguments: '*** Begin Patch\n*** Update File: foo.ts\n@@\n+new\n*** End Patch',
+			} as unknown as SessionEventPayload<'tool.execution_start'>['data'], { agentId });
+			const complete = (toolCallId: string, agentId?: string) => {
+				mockSession.fire('tool.execution_complete', { toolCallId, success: true } as SessionEventPayload<'tool.execution_complete'>['data'], { agentId });
+				return waitForSignal(s => s.kind === 'action' && s.action.type === ActionType.ChatToolCallComplete && s.action.toolCallId === toolCallId);
+			};
+			session.resetTurnState('turn-auto');
+
+			// The edit completes before the initial runtime read returns.
+			start('pending-seed');
+			const pendingSeed = complete('pending-seed');
+			await seed.complete();
+			await pendingSeed;
+
+			// A tier change between tool start and completion does not relabel the edit.
+			start('started-under-balance');
+			mockSession.fire('session.model_change', { previousModel: 'auto', newModel: 'auto', autoTier: 'intelligence' });
+			await complete('started-under-balance');
+
+			// A read superseded by a later model change never borrows that change's tier.
+			const reentry = new DeferredPromise<void>();
+			mockSession.currentModelGate = reentry.p;
+			mockSession.fire('session.model_change', { previousModel: 'auto', newModel: 'gpt-5', autoTier: 'intelligence' });
+			mockSession.fire('session.model_change', { previousModel: 'gpt-5', newModel: 'auto' });
+			start('superseded-read');
+			mockSession.fire('session.model_change', { previousModel: 'auto', newModel: 'auto', autoTier: 'efficiency' });
+			mockSession.currentModel = { modelId: 'auto', autoTier: 'efficiency' };
+			const superseded = complete('superseded-read');
+			await reentry.complete();
+			await superseded;
+
+			// A retained background subagent keeps its tier across idle and resume.
+			mockSession.fire('subagent.started', {
+				toolCallId: 'task', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests',
+			} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-1' });
+			mockSession.fire('session.model_change', { previousModel: 'auto', newModel: 'auto', autoTier: 'fast' }, { agentId: 'agent-1' });
+			mockSession.backgroundTasks = [{
+				type: 'agent', id: 'agent-1', toolCallId: 'task', description: 'Explore tests',
+				status: 'idle', agentType: 'explore', prompt: 'Initial request',
+				startedAt: new Date(0).toISOString(), idleSince: new Date(1).toISOString(),
+			}];
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
+			mockSession.fire('user.message', { content: 'Follow up', source: 'agent-parent' }, { agentId: 'agent-1' });
+			start('resumed-subagent', 'agent-1');
+			await complete('resumed-subagent', 'agent-1');
+
+			assert.deepStrictEqual({
+				subagentLifecycle: signals.flatMap(signal => signal.kind === 'subagent_completed' || signal.kind === 'subagent_resumed' ? [signal.kind] : []),
+				taken,
+			}, {
+				subagentLifecycle: ['subagent_completed', 'subagent_resumed'],
+				taken: [
+					{ toolCallId: 'pending-seed', autoTier: 'balance' },
+					{ toolCallId: 'started-under-balance', autoTier: 'balance' },
+					{ toolCallId: 'superseded-read', autoTier: undefined },
+					{ toolCallId: 'resumed-subagent', autoTier: 'fast' },
+				],
+			});
 		});
 
 		suite('asynchronous edit completion', () => {

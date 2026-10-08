@@ -9,7 +9,7 @@ import { attributePermissionResult, isPermissionDeniedKind, permissionResultToCo
 import { realpath as fsRealpath } from 'fs';
 import { cp, rm } from 'fs/promises';
 import { promisify } from 'util';
-import { DeferredPromise, firstParallel, raceCancellation, raceCancellationError, raceTimeout, RunOnceScheduler, Sequencer, SequencerByKey, Throttler, timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, firstParallel, isThenable, raceCancellation, raceCancellationError, raceTimeout, RunOnceScheduler, Sequencer, SequencerByKey, Throttler, timeout } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -159,6 +159,11 @@ function getCommittedAutoTier(model: string | undefined, autoTier: unknown): Aut
 	return isAutoModel(model) && isAutoModeRoutingTier(autoTier) ? autoTier : undefined;
 }
 
+/** A known tier, or the pending runtime read for the configuration in effect when it was captured. */
+type AutoTierSnapshot = AutoModeRoutingTier | undefined | Promise<AutoModeRoutingTier | undefined>;
+
+const AUTO_TIER_READ_TIMEOUT = 5_000;
+
 function getClientToolSdkPolicy(toolName: string): IClientToolSdkPolicy {
 	return CLIENT_TOOL_SDK_POLICIES.get(toolName) ?? DEFAULT_CLIENT_TOOL_SDK_POLICY;
 }
@@ -208,6 +213,7 @@ interface ICopilotActiveToolCall {
 	readonly mcpServerName: string | undefined;
 	readonly contributor: ToolCallContributor | undefined;
 	readonly intention: string | undefined;
+	readonly autoTier: AutoTierSnapshot;
 	meta: IToolCallMeta | undefined;
 }
 
@@ -1019,8 +1025,7 @@ export class CopilotAgentSession extends Disposable {
 	 * subagent outlives the root turn that spawned it when steering mints a new one.
 	 */
 	private readonly _autoModeResolvedByToolCallId = new Map<string, NonNullable<UsageInfoMeta['autoModeResolved']>>();
-	private _committedAutoTier: AutoModeRoutingTier | undefined;
-	private _committedAutoTierRevision = 0;
+	private _committedAutoTier: AutoTierSnapshot;
 	private readonly _committedAutoTierBySubagentToolCallId = new Map<string, AutoModeRoutingTier>();
 	private readonly _activeSubagentAgentIds = new Set<string>();
 	private readonly _subagentTaskCompletionSchedulers = this._register(new DisposableMap<string, RunOnceScheduler>());
@@ -1965,7 +1970,6 @@ export class CopilotAgentSession extends Disposable {
 			this._subagentObservedTokenUsage.delete(parentToolCallId);
 			this._lastSubagentUsageByToolCallId.delete(parentToolCallId);
 			this._autoModeResolvedByToolCallId.delete(parentToolCallId);
-			this._committedAutoTierBySubagentToolCallId.delete(parentToolCallId);
 			return;
 		}
 		this._onDidSessionProgress.fire({
@@ -1978,7 +1982,6 @@ export class CopilotAgentSession extends Disposable {
 		this._subagentDirectUsageByToolCallId.delete(parentToolCallId);
 		this._lastSubagentUsageByToolCallId.delete(parentToolCallId);
 		this._autoModeResolvedByToolCallId.delete(parentToolCallId);
-		this._committedAutoTierBySubagentToolCallId.delete(parentToolCallId);
 	}
 
 	private _getOrCreateSubagentCompletionScheduler(agentId: string): RunOnceScheduler {
@@ -3210,7 +3213,7 @@ export class CopilotAgentSession extends Disposable {
 		}));
 		this._subscribeToEvents();
 		this._subscribeToSdkEvents();
-		void this._readCommittedAutoTier(wrapper);
+		this._readCommittedAutoTier(wrapper);
 		this._subscribeForMemoInvalidation();
 		this._subscribeForInstructionsCollectedTelemetry();
 		this._subscribeToPermissionConfigChanges();
@@ -6899,6 +6902,9 @@ export class CopilotAgentSession extends Disposable {
 				mcpServerName,
 				contributor,
 				intention,
+				autoTier: parentToolCallId && !this._fusionPhaseLabels.has(parentToolCallId)
+					? this._committedAutoTierBySubagentToolCallId.get(parentToolCallId)
+					: this._committedAutoTier,
 				meta: undefined,
 			});
 			const existingApproval = this._toolApprovalRecords.get(e.data.toolCallId);
@@ -7148,9 +7154,6 @@ export class CopilotAgentSession extends Disposable {
 			const turnId = tracked.turnId;
 			const chatUri = parentToolCallId ? buildSubagentChatUri(this._ownerSessionUri.toString(), parentToolCallId) : this._chatChannelUri.toString();
 			const modelId = this._lastSeenModelId;
-			const autoTier = parentToolCallId && !this._fusionPhaseLabels.has(parentToolCallId)
-				? this._committedAutoTierBySubagentToolCallId.get(parentToolCallId)
-				: this._committedAutoTier;
 			const abortToken = this._abortToken;
 			const isCurrent = () => !this._store.isDisposed && !abortToken.isCancellationRequested && this._currentTurn.value === turn;
 			let terminalOutputStored = false;
@@ -7202,6 +7205,7 @@ export class CopilotAgentSession extends Disposable {
 						outputDatabase.dispose();
 					}
 				}
+				const autoTier = isThenable<AutoModeRoutingTier | undefined>(tracked.autoTier) ? await tracked.autoTier : tracked.autoTier;
 				for (const filePath of filePaths) {
 					if (!isCurrent()) {
 						return;
@@ -8856,17 +8860,24 @@ export class CopilotAgentSession extends Disposable {
 		});
 	}
 
-	/** Seeds the tier from the runtime snapshot; `session.start`/`session.resume` fire before this session subscribes. */
-	private async _readCommittedAutoTier(wrapper: CopilotSessionWrapper): Promise<void> {
-		const revision = this._committedAutoTierRevision;
-		try {
-			const current = await wrapper.session.rpc.model.getCurrent();
-			if (revision === this._committedAutoTierRevision && this._wrapper === wrapper) {
-				this._committedAutoTier = getCommittedAutoTier(current.modelId, current.autoTier);
+	/** `session.start`/`session.resume` fire before this session subscribes. A result superseded by a later model change resolves as unknown. */
+	private _readCommittedAutoTier(wrapper: CopilotSessionWrapper): void {
+		const result = new DeferredPromise<AutoModeRoutingTier | undefined>();
+		const read = result.p;
+		this._committedAutoTier = read;
+		void (async () => {
+			let tier: AutoModeRoutingTier | undefined;
+			try {
+				const current = await raceTimeout(wrapper.session.rpc.model.getCurrent(), AUTO_TIER_READ_TIMEOUT);
+				tier = current && this._committedAutoTier === read && this._wrapper === wrapper ? getCommittedAutoTier(current.modelId, current.autoTier) : undefined;
+			} catch (error) {
+				this._logService.trace(`[Copilot:${this.sessionId}] Failed to read the committed Auto tier: ${getErrorMessage(error)}`);
 			}
-		} catch (error) {
-			this._logService.trace(`[Copilot:${this.sessionId}] Failed to read the committed Auto tier: ${getErrorMessage(error)}`);
-		}
+			if (this._committedAutoTier === read) {
+				this._committedAutoTier = tier;
+			}
+			await result.complete(tier);
+		})();
 	}
 
 	private _subscribeToSdkEvents(): void {
@@ -9036,10 +9047,10 @@ export class CopilotAgentSession extends Disposable {
 				}
 			} else {
 				if (!keepsAutoTier) {
-					this._committedAutoTierRevision++;
-					this._committedAutoTier = committedAutoTier;
 					if (e.data.autoTier === undefined && isAutoModel(e.data.newModel)) {
-						void this._readCommittedAutoTier(wrapper);
+						this._readCommittedAutoTier(wrapper);
+					} else {
+						this._committedAutoTier = committedAutoTier;
 					}
 				}
 				this._promptCacheRefreshGeneration++;
