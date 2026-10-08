@@ -465,7 +465,8 @@ suite('Mission Control WPS', () => {
 		});
 	}
 
-	test('failed relay startup marks the registered environment offline', async () => {
+	test('failed relay startup marks the registered environment offline with its custom name', async () => {
+		const name = 'headless-build-machine';
 		const path = await mkdtemp(join(tmpdir(), 'mission-control-failed-start-'));
 		try {
 			const { key } = signingFixture();
@@ -492,12 +493,12 @@ suite('Mission Control WPS', () => {
 				}
 			}
 			));
-			await assert.rejects(service.configure({ baseUrl: 'http://127.0.0.1:9999/', accountId: 'owner', credential: 'fake-local-token', roots: [path] }), /connection closed before joining/);
+			await assert.rejects(service.configure({ baseUrl: 'http://127.0.0.1:9999/', accountId: 'owner', credential: 'fake-local-token', roots: [path], name }), /connection closed before joining/);
 			assert.deepStrictEqual({ requests, closed: socket.closed }, {
 				requests: [
-					{ path: '/cmc_internal/api/agents/environments/register', status: undefined, name: 'VS Code OSS' },
+					{ path: '/cmc_internal/api/agents/environments/register', status: undefined, name },
 					{ path: '/cmc_internal/api/agents/environments/.well-known/jwks.json', status: undefined, name: undefined },
-					{ path: '/cmc_internal/api/agents/environments/environment/heartbeat', status: 'offline', name: 'VS Code OSS' },
+					{ path: '/cmc_internal/api/agents/environments/environment/heartbeat', status: 'offline', name },
 				],
 				closed: true,
 			});
@@ -674,7 +675,7 @@ suite('Mission Control WPS', () => {
 				}
 			}
 			));
-			const options = { baseUrl: 'http://127.0.0.1:9999/', accountId: 'owner', credential: 'fake-local-token', roots: [path] };
+			const options = { baseUrl: 'http://127.0.0.1:9999/', accountId: 'owner', credential: 'fake-local-token', roots: [path], name: 'headless-build-machine' };
 			await service.configure(options);
 			await clock.tickAsync(60_000);
 			sockets[0].emit('close', 1006);
@@ -695,6 +696,7 @@ suite('Mission Control WPS', () => {
 				closed: sockets.every(socket => socket.closed),
 				errors,
 				advertisedVersions: requests.filter(request => request.body?.capabilities).map(request => (request.body!.capabilities as { ahp_version: string }).ahp_version),
+				names: requests.filter(request => request.body).map(request => request.body?.name).filter(name => name !== undefined),
 			}, {
 				requests: [
 					['/cmc_internal/api/agents/environments/register', true, 'user-local', persisted],
@@ -711,6 +713,7 @@ suite('Mission Control WPS', () => {
 				closed: true,
 				errors: ['Mission Control WPS socket closed (code 1006)'],
 				advertisedVersions: [PROTOCOL_VERSION, PROTOCOL_VERSION, PROTOCOL_VERSION],
+				names: Array(4).fill('headless-build-machine'),
 			});
 			service.dispose();
 		} finally {
