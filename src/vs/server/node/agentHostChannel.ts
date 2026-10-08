@@ -315,7 +315,6 @@ export class AgentHostChannel<TContext> extends Disposable implements IServerCha
 
 	private readonly _perCtx = new Map<TContext, IUpstreamConnection>();
 	private readonly _upstreamFactory: UpstreamConnectionFactory;
-	private _endpointPromise: Promise<IAgentHostUpstreamEndpoint> | undefined;
 
 	constructor(
 		ipcServer: IPCServer<TContext>,
@@ -399,18 +398,8 @@ export class AgentHostChannel<TContext> extends Disposable implements IServerCha
 			return endpoint;
 		}
 
-		// Only the in-flight resolution is shared, so concurrent renderer connects
-		// collapse into one call. It is dropped once settled: in the lazy server
-		// path resolution *is* `ensureStarted()`, so caching a success would let a
-		// later reconnect dial a dead socket instead of restarting the host.
-		const endpointPromise = this._endpointPromise ??= Promise.resolve().then(() => endpoint(options));
-		try {
-			return await endpointPromise;
-		} finally {
-			if (this._endpointPromise === endpointPromise) {
-				this._endpointPromise = undefined;
-			}
-		}
+		// Apply every renderer's environment; the server manager coalesces process startup.
+		return endpoint(options);
 	}
 
 	private _disposeCtx(ctx: TContext): void {
