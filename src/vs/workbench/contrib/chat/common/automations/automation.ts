@@ -15,9 +15,8 @@ export type AutomationInterval = 'manual' | 'hourly' | 'daily' | 'weekly' | 'cus
 /**
  * Describes the cadence at which an automation should fire.
  *
- * Times are stored in local-time wall-clock values. The Agent Host converts
- * them to UTC when computing concrete run instants so DST transitions are
- * handled correctly.
+ * Fields are local wall-clock values unless timeZone is UTC. Presentation
+ * may convert UTC fields, but provider definitions retain their original zone.
  */
 export interface IAutomationSchedule {
 	readonly interval: AutomationInterval;

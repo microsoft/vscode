@@ -5,7 +5,7 @@
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { autorun, derived, IObservable, observableSignalFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
@@ -19,14 +19,17 @@ import { AutomationDetail, AutomationTrigger, CreateAutomationRequest, EditAutom
 import { Task } from '../../../../../platform/github/common/missionControl/tasks.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { getGitHubRepositoryId } from '../../../../../platform/github/common/githubUrls.js';
+import { RepositoryPicker } from '../../../../../workbench/contrib/chat/browser/agentSessions/repositoryPicker.js';
+import { IGitHubService } from '../../../github/browser/githubService.js';
 import { AutomationTarget, IAutomationDescriptor, IAutomationRun, IAutomationSchedule, IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { AutomationCatalogueState, AutomationMutationGuard, AutomationUnavailableError, assertAutomationSessionTemplateAuthority, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions, serializeAutomationEditableState } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationCatalogueState, AutomationMutationGuard, AutomationToolCatalog, AutomationUnavailableError, assertAutomationSessionTemplateAuthority, IAutomationProviderConfiguration, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions, serializeAutomationEditableState } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IWorkbenchGitHubService } from '../../../../../workbench/services/github/common/githubService.js';
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../services/sessions/common/session.js';
 import { ISessionsProviderAutomations } from '../../../../services/sessions/common/sessionsProvider.js';
-import { GitHubCloudAutomationStore, ICloudAutomationEntry, ICloudAutomationHistoryEntry } from './githubCloudAutomationStore.js';
+import { CloudAutomationToolCatalog, GitHubCloudAutomationStore, ICloudAutomationEntry, ICloudAutomationHistoryEntry } from './githubCloudAutomationStore.js';
 
 /** Adapts the account-bound cloud store to the provider-neutral Automation contract. */
 export class CloudAutomationStore extends Disposable implements ISessionsProviderAutomations {
@@ -40,6 +43,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		this.enabled.read(reader) && this.catalogueState.read(reader) === 'ready' && this.store.read(reader)?.mutationUncertain.read(reader) === false);
 	readonly automations = derived(this, reader => (this.store.read(reader)?.entries.read(reader) ?? []).map(entry => this.toAutomation(entry)));
 	readonly runs = derived(this, reader => (this.store.read(reader)?.history.read(reader) ?? []).map(entry => this.toRun(entry)).filter(run => run !== undefined));
+	readonly configuration: IAutomationProviderConfiguration;
 
 	constructor(
 		private readonly providerId: string,
@@ -48,15 +52,27 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		@IConfigurationService configurationService: IConfigurationService,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@IChatEntitlementService entitlementService: IChatEntitlementService,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
-		@IWorkbenchGitHubService gitHubService: IWorkbenchGitHubService,
+		@IGitHubService private readonly gitHubService: IGitHubService,
+		@IWorkbenchGitHubService workbenchGitHubService: IWorkbenchGitHubService,
 	) {
 		super();
+		this.configuration = {
+			sessionTypes: [sessionTypeId],
+			description: localize('cloudAutomations.description', "Runs even when your computer is off, triggered on a schedule."),
+			timeZone: 'UTC',
+			targetChangeDisabledReason: localize('cloudAutomations.targetImmutable', "The repository and provider cannot be changed for an existing cloud automation. Duplicate this automation to use another target."),
+			tools: derived(this, reader => toToolCatalog(this.store.read(reader)?.toolCatalog.read(reader), !!this.store.read(reader))),
+			loadTools: () => this.store.get()?.loadTools(),
+			pickWorkspace: token => this.pickWorkspace(token),
+			getWorkspaceTarget: workspace => derived(reader => this.store.read(reader)?.getWorkspaceTarget(workspace).read(reader)
+				?? { disabledReason: localize('cloudAutomations.targetUnavailable', "Cloud automations are unavailable.") }),
+		};
 		const configurationChanged = observableSignalFromEvent(this, configurationService.onDidChangeConfiguration);
 		const sentimentChanged = observableSignalFromEvent(this, entitlementService.onDidChangeSentiment);
 		const accountChanged = observableSignalFromEvent(this, defaultAccountService.onDidChangeDefaultAccount);
-		const clientChanged = observableSignalFromEvent(this, gitHubService.onDidChangeDefaultClient);
+		const clientChanged = observableSignalFromEvent(this, workbenchGitHubService.onDidChangeDefaultClient);
 		this.enabled = derived(this, reader => {
 			configurationChanged.read(reader);
 			sentimentChanged.read(reader);
@@ -90,6 +106,46 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 				});
 			}
 		}));
+	}
+
+	private async pickWorkspace(token: CancellationToken): Promise<URI | undefined> {
+		const store = this.requireStore();
+		const resources = new DisposableStore();
+		const checkAccount = () => {
+			this.assertCurrentStore(store);
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			if (this.gitHubService.enterpriseHost !== undefined) {
+				throw new Error(localize('cloudAutomations.githubRequired', "Select a private repository on GitHub.com."));
+			}
+		};
+		try {
+			checkAccount();
+			await this.gitHubService.authenticateForRepositoryAccess(token);
+			checkAccount();
+			const picker = resources.add(this.instantiationService.createInstance(RepositoryPicker));
+			const result = await picker.pickRepository(async (query, requestToken) => {
+				checkAccount();
+				const repositories = await this.gitHubService.getRepositories(getGitHubRepositoryId(query.trim()) ?? query, requestToken);
+				checkAccount();
+				return repositories.filter(repository => repository.isPrivate).map(repository => repository.fullName);
+			}, {
+				allowRepositoryUrl: true,
+				placeholder: localize('cloudAutomations.searchPrivateRepository', "Search for a private repository or paste a repository URL..."),
+			}, token);
+			checkAccount();
+			if (!result) {
+				return undefined;
+			}
+			const repository = getGitHubRepositoryId(result.repository ?? result.cloneUrl ?? '');
+			if (!repository) {
+				throw new Error(localize('cloudAutomations.githubRequired', "Select a private repository on GitHub.com."));
+			}
+			return URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repository}/HEAD` });
+		} finally {
+			resources.dispose();
+		}
 	}
 
 	async refresh(): Promise<void> {
@@ -295,6 +351,26 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 			externalResource: URI.from({ scheme: Schemas.https, authority: 'github.com', path: `/${entry.repository.owner}/${entry.repository.name}/tasks/${task.id}` }),
 		};
 	}
+}
+
+function toToolCatalog(catalog: CloudAutomationToolCatalog | undefined, available: boolean): AutomationToolCatalog {
+	if (!available) {
+		return { kind: 'error', message: localize('cloudAutomations.toolsUnavailable', "Cloud automations are unavailable.") };
+	}
+	if (catalog?.kind === 'error') {
+		return { kind: 'error', message: localize('cloudAutomations.toolsLoadFailed', "Available tools could not be loaded.") };
+	}
+	if (catalog?.kind !== 'ready') {
+		return { kind: 'loading' };
+	}
+	return {
+		kind: 'ready',
+		groups: catalog.groups.map(group => ({
+			id: group.id,
+			label: group.name || group.title || group.id,
+			tools: group.tools.map(tool => ({ id: tool.id, label: tool.name || tool.title || tool.id, description: tool.description || undefined })),
+		})),
+	};
 }
 
 function validateLocalOptions(options: IUpdateAutomationOptions): void {

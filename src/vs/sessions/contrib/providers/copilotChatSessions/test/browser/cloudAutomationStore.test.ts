@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
@@ -18,7 +19,7 @@ import { ChatAIDisabledSettingId } from '../../../../../../platform/chat/common/
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { AutomationDetail, CreateAutomationRequest, CreateAutomationTaskResponse, EditAutomationRequest, IAutomationsClient, ListRepoAutomationsResponse } from '../../../../../../platform/github/common/missionControl/automations.js';
+import { AutomationDetail, AutomationToolGroup, CreateAutomationRequest, CreateAutomationTaskResponse, EditAutomationRequest, IAutomationsClient, ListRepoAutomationsResponse } from '../../../../../../platform/github/common/missionControl/automations.js';
 import { PaginatedResponse, RepositoryRef } from '../../../../../../platform/github/common/missionControl/missionControl.js';
 import { ApiRequestError, MutationUncertainError } from '../../../../../../platform/github/common/missionControl/missionControlClient.js';
 import { ITasksClient, ListTasksResponse, Task } from '../../../../../../platform/github/common/missionControl/tasks.js';
@@ -30,6 +31,7 @@ import { IGitHubEndpointProvider } from '../../../../../../platform/github/commo
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { IGitHubService } from '../../../../github/browser/githubService.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IAutomationSchedule } from '../../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING } from '../../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
@@ -38,6 +40,7 @@ import { IWorkbenchGitHubService } from '../../../../../../workbench/services/gi
 import { ISessionsRecentWorkspacesService } from '../../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../../services/sessions/common/session.js';
 import { CloudAutomationStore, cloudAutomationSchedule, cloudAutomationTriggers } from '../../browser/cloudAutomationStore.js';
+import { IRepositoryPickResult, RepositoryPicker } from '../../../../../../workbench/contrib/chat/browser/agentSessions/repositoryPicker.js';
 
 const definition: AutomationDetail = { id: 'one', name: 'Review', description: '', created_by: { login: 'user' }, prompt: 'Review issues', created_at: '2026-09-01T00:00:00Z', updated_at: '2026-09-01T00:00:00Z', triggers: {} };
 const workspace = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/owner/private/HEAD' });
@@ -97,11 +100,22 @@ class TestApi extends mock<IAutomationsClient>() {
 		return { ...this.definitions[0], ...value };
 	}
 	override async dispatch(): Promise<CreateAutomationTaskResponse> { this.calls.push('run'); return {}; }
+	toolsError: Error | undefined;
+	override async listTools(): Promise<readonly AutomationToolGroup[]> {
+		this.calls.push('tools');
+		if (this.toolsError) {
+			throw this.toolsError;
+		}
+		return [
+			{ id: 'issues', name: 'Issues', tools: [{ id: 'github/issue_read', name: 'Read issue', description: 'Read an issue.' }, { id: 'github/list_issues', title: 'List issues', description: '' }] },
+			{ id: 'untitled', tools: [{ id: 'github/unnamed', description: '' }] },
+		];
+	}
 }
 
 suite('CloudAutomationStore', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
-	function setup(logService: ILogService = new NullLogService(), clientNotificationOrder?: 'before' | 'after') {
+	function setup(logService: ILogService = new NullLogService(), clientNotificationOrder?: 'before' | 'after', gitHubService: IGitHubService = upcastPartial<IGitHubService>({})) {
 		const instantiation = disposables.add(new TestInstantiationService());
 		const configuration = new TestConfigurationService({ chat: { automations: { enabled: true, cloud: { enabled: false } } } });
 		const changed = disposables.add(new Emitter<IDefaultAccount | null>());
@@ -155,6 +169,7 @@ suite('CloudAutomationStore', () => {
 		instantiation.stub(IChatEntitlementService, entitlement);
 		instantiation.stub(IStorageService, disposables.add(new InMemoryStorageService()));
 		instantiation.stub(ILogService, logService);
+		instantiation.stub(IGitHubService, gitHubService);
 		instantiation.stub(ISessionsRecentWorkspacesService, upcastPartial<ISessionsRecentWorkspacesService>({
 			getRecentWorkspaces: () => [{ workspace: { uri: workspace, label: 'private', icon: Codicon.repo, requiresWorkspaceTrust: false, folders: [{ root: workspace, workingDirectory: workspace, name: 'private', description: undefined }], isVirtualWorkspace: true }, providerId: 'cloud', checked: true, source: 'agents' }],
 		}));
@@ -166,8 +181,102 @@ suite('CloudAutomationStore', () => {
 			await configuration.setUserConfiguration(key, value);
 			configuration.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true, affectedKeys: new Set([key]), change: { keys: [key], overrides: [] }, source: ConfigurationTarget.USER });
 		};
-		return { provider, api, accounts, changed, clientChanged, entitlement, sentimentChanged, set };
+		return { provider, api, accounts, changed, clientChanged, entitlement, sentimentChanged, set, instantiation };
 	}
+
+	test('loads the tool catalog once from Mission Control, maps server labels, and retries after failure', async () => {
+		const { provider, api, set } = setup();
+		const read = () => provider.configuration.tools.get();
+		const unavailable = read();
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		api.toolsError = new Error('Offline');
+		provider.configuration.loadTools();
+		const loading = read();
+		await timeout(0);
+		const failed = read();
+		api.toolsError = undefined;
+		provider.configuration.loadTools();
+		await timeout(0);
+		provider.configuration.loadTools();
+		await timeout(0);
+		assert.deepStrictEqual({ unavailable, loading, failed, ready: read(), requests: api.calls.filter(call => call === 'tools').length }, {
+			unavailable: { kind: 'error', message: 'Cloud automations are unavailable.' },
+			loading: { kind: 'loading' },
+			failed: { kind: 'error', message: 'Available tools could not be loaded.' },
+			ready: {
+				kind: 'ready', groups: [
+					{ id: 'issues', label: 'Issues', tools: [{ id: 'github/issue_read', label: 'Read issue', description: 'Read an issue.' }, { id: 'github/list_issues', label: 'List issues', description: undefined }] },
+					{ id: 'untitled', label: 'untitled', tools: [{ id: 'github/unnamed', label: 'github/unnamed', description: undefined }] },
+				],
+			},
+			requests: 2,
+		});
+	});
+
+	test('discards the tool catalog when the account changes', async () => {
+		const { provider, api, accounts, changed, set } = setup();
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		provider.configuration.loadTools();
+		await timeout(0);
+		const loaded = provider.configuration.tools.get().kind;
+		accounts.currentDefaultAccount = { ...account, sessionId: 'two' };
+		changed.fire(accounts.currentDefaultAccount);
+		const afterChange = provider.configuration.tools.get().kind;
+		provider.configuration.loadTools();
+		await timeout(0);
+		assert.deepStrictEqual({ loaded, afterChange, reloaded: provider.configuration.tools.get().kind, requests: api.calls.filter(call => call === 'tools').length }, {
+			loaded: 'ready', afterChange: 'loading', reloaded: 'ready', requests: 2,
+		});
+	});
+
+	test('repository search offers only private repositories and accepts GitHub URLs', async () => {
+		const queries: string[] = [];
+		let authenticated = false;
+		const { provider, set, instantiation } = setup(undefined, undefined, upcastPartial<IGitHubService>({
+			authenticateForRepositoryAccess: async () => { authenticated = true; },
+			getRepositories: async query => {
+				queries.push(query);
+				return [
+					{ owner: 'owner', name: 'public', fullName: 'owner/public', defaultBranch: 'main', isPrivate: false, description: '' },
+					{ owner: 'owner', name: 'private', fullName: 'owner/private', defaultBranch: 'main', isPrivate: true, description: '' },
+				];
+			},
+		}));
+		let placeholder: string | undefined;
+		const repositories: Array<readonly string[]> = [];
+		instantiation.stubInstance(RepositoryPicker, {
+			pickRepository: async (search, options) => {
+				placeholder = options?.placeholder;
+				repositories.push(await search('', CancellationToken.None));
+				repositories.push(await search('https://github.com/owner/private.git', CancellationToken.None));
+				return { cloneUrl: 'https://github.com/owner/private.git' };
+			},
+			dispose: () => { },
+		});
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		const selected = await provider.configuration.pickWorkspace(CancellationToken.None);
+		assert.deepStrictEqual({ authenticated, queries, placeholder, repositories, selected: selected?.toString() }, {
+			authenticated: true, queries: ['', 'owner/private'],
+			placeholder: 'Search for a private repository or paste a repository URL...',
+			repositories: [['owner/private'], ['owner/private']], selected: workspace.toString(),
+		});
+	});
+
+	test('repository selection fails closed if cloud is disabled while the picker is open', async () => {
+		const { provider, set, instantiation } = setup(undefined, undefined, upcastPartial<IGitHubService>({ authenticateForRepositoryAccess: async () => { } }));
+		const selection = new DeferredPromise<IRepositoryPickResult | undefined>();
+		const opened = new DeferredPromise<void>();
+		instantiation.stubInstance(RepositoryPicker, {
+			pickRepository: async () => { void opened.complete(); return selection.p; },
+			dispose: () => { },
+		});
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		const pending = provider.configuration.pickWorkspace(CancellationToken.None);
+		await opened.p;
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, false);
+		void selection.complete({ repository: 'owner/private' });
+		await assert.rejects(pending);
+	});
 
 	test('default-off and parent gates create no API requests or visible catalogue', async () => {
 		const { provider, api, set } = setup();

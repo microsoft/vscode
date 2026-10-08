@@ -27,7 +27,7 @@ import { CHAT_AUTOMATIONS_ENABLED_SETTING, ChatAutomationsEnabledContext } from 
 import { IAutomationRunner } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { type AutomationDialogCreateInitialValues, IAutomationDialogService } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { AUTOMATION_BLUEPRINT_FILE_SUFFIX, AutomationBlueprintParseError, automationToBlueprint, createAutomationBlueprintFileName, parseAutomationBlueprint, serializeAutomationBlueprint } from '../../../../../workbench/contrib/chat/common/automations/automationBlueprint.js';
-import { DAYS_OF_WEEK } from '../../../../../workbench/contrib/chat/common/automations/schedule.js';
+import { automationScheduleToLocal, DAYS_OF_WEEK } from '../../../../../workbench/contrib/chat/common/automations/schedule.js';
 import { IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { AgentSessionApprovalModel } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { basename, dirname, isEqual, joinPath } from '../../../../../base/common/resources.js';
@@ -1574,15 +1574,16 @@ function isTemporaryAutomationRun(run: IAutomationRun): boolean {
 }
 
 function formatSchedule(schedule: IAutomationSchedule): string {
-	const { interval, scheduleHour, scheduleMinute } = schedule;
+	const localSchedule = automationScheduleToLocal(schedule);
+	const { interval, scheduleHour, scheduleMinute } = localSchedule;
 	const time = schedule.timeZone === 'UTC'
-		? localize('scheduleUtcTime', "{0} UTC", formatHourMinute(scheduleHour, scheduleMinute))
+		? localize('scheduleLocalTime', "{0} (local)", formatHourMinute(scheduleHour, scheduleMinute))
 		: formatHourMinute(scheduleHour, scheduleMinute);
 	switch (interval) {
 		case 'hourly': return localize('scheduleHourly', "Hourly");
 		case 'daily': return localize('scheduleDailyAt', "Daily at {0}", time);
 		case 'weekly': {
-			const day = DAYS_OF_WEEK[((schedule.scheduleDay % 7) + 7) % 7];
+			const day = DAYS_OF_WEEK[((localSchedule.scheduleDay % 7) + 7) % 7];
 			return localize('scheduleWeeklyAt', "{0} at {1}", day, time);
 		}
 		case 'manual': return localize('scheduleManual', "Manual");
