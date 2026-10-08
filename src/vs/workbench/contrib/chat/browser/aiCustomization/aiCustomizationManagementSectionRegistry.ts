@@ -23,7 +23,7 @@ export interface IAICustomizationManagementSectionContribution {
 	/** At least one of these boolean settings must be enabled to show or instantiate the section. */
 	readonly enablementSettings?: readonly string[];
 	readonly supportsHarness: (harnessId: string) => boolean;
-	create(instantiationService: IInstantiationService, container: HTMLElement): IAICustomizationManagementSectionWidget;
+	create(instantiationService: IInstantiationService, container: HTMLElement, selectSection: (section: AICustomizationManagementSection) => void): IAICustomizationManagementSectionWidget;
 }
 
 class AICustomizationManagementSectionRegistry {

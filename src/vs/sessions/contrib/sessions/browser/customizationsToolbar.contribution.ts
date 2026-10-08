@@ -18,7 +18,7 @@ import { AICustomizationManagementEditor } from '../../../../workbench/contrib/c
 import { AICustomizationManagementEditorInput } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { IAICustomizationItemsModel, ItemsModelSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
 import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
-import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE, countEnabledCustomizationTools, IAgentHostToolSetEnablementService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
+import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE, countEnabledCustomizationTools, IAgentHostToolSetEnablementService, isCopilotCliSessionType } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import { Menus } from '../../../browser/menus.js';
 import { agentIcon, instructionsIcon, mcpServerIcon, pluginIcon, skillIcon, hookIcon, toolsIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
@@ -119,6 +119,18 @@ export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		icon: pluginIcon,
 		section: AICustomizationManagementSection.Plugins,
 		isPlugins: true,
+	},
+	{
+		id: 'sessions.customization.extensions',
+		label: localize('extensions', "Extensions"),
+		icon: Codicon.extensions,
+		section: AICustomizationManagementSection.Extensions,
+	},
+	{
+		id: 'sessions.customization.canvases',
+		label: localize('canvases', "Canvases"),
+		icon: Codicon.preview,
+		section: AICustomizationManagementSection.Canvases,
 	},
 	{
 		id: 'sessions.customization.mcpServers',
@@ -338,7 +350,11 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 				if (!config.section) {
 					continue;
 				}
-				const supported = config.section !== AICustomizationManagementSection.HarnessSettings || activeHarness === SessionType.AgentHostCodex;
+				const supported = config.section === AICustomizationManagementSection.HarnessSettings
+					? activeHarness === SessionType.AgentHostCodex
+					: config.section === AICustomizationManagementSection.Extensions || config.section === AICustomizationManagementSection.Canvases
+						? isCopilotCliSessionType(activeHarness)
+						: true;
 				visibilityKeys.get(config.section)!.set(!hidden.has(config.section) && supported);
 			}
 		}));

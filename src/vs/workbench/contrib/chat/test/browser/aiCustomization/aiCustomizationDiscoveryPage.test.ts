@@ -487,6 +487,59 @@ suite('AICustomizationDiscoveryPage', () => {
 		});
 	}
 
+	test('filters canvas-tagged Copilot plugins as first-class canvas results', async () => {
+		const fixture = createPage(
+			['agentFinder'],
+			[AICustomizationManagementSection.Canvases, AICustomizationManagementSection.Plugins],
+		);
+		assert.match(fixture.container.querySelector('.customization-discovery-description')?.textContent ?? '', /Canvases/);
+		fixture.page.setSearchQuery('@type:canvas diagram');
+		fixture.page.setVisible(true);
+		await waitForRequestCount(fixture.requests, 1);
+		assert.strictEqual(fixture.requests[0].options.mediaType, CustomizationMarketplaceMediaType.CopilotPlugin);
+		await fixture.requests[0].result.complete({
+			items: [
+				resource('ordinary-plugin', {
+					displayName: 'Ordinary Plugin',
+					mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+					tags: ['plugin'],
+				}),
+				resource('diagram-canvas', {
+					displayName: 'Diagram Canvas',
+					description: 'Render interactive diagrams.',
+					mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+					tags: ['canvas', 'canvas-only'],
+					installation: { kind: 'plugin', repository: 'example/diagram-canvas', ref: 'main', path: '' },
+				}),
+			],
+		});
+		await timeout(0);
+
+		const rows = [...fixture.container.querySelectorAll<HTMLElement>('.customization-discovery-result-row')]
+			.map(row => ({
+				name: row.querySelector('.customization-discovery-result-name')?.textContent,
+				detail: row.querySelector('.customization-discovery-result-detail')?.textContent,
+			}));
+		assert.deepStrictEqual(rows, [{ name: 'Diagram Canvas', detail: 'Canvas · GitHub Feed' }]);
+	});
+
+	test('clears the Canvas filter when Canvases becomes unavailable for the active harness', () => {
+		const fixture = createPage(
+			['agentFinder'],
+			[AICustomizationManagementSection.Canvases, AICustomizationManagementSection.Plugins],
+		);
+		fixture.page.setSearchQuery('@type:canvas diagram');
+		fixture.page.rebuildCards(new Set([AICustomizationManagementSection.Plugins]));
+
+		assert.deepStrictEqual({
+			description: fixture.container.querySelector('.customization-discovery-description')?.textContent,
+			search: fixture.page.getAccessibilityContent().split('\n\n')[1],
+		}, {
+			description: 'Find new ways to extend your agent with Plugins, MCP Servers, Skills, Instructions, Agents, and Hooks.',
+			search: 'Search: diagram',
+		});
+	});
+
 	test('pending query and source changes preserve the progress animation across the full row', async () => {
 		const fixture = createPage();
 		// Keep the 2% progress bit an integral width: WebKit rounds percentage transform reference boxes.

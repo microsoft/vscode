@@ -2537,6 +2537,137 @@ suite('AgentHostProtocolClient', () => {
 		await assertRemoteProtocolError(result, error);
 	});
 
+	test('manages Copilot extensions and session canvases through advertised extension methods', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, false, false, true));
+		transport.sentMessages.length = 0;
+
+		const extensionInventory = client.listAgentExtensions();
+		assert.deepStrictEqual(transport.sentMessages[0], {
+			jsonrpc: '2.0',
+			id: 2,
+			method: 'vscode/listAgentExtensions',
+			params: undefined,
+		});
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: 2,
+			result: {
+				mode: 'load_and_augment',
+				extensions: [{
+					id: 'user:preview',
+					name: 'Preview',
+					resource: 'file:///home/test/.copilot/extensions/preview/extension.mjs',
+					source: 'user',
+					enabled: true,
+				}],
+			},
+		});
+
+		const session = URI.parse('copilotcli:/session-1');
+		const toggle = client.setAgentExtensionEnabled('user:preview', false, session);
+		assert.deepStrictEqual(transport.sentMessages[1], {
+			jsonrpc: '2.0',
+			id: 3,
+			method: 'vscode/setAgentExtensionEnabled',
+			params: { extensionId: 'user:preview', enabled: false, session: session.toString() },
+		});
+		transport.fireMessage({ jsonrpc: '2.0', id: 3, result: null });
+
+		const canvases = client.refreshSessionCanvases(session);
+		assert.deepStrictEqual(transport.sentMessages[2], {
+			jsonrpc: '2.0',
+			id: 4,
+			method: 'vscode/refreshSessionCanvases',
+			params: { session: session.toString() },
+		});
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: 4,
+			result: {
+				canvases: [{
+					canvasId: 'preview',
+					extensionId: 'opaque-provider',
+					extensionSource: 'plugin',
+					extensionName: 'Preview',
+					displayName: 'Preview Canvas',
+					description: 'Interactive preview.',
+					requiresInput: false,
+					actionCount: 2,
+				}],
+			},
+		});
+
+		const inventory = await extensionInventory;
+		await toggle;
+		assert.deepStrictEqual({
+			mode: inventory.mode,
+			extensions: inventory.extensions.map(extension => ({
+				id: extension.id,
+				resourceScheme: extension.resource.scheme,
+				resourcePath: extension.resource.path,
+				source: extension.source,
+				enabled: extension.enabled,
+			})),
+			canvases: await canvases,
+		}, {
+			mode: 'load_and_augment',
+			extensions: [{
+				id: 'user:preview',
+				resourceScheme: 'vscode-agent-host',
+				resourcePath: '/home/test/.copilot/extensions/preview/extension.mjs',
+				source: 'user',
+				enabled: true,
+			}],
+			canvases: [{
+				canvasId: 'preview',
+				extensionId: 'opaque-provider',
+				extensionSource: 'plugin',
+				extensionName: 'Preview',
+				displayName: 'Preview Canvas',
+				description: 'Interactive preview.',
+				requiresInput: false,
+				actionCount: 2,
+			}],
+		});
+	});
+
+	test('does not call Copilot customization extension methods without the advertised capability', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta());
+		transport.sentMessages.length = 0;
+		const session = URI.parse('copilotcli:/session-1');
+
+		await assert.rejects(client.listAgentExtensions(), /does not support Copilot customization inventory/);
+		await assert.rejects(client.setAgentExtensionEnabled('user:preview', false, session), /does not support Copilot extension management/);
+		await assert.rejects(client.listSessionCanvases(session), /does not support Copilot canvas inventory/);
+		await assert.rejects(client.refreshSessionCanvases(session), /does not support Copilot canvas inventory/);
+		assert.strictEqual(transport.sentMessages.length, 0);
+	});
+
+	test('rejects invalid Canvas extension source metadata', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, false, false, true));
+		transport.sentMessages.length = 0;
+		const result = client.listSessionCanvases(URI.parse('copilotcli:/session-1'));
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: 2,
+			result: {
+				canvases: [{
+					canvasId: 'preview',
+					extensionId: 'opaque-provider',
+					extensionSource: 'opaque',
+					displayName: 'Preview Canvas',
+					description: 'Interactive preview.',
+					requiresInput: false,
+					actionCount: 0,
+				}],
+			},
+		});
+		await assert.rejects(result, /invalid canvas inventory item/);
+	});
+
 	test('removeSessionArtifact sends the VS Code extension request', async () => {
 		const { client, transport } = createClient();
 		const session = URI.parse('copilotcli:/session-1');

@@ -6,7 +6,7 @@
 import { Promises, raceTimeout } from '../../../base/common/async.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
-import { type AgentProvider, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, type IAgentPluginUninstallRequest } from '../common/agent.js';
+import { type AgentProvider, type IAgentCanvasInfo, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, type IAgentExtensionInventory, type IAgentPluginUninstallRequest } from '../common/agent.js';
 import { IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostManagementService, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, type IMissionControlOptions, type IMissionControlCredentialSealingRequest } from '../common/agentService.js';
 import { sealMissionControlCredential } from './missionControl/missionControlAuthentication.js';
 import { MissionControlEnvironment } from './missionControl/missionControlEnvironment.js';
@@ -109,6 +109,34 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 			throw new Error('Agent Host plugin uninstall is unavailable');
 		}
 		return this._runMutation(() => this._agentService.uninstallPlugin!(provider, request));
+	}
+
+	listAgentExtensions(): Promise<IAgentExtensionInventory> {
+		if (!this._agentService.listAgentExtensions) {
+			throw new Error('Copilot extension inventory is unavailable');
+		}
+		return this._agentService.listAgentExtensions();
+	}
+
+	setAgentExtensionEnabled(extensionId: string, enabled: boolean, session?: URI): Promise<void> {
+		if (!this._agentService.setAgentExtensionEnabled) {
+			throw new Error('Copilot extension management is unavailable');
+		}
+		return this._runMutation(() => this._agentService.setAgentExtensionEnabled!(extensionId, enabled, session));
+	}
+
+	listSessionCanvases(session: URI): Promise<readonly IAgentCanvasInfo[]> {
+		if (!this._agentService.listSessionCanvases) {
+			throw new Error('Copilot canvas inventory is unavailable');
+		}
+		return this._agentService.listSessionCanvases(session);
+	}
+
+	refreshSessionCanvases(session: URI): Promise<readonly IAgentCanvasInfo[]> {
+		if (!this._agentService.refreshSessionCanvases) {
+			throw new Error('Copilot canvas refresh is unavailable');
+		}
+		return this._runMutation(() => this._agentService.refreshSessionCanvases!(session));
 	}
 
 	shutdown(): Promise<void> {

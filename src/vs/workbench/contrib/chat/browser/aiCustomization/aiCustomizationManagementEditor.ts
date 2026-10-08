@@ -3208,7 +3208,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (!contribution || !container) {
 			return undefined;
 		}
-		const widget = contribution.create(this.instantiationService, container);
+		const widget = contribution.create(this.instantiationService, container, section => this.selectSectionById(section));
 		this.contributedSectionWidgets.set(section, widget);
 		this.editorDisposables.add(widget);
 		widget.setVisible?.(this.isVisible() && this.viewMode === 'list' && this.selectedSection === section);

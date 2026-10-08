@@ -68,6 +68,7 @@ import {
 import { AICustomizationManagementEditor } from './aiCustomizationManagementEditor.js';
 import { AICustomizationManagementEditorInput } from './aiCustomizationManagementEditorInput.js';
 import './customizationMarketplace.contribution.js';
+import './copilotCustomizations.contribution.js';
 import './customizationMigrationAccessibility.js';
 
 //#region Telemetry

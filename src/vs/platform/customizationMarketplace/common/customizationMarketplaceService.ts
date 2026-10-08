@@ -97,6 +97,15 @@ export interface ICustomizationMarketplaceResource extends ICustomizationMarketp
 	readonly sourceId: string;
 }
 
+export function isCustomizationMarketplaceCanvasOnlyResource(resource: Pick<ICustomizationMarketplaceEntry, 'mediaType' | 'tags'>): boolean {
+	return resource.mediaType === CustomizationMarketplaceMediaType.CopilotPlugin && resource.tags.includes('canvas-only');
+}
+
+export function isCustomizationMarketplaceCanvasResource(resource: Pick<ICustomizationMarketplaceEntry, 'mediaType' | 'tags'>): boolean {
+	return resource.mediaType === CustomizationMarketplaceMediaType.CopilotPlugin
+		&& (resource.tags.includes('canvas') || isCustomizationMarketplaceCanvasOnlyResource(resource));
+}
+
 /** Identifiers and versions are opaque and only unique within their source. */
 export function getCustomizationMarketplaceResourceKey(resource: Pick<ICustomizationMarketplaceResource, 'sourceId' | 'identifier' | 'version'>): string {
 	return JSON.stringify([resource.sourceId, resource.identifier, resource.version ?? null]);
