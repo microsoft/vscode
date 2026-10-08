@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { execFileSync } from 'child_process';
 import { mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'fs';
+import { realpath } from 'fs/promises';
 import { tmpdir } from 'os';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { basename, dirname, join } from '../../../../base/common/path.js';
@@ -16,7 +17,7 @@ import { disableTestGitMaintenance, initTestGitRepo } from './e2e/harness/agentH
 suite('Agent Host E2E test directories', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('canonicalizes aliased parents before exposing a unique workspace', () => {
+	test('canonicalizes aliased parents before exposing a unique workspace', async () => {
 		const root = mkdtempSync(join(tmpdir(), 'agent-host-directory-test-'));
 		store.add(toDisposable(() => rmSync(root, { recursive: true, force: true })));
 		const target = join(root, 'target');
@@ -32,7 +33,7 @@ suite('Agent Host E2E test directories', () => {
 			distinct: first !== second,
 			prefixPreserved: basename(first).startsWith('workspace-'),
 		}, {
-			parent: realpathSync(target),
+			parent: await realpath(target),
 			canonical: true,
 			distinct: true,
 			prefixPreserved: true,
@@ -69,12 +70,19 @@ suite('Agent Host E2E test directories', () => {
 		assert.strictEqual(readdirSync(root).length, 1);
 	});
 
-	(process.platform === 'win32' ? test : test.skip)('expands Windows short-path parents to their long filesystem identity', () => {
+	(process.platform === 'win32' ? test : test.skip)('expands Windows short-path parents to their long filesystem identity', function () {
 		const root = createTestDirectory(join(tmpdir(), 'agent-host-directory-test-'));
 		store.add(toDisposable(() => rmSync(root, { recursive: true, force: true })));
 		const target = join(root, 'canonical directory target');
 		mkdirSync(target);
-		const shortPath = execFileSync('cmd.exe', ['/d', '/c', `for %I in ("${target}") do @echo %~sI`], { encoding: 'utf8' }).trim();
+		const shortPath = execFileSync('powershell.exe', [
+			'-NoLogo', '-NoProfile', '-NonInteractive', '-Command',
+			'(New-Object -ComObject Scripting.FileSystemObject).GetFolder($env:AGENT_HOST_TEST_DIRECTORY).ShortPath',
+		], { encoding: 'utf8', env: { ...process.env, AGENT_HOST_TEST_DIRECTORY: target } }).trim();
+		if (shortPath === target) {
+			// Some Windows volumes do not generate 8.3 aliases.
+			this.skip();
+		}
 		const directory = createTestDirectory(join(shortPath, 'workspace-'));
 
 		assert.strictEqual(dirname(directory), target);
