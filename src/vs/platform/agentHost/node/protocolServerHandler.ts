@@ -1253,17 +1253,17 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		this._agentService.setClientChatSubscription(URI.parse(chatChannel), clientId, false);
 		this._completeDisconnectedClientToolCalls(clientId, session, chatChannel);
 		const state = this._stateManager.getSessionState(session);
-		if (!this._hasClientSubscription(clientId, session) && !state?.chats.some(chat => this._hasClientSubscription(clientId, chat.resource))) {
+		if (!this._hasClientSubscription(clientId, session, true) && !state?.chats.some(chat => this._hasClientSubscription(clientId, chat.resource, true))) {
 			this._removeActiveClient(session, clientId);
 		}
 	}
 
-	/** Whether any live connection for this client has an active state subscription to the channel. */
-	private _hasClientSubscription(clientId: string, channel: string): boolean {
+	/** Checks channel coverage across live connections; pending restores retain membership but not tool routing. */
+	private _hasClientSubscription(clientId: string, channel: string, includePending = false): boolean {
 		const record = this._clients.get(clientId);
 		return record?.state === 'active' && record.connections.some(connection => {
 			const subscription = connection.subscriptions.get(channel);
-			return subscription?.kind === ChannelKind.State && subscription.active;
+			return subscription?.kind === ChannelKind.State && (includePending || subscription.active);
 		});
 	}
 
@@ -1726,6 +1726,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				}
 				if (!pendingSubscription.active) {
 					client.subscriptions.delete(classified.uri);
+					this._reconcileClientChatSubscriptions(client);
 				}
 				if (err instanceof ProtocolError) {
 					throw err;
@@ -2847,6 +2848,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				this._agentService.unsubscribe(URI.parse(sub.uri), client.clientId);
 			}
 			if (!sub.active) {
+				this._reconcileClientChatSubscriptions(client);
 				return;
 			}
 			if (isAhpChatChannel(sub.uri)) {

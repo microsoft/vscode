@@ -502,8 +502,10 @@ export class AgentSideEffects extends Disposable {
 			return;
 		}
 		const hostCustomizations = this._hostCustomizations(session);
+		const releasedChats: URI[] = [];
 		for (const chat of chats) {
 			if (this._releasedClientChats.get(session, chat.toString(), activeClient.clientId)) {
+				releasedChats.push(chat);
 				continue;
 			}
 			const handle = agent.getOrCreateActiveClient(chat, this._chatContext(session, chat.toString()), {
@@ -512,6 +514,9 @@ export class AgentSideEffects extends Disposable {
 			}, hostCustomizations);
 			handle.tools = activeClient.tools;
 			handle.customizations = activeClient.customizations ?? [];
+		}
+		for (const chat of releasedChats) {
+			agent.removeActiveClient(chat, this._chatContext(session, chat.toString()), activeClient.clientId);
 		}
 	}
 
@@ -526,12 +531,13 @@ export class AgentSideEffects extends Disposable {
 	/** Narrows or restores one client's exact-chat contribution without changing its session membership. */
 	setClientChatSubscription(chat: ProtocolURI, clientId: string, subscribed: boolean): void {
 		const session = parseRequiredSessionUriFromChatUri(chat);
-		const activeClient = this._stateManager.getSessionState(session)?.activeClients.find(client => client.clientId === clientId);
+		const state = this._stateManager.getSessionState(session);
+		const activeClient = state?.activeClients.find(client => client.clientId === clientId);
 		if (subscribed) {
 			if (!this._releasedClientChats.delete(session, chat, clientId)) {
 				return;
 			}
-		} else if (activeClient) {
+		} else if (state) {
 			this._releasedClientChats.set(true, session, chat, clientId);
 		}
 		const agent = this._options.getAgent(session);

@@ -5348,11 +5348,44 @@ suite('AgentSideEffects', () => {
 				tools: agent.setClientToolsCalls.at(-1),
 				membership: stateManager.getSessionState(session)?.activeClients.map(client => client.clientId),
 			}, {
-				removed: [{ chat: peerChat, clientId: 'test-client' }],
+				removed: [
+					{ chat: peerChat, clientId: 'test-client' },
+					{ chat: peerChat, clientId: 'test-client' },
+					{ chat: peerChat, clientId: 'test-client' },
+				],
 				whileReleased: [defaultChatUri, defaultChatUri, addedChat],
 				restored: [{ chat: peerChat, clientId: 'test-client' }],
 				tools: { clientId: 'test-client', tools: [{ name: 'toolSearch' }] },
 				membership: ['test-client'],
+			});
+		});
+
+		test('release before active-client publication is retained and cleared on session removal', () => {
+			setupSession();
+			const session = sessionUri.toString();
+			const peerChat = buildChatUri(sessionUri, 'early-release');
+			stateManager.addChat(session, peerChat);
+			sideEffects.setClientChatSubscription(peerChat, 'test-client', false);
+			const action: SessionAction = {
+				type: ActionType.SessionActiveClientSet,
+				activeClient: { clientId: 'test-client', tools: [] },
+			};
+			stateManager.dispatchClientAction(session, action, { clientId: 'test-client', clientSeq: 1 });
+			sideEffects.handleAction(session, action);
+			const publishedChats = agent.activeClientCalls.map(call => call.chat.toString());
+			const removedChats = agent.removeActiveClientCalls.map(call => call.chat.toString());
+
+			stateManager.removeSession(session);
+			setupSession();
+			stateManager.addChat(session, peerChat);
+			agent.activeClientCalls.length = 0;
+			stateManager.dispatchClientAction(session, action, { clientId: 'test-client', clientSeq: 2 });
+			sideEffects.handleAction(session, action);
+
+			assert.deepStrictEqual({ publishedChats, removedChats, afterSessionRemoval: agent.activeClientCalls.map(call => call.chat.toString()) }, {
+				publishedChats: [defaultChatUri],
+				removedChats: [peerChat],
+				afterSessionRemoval: [defaultChatUri, peerChat],
 			});
 		});
 

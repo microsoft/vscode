@@ -5835,6 +5835,52 @@ suite('ProtocolServerHandler', () => {
 			});
 		}
 
+		for (const release of ['unsubscribe', 'disconnect'] as const) {
+			for (const outcome of ['success', 'failure', 'cancelled'] as const) {
+				test(`last active subscription ${release} retains membership until a pending replacement settles with ${outcome}`, async () => {
+					createSessionWithClientTools();
+					const departing = connectClient(clientId, [defaultChatUri]);
+					const remaining = connectClient(clientId);
+					await handler.whenIdle();
+					const barrier = new DeferredPromise<void>();
+					agentService.subscribeBarriers.set(defaultChatUri, barrier);
+					const response = waitForResponse(remaining, 2);
+					remaining.simulateMessage(request(2, 'subscribe', { channel: defaultChatUri }));
+					await Promise.resolve();
+					if (release === 'disconnect') {
+						departing.simulateClose();
+					} else {
+						departing.simulateMessage(notification('unsubscribe', { channel: defaultChatUri }));
+					}
+					const duringRestore = {
+						membership: stateManager.getSessionState(sessionUri)?.activeClients.map(client => client.clientId),
+						routing: agentService.clientChatSubscriptions.filter(subscription => subscription.chat === defaultChatUri).at(-1)?.subscribed,
+					};
+					if (outcome === 'cancelled') {
+						remaining.simulateMessage(notification('unsubscribe', { channel: defaultChatUri }));
+					}
+					if (outcome === 'failure') {
+						await barrier.error(new ProtocolError(AhpErrorCodes.NotFound, 'Restore failed'));
+					} else {
+						await barrier.complete();
+					}
+					const result = await response;
+
+					assert.deepStrictEqual({
+						duringRestore,
+						membership: stateManager.getSessionState(sessionUri)?.activeClients.map(client => client.clientId),
+						routing: agentService.clientChatSubscriptions.filter(subscription => subscription.chat === defaultChatUri).at(-1)?.subscribed,
+						succeeded: hasKey(result, { result: true }),
+					}, {
+						duringRestore: { membership: [clientId], routing: false },
+						membership: outcome === 'success' ? [clientId] : [],
+						routing: outcome === 'success',
+						succeeded: outcome === 'success',
+					});
+				});
+			}
+		}
+
 		test('a subscription to another session does not retain the active client', () => {
 			createSessionWithClientTools();
 			const otherSession = 'copilot:///other-session';

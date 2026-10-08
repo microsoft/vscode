@@ -636,6 +636,8 @@ Membership changes re-enter the same seam: a `session/chatAdded` envelope fans e
 
 The protocol server retains a session's active-client contribution while any live connection for that client subscribes to the session or one of its chats. Releasing an exact chat subscription narrows the provider's contribution for that chat and fails its pending client tools; resubscribing restores its tools and customizations. Session-only subscriptions retain session membership but do not receive chat actions or execute tools in released chats. Active-client refreshes and catalog fan-out preserve this narrowing, and the session-wide contribution is removed only after its last session/chat subscription is gone.
 
+Pending subscription restores retain session membership, but do not retain client-tool routing; a failed or cancelled restore releases that membership when no other subscription remains.
+
 ### 8d. Prompt-cache metadata
 
 `IAgentHostPromptCache` (`node/agentHostPromptCache.ts`) exposes exactly `read(session)` / `write(session, state)` over the `vscode.promptCache` `_meta` slot. `write` re-reads the persisted value first (several live provider sessions can share one session URI), skips a no-op write, merges rather than replaces `_meta`, and returns the effective state.
