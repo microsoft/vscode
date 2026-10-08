@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type Anthropic from '@anthropic-ai/sdk';
-import type { CopilotClient, CopilotSession, CurrentToolMetadata, PermissionMode, PermissionRequest, PermissionRequestResult, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
+import type { AutoTier, CopilotClient, CopilotSession, CurrentToolMetadata, PermissionMode, PermissionRequest, PermissionRequestResult, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
 import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'fs';
@@ -16,7 +16,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { join, sep } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -69,6 +69,9 @@ import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from '../..
 import { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import { buildMcpChannel } from '../../node/shared/mcpCustomizationController.js';
 import type { FileEditTracker } from '../../node/shared/fileEditTracker.js';
+import { IEditArcReporterService, NullEditArcReporterService } from '../../node/shared/editArcReporter.js';
+import { IEditSurvivalReporterFactory } from '../../node/shared/editSurvivalReporter.js';
+import { IAgentEditAttribution, IAgentEditAttributionService, NullAgentEditAttributionService } from '../../common/fileEditAttribution.js';
 import { buildSandboxConfigForSdk, type SandboxConfig } from '../../node/copilot/sandboxConfigForSdk.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
@@ -390,7 +393,16 @@ class MockCopilotSession {
 		}
 	}
 
+	currentModel: { modelId?: string; autoTier?: AutoTier } = {};
+	currentModelGate: Promise<void> | undefined;
+
 	readonly rpc = {
+		model: {
+			getCurrent: async () => {
+				await this.currentModelGate;
+				return this.currentModel;
+			},
+		},
 		agent: {
 			select: async () => { await this.agentSelectGate; },
 			deselect: async () => { await this.agentDeselectGate; },
@@ -1071,6 +1083,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	/** Values visible only through `getEffectiveValue`, as if inherited from root or a parent session. */
 	inheritedConfigValues?: Record<string, unknown>;
 	sessionDatabase?: ISessionDatabase;
+	editServices?: { readonly attribution: IAgentEditAttributionService; readonly survival: IEditSurvivalReporterFactory };
 	/** Configure the mock session before {@link CopilotAgentSession.initializeSession} runs. */
 	configureMockSession?: (session: MockCopilotSession) => void;
 	getUserMcpServerNames?: () => Promise<ReadonlySet<string>>;
@@ -1393,6 +1406,11 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	}
 	const terminalManager = disposables.add(new TestAgentHostTerminalManager());
 	services.set(IAgentHostTerminalManager, terminalManager);
+	if (options?.editServices) {
+		services.set(IAgentEditAttributionService, options.editServices.attribution);
+		services.set(IEditSurvivalReporterFactory, options.editServices.survival);
+		services.set(IEditArcReporterService, new NullEditArcReporterService());
+	}
 	const instantiationService = disposables.add(new InstantiationService(services));
 
 	const session = disposables.add(instantiationService.createInstance(
@@ -14204,6 +14222,133 @@ Use the attached image as context.
 			}
 		});
 
+		test('tool_complete snapshots the committed Auto tier per edit without subagent inheritance', async () => {
+			const { session, mockSession, waitForSignal } = await createAgentSession(disposables, {
+				configureMockSession: mockSession => { mockSession.currentModel = { modelId: 'auto', autoTier: 'balance' }; },
+			});
+			const sessionInternals = session as unknown as ISessionInternalsForTest;
+			const taken: { toolCallId: string; autoTier: string | undefined }[] = [];
+			sessionInternals._editTracker.takeCompletedEdit = async (_turnId, toolCallId, _path, _toolName, _toolInput, _modelId, _clientContext, _chat, autoTier) => {
+				taken.push({ toolCallId, autoTier: await autoTier });
+				return undefined;
+			};
+			const edit = async (toolCallId: string, agentId?: string) => {
+				mockSession.fire('tool.execution_start', {
+					toolCallId, toolName: 'apply_patch', arguments: '*** Begin Patch\n*** Update File: foo.ts\n@@\n+new\n*** End Patch',
+				} as unknown as SessionEventPayload<'tool.execution_start'>['data'], { agentId });
+				mockSession.fire('tool.execution_complete', { toolCallId, success: true } as SessionEventPayload<'tool.execution_complete'>['data'], { agentId });
+				await waitForSignal(s => s.kind === 'action' && s.action.type === ActionType.ChatToolCallComplete && s.action.toolCallId === toolCallId);
+			};
+			session.resetTurnState('turn-auto');
+
+			await edit('root-start');
+			mockSession.fire('subagent.started', {
+				toolCallId: 'task', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests',
+			} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-1' });
+			await edit('subagent-inherits-nothing', 'agent-1');
+			mockSession.fire('session.model_change', { previousModel: 'auto', newModel: 'auto', autoTier: 'efficiency' }, { agentId: 'agent-1' });
+			await edit('subagent-own-tier', 'agent-1');
+			mockSession.fire('session.model_change', { previousModel: 'auto', newModel: 'auto', reasoningEffort: 'high' }, { agentId: 'agent-1' });
+			await edit('subagent-effort-only', 'agent-1');
+			mockSession.fire('session.model_change', { previousModel: 'auto', newModel: 'auto', autoTier: 'intelligence' });
+			await edit('root-changed');
+			mockSession.fire('session.model_change', { previousModel: 'auto', newModel: 'auto', reasoningEffort: 'high' });
+			await edit('root-effort-only');
+			mockSession.fire('session.model_change', { previousModel: 'auto', newModel: 'gpt-5', autoTier: 'intelligence' });
+			await edit('root-not-auto');
+			mockSession.currentModel = { modelId: 'auto', autoTier: 'fast' };
+			mockSession.fire('session.model_change', { previousModel: 'gpt-5', newModel: 'auto' });
+			await timeout(0);
+			await edit('root-back-to-auto');
+
+			assert.deepStrictEqual(taken, [
+				{ toolCallId: 'root-start', autoTier: 'balance' },
+				{ toolCallId: 'subagent-inherits-nothing', autoTier: undefined },
+				{ toolCallId: 'subagent-own-tier', autoTier: 'efficiency' },
+				{ toolCallId: 'subagent-effort-only', autoTier: 'efficiency' },
+				{ toolCallId: 'root-changed', autoTier: 'intelligence' },
+				{ toolCallId: 'root-effort-only', autoTier: 'intelligence' },
+				{ toolCallId: 'root-not-auto', autoTier: undefined },
+				{ toolCallId: 'root-back-to-auto', autoTier: 'fast' },
+			]);
+		});
+
+		test('tool_complete uses the Auto tier in effect at tool start, including pending runtime reads', async () => {
+			const seed = new DeferredPromise<void>();
+			const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables, {
+				configureMockSession: mockSession => {
+					mockSession.currentModel = { modelId: 'auto', autoTier: 'balance' };
+					mockSession.currentModelGate = seed.p;
+				},
+			});
+			const sessionInternals = session as unknown as ISessionInternalsForTest;
+			const taken: { toolCallId: string; autoTier: string | undefined }[] = [];
+			sessionInternals._editTracker.takeCompletedEdit = async (_turnId, toolCallId, _path, _toolName, _toolInput, _modelId, _clientContext, _chat, autoTier) => {
+				taken.push({ toolCallId, autoTier: await autoTier });
+				return undefined;
+			};
+			const start = (toolCallId: string, agentId?: string) => mockSession.fire('tool.execution_start', {
+				toolCallId, toolName: 'apply_patch', arguments: '*** Begin Patch\n*** Update File: foo.ts\n@@\n+new\n*** End Patch',
+			} as unknown as SessionEventPayload<'tool.execution_start'>['data'], { agentId });
+			const complete = (toolCallId: string, agentId?: string) => {
+				mockSession.fire('tool.execution_complete', { toolCallId, success: true } as SessionEventPayload<'tool.execution_complete'>['data'], { agentId });
+				return waitForSignal(s => s.kind === 'action' && s.action.type === ActionType.ChatToolCallComplete && s.action.toolCallId === toolCallId);
+			};
+			session.resetTurnState('turn-auto');
+
+			// The edit completes before the initial runtime read returns.
+			start('pending-seed');
+			const pendingSeed = complete('pending-seed');
+			await seed.complete();
+			await pendingSeed;
+
+			// A tier change between tool start and completion does not relabel the edit.
+			start('started-under-balance');
+			mockSession.fire('session.model_change', { previousModel: 'auto', newModel: 'auto', autoTier: 'intelligence' });
+			await complete('started-under-balance');
+
+			// A read superseded by a later model change never borrows that change's tier.
+			const reentry = new DeferredPromise<void>();
+			mockSession.currentModelGate = reentry.p;
+			mockSession.fire('session.model_change', { previousModel: 'auto', newModel: 'gpt-5', autoTier: 'intelligence' });
+			mockSession.fire('session.model_change', { previousModel: 'gpt-5', newModel: 'auto' });
+			start('superseded-read');
+			mockSession.fire('session.model_change', { previousModel: 'auto', newModel: 'auto', autoTier: 'efficiency' });
+			mockSession.currentModel = { modelId: 'auto', autoTier: 'efficiency' };
+			const superseded = complete('superseded-read');
+			await reentry.complete();
+			await superseded;
+
+			// A retained background subagent keeps its tier across idle and resume.
+			mockSession.fire('subagent.started', {
+				toolCallId: 'task', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests',
+			} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-1' });
+			mockSession.fire('session.model_change', { previousModel: 'auto', newModel: 'auto', autoTier: 'fast' }, { agentId: 'agent-1' });
+			mockSession.backgroundTasks = [{
+				type: 'agent', id: 'agent-1', toolCallId: 'task', description: 'Explore tests',
+				status: 'idle', agentType: 'explore', prompt: 'Initial request',
+				startedAt: new Date(0).toISOString(), idleSince: new Date(1).toISOString(),
+			}];
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
+			mockSession.fire('user.message', { content: 'Follow up', source: 'agent-parent' }, { agentId: 'agent-1' });
+			start('resumed-subagent', 'agent-1');
+			await complete('resumed-subagent', 'agent-1');
+
+			assert.deepStrictEqual({
+				subagentLifecycle: signals.flatMap(signal => signal.kind === 'subagent_completed' || signal.kind === 'subagent_resumed' ? [signal.kind] : []),
+				taken,
+			}, {
+				subagentLifecycle: ['subagent_completed', 'subagent_resumed'],
+				taken: [
+					{ toolCallId: 'pending-seed', autoTier: 'balance' },
+					{ toolCallId: 'started-under-balance', autoTier: 'balance' },
+					{ toolCallId: 'superseded-read', autoTier: undefined },
+					{ toolCallId: 'resumed-subagent', autoTier: 'fast' },
+				],
+			});
+		});
+
 		suite('asynchronous edit completion', () => {
 			async function startEdits(count = 1) {
 				const sessionDatabase = new TestSessionDatabase();
@@ -14245,6 +14390,76 @@ Use the attached image as context.
 				}
 				return { ...result, sessionDatabase, writes };
 			}
+
+			test('claims multi-file and same-file edits in order while an Auto tier read is pending', async () => {
+				const sessionDatabase = new TestSessionDatabase();
+				const tierRead = new DeferredPromise<void>();
+				const capturedRuntime: { current?: ICopilotSessionRuntime } = {};
+				const recorded: { toolCallId: string; filePath: string; autoTier: string | undefined }[] = [];
+				const surveyed: { toolCallId: string; filePath: string; autoTier: string | undefined }[] = [];
+				const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables, {
+					sessionDatabase,
+					captureRuntime: capturedRuntime,
+					editServices: {
+						attribution: new class extends NullAgentEditAttributionService {
+							override async recordEdit(edit: IAgentEditAttribution) {
+								recorded.push({ toolCallId: edit.toolCallId, filePath: edit.filePath, autoTier: edit.autoTier });
+								return undefined;
+							}
+						}(),
+						survival: {
+							_serviceBrand: undefined,
+							launch: params => {
+								surveyed.push({ toolCallId: params.toolCallId, filePath: params.filePath, autoTier: params.autoTier });
+								return Disposable.None;
+							},
+						},
+					},
+					configureMockSession: mockSession => {
+						mockSession.currentModel = { modelId: 'auto', autoTier: 'balance' };
+						mockSession.currentModelGate = tierRead.p;
+					},
+				});
+				session.resetTurnState('turn-edit');
+				mockSession.fire('user.message', { content: 'Edit the files' });
+				const run = async (toolCallId: string, toolName: string, toolArgs: unknown) => {
+					const hook = { sessionId: 'test-session-1', timestamp: new Date(0), workingDirectory: '/repo', toolName, toolArgs };
+					mockSession.fire('tool.execution_start', { toolCallId, toolName, arguments: toolArgs } as unknown as SessionEventPayload<'tool.execution_start'>['data']);
+					await capturedRuntime.current!.handlePreToolUse(hook);
+					await capturedRuntime.current!.handlePostToolUse({ ...hook, toolResult: { textResultForLlm: '', resultType: 'success' } });
+					const completion = waitForSignal(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallComplete && signal.action.toolCallId === toolCallId);
+					mockSession.fire('tool.execution_complete', { toolCallId, success: true });
+					return { completion };
+				};
+
+				// A two-file patch completes while the initial tier read is pending.
+				const patch = await run('patch', 'apply_patch', ['*** Begin Patch', '*** Update File: /repo/a.txt', '@@', '+a', '*** Update File: /repo/b.txt', '@@', '+b', '*** End Patch'].join('\n'));
+				// A known tier then arrives and a later tool edits the patch's second file.
+				mockSession.fire('session.model_change', { previousModel: 'auto', newModel: 'auto', autoTier: 'intelligence' });
+				const later = await run('later', 'edit', { path: '/repo/b.txt', old_str: 'b', new_str: 'b2' });
+				await tierRead.complete();
+				await Promise.all([patch.completion, later.completion]);
+
+				const patchResult = getActions(signals).find((action): action is ChatToolCallCompleteAction => action.type === ActionType.ChatToolCallComplete && action.toolCallId === 'patch');
+				const expected = [
+					{ toolCallId: 'patch', filePath: '/repo/a.txt', autoTier: undefined },
+					{ toolCallId: 'patch', filePath: '/repo/b.txt', autoTier: undefined },
+					{ toolCallId: 'later', filePath: '/repo/b.txt', autoTier: 'intelligence' },
+				];
+				assert.deepStrictEqual({
+					persisted: (await sessionDatabase.getAllFileEdits()).map(edit => `${edit.toolCallId}:${edit.filePath}`).toSorted(),
+					patchFileEdits: patchResult?.result.content?.filter(part => part.type === ToolResultContentType.FileEdit).length,
+					recordedOrderForB: recorded.filter(edit => edit.filePath === '/repo/b.txt').map(edit => edit.toolCallId),
+					recorded: recorded.toSorted((a, b) => `${a.toolCallId}${a.filePath}`.localeCompare(`${b.toolCallId}${b.filePath}`)),
+					surveyed: surveyed.toSorted((a, b) => `${a.toolCallId}${a.filePath}`.localeCompare(`${b.toolCallId}${b.filePath}`)),
+				}, {
+					persisted: ['later:/repo/b.txt', 'patch:/repo/a.txt', 'patch:/repo/b.txt'],
+					patchFileEdits: 2,
+					recordedOrderForB: ['patch', 'later'],
+					recorded: expected.toSorted((a, b) => `${a.toolCallId}${a.filePath}`.localeCompare(`${b.toolCallId}${b.filePath}`)),
+					surveyed: expected.toSorted((a, b) => `${a.toolCallId}${a.filePath}`.localeCompare(`${b.toolCallId}${b.filePath}`)),
+				});
+			});
 
 			test('idle drains every pending edit before completing the original turn', async () => {
 				const { session, mockSession, signals, waitForSignal, sessionDatabase, writes } = await startEdits(2);
