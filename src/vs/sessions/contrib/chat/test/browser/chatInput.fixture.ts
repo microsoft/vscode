@@ -152,7 +152,6 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/input/' }, {
 			sessionsContext.container.appendChild(chatView);
 			await renderChatInput({ ...sessionsContext, container: chatView }, {
 				models: shortNameModels,
-				tabbedModelPicker: true,
 				isSessionsWindow: true,
 				voiceInputMode: true,
 				width: 800,
@@ -169,7 +168,6 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/input/' }, {
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		render: context => renderChatInput(sessionsWindowContext(context), {
 			models: shortNameModels,
-			tabbedModelPicker: true,
 			isSessionsWindow: true,
 			width: 800,
 		}),
@@ -178,7 +176,6 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/input/' }, {
 		virtualTime: { enabled: false },
 		render: context => renderChatInput(sessionsWindowContext(context), {
 			models: shortNameModels,
-			tabbedModelPicker: true,
 			isSessionsWindow: true,
 			width: 800,
 			resizeWidths: [240],

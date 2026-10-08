@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import type { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IReference } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -34,6 +35,10 @@ class MockAgentConnection implements IAgentConnection {
 
 	readonly clientId = 'test-client';
 	readonly resourceUris = identityAgentHostResourceUriMapper;
+
+	async dispatchConfirmed<T>(_channel: string, _subscription: IAgentSubscription<T>, _action: Parameters<IAgentConnection['dispatch']>[1], _token: CancellationToken): Promise<ActionEnvelope> {
+		throw new Error('Not implemented');
+	}
 
 	private _seq = 0;
 	private readonly _onDidAction = new Emitter<ActionEnvelope>();

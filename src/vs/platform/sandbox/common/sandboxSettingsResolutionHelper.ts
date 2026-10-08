@@ -3,7 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AgentSandboxEnabledSettingValue, AgentSandboxEnabledValue, isAgentSandboxEnabledValue } from './settings.js';
+import { AgentSandboxEnabledSettingValue, AgentSandboxEnabledValue, IAgentSandboxUserConfiguredPaths, isAgentSandboxEnabledValue } from './settings.js';
+
+type SandboxFileSystemPaths = Readonly<{
+	readwritePaths?: readonly string[];
+	readonlyPaths?: readonly string[];
+	deniedPaths?: readonly string[];
+}>;
 
 /** Effective network restrictions resolved by the Copilot Agent Host for an integrated-browser client tool. */
 export interface ISandboxNetworkRestrictions {
@@ -23,7 +29,7 @@ export function isSandboxNetworkRestrictions(value: unknown): value is ISandboxN
 		&& Array.isArray(value.deniedDomains) && value.deniedDomains.every(domain => typeof domain === 'string');
 }
 
-/** Resolves user-editable sandbox toggles against the managed floor without changing saved preferences. */
+/** Resolves local sandbox settings against the managed floor without changing saved preferences. */
 export class SandboxSettingsResolutionHelper {
 	static getNetworkRestrictions(enabled: AgentSandboxEnabledSettingValue | undefined, allowNetwork: boolean | undefined) {
 		const sandboxEnabled = isAgentSandboxEnabledValue(enabled);
@@ -48,5 +54,30 @@ export class SandboxSettingsResolutionHelper {
 
 	static resolveAllowAccess(local: boolean | undefined, managed: boolean | undefined): boolean | undefined {
 		return managed === false ? false : local;
+	}
+
+	/** Uses a managed allowlist when present and combines blocklists; runtime enforcement remains authoritative. */
+	static resolveNetworkHosts(
+		localAllowedHosts: readonly string[] | undefined,
+		localBlockedHosts: readonly string[] | undefined,
+		managedAllowedHosts: readonly string[] | undefined,
+		managedBlockedHosts: readonly string[] | undefined,
+	): { allowedHosts: string[]; blockedHosts: string[] } {
+		return {
+			allowedHosts: [...new Set(managedAllowedHosts ?? localAllowedHosts ?? [])],
+			blockedHosts: [...new Set([...(localBlockedHosts ?? []), ...(managedBlockedHosts ?? [])])],
+		};
+	}
+
+	/** Uses managed grant lists when present and combines denied paths; runtime enforcement remains authoritative. */
+	static resolveFileSystemPaths(
+		local: SandboxFileSystemPaths | undefined,
+		managed: SandboxFileSystemPaths | undefined,
+	): IAgentSandboxUserConfiguredPaths {
+		return {
+			readwritePaths: [...new Set(managed?.readwritePaths ?? local?.readwritePaths ?? [])],
+			readonlyPaths: [...new Set(managed?.readonlyPaths ?? local?.readonlyPaths ?? [])],
+			deniedPaths: [...new Set([...(local?.deniedPaths ?? []), ...(managed?.deniedPaths ?? [])])],
+		};
 	}
 }

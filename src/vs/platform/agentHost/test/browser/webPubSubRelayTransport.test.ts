@@ -190,8 +190,27 @@ suite('WebPubSubRelayTransport', () => {
 		assert.deepStrictEqual(messages, [
 			'[WebPubSubRelayTransport] clientId=c1 durationMs=0 relay ready; joinedGroups=2',
 			'[WebPubSubRelayTransport] clientId=c1 durationMs=0 protocol error; kind=invalid JSON',
-			'[WebPubSubRelayTransport] clientId=c1 durationMs=30000 protocol error; kind=publish acknowledgement timed out',
+			'[WebPubSubRelayTransport] clientId=c1 durationMs=30000 protocol error; kind=publish acknowledgement timed out: Error: WPS publish acknowledgement timed out',
 			'[WebPubSubRelayTransport] clientId=c1 durationMs=30000 closing; relayReady=true publishAcknowledged=false pendingJoins=0 pendingPublishes=1 hostFrames=0 hostMessages=0 hostSilenceMs=none protocolErrors=2 expiredAssemblies=0',
+		]);
+	}));
+
+	test('logs sanitized server rejection messages during the handshake', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const warnings: string[] = [];
+		const logService = new class extends NullLogService {
+			override warn(message: string): void { warnings.push(message); }
+		}();
+		const socket = new FakeWebSocket();
+		const transport = createTransport(socket, {}, logService);
+		const ready = transport.connect();
+		socket.emit({ type: 'system', event: 'connected' });
+		socket.emit({
+			type: 'ack', ackId: socket.sentOfType('joinGroup')[0]['ackId'], success: false,
+			error: { name: 'Forbidden', message: 'Access denied; token=secret' },
+		});
+		await assert.rejects(ready, /Access denied/);
+		assert.deepStrictEqual(warnings, [
+			`[WebPubSubRelayTransport] clientId=c1 durationMs=0 handshake failed: Error: WPS joinGroup failed for group '${BROADCAST}': Access denied; token=[redacted]`,
 		]);
 	}));
 
@@ -723,7 +742,11 @@ suite('WebPubSubRelayTransport', () => {
 	test('fails once on a rejected publish even while unrelated host requests succeed', async () => {
 		const fake = new FakeWebSocket();
 		const errors: unknown[] = [];
-		const transport = createTransport(fake, { onProtocolError: error => errors.push(error) });
+		const warnings: string[] = [];
+		const logService = new class extends NullLogService {
+			override warn(message: string): void { warnings.push(message); }
+		}();
+		const transport = createTransport(fake, { onProtocolError: error => errors.push(error) }, logService);
 		await connectHandshake(transport, fake);
 		let closes = 0;
 		const received: ProtocolMessage[] = [];
@@ -735,7 +758,7 @@ suite('WebPubSubRelayTransport', () => {
 		fake.emit({ type: 'ack', ackId: publishes[1]['ackId'], success: true });
 		const pong = { jsonrpc: '2.0', id: 2, result: null };
 		fake.emitGroupMessage(1, { kind: 'message', data: pong });
-		fake.emit({ type: 'ack', ackId: publishes[0]['ackId'], success: false, error: { name: 'Forbidden' } });
+		fake.emit({ type: 'ack', ackId: publishes[0]['ackId'], success: false, error: { name: 'Forbidden', message: 'Permission denied; token=private-token' } });
 		fake.emit({ type: 'ack', ackId: publishes[0]['ackId'], success: false });
 		fake.emitClose();
 
@@ -744,13 +767,15 @@ suite('WebPubSubRelayTransport', () => {
 			socketClosed: fake.closed,
 			closes,
 			errors,
+			warnings: warnings.map(message => message.slice(message.indexOf('protocol error'))),
 			received,
 			publishes: fake.sentOfType('sendToGroup').length,
 		}, {
 			open: false,
 			socketClosed: true,
 			closes: 1,
-			errors: [new Error('WPS publish failed')],
+			errors: [new Error('WPS publish failed: Permission denied; token=[redacted]')],
+			warnings: ['protocol error; kind=publish rejected: Error: WPS publish failed: Permission denied; token=[redacted]'],
 			received: [pong],
 			publishes: 2,
 		});

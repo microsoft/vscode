@@ -148,7 +148,7 @@ export class ListAutomationsTool implements IToolImpl {
 
 		const providers: IAutomationProviderToolOutput[] = this.sessionsProvidersService.getProviders().flatMap(provider => {
 			const store = provider.automations;
-			if (!store) {
+			if (!store || store.enabled?.get() === false) {
 				return [];
 			}
 			const state = store.catalogueState.get();
@@ -267,6 +267,11 @@ export class RunAutomationTool implements IToolImpl {
 		}
 		if (dispatch.kind === 'notStarted') {
 			return automationNotStarted(automation, dispatch);
+		}
+		if (dispatch.kind === 'accepted') {
+			const result = automationToolResult(JSON.stringify({ status: 'accepted', automation: { id: automation.id, name: automation.name } }));
+			result.toolResultMessage = localize('automation.tool.run.accepted', "Requested automation {0}; the provider has not returned a run.", automation.name);
+			return result;
 		}
 
 		const result = automationToolResult(JSON.stringify({

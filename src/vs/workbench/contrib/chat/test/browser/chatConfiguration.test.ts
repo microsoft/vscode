@@ -241,4 +241,28 @@ suite('Chat configuration', () => {
 			['chat.agentSessions.autoDeleteArchivedMergedSessionsAfterDays', { value: undefined }],
 		]);
 	});
+
+	test('migrates the legacy title generation settings to one strategy without overwriting it', async () => {
+		const deferredSetting = 'chat.agentHost.experimental.deferredTitleGeneration';
+		const activeAgentSetting = 'chat.agentHost.experimental.activeAgentTitleGeneration';
+		const strategySetting = 'chat.agentHost.experimental.titleGeneration';
+		const deferredMigration = migrations.find(migration => migration.key === deferredSetting);
+		const activeAgentMigration = migrations.find(migration => migration.key === activeAgentSetting);
+
+		assert.deepStrictEqual({
+			application: [deferredMigration?.includeApplication, activeAgentMigration?.includeApplication],
+			deferredOn: await deferredMigration?.migrateFn(true, () => undefined),
+			deferredOff: await deferredMigration?.migrateFn(false, () => undefined),
+			activeAgentOff: await activeAgentMigration?.migrateFn(false, () => undefined),
+			activeAgentOffWithDeferredOn: await activeAgentMigration?.migrateFn(false, setting => setting === deferredSetting ? true : undefined),
+			activeAgentOnWithStrategySet: await activeAgentMigration?.migrateFn(true, setting => setting === strategySetting ? 'agentReview' : undefined),
+		}, {
+			application: [true, true],
+			deferredOn: [[deferredSetting, { value: undefined }], [strategySetting, { value: 'agentReview' }]],
+			deferredOff: [[deferredSetting, { value: undefined }]],
+			activeAgentOff: [[activeAgentSetting, { value: undefined }], [strategySetting, { value: 'utility' }]],
+			activeAgentOffWithDeferredOn: [[activeAgentSetting, { value: undefined }], [strategySetting, { value: 'agentReview' }]],
+			activeAgentOnWithStrategySet: [[activeAgentSetting, { value: undefined }]],
+		});
+	});
 });

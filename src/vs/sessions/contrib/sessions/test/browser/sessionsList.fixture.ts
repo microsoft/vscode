@@ -235,7 +235,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}, {
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['All sections are collapsed. Orange ring pixel spinners replace the icons for Release work and vscode-docs, taking priority over unread indicators. The vscode section retains its folder icon because its needs-input session appears only in Release work.'],
+		expectedVisualDescriptions: ['All sections are collapsed. Orange report icons replace the icons for Release work and vscode-docs, taking priority over unread indicators. The vscode section retains its folder icon because its needs-attention session appears only in Release work.'],
 	}),
 	SessionsList_CollapsedNeedsInputSections_Disabled: defineSessionsListFixture({
 		sessions: COLLAPSED_NEEDS_INPUT_SESSIONS,

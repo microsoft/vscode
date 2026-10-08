@@ -29,7 +29,6 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
-import { TABBED_MODEL_PICKER_SETTING_ID } from '../../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerWidget.js';
 import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING } from '../../browser/responseSelectionSideChatController.js';
 import { SESSION_ARCHIVE_NUDGE_SETTING } from '../../browser/sessionArchiveNudge.js';
 import { SessionComparisonAccessibleView, SessionsChatAccessibilityHelp } from '../../browser/sessionsChatAccessibilityHelp.js';
@@ -57,6 +56,21 @@ suite('SessionsChatAccessibilityHelp', () => {
 			forward: content.includes('Go forward through visited sessions and views<keybinding:sessions.goForward>'),
 			singletonViews: content.includes('moves its single history entry to the most recent position'),
 		}, { back: true, forward: true, singletonViews: true });
+	});
+
+	test('documents repo-less Cloud chats in the harness picker', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
+		stubContextKeyService(instantiationService, configuration);
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
+
+		assert.ok(content.includes('When GitHub sandboxes are enabled, choose Cloud in the harness picker to chat without a repository or pull request.'));
 	});
 
 	test('documents layout density only on desktop', () => {
@@ -143,8 +157,13 @@ suite('SessionsChatAccessibilityHelp', () => {
 				discoveryHelp: content.includes('choose Environments to discover your environments'),
 				refreshHelp: content.includes('Tab reaches Refresh Environments.'),
 				hiddenHelp: content.includes('Hide in This Profile') || content.includes('Restore Host'),
-				missionControl: content.includes('Mission Control'),
-			}, { discoveryHelp: enabled, refreshHelp: enabled, hiddenHelp: false, missionControl: false });
+				githubEnvironment: content.includes('GitHub environment'),
+				sharingKeyboard: content.includes('Enter or Space to enable or disable sharing'),
+				backendSetting: content.includes('chat.agentHost.remoteConnections'),
+			}, {
+				discoveryHelp: enabled, refreshHelp: enabled, hiddenHelp: false,
+				githubEnvironment: !hidden && !aiDisabled, sharingKeyboard: !hidden && !aiDisabled, backendSetting: !hidden && !aiDisabled,
+			});
 		});
 	}
 
@@ -687,13 +706,10 @@ suite('SessionsChatAccessibilityHelp', () => {
 		const disabledProvider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
 		const disabledContent = disabledProvider.provideContent();
 		await configuration.setUserConfiguration(COMPARE_AGENTS_ENABLED_SETTING, true);
-		const pickerDisabledContent = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
-		await configuration.setUserConfiguration(TABBED_MODEL_PICKER_SETTING_ID, true);
 		const enabledProvider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
 
 		assert.deepStrictEqual({
 			disabled: disabledContent.includes('activate Compare Models'),
-			pickerDisabled: pickerDisabledContent.includes('activate Compare Models'),
 			enabled: enabledProvider.provideContent().includes('activate Compare Models'),
 			repeated: enabledProvider.provideContent().includes('choose one model and set Number of Runs from two to ten'),
 			optionalJudge: enabledProvider.provideContent().includes('run attempts without review'),
@@ -714,7 +730,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instructions: enabledProvider.provideContent().includes('press Enter or Space to expand or collapse the full instructions'),
 			gridOptOut: enabledProvider.provideContent().includes('Turn off sessions.chat.compareAgents.openInGrid to start them without automatic navigation.'),
 			deleteGroup: enabledProvider.provideContent().includes('Delete Group remains available from the comparison header context menu'),
-			inactivePaneNotification: enabledProvider.provideContent().includes('question tool needs input in an inactive visible pane'),
+			inactivePaneNotification: enabledProvider.provideContent().includes('question tool needs attention in an inactive visible pane'),
 			rationaleOrder: enabledProvider.provideContent().includes('Comparison, Validation, Code quality, Solution'),
 			attemptLinks: enabledProvider.provideContent().includes('activate its link to reveal that session'),
 			accessibleView: enabledProvider.provideContent().includes('use Open Accessible View<keybinding:editor.action.accessibleView>'),
@@ -724,7 +740,6 @@ suite('SessionsChatAccessibilityHelp', () => {
 			customSynthesis: enabledProvider.provideContent().includes('activate Custom Synthesis to reveal a decision table'),
 		}, {
 			disabled: false,
-			pickerDisabled: false,
 			enabled: true, repeated: true, optionalJudge: true, optionalSynthesizer: true, done: true,
 			configRefresh: true,
 			cancelSetup: true,

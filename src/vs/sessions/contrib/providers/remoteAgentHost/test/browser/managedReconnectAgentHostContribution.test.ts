@@ -5,9 +5,74 @@
 
 import assert from 'assert';
 import { timeout } from '../../../../../../base/common/async.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { ManagedReconnectState } from '../../browser/managedReconnectAgentHostContribution.js';
+import { DEFAULT_RECONNECT_POLICY } from '../../../../../../platform/agentHost/common/reconnectPolicy.js';
+import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { AHP_UNSUPPORTED_PROTOCOL_VERSION, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
+import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ManagedReconnectAgentHostContribution, ManagedReconnectState } from '../../browser/managedReconnectAgentHostContribution.js';
+import { RemoteAgentHostSessionsProvider } from '../../browser/remoteAgentHostSessionsProvider.js';
+
+suite('ManagedReconnectAgentHostContribution', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('incompatible reconnect status reports the versions offered by the client', async () => {
+		const instantiation = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true });
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiation.stub(IConfigurationService, configuration);
+		instantiation.stub(IRemoteAgentHostService, { connections: [] });
+		instantiation.stub(ILogService, new NullLogService());
+		instantiation.stub(ISessionsProvidersService, {});
+		instantiation.stub(INotificationService, new TestNotificationService());
+		const statuses: RemoteAgentHostConnectionStatus[] = [];
+		const provider = new class extends mock<RemoteAgentHostSessionsProvider>() {
+			override setConnectionStatus(status: RemoteAgentHostConnectionStatus): void { statuses.push(status); }
+		}();
+		class TestContribution extends ManagedReconnectAgentHostContribution {
+			protected readonly _entryType = RemoteAgentHostEntryType.SSH;
+
+			constructor(
+				@IRemoteAgentHostService remote: IRemoteAgentHostService,
+				@IConfigurationService config: IConfigurationService,
+				@ILogService log: ILogService,
+				@IInstantiationService instantiation: IInstantiationService,
+				@ISessionsProvidersService providers: ISessionsProvidersService,
+				@INotificationService notifications: INotificationService,
+			) {
+				super(remote, config, log, instantiation, providers, notifications);
+				this._providerInstances.set('ssh:machine', provider);
+			}
+
+			protected _getProviderOptions() { return {}; }
+
+			attempt(): Promise<void> {
+				return this._attemptManagedReconnect({
+					kind: 'SSH', key: 'machine', address: 'ssh:machine', userInitiated: true,
+					reconnectPolicy: DEFAULT_RECONNECT_POLICY,
+					shouldPause: () => false,
+					doConnect: async () => { throw new ProtocolError(AHP_UNSUPPORTED_PROTOCOL_VERSION, 'Unsupported protocol version', { supportedVersions: ['2.0.0'] }); },
+				});
+			}
+		}
+		const contribution = store.add(instantiation.createInstance(TestContribution));
+		await contribution.attempt();
+		assert.deepStrictEqual(statuses, [
+			RemoteAgentHostConnectionStatus.connecting,
+			RemoteAgentHostConnectionStatus.disconnected,
+			RemoteAgentHostConnectionStatus.incompatible('Unsupported protocol version', ['1.0.0', '0.10.0', '0.9.0'], ['2.0.0']),
+		]);
+	});
+});
 
 suite('ManagedReconnectState', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

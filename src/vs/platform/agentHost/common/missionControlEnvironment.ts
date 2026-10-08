@@ -8,6 +8,22 @@ import { IObservable } from '../../../base/common/observable.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IMissionControlEnvironment } from './cloudSandboxAgentHost.js';
 
+export const AgentHostRemoteConnectionsSettingId = 'chat.agentHost.remoteConnections';
+export type AgentHostRemoteConnectionsBackend = 'devTunnel' | 'githubEnvironment' | 'missionControl';
+
+export function isGitHubEnvironmentBackend(backend: AgentHostRemoteConnectionsBackend): boolean {
+	return backend === 'githubEnvironment' || backend === 'missionControl';
+}
+
+export const IMissionControlSharingService = createDecorator<IMissionControlSharingService>('missionControlSharingService');
+
+/** Owns the local environment's explicit Mission Control sharing opt-in. */
+export interface IMissionControlSharingService {
+	readonly _serviceBrand: undefined;
+	readonly state: IObservable<'disabled' | 'connecting' | 'enabled'>;
+	setEnabled(enabled: boolean): Promise<void>;
+}
+
 export interface IMissionControlHost extends IMissionControlEnvironment {
 	readonly displayName?: string;
 }

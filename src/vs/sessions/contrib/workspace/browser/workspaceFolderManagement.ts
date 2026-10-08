@@ -17,6 +17,7 @@ import { IWorkspaceFolderCreationData } from '../../../../platform/workspaces/co
 import { Queue } from '../../../../base/common/async.js';
 import { ISessionWorkspace } from '../../../services/sessions/common/session.js';
 import { IWorkspaceFolderLabelService } from '../../../../workbench/services/workspaces/common/workspaceFolderLabelService.js';
+import { IHistoryService } from '../../../../workbench/services/history/common/history.js';
 
 export class WorkspaceFolderManagementContribution extends Disposable implements IWorkbenchContribution {
 
@@ -30,8 +31,14 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IWorkspaceFolderLabelService private readonly workspaceFolderLabelService: IWorkspaceFolderLabelService,
+		@IHistoryService private readonly historyService: IHistoryService,
 	) {
 		super();
+		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(event => {
+			if (event.removed.length > 0) {
+				this.historyService.clearRecentlyOpened();
+			}
+		}));
 		this._register(autorun(reader => {
 			const activeSession = this.sessionsService.activeSession.read(reader);
 			const activeChat = activeSession?.activeChat.read(reader);

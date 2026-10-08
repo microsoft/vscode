@@ -580,6 +580,26 @@ suite('MCP configuration entry points', () => {
 		});
 	});
 
+	test('folder-scoped Add Server uses the selected workspace folder', async () => {
+		const fixture = setup(true, [], true);
+		fixture.quickInput.selections.push('Command (stdio)');
+		fixture.quickInput.inputs.push('node server.js', installable.name);
+
+		await new AddConfigurationAction().run(fixture.instantiation, fixture.secondFolder.uri);
+
+		assert.deepStrictEqual({
+			pickerCount: fixture.quickInput.pickLabels.length,
+			target: fixture.installs[0].options?.target,
+			kind: fixture.installs[0].options?.workspaceConfig,
+			opened: fixture.opened.map(uri => uri.path),
+		}, {
+			pickerCount: 1,
+			target: fixture.secondFolder,
+			kind: WorkspaceMcpConfigKind.Root,
+			opened: [fixture.secondFolder.toResource(rootFile).path],
+		});
+	});
+
 	for (const path of ['/project/nested/.mcp.json', '/outside/.mcp.json', '/project/settings.json']) {
 		test(`invalid editor destination fails before prompting: ${path}`, async () => {
 			const fixture = setup(true);
