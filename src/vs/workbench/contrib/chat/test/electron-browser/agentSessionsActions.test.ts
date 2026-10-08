@@ -294,6 +294,25 @@ suite('OpenAgentsWindowAction workspace defaults', () => {
 		});
 	}
 
+	test('does not infer context when preserving the active session', async () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		const calls: IOpenAgentsWindowOptions[] = [];
+		instantiationService.stub(INativeHostService, upcastPartial<INativeHostService>({
+			openAgentsWindow: async options => { calls.push(options ?? {}); },
+		}));
+
+		await instantiationService.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor, {
+			preserveActiveSession: true,
+			source: AgentsWindowOpenSource.KeyboardShortcut,
+		}));
+
+		assert.deepStrictEqual(calls, [{
+			preserveActiveSession: true,
+			source: AgentsWindowOpenSource.KeyboardShortcut,
+		}]);
+	});
+
 	test('preserves explicit folder and existing-session arguments without consulting editor context', async () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());

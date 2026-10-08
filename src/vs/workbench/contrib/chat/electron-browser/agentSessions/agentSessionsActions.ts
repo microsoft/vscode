@@ -343,8 +343,9 @@ export class OpenAgentsWindowAction extends Action2 {
 	async run(accessor: ServicesAccessor, args?: IOpenAgentsWindowOptions): Promise<void> {
 		ensureAgentModeEnabled(accessor.get(IConfigurationService));
 		const nativeHostService = accessor.get(INativeHostService);
-		const draftOptions: Pick<IOpenAgentsWindowOptions, 'draft' | 'folderUriIsDefault'> = !args?.folderUri && !args?.sessionResource && !args?.draft ? getDraftHandoffOptions(accessor) : {};
-		const folderUri = !args?.folderUri && !args?.sessionResource
+		const shouldForwardWindowContext = !args?.preserveActiveSession && !args?.folderUri && !args?.sessionResource && !args?.draft;
+		const draftOptions: Pick<IOpenAgentsWindowOptions, 'draft' | 'folderUriIsDefault'> = shouldForwardWindowContext ? getDraftHandoffOptions(accessor) : {};
+		const folderUri = shouldForwardWindowContext
 			? getInvokingWorkspaceFolder(accessor) ?? (draftOptions.draft ? accessor.get(IWorkspaceContextService).getWorkspace().folders[0]?.uri : undefined)
 			: undefined;
 		await nativeHostService.openAgentsWindow({
