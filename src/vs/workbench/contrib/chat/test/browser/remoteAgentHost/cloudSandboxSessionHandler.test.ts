@@ -7,7 +7,7 @@ import assert from 'assert';
 import { DeferredPromise, raceCancellationError, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
-import { Emitter } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue, waitForState } from '../../../../../../base/common/observable.js';
@@ -16,7 +16,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
-import { ICloudSandboxApiService } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CloudSandboxRequestError, ICloudSandboxApiService } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { createChatState, createDefaultChatSummary, createSessionState, MessageKind, SessionStatus, TurnState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IReplayedTaskHistory } from '../../../../../../platform/agentHost/common/taskEventReplay.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -24,7 +24,8 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { INotificationService, IPromptChoice } from '../../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
 import { CloudSandboxSessionHandler } from '../../../browser/remoteAgentHost/cloudSandboxSessionHandler.js';
-import { IChatProgress } from '../../../common/chatService/chatService.js';
+import { CloudSandboxHistoryCache } from '../../../browser/remoteAgentHost/cloudSandboxHistoryCache.js';
+import { IChatProgress, IChatRequestSubmittedEvent, IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionServerRequest } from '../../../common/chatSessionsService.js';
 import { CloudSandboxSessionTrace } from '../../../common/cloudSandboxSessionTrace.js';
 import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM } from '../../../common/constants.js';
@@ -94,17 +95,160 @@ class LiveSession extends Disposable implements IChatSession {
 suite('CloudSandboxSessionHandler', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createHandler(read: (token: CancellationToken, diagnosticId?: string) => Promise<IReplayedTaskHistory | undefined> = async () => recordedHistory(), notificationService: INotificationService = new TestNotificationService(), logService: ILogService = new NullLogService()) {
+	function createHandler(read: (token: CancellationToken, diagnosticId?: string, onCachedHistory?: (history: IReplayedTaskHistory) => void) => Promise<IReplayedTaskHistory | undefined> = async () => recordedHistory(), notificationService: INotificationService = new TestNotificationService(), logService: ILogService = new NullLogService(), invalidate: () => void = () => { }, onDidSubmitRequest: Event<IChatRequestSubmittedEvent> = Event.None) {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, logService);
 		instantiationService.stub(INotificationService, notificationService);
+		instantiationService.stub(IChatService, new class extends mock<IChatService>() {
+			override readonly onDidSubmitRequest = onDidSubmitRequest;
+		}());
 		instantiationService.stub(ICloudSandboxApiService, new class extends mock<ICloudSandboxApiService>() {
-			override getSessionHistory(_taskId: string, token: CancellationToken, diagnosticId?: string) { return read(token, diagnosticId); }
+			override getSessionHistory(_taskId: string, token: CancellationToken, diagnosticId?: string, onCachedHistory?: (history: IReplayedTaskHistory) => void) { return read(token, diagnosticId, onCachedHistory); }
+			override invalidateSessionHistory(): void { invalidate(); }
 		}());
 		return store.add(instantiationService.createInstance(CloudSandboxSessionHandler, {
 			taskId: 'task', agentId: 'copilot', connectionAuthority: 'test',
 		}));
 	}
+
+	test('invalidates local submissions only for the matching open conversation and releases the listener on close', async () => {
+		const submitted = store.add(new Emitter<IChatRequestSubmittedEvent>());
+		let invalidations = 0;
+		const handler = createHandler(undefined, undefined, undefined, () => invalidations++, submitted.event);
+		const session = await handler.provideChatSessionContent(resource, CancellationToken.None);
+		submitted.fire({ chatSessionResource: resource.with({ path: '/unrelated' }) });
+		const unrelated = invalidations;
+		submitted.fire({ chatSessionResource: resource });
+		const matching = invalidations;
+		session.dispose();
+		submitted.fire({ chatSessionResource: resource });
+		assert.deepStrictEqual({ unrelated, matching, closed: invalidations }, { unrelated: 0, matching: 1, closed: 1 });
+	});
+
+	test('reopens cached content before revalidation and adds new turns to the same facade', async () => {
+		const cache = store.add(new CloudSandboxHistoryCache());
+		const fresh = new DeferredPromise<IReplayedTaskHistory>();
+		let reads = 0;
+		const handler = createHandler((token, _diagnosticId, onCachedHistory) => cache.load('task', token, async () => ({
+			account: 'account', fetch: async () => ++reads === 1 ? recordedHistory() : fresh.p,
+		}), onCachedHistory));
+		const original = await handler.provideChatSessionContent(resource, CancellationToken.None);
+		original.dispose();
+		const reopened = await handler.provideChatSessionContent(resource, CancellationToken.None);
+		const before = {
+			pending: !fresh.isSettled, historyItems: reopened.history.length,
+			status: reopened.historyStatus?.get(), readOnly: reopened.isReadOnly?.get(),
+		};
+		const changes: number[] = [];
+		store.add(reopened.onDidChangeHistory!(history => changes.push(history.length)));
+		const updated = recordedHistory();
+		updated.sessions[0].chats.get('custom-chat:/opaque-main')!.turns.push({
+			id: 'new-turn', message: { text: 'New request elsewhere', origin: { kind: MessageKind.User } },
+			responseParts: [], usage: undefined, state: TurnState.Complete,
+		});
+		await fresh.complete(updated);
+		await waitForState(reopened.historyStatus!, status => status === undefined);
+		assert.deepStrictEqual({
+			before, changes, reads, same: reopened === await handler.provideChatSessionContent(resource, CancellationToken.None),
+			status: reopened.historyStatus?.get(), readOnly: reopened.isReadOnly?.get(),
+			prompts: reopened.history.filter(item => item.type === 'request').map(item => item.prompt),
+		}, {
+			before: { pending: true, historyItems: 2, status: 'Updating cached conversation...', readOnly: true },
+			changes: [4], reads: 2, same: true, status: undefined, readOnly: true,
+			prompts: ['custom-chat:/opaque-main', 'New request elsewhere'],
+		});
+	});
+
+	test('a cached peer miss waits for fresh history instead of showing the default conversation', async () => {
+		const fresh = new DeferredPromise<IReplayedTaskHistory>();
+		const cached = recordedHistory();
+		const first = cached.sessions[0];
+		const onlyMain = { ...cached, sessions: [{ ...first, chats: new Map([[first.defaultChat, first.chats.get(first.defaultChat)!]]) }] };
+		const handler = createHandler((_token, _diagnosticId, onCachedHistory) => {
+			onCachedHistory?.(onlyMain);
+			return fresh.p;
+		});
+		let resolved = false;
+		const pending = handler.provideChatSessionContent(resource.with({ query: `${CHAT_SUBAGENT_RESOURCE_QUERY_PARAM}=${encodeURIComponent(peerChat)}` }), CancellationToken.None);
+		void pending.then(() => resolved = true);
+		await timeout(0);
+		const resolvedFromCache = resolved;
+		await fresh.complete(recordedHistory());
+		const session = await pending;
+		assert.deepStrictEqual({
+			resolvedFromCache, status: session.historyStatus?.get(),
+			prompts: session.history.filter(item => item.type === 'request').map(item => item.prompt),
+		}, { resolvedFromCache: false, status: undefined, prompts: [peerChat] });
+	});
+
+	test('retains cached rows after refresh failure and retries without replacing the session', async () => {
+		let retry: IPromptChoice | undefined;
+		let closed = 0;
+		const notifications = new class extends TestNotificationService {
+			override prompt(...args: Parameters<TestNotificationService['prompt']>) {
+				retry = args[2][0];
+				const handle = super.prompt(...args);
+				return { ...handle, close: () => closed++ };
+			}
+		}();
+		let attempts = 0;
+		const handler = createHandler(async (_token, _diagnosticId, onCachedHistory) => {
+			onCachedHistory?.(recordedHistory());
+			if (++attempts === 1) {
+				throw new Error('Offline');
+			}
+			return recordedHistory();
+		}, notifications);
+		const session = await handler.provideChatSessionContent(resource, CancellationToken.None);
+		await waitForState(session.historyStatus!, status => status?.includes('failed') === true);
+		const afterFailure = { items: session.history.length, readOnly: session.isReadOnly?.get(), status: session.historyStatus?.get() };
+		await retry!.run();
+		assert.deepStrictEqual({
+			afterFailure, attempts, closed, status: session.historyStatus?.get(),
+			same: session === await handler.provideChatSessionContent(resource, CancellationToken.None),
+		}, {
+			afterFailure: { items: 2, readOnly: true, status: 'Showing cached conversation. Refresh failed.' },
+			attempts: 2, closed: 1, status: undefined, same: true,
+		});
+	});
+
+	for (const status of [401, 403, 404]) {
+		test(`does not retain cached rows after HTTP ${status}`, async () => {
+			const handler = createHandler(async (_token, _diagnosticId, onCachedHistory) => {
+				onCachedHistory?.(recordedHistory());
+				throw new CloudSandboxRequestError(status, `HTTP ${status}`);
+			});
+			const session = await handler.provideChatSessionContent(resource, CancellationToken.None);
+			await waitForState(session.historyStatus!, value => value === undefined);
+			assert.deepStrictEqual({
+				prompts: session.history.filter(item => item.type === 'request').map(item => item.prompt),
+				error: session.history.find(item => item.type === 'response')?.errorDetails?.message,
+			}, { prompts: [''], error: `HTTP ${status}` });
+		});
+	}
+
+	test('live content wins over an in-flight refresh and invalidates on live history, requests and progress', async () => {
+		const fresh = new DeferredPromise<IReplayedTaskHistory>();
+		let invalidations = 0;
+		const handler = createHandler((_token, _diagnosticId, onCachedHistory) => {
+			onCachedHistory?.(recordedHistory());
+			return fresh.p;
+		}, undefined, undefined, () => invalidations++);
+		const session = await handler.provideChatSessionContent(resource, CancellationToken.None);
+		const live = store.add(new LiveSession());
+		handler.setLiveProvider({ provideChatSessionContent: async () => live });
+		await waitForState(session.isReadOnly!, value => !value);
+		const afterLive = invalidations;
+		live.historyChanges.fire(live.history);
+		live.serverRequests.fire({ id: 'new', prompt: 'New request' });
+		live.progressObs.set([{ kind: 'markdownContent', content: new MarkdownString('New response') }], undefined);
+		live.isCompleteObs.set(false, undefined);
+		await fresh.complete(recordedHistory());
+		await timeout(0);
+		assert.deepStrictEqual({
+			afterLive, invalidations, history: session.history, status: session.historyStatus?.get(), readOnly: session.isReadOnly?.get(),
+		}, { afterLive: 1, invalidations: 5, history: live.history, status: undefined, readOnly: false });
+	});
 
 	function captureTrace() {
 		const messages: string[] = [];

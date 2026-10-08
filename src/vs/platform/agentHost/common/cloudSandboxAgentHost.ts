@@ -309,8 +309,15 @@ export interface ICloudSandboxApiService {
 	/**
 	 * Read recorded history from Mission Control without a live sandbox (`undefined` when absent).
 	 * `diagnosticId` links local logs and performance marks only; it is never sent to the server.
+	 * `onCachedHistory` can preview authenticated cached data; the promise always represents a fresh read.
 	 */
-	getSessionHistory(taskId: string, token: CancellationToken, diagnosticId?: string): Promise<IReplayedTaskHistory | undefined>;
+	getSessionHistory(taskId: string, token: CancellationToken, diagnosticId?: string, onCachedHistory?: (history: IReplayedTaskHistory) => void): Promise<IReplayedTaskHistory | undefined>;
+
+	/** Invalidate recorded data after an observed live change without cancelling other readers. */
+	invalidateSessionHistory(taskId: string): void;
+
+	/** Drop recorded data and cancel reads for an account/feature lifetime or a removed task. */
+	clearSessionHistory(taskId?: string): void;
 }
 
 /** Only a complete scan permits removing absent sessions; other results may name explicit removals. */

@@ -15,6 +15,7 @@ import { localize } from '../../../../../nls.js';
 import { AgentSession } from '../../../../../platform/agentHost/common/agent.js';
 import { getAgentHostChatId } from '../../../../../platform/agentHost/common/agentHostChatIdentity.js';
 import { ICloudSandboxApiService } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { IReplayedSession, IReplayedTaskHistory } from '../../../../../platform/agentHost/common/taskEventReplay.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { activeTurnToProgress, messageToRequestOrigin, messageToVariableData, turnsToHistory } from '../agentSessions/agentHost/stateToProgressAdapter.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem } from '../../common/chatSessionsService.js';
@@ -64,12 +65,35 @@ export class CloudSandboxReadOnlySessionHandler extends Disposable implements IC
 		super();
 	}
 
-	async provideChatSessionContent(sessionResource: URI, token: CancellationToken, diagnosticId?: string): Promise<IChatSession> {
+	async provideChatSessionContent(sessionResource: URI, token: CancellationToken, diagnosticId?: string, onCachedSession?: (session: IChatSession) => void): Promise<IChatSession> {
+		const replayed = await this._apiService.getSessionHistory(this._config.taskId, token, diagnosticId, onCachedSession && (history => {
+			const session = this._findSession(sessionResource, history);
+			const chatResource = session && this._getChatResource(sessionResource, session);
+			const chat = chatResource ? session?.chats.get(chatResource) : undefined;
+			if (!chat || (!chat.turns.length && !chat.activeTurn)) {
+				this._logService.trace(`${LOG_PREFIX} Cached history has no content for the requested conversation; waiting for fresh history.`);
+				return;
+			}
+			onCachedSession(this._createSession(sessionResource, history));
+		}));
+		return this._createSession(sessionResource, replayed);
+	}
+
+	private _findSession(resource: URI, history: IReplayedTaskHistory | undefined): IReplayedSession | undefined {
+		return history?.sessions.find(session => AgentSession.id(URI.parse(session.session)) === AgentSession.id(resource));
+	}
+
+	private _getChatResource(resource: URI, session: IReplayedSession): string | undefined {
+		return new URLSearchParams(resource.query).get(CHAT_SUBAGENT_RESOURCE_QUERY_PARAM) || (resource.fragment
+			? [...session.chats.keys()].find(chat => getAgentHostChatId(chat) === resource.fragment)
+			: session.defaultChat);
+	}
+
+	private _createSession(sessionResource: URI, replayed: IReplayedTaskHistory | undefined): IChatSession {
 		// Resolve from the *requested* resource, not the handler's config: one handler serves a
 		// whole session type, and an environment can own several sessions.
 		const sessionId = AgentSession.id(sessionResource);
-		const replayed = await this._apiService.getSessionHistory(this._config.taskId, token, diagnosticId);
-		const session = replayed?.sessions.find(s => AgentSession.id(URI.parse(s.session)) === sessionId);
+		const session = this._findSession(sessionResource, replayed);
 		if (!session) {
 			// A newly created task may not have recorded a conversation yet.
 			this._logService.warn(`${LOG_PREFIX} No persisted history for session ${sessionId} in task ${this._config.taskId} (replayed sessions: [${replayed?.sessions.map(s => s.session).join(', ') ?? 'none'}]); opening an empty read-only session.`);
@@ -77,9 +101,7 @@ export class CloudSandboxReadOnlySessionHandler extends Disposable implements IC
 		}
 
 		const explicitChat = new URLSearchParams(sessionResource.query).get(CHAT_SUBAGENT_RESOURCE_QUERY_PARAM);
-		const chatResource = explicitChat || (sessionResource.fragment
-			? [...session.chats.keys()].find(resource => getAgentHostChatId(resource) === sessionResource.fragment)
-			: session.defaultChat);
+		const chatResource = this._getChatResource(sessionResource, session);
 		const chat = chatResource ? session.chats.get(chatResource) : undefined;
 		if (!chat && (explicitChat || sessionResource.fragment)) {
 			throw new Error(localize('cloudSandbox.chatHistoryMissing', "Recorded history for this conversation is unavailable."));

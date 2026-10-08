@@ -469,6 +469,8 @@ export interface IChatSession extends IDisposable {
 	readonly isReadOnly?: IObservable<boolean>;
 	/** Temporarily prevents sending while keeping the draft visible and editable. */
 	readonly isInputBlocked?: IObservable<boolean>;
+	/** A transient, plain-text explanation of cached history freshness. */
+	readonly historyStatus?: IObservable<string | undefined>;
 	/** Recheck a temporary input restriction without sending a message. */
 	readonly retryInput?: () => Promise<void>;
 	readonly interruptActiveResponseCallback?: () => Promise<boolean>;

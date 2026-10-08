@@ -282,6 +282,7 @@ export class ChatView extends AbstractChatView {
 	override readonly hasVisibleTranscriptContent = observableValue(this, false);
 	override readonly isLoadingTranscript = observableValue(this, false);
 	override readonly isInputBlocked: IObservable<boolean>;
+	override readonly historyStatus: IObservable<string | undefined>;
 	private _historyKey: string | undefined;
 
 	/** Whether this view currently represents the active session. */
@@ -418,6 +419,10 @@ export class ChatView extends AbstractChatView {
 		this.isInputBlocked = derived(this, reader => {
 			const model = chatModel.read(reader);
 			return isEqual(model?.sessionResource, this._currentChatResourceObs.read(reader)) && (model?.isInputBlocked.read(reader) ?? false);
+		});
+		this.historyStatus = derived(this, reader => {
+			const model = chatModel.read(reader);
+			return isEqual(model?.sessionResource, this._currentChatResourceObs.read(reader)) ? model?.historyStatus?.read(reader) : undefined;
 		});
 		this._liveModelReady = derived(this, reader => {
 			const model = chatModel.read(reader);

@@ -53,12 +53,38 @@ import { ChatRequestParser } from '../../../common/requestParser/chatRequestPars
 import { ToolAndToolSetEnablementMap } from '../../../common/tools/languageModelToolsService.js';
 import { observePromptTimelineHostWidth } from '../../../browser/promptTimeline/promptTimelineWidgetContrib.js';
 import { ChatContentMarkdownRenderer } from '../../../browser/widget/chatContentMarkdownRenderer.js';
+import { ChatReadOnlyBanner } from '../../../browser/widget/chatReadOnlyBanner.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { createChatUserInteractionTestHarness } from '../chatUserInteractionTestUtils.js';
 
 suite('ChatWidget', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('cached history status updates the existing read-only banner and releases replaced hovers', () => {
+		let activeHovers = 0;
+		let createdHovers = 0;
+		const banner = store.add(new ChatReadOnlyBanner('This chat is read-only', upcastPartial<IHoverService>({
+			setupDelayedHover: () => {
+				activeHovers++;
+				createdHovers++;
+				return toDisposable(() => activeHovers--);
+			},
+		})));
+		banner.setVisible(true);
+		banner.setMessage('Updating cached conversation...');
+		const text = banner.domNode.querySelector('.chat-readonly-banner-text')!;
+		const firstNode = text.firstChild;
+		banner.setMessage('Updating cached conversation...');
+		const updating = { message: text.textContent, sameNode: firstNode === text.firstChild, activeHovers, createdHovers };
+		banner.setMessage(undefined);
+		const restored = text.textContent;
+		banner.dispose();
+		assert.deepStrictEqual({ updating, restored, activeHovers, role: banner.domNode.getAttribute('role') }, {
+			updating: { message: 'Updating cached conversation...', sameNode: true, activeHovers: 1, createdHovers: 2 },
+			restored: 'This chat is read-only', activeHovers: 0, role: 'status',
+		});
+	});
 
 	test('records the first visible transcript refresh once on the correlated local trace', () => {
 		const messages: string[] = [];

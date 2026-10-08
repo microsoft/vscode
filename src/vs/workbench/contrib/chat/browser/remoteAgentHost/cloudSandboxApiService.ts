@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Limiter, timeout } from '../../../../../base/common/async.js';
+import { Limiter, raceCancellationError, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
@@ -43,6 +43,7 @@ import { IRequestContext } from '../../../../../base/parts/request/common/reques
 import { asText, IRequestService } from '../../../../../platform/request/common/request.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { ICloudSandboxTelemetryService, requestOutcomeForStatus, type CloudSandboxRequestAction } from './cloudSandboxTelemetry.js';
+import { CloudSandboxHistoryCache } from './cloudSandboxHistoryCache.js';
 
 /** The agent-environment endpoints Mission Control exposes. */
 type CloudSandboxEnvironmentAction = 'get' | 'connect' | 'reconnect';
@@ -217,6 +218,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	private _discoverySince: string | undefined;
 	private _discoveryGeneration = 0;
 	private _historyRequestId = 0;
+	private readonly _historyCache = this._register(new CloudSandboxHistoryCache());
 	private _environments: { readonly generation: number; readonly fetchedAt: number; readonly values: readonly IMissionControlEnvironment[] } | undefined;
 	private readonly _onDidChangeAccount = this._register(new Emitter<string | undefined>());
 	readonly onDidChangeAccount = this._onDidChangeAccount.event;
@@ -260,6 +262,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	}
 
 	private async _onAuthenticationChanged(): Promise<void> {
+		this.clearSessionHistory();
 		const generation = ++this._discoveryGeneration;
 		this._discoverySince = undefined;
 		this._discoveredTasks.clear();
@@ -599,6 +602,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			await this._throwForStatus('task delete', context);
 		}
 		this._discoveredTasks.delete(taskId);
+		this.clearSessionHistory(taskId);
 		// Discard discovery responses that started before the deletion.
 		this._discoveryGeneration++;
 	}
@@ -611,6 +615,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		if (!isSuccess(context)) {
 			await this._throwForStatus('task rename', context);
 		}
+		this.invalidateSessionHistory(taskId);
 		const cached = this._discoveredTasks.get(taskId);
 		if (cached) {
 			this._discoveredTasks.set(taskId, {
@@ -633,6 +638,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			await this._throwForStatus(`task ${action}`, context);
 		}
 		this._discoveredTasks.delete(taskId);
+		this.invalidateSessionHistory(taskId);
 		this._discoveryGeneration++;
 	}
 
@@ -661,11 +667,46 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	 * mirror, not the environment. The `vnd.github.ahp+json` media type selects the raw relayed
 	 * frames rather than the cloud-task event summaries the endpoint serves by default.
 	 */
-	async getSessionHistory(taskId: string, token: CancellationToken, diagnosticId?: string): Promise<IReplayedTaskHistory | undefined> {
+	async getSessionHistory(taskId: string, token: CancellationToken, diagnosticId?: string, onCachedHistory?: (history: IReplayedTaskHistory) => void): Promise<IReplayedTaskHistory | undefined> {
+		const watch = StopWatch.create(false);
+		return this._historyCache.load(taskId, token,
+			async sharedToken => {
+				try {
+					const authentication = await raceCancellationError(this._resolveGitHubSession(), sharedToken);
+					if (!authentication?.accessToken) {
+						throw new CloudSandboxAuthenticationRequiredError();
+					}
+					return {
+						account: JSON.stringify([this._tasksBaseUrl(), this._authenticationProviderId, authentication.account.id]),
+						fetch: (requestToken: CancellationToken) => this._fetchSessionHistory(taskId, requestToken, authentication, watch, diagnosticId),
+					};
+				} catch (error) {
+					this._logService.info(`${LOG_PREFIX} historyAuthentication traceId=${diagnosticId ?? 'standalone'} ${isCancellationError(error) ? 'cancelled' : 'failed'} durationMs=${watch.elapsed()}`);
+					throw error;
+				}
+			},
+			onCachedHistory && (history => {
+				this._logService.info(`${LOG_PREFIX} historyCacheHit traceId=${diagnosticId ?? 'standalone'} elapsedMs=${watch.elapsed()}`);
+				onCachedHistory(history);
+			}));
+	}
+
+	invalidateSessionHistory(taskId: string): void {
+		this._historyCache.invalidate(taskId);
+	}
+
+	clearSessionHistory(taskId?: string): void {
+		if (taskId !== undefined) {
+			this._historyCache.invalidate(taskId, true);
+		} else {
+			this._historyCache.clear();
+		}
+	}
+
+	private async _fetchSessionHistory(taskId: string, token: CancellationToken, authentication: AuthenticationSession, watch: StopWatch, diagnosticId?: string): Promise<IReplayedTaskHistory | undefined> {
 		// Temporary first-open diagnostics: correlate phases without logging task IDs, content, or credentials.
 		const loadId = ++this._historyRequestId;
 		const traceId = diagnosticId ?? `history-${loadId}`;
-		const watch = StopWatch.create(false);
 		const marks: string[] = [];
 		const logTiming = (event: string, details = '') => {
 			const name = `code/cloudSandbox/${traceId}/history-${loadId}/${event}`;
@@ -675,7 +716,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		};
 		let phase = 'authentication';
 		let phaseStarted = 0;
-		logTiming('started');
+		logTiming('authenticated', `authenticationMs=${watch.elapsed()}`);
 		try {
 			const url = `${this._tasksBaseUrl()}/tasks/${encodeURIComponent(taskId)}/events`;
 			const context = await this._request(url, 'mc.taskClient.events', 'getTaskEvents', {
@@ -685,7 +726,10 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 				phaseStarted = watch.elapsed();
 				logTiming('requestIssued', `authenticationMs=${phaseStarted}`);
 				phase = 'request';
-			}, `${traceId}/history-${loadId}`);
+			}, { diagnosticId: `${traceId}/history-${loadId}`, authentication });
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
 			const responseReceived = watch.elapsed();
 			const requestMs = responseReceived - phaseStarted;
 			const requestId = getGitHubRequestId(context.res.headers['x-github-request-id']);
@@ -693,9 +737,15 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			phase = 'responseBody';
 			phaseStarted = responseReceived;
 			if (!isSuccess(context)) {
+				if ([401, 403, 404].includes(context.res.statusCode ?? 0)) {
+					this.invalidateSessionHistory(taskId);
+				}
 				await this._throwForStatus('task events', context);
 			}
 			const body = await this._readJson<unknown>(context);
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
 			const bodyRead = watch.elapsed();
 			const bodyReadAndParseMs = bodyRead - phaseStarted;
 			logTiming('bodyRead', `bodyReadAndParseMs=${bodyReadAndParseMs}`);
@@ -851,8 +901,8 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		}
 	}
 
-	private async _request(url: string, callSite: string, action: CloudSandboxRequestAction, headers: Record<string, string>, token: CancellationToken, timeoutMs: number = REQUEST_TIMEOUT_MS, body?: unknown, method?: 'GET' | 'POST' | 'DELETE' | 'PATCH', onRequest?: ICloudSandboxConnectionRequest['onRequest'], diagnosticId?: string): Promise<IRequestContext> {
-		const accessToken = (await this._resolveGitHubSession())?.accessToken;
+	private async _request(url: string, callSite: string, action: CloudSandboxRequestAction, headers: Record<string, string>, token: CancellationToken, timeoutMs: number = REQUEST_TIMEOUT_MS, body?: unknown, method?: 'GET' | 'POST' | 'DELETE' | 'PATCH', onRequest?: ICloudSandboxConnectionRequest['onRequest'], diagnostics?: { readonly diagnosticId: string; readonly authentication: AuthenticationSession }): Promise<IRequestContext> {
+		const accessToken = (diagnostics?.authentication ?? await this._resolveGitHubSession())?.accessToken;
 		if (!accessToken) {
 			// No request is issued, so there is no request outcome to count.
 			throw new CloudSandboxAuthenticationRequiredError();
@@ -876,7 +926,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 				...(body === undefined ? undefined : { data: JSON.stringify(body) }),
 				timeout: timeoutMs,
 				callSite,
-				...(diagnosticId ? { diagnosticId } : {}),
+				...(diagnostics ? { diagnosticId: diagnostics.diagnosticId } : {}),
 			}, token);
 			this._telemetry.reportRequest(action, requestOutcomeForStatus(context.res.statusCode));
 			// Latency against its budget: `/connect` blocks on a compute resume, so how close a reply

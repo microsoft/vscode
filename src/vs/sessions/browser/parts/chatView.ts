@@ -108,6 +108,7 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 
 	/** Whether an input notification already explains a temporary sending restriction. */
 	readonly isInputBlocked: IObservable<boolean> = constObservable(false);
+	readonly historyStatus: IObservable<string | undefined> = constObservable(undefined);
 
 	/**
 	 * Show the given chat in this view. The default implementation is a

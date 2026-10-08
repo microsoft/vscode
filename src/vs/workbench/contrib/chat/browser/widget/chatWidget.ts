@@ -2928,7 +2928,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this.viewModel = this.instantiationService.createInstance(ChatViewModel, model, undefined);
 		if (!this.viewOptions.isSessionsWindow) {
-			this.viewModelDisposables.add(autorun(reader => this.setReadOnly(model.isReadOnly.read(reader), model.isInputBlocked.read(reader))));
+			this.viewModelDisposables.add(autorun(reader => {
+				this.readOnlyBanner?.setMessage(model.historyStatus?.read(reader));
+				this.setReadOnly(model.isReadOnly.read(reader), model.isInputBlocked.read(reader));
+			}));
 		}
 
 		this.listWidget.setViewModel(this.viewModel);

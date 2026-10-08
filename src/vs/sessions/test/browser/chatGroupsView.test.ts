@@ -46,6 +46,7 @@ class TestChatView extends AbstractChatView {
 	override readonly hasVisibleTranscriptContent = observableValue(this, false);
 	override readonly isLoadingTranscript = observableValue(this, false);
 	override readonly isInputBlocked = observableValue(this, false);
+	override readonly historyStatus = observableValue<string | undefined>(this, undefined);
 	layoutCount = 0;
 	primary = false;
 	split = false;
@@ -1622,6 +1623,56 @@ suite('Sessions - ChatGroupsView', () => {
 		session.isArchived.set(true, undefined);
 		assert.deepStrictEqual({ readOnly, blocked, archived: readBanner(view).message }, {
 			readOnly: true, blocked: false, archived: 'Archived sessions are read-only.',
+		});
+	});
+
+	test('merges cached history status with connection recovery without dropping its action or announcement', () => {
+		const { chatViewFactory, sessionsProvidersService, view } = createHarness(disposables);
+		const provider = new TestAgentHostProvider();
+		sessionsProvidersService.provider = provider;
+		const session = new TestActiveSession([createChat('main')], undefined, true, provider.id, { kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.HostNotRunning });
+		view.setSession(session, options);
+		const current = chatViewFactory.views.at(-1)!;
+		current.hasVisibleTranscriptContent.set(true, undefined);
+		const before = readBanner(view);
+		current.historyStatus.set('Updating cached conversation...', undefined);
+		const updating = readBanner(view);
+		const announcement = view.element.querySelector('.session-readonly-banner-announcement')?.textContent;
+		const bannerCount = view.element.querySelectorAll('.session-readonly-banner:not(.hidden)').length;
+		current.historyStatus.set(undefined, undefined);
+		const restored = readBanner(view);
+		view.element.querySelector<HTMLElement>('.session-readonly-banner-action-link')?.click();
+		assert.deepStrictEqual({ updating, announcement, bannerCount, restored, connectCalls: provider.connectCalls }, {
+			updating: { ...before, message: `Updating cached conversation... ${before.message}` },
+			announcement: `Updating cached conversation... ${before.message}`,
+			bannerCount: 1, restored: before, connectCalls: 1,
+		});
+	});
+
+	test('cached history status preserves archive restrictions and disappears when a draft becomes live', () => {
+		const { chatViewFactory, view } = createHarness(disposables);
+		const chat = createChat('main');
+		chat.interactivity.set(ChatInteractivity.ReadOnly, undefined);
+		const session = new TestActiveSession([chat]);
+		session.isArchived.set(true, undefined);
+		view.setSession(session, options);
+		const current = chatViewFactory.views.at(-1)!;
+		const archived = readBanner(view);
+		current.historyStatus.set('Updating cached conversation...', undefined);
+		const whileArchived = readBanner(view);
+		transaction(tx => {
+			session.isArchived.set(false, tx);
+			chat.interactivity.set(ChatInteractivity.DraftOnly, tx);
+		});
+		const draft = readBanner(view);
+		transaction(tx => {
+			current.historyStatus.set(undefined, tx);
+			chat.interactivity.set(ChatInteractivity.Full, tx);
+		});
+		assert.deepStrictEqual({ whileArchived, draft, live: readBanner(view).visible }, {
+			whileArchived: { ...archived, message: 'Updating cached conversation... Archived sessions are read-only.' },
+			draft: { visible: true, message: 'Updating cached conversation...', action: undefined },
+			live: false,
 		});
 	});
 

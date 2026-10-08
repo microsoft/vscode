@@ -573,6 +573,10 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 	 * or the feature is disabled.
 	 */
 	private _teardownEnvironment(address: string): void {
+		const taskId = this._environments.get(address)?.taskId;
+		if (taskId) {
+			this._apiService.clearSessionHistory(taskId);
+		}
 		this._environments.delete(address);
 		this._cancelPendingConnect(address);
 		this._providerStores.deleteAndDispose(address);
@@ -582,6 +586,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 
 	/** Tear down every known sandbox environment (feature disabled). */
 	private _teardownAll(): void {
+		this._apiService.clearSessionHistory();
 		// Abort in-flight discovery/connects first so nothing commits state after this runs.
 		this._enabledCts.cancel();
 		this._enabledCts.dispose();

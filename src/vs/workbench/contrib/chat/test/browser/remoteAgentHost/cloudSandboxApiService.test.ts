@@ -474,7 +474,7 @@ suite('CloudSandboxApiService history timings', () => {
 			title: 'private-title',
 			requests: ['/agents/tasks/private-task/events'],
 			logs: [
-				'[CloudSandboxApi] historyTiming loadId=1 traceId=history-1 started totalMs=0',
+				'[CloudSandboxApi] historyTiming loadId=1 traceId=history-1 authenticated authenticationMs=25 totalMs=25',
 				'[CloudSandboxApi] historyTiming loadId=1 traceId=history-1 requestIssued authenticationMs=25 totalMs=25',
 				'[CloudSandboxApi] historyTiming loadId=1 traceId=history-1 responseReceived requestMs=50 status=200 responseHeadersMs=unavailable downloadMs=unavailable decodedBodyBytes=unavailable requestId=unavailable totalMs=75',
 				'[CloudSandboxApi] historyTiming loadId=1 traceId=history-1 bodyRead bodyReadAndParseMs=75 totalMs=150',
@@ -513,6 +513,7 @@ suite('CloudSandboxApiService history timings', () => {
 			});
 			await assert.rejects(service.getSessionHistory('private-task', cancellation.token), error =>
 				failure === 'cancellation' ? isCancellationError(error) : error instanceof Error);
+			await timeout(0);
 
 			const phase = failure === 'authentication' ? 'authentication'
 				: failure === 'request' || failure === 'cancellation' ? 'request'
@@ -522,7 +523,9 @@ suite('CloudSandboxApiService history timings', () => {
 				completed: logService.infos.some(message => message.includes(' completed ')),
 				privateData: logService.infos.some(message => message.includes('private-')),
 			}, {
-				terminalLog: `[CloudSandboxApi] historyTiming loadId=1 traceId=history-1 ${failure === 'cancellation' ? 'cancelled' : 'failed'} phase=${phase} phaseMs=${phase === 'authentication' || phase === 'request' ? 35 : 0} totalMs=35`,
+				terminalLog: failure === 'authentication'
+					? '[CloudSandboxApi] historyAuthentication traceId=standalone failed durationMs=35'
+					: `[CloudSandboxApi] historyTiming loadId=1 traceId=history-1 ${failure === 'cancellation' ? 'cancelled' : 'failed'} phase=${phase} phaseMs=${phase === 'request' ? 35 : 0} totalMs=35`,
 				completed: false, privateData: false,
 			});
 		}));
@@ -578,6 +581,141 @@ suite('CloudSandboxApiService history timings', () => {
 				response: `[CloudSandboxApi] historyTiming loadId=1 traceId=sandbox-1 responseReceived requestMs=200 status=200 responseHeadersMs=150 downloadMs=50 decodedBodyBytes=23 requestId=${requestId.startsWith('private-') ? 'unavailable' : requestId} totalMs=200`,
 			});
 		}));
+	}
+});
+
+suite('CloudSandboxApiService history cache', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function historyResponse(title: string): IRequestContext {
+		return jsonResponse({
+			events: [{
+				ns: 'ahp', session_id: 'session', seq: 0, at: '2026-01-01T00:00:00Z',
+				payload: { kind: 'message', data: { channel: 'ahp-session:/session', serverSeq: 0, action: { type: 'session/titleChanged', title } } },
+			}],
+			total: 1,
+		});
+	}
+
+	test('coalesces authentication and events reads, and previews a warm snapshot before the response', async () => {
+		let authentications = 0;
+		let requests = 0;
+		const response = new DeferredPromise<IRequestContext>();
+		const logService = new TestLogService();
+		const { service } = createService(store, {
+			tasks: [], repositories: new Map(), logService,
+			authenticationSessions: async () => {
+				authentications++;
+				return [{ accessToken: 'private-token', id: 's', account: { id: 'private-account', label: 'private-label' }, scopes: [] }];
+			},
+			onRequest: () => ++requests === 1 ? historyResponse('Recorded') : response.p,
+		});
+		const first = await Promise.all([
+			service.getSessionHistory('private-task', CancellationToken.None),
+			service.getSessionHistory('private-task', CancellationToken.None),
+		]);
+		const cached = new DeferredPromise<string>();
+		let completed = false;
+		const refresh = service.getSessionHistory('private-task', CancellationToken.None, 'sandbox-1', history => void cached.complete(history.sessions[0].state.title));
+		void refresh.then(() => completed = true);
+		const beforeResponse = { title: await cached.p, completed };
+		await response.complete(historyResponse('Updated'));
+		const result = await refresh;
+		assert.deepStrictEqual({
+			authentications, requests, first: first.map(history => history?.sessions[0].state.title), beforeResponse,
+			title: result?.sessions[0].state.title,
+			cacheHits: logService.infos.filter(message => message.includes('historyCacheHit traceId=sandbox-1')).length,
+			privateData: logService.infos.some(message => message.includes('private-')),
+		}, {
+			authentications: 2, requests: 2, first: ['Recorded', 'Recorded'],
+			beforeResponse: { title: 'Recorded', completed: false }, title: 'Updated', cacheHits: 1, privateData: false,
+		});
+	});
+
+	for (const lateStatus of [200, 403]) {
+		test(`account changes prevent old-account cache reuse or invalidation by a late HTTP ${lateStatus}`, async () => {
+			let account = 'first';
+			let requests = 0;
+			const response = new DeferredPromise<IRequestContext>();
+			const cached = new DeferredPromise<void>();
+			const { service, changeAuthentication } = createService(store, {
+				tasks: [], repositories: new Map(),
+				authenticationSessions: async () => [{ accessToken: 'token', id: 's', account: { id: account, label: account }, scopes: [] }],
+				onRequest: () => ++requests === 2 ? response.p : historyResponse(account),
+			});
+			await service.getSessionHistory('task', CancellationToken.None);
+			const refresh = service.getSessionHistory('task', CancellationToken.None, undefined, () => void cached.complete());
+			await cached.p;
+			const cancelled = assert.rejects(refresh, isCancellationError);
+			account = 'second';
+			changeAuthentication();
+			await cancelled;
+			let previews = 0;
+			const fresh = await service.getSessionHistory('task', CancellationToken.None, undefined, () => previews++);
+			const beforeLateResponse = previews;
+			await response.complete(lateStatus === 200 ? historyResponse('Late first account') : jsonResponse({}, lateStatus));
+			await timeout(0);
+			const reopened = await service.getSessionHistory('task', CancellationToken.None, undefined, () => previews++);
+			assert.deepStrictEqual({ requests, beforeLateResponse, previews, titles: [fresh, reopened].map(history => history?.sessions[0].state.title) }, {
+				requests: 4, beforeLateResponse: 0, previews: 1, titles: ['second', 'second'],
+			});
+		});
+	}
+
+	test('clearing a task while authenticating cancels the read before any request is sent', async () => {
+		const started = new DeferredPromise<void>();
+		const authenticated = new DeferredPromise<readonly AuthenticationSession[]>();
+		const { service, requestedUrls } = createService(store, {
+			tasks: [], repositories: new Map(),
+			authenticationSessions: () => { void started.complete(); return authenticated.p; },
+		});
+		const pending = service.getSessionHistory('task', CancellationToken.None);
+		await started.p;
+		const cancelled = assert.rejects(pending, isCancellationError);
+		service.clearSessionHistory('task');
+		await cancelled;
+		await authenticated.complete([{ accessToken: 'token', id: 's', account: { id: 'a', label: 'a' }, scopes: [] }]);
+		await timeout(0);
+		assert.deepStrictEqual(requestedUrls, []);
+	});
+
+	for (const status of [401, 403, 404]) {
+		test(`HTTP ${status} rejects refresh and evicts cached task history`, async () => {
+			let responseStatus = 200;
+			const { service } = createService(store, {
+				tasks: [], repositories: new Map(),
+				onRequest: () => responseStatus === 200 ? historyResponse('Recorded') : jsonResponse({}, responseStatus),
+			});
+			await service.getSessionHistory('task', CancellationToken.None);
+			responseStatus = status;
+			await assert.rejects(service.getSessionHistory('task', CancellationToken.None), new RegExp(`HTTP ${status}`));
+			responseStatus = 200;
+			let previews = 0;
+			await service.getSessionHistory('task', CancellationToken.None, undefined, () => previews++);
+			assert.strictEqual(previews, 0);
+		});
+	}
+
+	for (const mutation of ['rename', 'archive', 'unarchive', 'delete'] as const) {
+		test(`${mutation} invalidates the affected task without evicting other tasks`, async () => {
+			const { service } = createService(store, {
+				tasks: [], repositories: new Map(),
+				onRequest: url => url.pathname.endsWith('/events') ? historyResponse('Recorded') : jsonResponse({}),
+			});
+			await service.getSessionHistory('task', CancellationToken.None);
+			await service.getSessionHistory('unaffected', CancellationToken.None);
+			if (mutation === 'rename') {
+				await service.renameTask('task', 'Renamed', CancellationToken.None);
+			} else if (mutation === 'delete') {
+				await service.deleteTask('task', CancellationToken.None);
+			} else {
+				await service.setTaskArchived('task', mutation === 'archive', CancellationToken.None);
+			}
+			const previews: string[] = [];
+			await service.getSessionHistory('task', CancellationToken.None, undefined, () => previews.push('task'));
+			await service.getSessionHistory('unaffected', CancellationToken.None, undefined, () => previews.push('unaffected'));
+			assert.deepStrictEqual(previews, ['unaffected']);
+		});
 	}
 });
 

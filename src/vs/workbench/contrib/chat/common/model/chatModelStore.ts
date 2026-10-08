@@ -22,6 +22,7 @@ export interface IStartSessionProps {
 	readonly inputState?: ISerializableChatModelInputState;
 	readonly isReadOnly?: IObservable<boolean>;
 	readonly isInputBlocked?: IObservable<boolean>;
+	readonly historyStatus?: IObservable<string | undefined>;
 	readonly sessionTypeSelectionReason?: SessionTypeSelectionReason;
 }
 

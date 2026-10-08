@@ -401,7 +401,20 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 				view.setChat(chat, session.sessionId, session, chat.interactivity.read(reader) === ChatInteractivity.DraftOnly ? () => this._connection.connectOnInput() : undefined);
 			}
 
-			const surfaceContent = surface.read(reader);
+			let surfaceContent = surface.read(reader);
+			const historyStatus = view.historyStatus.read(reader);
+			if (historyStatus) {
+				const banner = surfaceContent.banner;
+				surfaceContent = {
+					recovery: undefined,
+					banner: {
+						icon: Codicon.history,
+						...banner,
+						message: banner ? localize('sessionHistoryStatus.combined', "{0} {1}", historyStatus, banner.message) : historyStatus,
+						ariaLabel: banner?.ariaLabel ? localize('sessionHistoryStatus.combined', "{0} {1}", historyStatus, banner.ariaLabel) : undefined,
+					},
+				};
+			}
 			this._setRemoteHostUnavailableEmptyState(surfaceContent.recovery);
 			this._setReadOnlyBanner(surfaceContent.banner);
 		}));

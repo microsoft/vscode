@@ -3363,6 +3363,7 @@ suite('ChatService', () => {
 			readonly isCompleteObs?: ISettableObservable<boolean>;
 			readonly isReadOnly?: ISettableObservable<boolean>;
 			readonly isInputBlocked?: ISettableObservable<boolean>;
+			readonly historyStatus?: ISettableObservable<string | undefined>;
 			readonly interruptActiveResponseCallback?: () => Promise<boolean>;
 			readonly onDidStartServerRequest?: Event<IChatSessionServerRequest>;
 			readonly onDidChangeHistory?: Event<readonly IChatSessionHistoryItem[]>;
@@ -3386,6 +3387,7 @@ suite('ChatService', () => {
 				isCompleteObs: opts.isCompleteObs,
 				isReadOnly: opts.isReadOnly,
 				isInputBlocked: opts.isInputBlocked,
+				historyStatus: opts.historyStatus,
 				interruptActiveResponseCallback: opts.interruptActiveResponseCallback,
 				onDidStartServerRequest: opts.onDidStartServerRequest,
 				onDidChangeHistory: opts.onDidChangeHistory,
@@ -3443,18 +3445,21 @@ suite('ChatService', () => {
 			});
 		});
 
-		test('passive history updates append and replace external responses without replacing the draft or unchanged requests', async () => {
+		test('cached history refreshes append new turns and clear status without replacing the model, input or unchanged requests', async () => {
 			const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
+			const historyStatus = observableValue<string | undefined>('historyStatus', 'Updating cached conversation...');
 			const first: IChatSessionHistoryItem[] = [
 				{ type: 'request', id: 'one', prompt: 'First message', participant: remoteScheme },
 				{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString('First response') }], participant: remoteScheme },
 			];
-			const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event });
+			const { resource, resolutionCount } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event, historyStatus });
 			const service = createChatService();
 			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
 			assert.ok(ref);
 			testDisposables.add(ref);
 			const firstRequest = ref.object.getRequests()[0];
+			const input = ref.object.inputModel;
+			const initialStatus = ref.object.historyStatus?.get();
 			ref.object.inputModel.setState({ inputText: 'Unsent local draft' });
 			changes.fire([...first,
 			{ type: 'request', id: 'two', prompt: 'Sent in ChatGPT', participant: remoteScheme },
@@ -3464,11 +3469,19 @@ suite('ChatService', () => {
 			{ type: 'request', id: 'two', prompt: 'Sent in ChatGPT', participant: remoteScheme },
 			{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString('Complete external response') }], participant: remoteScheme },
 			]);
+			historyStatus.set(undefined, undefined);
+			const reopened = testDisposables.add((await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None))!);
 			assert.deepStrictEqual({
+				initialStatus, status: ref.object.historyStatus?.get(), sameModel: reopened.object === ref.object,
+				sameInput: input === reopened.object.inputModel, resolutions: resolutionCount(),
 				requests: ref.object.getRequests().map(request => [request.id, request.message.text, request.response?.response.toString()]),
 				unchangedRequest: ref.object.getRequests()[0] === firstRequest,
 				draft: ref.object.inputModel.state.get()?.inputText,
-			}, { requests: [['one', 'First message', 'First response'], ['two', 'Sent in ChatGPT', 'Complete external response']], unchangedRequest: true, draft: 'Unsent local draft' });
+			}, {
+				initialStatus: 'Updating cached conversation...', status: undefined, sameModel: true, sameInput: true, resolutions: 1,
+				requests: [['one', 'First message', 'First response'], ['two', 'Sent in ChatGPT', 'Complete external response']],
+				unchangedRequest: true, draft: 'Unsent local draft',
+			});
 		});
 
 		test('promotes recorded history to a live turn without replacing the model, input, or unchanged requests', async () => {

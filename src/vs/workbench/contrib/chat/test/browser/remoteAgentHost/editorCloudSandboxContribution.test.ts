@@ -179,7 +179,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
 		override error(message: NotificationMessage): void { errorNotifications.push(message); }
 	}());
-	const calls = { discovered: 0, created: 0, connected: [] as ICloudSandboxConnectOptions[], connectTokens: [] as CancellationToken[], history: [] as string[], removed: [] as string[], repositoryErrors: [] as string[], deletedTasks: [] as string[], disposedSessions: [] as string[], archivedTasks: [] as { taskId: string; archived: boolean }[] };
+	const calls = { discovered: 0, created: 0, connected: [] as ICloudSandboxConnectOptions[], connectTokens: [] as CancellationToken[], history: [] as string[], clearedHistory: [] as (string | undefined)[], removed: [] as string[], repositoryErrors: [] as string[], deletedTasks: [] as string[], disposedSessions: [] as string[], archivedTasks: [] as { taskId: string; archived: boolean }[] };
 	const state = {
 		workspaceFolders: (options?.workspaceFolders ?? [workspaceFolder]).map(toWorkspaceFolder),
 		repositories: [...(options?.repositories ?? [repository(['https://github.com/example/project.git'])])],
@@ -260,6 +260,8 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	}());
 	instantiationService.stub(ICloudSandboxApiService, new class extends mock<ICloudSandboxApiService>() {
 		override readonly onDidChangeAccount = accountChanged.event;
+		override invalidateSessionHistory(): void { }
+		override clearSessionHistory(taskId?: string): void { calls.clearedHistory.push(taskId); }
 		override async getAccountKey() { return state.accountKey; }
 		override async listSessions(_token: CancellationToken, discoveryOptions?: { readonly incremental?: boolean }) {
 			calls.discovered++;
@@ -377,6 +379,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 		override get repositories() { return scmRepositories.values(); }
 	}());
 	instantiationService.stub(IChatService, new class extends mock<IChatService>() {
+		override readonly onDidSubmitRequest = Event.None;
 		override readonly onDidDisposeSession = Event.None;
 	}());
 	instantiationService.stub(IAgentHostUntitledProvisionalSessionService, new class extends mock<IAgentHostUntitledProvisionalSessionService>() { }());
@@ -426,6 +429,27 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 
 suite('Editor cloud sandbox discovery', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const teardown of ['task removal', 'feature disable', 'AI disable', 'account change'] as const) {
+		test(`${teardown} clears recorded history at the owning lifetime`, async () => {
+			const h = createHarness(store);
+			await h.refresh();
+			h.calls.clearedHistory.length = 0;
+			if (teardown === 'task removal') {
+				h.state.result = { kind: 'incremental', sessions: [], removedTaskIds: [discovered.taskId] };
+				await h.refresh();
+			} else if (teardown === 'feature disable') {
+				await h.setEnabled(CloudSandboxEnabledSettingId, false);
+			} else if (teardown === 'AI disable') {
+				h.state.hidden = true;
+				h.sentimentChanged.fire();
+			} else {
+				h.state.accountKey = undefined;
+				h.accountChanged.fire(undefined);
+			}
+			assert.deepStrictEqual(h.calls.clearedHistory, teardown === 'task removal' ? [discovered.taskId] : [undefined, discovered.taskId]);
+		});
+	}
 
 	for (const status of [RemoteAgentHostConnectionStatus.connecting, RemoteAgentHostConnectionStatus.reconnecting]) {
 		test(`opens recorded history through the activation registry while the remote host is ${status.kind}`, async () => {
