@@ -25,6 +25,15 @@ import { BootstrapAccount } from './types.js';
 import { IPullRequestMutations, PullRequestMutationService } from './pullRequestMutationService.js';
 import { PullRequestQueryService } from './pullRequestQueryService.js';
 import { IPullRequestResources, PullRequestResourceService } from './pullRequestResourceService.js';
+import { IAutomationsClient } from './missionControl/automations.js';
+import { AutomationsClient } from './missionControl/automationsClient.js';
+import { IEnvironmentsClient } from './missionControl/environments.js';
+import { EnvironmentsClient } from './missionControl/environmentsClient.js';
+import { MissionControlClient } from './missionControl/missionControlClient.js';
+import { IModelsClient } from './missionControl/models.js';
+import { ModelsClient } from './missionControl/modelsClient.js';
+import { ITasksClient } from './missionControl/tasks.js';
+import { TasksClient } from './missionControl/tasksClient.js';
 
 export const IGitHubService = createDecorator<IGitHubService>('gitHubService');
 
@@ -55,6 +64,11 @@ export interface IGitHubClient {
 	readonly query: IGitHubQuery;
 	readonly pullRequests: IPullRequestResources;
 	readonly mutations: IPullRequestMutations;
+	readonly automations: IAutomationsClient;
+	readonly tasks: ITasksClient;
+	readonly environments: IEnvironmentsClient;
+	/** Mission Control's SWE catalog, distinct from the general Copilot model catalog. */
+	readonly missionControlModels: IModelsClient;
 }
 
 /** Engine-owned grant entry retaining its leases, client resources and identity backoff. */
@@ -112,8 +126,9 @@ export class GitHubService extends Disposable implements IGitHubService {
 			apiBaseUri: new URL(options.apiBaseUri).href.replace(/\/$/, ''),
 			graphQlUri: new URL(options.graphQlUri).href,
 			authorization: Object.freeze({ ...authorization, scopes: Object.freeze([...new Set(authorization.scopes)].sort()) }),
+			missionControl: MissionControlClient.normalizeOptions(options.missionControl),
 		};
-		const key = JSON.stringify([normalized.authorization.providerId, normalized.authorization.sessionId, normalized.authorization.accountId, normalized.authorization.scopes, normalized.authorization.authorizationServer, normalized.apiBaseUri, normalized.graphQlUri]);
+		const key = JSON.stringify([normalized.authorization.providerId, normalized.authorization.sessionId, normalized.authorization.accountId, normalized.authorization.scopes, normalized.authorization.authorizationServer, normalized.apiBaseUri, normalized.graphQlUri, normalized.missionControl]);
 		let entry = this._clients.get(key);
 		if (!entry) {
 			this._ensureClientCapacity();
@@ -243,6 +258,10 @@ class GitHubClient extends Disposable implements IGitHubClient {
 	readonly query: IGitHubQuery;
 	readonly pullRequests: IPullRequestResources;
 	readonly mutations: IPullRequestMutations;
+	readonly automations: IAutomationsClient;
+	readonly tasks: ITasksClient;
+	readonly environments: IEnvironmentsClient;
+	readonly missionControlModels: IModelsClient;
 
 	constructor(
 		context: GitHubClientOptions,
@@ -274,6 +293,11 @@ class GitHubClient extends Disposable implements IGitHubClient {
 			accountId: `bootstrap:${JSON.stringify([context.authorization.providerId, context.authorization.sessionId, context.authorization.accountId, context.authorization.authorizationServer, context.apiBaseUri])}`,
 		}, backoff));
 		this.capabilities = this._register(new GitHubHostCapabilitiesService(undefined, undefined, this.transport, this.endpoint, logService));
+		const missionControl = this._register(new MissionControlClient(context.missionControl, this.credentials, this.transport, logService));
+		this.automations = new AutomationsClient(missionControl);
+		this.tasks = new TasksClient(missionControl);
+		this.environments = new EnvironmentsClient(missionControl);
+		this.missionControlModels = new ModelsClient(missionControl);
 
 		const pullRequestQuery = new PullRequestQueryService(this.transport, this.capabilities, this.endpoint, logService);
 		this.pullRequests = this._register(new PullRequestResourceService(

@@ -33,7 +33,7 @@ import { ContentEncoding, ReconnectResultType } from '../../common/state/protoco
 import { ChatSourceKind } from '../../common/state/protocol/channels-chat/commands.js';
 import { ChatInteractivity, ResourceChangeType, ResponsePartKind, SessionLifecycle } from '../../common/state/protocol/state.js';
 import { AhpErrorCodes, JsonRpcErrorCodes } from '../../common/state/protocol/errors.js';
-import { isActionKnownToVersion, PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS } from '../../common/state/protocol/version/registry.js';
+import { isActionKnownToVersion, PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { ActionType, type ActionEnvelope, type ChatTurnCompleteAction, type ChatTurnStartedAction, type SessionActiveClientSetAction, type SessionActiveClientRemovedAction, type SessionTitleChangedAction } from '../../common/state/sessionActions.js';
 import { chatReducer } from '../../common/state/sessionReducers.js';
 import { ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
@@ -993,6 +993,39 @@ suite('AgentHostProtocolClient', () => {
 		}]);
 	});
 
+	test('listSessions preserves legacy chat archive flags without requiring them on current summaries', async () => {
+		const { client, transport } = createClient();
+		const listing = client.listSessions();
+		const sent = transport.sentMessages[0] as JsonRpcRequest;
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: sent.id,
+			result: {
+				items: [{
+					resource: 'session-store://tenant/session',
+					provider: 'other-agent',
+					title: 'Session',
+					status: SessionStatus.Idle,
+					createdAt: new Date(1000).toISOString(),
+					modifiedAt: new Date(2000).toISOString(),
+					chats: [
+						{ resource: 'conversation://tenant/legacy', title: 'Legacy', archived: true },
+						{ resource: 'conversation://tenant/current', title: 'Current', status: SessionStatus.Idle | SessionStatus.IsArchived },
+						{ resource: 'conversation://tenant/absent', title: 'Absent' },
+						{ resource: 'conversation://tenant/invalid', title: 'Invalid', archived: 'true' },
+					],
+				}],
+			},
+		});
+		const sessions = await listing;
+		assert.deepStrictEqual(sessions[0].chats?.map(chat => ({ resource: chat.chat.toString(), archived: chat.archived })), [
+			{ resource: 'conversation://tenant/legacy', archived: true },
+			{ resource: 'conversation://tenant/current', archived: true },
+			{ resource: 'conversation://tenant/absent', archived: undefined },
+			{ resource: 'conversation://tenant/invalid', archived: undefined },
+		]);
+	});
+
 	test('unmarked conforming hosts retain opaque session and chat resources through listing, subscription and dispatch', async () => {
 		const { client, transport } = createClient();
 		await connectClient(client, transport);
@@ -1041,14 +1074,16 @@ suite('AgentHostProtocolClient', () => {
 		});
 	});
 
-	test('chat read-state actions require AHP 0.10', () => {
+	test('chat read-state actions require AHP 0.9', () => {
 		const action = { type: ActionType.ChatIsReadChanged, isRead: true } as const;
 		assert.deepStrictEqual({
+			v08: isActionKnownToVersion(action, '0.8.0'),
 			v09: isActionKnownToVersion(action, '0.9.0'),
-			v10: isActionKnownToVersion(action, '0.10.0'),
+			v1: isActionKnownToVersion(action, '1.0.0'),
 		}, {
-			v09: false,
-			v10: true,
+			v08: false,
+			v09: true,
+			v1: true,
 		});
 	});
 
@@ -1890,9 +1925,7 @@ suite('AgentHostProtocolClient', () => {
 			clientInfo: params.clientInfo,
 			_meta: params._meta,
 		}, {
-			// Every compatible version is offered so an older host can negotiate down,
-			// newest first so a current host still picks it.
-			protocolVersions: SUPPORTED_PROTOCOL_VERSIONS.filter(version => version !== '0.8.0'),
+			protocolVersions: ['1.0.0', '0.10.0', '0.9.0'],
 			clientId: 'renderer-client-id',
 			clientInfo,
 			_meta: {
@@ -1903,7 +1936,7 @@ suite('AgentHostProtocolClient', () => {
 				'vscode.clientDevDeviceId': 'client-dev-device-id',
 			},
 		});
-		assert.strictEqual(params.protocolVersions[0], PROTOCOL_VERSION);
+		assert.strictEqual(params.protocolVersions[0], '1.0.0');
 		assert.ok(!params.protocolVersions.includes('0.8.0'));
 
 		// Reply with a successful handshake so `connect()` resolves and the
@@ -1911,9 +1944,10 @@ suite('AgentHostProtocolClient', () => {
 		transport.fireMessage({
 			jsonrpc: '2.0',
 			id: sent.id,
-			result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] },
+			result: { protocolVersion: '0.10.0', serverSeq: 0, snapshots: [] },
 		});
 		await connectPromise;
+		assert.strictEqual(client.initializeResult.get()?.protocolVersion, '0.10.0');
 		const telemetryLevel = findRootConfigNotification(transport.sentMessages, AgentHostTelemetryLevelConfigKey);
 		assert.deepStrictEqual(telemetryLevel, {
 			jsonrpc: '2.0',
@@ -4731,9 +4765,11 @@ suite('AgentHostProtocolClient', () => {
 				const initialize = await waitForRequest(reconnectTransport, 'initialize');
 				assert.deepStrictEqual({
 					clientInfo: (initialize.params as { clientInfo?: Implementation }).clientInfo,
+					protocolVersions: (initialize.params as { protocolVersions: readonly string[] }).protocolVersions,
 					meta: (initialize.params as { _meta?: Record<string, unknown> })._meta,
 				}, {
 					clientInfo: agentsWindowAgentHostClientInfo,
+					protocolVersions: ['1.0.0', '0.10.0', '0.9.0'],
 					meta: {
 						[AgentHostSessionUrisCapabilityMetaKey]: true,
 						'vscode.telemetryLevel': 'all',
@@ -4744,7 +4780,7 @@ suite('AgentHostProtocolClient', () => {
 				reconnectTransport.fireMessage({
 					jsonrpc: '2.0',
 					id: initialize.id,
-					result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] },
+					result: { protocolVersion: '0.10.0', serverSeq: 0, snapshots: [] },
 				});
 				await flushMicrotasks();
 				const managedSettingsIndex = reconnectTransport.sentMessages.findIndex(message => hasKey(message, { method: true }) && message.method === 'setClientManagedSettingsPermissions');

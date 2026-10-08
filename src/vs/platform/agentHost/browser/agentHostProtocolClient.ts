@@ -37,9 +37,9 @@ import { AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper
 import { AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceService.js';
 import type { ClientNotificationMap, CommandMap, JsonRpcErrorResponse, JsonRpcRequest, JsonRpcResponse } from '../common/state/protocol/messages.js';
 import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
-import { MessageAttachmentKind, SessionSummary, ROOT_STATE_URI, StateComponents, isAhpRootChannel, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, type ClientPluginCustomization, type Message, type RootState } from '../common/state/sessionState.js';
+import { MessageAttachmentKind, SessionSummary, ROOT_STATE_URI, StateComponents, isAhpRootChannel, isDefaultChatUri, isSessionChatArchived, isSessionStatusRead, type ClientPluginCustomization, type Message, type RootState } from '../common/state/sessionState.js';
 import { normalizeLegacyActionEnvelope } from '../common/state/legacyProtocolCompatibility.js';
-import { SUPPORTED_PROTOCOL_VERSIONS } from '../common/state/protocol/version/registry.js';
+import { getAgentHostSupportedProtocolVersions } from '../common/agentHostProtocolCompatibility.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, JSON_RPC_INTERNAL_ERROR, type ProtocolMessage, type IStateSnapshot, type SubscribeResult } from '../common/state/sessionProtocol.js';
 import { type IVscodeUpgradeResult } from '../common/state/protocolUpgrade.js';
 import { isClientTransport, NonReconnectableTransportError, type AgentHostTransportFailureReason, type IProtocolTransport } from '../common/state/sessionTransport.js';
@@ -53,7 +53,7 @@ import { ILoadEstimator, LoadEstimator } from '../../../base/parts/ipc/common/ip
 import { ITelemetryService, TelemetryLevel, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../telemetry/common/telemetry.js';
 import { getTelemetryLevel } from '../../telemetry/common/telemetryUtils.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostWorkspaceTrustConfigKey, getAgentHostTerminalAutoApproveRulesConfig, GLOBAL_AUTO_APPROVE_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
-import { formatAgentHostConfigurationSyncValueForLog, getAgentHostConfigurationSyncEntries, getAgentHostConfigurationSyncTarget, resolveAgentHostConfigurationSyncPatch, resolveAgentHostConfigurationSyncValue } from '../common/agentHostConfigurationSync.js';
+import { addAgentHostConfigurationSyncValue, formatAgentHostConfigurationSyncValueForLog, getAgentHostConfigurationSyncEntries, getAgentHostConfigurationSyncTarget, resolveAgentHostConfigurationSyncPatch, resolveAgentHostConfigurationSyncValue } from '../common/agentHostConfigurationSync.js';
 import { managedPermissionsConfigurationIds, resolveManagedSettingsPermissions, type IAgentHostManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
 import { AgentHostClientConnectionKind, toAgentHostClientMeta } from '../common/agentHostTelemetry.js';
 import type { OtlpExportLogsParams } from '../common/state/protocol/channels-otlp/notifications.js';
@@ -72,8 +72,6 @@ import { DevContainerAgentHostProtocolClient } from '../common/devContainerAgent
 import type { IDevContainerAgentHostMainService } from '../common/devContainerAgentHost.js';
 
 const AHP_CLIENT_CONNECTION_CLOSED = -32000;
-// AHP 0.9 changed the automation catalog wire shape, so VS Code cannot safely negotiate 0.8.
-const CLIENT_SUPPORTED_PROTOCOL_VERSIONS = SUPPORTED_PROTOCOL_VERSIONS.filter(version => version !== '0.8.0');
 
 /**
  * After this much inbound silence, send an application-level `ping` to
@@ -526,8 +524,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 					}
 					const value = resolveAgentHostConfigurationSyncValue(this._configurationService, entry);
 					if (value !== undefined) {
-						patch[entry.sync.key] = value;
-						mirrored.push(`${entry.sync.key}=${formatAgentHostConfigurationSyncValueForLog(entry.settingId, value)} (${entry.settingId})`);
+						for (const key of addAgentHostConfigurationSyncValue(patch, entry, value)) {
+							mirrored.push(`${key}=${formatAgentHostConfigurationSyncValueForLog(entry.settingId, patch[key])} (${entry.settingId})`);
+						}
 					}
 				}
 			}
@@ -734,7 +733,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				// Advertise every compatible version, most-preferred first, so an
 				// older host (a cloud sandbox running a 0.5.x `copilotd`) can negotiate down
 				// instead of rejecting the connection. A current host still picks the newest.
-				protocolVersions: [...CLIENT_SUPPORTED_PROTOCOL_VERSIONS],
+				protocolVersions: getAgentHostSupportedProtocolVersions(),
 				clientId: this._clientId,
 				clientInfo: this._clientInfo,
 				_meta: this._clientMeta(),
@@ -1107,7 +1106,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		this._logService.info(`[RemoteAgentHostProtocol] Server forgot client ${this._clientId}; initializing a fresh connection.`);
 		const initializeResult = await this._dispatchRequest<IAgentHostExtensionInitializeResult>('initialize', {
 			channel: ROOT_STATE_URI,
-			protocolVersions: [...CLIENT_SUPPORTED_PROTOCOL_VERSIONS],
+			protocolVersions: getAgentHostSupportedProtocolVersions(),
 			clientId: this._clientId,
 			clientInfo: this._clientInfo,
 			_meta: this._clientMeta(),
@@ -2009,7 +2008,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 					kind: s.defaultChat === chat.resource || isDefaultChatUri(chat.resource) ? 'default' : 'peer',
 					origin: chat.origin,
 					...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
-					...(isSessionStatusArchived(chat.status) || chat.archived === true ? { archived: true } : {}),
+					...(isSessionChatArchived(chat) ? { archived: true } : {}),
 					...(chat.status !== undefined ? { status: chat.status, isRead: isSessionStatusRead(chat.status) } : {}),
 					...(chat.changes !== undefined ? { changes: chat.changes } : {}),
 				})) ?? (s.defaultChat ? [{ chat: URI.parse(s.defaultChat), kind: 'default' as const }] : undefined),

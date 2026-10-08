@@ -115,7 +115,10 @@ export const AgentHostSystemProxyEnabledSettingId = 'chat.agentHost.systemProxy.
 /** Configuration key controlling the GitHub MCP server in agent-host sessions. */
 export const AgentHostGitHubMcpServerEnabledSettingId = 'chat.agentHost.githubMcpServer.enabled';
 
-/** Configuration keys controlling automatic session and chat title generation. */
+/** Configuration key selecting the automatic session and chat title generation strategy. */
+export const AgentHostTitleGenerationSettingId = 'chat.agentHost.experimental.titleGeneration';
+
+/** Legacy boolean settings migrated to {@link AgentHostTitleGenerationSettingId}. */
 export const AgentHostActiveAgentTitleGenerationSettingId = 'chat.agentHost.experimental.activeAgentTitleGeneration';
 export const AgentHostDeferredTitleGenerationSettingId = 'chat.agentHost.experimental.deferredTitleGeneration';
 
@@ -805,6 +808,7 @@ export interface IConnectionTrackerService {
  */
 export interface IMissionControlOptions {
 	readonly baseUrl: string;
+	readonly name?: string;
 	readonly accountId: string;
 	readonly credential: string;
 	readonly roots: readonly string[];

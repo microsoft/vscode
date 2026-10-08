@@ -5,6 +5,8 @@
 
 import * as nls from '../../../../nls.js';
 import { AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationSettingId, AgentHostDeferredTitleGenerationSettingId, AgentHostTitleGenerationSettingId } from '../../../../platform/agentHost/common/agentService.js';
+import { migrateLegacyTitleGenerationSettings } from '../../../../platform/agentHost/common/titleGenerationConfiguration.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -156,3 +158,23 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchConfigurationExtensions.Co
 		return pairs;
 	},
 }]);
+
+for (const key of [AgentHostDeferredTitleGenerationSettingId, AgentHostActiveAgentTitleGenerationSettingId]) {
+	Registry.as<IConfigurationMigrationRegistry>(WorkbenchConfigurationExtensions.ConfigurationMigration).registerConfigurationMigrations([{
+		key,
+		includeApplication: true,
+		migrateFn: (value, accessor) => {
+			const pairs: ConfigurationKeyValuePairs = [[key, { value: undefined }]];
+			if (accessor(AgentHostTitleGenerationSettingId) === undefined) {
+				const strategy = migrateLegacyTitleGenerationSettings(
+					key === AgentHostDeferredTitleGenerationSettingId ? value : accessor(AgentHostDeferredTitleGenerationSettingId),
+					key === AgentHostActiveAgentTitleGenerationSettingId ? value : accessor(AgentHostActiveAgentTitleGenerationSettingId),
+				);
+				if (strategy !== undefined) {
+					pairs.push([AgentHostTitleGenerationSettingId, { value: strategy }]);
+				}
+			}
+			return pairs;
+		},
+	}]);
+}

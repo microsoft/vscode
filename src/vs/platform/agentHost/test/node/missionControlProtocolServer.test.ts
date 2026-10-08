@@ -18,13 +18,13 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { MissionControlControlVerifier, type IMissionControlSigningKey } from '../../node/missionControl/missionControlControl.js';
 import { MissionControlProtocolServer, type IMissionControlSocket } from '../../node/missionControl/missionControlProtocolServer.js';
 import { MissionControlEnvironment } from '../../node/missionControl/missionControlEnvironment.js';
+import { MissionControlAuthentication, MissionControlSealing, sealMissionControlCredential } from '../../node/missionControl/missionControlAuthentication.js';
 import type { IConnectionDiagnosticEvent } from '../../common/connectionDiagnostics.js';
 import type { IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { MissionControlSessionMirror } from '../../node/missionControl/missionControlSessionMirror.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
-import { sealMissionControlCredential } from '../../node/missionControl/missionControlAuthentication.js';
 
 const prefix = 'user.owner.env.environment';
 const order = BigInt('0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551');
@@ -95,6 +95,61 @@ suite('Mission Control WPS', () => {
 			signedControl({ kind: 'spawn_request', client_id: clientId, spawn_request_id: `spawn-${nonce}`, passive }, nonce, environment);
 		return { key, signed, signedControl };
 	}
+
+	test('credential expiry sends exactly one auth-required notification to only the affected lane', async () => {
+		await MissionControlSealing.ready();
+		const clock = sinon.useFakeTimers({ now: Date.parse('2030-01-01T00:00:00Z'), toFake: ['Date', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
+		try {
+			const sealing = store.add(new MissionControlSealing());
+			const { key, signed } = signingFixture('test-key', '123');
+			const groupPrefix = 'user.123.env.environment';
+			const socket = new FakeWpsSocket();
+			let count = 0;
+			const server = store.add(new MissionControlProtocolServer(
+				{ url: 'wss://wps.test/client/hubs/test', access_token: 'fake-token', groups: { control: `${groupPrefix}.control` } },
+				'123', 'environment', new MissionControlControlVerifier('environment', '123', [key]),
+				() => socket, error => { throw error; },
+				() => {
+					const deadline = ++count === 1 ? '2030-01-01T00:00:02Z' : '2030-01-01T00:00:04Z';
+					return new MissionControlAuthentication(sealing, '123', 'https://api.github.com', async () => Response.json(
+						{ id: 123, type: 'User' }, { headers: { 'GitHub-Authentication-Token-Expiration': deadline } },
+					), false);
+				},
+			));
+			const lanes: IProtocolTransport[] = [];
+			store.add(server.onConnection(lane => lanes.push(lane)));
+			const ready = server.connect();
+			socket.emit('message', JSON.stringify({ type: 'system', event: 'connected' }));
+			await ready;
+			for (const client of ['client-a', 'client-b']) {
+				socket.emit('message', JSON.stringify({ type: 'message', from: 'group', group: `${groupPrefix}.control`, dataType: 'json', data: signed(client, `nonce-${client}`) }));
+			}
+			const encryptionKey = sealing.advertisedKeys.find(key => key.use === 'auth-token')!;
+			const token = await sealMissionControlCredential({ resource: 'https://api.github.com', token: 'owner-token', key: { ...encryptionKey, use: 'auth-token' } });
+			for (const lane of lanes) {
+				await lane.relayAuthenticate!({ resource: 'https://api.github.com', token });
+			}
+			socket.publishes.length = 0;
+			clock.tick(2000);
+			const states = lanes.map(lane => lane.relayAuthentication?.authenticated);
+			clock.tick(1000);
+			assert.deepStrictEqual({ states, published: socket.publishes.map(publish => ({ group: publish.group, message: publish.data.data })) }, {
+				states: [false, true],
+				published: [{
+					group: `${groupPrefix}.client.client-a.broadcast`,
+					message: {
+						jsonrpc: '2.0', method: 'auth/required',
+						params: { channel: 'ahp-root://', resource: { resource: 'https://api.github.com' }, reason: 'expired' },
+					},
+				}],
+			});
+			server.dispose();
+			clock.tick(2000);
+			assert.strictEqual(socket.publishes.filter(publish => publish.data.kind === 'message').length, 1);
+		} finally {
+			clock.restore();
+		}
+	});
 
 	test('rejects stale, mismatched, spoofed, and replayed control before opening a lane', () => {
 		const { key, signed } = signingFixture();
@@ -465,7 +520,8 @@ suite('Mission Control WPS', () => {
 		});
 	}
 
-	test('failed relay startup marks the registered environment offline', async () => {
+	test('failed relay startup marks the registered environment offline with its custom name', async () => {
+		const name = 'headless-build-machine';
 		const path = await mkdtemp(join(tmpdir(), 'mission-control-failed-start-'));
 		try {
 			const { key } = signingFixture();
@@ -492,12 +548,12 @@ suite('Mission Control WPS', () => {
 				}
 			}
 			));
-			await assert.rejects(service.configure({ baseUrl: 'http://127.0.0.1:9999/', accountId: 'owner', credential: 'fake-local-token', roots: [path] }), /connection closed before joining/);
+			await assert.rejects(service.configure({ baseUrl: 'http://127.0.0.1:9999/', accountId: 'owner', credential: 'fake-local-token', roots: [path], name }), /connection closed before joining/);
 			assert.deepStrictEqual({ requests, closed: socket.closed }, {
 				requests: [
-					{ path: '/cmc_internal/api/agents/environments/register', status: undefined, name: 'VS Code OSS' },
+					{ path: '/cmc_internal/api/agents/environments/register', status: undefined, name },
 					{ path: '/cmc_internal/api/agents/environments/.well-known/jwks.json', status: undefined, name: undefined },
-					{ path: '/cmc_internal/api/agents/environments/environment/heartbeat', status: 'offline', name: 'VS Code OSS' },
+					{ path: '/cmc_internal/api/agents/environments/environment/heartbeat', status: 'offline', name },
 				],
 				closed: true,
 			});
@@ -525,6 +581,41 @@ suite('Mission Control WPS', () => {
 			service.dispose();
 			await rm(path, { recursive: true });
 		}
+	});
+
+	test('relay authentication metadata preserves the identity authority across handshake generations', async () => {
+		await MissionControlSealing.ready();
+		const sealing = store.add(new MissionControlSealing());
+		const resource = 'https://api.enterprise.example';
+		const authentication = new MissionControlAuthentication(sealing, '123', resource, async () => Response.json({ id: 123, type: 'User' }), false);
+		const { key, signed } = signingFixture();
+		const socket = new FakeWpsSocket();
+		const server = store.add(new MissionControlProtocolServer(
+			{ url: 'wss://wps.example.test', access_token: 'fake-token', groups: { control: `${prefix}.control` } },
+			'owner', 'environment', new MissionControlControlVerifier('environment', 'owner', [key]),
+			() => socket, error => { throw error; }, () => authentication,
+		));
+		const lanes: IProtocolTransport[] = [];
+		store.add(server.onConnection(lane => lanes.push(lane)));
+		const ready = server.connect();
+		socket.emit('message', JSON.stringify({ type: 'system', event: 'connected' }));
+		await ready;
+		socket.deliver(`${prefix}.control`, signed('client-a', 'nonce-a'), 1);
+		const lane = lanes[0];
+		const before = lane.relayAuthentication;
+		const recipient = sealing.advertisedKeys.find(key => key.use === 'auth-token');
+		assert.ok(recipient && lane.relayAuthenticate);
+		await lane.relayAuthenticate({
+			resource,
+			token: await sealMissionControlCredential({ resource, token: 'test-owner-token', key: { ...recipient, use: 'auth-token' } }),
+		});
+		const authorized = lane.relayAuthentication;
+		authentication.beginHandshake();
+		assert.deepStrictEqual({ before, authorized, after: lane.relayAuthentication }, {
+			before: { resource, authenticated: false },
+			authorized: { resource, authenticated: true },
+			after: { resource, authenticated: false },
+		});
 	});
 
 	test('joins verified client lanes, binds initialize, and publishes responses on to-client', async () => {
@@ -639,7 +730,7 @@ suite('Mission Control WPS', () => {
 				}
 			}
 			));
-			const options = { baseUrl: 'http://127.0.0.1:9999/', accountId: 'owner', credential: 'fake-local-token', roots: [path] };
+			const options = { baseUrl: 'http://127.0.0.1:9999/', accountId: 'owner', credential: 'fake-local-token', roots: [path], name: 'headless-build-machine' };
 			await service.configure(options);
 			await clock.tickAsync(60_000);
 			sockets[0].emit('close', 1006);
@@ -660,6 +751,7 @@ suite('Mission Control WPS', () => {
 				closed: sockets.every(socket => socket.closed),
 				errors,
 				advertisedVersions: requests.filter(request => request.body?.capabilities).map(request => (request.body!.capabilities as { ahp_version: string }).ahp_version),
+				names: requests.filter(request => request.body).map(request => request.body?.name).filter(name => name !== undefined),
 			}, {
 				requests: [
 					['/cmc_internal/api/agents/environments/register', true, 'user-local', persisted],
@@ -676,6 +768,7 @@ suite('Mission Control WPS', () => {
 				closed: true,
 				errors: ['Mission Control WPS socket closed (code 1006)'],
 				advertisedVersions: [PROTOCOL_VERSION, PROTOCOL_VERSION, PROTOCOL_VERSION],
+				names: Array(4).fill('headless-build-machine'),
 			});
 			service.dispose();
 		} finally {

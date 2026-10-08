@@ -796,6 +796,8 @@ function setupAgentHostSuite(logger: Logger, config: {
 				// scratch, so set the production default explicitly rather than
 				// relying on configuration registration timing.
 				'http.proxySupport': 'override',
+				// Worktree branch naming exercises the host's Kerberos-authenticated CAPI fetch.
+				...(process.env.VSCODE_SMOKE_TEST_PROXY_HEADER ? { 'sessions.useWorktree': true } : {}),
 				'chat.allowAnonymousAccess': true,
 				'github.copilot.chat.githubMcpServer.enabled': false,
 				'chat.agentHost.ahpJsonlLoggingEnabled': true,
