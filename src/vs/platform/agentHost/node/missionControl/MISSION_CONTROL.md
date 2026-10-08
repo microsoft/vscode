@@ -13,8 +13,8 @@ Registration is opt-in and default-off. The activation path is available to buil
 ## Enable the real service
 
 1. Sign in to GitHub in the owning VS Code window.
-2. Set `chat.agentHost.remoteConnections` to `missionControl` (the default is `devTunnel`).
-3. Enable **Allow Remote Connections** in the Agents Window title bar or the local Agent Host chat toolbar. Selecting Mission Control in settings does not register the environment.
+2. Set `chat.agentHost.remoteConnections` to `githubEnvironment` (the default is `devTunnel`).
+3. Enable **Allow Remote Connections** in the Agents Window title bar or the local Agent Host chat toolbar. Selecting GitHub environment in settings does not register the environment.
 4. Wait for `Mission Control ready; environmentId=...` in the Agent Host log.
 5. Create/use native sessions normally. From another compatible MC client, discover the environment, connect, authenticate with a sealed credential, and use standard AHP session operations.
 
