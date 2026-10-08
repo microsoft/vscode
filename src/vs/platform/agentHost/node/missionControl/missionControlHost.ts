@@ -162,6 +162,7 @@ export class MissionControlHost extends Disposable {
 				allowExtensionMethods: false,
 				relayRoots: relay.rootMeta ? undefined : roots,
 				relayRootMeta: relay.rootMeta,
+				advertisedModelProviders: ['copilotcli'],
 				copilotProjects: relay.rootMeta ? this._projects : undefined,
 				copilotSessionRequest: (method, params) => this._handleSessionRequest(method, params),
 				relayResourceRoots: readOnly => this._resourceRoots(readOnly, getRoots()),

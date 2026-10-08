@@ -15,6 +15,19 @@ suite('Chat Accessibility Help', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	for (const type of ['panelChat', 'agentView', 'editsView', 'inlineChat', 'quickChat'] as const) {
+		test(`documents the sharing toggle and backend selection (${type})`, () => {
+			const help = getAccessibilityHelpText(type, new MockKeybindingService(), false);
+			assert.deepStrictEqual({
+				backend: help.includes('chat.agentHost.remoteConnections setting selects Dev Tunnel or Mission Control'),
+				explicitOptIn: help.includes('Selecting a backend does not enable sharing; changing it turns sharing off'),
+				keyboard: help.includes('Enter or Space to enable or disable sharing'),
+			}, {
+				backend: type !== 'inlineChat' && type !== 'quickChat',
+				explicitOptIn: type !== 'inlineChat' && type !== 'quickChat',
+				keyboard: type !== 'inlineChat' && type !== 'quickChat',
+			});
+		});
+
 		test(`only describes visible Codex continuation UI (${type})`, () => {
 			const keybindings = new MockKeybindingService();
 			const hidden = getAccessibilityHelpText(type, keybindings, false);

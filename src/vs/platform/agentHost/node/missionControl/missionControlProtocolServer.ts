@@ -20,6 +20,8 @@ import { MissionControlControlVerifier } from './missionControlControl.js';
 import { MissionControlAuthentication } from './missionControlAuthentication.js';
 import type { AuthenticateParams } from '../../common/agent.js';
 import { MissionControlSessionMirror, type MissionControlMirrorEvent } from './missionControlSessionMirror.js';
+import { AuthRequiredReason } from '../../common/state/protocol/common/notifications.js';
+import { ROOT_STATE_URI } from '../../common/state/sessionState.js';
 
 export interface IMissionControlSocket {
 	send(data: string): void;
@@ -48,7 +50,11 @@ class MissionControlLane extends Disposable implements IProtocolTransport {
 	readonly transportKind = AgentHostTransportKind.WebSocket;
 	get relayClientId(): string { return this.clientId; }
 	get relayPassive(): boolean { return this.passive; }
-	get relayAuthenticated(): boolean | undefined { return this._authentication?.authenticated; }
+	get relayAuthentication(): IProtocolTransport['relayAuthentication'] {
+		return this._authentication ? { authenticated: this._authentication.authenticated, resource: this._authentication.resource } : undefined;
+	}
+	get onDidRelayAuthenticationExpire() { return this._authentication?.onDidExpire; }
+	readonly relayCaptureAuthorization?: () => () => void;
 	get relayHandshakeMeta(): Record<string, unknown> | undefined {
 		return { ...this._authentication?.handshakeMeta, 'copilot.keepAliveTimeoutMs': relayKeepAliveTimeoutMs, ...(this.passive ? { 'copilot.passive': true } : {}) };
 	}
@@ -73,6 +79,15 @@ class MissionControlLane extends Disposable implements IProtocolTransport {
 
 	constructor(readonly clientId: string, readonly passive: boolean, private readonly _publish: (group: string, message: unknown, generation: number) => void, private readonly _prefix: string, private readonly _authentication?: MissionControlAuthentication, private readonly _rehandshake?: (lane: MissionControlLane, message: object) => void, private readonly _didClose?: (lane: MissionControlLane) => void) {
 		super();
+		if (_authentication) {
+			this._register(_authentication);
+			this.relayCaptureAuthorization = () => _authentication.captureAuthorization();
+			this._register(_authentication.onDidExpire(() => this.send({
+				jsonrpc: '2.0',
+				method: 'auth/required',
+				params: { channel: ROOT_STATE_URI, resource: { resource: _authentication.resource }, reason: AuthRequiredReason.Expired },
+			})));
+		}
 	}
 
 	receive(message: unknown): void {
