@@ -421,6 +421,7 @@ export class ChatDebugSessionTimeline extends Disposable {
 		this.currentFindMatchIndex = matches.length ? 0 : -1;
 		this.findSearching = false;
 		this.findCancellation.clear();
+		this.updateFindWidget();
 		this.render();
 	}
 
