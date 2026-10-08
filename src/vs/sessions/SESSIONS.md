@@ -231,6 +231,8 @@ Providers may expose an `ISessionConfigurationSnapshot` of resolved draft config
 
 Requests route through `ISessionsManagementService` to the provider identified by the session. Providers update chat and session observables. Foreground sends may update view state through lifecycle notifications; background sends do not implicitly steal focus.
 
+Reopening an existing Agents Window preserves its active session, including an uncommitted draft. A caller that intentionally starts a workspace or draft handoff sets `revealNewSession`; an explicit `sessionResource` continues to open that session directly.
+
 A chat view binds its transcript to the content provider serving the chat's session type at load time. When that provider is unregistered and another registers for the same type — a sandbox opened from persisted history whose environment was then woken, or a host that reconnected with a new client — the view reloads the chat so the replacement serves it. A provider that merely goes away leaves the transcript on screen.
 
 ### Multiple chats

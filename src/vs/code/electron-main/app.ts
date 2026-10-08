@@ -1087,7 +1087,7 @@ export class CodeApplication extends Disposable {
 			const windows = await windowsMainService.openAgentsWindow({
 				context: OpenContext.LINK,
 				cli: { ...this.environmentMainService.args },
-			}, newSessionLink.workspaceUri, undefined, AgentsWindowOpenSource.Link, false, newSessionLink.draft);
+			}, newSessionLink.workspaceUri, undefined, AgentsWindowOpenSource.Link, false, newSessionLink.draft, undefined, true);
 			return windows.length > 0;
 		}
 
@@ -1559,7 +1559,7 @@ export class CodeApplication extends Disposable {
 					context: OpenContext.LINK,
 					cli: args,
 					initialStartup: true,
-				}, newSessionLink?.workspaceUri, agentSessionLink, AgentsWindowOpenSource.Link, false, newSessionLink?.draft);
+				}, newSessionLink?.workspaceUri, agentSessionLink, AgentsWindowOpenSource.Link, false, newSessionLink?.draft, undefined, !!newSessionLink);
 			}
 
 			// Openables can open as windows directly

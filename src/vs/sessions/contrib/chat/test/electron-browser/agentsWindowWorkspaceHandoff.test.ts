@@ -92,7 +92,7 @@ suite('Agents Window workspace handoff telemetry', () => {
 		const sessions: URI[] = [];
 		const handleOpenIntent = Reflect.get(SelectAgentsFolderContribution.prototype, 'handleOpenIntent') as (
 			this: typeof harness, folder: URI | undefined, session: URI | undefined,
-			isDefault: boolean, token: CancellationToken, telemetry: undefined, draft: IAgentsWindowDraft, noWorkspace?: boolean, showNewSession?: boolean
+			isDefault: boolean, token: CancellationToken, telemetry: undefined, draft: IAgentsWindowDraft, noWorkspace?: boolean, showNewSession?: boolean, preserveActiveSession?: boolean
 		) => Promise<void>;
 		const configurationService = new TestConfigurationService();
 		disposables.add(configurationService.onDidChangeConfigurationEmitter);
@@ -103,7 +103,7 @@ suite('Agents Window workspace handoff telemetry', () => {
 		};
 		await handleOpenIntent.call(harness, undefined, undefined, true, CancellationToken.None, undefined, draft);
 		const persisted = URI.parse('agent-host-copilot:/persisted');
-		await handleOpenIntent.call(harness, URI.file('/source'), persisted, false, CancellationToken.None, undefined, draft, false, true);
+		await handleOpenIntent.call(harness, URI.file('/source'), persisted, false, CancellationToken.None, undefined, draft, false, false, true);
 		assert.deepStrictEqual({ drafts, sessions }, {
 			drafts: [{ folderUri: undefined, preferDevContainer: false, isDefault: true, draft, noWorkspace: false }],
 			sessions: [persisted],
@@ -146,6 +146,36 @@ suite('Agents Window workspace handoff telemetry', () => {
 				beforeRestore: [],
 				events: cancelBeforeRestore ? [] : ['navigation', 'newSession'],
 				calls: cancelBeforeRestore ? [] : [{ options: { cancelRestore: true }, usesHandoffToken: true }],
+			});
+		});
+	}
+
+	for (const created of [true, false]) {
+		test(`reused window preserves its active ${created ? 'created session' : 'draft'} unless the caller reveals a new session`, async () => {
+			const draft: IAgentsWindowDraft = { inputText: 'Incoming', attachments: '[]' };
+			const calls: IAgentsWindowWorkspaceHandoff[] = [];
+			const configurationService = new TestConfigurationService();
+			disposables.add(configurationService.onDidChangeConfigurationEmitter);
+			const activeSession = { isCreated: { get: () => created } };
+			const harness = {
+				configurationService,
+				sessionsService: { activeSession: { get: () => activeSession } },
+				_workspaceHandoff: { selectWorkspace: async (intent: IAgentsWindowWorkspaceHandoff) => { calls.push(intent); } },
+				openExistingSession: async () => assert.fail('A workspace handoff must not open an existing session'),
+			};
+			const handleOpenIntent = Reflect.get(SelectAgentsFolderContribution.prototype, 'handleOpenIntent') as (
+				this: typeof harness, workspace: URI | undefined, session: URI | undefined, isDefault: boolean,
+				token: CancellationToken, telemetry: undefined, draft: IAgentsWindowDraft, noWorkspace: boolean, showNewSession: boolean, preserveActiveSession: boolean
+			) => Promise<void>;
+			const workspace = URI.file('/source');
+
+			await handleOpenIntent.call(harness, workspace, undefined, false, CancellationToken.None, undefined, draft, false, false, true);
+			const preservedCalls = [...calls];
+			await handleOpenIntent.call(harness, workspace, undefined, false, CancellationToken.None, undefined, draft, false, false, false);
+
+			assert.deepStrictEqual({ preservedCalls, calls }, {
+				preservedCalls: [],
+				calls: [{ folderUri: workspace, preferDevContainer: false, isDefault: false, draft, noWorkspace: false }],
 			});
 		});
 	}

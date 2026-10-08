@@ -346,10 +346,12 @@ suite('Agents Window draft handoff and Copilot introduction', () => {
 				count: h.calls.length,
 				folder: URI.revive(h.calls[0].folderUri)?.path,
 				draft: h.calls[0].draft && reviveChatDraft(h.calls[0].draft),
+				revealNewSession: h.calls[0].revealNewSession,
 				source: { inputText: h.input, attachments: h.attachments },
 			}, {
 				count: 1, folder: '/source',
 				draft: { inputText: 'Current prompt at invocation', attachments: originalAttachments },
+				revealNewSession: surface === 'command' ? undefined : true,
 				source: { inputText: 'Current prompt at invocation', attachments: originalAttachments },
 			});
 		});
@@ -495,7 +497,6 @@ suite('Agents Window draft handoff and Copilot introduction', () => {
 			{ sessionResource: URI.from({ scheme: SessionType.AgentHostCopilot, path: '/explicit-session' }) },
 			{ folderUri: URI.file('/explicit-workspace'), sessionResource: URI.from({ scheme: SessionType.AgentHostCopilot, path: '/explicit-session' }) },
 			{ folderUri: URI.file('/explicit-workspace'), folderUriIsDefault: true, draft: { inputText: 'Explicit caller draft', attachments: '[]' } },
-			{ preserveActiveSession: true, draft: { inputText: 'Explicit preserved draft', attachments: '[]' } },
 		];
 		for (const target of targets) {
 			await h.instantiation.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor, target));

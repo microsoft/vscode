@@ -181,6 +181,7 @@ async function openCurrentWorkspaceInAgentsWindow(accessor: ServicesAccessor, so
 	const handoff = draftOptions ?? getDraftHandoffOptions(accessor, sessionResource);
 	await nativeHostService.openAgentsWindow({
 		folderUri: getInvokingWorkspaceFolder(accessor) ?? workspaceContextService.getWorkspace().folders[0]?.uri,
+		revealNewSession: true,
 		source,
 		...handoff,
 	});
@@ -343,8 +344,8 @@ export class OpenAgentsWindowAction extends Action2 {
 	async run(accessor: ServicesAccessor, args?: IOpenAgentsWindowOptions): Promise<void> {
 		ensureAgentModeEnabled(accessor.get(IConfigurationService));
 		const nativeHostService = accessor.get(INativeHostService);
-		const draftOptions: Pick<IOpenAgentsWindowOptions, 'draft' | 'folderUriIsDefault'> = !args?.preserveActiveSession && !args?.folderUri && !args?.sessionResource && !args?.draft ? getDraftHandoffOptions(accessor) : {};
-		const folderUri = !args?.preserveActiveSession && !args?.folderUri && !args?.sessionResource
+		const draftOptions: Pick<IOpenAgentsWindowOptions, 'draft' | 'folderUriIsDefault'> = !args?.folderUri && !args?.sessionResource && !args?.draft ? getDraftHandoffOptions(accessor) : {};
+		const folderUri = !args?.folderUri && !args?.sessionResource
 			? getInvokingWorkspaceFolder(accessor) ?? (draftOptions.draft ? accessor.get(IWorkspaceContextService).getWorkspace().folders[0]?.uri : undefined)
 			: undefined;
 		await nativeHostService.openAgentsWindow({
@@ -425,6 +426,7 @@ export class OpenChatSessionInAgentsWindowAction extends Action2 {
 		const folderUri = getInvokingWorkspaceFolder(accessor) ?? workspaceContextService.getWorkspace().folders[0]?.uri;
 		await nativeHostService.openAgentsWindow({
 			folderUri: !hasRealSession && (draftOptions.draft || folderUri?.scheme === Schemas.file) ? folderUri?.toJSON() : undefined,
+			...(!hasRealSession ? { revealNewSession: true } : undefined),
 			sessionResource: hasRealSession ? sessionResource?.toJSON() : undefined,
 			source,
 			...draftOptions,

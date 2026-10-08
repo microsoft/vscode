@@ -23,9 +23,10 @@ later keybinding changes.
 Open Agents Window force-reveals the window through the native host, because a system-wide trigger
 usually fires while VS Code is inactive or hidden and does not focus any window itself.
 
-`workbench.action.openAgentsWindow` normally carries the invoking editor's workspace and eligible
-draft. The optional `preserveActiveSession` argument requests a reveal-only open without that
-implicit context. Explicit folder, session, and draft targets still apply.
+When the Agents Window already exists with an active session, Open Agents Window preserves that
+session. Callers that intentionally start a workspace or draft handoff set `revealNewSession`;
+an explicit session target still opens that session directly. System-wide bindings require no
+additional arguments to preserve the active session.
 
 Rejected Open Agents Window bindings are logged in the Agents Window. OS registration failures are
 reported by each renderer owner so an Agents-only process retains a visible failure surface. When

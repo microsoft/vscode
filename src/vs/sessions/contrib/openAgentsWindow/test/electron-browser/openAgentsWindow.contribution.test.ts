@@ -316,20 +316,14 @@ suite('OpenAgentsWindowSystemWideKeybindingContribution', () => {
 
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(INativeHostService, nativeHostService);
-		await instantiationService.invokeFunction(accessor => command.handler(accessor, {
-			preserveActiveSession: true,
-			source: AgentsWindowOpenSource.KeyboardShortcut,
-		}));
+		await instantiationService.invokeFunction(accessor => command.handler(accessor, { source: AgentsWindowOpenSource.KeyboardShortcut }));
 
 		assert.deepStrictEqual({
 			openAgentsWindowOptions: nativeHostService.openAgentsWindowOptions,
 			defaultKeybindingDelta: KeybindingsRegistry.getDefaultKeybindings().filter(keybinding => keybinding.command === OPEN_AGENTS_WINDOW_COMMAND_ID).length - defaultKeybindingsBefore.length,
 			commandPaletteDelta: MenuRegistry.getMenuItems(MenuId.CommandPalette).filter(isIMenuItem).filter(item => item.command.id === OPEN_AGENTS_WINDOW_COMMAND_ID).length - commandPaletteItemsBefore.length,
 		}, {
-			openAgentsWindowOptions: [{
-				preserveActiveSession: true,
-				source: AgentsWindowOpenSource.KeyboardShortcut,
-			}],
+			openAgentsWindowOptions: [{ source: AgentsWindowOpenSource.KeyboardShortcut }],
 			defaultKeybindingDelta: 0,
 			commandPaletteDelta: 0,
 		});

@@ -204,8 +204,8 @@ suite('OpenWorkspaceInAgentsWindowAction', () => {
 				openAgentsWindow: async options => { calls.push(options ?? {}); },
 			}));
 			await instantiationService.invokeFunction(accessor => new OpenWorkspaceInAgentsWindowAction().run(accessor));
-			assert.deepStrictEqual(calls.map(call => ({ folder: URI.revive(call.folderUri)?.path, isDefault: call.folderUriIsDefault })), [{
-				folder: activeFile ? '/second' : '/first', isDefault: undefined,
+			assert.deepStrictEqual(calls.map(call => ({ folder: URI.revive(call.folderUri)?.path, isDefault: call.folderUriIsDefault, revealNewSession: call.revealNewSession })), [{
+				folder: activeFile ? '/second' : '/first', isDefault: undefined, revealNewSession: true,
 			}]);
 		});
 	}
@@ -294,57 +294,32 @@ suite('OpenAgentsWindowAction workspace defaults', () => {
 		});
 	}
 
-	test('does not infer context when preserving the active session', async () => {
+	test('infers the invoking workspace for an explicit draft', async () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		const folders = ['/one', '/two'].map((path, index) => new WorkspaceFolder({ uri: URI.file(path), name: path, index }));
 		const calls: IOpenAgentsWindowOptions[] = [];
+		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
+			getWorkspace: () => ({ id: 'workspace', folders }),
+			getWorkspaceFolder: resource => folders.find(folder => extUri.isEqualOrParent(resource, folder.uri)) ?? null,
+		}));
+		instantiationService.stub(IEditorService, upcastPartial<IEditorService>({
+			activeEditor: upcastPartial<EditorInput>({ resource: URI.file('/two/file.ts') }),
+		}));
 		instantiationService.stub(INativeHostService, upcastPartial<INativeHostService>({
 			openAgentsWindow: async options => { calls.push(options ?? {}); },
 		}));
+		const draft = { inputText: 'Keep this prompt', attachments: '[]' };
 
-		await instantiationService.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor, {
-			preserveActiveSession: true,
-			source: AgentsWindowOpenSource.KeyboardShortcut,
-		}));
+		await instantiationService.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor, { draft }));
 
 		assert.deepStrictEqual(calls, [{
-			preserveActiveSession: true,
-			source: AgentsWindowOpenSource.KeyboardShortcut,
+			draft,
+			folderUri: URI.file('/two'),
+			folderUriIsDefault: true,
+			source: AgentsWindowOpenSource.CommandPalette,
 		}]);
 	});
-
-	for (const preserveActiveSession of [undefined, false]) {
-		test(`infers the invoking workspace for an explicit draft (preserveActiveSession: ${preserveActiveSession})`, async () => {
-			const instantiationService = disposables.add(new TestInstantiationService());
-			instantiationService.stub(IConfigurationService, new TestConfigurationService());
-			const folders = ['/one', '/two'].map((path, index) => new WorkspaceFolder({ uri: URI.file(path), name: path, index }));
-			const calls: IOpenAgentsWindowOptions[] = [];
-			instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
-				getWorkspace: () => ({ id: 'workspace', folders }),
-				getWorkspaceFolder: resource => folders.find(folder => extUri.isEqualOrParent(resource, folder.uri)) ?? null,
-			}));
-			instantiationService.stub(IEditorService, upcastPartial<IEditorService>({
-				activeEditor: upcastPartial<EditorInput>({ resource: URI.file('/two/file.ts') }),
-			}));
-			instantiationService.stub(INativeHostService, upcastPartial<INativeHostService>({
-				openAgentsWindow: async options => { calls.push(options ?? {}); },
-			}));
-			const draft = { inputText: 'Keep this prompt', attachments: '[]' };
-			const options: IOpenAgentsWindowOptions = {
-				draft,
-				...(preserveActiveSession === false ? { preserveActiveSession } : undefined),
-			};
-
-			await instantiationService.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor, options));
-
-			assert.deepStrictEqual(calls, [{
-				...options,
-				folderUri: URI.file('/two'),
-				folderUriIsDefault: true,
-				source: AgentsWindowOpenSource.CommandPalette,
-			}]);
-		});
-	}
 
 	test('preserves explicit folder and session arguments without consulting editor context', async () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
