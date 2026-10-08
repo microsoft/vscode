@@ -43,7 +43,8 @@ import { isAutoModeRoutingTier, type AutoModeRoutingTier, type AutoModeTier } fr
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReviewAction } from '../../common/agentHostPlanReview.js';
 import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
-import { readCopilotShellAttachment, toCopilotBackgroundShellMeta } from '../../common/meta/copilotBackgroundWorkMeta.js';
+import { canStopBackgroundWork, toStoppableBackgroundWorkMeta } from '../../common/meta/agentHostBackgroundWorkStopMeta.js';
+import { readCopilotShellAttachment, readCopilotShellId, toCopilotBackgroundShellMeta } from '../../common/meta/copilotBackgroundWorkMeta.js';
 import { getSessionSandboxConfig } from '../sessionSandbox.js';
 import { getCopilotBrowserSandboxNetworkRestrictions } from './copilotSandboxPolicy.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostMcpToolRoutingEnabledConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
@@ -2224,6 +2225,21 @@ export class CopilotAgentSession extends Disposable {
 		});
 	}
 
+	/**
+	 * Stops a background shell this session published as stoppable. Resolves
+	 * false when the entry is unknown or its command had already finished. The
+	 * runtime then reports the change, which removes the shell's entry.
+	 */
+	async stopBackgroundWork(id: string): Promise<boolean> {
+		const work = this._backgroundWork.get(id);
+		const shellId = work?.kind === BackgroundWorkKind.Shell && canStopBackgroundWork(work) ? readCopilotShellId(work) : undefined;
+		if (shellId === undefined) {
+			return false;
+		}
+		const { cancelled } = await this._wrapper.session.rpc.tasks.cancel({ id: shellId });
+		return cancelled;
+	}
+
 	private _publishBackgroundWork(tasks: Awaited<ReturnType<CopilotSession['rpc']['tasks']['list']>>['tasks']): void {
 		const entries = new Map<string, BackgroundWork>();
 		for (const task of tasks) {
@@ -2257,6 +2273,7 @@ export class CopilotAgentSession extends Disposable {
 	private _toBackgroundWork(task: Awaited<ReturnType<CopilotSession['rpc']['tasks']['list']>>['tasks'][number]): BackgroundWork | undefined {
 		if (task.type === 'shell' && task.executionMode !== 'sync' && (task.status === 'running' || task.status === 'idle')) {
 			const terminal = this._nonPtyShellTerminals.getBackgroundShellTerminal(task.id);
+			const attachment = task.attachmentMode === 'detached' ? 'detached' : 'attached';
 			return {
 				kind: BackgroundWorkKind.Shell,
 				id: `shell:${task.id}`,
@@ -2264,7 +2281,8 @@ export class CopilotAgentSession extends Disposable {
 				command: task.command,
 				startedAt: task.startedAt,
 				...(terminal ? { terminal } : {}),
-				_meta: toCopilotBackgroundShellMeta(task.id, task.attachmentMode === 'detached' ? 'detached' : 'attached'),
+				// Stopping detached shells isn't offered yet.
+				_meta: { ...toCopilotBackgroundShellMeta(task.id, attachment), ...(attachment === 'attached' ? toStoppableBackgroundWorkMeta() : {}) },
 			};
 		}
 		// An idle background agent has already reported back; only a running one will resume the chat.
