@@ -7,7 +7,7 @@ import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSetting
 import { ONBOARDING_TARGET_ATTR } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { SpotlightOverlay } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightOverlay.js';
 import { ComponentFixtureContext, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
-import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_SHOW_EXTERNAL_APPLICATION_BADGE_SETTING } from '../../../../common/sessionConfig.js';
+import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { createSessionArchiveTour } from '../../../onboardingTours/browser/tours/sessionArchiveTour.js';
 import { SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsGrouping } from '../../browser/views/sessionsList.js';
@@ -197,19 +197,42 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		view: { height: 270 },
 		settings: {
 			[SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING]: false,
-			[SESSIONS_LIST_SHOW_EXTERNAL_APPLICATION_BADGE_SETTING]: true,
+			[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING]: ExternalSessionApplicationBadgeMode.Title,
 		},
 	}, {
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		expectedVisualDescriptions: ['External sessions are mixed with the regular session and show a rounded "From [application]" badge after the title.'],
 	}),
+	SessionsList_ExternalApplicationBadgeDetails: defineSessionsListFixture({
+		sessions: EXTERNAL_SESSIONS.filter(session => !session.isArchived),
+		view: { height: 270 },
+		settings: {
+			[SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING]: false,
+			[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING]: ExternalSessionApplicationBadgeMode.Details,
+		},
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['External sessions are mixed with the regular session and show a rounded "From [application]" badge as the first item in the details row.'],
+	}),
+	SessionsList_ExternalApplicationBadgeWithoutFrom: defineSessionsListFixture({
+		sessions: EXTERNAL_SESSIONS.filter(session => !session.isArchived),
+		view: { height: 270 },
+		settings: {
+			[SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING]: false,
+			[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING]: ExternalSessionApplicationBadgeMode.Title,
+			[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING]: false,
+		},
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['External sessions show a rounded application badge after the title without the "From" prefix.'],
+	}),
 	SessionsList_ExternalApplicationBadgeHovered: defineSessionsListFixture({
 		sessions: EXTERNAL_SESSIONS.filter(session => !session.isArchived),
 		view: { height: 270 },
 		settings: {
 			[SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING]: false,
-			[SESSIONS_LIST_SHOW_EXTERNAL_APPLICATION_BADGE_SETTING]: true,
+			[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING]: ExternalSessionApplicationBadgeMode.Title,
 		},
 	}, {
 		labels: { kind: 'screenshot' },
@@ -227,7 +250,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		view: { height: 270 },
 		settings: {
 			[SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING]: false,
-			[SESSIONS_LIST_SHOW_EXTERNAL_APPLICATION_BADGE_SETTING]: true,
+			[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING]: ExternalSessionApplicationBadgeMode.Title,
 		},
 		interaction: { focused: { session: 'external-repo' } },
 	}, {

@@ -65,7 +65,7 @@ import { AgentMergeSessionState } from '../../../../../platform/agentHost/common
 import { getSessionChatDragData, isSessionChatDrag, SessionsDataTransfers } from '../../../../browser/dnd.js';
 import { IsPhoneLayoutContext, IsQuickChatSessionContext, SessionIsArchivedContext, SessionSupportsMultipleChatsContext } from '../../../../common/contextkeys.js';
 import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../../../common/sessionCommands.js';
-import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_SHOW_EXTERNAL_APPLICATION_BADGE_SETTING } from '../../../../common/sessionConfig.js';
+import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import type { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
@@ -1768,45 +1768,56 @@ suite('Sessions - SessionsList', () => {
 				return [name, triggers];
 			}));
 
-			const externalTriggers = () => [
-				`config.${SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING}`,
-				`config.${SESSIONS_LIST_SHOW_EXTERNAL_APPLICATION_BADGE_SETTING}`,
-			];
 			assert.deepStrictEqual(results, {
-				grouped: externalTriggers(),
-				ungrouped: externalTriggers(),
+				grouped: [`config.${SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING}`],
+				ungrouped: [`config.${SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING}`],
 				pinned: [],
 				local: [],
 			});
 		});
 
-		test('shows and announces the creating application only when the external application badge experiment is enabled', () => {
-			const results = [false, true].map(showBadge => {
+		test('renders each external application badge mode and triggers only relevant experiments', () => {
+			const results = ([
+				[ExternalSessionApplicationBadgeMode.Off, true],
+				[ExternalSessionApplicationBadgeMode.Title, true],
+				[ExternalSessionApplicationBadgeMode.Details, true],
+				[ExternalSessionApplicationBadgeMode.Title, false],
+			] as const).map(([mode, showFrom]) => {
 				const session = createTestSession('External session', {
 					application: 'github/cli',
 					environment: 'cloud',
 					isExternal: true,
 				}).session;
 				const { list, triggers, container } = renderList([session], instantiationService => {
-					(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_LIST_SHOW_EXTERNAL_APPLICATION_BADGE_SETTING, showBadge);
+					const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+					configurationService.setUserConfiguration(SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, mode);
+					configurationService.setUserConfiguration(SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, showFrom);
 				});
 				list.layout(300, 400);
-				const badge = container.querySelector<HTMLElement>('.session-external-application-badge.visible');
+				const titleBadge = container.querySelector<HTMLElement>('.session-external-application-badge-title.visible');
+				const detailsBadge = container.querySelector<HTMLElement>('.session-external-application-badge-details');
 				const row = container.querySelector<HTMLElement>('.monaco-list-row[role="treeitem"][aria-level="2"]');
 				return {
-					badge: badge?.textContent,
+					titleBadge: titleBadge?.textContent,
+					detailsBadge: detailsBadge?.textContent,
 					ariaIncludesApplication: row?.getAttribute('aria-label')?.includes('created in Copilot CLI'),
 					triggers,
 				};
 			});
 
-			const triggers = () => [
+			const modeTriggers = () => [
 				`config.${SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING}`,
-				`config.${SESSIONS_LIST_SHOW_EXTERNAL_APPLICATION_BADGE_SETTING}`,
+				`config.${SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING}`,
+			];
+			const visibleBadgeTriggers = () => [
+				...modeTriggers(),
+				`config.${SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING}`,
 			];
 			assert.deepStrictEqual(results, [
-				{ badge: undefined, ariaIncludesApplication: false, triggers: triggers() },
-				{ badge: 'From Copilot CLI', ariaIncludesApplication: true, triggers: triggers() },
+				{ titleBadge: undefined, detailsBadge: undefined, ariaIncludesApplication: false, triggers: modeTriggers() },
+				{ titleBadge: 'From Copilot CLI', detailsBadge: undefined, ariaIncludesApplication: true, triggers: visibleBadgeTriggers() },
+				{ titleBadge: undefined, detailsBadge: 'From Copilot CLI', ariaIncludesApplication: true, triggers: visibleBadgeTriggers() },
+				{ titleBadge: 'Copilot CLI', detailsBadge: undefined, ariaIncludesApplication: true, triggers: visibleBadgeTriggers() },
 			]);
 		});
 

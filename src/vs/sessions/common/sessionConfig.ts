@@ -13,7 +13,15 @@ export const SESSIONS_CHAT_TABS_SETTING = 'sessions.showChatTabs';
 
 export const SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING = 'sessions.list.groupExternalSessions';
 
-export const SESSIONS_LIST_SHOW_EXTERNAL_APPLICATION_BADGE_SETTING = 'sessions.list.showExternalApplicationBadge';
+export const SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING = 'sessions.list.externalApplicationBadge';
+
+export const SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING = 'sessions.list.externalApplicationBadge.showFrom';
+
+export const enum ExternalSessionApplicationBadgeMode {
+	Off = 'off',
+	Title = 'title',
+	Details = 'details',
+}
 
 export const SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING = 'sessions.sidebar.separateNavigation';
 

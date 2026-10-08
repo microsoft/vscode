@@ -265,7 +265,7 @@
 			display: block;
 		}
 
-		.session-external-application-badge {
+		.session-external-application-badge-title {
 			display: none;
 		}
 
@@ -570,22 +570,30 @@
 	}
 
 	.session-external-application-badge {
-		display: none;
+		display: flex;
 		align-items: center;
 		flex-shrink: 0;
-		margin-left: var(--vscode-spacing-size60);
 		box-sizing: border-box;
-		height: 17px;
 		padding: 0 var(--vscode-spacing-size60);
 		border: var(--vscode-strokeThickness) solid var(--vscode-widget-border, var(--vscode-contrastBorder, transparent));
 		border-radius: var(--vscode-cornerRadius-circle);
 		background-color: var(--vscode-list-hoverBackground);
 		color: var(--vscode-descriptionForeground);
 		font-size: var(--vscode-fontSize-label2);
+	}
+
+	.session-external-application-badge-title {
+		display: none;
+		height: 17px;
+		margin-left: var(--vscode-spacing-size60);
 
 		&.visible {
 			display: flex;
 		}
+	}
+
+	.session-external-application-badge-details {
+		height: 15px;
 	}
 
 	.session-description {
@@ -1610,7 +1618,7 @@
 		height: auto;
 	}
 
-	.monaco-list-row .session-external-application-badge {
+	.monaco-list-row .session-external-application-badge-title {
 		display: none;
 	}
 

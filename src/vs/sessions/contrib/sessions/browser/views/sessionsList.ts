@@ -37,7 +37,7 @@ import { IContextKey, IContextKeyService, RawContextKey } from '../../../../../p
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { SessionProviderIdContext, SessionSupportsDeleteContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionTypeContext, IsPhoneLayoutContext, IsQuickChatSessionContext, SessionIsArchivedContext, SessionIsReadContext, SessionHasPullRequestContext, SessionItemIsMultiSelectionContext } from '../../../../common/contextkeys.js';
 import { ARCHIVE_SESSION_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
-import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_SHOW_EXTERNAL_APPLICATION_BADGE_SETTING } from '../../../../common/sessionConfig.js';
+import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -1316,8 +1316,10 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			collapsedSessionIds?: IObservable<ReadonlySet<string>>;
 			onboardingTarget?: IObservable<ISessionOnboardingTarget | undefined>;
 			isRenderedInExternalSection?: (session: ISession) => boolean;
-			showExternalApplicationBadge?: IObservable<boolean>;
-			reportExternalApplicationBadgeExperimentTrigger?: () => void;
+			externalApplicationBadgeMode?: IObservable<ExternalSessionApplicationBadgeMode>;
+			externalApplicationBadgeShowFrom?: IObservable<boolean>;
+			reportExternalApplicationBadgeModeExperimentTrigger?: () => void;
+			reportExternalApplicationBadgeShowFromExperimentTrigger?: () => void;
 		},
 		private readonly approvalModel: AgentSessionApprovalModel | undefined,
 		private readonly ciFixModel: ISessionCIFixModel | undefined,
@@ -1351,7 +1353,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		const titleRow = DOM.append(mainCol, $('.session-title-row'));
 		const titleContainer = DOM.append(titleRow, $('.session-title'));
 		const title = disposables.add(new HighlightedLabel(titleContainer));
-		const externalApplicationBadge = DOM.append(titleRow, $('span.session-external-application-badge'));
+		const externalApplicationBadge = DOM.append(titleRow, $('span.session-external-application-badge.session-external-application-badge-title'));
 		externalApplicationBadge.setAttribute('aria-hidden', 'true');
 		const titleInputContainer = DOM.append(titleRow, $('.session-title-input.session-inline-rename-input'));
 		for (const eventType of ['pointerdown', 'pointerup', 'click', 'dblclick'] as const) {
@@ -1646,14 +1648,20 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			template.title.set(titleText, matches);
 		}));
 		template.elementDisposables.add(autorun(reader => {
-			const isExternal = element.isExternal?.read(reader) === true;
+			const eligible = isExternalApplicationBadgeEligible(element, reader);
 			const application = element.application.read(reader);
-			if (isExternal) {
-				this.options.reportExternalApplicationBadgeExperimentTrigger?.();
+			if (eligible) {
+				this.options.reportExternalApplicationBadgeModeExperimentTrigger?.();
 			}
-			const showBadge = isExternal && this.options.showExternalApplicationBadge?.read(reader) === true;
-			template.externalApplicationBadge.classList.toggle('visible', showBadge);
-			template.externalApplicationBadge.textContent = localize('sessionExternalApplicationBadge', "From {0}", application.label);
+			const mode = this.options.externalApplicationBadgeMode?.read(reader) ?? ExternalSessionApplicationBadgeMode.Off;
+			if (eligible && mode !== ExternalSessionApplicationBadgeMode.Off) {
+				this.options.reportExternalApplicationBadgeShowFromExperimentTrigger?.();
+			}
+			template.externalApplicationBadge.classList.toggle('visible', eligible && mode === ExternalSessionApplicationBadgeMode.Title);
+			template.externalApplicationBadge.textContent = getExternalApplicationBadgeLabel(
+				application.label,
+				this.options.externalApplicationBadgeShowFrom?.read(reader) ?? true,
+			);
 		}));
 		template.elementDisposables.add(autorun(reader => {
 			const editingSession = this.editingSession.read(reader);
@@ -1677,6 +1685,8 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			const workspace = element.workspace.read(reader);
 			const description = element.description.read(reader);
 			const isQuickChat = element.isQuickChat?.read(reader) ?? false;
+			const eligible = isExternalApplicationBadgeEligible(element, reader);
+			const application = element.application.read(reader);
 
 			// Clear and rebuild details row
 			DOM.clearNode(template.detailsRow);
@@ -1717,9 +1727,23 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			const timeDate = mainChat.status.read(reader) === SessionStatus.InProgress ? undefined : mainChat.updatedAt.read(reader);
 
 			const parts: HTMLElement[] = [];
+			if (
+				eligible &&
+				this.options.externalApplicationBadgeMode?.read(reader) === ExternalSessionApplicationBadgeMode.Details
+			) {
+				const badgeEl = DOM.append(template.detailsRow, $('span.session-external-application-badge.session-external-application-badge-details'));
+				badgeEl.textContent = getExternalApplicationBadgeLabel(
+					application.label,
+					this.options.externalApplicationBadgeShowFrom?.read(reader) ?? true,
+				);
+				parts.push(badgeEl);
+			}
 
 			const statusMessage = getSessionStatusMessage(sessionStatus, description);
 			if (sessionStatus !== SessionStatus.InProgress) {
+				if (parts.length > 0) {
+					DOM.append(template.detailsRow, $('span.session-separator.has-separator'));
+				}
 				let icon: ThemeIcon;
 				if (isQuickChat) {
 					icon = Codicon.commentDiscussion;
@@ -2024,6 +2048,14 @@ function getWorkspaceBadgeLabel(workspace: ISessionWorkspace): string | undefine
 		}
 	}
 	return workspace.label;
+}
+
+function isExternalApplicationBadgeEligible(session: ISession, reader: IReader): boolean {
+	return session.isExternal?.read(reader) === true && session.application.read(reader).id !== 'vscode';
+}
+
+function getExternalApplicationBadgeLabel(applicationLabel: string, showFrom: boolean): string {
+	return showFrom ? localize('sessionExternalApplicationBadge', "From {0}", applicationLabel) : applicationLabel;
 }
 
 //#endregion
@@ -2790,8 +2822,9 @@ interface ISessionsAccessibilityProviderOptions extends ICompactInputNeededPrese
 	readonly deriveStatusFromMainChat?: boolean;
 	readonly collapsedSessionIds?: IObservable<ReadonlySet<string>>;
 	readonly approvalModel?: AgentSessionApprovalModel;
-	readonly showExternalApplicationBadge?: IObservable<boolean>;
-	readonly reportExternalApplicationBadgeExperimentTrigger?: () => void;
+	readonly externalApplicationBadgeMode?: IObservable<ExternalSessionApplicationBadgeMode>;
+	readonly reportExternalApplicationBadgeModeExperimentTrigger?: () => void;
+	readonly reportExternalApplicationBadgeShowFromExperimentTrigger?: () => void;
 }
 
 class SessionsAccessibilityProvider {
@@ -2926,11 +2959,13 @@ class SessionsAccessibilityProvider {
 			if (this.options?.deriveStatusFromMainChat) {
 				label = localize('sessionItemStatusAria', "{0}, {1}", label, getSessionConversationStatusAriaLabel(status));
 			}
-			const isExternal = element.isExternal?.read(reader) === true;
-			if (isExternal) {
-				this.options?.reportExternalApplicationBadgeExperimentTrigger?.();
+			const eligible = isExternalApplicationBadgeEligible(element, reader);
+			if (eligible) {
+				this.options?.reportExternalApplicationBadgeModeExperimentTrigger?.();
 			}
-			if (isExternal && this.options?.showExternalApplicationBadge?.read(reader)) {
+			const badgeMode = this.options?.externalApplicationBadgeMode?.read(reader) ?? ExternalSessionApplicationBadgeMode.Off;
+			if (eligible && badgeMode !== ExternalSessionApplicationBadgeMode.Off) {
+				this.options?.reportExternalApplicationBadgeShowFromExperimentTrigger?.();
 				label = localize('sessionItemExternalAria', "{0}, created in {1}", label, element.application.read(reader).label);
 			}
 			if (!element.isArchived.read(reader) && !getSessionRowIsRead(element, reader, !!this.options?.deriveStatusFromMainChat)) {
@@ -3722,8 +3757,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// TEMPORARY (#320480): see the note on the `IAgentSessionsService` import.
 		const agentSessionsService = instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService));
 		const voicePlaybackService = instantiationService.invokeFunction(accessor => accessor.get(IVoicePlaybackService));
-		const showExternalApplicationBadge = observableConfigValue(SESSIONS_LIST_SHOW_EXTERNAL_APPLICATION_BADGE_SETTING, false, this.configurationService);
-		const reportExternalApplicationBadgeExperimentTrigger = () => logSettingExperimentTrigger(this.telemetryService, SESSIONS_LIST_SHOW_EXTERNAL_APPLICATION_BADGE_SETTING);
+		const externalApplicationBadgeMode = observableConfigValue(SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, ExternalSessionApplicationBadgeMode.Off, this.configurationService);
+		const externalApplicationBadgeShowFrom = observableConfigValue(SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, true, this.configurationService);
+		const reportExternalApplicationBadgeModeExperimentTrigger = () => logSettingExperimentTrigger(this.telemetryService, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING);
+		const reportExternalApplicationBadgeShowFromExperimentTrigger = () => logSettingExperimentTrigger(this.telemetryService, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING);
 		const sessionRenderer = new SessionItemRenderer(
 			{
 				grouping: this.options.grouping,
@@ -3749,8 +3786,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 				activeGuideSessionIds: this.activeGuideSessionIds,
 				deriveStatusFromMainChat: true,
 				activeSession: this._sessionsService.activeSession,
-				showExternalApplicationBadge,
-				reportExternalApplicationBadgeExperimentTrigger,
+				externalApplicationBadgeMode,
+				externalApplicationBadgeShowFrom,
+				reportExternalApplicationBadgeModeExperimentTrigger,
+				reportExternalApplicationBadgeShowFromExperimentTrigger,
 				collapsedSessionIds: this.collapsedSessionIds,
 				onboardingTarget: this.onboardingTarget,
 			},
@@ -3943,8 +3982,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 					collapsedSessionIds: this.collapsedSessionIds,
 					showUnreadInCollapsedSections,
 					sessionsWithFailingCI,
-					showExternalApplicationBadge,
-					reportExternalApplicationBadgeExperimentTrigger,
+					externalApplicationBadgeMode,
+					reportExternalApplicationBadgeModeExperimentTrigger,
+					reportExternalApplicationBadgeShowFromExperimentTrigger,
 				}),
 				dnd: this._register(new SessionsListDragAndDrop({
 					isReorderable: session => this.isReorderable(session),
@@ -6607,8 +6647,10 @@ export class SessionsFlatList extends Disposable {
 		// the only reference. See the note on the `IAgentSessionsService` import.
 		const agentSessionsService = instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService));
 		const useCompactQuickChatRows = this.options.useCompactQuickChatRows ?? true;
-		const showExternalApplicationBadge = observableConfigValue(SESSIONS_LIST_SHOW_EXTERNAL_APPLICATION_BADGE_SETTING, false, configurationService);
-		const reportExternalApplicationBadgeExperimentTrigger = () => logSettingExperimentTrigger(telemetryService, SESSIONS_LIST_SHOW_EXTERNAL_APPLICATION_BADGE_SETTING);
+		const externalApplicationBadgeMode = observableConfigValue(SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, ExternalSessionApplicationBadgeMode.Off, configurationService);
+		const externalApplicationBadgeShowFrom = observableConfigValue(SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, true, configurationService);
+		const reportExternalApplicationBadgeModeExperimentTrigger = () => logSettingExperimentTrigger(telemetryService, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING);
+		const reportExternalApplicationBadgeShowFromExperimentTrigger = () => logSettingExperimentTrigger(telemetryService, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING);
 
 		const sessionRenderer = new SessionItemRenderer(
 			{
@@ -6627,8 +6669,10 @@ export class SessionsFlatList extends Disposable {
 				toolbarTelemetrySource: this.options.toolbarTelemetrySource ?? 'sessionsFlatList.row',
 				inlineRename: false,
 				handleToolbarAction: this.options.onToolbarAction,
-				showExternalApplicationBadge,
-				reportExternalApplicationBadgeExperimentTrigger,
+				externalApplicationBadgeMode,
+				externalApplicationBadgeShowFrom,
+				reportExternalApplicationBadgeModeExperimentTrigger,
+				reportExternalApplicationBadgeShowFromExperimentTrigger,
 			},
 			approvalModel,
 			this.options.ciFixModel,
@@ -6660,8 +6704,9 @@ export class SessionsFlatList extends Disposable {
 					grouping: () => SessionsGrouping.Date,
 					isPinned: session => this._sessionsListModelService.isSessionPinned(session),
 					includeQuickChatInAriaLabel: !useCompactQuickChatRows,
-					showExternalApplicationBadge,
-					reportExternalApplicationBadgeExperimentTrigger,
+					externalApplicationBadgeMode,
+					reportExternalApplicationBadgeModeExperimentTrigger,
+					reportExternalApplicationBadgeShowFromExperimentTrigger,
 				}),
 				identityProvider: {
 					getId: (element: SessionListItem) => (element as ISession).resource.toString(),
