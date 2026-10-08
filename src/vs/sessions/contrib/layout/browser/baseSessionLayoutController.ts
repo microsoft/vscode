@@ -47,7 +47,7 @@ import { IActiveSession, ISessionsManagementService } from '../../../services/se
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ChatLayoutOwnerKeyRegistry } from './chatLayoutOwnerKeys.js';
-import { ISessionEditorWorkingSetOwner, ISessionEditorWorkingSetService } from '../common/sessionEditorWorkingSet.js';
+import { ISessionEditorWorkingSetOwner, ISessionEditorWorkingSetRestore, ISessionEditorWorkingSetService } from '../common/sessionEditorWorkingSet.js';
 
 const secondarySidebarToggleClosedIcon = registerIcon('agent-secondary-sidebar-toggle-closed', Codicon.layoutSidebarRightOff, localize('agentSecondarySidebarToggleClosedIcon', "Icon for the sessions secondary sidebar when closed."));
 const secondarySidebarToggleOpenIcon = registerIcon('agent-secondary-sidebar-toggle-open', Codicon.layoutSidebarRight, localize('agentSecondarySidebarToggleOpenIcon', "Icon for the sessions secondary sidebar when open."));
@@ -91,9 +91,8 @@ interface IEditorWorkingSetTarget {
 
 interface IPendingEditorWorkingSetRestore {
 	readonly key: URI | undefined;
-	readonly owner: ISessionEditorWorkingSetOwner | undefined;
 	readonly isInitialRestore: boolean;
-	readonly restore: IDisposable;
+	readonly restore: ISessionEditorWorkingSetRestore;
 }
 
 function isValidEditorWorkingSet(value: unknown): value is IEditorWorkingSet {
@@ -159,6 +158,11 @@ export abstract class BaseLayoutController extends Disposable {
 	protected readonly _editorPartHiddenBySession = new ResourceMap<boolean>();
 	private readonly _workingSetSequencer = new Sequencer();
 	private _pendingEditorWorkingSetRestore: IPendingEditorWorkingSetRestore | undefined;
+	/**
+	 * Applies queued on {@link _workingSetSequencer} that have not finished. Any newer
+	 * restore supersedes their restores, so they skip unless they already began.
+	 */
+	private _queuedEditorWorkingSetApplies = 0;
 	private _settledEditorWorkingSetKey: URI | undefined;
 	private readonly _chatLayoutOwnerKeys = new ChatLayoutOwnerKeyRegistry();
 	private readonly _replacedSessionResources = new ResourceSet();
@@ -537,7 +541,9 @@ export abstract class BaseLayoutController extends Disposable {
 		}));
 
 		this._register(runOnChange(activeEditorWorkingSetTarget, (current, previous) => {
-			const shouldApply = !!previous.session || (!!current.key && this._workingSets.has(current.key));
+			// Settling an owner without an apply supersedes queued applies, so only
+			// settle once none remain.
+			const shouldApply = !!previous.session || (!!current.key && this._workingSets.has(current.key)) || this._queuedEditorWorkingSetApplies !== 0;
 			if (!shouldApply) {
 				const previousPending = this._pendingEditorWorkingSetRestore;
 				this._pendingEditorWorkingSetRestore = undefined;
@@ -548,7 +554,6 @@ export abstract class BaseLayoutController extends Disposable {
 			}
 			const pending: IPendingEditorWorkingSetRestore = {
 				key: current.key,
-				owner: current.owner,
 				isInitialRestore: !previous.session,
 				restore: this._editorWorkingSetService.beginRestore(current.owner),
 			};
@@ -558,7 +563,9 @@ export abstract class BaseLayoutController extends Disposable {
 			if (previous.session && isEqual(current.key, currentWorkingSetTarget.key)) {
 				const immediate = this._takePendingEditorWorkingSetRestore(current.key);
 				if (immediate) {
-					if (isEqual(current.key, this._settledEditorWorkingSetKey)) {
+					// Reapply a settled owner. An unsettled owner needs this apply only while
+					// queued applies remain, because this newer restore makes them skip.
+					if (isEqual(current.key, this._settledEditorWorkingSetKey) || this._queuedEditorWorkingSetApplies !== 0) {
 						this._applyPendingEditorWorkingSetRestore(immediate);
 					} else {
 						immediate.restore.dispose();
@@ -581,7 +588,6 @@ export abstract class BaseLayoutController extends Disposable {
 			}
 			this._applyPendingEditorWorkingSetRestore(pending ?? {
 				key: current.key,
-				owner: current.owner,
 				isInitialRestore: !previous.session,
 				restore: this._editorWorkingSetService.beginRestore(current.owner),
 			});
@@ -681,10 +687,12 @@ export abstract class BaseLayoutController extends Disposable {
 	}
 
 	private _applyPendingEditorWorkingSetRestore(pending: IPendingEditorWorkingSetRestore): void {
+		this._queuedEditorWorkingSetApplies++;
 		this._withSessionLayoutRestore(async () => {
 			try {
-				await this._applyWorkingSet(pending.key, pending.owner, { isInitialRestore: pending.isInitialRestore });
+				await this._applyWorkingSet(pending.key, pending.restore, { isInitialRestore: pending.isInitialRestore });
 			} finally {
+				this._queuedEditorWorkingSetApplies--;
 				pending.restore.dispose();
 				if (!this._editorWorkingSetService.restoreState.get().restoring) {
 					this._settledEditorWorkingSetKey = pending.key;
@@ -1197,7 +1205,7 @@ export abstract class BaseLayoutController extends Disposable {
 
 	// --- Editor working sets [B2] ---
 
-	private async _applyWorkingSet(sessionResource: URI | undefined, owner: ISessionEditorWorkingSetOwner | undefined, options?: { readonly isInitialRestore?: boolean }): Promise<void> {
+	private async _applyWorkingSet(sessionResource: URI | undefined, restore: ISessionEditorWorkingSetRestore, options?: { readonly isInitialRestore?: boolean }): Promise<void> {
 		// Restoring a session's editor working set must never pull keyboard focus
 		// into the editor area. Focus during a session switch is owned by the
 		// switch itself (it moves focus into the active session's chat input, or
@@ -1214,7 +1222,7 @@ export abstract class BaseLayoutController extends Disposable {
 		const isStaleChatOwner = (): boolean => !!chatLayoutSnapshot?.owner && !this._chatLayoutContext!.isCurrent(chatLayoutSnapshot);
 
 		return this._workingSetSequencer.queue(async () => {
-			if (isStaleChatOwner() || !this._editorWorkingSetService.beginApply(owner)) {
+			if (isStaleChatOwner() || !this._editorWorkingSetService.beginApply(restore)) {
 				return;
 			}
 			// When multiple sessions are visible, applying a working set must never

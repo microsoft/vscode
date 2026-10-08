@@ -7,6 +7,7 @@ import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { runOnChange } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -58,6 +59,17 @@ suite('BaseLayoutController', () => {
 	function describeWorkingSetRestore() {
 		const { owner, restoring, applying } = harness.editorWorkingSetService.restoreState.get();
 		return { owner: owner && { session: owner.sessionResource.toString(), chat: owner.chatResource?.toString() }, restoring, applying };
+	}
+
+	/** Records the restore state each time a working-set apply begins. */
+	function recordWorkingSetApplyStarts(): ReturnType<typeof describeWorkingSetRestore>[] {
+		const starts: ReturnType<typeof describeWorkingSetRestore>[] = [];
+		store.add(runOnChange(harness.editorWorkingSetService.restoreState, (state, previous) => {
+			if (state.applying && !previous.applying) {
+				starts.push(describeWorkingSetRestore());
+			}
+		}));
+		return starts;
 	}
 
 	// --- [B1] Panel visibility ---
@@ -442,6 +454,53 @@ suite('BaseLayoutController', () => {
 		});
 	});
 
+	test('[B2] only the most recent working-set restore may begin applying, and only once', () => {
+		const service = new SessionEditorWorkingSetService();
+		const a = { sessionResource: URI.parse('session:a'), chatResource: undefined };
+		const b = { sessionResource: URI.parse('session:b'), chatResource: undefined };
+		const applyStarts: string[] = [];
+		store.add(runOnChange(service.restoreState, (state, previous) => {
+			if (state.applying && !previous.applying) {
+				applyStarts.push(state.owner?.sessionResource.toString() ?? 'none');
+			}
+		}));
+
+		const supersededSameOwner = service.beginRestore(a);
+		const supersededOtherOwner = service.beginRestore(b);
+		const latest = service.beginRestore(a);
+		const began: Record<string, boolean> = {};
+		began.supersededSameOwner = service.beginApply(supersededSameOwner);
+		began.supersededOtherOwner = service.beginApply(supersededOtherOwner);
+		began.latest = service.beginApply(latest);
+		began.latestAgain = service.beginApply(latest);
+		const settledBeforeApply = service.beginRestore(b);
+		settledBeforeApply.dispose();
+		began.settledBeforeApply = service.beginApply(settledBeforeApply);
+		const nextForSameOwner = service.beginRestore(a);
+		began.nextForSameOwner = service.beginApply(nextForSameOwner);
+		const supersededBySettledOwner = service.beginRestore(a);
+		service.setCurrentOwner(a);
+		began.supersededBySettledOwner = service.beginApply(supersededBySettledOwner);
+		for (const restore of [supersededSameOwner, supersededOtherOwner, latest, nextForSameOwner, supersededBySettledOwner]) {
+			restore.dispose();
+		}
+		const { owner, restoring, applying } = service.restoreState.get();
+
+		assert.deepStrictEqual({ began, applyStarts, settled: { owner: owner?.sessionResource.toString(), restoring, applying } }, {
+			began: {
+				supersededSameOwner: false,
+				supersededOtherOwner: false,
+				latest: true,
+				latestAgain: false,
+				settledBeforeApply: false,
+				nextForSameOwner: true,
+				supersededBySettledOwner: false,
+			},
+			applyStarts: ['session:a', 'session:a'],
+			settled: { owner: 'session:a', restoring: false, applying: false },
+		});
+	});
+
 	test('[B2] does not reveal the editor part on reload when its working set is restored but the part was hidden', async () => {
 		const workspaceFolders = [{ uri: URI.file('/repo') }];
 
@@ -774,6 +833,115 @@ suite('BaseLayoutController', () => {
 		await timeout(0);
 
 		assert.deepStrictEqual(describeWorkingSetRestore(), { owner: { session: 'session:a', chat: 'chat:peer' }, restoring: false, applying: false });
+	});
+
+	test('[B2] skips superseded queued applies, including a duplicate for the current owner, after a slow apply', async () => {
+		createController({ useModal: 'some', workspaceFolders: [{ uri: URI.file('/repo') }] });
+		const sessionA = makeSession(URI.parse('session:a'));
+		const sessionB = makeSession(URI.parse('session:b'));
+		harness.visibleEditorsList = [{}];
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+		harness.applyWorkingSetCalls = [];
+		const applyStarts = recordWorkingSetApplyStarts();
+		// Queue A-B-A behind B's still-running apply.
+		harness.onApplyWorkingSet = () => {
+			harness.onApplyWorkingSet = undefined;
+			for (const session of [sessionA, sessionB, sessionA]) {
+				harness.activeSessionObs.set(session, undefined);
+			}
+		};
+
+		harness.activeSessionObs.set(sessionB, undefined);
+		await timeout(0);
+
+		const workingSetA = `session-working-set:${sessionA.resource.toString()}`;
+		assert.deepStrictEqual({ applies: harness.applyWorkingSetCalls, applyStarts, settled: describeWorkingSetRestore() }, {
+			applies: ['empty', { id: workingSetA, name: workingSetA }],
+			applyStarts: [
+				{ owner: { session: 'session:b', chat: undefined }, restoring: true, applying: true },
+				{ owner: { session: 'session:a', chat: undefined }, restoring: true, applying: true },
+			],
+			settled: { owner: { session: 'session:a', chat: undefined }, restoring: false, applying: false },
+		});
+	});
+
+	test('[B2] returning to a hydrated owner whose queued apply was superseded applies its working set once', async () => {
+		const otherWorkspace = {
+			uri: URI.file('/other'),
+			label: 'other',
+			icon: Codicon.repo,
+			folders: [{ root: URI.file('/other'), workingDirectory: URI.file('/other'), name: 'other', description: undefined, gitRepository: undefined }],
+			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: false,
+		};
+		createController({ useModal: 'some', workspaceFolders: [{ uri: URI.file('/repo') }] });
+		const sessionA = makeSession(URI.parse('session:a'));
+		const sessionP = makeSession(URI.parse('session:p'));
+		const sessionQ = makeSession(URI.parse('session:q'));
+		const hydratingB = makeSession(URI.parse('session:b'), { workspace: otherWorkspace });
+		harness.visibleEditorsList = [{}];
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+		harness.activeSessionObs.set(sessionP, undefined);
+		await timeout(0);
+		harness.applyWorkingSetCalls = [];
+		const applyStarts = recordWorkingSetApplyStarts();
+		// While Q applies, queue A, then leave for a hydrating owner and return to A.
+		harness.onApplyWorkingSet = () => {
+			harness.onApplyWorkingSet = undefined;
+			for (const session of [sessionA, hydratingB, sessionA]) {
+				harness.activeSessionObs.set(session, undefined);
+			}
+		};
+
+		harness.activeSessionObs.set(sessionQ, undefined);
+		await timeout(0);
+
+		const workingSetA = `session-working-set:${sessionA.resource.toString()}`;
+		assert.deepStrictEqual({ applies: harness.applyWorkingSetCalls, applyStarts, settled: describeWorkingSetRestore() }, {
+			applies: ['empty', { id: workingSetA, name: workingSetA }],
+			applyStarts: [
+				{ owner: { session: 'session:q', chat: undefined }, restoring: true, applying: true },
+				{ owner: { session: 'session:a', chat: undefined }, restoring: true, applying: true },
+			],
+			settled: { owner: { session: 'session:a', chat: undefined }, restoring: false, applying: false },
+		});
+	});
+
+	test('[B2] an owner without a working set applies instead of settling while superseded applies are queued', async () => {
+		createController({ useModal: 'some', workspaceFolders: [{ uri: URI.file('/repo') }] });
+		const sessionA = makeSession(URI.parse('session:a'));
+		const sessionP = makeSession(URI.parse('session:p'));
+		const sessionC = makeSession(URI.parse('session:c'));
+		harness.visibleEditorsList = [{}];
+		harness.activeGroupEditors = [store.add(new TestStubEditorInput(URI.file('/repo/a.txt')))];
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+		harness.activeSessionObs.set(sessionP, undefined);
+		await timeout(0);
+		harness.applyWorkingSetCalls = [];
+		// While A's editors are restored, queue C, clear the active session, and return to C.
+		harness.onApplyWorkingSet = () => {
+			harness.onApplyWorkingSet = undefined;
+			for (const session of [sessionC, undefined, sessionC]) {
+				harness.activeSessionObs.set(session, undefined);
+			}
+		};
+
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+
+		const workingSetA = `session-working-set:${sessionA.resource.toString()}`;
+		assert.deepStrictEqual({
+			applies: harness.applyWorkingSetCalls,
+			editors: harness.activeGroupEditors.map(editor => editor.resource?.toString()),
+			settled: describeWorkingSetRestore(),
+		}, {
+			applies: [{ id: workingSetA, name: workingSetA }, 'empty'],
+			editors: [],
+			settled: { owner: { session: 'session:c', chat: undefined }, restoring: false, applying: false },
+		});
 	});
 
 	test('[R4] a superseded working-set apply does not publish stale reveal/hide once the chat-layout owner has moved on', async () => {
