@@ -58,6 +58,14 @@ import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agent
 suite('aiCustomizationManagementEditor', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('keeps the customization editor modal', () => {
+		const input = store.add(new AICustomizationManagementEditorInput());
+		assert.deepStrictEqual(input.getModalEditorOptions(), {
+			compactHeader: true,
+			canMoveToEditorArea: false,
+		});
+	});
+
 	test('includes the customization target in the modal title', () => {
 		const input = store.add(new AICustomizationManagementEditorInput());
 		const labels = [[input.getName(), input.getDescription()]];
