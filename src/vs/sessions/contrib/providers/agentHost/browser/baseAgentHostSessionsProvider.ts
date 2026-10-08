@@ -4171,7 +4171,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	private readonly _activeClientSyncCancellation = this._register(new MutableDisposable<ActiveClientSyncCancellationTokenSource>());
 	private _activeSessionScopeSessionType: string | undefined;
 	private _activeSessionScopeRoots: readonly URI[] | undefined;
-	private _lastPublishedActiveClient: { connection: IAgentConnection; sessionId: string; activeClient: SessionActiveClient } | undefined;
 
 	constructor(
 		@IChatSessionsService protected readonly _chatSessionsService: IChatSessionsService,
@@ -4572,13 +4571,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 
 		const activeClient = scope.activeClient(connection.clientId).get();
-		const existing = this._lastSessionStates.get(cached.sessionId)?.activeClients.find(client => client.clientId === activeClient.clientId);
-		const lastPublished = this._lastPublishedActiveClient;
-		if (equals(existing, activeClient) || (lastPublished?.connection === connection && lastPublished.sessionId === cached.sessionId && equals(lastPublished.activeClient, activeClient))) {
+		const subscriptionState = connection.getSubscriptionUnmanaged(StateComponents.Session, cached.backendUri)?.value;
+		const existing = subscriptionState && !(subscriptionState instanceof Error)
+			? subscriptionState.activeClients.find(client => client.clientId === activeClient.clientId)
+			: undefined;
+		if (equals(existing, activeClient)) {
 			return;
 		}
 
-		this._lastPublishedActiveClient = { connection, sessionId: cached.sessionId, activeClient };
 		connection.dispatch(cached.backendUri.toString(), {
 			type: ActionType.SessionActiveClientSet,
 			activeClient,
@@ -7493,13 +7493,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 */
 	private _applySessionStateUpdate(sessionId: string, state: SessionState): void {
 		const previous = this._lastSessionStates.get(sessionId);
-		const lastPublished = this._lastPublishedActiveClient;
-		const publishedClientRemoved = lastPublished?.sessionId === sessionId
-			&& previous?.activeClients.some(client => client.clientId === lastPublished.activeClient.clientId)
-			&& !state.activeClients.some(client => client.clientId === lastPublished.activeClient.clientId);
-		if (publishedClientRemoved) {
-			this._lastPublishedActiveClient = undefined;
-		}
+		const connection = this.connection;
+		const activeClientRemoved = connection !== undefined
+			&& previous?.activeClients.some(client => client.clientId === connection.clientId)
+			&& !state.activeClients.some(client => client.clientId === connection.clientId);
 		// Any folder's Agent Merge settings, including those written by earlier versions.
 		const agentMergeSettings = () => [...readAgentMergeFolderStates(this._getAgentMergeValues(sessionId), '').entries()]
 			.map(([key, folderState]) => ({ key, enabled: folderState.enabled, overrides: folderState.overrides }));
@@ -7529,7 +7526,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (agentMergeSettingsChanged) {
 			this._onDidChangeAgentMergeSessionState.fire(sessionId);
 		}
-		if (publishedClientRemoved) {
+		if (activeClientRemoved) {
 			this._syncActiveClient();
 		}
 	}
@@ -8174,9 +8171,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._observedAgentMergeSessionStates.delete(stateOwner.sessionId);
 		this._agentMergeFolders.delete(stateOwner.sessionId);
 		this._lastSessionStates.delete(stateOwner.sessionId);
-		if (this._lastPublishedActiveClient?.sessionId === stateOwner.sessionId) {
-			this._lastPublishedActiveClient = undefined;
-		}
 		return cached;
 	}
 

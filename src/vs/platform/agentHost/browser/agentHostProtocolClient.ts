@@ -286,7 +286,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	}
 
 	private readonly _subscriptionManager: AgentSubscriptionManager;
-	private readonly _lastActiveClientDispatches = new Map<string, string>();
+	private readonly _lastActiveClientDispatches = new Map<string, { readonly serialized: string; readonly clientSeq: number }>();
 
 	private readonly _onDidAction = this._register(new Emitter<ActionEnvelope>());
 	readonly onDidAction = this._onDidAction.event;
@@ -511,13 +511,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			this._subscriptionManager.receiveEnvelope(envelope);
 			if (envelope.action.type === ActionType.SessionActiveClientSet) {
 				const key = this._activeClientDispatchKey(envelope.channel, envelope.action.activeClient.clientId);
-				const serialized = stableStringify(envelope.action.activeClient);
-				if (envelope.rejectionReason) {
-					if (this._lastActiveClientDispatches.get(key) === serialized) {
-						this._lastActiveClientDispatches.delete(key);
-					}
-				} else {
-					this._lastActiveClientDispatches.set(key, serialized);
+				const pending = this._lastActiveClientDispatches.get(key);
+				if (envelope.origin?.clientId === this._clientId && pending?.clientSeq === envelope.origin.clientSeq) {
+					this._lastActiveClientDispatches.delete(key);
 				}
 			} else if (envelope.action.type === ActionType.SessionActiveClientRemoved && !envelope.rejectionReason) {
 				this._lastActiveClientDispatches.delete(this._activeClientDispatchKey(envelope.channel, envelope.action.clientId));
@@ -1509,10 +1505,14 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			const state = this.getSubscriptionUnmanaged<SessionState>(StateComponents.Session, URI.parse(channel))?.verifiedValue;
 			const existing = state?.activeClients.find(client => client.clientId === action.activeClient.clientId);
 			const serialized = stableStringify(action.activeClient);
-			if (equals(existing, action.activeClient) || this._lastActiveClientDispatches.get(key) === serialized) {
+			const pending = this._lastActiveClientDispatches.get(key);
+			if (pending ? pending.serialized === serialized : equals(existing, action.activeClient)) {
 				return;
 			}
-			this._lastActiveClientDispatches.set(key, serialized);
+			const seq = this._subscriptionManager.dispatchOptimistic(channel, action);
+			this._lastActiveClientDispatches.set(key, { serialized, clientSeq: seq });
+			this.dispatchAction(channel, action, this._clientId, seq);
+			return;
 		}
 		const seq = this._subscriptionManager.dispatchOptimistic(channel, action);
 		this.dispatchAction(channel, action, this._clientId, seq);

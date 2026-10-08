@@ -524,6 +524,39 @@ suite('AgentHostProtocolClient', () => {
 			).length, 2);
 		});
 
+		test('prefers the latest pending active client over stale confirmed state', async () => {
+			const { client, transport } = await createSubscribedClient();
+			const activeClient = (displayName: string): SessionActiveClientSetAction => ({
+				type: ActionType.SessionActiveClientSet,
+				activeClient: {
+					clientId: client.clientId,
+					displayName,
+					tools: [],
+					customizations: [],
+				},
+			});
+			const first = activeClient('A');
+			client.dispatch(channel, first);
+			const firstDispatch = getDispatch(transport);
+			assert.ok(firstDispatch);
+			echo(client, transport, firstDispatch);
+
+			client.dispatch(channel, activeClient('B'));
+			client.dispatch(channel, first);
+			const dispatches = transport.sentMessages
+				.filter((message): message is JsonRpcNotification =>
+					hasKey(message, { method: true })
+					&& message.method === 'dispatchAction'
+					&& (message.params as DispatchActionParams).channel === channel
+					&& (message.params as DispatchActionParams).action.type === ActionType.SessionActiveClientSet
+				);
+			echo(client, transport, dispatches[1].params as DispatchActionParams, { rejectionReason: 'Older publication rejected' });
+			client.dispatch(channel, first);
+
+			assert.deepStrictEqual(dispatches
+				.map(message => ((message.params as DispatchActionParams).action as SessionActiveClientSetAction).activeClient.displayName), ['A', 'B', 'A']);
+		});
+
 		test('waits for the held snapshot before dispatching and preserves opaque host identity', async () => {
 			const { client, transport, ref, initialize } = await createSubscribedClient(false);
 			const confirmed = client.dispatchConfirmed(channel, ref.object, action, CancellationToken.None);
