@@ -102,7 +102,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
     "@devcontainers/cli": "0.88.0",
-    "@github/copilot-sdk": "1.0.18-preview.4",
+    "@github/copilot-sdk": "1.0.18",
     "@hpke/core": "^1.9.0",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
@@ -328,5 +328,5 @@
     "@vscode/windows-process-tree@0.8.0": true,
     "node-pty@1.1.0": true
   },
-  "copilotRuntimeVersion": "1.0.94-4"
+  "copilotRuntimeVersion": "1.0.94"
 }
