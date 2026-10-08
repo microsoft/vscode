@@ -48,7 +48,9 @@ class MissionControlLane extends Disposable implements IProtocolTransport {
 	readonly transportKind = AgentHostTransportKind.WebSocket;
 	get relayClientId(): string { return this.clientId; }
 	get relayPassive(): boolean { return this.passive; }
-	get relayAuthenticated(): boolean | undefined { return this._authentication?.authenticated; }
+	get relayAuthentication(): IProtocolTransport['relayAuthentication'] {
+		return this._authentication ? { authenticated: this._authentication.authenticated, resource: this._authentication.resource } : undefined;
+	}
 	get relayHandshakeMeta(): Record<string, unknown> | undefined {
 		return { ...this._authentication?.handshakeMeta, 'copilot.keepAliveTimeoutMs': relayKeepAliveTimeoutMs, ...(this.passive ? { 'copilot.passive': true } : {}) };
 	}

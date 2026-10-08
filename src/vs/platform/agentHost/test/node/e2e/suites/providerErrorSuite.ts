@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mkdtempSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -13,6 +12,7 @@ import { buildDefaultChatUri, TurnState } from '../../../../common/state/session
 import { createRealSession, dispatchTurn, driveTurnToCompletion, getMarkdownResponseText } from '../harness/agentHostE2ETestHarness.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 const RECORD = process.env['AGENT_HOST_REPLAY_RECORD'] === '1' || process.env['AGENT_HOST_UPDATE_SNAPSHOTS'] === '1';
 
@@ -33,7 +33,7 @@ export function defineProviderErrorTests(context: IAgentHostE2ETestContext): voi
 		// Claude can complete an endpoint-not-found turn without a response or an error.
 		(context.config.provider !== 'claude' || status !== 404 || context.runKnownIssueTests ? test : test.skip)(`provider errors: ${title}`, async function () {
 			this.timeout(180_000);
-			const workspace = mkdtempSync(join(tmpdir(), 'ahp-provider-error-'));
+			const workspace = createTestDirectory(join(tmpdir(), 'ahp-provider-error-'));
 			context.tempDirs.push(workspace);
 			const session = await createRealSession(context.client, context.config, `provider-error-${status}-${context.config.provider}`, context.createdSessions, URI.file(workspace));
 			await driveTurnToCompletion(context.client, session, 'before-error', 'Reply exactly "READY".', 1);
