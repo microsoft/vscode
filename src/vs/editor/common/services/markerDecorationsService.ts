@@ -144,7 +144,7 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 
 class MarkerDecorations extends Disposable {
 
-	public static readonly MAX_MARKER_DECORATIONS_LIMIT = 500;
+	public static readonly MAX_MARKER_DECORATIONS_LIMIT = 5000;
 
 	private readonly _map = new BidirectionalMap<IMarker, /*decoration id*/string>();
 
