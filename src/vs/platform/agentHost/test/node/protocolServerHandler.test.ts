@@ -6118,6 +6118,51 @@ suite('ProtocolServerHandler', () => {
 			});
 		}
 
+		for (const outcome of ['success', 'failure'] as const) {
+			test(`blocked reconnect suppresses future routing until chat restore settles with ${outcome}`, async () => {
+				createSessionWithClientTools();
+				const transport = connectClient(clientId, [sessionUri, defaultChatUri]);
+				await handler.whenIdle();
+				transport.simulateClose();
+				const barrier = new DeferredPromise<void>();
+				agentService.subscribeBarriers.set(defaultChatUri, barrier);
+				const reconnected = new MockProtocolTransport();
+				server.simulateConnection(reconnected);
+				const response = waitForResponse(reconnected, 1);
+				reconnected.simulateMessage(request(1, 'reconnect', {
+					clientId,
+					lastSeenServerSeq: stateManager.serverSeq,
+					subscriptions: [sessionUri, defaultChatUri],
+				}));
+				await Promise.resolve();
+				const duringRestore = {
+					membership: stateManager.getSessionState(sessionUri)?.activeClients.map(client => client.clientId),
+					routing: agentService.clientChatSubscriptions.filter(subscription => subscription.chat === defaultChatUri).at(-1)?.subscribed,
+					statuses: toolStatuses(),
+				};
+				if (outcome === 'failure') {
+					await barrier.error(new ProtocolError(AhpErrorCodes.NotFound, 'Restore failed'));
+				} else {
+					await barrier.complete();
+				}
+				await response;
+
+				assert.deepStrictEqual({
+					duringRestore,
+					membership: stateManager.getSessionState(sessionUri)?.activeClients.map(client => client.clientId),
+					routing: agentService.clientChatSubscriptions.filter(subscription => subscription.chat === defaultChatUri).at(-1)?.subscribed,
+					statuses: toolStatuses(),
+				}, {
+					duringRestore: { membership: [clientId], routing: false, statuses: [ToolCallStatus.Streaming, ToolCallStatus.Completed] },
+					membership: [clientId],
+					routing: outcome === 'success',
+					statuses: outcome === 'success'
+						? [ToolCallStatus.Streaming, ToolCallStatus.Completed]
+						: [ToolCallStatus.Completed, ToolCallStatus.Completed],
+				});
+			});
+		}
+
 		for (const retainedChat of [defaultChatUri, peerChatUri, sessionUri]) {
 			for (const overlappingConnection of [false, true]) {
 				test(`reconnect retaining only ${retainedChat === sessionUri ? 'session' : retainedChat === defaultChatUri ? 'main chat' : 'peer chat'}${overlappingConnection ? ' on another connection' : ''} preserves membership and scopes tool routing`, async () => {

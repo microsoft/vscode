@@ -1079,7 +1079,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		const missing: string[] = [];
 		const restoredUris = new Set<string>();
 		const pendingSubscriptions: { readonly pending: ChannelSubscription; readonly active: ChannelSubscription }[] = [];
-		const snapshots = await Promise.all(params.subscriptions.map(async sub => {
+		const restores = params.subscriptions.map(async sub => {
 			const key = sub.toString();
 			const classified = classifyChannel(key);
 			if (!classified) {
@@ -1146,7 +1146,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				this._clearBaselineDebt(client.clientId, classified.uri);
 				return undefined;
 			}
-		}));
+		});
+		this._reconcileClientChatSubscriptions(client, true);
+		const snapshots = await Promise.all(restores);
 
 		// Activate the batch only after every restore settles so no channel can
 		// receive an action both live and through the reconnect replay.
@@ -1191,11 +1193,11 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	/** Releases chat routing absent from all live connections after a reconnect or partial disconnect. */
-	private _reconcileClientChatSubscriptions(client: IConnectedClient): void {
+	private _reconcileClientChatSubscriptions(client: IConnectedClient, preserveRestoringCalls = false): void {
 		for (const session of this._stateManager.getSessionUris()) {
 			const state = this._stateManager.getSessionState(session);
 			if (state && this._isActiveClient(state, client.clientId)) {
-				this._releaseClientSession(session, client.clientId);
+				this._releaseClientSession(session, client.clientId, preserveRestoringCalls);
 			}
 		}
 	}
@@ -1246,21 +1248,24 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	/** Releases one chat's client tools without changing session membership. */
-	private _releaseClientChat(session: string, clientId: string, chatChannel: string): void {
+	private _releaseClientChat(session: string, clientId: string, chatChannel: string, preserveRestoringCalls = false): void {
 		this._clearClientToolCallDisconnectTimeout(clientId, chatChannel);
 		if (this._hasClientSubscription(clientId, chatChannel)) {
 			return;
 		}
 		this._agentService.setClientChatSubscription(URI.parse(chatChannel), clientId, false);
+		if (preserveRestoringCalls && this._hasClientSubscription(clientId, chatChannel, true)) {
+			return;
+		}
 		this._completeDisconnectedClientToolCalls(clientId, session, chatChannel);
 		// The ready dispatch can re-arm the orphan timer while completing a streaming call.
 		this._clearClientToolCallDisconnectTimeout(clientId, chatChannel);
 	}
 
 	/** Releases uncovered chats before removing the session-wide contribution. */
-	private _releaseClientSession(session: string, clientId: string): void {
+	private _releaseClientSession(session: string, clientId: string, preserveRestoringCalls = false): void {
 		for (const chat of this._stateManager.getSessionState(session)?.chats ?? []) {
-			this._releaseClientChat(session, clientId, chat.resource);
+			this._releaseClientChat(session, clientId, chat.resource, preserveRestoringCalls);
 		}
 		this._removeUnsubscribedActiveClient(session, clientId);
 	}

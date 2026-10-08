@@ -638,6 +638,8 @@ The protocol server retains a session's active-client contribution while any liv
 
 Pending subscription restores retain session membership, but do not retain client-tool routing; a failed or cancelled restore releases that membership when no other subscription remains.
 
+Reconnect suspends future routing before awaiting subscription restores. Existing calls on requested chats wait for restoration, while omitted chats are released immediately.
+
 ### 8d. Prompt-cache metadata
 
 `IAgentHostPromptCache` (`node/agentHostPromptCache.ts`) exposes exactly `read(session)` / `write(session, state)` over the `vscode.promptCache` `_meta` slot. `write` re-reads the persisted value first (several live provider sessions can share one session URI), skips a no-op write, merges rather than replaces `_meta`, and returns the effective state.
