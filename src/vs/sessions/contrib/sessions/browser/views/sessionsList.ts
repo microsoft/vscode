@@ -2177,6 +2177,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		private readonly sessionsWithFailingCI: IObservable<ReadonlySet<string>>,
 		private readonly headerStatusTrigger: ISessionHeaderStatusTrigger,
 		private readonly instantiationService: IInstantiationService,
+		private readonly hoverService: IHoverService,
 		private readonly contextKeyService: IContextKeyService,
 		private readonly automationService: IAutomationService,
 		private readonly automationSessions: IObservable<readonly ISession[]>,
@@ -2318,6 +2319,14 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		}
 		if (element.id === CUSTOMIZATIONS_SECTION_ID) {
 			template.container.classList.add('session-section-customizations');
+			template.elementDisposables.add(this.hoverService.setupDelayedHover(
+				template.container,
+				() => withSessionsListHoverPresentation({
+					content: this.customizationMigrationsAvailable.get()
+						? localize('customizationsMigrationHover', "Some customizations need an update to keep working.")
+						: element.label,
+				}),
+			));
 			template.elementDisposables.add(autorun(reader => {
 				const active = this.customizationsActive.read(reader);
 				template.container.classList.toggle('active', active);
@@ -3799,6 +3808,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			sessionsWithFailingCI,
 			headerStatusTrigger,
 			instantiationService,
+			hoverService,
 			contextKeyService,
 			this.automationService,
 			this.automationSessions,

@@ -178,6 +178,7 @@ suite('Sessions - SessionsList', () => {
 				constObservable(new Set<string>()),
 				noHeaderStatusTrigger,
 				instantiationService,
+				NullHoverService,
 				contextKeyService,
 				automationService,
 				constObservable([]),
@@ -207,6 +208,75 @@ suite('Sessions - SessionsList', () => {
 			assert.deepStrictEqual(selectedSections, [section]);
 		});
 
+		test('shows migration guidance in the Customizations hover', () => {
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stubInstance(MenuWorkbenchToolBar, new class extends mock<MenuWorkbenchToolBar>() {
+				override set context(_context: unknown) { }
+				override dispose(): void { }
+			});
+			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+			const automationService = new class extends mock<IAutomationService>() {
+				override readonly runs = constObservable<readonly IAutomationRun[]>([]);
+			};
+			let hoverOptions: Parameters<IHoverService['setupDelayedHover']>[1] | undefined;
+			const hoverService = new class extends mock<IHoverService>() {
+				override setupDelayedHover(...args: Parameters<IHoverService['setupDelayedHover']>): ReturnType<IHoverService['setupDelayedHover']> {
+					hoverOptions = args[1];
+					return NullHoverService.setupDelayedHover(...args);
+				}
+			};
+			const customizationMigrationsAvailable = observableValue(disposables, true);
+			const renderer = new SessionSectionRenderer(
+				true,
+				() => { },
+				constObservable(true),
+				constObservable(new Set<string>()),
+				noHeaderStatusTrigger,
+				instantiationService,
+				hoverService,
+				contextKeyService,
+				automationService,
+				constObservable([]),
+				new class extends mock<IUriIdentityService>() {
+					override readonly extUri = new ExtUri(() => true);
+				},
+				new class extends mock<ICustomViewService>() { },
+				new class extends mock<IMenuService>() { },
+				noKeybindingService,
+				constObservable(false),
+				customizationMigrationsAvailable,
+			);
+			const container = document.createElement('div');
+			const template = renderer.renderTemplate(container);
+			disposables.add(template.disposables);
+			renderer.renderElement(upcastPartial<Parameters<SessionSectionRenderer['renderElement']>[0]>({
+				element: { id: 'customizations', label: 'Customizations', sessions: [] },
+				collapsible: false,
+				collapsed: false,
+			}), 0, template);
+			const readHoverOptions = () => typeof hoverOptions === 'function' ? hoverOptions() : hoverOptions;
+			const hoverWithMigration = readHoverOptions();
+			customizationMigrationsAvailable.set(false, undefined);
+
+			assert.deepStrictEqual({
+				contentWithMigration: hoverWithMigration?.content,
+				contentWithoutMigration: readHoverOptions()?.content,
+				presentation: hoverWithMigration && {
+					appearance: hoverWithMigration.appearance,
+					position: hoverWithMigration.position,
+					persistence: hoverWithMigration.persistence,
+				},
+			}, {
+				contentWithMigration: 'Some customizations need an update to keep working.',
+				contentWithoutMigration: 'Customizations',
+				presentation: {
+					appearance: { showPointer: true },
+					position: { hoverPosition: HoverPosition.RIGHT, forcePosition: true },
+					persistence: { hideOnHover: false },
+				},
+			});
+		});
+
 		test('renders in-progress automation status in the leading icon slot', () => {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			instantiationService.stubInstance(MenuWorkbenchToolBar, new class extends mock<MenuWorkbenchToolBar>() {
@@ -234,6 +304,7 @@ suite('Sessions - SessionsList', () => {
 				constObservable(new Set<string>()),
 				noHeaderStatusTrigger,
 				instantiationService,
+				NullHoverService,
 				contextKeyService,
 				automationService,
 				constObservable([]),
@@ -861,6 +932,7 @@ suite('Sessions - SessionsList', () => {
 				constObservable(new Set<string>()),
 				noHeaderStatusTrigger,
 				new class extends mock<IInstantiationService>() { },
+				NullHoverService,
 				new class extends mock<IContextKeyService>() { },
 				automationService,
 				automationSessions,
@@ -932,6 +1004,7 @@ suite('Sessions - SessionsList', () => {
 				constObservable(new Set<string>()),
 				noHeaderStatusTrigger,
 				new class extends mock<IInstantiationService>() { },
+				NullHoverService,
 				new class extends mock<IContextKeyService>() { },
 				automationService,
 				constObservable([runningSession, needsInputSession]),
