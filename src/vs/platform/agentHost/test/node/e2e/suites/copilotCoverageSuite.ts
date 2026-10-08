@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { execSync } from 'child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { createRequire } from 'module';
 import { tmpdir } from 'os';
 import { retry } from '../../../../../../base/common/async.js';
@@ -26,6 +26,7 @@ import { assertToolCallCompleteText, createRealSession, dispatchTurn, driveChatT
 import { expandShellToolName } from '../harness/shellToolNames.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { providerHostOnlyTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 const nodeRequire = createRequire(import.meta.url);
 
@@ -102,7 +103,7 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 	}
 
 	async function createWorkspacelessSession(prefix: string): Promise<string> {
-		const clientWorkingDirectory = mkdtempSync(join(tmpdir(), `ahp-${prefix}-client-`));
+		const clientWorkingDirectory = createTestDirectory(join(tmpdir(), `ahp-${prefix}-client-`));
 		tempDirs.push(clientWorkingDirectory);
 		await initialize(`${prefix}-client`, clientWorkingDirectory);
 		const sessionUri = URI.from({ scheme: config.scheme, path: `/${generateUuid()}` }).toString();
@@ -119,7 +120,7 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 	}
 
 	async function createWorkspaceSession(prefix: string, beforeCreateSession?: () => Promise<void>): Promise<{ sessionUri: string; workspace: string }> {
-		const workspace = mkdtempSync(join(tmpdir(), `ahp-${prefix}-`));
+		const workspace = createTestDirectory(join(tmpdir(), `ahp-${prefix}-`));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `${prefix}-client`, createdSessions, URI.file(workspace), beforeCreateSession);
 		return { sessionUri, workspace };
@@ -769,7 +770,7 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 
 	test('commit changeset operation generates a message and commits mixed changes', async function () {
 		this.timeout(240_000);
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-changeset-commit-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-changeset-commit-'));
 		tempDirs.push(workspace);
 		initTestGitRepo(workspace);
 		writeFileSync(join(workspace, 'edited.txt'), 'before\n');

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mkdtempSync, writeFileSync } from 'fs';
+import { writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -28,6 +28,7 @@ import { assertRecordedAhpSnapshot } from '../harness/ahpSnapshot.js';
 import { summarizeAnthropicRequest, summarizeResponsesRequest, type IReadableAnthropicRequest } from '../harness/capiWireCodec.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { providerHostOnlyTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 	const { config, createdSessions, tempDirs } = context;
@@ -84,7 +85,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 	}
 
 	async function createSessionWithWorkingDirectories(prefix: string, workingDirectories: readonly URI[]): Promise<string> {
-		const clientWorkspace = workingDirectories[0]?.fsPath ?? mkdtempSync(join(tmpdir(), 'ahp-client-workspace-'));
+		const clientWorkspace = workingDirectories[0]?.fsPath ?? createTestDirectory(join(tmpdir(), 'ahp-client-workspace-'));
 		if (workingDirectories.length === 0) {
 			tempDirs.push(clientWorkspace);
 		}
@@ -148,7 +149,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 	test('sends a simple message and receives a response', async function () {
 		this.timeout(120_000);
 
-		const workspaceDir = mkdtempSync(`${tmpdir()}/read-sdk-simple`);
+		const workspaceDir = createTestDirectory(`${tmpdir()}/read-sdk-simple`);
 		tempDirs.push(workspaceDir);
 
 		const sessionUri = await createRealSession(context.client, config, `real-sdk-simple-${config.provider}`, createdSessions, URI.file(workspaceDir));
@@ -164,7 +165,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 
 	test('preserves a fenced multiline markdown response', async function () {
 		this.timeout(120_000);
-		const workspaceDir = mkdtempSync(join(tmpdir(), 'ahp-markdown-response-'));
+		const workspaceDir = createTestDirectory(join(tmpdir(), 'ahp-markdown-response-'));
 		tempDirs.push(workspaceDir);
 		const sessionUri = await createRealSession(
 			context.client,
@@ -248,7 +249,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 	// Quarantined on Codex Linux/macOS: https://github.com/microsoft/vscode/issues/338152
 	(config.provider !== 'codex' || context.isWindows ? test : test.skip)('retains context across consecutive turns', async function () {
 		this.timeout(180_000);
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-memory-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-coverage-memory-'));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `coverage-memory-${config.provider}`, createdSessions, URI.file(workspace));
 
@@ -265,7 +266,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 	(modelSwitchTarget ? test : test.skip)('client-selected model is used for the turn', async function () {
 		this.timeout(180_000);
 		assert.ok(modelSwitchTarget);
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-model-switch-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-model-switch-'));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `model-switch-${config.provider}`, createdSessions, URI.file(workspace));
 		const prompt = 'Reply exactly "model selected".';
@@ -297,7 +298,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 	(interactiveInputPrompt ? test : test.skip)('provider input request is answered through AHP', async function () {
 		this.timeout(180_000);
 		assert.ok(interactiveInputPrompt);
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-input-request-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-input-request-'));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `input-request-${config.provider}`, createdSessions, URI.file(workspace));
 		const clientSeq = await prepareInputSession(sessionUri);
@@ -328,7 +329,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 		(interactiveInputPrompt && (!synchronizedOnly || context.runKnownIssueTests) ? test : test.skip)(title, async function () {
 			this.timeout(180_000);
 			assert.ok(interactiveInputPrompt);
-			const workspace = mkdtempSync(join(tmpdir(), 'ahp-input-drafts-'));
+			const workspace = createTestDirectory(join(tmpdir(), 'ahp-input-drafts-'));
 			tempDirs.push(workspace);
 			const session = await createRealSession(context.client, config, `input-drafts-${response}-${synchronizedOnly}-${config.provider}`, createdSessions, URI.file(workspace));
 			const chat = buildDefaultChatUri(session);
@@ -426,7 +427,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 		this.timeout(180_000);
 		assert.ok(modelSwitchTarget);
 		assert.ok(modelSwitchReturnTarget);
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-model-change-context-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-model-change-context-'));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `model-change-context-${config.provider}`, createdSessions, URI.file(workspace));
 
@@ -466,7 +467,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 	(cancelledInputPrompt ? test : test.skip)('provider input request cancellation returns to the turn', async function () {
 		this.timeout(180_000);
 		assert.ok(cancelledInputPrompt);
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-input-cancel-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-input-cancel-'));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `input-cancel-${config.provider}`, createdSessions, URI.file(workspace));
 		const clientSeq = await prepareInputSession(sessionUri);
@@ -491,7 +492,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 	(interactiveInputPrompt && config.supportsPausedTurnCancellationE2E ? test : test.skip)('cancelling a turn paused for input allows a replacement turn', async function () {
 		this.timeout(180_000);
 		assert.ok(interactiveInputPrompt);
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-cancel-input-turn-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-cancel-input-turn-'));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `cancel-input-turn-${config.provider}`, createdSessions, URI.file(workspace));
 		const clientSeq = await prepareInputSession(sessionUri);
@@ -545,7 +546,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 	(textInputPrompt ? test : test.skip)('provider freeform input is answered through AHP', async function () {
 		this.timeout(180_000);
 		assert.ok(textInputPrompt);
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-input-text-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-input-text-'));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `input-text-${config.provider}`, createdSessions, URI.file(workspace));
 		const clientSeq = await prepareInputSession(sessionUri);
@@ -564,7 +565,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 	(multiSelectInputPrompt ? test : test.skip)('provider multi-select input is answered through AHP', async function () {
 		this.timeout(180_000);
 		assert.ok(multiSelectInputPrompt);
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-input-multi-select-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-input-multi-select-'));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `input-multi-select-${config.provider}`, createdSessions, URI.file(workspace));
 
@@ -598,7 +599,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 
 	(config.supportsRuntimeSlashCommandsE2E ? test : test.skip)('materialized provider exposes runtime slash command completions', async function () {
 		this.timeout(180_000);
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-runtime-slash-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-runtime-slash-'));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `runtime-slash-${config.provider}`, createdSessions, URI.file(workspace));
 		await driveTurnToCompletion(context.client, sessionUri, 'turn-runtime-slash', 'Reply exactly "ready".', 1);
@@ -616,7 +617,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 	if (config.supportsAttachmentsE2E) {
 		test('default chat simple attachment reaches the provider request', async function () {
 			this.timeout(180_000);
-			const workspace = mkdtempSync(join(tmpdir(), 'ahp-simple-attachment-'));
+			const workspace = createTestDirectory(join(tmpdir(), 'ahp-simple-attachment-'));
 			tempDirs.push(workspace);
 			const sessionUri = await createRealSession(context.client, config, `simple-attachment-${config.provider}`, createdSessions, URI.file(workspace));
 			const attachments: MessageAttachment[] = [{
@@ -639,7 +640,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 
 		test('default chat resource attachment reaches the provider request', async function () {
 			this.timeout(180_000);
-			const workspace = mkdtempSync(join(tmpdir(), 'ahp-resource-attachment-'));
+			const workspace = createTestDirectory(join(tmpdir(), 'ahp-resource-attachment-'));
 			tempDirs.push(workspace);
 			const file = join(workspace, 'resource.txt');
 			writeFileSync(file, 'ATTACHMENT_RESOURCE_VALUE');
@@ -664,7 +665,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 
 		test('default chat embedded text attachment reaches the provider request', async function () {
 			this.timeout(180_000);
-			const workspace = mkdtempSync(join(tmpdir(), 'ahp-embedded-attachment-'));
+			const workspace = createTestDirectory(join(tmpdir(), 'ahp-embedded-attachment-'));
 			tempDirs.push(workspace);
 			const sessionUri = await createRealSession(context.client, config, `embedded-attachment-${config.provider}`, createdSessions, URI.file(workspace));
 			const attachments: MessageAttachment[] = [{
@@ -688,7 +689,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 
 		test('chat attachment pins the latest completed source turn', async function () {
 			this.timeout(240_000);
-			const workspace = mkdtempSync(join(tmpdir(), 'ahp-chat-attachment-latest-'));
+			const workspace = createTestDirectory(join(tmpdir(), 'ahp-chat-attachment-latest-'));
 			tempDirs.push(workspace);
 			const source = await createRealSession(context.client, config, `chat-attachment-source-${config.provider}`, createdSessions, URI.file(workspace));
 			await driveTurnToCompletion(
@@ -719,7 +720,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 
 		test('chat attachment end turn excludes later source turns', async function () {
 			this.timeout(240_000);
-			const workspace = mkdtempSync(join(tmpdir(), 'ahp-chat-attachment-bounded-'));
+			const workspace = createTestDirectory(join(tmpdir(), 'ahp-chat-attachment-bounded-'));
 			tempDirs.push(workspace);
 			const source = await createRealSession(context.client, config, `chat-attachment-bounded-source-${config.provider}`, createdSessions, URI.file(workspace));
 			await driveTurnToCompletion(
@@ -760,7 +761,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 	if (config.supportsTruncateE2E) {
 		test('truncating a materialized chat removes later context and allows continuation', async function () {
 			this.timeout(240_000);
-			const workspace = mkdtempSync(join(tmpdir(), 'ahp-truncate-'));
+			const workspace = createTestDirectory(join(tmpdir(), 'ahp-truncate-'));
 			tempDirs.push(workspace);
 			const sessionUri = await createRealSession(context.client, config, `truncate-${config.provider}`, createdSessions, URI.file(workspace));
 			await driveTurnToCompletion(context.client, sessionUri, 'turn-truncate-first', 'Remember ALPHA. Reply exactly "ready".', 1);
@@ -840,7 +841,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 	});
 
 	providerHostOnlyTest(context, 'stale model selection fails the turn without contacting a model', async function () {
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-stale-model-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-stale-model-'));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `stale-model-${config.provider}`, createdSessions, URI.file(workspace));
 		const chatUri = buildDefaultChatUri(sessionUri);
