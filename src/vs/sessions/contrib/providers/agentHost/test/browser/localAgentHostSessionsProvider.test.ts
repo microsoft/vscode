@@ -9512,7 +9512,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		for (const resource of ['copilotcli:/legacy-chat-read', 'ahp-session:/legacy-chat-read', 'session-store://tenant/legacy-chat-read?revision=2']) {
 			test(`legacy read-state support preserves advertised identity ${resource}`, async () => {
-				agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), protocolVersion: '0.9.0' }, undefined);
+				agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), protocolVersion: '0.8.0' }, undefined);
 				const backendSession = URI.parse(resource);
 				const sessionUri = backendSession.toString();
 				const defaultChat = backendSession.authority ? 'conversation://tenant/main' : buildDefaultChatUri(sessionUri);
@@ -9617,7 +9617,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 
 		test('legacy peer read state uses the host-supported session aggregate', async () => {
-			agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), protocolVersion: '0.9.0' }, undefined);
+			agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), protocolVersion: '0.8.0' }, undefined);
 			const provider = createProvider(disposables, agentHost);
 			const session = setupMultiChatSession(provider, 'legacy-peer-read');
 			const sessionUri = AgentSession.uri('copilotcli', 'legacy-peer-read').toString();

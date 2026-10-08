@@ -18,6 +18,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { MissionControlControlVerifier, type IMissionControlSigningKey } from '../../node/missionControl/missionControlControl.js';
 import { MissionControlProtocolServer, type IMissionControlSocket } from '../../node/missionControl/missionControlProtocolServer.js';
 import { MissionControlEnvironment } from '../../node/missionControl/missionControlEnvironment.js';
+import { MissionControlAuthentication, MissionControlSealing, sealMissionControlCredential } from '../../node/missionControl/missionControlAuthentication.js';
 import type { IConnectionDiagnosticEvent } from '../../common/connectionDiagnostics.js';
 import type { IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { MissionControlSessionMirror } from '../../node/missionControl/missionControlSessionMirror.js';
@@ -74,13 +75,13 @@ class FakeWpsSocket extends EventEmitter implements IMissionControlSocket {
 suite('Mission Control WPS', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function signingFixture(kid = 'test-key') {
+	function signingFixture(kid = 'test-key', owner = 'owner') {
 		const { privateKey, publicKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
 		const key: IMissionControlSigningKey = { ...(publicKey.export({ format: 'jwk' }) as JsonWebKey), kid, kty: 'EC', crv: 'P-256', alg: 'ES256', use: 'sig' };
 		const signedControl = <T extends { kind: string }>(payload: T, nonce: string, environment = 'environment') => {
 			const header = Buffer.from(JSON.stringify({ typ: 'JWT', alg: 'ES256', kid: key.kid })).toString('base64url');
 			const claims = Buffer.from(JSON.stringify({
-				iat: Math.floor(Date.now() / 1000), jti: nonce, user_id: 'owner', environment_id: environment, kind: payload.kind, payload,
+				iat: Math.floor(Date.now() / 1000), jti: nonce, user_id: owner, environment_id: environment, kind: payload.kind, payload,
 			})).toString('base64url');
 			const input = `${header}.${claims}`;
 			const signature = sign('sha256', Buffer.from(input), { key: privateKey, dsaEncoding: 'ieee-p1363' });
@@ -526,6 +527,41 @@ suite('Mission Control WPS', () => {
 		}
 	});
 
+	test('relay authentication metadata preserves the identity authority across handshake generations', async () => {
+		await MissionControlSealing.ready();
+		const sealing = store.add(new MissionControlSealing());
+		const resource = 'https://api.enterprise.example';
+		const authentication = new MissionControlAuthentication(sealing, '123', resource, async () => Response.json({ id: 123, type: 'User' }), false);
+		const { key, signed } = signingFixture();
+		const socket = new FakeWpsSocket();
+		const server = store.add(new MissionControlProtocolServer(
+			{ url: 'wss://wps.example.test', access_token: 'fake-token', groups: { control: `${prefix}.control` } },
+			'owner', 'environment', new MissionControlControlVerifier('environment', 'owner', [key]),
+			() => socket, error => { throw error; }, () => authentication,
+		));
+		const lanes: IProtocolTransport[] = [];
+		store.add(server.onConnection(lane => lanes.push(lane)));
+		const ready = server.connect();
+		socket.emit('message', JSON.stringify({ type: 'system', event: 'connected' }));
+		await ready;
+		socket.deliver(`${prefix}.control`, signed('client-a', 'nonce-a'), 1);
+		const lane = lanes[0];
+		const before = lane.relayAuthentication;
+		const recipient = sealing.advertisedKeys.find(key => key.use === 'auth-token');
+		assert.ok(recipient && lane.relayAuthenticate);
+		await lane.relayAuthenticate({
+			resource,
+			token: await sealMissionControlCredential({ resource, token: 'test-owner-token', key: { ...recipient, use: 'auth-token' } }),
+		});
+		const authorized = lane.relayAuthentication;
+		authentication.beginHandshake();
+		assert.deepStrictEqual({ before, authorized, after: lane.relayAuthentication }, {
+			before: { resource, authenticated: false },
+			authorized: { resource, authenticated: true },
+			after: { resource, authenticated: false },
+		});
+	});
+
 	test('joins verified client lanes, binds initialize, and publishes responses on to-client', async () => {
 		const { key, signed } = signingFixture();
 		const socket = new FakeWpsSocket();
@@ -696,7 +732,8 @@ suite('Mission Control WPS', () => {
 				changeIdentityAuthority: (base: string) => void;
 				tokens: number[];
 				directory: string;
-				attachments: { initialRoots: readonly string[]; getRoots: () => readonly string[]; rootMeta?: Record<string, unknown> }[];
+				attachments: { initialRoots: readonly string[]; getRoots: () => readonly string[]; rootMeta?: Record<string, unknown>; server: MissionControlProtocolServer }[];
+				signedSpawn: (clientId: string, nonce: string) => object;
 				requests: { path: string; credential: string | null; body?: Record<string, unknown> }[];
 				delayHeartbeat: () => { started: Promise<void>; complete: (response?: Response) => Promise<void> };
 				delayIdentity: () => { started: Promise<void>; complete: (response: Response) => Promise<void> };
@@ -709,13 +746,13 @@ suite('Mission Control WPS', () => {
 			const clock = sinon.useFakeTimers({ now: Date.UTC(2026, 9, 2), toFake: ['Date', 'setTimeout', 'clearTimeout'] });
 			let service: MissionControlEnvironment | undefined;
 			try {
-				const { key } = signingFixture();
+				const { key, signed } = signingFixture('test-key', '123');
 				const heartbeats: { time: number; status: string }[] = [];
 				const errors: string[] = [];
 				const sockets: FakeWpsSocket[] = [];
 				const tokens: number[] = [];
 				const requests: { path: string; credential: string | null; body?: Record<string, unknown> }[] = [];
-				const attachments: { initialRoots: readonly string[]; getRoots: () => readonly string[]; rootMeta?: Record<string, unknown> }[] = [];
+				const attachments: { initialRoots: readonly string[]; getRoots: () => readonly string[]; rootMeta?: Record<string, unknown>; server: MissionControlProtocolServer }[] = [];
 				let delayedHeartbeat: { started: DeferredPromise<void>; response: DeferredPromise<Response> } | undefined;
 				let delayedIdentity: { started: DeferredPromise<void>; response: DeferredPromise<Response> } | undefined;
 				let policy: Record<string, unknown> | undefined;
@@ -762,7 +799,7 @@ suite('Mission Control WPS', () => {
 						return Response.json(url.pathname === '/user' ? { id: 123, type: 'User' } : url.pathname.endsWith('/jwks.json') ? { keys: [key] } : environment);
 					},
 					attach: (server, initialRoots, getRoots) => {
-						attachments.push({ initialRoots, getRoots, rootMeta: server.rootMeta });
+						attachments.push({ initialRoots, getRoots, rootMeta: server.rootMeta, server });
 						return { dispose() { } };
 					},
 					onError: error => errors.push(error instanceof Error ? error.message : String(error)),
@@ -781,7 +818,7 @@ suite('Mission Control WPS', () => {
 				const options = { baseUrl: 'https://api.github.com', live: true, accountId: '123', credential: 'fake-token', roots: openWorkspace ? [path] : [] };
 				await service.configure(options);
 				await run({
-					service, clock, heartbeats, errors, sockets, options, tokens, directory: path, attachments, requests,
+					service, clock, heartbeats, errors, sockets, options, tokens, directory: path, attachments, requests, signedSpawn: signed,
 					delayHeartbeat: () => {
 						const started = new DeferredPromise<void>();
 						const response = new DeferredPromise<Response>();
@@ -812,6 +849,57 @@ suite('Mission Control WPS', () => {
 				await rm(path, { recursive: true });
 			}
 		}
+
+		test('delegates only when opted in, fences prior lanes on mode/token changes, and withdraws immediately', async () => {
+			await withEnvironment([], async ({ service, options, sockets, attachments, signedSpawn, delayIdentity }) => {
+				const openLane = (clientId: string) => {
+					const server = attachments[attachments.length - 1].server;
+					let lane: IProtocolTransport | undefined;
+					store.add(server.onConnection(value => { lane = value; }));
+					const socket = sockets[sockets.length - 1];
+					socket.deliver('user.123.env.environment.control', signedSpawn(clientId, clientId), 1);
+					assert.ok(lane);
+					return lane;
+				};
+				const sealRemote = async (target: string, use: 'auth-token' | 'mcp-auth-token', token: string) => {
+					const keys = attachments[attachments.length - 1].rootMeta?.['copilot.encryptionKeys'];
+					assert.ok(Array.isArray(keys));
+					const key = keys.find(value => hasKey(value, { keyId: true, use: true, algorithm: true, publicKey: true })
+						&& value.use === use && value.algorithm === 'hpke-x25519-hkdf-sha256-aes256gcm');
+					assert.ok(key && hasKey(key, { keyId: true, publicKey: true }) && typeof key.keyId === 'string' && typeof key.publicKey === 'string');
+					return sealMissionControlCredential({
+						resource: target, token,
+						key: { key_id: key.keyId, public_key: key.publicKey, use, algorithm: 'hpke-x25519-hkdf-sha256-aes256gcm' },
+					});
+				};
+				const resource = 'https://api.github.com';
+				const remoteToken = await sealRemote(resource, 'auth-token', 'mobile-token');
+				const defaultLane = openLane('default-client');
+				assert.deepStrictEqual(await defaultLane.relayAuthenticate!({ resource, token: remoteToken }), { resource, token: 'mobile-token' });
+				await service.configure({ ...options, useLocalCredentials: true });
+				await assert.rejects(defaultLane.relayAuthenticate!({ resource, token: remoteToken }), /closed/);
+				const delegated = openLane('delegated-client');
+				assert.deepStrictEqual(await delegated.relayAuthenticate!({ resource, token: remoteToken, expiresIn: 1, scopes: ['mobile'] }), {
+					resource, token: 'fake-token',
+				});
+				const delayed = delayIdentity();
+				const pending = delegated.relayAuthenticate!({ resource, token: remoteToken });
+				const rejected = assert.rejects(pending, /expired handshake|closed/);
+				await delayed.started;
+				await service.configure({ ...options, useLocalCredentials: true, credential: 'refreshed-token' });
+				await delayed.complete(Response.json({ id: 123, type: 'User' }));
+				await rejected;
+				await assert.rejects(delegated.relayAuthenticate!({ resource, token: remoteToken }), /closed/);
+				const refreshed = openLane('refreshed-client');
+				assert.deepStrictEqual(await refreshed.relayAuthenticate!({ resource, token: remoteToken }), { resource, token: 'refreshed-token' });
+				await service.configure({ ...options, credential: 'refreshed-token' });
+				await assert.rejects(refreshed.relayAuthenticate!({ resource, token: remoteToken }), /closed/);
+				const disabled = openLane('disabled-client');
+				assert.deepStrictEqual(await disabled.relayAuthenticate!({ resource, token: remoteToken }), { resource, token: 'mobile-token' });
+				await service.configure(undefined, options.accountId);
+				await assert.rejects(disabled.relayAuthenticate!({ resource, token: remoteToken }), /closed/);
+			});
+		});
 
 		test('keeps actionable HTTP server messages local and redacts credentials without logging other response fields', async () => {
 			await withEnvironment([{}, {
