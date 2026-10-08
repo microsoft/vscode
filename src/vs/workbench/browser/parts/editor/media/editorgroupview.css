@@ -218,6 +218,14 @@
 	display: none;
 }
 
+.monaco-workbench .part.editor > .content .editor-group-container.empty > .title.has-visible-add-tab-control {
+	display: block;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container.empty > .title.has-visible-add-tab-control:not(.tabs) {
+	display: flex;
+}
+
 /* Optional full-width header rendered in flow between the tab bar and the editor
  * pane (used by the Agents window single-pane layout). Height is set inline. */
 .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-header {
