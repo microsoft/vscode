@@ -11,7 +11,7 @@ import { tmpdir } from 'os';
 import { join } from '../../../../../base/common/path.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { parseManagedAutoTierDefault } from '../../../common/autoModeTiers.js';
+import { isAutoModeTier, parseManagedAutoTierDefault } from '../../../common/autoModeTiers.js';
 import type { ModelSelection } from '../../../common/state/sessionState.js';
 import { getCopilotAutoTier } from '../../../node/copilot/copilotSessionLauncher.js';
 import { getAncillaryStub } from '../e2e/harness/capiStubs.js';
@@ -181,7 +181,7 @@ suite('Copilot SDK client-selected Auto startup defaults', function () {
 			});
 			await session.sendAndWait({ prompt: 'Reply only OK' }, 20_000);
 			const current = await session.rpc.model.getCurrent();
-			assert.ok(current.autoTier === 'intelligence' || current.autoTier === 'balance');
+			assert.ok(isAutoModeTier(current.autoTier));
 			routed.push(current.autoTier);
 			await session.disconnect();
 		}
