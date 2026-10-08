@@ -47,10 +47,6 @@ interface IPendingEvent {
 }
 
 export class TelemetryService implements ITelemetryService {
-
-	static readonly IDLE_START_EVENT_NAME = 'UserIdleStart';
-	static readonly IDLE_STOP_EVENT_NAME = 'UserIdleStop';
-
 	private static readonly BUFFER_FLUSH_TIMEOUT = 10000; // 10 seconds
 	private static readonly MAX_BUFFER_SIZE = 1000;
 

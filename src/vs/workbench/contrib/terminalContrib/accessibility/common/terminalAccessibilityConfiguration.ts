@@ -16,11 +16,6 @@ export const enum TerminalAccessibleViewPreserveCursorPosition {
 	Always = 'always',
 }
 
-export interface ITerminalAccessibilityConfiguration {
-	accessibleViewPreserveCursorPosition: boolean | TerminalAccessibleViewPreserveCursorPosition;
-	accessibleViewFocusOnCommandExecution: number;
-}
-
 export const terminalAccessibilityConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	[TerminalAccessibilitySettingId.AccessibleViewPreserveCursorPosition]: {
 		markdownDescription: localize('terminal.integrated.accessibleViewPreserveCursorPosition', "Controls whether the cursor position is preserved in the terminal's accessible view."),

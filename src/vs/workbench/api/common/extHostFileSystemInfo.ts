@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from '../../../base/common/network.js';
 import { ExtUri, IExtUri } from '../../../base/common/resources.js';
 import { UriComponents } from '../../../base/common/uri.js';
 import { FileSystemProviderCapabilities } from '../../../platform/files/common/files.js';
@@ -14,7 +13,6 @@ export class ExtHostFileSystemInfo implements ExtHostFileSystemInfoShape {
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _systemSchemes = new Set(Object.keys(Schemas));
 	private readonly _providerInfo = new Map<string, number>();
 
 	readonly extUri: IExtUri;
@@ -40,10 +38,6 @@ export class ExtHostFileSystemInfo implements ExtHostFileSystemInfoShape {
 		} else {
 			this._providerInfo.set(uri.scheme, capabilities);
 		}
-	}
-
-	isFreeScheme(scheme: string): boolean {
-		return !this._providerInfo.has(scheme) && !this._systemSchemes.has(scheme);
 	}
 
 	getCapabilities(scheme: string): number | undefined {

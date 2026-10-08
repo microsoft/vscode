@@ -175,11 +175,6 @@ export const AI_CUSTOMIZATION_MANAGEMENT_SELECTED_SECTION_KEY = 'aiCustomization
 export const AI_CUSTOMIZATION_MANAGEMENT_SIDEBAR_WIDTH_KEY = 'aiCustomizationManagement.sidebarWidth';
 
 /**
- * Storage key for persisting the search query.
- */
-export const AI_CUSTOMIZATION_MANAGEMENT_SEARCH_KEY = 'aiCustomizationManagement.searchQuery';
-
-/**
  * Layout constants for the editor.
  */
 export const SIDEBAR_DEFAULT_WIDTH = 200;

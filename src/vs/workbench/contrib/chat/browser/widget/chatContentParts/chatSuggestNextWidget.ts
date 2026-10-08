@@ -53,10 +53,6 @@ export class ChatSuggestNextWidget extends Disposable {
 		return this.domNode.style.display === 'none' ? 0 : this.domNode.offsetHeight;
 	}
 
-	public getCurrentMode(): IChatMode | undefined {
-		return this._currentMode;
-	}
-
 	private createSuggestNextWidget(): HTMLElement {
 		// Reuse welcome view classes for consistent styling
 		const container = dom.$('.chat-suggest-next-widget.chat-welcome-view-suggested-prompts');

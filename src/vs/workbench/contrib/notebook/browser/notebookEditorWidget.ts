@@ -2176,14 +2176,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return this._list.revealRangeInCell(cell, new Range(line, 1, line, 1), CellRevealRangeType.Default);
 	}
 
-	async revealLineInCenterAsync(cell: ICellViewModel, line: number): Promise<void> {
-		return this._list.revealRangeInCell(cell, new Range(line, 1, line, 1), CellRevealRangeType.Center);
-	}
-
-	async revealLineInCenterIfOutsideViewportAsync(cell: ICellViewModel, line: number): Promise<void> {
-		return this._list.revealRangeInCell(cell, new Range(line, 1, line, 1), CellRevealRangeType.CenterIfOutsideViewport);
-	}
-
 	async revealRangeInViewAsync(cell: ICellViewModel, range: Selection | Range): Promise<void> {
 		return this._list.revealRangeInCell(cell, range, CellRevealRangeType.Default);
 	}

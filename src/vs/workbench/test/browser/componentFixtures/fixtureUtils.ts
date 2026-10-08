@@ -746,7 +746,6 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 	defineInstance(IAccessibilitySignalService, {
 		_serviceBrand: undefined,
 		playSignal: async () => { },
-		playSignals: async () => { },
 		playSignalLoop: () => ({ dispose: () => { } }),
 		getEnabledState: () => ({ value: false, onDidChange: Event.None, onChange: () => ({ dispose: () => { } }) }),
 		getDelayMs: () => 0,

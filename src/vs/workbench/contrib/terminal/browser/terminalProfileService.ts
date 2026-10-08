@@ -12,12 +12,12 @@ import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../
 import { isMacintosh, isWeb, isWindows, OperatingSystem, OS } from '../../../../base/common/platform.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { ITerminalProfile, IExtensionTerminalProfile, TerminalSettingPrefix, TerminalSettingId, ITerminalProfileObject, IShellLaunchConfig, ITerminalExecutable } from '../../../../platform/terminal/common/terminal.js';
+import { ITerminalProfile, IExtensionTerminalProfile, TerminalSettingPrefix, TerminalSettingId, IShellLaunchConfig, ITerminalExecutable } from '../../../../platform/terminal/common/terminal.js';
 import { registerTerminalDefaultProfileConfiguration } from '../../../../platform/terminal/common/terminalPlatformConfiguration.js';
 import { terminalIconsEqual, terminalProfileArgsMatch } from '../../../../platform/terminal/common/terminalProfiles.js';
 import { ITerminalInstanceService } from './terminal.js';
 import { refreshTerminalActions } from './terminalActions.js';
-import { IRegisterContributedProfileArgs, ITerminalProfileProvider, ITerminalProfileService } from '../common/terminal.js';
+import { ITerminalProfileProvider, ITerminalProfileService } from '../common/terminal.js';
 import { TerminalContextKeys } from '../common/terminalContextKey.js';
 import { ITerminalContributionService } from '../common/terminalExtensionPoints.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
@@ -240,25 +240,6 @@ export class TerminalProfileService extends Disposable implements ITerminalProfi
 				this._profileProviders.delete(extensionIdentifier);
 			}
 		});
-	}
-
-	async registerContributedProfile(args: IRegisterContributedProfileArgs): Promise<void> {
-		const platformKey = await this.getPlatformKey();
-		const profilesConfig = await this._configurationService.getValue(`${TerminalSettingPrefix.Profiles}${platformKey}`);
-		if (typeof profilesConfig === 'object') {
-			const newProfile: IExtensionTerminalProfile = {
-				extensionIdentifier: args.extensionIdentifier,
-				icon: args.options.icon,
-				id: args.id,
-				title: args.title,
-				color: args.options.color,
-				titleTemplate: args.titleTemplate
-			};
-
-			(profilesConfig as { [key: string]: ITerminalProfileObject })[args.title] = newProfile;
-		}
-		await this._configurationService.updateValue(`${TerminalSettingPrefix.Profiles}${platformKey}`, profilesConfig, ConfigurationTarget.USER);
-		return;
 	}
 
 	registerInternalContributedProfile(profile: IExtensionTerminalProfile): IDisposable {

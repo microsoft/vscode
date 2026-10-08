@@ -552,16 +552,6 @@ export function rebaseUnder(uri: URI, fromDir: URI, toDir: URI): URI | undefined
 	return rel.length === 0 ? toDir : resourceJoinPath(toDir, rel);
 }
 
-/** Rebase `enablement` keys under `fromDir` onto `toDir`, preserving unmatched keys verbatim. */
-export function migrateEnablementKeys(enablement: ReadonlyMap<string, boolean>, fromDir: URI, toDir: URI): Map<string, boolean> {
-	const migrated = new Map<string, boolean>();
-	for (const [uri, enabled] of enablement) {
-		const rebased = rebaseUnder(URI.parse(uri), fromDir, toDir);
-		migrated.set(rebased ? rebased.toString() : uri, enabled);
-	}
-	return migrated;
-}
-
 class CopilotChatEntry extends Disposable {
 	constructor(
 		readonly chatSession: CopilotAgentSession,
@@ -875,7 +865,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 	/** Reflects the restricted-telemetry entitlement from `/copilot_internal/user`. */
 	private _restrictedTelemetryEnabled = false;
 	private readonly _onDidChangeRestrictedTelemetry = this._register(new Emitter<void>());
-	readonly onDidChangeRestrictedTelemetry = this._onDidChangeRestrictedTelemetry.event;
 
 	get restrictedTelemetryEnabled(): boolean {
 		return this._restrictedTelemetryEnabled;

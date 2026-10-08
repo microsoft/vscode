@@ -2070,10 +2070,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._dropIntoEditorDecorations.clear();
 	}
 
-	public setContextValue(key: string, value: ContextKeyValue): void {
-		this._contextKeyService.createKey(key, value);
-	}
-
 	private _beginUpdate(): void {
 		this._updateCounter++;
 		if (this._updateCounter === 1) {

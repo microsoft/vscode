@@ -493,19 +493,6 @@ export class MergeEditorModel extends EditorModel {
 		existingState.handledInput2.set(true, tx);
 	}
 
-	public resetDirtyConflictsToBase(): void {
-		transaction(tx => {
-			/** @description Reset Unknown Base Range States */
-			this.resultTextModel.pushStackElement();
-			for (const range of this.modifiedBaseRanges.get()) {
-				if (this.getState(range).get().kind === ModifiedBaseRangeStateKind.unrecognized) {
-					this.setState(range, ModifiedBaseRangeState.base, false, tx, false);
-				}
-			}
-			this.resultTextModel.pushStackElement();
-		});
-	}
-
 	public isHandled(baseRange: ModifiedBaseRange): IObservable<boolean> {
 		return this.modifiedBaseRangeResultStates.get().get(baseRange)!.handled;
 	}
@@ -596,53 +583,6 @@ export class MergeEditorModel extends EditorModel {
 			chunks.push(chunk);
 		}
 		return chunks.join();
-	}
-
-	public async getResultValueWithConflictMarkers(): Promise<string> {
-		await waitForState(this.diffComputingState, state => state === MergeEditorModelState.upToDate);
-
-		if (this.unhandledConflictsCount.get() === 0) {
-			return this.resultTextModel.getValue();
-		}
-
-		const resultLines = this.resultTextModel.getLinesContent();
-		const input1Lines = this.input1.textModel.getLinesContent();
-		const input2Lines = this.input2.textModel.getLinesContent();
-
-		const states = this.modifiedBaseRangeResultStates.get();
-
-		const outputLines: string[] = [];
-		function appendLinesToResult(source: string[], lineRange: MergeEditorLineRange) {
-			for (let i = lineRange.startLineNumber; i < lineRange.endLineNumberExclusive; i++) {
-				outputLines.push(source[i - 1]);
-			}
-		}
-
-		let resultStartLineNumber = 1;
-
-		for (const [range, state] of states) {
-			if (state.handled.get()) {
-				continue;
-			}
-			const resultRange = this.resultTextModelDiffs.getResultLineRange(range.baseRange);
-
-			appendLinesToResult(resultLines, MergeEditorLineRange.fromLineNumbers(resultStartLineNumber, Math.max(resultStartLineNumber, resultRange.startLineNumber)));
-			resultStartLineNumber = resultRange.endLineNumberExclusive;
-
-			outputLines.push('<<<<<<<');
-			if (state.accepted.get().kind === ModifiedBaseRangeStateKind.unrecognized) {
-				// to prevent loss of data, use modified result as "ours"
-				appendLinesToResult(resultLines, resultRange);
-			} else {
-				appendLinesToResult(input1Lines, range.input1Range);
-			}
-			outputLines.push('=======');
-			appendLinesToResult(input2Lines, range.input2Range);
-			outputLines.push('>>>>>>>');
-		}
-
-		appendLinesToResult(resultLines, MergeEditorLineRange.fromLineNumbers(resultStartLineNumber, resultLines.length + 1));
-		return outputLines.join('\n');
 	}
 
 	public get conflictCount(): number {

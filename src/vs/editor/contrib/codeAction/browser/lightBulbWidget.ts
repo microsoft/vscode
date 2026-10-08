@@ -8,7 +8,7 @@ import { Gesture } from '../../../../base/browser/touch.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, observableValue } from '../../../../base/common/observable.js';
+import { autorun, derived, observableValue } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import './lightBulbWidget.css';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition, IEditorMouseEvent } from '../../../browser/editorBrowser.js';
@@ -135,8 +135,6 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		}
 		return undefined;
 	});
-
-	public readonly lightBulbInfo: IObservable<LightBulbInfo | undefined> = this._combinedInfo;
 
 	private _iconClasses: string[] = [];
 

@@ -21,8 +21,6 @@ import {
 	IProviderMcpServerQuery,
 	IExtensionQuery,
 	IMcpServerQuery,
-	IActiveEntities,
-	IAuthenticationUsageStats,
 	IBaseQuery
 } from '../common/authenticationQuery.js';
 import { IAuthenticationUsageService } from './authenticationUsageService.js';
@@ -94,32 +92,6 @@ class AccountExtensionQuery extends BaseQuery implements IAccountExtensionQuery 
 			}));
 	}
 
-	removeUsage(): void {
-		// Get current usages, filter out this extension, and store the rest
-		const allUsages = this.queryService.authenticationUsageService.readAccountUsages(this.providerId, this.accountName);
-		const filteredUsages = allUsages.filter(usage => usage.extensionId !== this.extensionId);
-
-		// Clear all usages and re-add the filtered ones
-		this.queryService.authenticationUsageService.removeAccountUsage(this.providerId, this.accountName);
-		for (const usage of filteredUsages) {
-			this.queryService.authenticationUsageService.addAccountUsage(
-				this.providerId,
-				this.accountName,
-				usage.scopes || [],
-				usage.extensionId,
-				usage.extensionName
-			);
-		}
-	}
-
-	setAsPreferred(): void {
-		this.queryService.authenticationExtensionsService.updateAccountPreference(
-			this.extensionId,
-			this.providerId,
-			{ label: this.accountName, id: this.accountName }
-		);
-	}
-
 	isPreferred(): boolean {
 		const preferredAccount = this.queryService.authenticationExtensionsService.getAccountPreference(this.extensionId, this.providerId);
 		return preferredAccount === this.accountName;
@@ -184,32 +156,6 @@ class AccountMcpServerQuery extends BaseQuery implements IAccountMcpServerQuery 
 			}));
 	}
 
-	removeUsage(): void {
-		// Get current usages, filter out this MCP server, and store the rest
-		const allUsages = this.queryService.authenticationMcpUsageService.readAccountUsages(this.providerId, this.accountName);
-		const filteredUsages = allUsages.filter(usage => usage.mcpServerId !== this.mcpServerId);
-
-		// Clear all usages and re-add the filtered ones
-		this.queryService.authenticationMcpUsageService.removeAccountUsage(this.providerId, this.accountName);
-		for (const usage of filteredUsages) {
-			this.queryService.authenticationMcpUsageService.addAccountUsage(
-				this.providerId,
-				this.accountName,
-				usage.scopes || [],
-				usage.mcpServerId,
-				usage.mcpServerName
-			);
-		}
-	}
-
-	setAsPreferred(): void {
-		this.queryService.authenticationMcpService.updateAccountPreference(
-			this.mcpServerId,
-			this.providerId,
-			{ label: this.accountName, id: this.accountName }
-		);
-	}
-
 	isPreferred(): boolean {
 		const preferredAccount = this.queryService.authenticationMcpService.getAccountPreference(this.mcpServerId, this.providerId);
 		return preferredAccount === this.accountName;
@@ -259,11 +205,6 @@ class AccountExtensionsQuery extends BaseQuery implements IAccountExtensionsQuer
 			});
 	}
 
-	allowAccess(extensionIds: string[]): void {
-		const extensionsToAllow = extensionIds.map(id => ({ id, name: id, allowed: true }));
-		this.queryService.authenticationAccessService.updateAllowedExtensions(this.providerId, this.accountName, extensionsToAllow);
-	}
-
 	removeAccess(extensionIds: string[]): void {
 		const extensionsToRemove = extensionIds.map(id => ({ id, name: id, allowed: false }));
 		this.queryService.authenticationAccessService.updateAllowedExtensions(this.providerId, this.accountName, extensionsToRemove);
@@ -300,11 +241,6 @@ class AccountMcpServersQuery extends BaseQuery implements IAccountMcpServersQuer
 	getAllowedMcpServers(): { id: string; name: string; allowed?: boolean; lastUsed?: number; trusted?: boolean; url?: string; agentHost?: { authority: string; label: string } }[] {
 		return this.queryService.authenticationMcpAccessService.readAllowedMcpServers(this.providerId, this.accountName)
 			.filter(server => server.allowed !== false);
-	}
-
-	allowAccess(mcpServerIds: string[]): void {
-		const mcpServersToAllow = mcpServerIds.map(id => ({ id, name: id, allowed: true }));
-		this.queryService.authenticationMcpAccessService.updateAllowedMcpServers(this.providerId, this.accountName, mcpServersToAllow);
 	}
 
 	removeAccess(mcpServerIds: string[]): void {
@@ -505,30 +441,6 @@ class ProviderMcpServerQuery extends BaseQuery implements IProviderMcpServerQuer
 		super(providerId, queryService);
 	}
 
-	async getLastUsedAccount(): Promise<string | undefined> {
-		try {
-			const accounts = await this.queryService.authenticationService.getAccounts(this.providerId);
-			let lastUsedAccount: string | undefined;
-			let lastUsedTime = 0;
-
-			for (const account of accounts) {
-				const usages = this.queryService.authenticationMcpUsageService.readAccountUsages(this.providerId, account.label);
-				const mcpServerUsages = usages.filter(usage => usage.mcpServerId === this.mcpServerId);
-
-				for (const usage of mcpServerUsages) {
-					if (usage.lastUsed > lastUsedTime) {
-						lastUsedTime = usage.lastUsed;
-						lastUsedAccount = account.label;
-					}
-				}
-			}
-
-			return lastUsedAccount;
-		} catch {
-			return undefined;
-		}
-	}
-
 	getPreferredAccount(): string | undefined {
 		return this.queryService.authenticationMcpService.getAccountPreference(this.mcpServerId, this.providerId);
 	}
@@ -539,24 +451,6 @@ class ProviderMcpServerQuery extends BaseQuery implements IProviderMcpServerQuer
 
 	removeAccountPreference(): void {
 		this.queryService.authenticationMcpService.removeAccountPreference(this.mcpServerId, this.providerId);
-	}
-
-	async getUsedAccounts(): Promise<string[]> {
-		try {
-			const accounts = await this.queryService.authenticationService.getAccounts(this.providerId);
-			const usedAccounts: string[] = [];
-
-			for (const account of accounts) {
-				const usages = this.queryService.authenticationMcpUsageService.readAccountUsages(this.providerId, account.label);
-				if (usages.some(usage => usage.mcpServerId === this.mcpServerId)) {
-					usedAccounts.push(account.label);
-				}
-			}
-
-			return usedAccounts;
-		} catch {
-			return [];
-		}
 	}
 }
 
@@ -581,92 +475,6 @@ class ProviderQuery extends BaseQuery implements IProviderQuery {
 
 	mcpServer(mcpServerId: string): IProviderMcpServerQuery {
 		return new ProviderMcpServerQuery(this.providerId, mcpServerId, this.queryService);
-	}
-
-	async getActiveEntities(): Promise<IActiveEntities> {
-		const extensions: string[] = [];
-		const mcpServers: string[] = [];
-
-		try {
-			const accounts = await this.queryService.authenticationService.getAccounts(this.providerId);
-
-			for (const account of accounts) {
-				// Get extension usages
-				const extensionUsages = this.queryService.authenticationUsageService.readAccountUsages(this.providerId, account.label);
-				for (const usage of extensionUsages) {
-					if (!extensions.includes(usage.extensionId)) {
-						extensions.push(usage.extensionId);
-					}
-				}
-
-				// Get MCP server usages
-				const mcpUsages = this.queryService.authenticationMcpUsageService.readAccountUsages(this.providerId, account.label);
-				for (const usage of mcpUsages) {
-					if (!mcpServers.includes(usage.mcpServerId)) {
-						mcpServers.push(usage.mcpServerId);
-					}
-				}
-			}
-		} catch {
-			// Return empty arrays if there's an error
-		}
-
-		return { extensions, mcpServers };
-	}
-
-	async getAccountNames(): Promise<string[]> {
-		try {
-			const accounts = await this.queryService.authenticationService.getAccounts(this.providerId);
-			return accounts.map(account => account.label);
-		} catch {
-			return [];
-		}
-	}
-
-	async getUsageStats(): Promise<IAuthenticationUsageStats> {
-		const recentActivity: { accountName: string; lastUsed: number; usageCount: number }[] = [];
-		let totalSessions = 0;
-		let totalAccounts = 0;
-
-		try {
-			const accounts = await this.queryService.authenticationService.getAccounts(this.providerId);
-			totalAccounts = accounts.length;
-
-			for (const account of accounts) {
-				const extensionUsages = this.queryService.authenticationUsageService.readAccountUsages(this.providerId, account.label);
-				const mcpUsages = this.queryService.authenticationMcpUsageService.readAccountUsages(this.providerId, account.label);
-
-				const allUsages = [...extensionUsages, ...mcpUsages];
-				const usageCount = allUsages.length;
-				const lastUsed = Math.max(...allUsages.map(u => u.lastUsed), 0);
-
-				if (usageCount > 0) {
-					recentActivity.push({ accountName: account.label, lastUsed, usageCount });
-				}
-			}
-
-			// Sort by most recent activity
-			recentActivity.sort((a, b) => b.lastUsed - a.lastUsed);
-
-			// Count total sessions (approximate)
-			totalSessions = recentActivity.reduce((sum, activity) => sum + activity.usageCount, 0);
-		} catch {
-			// Return default stats if there's an error
-		}
-
-		return { totalSessions, totalAccounts, recentActivity };
-	}
-
-	async forEachAccount(callback: (accountQuery: IAccountQuery) => void): Promise<void> {
-		try {
-			const accounts = await this.queryService.authenticationService.getAccounts(this.providerId);
-			for (const account of accounts) {
-				const accountQuery = new AccountQuery(this.providerId, account.label, this.queryService);
-				callback(accountQuery);
-			}
-		} catch {
-			// Silently handle errors in enumeration
-		}
 	}
 }
 

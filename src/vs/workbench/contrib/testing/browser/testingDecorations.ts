@@ -136,16 +136,6 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 		value: CachedDecorations;
 	}>();
 
-	/**
-	 * List of messages that should be hidden because an editor changed their
-	 * underlying ranges. I think this is good enough, because:
-	 *  - Message decorations are never shown across reloads; this does not
-	 *    need to persist
-	 *  - Message instances are stable for any completed test results for
-	 *    the duration of the session.
-	 */
-	private readonly invalidatedMessages = new WeakSet<ITestMessage>();
-
 	/** @inheritdoc */
 	public readonly onDidChange = this.changeEmitter.event;
 
@@ -218,12 +208,6 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 				}
 			}
 		}));
-	}
-
-	/** @inheritdoc */
-	public invalidateResultMessage(message: ITestMessage) {
-		this.invalidatedMessages.add(message);
-		this.invalidate();
 	}
 
 	/** @inheritdoc */

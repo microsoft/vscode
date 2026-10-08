@@ -27,7 +27,7 @@ import { ActiveCustomEditorDiffCanToggleLayoutContext, ActiveCustomEditorTextDif
 import { CONTEXT_ACTIVE_CUSTOM_EDITOR_ID, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CustomEditorCapabilities, CustomEditorDiffEditorLayout, CustomEditorInfo, CustomEditorInfoCollection, ICustomEditorModelManager, ICustomEditorService } from '../common/customEditor.js';
 import { CustomEditorModelManager } from '../common/customEditorModelManager.js';
 import { IEditorGroup, IEditorGroupContextKeyProvider, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
-import { IEditorResolverService, IEditorType, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
+import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { IEditorService, IUntypedEditorReplacement } from '../../../services/editor/common/editorService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { ContributedCustomEditors } from '../common/contributedCustomEditors.js';
@@ -134,10 +134,6 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		this._register(RedoCommand.addImplementation(PRIORITY, 'custom-editor', () => {
 			return this.withActiveCustomEditor(editor => editor.redo());
 		}));
-	}
-
-	getEditorTypes(): IEditorType[] {
-		return [...this._contributedEditors];
 	}
 
 	private withActiveCustomEditor(f: (editor: CustomEditorUndoRedoInput) => void | Promise<void>): boolean | Promise<void> {
@@ -330,10 +326,6 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 	}
 
 	public get models() { return this._models; }
-
-	public getCustomEditor(viewType: string): CustomEditorInfo | undefined {
-		return this._contributedEditors.get(viewType);
-	}
 
 	public getContributedCustomEditors(resource: URI): CustomEditorInfoCollection {
 		return new CustomEditorInfoCollection(this._contributedEditors.getContributedEditors(resource));

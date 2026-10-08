@@ -1955,10 +1955,6 @@ export class AgentSideEffects extends Disposable {
 		this._customizationEnablementService.replaceEnablement(session, target, enablement);
 	}
 
-	cancelSessionTitleGeneration(session: ProtocolURI): void {
-		this._titleController.cancelTitleGeneration(session);
-	}
-
 	clearSessionTitleState(session: ProtocolURI, chats: readonly ProtocolURI[]): void {
 		this._titleController.clearSession(session, chats);
 	}

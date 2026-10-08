@@ -120,9 +120,6 @@ export class PtyService extends Disposable implements IPtyService {
 
 	private _lastPtyId: number = 0;
 
-	private readonly _onHeartbeat = this._register(new Emitter<void>());
-	readonly onHeartbeat = this._traceEvent('_onHeartbeat', this._onHeartbeat.event);
-
 	private readonly _onProcessData = this._register(new Emitter<{ id: number; event: IProcessDataEvent | string }>());
 	readonly onProcessData = this._traceEvent('_onProcessData', this._onProcessData.event);
 	private readonly _onProcessReplay = this._register(new Emitter<{ id: number; event: IPtyHostProcessReplayEvent }>());

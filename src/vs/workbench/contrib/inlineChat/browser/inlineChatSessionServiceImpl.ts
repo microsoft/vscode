@@ -29,14 +29,6 @@ import { InlineChatEditReviewSession } from './inlineChatEditReviewSession.js';
 import { IInlineChatSession, IInlineChatSessionService, InlineChatSessionTerminationState } from './inlineChatSessionService.js';
 import { IInlineChatSessionResolver } from './inlineChatSessionResolver.js';
 
-export class InlineChatError extends Error {
-	static readonly code = 'InlineChatError';
-	constructor(message: string) {
-		super(message);
-		this.name = InlineChatError.code;
-	}
-}
-
 export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 	declare _serviceBrand: undefined;

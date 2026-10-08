@@ -89,12 +89,6 @@ export interface IChatAgentData {
 	capabilities?: IChatAgentAttachmentCapabilities;
 }
 
-export interface IChatWelcomeMessageContent {
-	icon: ThemeIcon;
-	title: string;
-	message: IMarkdownString;
-}
-
 export interface IChatAgentImplementation {
 	invoke(request: IChatAgentRequest, progress: (parts: IChatProgress[]) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult>;
 	setRequestTools?(requestId: string, tools: UserSelectedTools): void;
@@ -264,7 +258,6 @@ export interface IChatAgentService {
 	registerAgentImplementation(id: string, agent: IChatAgentImplementation): IDisposable;
 	registerDynamicAgent(data: IChatAgentData, agentImpl: IChatAgentImplementation): IDisposable;
 	registerAgentCompletionProvider(id: string, provider: (query: string, token: CancellationToken) => Promise<IChatAgentCompletionItem[]>): IDisposable;
-	getAgentCompletionItems(id: string, query: string, token: CancellationToken): Promise<IChatAgentCompletionItem[]>;
 	registerChatParticipantDetectionProvider(handle: number, provider: IChatParticipantDetectionProvider): IDisposable;
 	detectAgentOrCommand(request: IChatAgentRequest, history: IChatAgentHistoryEntry[], options: { location: ChatAgentLocation }, token: CancellationToken): Promise<{ agent: IChatAgentData; command?: IChatAgentCommand } | undefined>;
 	hasChatParticipantDetectionProviders(): boolean;
@@ -273,7 +266,6 @@ export interface IChatAgentService {
 	setYieldRequested(agent: string, requestId: string, value: boolean): void;
 	getFollowups(id: string, request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]>;
 	getChatTitle(id: string, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<string | undefined>;
-	getChatSummary(id: string, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<string | undefined>;
 	getAgent(id: string, includeDisabled?: boolean): IChatAgentData | undefined;
 	getAgentByFullyQualifiedId(id: string): IChatAgentData | undefined;
 	getAgents(): IChatAgentData[];
@@ -294,9 +286,6 @@ export interface IChatAgentService {
 }
 
 export class ChatAgentService extends Disposable implements IChatAgentService {
-
-	public static readonly AGENT_LEADER = '@';
-
 	declare _serviceBrand: undefined;
 
 	private _agents = new Map<string, IChatAgentEntry>();
@@ -441,10 +430,6 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 		return {
 			dispose: () => { this._agentCompletionProviders.delete(id); }
 		};
-	}
-
-	async getAgentCompletionItems(id: string, query: string, token: CancellationToken) {
-		return await this._agentCompletionProviders.get(id)?.(query, token) ?? [];
 	}
 
 	updateAgent(id: string, updateMetadata: IChatAgentMetadata): void {
@@ -593,15 +578,6 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 		return data.impl.provideChatTitle(history, token);
 	}
 
-	async getChatSummary(id: string, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<string | undefined> {
-		const data = this._agents.get(id);
-		if (!data?.impl?.provideChatSummary) {
-			return undefined;
-		}
-
-		return data.impl.provideChatSummary(history, token);
-	}
-
 	registerChatParticipantDetectionProvider(handle: number, provider: IChatParticipantDetectionProvider) {
 		this._chatParticipantDetectionProviders.set(handle, provider);
 		return toDisposable(() => {
@@ -671,7 +647,6 @@ export class MergedChatAgent implements IChatAgent {
 	get extensionId(): ExtensionIdentifier { return this.data.extensionId; }
 	get extensionVersion(): string | undefined { return this.data.extensionVersion; }
 	get extensionPublisherId(): string { return this.data.extensionPublisherId; }
-	get extensionPublisherDisplayName() { return this.data.publisherDisplayName; }
 	get extensionDisplayName(): string { return this.data.extensionDisplayName; }
 	get isDefault(): boolean | undefined { return this.data.isDefault; }
 	get isCore(): boolean | undefined { return this.data.isCore; }

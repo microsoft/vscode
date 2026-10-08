@@ -347,7 +347,6 @@ export interface ICommonNativeHostService {
 	 */
 	setApplicationBadge(badge: IApplicationBadge | undefined, options?: INativeHostOptions): Promise<void>;
 	openExternal(url: string, defaultApplication?: string): Promise<boolean>;
-	moveItemToTrash(fullPath: string): Promise<void>;
 
 	getMediaAccessStatus(mediaType: 'microphone' | 'camera' | 'screen'): Promise<'not-determined' | 'granted' | 'denied' | 'restricted' | 'unknown'>;
 

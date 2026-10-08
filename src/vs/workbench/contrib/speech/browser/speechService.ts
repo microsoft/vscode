@@ -245,10 +245,8 @@ export class SpeechService extends Disposable implements ISpeechService {
 	//#region Text to Speech
 
 	private readonly _onDidStartTextToSpeechSession = this._register(new Emitter<void>());
-	readonly onDidStartTextToSpeechSession = this._onDidStartTextToSpeechSession.event;
 
 	private readonly _onDidEndTextToSpeechSession = this._register(new Emitter<void>());
-	readonly onDidEndTextToSpeechSession = this._onDidEndTextToSpeechSession.event;
 
 	private activeTextToSpeechSessions = 0;
 	get hasActiveTextToSpeechSession() { return this.activeTextToSpeechSessions > 0; }

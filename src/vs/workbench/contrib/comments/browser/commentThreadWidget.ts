@@ -33,8 +33,6 @@ import { AccessibilityCommandId } from '../../accessibility/common/accessibility
 import { LayoutableEditor } from './simpleCommentEditor.js';
 import { isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
 
-export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
-
 export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends Disposable implements ICommentThreadWidget {
 	private _header!: CommentThreadHeader<T>;
 	private _body: CommentThreadBody<T>;

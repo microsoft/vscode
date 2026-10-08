@@ -11,7 +11,6 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import * as nls from '../../../nls.js';
 import { Extensions as JSONExtensions, IJSONContributionRegistry } from '../../jsonschemas/common/jsonContributionRegistry.js';
 import * as platform from '../../registry/common/platform.js';
-import { IColorTheme } from './themeService.js';
 
 const TOKEN_TYPE_WILDCARD = '*';
 const TOKEN_CLASSIFIER_LANGUAGE_SEPARATOR = ':';
@@ -127,10 +126,6 @@ export namespace TokenStyle {
 
 export type ProbeScope = string[];
 
-export interface TokenStyleFunction {
-	(theme: IColorTheme): TokenStyle | undefined;
-}
-
 export interface TokenStyleDefaults {
 	scopesToProbe?: ProbeScope[];
 	light?: TokenStyleValue;
@@ -240,16 +235,6 @@ export interface ITokenClassificationRegistry {
 	 * Deregister a TokenModifier from the registry.
 	 */
 	deregisterTokenModifier(id: string): void;
-
-	/**
-	 * Get all TokenType contributions
-	 */
-	getTokenTypes(): TokenTypeOrModifierContribution[];
-
-	/**
-	 * Get all TokenModifier contributions
-	 */
-	getTokenModifiers(): TokenTypeOrModifierContribution[];
 
 	/**
 	 * The styling rules to used when a schema does not define any styling rules.
@@ -441,14 +426,6 @@ class TokenClassificationRegistry extends Disposable implements ITokenClassifica
 	public deregisterTokenModifier(id: string): void {
 		delete this.tokenModifierById[id];
 		delete this.tokenStylingSchema.properties[`*.${id}`];
-	}
-
-	public getTokenTypes(): TokenTypeOrModifierContribution[] {
-		return Object.keys(this.tokenTypeById).map(id => this.tokenTypeById[id]);
-	}
-
-	public getTokenModifiers(): TokenTypeOrModifierContribution[] {
-		return Object.keys(this.tokenModifierById).map(id => this.tokenModifierById[id]);
 	}
 
 	public getTokenStylingSchema(): IJSONSchema {

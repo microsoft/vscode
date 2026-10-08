@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isUndefined } from '../../../../base/common/types.js';
 import { Event } from '../../../../base/common/event.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -41,7 +40,6 @@ export interface IUserDataProfileManagementService {
 	readonly _serviceBrand: undefined;
 
 	createProfile(name: string, options?: IUserDataProfileOptions): Promise<IUserDataProfile>;
-	createAndEnterProfile(name: string, options?: IUserDataProfileOptions): Promise<IUserDataProfile>;
 	createAndEnterTransientProfile(): Promise<IUserDataProfile>;
 	removeProfile(profile: IUserDataProfile): Promise<void>;
 	updateProfile(profile: IUserDataProfile, updateOptions: IUserDataProfileUpdateOptions): Promise<IUserDataProfile>;
@@ -60,16 +58,6 @@ export interface IUserDataProfileTemplate {
 	readonly globalState?: string;
 	readonly extensions?: string;
 	readonly mcp?: string;
-}
-
-export function isUserDataProfileTemplate(thing: unknown): thing is IUserDataProfileTemplate {
-	const candidate = thing as IUserDataProfileTemplate | undefined;
-
-	return !!(candidate && typeof candidate === 'object'
-		&& (isUndefined(candidate.settings) || typeof candidate.settings === 'string')
-		&& (isUndefined(candidate.globalState) || typeof candidate.globalState === 'string')
-		&& (isUndefined(candidate.extensions) || typeof candidate.extensions === 'string')
-		&& (isUndefined(candidate.mcp) || typeof candidate.mcp === 'string'));
 }
 
 export const PROFILE_URL_AUTHORITY = 'profile';

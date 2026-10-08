@@ -43,16 +43,6 @@ export namespace WebFileSystemObserver {
 	}
 }
 
-export interface FileSystemObserver {
-	new(callback: (records: FileSystemObserverRecord[], observer: FileSystemObserver) => void): FileSystemObserver;
-
-	observe(handle: FileSystemHandle): Promise<void>;
-	observe(handle: FileSystemDirectoryHandle, options?: { recursive: boolean }): Promise<void>;
-
-	unobserve(handle: FileSystemHandle): void;
-	disconnect(): void;
-}
-
 export interface FileSystemObserverRecord {
 
 	/**
@@ -84,11 +74,4 @@ export interface FileSystemObserverRecord {
 	 * The former location of a moved handle. Available only when the type is "moved".
 	 */
 	readonly relativePathMovedFrom?: string[];
-}
-
-export declare class FileSystemObserver {
-
-	constructor(callback: (records: FileSystemObserverRecord[], observer: FileSystemObserver) => void);
-
-	observe(handle: FileSystemHandle, options?: { recursive: boolean }): Promise<void>;
 }

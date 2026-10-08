@@ -121,8 +121,6 @@ function createAgentSessionInstantiationService(ctx: ComponentFixtureContext) {
 				override readonly lastPlayedVersion = observableValue<number>('lastPlayedVersion', 0);
 				override readonly pendingResponseVersion = observableValue<number>('pendingResponseVersion', 0);
 				override hasPendingResponse() { return false; }
-				override hasLastPlayed() { return false; }
-				override getLastPlayed() { return undefined; }
 			}());
 		},
 	});

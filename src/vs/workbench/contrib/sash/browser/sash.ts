@@ -11,9 +11,6 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { createStyleSheet } from '../../../../base/browser/domStylesheets.js';
 
-export const minSize = 1;
-export const maxSize = 20; // see also https://ux.stackexchange.com/questions/39023/what-is-the-optimum-button-size-of-touch-screen-applications
-
 export class SashSettingsController extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.sash';

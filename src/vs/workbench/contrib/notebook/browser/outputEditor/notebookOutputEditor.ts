@@ -286,10 +286,6 @@ export class NotebookOutputEditor extends EditorPane implements INotebookDelegat
 
 	}
 
-	getOutputRenderer(): any {
-
-	}
-
 	updateOutputHeight(cellInfo: ICommonCellInfo, output: ICellOutputViewModel, height: number, isInit: boolean, source?: string): void {
 
 	}

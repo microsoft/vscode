@@ -117,7 +117,6 @@ export interface ICoordinatesConverter {
 	getCellViewScrollBottom(cell: ICellViewModel): number;
 	getViewIndex(cell: ICellViewModel): number | undefined;
 	getViewIndex2(modelIndex: number): number | undefined;
-	getModelIndex(cell: CellViewModel): number | undefined;
 	getModelIndex2(viewIndex: number): number | undefined;
 	getVisibleRangesPlusViewportAboveAndBelow(): ICellRange[];
 	modelIndexIsVisible(modelIndex: number): boolean;

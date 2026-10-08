@@ -62,11 +62,6 @@ export interface GitBranch extends GitRef {
 	readonly behind?: number;
 }
 
-export interface GitBaseRef {
-	readonly name: string;
-	readonly isProtected: boolean;
-}
-
 export interface GitUpstreamRef {
 	readonly remote: string;
 	readonly name: string;

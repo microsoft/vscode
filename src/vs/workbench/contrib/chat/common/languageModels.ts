@@ -619,8 +619,6 @@ export interface ILanguageModelsService {
 
 	sendChatRequest(modelId: string, from: ExtensionIdentifier | undefined, messages: IChatMessage[], options: ILanguageModelChatRequestOptions, token: CancellationToken): Promise<ILanguageModelChatResponse>;
 
-	computeTokenLength(modelId: string, message: string | IChatMessage, token: CancellationToken): Promise<number>;
-
 	/**
 	 * Returns the resolved per-model configuration for the given model identifier.
 	 * Includes schema defaults unless `includeDefaults` is false.
@@ -746,11 +744,6 @@ export interface ILanguageModelsService {
 	 * separated into free and paid tiers.
 	 */
 	getModelsControlManifest(): IModelsControlManifest;
-
-	/**
-	 * Fires when models control manifest changes.
-	 */
-	readonly onDidChangeModelsControlManifest: Event<IModelsControlManifest>;
 
 	/**
 	 * Observable map of restricted chat participant names to allowed extension publisher/IDs.
@@ -1104,7 +1097,6 @@ export class LanguageModelsService implements ILanguageModelsService {
 	private _hiddenModelIds = new Set<string>();
 
 	private readonly _onDidChangeModelsControlManifest = this._store.add(new Emitter<IModelsControlManifest>());
-	readonly onDidChangeModelsControlManifest = this._onDidChangeModelsControlManifest.event;
 
 	private readonly _onDidChangePinnedModels = this._store.add(new Emitter<void>());
 	readonly onDidChangePinnedModels = this._onDidChangePinnedModels.event;
@@ -1615,18 +1607,6 @@ export class LanguageModelsService implements ILanguageModelsService {
 
 		// User config overrides defaults
 		return { ...defaults, ...userConfig };
-	}
-
-	computeTokenLength(modelId: string, message: string | IChatMessage, token: CancellationToken): Promise<number> {
-		const model = this._modelCache.get(modelId);
-		if (!model) {
-			throw new Error(`Chat model ${modelId} could not be found.`);
-		}
-		const provider = this._providers.get(model.vendor);
-		if (!provider) {
-			throw new Error(`Chat provider for model ${modelId} is not registered.`);
-		}
-		return provider.provideTokenCount(modelId, message, token);
 	}
 
 	getModelConfiguration(modelId: string, includeDefaults = true): IStringDictionary<unknown> | undefined {

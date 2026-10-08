@@ -1234,7 +1234,6 @@ export interface IAgentSessionsFilter {
 export class AgentSessionsDataSource extends Disposable implements IAsyncDataSource<IAgentSessionsModel, AgentSessionListItem> {
 
 	private static readonly CAPPED_SESSIONS_LIMIT = 3;
-	static readonly REPOSITORY_GROUP_LIMIT = 5;
 
 	private readonly _onDidGetChildren = this._register(new Emitter<number>());
 	readonly onDidGetChildren: Event<number> = this._onDidGetChildren.event;

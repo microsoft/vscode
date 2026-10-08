@@ -444,19 +444,6 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 		return line >= viewportY && line < viewportY + terminal.rows;
 	}
 
-	scrollToClosestMarker(startMarkerId: string, endMarkerId?: string, highlight?: boolean | undefined): void {
-		const detectionCapability = this._capabilities.get(TerminalCapability.BufferMarkDetection);
-		if (!detectionCapability) {
-			return;
-		}
-		const startMarker = detectionCapability.getMark(startMarkerId);
-		if (!startMarker) {
-			return;
-		}
-		const endMarker = endMarkerId ? detectionCapability.getMark(endMarkerId) : startMarker;
-		this._scrollToMarker(startMarker, ScrollPosition.Top, endMarker, { hideDecoration: !highlight });
-	}
-
 	selectToPreviousMark(): void {
 		if (!this._terminal) {
 			return;

@@ -234,10 +234,6 @@ class RenderedMarkdownHoverPart implements IRenderedHoverPart<MarkdownHover> {
 		public readonly actionsContainer?: HTMLElement
 	) { }
 
-	get hoverAccessibleContent(): string {
-		return this.hoverElement.innerText.trim();
-	}
-
 	dispose(): void {
 		this.disposables.dispose();
 	}

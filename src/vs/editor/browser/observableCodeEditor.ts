@@ -557,20 +557,6 @@ export class ObservableCodeEditor extends Disposable {
 			return this.editor.getTopForLineNumber(lineNumber);
 		});
 	}
-
-	/**
-	 * Get the vertical position (top offset) for the line's bottom w.r.t. to the first line.
-	 */
-	observeBottomForLineNumber(lineNumber: number): IObservable<number> {
-		return derived(reader => {
-			this.layoutInfo.read(reader);
-			this._onDidChangeViewZones.read(reader);
-			this._onDidHiddenAreasChanged.read(reader);
-			this._onDidLineHeightChanged.read(reader);
-			this._versionId.read(reader);
-			return this.editor.getBottomForLineNumber(lineNumber);
-		});
-	}
 }
 
 interface IObservableOverlayWidget {

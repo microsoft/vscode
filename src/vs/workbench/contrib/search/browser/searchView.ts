@@ -89,11 +89,6 @@ import { forcedExpandRecursively } from './searchActionsTopBar.js';
 
 const $ = dom.$;
 
-export enum SearchViewPosition {
-	SideBar,
-	Panel
-}
-
 interface ISearchViewStateQuery {
 	contentPattern?: string;
 	replaceText?: string | false;
@@ -1395,11 +1390,6 @@ export class SearchView extends ViewPane {
 	allSearchFieldsClear(): boolean {
 		return this.searchWidget.getReplaceValue() === '' &&
 			(!this.searchWidget.searchInput || this.searchWidget.searchInput.getValue() === '');
-	}
-
-	allFilePatternFieldsClear(): boolean {
-		return this.searchExcludePattern.getValue() === '' &&
-			this.searchIncludePattern.getValue() === '';
 	}
 
 	hasSearchResults(): boolean {

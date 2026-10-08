@@ -51,11 +51,6 @@ export class CountBadge extends Disposable {
 		this.render();
 	}
 
-	setCountFormat(countFormat: string) {
-		this.countFormat = countFormat;
-		this.render();
-	}
-
 	setTitleFormat(titleFormat: string) {
 		this.titleFormat = titleFormat;
 		this.updateHover();

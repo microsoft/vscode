@@ -215,23 +215,6 @@ export class ChatEditingSessionStorage {
 	}
 }
 
-export interface IChatEditingSessionSnapshot {
-	/**
-	 * Index of this session in the linear history. It's the sum of the lengths
-	 * of all {@link stops} prior this one.
-	 */
-	readonly startIndex: number;
-
-	readonly requestId: string | undefined;
-	/**
-	 * Edit stops in the request. Always initially populatd with stopId: undefind
-	 * for th request's initial state.
-	 *
-	 * Invariant: never empty.
-	 */
-	readonly stops: IChatEditingSessionStop[];
-}
-
 export interface IChatEditingSessionStop {
 	/** Edit stop ID, first for a request is always undefined. */
 	stopId: string | undefined;

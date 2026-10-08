@@ -52,9 +52,6 @@ export interface IFindInputEvent {
 const NLS_DEFAULT_LABEL = nls.localize('defaultLabel', "input");
 
 export class FindInput extends Widget {
-
-	static readonly OPTION_CHANGE: string = 'optionChange';
-
 	private placeholder: string;
 	private validation?: IInputValidator;
 	private label: string;

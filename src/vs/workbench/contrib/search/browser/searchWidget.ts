@@ -364,22 +364,6 @@ export class SearchWidget extends Widget {
 		this.replaceInput?.inputBox.clearHistory();
 	}
 
-	showNextSearchTerm() {
-		this.searchInput?.inputBox.showNextValue();
-	}
-
-	showPreviousSearchTerm() {
-		this.searchInput?.inputBox.showPreviousValue();
-	}
-
-	showNextReplaceTerm() {
-		this.replaceInput?.inputBox.showNextValue();
-	}
-
-	showPreviousReplaceTerm() {
-		this.replaceInput?.inputBox.showPreviousValue();
-	}
-
 	searchInputHasFocus(): boolean {
 		return !!this.searchInputBoxFocused.get();
 	}
@@ -394,12 +378,6 @@ export class SearchWidget extends Widget {
 
 	focusRegexAction(): void {
 		this.searchInput?.focusOnRegex();
-	}
-
-	set replaceButtonVisibility(val: boolean) {
-		if (this.toggleReplaceButton) {
-			this.toggleReplaceButton.element.style.display = val ? '' : 'none';
-		}
 	}
 
 	private render(container: HTMLElement, options: ISearchWidgetOptions): void {

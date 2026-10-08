@@ -364,11 +364,6 @@ export class BulkEditPreviewProvider implements ITextModelContentProvider {
 
 	static emptyPreview = URI.from({ scheme: this.Schema, fragment: 'empty' });
 
-
-	static fromPreviewUri(uri: URI): URI {
-		return URI.parse(uri.query);
-	}
-
 	private readonly _disposables = new DisposableStore();
 	private readonly _ready: Promise<any>;
 	private readonly _modelPreviewEdits = new Map<string, ISingleEditOperation[]>();

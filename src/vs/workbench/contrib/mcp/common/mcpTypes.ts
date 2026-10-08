@@ -570,9 +570,6 @@ export interface IMcpResourceTemplate {
 export const isMcpResourceTemplate = (obj: IMcpResource | IMcpResourceTemplate): obj is IMcpResourceTemplate => {
 	return (obj as IMcpResourceTemplate).template !== undefined;
 };
-export const isMcpResource = (obj: IMcpResource | IMcpResourceTemplate): obj is IMcpResource => {
-	return (obj as IMcpResource).mcpUri !== undefined;
-};
 
 export const enum McpServerCacheState {
 	/** Tools have not been read before */

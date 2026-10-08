@@ -94,22 +94,8 @@ export const enum VSCodeOscProperty {
 	HasRichCommandDetection = 'HasRichCommandDetection',
 }
 
-/**
- * ITerm sequences
- */
-export const enum ITermOscPt {
-	/**
-	 * Based on ITerm's `OSC 1337 ; SetMark` sets a mark on the scrollbar
-	 */
-	SetMark = 'SetMark'
-}
-
 export function VSCodeSequence(osc: VSCodeOscPt, data?: string | VSCodeOscProperty): string {
 	return oscSequence(ShellIntegrationOscPs.VSCode, osc, data);
-}
-
-export function ITermSequence(osc: ITermOscPt, data?: string): string {
-	return oscSequence(ShellIntegrationOscPs.ITerm, osc, data);
 }
 
 function oscSequence(ps: number, pt: string, data?: string): string {

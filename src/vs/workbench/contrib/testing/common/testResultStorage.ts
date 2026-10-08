@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { bufferToStream, newWriteableBufferStream, VSBuffer, VSBufferReadableStream, VSBufferWriteableStream } from '../../../../base/common/buffer.js';
+import { VSBuffer, VSBufferReadableStream, VSBufferWriteableStream } from '../../../../base/common/buffer.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -97,15 +97,6 @@ export abstract class BaseTestResultStorage extends Disposable implements ITestR
 	/**
 	 * @override
 	 */
-	public getResultOutputWriter(resultId: string) {
-		const stream = newWriteableBufferStream();
-		this.storeOutputForResultId(resultId, stream);
-		return stream;
-	}
-
-	/**
-	 * @override
-	 */
 	public async persist(results: ReadonlyArray<ITestResult>): Promise<void> {
 		const toDelete = new Map(this.stored.get([]).map(({ id, bytes }) => [id, bytes]));
 		const toStore: { rev: number; id: string; bytes: number }[] = [];
@@ -155,16 +146,6 @@ export abstract class BaseTestResultStorage extends Disposable implements ITestR
 	protected abstract readForResultId(id: string): Promise<ISerializedTestResults | undefined>;
 
 	/**
-	 * Reads output as a stream for the test.
-	 */
-	protected abstract readOutputForResultId(id: string): Promise<VSBufferReadableStream>;
-
-	/**
-	 * Reads an output range for the test.
-	 */
-	protected abstract readOutputRangeForResultId(id: string, offset: number, length: number): Promise<VSBuffer>;
-
-	/**
 	 * Deletes serialized results for the test.
 	 */
 	protected abstract deleteForResultId(id: string): Promise<unknown>;
@@ -173,11 +154,6 @@ export abstract class BaseTestResultStorage extends Disposable implements ITestR
 	 * Stores test results by ID.
 	 */
 	protected abstract storeForResultId(id: string, data: ISerializedTestResults): Promise<unknown>;
-
-	/**
-	 * Reads serialized results for the test. Is allowed to throw.
-	 */
-	protected abstract storeOutputForResultId(id: string, input: VSBufferWriteableStream): Promise<void>;
 }
 
 export class InMemoryResultStorage extends BaseTestResultStorage {
@@ -238,29 +214,6 @@ export class TestResultStorage extends BaseTestResultStorage {
 		return this.fileService.del(this.getResultJsonPath(id)).catch(() => undefined);
 	}
 
-	protected async readOutputRangeForResultId(id: string, offset: number, length: number): Promise<VSBuffer> {
-		try {
-			const { value } = await this.fileService.readFile(this.getResultOutputPath(id), { position: offset, length });
-			return value;
-		} catch {
-			return VSBuffer.alloc(0);
-		}
-	}
-
-
-	protected async readOutputForResultId(id: string): Promise<VSBufferReadableStream> {
-		try {
-			const { value } = await this.fileService.readFileStream(this.getResultOutputPath(id));
-			return value;
-		} catch {
-			return bufferToStream(VSBuffer.alloc(0));
-		}
-	}
-
-	protected async storeOutputForResultId(id: string, input: VSBufferWriteableStream) {
-		await this.fileService.createFile(this.getResultOutputPath(id), input);
-	}
-
 	/**
 	 * @inheritdoc
 	 */
@@ -292,9 +245,5 @@ export class TestResultStorage extends BaseTestResultStorage {
 
 	private getResultJsonPath(id: string) {
 		return URI.joinPath(this.directory, `${id}.json`);
-	}
-
-	private getResultOutputPath(id: string) {
-		return URI.joinPath(this.directory, `${id}.output`);
 	}
 }

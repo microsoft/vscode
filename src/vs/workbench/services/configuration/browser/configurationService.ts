@@ -1076,16 +1076,6 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		}
 	}
 
-	getConfigurationModel(target: ConfigurationTarget, resource?: URI | null): ConfigurationModel | undefined {
-		switch (target) {
-			case ConfigurationTarget.USER_LOCAL: return this._configuration.localUserConfiguration;
-			case ConfigurationTarget.USER_REMOTE: return this._configuration.remoteUserConfiguration;
-			case ConfigurationTarget.WORKSPACE: return this._configuration.workspaceConfiguration;
-			case ConfigurationTarget.WORKSPACE_FOLDER: return resource ? this._configuration.folderConfigurations.get(resource) : undefined;
-			default: return undefined;
-		}
-	}
-
 	private deriveConfigurationTargets(key: string, value: unknown, inspect: IConfigurationValue<unknown>): ConfigurationTarget[] {
 		if (equals(value, inspect.value)) {
 			return [];

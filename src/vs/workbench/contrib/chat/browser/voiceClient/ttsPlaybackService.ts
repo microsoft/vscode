@@ -22,7 +22,6 @@ export interface ITtsPlaybackService {
 
 	readonly isPlaying: boolean;
 
-	readonly onPlaybackStarted: Event<void>;
 	readonly onPlaybackStopped: Event<void>;
 
 	/** Returns the PCM samples from the last completed playback turn, or null. */
@@ -69,7 +68,6 @@ export class TtsPlaybackService extends Disposable implements ITtsPlaybackServic
 	private _lastPlayedSamples: Float32Array | null = null;
 
 	private readonly _onPlaybackStarted = this._register(new Emitter<void>());
-	readonly onPlaybackStarted: Event<void> = this._onPlaybackStarted.event;
 
 	private readonly _onPlaybackStopped = this._register(new Emitter<void>());
 	readonly onPlaybackStopped: Event<void> = this._onPlaybackStopped.event;

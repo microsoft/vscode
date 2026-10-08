@@ -315,10 +315,6 @@ class HoverAdapter {
 		};
 		return hover;
 	}
-
-	releaseHover(id: number): void {
-		this._hoverMap.delete(id);
-	}
 }
 
 class EvaluatableExpressionAdapter {
@@ -2125,18 +2121,6 @@ class DocumentDropEditAdapter {
 		}));
 	}
 
-	async resolveDropEdit(id: extHostProtocol.ChainedCacheId, token: CancellationToken): Promise<{ additionalEdit?: extHostProtocol.IWorkspaceEditDto }> {
-		const [sessionId, itemId] = id;
-		const item = this._cache.get(sessionId, itemId);
-		if (!item || !this._provider.resolveDocumentDropEdit) {
-			return {}; // this should not happen...
-		}
-
-		const resolvedItem = (await this._provider.resolveDocumentDropEdit(item, token)) ?? item;
-		const additionalEdit = resolvedItem.additionalEdit ? typeConvert.WorkspaceEdit.from(resolvedItem.additionalEdit, undefined) : undefined;
-		return { additionalEdit };
-	}
-
 	releaseDropEdits(id: number): any {
 		this._cache.delete(id);
 	}
@@ -2360,10 +2344,6 @@ export class ExtHostLanguageFeatures extends CoreDisposable implements extHostPr
 
 	$provideHover(handle: number, resource: UriComponents, position: IPosition, context: languages.HoverContext<{ id: number }> | undefined, token: CancellationToken,): Promise<extHostProtocol.HoverWithId | undefined> {
 		return this._withAdapter(handle, HoverAdapter, adapter => adapter.provideHover(URI.revive(resource), position, context, token), undefined, token);
-	}
-
-	$releaseHover(handle: number, id: number): void {
-		this._withAdapter(handle, HoverAdapter, adapter => Promise.resolve(adapter.releaseHover(id)), undefined, undefined);
 	}
 
 	// --- debug hover
@@ -2922,10 +2902,6 @@ export class ExtHostLanguageFeatures extends CoreDisposable implements extHostPr
 	$provideDocumentOnDropEdits(handle: number, requestId: number, resource: UriComponents, position: IPosition, dataTransferDto: extHostProtocol.DataTransferDTO, token: CancellationToken): Promise<extHostProtocol.IDocumentDropEditDto[] | undefined> {
 		return this._withAdapter(handle, DocumentDropEditAdapter, adapter =>
 			Promise.resolve(adapter.provideDocumentOnDropEdits(requestId, URI.revive(resource), position, dataTransferDto, token)), undefined, undefined);
-	}
-
-	$resolveDropEdit(handle: number, id: extHostProtocol.ChainedCacheId, token: CancellationToken): Promise<{ additionalEdit?: extHostProtocol.IWorkspaceEditDto }> {
-		return this._withAdapter(handle, DocumentDropEditAdapter, adapter => adapter.resolveDropEdit(id, token), {}, undefined);
 	}
 
 	$releaseDocumentOnDropEdits(handle: number, cacheId: number): void {

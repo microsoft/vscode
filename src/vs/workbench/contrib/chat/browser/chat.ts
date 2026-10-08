@@ -495,7 +495,6 @@ export interface IChatWidget {
 	startEditing(requestId: string): void;
 	cancelEditing(): Promise<void>;
 	finishedEditing(completedEdit?: boolean): void;
-	rerunLastRequest(): Promise<void>;
 	setInputPlaceholder(placeholder: string): void;
 	resetInputPlaceholder(): void;
 	/**
@@ -504,11 +503,6 @@ export interface IChatWidget {
 	 */
 	focusResponseItem(lastFocused?: boolean): void;
 	focusInput(): void;
-	/**
-	 * Focuses the Todos view in the chat widget.
-	 * @returns Whether the operation succeeded (i.e., the Todos view was focused).
-	 */
-	focusTodosView(): boolean;
 	/**
 	 * Toggles focus between the Todos view and the previous focus target in the chat widget.
 	 * @returns Whether the operation succeeded (i.e., the focus was toggled).

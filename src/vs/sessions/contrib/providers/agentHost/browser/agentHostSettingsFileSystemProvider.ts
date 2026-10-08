@@ -3,23 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { RootConfigState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import {
 	AbstractMultiProviderAgentHostConfigSchemaRegistrar,
 	AbstractSessionsAgentHostConfigFileSystemProvider,
 	AgentHostConfigPropertyFilter,
-	buildAgentHostConfigJsonSchema,
 	IAgentHostConfigLike,
 	IAgentHostSettingsContext,
 	IAgentHostSettingsLocale,
-	serializeAgentHostConfigDocument,
+	serializeAgentHostConfigDocument
 } from './agentHostSettingsShared.js';
 
 /** Scheme for the synthetic agent-host settings files. */
@@ -65,13 +62,6 @@ const hostSettingsLocale: IAgentHostSettingsLocale = {
  */
 export function serializeHostSettings(provider: IAgentHostSessionsProvider): string {
 	return serializeAgentHostConfigDocument(provider.getRootConfig(), hostSettingsPropertyFilter, hostSettingsLocale);
-}
-
-/**
- * Build a JSON schema describing the root config of an agent host provider.
- */
-export function buildHostSettingsJsonSchema(config: RootConfigState): IJSONSchema {
-	return buildAgentHostConfigJsonSchema(config, hostSettingsPropertyFilter);
 }
 
 /**

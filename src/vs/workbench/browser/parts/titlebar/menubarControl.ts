@@ -144,16 +144,6 @@ export abstract class MenubarControl extends Disposable {
 		this.menuUpdater.schedule();
 	}
 
-	protected calculateActionLabel(action: { id: string; label: string }): string {
-		const label = action.label;
-		switch (action.id) {
-			default:
-				break;
-		}
-
-		return label;
-	}
-
 	protected onUpdateStateChange(): void {
 		this.updateMenubar();
 	}
@@ -759,14 +749,6 @@ export class CustomMenubarControl extends MenubarControl {
 
 	get onFocusStateChange(): Event<boolean> {
 		return this._onFocusStateChange.event;
-	}
-
-	getMenubarItemsDimensions(): Dimension {
-		if (this.menubar) {
-			return new Dimension(this.menubar.getWidth(), this.menubar.getHeight());
-		}
-
-		return new Dimension(0, 0);
 	}
 
 	create(parent: HTMLElement): HTMLElement {

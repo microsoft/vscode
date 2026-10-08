@@ -162,12 +162,6 @@ export class ExtensionHostStarter extends Disposable implements IDisposable, IEx
 		await extHostProcess.waitForExit(maxWaitTimeMs);
 	}
 
-	async _killAllNow(): Promise<void> {
-		for (const [, extHost] of this._extHosts) {
-			extHost.kill();
-		}
-	}
-
 	async _waitForAllExit(maxWaitTimeMs: number): Promise<void> {
 		const exitPromises: Promise<void>[] = [];
 		for (const [, extHost] of this._extHosts) {

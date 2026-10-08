@@ -72,8 +72,6 @@ export function createManageTodoListToolData(): IToolData {
 	};
 }
 
-export const ManageTodoListToolData: IToolData = createManageTodoListToolData();
-
 interface IManageTodoListToolInputParams {
 	operation?: 'write' | 'read'; // Optional, defaults to 'write'
 	todoList: Array<{

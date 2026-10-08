@@ -185,14 +185,6 @@ export interface TerminalShellIntegrationEnvironment {
 	isTrusted: boolean;
 }
 
-export interface TerminalShellIntegration {
-	/**
-	 * The environment of the shell process. This is undefined if the shell integration script
-	 * does not send the environment.
-	 */
-	readonly env: TerminalShellIntegrationEnvironment;
-}
-
 export const enum CommandInvalidationReason {
 	Windows = 'windows',
 	NoProblemsReported = 'noProblemsReported'

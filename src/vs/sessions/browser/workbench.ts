@@ -248,12 +248,6 @@ export interface IDockedEditorLayout {
 	readonly onDidRevealSidePane: Event<void>;
 
 	/**
-	 * Whether the editor's current visible state was produced by an explicit user
-	 * reveal (opening an editor, or toggling the detail panel off).
-	 */
-	isEditorRevealedExplicitly(): boolean;
-
-	/**
 	 * Reveals the (possibly hidden) editor part as an explicit user action. Use for
 	 * deliberate opens like the session-header Changes pill or opening a file diff.
 	 */
@@ -2001,10 +1995,6 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 
 	handleDockedEditorPartLayout(nodeWidth: number): void {
 		this._onEditorNodeResized(nodeWidth);
-	}
-
-	isEditorRevealedExplicitly(): boolean {
-		return this._editorRevealedExplicitly;
 	}
 
 	revealEditorPartExplicitly(): void {

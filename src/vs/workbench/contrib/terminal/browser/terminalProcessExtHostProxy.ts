@@ -26,8 +26,6 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 	readonly onBinary: Event<string> = this._onBinary.event;
 	private readonly _onResize: Emitter<{ cols: number; rows: number }> = this._register(new Emitter<{ cols: number; rows: number }>());
 	readonly onResize: Event<{ cols: number; rows: number }> = this._onResize.event;
-	private readonly _onAcknowledgeDataEvent = this._register(new Emitter<number>());
-	readonly onAcknowledgeDataEvent: Event<number> = this._onAcknowledgeDataEvent.event;
 	private readonly _onShutdown = this._register(new Emitter<boolean>());
 	readonly onShutdown: Event<boolean> = this._onShutdown.event;
 	private readonly _onRequestInitialCwd = this._register(new Emitter<void>());

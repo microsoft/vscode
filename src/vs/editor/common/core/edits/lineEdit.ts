@@ -114,13 +114,6 @@ export class LineEdit {
 		);
 	}
 
-
-	/** TODO improve, dont require originalLines */
-	public mapBackLineRange(lineRange: LineRange, originalLines: string[]): LineRange {
-		const i = this.inverse(originalLines);
-		return i.mapLineRange(lineRange);
-	}
-
 	public touches(other: LineEdit): boolean {
 		return this.replacements.some(e1 => other.replacements.some(e2 => e1.lineRange.intersect(e2.lineRange)));
 	}

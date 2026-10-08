@@ -26,23 +26,6 @@ import { URI } from '../../../../base/common/uri.js';
 import { ShellExecutionSupportedContext, ProcessExecutionSupportedContext } from './taskService.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 
-export const enum ShellQuoting {
-	/**
-	 * Default is character escaping.
-	 */
-	escape = 1,
-
-	/**
-	 * Default is strong quoting
-	 */
-	strong = 2,
-
-	/**
-	 * Default is weak quoting.
-	 */
-	weak = 3
-}
-
 export interface IShellQuotingOptions {
 	/**
 	 * The character used to do character escaping.

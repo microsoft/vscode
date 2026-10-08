@@ -135,8 +135,6 @@ class TestWorkbenchMcpManagementService extends mock<IWorkbenchMcpManagementServ
 	override readonly onDidUpdateMcpServers = Event.None;
 	override readonly onUninstallMcpServer = Event.None;
 	override readonly onDidUninstallMcpServer = Event.None;
-	override readonly onInstallMcpServerInCurrentProfile = Event.None;
-	override readonly onUninstallMcpServerInCurrentProfile = Event.None;
 	private readonly onDidUninstallMcpServerInCurrentProfileEmitter: Emitter<DidUninstallWorkbenchMcpServerEvent>;
 	override readonly onDidUninstallMcpServerInCurrentProfile: Event<DidUninstallWorkbenchMcpServerEvent>;
 	private readonly onDidChangeProfileEmitter: Emitter<void>;

@@ -5,7 +5,7 @@
 import { ChildNode, n, ObserverNode, ObserverNodeWithElement } from '../../../../../../../../base/browser/dom.js';
 import { Event } from '../../../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../../../base/common/lifecycle.js';
-import { IObservable, IReader, autorun, constObservable, debouncedObservable2, derived, derivedDisposable, observableFromEvent } from '../../../../../../../../base/common/observable.js';
+import { IObservable, autorun, constObservable, debouncedObservable2, derived, derivedDisposable, observableFromEvent } from '../../../../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../../../browser/observableCodeEditor.js';
@@ -22,7 +22,7 @@ import { HideUnchangedRegionsFeature } from '../../../../../../../browser/widget
 import { Codicon } from '../../../../../../../../base/common/codicons.js';
 import { renderIcon } from '../../../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { SymbolKinds } from '../../../../../../../common/languages.js';
-import { debugLogHorizontalOffsetRanges, debugLogRects, debugView } from '../debugVisualization.js';
+import { debugLogRects, debugView } from '../debugVisualization.js';
 import { distributeFlexBoxLayout } from '../../utils/flexBoxLayout.js';
 import { Point } from '../../../../../../../common/core/2d/point.js';
 import { Size2D } from '../../../../../../../common/core/2d/size.js';
@@ -547,25 +547,6 @@ function stackSizesDown(at: Point, sizes: Size2D[], alignment: 'left' | 'right' 
 	}
 	return rects;
 }
-
-
-
-export function drawEditorWidths(e: ICodeEditor, reader: IReader) {
-	const layoutInfo = e.getLayoutInfo();
-	const contentLeft = new OffsetRange(0, layoutInfo.contentLeft);
-	const trueContent = OffsetRange.ofStartAndLength(layoutInfo.contentLeft, layoutInfo.contentWidth - layoutInfo.verticalScrollbarWidth);
-	const minimap = OffsetRange.ofStartAndLength(trueContent.endExclusive, layoutInfo.minimap.minimapWidth);
-	const verticalScrollbar = OffsetRange.ofStartAndLength(minimap.endExclusive, layoutInfo.verticalScrollbarWidth);
-
-	const r = new OffsetRange(0, 200);
-	debugView(debugLogHorizontalOffsetRanges({
-		contentLeft: Rect.fromRanges(contentLeft, r),
-		trueContent: Rect.fromRanges(trueContent, r),
-		minimap: Rect.fromRanges(minimap, r),
-		verticalScrollbar: Rect.fromRanges(verticalScrollbar, r),
-	}, e.getDomNode()!), reader);
-}
-
 
 /**
  * Changes the scroll position as little as possible just to reveal the given range in the window.

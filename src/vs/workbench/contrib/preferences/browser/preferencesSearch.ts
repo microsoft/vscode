@@ -19,11 +19,6 @@ import { IGroupFilter, ISearchResult, ISetting, ISettingMatch, ISettingMatcher, 
 import { nullRange } from '../../../services/preferences/common/preferencesModels.js';
 import { EMBEDDINGS_SEARCH_PROVIDER_NAME, IAiSearchProvider, IPreferencesSearchService, IRemoteSearchProvider, ISearchProvider, IWorkbenchSettingsConfiguration, LLM_RANKED_SEARCH_PROVIDER_NAME, STRING_MATCH_SEARCH_PROVIDER_NAME, TF_IDF_SEARCH_PROVIDER_NAME } from '../common/preferences.js';
 
-export interface IEndpointDetails {
-	urlBase?: string;
-	key?: string;
-}
-
 export class PreferencesSearchService extends Disposable implements IPreferencesSearchService {
 	declare readonly _serviceBrand: undefined;
 

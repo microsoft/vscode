@@ -23,24 +23,12 @@ import { SnapshotContext } from '../../../services/workingCopy/common/fileWorkin
 
 export const INotebookService = createDecorator<INotebookService>('notebookService');
 
-export interface INotebookContentProvider {
-	options: TransientOptions;
-
-	open(uri: URI, backupId: string | VSBuffer | undefined, untitledDocumentData: VSBuffer | undefined, token: CancellationToken): Promise<{ data: NotebookData; transientOptions: TransientOptions }>;
-	backup(uri: URI, token: CancellationToken): Promise<string | VSBuffer>;
-}
-
 export interface INotebookSerializer {
 	options: TransientOptions;
 	dataToNotebook(data: VSBuffer): Promise<NotebookData>;
 	notebookToData(data: NotebookData): Promise<VSBuffer>;
 	save(uri: URI, versionId: number, options: IWriteFileOptions, token: CancellationToken): Promise<IFileStatWithMetadata>;
 	searchInNotebooks(textQuery: ITextQuery, token: CancellationToken, allPriorityInfo: Map<string, NotebookPriorityInfo[]>): Promise<{ results: INotebookFileMatchNoModel<URI>[]; limitHit: boolean }>;
-}
-
-export interface INotebookRawData {
-	data: NotebookData;
-	transientOptions: TransientOptions;
 }
 
 export class SimpleNotebookProviderInfo {
@@ -82,7 +70,6 @@ export interface INotebookService {
 
 	createNotebookTextModel(viewType: string, uri: URI, stream?: VSBufferReadableStream): Promise<NotebookTextModel>;
 	createNotebookTextDocumentSnapshot(uri: URI, context: SnapshotContext, token: CancellationToken): Promise<VSBufferReadableStream>;
-	restoreNotebookTextModelFromSnapshot(uri: URI, viewType: string, snapshot: VSBufferReadableStream): Promise<NotebookTextModel>;
 	getNotebookTextModel(uri: URI): NotebookTextModel | undefined;
 	getNotebookTextModels(): Iterable<NotebookTextModel>;
 	listNotebookDocuments(): readonly NotebookTextModel[];

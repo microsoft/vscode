@@ -262,7 +262,6 @@ export interface ICell {
 	getHashValue(): number;
 	textBuffer: IReadonlyTextBuffer;
 	textModel?: ITextModel;
-	readonly onDidChangeTextModel: Event<void>;
 	getValue(): string;
 	readonly onDidChangeOutputs?: Event<NotebookCellOutputsSplice>;
 	readonly onDidChangeOutputItems?: Event<void>;
@@ -890,11 +889,6 @@ export enum NotebookFindScopeType {
 export interface INotebookExclusiveDocumentFilter {
 	include?: string | glob.IRelativePattern;
 	exclude?: string | glob.IRelativePattern;
-}
-
-export interface INotebookDocumentFilter {
-	viewType?: string | string[];
-	filenamePattern?: string | glob.IRelativePattern | INotebookExclusiveDocumentFilter;
 }
 
 //TODO@rebornix test

@@ -19,7 +19,6 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { localize } from '../../../../../nls.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { createWorkbenchDialogOptions } from '../../../../browser/parts/dialogs/dialog.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -557,8 +556,3 @@ export class ChatSetup {
 }
 
 //#endregion
-
-export function refreshTokens(commandService: ICommandService): void {
-	// ugly, but we need to signal to the extension that entitlements changed
-	commandService.executeCommand(defaultChat.chatRefreshTokenCommand);
-}

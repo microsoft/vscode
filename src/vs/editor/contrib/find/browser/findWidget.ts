@@ -317,24 +317,6 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 	}
 
 	/**
-	 * Returns whether the Replace input was the last focused input in the find widget.
-	 * This persists even after focus leaves the widget, allowing external code to know
-	 * which input to restore focus to.
-	 */
-	public get lastFocusedInputWasReplace(): boolean {
-		return this._lastFocusedInputWasReplace;
-	}
-
-	/**
-	 * Returns the last focused element within the Find widget.
-	 * This is useful for restoring focus to the exact element after
-	 * accessibility help or other overlays are dismissed.
-	 */
-	public get lastFocusedElement(): HTMLElement | null {
-		return this._lastFocusedElement;
-	}
-
-	/**
 	 * Focuses the last focused element in the Find widget.
 	 * Falls back to the Find or Replace input based on lastFocusedInputWasReplace.
 	 */

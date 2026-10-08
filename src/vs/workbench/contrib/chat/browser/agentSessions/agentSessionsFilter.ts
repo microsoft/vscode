@@ -343,15 +343,6 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		}));
 	}
 
-	/**
-	 * Programmatically toggle the repository group capping state.
-	 */
-	setRepositoryGroupCapped(capped: boolean): void {
-		if (this.excludes.repositoryGroupCapped !== capped) {
-			this.storeExcludes({ ...this.excludes, repositoryGroupCapped: capped });
-		}
-	}
-
 	private registerResetAction(disposables: DisposableStore, menuId: MenuId): void {
 		const that = this;
 		disposables.add(registerAction2(class extends Action2 {

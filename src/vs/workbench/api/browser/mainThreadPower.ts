@@ -54,8 +54,4 @@ export class MainThreadPower extends Disposable implements MainThreadPowerShape 
 	async $stopPowerSaveBlocker(id: number): Promise<boolean> {
 		return this.powerService.stopPowerSaveBlocker(id);
 	}
-
-	async $isPowerSaveBlockerStarted(id: number): Promise<boolean> {
-		return this.powerService.isPowerSaveBlockerStarted(id);
-	}
 }

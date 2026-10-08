@@ -51,8 +51,6 @@ export const enum ProfileResourceType {
  */
 export type UseDefaultProfileFlags = { [key in ProfileResourceType]?: boolean };
 export type ProfileResourceTypeFlags = UseDefaultProfileFlags;
-export type SettingValue = string | boolean | number | undefined | null | object;
-export type ISettingsDictionary = Record<string, SettingValue>;
 
 export interface IUserDataProfile {
 	readonly id: string;
@@ -97,17 +95,6 @@ export function isUserDataProfile(thing: unknown): thing is IUserDataProfile {
 		&& URI.isUri(candidate.languageModelsResource)
 		&& URI.isUri(candidate.agentPluginsHome)
 	);
-}
-
-export interface IParsedUserDataProfileTemplate {
-	readonly name: string;
-	readonly icon?: string;
-	readonly settings?: ISettingsDictionary;
-	readonly globalState?: IStringDictionary<string>;
-}
-
-export interface ISystemProfileTemplate extends IParsedUserDataProfileTemplate {
-	readonly id: string;
 }
 
 export type DidChangeProfilesEvent = { readonly added: readonly IUserDataProfile[]; readonly removed: readonly IUserDataProfile[]; readonly updated: readonly IUserDataProfile[]; readonly all: readonly IUserDataProfile[] };

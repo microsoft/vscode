@@ -9,8 +9,6 @@ import { ICollapseStateChangeEvent, IObjectTreeElement, ITreeElement, ITreeListS
 import { Event } from '../../../common/event.js';
 import { Iterable } from '../../../common/iterator.js';
 
-export type ITreeNodeCallback<T, TFilterData> = (node: ITreeNode<T, TFilterData>) => void;
-
 export interface IObjectTreeModel<T, TFilterData = void> extends ITreeModel<T | null, TFilterData, T | null> {
 	setChildren(element: T | null, children: Iterable<IObjectTreeElement<T>> | undefined, options?: IObjectTreeModelSetChildrenOptions<T, TFilterData>): void;
 	resort(element?: T | null, recursive?: boolean): void;

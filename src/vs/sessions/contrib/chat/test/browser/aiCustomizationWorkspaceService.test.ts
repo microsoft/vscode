@@ -14,7 +14,6 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { IPromptsService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { SessionsAICustomizationWorkspaceService } from '../../browser/aiCustomizationWorkspaceService.js';
 import { IChat, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -28,7 +27,6 @@ suite('SessionsAICustomizationWorkspaceService', () => {
 		const service = new SessionsAICustomizationWorkspaceService(
 			upcastPartial<ISessionsService>({ activeSession }),
 			upcastPartial<IInstantiationService>({}),
-			upcastPartial<IPromptsService>({}),
 			upcastPartial<ICommandService>({}),
 			upcastPartial<ILogService>({}),
 			upcastPartial<IFileService>({}),

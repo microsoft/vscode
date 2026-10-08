@@ -40,31 +40,6 @@ abstract class AbstractSettingsModel extends EditorModel {
 
 	protected _currentResultGroups = new Map<string, ISearchResultGroup>();
 
-	updateResultGroup(id: string, resultGroup: ISearchResultGroup | undefined): IFilterResult | undefined {
-		if (resultGroup) {
-			this._currentResultGroups.set(id, resultGroup);
-		} else {
-			this._currentResultGroups.delete(id);
-		}
-
-		this.removeDuplicateResults();
-		return this.update();
-	}
-
-	/**
-	 * Remove duplicates between result groups, preferring results in earlier groups
-	 */
-	private removeDuplicateResults(): void {
-		const settingKeys = new Set<string>();
-		[...this._currentResultGroups.keys()]
-			.sort((a, b) => this._currentResultGroups.get(a)!.order - this._currentResultGroups.get(b)!.order)
-			.forEach(groupId => {
-				const group = this._currentResultGroups.get(groupId)!;
-				group.result.filterMatches = group.result.filterMatches.filter(s => !settingKeys.has(s.setting.key));
-				group.result.filterMatches.forEach(s => settingKeys.add(s.setting.key));
-			});
-	}
-
 	filterSettings(filter: string, groupFilter: IGroupFilter, settingMatcher: ISettingMatcher): ISettingMatch[] {
 		const allGroups = this.filterGroups;
 

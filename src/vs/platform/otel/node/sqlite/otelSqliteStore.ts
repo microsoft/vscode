@@ -10,7 +10,6 @@ import { createRequire } from 'module';
 // eslint-disable-next-line local/code-import-patterns
 import type { DatabaseSync, StatementSync } from 'node:sqlite';
 import { dirname } from '../../../../base/common/path.js';
-import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { CopilotChatAttr, GenAiAttr } from '../../common/genAiAttributes.js';
 import type { ICompletedSpanData } from '../../common/spanData.js';
 
@@ -58,8 +57,6 @@ const DENORMALIZED_ATTRS: Record<string, string> = {
 };
 
 // -- Service identifier ----------------------------------------------------------
-
-export const IOTelSqliteStore = createDecorator<OTelSqliteStore>('otelSqliteStore');
 
 // -- Row types -------------------------------------------------------------------
 
@@ -207,12 +204,6 @@ export class OTelSqliteStore {
 			.all(conversationId, conversationId) as unknown as SpanRow[];
 	}
 
-	getSpanAttributes(spanId: string): Array<{ key: string; value: string | null }> {
-		return this._ensureDb()
-			.prepare('SELECT key, value FROM span_attributes WHERE span_id = ?')
-			.all(spanId) as unknown as Array<{ key: string; value: string | null }>;
-	}
-
 	getSpanAttribute(spanId: string, key: string): string | null {
 		const row = this._ensureDb()
 			.prepare('SELECT value FROM span_attributes WHERE span_id = ? AND key = ?')
@@ -226,18 +217,6 @@ export class OTelSqliteStore {
 			.all(spanId) as unknown as SpanEventRow[];
 	}
 
-	getTraceIds(conversationId?: string): string[] {
-		const db = this._ensureDb();
-		if (conversationId) {
-			const rows = db.prepare(
-				'SELECT DISTINCT trace_id FROM spans WHERE conversation_id = ? OR chat_session_id = ?'
-			).all(conversationId, conversationId) as unknown as Array<{ trace_id: string }>;
-			return rows.map(r => r.trace_id);
-		}
-		return (db.prepare('SELECT DISTINCT trace_id FROM spans').all() as unknown as Array<{ trace_id: string }>)
-			.map(r => r.trace_id);
-	}
-
 	/**
 	 * List all sessions with aggregated metrics, ordered by most recent first.
 	 * Uses the `sessions` SQL view over the spans table.
@@ -249,16 +228,6 @@ export class OTelSqliteStore {
 		return limit
 			? this._ensureDb().prepare(sql).all(limit) as unknown as SessionRow[]
 			: this._ensureDb().prepare(sql).all() as unknown as SessionRow[];
-	}
-
-	/**
-	 * List sessions within a time window (chronicle-style).
-	 * @param sinceMs Epoch ms — only return sessions that started after this time
-	 */
-	getSessionsSince(sinceMs: number): SessionRow[] {
-		return this._ensureDb().prepare(
-			'SELECT * FROM sessions WHERE started_at >= ? ORDER BY started_at DESC'
-		).all(sinceMs) as unknown as SessionRow[];
 	}
 
 	cleanup(maxAgeMs: number = DEFAULT_MAX_AGE_MS): number {

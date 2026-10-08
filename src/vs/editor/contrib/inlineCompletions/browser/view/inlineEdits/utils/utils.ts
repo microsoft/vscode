@@ -3,16 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getDomNodePagePosition, h } from '../../../../../../../base/browser/dom.js';
-import { KeybindingLabel, unthemedKeybindingLabelOptions } from '../../../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { numberComparator } from '../../../../../../../base/common/arrays.js';
 import { findFirstMin } from '../../../../../../../base/common/arraysFind.js';
-import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
-import { DebugLocation, derived, derivedObservableWithCache, derivedOpts, IObservable, IReader, observableSignalFromEvent, observableValue, transaction } from '../../../../../../../base/common/observable.js';
-import { OS } from '../../../../../../../base/common/platform.js';
+import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
+import { DebugLocation, derived, derivedObservableWithCache, derivedOpts, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../../../../base/common/observable.js';
 import { splitLines } from '../../../../../../../base/common/strings.js';
-import { URI } from '../../../../../../../base/common/uri.js';
-import { MenuEntryActionViewItem } from '../../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { ICodeEditor } from '../../../../../../browser/editorBrowser.js';
 import { observableCodeEditor, ObservableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
 import { Point } from '../../../../../../common/core/2d/point.js';
@@ -146,42 +141,6 @@ export function getEditorValidOverlayRect(editor: ObservableCodeEditor): IObserv
 	return derived({ name: 'editor.validOverlay' }, r => Rect.fromLeftTopWidthHeight(contentLeft.read(r), 0, width.read(r), height.read(r)));
 }
 
-export class StatusBarViewItem extends MenuEntryActionViewItem {
-	protected readonly _updateLabelListener = this._register(this._contextKeyService.onDidChangeContext(() => {
-		this.updateLabel();
-	}));
-
-	protected override updateLabel() {
-		const kb = this._keybindingService.lookupKeybinding(this._action.id, this._contextKeyService, true);
-		if (!kb) {
-			return super.updateLabel();
-		}
-		if (this.label) {
-			const div = h('div.keybinding').root;
-			const keybindingLabel = this._register(new KeybindingLabel(div, OS, { disableTitle: true, ...unthemedKeybindingLabelOptions }));
-			keybindingLabel.set(kb);
-			this.label.textContent = this._action.label;
-			this.label.appendChild(div);
-			this.label.classList.add('inlineSuggestionStatusBarItemLabel');
-		}
-	}
-
-	protected override updateTooltip(): void {
-		// NOOP, disable tooltip
-	}
-}
-
-export class UniqueUriGenerator {
-	private static _modelId = 0;
-
-	constructor(
-		public readonly scheme: string
-	) { }
-
-	public getUniqueUri(): URI {
-		return URI.from({ scheme: this.scheme, path: new Date().toString() + String(UniqueUriGenerator._modelId++) });
-	}
-}
 export function applyEditToModifiedRangeMappings(rangeMapping: RangeMapping[], edit: TextEdit): RangeMapping[] {
 	const updatedMappings: RangeMapping[] = [];
 	for (const m of rangeMapping) {
@@ -267,107 +226,9 @@ export class PathBuilder {
 		return this;
 	}
 
-	public curveTo(cp: Point, to: Point): this {
-		this._data += `Q ${cp.x} ${cp.y} ${to.x} ${to.y} `;
-		return this;
-	}
-
-	public curveTo2(cp1: Point, cp2: Point, to: Point): this {
-		this._data += `C ${cp1.x} ${cp1.y} ${cp2.x} ${cp2.y} ${to.x} ${to.y} `;
-		return this;
-	}
-
 	public build(): string {
 		return this._data;
 	}
-}
-
-// Arguments are a bit messy currently, could be improved
-export function createRectangle(
-	layout: { topLeft: Point; width: number; height: number },
-	padding: number | { top: number; right: number; bottom: number; left: number },
-	borderRadius: number | { topLeft: number; topRight: number; bottomLeft: number; bottomRight: number },
-	options: { hideLeft?: boolean; hideRight?: boolean; hideTop?: boolean; hideBottom?: boolean } = {}
-): string {
-
-	const topLeftInner = layout.topLeft;
-	const topRightInner = topLeftInner.deltaX(layout.width);
-	const bottomLeftInner = topLeftInner.deltaY(layout.height);
-	const bottomRightInner = bottomLeftInner.deltaX(layout.width);
-
-	// padding
-	const { top: paddingTop, bottom: paddingBottom, left: paddingLeft, right: paddingRight } = typeof padding === 'number' ?
-		{ top: padding, bottom: padding, left: padding, right: padding }
-		: padding;
-
-	// corner radius
-	const { topLeft: radiusTL, topRight: radiusTR, bottomLeft: radiusBL, bottomRight: radiusBR } = typeof borderRadius === 'number' ?
-		{ topLeft: borderRadius, topRight: borderRadius, bottomLeft: borderRadius, bottomRight: borderRadius } :
-		borderRadius;
-
-	const totalHeight = layout.height + paddingTop + paddingBottom;
-	const totalWidth = layout.width + paddingLeft + paddingRight;
-
-	// The path is drawn from bottom left at the end of the rounded corner in a clockwise direction
-	// Before: before the rounded corner
-	// After: after the rounded corner
-	const topLeft = topLeftInner.deltaX(-paddingLeft).deltaY(-paddingTop);
-	const topRight = topRightInner.deltaX(paddingRight).deltaY(-paddingTop);
-	const topLeftBefore = topLeft.deltaY(Math.min(radiusTL, totalHeight / 2));
-	const topLeftAfter = topLeft.deltaX(Math.min(radiusTL, totalWidth / 2));
-	const topRightBefore = topRight.deltaX(-Math.min(radiusTR, totalWidth / 2));
-	const topRightAfter = topRight.deltaY(Math.min(radiusTR, totalHeight / 2));
-
-	const bottomLeft = bottomLeftInner.deltaX(-paddingLeft).deltaY(paddingBottom);
-	const bottomRight = bottomRightInner.deltaX(paddingRight).deltaY(paddingBottom);
-	const bottomLeftBefore = bottomLeft.deltaX(Math.min(radiusBL, totalWidth / 2));
-	const bottomLeftAfter = bottomLeft.deltaY(-Math.min(radiusBL, totalHeight / 2));
-	const bottomRightBefore = bottomRight.deltaY(-Math.min(radiusBR, totalHeight / 2));
-	const bottomRightAfter = bottomRight.deltaX(-Math.min(radiusBR, totalWidth / 2));
-
-	const path = new PathBuilder();
-
-	if (!options.hideLeft) {
-		path.moveTo(bottomLeftAfter).lineTo(topLeftBefore);
-	}
-
-	if (!options.hideLeft && !options.hideTop) {
-		path.curveTo(topLeft, topLeftAfter);
-	} else {
-		path.moveTo(topLeftAfter);
-	}
-
-	if (!options.hideTop) {
-		path.lineTo(topRightBefore);
-	}
-
-	if (!options.hideTop && !options.hideRight) {
-		path.curveTo(topRight, topRightAfter);
-	} else {
-		path.moveTo(topRightAfter);
-	}
-
-	if (!options.hideRight) {
-		path.lineTo(bottomRightBefore);
-	}
-
-	if (!options.hideRight && !options.hideBottom) {
-		path.curveTo(bottomRight, bottomRightAfter);
-	} else {
-		path.moveTo(bottomRightAfter);
-	}
-
-	if (!options.hideBottom) {
-		path.lineTo(bottomLeftBefore);
-	}
-
-	if (!options.hideBottom && !options.hideLeft) {
-		path.curveTo(bottomLeft, bottomLeftAfter);
-	} else {
-		path.moveTo(bottomLeftAfter);
-	}
-
-	return path.build();
 }
 
 type RemoveFalsy<T> = T extends false | undefined | null ? never : T;
@@ -387,29 +248,6 @@ export function mapOutFalsy<T>(obs: IObservable<T>): IObservable<IObservable<Rem
 
 		return nonUndefinedObs as IObservable<RemoveFalsy<T>>;
 	});
-}
-
-export function observeElementPosition(element: HTMLElement, store: DisposableStore) {
-	const topLeft = getDomNodePagePosition(element);
-	const top = observableValue<number>('top', topLeft.top);
-	const left = observableValue<number>('left', topLeft.left);
-
-	const resizeObserver = new ResizeObserver(() => {
-		transaction(tx => {
-			const topLeft = getDomNodePagePosition(element);
-			top.set(topLeft.top, tx);
-			left.set(topLeft.left, tx);
-		});
-	});
-
-	resizeObserver.observe(element);
-
-	store.add(toDisposable(() => resizeObserver.disconnect()));
-
-	return {
-		top,
-		left
-	};
 }
 
 export function rectToProps(fn: (reader: IReader) => Rect | undefined, debugLocation: DebugLocation = DebugLocation.ofCaller()) {

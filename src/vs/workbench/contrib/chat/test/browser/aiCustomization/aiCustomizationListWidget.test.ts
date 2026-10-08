@@ -737,12 +737,10 @@ suite('aiCustomizationListWidget', () => {
 				managementSections: [AICustomizationManagementSection.Agents],
 				isSessionsWindow: false,
 				welcomePageFeatures: { showGettingStartedBanner: false },
-				getSkillUIIntegrations: () => new Map(),
 				hasOverrideProjectRoot: observableValue('test', false),
 				commitFiles: async () => { },
 				deleteFiles: async () => { },
 				generateCustomization: async () => { },
-				setOverrideProjectRoot: () => { },
 				clearOverrideProjectRoot: () => { },
 			});
 

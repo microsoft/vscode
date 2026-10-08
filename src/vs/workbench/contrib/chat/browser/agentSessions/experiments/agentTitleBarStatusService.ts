@@ -74,11 +74,6 @@ export interface IAgentTitleBarStatusService {
 	 * Used by Agent Session Projection when exiting a focused session view.
 	 */
 	exitSessionMode(): void;
-
-	/**
-	 * Update the session title while in session mode.
-	 */
-	updateSessionTitle(title: string): void;
 }
 
 export const IAgentTitleBarStatusService = createDecorator<IAgentTitleBarStatusService>('agentTitleBarStatusService');
@@ -152,15 +147,6 @@ export class AgentTitleBarStatusService extends Disposable implements IAgentTitl
 
 		this._onDidChangeMode.fire(this._mode);
 		this._onDidChangeSessionInfo.fire(undefined);
-	}
-
-	updateSessionTitle(title: string): void {
-		if (this._mode !== AgentStatusMode.Session || !this._sessionInfo) {
-			return;
-		}
-
-		this._sessionInfo = { ...this._sessionInfo, title };
-		this._onDidChangeSessionInfo.fire(this._sessionInfo);
 	}
 }
 

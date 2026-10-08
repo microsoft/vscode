@@ -12,14 +12,10 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { NotebookFindFilters } from '../../notebook/browser/contrib/find/findFilters.js';
 import { NotebookFindInputFilterButton } from '../../notebook/browser/contrib/find/notebookFindReplaceWidget.js';
 import * as nls from '../../../../nls.js';
-import { Emitter } from '../../../../base/common/event.js';
-
 
 export class SearchFindInput extends ContextScopedFindInput {
 	private _findFilter: NotebookFindInputFilterButton;
 	private _filterChecked: boolean = false;
-	private readonly _onDidChangeAIToggle = this._register(new Emitter<boolean>());
-	public readonly onDidChangeAIToggle = this._onDidChangeAIToggle.event;
 
 	constructor(
 		container: HTMLElement | null,

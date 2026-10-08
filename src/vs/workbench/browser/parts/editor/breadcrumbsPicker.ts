@@ -42,11 +42,6 @@ interface ILayoutInfo {
 
 type Tree<I, E> = WorkbenchDataTree<I, E, FuzzyScore> | WorkbenchAsyncDataTree<I, E, FuzzyScore>;
 
-export interface SelectEvent {
-	target: unknown;
-	browserEvent: UIEvent;
-}
-
 export abstract class BreadcrumbsPicker<TInput, TElement> {
 
 	protected readonly _disposables = new DisposableStore();

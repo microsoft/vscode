@@ -12,7 +12,6 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
 import { createCodeEditorServices } from '../../../../editor/test/browser/testCodeEditor.js';
-import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
 import { NullLogService } from '../../../../platform/log/common/log.js';
 import { GroupModelChangeKind } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
@@ -60,7 +59,6 @@ suite('MainThreadEditorTabs', () => {
 		disposables.add(new MainThreadEditorTabs(
 			SingleProxyRPCProtocol({}),
 			editorGroupsService,
-			new TestConfigurationService(),
 			new NullLogService(),
 			editorService,
 		));
@@ -141,7 +139,6 @@ suite('MainThreadEditorTabs', () => {
 		disposables.add(new MainThreadEditorTabs(
 			SingleProxyRPCProtocol(extHostEditorTabs),
 			editorGroupsService,
-			new TestConfigurationService(),
 			new NullLogService(),
 			editorService,
 		));
@@ -277,7 +274,6 @@ suite('MainThreadEditorTabs', () => {
 		const mainThreadEditorTabs = disposables.add(new MainThreadEditorTabs(
 			SingleProxyRPCProtocol(extHostEditorTabs),
 			editorGroupsService,
-			new TestConfigurationService(),
 			new NullLogService(),
 			editorService,
 		));

@@ -151,7 +151,6 @@ export class CIStatusWidget extends Disposable {
 	static readonly HEADER_HEIGHT = 34; // 6px header margin-top + 8px header padding + 20px header min-height
 	static readonly MIN_BODY_HEIGHT = 5 * CICheckListDelegate.ITEM_HEIGHT;
 	static readonly PREFERRED_BODY_HEIGHT = 5 * CICheckListDelegate.ITEM_HEIGHT;
-	static readonly MAX_BODY_HEIGHT = 240; // at most ~8 checks
 
 	private readonly _domNode: HTMLElement;
 	private readonly _headerNode: HTMLElement;

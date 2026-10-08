@@ -1584,6 +1584,5 @@ export const basename = (platformIsWin32 ? win32.basename : posix.basename);
 export const extname = (platformIsWin32 ? win32.extname : posix.extname);
 export const format = (platformIsWin32 ? win32.format : posix.format);
 export const parse = (platformIsWin32 ? win32.parse : posix.parse);
-export const toNamespacedPath = (platformIsWin32 ? win32.toNamespacedPath : posix.toNamespacedPath);
 export const sep = (platformIsWin32 ? win32.sep : posix.sep);
 export const delimiter = (platformIsWin32 ? win32.delimiter : posix.delimiter);

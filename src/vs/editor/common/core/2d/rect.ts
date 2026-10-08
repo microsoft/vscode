@@ -209,32 +209,12 @@ export class Rect {
 		return new Rect(this.left + point.x, this.top + point.y, this.right + point.x, this.bottom + point.y);
 	}
 
-	deltaRight(delta: number): Rect {
-		return new Rect(this.left, this.top, this.right + delta, this.bottom);
-	}
-
-	deltaTop(delta: number): Rect {
-		return new Rect(this.left, this.top + delta, this.right, this.bottom);
-	}
-
-	deltaLeft(delta: number): Rect {
-		return new Rect(this.left + delta, this.top, this.right, this.bottom);
-	}
-
-	deltaBottom(delta: number): Rect {
-		return new Rect(this.left, this.top, this.right, this.bottom + delta);
-	}
-
 	getLeftBottom(): Point {
 		return new Point(this.left, this.bottom);
 	}
 
 	getRightBottom(): Point {
 		return new Point(this.right, this.bottom);
-	}
-
-	getLeftTop(): Point {
-		return new Point(this.left, this.top);
 	}
 
 	getRightTop(): Point {
@@ -251,20 +231,8 @@ export class Rect {
 		};
 	}
 
-	getHorizontalRange(): OffsetRange {
-		return new OffsetRange(this.left, this.right);
-	}
-
-	getVerticalRange(): OffsetRange {
-		return new OffsetRange(this.top, this.bottom);
-	}
-
 	withHorizontalRange(range: OffsetRange): Rect {
 		return new Rect(range.start, this.top, range.endExclusive, this.bottom);
-	}
-
-	withVerticalRange(range: OffsetRange): Rect {
-		return new Rect(this.left, range.start, this.right, range.endExclusive);
 	}
 
 	getSize(): Size2D {

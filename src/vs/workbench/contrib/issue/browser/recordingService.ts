@@ -40,11 +40,6 @@ export interface IRecordingService {
 	readonly onDidChangeState: Event<RecordingState>;
 
 	/**
-	 * Returns the list of supported recording MIME types on this platform.
-	 */
-	getSupportedFormats(): { mimeType: string; label: string; extension: string }[];
-
-	/**
 	 * Start recording the current window.
 	 * @param mimeType Optional preferred MIME type (e.g. 'video/mp4'). Falls back to default if unsupported.
 	 * Rejects if recording is not supported or already in progress.
@@ -84,10 +79,6 @@ export class BrowserRecordingService implements IRecordingService {
 	readonly isSupported = false;
 	readonly state = RecordingState.Idle;
 	readonly onDidChangeState = Event.None;
-
-	getSupportedFormats(): { mimeType: string; label: string; extension: string }[] {
-		return [];
-	}
 
 	async startRecording(_mimeType?: string): Promise<void> {
 		throw new Error('Recording is not supported in web browsers.');

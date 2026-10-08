@@ -5,7 +5,7 @@
 
 import { IDragAndDropData } from '../../dnd.js';
 import { IMouseEvent } from '../../mouseEvent.js';
-import { IListDragAndDrop, IListDragOverReaction, IListElementRenderDetails, IListRenderer, ListDragOverEffectPosition, ListDragOverEffectType } from '../list/list.js';
+import { IListDragAndDrop, IListDragOverReaction, IListElementRenderDetails, IListRenderer } from '../list/list.js';
 import { ListViewTargetSector } from '../list/listView.js';
 import { Event } from '../../../common/event.js';
 
@@ -225,13 +225,6 @@ export interface ITreeDragOverReaction extends IListDragOverReaction {
 	bubble?: TreeDragOverBubble;
 	autoExpand?: boolean;
 }
-
-export const TreeDragOverReactions = {
-	acceptBubbleUp(): ITreeDragOverReaction { return { accept: true, bubble: TreeDragOverBubble.Up }; },
-	acceptBubbleDown(autoExpand = false): ITreeDragOverReaction { return { accept: true, bubble: TreeDragOverBubble.Down, autoExpand }; },
-	acceptCopyBubbleUp(): ITreeDragOverReaction { return { accept: true, bubble: TreeDragOverBubble.Up, effect: { type: ListDragOverEffectType.Copy, position: ListDragOverEffectPosition.Over } }; },
-	acceptCopyBubbleDown(autoExpand = false): ITreeDragOverReaction { return { accept: true, bubble: TreeDragOverBubble.Down, effect: { type: ListDragOverEffectType.Copy, position: ListDragOverEffectPosition.Over }, autoExpand }; }
-};
 
 export interface ITreeDragAndDrop<T> extends IListDragAndDrop<T> {
 	onDragOver(data: IDragAndDropData, targetElement: T | undefined, targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): boolean | ITreeDragOverReaction;

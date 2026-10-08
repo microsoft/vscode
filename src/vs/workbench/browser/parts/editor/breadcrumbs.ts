@@ -70,7 +70,6 @@ export abstract class BreadcrumbsConfig<T> {
 	static readonly UseQuickPick = BreadcrumbsConfig._stub<boolean>('breadcrumbs.useQuickPick');
 	static readonly FilePath = BreadcrumbsConfig._stub<'on' | 'off' | 'last'>('breadcrumbs.filePath');
 	static readonly SymbolPath = BreadcrumbsConfig._stub<'on' | 'off' | 'last'>('breadcrumbs.symbolPath');
-	static readonly SymbolSortOrder = BreadcrumbsConfig._stub<'position' | 'name' | 'type'>('breadcrumbs.symbolSortOrder');
 	static readonly SymbolPathSeparator = BreadcrumbsConfig._stub<string>('breadcrumbs.symbolPathSeparator');
 	static readonly Icons = BreadcrumbsConfig._stub<boolean>('breadcrumbs.icons');
 	static readonly ShowEditorType = BreadcrumbsConfig._stub<boolean>('breadcrumbs.showEditorType');

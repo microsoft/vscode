@@ -34,7 +34,7 @@ import { InlineSuggestAlternativeAction } from '../../../model/InlineSuggestAlte
 import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { IUserInteractionService } from '../../../../../../../platform/userInteraction/browser/userInteractionService.js';
-import { Event, Emitter } from '../../../../../../../base/common/event.js';
+import { Emitter } from '../../../../../../../base/common/event.js';
 
 /**
  * Customization options for the gutter indicator appearance and behavior.
@@ -100,7 +100,6 @@ const CODICON_PADDING_PX = 2;
 export class InlineEditsGutterIndicator extends Disposable {
 
 	private readonly _onDidCloseWithCommand = this._register(new Emitter<string>());
-	readonly onDidCloseWithCommand: Event<string> = this._onDidCloseWithCommand.event;
 
 	constructor(
 		private readonly _editorObs: ObservableCodeEditor,

@@ -207,22 +207,6 @@ export class DocumentEditSourceTracker<T = void> extends Disposable {
 		}
 		this._update.trigger(undefined);
 	}
-
-	public _getDebugVisualization() {
-		const ranges = this.getTrackedRanges();
-		const txt = this._doc.value.get().value;
-
-		return {
-			...{ $fileExtension: 'text.w' },
-			'value': txt,
-			'decorations': ranges.map(r => {
-				return {
-					range: [r.range.start, r.range.endExclusive],
-					color: r.source.getColor(),
-				};
-			})
-		};
-	}
 }
 
 function getExternalObservationId(key: string): string | undefined {

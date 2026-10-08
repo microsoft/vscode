@@ -13,8 +13,8 @@ import { parseFrontMatter } from '../../../../base/common/yaml.js';
 import { IFileService } from '../../../files/common/files.js';
 import { toCopilotMcpServerConfiguration } from '../../../mcp/common/mcpCopilotConfiguration.js';
 import { McpServerType, type IMcpServerConfiguration } from '../../../mcp/common/mcpPlatformTypes.js';
-import type { IMcpServerDefinition, INamedPluginResource, IParsedAgent, IParsedHookCommand, IParsedHookGroup, IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
-import { type AgentCustomization, type ChildCustomization } from '../../common/state/protocol/state.js';
+import type { IMcpServerDefinition, INamedPluginResource, IParsedHookCommand, IParsedHookGroup, IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
+import { type ChildCustomization } from '../../common/state/protocol/state.js';
 import { resolveMcpServerWorkingDirectory } from '../shared/mcpServerWorkingDirectory.js';
 
 type PreToolUseHookInput = Parameters<NonNullable<SessionHooks['onPreToolUse']>>[0];
@@ -192,14 +192,6 @@ export async function toSdkSessionCustomAgents(
 		}
 	}
 	return customAgents;
-}
-
-/**
- * Projects parsed plugin agents into their protocol-level
- * {@link AgentCustomization} shape.
- */
-export function toAgentCustomizations(agents: readonly IParsedAgent[]): AgentCustomization[] {
-	return agents.map(a => a.customization);
 }
 
 /**

@@ -475,17 +475,6 @@ export interface IPaneDndController {
 	canDrop(pane: Pane, overPane: Pane): boolean;
 }
 
-export class DefaultPaneDndController implements IPaneDndController {
-
-	canDrag(pane: Pane): boolean {
-		return true;
-	}
-
-	canDrop(pane: Pane, overPane: Pane): boolean {
-		return true;
-	}
-}
-
 export interface IPaneViewOptions {
 	dnd?: IPaneDndController;
 	orientation?: Orientation;

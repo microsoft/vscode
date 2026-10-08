@@ -26,7 +26,7 @@ import { UnicodeHighlighterOptions } from '../../common/services/unicodeTextMode
 import { ILanguageFeaturesService } from '../../common/services/languageFeatures.js';
 import { IChange } from '../../common/diff/legacyLinesDiffComputer.js';
 import { IDocumentDiff, IDocumentDiffProviderOptions } from '../../common/diff/documentDiffProvider.js';
-import { ILinesDiffComputerOptions, MovedText } from '../../common/diff/linesDiffComputer.js';
+import { MovedText } from '../../common/diff/linesDiffComputer.js';
 import { DetailedLineRangeMapping, RangeMapping, LineRangeMapping } from '../../common/diff/rangeMapping.js';
 import { LineRange } from '../../common/core/ranges/lineRange.js';
 import { SectionHeader, FindSectionHeaderOptions } from '../../common/services/findSectionHeaders.js';
@@ -159,30 +159,6 @@ export class EditorWorkerService extends Disposable implements IEditorWorkerServ
 			const result = this._workerWithResources([resource]).then(worker => worker.$computeMoreMinimalEdits(resource.toString(), edits, pretty));
 			result.finally(() => this._logService.trace('FORMAT#computeMoreMinimalEdits', resource.toString(true), sw.elapsed()));
 			return Promise.race([result, timeout(1000).then(() => edits)]);
-
-		} else {
-			return Promise.resolve(undefined);
-		}
-	}
-
-	public computeHumanReadableDiff(resource: URI, edits: languages.TextEdit[] | null | undefined): Promise<languages.TextEdit[] | undefined> {
-		if (isNonEmptyArray(edits)) {
-			if (!canSyncModel(this._modelService, resource)) {
-				return Promise.resolve(edits); // File too large
-			}
-			const sw = StopWatch.create();
-			const opts: ILinesDiffComputerOptions = { ignoreTrimWhitespace: false, maxComputationTimeMs: 1000, computeMoves: false };
-			const result = (
-				this._workerWithResources([resource])
-					.then(worker => worker.$computeHumanReadableDiff(resource.toString(), edits, opts))
-					.catch((err) => {
-						onUnexpectedError(err);
-						// In case of an exception, fall back to computeMoreMinimalEdits
-						return this.computeMoreMinimalEdits(resource, edits, true);
-					})
-			);
-			result.finally(() => this._logService.trace('FORMAT#computeHumanReadableDiff', resource.toString(true), sw.elapsed()));
-			return result;
 
 		} else {
 			return Promise.resolve(undefined);

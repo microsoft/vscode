@@ -150,7 +150,6 @@ export class SuggestWidget implements IDisposable {
 	readonly onDidShow: Event<this> = this._onDidShow.event;
 
 	private readonly _onDetailsKeydown = new Emitter<IKeyboardEvent>();
-	readonly onDetailsKeyDown: Event<IKeyboardEvent> = this._onDetailsKeydown.event;
 
 	constructor(
 		private readonly editor: ICodeEditor,

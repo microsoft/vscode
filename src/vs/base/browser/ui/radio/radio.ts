@@ -15,16 +15,6 @@ import { Button } from '../button/button.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../common/lifecycle.js';
 import { createInstantHoverDelegate } from '../hover/hoverDelegateFactory.js';
 
-export interface IRadioStyles {
-	readonly activeForeground?: string;
-	readonly activeBackground?: string;
-	readonly activeBorder?: string;
-	readonly inactiveForeground?: string;
-	readonly inactiveBackground?: string;
-	readonly inactiveHoverBackground?: string;
-	readonly inactiveBorder?: string;
-}
-
 export interface IRadioOptionItem {
 	readonly text: string;
 	readonly tooltip?: string;

@@ -243,23 +243,6 @@ class ResourceEditStack {
 		this.versionId++;
 	}
 
-	public setElementsIsValid(isValid: boolean): void {
-		for (const element of this._past) {
-			if (element.type === UndoRedoElementType.Workspace) {
-				element.setValid(this.resourceLabel, this.strResource, isValid);
-			} else {
-				element.setValid(isValid);
-			}
-		}
-		for (const element of this._future) {
-			if (element.type === UndoRedoElementType.Workspace) {
-				element.setValid(this.resourceLabel, this.strResource, isValid);
-			} else {
-				element.setValid(isValid);
-			}
-		}
-	}
-
 	private _setElementValidFlag(element: StackElement, isValid: boolean): void {
 		if (element.type === UndoRedoElementType.Workspace) {
 			element.setValid(this.resourceLabel, this.strResource, isValid);

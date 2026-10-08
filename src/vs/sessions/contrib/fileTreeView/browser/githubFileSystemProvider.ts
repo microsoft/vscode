@@ -11,29 +11,6 @@ import { IRequestService, asJson } from '../../../../platform/request/common/req
 import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { GITHUB_REMOTE_FILE_SCHEME } from '../../../services/sessions/common/session.js';
-
-/**
- * Derives a display name from a github-remote-file URI.
- * Returns "repo (branch)" or just "repo" when on HEAD.
- */
-export function getGitHubRemoteFileDisplayName(uri: URI): string | undefined {
-	if (uri.scheme !== GITHUB_REMOTE_FILE_SCHEME) {
-		return undefined;
-	}
-	const parts = uri.path.split('/').filter(Boolean);
-	// path = /{owner}/{repo}/{ref}/...
-	if (parts.length >= 3) {
-		const [, repo, ref] = parts;
-		const decodedRepo = decodeURIComponent(repo);
-		const decodedRef = decodeURIComponent(ref);
-		if (decodedRef === 'HEAD') {
-			return decodedRepo;
-		}
-		return `${decodedRepo} (${decodedRef})`;
-	}
-	return undefined;
-}
 
 /**
  * GitHub REST API response for the Trees endpoint.
@@ -342,12 +319,6 @@ export class GitHubFileSystemProvider extends Disposable implements IFileSystemP
 	}
 
 	// --- Cache management
-
-	invalidateCache(owner: string, repo: string, ref: string): void {
-		const cacheKey = this.getCacheKey(owner, repo, ref);
-		this.treeCache.delete(cacheKey);
-		this.notFoundCache.delete(cacheKey);
-	}
 
 	override dispose(): void {
 		this.treeCache.clear();

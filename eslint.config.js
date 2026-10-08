@@ -328,7 +328,6 @@ export default defineConfig(
 			'src/vs/base/common/observableInternal/logging/debugger/devToolsLogger.ts',
 			'src/vs/base/test/common/snapshot.ts',
 			'src/vs/base/test/common/timeTravelScheduler.ts',
-			'src/vs/editor/browser/controller/editContext/native/debugEditContext.ts',
 			'src/vs/editor/browser/gpu/gpuUtils.ts',
 			'src/vs/editor/browser/gpu/taskQueue.ts',
 			'src/vs/editor/browser/view.ts',
@@ -1952,7 +1951,6 @@ export default defineConfig(
 						'vs/workbench/services/*/~',
 						'vs/workbench/contrib/*/~',
 						'vs/sessions/~',
-						'vs/workbench/contrib/terminal/terminalContribChatExports*',
 						'vs/workbench/contrib/terminal/terminalContribExports*',
 						'vscode-notebook-renderer', // Type only import
 						'@vscode/tree-sitter-wasm', // type import
@@ -2057,13 +2055,6 @@ export default defineConfig(
 					'layer': 'browser',
 					'restrictions': [
 						'vs/workbench/contrib/**'
-					]
-				},
-				{
-					'target': 'src/vs/workbench/contrib/terminal/terminalContribChatExports.ts',
-					'layer': 'browser',
-					'restrictions': [
-						'vs/workbench/contrib/terminalContrib/*/~'
 					]
 				},
 				{

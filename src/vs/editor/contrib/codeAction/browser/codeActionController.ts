@@ -163,10 +163,6 @@ export class CodeActionController extends Disposable implements IEditorContribut
 		return this.showCodeActionList(actions, at, { includeDisabledActions: false, fromLightbulb: false });
 	}
 
-	public hideCodeActions(): void {
-		this._actionWidgetService.hide();
-	}
-
 	public manualTriggerAtCurrentPosition(
 		notAvailableMessage: string,
 		triggerAction: CodeActionTriggerSource,

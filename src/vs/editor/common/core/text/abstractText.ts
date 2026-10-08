@@ -54,10 +54,6 @@ export abstract class AbstractText {
 		return splitLines(value);
 	}
 
-	getLinesOfRange(range: LineRange): string[] {
-		return range.mapToLineArray(lineNumber => this.getLineAt(lineNumber));
-	}
-
 	equals(other: AbstractText): boolean {
 		if (this === other) {
 			return true;

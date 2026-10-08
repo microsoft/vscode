@@ -493,19 +493,6 @@ export class ExtensionEditor extends EditorPane {
 		this.showPreReleaseVersionContextKey?.set(showPreReleaseVersion);
 	}
 
-	async openTab(tab: ExtensionEditorTab): Promise<void> {
-		if (!this.input || !this.template) {
-			return;
-		}
-		if (this.template.navbar.switch(tab)) {
-			return;
-		}
-		// Fallback to Readme tab if ExtensionPack tab does not exist
-		if (tab === ExtensionEditorTab.ExtensionPack) {
-			this.template.navbar.switch(ExtensionEditorTab.Readme);
-		}
-	}
-
 	private async getGalleryVersionToShow(extension: IExtension, preRelease?: boolean): Promise<IGalleryExtension | null> {
 		if (extension.resourceExtension) {
 			return null;

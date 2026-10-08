@@ -196,11 +196,6 @@ export interface ITag {
 	readonly kind: GitRefType.Tag;
 }
 
-export interface IDetachedHead {
-	readonly name: string;
-	readonly kind: GitRefType.DetachedHead;
-}
-
 export interface IDefaultBranch {
 	readonly name: string;
 	readonly startPoint: string;

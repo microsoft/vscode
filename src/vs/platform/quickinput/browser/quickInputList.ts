@@ -896,14 +896,6 @@ export class QuickInputList extends Disposable {
 		this._matchOnLabelMode = value;
 	}
 
-	private _matchOnMeta = true;
-	get matchOnMeta() {
-		return this._matchOnMeta;
-	}
-	set matchOnMeta(value: boolean) {
-		this._matchOnMeta = value;
-	}
-
 	private _sortByLabel = true;
 	get sortByLabel() {
 		return this._sortByLabel;

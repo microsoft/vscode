@@ -272,35 +272,6 @@ export interface IAuthenticationService {
 	createOrGetXaaProvider(issuer: URI): Promise<string | undefined>;
 }
 
-export function isAuthenticationSession(thing: unknown): thing is AuthenticationSession {
-	if (typeof thing !== 'object' || !thing) {
-		return false;
-	}
-	const maybe = thing as AuthenticationSession;
-	if (typeof maybe.id !== 'string') {
-		return false;
-	}
-	if (typeof maybe.accessToken !== 'string') {
-		return false;
-	}
-	if (typeof maybe.account !== 'object' || !maybe.account) {
-		return false;
-	}
-	if (typeof maybe.account.label !== 'string') {
-		return false;
-	}
-	if (typeof maybe.account.id !== 'string') {
-		return false;
-	}
-	if (!Array.isArray(maybe.scopes)) {
-		return false;
-	}
-	if (maybe.idToken && typeof maybe.idToken !== 'string') {
-		return false;
-	}
-	return true;
-}
-
 // TODO: Move this into MainThreadAuthentication
 export const IAuthenticationExtensionsService = createDecorator<IAuthenticationExtensionsService>('IAuthenticationExtensionsService');
 export interface IAuthenticationExtensionsService {
@@ -340,20 +311,6 @@ export interface IAuthenticationExtensionsService {
 	 * @param session
 	 */
 	updateSessionPreference(providerId: string, extensionId: string, session: AuthenticationSession): void;
-	/**
-	 * @deprecated Gets the session preference for the given provider and extension
-	 * @param providerId
-	 * @param extensionId
-	 * @param scopes
-	 */
-	getSessionPreference(providerId: string, extensionId: string, scopes: string[]): string | undefined;
-	/**
-	 * @deprecated Removes the session preference for the given provider and extension
-	 * @param providerId
-	 * @param extensionId
-	 * @param scopes
-	 */
-	removeSessionPreference(providerId: string, extensionId: string, scopes: string[]): void;
 	selectSession(providerId: string, extensionId: string, extensionName: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, possibleSessions: readonly AuthenticationSession[], options?: IAuthenticationProviderSessionOptions): Promise<AuthenticationSession>;
 	requestSessionAccess(providerId: string, extensionId: string, extensionName: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, possibleSessions: readonly AuthenticationSession[], options?: IAuthenticationProviderSessionOptions): void;
 	requestNewSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, extensionId: string, extensionName: string, options?: IAuthenticationProviderSessionOptions): Promise<void>;

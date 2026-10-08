@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IPtyHostProcessReplayEvent } from './capabilities/capabilities.js';
-import { ReplayEntry } from './terminalProcess.js';
 
 const enum Constants {
 	MaxRecorderDataSize = 10 * 1024 * 1024 // 10MB
@@ -14,10 +13,6 @@ interface RecorderEntry {
 	cols: number;
 	rows: number;
 	data: string[];
-}
-
-export interface IRemoteTerminalProcessReplayEvent {
-	events: ReplayEntry[];
 }
 
 export class TerminalRecorder {

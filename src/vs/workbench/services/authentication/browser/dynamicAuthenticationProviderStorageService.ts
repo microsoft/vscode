@@ -71,13 +71,6 @@ export class DynamicAuthenticationProviderStorageService extends Disposable impl
 		return provider?.clientId ? { clientId: provider.clientId } : undefined;
 	}
 
-	getClientId(providerId: string): string | undefined {
-		// For backward compatibility, try old storage format first
-		const providers = this._getStoredProviders();
-		const provider = providers.find(p => p.providerId === providerId);
-		return provider?.clientId;
-	}
-
 	async storeClientRegistration(providerId: string, authorizationServer: string, clientId: string, clientSecret?: string, label?: string): Promise<void> {
 		// Store provider information for backward compatibility and UI display
 		this._trackProvider(providerId, authorizationServer, clientId, label);

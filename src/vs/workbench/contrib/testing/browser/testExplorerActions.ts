@@ -1450,12 +1450,6 @@ abstract class RunOrDebugLastRun extends Action2 {
 
 	protected abstract getGroup(): TestRunProfileBitset;
 
-	protected getLastTestRunRequest(accessor: ServicesAccessor, runId?: string) {
-		const resultService = accessor.get(ITestResultService);
-		const lastResult = runId ? resultService.results.find(r => r.id === runId) : resultService.results[0];
-		return lastResult?.request;
-	}
-
 	/** @inheritdoc */
 	public override async run(accessor: ServicesAccessor, runId?: string) {
 		const resultService = accessor.get(ITestResultService);

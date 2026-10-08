@@ -57,27 +57,6 @@ class SessionEventBuffer {
 		return result;
 	}
 
-	/** Remove events matching the predicate and compact in-place. */
-	removeWhere(predicate: (event: IChatDebugEvent) => boolean): void {
-		let write = 0;
-		for (let i = 0; i < this._size; i++) {
-			const idx = (this._head + i) % this.capacity;
-			const event = this._buffer[idx];
-			if (event && predicate(event)) {
-				continue;
-			}
-			if (write !== i) {
-				const writeIdx = (this._head + write) % this.capacity;
-				this._buffer[writeIdx] = event;
-			}
-			write++;
-		}
-		for (let i = write; i < this._size; i++) {
-			this._buffer[(this._head + i) % this.capacity] = undefined;
-		}
-		this._size = write;
-	}
-
 	clear(): void {
 		this._buffer.fill(undefined);
 		this._head = 0;

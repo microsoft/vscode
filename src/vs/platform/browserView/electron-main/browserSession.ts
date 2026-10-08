@@ -102,21 +102,6 @@ export class BrowserSession {
 		return bs;
 	}
 
-	/**
-	 * Return all live browser context IDs (i.e. all session {@link id}s).
-	 */
-	static getBrowserContextIds(): string[] {
-		const ids: string[] = [];
-		for (const [id, ref] of BrowserSession._byId) {
-			if (ref.deref()) {
-				ids.push(id);
-			} else {
-				BrowserSession._byId.delete(id);
-			}
-		}
-		return ids;
-	}
-
 	/** Update network filtering on all live browser sessions. */
 	static updateNetworkFiltering(): void {
 		for (const [id, ref] of BrowserSession._byId) {

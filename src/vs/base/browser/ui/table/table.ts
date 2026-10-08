@@ -31,10 +31,3 @@ export interface ITableMouseEvent<TRow> extends IListMouseEvent<TRow> { }
 export interface ITableTouchEvent<TRow> extends IListTouchEvent<TRow> { }
 export interface ITableGestureEvent<TRow> extends IListGestureEvent<TRow> { }
 export interface ITableContextMenuEvent<TRow> extends IListContextMenuEvent<TRow> { }
-
-export class TableError extends Error {
-
-	constructor(user: string, message: string) {
-		super(`TableError [${user}] ${message}`);
-	}
-}

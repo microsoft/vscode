@@ -6,8 +6,8 @@
 import { $ } from '../../../../../../base/browser/dom.js';
 import { ButtonWithIcon } from '../../../../../../base/browser/ui/button/button.js';
 import { HoverStyle } from '../../../../../../base/browser/ui/hover/hover.js';
-import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
@@ -18,11 +18,6 @@ import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
-import { renderFileWidgets } from './chatInlineAnchorWidget.js';
-import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
-import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
-import { IRenderedMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { getCompactCodicon } from '../../chatIcons.js';
 import './media/chatCollapsibleContentPart.css';
@@ -33,7 +28,6 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 	public static readonly userToggleEvent = 'chatCollapsibleUserToggle';
 
 	private _domNode?: HTMLElement;
-	private readonly _renderedTitleWithWidgets = this._register(new MutableDisposable<IRenderedMarkdown>());
 	protected readonly _titleFileWidgetStore = this._register(new DisposableStore());
 
 	protected readonly hasFollowingContent: boolean;
@@ -325,28 +319,5 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 		if (this._collapseButton) {
 			this.updateAriaLabel(this._collapseButton.element, label, this.isExpanded());
 		}
-	}
-
-
-	// Render collapsible dropdown title with widgets
-	protected setTitleWithWidgets(content: MarkdownString, instantiationService: IInstantiationService, chatMarkdownAnchorService: IChatMarkdownAnchorService, chatContentMarkdownRenderer: IMarkdownRenderer): void {
-		if (this._store.isDisposed || !this._collapseButton) {
-			return;
-		}
-
-		const result = chatContentMarkdownRenderer.render(content);
-		result.element.classList.add('collapsible-title-content');
-
-		this._titleFileWidgetStore.clear();
-		renderFileWidgets(result.element, instantiationService, chatMarkdownAnchorService, this._titleFileWidgetStore);
-
-		const labelElement = this._collapseButton.labelElement;
-		labelElement.textContent = '';
-		labelElement.appendChild(result.element);
-
-		const textContent = result.element.textContent || '';
-		this.setAriaLabel(textContent);
-
-		this._renderedTitleWithWidgets.value = result;
 	}
 }

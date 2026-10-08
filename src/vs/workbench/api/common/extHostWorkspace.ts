@@ -44,7 +44,6 @@ import { stringToSnapshot } from '../../services/textfile/common/textfiles.js';
 import type { ExtHostConfigProvider } from './extHostConfiguration.js';
 
 export interface IExtHostWorkspaceProvider {
-	getWorkspaceFolder2(uri: vscode.Uri, resolveParent?: boolean): Promise<vscode.WorkspaceFolder | undefined>;
 	resolveWorkspaceFolder(uri: vscode.Uri): Promise<vscode.WorkspaceFolder | undefined>;
 	getWorkspaceFolders2(): Promise<vscode.WorkspaceFolder[] | undefined>;
 	resolveProxy(url: string): Promise<string | undefined>;
@@ -384,14 +383,6 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 	}
 
 	getWorkspaceFolder(uri: vscode.Uri, resolveParent?: boolean): vscode.WorkspaceFolder | undefined {
-		if (!this._actualWorkspace) {
-			return undefined;
-		}
-		return this._actualWorkspace.getWorkspaceFolder(uri, resolveParent);
-	}
-
-	async getWorkspaceFolder2(uri: vscode.Uri, resolveParent?: boolean): Promise<vscode.WorkspaceFolder | undefined> {
-		await this._barrier.wait();
 		if (!this._actualWorkspace) {
 			return undefined;
 		}

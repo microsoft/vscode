@@ -129,7 +129,6 @@ export interface IAgentHostTerminalManager {
 	onCommandFinished(uri: string, cb: (event: ICommandFinishedEvent) => void): IDisposable;
 	createAltBufferPromise(uri: string, store: DisposableStore): Promise<void>;
 	getContent(uri: string): string | undefined;
-	getClaim(uri: string): TerminalClaim | undefined;
 	hasTerminal(uri: string): boolean;
 	supportsCommandDetection(uri: string): boolean;
 	disposeTerminal(uri: string): void;
@@ -575,11 +574,6 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			return undefined;
 		}
 		return terminal.content.map(p => p.type === 'command' ? p.output : p.value).join('');
-	}
-
-	/** Get the current claim for a terminal. */
-	getClaim(uri: string): TerminalClaim | undefined {
-		return this._terminals.get(uri)?.claim;
 	}
 
 	/** Check whether a terminal exists. */

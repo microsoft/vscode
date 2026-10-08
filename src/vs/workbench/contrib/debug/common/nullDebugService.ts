@@ -78,7 +78,6 @@ const nullConfigurationManager: IConfigurationManager = {
 const nullAdapterManager: IAdapterManager = {
 	onDidRegisterDebugger: Event.None,
 	hasEnabledDebuggers(): boolean { return false; },
-	async getDebugAdapterDescriptor() { return undefined; },
 	getDebuggerLabel() { return undefined; },
 	someDebuggerInterestedInLanguage(): boolean { return false; },
 	getDebugger() { return undefined; },

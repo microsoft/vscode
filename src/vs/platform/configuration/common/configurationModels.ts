@@ -262,10 +262,6 @@ export class ConfigurationModel implements IConfigurationModel {
 
 	// Update methods
 
-	public addValue(key: string, value: unknown): void {
-		this.updateValue(key, value, true);
-	}
-
 	public setValue(key: string, value: unknown): void {
 		this.updateValue(key, value, false);
 	}

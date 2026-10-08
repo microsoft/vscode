@@ -27,11 +27,6 @@ export abstract class ChatThinkingStyleContentPart extends ChatCollapsibleConten
 	private _thinkingActive = false;
 	private _shimmerSpan: HTMLElement | undefined;
 
-	/** Whether the row is still working. */
-	protected get thinkingActive(): boolean {
-		return this._thinkingActive;
-	}
-
 	protected override init(): HTMLElement {
 		const node = super.init();
 		node.classList.add('chat-thinking-box');
@@ -93,13 +88,6 @@ export abstract class ChatThinkingStyleContentPart extends ChatCollapsibleConten
 	/** The indented list that thinking-style rows put their items in. */
 	protected createThinkingBody(): HTMLElement {
 		return $('.chat-used-context-list.chat-thinking-collapsible');
-	}
-
-	/** A single body row, prefixed with the chain-of-thought dot. */
-	protected createThinkingRow(icon: ThemeIcon = Codicon.circleFilled): HTMLElement {
-		const row = $('.chat-thinking-item.markdown-content');
-		row.appendChild(createThinkingIcon(icon));
-		return row;
 	}
 
 	/**

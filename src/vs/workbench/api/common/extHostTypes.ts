@@ -54,12 +54,6 @@ export enum TerminalOutputAnchor {
 	Bottom = 1
 }
 
-export enum TerminalQuickFixType {
-	TerminalCommand = 0,
-	Opener = 1,
-	Command = 3
-}
-
 @es5ClassCompat
 export class Disposable {
 
@@ -99,14 +93,6 @@ const validateConnectionToken = (connectionToken: string) => {
 
 
 export class ResolvedAuthority {
-	public static isResolvedAuthority(resolvedAuthority: any): resolvedAuthority is ResolvedAuthority {
-		return resolvedAuthority
-			&& typeof resolvedAuthority === 'object'
-			&& typeof resolvedAuthority.host === 'string'
-			&& typeof resolvedAuthority.port === 'number'
-			&& (resolvedAuthority.connectionToken === undefined || typeof resolvedAuthority.connectionToken === 'string');
-	}
-
 	readonly host: string;
 	readonly port: number;
 	readonly connectionToken: string | undefined;
@@ -794,8 +780,6 @@ export class Color {
 	}
 }
 
-export type IColorFormat = string | { opaque: string; transparent: string };
-
 @es5ClassCompat
 export class ColorInformation {
 	range: Range;
@@ -826,12 +810,6 @@ export class ColorPresentation {
 		}
 		this.label = label;
 	}
-}
-
-export enum ColorFormat {
-	RGB = 0,
-	HEX = 1,
-	HSL = 2
 }
 
 export enum SourceControlInputBoxValidationType {
@@ -2926,10 +2904,6 @@ export class FileCoverage implements vscode.FileCoverage {
 }
 
 export class StatementCoverage implements vscode.StatementCoverage {
-	// back compat until finalization:
-	get executionCount() { return +this.executed; }
-	set executionCount(n: number) { this.executed = n; }
-
 	constructor(
 		public executed: number | boolean,
 		public location: Position | Range,
@@ -2938,10 +2912,6 @@ export class StatementCoverage implements vscode.StatementCoverage {
 }
 
 export class BranchCoverage implements vscode.BranchCoverage {
-	// back compat until finalization:
-	get executionCount() { return +this.executed; }
-	set executionCount(n: number) { this.executed = n; }
-
 	constructor(
 		public executed: number | boolean,
 		public location: Position | Range,
@@ -2950,10 +2920,6 @@ export class BranchCoverage implements vscode.BranchCoverage {
 }
 
 export class DeclarationCoverage implements vscode.DeclarationCoverage {
-	// back compat until finalization:
-	get executionCount() { return +this.executed; }
-	set executionCount(n: number) { this.executed = n; }
-
 	constructor(
 		public readonly name: string,
 		public executed: number | boolean,
@@ -4134,43 +4100,6 @@ export class LanguageModelPromptTsxPart {
 			$mid: MarshalledId.LanguageModelPromptTsxPart,
 			value: this.value,
 		};
-	}
-}
-
-/**
- * @deprecated
- */
-export class LanguageModelChatSystemMessage {
-	content: string;
-	constructor(content: string) {
-		this.content = content;
-	}
-}
-
-
-/**
- * @deprecated
- */
-export class LanguageModelChatUserMessage {
-	content: string;
-	name: string | undefined;
-
-	constructor(content: string, name?: string) {
-		this.content = content;
-		this.name = name;
-	}
-}
-
-/**
- * @deprecated
- */
-export class LanguageModelChatAssistantMessage {
-	content: string;
-	name?: string;
-
-	constructor(content: string, name?: string) {
-		this.content = content;
-		this.name = name;
 	}
 }
 

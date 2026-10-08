@@ -178,7 +178,6 @@ export class SCMViewService implements ISCMViewService {
 	}
 
 	private _onDidChangeRepositories = new Emitter<ISCMViewVisibleRepositoryChangeEvent>();
-	readonly onDidChangeRepositories = this._onDidChangeRepositories.event;
 
 	private _onDidSetVisibleRepositories = new Emitter<ISCMViewVisibleRepositoryChangeEvent>();
 	readonly onDidChangeVisibleRepositories = Event.any(

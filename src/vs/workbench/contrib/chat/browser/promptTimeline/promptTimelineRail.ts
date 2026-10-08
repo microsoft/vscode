@@ -36,7 +36,6 @@ export interface IPromptTimelineRail extends IDisposable {
 	/** Records a hard/fast wheel flick; the fan blooms only if a real transcript scroll follows shortly after. */
 	notifyHardWheel(): void;
 	setActive(requestId: string | undefined): void;
-	focusTick(requestId: string): void;
 	setHostWidth(width: number): void;
 
 	/** Supplies proportional scroll positions for the marks. */

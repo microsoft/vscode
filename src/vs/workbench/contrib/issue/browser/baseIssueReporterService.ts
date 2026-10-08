@@ -55,7 +55,6 @@ export class BaseIssueReporterService extends Disposable {
 	public receivedSystemInfo = false;
 	public numberOfSearchResultsDisplayed = 0;
 	public receivedPerformanceInfo = false;
-	public shouldQueueSearch = false;
 	public hasBeenSubmitted = false;
 	public openReporter = false;
 	public loadingExtensionData = false;
@@ -216,19 +215,6 @@ export class BaseIssueReporterService extends Disposable {
 
 	render(): void {
 		this.renderBlocks();
-	}
-
-	setInitialFocus() {
-		const { fileOnExtension } = this.issueReporterModel.getData();
-		if (fileOnExtension) {
-			// eslint-disable-next-line no-restricted-syntax
-			const issueTitle = this.window.document.getElementById('issue-title');
-			issueTitle?.focus();
-		} else {
-			// eslint-disable-next-line no-restricted-syntax
-			const issueType = this.window.document.getElementById('issue-type');
-			issueType?.focus();
-		}
 	}
 
 	public updateButtonStates() {

@@ -134,16 +134,6 @@ export interface IIconRegistry {
 	 * @param definition The icon font definition
 	 */
 	registerIconFont(id: string, definition: IconFontDefinition): IconFontDefinition;
-
-	/**
-	 * Deregister an icon font to the registry.
-	 */
-	deregisterIconFont(id: string): void;
-
-	/**
-	 * Get the icon font for the given id
-	 */
-	getIconFont(id: string): IconFontDefinition | undefined;
 }
 
 // regexes for validation of font properties
@@ -255,14 +245,6 @@ class IconRegistry extends Disposable implements IIconRegistry {
 		this.iconFontsById[id] = definition;
 		this._onDidChange.fire();
 		return definition;
-	}
-
-	public deregisterIconFont(id: string): void {
-		delete this.iconFontsById[id];
-	}
-
-	public getIconFont(id: string): IconFontDefinition | undefined {
-		return this.iconFontsById[id];
 	}
 
 	public override toString() {

@@ -21,10 +21,6 @@ export function getAdditionalRepositoryContextId(uri: URI): string {
 	return `${ADDITIONAL_REPOSITORY_CONTEXT_ID_PREFIX}${uri.toString()}`;
 }
 
-export function isAdditionalWorkspaceContextId(id: string): boolean {
-	return id.startsWith(ADDITIONAL_FOLDER_CONTEXT_ID_PREFIX) || id.startsWith(ADDITIONAL_REPOSITORY_CONTEXT_ID_PREFIX);
-}
-
 export function isInputGitHubContext(source: IHasInputGitHubContextMetadata): boolean {
 	// eslint-disable-next-line local/code-no-untyped-meta-access -- sanctioned first hop into the input GitHub context slot.
 	return source._meta?.[INPUT_GITHUB_CONTEXT_METADATA_KEY] === true;

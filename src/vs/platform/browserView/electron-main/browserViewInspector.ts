@@ -70,7 +70,6 @@ export class BrowserViewInspector extends Disposable {
 	readonly onDidChangeElementSelectionState: Event<IBrowserElementSelectionState> = this._onDidChangeElementSelectionState.event;
 
 	private _elementSelectionActive = false;
-	get isElementSelectionActive(): boolean { return this._elementSelectionActive; }
 	get elementSelectionState(): IBrowserElementSelectionState {
 		return {
 			active: this._elementSelectionActive,

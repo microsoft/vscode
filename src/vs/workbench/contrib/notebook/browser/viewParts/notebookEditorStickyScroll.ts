@@ -7,7 +7,7 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IMouseWheelEvent, StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
-import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, type IReference } from '../../../../../base/common/lifecycle.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -103,7 +103,6 @@ export class NotebookStickyScroll extends Disposable {
 	private currentStickyLines = new Map<OutlineEntry, { line: NotebookStickyLine; rendered: boolean }>();
 
 	private readonly _onDidChangeNotebookStickyScroll = this._register(new Emitter<number>());
-	readonly onDidChangeNotebookStickyScroll: Event<number> = this._onDidChangeNotebookStickyScroll.event;
 	private notebookCellOutlineReference?: IReference<NotebookCellOutlineDataSource>;
 
 	private readonly _layoutDisposableStore = this._register(new DisposableStore());

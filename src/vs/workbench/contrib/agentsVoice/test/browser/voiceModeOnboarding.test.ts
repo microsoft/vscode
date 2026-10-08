@@ -83,7 +83,6 @@ suite('Voice Mode onboarding', () => {
 		});
 		instantiationService.stub(IVoiceSessionController, new class extends mock<IVoiceSessionController>() {
 			override readonly voiceState = constObservable<VoiceState>('idle');
-			override setAutoListenHeld(held: boolean): void { holds.push(held); }
 			override stopListening(): void { }
 			override pttDown(): void { }
 			override pttUp(): void { }
@@ -415,7 +414,6 @@ suite('Voice Mode onboarding', () => {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		instantiationService.stub(IVoiceSessionController, new class extends mock<IVoiceSessionController>() {
 			override readonly voiceState = constObservable<VoiceState>('idle');
-			override setAutoListenHeld(): void { }
 			override stopListening(): void { }
 		});
 		const host = createHost(disposables);

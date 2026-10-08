@@ -41,7 +41,7 @@ import { setupDictationMicGlow } from '../speechToText/dictationMicGlow.js';
 import { DictationDownloadRing, getDictationDownloadHoverContent, getDictationPreparingLabel } from '../speechToText/dictationDownloadRing.js';
 import { getDictationHoverContent, getVoiceModeHoverContent } from '../speechToText/micButtonHovers.js';
 import { addMicButtonContextMenuListener, getDictationContextMenuActions, getVoiceModeContextMenuActions } from '../speechToText/micButtonMenuActions.js';
-import { IVoiceInputModeService, SimulatedVoiceState, VoiceInputMode, VoiceWalkthroughVersion } from './voiceInputMode.js';
+import { IVoiceInputModeService, SimulatedVoiceState, VoiceWalkthroughVersion } from './voiceInputMode.js';
 import { SegmentedVoiceInputModePillActive } from './voiceInputModeContextKeys.js';
 import { AGENTS_VOICE_ENABLED, AGENTS_VOICE_TOGGLE_MUTE_COMMAND_ID } from '../../../agentsVoice/common/agentsVoice.js';
 
@@ -919,19 +919,4 @@ export class VoiceInputModeActionViewItem extends BaseActionViewItem {
 		}
 		super.dispose();
 	}
-}
-
-export function isVoiceInputModeAvailable(voiceInputModeService: IVoiceInputModeService): VoiceInputMode | 'both' | undefined {
-	const dictation = voiceInputModeService.dictationAvailable.get();
-	const voice = voiceInputModeService.voiceAvailable.get();
-	if (dictation && voice) {
-		return 'both';
-	}
-	if (dictation) {
-		return 'dictation';
-	}
-	if (voice) {
-		return 'voice';
-	}
-	return undefined;
 }

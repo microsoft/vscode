@@ -97,7 +97,6 @@ export interface IExtension {
 	readonly telemetryData: any;
 	readonly preview: boolean;
 	getManifest(token: CancellationToken): Promise<IExtensionManifest | null>;
-	hasReadme(): boolean;
 	getReadme(token: CancellationToken): Promise<string>;
 	hasChangelog(): boolean;
 	getChangelog(token: CancellationToken): Promise<string>;
@@ -194,14 +193,6 @@ export const CloseExtensionDetailsOnViewChangeKey = 'extensions.closeExtensionDe
 export const AutoRestartConfigurationKey = 'extensions.autoRestart';
 
 export type AutoUpdateConfigurationValue = 'on' | 'off';
-
-export interface IExtensionsConfiguration {
-	autoUpdate: AutoUpdateConfigurationValue;
-	autoUpdateDelay: number;
-	autoCheckUpdates: boolean;
-	ignoreRecommendations: boolean;
-	closeExtensionDetailsOnViewChange: boolean;
-}
 
 export interface IExtensionContainer extends IDisposable {
 	extension: IExtension | null;

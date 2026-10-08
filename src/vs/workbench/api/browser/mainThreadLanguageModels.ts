@@ -263,11 +263,6 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		});
 	}
 
-
-	$countTokens(modelId: string, value: string | IChatMessage, token: CancellationToken): Promise<number> {
-		return this._chatProviderService.computeTokenLength(modelId, value, token);
-	}
-
 	private _registerAuthenticationProvider(extension: ExtensionIdentifier, auth: { providerLabel: string; accountLabel?: string | undefined }): IDisposable {
 		// This needs to be done in both MainThread & ExtHost ChatProvider
 		const authProviderId = INTERNAL_AUTH_PROVIDER_PREFIX + extension.value;

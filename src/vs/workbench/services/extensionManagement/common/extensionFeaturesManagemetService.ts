@@ -80,20 +80,6 @@ class ExtensionFeaturesManagementService extends Disposable implements IExtensio
 		}
 	}
 
-	getEnablementData(featureId: string): { readonly extension: ExtensionIdentifier; readonly enabled: boolean }[] {
-		const result: { readonly extension: ExtensionIdentifier; readonly enabled: boolean }[] = [];
-		const feature = this.registry.getExtensionFeature(featureId);
-		if (feature) {
-			for (const [extension, featuresStateMap] of this.extensionFeaturesState) {
-				const featureState = featuresStateMap.get(featureId);
-				if (featureState?.disabled !== undefined) {
-					result.push({ extension: new ExtensionIdentifier(extension), enabled: !featureState.disabled });
-				}
-			}
-		}
-		return result;
-	}
-
 	async getAccess(extension: ExtensionIdentifier, featureId: string, justification?: string): Promise<boolean> {
 		const feature = this.registry.getExtensionFeature(featureId);
 		if (!feature) {

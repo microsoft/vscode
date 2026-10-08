@@ -11,7 +11,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { TRUSTED_DOMAINS_STORAGE_KEY, readStaticTrustedDomains } from './trustedDomains.js';
 import { isURLDomainTrusted } from '../../../../platform/url/common/trustedDomains.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { ITrustedDomainService } from '../common/trustedDomainService.js';
 
 export { ITrustedDomainService };
@@ -22,7 +22,6 @@ export class TrustedDomainService extends Disposable implements ITrustedDomainSe
 	private _staticTrustedDomainsResult!: WindowIdleValue<string[]>;
 
 	private _onDidChangeTrustedDomains: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidChangeTrustedDomains: Event<void> = this._onDidChangeTrustedDomains.event;
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,

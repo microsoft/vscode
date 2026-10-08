@@ -3,12 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { PromptsType } from './promptSyntax/promptTypes.js';
-import { IChatPromptSlashCommand } from './promptSyntax/service/promptsService.js';
 
 export const IAICustomizationWorkspaceService = createDecorator<IAICustomizationWorkspaceService>('aiCustomizationWorkspaceService');
 
@@ -140,31 +138,8 @@ export interface IAICustomizationWorkspaceService {
 	readonly hasOverrideProjectRoot: IObservable<boolean>;
 
 	/**
-	 * Sets a transient override for the active project root.
-	 * While set, `activeProjectRoot` returns this value instead of the
-	 * session- or workspace-derived root. Call `clearOverrideProjectRoot()` to revert.
-	 */
-	setOverrideProjectRoot(root: URI): void;
-
-	/**
 	 * Clears the transient project root override, reverting to the
 	 * session-derived (or workspace-derived) root.
 	 */
 	clearOverrideProjectRoot(): void;
-
-	/**
-	 * Returns prompt/skill slash commands filtered through the workspace
-	 * service's storage source policy, ensuring the results match the
-	 * customizations visible in the AI Customization views.
-	 */
-	getFilteredPromptSlashCommands(token: CancellationToken): Promise<readonly IChatPromptSlashCommand[]>;
-
-	/**
-	 * Returns a map of built-in skill names that have direct UI integrations
-	 * (toolbar buttons, menu items, etc.) to a tooltip describing the
-	 * integration. Used to display a 'UI Integration' badge in the
-	 * customizations editor, especially important when users override a
-	 * built-in skill that drives a UI surface.
-	 */
-	getSkillUIIntegrations(): ReadonlyMap<string, string>;
 }

@@ -24,9 +24,6 @@ import { IConnectionDiagnosticsService } from './connectionDiagnostics.js';
 import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
 import { watchForIncompatibleNotifications } from './remoteHostOptions.js';
 
-/** Minimum interval between silent status checks (5 minutes). */
-const STATUS_CHECK_INTERVAL = 5 * 60 * 1000;
-
 export class TunnelAgentHostContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'sessions.contrib.tunnelAgentHostContribution';
@@ -36,7 +33,6 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 	private readonly _providerStores = this._register(new DisposableMap<string /* address */, DisposableStore>());
 	private readonly _providerInstances = new Map<string, RemoteAgentHostSessionsProvider>();
 	private readonly _pendingConnects = new Map<string, Promise<void>>();
-	private _lastStatusCheck = 0;
 	private readonly _hostedTunnelSuppressions = new Set<string>();
 	private _remoteTunnelStatus: TunnelStatus = { type: 'uninitialized' };
 	private _hasReceivedRemoteTunnelStatus = false;
@@ -126,17 +122,6 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		// pulses while the initial automatic discovery is in flight,
 		// then switches to a static label once we know what hosts exist.
 		agentHostFilterService.rediscover();
-	}
-
-	/**
-	 * Called by the workspace picker when it opens. Silently re-checks
-	 * tunnel statuses if more than 5 minutes have elapsed since the last check.
-	 */
-	async checkTunnelStatuses(): Promise<void> {
-		if (Date.now() - this._lastStatusCheck < STATUS_CHECK_INTERVAL) {
-			return;
-		}
-		await this._silentStatusCheck();
 	}
 
 	// -- Provider management --
@@ -426,7 +411,6 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 			return;
 		}
 
-		this._lastStatusCheck = Date.now();
 		const cachedBefore = this._tunnelService.getCachedTunnels().length;
 
 		// Fetch tunnel list silently to check online status

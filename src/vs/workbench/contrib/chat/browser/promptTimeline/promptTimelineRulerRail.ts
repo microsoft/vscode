@@ -340,10 +340,6 @@ export class PromptTimelineRulerRail extends Disposable implements IPromptTimeli
 		// viewport), so we do not re-centre here — that would snap the fan at prompt boundaries.
 	}
 
-	focusTick(requestId: string): void {
-		this._marks.find(m => m.tick.requestId === requestId || m.tick.allRequestIds.includes(requestId))?.button.focus();
-	}
-
 	setHostWidth(width: number): void {
 		if (width > 0 && width !== this._hostWidth) {
 			this._hostWidth = width;

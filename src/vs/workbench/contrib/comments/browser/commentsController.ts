@@ -84,7 +84,7 @@ class CommentingRangeDecoration implements IModelDeltaDecoration {
 		};
 	}
 
-	constructor(private _editor: ICodeEditor, private _ownerId: string, private _extensionId: string | undefined, private _label: string | undefined, private _range: IRange, public readonly options: ModelDecorationOptions, private commentingRangesInfo: languages.CommentingRanges, public readonly isHover: boolean = false) {
+	constructor(private _editor: ICodeEditor, private _ownerId: string, private _extensionId: string | undefined, private _label: string | undefined, _range: IRange, public readonly options: ModelDecorationOptions, private commentingRangesInfo: languages.CommentingRanges, public readonly isHover: boolean = false) {
 		this._startLineNumber = _range.startLineNumber;
 		this._endLineNumber = _range.endLineNumber;
 	}
@@ -96,10 +96,6 @@ class CommentingRangeDecoration implements IModelDeltaDecoration {
 			ownerId: this._ownerId,
 			commentingRangesInfo: this.commentingRangesInfo
 		};
-	}
-
-	public getOriginalRange() {
-		return this._range;
 	}
 
 	public getActiveRange() {
@@ -770,14 +766,6 @@ export class CommentController extends Disposable implements IEditorContribution
 	public expandAll(): void {
 		for (const widget of this._commentWidgets) {
 			widget.expand();
-		}
-	}
-
-	public expandUnresolved(): void {
-		for (const widget of this._commentWidgets) {
-			if (widget.commentThread.state === languages.CommentThreadState.Unresolved) {
-				widget.expand();
-			}
 		}
 	}
 

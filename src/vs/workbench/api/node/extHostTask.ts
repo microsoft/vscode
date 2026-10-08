@@ -185,10 +185,6 @@ export class ExtHostTask extends ExtHostTaskBase {
 		return result;
 	}
 
-	public async $jsonTasksSupported(): Promise<boolean> {
-		return true;
-	}
-
 	public async $findExecutable(command: string, cwd?: string, paths?: string[]): Promise<string | undefined> {
 		return findExecutable(command, cwd, paths);
 	}

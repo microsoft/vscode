@@ -421,10 +421,6 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 		this._logService.info(`[AgentHostCheckpoint] Adopted ${refByTurn.size} legacy checkpoint refs for ${sessionUri.toString()}`);
 	}
 
-	async deleteCheckpoints(sessionUri: URI, workingDirectories?: readonly string[]): Promise<void> {
-		await this._sequencer.queue(sessionUri.toString(), () => this._deleteCheckpoints(sessionUri, workingDirectories));
-	}
-
 	private async _deleteCheckpoints(sessionUri: URI, workingDirectories?: readonly string[]): Promise<void> {
 		if (!workingDirectories || workingDirectories.length === 0) {
 			return;

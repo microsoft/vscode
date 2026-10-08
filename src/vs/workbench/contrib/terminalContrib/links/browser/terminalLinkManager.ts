@@ -510,11 +510,6 @@ export class TerminalLinkManager extends DisposableStore {
 	}
 }
 
-export interface ILineColumnInfo {
-	lineNumber: number;
-	columnNumber: number;
-}
-
 export interface IDetectedLinks {
 	wordLinks?: ILink[];
 	webLinks?: ILink[];

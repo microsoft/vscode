@@ -307,15 +307,6 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		return controller;
 	}
 
-	getIdByController(controller: vscode.NotebookController) {
-		for (const [_, candidate] of this._kernelData) {
-			if (candidate.controller === controller) {
-				return createKernelId(candidate.extensionId, controller.id);
-			}
-		}
-		return null;
-	}
-
 	createNotebookControllerDetectionTask(extension: IExtensionDescription, viewType: string): vscode.NotebookControllerDetectionTask {
 		const handle = this._kernelDetectionTaskHandlePool++;
 		const that = this;

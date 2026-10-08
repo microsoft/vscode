@@ -54,10 +54,6 @@ const shellLangIds = [
 	'zsh'
 ];
 
-export interface IChatCodeBlockActionContext extends ICodeBlockActionContext {
-	element: IChatResponseViewModel;
-}
-
 export function isCodeBlockActionContext(thing: unknown): thing is ICodeBlockActionContext {
 	return typeof thing === 'object' && thing !== null && 'code' in thing && 'element' in thing;
 }

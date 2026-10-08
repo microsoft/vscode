@@ -38,12 +38,6 @@ export const BrowserSearchEngineSettingId =
 export const BROWSER_SEARCH_NONE = 'none';
 
 /**
- * The address bar search setting value: either `'none'` (search disabled) or a
- * specific {@link BrowserSearchEngineId}.
- */
-export type BrowserSearchEngineValue = BrowserSearchEngineId | typeof BROWSER_SEARCH_NONE;
-
-/**
  * A search engine that can be selected as the integrated browser's default.
  */
 export interface IBrowserSearchEngine {

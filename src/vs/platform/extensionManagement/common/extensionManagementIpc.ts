@@ -181,12 +181,6 @@ export class ExtensionManagementChannel<TContext = RemoteAgentConnectionContext 
 	}
 }
 
-export interface ExtensionEventResult {
-	readonly profileLocation: URI;
-	readonly local?: ILocalExtension;
-	readonly applicationScoped?: boolean;
-}
-
 export class ExtensionManagementChannelClient extends CommontExtensionManagementService implements IExtensionManagementService {
 
 	declare readonly _serviceBrand: undefined;

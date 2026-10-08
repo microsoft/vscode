@@ -665,18 +665,6 @@ export function validateWhenClauses(whenClauses: string[]): any {
 	});
 }
 
-export function expressionsAreEqualWithConstantSubstitution(a: ContextKeyExpression | null | undefined, b: ContextKeyExpression | null | undefined): boolean {
-	const aExpr = a ? a.substituteConstants() : undefined;
-	const bExpr = b ? b.substituteConstants() : undefined;
-	if (!aExpr && !bExpr) {
-		return true;
-	}
-	if (!aExpr || !bExpr) {
-		return false;
-	}
-	return aExpr.equals(bExpr);
-}
-
 function cmp(a: ContextKeyExpression, b: ContextKeyExpression): number {
 	return a.cmp(b);
 }

@@ -9,7 +9,6 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { derived, IObservable, IReader } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
-import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -75,18 +74,6 @@ export function previewKind(uri: URI, htmlPreviewAvailable = !isWeb): IPreviewFi
 
 export function diffStatsEqual(a: IDiffStats, b: IDiffStats): boolean {
 	return a.files === b.files && a.insertions === b.insertions && a.deletions === b.deletions;
-}
-
-export function previewFilesEqual(a: readonly IPreviewFile[], b: readonly IPreviewFile[]): boolean {
-	if (a.length !== b.length) {
-		return false;
-	}
-	for (let i = 0; i < a.length; i++) {
-		if (a[i].kind !== b[i].kind || a[i].created !== b[i].created || !isEqual(a[i].uri, b[i].uri)) {
-			return false;
-		}
-	}
-	return true;
 }
 
 /** Opens a turn file with the editor configured for resources opened from chat. */

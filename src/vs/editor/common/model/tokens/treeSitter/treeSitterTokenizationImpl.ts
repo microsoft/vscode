@@ -562,14 +562,6 @@ export class TreeSitterTokenizationImpl extends Disposable {
 		}
 	}
 
-	public tokenizeEncodedInstrumented(lineNumber: number): { result: Uint32Array; captureTime: number; metadataTime: number } | undefined {
-		const tokens = this._tokenizeEncoded(lineNumber);
-		if (!tokens) {
-			return undefined;
-		}
-		return { result: this._endOffsetTokensToUint32Array(tokens.result), captureTime: tokens.captureTime, metadataTime: tokens.metadataTime };
-	}
-
 	private _getCaptures(range: Range): QueryCapture[] {
 		const captures = this.captureAtRangeWithInjections(range);
 		return captures;

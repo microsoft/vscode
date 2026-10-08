@@ -19,28 +19,14 @@ import { DisposableStore, IDisposable, dispose, toDisposable } from '../../../..
 import { removeAnsiEscapeCodes } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IDebugService, IExpression, IScope } from '../common/debug.js';
 import { Variable } from '../common/debugModel.js';
 import { IDebugVisualizerService } from '../common/debugVisualizers.js';
-import { LinkDetector } from './linkDetector.js';
 
 const $ = dom.$;
-
-export interface IRenderValueOptions {
-	showChanged?: boolean;
-	maxValueLength?: number;
-	/** If set, a hover will be shown on the element. Requires a disposable store for usage. */
-	hover?: false | {
-		commands: { id: string; args: unknown[] }[];
-		commandService: ICommandService;
-	};
-	colorize?: boolean;
-	linkDetector?: LinkDetector;
-}
 
 export interface IVariableTemplateData {
 	expression: HTMLElement;

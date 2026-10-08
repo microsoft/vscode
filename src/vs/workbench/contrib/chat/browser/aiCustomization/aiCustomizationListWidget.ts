@@ -1408,17 +1408,6 @@ export class AICustomizationListWidget extends Disposable {
 	}
 
 	/**
-	 * Computes the item count for a given section without updating the display.
-	 * Reads from the items model so the count is consistent with what the
-	 * editor and sidebar render. Returns 0 for sections not modeled here
-	 * (McpServers / Plugins / Models — those have their own services).
-	 */
-	computeItemCountForSection(section: AICustomizationManagementSection): number {
-		const modelSection = toItemsModelSection(section);
-		return modelSection ? this.itemsModel.getCount(modelSection).get() : 0;
-	}
-
-	/**
 	 * Filters items based on the current search query and builds grouped display entries.
 	 */
 	/**
@@ -1847,17 +1836,6 @@ export class AICustomizationListWidget extends Disposable {
 	 */
 	focusSearch(): void {
 		this.searchInput.focus();
-	}
-
-	/**
-	 * Focuses the list.
-	 */
-	focusList(): void {
-		this.list.domFocus();
-		const firstItem = this.displayEntries.find(entry => entry.type === 'file-item');
-		if (firstItem) {
-			this.list.setFocus([firstItem]);
-		}
 	}
 
 	/**

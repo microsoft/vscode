@@ -4,29 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Platform-side mirror of the extension's GenAI attribute constants.
- * Kept intentionally in sync with `extensions/copilot/src/platform/otel/common/genAiAttributes.ts`.
- */
-
-// gen_ai.operation.name values
-export const GenAiOperationName = {
-	CHAT: 'chat',
-	INVOKE_AGENT: 'invoke_agent',
-	EXECUTE_TOOL: 'execute_tool',
-	EMBEDDINGS: 'embeddings',
-	/** Extension-specific: standalone markdown content event */
-	CONTENT_EVENT: 'content_event',
-	/** Extension-specific: hook command execution */
-	EXECUTE_HOOK: 'execute_hook',
-} as const;
-
-// gen_ai.token.type values
-export const GenAiTokenType = {
-	INPUT: 'input',
-	OUTPUT: 'output',
-} as const;
-
-/**
  * OTel GenAI semantic convention attribute keys.
  * @see https://github.com/open-telemetry/semantic-conventions/blob/main/docs/gen-ai/gen-ai-spans.md
  */
@@ -82,13 +59,4 @@ export const CopilotChatAttr = {
 	HOOK_OUTPUT: 'copilot_chat.hook_output',
 	/** Hook result kind: 'success', 'error', or 'non_blocking_error' */
 	HOOK_RESULT_KIND: 'copilot_chat.hook_result_kind',
-} as const;
-
-/**
- * Attribute keys emitted by the Copilot CLI SDK's native OTel instrumentation
- * (read by the bridge processor; the host itself does not produce these).
- */
-export const CopilotCliSdkAttr = {
-	HOOK_TYPE: 'github.copilot.hook.type',
-	HOOK_INVOCATION_ID: 'github.copilot.hook.invocation_id',
 } as const;

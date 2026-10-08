@@ -50,10 +50,6 @@ export function asCssVariable(size: SizeIdentifier): string {
 	return `var(${asCssVariableName(size)})`;
 }
 
-export function asCssVariableWithDefault(size: SizeIdentifier, defaultCssValue: string): string {
-	return `var(${asCssVariableName(size)}, ${defaultCssValue})`;
-}
-
 export interface SizeDefaults {
 	light: SizeValue | null;
 	dark: SizeValue | null;
@@ -98,8 +94,6 @@ export const Extensions = {
 	SizeContribution: 'base.contributions.sizes'
 };
 
-export const DEFAULT_SIZE_CONFIG_VALUE = 'default';
-
 export interface ISizeRegistry {
 
 	readonly onDidChangeSchema: Event<void>;
@@ -131,11 +125,6 @@ export interface ISizeRegistry {
 	 * JSON schema for an object to assign size values to one of the size contributions.
 	 */
 	getSizeSchema(): IJSONSchema;
-
-	/**
-	 * JSON schema for a reference to a size contribution.
-	 */
-	getSizeReferenceSchema(): IJSONSchema;
 
 	/**
 	 * Notify when the color theme or settings change.
@@ -239,10 +228,6 @@ class SizeRegistry extends Disposable implements ISizeRegistry {
 
 	public getSizeSchema(): IJSONSchema {
 		return this.sizeSchema;
-	}
-
-	public getSizeReferenceSchema(): IJSONSchema {
-		return this.sizeReferenceSchema;
 	}
 
 	public override toString() {

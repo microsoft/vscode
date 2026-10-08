@@ -14,28 +14,6 @@ export interface IGitHubRemoteInfo {
 
 const DEFAULT_GITHUB_HOSTS = ['github.com', 'www.github.com'];
 
-export function hasGitHubRemotes(repositoryState: GitRepositoryState): boolean {
-	const hosts = ['github.com', 'ghe.com'];
-	const remotes = getOrderedRemotes(repositoryState!)
-		.filter(remote => !!remote.fetchUrl)
-		.map(remote => parseRemoteUrl(remote.fetchUrl!));
-
-	for (const remote of remotes) {
-		if (!remote?.host) {
-			continue;
-		}
-
-		if (
-			hosts.some(host => equalsIgnoreCase(remote.host, host)) ||
-			hosts.some(host => remote.host.endsWith(host))
-		) {
-			return true;
-		}
-	}
-
-	return false;
-}
-
 export function getGitHubRemoteInfo(repositoryState: GitRepositoryState, supportedHosts: readonly string[] = DEFAULT_GITHUB_HOSTS): IGitHubRemoteInfo | undefined {
 	for (const remote of getOrderedRemotes(repositoryState)) {
 		if (remote.fetchUrl) {

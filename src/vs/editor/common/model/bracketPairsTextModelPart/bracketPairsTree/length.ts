@@ -163,40 +163,7 @@ export function lengthsToRange(lengthStart: Length, lengthEnd: Length): Range {
 	return new Range(lineCount + 1, colCount + 1, lineCount2 + 1, colCount2 + 1);
 }
 
-export function lengthOfRange(range: Range): TextLength {
-	if (range.startLineNumber === range.endLineNumber) {
-		return new TextLength(0, range.endColumn - range.startColumn);
-	} else {
-		return new TextLength(range.endLineNumber - range.startLineNumber, range.endColumn - 1);
-	}
-}
-
-export function lengthCompare(length1: Length, length2: Length): number {
-	// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
-	const l1 = length1 as any as number;
-	// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
-	const l2 = length2 as any as number;
-	return l1 - l2;
-}
-
 export function lengthOfString(str: string): Length {
 	const lines = splitLines(str);
 	return toLength(lines.length - 1, lines[lines.length - 1].length);
-}
-
-export function lengthOfStringObj(str: string): TextLength {
-	const lines = splitLines(str);
-	return new TextLength(lines.length - 1, lines[lines.length - 1].length);
-}
-
-/**
- * Computes a numeric hash of the given length.
-*/
-export function lengthHash(length: Length): number {
-	// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
-	return length as any;
-}
-
-export function lengthMax(length1: Length, length2: Length): Length {
-	return length1 > length2 ? length1 : length2;
 }

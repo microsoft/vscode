@@ -698,17 +698,6 @@ async function resourceMatchesAuthenticationProvider(
 	return false;
 }
 
-/**
- * Resolves and forwards a bearer token for a single protected resource.
- */
-export async function authenticateProtectedResource(
-	accessor: ServicesAccessor,
-	resource: ProtectedResourceMetadata,
-	options: IAgentHostAuthenticationOptions,
-): Promise<boolean> {
-	return authenticateProtectedResourceWithServices(accessor.get(IAuthenticationService), accessor.get(ILogService), resource, resolveAuthenticationOptions(accessor, options));
-}
-
 async function authenticateProtectedResourceWithServices(
 	authenticationService: IAuthenticationService,
 	logService: ILogService,

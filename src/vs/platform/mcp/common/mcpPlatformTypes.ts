@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IStringDictionary } from '../../../base/common/collections.js';
-
 export interface IMcpDevModeConfig {
 	/** Pattern or list of glob patterns to watch relative to the workspace folder. */
 	watch?: string | string[];
@@ -75,8 +73,3 @@ export interface IMcpRemoteServerConfiguration extends ICommonMcpServerConfigura
 }
 
 export type IMcpServerConfiguration = IMcpStdioServerConfiguration | IMcpRemoteServerConfiguration;
-
-export interface IMcpServersConfiguration {
-	servers?: IStringDictionary<IMcpServerConfiguration>;
-	inputs?: IMcpServerVariable[];
-}

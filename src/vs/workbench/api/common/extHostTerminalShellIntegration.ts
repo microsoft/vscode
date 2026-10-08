@@ -181,7 +181,6 @@ export class InternalTerminalShellIntegration extends Disposable {
 	protected readonly _onDidRequestEndExecution = this._register(new Emitter<vscode.TerminalShellExecutionEndEvent>());
 	readonly onDidRequestEndExecution = this._onDidRequestEndExecution.event;
 	protected readonly _onDidRequestNewExecution = this._register(new Emitter<string>());
-	readonly onDidRequestNewExecution = this._onDidRequestNewExecution.event;
 
 	constructor(
 		private readonly _terminal: vscode.Terminal,

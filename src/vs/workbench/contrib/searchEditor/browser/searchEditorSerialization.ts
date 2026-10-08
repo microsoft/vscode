@@ -8,7 +8,6 @@ import { URI } from '../../../../base/common/uri.js';
 import './media/searchEditor.css';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { Range } from '../../../../editor/common/core/range.js';
-import type { ITextModel } from '../../../../editor/common/model.js';
 import { localize } from '../../../../nls.js';
 import type { SearchConfiguration } from './constants.js';
 import { ITextQuery, SearchSortOrder } from '../../../services/search/common/search.js';
@@ -160,9 +159,6 @@ export const serializeSearchConfiguration = (config: Partial<SearchConfiguration
 		''
 	]).join(lineDelimiter);
 };
-
-export const extractSearchQueryFromModel = (model: ITextModel): SearchConfiguration =>
-	extractSearchQueryFromLines(model.getValueInRange(new Range(1, 1, 6, 1)).split(lineDelimiter));
 
 export const defaultSearchConfig = (): SearchConfiguration => ({
 	query: '',

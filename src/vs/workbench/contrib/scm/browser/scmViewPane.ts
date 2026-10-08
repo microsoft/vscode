@@ -1413,7 +1413,6 @@ export class SCMViewPane extends ViewPane {
 	}
 
 	private readonly _onDidChangeViewSortKey = this._register(new Emitter<ViewSortKey>());
-	readonly onDidChangeViewSortKey = this._onDidChangeViewSortKey.event;
 
 	private readonly items = new DisposableMap<ISCMRepository, IDisposable>();
 	private readonly visibilityDisposables = new DisposableStore();

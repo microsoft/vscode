@@ -98,13 +98,6 @@ export const State = {
 	Restarting: (update: IUpdate): Restarting => ({ type: StateType.Restarting, update }),
 };
 
-export interface IAutoUpdater extends Event.NodeEventEmitter {
-	setFeedURL(url: string): void;
-	checkForUpdates(): void;
-	applyUpdate?(): Promise<void>;
-	quitAndInstall(): void;
-}
-
 export const IUpdateService = createDecorator<IUpdateService>('updateService');
 
 export interface IUpdateService {

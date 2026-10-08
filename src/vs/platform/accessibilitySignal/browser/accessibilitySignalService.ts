@@ -22,7 +22,6 @@ export const IAccessibilitySignalService = createDecorator<IAccessibilitySignalS
 export interface IAccessibilitySignalService {
 	readonly _serviceBrand: undefined;
 	playSignal(signal: AccessibilitySignal, options?: IAccessbilitySignalOptions): Promise<void>;
-	playSignals(signals: (AccessibilitySignal | { signal: AccessibilitySignal; source: string })[]): Promise<void>;
 	playSignalLoop(signal: AccessibilitySignal, milliseconds: number): IDisposable;
 
 	getEnabledState(signal: AccessibilitySignal, userGesture: boolean, modality?: AccessibilityModality | undefined): IValueWithChangeEvent<boolean>;
@@ -133,23 +132,6 @@ export class AccessibilitySignalService extends Disposable implements IAccessibi
 			await this.playSound(signal.sound.getSound(), options.allowManyInParallel);
 		}
 	}
-
-	public async playSignals(signals: (AccessibilitySignal | { signal: AccessibilitySignal; source: string })[]): Promise<void> {
-		for (const signal of signals) {
-			this.sendSignalTelemetry('signal' in signal ? signal.signal : signal, 'source' in signal ? signal.source : undefined);
-		}
-		const signalArray = signals.map(s => 'signal' in s ? s.signal : s);
-		const announcements = signalArray.filter(signal => this.isAnnouncementEnabled(signal)).map(s => s.announcementMessage);
-		if (announcements.length) {
-			this.accessibilityService.status(announcements.join(', '));
-		}
-
-		// Some sounds are reused. Don't play the same sound twice.
-		const sounds = new Set(signalArray.filter(signal => this.isSoundEnabled(signal)).map(signal => signal.sound.getSound()));
-		await Promise.all(Array.from(sounds).map(sound => this.playSound(sound, true)));
-
-	}
-
 
 	private sendSignalTelemetry(signal: AccessibilitySignal, source: string | undefined): void {
 		const isScreenReaderOptimized = this.accessibilityService.isScreenReaderOptimized();

@@ -11,13 +11,6 @@ import { ICodeEditor } from '../../../../browser/editorBrowser.js';
 import { CodeEditorWidget } from '../../../../browser/widget/codeEditor/codeEditorWidget.js';
 import { IDocumentEventDataSetChangeReason, IRecordableEditorLogEntry, StructuredLogger } from '../structuredLogger.js';
 
-export interface ITextModelChangeRecorderMetadata {
-	source?: string;
-	extensionId?: string;
-	nes?: boolean;
-	type?: 'word' | 'line';
-}
-
 export class TextModelChangeRecorder extends Disposable {
 	private readonly _structuredLogger;
 

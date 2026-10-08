@@ -106,7 +106,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private readonly _onDidReceiveCompletions = this._register(new Emitter<void>());
 	readonly onDidReceiveCompletions = this._onDidReceiveCompletions.event;
 	private readonly _onDidFontConfigurationChange = this._register(new Emitter<void>());
-	readonly onDidFontConfigurationChange = this._onDidFontConfigurationChange.event;
 
 	private _kindToIconMap = new Map<number, ThemeIcon>([
 		[TerminalCompletionItemKind.File, terminalSymbolFileIcon],
@@ -914,10 +913,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			return;
 		}
 		this._discoverability?.update(this._suggestWidget.element.domNode);
-	}
-
-	resetDiscoverability(): void {
-		this._discoverability?.resetState();
 	}
 
 	selectPreviousSuggestion(): void {

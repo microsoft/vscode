@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IMarkerService, IMarker, MarkerSeverity, MarkerTag } from '../../../platform/markers/common/markers.js';
-import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { IModelDeltaDecoration, ITextModel, IModelDecorationOptions, TrackedRangeStickiness, OverviewRulerLane, IModelDecoration, MinimapPosition, IModelDecorationMinimapOptions } from '../model.js';
 import { ClassName } from '../model/intervalTree.js';
@@ -57,28 +57,6 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 	getLiveMarkers(uri: URI): [Range, IMarker][] {
 		const markerDecorations = this._markerDecorations.get(uri);
 		return markerDecorations ? markerDecorations.getMarkers() : [];
-	}
-
-	addMarkerSuppression(uri: URI, range: Range): IDisposable {
-
-		let suppressedRanges = this._suppressedRanges.get(uri);
-		if (!suppressedRanges) {
-			suppressedRanges = new Set<Range>();
-			this._suppressedRanges.set(uri, suppressedRanges);
-		}
-		suppressedRanges.add(range);
-		this._handleMarkerChange([uri]);
-
-		return toDisposable(() => {
-			const suppressedRanges = this._suppressedRanges.get(uri);
-			if (suppressedRanges) {
-				suppressedRanges.delete(range);
-				if (suppressedRanges.size === 0) {
-					this._suppressedRanges.delete(uri);
-				}
-				this._handleMarkerChange([uri]);
-			}
-		});
 	}
 
 	private _handleMarkerChange(changedResources: readonly URI[]): void {

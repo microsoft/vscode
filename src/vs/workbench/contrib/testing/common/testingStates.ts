@@ -3,10 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mapValues } from '../../../../base/common/objects.js';
 import { TestResultState } from './testTypes.js';
-
-export type TreeStateNode = { statusNode: true; state: TestResultState; priority: number };
 
 /**
  * List of display priorities for different run states. When tests update,
@@ -25,11 +22,6 @@ export const statePriority: { [K in TestResultState]: number } = {
 
 export const isFailedState = (s: TestResultState) => s === TestResultState.Errored || s === TestResultState.Failed;
 export const isStateWithResult = (s: TestResultState) => s === TestResultState.Errored || s === TestResultState.Failed || s === TestResultState.Passed;
-
-export const stateNodes: { [K in TestResultState]: TreeStateNode } = mapValues(statePriority, (priority, stateStr): TreeStateNode => {
-	const state = Number(stateStr) as TestResultState;
-	return { statusNode: true, state, priority };
-});
 
 export const cmpPriority = (a: TestResultState, b: TestResultState) => statePriority[b] - statePriority[a];
 

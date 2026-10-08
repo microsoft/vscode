@@ -96,13 +96,6 @@ export interface BottomUpAnalysis {
 	samples: BottomUpSample[];
 }
 
-export interface CategoryAnalysis {
-	category: string;
-	percentage: number;
-	aggregated: number;
-	overallDuration: number;
-}
-
 export interface IProfileAnalysisWorker {
 	$analyseBottomUp(profile: IV8Profile): BottomUpAnalysis;
 	$analyseByUrlCategory(profile: IV8Profile, categories: [url: URI, category: string][]): [category: string, aggregated: number][];

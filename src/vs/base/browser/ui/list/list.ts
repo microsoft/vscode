@@ -117,11 +117,6 @@ export interface IListDragOverReaction {
 	feedback?: number[]; // use -1 for entire list
 }
 
-export const ListDragOverReactions = {
-	reject(): IListDragOverReaction { return { accept: false }; },
-	accept(): IListDragOverReaction { return { accept: true }; },
-};
-
 /**
  * Warning: Once passed to a list, that list takes up
  * the responsibility of disposing it.

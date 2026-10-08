@@ -616,38 +616,6 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		}
 	}
 
-	protected restartWatching(watcher: ParcelWatcherInstance, delay = 800): void {
-
-		// Restart watcher delayed to accommodate for
-		// changes on disk that have triggered the
-		// need for a restart in the first place.
-		const scheduler = new RunOnceScheduler(async () => {
-			if (watcher.token.isCancellationRequested) {
-				return; // return early when disposed
-			}
-
-			const restartPromise = new DeferredPromise<void>();
-			try {
-
-				// Await the watcher having stopped, as this is
-				// needed to properly re-watch the same path
-				await this.stopWatching(watcher, restartPromise.p);
-
-				// Start watcher again counting the restarts
-				if (watcher.request.pollingInterval) {
-					await this.startPolling(watcher.request, watcher.request.pollingInterval, watcher.restarts + 1);
-				} else {
-					await this.startWatching(watcher.request, watcher.restarts + 1);
-				}
-			} finally {
-				restartPromise.complete();
-			}
-		}, delay);
-
-		scheduler.schedule();
-		watcher.token.onCancellationRequested(() => scheduler.dispose());
-	}
-
 	private async stopWatching(watcher: ParcelWatcherInstance, joinRestart?: Promise<void>): Promise<void> {
 		this.trace(`stopping file watcher`, watcher);
 

@@ -107,12 +107,6 @@ export class UserDataProfileManagementService extends Disposable implements IUse
 		return this.userDataProfilesService.createNamedProfile(name, options);
 	}
 
-	async createAndEnterProfile(name: string, options?: IUserDataProfileOptions): Promise<IUserDataProfile> {
-		const profile = await this.userDataProfilesService.createNamedProfile(name, options, toWorkspaceIdentifier(this.workspaceContextService.getWorkspace()));
-		await this.changeCurrentProfile(profile);
-		return profile;
-	}
-
 	async createAndEnterTransientProfile(): Promise<IUserDataProfile> {
 		const profile = await this.userDataProfilesService.createTransientProfile(toWorkspaceIdentifier(this.workspaceContextService.getWorkspace()));
 		await this.changeCurrentProfile(profile);

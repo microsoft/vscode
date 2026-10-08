@@ -39,10 +39,6 @@ export class Size2D {
 		return new Size2D(this.width * factor, this.height * factor);
 	}
 
-	public scaleWidth(factor: number): Size2D {
-		return new Size2D(this.width * factor, this.height);
-	}
-
 	public mapComponents(map: (value: number) => number): Size2D {
 		return new Size2D(map(this.width), map(this.height));
 	}

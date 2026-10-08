@@ -59,7 +59,6 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 	private readonly _terminalSuggestWidgetVisibleContextKey: IContextKey<boolean>;
 
 	get addon(): SuggestAddon | undefined { return this._addon.value; }
-	get lspAddons(): LspCompletionProviderAddon[] { return Array.from(this._lspAddons.values()); }
 
 	constructor(
 		private readonly _ctx: ITerminalContributionContext,

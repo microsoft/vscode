@@ -63,8 +63,6 @@ export interface IPreferencesEditorPaneRegistry {
 	readonly onDidRegisterPreferencesEditorPanes: Event<IPreferencesEditorPaneDescriptor[]>;
 	readonly onDidDeregisterPreferencesEditorPanes: Event<IPreferencesEditorPaneDescriptor[]>;
 
-	registerPreferencesEditorPane(descriptor: IPreferencesEditorPaneDescriptor): IDisposable;
-
 	getPreferencesEditorPanes(): readonly IPreferencesEditorPaneDescriptor[];
 }
 
@@ -80,21 +78,6 @@ class PreferencesEditorPaneRegistryImpl extends Disposable implements IPreferenc
 
 	constructor() {
 		super();
-	}
-
-	registerPreferencesEditorPane(descriptor: IPreferencesEditorPaneDescriptor): IDisposable {
-		if (this.descriptors.has(descriptor.id)) {
-			throw new Error(`PreferencesEditorPane with id ${descriptor.id} already registered`);
-		}
-		this.descriptors.set(descriptor.id, descriptor);
-		this._onDidRegisterPreferencesEditorPanes.fire([descriptor]);
-		return {
-			dispose: () => {
-				if (this.descriptors.delete(descriptor.id)) {
-					this._onDidDeregisterPreferencesEditorPanes.fire([descriptor]);
-				}
-			}
-		};
 	}
 
 	getPreferencesEditorPanes(): readonly IPreferencesEditorPaneDescriptor[] {

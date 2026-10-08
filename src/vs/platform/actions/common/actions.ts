@@ -377,11 +377,6 @@ export interface IMenu extends IDisposable {
 	getActions(options?: IMenuActionOptions): [string, Array<MenuItemAction | SubmenuItemAction>][];
 }
 
-export interface IMenuData {
-	contexts: ReadonlySet<string>;
-	actions: [string, Array<MenuItemAction | SubmenuItemAction>][];
-}
-
 export const IMenuService = createDecorator<IMenuService>('menuService');
 
 export interface IMenuCreateOptions {

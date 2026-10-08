@@ -598,10 +598,6 @@ class CachedRemoteUserConfiguration extends Disposable {
 		this.configurationModel = ConfigurationModel.createEmptyModel(logService);
 	}
 
-	getConfigurationModel(): ConfigurationModel {
-		return this.configurationModel;
-	}
-
 	initialize(): Promise<ConfigurationModel> {
 		return this.reload();
 	}
@@ -811,10 +807,6 @@ class FileServiceBasedWorkspaceConfiguration extends Disposable {
 		this.consolidate();
 	}
 
-	getConfigurationModel(): ConfigurationModel {
-		return this.workspaceConfigurationModelParser.configurationModel;
-	}
-
 	getFolders(): IStoredWorkspaceFolder[] {
 		return this.workspaceConfigurationModelParser.folders;
 	}
@@ -878,10 +870,6 @@ class CachedWorkspaceConfiguration {
 
 	get workspaceIdentifier(): IWorkspaceIdentifier | null {
 		return null;
-	}
-
-	getConfigurationModel(): ConfigurationModel {
-		return this.workspaceConfigurationModelParser.configurationModel;
 	}
 
 	getFolders(): IStoredWorkspaceFolder[] {
@@ -1005,10 +993,6 @@ class CachedFolderConfiguration {
 
 	private consolidate(): void {
 		this.configurationModel = this._folderSettingsModelParser.configurationModel.merge(...this._standAloneConfigurations);
-	}
-
-	getUnsupportedKeys(): string[] {
-		return [];
 	}
 }
 

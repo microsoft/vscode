@@ -73,16 +73,6 @@ export interface INotebookKernel {
 	provideVariables(notebookUri: URI, parentId: number | undefined, kind: 'named' | 'indexed', start: number, token: CancellationToken): AsyncIterableProducer<VariablesResult>;
 }
 
-export const enum ProxyKernelState {
-	Disconnected = 1,
-	Connected = 2,
-	Initializing = 3
-}
-
-export interface INotebookProxyKernelChangeEvent extends INotebookKernelChangeEvent {
-	connectionState?: true;
-}
-
 export interface INotebookKernelDetectionTask {
 	readonly notebookType: string;
 }

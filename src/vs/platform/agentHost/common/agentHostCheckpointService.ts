@@ -110,22 +110,6 @@ export interface IAgentHostCheckpointService {
 	getBaselineCheckpoint(sessionUri: URI, workingDirectory?: URI): Promise<string | undefined>;
 
 	/**
-	 * Deletes every checkpoint ref this service created for the session
-	 * (baseline + all turn refs), reading the precise list from the
-	 * session database. Tolerates missing refs.
-	 *
-	 * Called from a subscriber to `ISessionDataService.onWillDeleteSessionData`
-	 * before the session's data directory is removed.
-	 *
-	 * `workingDirectories` identifies the repositories holding the refs.
-	 * There is deliberately no fallback to the session's live state: by
-	 * the time this runs the session has typically already been removed
-	 * from the state manager, so omitting them is a silent no-op that
-	 * leaks the refs.
-	 */
-	deleteCheckpoints(sessionUri: URI, workingDirectories?: readonly string[]): Promise<void>;
-
-	/**
 	 * Adopts the legacy extension-host Copilot CLI checkpoint refs
 	 * (`refs/sessions/<rawSessionId>/checkpoints/turn/<N>`) for a migrated session:
 	 * re-points each commit under this service's
@@ -152,5 +136,4 @@ export const NULL_CHECKPOINT_SERVICE: IAgentHostCheckpointService = {
 	discardChatTurnStartCheckpoints: async () => { },
 	getTurnCheckpointPair: async () => undefined,
 	getBaselineCheckpoint: async () => undefined,
-	deleteCheckpoints: async () => { },
 };

@@ -32,7 +32,6 @@ export interface IRangeHighlightDecoration {
 export class RangeHighlightDecorations extends Disposable {
 
 	private readonly _onHighlightRemoved = this._register(new Emitter<void>());
-	readonly onHighlightRemoved = this._onHighlightRemoved.event;
 
 	private rangeHighlightDecorationId: string | null = null;
 	private editor: ICodeEditor | null = null;

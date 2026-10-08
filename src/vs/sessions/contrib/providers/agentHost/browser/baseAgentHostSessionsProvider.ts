@@ -3310,10 +3310,6 @@ class NewSession extends Disposable {
 
 	getSelectedAgent(): ISessionAgentRef | undefined { return this._selectedAgent; }
 	getInitialSessionTemplate(): IAutomationSessionTemplate | undefined { return this._initialSessionTemplate; }
-	clearSelectedAgent(): void {
-		this._selectedAgent = undefined;
-		this._mode.set(undefined, undefined);
-	}
 
 	setStatus(status: SessionStatus): void { this._status.set(status, undefined); }
 	startRequest(activity: string | undefined): IDisposable {
@@ -4285,10 +4281,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 */
 	protected _backendSessionScheme(agentProvider: string): string {
 		return newAgentHostSessionUri(agentProvider, '', this.connection?.initializeResult.get()).scheme;
-	}
-
-	protected _logicalSessionTypeForBackendScheme(backendScheme: string): string {
-		return backendScheme;
 	}
 
 	private _mapBackendSessionResource(resource: URI): URI {
@@ -5899,14 +5891,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		this._onDidChangeSessionConfig.fire(sessionId);
 		await newSession.trackConfigResolution(this._refreshNewSessionConfig(newSession, { expected: values }));
-	}
-
-	clearSessionConfig(sessionId: string): void {
-		if (this._newSessions.has(sessionId)) {
-			this._onNewSessionAbandoned(sessionId, 'discarded');
-			this._newSessions.deleteAndDispose(sessionId);
-			this._onDidChangeDraftSessions.fire();
-		}
 	}
 
 	// -- Root (agent host) Config --------------------------------------------

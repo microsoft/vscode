@@ -15,7 +15,6 @@ import { isCopilotAgentHostSessionType } from '../../../../../platform/agentHost
 
 export const MODEL_ENTRY_TEMPLATE_ID = 'model.entry.template';
 export const VENDOR_ENTRY_TEMPLATE_ID = 'vendor.entry.template';
-export const GROUP_ENTRY_TEMPLATE_ID = 'group.entry.template';
 
 const wordFilter = or(matchesBaseContiguousSubString, matchesWords);
 const CAPABILITY_REGEX = /@capability:\s*([^\s]+)/gi;

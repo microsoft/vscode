@@ -149,23 +149,3 @@ export class GlobalStateResourceExportTreeItem extends GlobalStateResourceTreeIt
 	}
 
 }
-
-export class GlobalStateResourceImportTreeItem extends GlobalStateResourceTreeItem {
-
-	constructor(
-		private readonly content: string,
-		resource: URI,
-		@IUriIdentityService uriIdentityService: IUriIdentityService,
-	) {
-		super(resource, uriIdentityService);
-	}
-
-	async getContent(): Promise<string> {
-		return this.content;
-	}
-
-	isFromDefaultProfile(): boolean {
-		return false;
-	}
-
-}

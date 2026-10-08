@@ -580,10 +580,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return this._onDidStateChange.event;
 	}
 
-	public get supportsMultipleTaskExecutions(): boolean {
-		return this.inTerminal();
-	}
-
 	private async _registerCommands(): Promise<void> {
 		CommandsRegistry.registerCommand({
 			id: 'workbench.action.tasks.runTask',
@@ -904,13 +900,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private _getTaskSystemInfo(key: string): ITaskSystemInfo | undefined {
 		const infos = this._taskSystemInfos.get(key);
 		return (infos && infos.length) ? infos[0] : undefined;
-	}
-
-	public extensionCallbackTaskComplete(task: Task, result: number): Promise<void> {
-		if (!this._taskSystem) {
-			return Promise.resolve();
-		}
-		return this._taskSystem.customExecutionComplete(task, result);
 	}
 
 	/**

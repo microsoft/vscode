@@ -256,8 +256,3 @@ export const enum TextModelDiffState {
 	updating = 3,
 	error = 4,
 }
-
-export interface ITextModelDiffsState {
-	state: TextModelDiffState;
-	diffs: DetailedLineRangeMapping[];
-}

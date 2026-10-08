@@ -4,50 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { h } from '../../../../../base/browser/dom.js';
-import { Disposable, IDisposable, markAsSingleton } from '../../../../../base/common/lifecycle.js';
-import { Schemas } from '../../../../../base/common/network.js';
 import { isAbsolute } from '../../../../../base/common/path.js';
 import { basename } from '../../../../../base/common/resources.js';
-import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { isITextModel } from '../../../../../editor/common/model.js';
-import { localize, localize2 } from '../../../../../nls.js';
-import { ActionWidgetDropdownActionViewItem } from '../../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
-import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
-import { Action2, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
-import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
-import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider } from '../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
+import { localize } from '../../../../../nls.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
-import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { IWorkbenchContribution } from '../../../../common/contributions.js';
-import { IsSessionsWindowContext, ResourceContextKey } from '../../../../common/contextkeys.js';
+import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IChatAgentService } from '../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { chatEditingWidgetFileStateContextKey, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { ChatModel } from '../../common/model/chatModel.js';
 import { ChatRequestParser } from '../../common/requestParser/chatRequestParser.js';
 import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../attachments/chatVariables.js';
 import { ChatSendResult, IChatService } from '../../common/chatService/chatService.js';
 import { ResolvedChatSessionsExtensionPoint, IChatSessionsService, SessionType } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
-import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/promptTypes.js';
-import { AgentSessionProviders, AgentSessionTarget, CHAT_DELEGATE_TO_AGENT_HOST_SESSION_COMMAND_ID, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName, IAgentHostDelegationRequest, isAgentHostTarget } from '../agentSessions/agentSessions.js';
-import { ISCMService } from '../../../scm/common/scm.js';
-import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { CHAT_DELEGATE_TO_AGENT_HOST_SESSION_COMMAND_ID, getAgentSessionProvider, getAgentSessionProviderName, IAgentHostDelegationRequest, isAgentHostTarget } from '../agentSessions/agentSessions.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { IChatWidget, IChatWidgetService, isIChatViewViewContext } from '../chat.js';
-import { ctxHasEditorModification } from '../chatEditing/chatEditingEditorContextKeys.js';
-import { CHAT_SETUP_ACTION_ID } from './chatActions.js';
-import { IChatRequestPasteVariableEntry, PromptFileVariableKind, toPasteVariableEntry, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
+import { IChatRequestPasteVariableEntry, toPasteVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { ChatSessionPosition, openChatSession } from '../chatSessions/chatSessions.contribution.js';
 import { importedTurnsFromChatModel } from '../agentSessions/agentHost/importLocalConversationToAgentSession.js';
@@ -110,191 +91,6 @@ async function resolveGitRemoteNwo(repoPath: string, fileService: IFileService):
 		// File not found or not readable
 	}
 	return undefined;
-}
-
-export const enum ActionLocation {
-	ChatWidget = 'chatWidget',
-	Editor = 'editor'
-}
-
-export class ContinueChatInSessionAction extends Action2 {
-
-	static readonly ID = 'workbench.action.chat.continueChatInSession';
-
-	constructor() {
-		super({
-			id: ContinueChatInSessionAction.ID,
-			title: localize2('continueChatInSession', "Continue Chat in..."),
-			tooltip: localize('continueChatInSession', "Continue Chat in..."),
-			precondition: ContextKeyExpr.and(
-				ChatContextKeys.enabled,
-				ChatContextKeys.requestInProgress.negate(),
-				ChatContextKeys.remoteJobCreating.negate(),
-				ChatContextKeys.hasCanDelegateProviders,
-			),
-			menu: [{
-				id: MenuId.ChatExecute,
-				group: 'navigation',
-				order: 3.4,
-				when: ContextKeyExpr.and(
-					ChatContextKeys.lockedToCodingAgent.negate(),
-					ChatContextKeys.hasCanDelegateProviders,
-				),
-			},
-			{
-				id: MenuId.EditorContent,
-				group: 'continueIn',
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals(ResourceContextKey.Scheme.key, Schemas.untitled),
-					ContextKeyExpr.equals(ResourceContextKey.LangId.key, PROMPT_LANGUAGE_ID),
-					ContextKeyExpr.notEquals(chatEditingWidgetFileStateContextKey.key, ModifiedFileEntryState.Modified),
-					ctxHasEditorModification.negate(),
-					ChatContextKeys.hasCanDelegateProviders,
-				),
-			}
-			]
-		});
-	}
-
-	override async run(): Promise<void> {
-		// Handled by a custom action item
-	}
-}
-export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionViewItem {
-	constructor(
-		action: MenuItemAction,
-		private readonly location: ActionLocation,
-		@IActionWidgetService actionWidgetService: IActionWidgetService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IChatSessionsService chatSessionsService: IChatSessionsService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IOpenerService openerService: IOpenerService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@ISCMService scmService: ISCMService,
-		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
-	) {
-		super(action, {
-			actionProvider: ChatContinueInSessionActionItem.actionProvider(chatSessionsService, instantiationService, scmService, workspaceContextService, location),
-			actionBarActions: ChatContinueInSessionActionItem.getActionBarActions(openerService),
-			reporter: { id: 'ChatContinueInSession', name: 'ChatContinueInSession', includeOptions: true },
-		}, actionWidgetService, keybindingService, contextKeyService, telemetryService);
-	}
-
-	protected static getActionBarActions(openerService: IOpenerService) {
-		const learnMoreUrl = 'https://aka.ms/vscode-agent-handoff';
-		return [{
-			id: 'workbench.action.chat.continueChatInSession.learnMore',
-			label: localize('chat.learnMore', "Learn More"),
-			tooltip: localize('chat.learnMore', "Learn More"),
-			class: undefined,
-			enabled: true,
-			run: async () => {
-				await openerService.open(URI.parse(learnMoreUrl));
-			}
-		}];
-	}
-
-	private static actionProvider(chatSessionsService: IChatSessionsService, instantiationService: IInstantiationService, scmService: ISCMService, workspaceContextService: IWorkspaceContextService, location: ActionLocation): IActionWidgetDropdownActionProvider {
-		return {
-			getActions: () => {
-				const actions: IActionWidgetDropdownAction[] = [];
-				const contributions = chatSessionsService.getAllChatSessionContributions();
-				const folders = workspaceContextService.getWorkspace().folders;
-				let hasGitRepo = false;
-				if (folders.length > 0) {
-					for (const repo of scmService.repositories) {
-						if (repo.provider.rootUri && workspaceContextService.getWorkspaceFolder(repo.provider.rootUri)) {
-							hasGitRepo = true;
-							break;
-						}
-					}
-				}
-
-				// Continue in Background
-				const backgroundContrib = contributions.find(contrib => contrib.type === AgentSessionProviders.Background);
-				if (backgroundContrib && backgroundContrib.canDelegate) {
-					actions.push(this.toAction(AgentSessionProviders.Background, backgroundContrib, instantiationService, location));
-				}
-
-				// Continue in Cloud (disabled when no git repository)
-				const cloudContrib = contributions.find(contrib => contrib.type === AgentSessionProviders.Cloud);
-				if (cloudContrib && cloudContrib.canDelegate) {
-					actions.push(this.toAction(AgentSessionProviders.Cloud, cloudContrib, instantiationService, location, hasGitRepo));
-				}
-
-				// Continue in any agent host session (local `agent-host-*` or remote
-				// `remote-*`), e.g. Copilot CLI / Codex / Claude agent-host sessions.
-				for (const contrib of contributions) {
-					if (contrib.canDelegate && isAgentHostTarget(contrib.type)) {
-						actions.push(this.toAction(contrib.type, contrib, instantiationService, location));
-					}
-				}
-
-				// Offer actions to enter setup if we have no contributions
-				if (actions.length === 0) {
-					actions.push(this.toSetupAction(AgentSessionProviders.Background, instantiationService));
-					actions.push(this.toSetupAction(AgentSessionProviders.Cloud, instantiationService));
-				}
-
-				return actions;
-			}
-		};
-	}
-
-	private static toAction(provider: AgentSessionTarget, contrib: ResolvedChatSessionsExtensionPoint, instantiationService: IInstantiationService, location: ActionLocation, enabled: boolean = true): IActionWidgetDropdownAction {
-		const providerName = getAgentSessionProviderName(provider);
-		// For dynamically-registered agent host providers, getAgentSessionProviderName
-		// falls back to the raw session type; prefer the contribution's display name.
-		const label = providerName === provider ? (contrib.displayName ?? providerName) : providerName;
-		return {
-			id: contrib.type,
-			enabled,
-			icon: getAgentSessionProviderIcon(provider),
-			class: undefined,
-			description: `@${contrib.name}`,
-			label,
-			tooltip: localize('continueSessionIn', "Continue in {0}", label),
-			category: { label: localize('continueIn', "Continue In"), order: 0, showHeader: true },
-			run: () => instantiationService.invokeFunction(accessor => {
-				if (location === ActionLocation.Editor) {
-					return new CreateRemoteAgentJobFromEditorAction().run(accessor, contrib);
-				}
-				return new CreateRemoteAgentJobAction().run(accessor, contrib);
-			})
-		};
-	}
-
-	private static toSetupAction(provider: AgentSessionProviders, instantiationService: IInstantiationService): IActionWidgetDropdownAction {
-		return {
-			id: provider,
-			enabled: true,
-			icon: getAgentSessionProviderIcon(provider),
-			class: undefined,
-			label: getAgentSessionProviderName(provider),
-			tooltip: localize('continueSessionIn', "Continue in {0}", getAgentSessionProviderName(provider)),
-			category: { label: localize('continueIn', "Continue In"), order: 0, showHeader: true },
-			run: () => instantiationService.invokeFunction(accessor => {
-				const commandService = accessor.get(ICommandService);
-				return commandService.executeCommand(CHAT_SETUP_ACTION_ID);
-			})
-		};
-	}
-
-	protected override renderLabel(element: HTMLElement): IDisposable | null {
-		if (this.location === ActionLocation.Editor) {
-			const view = h('span.action-widget-delegate-label', [
-				h('span', { className: ThemeIcon.asClassName(Codicon.forward) }),
-				h('span', [localize('continueInEllipsis', "Continue in...")])
-			]);
-			element.appendChild(view.root);
-			return null;
-		} else {
-			const icon = this.contextKeyService.contextMatchesRules(ChatContextKeys.remoteJobCreating) ? Codicon.sync : Codicon.forward;
-			element.classList.add(...ThemeIcon.asClassNameArray(icon));
-			return super.renderLabel(element);
-		}
-	}
 }
 
 const NEW_CHAT_SESSION_ACTION_ID = 'workbench.action.chat.openNewSessionEditor';
@@ -658,52 +454,5 @@ export class CreateRemoteAgentJobAction {
 		} finally {
 			remoteJobCreatingKey.set(false);
 		}
-	}
-}
-
-class CreateRemoteAgentJobFromEditorAction {
-	constructor() { }
-
-	async run(accessor: ServicesAccessor, continuationTarget: ResolvedChatSessionsExtensionPoint) {
-
-		try {
-			const editorService = accessor.get(IEditorService);
-			const activeEditor = editorService.activeTextEditorControl;
-			const commandService = accessor.get(ICommandService);
-
-			if (!activeEditor) {
-				return;
-			}
-			const model = activeEditor.getModel();
-			if (!model || !isITextModel(model)) {
-				return;
-			}
-			const uri = model.uri;
-			const attachedContext = [toPromptFileVariableEntry(uri, PromptFileVariableKind.PromptFile, undefined, false, [])];
-			const prompt = `Follow instructions in [${basename(uri)}](${uri.toString()}).`;
-			await commandService.executeCommand(`${NEW_CHAT_SESSION_ACTION_ID}.${continuationTarget.type}`, { prompt, attachedContext });
-		} catch (e) {
-			console.error('Error creating remote agent job from editor', e);
-			throw e;
-		}
-	}
-}
-
-export class ContinueChatInSessionActionRendering extends Disposable implements IWorkbenchContribution {
-
-	static readonly ID = 'chat.continueChatInSessionActionRendering';
-
-	constructor(
-		@IActionViewItemService actionViewItemService: IActionViewItemService,
-		@IInstantiationService instantiationService: IInstantiationService,
-	) {
-		super();
-		const disposable = actionViewItemService.register(MenuId.EditorContent, ContinueChatInSessionAction.ID, (action, options, instantiationService2) => {
-			if (!(action instanceof MenuItemAction)) {
-				return undefined;
-			}
-			return instantiationService.createInstance(ChatContinueInSessionActionItem, action, ActionLocation.Editor);
-		});
-		markAsSingleton(disposable);
 	}
 }

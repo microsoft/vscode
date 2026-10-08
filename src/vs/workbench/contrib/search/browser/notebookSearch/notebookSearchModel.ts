@@ -198,13 +198,6 @@ export class NotebookCompatibleFileMatch extends FileMatchImpl implements INoteb
 		this._notebookUpdateScheduler = this._register(new RunOnceScheduler(this.updateMatchesForEditorWidget.bind(this), 250));
 	}
 	private _cellMatches: Map<string, ICellMatch>;
-	public get cellContext(): Map<string, Map<number, string>> {
-		const cellContext = new Map<string, Map<number, string>>();
-		this._cellMatches.forEach(cellMatch => {
-			cellContext.set(cellMatch.id, cellMatch.context);
-		});
-		return cellContext;
-	}
 
 	getCellMatch(cellID: string): ICellMatch | undefined {
 		return this._cellMatches.get(cellID);

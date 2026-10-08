@@ -23,7 +23,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { AICustomizationSources, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { RecordedCustomizationMarketplaceInstallState } from '../../common/customizationMarketplaceInstallService.js';
-import { ICustomizationItem, ICustomizationItemProvider, ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
+import { ICustomizationItem, ICustomizationItemProvider } from '../../common/customizationHarnessService.js';
 import { parseHooksFromFile } from '../../common/promptSyntax/hookCompatibility.js';
 import { formatHookCommandLabel } from '../../common/promptSyntax/hookSchema.js';
 import { HOOK_METADATA } from '../../common/promptSyntax/hookTypes.js';
@@ -93,7 +93,6 @@ export interface IAICustomizationItemSource extends IDisposable {
 	readonly onDidAICustomizationItemsChange: Event<void>;
 	fetchProviderItems(): Promise<readonly ICustomizationItem[]>;
 	fetchAICustomizationItems(promptType: PromptsType): Promise<IAICustomizationListItem[]>;
-	fetchSourceFolders(promptType: PromptsType): Promise<readonly ICustomizationSourceFolder[]>;
 }
 
 // #endregion
@@ -337,14 +336,6 @@ export class ItemProviderItemSource extends Disposable implements IAICustomizati
 		return normalized;
 	}
 
-	async fetchSourceFolders(promptType: PromptsType): Promise<readonly ICustomizationSourceFolder[]> {
-		if (!this.itemProvider.provideSourceFolders) {
-			return [];
-		}
-
-		return (await this.itemProvider.provideSourceFolders(this.sessionResource, promptType, CancellationToken.None)) ?? [];
-	}
-
 	/**
 	 * Merges built-in skills (bundled with the app under `vs/sessions/skills/`)
 	 * into the provider's items. The provider may re-discover the bundled
@@ -443,10 +434,6 @@ export class EmptyItemProviderItemSource extends Disposable implements IAICustom
 	fetchProviderItems(): Promise<readonly ICustomizationItem[]> {
 		return Promise.resolve([]);
 	}
-
-	fetchSourceFolders(_promptType: PromptsType): Promise<readonly ICustomizationSourceFolder[]> {
-		return Promise.resolve([]);
-	}
 }
 
 export class PureItemProviderItemSource extends Disposable implements IAICustomizationItemSource {
@@ -496,16 +483,6 @@ export class PureItemProviderItemSource extends Disposable implements IAICustomi
 		const allItems = await this.fetchProviderItems();
 		return this.itemNormalizer.normalizeItems(allItems, promptType);
 	}
-
-	async fetchSourceFolders(promptType: PromptsType): Promise<readonly ICustomizationSourceFolder[]> {
-		if (!this.itemProvider.provideSourceFolders) {
-			return [];
-		}
-
-		return (await this.itemProvider.provideSourceFolders(this.sessionResource, promptType, CancellationToken.None)) ?? [];
-	}
-
-
 }
 
 

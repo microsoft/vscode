@@ -52,10 +52,9 @@ import { IProgressService, ProgressLocation } from '../../../../platform/progres
 import { IActionViewItemOptions, ActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { EXTENSIONS_CONFIG, IExtensionsConfigContent } from '../../../services/extensionRecommendations/common/workspaceExtensionsConfig.js';
 import { getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
-import { IUserDataSyncEnablementService } from '../../../../platform/userDataSync/common/userDataSync.js';
 import { IContextMenuProvider } from '../../../../base/browser/contextmenu.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { errorIcon, infoIcon, manageExtensionIcon, syncEnabledIcon, syncIgnoredIcon, trustIcon, warningIcon } from './extensionsIcons.js';
+import { errorIcon, infoIcon, manageExtensionIcon, trustIcon, warningIcon } from './extensionsIcons.js';
 import { isIOS, isWeb, language } from '../../../../base/common/platform.js';
 import { IExtensionManifestPropertiesService } from '../../../services/extensions/common/extensionManifestPropertiesService.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
@@ -2340,31 +2339,6 @@ export class ClearLanguageAction extends ExtensionAction {
 	}
 }
 
-export class ShowRecommendedExtensionAction extends Action {
-
-	static readonly ID = 'workbench.extensions.action.showRecommendedExtension';
-	static readonly LABEL = localize('showRecommendedExtension', "Show Recommended Extension");
-
-	private extensionId: string;
-
-	constructor(
-		extensionId: string,
-		@IExtensionsWorkbenchService private readonly extensionWorkbenchService: IExtensionsWorkbenchService,
-	) {
-		super(ShowRecommendedExtensionAction.ID, ShowRecommendedExtensionAction.LABEL, undefined, false);
-		this.extensionId = extensionId;
-	}
-
-	override async run(): Promise<any> {
-		await this.extensionWorkbenchService.openSearch(`@id:${this.extensionId}`);
-		const [extension] = await this.extensionWorkbenchService.getExtensions([{ id: this.extensionId }], { source: 'install-recommendation' }, CancellationToken.None);
-		if (extension) {
-			return this.extensionWorkbenchService.open(extension);
-		}
-		return null;
-	}
-}
-
 export class InstallRecommendedExtensionAction extends Action {
 
 	static readonly ID = 'workbench.extensions.action.installRecommendedExtension';
@@ -2392,52 +2366,6 @@ export class InstallRecommendedExtensionAction extends Action {
 				this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, undefined, extension.latestVersion, InstallOperation.Install, err).run();
 			}
 		}
-	}
-}
-
-export class IgnoreExtensionRecommendationAction extends Action {
-
-	static readonly ID = 'extensions.ignore';
-
-	private static readonly Class = `${ExtensionAction.LABEL_ACTION_CLASS} ignore`;
-
-	constructor(
-		private readonly extension: IExtension,
-		@IExtensionIgnoredRecommendationsService private readonly extensionRecommendationsManagementService: IExtensionIgnoredRecommendationsService,
-	) {
-		super(IgnoreExtensionRecommendationAction.ID, 'Ignore Recommendation');
-
-		this.class = IgnoreExtensionRecommendationAction.Class;
-		this.tooltip = localize('ignoreExtensionRecommendation', "Do not recommend this extension again");
-		this.enabled = true;
-	}
-
-	public override run(): Promise<any> {
-		this.extensionRecommendationsManagementService.toggleGlobalIgnoredRecommendation(this.extension.identifier.id, true);
-		return Promise.resolve();
-	}
-}
-
-export class UndoIgnoreExtensionRecommendationAction extends Action {
-
-	static readonly ID = 'extensions.ignore';
-
-	private static readonly Class = `${ExtensionAction.LABEL_ACTION_CLASS} undo-ignore`;
-
-	constructor(
-		private readonly extension: IExtension,
-		@IExtensionIgnoredRecommendationsService private readonly extensionRecommendationsManagementService: IExtensionIgnoredRecommendationsService,
-	) {
-		super(UndoIgnoreExtensionRecommendationAction.ID, 'Undo');
-
-		this.class = UndoIgnoreExtensionRecommendationAction.Class;
-		this.tooltip = localize('undo', "Undo");
-		this.enabled = true;
-	}
-
-	public override run(): Promise<any> {
-		this.extensionRecommendationsManagementService.toggleGlobalIgnoredRecommendation(this.extension.identifier.id, false);
-		return Promise.resolve();
 	}
 }
 
@@ -2701,44 +2629,6 @@ export class ExtensionStatusLabelAction extends Action implements IExtensionCont
 		return Promise.resolve();
 	}
 
-}
-
-export class ToggleSyncExtensionAction extends DropDownExtensionAction {
-
-	private static readonly IGNORED_SYNC_CLASS = `${ExtensionAction.ICON_ACTION_CLASS} extension-sync ${ThemeIcon.asClassName(syncIgnoredIcon)}`;
-	private static readonly SYNC_CLASS = `${this.ICON_ACTION_CLASS} extension-sync ${ThemeIcon.asClassName(syncEnabledIcon)}`;
-
-	constructor(
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
-		@IInstantiationService instantiationService: IInstantiationService,
-	) {
-		super('extensions.sync', '', ToggleSyncExtensionAction.SYNC_CLASS, false, instantiationService);
-		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('settingsSync.ignoredExtensions'))(() => this.update()));
-		this._register(userDataSyncEnablementService.onDidChangeEnablement(() => this.update()));
-		this.update();
-	}
-
-	update(): void {
-		this.enabled = !!this.extension && this.userDataSyncEnablementService.isEnabled() && this.extension.state === ExtensionState.Installed;
-		if (this.extension) {
-			const isIgnored = this.extensionsWorkbenchService.isExtensionIgnoredToSync(this.extension);
-			this.class = isIgnored ? ToggleSyncExtensionAction.IGNORED_SYNC_CLASS : ToggleSyncExtensionAction.SYNC_CLASS;
-			this.tooltip = isIgnored ? localize('ignored', "This extension is ignored during sync") : localize('synced', "This extension is synced");
-		}
-	}
-
-	override async run(): Promise<any> {
-		return super.run([
-			[
-				new Action(
-					'extensions.syncignore',
-					this.extensionsWorkbenchService.isExtensionIgnoredToSync(this.extension!) ? localize('sync', "Sync this extension") : localize('do not sync', "Do not sync this extension")
-					, undefined, true, () => this.extensionsWorkbenchService.toggleExtensionIgnoredToSync(this.extension!))
-			]
-		]);
-	}
 }
 
 export type ExtensionStatus = { readonly message: IMarkdownString; readonly icon?: ThemeIcon };

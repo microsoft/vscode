@@ -49,10 +49,6 @@ export class NotebookExecutionStateService extends Disposable implements INotebo
 		return failedCell?.visible ? failedCell.cellHandle : undefined;
 	}
 
-	getLastCompletedCellForNotebook(notebook: URI): number | undefined {
-		return this._lastCompletedCellHandles.get(notebook);
-	}
-
 	forceCancelNotebookExecutions(notebookUri: URI): void {
 		const notebookCellExecutions = this._executions.get(notebookUri);
 		if (notebookCellExecutions) {

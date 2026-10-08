@@ -28,8 +28,6 @@ import { SettingsTarget } from './preferencesWidgets.js';
 import { ITOCEntry, tocData } from './settingsLayout.js';
 import { IExperimentalSettingsService } from '../../../services/configuration/common/experimentalSettings.js';
 
-export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
-
 export interface ISettingsEditorViewState {
 	settingsTarget: SettingsTarget;
 	query?: string; // used to keep track of loading from setInput vs loading from cache

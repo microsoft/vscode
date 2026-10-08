@@ -3292,15 +3292,6 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._requests;
 	}
 
-	resetCheckpoint(): void {
-		for (const request of this._requests) {
-			request.setShouldBeBlocked(false);
-			if (request.response) {
-				request.response.setBlockedState(false);
-			}
-		}
-	}
-
 	setCheckpoint(requestId: string | undefined) {
 		let checkpoint: ChatRequestModel | undefined;
 		let checkpointIndex = -1;
@@ -3541,11 +3532,6 @@ export class ChatModel extends Disposable implements IChatModel {
 			return;
 		}
 		request.response.setFollowups(followups);
-	}
-
-	setResponseModel(request: ChatRequestModel, response: ChatResponseModel): void {
-		request.response = response;
-		this._onDidChange.fire({ kind: 'addResponse', response });
 	}
 
 	toExport(): IExportableChatData {

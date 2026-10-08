@@ -207,10 +207,6 @@ export class OutputElement extends Disposable {
 		return nls.localize('builtinRenderInfo', "built-in");
 	}
 
-	getCellOutputCurrentIndex() {
-		return this._diffElementViewModel.getNestedCellViewModel(this._diffSide).outputs.indexOf(this.output.model);
-	}
-
 	updateHeight(index: number, height: number) {
 		this._diffElementViewModel.updateOutputHeight(this._diffSide, index, height);
 	}

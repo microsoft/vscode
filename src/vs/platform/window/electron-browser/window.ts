@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getZoomLevel, setZoomFactor, setZoomLevel } from '../../../base/browser/browser.js';
+import { setZoomFactor, setZoomLevel } from '../../../base/browser/browser.js';
 import { getActiveWindow, getWindows } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { ISandboxConfiguration } from '../../../base/parts/sandbox/common/sandboxTypes.js';
@@ -56,14 +56,6 @@ function getGlobals(win: Window): ISandboxGlobals | undefined {
 	return undefined;
 }
 
-export function zoomIn(target: ApplyZoomTarget | Window): void {
-	applyZoom(getZoomLevel(typeof target === 'number' ? getActiveWindow() : target) + 1, target);
-}
-
-export function zoomOut(target: ApplyZoomTarget | Window): void {
-	applyZoom(getZoomLevel(typeof target === 'number' ? getActiveWindow() : target) - 1, target);
-}
-
 //#region Bootstrap Window
 
 export interface ILoadOptions<T extends ISandboxConfiguration = ISandboxConfiguration> {
@@ -79,13 +71,6 @@ export interface ILoadOptions<T extends ISandboxConfiguration = ISandboxConfigur
 export interface ILoadResult<M, T> {
 	readonly result: M;
 	readonly configuration: T;
-}
-
-export interface IBootstrapWindow {
-	load<M, T extends ISandboxConfiguration = ISandboxConfiguration>(
-		esModule: string,
-		options: ILoadOptions<T>
-	): Promise<ILoadResult<M, T>>;
 }
 
 //#endregion

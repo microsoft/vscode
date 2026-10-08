@@ -9,7 +9,7 @@ import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { activityErrorBadgeBackground, activityErrorBadgeForeground, activityWarningBadgeBackground, activityWarningBadgeForeground } from '../../../../platform/theme/common/colors/miscColors.js';
+import { activityWarningBadgeBackground, activityWarningBadgeForeground } from '../../../../platform/theme/common/colors/miscColors.js';
 import { IColorTheme } from '../../../../platform/theme/common/themeService.js';
 import { ViewContainer } from '../../../common/views.js';
 
@@ -121,16 +121,6 @@ export class WarningBadge extends IconBadge {
 		super(Codicon.warning, descriptorFn, (theme: IColorTheme) => ({
 			badgeBackground: theme.getColor(activityWarningBadgeBackground),
 			badgeForeground: theme.getColor(activityWarningBadgeForeground),
-			badgeBorder: undefined,
-		}));
-	}
-}
-
-export class ErrorBadge extends IconBadge {
-	constructor(descriptorFn: () => string) {
-		super(Codicon.error, descriptorFn, (theme: IColorTheme) => ({
-			badgeBackground: theme.getColor(activityErrorBadgeBackground),
-			badgeForeground: theme.getColor(activityErrorBadgeForeground),
 			badgeBorder: undefined,
 		}));
 	}

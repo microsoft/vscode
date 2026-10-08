@@ -607,13 +607,6 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 		this._updateDotHighlights();
 	}
 
-	focusTick(requestId: string): void {
-		const index = this._rows.findIndex(r => r.tick.requestId === requestId || r.tick.allRequestIds.includes(requestId));
-		if (index >= 0) {
-			this._focusCell(index, 'jump');
-		}
-	}
-
 	setHostWidth(width: number): void {
 		if (width > 0 && width !== this._hostWidth) {
 			this._hostWidth = width;

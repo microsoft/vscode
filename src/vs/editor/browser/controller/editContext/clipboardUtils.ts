@@ -327,9 +327,3 @@ export function createReadableClipboardData(dataTransfer: DataTransfer | undefin
 		getData: (type: string) => dataTransfer?.getData(type) ?? '',
 	};
 }
-
-export function createWritableClipboardData(dataTransfer: DataTransfer | undefined | null): IWritableClipboardData {
-	return {
-		setData: (type: string, value: string) => dataTransfer?.setData(type, value),
-	};
-}

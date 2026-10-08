@@ -3416,11 +3416,6 @@ interface ISessionsListControlBaseOptions {
 
 export type ISessionsListControlOptions = ISessionsListControlBaseOptions;
 
-/**
- * @deprecated Use {@link ISessionsListControlOptions} instead.
- */
-export type ISessionsListOptions = ISessionsListControlOptions;
-
 interface IListOpenRequest {
 	readonly session: ISession;
 	readonly chat: IChat | undefined;

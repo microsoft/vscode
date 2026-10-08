@@ -102,7 +102,6 @@ export const CopilotAutoModeTierOverrideSettingId = 'github.copilot.chat.autoMod
 /** Contributed by the Copilot extension (experiment-driven) and shared with Copilot Chat. */
 export const CopilotClaudeDefaultReasoningEffortSettingId = 'github.copilot.chat.claudeDefaultReasoningEffort';
 
-export const AgentHostModelCapabilityOverridesSettingId = 'chat.agentHost.modelCapabilityOverrides';
 export const AgentHostCopilotModelCapabilityOverridesSettingId = 'chat.agentHost.copilot.modelCapabilityOverrides';
 
 export const copilotSdkLogLevelSettingValues = ['info', 'trace'] as const;

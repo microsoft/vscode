@@ -116,17 +116,6 @@ export class TextEdit {
 		return rangeFromPositions(start, end);
 	}
 
-	// TODO: `doc` is not needed for this!
-	inverseMapPosition(positionAfterEdit: Position, doc: AbstractText): Position | Range {
-		const reversed = this.inverse(doc);
-		return reversed.mapPosition(positionAfterEdit);
-	}
-
-	inverseMapRange(range: Range, doc: AbstractText): Range {
-		const reversed = this.inverse(doc);
-		return reversed.mapRange(range);
-	}
-
 	apply(text: AbstractText): string {
 		let result = '';
 		let lastEditEnd = new Position(1, 1);
@@ -752,19 +741,6 @@ export class TextReplacement implements IEquatable<TextReplacement> {
 		const newText = normalizedModifiedText.substring(0, normalizedModifiedText.length - commonSuffixLen);
 		const range = Range.fromPositions(this.range.getStartPosition(), end);
 		return new TextReplacement(range, newText);
-	}
-
-	public isEffectiveDeletion(text: AbstractText): boolean {
-		let newText = this.text.replaceAll('\r\n', '\n');
-		let existingText = text.getValueOfRange(this.range).replaceAll('\r\n', '\n');
-		const l = commonPrefixLength(newText, existingText);
-		newText = newText.substring(l);
-		existingText = existingText.substring(l);
-		const r = commonSuffixLength(newText, existingText);
-		newText = newText.substring(0, newText.length - r);
-		existingText = existingText.substring(0, existingText.length - r);
-
-		return newText === '';
 	}
 
 	public toString(): string {

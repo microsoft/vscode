@@ -57,11 +57,6 @@ export interface IAgentSessionProjectionService {
 	readonly onDidChangeProjectionMode: Event<boolean>;
 
 	/**
-	 * Event fired when the active session changes (including when switching between sessions).
-	 */
-	readonly onDidChangeActiveSession: Event<IAgentSession | undefined>;
-
-	/**
 	 * Enter projection mode for the given session.
 	 */
 	enterProjection(session: IAgentSession): Promise<void>;
@@ -99,7 +94,6 @@ export class AgentSessionProjectionService extends Disposable implements IAgentS
 	readonly onDidChangeProjectionMode = this._onDidChangeProjectionMode.event;
 
 	private readonly _onDidChangeActiveSession = this._register(new Emitter<IAgentSession | undefined>());
-	readonly onDidChangeActiveSession = this._onDidChangeActiveSession.event;
 
 	private readonly _inProjectionModeContextKey: IContextKey<boolean>;
 

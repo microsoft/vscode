@@ -281,10 +281,6 @@ export class InputBox extends Widget {
 		return this.ariaLabel;
 	}
 
-	public get mirrorElement(): HTMLElement | undefined {
-		return this.mirror;
-	}
-
 	public get inputElement(): HTMLInputElement {
 		return this.input;
 	}
@@ -786,10 +782,6 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 
 	public getHistory(): string[] {
 		return this.history.getHistory();
-	}
-
-	public isAtFirstInHistory(): boolean {
-		return this.history.isFirst();
 	}
 
 	public isAtLastInHistory(): boolean {

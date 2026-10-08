@@ -58,9 +58,6 @@ export interface IVoicePlaybackService {
 	notifyPlaybackStart(sessionResource: URI | undefined, transcript: string | undefined): void;
 	notifyPlaybackEnd(sessionResource: URI | undefined): void;
 
-	getLastPlayed(sessionResource: URI): IVoicePlaybackEntry | undefined;
-	hasLastPlayed(sessionResource: URI): boolean;
-
 	/**
 	 * Marks whether a session has a voice response that arrived while the
 	 * session was not focused and is being held until the user focuses it.
@@ -128,14 +125,6 @@ export class VoicePlaybackService extends Disposable implements IVoicePlaybackSe
 		if (!sessionResource || current.toString() === sessionResource.toString()) {
 			this._speakingSession.set(undefined, undefined);
 		}
-	}
-
-	getLastPlayed(sessionResource: URI): IVoicePlaybackEntry | undefined {
-		return this._lastPlayed.get(sessionResource);
-	}
-
-	hasLastPlayed(sessionResource: URI): boolean {
-		return this._lastPlayed.has(sessionResource);
 	}
 
 	setPendingResponse(sessionResource: URI, pending: boolean): void {

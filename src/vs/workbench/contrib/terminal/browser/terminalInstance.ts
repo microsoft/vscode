@@ -186,7 +186,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _injectedArgs: string[] | undefined = undefined;
 	private _layoutSettingsChanged: boolean = true;
 	private _dimensionsOverride: ITerminalDimensionsOverride | undefined;
-	private _areLinksReady: boolean = false;
 	private readonly _initialDataEventsListener: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 	private _initialDataEvents: string[] | undefined = [];
 	private _containerReadyBarrier: AutoOpenBarrier;
@@ -280,7 +279,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get processReady(): Promise<void> { return this._processManager.ptyProcessReady; }
 	get hasChildProcesses(): boolean { return this.shellLaunchConfig.attachPersistentProcess?.hasChildProcesses || this._processManager.hasChildProcesses; }
 	get reconnectionProperties(): IReconnectionProperties | undefined { return this.shellLaunchConfig.attachPersistentProcess?.reconnectionProperties || this.shellLaunchConfig.reconnectionProperties; }
-	get areLinksReady(): boolean { return this._areLinksReady; }
 	get initialDataEvents(): string[] | undefined { return this._initialDataEvents; }
 	get exitCode(): number | undefined { return this._exitCode; }
 	get exitReason(): TerminalExitReason | undefined { return this._exitReason; }
@@ -340,8 +338,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	readonly onData = this._onData.event;
 	private readonly _onBinary = this._register(new Emitter<string>());
 	readonly onBinary = this._onBinary.event;
-	private readonly _onRequestExtHostProcess = this._register(new Emitter<ITerminalInstance>());
-	readonly onRequestExtHostProcess = this._onRequestExtHostProcess.event;
 	private readonly _onDimensionsChanged = this._register(new Emitter<void>());
 	readonly onDimensionsChanged = this._onDimensionsChanged.event;
 	private readonly _onMaximumDimensionsChanged = this._register(new Emitter<void>());
@@ -1663,10 +1659,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	public addBufferMarker(properties: IMarkProperties): void {
 		this.capabilities.get(TerminalCapability.BufferMarkDetection)?.addMark(properties);
-	}
-
-	public scrollToMark(startMarkId: string, endMarkId?: string, highlight?: boolean): void {
-		this.xterm?.markTracker.scrollToClosestMarker(startMarkId, endMarkId, highlight);
 	}
 
 	public async freePortKillProcess(port: string, command: string): Promise<void> {

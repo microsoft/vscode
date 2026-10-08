@@ -6,13 +6,11 @@
 import * as DOM from '../../../../../base/browser/dom.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
-import { IChatPromptSlashCommand } from '../../../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { AICustomizationManagementSection } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { IAICustomizationWorkspaceService } from '../../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { AICustomizationWelcomePage } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationWelcomePage.js';
@@ -48,14 +46,7 @@ function createMockWorkspaceService(): IAICustomizationWorkspaceService {
 		override async commitFiles(): Promise<void> { }
 		override async deleteFiles(): Promise<void> { }
 		override async generateCustomization(): Promise<void> { }
-		override setOverrideProjectRoot(): void { }
 		override clearOverrideProjectRoot(): void { }
-		override async getFilteredPromptSlashCommands(_token: CancellationToken): Promise<readonly IChatPromptSlashCommand[]> {
-			return [];
-		}
-		override getSkillUIIntegrations(): ReadonlyMap<string, string> {
-			return new Map();
-		}
 	}();
 }
 

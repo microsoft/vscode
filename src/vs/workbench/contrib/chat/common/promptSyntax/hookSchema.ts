@@ -365,20 +365,6 @@ function normalizeHookCommand(raw: Record<string, unknown>): { command?: string;
 }
 
 /**
- * Gets a label for the given platform.
- */
-export function getPlatformLabel(os: OperatingSystem): string {
-	if (os === OperatingSystem.Windows) {
-		return 'Windows';
-	} else if (os === OperatingSystem.Macintosh) {
-		return 'macOS';
-	} else if (os === OperatingSystem.Linux) {
-		return 'Linux';
-	}
-	return '';
-}
-
-/**
  * Resolves the effective command for the given platform.
  * This applies OS-specific overrides (windows, linux, osx) to get the actual command that will be executed.
  * Similar to how launch.json handles platform-specific configurations in debugAdapter.ts.
@@ -395,37 +381,6 @@ export function resolveEffectiveCommand(hook: IParsedHookCommand, os: OperatingS
 
 	// Fall back to the default command
 	return hook.command;
-}
-
-/**
- * Checks if the hook is using a platform-specific command override.
- */
-export function isUsingPlatformOverride(hook: IParsedHookCommand, os: OperatingSystem): boolean {
-	if (os === OperatingSystem.Windows && hook.windows) {
-		return true;
-	} else if (os === OperatingSystem.Macintosh && hook.osx) {
-		return true;
-	} else if (os === OperatingSystem.Linux && hook.linux) {
-		return true;
-	}
-	return false;
-}
-
-/**
- * Gets the source shell type for the effective command on the given platform.
- * Returns 'powershell' if the Windows command came from a powershell field,
- * 'bash' if the Linux/macOS command came from a bash field,
- * or undefined for default shell handling.
- */
-export function getEffectiveCommandSource(hook: IHookCommand, os: OperatingSystem): 'powershell' | 'bash' | undefined {
-	if (os === OperatingSystem.Windows && hook.windows && hook.windowsSource === 'powershell') {
-		return 'powershell';
-	} else if (os === OperatingSystem.Macintosh && hook.osx && hook.osxSource === 'bash') {
-		return 'bash';
-	} else if (os === OperatingSystem.Linux && hook.linux && hook.linuxSource === 'bash') {
-		return 'bash';
-	}
-	return undefined;
 }
 
 /**

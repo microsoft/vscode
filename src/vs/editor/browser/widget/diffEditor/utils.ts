@@ -185,25 +185,6 @@ function easeOutExpo(t: number, b: number, c: number, d: number): number {
 	return t === d ? b + c : c * (-Math.pow(2, -10 * t / d) + 1) + b;
 }
 
-export function deepMerge<T extends {}>(source1: T, source2: Partial<T>): T {
-	// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
-	const result = {} as any as T;
-	for (const key in source1) {
-		result[key] = source1[key];
-	}
-	for (const key in source2) {
-		const source2Value = source2[key];
-		if (typeof result[key] === 'object' && source2Value && typeof source2Value === 'object') {
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			result[key] = deepMerge<any>(result[key], source2Value);
-		} else {
-			// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
-			result[key] = source2Value as any;
-		}
-	}
-	return result;
-}
-
 export abstract class ViewZoneOverlayWidget extends Disposable {
 	constructor(
 		editor: ICodeEditor,
@@ -437,10 +418,6 @@ export function filterWithPrevious<T>(arr: T[], filter: (cur: T, prev: T | undef
 		prev = cur;
 		return result;
 	});
-}
-
-export interface IRefCounted extends IDisposable {
-	createNewRef(): this;
 }
 
 export abstract class RefCounted<T> implements IDisposable, IReference<T> {

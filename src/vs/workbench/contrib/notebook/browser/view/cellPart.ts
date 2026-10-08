@@ -149,10 +149,6 @@ export class CellPartsCollection extends Disposable {
 		return new CellPartsCollection(targetWindow, this.contentParts.concat(other), this.overlayParts);
 	}
 
-	concatOverlayPart(other: readonly CellOverlayPart[], targetWindow: Window): CellPartsCollection {
-		return new CellPartsCollection(targetWindow, this.contentParts, this.overlayParts.concat(other));
-	}
-
 	scheduleRenderCell(element: ICellViewModel): void {
 		// prepare model
 		for (const part of this.contentParts) {

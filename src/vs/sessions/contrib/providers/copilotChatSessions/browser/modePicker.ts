@@ -60,10 +60,6 @@ export class ModePickerModel extends Disposable {
 		return this._findModeById(this._selectedModeId) ?? ChatMode.Agent;
 	}
 
-	get selectedModeId(): string | undefined {
-		return this._selectedModeId;
-	}
-
 	constructor(
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IChatModeService private readonly chatModeService: IChatModeService,

@@ -460,18 +460,6 @@ export interface IExternalUriResolver {
 	(uri: URI): Promise<URI>;
 }
 
-export interface IExternalURLOpener {
-
-	/**
-	 * Overrides the behavior when an external URL is about to be opened.
-	 * Returning false means that the URL wasn't handled, and the default
-	 * handling behavior should be used: `window.open(href, '_blank', 'noopener');`
-	 *
-	 * @returns true if URL was handled, false otherwise.
-	 */
-	openExternal(href: string): boolean | Promise<boolean>;
-}
-
 export interface ITunnelProvider {
 
 	/**

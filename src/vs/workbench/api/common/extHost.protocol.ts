@@ -183,11 +183,6 @@ export interface MainThreadCommentsShape extends IDisposable {
 	$hideCommentThread(handle: number, commentThreadHandle: number): void;
 }
 
-export interface AuthenticationForceNewSessionOptions {
-	detail?: string;
-	sessionToRecreate?: AuthenticationSession;
-}
-
 export interface AuthenticationInteractiveOptions {
 	detail?: string;
 	learnMore?: UriComponents;
@@ -212,12 +207,6 @@ export interface IRegisterDynamicAuthenticationProviderDetails extends IRegister
 	clientId: string;
 	clientSecret?: string;
 	authorizationServer: UriComponents;
-}
-
-export interface IXaaProviderDiscovery {
-	issuer: UriComponents;
-	serverMetadata: IAuthorizationServerMetadata;
-	clientId?: string;
 }
 
 export interface MainThreadAuthenticationShape extends IDisposable {
@@ -428,8 +417,6 @@ export interface ILanguageConfigurationDto {
 	}[];
 }
 
-export type GlobPattern = string | IRelativePattern;
-
 export interface IRelativePatternDto extends IRelativePattern {
 	baseUri: UriComponents;
 }
@@ -449,37 +436,6 @@ export type ITabSelectorDto = { uri: IDocumentFilterDto[] } | { viewType: string
 export interface IShareableItemDto {
 	resourceUri: UriComponents;
 	selection?: IRange;
-}
-
-export interface IDocumentContextItemDto {
-	readonly uri: UriComponents;
-	readonly version: number;
-	readonly ranges: IRange[];
-}
-
-export interface IConversationItemDto {
-	readonly type: 'request' | 'response';
-	readonly message: string;
-	readonly references?: IDocumentContextItemDto[];
-}
-
-export interface IMappedEditsContextDto {
-	documents: IDocumentContextItemDto[][];
-	conversation?: IConversationItemDto[];
-}
-
-export interface ICodeBlockDto {
-	code: string;
-	resource: UriComponents;
-}
-
-export interface IMappedEditsRequestDto {
-	readonly codeBlocks: ICodeBlockDto[];
-	readonly conversation?: IConversationItemDto[];
-}
-
-export interface IMappedEditsResultDto {
-	readonly errorMessage?: string;
 }
 
 export interface ISignatureHelpProviderMetadataDto {
@@ -972,8 +928,6 @@ export interface TabInputDto {
 export type AnyInputDto = UnknownInputDto | TextInputDto | TextDiffInputDto | MultiDiffEditorInputDto | TextMergeInputDto | NotebookInputDto | NotebookDiffInputDto | CustomInputDto | WebviewInputDto | InteractiveEditorInputDto | ChatEditorInputDto | TabInputDto;
 
 export interface MainThreadEditorTabsShape extends IDisposable {
-	// manage tabs: move, close, rearrange etc
-	$moveTab(tabId: string, index: number, viewColumn: EditorGroupColumn, preserveFocus?: boolean): void;
 	$closeTab(tabIds: string[], preserveFocus?: boolean): Promise<boolean>;
 	$closeGroup(groupIds: number[], preservceFocus?: boolean): Promise<boolean>;
 }
@@ -1028,11 +982,6 @@ export interface WebviewPanelShowOptions {
 export interface WebviewExtensionDescription {
 	readonly id: ExtensionIdentifier;
 	readonly location: UriComponents;
-}
-
-export enum WebviewEditorCapabilities {
-	Editable,
-	SupportsHotExit,
 }
 
 export interface IWebviewPortMapping {
@@ -1269,12 +1218,6 @@ export interface ExtHostBrowserTunnelProxyShape {
 	$setEnabled(enabled: boolean): void;
 }
 
-export enum CellOutputKind {
-	Text = 1,
-	Error = 2,
-	Rich = 3
-}
-
 export enum NotebookEditorRevealType {
 	Default = 0,
 	InCenter = 1,
@@ -1331,17 +1274,6 @@ export interface INotebookKernelDto2 {
 	supportsExecutionOrder?: boolean;
 	preloads?: { uri: UriComponents; provides: readonly string[] }[];
 	hasVariableProvider?: boolean;
-}
-
-export interface INotebookProxyKernelDto {
-	id: string;
-	notebookType: string;
-	extensionId: ExtensionIdentifier;
-	extensionLocation: UriComponents;
-	label: string;
-	detail?: string;
-	description?: string;
-	kind?: string;
 }
 
 export interface ICellExecuteOutputEditDto {
@@ -1463,7 +1395,6 @@ export interface MainThreadLanguageModelsShape extends IDisposable {
 	$reportResponsePart(requestId: number, chunk: SerializableObjectWithBuffers<IChatResponsePart | IChatResponsePart[]>): Promise<void>;
 	$reportResponseDone(requestId: number, error: SerializedError | undefined): Promise<void>;
 	$selectChatModels(selector: ILanguageModelChatSelector): Promise<string[]>;
-	$countTokens(modelId: string, value: string | IChatMessage, token: CancellationToken): Promise<number>;
 	$cancelLanguageModelChatRequest(requestId: number): void;
 	$fileIsIgnored(uri: UriComponents, token: CancellationToken): Promise<boolean>;
 	$registerFileIgnoreProvider(handle: number): void;
@@ -1913,12 +1844,6 @@ export interface IChatResponseProgressFileTreeData {
 	children?: IChatResponseProgressFileTreeData[];
 }
 
-export type IDocumentContextDto = {
-	uri: UriComponents;
-	version: number;
-	ranges: IRange[];
-};
-
 export type IChatProgressDto =
 	| Dto<Exclude<IChatProgress, IChatTask | IChatNotebookEdit>>
 	| IChatTaskDto
@@ -2041,7 +1966,6 @@ export interface MainThreadSearchShape extends IDisposable {
 	$handleFileMatch(handle: number, session: number, data: UriComponents[]): void;
 	$handleTextMatch(handle: number, session: number, data: search.IRawFileMatch2[]): void;
 	$handleKeywordResult(handle: number, session: number, data: AISearchKeyword): void;
-	$handleTelemetry(eventName: string, data: any): void;
 }
 
 export interface MainThreadShareShape extends IDisposable {
@@ -2058,7 +1982,6 @@ export interface MainThreadTaskShape extends IDisposable {
 	$executeTask(task: tasks.ITaskHandleDTO | tasks.ITaskDTO): Promise<tasks.ITaskExecutionDTO>;
 	$terminateTask(id: string): Promise<void>;
 	$registerTaskSystem(scheme: string, info: tasks.ITaskSystemInfoDTO): void;
-	$customExecutionComplete(id: string, result?: number): Promise<void>;
 	$registerSupportedExecutions(custom?: boolean, shell?: boolean, process?: boolean): Promise<void>;
 }
 
@@ -2655,23 +2578,9 @@ export interface ExtHostLanguagesShape {
 	$acceptSyntaxHighlightingThemeChanged(): void;
 }
 
-export interface ExtHostHeapServiceShape {
-	$onGarbageCollection(ids: number[]): void;
-}
 export interface IRawColorInfo {
 	color: [number, number, number, number];
 	range: IRange;
-}
-
-export class IdObject {
-	_id?: number;
-	private static _n = 0;
-	static mixin<T extends object>(object: T): T & IdObject {
-		// eslint-disable-next-line local/code-no-any-casts
-		(<any>object)._id = IdObject._n++;
-		// eslint-disable-next-line local/code-no-any-casts
-		return <any>object;
-	}
 }
 
 export const enum ISuggestDataDtoField {
@@ -2753,13 +2662,6 @@ export type ILocationLinkDto = Dto<languages.LocationLink>;
 
 export type IWorkspaceSymbolDto = CachedSessionItem<Dto<IWorkspaceSymbol>>;
 export type IWorkspaceSymbolsDto = CachedSession<{ symbols: IWorkspaceSymbolDto[] }>;
-
-export interface IWorkspaceEditEntryMetadataDto {
-	needsConfirmation: boolean;
-	label: string;
-	description?: string;
-	iconPath?: IconPathDto;
-}
 
 export interface IChatNotebookEditDto {
 	uri: UriComponents;
@@ -2971,7 +2873,6 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideImplementation(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<ILocationLinkDto[]>;
 	$provideTypeDefinition(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<ILocationLinkDto[]>;
 	$provideHover(handle: number, resource: UriComponents, position: IPosition, context: languages.HoverContext<{ id: number }> | undefined, token: CancellationToken): Promise<HoverWithId | undefined>;
-	$releaseHover(handle: number, id: number): void;
 	$provideEvaluatableExpression(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<languages.EvaluatableExpression | undefined>;
 	$provideInlineValues(handle: number, resource: UriComponents, range: IRange, context: languages.InlineValueContext, token: CancellationToken): Promise<languages.InlineValue[] | undefined>;
 	$provideDocumentHighlights(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<languages.DocumentHighlight[] | undefined>;
@@ -3123,13 +3024,6 @@ export interface ITerminalCompletionItemDto {
 	replacementRange: readonly [number, number];
 }
 
-export interface ITerminalCompletionProvider {
-	id: string;
-	shellTypes?: TerminalShellType[];
-	provideCompletions(value: string, cursorPosition: number, token: CancellationToken): Promise<TerminalCompletionListDto<ITerminalCompletionItemDto> | undefined>;
-	triggerCharacters?: string[];
-	isBuiltin?: boolean;
-}
 /**
  * Represents a collection of {@link CompletionItem completion items} to be presented
  * in the editor.
@@ -3180,13 +3074,10 @@ export interface ExtHostTerminalServiceShape {
 	$acceptTerminalSelection(id: number, selection: string | undefined): void;
 	$acceptTerminalShellType(id: number, shellType: TerminalShellType | undefined): void;
 	$startExtensionTerminal(id: number, initialDimensions: ITerminalDimensionsDto | undefined): Promise<ITerminalLaunchError | undefined>;
-	$acceptProcessAckDataEvent(id: number, charCount: number): void;
 	$acceptProcessInput(id: number, data: string): void;
-	$acceptProcessResize(id: number, cols: number, rows: number): void;
 	$acceptProcessShutdown(id: number, immediate: boolean): void;
 	$acceptProcessRequestInitialCwd(id: number): void;
 	$acceptProcessRequestCwd(id: number): void;
-	$acceptProcessRequestLatency(id: number): Promise<number>;
 	$provideLinks(id: number, line: string): Promise<ITerminalLinkDto[]>;
 	$activateLink(id: number, linkId: number): void;
 	$initEnvironmentVariableCollections(collections: [string, ISerializableEnvironmentVariableCollection][]): void;
@@ -3244,7 +3135,6 @@ export interface ExtHostTaskShape {
 	$onDidStartTaskProblemMatchers(status: tasks.ITaskProblemMatcherStartedDto): void;
 	$onDidEndTaskProblemMatchers(status: tasks.ITaskProblemMatcherEndedDto): void;
 	$resolveVariables(workspaceFolder: UriComponents, toResolve: { process?: { name: string; cwd?: string }; variables: string[] }): Promise<{ process?: string; variables: { [key: string]: string } }>;
-	$jsonTasksSupported(): Promise<boolean>;
 	$findExecutable(command: string, cwd?: string, paths?: string[]): Promise<string | undefined>;
 }
 
@@ -3384,7 +3274,6 @@ export interface MainThreadPowerShape extends IDisposable {
 	$isOnBatteryPower(): Promise<boolean>;
 	$startPowerSaveBlocker(type: PowerSaveBlockerType): Promise<number>;
 	$stopPowerSaveBlocker(id: number): Promise<boolean>;
-	$isPowerSaveBlockerStarted(id: number): Promise<boolean>;
 }
 
 export interface ExtHostPowerShape {
@@ -3638,11 +3527,6 @@ export interface ExtHostTunnelServiceShape {
 
 export interface ExtHostTimelineShape {
 	$getTimeline(source: string, uri: UriComponents, options: TimelineOptions, token: CancellationToken): Promise<Dto<Timeline> | undefined>;
-}
-
-export const enum ExtHostTestingResource {
-	Workspace,
-	TextDocument
 }
 
 export interface ExtHostTestingShape {
@@ -4032,11 +3916,6 @@ export interface GitBranchDto {
 	readonly upstream?: GitUpstreamRefDto;
 	readonly ahead?: number;
 	readonly behind?: number;
-}
-
-export interface GitBaseRefDto {
-	readonly name: string;
-	readonly isProtected: boolean;
 }
 
 export interface GitUpstreamRefDto {

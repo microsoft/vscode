@@ -24,11 +24,6 @@ import { TerminalSuggestSettingId } from '../../suggest/common/terminalSuggestCo
 import { HasSpeechProvider } from '../../../speech/common/speechService.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 
-export const enum ClassName {
-	Active = 'active',
-	EditorTextArea = 'textarea'
-}
-
 export class TerminalAccessibilityHelpProvider extends Disposable implements IAccessibleViewContentProvider {
 	id = AccessibleViewProviderId.TerminalHelp;
 	private readonly _hasShellIntegration: boolean = false;

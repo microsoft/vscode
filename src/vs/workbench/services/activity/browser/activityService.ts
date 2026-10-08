@@ -31,11 +31,6 @@ class ViewContainerActivityByView extends Disposable {
 		this.update();
 	}
 
-	clearActivity(): void {
-		this.activity = undefined;
-		this.update();
-	}
-
 	private update(): void {
 		this.activityDisposable.dispose();
 		const container = this.viewDescriptorService.getViewContainerByViewId(this.viewId);

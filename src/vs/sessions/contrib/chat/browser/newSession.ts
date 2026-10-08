@@ -5,8 +5,6 @@
 
 import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 
-export type NewSessionChangeType = 'repoUri' | 'isolationMode' | 'branch' | 'options' | 'disabled' | 'agent';
-
 /**
  * Represents a resolved option group with its current selected value.
  */

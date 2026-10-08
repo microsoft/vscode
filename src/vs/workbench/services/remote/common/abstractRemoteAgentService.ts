@@ -203,10 +203,6 @@ class RemoteAgentConnection extends Disposable implements IRemoteAgentConnection
 		return this._initialConnectionMs!;
 	}
 
-	getManagementConnection(): ManagementPersistentConnection | null {
-		return this._managementConnection;
-	}
-
 	updateGraceTime(graceTime: number): void {
 		if (this._managementConnection) {
 			this._managementConnection.updateGraceTime(graceTime);

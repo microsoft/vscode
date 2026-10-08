@@ -7,12 +7,6 @@ import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ITerminalInstance, TerminalDataTransfers } from './terminal.js';
 
-export interface ITerminalUriMetadata {
-	title?: string;
-	commandId?: string;
-	commandLine?: string;
-}
-
 export function parseTerminalUri(resource: URI): ITerminalIdentifier {
 	const [, workspaceId, instanceId] = resource.path.split('/');
 	if (!workspaceId || !Number.parseInt(instanceId)) {

@@ -369,30 +369,3 @@ export class Edit<T extends BaseReplacement<T>> extends BaseEdit<T, Edit<T>> {
 		return new Edit(replacements);
 	}
 }
-
-export class AnnotationReplacement<TAnnotation> extends BaseReplacement<AnnotationReplacement<TAnnotation>> {
-	constructor(
-		range: OffsetRange,
-		public readonly newLength: number,
-		public readonly annotation: TAnnotation,
-	) {
-		super(range);
-	}
-
-	override equals(other: AnnotationReplacement<TAnnotation>): boolean {
-		return this.replaceRange.equals(other.replaceRange) && this.newLength === other.newLength && this.annotation === other.annotation;
-	}
-
-	getNewLength(): number { return this.newLength; }
-
-	tryJoinTouching(other: AnnotationReplacement<TAnnotation>): AnnotationReplacement<TAnnotation> | undefined {
-		if (this.annotation !== other.annotation) {
-			return undefined;
-		}
-		return new AnnotationReplacement<TAnnotation>(this.replaceRange.joinRightTouching(other.replaceRange), this.newLength + other.newLength, this.annotation);
-	}
-
-	slice(range: OffsetRange, rangeInReplacement?: OffsetRange): AnnotationReplacement<TAnnotation> {
-		return new AnnotationReplacement<TAnnotation>(range, rangeInReplacement ? rangeInReplacement.length : this.newLength, this.annotation);
-	}
-}

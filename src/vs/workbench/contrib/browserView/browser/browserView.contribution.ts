@@ -60,10 +60,6 @@ class WebBrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
 		throw new Error('Integrated Browser is not available in web.');
 	}
 
-	getBrowserViewModel(_id: string): IBrowserViewModel | undefined {
-		return undefined;
-	}
-
 	async clearGlobalStorage(): Promise<void> { }
 	async clearWorkspaceStorage(): Promise<void> { }
 }

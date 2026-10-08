@@ -25,7 +25,6 @@ function renderVoiceModeOnboarding(width: string) {
 				services.defineInstance(IContextViewService, new class extends mock<IContextViewService>() { }());
 				services.definePartialInstance(IVoiceSessionController, {
 					voiceState: constObservable<VoiceState>('idle'),
-					setAutoListenHeld: () => undefined,
 					stopListening: () => undefined,
 					pttDown: () => undefined,
 					pttUp: () => undefined,

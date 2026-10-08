@@ -718,19 +718,9 @@ export interface IQuickPick<T extends IQuickPickItem, O extends { useSeparators:
 	inputHasFocus(): boolean;
 
 	/**
-	 * Focuses on the quick pick input.
-	 */
-	focusOnInput(): void;
-
-	/**
 	 * Hides the input box from the picker UI. This is typically used in combination with quick-navigation where no search UI should be presented.
 	 */
 	hideInput: boolean;
-
-	/**
-	 * Controls whether the count for the items should be shown.
-	 */
-	hideCountBadge: boolean;
 
 	/**
 	 * Whether to hide the "Check All" checkbox.
@@ -1213,11 +1203,6 @@ export interface IQuickTree<T extends IQuickTreeItem> extends IQuickInput {
 	 * @returns True if the item is collapsed.
 	 */
 	isCollapsed(element: T): boolean;
-
-	/**
-	 * Focuses on the tree input.
-	 */
-	focusOnInput(): void;
 
 	/**
 	 * Reveals and focuses a specific item in the tree.
