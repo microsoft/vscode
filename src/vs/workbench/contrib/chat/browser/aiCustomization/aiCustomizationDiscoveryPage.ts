@@ -1992,6 +1992,12 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.setQuery(CustomizationDiscoveryQuery.parse(value));
 	}
 
+	showMarketplace(query: string, sourceId: string | undefined): void {
+		this.selectedSourceId = sourceId;
+		this.updateSourceButton();
+		this.setQuery(CustomizationDiscoveryQuery.parse(query));
+	}
+
 	layout(dimension: DOM.Dimension | undefined): void {
 		if (dimension) {
 			this.lastDimension = dimension;
