@@ -58,6 +58,7 @@ import { ActionType, isChatAction, type ChatDeltaAction, type ChatErrorAction, t
 import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, createChatState, createSessionState, getInlineToolInput, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfoMeta } from '../../common/state/sessionState.js';
 import { chatReducer, sessionReducer } from '../../common/state/sessionReducers.js';
 import { BackgroundWorkKind, TerminalClaimKind, type BackgroundWork } from '../../common/state/protocol/state.js';
+import { canStopBackgroundWork, toStoppableBackgroundWorkMeta } from '../../common/meta/agentHostBackgroundWorkStopMeta.js';
 import { readCopilotShellAttachment, toCopilotBackgroundShellMeta } from '../../common/meta/copilotBackgroundWorkMeta.js';
 import { toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { STREAMING_TOOL_DISPLAY_INTERVAL_MS } from '../../common/streamingToolCallDisplay.js';
@@ -268,6 +269,7 @@ class MockCopilotSession {
 	readonly backgroundTaskListGates: Promise<void>[] = [];
 	backgroundTaskListCalls = 0;
 	backgroundTaskRefreshCalls = 0;
+	readonly backgroundTaskCancelCalls: string[] = [];
 	backgroundTaskListError: Error | undefined;
 
 	private readonly _handlers = new Map<string, Set<(event: SessionEvent) => void>>();
@@ -620,6 +622,10 @@ class MockCopilotSession {
 			refresh: async () => {
 				this.backgroundTaskRefreshCalls++;
 				return {};
+			},
+			cancel: async (params: { id: string }) => {
+				this.backgroundTaskCancelCalls.push(params.id);
+				return { cancelled: true };
 			},
 		},
 		mcp: {
@@ -1593,7 +1599,7 @@ suite('CopilotAgentSession', () => {
 			const work: BackgroundWork = {
 				kind: BackgroundWorkKind.Shell, id: 'shell:silent', label: 'Run silent', command: 'npm test',
 				startedAt: new Date(0).toISOString(),
-				_meta: toCopilotBackgroundShellMeta('silent', 'attached'),
+				_meta: { ...toCopilotBackgroundShellMeta('silent', 'attached'), ...toStoppableBackgroundWorkMeta() },
 			};
 			assert.deepStrictEqual({
 				afterSteering,
@@ -1645,7 +1651,7 @@ suite('CopilotAgentSession', () => {
 					work: {
 						kind: BackgroundWorkKind.Shell, id: 'shell:bg', label: 'Run bg', command: 'npm test',
 						startedAt: new Date(0).toISOString(), terminal,
-						_meta: toCopilotBackgroundShellMeta('bg', 'attached'),
+						_meta: { ...toCopilotBackgroundShellMeta('bg', 'attached'), ...toStoppableBackgroundWorkMeta() },
 					},
 				}],
 				data: [{ uri: terminal, data: 'tick 1\n' }, { uri: terminal, data: 'tick 2\n' }],
@@ -1776,11 +1782,25 @@ suite('CopilotAgentSession', () => {
 			await timeout(0);
 
 			assert.deepStrictEqual(workActions(signals).flatMap(action => action.type === ActionType.ChatBackgroundWorkSet
-				? [{ id: action.work.id, attachment: readCopilotShellAttachment(action.work) }]
+				? [{ id: action.work.id, attachment: readCopilotShellAttachment(action.work), stoppable: canStopBackgroundWork(action.work) }]
 				: []), [
-				{ id: 'shell:attached', attachment: 'attached' },
-				{ id: 'shell:detached', attachment: 'detached' },
+				{ id: 'shell:attached', attachment: 'attached', stoppable: true },
+				{ id: 'shell:detached', attachment: 'detached', stoppable: false },
 			]);
+		});
+
+		test('stops a published attached shell through the runtime, and nothing it did not offer to stop', async () => {
+			const { session, mockSession, waitForSignal } = await createAgentSession(disposables);
+			mockSession.backgroundTasks = [shell('attached'), { ...shell('detached'), attachmentMode: 'detached' }];
+			mockSession.fire('session.background_tasks_changed', {});
+			await waitForSignal(signal => isAction(signal, ActionType.ChatBackgroundWorkSet));
+
+			assert.deepStrictEqual({
+				attached: await session.stopBackgroundWork('shell:attached'),
+				detached: await session.stopBackgroundWork('shell:detached'),
+				unknown: await session.stopBackgroundWork('shell:unknown'),
+				cancelled: mockSession.backgroundTaskCancelCalls,
+			}, { attached: true, detached: false, unknown: false, cancelled: ['attached'] });
 		});
 
 		test('publishes running background subagents that point at their chats', async () => {
@@ -14710,6 +14730,168 @@ Use the attached image as context.
 			assert.deepStrictEqual({ beforeContext, afterContext: telemetryService.triggers }, {
 				beforeContext: [],
 				afterContext: [`config.${AgentHostHydraFusionEnabledSettingId}`],
+			});
+		});
+
+		suite('managed plugin preparation', () => {
+			const installing = 'Installing plugins required by your organization admin…';
+
+			function getActivity(signals: readonly AgentSignal[]): (string | undefined)[] {
+				return getActions(signals).flatMap(action => action.type === ActionType.ChatActivityChanged ? [action.activity] : []);
+			}
+
+			function getWarnings(signals: readonly AgentSignal[]) {
+				return getActions(signals).flatMap(action => action.type === ActionType.ChatResponsePart && action.part.kind === ResponsePartKind.SystemNotification
+					? [{ turnId: action.turnId, content: action.part.content }] : []);
+			}
+
+			test('shows progress as the activity of the waiting chat', async () => {
+				const sessionUri = AgentSession.uri('copilot', 'owner');
+				const chatChannelUri = URI.parse(buildChatUri(sessionUri, 'peer'));
+				const { session, mockSession, signals } = await createAgentSession(disposables, { sessionUri, chatChannelUri });
+				session.resetTurnState('turn-1');
+				mockSession.fire('session.info', { infoType: 'managed_plugins', message: installing });
+
+				assert.deepStrictEqual(signals.flatMap(signal => {
+					if (signal.kind !== 'action') {
+						return [];
+					}
+					const action = signal.action;
+					return action.type === ActionType.ChatActivityChanged || action.type === ActionType.SessionActivityChanged
+						? [{ type: action.type, resource: signal.resource.toString(), activity: action.activity }]
+						: [];
+				}), [
+					{ type: ActionType.ChatActivityChanged, resource: chatChannelUri.toString(), activity: installing },
+				]);
+			});
+
+			test('shows progress only while a turn waits for its message to be admitted', async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				mockSession.fire('session.info', { infoType: 'managed_plugins', message: 'Before the turn' });
+				session.resetTurnState('turn-1');
+				mockSession.fire('session.info', { infoType: 'managed_plugins', message: 'From a subagent' }, { agentId: 'agent-1' });
+				mockSession.fire('session.info', { infoType: 'mcp', message: 'Not plugin preparation' });
+				mockSession.fire('session.info', { infoType: 'managed_plugins', message: 'Initializing chat using settings required by your organization admin…' });
+				mockSession.fire('session.info', { infoType: 'managed_plugins', message: installing });
+				mockSession.fire('user.message', { content: 'Review my staged changes' } as SessionEventPayload<'user.message'>['data']);
+				mockSession.fire('session.info', { infoType: 'managed_plugins', message: 'After admission' });
+
+				assert.deepStrictEqual(getActivity(signals), [
+					'Initializing chat using settings required by your organization admin…',
+					installing,
+					undefined,
+				]);
+			});
+
+			for (const ending of ['turn start', 'abort', 'idle', 'reset'] as const) {
+				test(`${ending} ends the progress`, async () => {
+					const { session, mockSession, signals } = await createAgentSession(disposables);
+					session.resetTurnState('turn-1');
+					mockSession.fire('session.info', { infoType: 'managed_plugins', message: installing });
+					switch (ending) {
+						case 'turn start':
+							mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-1' });
+							break;
+						case 'abort':
+							mockSession.fire('abort', { reason: 'user_initiated' });
+							break;
+						case 'idle':
+							mockSession.fire('session.idle', {});
+							break;
+						case 'reset':
+							session.resetTurnState('turn-2');
+							break;
+					}
+
+					assert.deepStrictEqual(getActivity(signals), [installing, undefined]);
+				});
+			}
+
+			for (const terminal of ['abort', 'aborted idle'] as const) {
+				test(`${terminal} of the waiting turn ends its progress`, async () => {
+					const { session, mockSession, signals } = await createAgentSession(disposables);
+					session.resetTurnState('turn-1');
+					mockSession.fire('session.info', { infoType: 'managed_plugins', message: installing });
+					await session.abort();
+					if (terminal === 'abort') {
+						mockSession.fire('abort', { reason: 'user_initiated' });
+					} else {
+						mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
+					}
+
+					assert.deepStrictEqual(getActivity(signals), [installing, undefined]);
+				});
+			}
+
+			test('late abort events from the previous turn leave the replacement turn\'s progress and failure in place', async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				const failure = 'Failed while the replacement turn waited';
+				session.resetTurnState('turn-1');
+				mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-1' } as SessionEventPayload<'assistant.turn_start'>['data']);
+				await session.abort();
+				session.resetTurnState('turn-2');
+				mockSession.fire('session.info', { infoType: 'managed_plugins', message: installing });
+				mockSession.fire('abort', { reason: 'user_initiated' });
+				mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
+				const activityAfterLateEvents = getActivity(signals);
+				mockSession.fire('session.warning', { warningType: 'managed_plugins', message: failure });
+
+				assert.deepStrictEqual({ activityAfterLateEvents, warnings: getWarnings(signals) }, {
+					activityAfterLateEvents: [installing],
+					warnings: [{ turnId: 'turn-2', content: failure }],
+				});
+			});
+
+			test('reports a failure as a warning in the waiting turn and ends the progress', async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				const failure = 'Some plugins required by your organization admin could not be prepared. Continuing with the current setup. security-guard@contoso: network error';
+				mockSession.fire('session.warning', { warningType: 'managed_plugins', message: 'Before the turn' });
+				session.resetTurnState('turn-1');
+				mockSession.fire('session.info', { infoType: 'managed_plugins', message: installing });
+				mockSession.fire('session.warning', { warningType: 'managed_plugins', message: 'From a subagent' }, { agentId: 'agent-1' });
+				mockSession.fire('session.warning', { warningType: 'managed_plugins', message: failure });
+				mockSession.fire('user.message', { content: 'Review my staged changes' } as SessionEventPayload<'user.message'>['data']);
+				mockSession.fire('session.warning', { warningType: 'managed_plugins', message: 'After admission' });
+
+				assert.deepStrictEqual({
+					activity: getActivity(signals),
+					warnings: getActions(signals).flatMap(action => action.type === ActionType.ChatResponsePart && action.part.kind === ResponsePartKind.SystemNotification
+						? [{ turnId: action.turnId, content: action.part.content, meta: readAgentSystemNotificationMeta(action.part) }] : []),
+				}, {
+					activity: [installing, undefined],
+					warnings: [{
+						turnId: 'turn-1',
+						content: failure,
+						meta: { kind: AgentSystemNotificationKind.ManagedPluginPreparationFailure, severity: AgentSystemNotificationSeverity.Warning, workspaceKind: undefined, workspaceName: undefined, fusionStatus: undefined },
+					}],
+				});
+			});
+
+			test('shows a failure reported while no turn waits when the next message is admitted, unless preparation completes first', async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+
+				mockSession.fire('session.warning', { warningType: 'managed_plugins', message: 'Failed after a policy refresh' });
+				await session.send('First message', undefined, 'turn-1');
+				mockSession.fire('user.message', { content: 'First message' } as SessionEventPayload<'user.message'>['data']);
+				mockSession.fire('session.idle', {});
+				mockSession.fire('session.warning', { warningType: 'managed_plugins', message: 'Failed in the background' });
+				mockSession.fire('session.info', { infoType: 'managed_plugins_complete', message: 'Plugins required by your organization admin are ready.' });
+				await session.send('Second message', undefined, 'turn-2');
+				mockSession.fire('user.message', { content: 'Second message' } as SessionEventPayload<'user.message'>['data']);
+
+				assert.deepStrictEqual(getWarnings(signals), [{ turnId: 'turn-1', content: 'Failed after a policy refresh' }]);
+			});
+
+			test('a failure from the next message\'s own preparation replaces the one held from between turns', async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+
+				mockSession.fire('session.warning', { warningType: 'managed_plugins', message: 'Failed after a policy refresh' });
+				await session.send('First message', undefined, 'turn-1');
+				mockSession.fire('session.info', { infoType: 'managed_plugins', message: installing });
+				mockSession.fire('session.warning', { warningType: 'managed_plugins', message: 'Failed again before admission' });
+				mockSession.fire('user.message', { content: 'First message' } as SessionEventPayload<'user.message'>['data']);
+
+				assert.deepStrictEqual(getWarnings(signals), [{ turnId: 'turn-1', content: 'Failed again before admission' }]);
 			});
 		});
 

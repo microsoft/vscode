@@ -3149,6 +3149,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return true;
 	}
 
+	async stopBackgroundWork(chat: URI, id: string): Promise<boolean> {
+		return await this._findChatByUri(chat)?.stopBackgroundWork(id) ?? false;
+	}
+
 	private readonly _copilotChatDiscovery: CopilotChatDiscovery;
 	private readonly _discoveredChats = new Map<string, { readonly signature: string; readonly external: boolean }>();
 

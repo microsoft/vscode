@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, append } from '../../../../../base/browser/dom.js';
-import { isManagedHoverTooltipHTMLElement } from '../../../../../base/browser/ui/hover/hover.js';
-import { mainWindow } from '../../../../../base/browser/window.js';
-import { toAction } from '../../../../../base/common/actions.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { toDisposable } from '../../../../../base/common/lifecycle.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IChatPillEntry } from '../../../../browser/chatPills.js';
-import { IGitHubResourceHover } from '../../browser/githubResourceHover.js';
-import { GitHubResourceHoverCache } from '../../browser/githubResourceHoverCache.js';
+import { $, append } from '../../../base/browser/dom.js';
+import { isManagedHoverTooltipHTMLElement } from '../../../base/browser/ui/hover/hover.js';
+import { mainWindow } from '../../../base/browser/window.js';
+import { toAction } from '../../../base/common/actions.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { toDisposable } from '../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
+import { IChatPillEntry } from '../../browser/chatPills.js';
+import { ChatPillHoverCache, createChatPillHover, IChatPillHoverContent } from '../../browser/chatPillHover.js';
+import { DeferredPromise, timeout } from '../../../base/common/async.js';
 
-suite('GitHubResourceHoverCache', () => {
+suite('ChatPillHover', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createContainer(): HTMLElement {
@@ -24,13 +24,13 @@ suite('GitHubResourceHoverCache', () => {
 		return container;
 	}
 
-	function createHover(title: string): IGitHubResourceHover {
+	function createHover(title: string): IChatPillHoverContent {
 		const element = $('div');
 		const button = append(element, $('button', undefined, title));
 		return { element, tabbableElements: [button] };
 	}
 
-	async function render(presentation: ReturnType<GitHubResourceHoverCache['get']>, density: 'default' | 'compact'): Promise<HTMLElement> {
+	async function render(presentation: Pick<IChatPillEntry, 'hover' | 'pillHover'>, density: 'default' | 'compact'): Promise<HTMLElement> {
 		if (density === 'default' && isManagedHoverTooltipHTMLElement(presentation.pillHover)) {
 			return presentation.pillHover.element(CancellationToken.None);
 		}
@@ -43,8 +43,44 @@ suite('GitHubResourceHoverCache', () => {
 	}
 
 	for (const density of ['default', 'compact'] as const) {
+		test(`refreshes live ${density} status without replacing the title or focused control`, async () => {
+			const cache = store.add(new ChatPillHoverCache());
+			const container = createContainer();
+			const entry: IChatPillEntry = { id: 'issue', label: 'Original', open: () => { } };
+			const content = (title: string, status: string): IChatPillHoverContent => {
+				const element = $('div');
+				append(element, $('span.title', undefined, title));
+				const button = append(element, $('button', undefined, 'Open Issue'));
+				const statusRow = append(element, $('span.status', undefined, status));
+				return { element, tabbableElements: [button], liveElements: [statusRow] };
+			};
+			const first = cache.get('owner/repo/1', entry, () => content('Original', 'Open'));
+			const element = append(container, await render(first, density));
+			const button = element.querySelector('button')!;
+			const statusRow = element.querySelector('.status');
+			button.focus();
+			const updated = cache.get('owner/repo/1', { ...entry, label: 'Renamed' }, () => content('Renamed', 'Closed'));
+			const liveContent = statusRow?.firstChild;
+			cache.get('owner/repo/1', { ...entry, label: 'Renamed' }, () => content('Renamed', 'Closed'));
+			const whileOpen = {
+				sameElement: element === await render(updated, density),
+				sameControl: element.querySelector('button') === button,
+				sameStatusRow: element.querySelector('.status') === statusRow,
+				unchangedStatusPreserved: statusRow?.firstChild === liveContent,
+				focusPreserved: mainWindow.document.activeElement === button,
+				title: element.querySelector('.title')?.textContent,
+				status: statusRow?.textContent,
+			};
+			element.remove();
+			const reopened = await render(updated, density);
+			assert.deepStrictEqual({ whileOpen, reopenedTitle: reopened.querySelector('.title')?.textContent, reopenedStatus: reopened.querySelector('.status')?.textContent }, {
+				whileOpen: { sameElement: true, sameControl: true, sameStatusRow: true, unchangedStatusPreserved: true, focusPreserved: true, title: 'Original', status: 'Closed' },
+				reopenedTitle: 'Renamed', reopenedStatus: 'Closed',
+			});
+		});
+
 		test(`preserves the open ${density} snapshot and focus, then renders fresh data on reopening`, async () => {
-			const cache = store.add(new GitHubResourceHoverCache());
+			const cache = store.add(new ChatPillHoverCache());
 			const container = createContainer();
 			const entry: IChatPillEntry = { id: 'pr', label: 'Original', open: () => { } };
 			const first = cache.get('owner/repo/1', entry, () => createHover('Original'));
@@ -80,7 +116,7 @@ suite('GitHubResourceHoverCache', () => {
 		});
 
 		test(`completes initial ${density} metadata in place and ignores subsequent refreshes`, async () => {
-			const cache = store.add(new GitHubResourceHoverCache());
+			const cache = store.add(new ChatPillHoverCache());
 			const container = createContainer();
 			const entry: IChatPillEntry = { id: 'pr', label: 'Recorded title', open: () => { } };
 			const first = cache.get('owner/repo/1', entry, undefined);
@@ -98,7 +134,7 @@ suite('GitHubResourceHoverCache', () => {
 		});
 
 		test(`does not fill a dismissed ${density} hover when metadata arrives`, async () => {
-			const cache = store.add(new GitHubResourceHoverCache());
+			const cache = store.add(new ChatPillHoverCache());
 			const container = createContainer();
 			const entry: IChatPillEntry = { id: 'pr', label: 'Recorded title', open: () => { } };
 			const first = cache.get('owner/repo/1', entry, undefined);
@@ -115,7 +151,7 @@ suite('GitHubResourceHoverCache', () => {
 	}
 
 	test('retains footer action identities with current callbacks and evicts removed entries and scopes', async () => {
-		const cache = store.add(new GitHubResourceHoverCache());
+		const cache = store.add(new ChatPillHoverCache());
 		const calls: string[] = [];
 		const entry = (label: string): IChatPillEntry => ({
 			id: 'pr', label, open: () => { },
@@ -142,6 +178,55 @@ suite('GitHubResourceHoverCache', () => {
 		}, {
 			sameCopy: true, sameRemove: true, removeLabel: 'Remove Updated',
 			calls: ['Updated', 'remove Updated'], evicted: true, newScope: true,
+		});
+	});
+
+	test('enriches non-GitHub content asynchronously through the common hover shell', async () => {
+		const finish = new DeferredPromise<void>();
+		let title: string | undefined;
+		let requests = 0;
+		const presentation = createChatPillHover({
+			fallback: '/workspace/design.png',
+			createContent: () => title ? createHover(title) : undefined,
+			resolve: async () => { requests++; await finish.p; title = 'Image details'; },
+			isFresh: () => !!title,
+		});
+		const element = append(createContainer(), await render(presentation, 'compact'));
+		const initial = { text: element.textContent, busy: element.getAttribute('aria-busy'), sharedShell: element.classList.contains('chat-pill-hover-content') };
+		await render(presentation, 'compact');
+		const standalone = await render(presentation, 'default');
+		finish.complete();
+		await timeout(0);
+		assert.deepStrictEqual({ initial, requests, text: element.textContent, standalone: standalone.textContent, busy: element.getAttribute('aria-busy'), tabbable: presentation.hover.getTabbableElements?.().map(element => element.textContent) }, {
+			initial: { text: '/workspace/design.png', busy: 'true', sharedShell: true },
+			requests: 1, text: 'Image details', standalone: 'Image details', busy: 'false', tabbable: ['Image details'],
+		});
+	});
+
+	test('refreshes live content without replacing a focused control', async () => {
+		const finish = new DeferredPromise<void>();
+		const createContent = (title: string, status: string): IChatPillHoverContent => {
+			const content = createHover(title);
+			const live = append(content.element, $('span', undefined, status));
+			return { ...content, liveElements: [live] };
+		};
+		let fresh = false;
+		const presentation = createChatPillHover({
+			fallback: 'Details',
+			createContent: () => fresh ? createContent('Updated', 'Ready') : createContent('Original', 'Pending'),
+			isFresh: () => fresh,
+			resolve: async () => { await finish.p; fresh = true; },
+		});
+		const element = append(createContainer(), await render(presentation, 'compact'));
+		const button = element.querySelector('button')!;
+		button.focus();
+		finish.complete();
+		await timeout(0);
+		const updated = { text: element.textContent, sameButton: element.querySelector('button') === button, focused: document.activeElement === button };
+		element.remove();
+		const reopened = await render(presentation, 'compact');
+		assert.deepStrictEqual({ updated, reopened: reopened.textContent }, {
+			updated: { text: 'OriginalReady', sameButton: true, focused: true }, reopened: 'UpdatedReady',
 		});
 	});
 });
