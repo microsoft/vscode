@@ -848,6 +848,21 @@ const customizationMarketplaceResources: readonly ICustomizationMarketplaceResou
 	},
 	{
 		sourceId: 'testSource',
+		identifier: 'example/diagram-canvas',
+		displayName: 'Diagram Canvas',
+		description: 'Render interactive architecture diagrams and inspect individual nodes with agent-provided context.',
+		mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+		publisher: 'Example Visualization',
+		version: '1.0.0',
+		tags: ['canvas', 'canvas-only', 'diagrams'],
+		capabilities: ['Render interactive diagrams', 'Inspect diagram nodes'],
+		representativeQueries: ['Create an architecture diagram for this workspace'],
+		repository: URI.parse('https://github.com/example/diagram-canvas'),
+		readmeUri: URI.parse('https://raw.githubusercontent.com/example/diagram-canvas/main/README.md'),
+		installation: { kind: 'plugin', repository: 'example/diagram-canvas', ref: 'main', path: '' },
+	},
+	{
+		sourceId: 'testSource',
 		identifier: 'example/dependency-maintenance',
 		displayName: 'Repository-wide dependency maintenance and compatibility review',
 		description: 'A plugin for preparing dependency updates across packages with very long workspace and dependency names, while preserving release notes and compatibility checks.',
@@ -1221,6 +1236,8 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	const skillUIIntegrations = options.skillUIIntegrations ?? new Map();
 	const managementSections = options.managementSections ?? [
 		AICustomizationManagementSection.Plugins,
+		AICustomizationManagementSection.Extensions,
+		AICustomizationManagementSection.Canvases,
 		AICustomizationManagementSection.McpServers,
 		AICustomizationManagementSection.Skills,
 		AICustomizationManagementSection.Instructions,
@@ -2027,6 +2044,17 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			'Featured Browse items did not render before searching.',
 		);
 	}
+	const expectedCopilotRows = options.selectedSection === AICustomizationManagementSection.Extensions
+		? options.copilotExtensionInventory?.extensions.length ?? 0
+		: options.selectedSection === AICustomizationManagementSection.Canvases
+			? options.copilotCanvases?.length ?? 0
+			: 0;
+	if (expectedCopilotRows > 0) {
+		await waitForFixtureCondition(
+			() => ctx.container.querySelectorAll('.copilot-customizations-widget .plugin-home-row').length === expectedCopilotRows,
+			'Copilot customization rows did not finish rendering.',
+		);
+	}
 	assert(ctx.container.querySelector<HTMLButtonElement>('.sidebar-home-button')?.title === (discoverEnabled ? 'Back to Customizations' : 'Back to overview'), 'Home tooltip must describe the active surface.');
 	if (options.selectedSection === AICustomizationManagementSection.McpServers && options.marketplaceVisibilityEnabled === false) {
 		editor.revealLastItem();
@@ -2054,10 +2082,9 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		assert(ctx.container.querySelector('.customization-discovery-filters') === null, 'Discover must keep filters in the search toolbar instead of rendering quick-filter pills.');
 		assert(ctx.container.querySelector<HTMLElement>('.customization-discovery-source')?.textContent?.includes('All Sources') === true, 'Discover must default to all customization sources.');
 		const description = ctx.container.querySelector<HTMLElement>('.customization-discovery-description');
-		const descriptionLinks = [...description?.querySelectorAll('a') ?? []].map(link => link.textContent);
 		assert(
 			description?.textContent === 'Tailor your agent to your tools, your team, and your workflow. Learn more'
-			&& descriptionLinks.join('\n') === 'Learn more',
+			&& [...description.querySelectorAll('a')].map(link => link.textContent).join('\n') === 'Learn more',
 			'Discover must describe customization benefits with a single Learn more link.',
 		);
 		const featured = ctx.container.querySelector<HTMLElement>('.customization-discovery-section.featured');
@@ -3274,6 +3301,16 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		labels: { kind: 'screenshot', blocksCi: false },
 		expectedVisualDescriptions: ['Narrow Discover uses one browse-card column with right-aligned actions, the same horizontal inset as Plugins, a toolbar filter, and no horizontal overflow. Featured cards retain their subtle recessed surface and two-line text hierarchy.'],
 		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource, marketplaceVisibilityEnabled: true, width: 550, height: 500, expectedDiscoveryContentWidth: 310 }),
+	}),
+
+	DiscoverCanvases: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['Discover is filtered to Canvases for the Copilot harness and shows the Diagram Canvas catalog result as a Canvas with its plugin-backed install action.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			marketplaceVisibilityEnabled: true,
+			discoveryQuery: '@type:canvas',
+		}),
 	}),
 
 	// Full editor with Local (VS Code) harness — all sections visible, harness dropdown,

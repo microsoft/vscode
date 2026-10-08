@@ -65,6 +65,9 @@ The management editor fixture supports a `selectedSection` option to render any 
 | `chat/aiCustomizations/aiCustomizationManagementEditor/PromptsTab/{Dark,Light}` | Prompts |
 | `chat/aiCustomizations/aiCustomizationManagementEditor/McpServersTab/{Dark,Light}` | MCP Servers |
 | `chat/aiCustomizations/aiCustomizationManagementEditor/PluginsTab/{Dark,Light}` | Plugins |
+| `chat/aiCustomizations/aiCustomizationManagementEditor/ExtensionsTab/{Dark,Light}` | Copilot Extensions |
+| `chat/aiCustomizations/aiCustomizationManagementEditor/CanvasesTab/{Dark,Light}` | Copilot Canvases |
+| `chat/aiCustomizations/aiCustomizationManagementEditor/DiscoverCanvases/{Dark,Light}` | Discover filtered to Canvas |
 | `chat/aiCustomizations/aiCustomizationManagementEditor/LocalHarness/{Dark,Light}` | Default (Agents, Local harness) |
 | `chat/aiCustomizations/aiCustomizationManagementEditor/CliHarness/{Dark,Light}` | Default (Agents, CLI harness) |
 | `chat/aiCustomizations/aiCustomizationManagementEditor/ClaudeHarness/{Dark,Light}` | Default (Agents, Claude harness) |

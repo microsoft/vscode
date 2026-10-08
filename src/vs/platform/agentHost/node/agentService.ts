@@ -6357,6 +6357,38 @@ export class AgentService extends Disposable implements IAgentService {
 		await provider.addMcpServerConfiguration(name, config);
 	}
 
+	async listAgentExtensions(): Promise<IAgentExtensionInventory> {
+		const provider = this._providerService.getProvider(COPILOT_CLI_AGENT_PROVIDER_ID);
+		if (!provider?.listAgentExtensions) {
+			throw new Error('Copilot extension inventory is unavailable.');
+		}
+		return provider.listAgentExtensions();
+	}
+
+	async setAgentExtensionEnabled(extensionId: string, enabled: boolean, session?: URI): Promise<void> {
+		const provider = this._providerService.getProvider(COPILOT_CLI_AGENT_PROVIDER_ID);
+		if (!provider?.setAgentExtensionEnabled) {
+			throw new Error('Copilot extension management is unavailable.');
+		}
+		await provider.setAgentExtensionEnabled(extensionId, enabled, session);
+	}
+
+	async listSessionCanvases(session: URI): Promise<readonly IAgentCanvasInfo[]> {
+		const provider = this._providerService.getProviderForSession(session);
+		if (provider?.id !== COPILOT_CLI_AGENT_PROVIDER_ID || !provider.listSessionCanvases) {
+			throw new Error(`Canvas inventory is unavailable for session '${session.toString()}'.`);
+		}
+		return provider.listSessionCanvases(session);
+	}
+
+	async refreshSessionCanvases(session: URI): Promise<readonly IAgentCanvasInfo[]> {
+		const provider = this._providerService.getProviderForSession(session);
+		if (provider?.id !== COPILOT_CLI_AGENT_PROVIDER_ID || !provider.refreshSessionCanvases) {
+			throw new Error(`Canvas refresh is unavailable for session '${session.toString()}'.`);
+		}
+		return provider.refreshSessionCanvases(session);
+	}
+
 	async createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions, credentials?: IAgentHostCredentialSource, initialMessageContext?: IAgentCreateChatInitialMessageContext): Promise<void> {
 		const reservations = new DisposableStore();
 		const { workspace, ...requestOptions } = options ?? {};
