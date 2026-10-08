@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { restore, stub } from 'sinon';
 import { timeout } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -11,7 +12,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostService, IMissionControlOptions } from '../../../../../../platform/agentHost/common/agentService.js';
-import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../../platform/configuration/common/configurationRegistry.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -24,6 +25,7 @@ import { IChatEntitlementService } from '../../../../../services/chat/common/cha
 import { MissionControlContribution } from '../../../browser/remoteAgentHost/remoteAgentHost.contribution.js';
 
 const enabledSetting = 'chat.agentHost.experimentalMissionControl.enabled';
+const localCredentialSetting = 'chat.agentHost.experimentalMissionControl.useLocalCredentials';
 const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 const registeredMissionControlSettings = Object.keys(configurationProperties)
 	.filter(key => key.startsWith('chat.agentHost.experimentalMissionControl'))
@@ -44,11 +46,15 @@ const expectedOptions: IMissionControlOptions = {
 
 suite('Mission Control registration contribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	teardown(() => restore());
 
-	function fixture(enabled = true, emptyWindow = false) {
+	function fixture(enabled = true, emptyWindow = false, localCredentialConfig?: IConfigurationValue<boolean>) {
 		const instantiation = store.add(new TestInstantiationService());
 		const configuration = new TestConfigurationService({ [enabledSetting]: enabled, ...removedSettings });
 		store.add(configuration.onDidChangeConfigurationEmitter);
+		if (localCredentialConfig) {
+			stub(configuration, 'inspect').withArgs(localCredentialSetting).returns(localCredentialConfig);
+		}
 		const sentimentChanged = store.add(new Emitter<void>());
 		let hidden = false;
 		let starts = 0;
@@ -75,7 +81,7 @@ suite('Mission Control registration contribution', () => {
 			override readonly onDidChangeWorkspaceFolders = Event.None;
 			override getWorkspace() { return new Workspace('workspace', emptyWindow ? [] : [toWorkspaceFolder(workspaceRoot)], false, null, () => false); }
 		}());
-		instantiation.stub(IProductService, {});
+		instantiation.stub(IProductService, { quality: 'insider' });
 		instantiation.stub(ILogService, store.add(new NullLogService()));
 		store.add(instantiation.createInstance(MissionControlContribution));
 		return {
@@ -85,8 +91,52 @@ suite('Mission Control registration contribution', () => {
 	}
 
 	test('registers only the opt-in setting', () => {
-		assert.deepStrictEqual(registeredMissionControlSettings, [{ key: enabledSetting, default: false }]);
+		assert.deepStrictEqual({
+			registered: registeredMissionControlSettings,
+			localCredentialSettingRegistered: configurationProperties[localCredentialSetting] !== undefined,
+		}, {
+			registered: [{ key: enabledSetting, default: false }],
+			localCredentialSettingRegistered: false,
+		});
 	});
+
+	for (const scenario of [
+		{ name: 'local user opt-in in Insiders', config: { value: false, userLocalValue: true }, enabled: true },
+		{ name: 'application user opt-in', config: { value: true, applicationValue: true }, enabled: true },
+		{ name: 'local user refusal overrides application opt-in', config: { applicationValue: true, userLocalValue: false }, enabled: false },
+		{ name: 'workspace value', config: { value: true, workspaceValue: true }, enabled: false },
+		{ name: 'workspace folder value', config: { value: true, workspaceFolderValue: true }, enabled: false },
+		{ name: 'remote user value', config: { value: true, userRemoteValue: true }, enabled: false },
+		{ name: 'default value', config: { value: true, defaultValue: true }, enabled: false },
+	]) {
+		test(`uses only explicit local-user credential delegation: ${scenario.name}`, () => runWithFakedTimers({}, async () => {
+			const { calls } = fixture(true, false, scenario.config);
+			await timeout(0);
+			assert.deepStrictEqual(calls, [{
+				options: { ...expectedOptions, ...(scenario.enabled ? { useLocalCredentials: true } : {}) },
+				withdrawingAccountId: undefined,
+			}]);
+		}));
+	}
+
+	test('withdraws the previous delegation when its setting changes and reconfigures', () => runWithFakedTimers({}, async () => {
+		const { calls, configuration } = fixture();
+		await timeout(0);
+		for (const enabled of [true, false]) {
+			await configuration.setUserConfiguration(localCredentialSetting, enabled);
+			configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+				override affectsConfiguration(section: string) { return section === localCredentialSetting; }
+			}());
+			await timeout(0);
+		}
+		assert.deepStrictEqual(calls, [
+			{ options: expectedOptions, withdrawingAccountId: undefined },
+			{ options: undefined, withdrawingAccountId: 'account' },
+			{ options: { ...expectedOptions, useLocalCredentials: true }, withdrawingAccountId: undefined },
+			{ options: undefined, withdrawingAccountId: 'account' },
+			{ options: expectedOptions, withdrawingAccountId: undefined },
+		]);
+	}));
 
 	for (const enabled of [false, true]) {
 		test(`ignores removed settings when registration is ${enabled ? 'enabled' : 'disabled'}`, () => runWithFakedTimers({}, async () => {

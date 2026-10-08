@@ -33,9 +33,11 @@ jobs:
     pool:
       name: ${{ parameters.poolName }}
       os: ${{ parameters.os }}
-      # ARM32 containers run on ARM64 agents.
-      ${{ if or(eq(parameters.arch, 'arm'), eq(parameters.arch, 'arm64')) }}:
+      # ARM32 sanity targets also execute on ARM64 hosts.
+      ${{ if in(parameters.arch, 'arm', 'arm64') }}:
         hostArchitecture: arm64
+      ${{ else }}:
+        hostArchitecture: amd64
       ${{ if eq(parameters.os, 'macOS') }}:
         demands:
           - ImageOverride -equals ACES_VM_SharedPool_Sequoia
