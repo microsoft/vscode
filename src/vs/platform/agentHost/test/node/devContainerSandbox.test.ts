@@ -29,15 +29,41 @@ suite('Dev Container sandbox configuration', () => {
 	});
 
 	function configurationOutput(): string {
-		return JSON.stringify({ configuration: { configFilePath: URI.file(configPath).toJSON() } });
+		return JSON.stringify({ configuration: { configFilePath: URI.file(configPath).with({ scheme: 'vscode-fileHost' }).toJSON() } });
 	}
 
-	test('preserves UNC configuration authorities without accessing the network share', () => {
-		const configFilePath = URI.from({ scheme: 'file', authority: 'server', path: '/share/project/.devcontainer/devcontainer.json' });
-		assert.deepStrictEqual(parseDevContainerSandboxConfiguration(JSON.stringify({ configuration: { configFilePath: configFilePath.toJSON() } })), {
-			configPath: configFilePath.fsPath,
-			service: undefined,
+	for (const scheme of ['file', 'vscode-fileHost']) {
+		test(`preserves ${scheme} UNC configuration authorities without accessing the network share`, () => {
+			const fileUri = URI.from({ scheme: 'file', authority: 'server', path: '/share/project/.devcontainer/devcontainer.json' });
+			assert.deepStrictEqual(parseDevContainerSandboxConfiguration(JSON.stringify({ configuration: { configFilePath: fileUri.with({ scheme }).toJSON() } })), {
+				configPath: fileUri.fsPath,
+				service: undefined,
+			});
 		});
+	}
+
+	test('accepts the pinned CLI file-host configuration output', async () => {
+		await writeFile(configPath, JSON.stringify({ image: 'test-image' }));
+		const fileUri = URI.file(configPath);
+		const output = JSON.stringify({
+			configuration: {
+				configFilePath: {
+					...fileUri.with({ scheme: 'vscode-fileHost' }).toJSON(),
+					fsPath: fileUri.fsPath,
+					_sep: 1,
+				},
+			},
+		});
+		const args = await prepareDevContainerSandboxConfiguration(output, overrideDirectory);
+		assert.deepStrictEqual(args, ['--config', URI.file(configPath).fsPath, '--override-config', join(overrideDirectory, 'devcontainer.json')]);
+	});
+
+	test('rejects configuration URIs outside the local file and CLI file-host schemes', () => {
+		for (const scheme of ['https', 'vscode-remote', 'unexpected']) {
+			assert.throws(() => parseDevContainerSandboxConfiguration(JSON.stringify({
+				configuration: { configFilePath: { scheme, path: '/project/devcontainer.json' } },
+			})), /Invalid Dev Container configuration/);
+		}
 	});
 
 	test('preserves the source config and its relative paths while adding all required Docker options', async () => {

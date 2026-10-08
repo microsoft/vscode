@@ -14,7 +14,7 @@ export const devContainerSandboxRunArgs = [...devContainerSandboxSecurityOptions
 
 const configurationValidator = vObj({
 	configuration: vObj({
-		configFilePath: vObj({ scheme: vLiteral('file'), path: vString(), authority: vOptionalProp(vString()) }),
+		configFilePath: vObj({ scheme: vUnion(vLiteral('file'), vLiteral('vscode-fileHost')), path: vString(), authority: vOptionalProp(vString()) }),
 		service: vOptionalProp(vString()),
 	}),
 });
@@ -40,7 +40,7 @@ export function parseDevContainerSandboxConfiguration(output: string): { configP
 		throw new Error(`Invalid Dev Container configuration: ${result.error.message}`);
 	}
 	return {
-		configPath: URI.from(result.content.configuration.configFilePath).fsPath,
+		configPath: URI.from({ ...result.content.configuration.configFilePath, scheme: 'file' }).fsPath,
 		service: result.content.configuration.service,
 	};
 }
