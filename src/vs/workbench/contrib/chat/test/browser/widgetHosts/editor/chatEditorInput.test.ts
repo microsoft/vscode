@@ -34,8 +34,9 @@ import { isResourceEditorInput } from '../../../../../../common/editor.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
 import { IEditorGroup } from '../../../../../../services/editor/common/editorGroupsService.js';
 import { clearChatEditor } from '../../../../browser/actions/chatClear.js';
-import { ChatEditorInput, ChatEditorInputSerializer } from '../../../../browser/widgetHosts/editor/chatEditorInput.js';
-import { IChatEditorOptions } from '../../../../browser/widgetHosts/editor/chatEditor.js';
+import { ChatEditorInput, ChatEditorInputSerializer, ChatEditorModel } from '../../../../browser/widgetHosts/editor/chatEditorInput.js';
+import { ChatEditor, IChatEditorOptions } from '../../../../browser/widgetHosts/editor/chatEditor.js';
+import { ChatWidget } from '../../../../browser/widget/chatWidget.js';
 import { IAgentHostEnablementService } from '../../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IChatService, IChatSessionStartOptions } from '../../../../common/chatService/chatService.js';
 import { IChatSessionsService, localChatSessionType, SessionType } from '../../../../common/chatSessionsService.js';
@@ -52,6 +53,40 @@ suite('ChatEditorInput', () => {
 	const settledPolicyGate: IAccountPolicyGateService = {
 		_serviceBrand: undefined, gateInfo: { state: AccountPolicyGateState.Inactive }, onDidChangeGateInfo: Event.None, whenInitialized: async () => { },
 	};
+
+	for (const toCopilot of [true, false]) {
+		test(`editor binds its agent from the resolved model before submission (toCopilot=${toCopilot})`, async () => {
+			const destination = toCopilot
+				? URI.from({ scheme: SessionType.AgentHostCopilot, path: '/redirected' })
+				: LocalChatSessionUri.forSession('fallback');
+			const model = upcastPartial<IChatModel>({ sessionResource: destination });
+			const input = upcastPartial<ChatEditorInput>({
+				getSessionType: () => toCopilot ? localChatSessionType : SessionType.AgentHostCopilot,
+				resolve: async () => disposables.add(new ChatEditorModel(model)),
+				sessionResource: destination,
+			});
+			const events: string[] = [];
+			let lockedAgent: string | undefined = toCopilot ? undefined : SessionType.AgentHostCopilot;
+			const widget = upcastPartial<ChatWidget>({
+				getInput: () => '',
+				lockToCodingAgent: (_name, _displayName, type) => { lockedAgent = type; events.push(`lock:${type}`); },
+				unlockFromCodingAgent: () => { lockedAgent = undefined; events.push('unlock'); },
+				setModel: () => { events.push(`bind:${lockedAgent ?? 'default'}`); },
+			});
+			const sessions = new MockChatSessionsService();
+			sessions.setContributions([{
+				type: SessionType.AgentHostCopilot, name: SessionType.AgentHostCopilot,
+				displayName: 'Copilot', description: '', agentHostProviderId: 'copilotcli',
+			}]);
+			const editor: ChatEditor = Object.assign(Object.create(ChatEditor.prototype), {
+				_widget: widget, chatSessionsService: sessions, loadEditorViewState: () => undefined,
+			});
+			await editor.setInput(input, undefined, {}, CancellationToken.None);
+			assert.deepStrictEqual(events, toCopilot
+				? [`lock:${SessionType.AgentHostCopilot}`, `bind:${SessionType.AgentHostCopilot}`]
+				: ['unlock', 'bind:default']);
+		});
+	}
 
 	for (const policyKey of ['permissions.allow', 'sandbox.enabled']) {
 		for (const unavailable of [false, true]) {
@@ -145,8 +180,8 @@ suite('ChatEditorInput', () => {
 				upcastPartial<IAgentHostConnectionsService>({ ambientConnection: connection }),
 				telemetry,
 				upcastPartial<IProgressService>({ withProgress: (_options, task) => task({ report() { } }) }),
-			new NullManagedSettingsService(),
-			settledPolicyGate,
+				new NullManagedSettingsService(),
+				settledPolicyGate,
 			));
 			assert.deepStrictEqual({ resolved: await input.resolve(), events }, {
 				resolved: null,

@@ -52,6 +52,8 @@ must reach runtime validation rather than select Local. Other `permissions.*`
 keys and personal sandbox preferences do not automatically require Agent Host.
 The same request gate applies to old Local chats under a managed sandbox floor;
 virtual workspaces and unavailable hosts cannot silently run Local instead.
+Editor inline chat's limited read/edit flow remains available as an explicit
+exception; this gate does not enforce runtime permission rules on those edits.
 
 ## Host-Injection Lifecycle
 

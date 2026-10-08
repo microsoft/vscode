@@ -13,7 +13,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
-import { constObservable, ISettableObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { constObservable, ISettableObservable, observableValue, transaction, waitForState } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mockObject } from '../../../../../../base/test/common/mock.js';
 import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
@@ -310,7 +310,7 @@ suite('ChatService', () => {
 			assert.deepStrictEqual({ before, after: activate.callCount, result: result.kind, requests: model.getRequests().length }, { before: 0, after: 0, result: 'rejected', requests: 0 });
 		});
 
-		for (const location of [ChatAgentLocation.EditorInline, ChatAgentLocation.Terminal]) {
+		for (const location of [ChatAgentLocation.Chat, ChatAgentLocation.Terminal]) {
 			test(`${policyKey} cannot be bypassed by a Local ${location} session`, async () => {
 				instantiationService.stub(IManagedSettingsService, {
 					_serviceBrand: undefined, onDidChangeManagedSettings: Event.None,
@@ -324,6 +324,38 @@ suite('ChatService', () => {
 				}, { result: 'rejected', blocked: true, requests: 0 });
 			});
 		}
+
+		test(`${policyKey} preserves editor inline activation, sending and retry while policy initializes`, async () => {
+			const ready = new DeferredPromise<void>();
+			instantiationService.stub(IAccountPolicyGateService, {
+				_serviceBrand: undefined, gateInfo: { state: AccountPolicyGateState.Inactive }, onDidChangeGateInfo: Event.None, whenInitialized: () => ready.p,
+			});
+			instantiationService.stub(IManagedSettingsService, {
+				_serviceBrand: undefined, onDidChangeManagedSettings: Event.None,
+				getManagedSettingValue: key => key === policyKey ? (policyKey === 'sandbox.enabled' ? true : '["Shell"]') : undefined,
+			});
+			testDisposables.add(chatAgentService.registerAgent('inlineAgent', { ...getAgentData('inlineAgent'), isDefault: true, locations: [ChatAgentLocation.EditorInline] }));
+			let invocations = 0;
+			testDisposables.add(chatAgentService.registerAgentImplementation('inlineAgent', {
+				async invoke() { invocations++; return {}; },
+			}));
+			const service = createChatService();
+			const activate = spy(service, 'activateDefaultAgent');
+			testDisposables.add(toDisposable(() => activate.restore()));
+			try {
+				const model = startSessionModel(service, ChatAgentLocation.EditorInline).object;
+				const result = await service.sendRequest(model.sessionResource, 'Edit this file');
+				ChatSendResult.assertSent(result);
+				await result.data.responseCompletePromise;
+				await service.resendRequest(model.getRequests()[0]);
+				await waitForState(model.requestInProgress, inProgress => !inProgress);
+				assert.deepStrictEqual({
+					blocked: model.isInputBlocked.get(), activated: activate.calledWith(ChatAgentLocation.EditorInline), invocations,
+				}, { blocked: false, activated: true, invocations: 2 });
+			} finally {
+				ready.complete();
+			}
+		});
 
 		for (const phase of ['before', 'during']) {
 			test(`${policyKey} blocks Local execution when policy arrives ${phase} MCP autostart`, async () => {

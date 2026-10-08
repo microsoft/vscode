@@ -1208,6 +1208,10 @@ suite('ChatWidget', () => {
 			sessionResource: URI.from({ scheme: SessionType.AgentHostCopilot, path: '/new' }), hasRequests: true,
 			isReadOnly: constObservable(false), isInputBlocked: constObservable(false),
 		});
+		const inline = upcastPartial<IChatModel>({
+			sessionResource: LocalChatSessionUri.forSession('inline'), initialLocation: ChatAgentLocation.EditorInline,
+			hasRequests: true, isReadOnly: constObservable(false), isInputBlocked: constObservable(false),
+		});
 		const archived = upcastPartial<IChatModel>({
 			sessionResource: LocalChatSessionUri.forSession('archived'), hasRequests: true,
 			isReadOnly: constObservable(true), isInputBlocked: constObservable(false),
@@ -1246,6 +1250,8 @@ suite('ChatWidget', () => {
 		const unrelatedUpdateChangedBanner = readOnlyUpdates !== initialUpdates;
 		selected.set(copilot, undefined);
 		const away = snapshot();
+		selected.set(inline, undefined);
+		const inlineUnderPolicy = snapshot();
 		selected.set(local, undefined);
 		const returned = snapshot();
 		archivedState = true;
@@ -1260,10 +1266,11 @@ suite('ChatWidget', () => {
 		sessionChanges.fire();
 		const removed = snapshot();
 		selected.set(archived, undefined);
-		assert.deepStrictEqual({ original, unrelatedUpdateChangedBanner, away, returned, archivedUnderPolicy, otherProviderWhileArchived, archivedAfterRemoval, removed, archived: snapshot() }, {
+		assert.deepStrictEqual({ original, unrelatedUpdateChangedBanner, away, inlineUnderPolicy, returned, archivedUnderPolicy, otherProviderWhileArchived, archivedAfterRemoval, removed, archived: snapshot() }, {
 			original: { visible: true, text: 'This chat is read-only because your organization requires the new Copilot experience.', action: 'Move to Copilot', atTop: true },
 			unrelatedUpdateChangedBanner: false,
 			away: { visible: false, text: 'This chat is read-only', action: '', atTop: true },
+			inlineUnderPolicy: { visible: false, text: 'This chat is read-only', action: '', atTop: true },
 			returned: original,
 			archivedUnderPolicy: { visible: true, text: 'This chat is read-only', action: '', atTop: true },
 			otherProviderWhileArchived: { visible: false, text: 'This chat is read-only', action: '', atTop: true },

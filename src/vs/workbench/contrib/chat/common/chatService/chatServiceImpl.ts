@@ -54,7 +54,7 @@ import { IChatTransferService } from '../model/chatTransferService.js';
 import { chatSessionResourceToId, getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../model/chatUri.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry, isPromptTextVariableEntry } from '../attachments/chatVariableEntries.js';
 import { IDynamicVariable } from '../attachments/chatVariables.js';
-import { ChatAgentLocation, SessionTypeSelectionReason, ChatConfiguration, ChatModeKind, getCopilotHarnessIntroductionMode, managedPolicyRequiresAgentHostMessage } from '../constants.js';
+import { ChatAgentLocation, SessionTypeSelectionReason, ChatConfiguration, ChatModeKind, getCopilotHarnessIntroductionMode, isLocalChatSessionSubjectToManagedPolicy, managedPolicyRequiresAgentHostMessage } from '../constants.js';
 import { ChatMessageRole, IChatMessage, ILanguageModelsService } from '../languageModels.js';
 import { ModelSelectionReason } from '../modelSelection.js';
 import { ILanguageModelToolsService, ToolAndToolSetEnablementMap } from '../tools/languageModelToolsService.js';
@@ -266,10 +266,11 @@ export class ChatService extends Disposable implements IChatService {
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IChatDebugService private readonly chatDebugService: IChatDebugService,
-		@IManagedSettingsService private readonly managedSettingsService: IManagedSettingsService,
+		@IManagedSettingsService managedSettingsService: IManagedSettingsService,
 		@IAccountPolicyGateService private readonly accountPolicyGateService: IAccountPolicyGateService,
 	) {
 		super();
+		this.managedPolicy = observableFromEvent(this, managedSettingsService.onDidChangeManagedSettings, () => requiresCopilotAgentHost(managedSettingsService));
 
 		void whenAccountPolicySettled(this.accountPolicyGateService).then(() => {
 			this.policyInitialized = true;
@@ -581,11 +582,11 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	private policyInitialized = false;
-	private readonly managedPolicy = observableFromEvent(this, this.managedSettingsService.onDidChangeManagedSettings, () => requiresCopilotAgentHost(this.managedSettingsService));
+	private readonly managedPolicy: IObservable<boolean>;
 
 	private _startSession(props: IStartSessionProps): ChatModel {
 		const { initialData, location, sessionResource, canUseTools, transferEditingSession, disableBackgroundKeepAlive, inputState, isReadOnly, isInputBlocked, backgroundShellCount, sessionTypeSelectionReason } = props;
-		const blocked = derived(this, reader => (getChatSessionType(sessionResource) === localChatSessionType && this.managedPolicy.read(reader)) || (isInputBlocked?.read(reader) ?? false));
+		const blocked = derived(this, reader => (isLocalChatSessionSubjectToManagedPolicy(sessionResource, location) && this.managedPolicy.read(reader)) || (isInputBlocked?.read(reader) ?? false));
 		const model = this.instantiationService.createInstance(ChatModel, initialData, { initialLocation: location, canUseTools, resource: sessionResource, disableBackgroundKeepAlive, inputState, isReadOnly, isInputBlocked: blocked, backgroundShellCount, sessionTypeSelectionReason });
 		if (this._hasAgentHostContribution(sessionResource)) {
 			this._serverManagedQueueModels.add(model);
@@ -604,10 +605,10 @@ export class ChatService extends Disposable implements IChatService {
 		// Activate the default extension provided agent but do not wait
 		// for it to be ready so that the session can be used immediately
 		// without having to wait for the agent to be ready.
-		if (getChatSessionType(model.sessionResource) === localChatSessionType && !this.policyInitialized) {
+		if (isLocalChatSessionSubjectToManagedPolicy(model.sessionResource, model.initialLocation) && !this.policyInitialized) {
 			await whenAccountPolicySettled(this.accountPolicyGateService);
 		}
-		if (getChatSessionType(model.sessionResource) !== localChatSessionType || !requiresCopilotAgentHost(this.managedSettingsService)) {
+		if (!isLocalChatSessionSubjectToManagedPolicy(model.sessionResource, model.initialLocation) || !this.managedPolicy.get()) {
 			await this.activateDefaultAgent(model.initialLocation);
 		}
 	}
@@ -1258,7 +1259,7 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	async resendRequest(request: IChatRequestModel, options?: IChatSendRequestOptions, preserveRequestId = false): Promise<void> {
-		if (getChatSessionType(request.session.sessionResource) === localChatSessionType && !this.policyInitialized) {
+		if (isLocalChatSessionSubjectToManagedPolicy(request.session.sessionResource, request.session.initialLocation) && !this.policyInitialized) {
 			await whenAccountPolicySettled(this.accountPolicyGateService);
 		}
 		const model = this._sessionModels.get(request.session.sessionResource);
@@ -1348,7 +1349,7 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	private async sendRequestInternal(sessionResource: URI, request: string, options: IChatSendRequestOptions | undefined, isSubmission: boolean): Promise<ChatSendResult> {
-		if (getChatSessionType(sessionResource) === localChatSessionType && !this.policyInitialized) {
+		if (isLocalChatSessionSubjectToManagedPolicy(sessionResource, this._sessionModels.get(sessionResource)?.initialLocation ?? ChatAgentLocation.Chat) && !this.policyInitialized) {
 			await whenAccountPolicySettled(this.accountPolicyGateService);
 		}
 		this.trace('sendRequest', `sessionResource: ${sessionResource.toString()}, message: ${request.substring(0, 20)}${request.length > 20 ? '[...]' : ''}}`);
@@ -1968,7 +1969,7 @@ export class ChatService extends Disposable implements IChatService {
 						progressCallback([{ kind: 'disabledClaudeHooks' }]);
 					}
 
-					if (getChatSessionType(sessionResource) === localChatSessionType && this.managedPolicy.get()) {
+					if (isLocalChatSessionSubjectToManagedPolicy(sessionResource, model.initialLocation) && this.managedPolicy.get()) {
 						throw new ErrorNoTelemetry(managedPolicyRequiresAgentHostMessage());
 					}
 					// MCP autostart: only run for native VS Code sessions (sidebar, new editors) but not for extension contributed sessions that have inputType set.
@@ -1980,7 +1981,7 @@ export class ChatService extends Disposable implements IChatService {
 						}
 					}
 
-					if (getChatSessionType(sessionResource) === localChatSessionType && this.managedPolicy.get()) {
+					if (isLocalChatSessionSubjectToManagedPolicy(sessionResource, model.initialLocation) && this.managedPolicy.get()) {
 						throw new ErrorNoTelemetry(managedPolicyRequiresAgentHostMessage());
 					}
 					const agentResult = await this.chatAgentService.invokeAgent(agent.id, requestProps, progressCallback, history, token);
