@@ -69,6 +69,9 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		if (installation?.kind === 'plugin') {
 			return localize('agentHost.customizationInstall.directPluginUnavailable', "The SDK cannot yet install a catalog plugin at its exact pinned revision.");
 		}
+		if (installation?.kind === 'providerPlugin' && !installation.marketplaceSource) {
+			return localize('agentHost.customizationInstall.pluginSourceUnavailable', "The SDK plugin marketplace source is unavailable.");
+		}
 		if (installation?.kind === 'configuredPlugin' && (!installation.name || !installation.marketplace || !installation.marketplaceId || !installation.marketplaceSource)) {
 			return localize('agentHost.customizationInstall.pluginIdentityUnavailable', "The SDK plugin installation identity is unavailable.");
 		}
@@ -140,11 +143,11 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 				}
 				const publisher = getGitHubPublisher(item.publisher);
 				const registryIcon = item.kind === 'mcp' ? getGitHubMcpRegistryIcon(item.itemUrl) : undefined;
-				const providerPlugin = !item.unavailableMessage && item.kind === 'plugin' && item.pluginName && item.marketplace
-					? { kind: 'providerPlugin' as const, name: item.pluginName, marketplace: item.marketplace }
+				const providerPlugin = !item.unavailableMessage && item.kind === 'plugin' && item.pluginName && item.marketplace && item.marketplaceSource
+					? { kind: 'providerPlugin' as const, name: item.pluginName, marketplace: item.marketplace, marketplaceSource: item.marketplaceSource }
 					: undefined;
 				return {
-					identifier: providerPlugin ? JSON.stringify([providerPlugin.marketplace, providerPlugin.name]) : item.itemUrl ?? item.selectionId,
+					identifier: providerPlugin ? JSON.stringify([providerPlugin.marketplaceSource, providerPlugin.marketplace, providerPlugin.name]) : item.itemUrl ?? item.selectionId,
 					displayName: item.displayName,
 					description: item.description ?? '',
 					mediaType: getCatalogMediaType(item.kind),

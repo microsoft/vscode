@@ -32,7 +32,7 @@ import { ICustomizationHarnessService } from '../../common/customizationHarnessS
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
 import { parseMarketplaceReference } from '../../common/plugins/marketplaceReference.js';
-import { IMarketplacePlugin, IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
+import { IMarketplacePlugin, IMarketplaceReference, IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 import { getConnectorRowPresentation } from './connectorPresentation.js';
 import { ICopilotConnectorAccount, ICopilotConnectorsService, toCopilotConnectorMarketplaceEntry } from './copilotConnectorsService.js';
 import { getGitHubMcpRegistryIdentity, getGitHubMcpRegistryResourceIdentity } from './githubMcpRegistryIcons.js';
@@ -819,10 +819,10 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			async () => {
 				if (providerBinding) {
 					if (resource.installation?.kind === 'configuredPlugin' || resource.installation?.kind === 'providerPlugin') {
-						const plugin = resource.installation.kind === 'configuredPlugin'
-							? await this.resolveConfiguredPlugin(resource, token)
-							: await this.resolveProviderPlugin(resource, token);
-						if (!await this.pluginInstallService.ensureMarketplaceTrusted(plugin.marketplaceReference, token)) {
+						const marketplaceReference = resource.installation.kind === 'configuredPlugin'
+							? (await this.resolveConfiguredPlugin(resource, token)).marketplaceReference
+							: this.resolveProviderPluginMarketplaceReference(resource);
+						if (!await this.pluginInstallService.ensureMarketplaceTrusted(marketplaceReference, token)) {
 							throw new CancellationError();
 						}
 					}
@@ -1194,20 +1194,18 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		return plugin;
 	}
 
-	private async resolveProviderPlugin(resource: ICustomizationMarketplaceResource, token: CancellationToken): Promise<IMarketplacePlugin> {
+	private resolveProviderPluginMarketplaceReference(resource: ICustomizationMarketplaceResource): IMarketplaceReference {
 		const source = resource.installation;
-		if (source?.kind !== 'providerPlugin') {
+		if (source?.kind !== 'providerPlugin' || !source.marketplaceSource) {
 			throw new Error(localize('customizationMarketplace.providerPluginIdentityUnavailable', "This plugin does not provide provider marketplace identity."));
 		}
-		const plugins = await this.pluginMarketplaceService.fetchMarketplacePlugins(token);
-		this.checkEnabled(resource.sourceId, token);
-		const matches = plugins.filter(plugin =>
-			plugin.name === source.name &&
-			plugin.marketplaceName === source.marketplace);
-		if (matches.length !== 1) {
+		const directReference = parseMarketplaceReference(source.marketplaceSource);
+		const githubSource = /^GitHub:\s+(?<source>.+)$/.exec(source.marketplaceSource)?.groups?.source;
+		const marketplaceReference = directReference ?? (githubSource ? parseMarketplaceReference(githubSource) : undefined);
+		if (!marketplaceReference) {
 			throw new Error(localize('customizationMarketplace.providerPluginUnavailable', "This featured plugin is no longer available from a registered marketplace. Refresh Discover and try again."));
 		}
-		return matches[0];
+		return marketplaceReference;
 	}
 
 	private async installTarget(resource: ICustomizationMarketplaceResource, token: CancellationToken): Promise<CustomizationMarketplaceInstallationRecordTarget> {
