@@ -26,7 +26,7 @@ import { IPluginInstallService } from '../../common/plugins/pluginInstallService
 import { type IMarketplaceReference, MarketplaceReferenceKind, parseMarketplaceReference, parseMarketplaceReferences, readConfiguredMarketplaces } from '../../common/plugins/pluginMarketplaceService.js';
 import { getStrictKnownMarketplaces, isMarketplaceReferenceAllowed } from '../../common/plugins/strictKnownMarketplaces.js';
 import { InstalledAgentPluginsViewId } from '../chat.js';
-import { getPluginCustomizationMarketplaceSourceId } from '../aiCustomization/pluginCustomizationMarketplaceProvider.js';
+import { getPluginCustomizationMarketplaceNavigationSourceId } from '../aiCustomization/pluginCustomizationMarketplaceProvider.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
 export class ManagePluginsAction extends Action2 {
@@ -311,7 +311,7 @@ export class ManagePluginMarketplacesAction extends Action2 {
 						AICustomizationManagementCommands.OpenMarketplace,
 						{
 							section: AICustomizationManagementSection.Plugins,
-							sourceId: getPluginCustomizationMarketplaceSourceId(ref),
+							sourceId: getPluginCustomizationMarketplaceNavigationSourceId(configurationService, ref),
 						},
 					);
 					return;
