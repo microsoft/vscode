@@ -413,7 +413,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this.dispose();
 	}
 
-	private async _throttleKillSpawn(): Promise<void> {
+	protected async _throttleKillSpawn(): Promise<void> {
 		// Only throttle on Windows/conpty
 		if (!isWindows || !hasConptyOption(this._ptyOptions) || !this._ptyOptions.useConpty) {
 			return;

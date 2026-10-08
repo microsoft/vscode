@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import type { IPty } from 'node-pty';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { hasKey } from '../../../../base/common/types.js';
@@ -15,7 +16,7 @@ import { IShellLaunchConfig, ITerminalProcessOptions } from '../../common/termin
 import { ChildProcessMonitor } from '../../node/childProcessMonitor.js';
 import { TerminalProcess } from '../../node/terminalProcess.js';
 
-(isWindows ? suite.skip : suite)('TerminalProcess startup disposal', () => {
+suite('TerminalProcess startup disposal', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const options: ITerminalProcessOptions = {
 		shellIntegration: { enabled: false, suggestEnabled: false, nonce: '' },
@@ -25,8 +26,13 @@ import { TerminalProcess } from '../../node/terminalProcess.js';
 		isScreenReaderOptimized: false
 	};
 
-	function createTerminal(shellLaunchConfig?: IShellLaunchConfig, cwd = process.cwd()) {
+	function createTerminal(shellLaunchConfig?: IShellLaunchConfig, cwd = process.cwd(), throttle?: () => Promise<void>) {
 		let spawnAttempts = 0;
+		class TestTerminalProcess extends TerminalProcess {
+			protected override _throttleKillSpawn(): Promise<void> {
+				return throttle ? throttle() : super._throttleKillSpawn();
+			}
+		}
 		class Log extends NullLogService {
 			override trace(message: string): void {
 				if (message === 'node-pty.IPty#spawn') {
@@ -36,7 +42,7 @@ import { TerminalProcess } from '../../node/terminalProcess.js';
 		}
 		const log = store.add(new Log());
 		const env = { ...process.env, ELECTRON_RUN_AS_NODE: '1' };
-		const terminal = store.add(new TerminalProcess(
+		const terminal = store.add(new TestTerminalProcess(
 			shellLaunchConfig ?? { executable: process.execPath, args: ['-e', 'setTimeout(() => process.exit(0), 250)'] },
 			cwd, 80, 24, env, env, options, log, { applicationName: 'vscode' } as IProductService
 		));
@@ -107,7 +113,27 @@ import { TerminalProcess } from '../../node/terminalProcess.js';
 		}
 	});
 
-	test('starts a live native process and cleans up on normal shutdown', async () => {
+	test('does not spawn after disposal while spawn throttling is pending', async () => {
+		const started = new DeferredPromise<void>();
+		const throttle = new DeferredPromise<void>();
+		const fixture = createTerminal(undefined, process.cwd(), () => {
+			started.complete();
+			return throttle.p;
+		});
+		try {
+			const startup = fixture.terminal.start();
+			await started.p;
+			fixture.terminal.dispose();
+			await throttle.complete();
+			await startup;
+			assert.deepStrictEqual(fixture.observe(), { spawnAttempts: 0, nativePtyPresent: false, titlePolling: false });
+		} finally {
+			await throttle.complete();
+			fixture.cleanup();
+		}
+	});
+
+	(isWindows ? test.skip : test)('starts a live native process and cleans up on normal shutdown', async () => {
 		const fixture = createTerminal();
 		let pid: number | undefined;
 		store.add(fixture.terminal.onProcessReady(event => pid = event.pid));
