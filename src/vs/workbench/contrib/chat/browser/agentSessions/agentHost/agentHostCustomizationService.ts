@@ -180,6 +180,15 @@ export interface IAgentHostCustomizationTarget {
 	setRootConfigValue(property: string, value: unknown): void;
 }
 
+interface IMcpAutoAuthenticationAttempt {
+	readonly sessionResource: URI;
+	readonly serverId: string;
+	readonly challenge: string;
+	tokenForwarded: boolean | undefined;
+	restarted: boolean;
+	rejected: boolean;
+}
+
 export abstract class AbstractAgentHostCustomizationService extends Disposable implements IAgentHostCustomizationService {
 	declare readonly _serviceBrand: undefined;
 
@@ -196,7 +205,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 	 * so subsequent failures and recoveries land in the channel history.
 	 */
 	private readonly _mcpDiagnosticSessions = new ResourceSet();
-	private readonly _mcpAutoAuthentication = new Map<string, { readonly challenge: string; tokenForwarded: boolean | undefined; restarted: boolean; rejected: boolean }>();
+	private readonly _mcpAutoAuthentication = new Map<string, IMcpAutoAuthenticationAttempt>();
 
 	protected constructor(
 		protected readonly _instantiationService: IInstantiationService,
@@ -292,28 +301,16 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 		const key = `${sessionResource.toString()}\n${server.id}`;
 		const state = server.state;
 		let entry = this._mcpAutoAuthentication.get(key);
+		if (entry) {
+			this._updateMcpAutoAuthenticationAttempt(key, entry, state);
+			entry = this._mcpAutoAuthentication.get(key);
+		}
 		if (state.kind !== McpServerStatus.AuthRequired) {
-			if (state.kind === McpServerStatus.Starting && entry && entry.tokenForwarded !== false) {
-				entry.restarted = true;
-			} else {
-				this._mcpAutoAuthentication.delete(key);
-			}
 			return false;
 		}
-		const challenge = JSON.stringify([
-			state.reason,
-			state.resource.resource,
-			[...(state.resource.authorization_servers ?? [])].sort(),
-			[...(state.resource.scopes_supported ?? [])].sort(),
-			[...(state.requiredScopes ?? [])].sort(),
-			state.oauthClient?.clientId,
-			state.oauthClient?.clientSecret,
-		]);
-		if (entry?.challenge === challenge && entry.restarted) {
-			entry.rejected = true;
-		}
+		const challenge = this._mcpAuthenticationChallenge(state);
 		if (!entry || entry.challenge !== challenge) {
-			entry = { challenge, tokenForwarded: undefined, restarted: false, rejected: false };
+			entry = { sessionResource, serverId: server.id, challenge, tokenForwarded: undefined, restarted: false, rejected: false };
 			this._mcpAutoAuthentication.set(key, entry);
 			const currentEntry = entry;
 			this._instantiationService.invokeFunction(autoAuthenticateMcpServer, {
@@ -329,6 +326,51 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 			});
 		}
 		return !entry.rejected && entry.tokenForwarded !== false;
+	}
+
+	private _reconcileMcpAutoAuthenticationAttempts(): void {
+		for (const [key, entry] of this._mcpAutoAuthentication) {
+			const target = this._resolveTarget(entry.sessionResource);
+			if (!target) {
+				continue;
+			}
+			const server = this._findMcpServer(target.customizations, entry.serverId);
+			if (server) {
+				this._updateMcpAutoAuthenticationAttempt(key, entry, server.state);
+			} else {
+				this._mcpAutoAuthentication.delete(key);
+			}
+		}
+	}
+
+	private _updateMcpAutoAuthenticationAttempt(key: string, entry: IMcpAutoAuthenticationAttempt, state: McpServerState): void {
+		if (state.kind === McpServerStatus.AuthRequired) {
+			if (!entry.restarted) {
+				return;
+			}
+			if (entry.challenge === this._mcpAuthenticationChallenge(state)) {
+				entry.rejected = true;
+			} else {
+				this._mcpAutoAuthentication.delete(key);
+			}
+		} else if (state.kind === McpServerStatus.Starting && entry.tokenForwarded !== false) {
+			entry.restarted = true;
+		} else {
+			this._mcpAutoAuthentication.delete(key);
+		}
+	}
+
+	private _mcpAuthenticationChallenge(state: Extract<McpServerState, { kind: McpServerStatus.AuthRequired }>): string {
+		return JSON.stringify([
+			state.reason,
+			state.resource.resource,
+			state.resource.resource_name,
+			[...(state.resource.authorization_servers ?? [])].sort(),
+			[...(state.resource.scopes_supported ?? [])].sort(),
+			[...(state.requiredScopes ?? [])].sort(),
+			state.oauthClient?.clientId,
+			state.oauthClient?.clientSecret,
+		]);
 	}
 
 	showMcpServerLog(sessionResource: URI, serverId: string, beforeShow?: () => Promise<void>): Promise<void> {
@@ -460,6 +502,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 	}
 
 	protected _fireCustomizationsChanged(): void {
+		this._reconcileMcpAutoAuthenticationAttempts();
 		this._onDidChangeCustomizations.fire();
 	}
 

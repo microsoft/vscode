@@ -108,6 +108,11 @@ class TestAgentHostCustomizationService extends AbstractAgentHostCustomizationSe
 		this._targets.set(sessionResource, target);
 	}
 
+	publishTarget(sessionResource: URI, target: FakeTarget): void {
+		this.setTarget(sessionResource, target);
+		this._fireCustomizationsChanged();
+	}
+
 	protected override _resolveTarget(sessionResource: URI): IAgentHostCustomizationTarget | undefined {
 		return this._targets.get(sessionResource);
 	}
@@ -487,7 +492,7 @@ suite('AbstractAgentHostCustomizationService', () => {
 		});
 	});
 
-	test('stops silent MCP authentication when the unchanged challenge returns after restart', async () => {
+	test('stops silent MCP authentication when the unchanged challenge returns after an unobserved restart', async () => {
 		const sut = createSut();
 		const session = URI.parse('vscode-agent-session:///session-1');
 		const authRequired = () => [{
@@ -506,31 +511,72 @@ suite('AbstractAgentHostCustomizationService', () => {
 		await changed;
 		const afterForward = sut.getMcpServers(session)[0].authenticating;
 
-		sut.setTarget(session, new FakeTarget([{
+		sut.publishTarget(session, new FakeTarget([{
 			...mcpServer('server-1', 'Server One'),
 			state: { kind: McpServerStatus.Starting, blocking: true },
 		}]));
-		const whileRestarting = sut.getMcpServers(session)[0].authenticating;
 
 		const rejectedTarget = new FakeTarget(authRequired());
-		sut.setTarget(session, rejectedTarget);
+		sut.publishTarget(session, rejectedTarget);
 		const afterRejection = sut.getMcpServers(session)[0].authenticating;
 		await timeout(0);
 
 		assert.deepStrictEqual({
 			beforeForward,
 			afterForward,
-			whileRestarting,
 			afterRejection,
 			initialAuthenticationCalls: initialTarget.authenticateCalls.length,
 			rejectedAuthenticationCalls: rejectedTarget.authenticateCalls.length,
 		}, {
 			beforeForward: true,
 			afterForward: true,
-			whileRestarting: false,
 			afterRejection: false,
 			initialAuthenticationCalls: 1,
 			rejectedAuthenticationCalls: 0,
+		});
+	});
+
+	test('retries silent MCP authentication when resource name changes after restart', async () => {
+		const sut = createSut();
+		const session = URI.parse('vscode-agent-session:///session-1');
+		const authRequired = (resourceName?: string) => [{
+			...mcpServer('server-1', 'Server One'),
+			state: {
+				kind: McpServerStatus.AuthRequired as const,
+				reason: McpAuthRequiredReason.InsufficientScope,
+				resource: {
+					resource: 'https://mcp.example.com',
+					resource_name: resourceName,
+					authorization_servers: ['https://auth.example.com'],
+					scopes_supported: ['read'],
+				},
+			},
+		}];
+		const initialTarget = new FakeTarget(authRequired());
+		sut.setTarget(session, initialTarget);
+		let changed = Event.toPromise(sut.onDidChangeCustomizations);
+		sut.getMcpServers(session);
+		await changed;
+
+		sut.publishTarget(session, new FakeTarget([{
+			...mcpServer('server-1', 'Server One'),
+			state: { kind: McpServerStatus.Starting, blocking: true },
+		}]));
+
+		const changedTarget = new FakeTarget(authRequired('GitHub MCP Server'));
+		sut.publishTarget(session, changedTarget);
+		changed = Event.toPromise(sut.onDidChangeCustomizations);
+		const afterMetadataChange = sut.getMcpServers(session)[0].authenticating;
+		await changed;
+
+		assert.deepStrictEqual({
+			afterMetadataChange,
+			initialScopes: initialTarget.authenticateCalls.map(call => call.scopes),
+			changedScopes: changedTarget.authenticateCalls.map(call => call.scopes),
+		}, {
+			afterMetadataChange: true,
+			initialScopes: [['read']],
+			changedScopes: [[]],
 		});
 	});
 
