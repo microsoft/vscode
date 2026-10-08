@@ -45,10 +45,10 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	properties: {
 		[AgentHostRemoteConnectionsSettingId]: {
 			type: 'string',
-			enum: ['devTunnel', 'missionControl'],
+			enum: ['devTunnel', 'githubEnvironment'],
 			enumDescriptions: [
 				localize('remoteConnections.devTunnel', "Allow remote connections through a Dev Tunnel."),
-				localize('remoteConnections.missionControl', "Register the native Agent Host with Mission Control through Azure Web PubSub. Remote clients receive trusted-owner access to sessions, tools, and workspace resources. Native session actions are mirrored for catalog/history storage; conversation content is not end-to-end encrypted."),
+				localize('remoteConnections.githubEnvironment', "Register the native Agent Host as a GitHub environment through Azure Web PubSub. Remote clients receive trusted-owner access to sessions, tools, and workspace resources. Native session actions are mirrored for catalog/history storage; conversation content is not end-to-end encrypted."),
 			],
 			description: localize('remoteConnections', "Choose the backend used by Allow Remote Connections. Selecting a backend does not enable sharing. Changing the backend turns sharing off."),
 			default: 'devTunnel',
