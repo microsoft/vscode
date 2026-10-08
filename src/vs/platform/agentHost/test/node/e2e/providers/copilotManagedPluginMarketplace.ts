@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { execFile, spawn } from 'child_process';
+import { existsSync } from 'fs';
 import type { IncomingMessage, Server, ServerResponse } from 'http';
 import { mkdir, rm, writeFile } from 'fs/promises';
 import { createRequire } from 'module';
 import { promisify } from 'util';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
-import { join } from '../../../../../../base/common/path.js';
+import { dirname, join } from '../../../../../../base/common/path.js';
 
 const execFileAsync = promisify(execFile);
 const nodeRequire = createRequire(import.meta.url);
@@ -47,6 +48,31 @@ async function runGit(cwd: string, ...args: string[]): Promise<void> {
 	await execFileAsync('git', args, { cwd });
 }
 
+async function resolveGitHttpBackend(): Promise<string> {
+	const executable = process.platform === 'win32' ? 'git-http-backend.exe' : 'git-http-backend';
+	const { stdout: gitExecPath } = await execFileAsync('git', ['--exec-path']);
+	const candidates = [join(gitExecPath.trim(), executable)];
+	if (process.platform === 'win32') {
+		for (const programFiles of [process.env['ProgramFiles'], process.env['ProgramFiles(x86)']]) {
+			if (programFiles) {
+				candidates.push(join(programFiles, 'Git', 'mingw64', 'libexec', 'git-core', executable));
+				candidates.push(join(programFiles, 'Git', 'mingw32', 'libexec', 'git-core', executable));
+			}
+		}
+		const { stdout: gitPaths } = await execFileAsync('where.exe', ['git']);
+		for (const gitPath of gitPaths.split(/\r?\n/).filter(Boolean)) {
+			const root = dirname(dirname(gitPath));
+			candidates.push(join(root, 'mingw64', 'libexec', 'git-core', executable));
+			candidates.push(join(root, 'mingw32', 'libexec', 'git-core', executable));
+		}
+	}
+	const backend = candidates.find(candidate => existsSync(candidate));
+	if (!backend) {
+		throw new Error(`Unable to find ${executable}. Tried: ${candidates.join(', ')}`);
+	}
+	return backend;
+}
+
 async function readRequestBody(request: IncomingMessage): Promise<Buffer> {
 	return new Promise<Buffer>((resolve, reject) => {
 		const chunks: Buffer[] = [];
@@ -77,8 +103,7 @@ export async function createManagedPluginMarketplace(
 	await runGit(sourceDirectory, 'init', '--initial-branch=main');
 	await runGit(sourceDirectory, 'config', 'user.name', 'Agent Host E2E');
 	await runGit(sourceDirectory, 'config', 'user.email', 'agent-host-e2e@example.invalid');
-	const { stdout: gitExecPath } = await execFileAsync('git', ['--exec-path']);
-	const gitHttpBackend = join(gitExecPath.trim(), process.platform === 'win32' ? 'git-http-backend.exe' : 'git-http-backend');
+	const gitHttpBackend = await resolveGitHttpBackend();
 
 	let published = false;
 	let nextRequestGate: IRequestGate | undefined;
