@@ -249,6 +249,23 @@ async function waitForInstallationStart(installationStarted: Promise<void>, turn
 	}
 }
 
+async function waitForManagedPluginActivity(client: TestProtocolClient, chat: string, prefix: string): Promise<string> {
+	const notification = await client.waitForNotification(candidate => {
+		if (!isActionNotification(candidate, ActionType.ChatActivityChanged)) {
+			return false;
+		}
+		const envelope = getActionEnvelope(candidate);
+		return envelope.channel === chat
+			&& envelope.action.type === ActionType.ChatActivityChanged
+			&& envelope.action.activity?.startsWith(prefix) === true;
+	}, 30_000);
+	const action = getActionEnvelope(notification).action;
+	if (action.type !== ActionType.ChatActivityChanged || !action.activity) {
+		throw new Error(`Expected managed plugin activity starting with "${prefix}"`);
+	}
+	return action.activity;
+}
+
 function assertTurnHasNotCompleted(client: TestProtocolClient, chat: string, turnId: string): void {
 	const terminal = client.receivedNotifications(notification =>
 		(isActionNotification(notification, ActionType.ChatTurnComplete)
@@ -422,7 +439,7 @@ suite('Agent Host E2E — Copilot managed plugin lifecycle', function () {
 			const secondTurn = driveTurnToCompletion(context.client, session, secondTurnId, '/env', 2);
 			await waitForTurnStarted(context.client, chat, secondTurnId);
 			await waitForInstallationStart(installation.started, secondTurn);
-			const installingWhileIdle = activityFor(managedPluginProjection(context.client, chat), managedPluginInstallingActivity);
+			const installingWhileIdle = await waitForManagedPluginActivity(context.client, chat, managedPluginInstallingActivity);
 			assertTurnHasNotCompleted(context.client, chat, secondTurnId);
 			installation.release();
 			const afterPolicy = await secondTurn;
@@ -458,6 +475,7 @@ suite('Agent Host E2E — Copilot managed plugin lifecycle', function () {
 			policy.release();
 			await waitForInstallationStart(installation.started, pendingTurn);
 			assertTurnHasNotCompleted(context.client, chat, turnId);
+			await waitForManagedPluginActivity(context.client, chat, managedPluginInstallingActivity);
 			const whileInstalling = managedPluginProjection(context.client, chat);
 			installation.release();
 			const result = await pendingTurn;
@@ -721,6 +739,7 @@ suite('Agent Host E2E — Copilot managed plugin lifecycle', function () {
 			const updateSession = await createAdditionalCopilotSession(context.client, context.createdSessions, URI.file(context.workspace));
 			const updateChat = buildDefaultChatUri(updateSession);
 			await update.started;
+			await waitForManagedPluginActivity(context.client, updateChat, managedPluginUpdatingActivity);
 			const activeState = await fetchSessionWithChat(context.client, activeSession);
 			assert.strictEqual(activeState.activeTurn?.id, activeTurnId);
 			const updatingWhileActive = activityFor(managedPluginProjection(context.client, updateChat), managedPluginUpdatingActivity);
