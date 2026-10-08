@@ -3,4 +3,4 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export { AgentHostDevContainersCapabilityMetaKey, supportsAgentHostDevContainers } from './vscode/agentHostDevContainersMeta.js';
+export { AgentHostDevContainersCapabilityMetaKey, AgentHostDevContainerGitCredentialsCapabilityMetaKey, supportsAgentHostDevContainers, supportsAgentHostDevContainerGitCredentials } from './vscode/agentHostDevContainersMeta.js';

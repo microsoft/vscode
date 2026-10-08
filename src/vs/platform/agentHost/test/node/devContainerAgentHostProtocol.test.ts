@@ -9,12 +9,16 @@ import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { OperatingSystem, OS } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { mock } from '../../../../base/test/common/mock.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { DevContainerCloseConnectionNotification, DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayCloseNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { DevContainerCloseConnectionNotification, DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerGitCredentialRequestNotification, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayCloseNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerRespondToGitCredentialRequestExtensionMethod, DevContainerSetGitCredentialForwardingExtensionMethod, DevContainerStopExtensionMethod, IAgentHostExtensionCommandMap } from '../../common/agentHostExtensionProtocol.js';
 import type { IDevContainerAgentHostConnectResult } from '../../common/devContainerAgentHost.js';
 import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { DevContainerAgentHostProtocol, normalizeDevContainerWorkspaceFolder } from '../../node/devContainerAgentHostProtocol.js';
 import { MockDevContainerService } from '../common/mockDevContainerService.js';
+import { supportsAgentHostDevContainerGitCredentials } from '../../common/meta/agentHostDevContainersMeta.js';
+import type { InitializeResult } from '../../common/state/protocol/common/commands.js';
+import { DevContainerAgentHostProtocolClient } from '../../common/devContainerAgentHostProtocolClient.js';
 
 suite('DevContainerAgentHostProtocol', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -26,6 +30,49 @@ suite('DevContainerAgentHostProtocol', () => {
 		const protocol = store.add(new DevContainerAgentHostProtocol(requestTrust, (method, params) => notifications.push({ method, params }), service, new NullLogService()));
 		return { service, notifications, protocol };
 	}
+
+	test('credential forwarding is separately advertised and requires an owned live connection', async () => {
+		const { service, protocol } = setup();
+		await protocol.handleRequest(DevContainerConnectExtensionMethod, config);
+		await protocol.handleRequest(DevContainerSetGitCredentialForwardingExtensionMethod, { connectionId: config.connectionId, enabled: true });
+		await assert.rejects(protocol.handleRequest(DevContainerSetGitCredentialForwardingExtensionMethod, { connectionId: 'another-client', enabled: true })!, { code: AhpErrorCodes.NotFound });
+		await assert.rejects(protocol.handleRequest(DevContainerSetGitCredentialForwardingExtensionMethod, { connectionId: config.connectionId, enabled: 'on' })!, { code: JsonRpcErrorCodes.InvalidParams });
+		assert.deepStrictEqual({
+			forwarding: service.gitCredentialForwarding,
+			capabilities: [undefined, {}, { 'vscode.devContainers': true }, { 'vscode.devContainers.gitCredentials': true }, { 'vscode.devContainers.gitCredentials': 'true' }].map(meta =>
+				supportsAgentHostDevContainerGitCredentials(new class extends mock<InitializeResult>() {
+					override readonly _meta = meta;
+				}())),
+		}, {
+			forwarding: [{ connectionId: service.connects[0].connectionId, enabled: true }],
+			capabilities: [false, false, false, true, false],
+		});
+
+		test('round-trips deferred permission through the remote client without exposing another transport requests', async () => {
+			const service = store.add(new MockDevContainerService());
+			const protocol = store.add(new DevContainerAgentHostProtocol(async () => true, (method, params) => {
+				client.handleNotification(method, params);
+			}, service, new NullLogService()));
+			const client = store.add(new DevContainerAgentHostProtocolClient(async <M extends keyof IAgentHostExtensionCommandMap>(method: M, params: IAgentHostExtensionCommandMap[M]['params']) =>
+				await protocol.handleRequest(method, params) as IAgentHostExtensionCommandMap[M]['result']));
+			const requests: object[] = [];
+			store.add(client.onDidRequestGitCredentials(request => requests.push(request)));
+			await client.connect(config);
+			const internalConnectionId = service.connects[0].connectionId;
+			service.gitCredentialRequest.fire({ connectionId: 'unrelated', requestId: 'hidden' });
+			service.gitCredentialRequest.fire({ connectionId: internalConnectionId, requestId: 'pending' });
+			await client.respondToGitCredentialRequest(config.connectionId, 'pending', true);
+			await assert.rejects(protocol.handleRequest(DevContainerRespondToGitCredentialRequestExtensionMethod, { connectionId: 'unrelated', requestId: 'pending', allowed: true })!, { code: AhpErrorCodes.NotFound });
+			await assert.rejects(protocol.handleRequest(DevContainerRespondToGitCredentialRequestExtensionMethod, { connectionId: config.connectionId, requestId: 'pending', allowed: 'on' })!, { code: JsonRpcErrorCodes.InvalidParams });
+			assert.throws(() => client.handleNotification(DevContainerGitCredentialRequestNotification, { connectionId: config.connectionId, requestId: false }), /Invalid/);
+			await client.disconnect(config.connectionId);
+			client.handleNotification(DevContainerGitCredentialRequestNotification, { connectionId: config.connectionId, requestId: 'stale' });
+			assert.deepStrictEqual({ requests, responses: service.gitCredentialResponses }, {
+				requests: [{ connectionId: config.connectionId, requestId: 'pending' }],
+				responses: [{ connectionId: internalConnectionId, requestId: 'pending', allowed: true }],
+			});
+		});
+	});
 
 	test('normalizes URI paths using the remote OS rather than the renderer OS', () => {
 		const paths = ['/home/user/repo', '/c:/repo', '/C:/repo with spaces', '//server/share/repo', 'C:\\repo', '/repo\\literal-backslash'];

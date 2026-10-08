@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { EventEmitter as NodeEventEmitter } from 'events';
-import { spawnSync } from 'child_process';
+import { EventEmitter as NodeEventEmitter, once } from 'events';
+import { ChildProcessWithoutNullStreams, spawn, spawnSync } from 'child_process';
 import { existsSync } from 'fs';
-import { lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink } from 'fs/promises';
+import { lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { join } from '../../../../base/common/path.js';
 import { isLinux } from '../../../../base/common/platform.js';
@@ -23,7 +24,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
-import { VSCODE_REMOTE_CONTAINERS_SESSION_ENV } from '../../common/devContainerAgentHost.js';
+import { IDevContainerGitCredentialRequest, VSCODE_REMOTE_CONTAINERS_SESSION_ENV } from '../../common/devContainerAgentHost.js';
 import { IRequestService } from '../../../request/common/request.js';
 import { IGitHubService } from '../../../github/common/githubService.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -32,6 +33,7 @@ import { ISshExec, shellEscape } from '../../node/sshRemoteAgentHostHelpers.js';
 import { devContainerServerCacheMount } from '../../node/devContainerServerCache.js';
 import { DevContainerSample } from '../../common/devContainerSamples.js';
 import { IPreparedDevContainerSample } from '../../node/devContainerSamples.js';
+import { getDevContainerGitCredentialRelayArgs } from '../../node/devContainerGitCredentialRelay.js';
 
 class TestRelay implements IDevContainerRelay {
 	readonly sent: string[] = [];
@@ -97,6 +99,9 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 	private _renameCalls = 0;
 	private readonly _firstRenameStarted = new DeferredPromise<void>();
 	private readonly _secondRenameFinished = new DeferredPromise<void>();
+	gitCredentialEnvironment: NodeJS.ProcessEnv | undefined;
+	gitCredentialProcess: ChildProcessWithoutNullStreams | undefined;
+	readonly hostCredentialInputs: string[] = [];
 
 	constructor(
 		private readonly _libc = '',
@@ -235,8 +240,12 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 		return Promise.resolve(this.hostDirectoryOwnedByCurrentUser);
 	}
 
-	protected override _runLocalCommand(command: string, args: readonly string[]): Promise<{ stdout: string; stderr: string; code: number }> {
+	protected override _runLocalCommand(command: string, args: readonly string[], _environment: NodeJS.ProcessEnv, _token: CancellationToken, _cwd?: string, input?: string): Promise<{ stdout: string; stderr: string; code: number }> {
 		this.localCommands.push({ command, args });
+		if (command === 'git' && args.includes('fill') && input !== undefined) {
+			this.hostCredentialInputs.push(input);
+			return Promise.resolve({ stdout: 'username=forwarded-user\npassword=fixture-secret\n\n', stderr: '', code: 0 });
+		}
 		if (command === 'git' && args[0] === 'config' && args[1] === '--global' && args[2] === '--get') {
 			const value = this.hostGitConfig.get(args[3]);
 			return Promise.resolve({
@@ -256,6 +265,18 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 
 	createDevContainerExec(connectionId: string, workspaceFolder: string, token: CancellationToken): ISshExec {
 		return super._createExec(connectionId, workspaceFolder, token);
+	}
+
+	requestGitCredentialPermission(connectionId: string, token: CancellationToken): Promise<void> {
+		return this._requestGitCredentialPermission(connectionId, token);
+	}
+
+	protected override _spawnDevContainer(args: readonly string[], environment: NodeJS.ProcessEnv): ChildProcessWithoutNullStreams {
+		if (!this.gitCredentialEnvironment) {
+			return super._spawnDevContainer(args, environment);
+		}
+		this.gitCredentialProcess = spawn(process.execPath, [...getDevContainerGitCredentialRelayArgs()], { env: this.gitCredentialEnvironment, stdio: 'pipe' });
+		return this.gitCredentialProcess;
 	}
 
 	protected override _createExec(): ISshExec {
@@ -357,6 +378,87 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 
 suite('Dev Container Agent Host Main Service', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('host credential reads wait for permission on each real helper request', async () => {
+		const directory = await mkdtemp(join(tmpdir(), 'vscode-git-permission-test-'));
+		const environment = {
+			...process.env,
+			ELECTRON_RUN_AS_NODE: '1',
+			GIT_CONFIG_GLOBAL: join(directory, 'gitconfig'),
+			GIT_CONFIG_NOSYSTEM: '1',
+			GIT_TERMINAL_PROMPT: '0',
+			GIT_ASKPASS: '',
+			HOME: directory,
+			XDG_CONFIG_HOME: directory,
+		};
+		const service = store.add(new TestDevContainerAgentHostMainService());
+		service.gitCredentialEnvironment = environment;
+		const config = { connectionId: 'credentials', workspaceFolder: '/workspace', name: 'Project' };
+		const results: { allowed: boolean; beforeApproval: number; code: number | null; forwarded: boolean }[] = [];
+		const input = 'protocol=https\nhost=example.invalid\n\n';
+		try {
+			await writeFile(environment.GIT_CONFIG_GLOBAL, '');
+			await service.connect(config);
+			await service.setGitCredentialForwarding(config.connectionId, true);
+			for (const allowed of [true, false]) {
+				const permission = new DeferredPromise<IDevContainerGitCredentialRequest>();
+				const listener = service.onDidRequestGitCredentials(request => void permission.complete(request));
+				try {
+					const git = spawn('git', ['credential', 'fill'], { env: environment, cwd: directory, stdio: 'pipe' });
+					store.add(toDisposable(() => git.kill()));
+					let stdout = '';
+					git.stdout.on('data', data => stdout += data.toString());
+					git.stderr.resume();
+					const closed = once(git, 'close');
+					git.stdin.end(input);
+					const request = await permission.p;
+					const beforeApproval = service.hostCredentialInputs.length;
+					await service.respondToGitCredentialRequest(request.connectionId, request.requestId, allowed);
+					const [code] = await closed;
+					results.push({ allowed, beforeApproval, code, forwarded: stdout.includes('password=fixture-secret') });
+				} finally {
+					listener.dispose();
+				}
+			}
+			assert.deepStrictEqual({ results, reads: service.hostCredentialInputs }, {
+				results: [
+					{ allowed: true, beforeApproval: 0, code: 0, forwarded: true },
+					{ allowed: false, beforeApproval: 1, code: 128, forwarded: false },
+				],
+				reads: [input],
+			});
+		} finally {
+			const processClosed = service.gitCredentialProcess && once(service.gitCredentialProcess, 'close');
+			await service.disconnect(config.connectionId);
+			if (processClosed) { await processClosed; }
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
+	test('permission responses cannot approve another connection or a canceled request', async () => {
+		const service = store.add(new TestDevContainerAgentHostMainService());
+		const tokenSource = store.add(new CancellationTokenSource());
+		let request: IDevContainerGitCredentialRequest | undefined;
+		store.add(service.onDidRequestGitCredentials(event => request = event));
+		const permission = service.requestGitCredentialPermission('connection', tokenSource.token);
+		const rejected = assert.rejects(permission, CancellationError);
+		assert.ok(request);
+		await assert.rejects(service.respondToGitCredentialRequest('another-connection', request.requestId, true), /not pending/);
+		tokenSource.cancel();
+		await rejected;
+		await assert.rejects(service.respondToGitCredentialRequest('connection', request.requestId, true), /not pending/);
+	});
+
+	test('unanswered Git credential permission requests time out without authorization', async () => {
+		await runWithFakedTimers({}, async () => {
+			const service = store.add(new TestDevContainerAgentHostMainService());
+			let request: IDevContainerGitCredentialRequest | undefined;
+			store.add(service.onDidRequestGitCredentials(event => request = event));
+			await assert.rejects(service.requestGitCredentialPermission('connection', CancellationToken.None), /timed out/);
+			assert.ok(request);
+			await assert.rejects(service.respondToGitCredentialRequest('connection', request.requestId, true), /not pending/);
+		});
+	});
 
 	test('parses the final Dev Container CLI result', () => {
 		assert.deepStrictEqual(parseDevContainerUpResult([

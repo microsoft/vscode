@@ -10,6 +10,7 @@ import { IDevContainerRepository, IDevContainerSampleSource } from './devContain
 
 export const DEV_CONTAINER_AGENT_HOST_CHANNEL = 'devContainerAgentHost';
 export const VSCODE_REMOTE_CONTAINERS_SESSION_ENV = 'VSCODE_REMOTE_CONTAINERS_SESSION';
+export const DEV_CONTAINER_GIT_CREDENTIAL_REQUEST_TIMEOUT_MS = 300_000;
 
 /** Inputs required to start or reuse a workspace's Dev Container Agent Host. */
 export interface IDevContainerAgentHostWorkspaceConfig {
@@ -40,6 +41,12 @@ export interface IDevContainerAgentHostOutput {
 	readonly data: string;
 }
 
+/** Permission request emitted before the host reads credentials for a container lookup. */
+export interface IDevContainerGitCredentialRequest {
+	readonly connectionId: string;
+	readonly requestId: string;
+}
+
 export const IDevContainerAgentHostMainService = createDecorator<IDevContainerAgentHostMainService>('devContainerAgentHostMainService');
 
 /** Host-side service that owns Dev Container CLI processes and protocol relays. */
@@ -49,10 +56,14 @@ export interface IDevContainerAgentHostMainService extends IRelayChannel {
 	readonly onDidCloseConnection: Event<string>;
 	/** Streaming stdout and stderr from Dev Container CLI processes. */
 	readonly onDidOutput: Event<IDevContainerAgentHostOutput>;
+	readonly onDidRequestGitCredentials: Event<IDevContainerGitCredentialRequest>;
 
 	/** Whether Docker can be resolved from the user's shell environment. */
 	isDockerAvailable(): Promise<boolean>;
 	connect(config: IDevContainerAgentHostConfig): Promise<IDevContainerAgentHostConnectResult>;
+	/** Enables or revokes HTTPS Git credential forwarding for this connection's container. */
+	setGitCredentialForwarding(connectionId: string, enabled: boolean): Promise<void>;
+	respondToGitCredentialRequest(connectionId: string, requestId: string, allowed: boolean): Promise<void>;
 	disconnect(connectionId: string): Promise<void>;
 	stopContainer(source: string | IDevContainerSampleSource): Promise<boolean>;
 	removeContainer(source: string | IDevContainerSampleSource): Promise<boolean>;

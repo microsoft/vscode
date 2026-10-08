@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { vBoolean, vEnum, vObj, vOptionalProp, vString, type ValidatorType } from '../../../base/common/validation.js';
-import type { IDevContainerAgentHostConnectResult } from './devContainerAgentHost.js';
+import type { IDevContainerAgentHostConnectResult, IDevContainerGitCredentialRequest } from './devContainerAgentHost.js';
 import type { AgentHostDebugLogsArtifactKind, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult } from './agentService.js';
 import type { InitializeResult } from './state/protocol/common/commands.js';
 import type { McpAuthRequirement } from './state/protocol/channels-session/state.js';
 import { AgentHostArtifactRemovalCapabilityMetaKey } from './meta/agentHostArtifactRemovalMeta.js';
 import { AgentHostSessionImportCapabilityMetaKey } from './meta/agentHostSessionImportMeta.js';
-import { AgentHostDevContainersCapabilityMetaKey } from './meta/agentHostDevContainersMeta.js';
+import { AgentHostDevContainersCapabilityMetaKey, AgentHostDevContainerGitCredentialsCapabilityMetaKey } from './meta/agentHostDevContainersMeta.js';
 import { AgentHostTimingCapabilityMetaKey, ChatUserInteractionCapability } from './meta/agentHostTimingMeta.js';
 import type { IAgentHostFirstResponseDiagnostic } from './otel/agentHostTiming.js';
 import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
@@ -26,12 +26,18 @@ export const DevContainerDisconnectExtensionMethod = 'vscode/devContainers/disco
 export const DevContainerStopExtensionMethod = 'vscode/devContainers/stop';
 export const DevContainerRemoveExtensionMethod = 'vscode/devContainers/remove';
 export const DevContainerRelaySendExtensionMethod = 'vscode/devContainers/relaySend';
+export const DevContainerSetGitCredentialForwardingExtensionMethod = 'vscode/devContainers/setGitCredentialForwarding';
+export const DevContainerRespondToGitCredentialRequestExtensionMethod = 'vscode/devContainers/respondToGitCredentialRequest';
+export const DevContainerGitCredentialRequestNotification = 'vscode/devContainers/gitCredentialRequest';
 export const DevContainerRelayMessageNotification = 'vscode/devContainers/relayMessage';
 export const DevContainerRelayCloseNotification = 'vscode/devContainers/relayClose';
 export const DevContainerCloseConnectionNotification = 'vscode/devContainers/closeConnection';
 export const DevContainerOutputNotification = 'vscode/devContainers/output';
 
 export const devContainerConnectionParamsValidator = vObj({ connectionId: vString() });
+export const devContainerGitCredentialForwardingParamsValidator = vObj({ connectionId: vString(), enabled: vBoolean() });
+export const devContainerGitCredentialRequestValidator = vObj({ connectionId: vString(), requestId: vString() });
+export const devContainerGitCredentialResponseValidator = vObj({ connectionId: vString(), requestId: vString(), allowed: vBoolean() });
 export const devContainerConnectParamsValidator = vObj({ connectionId: vString(), workspaceFolder: vString(), name: vString(), resume: vOptionalProp(vBoolean()) });
 export const devContainerWorkspaceParamsValidator = vObj({ workspaceFolder: vString() });
 export const devContainerRelayMessageValidator = vObj({ connectionId: vString(), data: vString() });
@@ -69,6 +75,7 @@ export interface IAgentHostExtensionInitializeResultMeta extends Record<string, 
 	readonly [AgentHostArtifactRemovalCapabilityMetaKey]?: true;
 	readonly [AgentHostSessionImportCapabilityMetaKey]?: true;
 	readonly [AgentHostDevContainersCapabilityMetaKey]?: true;
+	readonly [AgentHostDevContainerGitCredentialsCapabilityMetaKey]?: true;
 	readonly [AgentHostTimingCapabilityMetaKey]?: true;
 	readonly [ChatUserInteractionCapability]?: true;
 	/** Present when Automation execution does not require a client activation or migration handshake. */
@@ -90,6 +97,7 @@ export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true
 		[AgentHostArtifactRemovalCapabilityMetaKey]: artifactRemoval ? true : undefined,
 		...(sessionImport ? { [AgentHostSessionImportCapabilityMetaKey]: true as const } : {}),
 		...(devContainers ? { [AgentHostDevContainersCapabilityMetaKey]: true as const } : {}),
+		...(devContainers ? { [AgentHostDevContainerGitCredentialsCapabilityMetaKey]: true as const } : {}),
 		...(timing ? { [AgentHostTimingCapabilityMetaKey]: true as const } : {}),
 		...(timing ? { [ChatUserInteractionCapability]: true as const } : {}),
 	};
@@ -121,6 +129,8 @@ export const removeSessionArtifactParamsValidator = vObj({
 export const importSessionParamsValidator = vObj({ session: vString() });
 
 export interface IAgentHostExtensionCommandMap {
+	[DevContainerSetGitCredentialForwardingExtensionMethod]: { params: ValidatorType<typeof devContainerGitCredentialForwardingParamsValidator>; result: void };
+	[DevContainerRespondToGitCredentialRequestExtensionMethod]: { params: ValidatorType<typeof devContainerGitCredentialResponseValidator>; result: void };
 	[ImportSessionExtensionMethod]: { params: ValidatorType<typeof importSessionParamsValidator>; result: void };
 	[ReportAgentHostFirstResponseExtensionMethod]: { params: IAgentHostFirstResponseDiagnostic; result: void };
 	[ReportChatUserInteractionExtensionMethod]: { params: IChatUserInteractionTiming; result: void };
@@ -174,6 +184,7 @@ export interface IAgentHostExtensionCommandMap {
 }
 
 export interface IAgentHostExtensionNotificationMap {
+	[DevContainerGitCredentialRequestNotification]: IDevContainerGitCredentialRequest;
 	[DevContainerRelayMessageNotification]: ValidatorType<typeof devContainerRelayMessageValidator>;
 	[DevContainerRelayCloseNotification]: ValidatorType<typeof devContainerConnectionParamsValidator>;
 	[DevContainerCloseConnectionNotification]: ValidatorType<typeof devContainerConnectionParamsValidator>;

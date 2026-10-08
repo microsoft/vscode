@@ -12,7 +12,7 @@ import { URI, uriToFsPath } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import type { IValidator } from '../../../base/common/validation.js';
 import { ILogService } from '../../log/common/log.js';
-import { DevContainerCloseConnectionNotification, DevContainerConnectExtensionMethod, devContainerConnectParamsValidator, devContainerConnectionParamsValidator, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayCloseNotification, DevContainerRelayMessageNotification, devContainerRelayMessageValidator, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, devContainerWorkspaceParamsValidator, type IAgentHostExtensionNotificationMap } from '../common/agentHostExtensionProtocol.js';
+import { DevContainerCloseConnectionNotification, DevContainerConnectExtensionMethod, devContainerConnectParamsValidator, devContainerConnectionParamsValidator, DevContainerDisconnectExtensionMethod, DevContainerGitCredentialRequestNotification, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayCloseNotification, DevContainerRelayMessageNotification, devContainerRelayMessageValidator, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerRespondToGitCredentialRequestExtensionMethod, DevContainerSetGitCredentialForwardingExtensionMethod, devContainerGitCredentialForwardingParamsValidator, devContainerGitCredentialResponseValidator, DevContainerStopExtensionMethod, devContainerWorkspaceParamsValidator, type IAgentHostExtensionNotificationMap } from '../common/agentHostExtensionProtocol.js';
 import { IDevContainerAgentHostMainService, type IDevContainerAgentHostWorkspaceConfig, type IDevContainerAgentHostConnectResult } from '../common/devContainerAgentHost.js';
 import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 
@@ -48,6 +48,7 @@ export class DevContainerAgentHostProtocol extends Disposable {
 		super();
 		this._register(_service.onDidRelayMessage(event => this._forward(DevContainerRelayMessageNotification, event)));
 		this._register(_service.onDidOutput(event => this._forward(DevContainerOutputNotification, event)));
+		this._register(_service.onDidRequestGitCredentials(event => this._forward(DevContainerGitCredentialRequestNotification, event)));
 		this._register(_service.onDidRelayClose(id => this._forward(DevContainerRelayCloseNotification, { connectionId: id })));
 		this._register(_service.onDidCloseConnection(id => {
 			this._forward(DevContainerCloseConnectionNotification, { connectionId: id });
@@ -66,6 +67,8 @@ export class DevContainerAgentHostProtocol extends Disposable {
 			case DevContainerStopExtensionMethod:
 			case DevContainerRemoveExtensionMethod:
 			case DevContainerRelaySendExtensionMethod:
+			case DevContainerSetGitCredentialForwardingExtensionMethod:
+			case DevContainerRespondToGitCredentialRequestExtensionMethod:
 				return this._handleRequest(method, params);
 			default:
 				return undefined;
@@ -115,6 +118,24 @@ export class DevContainerAgentHostProtocol extends Disposable {
 					throw new ProtocolError(AhpErrorCodes.NotFound, 'Dev Container relay is not connected');
 				}
 				await this._service.relaySend(connection.id, data);
+				return;
+			}
+			case DevContainerSetGitCredentialForwardingExtensionMethod: {
+				const { connectionId, enabled } = this._validate(devContainerGitCredentialForwardingParamsValidator, params);
+				const connection = this._getConnection(connectionId);
+				if (!connection.started) {
+					throw new ProtocolError(AhpErrorCodes.NotFound, 'Dev Container relay is not connected');
+				}
+				await this._service.setGitCredentialForwarding(connection.id, enabled);
+				return;
+			}
+			case DevContainerRespondToGitCredentialRequestExtensionMethod: {
+				const { connectionId, requestId, allowed } = this._validate(devContainerGitCredentialResponseValidator, params);
+				const connection = this._getConnection(connectionId);
+				if (!connection.started) {
+					throw new ProtocolError(AhpErrorCodes.NotFound, 'Dev Container relay is not connected');
+				}
+				await this._service.respondToGitCredentialRequest(connection.id, requestId, allowed);
 				return;
 			}
 			default:

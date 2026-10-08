@@ -19,6 +19,7 @@ export const DevContainerAgentHostEnabledSettingId = 'chat.agentHost.devContaine
 export const DevContainerSamplesEnabledSettingId = 'chat.agentHost.devContainer.samples.enabled';
 
 export const DevContainerIdleTimeoutSettingId = 'chat.agentHost.devContainer.idleTimeout';
+export const DevContainerGitCredentialForwardingSettingId = 'chat.agentHost.devContainer.gitCredentialForwarding';
 
 /** Hidden experimental setting that enables combining Dev Container execution with a new worktree. */
 export const DevContainerWorktreeEnabledSettingId = 'chat.agentHost.devContainer.worktree.enabled';
