@@ -77,6 +77,8 @@ export async function createManagedPluginMarketplace(
 	await runGit(sourceDirectory, 'init', '--initial-branch=main');
 	await runGit(sourceDirectory, 'config', 'user.name', 'Agent Host E2E');
 	await runGit(sourceDirectory, 'config', 'user.email', 'agent-host-e2e@example.invalid');
+	const { stdout: gitExecPath } = await execFileAsync('git', ['--exec-path']);
+	const gitHttpBackend = join(gitExecPath.trim(), process.platform === 'win32' ? 'git-http-backend.exe' : 'git-http-backend');
 
 	let published = false;
 	let nextRequestGate: IRequestGate | undefined;
@@ -140,7 +142,7 @@ export async function createManagedPluginMarketplace(
 			CONTENT_LENGTH: String(body.length),
 		};
 		return new Promise<Buffer>((resolve, reject) => {
-			const child = spawn('git', ['http-backend'], { env: environment, stdio: ['pipe', 'pipe', 'pipe'] });
+			const child = spawn(gitHttpBackend, [], { env: environment, stdio: ['pipe', 'pipe', 'pipe'] });
 			const stdout: Buffer[] = [];
 			const stderr: Buffer[] = [];
 			child.stdout.on('data', chunk => stdout.push(Buffer.from(chunk)));
