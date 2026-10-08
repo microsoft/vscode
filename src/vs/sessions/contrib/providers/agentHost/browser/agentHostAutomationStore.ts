@@ -284,9 +284,15 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 					cancel();
 				}
 			}
+			const sessionResolutionChanged = Event.any(this._boundaryMapper?.onDidChangeSessionResolution ?? Event.None, listener => token.onCancellationRequested(listener));
+			const hasResolvedSession = (run: AutomationRunSummary) => run.primarySession !== undefined && this._projectSessionResource(run.primarySession) !== undefined;
+			await this._waitForCatalog(state => state.entries.some(automation => automation.runs.some(run =>
+				run.resource === result.resource && (hasResolvedSession(run) || isTerminalRun(run) || token.isCancellationRequested)
+			)), undefined, null, sessionResolutionChanged);
+			// Session discovery can arrive after the host has already completed the run.
 			const catalog = await this._waitForCatalog(state => state.entries.some(automation => automation.runs.some(run =>
-				run.resource === result.resource && (run.primarySession !== undefined || isTerminalRun(run))
-			)), undefined, null);
+				run.resource === result.resource && (run.primarySession === undefined || hasResolvedSession(run) || token.isCancellationRequested)
+			)), undefined, MUTATION_TIMEOUT_MS, sessionResolutionChanged);
 			const run = catalog.entries.flatMap(automation => automation.runs).find(candidate => candidate.resource === result.resource);
 			if (!run) {
 				throw new Error(`Automation run did not appear in the authoritative catalogue: ${result.resource}`);
@@ -727,6 +733,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		predicate: (catalog: AutomationState) => boolean,
 		action?: { readonly type: ActionType; readonly resource: string },
 		timeoutMs: number | null = MUTATION_TIMEOUT_MS,
+		onDidChange: Event<void> = Event.None,
 	): Promise<AutomationState> {
 		if (this._store.isDisposed) {
 			return Promise.reject(new CancellationError());
@@ -770,6 +777,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 				}
 			};
 			store.add(this._catalog.onDidChange(check));
+			store.add(onDidChange(check));
 			if (this._catalog.onDidError) {
 				store.add(this._catalog.onDidError(error => finish(error)));
 			}
