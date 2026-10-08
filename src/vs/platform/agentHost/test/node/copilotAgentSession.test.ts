@@ -161,6 +161,7 @@ class MockCopilotSession {
 	onCanvasListOpen: (() => void) | undefined;
 	extensionReloadCalls = 0;
 	extensionReloadError: Error | undefined;
+	extensionReconcileCalls = 0;
 	readonly eventLogReadRequests: Parameters<CopilotSession['rpc']['eventLog']['read']>[0][] = [];
 	eventLogReadGate: Promise<void> | undefined;
 	readonly sendRequests: unknown[] = [];
@@ -500,6 +501,10 @@ class MockCopilotSession {
 				if (this.extensionReloadError) {
 					throw this.extensionReloadError;
 				}
+			},
+			reconcile: async () => {
+				this.extensionReconcileCalls++;
+				return { extensions: this.extensions };
 			},
 		},
 		canvas: {
@@ -4004,6 +4009,53 @@ suite('CopilotAgentSession', () => {
 
 		await assert.rejects(() => runtime.reloadExtensions(), /reload failed/);
 		assert.strictEqual(mockSession.extensionReloadCalls, 2);
+		session.dispose();
+	});
+
+	test('reconciles extension membership and reads canvas inventory through the live SDK session', async () => {
+		const { session, mockSession } = await createAgentSession(disposables, {
+			configureMockSession: mock => {
+				mock.canvases.push({
+					canvasId: 'preview',
+					extensionId: 'user:preview',
+					extensionName: 'Preview',
+					displayName: 'Preview Canvas',
+					description: 'Interactive preview.',
+					inputSchema: { type: 'object' },
+					actions: [{ name: 'refresh' }],
+				});
+			},
+		});
+
+		await session.reconcileExtensions();
+		const initial = await session.listCanvases();
+		const refreshed = await session.refreshCanvases();
+
+		assert.deepStrictEqual({
+			reconcileCalls: mockSession.extensionReconcileCalls,
+			initial,
+			refreshed,
+		}, {
+			reconcileCalls: 2,
+			initial: [{
+				canvasId: 'preview',
+				extensionId: 'user:preview',
+				extensionName: 'Preview',
+				displayName: 'Preview Canvas',
+				description: 'Interactive preview.',
+				requiresInput: true,
+				actionCount: 1,
+			}],
+			refreshed: [{
+				canvasId: 'preview',
+				extensionId: 'user:preview',
+				extensionName: 'Preview',
+				displayName: 'Preview Canvas',
+				description: 'Interactive preview.',
+				requiresInput: true,
+				actionCount: 1,
+			}],
+		});
 		session.dispose();
 	});
 

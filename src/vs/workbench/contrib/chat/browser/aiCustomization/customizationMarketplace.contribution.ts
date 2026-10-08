@@ -77,7 +77,7 @@ class CustomizationDiscoveryAccessibleView implements IAccessibleViewImplementat
 			() => this.type === AccessibleViewType.Help ? welcomePage.isDiscover || isDetail ? [
 				localize('customizationDiscovery.help.overview', "Browse customizations searches installed agents, skills, instructions, prompts, hooks, MCP servers, and plugins, and can browse available marketplace items."),
 				localize('customizationDiscovery.help.descriptionLinks', "The customization type links below the heading open their respective management sections."),
-				localize('customizationDiscovery.help.search', "Type words or use @installed, @type:skill, @type:mcp, and @type:plugin. The search filter menu updates the same query and filters can be combined."),
+				localize('customizationDiscovery.help.search', "Type words or use @installed, @type:skill, @type:mcp, @type:plugin, and @type:canvas. The search filter menu updates the same query and filters can be combined."),
 				localize('customizationDiscovery.help.ranking', "Available search results are ordered by source-assigned relevance, not trust or quality. Feed priority breaks equal relevance scores. Browsing without search text shows higher-priority custom entries first and interleaves entries at the same priority while preserving each catalog's order."),
 				localize('customizationDiscovery.help.browse', "Clear the search to browse. Show All on a section applies its type filter and moves to search results."),
 				localize('customizationDiscovery.help.sources', "Use the source picker to search all available marketplace feeds or one feed. Configure Marketplaces opens a quick pick where you can add and manage plugin marketplaces."),
@@ -90,7 +90,7 @@ class CustomizationDiscoveryAccessibleView implements IAccessibleViewImplementat
 				localize('customizationDiscovery.help.sourceRecovery', "Sources that need the same GitHub account share one Sign In action instead of showing duplicate prompts. Sign-in starts only when you choose it; cancelling keeps the other results available. Additional Connector permission is requested only when you explicitly connect, reconnect, disconnect, or check a connection."),
 				localize('customizationDiscovery.help.view', "Use {0} to read the current browse or search results in the Accessible View.", '<keybinding:editor.action.accessibleView>'),
 			].join('\n\n') : [
-				localize('customizationOverview.help.overview', "The Customizations overview shows categories you can open to manage agents, skills, MCP servers, plugins, and other customizations."),
+				localize('customizationOverview.help.overview', "The Customizations overview shows categories you can open to manage agents, skills, MCP servers, plugins, extensions, canvases, and other customizations."),
 				localize('customizationOverview.help.navigation', "Use Tab and Shift+Tab to navigate the category cards, and Enter or Space to open a category."),
 				localize('customizationOverview.help.migrations', "When customizations need migration, choose Review Customization Migrations to see what will change."),
 			].join('\n\n') : editor instanceof AICustomizationManagementEditor ? editor.getCustomizationDiscoveryAccessibilityContent() : welcomePage.getAccessibilityContent(),

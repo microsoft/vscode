@@ -4767,6 +4767,34 @@ export class CopilotAgentSession extends Disposable {
 		this._logService.info(`[Copilot:${this.sessionId}] Extensions reloaded`);
 	}
 
+	async reconcileExtensions(): Promise<void> {
+		await this._awaitControlPlaneRpc('rpc.extensions.reconcile', this._wrapper.session.rpc.extensions.reconcile());
+	}
+
+	async listCanvases(): Promise<readonly IAgentCanvasInfo[]> {
+		if (!this._wrapper.canvasRuntimeEnabled) {
+			throw new Error('Canvases are disabled for this session.');
+		}
+		const result = await this._awaitControlPlaneRpc('rpc.canvas.list', this._wrapper.session.rpc.canvas.list());
+		return result.canvases.map(canvas => ({
+			canvasId: canvas.canvasId,
+			extensionId: canvas.extensionId,
+			...(canvas.extensionName ? { extensionName: canvas.extensionName } : {}),
+			displayName: canvas.displayName,
+			description: canvas.description,
+			requiresInput: canvas.inputSchema !== undefined,
+			actionCount: canvas.actions?.length ?? 0,
+		}));
+	}
+
+	async refreshCanvases(): Promise<readonly IAgentCanvasInfo[]> {
+		if (!this._wrapper.canvasRuntimeEnabled) {
+			throw new Error('Canvases are disabled for this session.');
+		}
+		await this.reconcileExtensions();
+		return this.listCanvases();
+	}
+
 	/**
 	 * Build a read-only reminder naming each host-created snapshot attachment
 	 * (pasted content, unsaved editor, git: diff, …) so the model treats the
