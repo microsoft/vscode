@@ -32,17 +32,21 @@ import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { URI } from '../../../../base/common/uri.js';
 import { basename } from '../../../../base/common/resources.js';
+import { DEFAULT_MAX_CHUNK_BYTES, Reassembler } from '../../common/webPubSub/chunking.js';
+import { parseInbound } from '../../common/webPubSub/framing.js';
+import type { ProtocolMessage } from '../../common/state/sessionProtocol.js';
 
 const prefix = 'user.owner.env.environment';
 const order = BigInt('0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551');
 
 class FakeWpsSocket extends EventEmitter implements IMissionControlSocket {
-	readonly publishes: { group: string; data: { kind: string; data: object } }[] = [];
+	readonly publishes: { group: string; data: { kind: string; data: object; items?: object[]; generation?: number } }[] = [];
 	readonly joins: string[] = [];
 	readonly acknowledgements: number[] = [];
 	readonly publishAckIds: number[] = [];
 	readonly userEvents: { readonly event: string; readonly data: object }[] = [];
 	closed = false;
+	failBatchPublish = false;
 	constructor(private readonly _ackSuccess = true, private readonly _manualPublishAcks = false) { super(); }
 
 	send(data: string): void {
@@ -57,6 +61,9 @@ class FakeWpsSocket extends EventEmitter implements IMissionControlSocket {
 			this.joins.push(frame.group);
 		}
 		if (frame.type === 'sendToGroup' && frame.group && frame.data) {
+			if (this.failBatchPublish && frame.data.kind === 'batch') {
+				throw new Error('Batch socket send failed');
+			}
 			this.publishes.push({ group: frame.group, data: frame.data });
 			if (frame.ackId) {
 				this.publishAckIds.push(frame.ackId);
@@ -71,7 +78,11 @@ class FakeWpsSocket extends EventEmitter implements IMissionControlSocket {
 	}
 
 	deliver(group: string, data: object, sequenceId: number): void {
-		this.emit('message', JSON.stringify({ type: 'message', from: 'group', group, dataType: 'json', data: { kind: 'message', data }, sequenceId }));
+		this.deliverEnvelope(group, { kind: 'message', data }, sequenceId);
+	}
+
+	deliverEnvelope(group: string, data: object, sequenceId: number, fromUserId?: string): void {
+		this.emit('message', JSON.stringify({ type: 'message', from: 'group', group, dataType: 'json', data, sequenceId, fromUserId }));
 	}
 
 	close(): void {
@@ -508,6 +519,445 @@ suite('Mission Control WPS', () => {
 		socket.deliver(`${prefix}.client.client-a.to-host`, { jsonrpc: '2.0', id: 2, method: 'initialize', params: { clientId: 'client-a' } }, 3);
 		assert.strictEqual(lanes.length, 2);
 		assert.deepStrictEqual(socket.publishes.map(frame => frame.data.kind), ['closed', 'message']);
+	});
+
+	suite('negotiated host batching', () => {
+		const response = (id: number, result: string | null = null) => ({ jsonrpc: '2.0' as const, id, result });
+
+		async function fixture() {
+			const { key, signed } = signingFixture();
+			const socket = new FakeWpsSocket(true, true);
+			const errors: string[] = [];
+			const lanes: IProtocolTransport[] = [];
+			const received: ProtocolMessage[] = [];
+			const server = store.add(new MissionControlProtocolServer(
+				{ url: 'ws://127.0.0.1/fake', access_token: 'fake-token', groups: { control: `${prefix}.control` } },
+				'owner', 'environment', new MissionControlControlVerifier('environment', 'owner', [key]),
+				() => socket, error => errors.push(error.message),
+			));
+			store.add(server.onConnection(lane => {
+				lanes.push(lane);
+				store.add(lane.onMessage(message => received.push(message)));
+			}));
+			const ready = server.connect();
+			socket.emit('message', JSON.stringify({ type: 'system', event: 'connected' }));
+			await ready;
+			let sequence = 0;
+			const deliver = (group: string, data: object, fromUserId?: string) => socket.deliverEnvelope(group, data, ++sequence, fromUserId);
+			const open = (clientId = 'client-a') => {
+				deliver(`${prefix}.control`, { kind: 'message', data: signed(clientId, randomUUID()) });
+				return lanes[lanes.length - 1];
+			};
+			const advertise = (clientId = 'client-a', accepts: readonly string[] = ['batch']) =>
+				deliver(`${prefix}.client.${clientId}.to-host`, { kind: 'capabilities', accepts }, 'owner');
+			const ack = (index: number, success = true, error?: string) =>
+				socket.emit('message', JSON.stringify({ type: 'ack', ackId: socket.publishAckIds[index], success, error: error ? { name: error, message: error } : undefined }));
+			const drain = () => {
+				for (let index = 0; index < socket.publishAckIds.length; index++) {
+					ack(index);
+				}
+			};
+			return { server, socket, errors, lanes, received, deliver, open, advertise, ack, drain };
+		}
+
+		test('sends immediately and packs only already-queued raw messages under one acknowledgement', async () => {
+			const f = await fixture();
+			const lane = f.open();
+			f.advertise();
+			lane.send(response(0));
+			lane.send(response(1));
+			lane.send(response(2));
+			const beforeAck = f.socket.publishes.map(frame => frame.data.kind);
+			f.ack(0);
+			lane.send(response(3));
+			const beforeBatchAck = f.socket.publishes.length;
+			f.ack(1);
+			const generation = f.socket.publishes[0].data.generation;
+			assert.deepStrictEqual({
+				beforeAck, beforeBatchAck, received: f.received, errors: f.errors,
+				published: f.socket.publishes,
+			}, {
+				beforeAck: ['message'], beforeBatchAck: 2, received: [], errors: [],
+				published: [
+					{ group: `${prefix}.client.client-a.to-client`, data: { kind: 'message', data: response(0), generation } },
+					{ group: `${prefix}.client.client-a.to-client`, data: { kind: 'batch', items: [response(1), response(2)], generation } },
+					{ group: `${prefix}.client.client-a.to-client`, data: { kind: 'message', data: response(3), generation } },
+				],
+			});
+		});
+
+		test('preserves pre-handshake support and snapshots queued payloads', async () => {
+			const f = await fixture();
+			const lane = f.open();
+			f.advertise();
+			f.deliver(`${prefix}.client.client-a.to-host`, {
+				kind: 'message', data: { jsonrpc: '2.0', id: 0, method: 'initialize', params: { clientId: 'client-a' } },
+			});
+			lane.send(response(0));
+			const queued = { jsonrpc: '2.0' as const, id: 1, result: { text: '\u00e9', values: [false, null, 42] } };
+			lane.send(queued);
+			queued.result.text = 'changed after enqueue';
+			lane.send(response(2));
+			f.ack(0);
+			assert.deepStrictEqual(f.socket.publishes[1].data, {
+				kind: 'batch', generation: f.socket.publishes[0].data.generation,
+				items: [{ jsonrpc: '2.0', id: 1, result: { text: '\u00e9', values: [false, null, 42] } }, response(2)],
+			});
+		});
+
+		test('returns packed queue credit without relaxing mirror backpressure', async () => {
+			const f = await fixture();
+			const lane = f.open();
+			f.advertise();
+			lane.send(response(0));
+			for (let id = 1; id <= 512; id++) {
+				lane.send(response(id));
+			}
+			f.ack(0);
+			for (let id = 513; id < 769; id++) {
+				lane.send(response(id));
+			}
+			const event = {
+				type: 'event' as const, event: 'sessionLifecycle' as const, dataType: 'json' as const,
+				data: { environment_id: 'environment', session_id: 'session', kind: 'completed' as const, at: '2030-01-01T00:00:00Z' },
+			};
+			const full = f.server.publishMirrorEvent(event);
+			f.ack(1);
+			const freed = f.server.publishMirrorEvent(event);
+			f.drain();
+			assert.deepStrictEqual({
+				full, freed, sizes: f.socket.publishes.map(frame => frame.data.items?.length ?? 1),
+				mirrors: f.socket.userEvents.length, closed: f.server.isClosed, errors: f.errors,
+			}, { full: false, freed: undefined, sizes: [1, 256, 256, 256], mirrors: 1, closed: false, errors: [] });
+		});
+
+		for (const accepts of [undefined, [], ['future']]) {
+			test(`keeps legacy framing for ${JSON.stringify(accepts) ?? 'absent'} receive capabilities`, async () => {
+				const f = await fixture();
+				const lane = f.open();
+				if (accepts) {
+					f.advertise('client-a', accepts);
+				}
+				for (let id = 0; id < 4; id++) {
+					lane.send(response(id));
+				}
+				f.drain();
+				assert.deepStrictEqual(f.socket.publishes.map(frame => ({ kind: frame.data.kind, data: frame.data.data })), [
+					{ kind: 'message', data: response(0) }, { kind: 'message', data: response(1) },
+					{ kind: 'message', data: response(2) }, { kind: 'message', data: response(3) },
+				]);
+			});
+		}
+
+		test('isolates capabilities by client and preserves destination and mirror barriers', async () => {
+			const f = await fixture();
+			const a = f.open();
+			const b = f.open('client-b');
+			f.advertise();
+			a.send(response(0));
+			a.send(response(1));
+			a.send(response(2));
+			b.send(response(3));
+			b.send(response(4));
+			a.send({ jsonrpc: '2.0', method: 'ping' });
+			a.send({ jsonrpc: '2.0', method: 'ping' });
+			a.send(response(5));
+			f.server.publishMirrorEvent({
+				type: 'event', event: 'sessionLifecycle', dataType: 'json',
+				data: { environment_id: 'environment', session_id: 'session', kind: 'completed', at: '2030-01-01T00:00:00Z' },
+			});
+			a.send(response(6));
+			a.send(response(7));
+			f.drain();
+			assert.deepStrictEqual({
+				published: f.socket.publishes.map(frame => ({ group: frame.group, kind: frame.data.kind, payload: frame.data.items ?? frame.data.data })),
+				ackIds: f.socket.publishAckIds,
+				mirrors: f.socket.userEvents.map(event => event.event),
+			}, {
+				published: [
+					{ group: `${prefix}.client.client-a.to-client`, kind: 'message', payload: response(0) },
+					{ group: `${prefix}.client.client-a.to-client`, kind: 'batch', payload: [response(1), response(2)] },
+					{ group: `${prefix}.client.client-b.to-client`, kind: 'message', payload: response(3) },
+					{ group: `${prefix}.client.client-b.to-client`, kind: 'message', payload: response(4) },
+					{ group: `${prefix}.client.client-a.broadcast`, kind: 'batch', payload: [{ jsonrpc: '2.0', method: 'ping' }, { jsonrpc: '2.0', method: 'ping' }] },
+					{ group: `${prefix}.client.client-a.to-client`, kind: 'message', payload: response(5) },
+					{ group: `${prefix}.client.client-a.to-client`, kind: 'batch', payload: [response(6), response(7)] },
+				],
+				ackIds: [4, 5, 7, 8, 9, 11, 12, 13],
+				mirrors: ['sessionLifecycle'],
+			});
+		});
+
+		test('requires an authenticated owner publisher on an existing to-host lane', async () => {
+			const f = await fixture();
+			f.advertise();
+			const lane = f.open();
+			for (const owner of [undefined, 'other']) {
+				f.deliver(`${prefix}.client.client-a.to-host`, { kind: 'capabilities', accepts: ['batch'] }, owner);
+			}
+			for (const group of [`${prefix}.control`, `${prefix}.client.client-a.to-client`, `${prefix}.client.client-a.broadcast`]) {
+				f.deliver(group, { kind: 'capabilities', accepts: ['batch'] }, 'owner');
+			}
+			f.advertise('client-b');
+			f.deliver(`${prefix}.client.client-a.to-host`, { kind: 'capabilities', accepts: [1] }, 'owner');
+			for (let id = 0; id < 3; id++) {
+				lane.send(response(id));
+			}
+			f.drain();
+			assert.deepStrictEqual({
+				kinds: f.socket.publishes.map(frame => frame.data.kind), received: f.received, lanes: f.lanes.length, errors: f.errors,
+			}, {
+				kinds: ['message', 'message', 'message'], received: [], lanes: 1,
+				errors: ['WPS publisher does not match the registered owner', 'WPS publisher does not match the registered owner', 'Invalid relay framing capabilities'],
+			});
+		});
+
+		test('replaces capabilities and does not forward controls or replay duplicate advertisements', async () => {
+			const f = await fixture();
+			const lane = f.open();
+			f.advertise();
+			lane.send(response(0));
+			lane.send(response(1));
+			lane.send(response(2));
+			f.advertise('client-a', []);
+			f.socket.deliverEnvelope(`${prefix}.client.client-a.to-host`, { kind: 'capabilities', accepts: ['batch'] }, 2, 'owner');
+			f.drain();
+			assert.deepStrictEqual({
+				kinds: f.socket.publishes.map(frame => frame.data.kind), received: f.received, errors: f.errors,
+			}, { kinds: ['message', 'message', 'message'], received: [], errors: [] });
+		});
+
+		for (const method of ['initialize', 'reconnect']) {
+			test(`resets negotiation on ${method} lane replacement and orders predecessor closure before successor messages`, async () => {
+				const f = await fixture();
+				const old = f.open();
+				f.deliver(`${prefix}.client.client-a.to-host`, { kind: 'message', data: { jsonrpc: '2.0', id: 100, method: 'initialize', params: { clientId: 'client-a' } } });
+				old.send(response(100));
+				f.advertise();
+				old.send(response(1));
+				old.send(response(2));
+				f.deliver(`${prefix}.client.client-a.to-host`, { kind: 'message', data: { jsonrpc: '2.0', id: 101, method, params: { clientId: 'client-a' } } });
+				const successor = f.lanes[1];
+				successor.send(response(101));
+				successor.send(response(3));
+				successor.send(response(4));
+				f.drain();
+				const oldGeneration = f.socket.publishes[0].data.generation;
+				const newGeneration = f.socket.publishes[4].data.generation;
+				const beforeAdvertisement = f.socket.publishes.map(frame => ({ kind: frame.data.kind, generation: frame.data.generation }));
+				f.advertise();
+				successor.send(response(5));
+				successor.send(response(6));
+				successor.send(response(7));
+				f.drain();
+				assert.notStrictEqual(oldGeneration, newGeneration);
+				assert.deepStrictEqual({
+					beforeAdvertisement, reNegotiated: f.socket.publishes.slice(7).map(frame => frame.data), errors: f.errors,
+				}, {
+					beforeAdvertisement: [
+						{ kind: 'message', generation: oldGeneration }, { kind: 'message', generation: oldGeneration },
+						{ kind: 'message', generation: oldGeneration }, { kind: 'closed', generation: oldGeneration },
+						{ kind: 'message', generation: newGeneration }, { kind: 'message', generation: newGeneration }, { kind: 'message', generation: newGeneration },
+					],
+					reNegotiated: [
+						{ kind: 'message', data: response(5), generation: newGeneration },
+						{ kind: 'batch', items: [response(6), response(7)], generation: newGeneration },
+					],
+					errors: [],
+				});
+			});
+		}
+
+		test('does not apply advertisements on a closed lane to its successor', async () => {
+			const f = await fixture();
+			const old = f.open();
+			f.advertise();
+			old.dispose();
+			f.advertise();
+			f.deliver(`${prefix}.client.client-a.to-host`, { kind: 'message', data: { jsonrpc: '2.0', id: 1, method: 'reconnect', params: { clientId: 'client-a' } } });
+			for (let id = 0; id < 3; id++) {
+				f.lanes[1].send(response(id));
+			}
+			f.drain();
+			assert.deepStrictEqual(f.socket.publishes.map(frame => frame.data.kind), ['closed', 'message', 'message', 'message']);
+		});
+
+		test('requires fresh negotiation after host relay recovery', async () => {
+			const first = await fixture();
+			const old = first.open();
+			first.advertise();
+			old.send(response(0));
+			old.send(response(1));
+			first.server.dispose();
+			const recovered = await fixture();
+			const lane = recovered.open();
+			for (let id = 0; id < 3; id++) {
+				lane.send(response(id));
+			}
+			recovered.drain();
+			recovered.advertise();
+			for (let id = 3; id < 6; id++) {
+				lane.send(response(id));
+			}
+			recovered.drain();
+			assert.notStrictEqual(first.socket.publishes[0].data.generation, recovered.socket.publishes[0].data.generation);
+			assert.deepStrictEqual({
+				oldKinds: first.socket.publishes.map(frame => frame.data.kind),
+				recoveredKinds: recovered.socket.publishes.map(frame => frame.data.kind),
+			}, { oldKinds: ['message'], recoveredKinds: ['message', 'message', 'message', 'message', 'batch'] });
+		});
+
+		test('caps batches at 256 items without reordering or nested message envelopes', async () => {
+			const f = await fixture();
+			const lane = f.open();
+			f.advertise();
+			for (let id = 0; id < 258; id++) {
+				lane.send(response(id));
+			}
+			f.drain();
+			assert.deepStrictEqual(f.socket.publishes.map(frame => frame.data.items ?? frame.data.data), [
+				response(0), Array.from({ length: 256 }, (_, index) => response(index + 1)), response(257),
+			]);
+		});
+
+		test('counts UTF-8 bytes and generation overhead at the exact batch size limit', async () => {
+			const f = await fixture();
+			const lane = f.open();
+			f.advertise();
+			lane.send(response(0));
+			const generation = f.socket.publishes[0].data.generation;
+			const overhead = Buffer.byteLength(JSON.stringify({ kind: 'batch', items: [response(1, ''), response(2, '\u00e9')], generation }));
+			const large = response(1, 'x'.repeat(DEFAULT_MAX_CHUNK_BYTES - overhead));
+			lane.send(large);
+			lane.send(response(2, '\u00e9'));
+			lane.send(response(3));
+			f.drain();
+			assert.deepStrictEqual({
+				size: Buffer.byteLength(JSON.stringify(f.socket.publishes[1].data)),
+				payloads: f.socket.publishes.map(frame => frame.data.items ?? frame.data.data),
+			}, {
+				size: DEFAULT_MAX_CHUNK_BYTES,
+				payloads: [response(0), [large, response(2, '\u00e9')], response(3)],
+			});
+		});
+
+		test('falls back to a message when batch overhead would exceed the limit', async () => {
+			const f = await fixture();
+			const lane = f.open();
+			f.advertise();
+			lane.send(response(0));
+			const generation = f.socket.publishes[0].data.generation;
+			const overhead = Buffer.byteLength(JSON.stringify({ kind: 'message', data: response(1, ''), generation }));
+			const large = response(1, 'x'.repeat(DEFAULT_MAX_CHUNK_BYTES - overhead));
+			lane.send(large);
+			lane.send(response(2));
+			lane.send(response(3));
+			f.drain();
+			assert.deepStrictEqual(f.socket.publishes.map(frame => frame.data.items ?? frame.data.data), [response(0), large, [response(2), response(3)]]);
+		});
+
+		test('preserves oversized chunk fallback and reassembly order between batches', async () => {
+			const f = await fixture();
+			const lane = f.open();
+			f.advertise();
+			const large = response(3, '\u00e9'.repeat(DEFAULT_MAX_CHUNK_BYTES));
+			lane.send(response(0));
+			lane.send(response(1));
+			lane.send(response(2));
+			lane.send(large);
+			lane.send(response(4));
+			lane.send(response(5));
+			f.drain();
+			const reassembler = new Reassembler();
+			const decoded = f.socket.publishes.map(frame => parseInbound({
+				type: 'message', from: 'group', group: frame.group, dataType: 'json', data: frame.data,
+			}, { reassembler }));
+			assert.deepStrictEqual({
+				payloads: decoded.flatMap(result => result.kind === 'payload' ? [result.payload] : result.kind === 'batch' ? result.payloads : []),
+				chunks: f.socket.publishes.filter(frame => frame.data.kind === 'chunk').length,
+				oversized: f.socket.publishes.some(frame => Buffer.byteLength(JSON.stringify(frame.data)) > DEFAULT_MAX_CHUNK_BYTES),
+				errors: f.errors,
+			}, { payloads: [response(0), response(1), response(2), large, response(4), response(5)], chunks: 3, oversized: false, errors: [] });
+		});
+
+		test('treats Duplicate batch acknowledgements as success and ignores acknowledgements for packed unsent frames', async () => {
+			const f = await fixture();
+			const lane = f.open();
+			f.advertise();
+			for (let id = 0; id < 4; id++) {
+				lane.send(response(id));
+			}
+			f.ack(0);
+			lane.send(response(4));
+			f.socket.emit('message', JSON.stringify({ type: 'ack', ackId: f.socket.publishAckIds[1] + 1, success: false }));
+			const beforeAck = f.socket.publishes.length;
+			f.ack(1, false, 'Duplicate');
+			assert.deepStrictEqual({
+				beforeAck, kinds: f.socket.publishes.map(frame => frame.data.kind), errors: f.errors, closed: f.server.isClosed,
+			}, { beforeAck: 2, kinds: ['message', 'batch', 'message'], errors: [], closed: false });
+		});
+
+		for (const failure of ['ack rejection', 'socket send']) {
+			test(`closes the host and stops queued publication after batch ${failure}`, async () => {
+				const f = await fixture();
+				const lane = f.open();
+				f.advertise();
+				for (let id = 0; id < 4; id++) {
+					lane.send(response(id));
+				}
+				if (failure === 'socket send') {
+					f.socket.failBatchPublish = true;
+					f.ack(0);
+				} else {
+					f.ack(0);
+					lane.send(response(4));
+					f.ack(1, false, 'Forbidden');
+				}
+				f.drain();
+				assert.deepStrictEqual({
+					closed: f.server.isClosed, socketClosed: f.socket.closed, kinds: f.socket.publishes.map(frame => frame.data.kind), errors: f.errors,
+				}, {
+					closed: true, socketClosed: true, kinds: failure === 'socket send' ? ['message'] : ['message', 'batch'],
+					errors: [failure === 'socket send' ? 'Batch socket send failed' : 'Mission Control WPS operation rejected: Forbidden'],
+				});
+			});
+		}
+
+		test('times out a pending batch without publishing the next queued message', async () => {
+			const clock = sinon.useFakeTimers();
+			try {
+				const f = await fixture();
+				const lane = f.open();
+				f.advertise();
+				for (let id = 0; id < 3; id++) {
+					lane.send(response(id));
+				}
+				f.ack(0);
+				lane.send(response(3));
+				clock.tick(30_000);
+				assert.deepStrictEqual({
+					kinds: f.socket.publishes.map(frame => frame.data.kind), closed: f.server.isClosed, errors: f.errors,
+				}, { kinds: ['message', 'batch'], closed: true, errors: ['Mission Control WPS acknowledgement timed out'] });
+			} finally {
+				clock.restore();
+			}
+		});
+
+		for (const budget of ['frames', 'bytes']) {
+			test(`keeps the original queued ${budget} limit for supporting clients`, async () => {
+				const f = await fixture();
+				const lane = f.open();
+				f.advertise();
+				lane.send(response(0));
+				const payload = budget === 'bytes' ? 'x'.repeat(800 * 1024) : null;
+				const count = budget === 'bytes' ? 82 : 513;
+				for (let id = 1; id < count; id++) {
+					lane.send(response(id, payload));
+				}
+				assert.throws(() => lane.send(response(count, payload)), /ordered publish queue exceeded its limit/);
+				assert.deepStrictEqual({ closed: f.server.isClosed, kinds: f.socket.publishes.map(frame => frame.data.kind) }, { closed: budget === 'frames', kinds: ['message'] });
+			});
+		}
 	});
 
 	test('mirrors authoritative actions as user events and accepts only signed retained backfill', async () => {
