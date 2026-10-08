@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { randomUUID } from 'crypto';
-import { mkdir, open, readFile, realpath, rename, unlink } from 'fs/promises';
+import { createHash, randomUUID } from 'crypto';
+import { link, mkdir, open, readFile, realpath, rename, rm, unlink } from 'fs/promises';
 import { join } from '../../../../base/common/path.js';
 import { disposableLongTimeout, raceTimeout, Sequencer } from '../../../../base/common/async.js';
 import { combinedDisposable, Disposable, MutableDisposable, toDisposable, type IDisposable } from '../../../../base/common/lifecycle.js';
@@ -318,50 +318,89 @@ export class MissionControlEnvironment extends Disposable {
 		}
 	}
 
-	/** The native Agent Host owns profile writes; atomic replacement keeps the location-bound identity record complete. */
+	/** Concurrent hosts publish one complete initialization record that any host can finish after a crash. */
 	private async _computeId(): Promise<string> {
 		await mkdir(this._host.userDataPath, { recursive: true });
 		const directory = await realpath(this._host.userDataPath);
 		const path = join(directory, 'agent-host-mission-control-id');
-		let contents: string | undefined;
+		// Directory-scoped staging cannot adopt an unfinished initialization copied from another profile.
+		const initializationPath = `${path}.${createHash('sha256').update(directory).digest('hex')}.init`;
+		const existing = await this._readComputeIdentity(path);
+		if (existing?.userDataDirectory === directory) {
+			await rm(initializationPath, { force: true });
+			return existing.id;
+		}
+		await this._writeComputeIdentity(initializationPath, {
+			id: existing && existing.userDataDirectory === undefined ? existing.id : randomUUID(),
+			userDataDirectory: directory,
+		}, false);
+		const initialized = await this._readComputeIdentity(initializationPath);
+		const current = await this._readComputeIdentity(path);
+		let id: string;
+		if (current?.userDataDirectory === directory) {
+			id = current.id;
+		} else {
+			if (initialized?.userDataDirectory !== directory) {
+				throw new Error('Mission Control compute identity initialization record is unavailable');
+			}
+			id = initialized.id;
+			await this._writeComputeIdentity(path, { id, userDataDirectory: directory }, true);
+		}
+		await rm(initializationPath, { force: true });
+		return id;
+	}
+
+	private async _readComputeIdentity(path: string): Promise<{ id: string; userDataDirectory?: string } | undefined> {
+		let contents: string;
 		try {
 			contents = (await readFile(path, 'utf8')).trim();
 		} catch (error) {
 			if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
 				throw error;
 			}
+			return undefined;
 		}
-		const legacyId = contents !== undefined && /^[0-9a-f-]{36}$/.test(contents) ? contents : undefined;
-		if (contents !== undefined && legacyId === undefined) {
-			let record: { version?: number; id?: string; userDataDirectory?: string } | null;
-			try {
-				record = JSON.parse(contents);
-			} catch (error) {
-				if (error instanceof SyntaxError) {
-					throw new Error('Invalid persisted Mission Control compute identity');
-				}
-				throw error;
-			}
-			if (!record || typeof record !== 'object'
-				|| record.version !== 1 || typeof record.id !== 'string' || !/^[0-9a-f-]{36}$/.test(record.id)
-				|| typeof record.userDataDirectory !== 'string' || !record.userDataDirectory) {
+		if (/^[0-9a-f-]{36}$/.test(contents)) {
+			return { id: contents };
+		}
+		let record: { version?: number; id?: string; userDataDirectory?: string } | null;
+		try {
+			record = JSON.parse(contents);
+		} catch (error) {
+			if (error instanceof SyntaxError) {
 				throw new Error('Invalid persisted Mission Control compute identity');
 			}
-			if (record.userDataDirectory === directory) {
-				return record.id;
-			}
+			throw error;
 		}
-		const id = legacyId ?? randomUUID();
-		const temporaryPath = join(directory, `agent-host-mission-control-id.${randomUUID()}.tmp`);
+		if (!record || typeof record !== 'object'
+			|| record.version !== 1 || typeof record.id !== 'string' || !/^[0-9a-f-]{36}$/.test(record.id)
+			|| typeof record.userDataDirectory !== 'string' || !record.userDataDirectory) {
+			throw new Error('Invalid persisted Mission Control compute identity');
+		}
+		return { id: record.id, userDataDirectory: record.userDataDirectory };
+	}
+
+	private async _writeComputeIdentity(path: string, record: { id: string; userDataDirectory: string }, overwrite: boolean): Promise<void> {
+		const temporaryPath = `${path}.${randomUUID()}.tmp`;
 		const file = await open(temporaryPath, 'wx', 0o600);
 		try {
 			try {
-				await file.writeFile(JSON.stringify({ version: 1, id, userDataDirectory: directory }));
+				await file.writeFile(JSON.stringify({ version: 1, ...record }));
 				await file.sync();
 			} finally {
 				await file.close();
 			}
-			await rename(temporaryPath, path);
+			if (overwrite) {
+				await rename(temporaryPath, path);
+			} else {
+				try {
+					await link(temporaryPath, path);
+				} catch (error) {
+					if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
+						throw error;
+					}
+				}
+			}
 		} finally {
 			await unlink(temporaryPath).catch((error: NodeJS.ErrnoException) => {
 				if (error.code !== 'ENOENT') {
@@ -369,7 +408,6 @@ export class MissionControlEnvironment extends Disposable {
 				}
 			});
 		}
-		return id;
 	}
 
 	private async _request(path: string, body?: object, options = this._options): Promise<unknown> {
