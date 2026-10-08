@@ -989,6 +989,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			CONNECTORS: copilotConnectorsEnabled,
 			TGREP: tgrepEnabled,
 			CONTENT_EXCLUSION: true,
+			// Attached long-lived services prevent the runtime from reaching session idle.
+			DETACH_LONG_LIVED_SERVICES: true,
 			// When on, the runtime uses the in-repo memory store instead of cloud memory.
 			// Always explicit so only the VS Code opt-in can switch the store.
 			[COPILOT_LOCAL_MEMORY_FEATURE_FLAG]: localMemoryEnabled,
@@ -1159,6 +1161,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			...(canvasRuntimeEnabled ? { extensionSdkPath: plan.extensionSdkPath } : {}),
 			onPermissionRequest: request => runtime.handlePermissionRequest(request),
 			onUserInputRequest: (request, invocation) => runtime.handleUserInputRequest(request, invocation),
+			askUserVariant: 'elicitation',
 			onElicitationRequest: context => runtime.handleElicitationRequest(context),
 			// VS Code owns durable MCP credentials; the runtime must not consult its keychain store.
 			mcpOAuthTokenStorage: 'in-memory',

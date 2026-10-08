@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { execFile } from 'child_process';
 import { existsSync } from 'fs';
-import { mkdir, mkdtemp, readFile, writeFile } from 'fs/promises';
+import { mkdir, readFile, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { promisify } from 'util';
 import { DeferredPromise, retry } from '../../../../../../base/common/async.js';
@@ -18,6 +18,7 @@ import { GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../../../common/agent.js';
 import { AgentHostWorkspaceTrustConfigKey } from '../../../../common/agentHostSchema.js';
 import type { IAgentHostManagedSettingsDiagnostics } from '../../../../common/agentService.js';
 import type { IAgentHostManagedSettingsPermissions } from '../../../../common/agentHostManagedSettings.js';
+import { AgentSystemNotificationKind, readAgentSystemNotificationMeta } from '../../../../common/meta/agentSystemNotificationMeta.js';
 import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta } from '../../../../common/meta/clientPluginCustomizationMeta.js';
 import { SessionConfigKey } from '../../../../common/sessionConfigKeys.js';
 import type { ListSessionsResult, SubscribeResult } from '../../../../common/state/protocol/commands.js';
@@ -31,9 +32,9 @@ import type { CapiReplayProxy } from '../harness/capiReplayProxy.js';
 import { assertExpectedFailure } from '../harness/expectedFailure.js';
 import { createManagedPluginMarketplace, type IManagedPluginDefinition, type IManagedPluginMarketplace } from './copilotManagedPluginMarketplace.js';
 import { COPILOT_CONFIG } from './copilotTestConfiguration.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 const execFileAsync = promisify(execFile);
-const managedPluginPreparationMetaKey = 'vscode.managedPluginPreparation';
 const managedPluginInitializingActivity = 'Initializing chat using settings required by your organization admin…';
 const managedPluginInstallingActivity = 'Installing plugins required by your organization admin…';
 const managedPluginUpdatingActivity = 'Updating plugins required by your organization admin…';
@@ -42,7 +43,7 @@ const managedPluginActivityPrefixes = [
 	managedPluginInstallingActivity,
 	managedPluginUpdatingActivity,
 ] as const;
-const managedPluginLifecycleExpectedFailure = 'Copilot managed plugin lifecycle (SDK 1.0.18-preview.2)';
+const managedPluginLifecycleExpectedFailure = 'Copilot managed plugin lifecycle (SDK 1.0.18-preview.4)';
 const managedPluginLifecycleUnavailable = 'Managed plugin lifecycle did not prepare the required plugin';
 const repositoryPluginLifecycleUnavailable = 'Repository plugin preparation did not install the configured plugin';
 
@@ -58,7 +59,7 @@ interface IManagedPluginTestContext {
 
 interface IManagedPluginProjection {
 	readonly activities: Array<string | undefined>;
-	readonly preparation: Array<{ readonly turnId: string; readonly state: string; readonly content: string }>;
+	readonly failures: Array<{ readonly turnId: string; readonly content: string }>;
 }
 
 function managedPluginPolicy(marketplace: IManagedPluginMarketplace, pluginNames: readonly string[], forceRemoteSettingsRefresh: boolean): Readonly<Record<string, unknown>> {
@@ -95,7 +96,7 @@ async function runManagedPluginTest(
 	options: { readonly strict?: boolean; readonly expectedFailure?: boolean },
 	run: (context: IManagedPluginTestContext) => Promise<void>,
 ): Promise<void> {
-	const root = await mkdtemp(join(tmpdir(), 'copilot-managed-plugins-'));
+	const root = createTestDirectory(join(tmpdir(), 'copilot-managed-plugins-'));
 	const workspace = join(root, 'workspace');
 	const managedSettingsPath = join(root, 'device-managed-settings.json');
 	await mkdir(workspace, { recursive: true });
@@ -185,7 +186,7 @@ async function runExpectedRepositoryPluginTest(
 }
 
 function managedPluginProjection(client: TestProtocolClient, chat: string): IManagedPluginProjection {
-	const projection: IManagedPluginProjection = { activities: [], preparation: [] };
+	const projection: IManagedPluginProjection = { activities: [], failures: [] };
 	for (const notification of client.receivedNotifications(candidate =>
 		isActionNotification(candidate, ActionType.ChatActivityChanged)
 		|| isActionNotification(candidate, ActionType.ChatResponsePart)
@@ -208,17 +209,11 @@ function managedPluginProjection(client: TestProtocolClient, chat: string): IMan
 		if (action.type !== ActionType.ChatResponsePart || action.part.kind !== ResponsePartKind.SystemNotification) {
 			continue;
 		}
-		const rawMeta = action.part._meta?.[managedPluginPreparationMetaKey];
-		if (!rawMeta || typeof rawMeta !== 'object' || Array.isArray(rawMeta)) {
+		if (readAgentSystemNotificationMeta(action.part).kind !== AgentSystemNotificationKind.ManagedPluginPreparationFailure) {
 			continue;
 		}
-		const state = (rawMeta as Record<string, unknown>).state;
-		if (typeof state !== 'string') {
-			continue;
-		}
-		projection.preparation.push({
+		projection.failures.push({
 			turnId: action.turnId,
-			state,
 			content: typeof action.part.content === 'string' ? action.part.content : action.part.content.markdown,
 		});
 	}
@@ -331,7 +326,7 @@ suite('Agent Host E2E — Copilot managed-settings diagnostics', function () {
 
 	test('fetched server policy appears in sessionless diagnostics and channel layers', async function () {
 		this.timeout(60_000);
-		const directory = await mkdtemp(join(tmpdir(), 'copilot-policy-diagnostics-'));
+		const directory = createTestDirectory(join(tmpdir(), 'copilot-policy-diagnostics-'));
 		const lease = new AgentHostE2EServerLease(COPILOT_CONFIG, {
 			env: {
 				COPILOT_CACHE_HOME: join(directory, 'cache'),
@@ -449,12 +444,12 @@ suite('Agent Host E2E — Copilot managed plugin lifecycle', function () {
 				firstMessageContinuedWithoutPlugin: !beforePolicy.responseText.includes(plugin.skillName),
 				installingActivityNamesPlugin: installingWhileIdle?.includes(marketplace.pluginSpec(plugin.name)) === true,
 				laterMessageUsesPlugin: afterPolicy.responseText.includes(plugin.skillName),
-				preparationStates: projection.preparation.map(entry => entry.state),
+				activityCleared: projection.activities.at(-1) === undefined,
 			}, {
 				firstMessageContinuedWithoutPlugin: true,
 				installingActivityNamesPlugin: true,
 				laterMessageUsesPlugin: true,
-				preparationStates: ['progress', 'complete'],
+				activityCleared: true,
 			});
 		});
 	});
@@ -485,15 +480,12 @@ suite('Agent Host E2E — Copilot managed plugin lifecycle', function () {
 				initializing: activityFor(whileInstalling, managedPluginInitializingActivity) !== undefined,
 				installingNamesPlugin: activityFor(whileInstalling, managedPluginInstallingActivity)?.includes(marketplace.pluginSpec(plugin.name)) === true,
 				responseUsesPlugin: result.responseText.includes(plugin.skillName),
-				preparation: projection.preparation,
+				activityCleared: projection.activities.at(-1) === undefined,
 			}, {
 				initializing: true,
 				installingNamesPlugin: true,
 				responseUsesPlugin: true,
-				preparation: [
-					{ turnId, state: 'progress', content: '' },
-					{ turnId, state: 'complete', content: '' },
-				],
+				activityCleared: true,
 			});
 		});
 	});
@@ -642,7 +634,7 @@ suite('Agent Host E2E — Copilot managed plugin lifecycle', function () {
 				throw new Error(managedPluginLifecycleUnavailable);
 			}
 			const projection = managedPluginProjection(context.client, chat);
-			const failure = projection.preparation.find(entry => entry.state === 'failure');
+			const failure = projection.failures[0];
 
 			assert.deepStrictEqual({
 				messageContinued: /Skills|Environment/i.test(result.responseText),
@@ -685,7 +677,7 @@ suite('Agent Host E2E — Copilot managed plugin lifecycle', function () {
 
 			assert.deepStrictEqual({
 				firstContinuedWithoutPlugin: !failed.responseText.includes(plugin.skillName),
-				firstWarned: failedProjection.preparation.some(entry => entry.state === 'failure'),
+				firstWarned: failedProjection.failures.length === 1,
 				retryUsesPlugin: recovered.responseText.includes(plugin.skillName),
 				retryInstalled: activityFor(recoveredProjection, managedPluginInstallingActivity)?.includes(marketplace.pluginSpec(plugin.name)) === true,
 			}, {
@@ -759,12 +751,12 @@ suite('Agent Host E2E — Copilot managed plugin lifecycle', function () {
 				updateNamesPlugin: updatingWhileActive?.includes(marketplace.pluginSpec(v2.name)) === true,
 				nextMessageUsesV2: updated.responseText.includes(v2.skillName),
 				nextMessageStillUsesV1: updated.responseText.includes(v1.skillName),
-				preparationStates: projection.preparation.map(entry => entry.state),
+				activityCleared: projection.activities.at(-1) === undefined,
 			}, {
 				updateNamesPlugin: true,
 				nextMessageUsesV2: true,
 				nextMessageStillUsesV1: false,
-				preparationStates: ['progress', 'complete'],
+				activityCleared: true,
 			});
 		});
 	});
@@ -844,7 +836,7 @@ suite('Agent Host E2E — Copilot managed plugin lifecycle', function () {
 			await retry(async () => {
 				installed = await driveTurnToCompletion(context.client, session, `turn-repository-${nextClientSeq}`, '/env', nextClientSeq++);
 				const projection = managedPluginProjection(context.client, buildDefaultChatUri(session));
-				managedActivityObserved ||= projection.activities.length > 0 || projection.preparation.length > 0;
+				managedActivityObserved ||= projection.activities.length > 0 || projection.failures.length > 0;
 				if (!installed.responseText.includes(plugin.skillName)) {
 					throw new Error(repositoryPluginLifecycleUnavailable);
 				}
@@ -874,7 +866,7 @@ suite('Agent Host E2E — Copilot managed permissions over AHP', function () {
 
 	setup(async function () {
 		this.timeout(60_000);
-		workspace = await mkdtemp(join(tmpdir(), 'copilot-managed-ahp-'));
+		workspace = createTestDirectory(join(tmpdir(), 'copilot-managed-ahp-'));
 		tempDirs.push(workspace);
 		await writeFile(join(workspace, 'input.txt'), 'MANAGED_READ_CONTENT');
 		clientSeq = 1;
@@ -1190,7 +1182,7 @@ suite('Agent Host E2E — Copilot customization lockdown', function () {
 
 	test('runtime lockdown blocks standalone client customizations until the policy is removed', async function () {
 		this.timeout(240_000);
-		const directory = await mkdtemp(join(tmpdir(), 'copilot-customization-lockdown-'));
+		const directory = createTestDirectory(join(tmpdir(), 'copilot-customization-lockdown-'));
 		const lease = new AgentHostE2EServerLease(COPILOT_CONFIG, {
 			env: {
 				COPILOT_CACHE_HOME: join(directory, 'cache'),

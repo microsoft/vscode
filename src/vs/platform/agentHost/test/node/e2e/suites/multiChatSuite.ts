@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -31,6 +31,7 @@ import { createRealSession } from '../harness/agentHostE2ETestHarness.js';
 import { summarizeAnthropicRequest, summarizeResponsesRequest } from '../harness/capiWireCodec.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { conformanceTest, providerHostOnlyTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 const RECORDING = process.env['AGENT_HOST_REPLAY_RECORD'] === '1' || process.env['AGENT_HOST_UPDATE_SNAPSHOTS'] === '1';
 
@@ -47,7 +48,7 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 	}
 
 	async function createSession(prefix: string): Promise<{ sessionUri: string; defaultChatUri: string; workspace: string }> {
-		const workspace = mkdtempSync(join(tmpdir(), `ahp-multichat-${prefix}-`));
+		const workspace = createTestDirectory(join(tmpdir(), `ahp-multichat-${prefix}-`));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(
 			context.client,

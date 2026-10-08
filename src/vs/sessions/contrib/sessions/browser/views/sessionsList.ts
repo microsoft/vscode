@@ -247,7 +247,7 @@ function getChatTitle(chat: IChat, reader?: IReader): string {
 	return chat.title.read(reader).trim() || localize('untitledChat', "Untitled Chat");
 }
 
-function formatSessionListTime(date: Date): string {
+export function formatSessionListTime(date: Date): string {
 	const seconds = Math.round((Date.now() - date.getTime()) / 1000);
 	return seconds < 60 ? localize('secondsDuration', "now") : fromNow(date, true);
 }
@@ -2177,6 +2177,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		private readonly sessionsWithFailingCI: IObservable<ReadonlySet<string>>,
 		private readonly headerStatusTrigger: ISessionHeaderStatusTrigger,
 		private readonly instantiationService: IInstantiationService,
+		private readonly hoverService: IHoverService,
 		private readonly contextKeyService: IContextKeyService,
 		private readonly automationService: IAutomationService,
 		private readonly automationSessions: IObservable<readonly ISession[]>,
@@ -2318,6 +2319,14 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		}
 		if (element.id === CUSTOMIZATIONS_SECTION_ID) {
 			template.container.classList.add('session-section-customizations');
+			template.elementDisposables.add(this.hoverService.setupDelayedHover(
+				template.container,
+				() => withSessionsListHoverPresentation({
+					content: this.customizationMigrationsAvailable.get()
+						? localize('customizationsMigrationHover', "Some customizations need an update to keep working.")
+						: element.label,
+				}),
+			));
 			template.elementDisposables.add(autorun(reader => {
 				const active = this.customizationsActive.read(reader);
 				template.container.classList.toggle('active', active);
@@ -3799,6 +3808,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			sessionsWithFailingCI,
 			headerStatusTrigger,
 			instantiationService,
+			hoverService,
 			contextKeyService,
 			this.automationService,
 			this.automationSessions,
@@ -6719,6 +6729,11 @@ export class SessionsFlatList extends Disposable {
 		}
 		this.tree.setFocus([session]);
 		this.tree.domFocus();
+	}
+
+	getFocusedSession(): ISession | undefined {
+		const focused = this.tree.getFocus()[0];
+		return focused && isSessionItem(focused) ? focused : undefined;
 	}
 }
 

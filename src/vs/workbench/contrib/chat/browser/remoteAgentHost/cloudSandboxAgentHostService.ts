@@ -35,6 +35,7 @@ import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostConnectionStat
 import { DEFAULT_RECONNECT_POLICY } from '../../../../../platform/agentHost/common/reconnectPolicy.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
+import { IPowerService } from '../../../../services/power/common/powerService.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { CloudSandboxCredentialRefresher, CloudSandboxCredentialRefreshState, MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES, MIN_CREDENTIAL_REFRESH_DELAY_MS, type ICloudSandboxCreds } from './cloudSandboxCredentialRefresh.js';
@@ -86,6 +87,7 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@ICloudSandboxTelemetryService private readonly _telemetryService: ICloudSandboxTelemetryService,
+		@IPowerService private readonly _powerService: IPowerService,
 	) {
 		super();
 		this.entries = this._entries;
@@ -252,6 +254,8 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 					clientId: staged.clientId,
 					clientInfo: this._environmentService.isSessionsWindow ? agentsWindowAgentHostClientInfo : editorWindowAgentHostClientInfo,
 					reconnectPolicy: staged.options.environmentKind === 'user-local' ? USER_LOCAL_RECONNECT_POLICY : SANDBOX_RECONNECT_POLICY,
+					onDidSuspend: this._powerService.onDidSuspend,
+					onDidResume: this._powerService.onDidResume,
 					prepareReconnect: () => traceConnectionOperation(diagnosticObserver, 'credentials', async () => {
 						try {
 							if (staged.reconnectRequiresRefresh || staged.options.environmentKind === 'user-local') {

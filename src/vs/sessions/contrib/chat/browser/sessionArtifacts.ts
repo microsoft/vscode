@@ -35,7 +35,8 @@ import { openChatTurnFile, previewKind } from '../../../../workbench/contrib/cha
 import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import type { IImageCarouselCollection } from '../../../../workbench/contrib/imageCarousel/browser/imageCarouselTypes.js';
 import { createCommitResourceHover } from '../../../../workbench/contrib/github/browser/githubResourceHover.js';
-import { getLazyGitHubResourcePresentation, LazyGitHubResourceResolver, parseGitHubReferenceTarget } from '../../../../workbench/contrib/github/browser/lazyGitHubResourceHover.js';
+import { getGitHubResourcePresentation, GitHubResourceDetailsResolver } from '../../../../workbench/contrib/github/browser/githubResourceDetails.js';
+import { ChatPillHoverCache, createChatPillHover } from '../../../../workbench/browser/chatPillHover.js';
 import { IWorkbenchGitHubService } from '../../../../workbench/services/github/common/githubService.js';
 import { linkKey } from '../../../common/sessionLinks.js';
 import { SessionArtifactKind, type ISessionArtifact } from '../../../services/sessions/common/session.js';
@@ -189,7 +190,7 @@ function openArtifact(artifact: ISessionArtifact, actions: ISessionArtifactActio
 	actions.recordOpen(artifact);
 }
 
-function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, labelService: Pick<ILabelService, 'getUriLabel'>, commit?: GitHubCommit, gitHubResolver?: LazyGitHubResourceResolver, reader?: IReader): IChatPillEntry | undefined {
+function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, labelService: Pick<ILabelService, 'getUriLabel'>, commit?: GitHubCommit, gitHubResolver?: GitHubResourceDetailsResolver, reader?: IReader, commitHoverCache?: ChatPillHoverCache): IChatPillEntry | undefined {
 	if (artifact.kind === SessionArtifactKind.File) {
 		if (!artifact.uri) {
 			return undefined;
@@ -226,7 +227,6 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 		}
 		const link = artifact.link;
 		const target = parseGitHubCommitTarget(link);
-		let hoverTabbableElements: readonly HTMLElement[] = [];
 		const label = commit?.message.split(/\r?\n/, 1)[0] || artifact.label;
 		const createHover = target && commit ? (density: 'default' | 'compact') => createCommitResourceHover({
 			owner: target.owner,
@@ -238,12 +238,7 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 			onDidClickRepository: () => actions.openExternal(URI.parse(`https://github.com/${target.owner}/${target.repo}`)),
 			onDidClickReference: () => openArtifact(artifact, actions, () => actions.openExternal(link)),
 		}) : undefined;
-		const createDropdownHover = createHover ? () => {
-			const hover = createHover('compact');
-			hoverTabbableElements = hover.tabbableElements;
-			return hover.element;
-		} : undefined;
-		return withRemoveAction(artifact, {
+		const entry = withRemoveAction(artifact, {
 			id: artifact.id,
 			label,
 			icon,
@@ -262,12 +257,10 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 				}), chatPillCopyHashHoverLabel)],
 			} : {}),
 			...sessionArtifactLocation(sessionArtifactLocationText(link, labelService), label),
-			...(createDropdownHover && createHover ? {
-				hover: { content: createDropdownHover, expandable: true, showIndicator: false, tabThroughPanel: true, getTabbableElements: () => hoverTabbableElements, contentOwnsPadding: true },
-				pillHover: { element: () => createHover('default').element, contentOwnsPadding: true },
-			} : {}),
+			...(createHover && !commitHoverCache ? createChatPillHover({ fallback: label, createContent: createHover }) : {}),
 			open: () => openArtifact(artifact, actions, () => actions.openExternal(link)),
 		}, actions);
+		return commitHoverCache ? { ...entry, ...commitHoverCache.get(artifact.id, entry, createHover) } : entry;
 	}
 
 	if (artifact.kind === SessionArtifactKind.Resource) {
@@ -309,38 +302,36 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 			run: () => actions.copy(link.toString(true)),
 		}), chatPillCopyUrlHoverLabel)]
 		: [];
-	const gitHubKind = !artifact.isArtifact && artifact.isGitHub === true
+	const gitHubKind = artifact.isGitHub === true
 		? artifact.kind === SessionArtifactKind.PullRequest
 			? 'pullRequest'
 			: artifact.kind === SessionArtifactKind.Issue
 				? 'issue'
 				: undefined
 		: undefined;
-	const gitHubTarget = gitHubKind ? parseGitHubReferenceTarget(link, gitHubKind) : undefined;
-	const richHover = gitHubKind && gitHubTarget && gitHubResolver ? gitHubResolver.createHover(artifact, {
+	const gitHubDetails = gitHubKind && gitHubResolver ? gitHubResolver.resolveReference(artifact, {
 		kind: gitHubKind,
-		target: gitHubTarget,
 		resource: link,
-		onDidClickRepository: () => actions.openExternal(URI.parse(`https://github.com/${gitHubTarget.owner}/${gitHubTarget.repo}`)),
+		fallbackLabel: artifact.label,
+		enrich: !artifact.isArtifact,
+		onDidClickRepository: actions.openExternal,
 		onDidClickReference: () => openArtifact(artifact, actions, () => actions.openExternal(link)),
-		onDidClickBaseBranch: actions.copy,
-		onDidClickHeadBranch: actions.copy,
+		onDidClickBranch: actions.copy,
 	}) : undefined;
-	const gitHubPresentation = gitHubKind && gitHubTarget && gitHubResolver
-		? gitHubKind === 'issue'
-			? getLazyGitHubResourcePresentation(gitHubKind, gitHubTarget, gitHubResolver.getIssueState(gitHubTarget).read(reader), link.toString(true), issue => issue.title)
-			: getLazyGitHubResourcePresentation(gitHubKind, gitHubTarget, gitHubResolver.getPullRequestState(gitHubTarget).read(reader), link.toString(true), details => details.pullRequest.title)
-		: undefined;
+	const gitHubPresentation = gitHubDetails
+		? gitHubDetails.presentation.read(reader)
+		: gitHubKind
+			? getGitHubResourcePresentation(link, gitHubKind, undefined, artifact.label)
+			: undefined;
 	const displayLabel = gitHubPresentation?.label ?? artifact.label;
 	return withRemoveAction(artifact, {
 		id: artifact.id,
 		label: displayLabel,
-		...(gitHubPresentation?.badge ? { badge: gitHubPresentation.badge } : {}),
-		...(gitHubPresentation?.className ? { className: gitHubPresentation.className } : {}),
 		icon,
 		toolbarActions: copyLinkAction,
 		...sessionArtifactLocation(sessionArtifactLocationText(link, labelService), displayLabel),
-		...richHover,
+		...gitHubPresentation,
+		...gitHubDetails?.hover,
 		open: () => openArtifact(artifact, actions, () => actions.openExternal(link)),
 	}, actions);
 }
@@ -352,7 +343,7 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
  * what the session recorded last. Websites the browsers pill already lists are
  * left out, so the same page is offered once across the pills.
  */
-export function buildSessionArtifactSections(artifacts: readonly ISessionArtifact[], actions: ISessionArtifactActions, labelService: Pick<ILabelService, 'getUriLabel'>, imageCarouselEnabled: boolean, browserUrls: ReadonlySet<string>, commits: ReadonlyMap<string, GitHubCommit> = new Map(), gitHubResolver?: LazyGitHubResourceResolver, reader?: IReader): readonly IChatPillSection[] {
+export function buildSessionArtifactSections(artifacts: readonly ISessionArtifact[], actions: ISessionArtifactActions, labelService: Pick<ILabelService, 'getUriLabel'>, imageCarouselEnabled: boolean, browserUrls: ReadonlySet<string>, commits: ReadonlyMap<string, GitHubCommit> = new Map(), gitHubResolver?: GitHubResourceDetailsResolver, reader?: IReader, commitHoverCache?: ChatPillHoverCache): readonly IChatPillSection[] {
 	const entriesByKind = new Map<SessionArtifactKind, IChatPillEntry[]>();
 	const images: ISessionArtifactImage[] = [];
 	const seen = new Set<string>();
@@ -376,7 +367,7 @@ export function buildSessionArtifactSections(artifacts: readonly ISessionArtifac
 			}
 			continue;
 		}
-		const entry = toEntry(artifact, actions, labelService, commits.get(artifact.id), gitHubResolver, reader);
+		const entry = toEntry(artifact, actions, labelService, commits.get(artifact.id), gitHubResolver, reader, commitHoverCache);
 		if (!entry || (artifact.isArtifact && seen.has(artifactValueKey(artifact)))) {
 			continue;
 		}
@@ -532,11 +523,14 @@ export class SessionArtifacts extends Disposable {
 		super();
 
 		const commitResolver = this._register(new SessionGitHubCommitResolver(gitHubService, logService));
-		const gitHubResolver = this._register(new LazyGitHubResourceResolver(workbenchGitHubService, logService));
+		const commitHoverCache = this._register(new ChatPillHoverCache());
+		const gitHubResolver = this._register(new GitHubResourceDetailsResolver(workbenchGitHubService, logService));
 		this._register(autorun(reader => {
-			const artifacts = session.read(reader)?.artifacts?.read(reader) ?? [];
+			const current = session.read(reader);
+			const artifacts = current?.artifacts?.read(reader) ?? [];
+			commitHoverCache.retain(new Set(artifacts.filter(artifact => artifact.kind === SessionArtifactKind.Commit).map(artifact => artifact.id)), current?.sessionId);
 			gitHubResolver.retain(artifacts.flatMap(artifact =>
-				!artifact.isArtifact && artifact.isGitHub === true && artifact.link ? [{ identity: artifact, resource: artifact.link }] : []));
+				!artifact.isArtifact && artifact.isGitHub === true && artifact.link ? [{ identity: artifact, resource: artifact.link }] : []), current && !current.loading.read(reader) ? current.sessionId : undefined);
 			const commitTargets = artifacts
 				.flatMap(artifact => artifact.kind === SessionArtifactKind.Commit && artifact.link ? [parseGitHubCommitTarget(artifact.link)] : [])
 				.filter(isDefined);
@@ -585,6 +579,7 @@ export class SessionArtifacts extends Disposable {
 				commits,
 				gitHubResolver,
 				reader,
+				commitHoverCache,
 			);
 		});
 

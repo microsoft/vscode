@@ -8,6 +8,7 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { constObservable } from '../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -47,6 +48,7 @@ suite('SessionsTitleBarWidget', () => {
 	test('uses only the workspace context in the command center', () => {
 		const widget = Object.create(SessionsTitleBarWidget.prototype) as SessionsTitleBarWidget;
 		Reflect.set(widget, '_workspaceInfo', { label: 'vscode-tools' });
+		Reflect.set(widget, 'sessionsService', upcastPartial<ISessionsService>({ activeSession: constObservable(undefined) }));
 		Reflect.set(widget, '_isQuickChat', false);
 		Reflect.set(widget, '_sessionTitle', undefined);
 		const workspaceTitle = getCommandCenterTitle.call(widget);

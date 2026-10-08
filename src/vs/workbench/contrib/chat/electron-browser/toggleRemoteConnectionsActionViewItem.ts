@@ -13,9 +13,12 @@ import { disposableTimeout } from '../../../../base/common/async.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { AgentHostRemoteConnectionsBackend, AgentHostRemoteConnectionsSettingId, IMissionControlSharingService, isGitHubEnvironmentBackend } from '../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IRemoteTunnelService, INACTIVE_TUNNEL_MODE, TunnelMode, TunnelStatus } from '../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { RemoteTunnelCommandIds } from '../../remoteTunnel/electron-browser/remoteTunnel.contribution.js';
 
@@ -52,9 +55,21 @@ export class ToggleRemoteConnectionsActionViewItem extends BaseActionViewItem {
 		@IRemoteTunnelService private readonly _remoteTunnelService: IRemoteTunnelService,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IProductService private readonly _productService: IProductService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IMissionControlSharingService private readonly _missionControlSharingService: IMissionControlSharingService,
 	) {
 		super(undefined, action);
 
+		this._register(autorun(reader => {
+			this._missionControlSharingService.state.read(reader);
+			this._updateState();
+		}));
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AgentHostRemoteConnectionsSettingId)) {
+				this._hideToast();
+				this._updateState();
+			}
+		}));
 		this._register(this._remoteTunnelService.onDidChangeTunnelStatus(status => {
 			this._hasReceivedStatus = true;
 			this._status = status;
@@ -93,11 +108,11 @@ export class ToggleRemoteConnectionsActionViewItem extends BaseActionViewItem {
 	}
 
 	private _updateState(): void {
+		const state = this._getState();
 		if (!this.element) {
+			this._wasSharing = state.isSharing;
 			return;
 		}
-
-		const state = getRemoteTunnelAccessState(this._mode, this._status);
 
 		this.element.classList.toggle('sharing', state.isSharing);
 		this.element.classList.toggle('connecting', state.isConnecting);
@@ -114,6 +129,18 @@ export class ToggleRemoteConnectionsActionViewItem extends BaseActionViewItem {
 		}
 
 		this._wasSharing = state.isSharing;
+	}
+
+	private _usesMissionControl(): boolean {
+		return isGitHubEnvironmentBackend(this._configurationService.getValue<AgentHostRemoteConnectionsBackend>(AgentHostRemoteConnectionsSettingId));
+	}
+
+	private _getState(): IRemoteTunnelAccessState {
+		if (this._usesMissionControl()) {
+			const state = this._missionControlSharingService.state.get();
+			return { isSharing: state === 'enabled', isConnecting: state === 'connecting', tunnelName: undefined };
+		}
+		return getRemoteTunnelAccessState(this._mode, this._status);
 	}
 
 	private async _loadState(): Promise<void> {
@@ -149,8 +176,11 @@ export class ToggleRemoteConnectionsActionViewItem extends BaseActionViewItem {
 	}
 
 	private _getHoverContent(): IManagedHoverContent {
+		if (this._usesMissionControl()) {
+			return this._getAriaLabel();
+		}
 		const lines: string[] = [];
-		const state = getRemoteTunnelAccessState(this._mode, this._status);
+		const state = this._getState();
 
 		if (state.isConnecting) {
 			lines.push(localize('tunnelHost.hover.connecting', "Establishing tunnel connection..."));
@@ -172,7 +202,14 @@ export class ToggleRemoteConnectionsActionViewItem extends BaseActionViewItem {
 	}
 
 	private _getAriaLabel(): string {
-		const state = getRemoteTunnelAccessState(this._mode, this._status);
+		const state = this._getState();
+		if (this._usesMissionControl()) {
+			return state.isConnecting
+				? localize('missionControlSharing.connecting', "Registering GitHub environment...")
+				: state.isSharing
+					? localize('missionControlSharing.enabled', "Remote Connections via GitHub environment are enabled")
+					: localize('missionControlSharing.disabled', "Allow Remote Connections via GitHub environment");
+		}
 		if (state.isConnecting) {
 			return localize('tunnelHost.hover.connecting', "Establishing tunnel connection...");
 		}

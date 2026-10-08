@@ -21,7 +21,7 @@ Capability skips are tracked separately from suspected bugs. A provider that doe
 An organization administrator can require plugins through managed settings. Agent Host users should see strict and non-strict admission behavior, automatic installation and updates, failure warnings, retries, and withdrawal enforcement before the affected message runs. The published SDK currently resolves the policy but does not contact the configured marketplace or activate the required plugin, so those workflows cannot proceed.
 
 - Tests: the ten managed-policy cases in `Agent Host E2E — Copilot managed plugin lifecycle`.
-- Scope: `@github/copilot-sdk@1.0.18-preview.2` / runtime `1.0.94-2`, strict empty replay, all platforms.
+- Scope: `@github/copilot-sdk@1.0.18-preview.4` / runtime `1.0.94-4`, strict empty replay, all platforms.
 - Expected: strict policy waits for policy and required plugin preparation; non-strict policy lets unresolved work proceed but gates later messages on active preparation; installed plugins are reused; missing, partial, multi-plugin, update, failure/retry, and withdrawal scenarios preserve the requested lifecycle.
 - Observed: policy resolution completes, but the runtime makes no request to the test marketplace and `/env` reports no installed plugin.
 - Upstream: the core lifecycle merged in [github/copilot-agent-runtime#24246](https://github.com/github/copilot-agent-runtime/pull/24246). Structured progress is tracked by [github/copilot-agent-runtime#25300](https://github.com/github/copilot-agent-runtime/pull/25300).
@@ -39,7 +39,7 @@ An organization administrator can require plugins through managed settings. Agen
 A trusted repository can recommend a missing marketplace plugin in `.github/copilot/settings.json`. Agent Host should continue the first message without managed-policy warnings, install the plugin best-effort, and make it available to a later message.
 
 - Test: `trusted repository plugin installs best-effort without managed-policy activity`.
-- Scope: `@github/copilot-sdk@1.0.18-preview.2` / runtime `1.0.94-2`, strict empty replay, all platforms.
+- Scope: `@github/copilot-sdk@1.0.18-preview.4` / runtime `1.0.94-4`, strict empty replay, all platforms.
 - Expected: the trusted repository requirement installs without managed-policy admission or warning UI, and a later `/env` reports the plugin's skill.
 - Observed: messages continue, but the runtime makes no marketplace request and the plugin never becomes available.
 - Upstream: [github/copilot-agent-runtime#25331](https://github.com/github/copilot-agent-runtime/pull/25331).
@@ -57,10 +57,10 @@ A trusted repository can recommend a missing marketplace plugin in `.github/copi
 An administrator can disable identity capture while the runtime inherits an explicit `user.name` resource attribute. The native runtime removes `process.user.name` and `host.name`, but the inherited `user.name` still reaches the managed collector. This scenario concerns native Copilot export, not the separate Agent Host metadata pipeline.
 
 - Test: `managed identity denial removes inherited identity from native spans`.
-- Scope: Copilot runtime `1.0.92-4`, strict replay on all platforms.
+- Scope: Copilot runtime `1.0.94-3`; reproduced in local strict replay on macOS. The expected-failure marker remains enabled on all platforms.
 - Expected: managed `telemetry.capture.identity=false` removes all three identity attributes from native spans and events despite local opt-in and inherited resource attributes.
-- Observed: three native spans retain `user.name=synthetic-account`.
-- Tracking: the [bundled runtime's identity-resource predicate](https://github.com/github/copilot-agent-runtime/blob/f4385f4f118c567aa0178776aeb45e296e9e6733/src/runtime/src/otel/sdk.rs#L1945) includes only `process.user.name` and `host.name`. Stephen Toub introduced this predicate on September 14, 2026, in [github/copilot-agent-runtime#19723](https://github.com/github/copilot-agent-runtime/pull/19723). No upstream issue was filed by this task.
+- Observed: native spans still retain `user.name=synthetic-account` with SDK `1.0.18-preview.3` / runtime `1.0.94-3`. The runtime's identity-resource predicate still includes only `process.user.name` and `host.name`.
+- Tracking: the [bundled runtime's identity-resource predicate](https://github.com/github/copilot-agent-runtime/blob/d8cd60bc89ed3ae60cc37d7877021ac49bd52492/src/runtime/src/otel/sdk.rs#L2003) includes only `process.user.name` and `host.name`. Stephen Toub introduced this predicate on September 14, 2026, in [github/copilot-agent-runtime#19723](https://github.com/github/copilot-agent-runtime/pull/19723). No upstream issue was filed by this task.
 - Gate: a strict expected-failure marker accepts only the identity-redaction assertion. An unexpected pass fails and requires removing the marker. Recording skips the case to preserve its complete existing fixture.
 - Reproduce:
 
