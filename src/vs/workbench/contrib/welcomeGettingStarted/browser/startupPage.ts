@@ -35,6 +35,7 @@ import { isWeb } from '../../../../base/common/platform.js';
 import { IOnboardingService } from '../../welcomeOnboarding/common/onboardingService.js';
 import { ONBOARDING_STORAGE_KEY } from '../../welcomeOnboarding/common/onboardingTypes.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 
 export const restoreWalkthroughsConfigurationKey = 'workbench.welcomePage.restorableWalkthroughs';
 export type RestoreWalkthroughsConfigurationValue = { folder: string; category?: string; step?: string };
@@ -97,10 +98,14 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IOnboardingService private readonly onboardingService: IOnboardingService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
+		@IExtensionService private readonly extensionService: IExtensionService,
 	) {
 		super();
 
-		this.tryShowOnboarding();
+		// The onboarding gate reads configuration extensions can contribute, so it has to run once
+		// they are registered. Read any earlier, a `configurationDefaults` value is not applied yet
+		// and the overlay shows to a window that had opted out of it.
+		this.extensionService.whenInstalledExtensionsRegistered().then(() => this.tryShowOnboarding(), onUnexpectedError);
 		this.run().then(undefined, onUnexpectedError);
 		this._register(this.editorService.onDidCloseEditor((e) => {
 			if (e.editor instanceof GettingStartedInput) {
