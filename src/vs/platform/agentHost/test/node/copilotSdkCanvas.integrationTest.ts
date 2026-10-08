@@ -11,13 +11,131 @@ import { retry } from '../../../../base/common/async.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { join } from '../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../log/common/log.js';
 import { getAppNodeModulesUri } from '../../node/appNodeModules.js';
 import { createCopilotCliEnvironment } from '../../node/copilot/copilotCliEnvironment.js';
 import { resolveCopilotRuntimePaths } from '../../node/copilot/copilotRuntimePaths.js';
+import { CopilotSessionExtensionLaunchAdmission } from '../../node/copilot/copilotSessionExtensionLaunchAdmission.js';
 import { createIsolatedProviderEnvironment } from './providerTestEnvironment.js';
 
-suite('Copilot SDK - canvas first-open events', () => {
+suite('Copilot SDK - canvases', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('discovers session extensions for the exact owner on create, reload, and cold resume', async function () {
+		this.timeout(180_000);
+		const { runtimePath, extensionSdkPath, extensionBootstrapPath } = await resolveCopilotRuntimePaths(getAppNodeModulesUri());
+		assert.ok(extensionSdkPath && extensionBootstrapPath);
+		const root = await mkdtemp(join(tmpdir(), 'ahp-session-canvas-'));
+		const workDirectory = join(root, 'work');
+		const ownerId = 'canvas-owner';
+		const peerId = 'canvas-peer';
+		const requests: { id: string; source: string; admitted: boolean }[] = [];
+		const createClient = () => {
+			const admission = disposables.add(new CopilotSessionExtensionLaunchAdmission(root, new NullLogService()));
+			disposables.add(admission.acquire(ownerId));
+			disposables.add(admission.acquire(peerId));
+			return new CopilotClient({
+				mode: 'empty',
+				connection: RuntimeConnection.forStdio({ path: runtimePath }),
+				baseDirectory: root,
+				useLoggedInUser: false,
+				logLevel: 'error',
+				env: createCopilotCliEnvironment(createIsolatedProviderEnvironment(root)),
+				extensionLaunchProvider: {
+					resolve: async request => {
+						const modulePath = await admission.resolve(request);
+						requests.push({ id: request.id, source: request.source, admitted: modulePath !== undefined });
+						return modulePath ? {
+							launch: {
+								executable: process.execPath,
+								args: [extensionBootstrapPath],
+								env: { EXTENSION_PATH: modulePath, ELECTRON_RUN_AS_NODE: '1' },
+							},
+						} : {};
+					},
+				},
+			});
+		};
+		const config: SessionConfig = {
+			workingDirectory: workDirectory,
+			availableTools: [],
+			disabledMcpServers: ['github-mcp-server'],
+			enableConfigDiscovery: true,
+			infiniteSessions: { enabled: true },
+			requestExtensions: true,
+			requestCanvasRenderer: true,
+			extensionSdkPath,
+			onPermissionRequest: approveAll,
+		};
+		const writeExtension = async (sessionId: string, name: string) => {
+			const directory = join(root, 'session-state', sessionId, 'extensions', name);
+			await mkdir(directory, { recursive: true });
+			await writeFile(join(directory, 'extension.mjs'), `
+import { createCanvas, joinSession } from '@github/copilot-sdk/extension';
+await joinSession({
+	canvases: [createCanvas({
+		id: '${name}',
+		displayName: 'Session canvas',
+		description: 'Model-free session discovery test.',
+		open: () => ({ url: 'http://127.0.0.1:43119/${sessionId}/${name}' }),
+	})],
+});
+`, 'utf8');
+		};
+		const canvasIds = async (session: CopilotSession) => (await session.rpc.canvas.list()).canvases.map(canvas => canvas.canvasId).sort();
+		const waitForCanvases = async (session: CopilotSession, expected: string[]) => {
+			await retry(async () => assert.deepStrictEqual(await canvasIds(session), expected), 100, 300);
+		};
+		let client = createClient();
+		let owner: CopilotSession | undefined;
+		let peer: CopilotSession | undefined;
+		try {
+			await mkdir(workDirectory, { recursive: true });
+			await writeExtension(ownerId, 'preview');
+			await writeExtension(peerId, 'peer-only');
+			await client.start();
+			owner = await client.createSession({ ...config, sessionId: ownerId });
+			peer = await client.createSession({ ...config, sessionId: peerId });
+			await waitForCanvases(owner, ['preview']);
+			await waitForCanvases(peer, ['peer-only']);
+			await writeExtension(ownerId, 'added');
+			await owner.rpc.extensions.reload();
+			await waitForCanvases(owner, ['added', 'preview']);
+			await waitForCanvases(peer, ['peer-only']);
+			await owner.rpc.canvas.open({ canvasId: 'preview', instanceId: 'persist-owner' });
+			await owner.rpc.canvas.close({ instanceId: 'persist-owner' });
+			await owner.disconnect();
+			owner = undefined;
+			await peer.disconnect();
+			peer = undefined;
+			assert.deepStrictEqual(await client.stop(), []);
+			client = createClient();
+			await client.start();
+			owner = await client.resumeSession(ownerId, config);
+			await waitForCanvases(owner, ['added', 'preview']);
+			const opened = await owner.rpc.canvas.open({ canvasId: 'preview', instanceId: 'resumed-owner' });
+			assert.deepStrictEqual({
+				url: opened.url,
+				extensions: [...new Set(requests.map(request => request.id))].sort(),
+				onlyAdmittedSessionSources: requests.every(request => request.source === 'session' && request.admitted),
+			}, {
+				url: `http://127.0.0.1:43119/${ownerId}/preview`,
+				extensions: [`session:${ownerId}:added`, `session:${ownerId}:preview`, `session:${peerId}:peer-only`],
+				onlyAdmittedSessionSources: true,
+			});
+		} finally {
+			try {
+				await owner?.disconnect();
+				await peer?.disconnect();
+			} finally {
+				try {
+					await client.stop();
+				} finally {
+					await rm(root, { recursive: true, force: true });
+				}
+			}
+		}
+	});
 
 	test('records first opens but not repeat opens, provider reload, or cold resume', async function () {
 		this.timeout(180_000);

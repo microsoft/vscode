@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CopilotClient, RuntimeConnection, type CopilotClientOptions, type GitHubTelemetryNotification, type SessionMetadata, type SessionMode as CopilotSdkMode } from '@github/copilot-sdk';
+import { CopilotClient, RuntimeConnection, type CopilotClientOptions, type ExtensionLaunchProviderResolveRequest, type GitHubTelemetryNotification, type SessionMetadata, type SessionMode as CopilotSdkMode } from '@github/copilot-sdk';
 import { constants as fsConstants } from 'fs';
 import * as fs from 'fs/promises';
 import * as os from 'os';
@@ -57,6 +57,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ICopilotConfigSlashCommandState } from '../../common/copilotConfigSlashCommands.js';
 import { getCopilotHomePath } from '../../../environment/common/copilotHome.js';
+import { CopilotSessionExtensionLaunchAdmission } from './copilotSessionExtensionLaunchAdmission.js';
 import { ISessionDataService, SESSION_DB_FILENAME } from '../../common/sessionDataService.js';
 import { IAgentHostProxyResolver } from '../agentHostProxyResolver.js';
 import { MODEL_REFRESH_BASE_DELAY_MS, MODEL_REFRESH_MAX_ATTEMPTS, MODEL_REFRESH_MAX_DELAY_MS, modelRefreshBackoff } from '../shared/modelRefreshRetry.js';
@@ -894,6 +895,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * session cannot revoke a root that another session still admits.
 	 */
 	private readonly _extensionLaunchRoots = new Map<string, number>();
+	private readonly _sessionExtensionLaunchAdmission = this._register(new MutableDisposable<CopilotSessionExtensionLaunchAdmission>());
+	private readonly _sessionExtensionLaunchAdmissionByClient = new WeakMap<CopilotSessionLaunchPlan['client'], CopilotSessionExtensionLaunchAdmission>();
 	private readonly _workingDirectoryMutations = new ResourceMap<CopilotAgentSession>();
 
 	/** Exact chat -> recorded configuration scope, used for fork/restore paths that only know the chat URI. */
@@ -1485,9 +1488,19 @@ export class CopilotAgent extends Disposable implements IAgent {
 		});
 	}
 
-	private async _resolveExtensionLaunch(extensionId: string, modulePath: string, source: 'project' | 'user' | 'plugin' | 'session', extensionBootstrapPath: string) {
-		if (!isAbsolute(modulePath) || resourceBasename(URI.file(modulePath)) !== 'extension.mjs' || source === 'session') {
+	private async _resolveExtensionLaunch(request: ExtensionLaunchProviderResolveRequest, extensionBootstrapPath: string, sessionAdmission: CopilotSessionExtensionLaunchAdmission) {
+		const { id: extensionId, modulePath, source } = request;
+		if (!isAbsolute(modulePath) || resourceBasename(URI.file(modulePath)) !== 'extension.mjs') {
+			this._logService.trace(`[Copilot] Unsupported extension launch entrypoint '${extensionId}': '${modulePath}'`);
 			return {};
+		}
+		let launchModulePath = modulePath;
+		if (source === 'session') {
+			const admittedModulePath = await sessionAdmission.resolve(request);
+			if (!admittedModulePath) {
+				return {};
+			}
+			launchModulePath = admittedModulePath;
 		}
 		if (source === 'project') {
 			let canonicalModulePath: string;
@@ -1508,7 +1521,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				executable: process.execPath,
 				args: [extensionBootstrapPath],
 				env: {
-					EXTENSION_PATH: modulePath,
+					EXTENSION_PATH: launchModulePath,
 					VSCODE_CANVAS_DATA_DIR: join(this._environmentService.userDataPath, 'agentHostCanvasData', dataDirectoryHash.digest()),
 					...(process.versions.electron ? { ELECTRON_RUN_AS_NODE: '1' } : {}),
 				},
@@ -2626,6 +2639,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			const client = this._client;
 			this._client = undefined;
+			this._sessionExtensionLaunchAdmission.clear();
 			this._clientConnectorAuthentication = undefined;
 			this._clientStarting = undefined;
 			await client?.stop();
@@ -2646,6 +2660,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	// ---- client lifecycle ---------------------------------------------------
 
 	private async _stopClientAfterStartupTermination(client: CopilotClient, terminalError: Error): Promise<never> {
+		this._sessionExtensionLaunchAdmissionByClient.get(client)?.dispose();
 		try {
 			await client.stop();
 		} catch (error) {
@@ -2735,7 +2750,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// Build a clean env for the CLI subprocess, stripping Electron/VS Code vars
 			// that can interfere with the Node.js process the SDK spawns.
 			const env = this._createCopilotCliEnvironment(startupConfig.skillCharBudget);
-			env['COPILOT_HOME'] = getCopilotHomePath(this._environmentService.userHome.fsPath, env);
+			const copilotHome = getCopilotHomePath(this._environmentService.userHome.fsPath, env);
+			env['COPILOT_HOME'] = copilotHome;
 			// Family aliases are host-side (prompt and tool-profile routing) and
 			// deliberately never reach the runtime; an ambient value here would
 			// re-introduce a process-wide alias for every session behind its back.
@@ -2836,6 +2852,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			const copilotSdkLogLevelAtStartup = this._resolveCopilotSdkLogLevel(startupConfig.copilotSdkLogLevel);
 			const gitHubToken = startupConfig.enterpriseHost || startupConfig.copilotConnectors ? this._githubCredentials.token : undefined;
+			const sessionExtensionLaunchAdmission = new CopilotSessionExtensionLaunchAdmission(copilotHome, this._logService);
+			this._sessionExtensionLaunchAdmission.value = sessionExtensionLaunchAdmission;
 
 			const clientOptions: CopilotClientOptions = {
 				useLoggedInUser: false,
@@ -2851,13 +2869,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 				enableRemoteSessions: startupConfig.sessionSync,
 				...(extensionBootstrapPath && extensionSdkPath ? {
 					extensionLaunchProvider: {
-						resolve: request => this._resolveExtensionLaunch(request.id, request.modulePath, request.source, extensionBootstrapPath),
+						resolve: request => this._resolveExtensionLaunch(request, extensionBootstrapPath, sessionExtensionLaunchAdmission),
 					},
 				} : {}),
 				onGetTraceContext: () => this._otelService.getCurrentTraceContext() ?? {},
 				onGitHubTelemetry: notification => { void this._routeGitHubTelemetry(notification).catch(err => this._logService.trace(`[Copilot] GitHub telemetry routing failed: ${err instanceof Error ? err.message : String(err)}`)); },
 			};
 			const client = this._createCopilotClient(clientOptions);
+			this._sessionExtensionLaunchAdmissionByClient.set(client, sessionExtensionLaunchAdmission);
 			await client.start();
 			if (this._shutdownPromise) {
 				return this._stopClientAfterStartupTermination(client, new CancellationError());
@@ -6447,6 +6466,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			throw new CancellationError();
 		}
 		session.setExtensionLaunchAdmission(extensionLaunchAdmission);
+		const sessionExtensionLaunchAdmission = this._sessionExtensionLaunchAdmissionByClient.get(session.extensionLaunchClient)?.acquire(session.sessionId);
+		if (sessionExtensionLaunchAdmission) {
+			session.setExtensionLaunchAdmission(sessionExtensionLaunchAdmission);
+		}
 		this._sessionsPendingRegistration.add(session);
 		this._copilotChatDiscovery.ignoreSession(session.sessionId);
 		const connectorRefreshGeneration = this._connectorRefreshGeneration;
