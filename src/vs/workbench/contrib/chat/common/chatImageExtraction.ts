@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { decodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
+import { StringSHA1 } from '../../../../base/common/hash.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { getExtensionForMimeType, getMediaMime } from '../../../../base/common/mime.js';
 import { IReader } from '../../../../base/common/observable.js';
-import { getComparisonKey } from '../../../../base/common/resources.js';
+import { basename, getComparisonKey } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { isLocation } from '../../../../editor/common/languages.js';
@@ -35,9 +36,11 @@ export interface IChatExtractedImageCollection {
 
 interface IChatToolOutputImage {
 	readonly uri: URI;
+	readonly name: string;
 	readonly mimeType: string;
 	readonly index: number;
 	readonly base64Value?: string;
+	readonly byteLength?: number;
 	readonly audience?: ToolInputOutputBase['audience'];
 }
 
@@ -49,11 +52,19 @@ export function getToolResultImageResources(details: IToolResultInputOutputDetai
 		}
 		const imageExtension = getAttachableImageExtension(output.mimeType === 'image/jpg' ? 'image/jpeg' : output.mimeType);
 		const extension = imageExtension ? `.${imageExtension}` : getExtensionForMimeType(output.mimeType) ?? '';
+		let fileName = `${name}${extension}`;
+		if (name === 'generated-image') {
+			const hash = new StringSHA1();
+			hash.update(JSON.stringify([getComparisonKey(sessionResource), toolCallId, index]));
+			fileName = `${name}-${hash.digest().slice(0, 12)}${extension}`;
+		}
 		images.push({
-			uri: output.type === 'ref' ? output.uri : ChatResponseResource.createUri(sessionResource, toolCallId, index, `${name}${extension}`),
+			uri: output.type === 'ref' ? output.uri : ChatResponseResource.createUri(sessionResource, toolCallId, index, fileName),
+			name: output.type === 'ref' && name !== 'generated-image' ? basename(output.uri) : fileName,
 			mimeType: output.mimeType,
 			index,
 			base64Value: output.type === 'embed' ? output.value : undefined,
+			byteLength: output.type === 'embed' ? Math.floor(output.value.length * 3 / 4) - (output.value.endsWith('==') ? 2 : output.value.endsWith('=') ? 1 : 0) : undefined,
 			audience: output.audience,
 		});
 	}
@@ -130,14 +141,15 @@ export function extractImagesFromToolInvocationOutputDetails(toolInvocation: ICh
 	const resultDetails = IChatToolInvocation.resultDetails(toolInvocation);
 
 	const caption = toolInvocation.pastTenseMessage ?? toolInvocation.invocationMessage;
-	const pushImage = (mimeType: string, data: VSBuffer | undefined, outputIndex: number, resource?: URI) => {
+	const isGenerated = toolInvocation.toolSpecificData?.kind === 'generatedImage';
+	const pushImage = (mimeType: string, data: VSBuffer | undefined, outputIndex: number, resource?: URI, name?: string) => {
 		const ext = getExtensionForMimeType(mimeType);
 		const permalinkBasename = ext ? `file${ext}` : 'file.bin';
 		const uri = resource ?? ChatResponseResource.createUri(sessionResource, toolInvocation.toolCallId, outputIndex, permalinkBasename);
 		images.push({
 			id: `${toolInvocation.toolCallId}_${outputIndex}`,
 			uri,
-			name: localize('chatImageExtraction.imageName', "Image {0}", images.length + 1),
+			name: name ?? localize('chatImageExtraction.imageName', "Image {0}", images.length + 1),
 			mimeType,
 			data,
 			source: localize('chatImageExtraction.toolSource', "Tool: {0}", toolInvocation.toolId),
@@ -146,8 +158,8 @@ export function extractImagesFromToolInvocationOutputDetails(toolInvocation: ICh
 	};
 
 	if (isToolResultInputOutputDetails(resultDetails)) {
-		for (const image of getToolResultImageResources(resultDetails, sessionResource, toolInvocation.toolCallId)) {
-			pushImage(image.mimeType, image.base64Value === undefined ? undefined : decodeBase64(image.base64Value), image.index, image.uri);
+		for (const image of getToolResultImageResources(resultDetails, sessionResource, toolInvocation.toolCallId, isGenerated ? 'generated-image' : 'file')) {
+			pushImage(image.mimeType, image.base64Value === undefined ? undefined : decodeBase64(image.base64Value), image.index, image.uri, isGenerated ? image.name : undefined);
 		}
 	}
 	else if (isToolResultOutputDetails(resultDetails)) {

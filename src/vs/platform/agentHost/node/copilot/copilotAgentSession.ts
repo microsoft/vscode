@@ -53,7 +53,7 @@ import { agentModelConfigurationMetaKey, IAgentRuntimeModelConfiguration, readAg
 import { ObservedTokenUsage } from './observedTokenUsage.js';
 import { META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
-import { toToolCallMeta, type IToolCallMeta, type IToolCallUiMeta, type IToolSearchCandidate } from '../../common/meta/agentToolCallMeta.js';
+import { getToolCallDurationMs, toToolCallMeta, type IToolCallMeta, type IToolCallUiMeta, type IToolSearchCandidate } from '../../common/meta/agentToolCallMeta.js';
 import { OtelData, type OtelAttributeValue } from '../../common/otlp/otlpLogEmitter.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { isShellInitScriptList, type IShellInitScript } from '../../common/shellInitScript.js';
@@ -194,6 +194,7 @@ interface ILastMcpAuthRequirement {
 
 interface ICopilotActiveToolCall {
 	readonly turnId: string;
+	readonly startedAt?: string;
 	readonly toolName: string;
 	readonly displayName: string;
 	readonly parameters: Record<string, unknown> | undefined;
@@ -6706,6 +6707,7 @@ export class CopilotAgentSession extends Disposable {
 			const intention = getShellIntention(e.data.toolName, parameters);
 			this._activeToolCalls.set(e.data.toolCallId, {
 				turnId: this._turnId,
+				startedAt: e.timestamp,
 				toolName: e.data.toolName,
 				displayName,
 				parameters,
@@ -6880,6 +6882,9 @@ export class CopilotAgentSession extends Disposable {
 			const imageGeneration = tracked.toolName === CopilotToolName.ImageGeneration ? getSdkImageGenerationMetadata(e.data.result) : undefined;
 			if (imageGeneration) {
 				tracked.meta = { ...tracked.meta, [imageGenerationToolMetaKey]: imageGeneration };
+			}
+			if (tracked.toolName === CopilotToolName.ImageGeneration) {
+				tracked.meta = { ...tracked.meta, 'vscode.toolCallDurationMs': getToolCallDurationMs(tracked.startedAt, e.timestamp) };
 			}
 
 			if (isTaskCompleteTool(tracked.toolName)) {

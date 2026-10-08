@@ -74,8 +74,8 @@ suite('Chat Accessibility Help', () => {
 			artifacts: help.includes('Generated images also appear in artifacts'),
 			conversation: help.includes('generated images and user-attached images from the same conversation'),
 			keyboard: help.includes('Use the Left and Right Arrow keys to move between images'),
-			settledTransition: help.includes('loading sweep finishes before the preview smoothly resizes and reveals the image'),
-		}, { artifacts: true, conversation: true, keyboard: true, settledTransition: true });
+			immediateResize: help.includes('the preview begins resizing immediately, followed by the glyph-to-image reveal'),
+		}, { artifacts: true, conversation: true, keyboard: true, immediateResize: true });
 	});
 
 	for (const type of ['panelChat', 'editsView', 'agentView'] as const) {

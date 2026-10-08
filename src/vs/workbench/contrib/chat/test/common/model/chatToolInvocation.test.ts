@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { useFakeTimers } from 'sinon';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ConfirmedReason, IChatToolInvocation, ToolConfirmKind, ToolDeniedReason } from '../../../common/chatService/chatService.js';
@@ -14,6 +15,41 @@ suite('ChatToolInvocation permission provenance', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const tool: IToolData = { id: 'tool', displayName: 'Tool', modelDescription: 'Tool', source: ToolDataSource.Internal };
 	const prepared = { invocationMessage: 'Run tool', confirmationMessages: { title: 'Allow tool?', message: 'Run tool?' } };
+
+	for (const initialState of ['executing', 'streaming', 'confirmation']) {
+		test(`records image generation duration after execution begins and persists it (${initialState})`, async () => {
+			const clock = useFakeTimers({ toFake: ['Date'] });
+			try {
+				const invocation = initialState === 'streaming'
+					? ChatToolInvocation.createStreaming({ toolCallId: 'image', toolId: tool.id, toolData: tool })
+					: new ChatToolInvocation(initialState === 'confirmation' ? prepared : undefined, tool, 'image', undefined, {});
+				if (initialState !== 'executing') {
+					clock.tick(10_000);
+					if (initialState === 'streaming') {
+						invocation.transitionFromStreaming(undefined, {}, undefined);
+					} else {
+						IChatToolInvocation.confirmWith(invocation, { type: ToolConfirmKind.UserAction });
+					}
+				}
+				clock.tick(43_500);
+				await invocation.didExecuteTool({ content: [], toolSpecificData: { kind: 'generatedImage' } });
+				clock.tick(1000);
+				await invocation.didExecuteTool({ content: [], toolSpecificData: { kind: 'generatedImage' } });
+				assert.deepStrictEqual([invocation.toolSpecificData, invocation.toJSON().toolSpecificData], [
+					{ kind: 'generatedImage', durationMs: 43_500 },
+					{ kind: 'generatedImage', durationMs: 43_500 },
+				]);
+			} finally {
+				clock.restore();
+			}
+		});
+	}
+
+	test('provider image duration takes precedence over the renderer clock', async () => {
+		const invocation = new ChatToolInvocation(undefined, tool, 'image', undefined, {});
+		await invocation.didExecuteTool({ content: [], toolSpecificData: { kind: 'generatedImage', durationMs: 43_500 } });
+		assert.deepStrictEqual(invocation.toJSON().toolSpecificData, { kind: 'generatedImage', durationMs: 43_500 });
+	});
 
 	test('preserves explicit denial sources through confirmation and serialization', async () => {
 		const reasons: ToolDeniedReason[] = [

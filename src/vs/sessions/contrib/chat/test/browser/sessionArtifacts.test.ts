@@ -224,7 +224,7 @@ suite('Session Artifacts', () => {
 			otherChat,
 			returned: presentation.sections.get().flatMap(section => section.entries.map(entry => entry.id)),
 		}, {
-			restored: ['/tool/image-call/0/generated-image.png'],
+			restored: ['/tool/image-call/0/generated-image-9ece88a621bd.png'],
 			deduplicated: [{ id: 'recorded', removable: true }],
 			otherChat: [],
 			returned: restored.map(entry => entry.id),
@@ -268,19 +268,19 @@ suite('Session Artifacts', () => {
 				})),
 			}, {
 				images: [
-					'/tool/newer/0/generated-image.png',
-					'/tool/newer/1/generated-image.png',
-					'/tool/older/0/generated-image.png',
-					'/tool/older/1/generated-image.png',
+					'/tool/newer/0/generated-image-c82ff7ca77f5.png',
+					'/tool/newer/1/generated-image-9db2dff89263.png',
+					'/tool/older/0/generated-image-d61868c3de35.png',
+					'/tool/older/1/generated-image-6840071a8bab.png',
 				],
 				requestOrderPreserved: true,
 				opened: [{
-					path: '/tool/newer/0/generated-image.png',
+					path: '/tool/newer/0/generated-image-c82ff7ca77f5.png',
 					collection: [
-						'/tool/newer/0/generated-image.png',
-						'/tool/newer/1/generated-image.png',
-						'/tool/older/0/generated-image.png',
-						'/tool/older/1/generated-image.png',
+						'/tool/newer/0/generated-image-c82ff7ca77f5.png',
+						'/tool/newer/1/generated-image-9db2dff89263.png',
+						'/tool/older/0/generated-image-d61868c3de35.png',
+						'/tool/older/1/generated-image-6840071a8bab.png',
 					],
 				}],
 			});
@@ -326,7 +326,7 @@ suite('Session Artifacts', () => {
 			},
 		});
 		chatModels.set([model], undefined);
-		const embedded = ChatResponseResource.createUri(resource, 'image-call', 1, 'generated-image.jpg');
+		const embedded = ChatResponseResource.createUri(resource, 'image-call', 1, 'generated-image-35078300129c.jpg');
 		const sections = presentation.sections.get();
 		sections[0].entries[1].open();
 		sections[1].entries[0].open();

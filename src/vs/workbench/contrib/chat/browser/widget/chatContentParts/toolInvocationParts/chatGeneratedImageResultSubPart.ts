@@ -28,6 +28,7 @@ export function getGeneratedImageResultParts(
 	return getToolResultImageResources(details, sessionResource, toolCallId, 'generated-image').map(image => ({
 		kind: 'data',
 		uri: image.uri,
+		name: image.name,
 		mimeType: image.mimeType,
 		...(image.base64Value !== undefined ? { base64Value: image.base64Value } : {}),
 		audience: image.audience,
@@ -87,14 +88,7 @@ export function getGeneratedImageResultPartsFromContent(
 	for (const { toolCallId, details } of getGeneratedImageResultSnapshot(content)) {
 		parts.push(...getGeneratedImageResultParts(details, sessionResource, toolCallId));
 	}
-	if (parts.length < 2) {
-		return parts;
-	}
-	return parts.map((part, index) => part.base64Value === undefined ? part : ({
-		...part,
-		// Only synthetic names may change; referenced URIs identify the bytes to load and save.
-		uri: part.uri.with({ path: part.uri.path.replace(/generated-image(?=\.[^/]+$|$)/, `generated-image-${index + 1}`) }),
-	}));
+	return parts;
 }
 
 /** Renders generated images as response outcomes using the shared image preview affordances. */

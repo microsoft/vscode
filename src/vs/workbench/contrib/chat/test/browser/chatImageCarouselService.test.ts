@@ -270,7 +270,7 @@ suite('ChatImageCarouselService helpers', () => {
 				title: 'Generate images',
 				images: [
 					{ id: URI.from({ scheme: 'data', path: 'img-1/cat.png' }).toString(), uri: undefined, data: [4, 5, 6] },
-					{ id: ChatResponseResource.createUri(firstResponse.sessionResource, 'generated', 0, 'file.png').toString(), uri: undefined, data: [1, 2, 3] },
+					{ id: ChatResponseResource.createUri(firstResponse.sessionResource, 'generated', 0, 'generated-image-e38b1aae6592.png').toString(), uri: undefined, data: [1, 2, 3] },
 					{ id: generatedUri.toString(), uri: generatedUri, data: undefined },
 				],
 			}, {

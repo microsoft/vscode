@@ -42,6 +42,7 @@ export class RevealPace {
 
 	/** Real milliseconds at which each step of the transition is reached. */
 	private readonly realTimes = new Float64Array(RevealPace.steps + 1);
+	private readonly skippedDuration: number;
 
 	/** Real milliseconds that the whole transition takes. */
 	readonly duration: number;
@@ -49,7 +50,12 @@ export class RevealPace {
 	constructor(
 		/** Virtual milliseconds that the transition takes at normal speed. */
 		readonly length: number,
+		/** Omit the prefix without changing the remaining transition's speed curve. */
+		private readonly startAt = 0,
 	) {
+		if (!Number.isFinite(startAt) || startAt < 0 || startAt > length) {
+			throw new RangeError('The image reveal start must be within its timeline.');
+		}
 		const startScale = 0.5;
 		const endScale = 1;
 		let real = 0;
@@ -58,18 +64,22 @@ export class RevealPace {
 			real += startScale * (endScale / startScale) ** smoothstep(0, 1, (step - 0.5) / RevealPace.steps) * length / RevealPace.steps;
 			this.realTimes[step] = real;
 		}
-		this.duration = real;
+		const startStep = startAt === 0 ? 0 : startAt / length * RevealPace.steps;
+		const index = Math.min(Math.floor(startStep), RevealPace.steps - 1);
+		this.skippedDuration = this.realTimes[index] + (this.realTimes[index + 1] - this.realTimes[index]) * (startStep - index);
+		this.duration = real - this.skippedDuration;
 	}
 
 	/** Returns the virtual milliseconds of the transition that have passed after `real` milliseconds. */
 	virtualAt(real: number): number {
 		const times = this.realTimes;
 		if (real <= 0) {
-			return 0;
+			return this.startAt;
 		}
 		if (real >= this.duration) {
 			return this.length;
 		}
+		real += this.skippedDuration;
 		let low = 0;
 		let high = times.length - 1;
 		while (high - low > 1) {
@@ -424,7 +434,7 @@ export interface ITextureReveal {
 	readonly clock: Animation;
 }
 
-/** One timeline for finishing the current loading sweep, resizing, and revealing the image. */
+/** One timeline for resizing and revealing the image, omitting the remaining loading sweep. */
 export interface ITextureRevealTiming {
 	/** How the reveal's real time maps to the transition's virtual time. */
 	readonly pace: RevealPace;

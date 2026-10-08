@@ -52,6 +52,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 
 	private readonly _progress = observableValue<{ message?: string | IMarkdownString; progress: number | undefined }>(this, { progress: 0 });
 	private readonly _state: ISettableObservable<IChatToolInvocation.State>;
+	private _executionStartedAt: number | undefined;
 
 	// Streaming-related observables
 	private readonly _partialInput = observableValue<unknown>(this, undefined);
@@ -124,6 +125,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 				streamingMessage: this._streamingMessage,
 			});
 		} else if (!this.confirmationMessages?.title) {
+			this._executionStartedAt = Date.now();
 			this._state = observableValue(this, {
 				type: IChatToolInvocation.StateKind.Executing,
 				confirmed: { type: ToolConfirmKind.ConfirmationNotNeeded, reason: this.confirmationMessages?.confirmationNotNeededReason },
@@ -157,6 +159,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 				confirmationMessages: this.confirmationMessages,
 			}, undefined);
 		} else {
+			this._executionStartedAt ??= Date.now();
 			this._state.set({
 				type: IChatToolInvocation.StateKind.Executing,
 				confirmed: reason,
@@ -260,6 +263,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		if (autoConfirmed) {
 			this._confirm(autoConfirmed);
 		} else if (!this.confirmationMessages?.title) {
+			this._executionStartedAt ??= Date.now();
 			this._state.set({
 				type: IChatToolInvocation.StateKind.Executing,
 				confirmed: { type: ToolConfirmKind.ConfirmationNotNeeded, reason: this.confirmationMessages?.confirmationNotNeededReason },
@@ -379,6 +383,9 @@ export class ChatToolInvocation implements IChatToolInvocation {
 
 		if (result?.toolSpecificData) {
 			this.toolSpecificData = result.toolSpecificData;
+		}
+		if (this.toolSpecificData?.kind === 'generatedImage' && this.toolSpecificData.durationMs === undefined && this._executionStartedAt !== undefined) {
+			this.toolSpecificData = { ...this.toolSpecificData, durationMs: Math.max(0, Date.now() - this._executionStartedAt) };
 		}
 		if (result?.toolResultMessage) {
 			this.pastTenseMessage = result.toolResultMessage;

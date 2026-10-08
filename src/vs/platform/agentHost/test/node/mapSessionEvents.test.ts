@@ -1230,9 +1230,10 @@ suite('mapSessionEvents — history replay', () => {
 		const imageGeneration = { requestedModel: { id: 'image-preview', name: 'Image Preview' } };
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', data: { interactionId: 'm1', content: 'Draw a puppy' } },
-			{ type: 'tool.execution_start', data: { toolCallId: 'tc-image', toolName: 'image_generation' } },
+			{ type: 'tool.execution_start', timestamp: '2026-10-08T12:00:00.000Z', data: { toolCallId: 'tc-image', toolName: 'image_generation' } },
 			{
 				type: 'tool.execution_complete',
+				timestamp: '2026-10-08T12:00:43.500Z',
 				data: {
 					toolCallId: 'tc-image',
 					success: true,
@@ -1257,7 +1258,7 @@ suite('mapSessionEvents — history replay', () => {
 				{ type: ToolResultContentType.Text, text: 'Generated an image.' },
 			],
 			title: 'Generated image with Image Preview',
-			meta: { 'vscode.imageGeneration': imageGeneration },
+			meta: { 'vscode.imageGeneration': imageGeneration, 'vscode.toolCallDurationMs': 43_500 },
 		});
 	});
 

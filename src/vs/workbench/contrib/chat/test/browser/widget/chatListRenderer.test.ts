@@ -512,12 +512,12 @@ suite('ChatListRenderer', () => {
 					kind: 'data',
 					base64Value: 'aW1hZ2U=',
 					mimeType: 'image/png',
-					path: '/tool/image-call/0/generated-image.png',
+					path: '/tool/image-call/0/generated-image-42372713b8e5.png',
 				}, {
 					kind: 'data',
 					base64Value: 'aW1hZ2Uy',
 					mimeType: 'image/jpeg',
-					path: '/tool/image-call/1/generated-image.jpg',
+					path: '/tool/image-call/1/generated-image-3a13e817ce35.jpg',
 				}]);
 			});
 
@@ -550,10 +550,10 @@ suite('ChatListRenderer', () => {
 					path: part.uri.path,
 				})), [{
 					base64Value: 'aW1hZ2Ux',
-					path: '/tool/image-call-1/0/generated-image-1.png',
+					path: '/tool/image-call-1/0/generated-image-3c41e71d9ac9.png',
 				}, {
 					base64Value: 'aW1hZ2Uy',
-					path: '/tool/image-call-2/0/generated-image-2.png',
+					path: '/tool/image-call-2/0/generated-image-dc4b1335ceec.png',
 				}]);
 			});
 
@@ -590,7 +590,7 @@ suite('ChatListRenderer', () => {
 					uri: imageUri.toString(),
 					base64Value: undefined,
 				}, {
-					uri: ChatResponseResource.createUri(sessionResource, 'image-call', 1, 'generated-image-2.png').toString(),
+					uri: ChatResponseResource.createUri(sessionResource, 'image-call', 1, 'generated-image-035f45022753.png').toString(),
 					base64Value: 'aW1hZ2U=',
 				}]);
 			});

@@ -24,7 +24,7 @@ export const IChatImageCarouselService = createDecorator<IChatImageCarouselServi
 export interface IChatImageCarouselOptions {
 	readonly preferCurrentInput?: boolean;
 	readonly sessionResource?: URI;
-	readonly additionalImages?: readonly { readonly uri: URI; readonly mimeType: string }[];
+	readonly additionalImages?: readonly { readonly uri: URI; readonly mimeType: string; readonly name?: string }[];
 }
 
 export interface IChatImageCarouselService {
@@ -320,7 +320,7 @@ export class ChatImageCarouselService implements IChatImageCarouselService {
 		if (additionalImages.length > 0) {
 			sections.push({
 				title: localize('chatImageCarousel.artifacts', "Artifact Images"),
-				images: additionalImages.map(image => ({ id: image.uri.toString(), name: basename(image.uri), mimeType: image.mimeType, uri: image.uri })),
+				images: additionalImages.map(image => ({ id: image.uri.toString(), name: image.name ?? basename(image.uri), mimeType: image.mimeType, uri: image.uri })),
 			});
 		}
 		const clickedGlobalIndex = findClickedImageIndex(sections, resource, data, preferredSectionIndex);

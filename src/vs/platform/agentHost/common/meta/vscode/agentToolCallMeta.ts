@@ -21,6 +21,8 @@ interface IHasToolCallMeta {
  */
 export interface IToolCallMeta {
 	readonly [imageGenerationToolMetaKey]?: IImageGenerationToolMetadata;
+	/** Provider-measured execution duration for display, in milliseconds. */
+	readonly 'vscode.toolCallDurationMs'?: number;
 	/** Trusted Copilot host snapshot for integrated-browser client tools. Absent for other tools and harnesses. */
 	readonly 'vscode.copilotSandboxNetworkRestrictions'?: ISandboxNetworkRestrictions;
 	readonly 'agentHost.sandboxBypass'?: boolean;
@@ -68,6 +70,7 @@ const knownFusionPhaseStatuses: ReadonlySet<string> = new Set(fusionPhaseStatuse
 
 const toolCallMetaKeys = [
 	imageGenerationToolMetaKey,
+	'vscode.toolCallDurationMs',
 	'vscode.copilotSandboxNetworkRestrictions',
 	'agentHost.sandboxBypass', 'toolKind', 'language', 'subagentDescription', 'subagentAgentName', 'subagentChatUri',
 	'mcpServerName', 'mcpToolName', 'autoApproveBySetting', 'autoApproveRuleResolvable', 'toolSearchCandidates', 'progressMessage', 'fusionPhase',
@@ -174,6 +177,10 @@ export function readToolCallMeta(source: IHasToolCallMeta): IToolCallMeta {
 		return {};
 	}
 	const result: Mutable<IToolCallMeta> = {};
+	const durationMs = meta['vscode.toolCallDurationMs'];
+	if (typeof durationMs === 'number' && Number.isFinite(durationMs) && durationMs >= 0) {
+		result['vscode.toolCallDurationMs'] = durationMs;
+	}
 	const networkRestrictions = meta['vscode.copilotSandboxNetworkRestrictions'];
 	if (isSandboxNetworkRestrictions(networkRestrictions)) {
 		result['vscode.copilotSandboxNetworkRestrictions'] = networkRestrictions;

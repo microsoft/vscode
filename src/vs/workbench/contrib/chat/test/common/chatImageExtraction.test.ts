@@ -13,7 +13,7 @@ import { ChatResponseResource, IChatProgressResponseContent } from '../../common
 import { IChatRequestViewModel, IChatResponseViewModel } from '../../common/model/chatViewModel.js';
 import { IChatContentInlineReference, IChatToolInvocationSerialized, IToolResultOutputDetailsSerialized } from '../../common/chatService/chatService.js';
 import { IToolResultInputOutputDetails } from '../../common/tools/languageModelToolsService.js';
-import { extractImagesFromChatRequest, extractImagesFromChatResponse, extractImagesFromToolInvocationMessages, getToolResultImageResources } from '../../common/chatImageExtraction.js';
+import { extractImagesFromChatRequest, extractImagesFromChatResponse, extractImagesFromToolInvocationMessages, getChatImageResourceComparisonKey, getToolResultImageResources } from '../../common/chatImageExtraction.js';
 
 function makeToolInvocation(overrides: Partial<IChatToolInvocationSerialized> = {}): IChatToolInvocationSerialized {
 	return {
@@ -201,11 +201,54 @@ suite('extractImagesFromChatResponse', () => {
 			],
 		}, session, 'image-call', 'generated-image');
 		assert.deepStrictEqual(images.map(image => image.uri.path), [
-			'/tool/image-call/0/generated-image.jpg',
-			'/tool/image-call/1/generated-image.jpg',
-			'/tool/image-call/2/generated-image.png',
+			'/tool/image-call/0/generated-image-5b9618eb36e9.jpg',
+			'/tool/image-call/1/generated-image-f9aa87790a51.jpg',
+			'/tool/image-call/2/generated-image-7e0709f6cdce.png',
 			referenced.path,
 		]);
+	});
+
+	test('generated names are stable per output and distinct across generations and sessions', () => {
+		const session = URI.parse('chat-session://test/session');
+		const details: IToolResultInputOutputDetails = {
+			input: '',
+			output: [
+				{ type: 'embed', value: 'AQ==', mimeType: 'image/png' },
+				{ type: 'embed', value: 'AQI=', mimeType: 'image/png' },
+				{ type: 'ref', uri: URI.file('/images/generated-image.png'), mimeType: 'image/png' },
+			],
+		};
+		const images = getToolResultImageResources(details, session, 'image-call', 'generated-image');
+		const next = getToolResultImageResources(details, session, 'next-call', 'generated-image');
+		const otherSession = getToolResultImageResources(details, URI.parse('chat-session://test/other'), 'image-call', 'generated-image');
+		assert.deepStrictEqual({
+			names: images.map(image => image.name),
+			stable: images.map(image => image.name).join() === getToolResultImageResources(details, session, 'image-call', 'generated-image').map(image => image.name).join(),
+			distinct: new Set([...images, ...next, ...otherSession].map(image => image.name)).size,
+			referencedUri: images[2].uri.path,
+			byteLengths: images.map(image => image.byteLength),
+			sameIdentity: getChatImageResourceComparisonKey(images[0].uri) === getChatImageResourceComparisonKey(ChatResponseResource.createUri(session, 'image-call', 0, 'generated-image.png')),
+			ordinaryName: getToolResultImageResources(details, session, 'image-call')[0].name,
+		}, {
+			names: ['generated-image-5b9618eb36e9.png', 'generated-image-f9aa87790a51.png', 'generated-image-7e0709f6cdce.png'],
+			stable: true,
+			distinct: 9,
+			referencedUri: '/images/generated-image.png',
+			byteLengths: [1, 2, undefined],
+			sameIdentity: true,
+			ordinaryName: 'file.png',
+		});
+	});
+
+	test('image byte lengths exclude text output and handle base64 padding without decoding', () => {
+		const images = getToolResultImageResources({
+			input: '',
+			output: [
+				...['AQ==', 'AQI=', 'AQID', 'AQI', ''].map(value => ({ type: 'embed' as const, value, mimeType: 'image/png' })),
+				{ type: 'embed', value: 'Image generated successfully.', mimeType: 'image/png', isText: true },
+			],
+		}, URI.parse('chat-session://test/session'), 'image-call');
+		assert.deepStrictEqual(images.map(image => image.byteLength), [1, 2, 3, 2, 0]);
 	});
 
 	test('includes referenced and embedded generated images in output order without reading referenced bytes', async () => {
@@ -232,7 +275,7 @@ suite('extractImagesFromChatResponse', () => {
 			data: image.data && [...image.data.buffer],
 		})), [
 			{ uri: uri.toString(), mimeType: 'image/png', data: undefined },
-			{ uri: ChatResponseResource.createUri(response.sessionResource, 'call_1', 1, 'file.png').toString(), mimeType: 'image/png', data: [1, 2, 3] },
+			{ uri: ChatResponseResource.createUri(response.sessionResource, 'call_1', 1, 'generated-image-6cf8e84e4223.png').toString(), mimeType: 'image/png', data: [1, 2, 3] },
 		]);
 	});
 

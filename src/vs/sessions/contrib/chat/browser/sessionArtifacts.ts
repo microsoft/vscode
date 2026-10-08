@@ -86,6 +86,7 @@ export interface ISessionArtifactImage {
 	readonly artifact: ISessionArtifactPresentation;
 	readonly uri: URI;
 	readonly mimeType: string;
+	readonly name: string;
 }
 
 interface ISessionArtifactPresentation extends ISessionArtifact {
@@ -357,8 +358,8 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 export function buildSessionArtifactSections(artifacts: readonly ISessionArtifactPresentation[], actions: ISessionArtifactActions, labelService: Pick<ILabelService, 'getUriLabel'>, imageCarouselEnabled: boolean, browserUrls: ReadonlySet<string>, commits: ReadonlyMap<string, GitHubCommit> = new Map(), gitHubResolver?: LazyGitHubResourceResolver, reader?: IReader): readonly IChatPillSection[] {
 	const entriesByKind = new Map<SessionArtifactKind, IChatPillEntry[]>();
 	const images: ISessionArtifactImage[] = [];
-	const generatedImageTypes = new Map(artifacts.flatMap(artifact => artifact.generatedImageMimeType
-		? [[artifactValueKey(artifact), artifact.generatedImageMimeType] as const]
+	const generatedImages = new Map(artifacts.flatMap(artifact => artifact.generatedImageMimeType
+		? [[artifactValueKey(artifact), artifact] as const]
 		: []));
 	const seen = new Set<string>();
 	const browserKeys = new Set<string>();
@@ -373,11 +374,12 @@ export function buildSessionArtifactSections(artifacts: readonly ISessionArtifac
 		if (artifact.kind === SessionArtifactKind.Website && isShownInBrowser(artifact.link, browserKeys)) {
 			continue;
 		}
-		const imageMimeType = generatedImageTypes.get(artifactValueKey(artifact)) ?? (artifact.uri ? getImageMimeType(artifact.uri) : undefined);
+		const generatedImage = generatedImages.get(artifactValueKey(artifact));
+		const imageMimeType = generatedImage?.generatedImageMimeType ?? (artifact.uri ? getImageMimeType(artifact.uri) : undefined);
 		if (artifact.kind === SessionArtifactKind.File && artifact.uri && imageMimeType) {
 			if (!artifact.isArtifact || !seen.has(artifactValueKey(artifact))) {
 				seen.add(artifactValueKey(artifact));
-				images.push({ artifact, uri: artifact.uri, mimeType: imageMimeType });
+				images.push({ artifact, uri: artifact.uri, mimeType: imageMimeType, name: generatedImage?.label ?? basename(artifact.uri) });
 			}
 			continue;
 		}
@@ -396,8 +398,7 @@ export function buildSessionArtifactSections(artifacts: readonly ISessionArtifac
 		if (kind === SessionArtifactKind.File && images.length) {
 			const generatedEntries: IChatPillEntry[] = [];
 			const imageEntries: IChatPillEntry[] = [];
-			for (const [index, { artifact, uri, mimeType }] of images.entries()) {
-				const label = basename(uri);
+			for (const [index, { artifact, uri, mimeType, name: label }] of images.entries()) {
 				const fullPath = labelService.getUriLabel(uri, { noPrefix: true });
 				const relativePath = labelService.getUriLabel(uri, { relative: true, noPrefix: true });
 				const entry = withRemoveAction(artifact, {
@@ -425,7 +426,7 @@ export function buildSessionArtifactSections(artifacts: readonly ISessionArtifac
 						}
 						: { open: () => openArtifact(artifact, actions, () => actions.openResource(uri)) }),
 				}, actions);
-				(generatedImageTypes.has(artifactValueKey(artifact)) ? generatedEntries : imageEntries).push(entry);
+				(generatedImages.has(artifactValueKey(artifact)) ? generatedEntries : imageEntries).push(entry);
 			}
 			if (generatedEntries.length) {
 				sections.push({ title: localize('sessionArtifacts.generatedImages', "Generated Images"), entries: generatedEntries });
@@ -578,7 +579,7 @@ export class SessionArtifacts extends Disposable {
 					images.push({
 						id: `generated-image:${getChatImageResourceComparisonKey(image.uri)}`,
 						kind: SessionArtifactKind.File,
-						label: basename(image.uri),
+						label: image.name,
 						uri: image.uri,
 						chat: model.sessionResource,
 						isArtifact: true,

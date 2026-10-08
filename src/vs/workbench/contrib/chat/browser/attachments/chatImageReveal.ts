@@ -20,7 +20,7 @@ export interface IChatImageRevealOrigin {
 
 const revealProperties = ['frame', 'frame-width', 'image'];
 
-/** Continues the loading glyph wave into the generated image once its bytes are ready. */
+/** Expands the loading glyph band into the generated image as soon as its bytes are ready. */
 export class ChatImageReveal extends Disposable {
 	private readonly effects = this._register(new DisposableStore());
 	private readonly surface: GlyphSurface;
