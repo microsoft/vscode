@@ -19,12 +19,14 @@ import { INotificationService, Severity } from '../../../../../platform/notifica
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { IAgentPluginRepositoryService } from '../../common/plugins/agentPluginRepositoryService.js';
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
 import { type IMarketplaceReference, MarketplaceReferenceKind, parseMarketplaceReference, parseMarketplaceReferences, readConfiguredMarketplaces } from '../../common/plugins/pluginMarketplaceService.js';
 import { getStrictKnownMarketplaces, isMarketplaceReferenceAllowed } from '../../common/plugins/strictKnownMarketplaces.js';
 import { InstalledAgentPluginsViewId } from '../chat.js';
+import { getPluginCustomizationMarketplaceNavigationSourceId } from '../aiCustomization/pluginCustomizationMarketplaceProvider.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
 export class ManagePluginsAction extends Action2 {
@@ -284,6 +286,7 @@ export class ManagePluginMarketplacesAction extends Action2 {
 				return;
 			}
 			const actionItems: IQuickPickItem[] = [];
+			actionItems.push({ id: 'showPlugins', label: localize('showPlugins', "Show Plugins") });
 			const repoUri = pluginRepositoryService.getRepositoryUri(ref);
 			if (await fileService.exists(repoUri)) {
 				actionItems.push({ id: 'openDirectory', label: localize('openMarketplaceDirectory', "Open Folder") });
@@ -302,8 +305,16 @@ export class ManagePluginMarketplacesAction extends Action2 {
 			if (!action) {
 				return;
 			}
-
 			switch (action.id) {
+				case 'showPlugins':
+					await commandService.executeCommand(
+						AICustomizationManagementCommands.OpenMarketplace,
+						{
+							section: AICustomizationManagementSection.Plugins,
+							sourceId: getPluginCustomizationMarketplaceNavigationSourceId(configurationService, ref),
+						},
+					);
+					return;
 				case 'openDirectory':
 					await commandService.executeCommand('revealFileInOS', repoUri);
 					return;

@@ -48,6 +48,7 @@ import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService,
 import { ChatRequestTextPart, IChatPromptText, IParsedChatRequest, reviveParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { chatSessionResourceToId, LocalChatSessionUri } from './chatUri.js';
 import { ObjectMutationLog } from './objectMutationLog.js';
+import type { ICanvasContext } from '../../../canvases/common/canvas.js';
 
 
 /**
@@ -1997,6 +1998,7 @@ export interface IChatModel extends IDisposable {
 	readonly isInputBlocked: IObservable<boolean>;
 	/** Provider-reported active shells across all turns; undefined allows transcript-based detection. */
 	readonly backgroundShellCount?: IObservable<number | undefined>;
+	readonly canvasContext?: IObservable<ICanvasContext | undefined>;
 	readonly inputPlaceholder?: string;
 	readonly editingSession?: IChatEditingSession | undefined;
 	readonly checkpoint: IChatRequestModel | undefined;
@@ -2855,6 +2857,7 @@ export class ChatModel extends Disposable implements IChatModel {
 	readonly isReadOnly: IObservable<boolean>;
 	readonly isInputBlocked: IObservable<boolean>;
 	readonly backgroundShellCount: IObservable<number | undefined> | undefined;
+	readonly canvasContext: IObservable<ICanvasContext | undefined> | undefined;
 
 	/** Input model for managing input state */
 	readonly inputModel: InputModel;
@@ -2970,7 +2973,7 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	constructor(
 		dataRef: ISerializedChatDataReference | undefined,
-		initialModelProps: { initialLocation: ChatAgentLocation; canUseTools: boolean; sessionTypeSelectionReason?: SessionTypeSelectionReason; inputState?: ISerializableChatModelInputState; resource?: URI; disableBackgroundKeepAlive?: boolean; isReadOnly?: IObservable<boolean>; isInputBlocked?: IObservable<boolean>; backgroundShellCount?: IObservable<number | undefined> },
+		initialModelProps: { initialLocation: ChatAgentLocation; canUseTools: boolean; sessionTypeSelectionReason?: SessionTypeSelectionReason; inputState?: ISerializableChatModelInputState; resource?: URI; disableBackgroundKeepAlive?: boolean; isReadOnly?: IObservable<boolean>; isInputBlocked?: IObservable<boolean>; backgroundShellCount?: IObservable<number | undefined>; canvasContext?: IObservable<ICanvasContext | undefined> },
 		@ILogService private readonly logService: ILogService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IChatEditingService private readonly chatEditingService: IChatEditingService,
@@ -3032,6 +3035,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		this.isReadOnly = initialModelProps.isReadOnly ?? constObservable(false);
 		this.isInputBlocked = initialModelProps.isInputBlocked ?? constObservable(false);
 		this.backgroundShellCount = initialModelProps.backgroundShellCount;
+		this.canvasContext = initialModelProps.canvasContext;
 
 		this.lastRequestObs = observableFromEvent(this, this.onDidChange, () => this._requests.at(-1));
 

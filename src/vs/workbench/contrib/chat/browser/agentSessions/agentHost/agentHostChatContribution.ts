@@ -124,6 +124,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	private readonly _authRecovery: AgentHostAuthenticationRecovery;
 
 	private readonly _isSessionsWindow: boolean;
+	private readonly _isLocalAgentHost: boolean;
 	private readonly _enableSmokeTestDriver: boolean;
 	private _initialized = false;
 	private readonly _enablementStore = this._register(new MutableDisposable<DisposableStore>());
@@ -151,6 +152,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		super();
 		this._authRecovery = this._instantiationService.createInstance(AgentHostAuthenticationRecovery);
 		this._isSessionsWindow = environmentService.isSessionsWindow;
+		this._isLocalAgentHost = !environmentService.remoteAuthority;
 		this._enableSmokeTestDriver = !!environmentService.enableSmokeTestDriver;
 
 		this._register(autorun(reader => {
@@ -367,6 +369,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			description: agent.description,
 			connection: this._agentHostService,
 			connectionAuthority: LOCAL_AGENT_HOST_AUTHORITY,
+			supportsCanvasPresentation: this._isLocalAgentHost && agent.provider === 'copilotcli',
 			onSessionMaterialized: resource => this._chatSessionsService.notifySessionMaterialized?.(resource),
 			resolveAuthentication: (resources) => this._resolveAuthenticationInteractively(resources),
 			promptCacheNotification: this._promptCacheNotification,

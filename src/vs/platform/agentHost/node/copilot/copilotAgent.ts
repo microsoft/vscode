@@ -944,6 +944,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	readonly onDidChatSessionEvent = this._onDidChatSessionEvent.event;
 	private readonly _sessionLifetimes = new Map<string, CopilotSessionLifetime>();
 	private readonly _pendingChatTurns = this._register(new DisposableMap<string, DisposableSet<CancellationTokenSource>>());
+	private readonly _pendingSteeringMessages = new Map<string, { readonly message: PendingMessage; readonly sender?: IAgentPendingMessageSender }>();
 	/** Provisional chats that defer SDK/session creation until the first send. */
 	private readonly _provisionalSessions = new Map<string, IProvisionalSession>();
 	private _shutdownPromise: Promise<void> | undefined;
@@ -2806,13 +2807,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 				this._logService.info(`[Copilot] Using bundled runtime path: ${runtimePath}`);
 			}
 
-			// The SDK's sandbox auto-detection looks for `<MXC_BIN_DIR>/<arch>/wxc-exec.exe`
-			// (and the Linux/macOS equivalents). VS Code core ships the MXC sandbox binaries
-			// at `<nodeModules>/@microsoft/mxc-sdk/bin/<arch>/`, so point `MXC_BIN_DIR` there.
-			// The @github/copilot package's own `mxc-bin/` is excluded from the product build
-			// (see build/.moduleignore), mirroring `CopilotCLISDK.getPackage` in the extension.
-			env['MXC_BIN_DIR'] = URI.joinPath(nodeModulesUri, '@microsoft', 'mxc-sdk', 'bin').fsPath;
-
 			// Add VS Code's built-in ripgrep to PATH so the CLI subprocess can find it.
 			const rgDir = dirname(resolvedRgDiskPath);
 			// On Windows the env key is typically "Path" (not "PATH"). Since we copied
@@ -4164,6 +4158,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 				throw new CancellationError();
 			}
 			await entry.resume(turnId, this._resolveSdkMode(current.configurationResource), senderClientId, clientType, clientTelemetryContext, !URI.isUri(operationContext) && operationContext.agentMergeTurn === true, stageRecorder);
+			if (!token.isCancellationRequested) {
+				this._deliverPendingSteering(chat, entry);
+			}
 		});
 	}
 
@@ -5045,6 +5042,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 				enterUnboundedPhase();
 				stageRecorder?.mark('turnPrepare');
 				await entry.send(prompt, attachments, turnId, sdkMode, senderClientId, clientType, resolveAgentHostInstructions(operationContext), clientTelemetryContext, !!operationContext && !URI.isUri(operationContext) && operationContext.agentMergeTurn === true, stageRecorder);
+				if (!token.isCancellationRequested) {
+					this._deliverPendingSteering(chat, entry);
+				}
 			} catch (err) {
 				const errCode = (err as { code?: number })?.code;
 				const errMsg = err instanceof Error ? err.message : String(err);
@@ -5100,21 +5100,35 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	setPendingMessages(chat: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[], steeringSender?: IAgentPendingMessageSender): void {
-		const backing = this._chatBackings.get(chat.toString());
-		const target = backing ? this._findSessionBySdkId(backing.sdkSessionId) : undefined;
-		if (!target) {
-			this._logService.warn(`[Copilot] setPendingMessages: chat not found for ${chat.toString()}`);
+		if (this._isShuttingDown) {
 			return;
 		}
-
-		// Steering: send with mode 'immediate' so the SDK injects it mid-turn
-		if (steeringMessage) {
-			target.sendSteering(steeringMessage, steeringSender);
+		const chatKey = chat.toString();
+		if (!steeringMessage) {
+			this._pendingSteeringMessages.delete(chatKey);
+			return;
 		}
+		const pending = this._pendingSteeringMessages.get(chatKey);
+		const target = this._findChatByUri(chat);
+		const preparing = this._pendingChatTurns.has(chatKey);
+		if (!target && !preparing && !pending) {
+			this._logService.warn(`[Copilot] setPendingMessages: chat not found for ${chatKey}`);
+			return;
+		}
+		this._pendingSteeringMessages.set(chatKey, { message: steeringMessage, sender: steeringSender });
+		if (target && !this._preparedTurnLaunches.has(target) && (target.hasRunningTurn || (!preparing && !pending))) {
+			this._deliverPendingSteering(chat, target);
+		}
+	}
 
-		// Queued messages are consumed by the server (AgentSideEffects)
-		// which dispatches ChatTurnStarted and calls sendMessage directly.
-		// No SDK-level enqueue is needed.
+	private _deliverPendingSteering(chat: URI, target: CopilotAgentSession): void {
+		const chatKey = chat.toString();
+		const pending = this._pendingSteeringMessages.get(chatKey);
+		if (!pending) {
+			return;
+		}
+		void target.sendSteering(pending.message, pending.sender);
+		this._pendingSteeringMessages.delete(chatKey);
 	}
 
 	private async _getChatMessages(chat: URI, sessionOrContext: URI | IAgentChatContext): Promise<readonly Turn[]> {
@@ -5211,6 +5225,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private async _abortSessionOnce(chat: URI, operationContext: URI | IAgentChatContext): Promise<void> {
 		const context = this._resolveChatContext(chat, operationContext);
+		const steering = this._pendingSteeringMessages.get(context.chatKey);
+		if (steering) {
+			this._pendingSteeringMessages.delete(context.chatKey);
+			this._onDidChatProgress.fire({ kind: 'steering_consumed', chat, id: steering.message.id });
+		}
 		const pendingTurns = this._pendingChatTurns.get(context.chatKey);
 		if (pendingTurns?.size) {
 			this._logService.info(`[Copilot:${context.configurationId}] Cancelling ${pendingTurns.size} pending turn operation(s): chat=${context.chatKey}`);
@@ -5492,6 +5511,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private async _disposeChat(chat: URI, operationContext: URI | IAgentChatContext): Promise<void> {
 		const initial = this._resolveChatContext(chat, operationContext);
+		this._pendingSteeringMessages.delete(initial.chatKey);
 		const lifetimeId = initial.sdkSessionId ?? initial.configurationId;
 		const lifetime = this._getOrCreateSessionLifetime(lifetimeId);
 		if (!lifetime) {
@@ -6074,6 +6094,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	async shutdown(): Promise<void> {
 		if (!this._shutdownPromise) {
 			this._isShuttingDown = true;
+			this._pendingSteeringMessages.clear();
 			this._copilotChatDiscovery.dispose();
 			for (const pendingTurns of this._pendingChatTurns.values()) {
 				for (const cancellation of pendingTurns) {
@@ -6322,6 +6343,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 				},
 				serverToolHost: this._serverToolHost,
 				onTurnEnded: () => this._onChatTurnEnded(),
+				onSteeringReady: session => {
+					if (session.hasRunningTurn && !this._preparedTurnLaunches.has(session) && this._findChatByUri(chatChannelUri) === session) {
+						this._deliverPendingSteering(chatChannelUri, session);
+					}
+				},
 				telemetryContext: () => this.getTelemetryContext(),
 			},
 		);

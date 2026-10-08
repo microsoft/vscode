@@ -1305,6 +1305,163 @@ suite('ChatWidget', () => {
 		});
 	});
 
+	function createAutomaticMigrationFixture(options: { location?: ChatAgentLocation; resource?: URI; hasRequests?: boolean } = {}) {
+		const instantiation = store.add(new TestInstantiationService());
+		instantiation.stub(IHoverService, NullHoverService);
+		instantiation.stub(IOpenerService, { open: async () => true });
+		const banner = store.add(instantiation.createInstance(ChatReadOnlyBanner, 'Original chat'));
+		const visible = observableValue('visible', false);
+		const policy = observableValue('policy', false);
+		const archived = observableValue('archived', false);
+		const requestInProgress = observableValue('requestInProgress', false);
+		let hasRequests = options.hasRequests ?? true;
+		const model = upcastPartial<IChatModel>({
+			sessionResource: options.resource ?? LocalChatSessionUri.forSession('automatic-migration'),
+			initialLocation: options.location ?? ChatAgentLocation.Chat,
+			get hasRequests() { return hasRequests; },
+			requestInProgress,
+		});
+		const errors: string[] = [];
+		const widget: { autoMigrateLocalSession(model: IChatModel, archived: IObservable<boolean>): IDisposable } = Object.assign(Object.create(ChatWidget.prototype), {
+			_visible: visible, policyRequiresAgentHost: policy, readOnlyBanner: banner,
+			_viewModel: { model },
+			logService: { error: (message: string) => errors.push(message) },
+			setReadOnly: () => banner.setMessage(),
+		});
+		const observation = store.add(widget.autoMigrateLocalSession(model, archived));
+		return { banner, visible, policy, archived, requestInProgress, errors, observation, setHasRequests: (value: boolean) => { hasRequests = value; } };
+	}
+
+	for (const policyDuringRequest of [false, true]) {
+		test(`automatically migrates a chat that started empty when policy arrives ${policyDuringRequest ? 'during' : 'after'} its request`, async () => {
+			const fixture = createAutomaticMigrationFixture({ hasRequests: false });
+			let calls = 0;
+			fixture.banner.setAction({ label: 'Move to Copilot', run: async () => { calls++; } });
+			fixture.visible.set(true, undefined);
+			fixture.setHasRequests(true);
+			fixture.requestInProgress.set(true, undefined);
+			if (policyDuringRequest) {
+				fixture.policy.set(true, undefined);
+			}
+			await timeout(0);
+			const beforeCompletion = calls;
+			fixture.requestInProgress.set(false, undefined);
+			fixture.policy.set(true, undefined);
+			await timeout(0);
+			const afterCompletion = calls;
+			fixture.requestInProgress.set(true, undefined);
+			fixture.requestInProgress.set(false, undefined);
+			await timeout(0);
+			assert.deepStrictEqual({ beforeCompletion, afterCompletion, finalCalls: calls }, {
+				beforeCompletion: 0, afterCompletion: 1, finalCalls: 1,
+			});
+		});
+	}
+
+	test('automatically migrates displayed Local history once after policy and the active request settle', async () => {
+		const fixture = createAutomaticMigrationFixture();
+		let calls = 0;
+		fixture.banner.setAction({ label: 'Move to Copilot', run: async () => { calls++; } });
+		fixture.policy.set(true, undefined);
+		await timeout(0);
+		const hiddenCalls = calls;
+		fixture.requestInProgress.set(true, undefined);
+		fixture.visible.set(true, undefined);
+		await timeout(0);
+		const activeCalls = calls;
+		fixture.requestInProgress.set(false, undefined);
+		const immediateCalls = calls;
+		await timeout(0);
+		const displayedCalls = calls;
+		fixture.visible.set(false, undefined);
+		fixture.visible.set(true, undefined);
+		fixture.policy.set(false, undefined);
+		fixture.policy.set(true, undefined);
+		await timeout(0);
+		assert.deepStrictEqual({ hiddenCalls, activeCalls, immediateCalls, displayedCalls, finalCalls: calls }, {
+			hiddenCalls: 0, activeCalls: 0, immediateCalls: 0, displayedCalls: 1, finalCalls: 1,
+		});
+	});
+
+	for (const scenario of ['inline', 'terminal', 'empty', 'copilot', 'archived', 'unmanaged'] as const) {
+		test(`does not automatically migrate ${scenario} chats`, async () => {
+			const fixture = createAutomaticMigrationFixture({
+				location: scenario === 'inline' ? ChatAgentLocation.EditorInline : scenario === 'terminal' ? ChatAgentLocation.Terminal : ChatAgentLocation.Chat,
+				resource: scenario === 'copilot' ? URI.from({ scheme: SessionType.AgentHostCopilot, path: '/existing' }) : undefined,
+				hasRequests: scenario !== 'empty',
+			});
+			let calls = 0;
+			fixture.banner.setAction({ label: 'Move to Copilot', run: async () => { calls++; } });
+			fixture.archived.set(scenario === 'archived', undefined);
+			fixture.policy.set(scenario !== 'unmanaged', undefined);
+			fixture.visible.set(true, undefined);
+			await timeout(0);
+			assert.strictEqual(calls, 0);
+		});
+	}
+
+	for (const scenario of ['hidden', 'disposed', 'policy-removed', 'archived'] as const) {
+		test(`cancels scheduled automatic migration when ${scenario}`, async () => {
+			const fixture = createAutomaticMigrationFixture();
+			let calls = 0;
+			fixture.banner.setAction({ label: 'Move to Copilot', run: async () => { calls++; } });
+			fixture.policy.set(true, undefined);
+			fixture.visible.set(true, undefined);
+			if (scenario === 'hidden') {
+				fixture.visible.set(false, undefined);
+			} else if (scenario === 'disposed') {
+				fixture.observation.dispose();
+			} else if (scenario === 'policy-removed') {
+				fixture.policy.set(false, undefined);
+			} else {
+				fixture.archived.set(true, undefined);
+			}
+			await timeout(0);
+			assert.strictEqual(calls, 0);
+		});
+	}
+
+	test('failed automatic migration keeps an enabled manual retry without automatically retrying', async () => {
+		const fixture = createAutomaticMigrationFixture();
+		let calls = 0;
+		fixture.banner.setAction({
+			label: 'Move to Copilot',
+			run: async () => {
+				if (++calls === 1) {
+					throw new Error('Host unavailable');
+				}
+			},
+		});
+		fixture.visible.set(true, undefined);
+		fixture.policy.set(true, undefined);
+		await timeout(0);
+		fixture.visible.set(false, undefined);
+		fixture.visible.set(true, undefined);
+		await timeout(0);
+		const failedCalls = calls;
+		const message = fixture.banner.domNode.querySelector('.chat-readonly-banner-text')?.textContent;
+		const link = fixture.banner.domNode.querySelector('a')!;
+		const disabled = link.getAttribute('aria-disabled');
+		link.click();
+		await timeout(0);
+		assert.deepStrictEqual({ failedCalls, message, disabled, calls, errors: fixture.errors }, {
+			failedCalls: 1,
+			message: 'Couldn\'t move this chat to Copilot. Use Move to Copilot to try again.',
+			disabled: 'false', calls: 2, errors: ['Failed to automatically move Local chat to Copilot'],
+		});
+	});
+
+	test('cancelled automatic migration restores the ordinary banner without reporting an error', async () => {
+		const fixture = createAutomaticMigrationFixture();
+		fixture.banner.setAction({ label: 'Move to Copilot', run: async () => { throw new CancellationError(); } });
+		fixture.visible.set(true, undefined);
+		fixture.policy.set(true, undefined);
+		await timeout(0);
+		assert.deepStrictEqual({ message: fixture.banner.domNode.querySelector('.chat-readonly-banner-text')?.textContent, errors: fixture.errors }, {
+			message: 'Original chat', errors: [],
+		});
+	});
+
 	test('draft input events include IME and exclude focus, restored content, and restored attachments', async () => {
 		const typed = store.add(new Emitter<string>());
 		const pasted = store.add(new Emitter<void>());
