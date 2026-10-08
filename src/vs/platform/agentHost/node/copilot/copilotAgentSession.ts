@@ -92,7 +92,7 @@ import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION, getAgentMergeGitHubToolRestriction, isAgentMergeRestrictedMcpServer, isCopilotMcpToolName } from '../shared/agentMergeToolRestrictions.js';
 import { GITHUB_MCP_SERVER_NAME } from '../shared/githubMcpServer.js';
 import { AgentHostGitHubMcpServerEnabledSettingId } from '../../common/agentService.js';
-import { CopilotToolName, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getSdkImageGenerationMetadata, getShellIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolSummaryInputContract, isAgentCoordinationTool, isCopilotSdkToolOutputFile, isEditTool, isHiddenTool, isShellHelperTool, isShellTool, isTaskCompleteTool, parseCopilotStreamingToolInput, synthesizeSkillToolCall, tryStringify } from './copilotToolDisplay.js';
+import { CopilotToolName, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getSdkImageGenerationMetadata, getToolIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolSummaryInputContract, isAgentCoordinationTool, isCopilotSdkToolOutputFile, isEditTool, isHiddenTool, isShellHelperTool, isShellTool, isTaskCompleteTool, parseCopilotStreamingToolInput, synthesizeSkillToolCall, tryStringify } from './copilotToolDisplay.js';
 import { imageGenerationToolMetaKey } from '../../common/meta/agentImageGenerationMeta.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
 import { ICopilotApiService, type IRestrictedTelemetryContext } from '../shared/copilotApiService.js';
@@ -100,7 +100,8 @@ import type { IAgentHostRestrictedTelemetryContext } from '../agentHostRestricte
 import { buildChatErrorInfoFromCopilotSdkFields } from './copilotSdkChatError.js';
 import { buildMcpTopLevelCustomizationId, getMcpServerCustomizations, McpCustomizationController, type IMcpServerProvenance, type ISdkMcpServer } from '../shared/mcpCustomizationController.js';
 import { getSdkMcpServerEnablement, resolveCustomizationEnablement, targetForMcpServer } from '../shared/customizationEnablementGate.js';
-import { appendSdkToolResultContent, mapSessionEvents } from './mapSessionEvents.js';
+import { appendSdkToolResultContent, getSdkToolResultText, mapSessionEvents } from './mapSessionEvents.js';
+import { withPermissionDiff } from '../../common/meta/agentPermissionRequestMeta.js';
 import { COPILOT_FUSION_PHASE_AGENT_NAME, CopilotFusionProgress, formatFusionReviewContent, getFusionPhaseToolCallId, type CopilotFusionEvent, type ICopilotFusionProgressUpdate } from './copilotFusionProgress.js';
 import { getFusionEventKey, getFusionEventSdkTurnId } from './copilotFusionEventIdentity.js';
 import { CopilotFusionMessageChunks, isLastAssistantMessageChunk } from './copilotFusionMessageChunks.js';
@@ -814,6 +815,7 @@ class CopilotTurn extends Disposable {
 	readonly reasoningPartIds = new Map<string, string>();
 
 	readonly toolTitles = new Map<string, string>();
+	readonly toolIntentions = new Map<string, string>();
 
 	/**
 	 * Per-turn tool-call aggregate accumulated across the turn's `assistant.message` rounds (main
@@ -5419,7 +5421,8 @@ export class CopilotAgentSession extends Disposable {
 			this._surfaceProvisionalFusionToolCall(toolCallId);
 
 			const isNewFile = edits?.items.some(edit => !edit.before && !!edit.after);
-			const { confirmationTitle, invocationMessage, toolInput, permissionKind, permissionPath } = getPermissionDisplay(request, this._workingDirectory, isNewFile, this._appliedAdditionalDirectories);
+			const trackedToolCall = this._activeToolCalls.get(toolCallId);
+			const { confirmationTitle, invocationMessage, toolInput, permissionKind, permissionPath, shellCommand } = getPermissionDisplay(request, this._workingDirectory, isNewFile, this._appliedAdditionalDirectories, trackedToolCall?.parameters);
 
 			// Fire a pending_confirmation signal to transition the tool to PendingConfirmation
 			const toolName = request.kind === 'mcp' || request.kind === 'custom-tool' || request.kind === 'hook'
@@ -5429,7 +5432,6 @@ export class CopilotAgentSession extends Disposable {
 			// route the resulting ChatToolCallReady to the correct
 			// subagent session — without it the action would land on the
 			// parent session, which has no matching ChatToolCallStart.
-			const trackedToolCall = this._activeToolCalls.get(toolCallId);
 			const parentToolCallId = trackedToolCall?.parentToolCallId;
 			sandboxRequestId = this._sandboxBypassRequests.get(toolCallId);
 			this._onDidSessionProgress.fire({
@@ -5442,11 +5444,14 @@ export class CopilotAgentSession extends Disposable {
 					displayName: getToolDisplayName(toolName, request.kind === 'mcp' ? request : undefined),
 					contributor: trackedToolCall?.contributor ?? this._getToolCallContributor(toolName, undefined),
 					intention: trackedToolCall?.intention,
-					_meta: trackedToolCall?.meta
+					_meta: withPermissionDiff(trackedToolCall?.meta
 						? toToolCallMeta(trackedToolCall.meta)
 						: isShellRequest ? toToolCallMeta({ toolKind: 'terminal', language: shellLanguage }) : undefined,
+						request.kind === 'write' ? request.diff : undefined),
 					invocationMessage,
-					toolInput,
+					toolInput: request.kind === 'mcp' && trackedToolCall?.parameters
+						? getToolInputString(trackedToolCall.toolName, trackedToolCall.parameters, undefined)
+						: toolInput,
 					confirmationTitle,
 					riskAssessment: autoApproval?.reason
 						? {
@@ -5465,6 +5470,7 @@ export class CopilotAgentSession extends Disposable {
 				requestSandboxPermissive,
 				canAllowSessionSandboxBypass: requestSandboxBypass === true && !requestSandboxPermissive && sandboxRequestId !== undefined && this._configurationService.getSessionSandboxPolicy(this._ownerSessionUri.toString())?.allowBypass !== false,
 				shellLanguage,
+				shellCommand,
 				parentToolCallId,
 			});
 
@@ -6038,7 +6044,8 @@ export class CopilotAgentSession extends Disposable {
 				toolName: request.toolName,
 				displayName,
 				invocationMessage,
-				toolInput: request.command,
+				intention: trackedToolCall?.intention,
+				toolInput: getToolInputString(request.toolName, { ...trackedToolCall?.parameters, command: request.command }, undefined),
 				confirmationTitle,
 				_meta: toToolCallMeta(trackedToolCall?.meta ?? this._createToolCallMeta(request.toolName, undefined)),
 			},
@@ -6633,6 +6640,10 @@ export class CopilotAgentSession extends Disposable {
 					if (request.toolTitle) {
 						this._currentTurn.value?.toolTitles.set(request.toolCallId, request.toolTitle);
 					}
+					const intention = request.intentionSummary?.trim();
+					if (intention) {
+						this._currentTurn.value?.toolIntentions.set(request.toolCallId, intention);
+					}
 				}
 				// Wait for the full message boundary; clearing on an earlier tool delta would duplicate assembled markdown.
 				this._beginToolCallRound(contentParentToolCallId);
@@ -6833,8 +6844,10 @@ export class CopilotAgentSession extends Disposable {
 			if (!e.agentId && this._shouldDropLateRootTurnEvent('tool.execution_start')) {
 				return;
 			}
-			const toolTitle = this._currentTurn.value?.toolTitles.get(e.data.toolCallId);
+			const toolTitle = this._currentTurn.value?.toolTitles.get(e.data.toolCallId) ?? e.data.toolTitle;
 			this._currentTurn.value?.toolTitles.delete(e.data.toolCallId);
+			const intentionSummary = this._currentTurn.value?.toolIntentions.get(e.data.toolCallId);
+			this._currentTurn.value?.toolIntentions.delete(e.data.toolCallId);
 			if (isHiddenTool(e.data.toolName)) {
 				this._streamingToolDisplaySchedulers.deleteAndDispose(e.data.toolCallId);
 				this._streamingToolCalls.delete(e.data.toolCallId);
@@ -6877,7 +6890,7 @@ export class CopilotAgentSession extends Disposable {
 			const isClientTool = this._clientToolNames.has(clientToolName);
 			const isToolSearch = this._isToolSearchActive() && e.data.toolName === RUNTIME_TOOL_SEARCH_TOOL_NAME;
 			const contributor = this._getToolCallContributor(e.data.toolName, mcpServerName);
-			const intention = getShellIntention(e.data.toolName, parameters);
+			const intention = getToolIntention(e.data.toolName, parameters, intentionSummary);
 			this._activeToolCalls.set(e.data.toolCallId, {
 				turnId: this._turnId,
 				toolName: e.data.toolName,
@@ -7073,8 +7086,9 @@ export class CopilotAgentSession extends Disposable {
 			}
 
 			const content: ToolResultContent[] = [...tracked.content];
-			if (toolOutput !== undefined) {
-				content.push({ type: ToolResultContentType.Text, text: toolOutput });
+			const displayOutput = e.data.error?.message ?? getSdkToolResultText(e.data.result);
+			if (displayOutput !== undefined) {
+				content.push({ type: ToolResultContentType.Text, text: displayOutput });
 			}
 
 			// Attach the pty terminal reference for shell tools before folding in
@@ -7105,6 +7119,7 @@ export class CopilotAgentSession extends Disposable {
 					toolCallId: e.data.toolCallId,
 					title: tracked.displayName,
 				} : undefined,
+				e.data.result?.binaryResultsForLlm,
 			);
 			let nonPtyCompletion: INonPtyShellToolCompletion | undefined;
 			if (isShellCommandTool && !ptyTerminalUri) {
@@ -7375,6 +7390,7 @@ export class CopilotAgentSession extends Disposable {
 				turnId: this._turnId,
 				toolCallId: synth.toolCallId,
 				invocationMessage: synth.invocationMessage,
+				toolInput: synth.toolInput,
 				confirmed: ToolCallConfirmationReason.NotNeeded,
 			}, parentToolCallId);
 			this._emitAction({
