@@ -1056,7 +1056,7 @@ export class AgentHostSessionInputPills extends Disposable {
 				? gitHubDetails.presentation.read(reader)
 				: gitHubKind
 					? getGitHubResourcePresentation(link, gitHubKind, undefined, label)
-				: undefined;
+					: undefined;
 			const displayLabel = gitHubPresentation?.label ?? label;
 			const entry: IChatPillEntry = {
 				id: artifact.id,

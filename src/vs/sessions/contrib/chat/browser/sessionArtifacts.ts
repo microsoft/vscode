@@ -322,7 +322,7 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 		? gitHubDetails.presentation.read(reader)
 		: gitHubKind
 			? getGitHubResourcePresentation(link, gitHubKind, undefined, artifact.label)
-		: undefined;
+			: undefined;
 	const displayLabel = gitHubPresentation?.label ?? artifact.label;
 	return withRemoveAction(artifact, {
 		id: artifact.id,

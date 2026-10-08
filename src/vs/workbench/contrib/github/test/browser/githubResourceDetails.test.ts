@@ -93,10 +93,10 @@ suite('GitHubResourceDetails', () => {
 		const target = { owner: 'microsoft', repo: 'vscode', number: 1 };
 		assert.deepStrictEqual((['idle', 'loading', 'failed'] as const).map(status =>
 			getGitHubResourceDetailsPresentation('issue', target, { status }, 'Recorded title')),
-		Array.from({ length: 3 }, () => ({
-			label: 'Recorded title', badge: '#1', badgeBeforeLabel: true, className: 'chat-pill-reference', preserveLabelOnRefresh: false,
-			pillLabel: '#1', ariaLabel: 'Open Issue #1: Recorded title', dropdownAriaLabel: '#1, Open Issue: Recorded title',
-		})));
+			Array.from({ length: 3 }, () => ({
+				label: 'Recorded title', badge: '#1', badgeBeforeLabel: true, className: 'chat-pill-reference', preserveLabelOnRefresh: false,
+				pillLabel: '#1', ariaLabel: 'Open Issue #1: Recorded title', dropdownAriaLabel: '#1, Open Issue: Recorded title',
+			})));
 	});
 
 	test('uses a meaningful fallback for missing titles in every state', () => {

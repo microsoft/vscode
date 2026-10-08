@@ -134,9 +134,9 @@ async function renderReferences(ctx: ComponentFixtureContext, scenario: Scenario
 		? [authored[0], authored[2], resources(true)[1]]
 		: referenceList
 			? gitHubArtifacts(false).map(artifact => ({ ...artifact, label: artifact.kind === SessionArtifactKind.PullRequest ? 'Pull Request' : 'Issue' }))
-		: dedicatedCollection
-			? authored
-			: [gitHubArtifacts(false)[0], gitHubArtifacts(false)[2], ...resources(false), ...resources(true).map(item => ({ ...item, id: `artifact-${item.id}`, ...(item.uri ? { uri: item.uri.with({ path: item.uri.path.replace('/repo/', '/repo/output/') }) } : {}) }))];
+			: dedicatedCollection
+				? authored
+				: [gitHubArtifacts(false)[0], gitHubArtifacts(false)[2], ...resources(false), ...resources(true).map(item => ({ ...item, id: `artifact-${item.id}`, ...(item.uri ? { uri: item.uri.with({ path: item.uri.path.replace('/repo/', '/repo/output/') }) } : {}) }))];
 	const session = createMockSession({
 		artifacts: entries, removableArtifacts: true,
 		customizations: scenario === 'customizations' ? [
@@ -250,7 +250,7 @@ async function renderReferences(ctx: ComponentFixtureContext, scenario: Scenario
 		? 'Hover for details; right-click a pill for copy/remove actions.'
 		: referenceList
 			? scenario === 'cold' ? 'Cold cache: IDs stay in front while titles are pending.' : 'Resolved titles: IDs stay in the same leading position.'
-		: 'Click a collection, then hover or focus a row for details. Escape returns to the pills.';
+			: 'Click a collection, then hover or focus a row for details. Escape returns to the pills.';
 	const toolbar = container.querySelector<HTMLElement>('.session-chat-input-toolbar')!;
 	toolbar.style.top = referenceList ? '330px' : scenario === 'single' ? '52px' : resourcePreview ? '450px' : `${toolbar.offsetTop}px`;
 	toolbar.style.bottom = 'auto';
