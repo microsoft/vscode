@@ -37,7 +37,7 @@ import { IContextKey, IContextKeyService, RawContextKey } from '../../../../../p
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { SessionProviderIdContext, SessionSupportsDeleteContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionTypeContext, IsPhoneLayoutContext, IsQuickChatSessionContext, SessionIsArchivedContext, SessionIsReadContext, SessionHasPullRequestContext, SessionItemIsMultiSelectionContext } from '../../../../common/contextkeys.js';
 import { ARCHIVE_SESSION_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
-import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
+import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_SHOW_EXTERNAL_APPLICATION_BADGE_SETTING } from '../../../../common/sessionConfig.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -1217,6 +1217,7 @@ interface ISessionItemTemplate {
 	readonly title: HighlightedLabel;
 	readonly titleRow: HTMLElement;
 	readonly titleContainer: HTMLElement;
+	readonly externalApplicationBadge: HTMLElement;
 	readonly titleInputContainer: HTMLElement;
 	readonly compactHoverDescription: HTMLElement;
 	readonly titleToolbar: MenuWorkbenchToolBar | undefined;
@@ -1315,6 +1316,8 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			collapsedSessionIds?: IObservable<ReadonlySet<string>>;
 			onboardingTarget?: IObservable<ISessionOnboardingTarget | undefined>;
 			isRenderedInExternalSection?: (session: ISession) => boolean;
+			showExternalApplicationBadge?: IObservable<boolean>;
+			reportExternalApplicationBadgeExperimentTrigger?: () => void;
 		},
 		private readonly approvalModel: AgentSessionApprovalModel | undefined,
 		private readonly ciFixModel: ISessionCIFixModel | undefined,
@@ -1348,6 +1351,8 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		const titleRow = DOM.append(mainCol, $('.session-title-row'));
 		const titleContainer = DOM.append(titleRow, $('.session-title'));
 		const title = disposables.add(new HighlightedLabel(titleContainer));
+		const externalApplicationBadge = DOM.append(titleRow, $('span.session-external-application-badge'));
+		externalApplicationBadge.setAttribute('aria-hidden', 'true');
 		const titleInputContainer = DOM.append(titleRow, $('.session-title-input.session-inline-rename-input'));
 		for (const eventType of ['pointerdown', 'pointerup', 'click', 'dblclick'] as const) {
 			disposables.add(DOM.addDisposableListener(titleInputContainer, eventType, e => e.stopPropagation()));
@@ -1446,7 +1451,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			}));
 		}
 
-		return { container, statusIcon, title, titleRow, titleContainer, titleInputContainer, compactHoverDescription, titleToolbar, renderedSession, pendingVoiceIndicator, comparisonAttemptStatus, comparisonAttemptStatusIcon, comparisonAttemptStatusLabel, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, inputNeededRow, inputNeededLabel, ciRow, ciLabel, ciButtonContainer, contextKeyService, statusContext, isReadContext, isArchivedContext, isQuickChatContext, supportsMultipleChatsContext, supportsDeleteContext, disposables, elementDisposables };
+		return { container, statusIcon, title, titleRow, titleContainer, externalApplicationBadge, titleInputContainer, compactHoverDescription, titleToolbar, renderedSession, pendingVoiceIndicator, comparisonAttemptStatus, comparisonAttemptStatusIcon, comparisonAttemptStatusLabel, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, inputNeededRow, inputNeededLabel, ciRow, ciLabel, ciButtonContainer, contextKeyService, statusContext, isReadContext, isArchivedContext, isQuickChatContext, supportsMultipleChatsContext, supportsDeleteContext, disposables, elementDisposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionItemTemplate): void {
@@ -1639,6 +1644,16 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		template.elementDisposables.add(autorun(reader => {
 			const titleText = comparisonAttemptLabel ?? element.title.read(reader);
 			template.title.set(titleText, matches);
+		}));
+		template.elementDisposables.add(autorun(reader => {
+			const isExternal = element.isExternal?.read(reader) === true;
+			const application = element.application.read(reader);
+			if (isExternal) {
+				this.options.reportExternalApplicationBadgeExperimentTrigger?.();
+			}
+			const showBadge = isExternal && this.options.showExternalApplicationBadge?.read(reader) === true;
+			template.externalApplicationBadge.classList.toggle('visible', showBadge);
+			template.externalApplicationBadge.textContent = localize('sessionExternalApplicationBadge', "From {0}", application.label);
 		}));
 		template.elementDisposables.add(autorun(reader => {
 			const editingSession = this.editingSession.read(reader);
@@ -2775,6 +2790,8 @@ interface ISessionsAccessibilityProviderOptions extends ICompactInputNeededPrese
 	readonly deriveStatusFromMainChat?: boolean;
 	readonly collapsedSessionIds?: IObservable<ReadonlySet<string>>;
 	readonly approvalModel?: AgentSessionApprovalModel;
+	readonly showExternalApplicationBadge?: IObservable<boolean>;
+	readonly reportExternalApplicationBadgeExperimentTrigger?: () => void;
 }
 
 class SessionsAccessibilityProvider {
@@ -2908,6 +2925,13 @@ class SessionsAccessibilityProvider {
 			);
 			if (this.options?.deriveStatusFromMainChat) {
 				label = localize('sessionItemStatusAria', "{0}, {1}", label, getSessionConversationStatusAriaLabel(status));
+			}
+			const isExternal = element.isExternal?.read(reader) === true;
+			if (isExternal) {
+				this.options?.reportExternalApplicationBadgeExperimentTrigger?.();
+			}
+			if (isExternal && this.options?.showExternalApplicationBadge?.read(reader)) {
+				label = localize('sessionItemExternalAria', "{0}, created in {1}", label, element.application.read(reader).label);
 			}
 			if (!element.isArchived.read(reader) && !getSessionRowIsRead(element, reader, !!this.options?.deriveStatusFromMainChat)) {
 				label = localize('sessionItemUnreadAria', "{0}, unread", label);
@@ -3698,6 +3722,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// TEMPORARY (#320480): see the note on the `IAgentSessionsService` import.
 		const agentSessionsService = instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService));
 		const voicePlaybackService = instantiationService.invokeFunction(accessor => accessor.get(IVoicePlaybackService));
+		const showExternalApplicationBadge = observableConfigValue(SESSIONS_LIST_SHOW_EXTERNAL_APPLICATION_BADGE_SETTING, false, this.configurationService);
+		const reportExternalApplicationBadgeExperimentTrigger = () => logSettingExperimentTrigger(this.telemetryService, SESSIONS_LIST_SHOW_EXTERNAL_APPLICATION_BADGE_SETTING);
 		const sessionRenderer = new SessionItemRenderer(
 			{
 				grouping: this.options.grouping,
@@ -3723,6 +3749,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 				activeGuideSessionIds: this.activeGuideSessionIds,
 				deriveStatusFromMainChat: true,
 				activeSession: this._sessionsService.activeSession,
+				showExternalApplicationBadge,
+				reportExternalApplicationBadgeExperimentTrigger,
 				collapsedSessionIds: this.collapsedSessionIds,
 				onboardingTarget: this.onboardingTarget,
 			},
@@ -3915,6 +3943,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 					collapsedSessionIds: this.collapsedSessionIds,
 					showUnreadInCollapsedSections,
 					sessionsWithFailingCI,
+					showExternalApplicationBadge,
+					reportExternalApplicationBadgeExperimentTrigger,
 				}),
 				dnd: this._register(new SessionsListDragAndDrop({
 					isReorderable: session => this.isReorderable(session),
@@ -6562,6 +6592,7 @@ export class SessionsFlatList extends Disposable {
 		@IOpenerService openerService: IOpenerService,
 		@ILabelService labelService: ILabelService,
 		@IPreferencesService preferencesService: IPreferencesService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -6576,6 +6607,8 @@ export class SessionsFlatList extends Disposable {
 		// the only reference. See the note on the `IAgentSessionsService` import.
 		const agentSessionsService = instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService));
 		const useCompactQuickChatRows = this.options.useCompactQuickChatRows ?? true;
+		const showExternalApplicationBadge = observableConfigValue(SESSIONS_LIST_SHOW_EXTERNAL_APPLICATION_BADGE_SETTING, false, configurationService);
+		const reportExternalApplicationBadgeExperimentTrigger = () => logSettingExperimentTrigger(telemetryService, SESSIONS_LIST_SHOW_EXTERNAL_APPLICATION_BADGE_SETTING);
 
 		const sessionRenderer = new SessionItemRenderer(
 			{
@@ -6594,6 +6627,8 @@ export class SessionsFlatList extends Disposable {
 				toolbarTelemetrySource: this.options.toolbarTelemetrySource ?? 'sessionsFlatList.row',
 				inlineRename: false,
 				handleToolbarAction: this.options.onToolbarAction,
+				showExternalApplicationBadge,
+				reportExternalApplicationBadgeExperimentTrigger,
 			},
 			approvalModel,
 			this.options.ciFixModel,
@@ -6625,6 +6660,8 @@ export class SessionsFlatList extends Disposable {
 					grouping: () => SessionsGrouping.Date,
 					isPinned: session => this._sessionsListModelService.isSessionPinned(session),
 					includeQuickChatInAriaLabel: !useCompactQuickChatRows,
+					showExternalApplicationBadge,
+					reportExternalApplicationBadgeExperimentTrigger,
 				}),
 				identityProvider: {
 					getId: (element: SessionListItem) => (element as ISession).resource.toString(),

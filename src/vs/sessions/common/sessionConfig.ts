@@ -13,6 +13,8 @@ export const SESSIONS_CHAT_TABS_SETTING = 'sessions.showChatTabs';
 
 export const SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING = 'sessions.list.groupExternalSessions';
 
+export const SESSIONS_LIST_SHOW_EXTERNAL_APPLICATION_BADGE_SETTING = 'sessions.list.showExternalApplicationBadge';
+
 export const SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING = 'sessions.sidebar.separateNavigation';
 
 export const SESSIONS_LIST_REARRANGE_TREATMENT = 'sessions.list.rearrage';

@@ -25,7 +25,7 @@ import { SessionsMouseNavigationContribution } from './sessionsMouseNavigation.j
 import './sessionDetailsAction.js';
 import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../platform/chat/common/sessionArchiveActions.js';
 import { SessionsWindowNotifier } from './sessionsWindowNotifier.js';
-import { SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING, SESSIONS_LIST_REARRANGE_TREATMENT, SessionsChatTabsMode, USE_WORKTREE_SETTING, USE_WORKTREE_SETTING_TREATMENT } from '../../../common/sessionConfig.js';
+import { SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_SHOW_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING, SESSIONS_LIST_REARRANGE_TREATMENT, SessionsChatTabsMode, USE_WORKTREE_SETTING, USE_WORKTREE_SETTING_TREATMENT } from '../../../common/sessionConfig.js';
 
 const agentSessionsViewIcon = registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, localize('agentSessionsViewIcon', 'Icon for Agent Sessions View'));
 const AGENT_SESSIONS_VIEW_TITLE = localize2('agentSessions.view.label', "Sessions");
@@ -79,6 +79,13 @@ export const sessionsConfiguration = {
 			type: 'boolean',
 			tags: ['preview'],
 			description: localize('sessions.list.groupExternalSessions', "Controls whether external sessions are shown in a separate External section instead of workspace or time groups. Pinned sessions and custom groups keep their placement."),
+			default: false,
+			experiment: { mode: 'auto' }
+		},
+		[SESSIONS_LIST_SHOW_EXTERNAL_APPLICATION_BADGE_SETTING]: {
+			type: 'boolean',
+			tags: ['experimental'],
+			description: localize('sessions.list.showExternalApplicationBadge', "Controls whether sessions created in another application show the creating application next to the session title."),
 			default: false,
 			experiment: { mode: 'auto' }
 		},

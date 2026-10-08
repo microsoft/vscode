@@ -7,7 +7,7 @@ import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSetting
 import { ONBOARDING_TARGET_ATTR } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { SpotlightOverlay } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightOverlay.js';
 import { ComponentFixtureContext, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
-import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
+import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_SHOW_EXTERNAL_APPLICATION_BADGE_SETTING } from '../../../../common/sessionConfig.js';
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { createSessionArchiveTour } from '../../../onboardingTours/browser/tours/sessionArchiveTour.js';
 import { SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsGrouping } from '../../browser/views/sessionsList.js';
@@ -79,9 +79,9 @@ const GROUPED_SESSIONS: readonly ISessionsListFixtureSession[] = [
 ];
 const EXTERNAL_SESSIONS: readonly ISessionsListFixtureSession[] = [
 	{ id: 'regular', title: 'Update onboarding copy', workspace: 'vscode', minutesAgo: 10 },
-	{ id: 'external-repo', title: 'Hello world test', workspace: 'vscode', minutesAgo: 15, isExternal: true, supportsMultipleChats: true },
-	{ id: 'external-directory', title: 'Directory-only SDK session', workspace: 'scratch', minutesAgo: 30, isExternal: true, supportsMultipleChats: true },
-	{ id: 'done', title: 'Completed external session', workspace: 'vscode', minutesAgo: 60, isExternal: true, isArchived: true },
+	{ id: 'external-repo', title: 'Add retry diagnostics', workspace: 'vscode', application: 'github/cli', minutesAgo: 15, isExternal: true, supportsMultipleChats: true },
+	{ id: 'external-directory', title: 'Investigate authentication report', workspace: 'vscode', application: 'slack', minutesAgo: 30, isExternal: true, supportsMultipleChats: true },
+	{ id: 'done', title: 'Prepare release notes', workspace: 'vscode', application: 'github/autopilot', minutesAgo: 60, isExternal: true, isArchived: true },
 ];
 const COLLAPSED_SECTION_SESSIONS: readonly ISessionsListFixtureSession[] = [
 	{ id: 'grouped-unread', title: 'Unread session in the group only', workspace: 'vscode', minutesAgo: 12, isRead: false },
@@ -192,6 +192,48 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		view: { height: 340 },
 		settings: { [SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING]: false, [ChatSessionArchiveActionWordingSettingId]: ChatSessionArchiveActionWording.MarkAsDone },
 	}, { labels: { kind: 'screenshot' } }),
+	SessionsList_ExternalApplicationBadge: defineSessionsListFixture({
+		sessions: EXTERNAL_SESSIONS.filter(session => !session.isArchived),
+		view: { height: 270 },
+		settings: {
+			[SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING]: false,
+			[SESSIONS_LIST_SHOW_EXTERNAL_APPLICATION_BADGE_SETTING]: true,
+		},
+	}, {
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['External sessions are mixed with the regular session and show a rounded "From [application]" badge after the title.'],
+	}),
+	SessionsList_ExternalApplicationBadgeHovered: defineSessionsListFixture({
+		sessions: EXTERNAL_SESSIONS.filter(session => !session.isArchived),
+		view: { height: 270 },
+		settings: {
+			[SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING]: false,
+			[SESSIONS_LIST_SHOW_EXTERNAL_APPLICATION_BADGE_SETTING]: true,
+		},
+	}, {
+		labels: { kind: 'screenshot' },
+		afterRender: fixture => {
+			const row = fixture.list.getItemRow(fixture.resolve({ session: 'external-repo' }));
+			if (!row) {
+				throw new Error('Expected the external session row to render.');
+			}
+			row.classList.add('hovered');
+		},
+		expectedVisualDescriptions: ['The hovered external session shows its row actions and hides its application badge without changing the row content height. The other external session retains its badge.'],
+	}),
+	SessionsList_ExternalApplicationBadgeFocused: defineSessionsListFixture({
+		sessions: EXTERNAL_SESSIONS.filter(session => !session.isArchived),
+		view: { height: 270 },
+		settings: {
+			[SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING]: false,
+			[SESSIONS_LIST_SHOW_EXTERNAL_APPLICATION_BADGE_SETTING]: true,
+		},
+		interaction: { focused: { session: 'external-repo' } },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The keyboard-focused external session shows its row actions and hides its application badge without changing the row content height. The other external session retains its badge.'],
+	}),
 	SessionsList_WorkspaceSection: defineSessionsListFixture({
 		sessions: [{ id: 'c', title: 'Update onboarding copy', workspace: 'vscode-docs', minutesAgo: 180 }],
 	}),

@@ -265,6 +265,10 @@
 			display: block;
 		}
 
+		.session-external-application-badge {
+			display: none;
+		}
+
 		.session-title {
 			margin-right: 8px;
 		}
@@ -559,9 +563,29 @@
 	.session-title {
 		/* push other items to the end */
 		flex: 1;
+		min-width: 0;
 		overflow: hidden;
 		white-space: nowrap;
 		text-overflow: ellipsis;
+	}
+
+	.session-external-application-badge {
+		display: none;
+		align-items: center;
+		flex-shrink: 0;
+		margin-left: var(--vscode-spacing-size60);
+		box-sizing: border-box;
+		height: 17px;
+		padding: 0 var(--vscode-spacing-size60);
+		border: var(--vscode-strokeThickness) solid var(--vscode-widget-border, var(--vscode-contrastBorder, transparent));
+		border-radius: var(--vscode-cornerRadius-circle);
+		background-color: var(--vscode-list-hoverBackground);
+		color: var(--vscode-descriptionForeground);
+		font-size: var(--vscode-fontSize-label2);
+
+		&.visible {
+			display: flex;
+		}
 	}
 
 	.session-description {
@@ -1584,6 +1608,10 @@
 		top: 50%;
 		transform: translateY(-50%);
 		height: auto;
+	}
+
+	.monaco-list-row .session-external-application-badge {
+		display: none;
 	}
 
 	/* Center the codicon inside the 44x44 tap target. The base

@@ -65,7 +65,7 @@ import { AgentMergeSessionState } from '../../../../../platform/agentHost/common
 import { getSessionChatDragData, isSessionChatDrag, SessionsDataTransfers } from '../../../../browser/dnd.js';
 import { IsPhoneLayoutContext, IsQuickChatSessionContext, SessionIsArchivedContext, SessionSupportsMultipleChatsContext } from '../../../../common/contextkeys.js';
 import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../../../common/sessionCommands.js';
-import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
+import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_SHOW_EXTERNAL_APPLICATION_BADGE_SETTING } from '../../../../common/sessionConfig.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import type { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
@@ -1720,12 +1720,13 @@ suite('Sessions - SessionsList', () => {
 				instantiationService.stub(ITelemetryService, telemetryService);
 				configure(instantiationService);
 			});
-			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, harness.createContainer(), {
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
 				grouping: () => SessionsGrouping.Workspace,
 				sorting: () => SessionsSorting.Created,
 				onSessionOpen: () => { },
 			}));
-			return { list, triggers: telemetryService.triggers, harness };
+			return { list, triggers: telemetryService.triggers, harness, container };
 		}
 
 		test('reports the Done default trigger when the Filter Sessions dropdown shows, until an archived filter is chosen', () => {
@@ -1767,12 +1768,46 @@ suite('Sessions - SessionsList', () => {
 				return [name, triggers];
 			}));
 
+			const externalTriggers = () => [
+				`config.${SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING}`,
+				`config.${SESSIONS_LIST_SHOW_EXTERNAL_APPLICATION_BADGE_SETTING}`,
+			];
 			assert.deepStrictEqual(results, {
-				grouped: [`config.${SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING}`],
-				ungrouped: [`config.${SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING}`],
+				grouped: externalTriggers(),
+				ungrouped: externalTriggers(),
 				pinned: [],
 				local: [],
 			});
+		});
+
+		test('shows and announces the creating application only when the external application badge experiment is enabled', () => {
+			const results = [false, true].map(showBadge => {
+				const session = createTestSession('External session', {
+					application: 'github/cli',
+					environment: 'cloud',
+					isExternal: true,
+				}).session;
+				const { list, triggers, container } = renderList([session], instantiationService => {
+					(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_LIST_SHOW_EXTERNAL_APPLICATION_BADGE_SETTING, showBadge);
+				});
+				list.layout(300, 400);
+				const badge = container.querySelector<HTMLElement>('.session-external-application-badge.visible');
+				const row = container.querySelector<HTMLElement>('.monaco-list-row[role="treeitem"][aria-level="2"]');
+				return {
+					badge: badge?.textContent,
+					ariaIncludesApplication: row?.getAttribute('aria-label')?.includes('created in Copilot CLI'),
+					triggers,
+				};
+			});
+
+			const triggers = () => [
+				`config.${SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING}`,
+				`config.${SESSIONS_LIST_SHOW_EXTERNAL_APPLICATION_BADGE_SETTING}`,
+			];
+			assert.deepStrictEqual(results, [
+				{ badge: undefined, ariaIncludesApplication: false, triggers: triggers() },
+				{ badge: 'From Copilot CLI', ariaIncludesApplication: true, triggers: triggers() },
+			]);
 		});
 
 		test('reports the Done default trigger for archived sessions until an archived filter is chosen', () => {

@@ -9,7 +9,7 @@ import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurati
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING } from '../../browser/views/sessionsList.js';
-import { SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
+import { SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_SHOW_EXTERNAL_APPLICATION_BADGE_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
 
 import '../../browser/sessions.contribution.js';
 
@@ -19,6 +19,7 @@ const collapsedSectionStatusProperty = configurationRegistry.getConfigurationPro
 const showChatTabsProperty = configurationRegistry.getConfigurationProperties()[SESSIONS_CHAT_TABS_SETTING];
 const markAsDoneConfettiProperty = configurationRegistry.getConfigurationProperties()[SESSIONS_MARK_AS_DONE_CONFETTI_SETTING];
 const groupExternalSessionsProperty = configurationRegistry.getConfigurationProperties()[SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING];
+const showExternalApplicationBadgeProperty = configurationRegistry.getConfigurationProperties()[SESSIONS_LIST_SHOW_EXTERNAL_APPLICATION_BADGE_SETTING];
 const showArchivedByDefaultProperty = configurationRegistry.getConfigurationProperties()[SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING];
 
 suite('Sessions Contribution', () => {
@@ -29,6 +30,18 @@ suite('Sessions Contribution', () => {
 			type: groupExternalSessionsProperty.type,
 			default: groupExternalSessionsProperty.default,
 			experiment: groupExternalSessionsProperty.experiment,
+		}, {
+			type: 'boolean',
+			default: false,
+			experiment: { mode: 'auto' },
+		});
+	});
+
+	test('disables external application badges by default with automatic experiments', () => {
+		assert.deepStrictEqual({
+			type: showExternalApplicationBadgeProperty.type,
+			default: showExternalApplicationBadgeProperty.default,
+			experiment: showExternalApplicationBadgeProperty.experiment,
 		}, {
 			type: 'boolean',
 			default: false,
