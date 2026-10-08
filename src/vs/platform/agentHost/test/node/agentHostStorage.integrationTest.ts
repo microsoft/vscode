@@ -5,10 +5,10 @@
 
 import assert from 'assert';
 import { spawnSync } from 'child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
+import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { join } from '../../../../base/common/path.js';
-import { isWindows } from '../../../../base/common/platform.js';
+import { isLinux, isWindows } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 
@@ -35,6 +35,9 @@ if [ "$1" = timeout ]; then exec "$@"; fi`,
 shift 2
 exec "$@"`,
 			fuser: `if [ "$FAILURE" = diagnostic ]; then printf 'holder probe failed\\n' >&2; exit 29; fi
+for argument in "$@"; do
+if [ "$argument" = -- ]; then printf 'No process specification given\\n' >&2; exit 1; fi
+done
 printf 'test-user 12345 .c..m provider-child\\n' >&2`,
 		};
 		for (const [name, script] of Object.entries(scripts)) {
@@ -107,7 +110,7 @@ printf 'test-user 12345 .c..m provider-child\\n' >&2`,
 			errorReported: true,
 			directoryRetained: true,
 			holdersReported: true,
-			diagnosticCalls: [`timeout --signal=KILL 10s fuser -vm -- ${result.mountDirectory}`, `budget --signal=KILL 10s fuser -vm -- ${result.mountDirectory}`],
+			diagnosticCalls: [`timeout --signal=KILL 10s fuser -vm ${result.mountDirectory}`, `budget --signal=KILL 10s fuser -vm ${result.mountDirectory}`],
 		});
 	});
 
@@ -123,6 +126,30 @@ printf 'test-user 12345 .c..m provider-child\\n' >&2`,
 			directoryRetained: true,
 			unmountFailureReported: true,
 			diagnosticFailureReported: true,
+		});
+	});
+
+	(isLinux ? test : test.skip)('real Linux fuser identifies holders with the diagnostic mount argument form', () => {
+		const root = fileURLToPath(new URL('../../../../../../', import.meta.url));
+		const directory = mkdtempSync(join(root, '.build', 'agent-host-storage-fuser-'));
+		store.add(toDisposable(() => rmSync(directory, { recursive: true, force: true })));
+		const file = openSync(join(directory, 'held.txt'), 'w');
+		store.add(toDisposable(() => closeSync(file)));
+		const result = spawnSync('fuser', ['-vm', directory], {
+			encoding: 'utf8',
+			timeout: 10_000,
+			killSignal: 'SIGKILL',
+		});
+		if (result.error) {
+			throw result.error;
+		}
+
+		assert.deepStrictEqual({
+			status: result.status,
+			runnerIdentified: result.stdout.trim().split(/\s+/).includes(String(process.pid)),
+		}, {
+			status: 0,
+			runnerIdentified: true,
 		});
 	});
 });
