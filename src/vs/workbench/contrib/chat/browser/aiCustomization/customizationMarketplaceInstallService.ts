@@ -35,6 +35,7 @@ import { parseMarketplaceReference } from '../../common/plugins/marketplaceRefer
 import { IMarketplacePlugin, IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 import { getConnectorRowPresentation } from './connectorPresentation.js';
 import { ICopilotConnectorAccount, ICopilotConnectorsService, toCopilotConnectorMarketplaceEntry } from './copilotConnectorsService.js';
+import { getGitHubMcpRegistryIdentity, getGitHubMcpRegistryResourceIdentity } from './githubMcpRegistryIcons.js';
 import { getPluginCustomizationMarketplaceSourceIdFromIdentifier, getPluginMarketplaceIdentifier } from './pluginCustomizationMarketplaceProvider.js';
 import { CustomizationMarketplaceInstallationAssociationCache as CustomizationMarketplaceInstallationRecordStore, CustomizationMarketplaceInstallationAssociationTarget as CustomizationMarketplaceInstallationRecordTarget, getInstallationAssociationResourceKey as getInstallationRecordResourceKey, ICustomizationMarketplaceInstallationAssociation as ICustomizationMarketplaceInstallationRecord, removeLegacyCustomizationMarketplaceInstallationRecords, toAssociatedMarketplaceResource as toRecordedMarketplaceResource } from './customizationMarketplaceInstallationAssociation.js';
 
@@ -205,7 +206,18 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 	}
 
 	private findKnownResource(resource: ICustomizationMarketplaceResource): ICustomizationMarketplaceResource | undefined {
-		return [...this.knownResources.values()].find(candidate => this.matchesProviderInstallation(resource, candidate));
+		const resourceKey = getCustomizationMarketplaceResourceKey(resource);
+		let exactResource: ICustomizationMarketplaceResource | undefined;
+		for (const candidate of this.knownResources.values()) {
+			if (!this.matchesProviderInstallation(resource, candidate)) {
+				continue;
+			}
+			if (getCustomizationMarketplaceResourceKey(candidate) !== resourceKey) {
+				return candidate;
+			}
+			exactResource ??= candidate;
+		}
+		return exactResource;
 	}
 
 	private matchesProviderInstallation(installed: ICustomizationMarketplaceResource, resource: ICustomizationMarketplaceResource): boolean {
@@ -214,6 +226,11 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		}
 		const versionsCompatible = installed.version === undefined || resource.version === undefined || installed.version === resource.version;
 		if (versionsCompatible && installed.externalUrl && resource.externalUrl && installed.externalUrl === resource.externalUrl) {
+			return true;
+		}
+		const installedRegistryIdentity = this.getGitHubMcpRegistryIdentity(installed);
+		const resourceRegistryIdentity = this.getGitHubMcpRegistryIdentity(resource);
+		if (versionsCompatible && installedRegistryIdentity && resourceRegistryIdentity && installedRegistryIdentity === resourceRegistryIdentity) {
 			return true;
 		}
 		const installedSource = installed.installation;
@@ -229,6 +246,13 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 				&& versionsCompatible;
 		}
 		return false;
+	}
+
+	private getGitHubMcpRegistryIdentity(resource: ICustomizationMarketplaceResource): string | undefined {
+		const installation = resource.installation;
+		const itemUrl = installation?.kind === 'providerCatalog' ? installation.itemUrl : undefined;
+		return getGitHubMcpRegistryResourceIdentity(resource.identifier)?.toLowerCase()
+			?? getGitHubMcpRegistryIdentity(itemUrl ?? resource.externalUrl ?? resource.url?.toString(true) ?? resource.identifier)?.toLowerCase();
 	}
 
 	private isEnabled(): boolean {

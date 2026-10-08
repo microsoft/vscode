@@ -557,6 +557,60 @@ suite('CustomizationMarketplaceInstallService', () => {
 		});
 	});
 
+	test('joins a Registry receipt URN to its exact catalog card URL', async () => {
+		const itemUrl = 'https://api.mcp.github.com/oss/v0.1/servers/com.figma.mcp%2Fmcp/versions/latest';
+		const candidate = resource({
+			sourceId: CustomizationMarketplaceSources.AgentFinderPublicFeed.id,
+			identifier: itemUrl,
+			displayName: 'Figma MCP Server',
+			description: 'Use Figma design context.',
+			mediaType: CustomizationMarketplaceMediaType.McpServer,
+			icon: URI.parse('https://example.com/figma.png'),
+			installation: { kind: 'providerCatalog', resourceKind: 'mcp', selectionId: 'figma', itemUrl },
+		});
+		const providerResource: ICustomizationMarketplaceResource = {
+			...candidate,
+			identifier: 'urn:air:api.mcp.github.com:com.figma.mcp:mcp',
+			icon: undefined,
+			installation: undefined,
+		};
+		const provider = new class implements ICustomizationMarketplaceInstallProvider {
+			readonly onDidChange = Event.None;
+			getInstallations(): Promise<readonly IRecordedCustomizationMarketplaceResource[]> {
+				return Promise.resolve([{
+					installationId: 'figma-installation',
+					resource: providerResource,
+					state: { kind: 'installed', target: { kind: 'mcp', name: 'com.figma.mcp/mcp' } },
+				}]);
+			}
+			install(): Promise<void> { throw new Error('Unexpected install'); }
+			repair(): Promise<void> { throw new Error('Unexpected repair'); }
+			uninstall(): Promise<void> { throw new Error('Unexpected uninstall'); }
+		}();
+		const fixture = await createFixture({ enabled: true, installProvider: provider });
+		await timeout(0);
+
+		fixture.service.getInstallState(providerResource);
+		const state = fixture.service.getInstallState(candidate);
+		await timeout(0);
+		const snapshot = fixture.service.installations.get();
+		const associated = snapshot.findByResource(candidate);
+
+		assert.deepStrictEqual({
+			state,
+			installationCount: snapshot.installations.length,
+			installationId: associated?.installationId,
+			resourceIdentifier: associated?.resource.identifier,
+			icon: URI.isUri(associated?.resource.icon) ? associated.resource.icon.toString() : undefined,
+		}, {
+			state: { kind: 'installed', target: { kind: 'mcp', name: 'com.figma.mcp/mcp' } },
+			installationCount: 1,
+			installationId: 'figma-installation',
+			resourceIdentifier: itemUrl,
+			icon: 'https://example.com/figma.png',
+		});
+	});
+
 	test('routes install, repair, and uninstall through the active harness provider', async () => {
 		const calls: string[] = [];
 		const changes = store.add(new Emitter<void>());
