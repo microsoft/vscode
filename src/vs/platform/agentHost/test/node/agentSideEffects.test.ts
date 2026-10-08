@@ -5408,6 +5408,58 @@ suite('AgentSideEffects', () => {
 
 			assert.deepStrictEqual(agent.activeClientCalls.map(call => call.chat.toString()), [defaultChatUri, peerChat]);
 		});
+
+		test('removing a client clears unpublished release markers before re-registration and publication', () => {
+			setupSession();
+			const session = sessionUri.toString();
+			const peerChat = buildChatUri(sessionUri, 'unpublished-release');
+			const action: SessionAction = {
+				type: ActionType.SessionActiveClientSet,
+				activeClient: { clientId: 'test-client', tools: [{ name: 'toolSearch' }] },
+			};
+			stateManager.dispatchClientAction(session, action, { clientId: 'test-client', clientSeq: 1 });
+			sideEffects.handleAction(session, action);
+			sideEffects.setClientChatSubscription(peerChat, 'test-client', false);
+			stateManager.dispatchServerAction(session, { type: ActionType.SessionActiveClientRemoved, clientId: 'test-client' });
+			stateManager.dispatchClientAction(session, action, { clientId: 'test-client', clientSeq: 2 });
+			sideEffects.handleAction(session, action);
+			agent.activeClientCalls.length = 0;
+			agent.removeActiveClientCalls.length = 0;
+			stateManager.addChat(session, peerChat);
+
+			assert.deepStrictEqual({
+				added: agent.activeClientCalls.map(call => call.chat.toString()),
+				removed: agent.removeActiveClientCalls.map(call => call.chat.toString()),
+			}, { added: [defaultChatUri, peerChat], removed: [] });
+		});
+
+		for (const beforeRegistration of [false, true]) {
+			test(`publishes positive unpublished chat membership ${beforeRegistration ? 'before' : 'after'} active-client registration`, () => {
+				setupSession();
+				const session = sessionUri.toString();
+				const peerChat = buildChatUri(sessionUri, 'unpublished-subscriber');
+				const action: SessionAction = {
+					type: ActionType.SessionActiveClientSet,
+					activeClient: { clientId: 'test-client', tools: [{ name: 'toolSearch' }] },
+				};
+				if (beforeRegistration) {
+					sideEffects.setClientChatSubscription(peerChat, 'test-client', true);
+				}
+				stateManager.dispatchClientAction(session, action, { clientId: 'test-client', clientSeq: 1 });
+				sideEffects.handleAction(session, action);
+				if (!beforeRegistration) {
+					sideEffects.setClientChatSubscription(peerChat, 'test-client', true);
+				}
+				const added = agent.activeClientCalls.map(call => call.chat.toString());
+				agent.removeActiveClientCalls.length = 0;
+				stateManager.dispatchServerAction(session, { type: ActionType.SessionActiveClientRemoved, clientId: 'test-client' });
+
+				assert.deepStrictEqual({
+					added,
+					removed: agent.removeActiveClientCalls.map(call => call.chat.toString()),
+				}, { added: [defaultChatUri, peerChat], removed: [defaultChatUri, peerChat] });
+			});
+		}
 	});
 
 	// ---- handleAction: root/configChanged --------------------------------
