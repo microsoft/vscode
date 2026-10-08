@@ -48,8 +48,7 @@ import { TerminalProcess } from '../../node/terminalProcess.js';
 				titlePolling: Reflect.get(terminal, '_titleInterval') !== undefined
 			}),
 			cleanup: () => {
-				// A failing regression can recreate these resources after disposal.
-				// Clean only this test's exact handles so a red run cannot hang.
+				// Clean this test's handles if a regression recreates resources after disposal.
 				const interval: ReturnType<typeof setInterval> | undefined = Reflect.get(terminal, '_titleInterval');
 				if (interval) {
 					clearInterval(interval);
