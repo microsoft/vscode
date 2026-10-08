@@ -5,10 +5,11 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
-import { bufferToStream, VSBuffer } from '../../../../../../base/common/buffer.js';
+import { bufferToStream, newWriteableBufferStream, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
@@ -427,6 +428,130 @@ suite('CloudSandboxApiService connection credentials', () => {
 			assert.strictEqual(requestedUrls.length, 1);
 		});
 	}
+});
+
+suite('CloudSandboxApiService history timings', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('separates authentication, request, body reading and replay without logging private data', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const logService = new TestLogService();
+		const responseReady = new DeferredPromise<void>();
+		const stream = newWriteableBufferStream();
+		store.add(toDisposable(() => stream.destroy()));
+		const { service, requestedUrls } = createService(store, {
+			tasks: [], repositories: new Map(), logService,
+			authenticationSessions: async () => {
+				await timeout(25);
+				return [{ accessToken: 'private-token', id: 's', account: { id: 'a', label: 'a' }, scopes: [] }];
+			},
+			onRequest: async () => {
+				await timeout(50);
+				await responseReady.complete();
+				return { res: { statusCode: 200, headers: {} }, stream };
+			},
+		});
+		const writeBody = async () => {
+			await responseReady.p;
+			await timeout(75);
+			stream.end(VSBuffer.fromString(JSON.stringify({
+				events: [{
+					ns: 'ahp', session_id: 'private-session', seq: 0, at: '2026-01-01T00:00:00Z',
+					payload: {
+						kind: 'message',
+						data: { channel: 'ahp-session:/private-session', serverSeq: 0, action: { type: 'session/titleChanged', title: 'private-title' } },
+					},
+				}],
+				total: 1,
+			})));
+		};
+		const [history] = await Promise.all([service.getSessionHistory('private-task', CancellationToken.None), writeBody()]);
+
+		assert.deepStrictEqual({
+			title: history?.sessions[0].state.title,
+			requests: requestedUrls.map(url => new URL(url).pathname),
+			logs: logService.infos,
+		}, {
+			title: 'private-title',
+			requests: ['/agents/tasks/private-task/events'],
+			logs: [
+				'[CloudSandboxApi] historyTiming loadId=1 started totalMs=0',
+				'[CloudSandboxApi] historyTiming loadId=1 requestIssued authenticationMs=25 totalMs=25',
+				'[CloudSandboxApi] historyTiming loadId=1 responseReceived requestMs=50 status=200 totalMs=75',
+				'[CloudSandboxApi] historyTiming loadId=1 bodyRead bodyReadAndParseMs=75 totalMs=150',
+				'[CloudSandboxApi] historyTiming loadId=1 completed apiMs=125 replayMs=0 events=1 sessions=1 truncated=false totalMs=150',
+			],
+		});
+	}));
+
+	for (const failure of ['authentication', 'request', 'HTTP', 'JSON', 'replay', 'cancellation'] as const) {
+		test(`logs the elapsed failing phase and preserves rejection for ${failure}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const logService = new TestLogService();
+			const cancellation = store.add(new CancellationTokenSource());
+			const error = failure === 'cancellation' ? new CancellationError() : new Error('private-error');
+			const { service } = createService(store, {
+				tasks: [], repositories: new Map(), logService,
+				authenticationSessions: failure === 'authentication' ? async () => {
+					await timeout(35);
+					throw error;
+				} : undefined,
+				onRequest: async () => {
+					await timeout(35);
+					if (failure === 'cancellation') {
+						cancellation.cancel();
+						throw error;
+					}
+					if (failure === 'request') {
+						throw error;
+					}
+					if (failure === 'JSON') {
+						return { res: { statusCode: 200, headers: {} }, stream: bufferToStream(VSBuffer.fromString('private-invalid-json')) };
+					}
+					return failure === 'HTTP'
+						? jsonResponse({ message: 'private-response' }, 503)
+						: jsonResponse({ events: [], total: 1 });
+				},
+			});
+			await assert.rejects(service.getSessionHistory('private-task', cancellation.token), error =>
+				failure === 'cancellation' ? isCancellationError(error) : error instanceof Error);
+
+			const phase = failure === 'authentication' ? 'authentication'
+				: failure === 'request' || failure === 'cancellation' ? 'request'
+					: failure === 'replay' ? 'replay' : 'responseBody';
+			assert.deepStrictEqual({
+				terminalLog: logService.infos.at(-1),
+				completed: logService.infos.some(message => message.includes(' completed ')),
+				privateData: logService.infos.some(message => message.includes('private-')),
+			}, {
+				terminalLog: `[CloudSandboxApi] historyTiming loadId=1 ${failure === 'cancellation' ? 'cancelled' : 'failed'} phase=${phase} phaseMs=${phase === 'authentication' || phase === 'request' ? 35 : 0} totalMs=35`,
+				completed: false, privateData: false,
+			});
+		}));
+	}
+
+	test('correlates concurrent history fetches with separate load IDs', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const logService = new TestLogService();
+		const { service } = createService(store, {
+			tasks: [], repositories: new Map(), logService,
+			onRequest: async url => {
+				await timeout(url.pathname.includes('/slow/') ? 40 : 20);
+				return jsonResponse({ events: [], total: 0 });
+			},
+		});
+		const histories = await Promise.all([
+			service.getSessionHistory('slow', CancellationToken.None),
+			service.getSessionHistory('fast', CancellationToken.None),
+		]);
+
+		assert.deepStrictEqual({
+			histories, completions: logService.infos.filter(message => message.includes(' completed ')),
+		}, {
+			histories: [undefined, undefined],
+			completions: [
+				'[CloudSandboxApi] historyTiming loadId=2 completed apiMs=20 replayMs=0 events=0 sessions=0 truncated=false totalMs=20',
+				'[CloudSandboxApi] historyTiming loadId=1 completed apiMs=40 replayMs=0 events=0 sessions=0 truncated=false totalMs=40',
+			],
+		});
+	}));
 });
 
 suite('Mission Control environment discovery', () => {

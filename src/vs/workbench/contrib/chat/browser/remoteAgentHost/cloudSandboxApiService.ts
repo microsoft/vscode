@@ -215,6 +215,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	private readonly _discoveredTasks = new Map<string, ICachedSandboxTask>();
 	private _discoverySince: string | undefined;
 	private _discoveryGeneration = 0;
+	private _historyRequestId = 0;
 	private _environments: { readonly generation: number; readonly fetchedAt: number; readonly values: readonly IMissionControlEnvironment[] } | undefined;
 	private readonly _onDidChangeAccount = this._register(new Emitter<string | undefined>());
 	readonly onDidChangeAccount = this._onDidChangeAccount.event;
@@ -660,19 +661,48 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	 * frames rather than the cloud-task event summaries the endpoint serves by default.
 	 */
 	async getSessionHistory(taskId: string, token: CancellationToken): Promise<IReplayedTaskHistory | undefined> {
-		const url = `${this._tasksBaseUrl()}/tasks/${encodeURIComponent(taskId)}/events`;
-		const context = await this._request(url, 'mc.taskClient.events', 'getTaskEvents', {
-			'Accept': 'application/vnd.github.ahp+json',
-			'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
-		}, token, DISCOVERY_TIMEOUT_MS);
-		if (!isSuccess(context)) {
-			await this._throwForStatus('task events', context);
+		// Temporary first-open diagnostics: correlate phases without logging task IDs, content, or credentials.
+		const loadId = ++this._historyRequestId;
+		const watch = StopWatch.create(false);
+		const logTiming = (message: string) => this._logService.info(`${LOG_PREFIX} historyTiming loadId=${loadId} ${message} totalMs=${watch.elapsed()}`);
+		let phase = 'authentication';
+		let phaseStarted = 0;
+		logTiming('started');
+		try {
+			const url = `${this._tasksBaseUrl()}/tasks/${encodeURIComponent(taskId)}/events`;
+			const context = await this._request(url, 'mc.taskClient.events', 'getTaskEvents', {
+				'Accept': 'application/vnd.github.ahp+json',
+				'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
+			}, token, DISCOVERY_TIMEOUT_MS, undefined, undefined, () => {
+				phaseStarted = watch.elapsed();
+				logTiming(`requestIssued authenticationMs=${phaseStarted}`);
+				phase = 'request';
+			});
+			const responseReceived = watch.elapsed();
+			const requestMs = responseReceived - phaseStarted;
+			logTiming(`responseReceived requestMs=${requestMs} status=${context.res.statusCode ?? 'unknown'}`);
+			phase = 'responseBody';
+			phaseStarted = responseReceived;
+			if (!isSuccess(context)) {
+				await this._throwForStatus('task events', context);
+			}
+			const body = await this._readJson<unknown>(context);
+			const bodyRead = watch.elapsed();
+			const bodyReadAndParseMs = bodyRead - phaseStarted;
+			logTiming(`bodyRead bodyReadAndParseMs=${bodyReadAndParseMs}`);
+			if (body === undefined) {
+				throw new TaskEventReplayError('Task AHP history response was empty or not JSON.');
+			}
+			phase = 'replay';
+			phaseStarted = bodyRead;
+			const events = parseTaskEventsResponse(body);
+			const history = replayTaskAhpEvents(events);
+			logTiming(`completed apiMs=${requestMs + bodyReadAndParseMs} replayMs=${watch.elapsed() - phaseStarted} events=${events.length} sessions=${history?.sessions.length ?? 0} truncated=${history?.truncated ?? false}`);
+			return history;
+		} catch (error) {
+			logTiming(`${isCancellationError(error) || token.isCancellationRequested ? 'cancelled' : 'failed'} phase=${phase} phaseMs=${watch.elapsed() - phaseStarted}`);
+			throw error;
 		}
-		const body = await this._readJson<unknown>(context);
-		if (body === undefined) {
-			throw new TaskEventReplayError('Task AHP history response was empty or not JSON.');
-		}
-		return replayTaskAhpEvents(parseTaskEventsResponse(body));
 	}
 
 	/**
