@@ -240,14 +240,11 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 	}
 
 	async provideCustomAgents(sessionResource: URI, token: CancellationToken): Promise<readonly ICustomAgent[]> {
-		let agents = this.getCustomAgents(sessionResource);
-		if (agents.length === 0) {
-			await this._customAgentsService.whenCustomizationsReady(sessionResource, token);
-			if (token.isCancellationRequested) {
-				return [];
-			}
-			agents = this.getCustomAgents(sessionResource);
+		await this._customAgentsService.whenCustomizationsReady(sessionResource, token);
+		if (token.isCancellationRequested) {
+			return [];
 		}
+		const agents = this.getCustomAgents(sessionResource);
 		const sessionTypes = [getChatSessionType(sessionResource)];
 		return agents.map(agent => ({
 			id: agent.uri,

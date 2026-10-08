@@ -146,7 +146,7 @@ suite('AgentCustomizationItemProvider', () => {
 		}]);
 	});
 
-	test('waits for the first session snapshot before publishing an empty agent list', async () => {
+	test('waits for the first session snapshot before publishing draft fallback agents', async () => {
 		const agent: AgentCustomization = {
 			type: CustomizationType.Agent,
 			id: 'file:///workspace/.github/agents/learn-writer.agent.md',
@@ -180,6 +180,13 @@ suite('AgentCustomizationItemProvider', () => {
 			new TestCustomizationService(),
 			makePromptsService(),
 		));
+		provider.setDraftCustomAgents(observableValue<readonly AgentCustomization[]>('draftAgents', [{
+			type: CustomizationType.Agent,
+			id: 'file:///workspace/.github/agents/draft.agent.md',
+			uri: 'file:///workspace/.github/agents/draft.agent.md',
+			name: 'Draft Agent',
+			description: 'Available before materialization',
+		}]));
 		const sessionResource = URI.parse('agent-host-copilotcli:///session');
 
 		const agents = await provider.provideCustomAgents(sessionResource, CancellationToken.None);
@@ -191,7 +198,7 @@ suite('AgentCustomizationItemProvider', () => {
 				sessionTypes: candidate.sessionTypes,
 			})),
 		}, {
-			calls: ['get:pending', 'wait', 'get:ready'],
+			calls: ['wait', 'get:ready'],
 			agents: [{
 				name: 'Learn Writer',
 				sessionTypes: ['agent-host-copilotcli'],
