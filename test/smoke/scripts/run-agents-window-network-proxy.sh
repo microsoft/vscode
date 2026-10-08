@@ -206,11 +206,7 @@ if [[ "$PROXY_AUTH" == "kerberos" ]]; then
 auth_param negotiate program $NODE_BIN $ROOT/test/smoke/out/networkProxy/negotiateAuthHelper.js $KERBEROS_AUTH_LOG
 auth_param negotiate children 5
 auth_param negotiate keep_alive on
-acl connect method CONNECT
-acl smoke_mock url_regex ^http://$MOCK_HOST:
-acl smoke_utility urlpath_regex ^/chat/completions
 acl authenticated proxy_auth REQUIRED
-http_access allow smoke_mock !connect !smoke_utility
 http_access allow authenticated
 http_access deny all
 EOF
@@ -302,6 +298,7 @@ if [[ "$PROXY_AUTH" == "kerberos" ]]; then
 	restricted_env+=(
 		"KRB5_CONFIG=$KERBEROS_CONFIG"
 		"KRB5CCNAME=$KERBEROS_CACHE"
+		"COPILOT_PROXY_KERBEROS_SPN=HTTP/localhost"
 	)
 fi
 for name in BUILD_ARTIFACTSTAGINGDIRECTORY CI GITHUB_ACTIONS GITHUB_RUN_ATTEMPT GITHUB_RUN_ID GITHUB_WORKSPACE RUNNER_TEMP TF_BUILD; do
@@ -335,9 +332,9 @@ if [[ "$PROXY_AUTH" == "kerberos" ]]; then
 		echo "The Kerberos proxy accepted an unauthenticated request" >&2
 		exit 1
 	fi
-	utility_status="$(curl --silent --show-error --connect-timeout 3 --proxy http://localhost:43144 --noproxy '' --request POST --output /dev/null --write-out '%{http_code}' "http://$MOCK_HOST:44444/chat/completions")"
-	if [[ "$utility_status" != "407" ]]; then
-		echo "Expected HTTP 407 for an unauthenticated CAPI utility request, got $utility_status" >&2
+	prompt_status="$(curl --silent --show-error --connect-timeout 3 --proxy http://localhost:43144 --noproxy '' --request POST --output /dev/null --write-out '%{http_code}' "http://$MOCK_HOST:44444/responses")"
+	if [[ "$prompt_status" != "407" ]]; then
+		echo "Expected HTTP 407 for an unauthenticated model request, got $prompt_status" >&2
 		exit 1
 	fi
 	KRB5_CONFIG="$KERBEROS_CONFIG" KRB5CCNAME="$KERBEROS_CACHE" \

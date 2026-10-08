@@ -158,11 +158,11 @@ export function setup(logger: Logger, quality: Quality) {
 				await app.workbench.agentsWindow.waitForActiveSessionView();
 				await app.workbench.agentsWindow.waitForAssistantText(AGENT_HOST_REPLACEMENT_REPLY);
 				if (process.env.VSCODE_SMOKE_TEST_PROXY_HEADER) {
-					await waitForCapiRequest(agentHost.mockServer, requestsBefore, requestTag);
+					await waitForPromptRequest(agentHost.mockServer, requestsBefore, requestTag);
 					assert.strictEqual(
 						cp.execFileSync('git', ['worktree', 'list', '--porcelain'], { cwd: app.workspacePathOrFolder, encoding: 'utf8' }),
 						worktreesBefore,
-						'Expected authenticated CAPI validation without creating a worktree'
+						'Expected authenticated prompt validation without creating a worktree'
 					);
 				}
 				await app.workbench.agentsWindow.startNewSession();
@@ -812,7 +812,6 @@ function setupAgentHostSuite(logger: Logger, config: {
 				'http.proxySupport': 'override',
 				...(process.env.VSCODE_SMOKE_TEST_PROXY_HEADER ? {
 					'sessions.useWorktree': false,
-					'chat.agentHost.experimental.titleGeneration': 'utility',
 				} : {}),
 				'chat.allowAnonymousAccess': true,
 				'github.copilot.chat.githubMcpServer.enabled': false,
@@ -881,18 +880,18 @@ function setupAgentHostSuite(logger: Logger, config: {
 	};
 }
 
-async function waitForCapiRequest(mockServer: MockLlmServer, requestsBefore: number, requestTag: string): Promise<void> {
+async function waitForPromptRequest(mockServer: MockLlmServer, requestsBefore: number, requestTag: string): Promise<void> {
 	const deadline = Date.now() + 30_000;
 	while (Date.now() < deadline) {
 		if (mockServer.getRequests().slice(requestsBefore).some(request =>
-			request.path === '/chat/completions' &&
+			request.path === '/responses' &&
 			request.method === 'POST' &&
 			latestUserInputCarriesTag(request.body, requestTag))) {
 			return;
 		}
 		await new Promise(resolve => setTimeout(resolve, 100));
 	}
-	throw new Error(`Timed out waiting for the Agent Host CAPI title request with ${requestTag}; a chat reply alone does not exercise authenticated fetch`);
+	throw new Error(`Timed out waiting for the Copilot model request with ${requestTag}`);
 }
 
 async function assertRemoteDevContainerRouting(logsPath: string, transport: RemoteDevContainerTransport, workspacePath: string, reply: string): Promise<void> {
