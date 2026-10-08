@@ -1477,40 +1477,13 @@ export class TestContext {
 
 		try {
 			await new Promise<void>((resolve, reject) => {
-				const handleStderrLines = (lines: string[]) => {
-					const otherLines: string[] = [];
-					for (const line of lines) {
-						if (this.isRetriedDownloadWarning(line)) {
-							this.log(`[${name}] ${line.trim()}`);
-						} else {
-							otherLines.push(line);
-						}
-					}
-
-					const text = otherLines.join('\n').trim();
-					if (!text) {
-						return;
-					}
-
-					const message = `[${name}] ${text}`;
-					if (this.isNonFatalCliStderr(message)) {
-						this.log(message);
+				app.stderr.on('data', (data) => {
+					const text = `[${name}] ${data.toString().trim()}`;
+					if (this.isNonFatalCliStderr(text)) {
+						this.log(text);
 					} else {
-						reject(new Error(message));
+						reject(new Error(text));
 					}
-				};
-
-				// Stream chunks are not aligned with log records, so classify complete lines only.
-				let pendingStderr = '';
-				app.stderr.setEncoding('utf8');
-				app.stderr.on('data', (data: string) => {
-					const lines = (pendingStderr + data).split('\n');
-					pendingStderr = lines.pop() ?? '';
-					handleStderrLines(lines);
-				});
-				app.stderr.on('end', () => {
-					handleStderrLines([pendingStderr]);
-					pendingStderr = '';
 				});
 
 				let terminated = false;
@@ -1546,15 +1519,10 @@ export class TestContext {
 	}
 
 	private isNonFatalCliStderr(text: string): boolean {
-		return /ECONNRESET|ECONNABORTED|ECANCELED|EPIPE|SIGPIPE/.test(text)
+		// Extension download retry warnings are expected; if all retries fail, the UI test still fails.
+		text = text.replace(/^.*Failed downloading (?:vsix|sigzip)\. .*Retry again\.\.\..*$/gm, '').trim();
+		return !text
+			|| /ECONNRESET|ECONNABORTED|ECANCELED|EPIPE|SIGPIPE/.test(text)
 			|| /(^|\n)(?:\[[^\]]+\]\s*)?(?:\(node:\d+\)\s*)?(?:\[[A-Z0-9]+\]\s*)?(?:[A-Za-z]+Warning|Warning):/.test(text);
-	}
-
-	/**
-	 * The extension downloader logs this warning before retrying a failed or corrupt download.
-	 * If all retries fail, the extension install check in the UI test still fails.
-	 */
-	private isRetriedDownloadWarning(line: string): boolean {
-		return /^(?:\[[^\]]+\]\s*)*Failed downloading (?:vsix|sigzip)\. .*Retry again\.\.\./.test(line.trim());
 	}
 }
