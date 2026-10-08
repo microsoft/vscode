@@ -5578,6 +5578,8 @@ export class CopilotAgentSession extends Disposable {
 			// parent session, which has no matching ChatToolCallStart.
 			const trackedToolCall = this._activeToolCalls.get(toolCallId);
 			const parentToolCallId = trackedToolCall?.parentToolCallId;
+			// The request names its MCP server even when the tool start did not.
+			const mcpServerName = request.kind === 'mcp' ? request.serverName : trackedToolCall?.mcpServerName;
 			sandboxRequestId = this._sandboxBypassRequests.get(toolCallId);
 			this._onDidSessionProgress.fire({
 				kind: 'pending_confirmation',
@@ -5587,7 +5589,7 @@ export class CopilotAgentSession extends Disposable {
 					toolCallId,
 					toolName,
 					displayName: getToolDisplayName(toolName, request.kind === 'mcp' ? request : undefined),
-					contributor: trackedToolCall?.contributor ?? this._getToolCallContributor(toolName, undefined),
+					contributor: trackedToolCall?.contributor ?? this._getToolCallContributor(toolName, mcpServerName),
 					intention: trackedToolCall?.intention,
 					_meta: trackedToolCall?.meta
 						? toToolCallMeta(trackedToolCall.meta)
