@@ -64,6 +64,10 @@ suite('toolSearchDeferral', () => {
 			assert.strictEqual(agentHostModelSupportsToolSearch('hydrafusion'), true);
 		});
 
+		test('supports Auto, which resolves to a concrete model after session launch', () => {
+			assert.strictEqual(agentHostModelSupportsToolSearch('auto'), true);
+		});
+
 		test('rejects suffixed GPT variants and other non-Claude models', () => {
 			for (const id of ['gpt-5', 'gpt-5.3', 'gpt-5.4-mini', 'gpt-5.4-preview', 'gpt-5.5-preview', 'gpt5.5-preview', 'gpt-5-6-luna', 'custom-gpt-6', 'gpt-7', 'gemini-2.5-pro', '']) {
 				assert.strictEqual(agentHostModelSupportsToolSearch(id), false, id);
