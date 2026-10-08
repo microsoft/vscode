@@ -489,8 +489,8 @@ suite('Copilot PermissionPicker', () => {
 			presentation: picker.presentation,
 			toggleLabel: picker['_getSandboxStandaloneToggle']()?.label,
 		}, {
-			labels: ['Manual permissions', 'Sandbox-ready container'],
-			presentation: { label: 'Manual permissions (sandbox-ready container)', level: ChatPermissionLevel.Default, sandboxed: true },
+			labels: ['Manual permissions'],
+			presentation: { label: 'Manual permissions', level: ChatPermissionLevel.Default, sandboxed: true },
 			toggleLabel: 'Sandboxing in Dev Container',
 		});
 		sandboxDevContainerSupported.set(false, undefined);

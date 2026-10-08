@@ -130,6 +130,8 @@ export interface IActionListItemInlineToggle {
 	readonly onChange: (checked: boolean) => void;
 	/** Optional accessible/hover title for the switch. Defaults to {@link label}. */
 	readonly title?: string;
+	/** Show an information icon after the label to draw attention to the hover. */
+	readonly showInfoIcon?: boolean;
 	/** Whether the switch is read-only. */
 	readonly disabled?: boolean;
 }
@@ -553,6 +555,11 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 			const toggleLabel = document.createElement('span');
 			toggleLabel.className = 'action-list-item-inline-toggle-label';
 			toggleLabel.textContent = stripNewlines(toggleConfig.label);
+			if (toggleConfig.showInfoIcon) {
+				const infoIcon = dom.append(element.standaloneToggle ? data.text : toggleLabel, dom.$('span.action-list-item-toggle-info'));
+				infoIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.info));
+				infoIcon.ariaHidden = 'true';
+			}
 			if (!element.standaloneToggle) {
 				data.inlineToggleContainer.append(toggleLabel);
 			}

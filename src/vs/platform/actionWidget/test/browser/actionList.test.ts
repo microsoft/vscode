@@ -945,6 +945,34 @@ suite('ActionListWidget', () => {
 		});
 	});
 
+	test('renders an optional information icon after the standalone toggle label', () => {
+		const label = 'Sandboxing in Dev Container';
+		const title = 'This relaxes the outer container isolation.';
+		const widget = createActionListWidget(disposables, {
+			items: [{
+				...action(label),
+				hover: { content: title },
+				standaloneToggle: { label, title, checked: true, showInfoIcon: true, onChange: () => { } },
+			}],
+			listOptions: { showFilter: false },
+		});
+		const labelElement = widget.domNode.querySelector('.title');
+		const icon = labelElement?.querySelector('.codicon-info');
+		assert.ok(icon);
+		assert.deepStrictEqual({
+			label: labelElement?.firstChild?.textContent,
+			iconAfterLabel: labelElement?.lastChild === icon,
+			hiddenFromScreenReaders: icon.getAttribute('aria-hidden'),
+			switchDescription: widget.domNode.querySelector('.monaco-switch')?.getAttribute('aria-label'),
+		}, { label, iconAfterLabel: true, hiddenFromScreenReaders: 'true', switchDescription: title });
+
+		widget.updateItems([{
+			...action('Sandboxing for terminal'),
+			standaloneToggle: { label: 'Sandboxing for terminal', checked: true, onChange: () => { } },
+		}]);
+		assert.strictEqual(widget.domNode.querySelector('.action-list-item-toggle-info'), null);
+	});
+
 	test('nested action groups expose a keyboard-accessible submenu and select the parent item', () => {
 		const selected: string[] = [];
 		const widget = createActionListWidget(disposables, {

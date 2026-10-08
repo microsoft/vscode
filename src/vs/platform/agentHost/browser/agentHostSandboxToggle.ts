@@ -34,7 +34,8 @@ export function equalsAgentHostSandboxTogglePresentation(previous: IActionListIt
 	return previous?.checked === current?.checked
 		&& previous?.disabled === current?.disabled
 		&& previous?.label === current?.label
-		&& previous?.title === current?.title;
+		&& previous?.title === current?.title
+		&& previous?.showInfoIcon === current?.showInfoIcon;
 }
 
 export function createAgentHostSandboxToggle(readState: () => IAgentHostSandboxToggleState, onChange: (enabled: boolean) => void): IActionListItemInlineToggle | undefined {
@@ -49,6 +50,7 @@ export function createAgentHostSandboxToggle(readState: () => IAgentHostSandboxT
 		label: state.devContainer
 			? localize('agentHostSandboxToggle.devContainerLabel', "Sandboxing in Dev Container")
 			: localize('agentHostSandboxToggle.label', "Sandboxing for terminal"),
+		showInfoIcon: state.devContainer,
 		title: state.devContainerSandboxSupported === false
 			? localize('agentHostSandboxToggle.devContainerUnavailableTitle', "This Dev Container was started without the Docker options required for sandboxing. Recreate it with sandboxing enabled to use this option, or turn sandboxing off for this session if your organization permits it.")
 			: state.devContainer

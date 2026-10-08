@@ -369,6 +369,13 @@
 	font-weight: var(--vscode-fontWeight-regular);
 }
 
+.action-widget .monaco-list-row.action .action-list-item-toggle-info.codicon {
+	margin-left: 6px;
+	font-size: 12px;
+	vertical-align: middle;
+	color: var(--vscode-descriptionForeground);
+}
+
 .action-widget .monaco-list-row.action.has-standalone-toggle .action-list-item-inline-toggle {
 	order: 100;
 	width: auto;

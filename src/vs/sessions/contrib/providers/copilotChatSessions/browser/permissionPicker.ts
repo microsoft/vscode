@@ -290,9 +290,7 @@ export class PermissionPicker extends Disposable {
 		const sandboxed = this._delegate.isSandboxToggleApplicable?.() === true && this._isSandboxingEnabled();
 		const label = this._getPermissionLevelMeta(level).label;
 		return {
-			label: sandboxed && this._delegate.sandboxDevContainer?.get()
-				? localize('permissionPicker.sandboxContainerPresentation', "{0} (sandbox-ready container)", label)
-				: label,
+			label,
 			level,
 			sandboxed,
 		};
@@ -537,10 +535,6 @@ export class PermissionPicker extends Disposable {
 			const sandboxIcon = dom.append(trigger, renderIcon(Codicon.shield));
 			sandboxIcon.classList.add('sessions-chat-sandbox-icon');
 			sandboxIcon.ariaHidden = 'true';
-			if (this._delegate.sandboxDevContainer?.get()) {
-				const containerHint = dom.append(trigger, dom.$('span.sessions-chat-dropdown-label'));
-				containerHint.textContent = localize('permissionPicker.sandboxContainerHint', "Sandbox-ready container");
-			}
 		}
 
 		const hover = this._getPermissionLevelHover(this._currentLevel, meta);

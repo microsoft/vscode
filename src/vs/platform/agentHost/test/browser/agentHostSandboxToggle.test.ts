@@ -75,7 +75,8 @@ suite('AgentHostSandboxToggle', () => {
 			{ sessionEnabled: false, globalEnabled: false, managedEnabled: true, allowsBypass: false },
 		];
 		const toggles = states.map(state => {
-			const { label, title, checked, disabled } = createAgentHostSandboxToggle(() => ({ provider: 'copilotcli', ...state }), enabled => writes.push(enabled))!;
+			const { label, title, checked, disabled, showInfoIcon } = createAgentHostSandboxToggle(() => ({ provider: 'copilotcli', ...state }), enabled => writes.push(enabled))!;
+			assert.strictEqual(showInfoIcon, undefined);
 			return { label, title, checked, disabled };
 		});
 		assert.deepStrictEqual({ toggles, writes }, {
@@ -137,9 +138,10 @@ suite('AgentHostSandboxToggle', () => {
 		}), () => { })!;
 		assert.deepStrictEqual({
 			label: toggle.label, checked: toggle.checked, disabled: toggle.disabled,
+			showInfoIcon: toggle.showInfoIcon,
 			explainsIsolation: toggle.title?.includes('relaxes the outer container\'s isolation'),
 			explainsTun: toggle.title?.includes('/dev/net/tun'),
-		}, { label: 'Sandboxing in Dev Container', checked: true, disabled: false, explainsIsolation: true, explainsTun: true });
+		}, { label: 'Sandboxing in Dev Container', checked: true, disabled: false, showInfoIcon: true, explainsIsolation: true, explainsTun: true });
 	});
 
 	test('change callback rechecks policy and forwards only permitted choices', () => {
