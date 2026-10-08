@@ -863,7 +863,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		}());
 		await cancelled;
 		await publicResponse.complete({ items: [] });
-		await assert.rejects(service.query({}, CancellationToken.None), isCancellationError);
+		await assert.rejects(service.query({ sourceIds: [CustomizationMarketplaceSources.AgentFinderPublicFeed.id] }, CancellationToken.None), isCancellationError);
 		assert.deepStrictEqual({
 			publicCalls,
 			tokensCancelled: tokens.map(token => token.isCancellationRequested),
