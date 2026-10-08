@@ -89,7 +89,7 @@ export class MarkdownEditorRename {
 		const edit = await this.#api.rename(this.document.uri, position, newName);
 		await this.#drain();
 		checkVersion();
-		if (!edit || edit.size === 0) {
+		if (!edit) {
 			throw new Error(vscode.l10n.t('The rename provider returned no changes.'));
 		}
 		for (const [uri] of edit.entries()) {

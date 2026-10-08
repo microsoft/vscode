@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import * as os from 'os';
 import 'mocha';
 import * as vscode from 'vscode';
 import { MarkdownEditorRename, type MarkdownRenameApi } from '../preview/markdownEditorRename';
@@ -175,8 +176,30 @@ suite('Markdown editor rename', () => {
 		assert.strictEqual(test.document.lineAt(2).text, 'Target');
 	});
 
-	test('rejects empty edits, missing preparation, and invalid names', async () => {
-		const test = await setup({ rename: async () => new vscode.WorkspaceEdit() });
+	test('applies a resource-only rename even though WorkspaceEdit.size is zero', async () => {
+		const root = vscode.Uri.joinPath(vscode.Uri.file(os.tmpdir()), `markdown-rename-${crypto.randomUUID()}`);
+		const before = vscode.Uri.joinPath(root, 'before.md');
+		const after = vscode.Uri.joinPath(root, 'after.md');
+		const contents = new TextEncoder().encode('# Target');
+		await vscode.workspace.fs.createDirectory(root);
+		try {
+			await vscode.workspace.fs.writeFile(before, contents);
+			const edit = new vscode.WorkspaceEdit();
+			edit.renameFile(before, after);
+			assert.strictEqual(edit.size, 0);
+			const test = await setup({ rename: async () => edit });
+			await test.rename.prepare(request);
+			await test.rename.rename({ requestId: 1, newName: 'after' });
+			assert.deepStrictEqual(await vscode.workspace.fs.readDirectory(root), [['after.md', vscode.FileType.File]]);
+			assert.deepStrictEqual(Uint8Array.from(await vscode.workspace.fs.readFile(after)), contents);
+			assert.strictEqual(test.applications, 1);
+		} finally {
+			await vscode.workspace.fs.delete(root, { recursive: true });
+		}
+	});
+
+	test('rejects missing edits, missing preparation, and invalid names', async () => {
+		const test = await setup({ rename: async () => undefined });
 		await assert.rejects(test.rename.rename({ requestId: 1, newName: 'Name' }), /Start rename again/);
 		await test.rename.prepare(request);
 		for (const newName of ['', ' ', 'two\nlines', 'two\rlines']) {

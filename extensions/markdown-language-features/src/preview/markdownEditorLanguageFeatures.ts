@@ -60,12 +60,13 @@ export class MarkdownEditorLanguageFeatures {
 			const label = typeof item.label === 'string' ? item.label : item.label.label;
 			const range = completionRange(this.#document, position, item);
 			const prefix = this.#document.getText(new vscode.Range(range.start, position));
-			if (!(item.filterText ?? label).toLocaleLowerCase().startsWith(prefix.toLocaleLowerCase())) {
+			const normalizedPrefix = prefix.toLowerCase();
+			if (!(item.filterText ?? label).toLowerCase().startsWith(normalizedPrefix)) {
 				continue;
 			}
 			items.push({
 				id: String(index), label,
-				highlightLength: label.toLocaleLowerCase().startsWith(prefix.toLocaleLowerCase()) ? prefix.length : 0,
+				highlightLength: label.toLowerCase().startsWith(normalizedPrefix) ? prefix.length : 0,
 				detail: item.detail ?? (typeof item.label === 'string' ? undefined : item.label.description),
 				type: item.kind === undefined ? undefined : vscode.CompletionItemKind[item.kind],
 				unsupported: item.insertText instanceof vscode.SnippetString ? vscode.l10n.t('Snippet editing is not supported in the rich editor yet.') : undefined,

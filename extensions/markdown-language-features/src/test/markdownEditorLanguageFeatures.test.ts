@@ -100,6 +100,28 @@ suite('Markdown editor diagnostics and completion', () => {
 		}
 	});
 
+	test('matches and highlights ASCII I independently of locale, including filter text', async () => {
+		const document = await vscode.workspace.openTextDocument({ language: 'markdown', content: 'i' });
+		const items = ['Image', 'Other', '\u0131tem'].map(label => new vscode.CompletionItem(label));
+		items[1].filterText = 'IMAGE';
+		for (const item of items) {
+			item.range = new vscode.Range(0, 0, 0, 1);
+		}
+		const features = new MarkdownEditorLanguageFeatures(document, async () => { },
+			() => ({ text: 'i', editEpoch: 0 }), () => true, {
+				provide: async () => new vscode.CompletionList(items),
+				apply: async () => { throw new Error('Unexpected edit'); },
+				execute: async () => { throw new Error('Unexpected command'); },
+			});
+		assert.deepStrictEqual(await features.completions({ ...request, offset: 1 }), {
+			items: [
+				{ id: '0', label: 'Image', highlightLength: 1, detail: undefined, type: undefined, unsupported: undefined },
+				{ id: '1', label: 'Other', highlightLength: 0, detail: undefined, type: undefined, unsupported: undefined },
+			],
+			incomplete: false,
+		});
+	});
+
 	test('requests, resolves and applies a provider edit with CRLF-safe caret placement', async () => {
 		const test = await setup();
 		assert.deepStrictEqual((await test.features.completions(request)).items.map(item => item.label), ['Target']);
