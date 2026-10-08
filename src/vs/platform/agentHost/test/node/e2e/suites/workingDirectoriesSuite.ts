@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { execFileSync } from 'child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -19,6 +19,7 @@ import { buildChatUri, buildDefaultChatUri, MessageAttachmentKind, ROOT_STATE_UR
 import { driveChatTurnToCompletion, initTestGitRepo, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { conformanceTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 interface IWorkspaceSession {
 	readonly session: string;
@@ -71,7 +72,7 @@ export function defineWorkingDirectoriesTests(context: IAgentHostE2ETestContext)
 	}
 
 	async function withSession(prefix: string, run: (session: IWorkspaceSession) => Promise<void>, includeSecondary = true): Promise<void> {
-		const workspace = realpathSync(mkdtempSync(join(tmpdir(), 'ahp-working-directories-')));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-working-directories-'));
 		context.tempDirs.push(workspace);
 		const primary = URI.file(join(workspace, 'primary'));
 		const secondary = URI.file(join(workspace, 'secondary'));

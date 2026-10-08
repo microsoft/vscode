@@ -26,7 +26,7 @@ import { readCloudSandboxCloneResult, readCloudSandboxProjects } from '../../com
 import { ActionType, type ActionEnvelope } from '../../common/state/sessionActions.js';
 import { ROOT_STATE_URI } from '../../common/state/sessionState.js';
 import { GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE } from '../../common/agent.js';
-import { ProtocolError } from '../../common/state/sessionProtocol.js';
+import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 
 suite('Mission Control projects', () => {
 	const suiteStore = ensureNoDisposablesAreLeakedInTestSuite();
@@ -70,6 +70,24 @@ suite('Mission Control projects', () => {
 
 	function catalogue(projects: MissionControlProjects) {
 		return readCloudSandboxProjects({ agents: [], _meta: { 'copilot.projectManagement': { available: true } }, config: projects.config })!;
+	}
+
+	for (const method of ['extensions/addProject', 'extensions/cloneProject']) {
+		test(`${method} rechecks authorization after awaited preparation before mutating the catalogue`, async () => {
+			let clones = 0;
+			const { projects, workspace, home } = await fixture(async () => { clones++; });
+			let checks = 0;
+			const params = method === 'extensions/addProject' ? { path: workspace } : { url: 'https://github.com/owner/repo' };
+			await assert.rejects(projects.handleRequest(method, params, () => {
+				if (++checks === (method === 'extensions/addProject' ? 2 : 4)) {
+					throw new ProtocolError(AHP_AUTH_REQUIRED, 'Credential expired during project preparation');
+				}
+			})!, { code: AHP_AUTH_REQUIRED });
+			assert.deepStrictEqual({ clones, paths: catalogue(projects).map(project => project.path) }, { clones: 0, paths: [workspace] });
+			if (method === 'extensions/cloneProject') {
+				await assert.rejects(lstat(join(home, 'owner', 'repo')), { code: 'ENOENT' });
+			}
+		});
 	}
 
 	test('pins shared folders, lists and unpins without deleting user files, and restores runtime pins', async () => {

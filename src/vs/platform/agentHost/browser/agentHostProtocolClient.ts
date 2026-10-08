@@ -37,9 +37,9 @@ import { AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper
 import { AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceService.js';
 import type { ClientNotificationMap, CommandMap, JsonRpcErrorResponse, JsonRpcRequest, JsonRpcResponse } from '../common/state/protocol/messages.js';
 import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
-import { MessageAttachmentKind, SessionSummary, ROOT_STATE_URI, StateComponents, isAhpRootChannel, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, type ClientPluginCustomization, type Message, type RootState } from '../common/state/sessionState.js';
+import { MessageAttachmentKind, SessionSummary, ROOT_STATE_URI, StateComponents, isAhpRootChannel, isDefaultChatUri, isSessionChatArchived, isSessionStatusRead, type ClientPluginCustomization, type Message, type RootState } from '../common/state/sessionState.js';
 import { normalizeLegacyActionEnvelope } from '../common/state/legacyProtocolCompatibility.js';
-import { SUPPORTED_PROTOCOL_VERSIONS } from '../common/state/protocol/version/registry.js';
+import { getAgentHostSupportedProtocolVersions } from '../common/agentHostProtocolCompatibility.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, JSON_RPC_INTERNAL_ERROR, type ProtocolMessage, type IStateSnapshot, type SubscribeResult } from '../common/state/sessionProtocol.js';
 import { type IVscodeUpgradeResult } from '../common/state/protocolUpgrade.js';
 import { isClientTransport, NonReconnectableTransportError, type AgentHostTransportFailureReason, type IProtocolTransport } from '../common/state/sessionTransport.js';
@@ -72,8 +72,6 @@ import { DevContainerAgentHostProtocolClient } from '../common/devContainerAgent
 import type { IDevContainerAgentHostMainService } from '../common/devContainerAgentHost.js';
 
 const AHP_CLIENT_CONNECTION_CLOSED = -32000;
-// AHP 0.9 changed the automation catalog wire shape, so VS Code cannot safely negotiate 0.8.
-const CLIENT_SUPPORTED_PROTOCOL_VERSIONS = SUPPORTED_PROTOCOL_VERSIONS.filter(version => version !== '0.8.0');
 
 /**
  * After this much inbound silence, send an application-level `ping` to
@@ -178,7 +176,8 @@ interface IReconnectState {
 	timeoutHandle: ReturnType<typeof setTimeout> | undefined;
 	/** Deadline for the next scheduled attempt, if any. */
 	nextAttemptAt: number | undefined;
-	readonly deadline: number | undefined;
+	deadline: number | undefined;
+	remainingTimeMs: number | undefined;
 }
 
 /**
@@ -204,6 +203,9 @@ export interface IAgentHostProtocolClientOptions {
 	readonly clientInfo?: Implementation;
 	/** How a dropped transport is restored. Defaults to {@link DEFAULT_RECONNECT_POLICY}. */
 	readonly reconnectPolicy?: IRemoteAgentHostReconnectPolicy;
+	/** Paired OS power events exclude sleep from the recovery budget. */
+	readonly onDidSuspend?: Event<void>;
+	readonly onDidResume?: Event<void>;
 	/** Refresh connection prerequisites before constructing a replacement transport. */
 	readonly prepareReconnect?: () => Promise<void>;
 	/** Prepare credentials before initial authentication or restoration; transient failures remain reconnectable. */
@@ -408,6 +410,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private readonly _prepareReconnect: (() => Promise<void>) | undefined;
 	private readonly _prepareAuthentication: (() => Promise<void>) | undefined;
 	private readonly _reconnectDeadlineTimer = this._register(new TimeoutTimer());
+	private _isSuspended = false;
 	private _firstSessionRequestPending = false;
 	private readonly _resolveInitialAuthentication: (() => Promise<AuthenticateParams | undefined>) | undefined;
 	private readonly _onDispose: (() => void) | undefined;
@@ -474,6 +477,10 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			? identityAgentHostResourceUriMapper
 			: createAgentHostResourceUriMapper(this._connectionAuthority);
 		this._loadEstimator = options?.loadEstimator ?? LoadEstimator.getInstance();
+		if (options?.onDidSuspend && options.onDidResume) {
+			this._register(options.onDidSuspend(() => this._suspendReconnectDeadline()));
+			this._register(options.onDidResume(() => this._resumeReconnectDeadline()));
+		}
 		this._clientInfo = options?.clientInfo;
 		this._reconnectPolicy = options?.reconnectPolicy ?? DEFAULT_RECONNECT_POLICY;
 		this._prepareReconnect = options?.prepareReconnect;
@@ -607,12 +614,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		if (next.kind === AgentHostClientState.Connected) {
 			this._firstSessionRequestPending = true;
 		}
-		if (next.kind === AgentHostClientState.Reconnecting && next.reconnect.deadline !== undefined) {
-			this._reconnectDeadlineTimer.setIfNotSet(() => {
-				if (this._state === next) {
-					this._handleReconnectTimeout();
-				}
-			}, Math.max(0, next.reconnect.deadline - Date.now()));
+		if (next.kind === AgentHostClientState.Reconnecting) {
+			this._armReconnectDeadline(next.reconnect);
 		}
 		if (next.kind === AgentHostClientState.Reconnecting || next.kind === AgentHostClientState.Closed) {
 			this._devContainerService.connectionClosed();
@@ -633,8 +636,43 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return {
 			gate: this._newReconnectGate(), outbox: [], attempt: 0, transportConnected: false,
 			timeoutHandle: undefined, nextAttemptAt: undefined,
-			deadline: this._reconnectPolicy.maxElapsedTimeMs === undefined ? undefined : Date.now() + this._reconnectPolicy.maxElapsedTimeMs,
+			deadline: this._isSuspended || this._reconnectPolicy.maxElapsedTimeMs === undefined ? undefined : Date.now() + this._reconnectPolicy.maxElapsedTimeMs,
+			remainingTimeMs: this._isSuspended ? this._reconnectPolicy.maxElapsedTimeMs : undefined,
 		};
+	}
+
+	private _armReconnectDeadline(reconnect: IReconnectState): void {
+		if (reconnect.deadline !== undefined) {
+			this._reconnectDeadlineTimer.setIfNotSet(() => {
+				if (this._state.kind === AgentHostClientState.Reconnecting && this._state.reconnect === reconnect) {
+					this._handleReconnectTimeout();
+				}
+			}, Math.max(0, reconnect.deadline - Date.now()));
+		}
+	}
+
+	private _suspendReconnectDeadline(): void {
+		this._isSuspended = true;
+		if (this._state.kind === AgentHostClientState.Reconnecting) {
+			const reconnect = this._state.reconnect;
+			if (reconnect.deadline !== undefined) {
+				reconnect.remainingTimeMs = Math.max(0, reconnect.deadline - Date.now());
+				reconnect.deadline = undefined;
+				this._reconnectDeadlineTimer.cancel();
+			}
+		}
+	}
+
+	private _resumeReconnectDeadline(): void {
+		this._isSuspended = false;
+		if (this._state.kind === AgentHostClientState.Reconnecting) {
+			const reconnect = this._state.reconnect;
+			if (reconnect.remainingTimeMs !== undefined) {
+				reconnect.deadline = Date.now() + reconnect.remainingTimeMs;
+				reconnect.remainingTimeMs = undefined;
+				this._armReconnectDeadline(reconnect);
+			}
+		}
 	}
 
 	private _handleReconnectTimeout(): void {
@@ -694,7 +732,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				// Advertise every compatible version, most-preferred first, so an
 				// older host (a cloud sandbox running a 0.5.x `copilotd`) can negotiate down
 				// instead of rejecting the connection. A current host still picks the newest.
-				protocolVersions: [...CLIENT_SUPPORTED_PROTOCOL_VERSIONS],
+				protocolVersions: getAgentHostSupportedProtocolVersions(),
 				clientId: this._clientId,
 				clientInfo: this._clientInfo,
 				_meta: this._clientMeta(),
@@ -1067,7 +1105,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		this._logService.info(`[RemoteAgentHostProtocol] Server forgot client ${this._clientId}; initializing a fresh connection.`);
 		const initializeResult = await this._dispatchRequest<IAgentHostExtensionInitializeResult>('initialize', {
 			channel: ROOT_STATE_URI,
-			protocolVersions: [...CLIENT_SUPPORTED_PROTOCOL_VERSIONS],
+			protocolVersions: getAgentHostSupportedProtocolVersions(),
 			clientId: this._clientId,
 			clientInfo: this._clientInfo,
 			_meta: this._clientMeta(),
@@ -1969,7 +2007,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 					kind: s.defaultChat === chat.resource || isDefaultChatUri(chat.resource) ? 'default' : 'peer',
 					origin: chat.origin,
 					...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
-					...(isSessionStatusArchived(chat.status) || chat.archived === true ? { archived: true } : {}),
+					...(isSessionChatArchived(chat) ? { archived: true } : {}),
 					...(chat.status !== undefined ? { status: chat.status, isRead: isSessionStatusRead(chat.status) } : {}),
 					...(chat.changes !== undefined ? { changes: chat.changes } : {}),
 				})) ?? (s.defaultChat ? [{ chat: URI.parse(s.defaultChat), kind: 'default' as const }] : undefined),

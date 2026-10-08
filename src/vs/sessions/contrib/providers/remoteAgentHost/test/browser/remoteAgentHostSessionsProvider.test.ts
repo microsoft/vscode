@@ -469,7 +469,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	for (const protocolVersion of ['0.9.0', '0.10.0']) {
+	for (const protocolVersion of ['0.8.0', '0.9.0', '0.10.0', '1.0.0']) {
 		test(`marks the default chat read with protocol ${protocolVersion}`, async () => {
 			connection.handshakeState.set({ ...connection.handshakeState.get(), protocolVersion }, undefined);
 			const backend = URI.parse('ahp-session://tenant/read-state');
@@ -501,8 +501,8 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			}, {
 				before: false, accepted: true, read: true,
 				actions: [{
-					channel: protocolVersion === '0.9.0' ? backend.toString() : chat.toString(),
-					type: protocolVersion === '0.9.0' ? ActionType.SessionIsReadChanged : ActionType.ChatIsReadChanged
+					channel: protocolVersion === '0.8.0' ? backend.toString() : chat.toString(),
+					type: protocolVersion === '0.8.0' ? ActionType.SessionIsReadChanged : ActionType.ChatIsReadChanged
 				}],
 			});
 		});
