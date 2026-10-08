@@ -93,6 +93,7 @@ export class ChatDebugSessionTimeline extends Disposable {
 	private sourceResource: URI | undefined;
 	private model: ISessionTimelineModel | undefined;
 	private findMatches: readonly ISessionTimelineFindMatch[] = [];
+	private findMatchesByField = new Map<string, readonly ISessionTimelineFindMatch[]>();
 	private currentFindMatchIndex = -1;
 	private activeFindQuery = '';
 	private findSearching = false;
@@ -164,6 +165,7 @@ export class ChatDebugSessionTimeline extends Disposable {
 				this.findInput.value = '';
 				this.activeFindQuery = '';
 				this.findMatches = [];
+				this.findMatchesByField.clear();
 				this.currentFindMatchIndex = -1;
 				this.findSearching = false;
 				this.cancelFindSearch();
@@ -228,6 +230,7 @@ export class ChatDebugSessionTimeline extends Disposable {
 		this.findInput.value = '';
 		this.activeFindQuery = '';
 		this.findMatches = [];
+		this.findMatchesByField.clear();
 		this.currentFindMatchIndex = -1;
 		this.findSearching = false;
 		this.cancelFindSearch();
@@ -371,6 +374,7 @@ export class ChatDebugSessionTimeline extends Disposable {
 		this.findScheduler.cancel();
 		this.cancelFindSearch();
 		this.findMatches = [];
+		this.findMatchesByField.clear();
 		this.currentFindMatchIndex = -1;
 		this.activeFindQuery = '';
 		if (!this.findInput.value) {
@@ -404,6 +408,14 @@ export class ChatDebugSessionTimeline extends Disposable {
 		}
 		this.activeFindQuery = query;
 		this.findMatches = matches;
+		const matchesByField = new Map<string, ISessionTimelineFindMatch[]>();
+		for (const match of matches) {
+			const key = this.findMatchFieldKey(match.eventId, match.field);
+			const fieldMatches = matchesByField.get(key) ?? [];
+			fieldMatches.push(match);
+			matchesByField.set(key, fieldMatches);
+		}
+		this.findMatchesByField = matchesByField;
 		this.currentFindMatchIndex = matches.length ? 0 : -1;
 		this.findSearching = false;
 		this.findCancellation.clear();
@@ -452,7 +464,7 @@ export class ChatDebugSessionTimeline extends Disposable {
 			return;
 		}
 		const matches = eventId && field
-			? this.findMatches.filter(match => match.eventId === eventId && match.field === field)
+			? this.findMatchesByField.get(this.findMatchFieldKey(eventId, field))
 			: undefined;
 		if (matches?.length) {
 			let offset = 0;
@@ -485,6 +497,10 @@ export class ChatDebugSessionTimeline extends Disposable {
 			mark.textContent = text.slice(matchIndex, matchIndex + query.length);
 			offset = matchIndex + query.length;
 		}
+	}
+
+	private findMatchFieldKey(eventId: string, field: string): string {
+		return `${eventId}\0${field}`;
 	}
 
 	private appendHighlightedPath(container: HTMLElement, path: { readonly directory: string; readonly basename: string }, query: string, eventId: string): void {
@@ -863,6 +879,7 @@ export class ChatDebugSessionTimeline extends Disposable {
 		this.renderedFindMatches.clear();
 		this.renderedPromptSections.clear();
 		this.findMatches = [];
+		this.findMatchesByField.clear();
 		this.currentFindMatchIndex = -1;
 		this.activeFindQuery = '';
 		this.findSearching = false;
