@@ -518,7 +518,8 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 
 	private _wakingRetryDelay(retryAfterSeconds: number, minimumDelayMs = MIN_WAKING_RETRY_DELAY_MS): number {
 		const delay = Math.max(retryAfterSeconds * 1000, minimumDelayMs);
-		const withJitter = delay + Math.floor(Math.random() * Math.min(1000, delay * 0.2));
+		const jitterMs = Math.max(1, Math.floor(Math.random() * Math.min(1000, delay * 0.2)));
+		const withJitter = delay + jitterMs;
 		if (!Number.isFinite(withJitter)) {
 			throw new Error(localize('cloudSandbox.invalidRetryDelay', "The sandbox returned an invalid retry delay."));
 		}
