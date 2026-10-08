@@ -7,24 +7,273 @@ import assert from 'assert';
 import { existsSync } from 'fs';
 import { mkdir, readFile, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
-import { retry } from '../../../../../../base/common/async.js';
+import { DeferredPromise, retry } from '../../../../../../base/common/async.js';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../../../common/agent.js';
 import type { IAgentHostManagedSettingsDiagnostics } from '../../../../common/agentService.js';
 import type { IAgentHostManagedSettingsPermissions } from '../../../../common/agentHostManagedSettings.js';
+import { AgentSystemNotificationKind, readAgentSystemNotificationMeta } from '../../../../common/meta/agentSystemNotificationMeta.js';
 import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta } from '../../../../common/meta/clientPluginCustomizationMeta.js';
 import { SessionConfigKey } from '../../../../common/sessionConfigKeys.js';
 import type { ListSessionsResult, SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { CustomizationEnablementKind } from '../../../../common/state/protocol/state.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
-import { buildChatUri, buildDefaultChatUri, customizationId, CustomizationLoadStatus, CustomizationType, MessageKind, ROOT_STATE_URI, ToolCallCancellationReason, ToolCallConfirmationReason, type ClientPluginCustomization, type PluginCustomization, type SessionState } from '../../../../common/state/sessionState.js';
-import { getActionEnvelope, isActionNotification, TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
-import { AgentHostE2EServerLease, assertToolCallCompleteText, createRealSession, driveTurnToCompletion, removeTempDirs, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
+import { buildChatUri, buildDefaultChatUri, customizationId, CustomizationLoadStatus, CustomizationType, MessageKind, ResponsePartKind, ROOT_STATE_URI, ToolCallCancellationReason, ToolCallConfirmationReason, type ClientPluginCustomization, type PluginCustomization, type SessionState } from '../../../../common/state/sessionState.js';
+import { fetchSessionWithChat, getActionEnvelope, isActionNotification, TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
+import { AgentHostE2EServerLease, assertToolCallCompleteText, createRealSession, dispatchTurn, driveTurnToCompletion, removeTempDirs, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
+import type { CapiReplayProxy } from '../harness/capiReplayProxy.js';
+import { createManagedPluginMarketplace, type IManagedPluginDefinition, type IManagedPluginMarketplace } from './copilotManagedPluginMarketplace.js';
 import { COPILOT_CONFIG } from './copilotTestConfiguration.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
+
+const managedPluginInitializingActivity = 'Initializing chat using settings required by your organization admin…';
+const managedPluginInstallingActivity = 'Installing plugins required by your organization admin…';
+const managedPluginUpdatingActivity = 'Updating plugins required by your organization admin…';
+const managedPluginActivityPrefixes = [
+	managedPluginInitializingActivity,
+	managedPluginInstallingActivity,
+	managedPluginUpdatingActivity,
+] as const;
+const managedPluginLifecycleUnavailable = 'Managed plugin lifecycle did not prepare the required plugin';
+
+interface IManagedPluginTestContext {
+	client: TestProtocolClient;
+	readonly lease: AgentHostE2EServerLease;
+	readonly proxy: CapiReplayProxy;
+	readonly root: string;
+	readonly workspace: string;
+	readonly createdSessions: string[];
+	createMarketplace(name: string, plugins: readonly IManagedPluginDefinition[]): Promise<IManagedPluginMarketplace>;
+}
+
+interface IManagedPluginProjection {
+	readonly activities: Array<string | undefined>;
+	readonly failures: Array<{ readonly turnId: string; readonly content: string }>;
+}
+
+function managedPluginPolicy(marketplace: IManagedPluginMarketplace, pluginNames: readonly string[], forceRemoteSettingsRefresh: boolean): Readonly<Record<string, unknown>> {
+	return {
+		extraKnownMarketplaces: {
+			[marketplace.name]: {
+				source: {
+					source: 'git',
+					url: marketplace.sourceUrl,
+					ref: 'main',
+				},
+			},
+		},
+		enabledPlugins: Object.fromEntries(pluginNames.map(pluginName => [marketplace.pluginSpec(pluginName), true])),
+		forceRemoteSettingsRefresh,
+	};
+}
+
+function holdManagedSettingsResponse(proxy: CapiReplayProxy, settings: Readonly<Record<string, unknown>>): { readonly requestStarted: Promise<void>; release(): void } {
+	const requestStarted = new DeferredPromise<void>();
+	const releaseResponse = new DeferredPromise<void>();
+	proxy.setManagedSettings(settings, async () => {
+		requestStarted.complete();
+		await releaseResponse.p;
+	});
+	return {
+		requestStarted: requestStarted.p,
+		release: () => releaseResponse.complete(),
+	};
+}
+
+async function runManagedPluginTest(
+	testTitle: string,
+	options: { readonly strict?: boolean },
+	run: (context: IManagedPluginTestContext) => Promise<void>,
+): Promise<void> {
+	const root = createTestDirectory(join(tmpdir(), 'copilot-managed-plugins-'));
+	const workspace = join(root, 'workspace');
+	const managedSettingsPath = join(root, 'device-managed-settings.json');
+	await mkdir(workspace, { recursive: true });
+	await writeFile(managedSettingsPath, JSON.stringify(options.strict ? { forceRemoteSettingsRefresh: true } : {}));
+	const lease = new AgentHostE2EServerLease(COPILOT_CONFIG, {
+		env: {
+			COPILOT_CACHE_HOME: join(root, 'cache'),
+			COPILOT_MANAGED_SETTINGS_CACHE: '0',
+			COPILOT_TEST_MANAGED_SETTINGS_FILE_PATH: managedSettingsPath,
+		},
+	});
+	const createdSessions: string[] = [];
+	const marketplaces: IManagedPluginMarketplace[] = [];
+	let failed = false;
+	let testError: Error | undefined;
+	try {
+		const { client, server } = await lease.acquire(testTitle, 'none');
+		assert.ok(server.capiReplay);
+		await run({
+			client,
+			lease,
+			proxy: server.capiReplay,
+			root,
+			workspace,
+			createdSessions,
+			createMarketplace: async (name, plugins) => {
+				const marketplace = await createManagedPluginMarketplace(root, name, plugins);
+				marketplaces.push(marketplace);
+				return marketplace;
+			},
+		});
+		assert.deepStrictEqual(server.capiReplay.observedModelRequestBodies, []);
+	} catch (error) {
+		failed = true;
+		lease.dumpRuntimeLogsOnFailure(testTitle);
+		testError = error instanceof Error ? error : new Error(String(error));
+	}
+	const cleanupErrors: Error[] = [];
+	try {
+		await lease.release(createdSessions, failed);
+	} catch (error) {
+		cleanupErrors.push(error instanceof Error ? error : new Error(String(error)));
+	}
+	try {
+		await lease.dispose();
+	} catch (error) {
+		cleanupErrors.push(error instanceof Error ? error : new Error(String(error)));
+	}
+	const marketplaceResults = await Promise.allSettled(marketplaces.map(marketplace => marketplace.close()));
+	cleanupErrors.push(...marketplaceResults.flatMap(result =>
+		result.status === 'rejected' ? [result.reason instanceof Error ? result.reason : new Error(String(result.reason))] : []));
+	try {
+		await removeTempDirs([root]);
+	} catch (error) {
+		cleanupErrors.push(error instanceof Error ? error : new Error(String(error)));
+	}
+	if (testError || cleanupErrors.length > 0) {
+		throw testError && cleanupErrors.length === 0
+			? testError
+			: new AggregateError(testError ? [testError, ...cleanupErrors] : cleanupErrors, 'Managed plugin E2E scenario failed');
+	}
+}
+
+function managedPluginProjection(client: TestProtocolClient, chat: string): IManagedPluginProjection {
+	const projection: IManagedPluginProjection = { activities: [], failures: [] };
+	for (const notification of client.receivedNotifications(candidate =>
+		isActionNotification(candidate, ActionType.ChatActivityChanged)
+		|| isActionNotification(candidate, ActionType.ChatResponsePart)
+	)) {
+		const envelope = getActionEnvelope(notification);
+		if (envelope.channel !== chat) {
+			continue;
+		}
+		const action = envelope.action;
+		if (action.type === ActionType.ChatActivityChanged) {
+			const activity = action.activity;
+			const isManagedActivity = activity !== undefined
+				&& managedPluginActivityPrefixes.some(prefix => activity.startsWith(prefix));
+			if ((isManagedActivity || (activity === undefined && projection.activities.length > 0))
+				&& projection.activities.at(-1) !== activity) {
+				projection.activities.push(activity);
+			}
+			continue;
+		}
+		if (action.type !== ActionType.ChatResponsePart || action.part.kind !== ResponsePartKind.SystemNotification) {
+			continue;
+		}
+		if (readAgentSystemNotificationMeta(action.part).kind !== AgentSystemNotificationKind.ManagedPluginPreparationFailure) {
+			continue;
+		}
+		projection.failures.push({
+			turnId: action.turnId,
+			content: typeof action.part.content === 'string' ? action.part.content : action.part.content.markdown,
+		});
+	}
+	return projection;
+}
+
+function managedPluginDefinition(name: string, version = '1.0.0', skillName = `${name}-skill`): IManagedPluginDefinition {
+	return { name, version, skillName };
+}
+
+function activityFor(projection: IManagedPluginProjection, prefix: string): string | undefined {
+	return projection.activities.find(activity => activity?.startsWith(prefix));
+}
+
+function assertManagedSkill(responseText: string, skillName: string): void {
+	if (!responseText.includes(skillName)) {
+		throw new Error(managedPluginLifecycleUnavailable);
+	}
+}
+
+async function waitForInstallationStart(installationStarted: Promise<void>, turn: Promise<unknown>): Promise<void> {
+	const outcome = await Promise.race([
+		installationStarted.then(() => 'installation' as const),
+		turn.then(() => 'turnComplete' as const),
+	]);
+	if (outcome !== 'installation') {
+		throw new Error(managedPluginLifecycleUnavailable);
+	}
+}
+
+async function waitForManagedPluginActivity(client: TestProtocolClient, chat: string, prefix: string): Promise<string> {
+	const notification = await client.waitForNotification(candidate => {
+		if (!isActionNotification(candidate, ActionType.ChatActivityChanged)) {
+			return false;
+		}
+		const envelope = getActionEnvelope(candidate);
+		return envelope.channel === chat
+			&& envelope.action.type === ActionType.ChatActivityChanged
+			&& envelope.action.activity?.startsWith(prefix) === true;
+	}, 30_000);
+	const action = getActionEnvelope(notification).action;
+	if (action.type !== ActionType.ChatActivityChanged || !action.activity) {
+		throw new Error(`Expected managed plugin activity starting with "${prefix}"`);
+	}
+	return action.activity;
+}
+
+function assertTurnHasNotCompleted(client: TestProtocolClient, chat: string, turnId: string): void {
+	const terminal = client.receivedNotifications(notification =>
+		(isActionNotification(notification, ActionType.ChatTurnComplete)
+			|| isActionNotification(notification, ActionType.ChatError)
+			|| isActionNotification(notification, ActionType.ChatTurnCancelled))
+		&& getActionEnvelope(notification).channel === chat
+		&& (getActionEnvelope(notification).action as { readonly turnId: string }).turnId === turnId,
+	);
+	assert.deepStrictEqual(terminal, []);
+}
+
+async function waitForTurnStarted(client: TestProtocolClient, chat: string, turnId: string): Promise<void> {
+	await client.waitForNotification(notification =>
+		isActionNotification(notification, ActionType.ChatTurnStarted)
+		&& getActionEnvelope(notification).channel === chat
+		&& (getActionEnvelope(notification).action as { readonly turnId: string }).turnId === turnId,
+		30_000,
+	);
+}
+
+async function waitForTurnComplete(client: TestProtocolClient, chat: string, turnId: string): Promise<void> {
+	const terminal = await client.waitForNotification(notification =>
+		(isActionNotification(notification, ActionType.ChatTurnComplete) || isActionNotification(notification, ActionType.ChatError))
+		&& getActionEnvelope(notification).channel === chat
+		&& (getActionEnvelope(notification).action as { readonly turnId: string }).turnId === turnId,
+		90_000,
+	);
+	assert.strictEqual(getActionEnvelope(terminal).action.type, ActionType.ChatTurnComplete);
+}
+
+async function createAdditionalCopilotSession(client: TestProtocolClient, trackingList: string[], workingDirectory: URI): Promise<string> {
+	client.setWorkingDirectory(workingDirectory.fsPath);
+	const sessionUri = URI.from({ scheme: COPILOT_CONFIG.scheme, path: `/${generateUuid()}` }).toString();
+	await client.call('createSession', {
+		channel: sessionUri,
+		provider: COPILOT_CONFIG.provider,
+		workingDirectories: [workingDirectory.toString()],
+		config: { isolation: 'folder', ...COPILOT_CONFIG.sessionConfig },
+	}, 30_000);
+	trackingList.push(sessionUri);
+	await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+	await client.call<SubscribeResult>('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+	client.clearReceived();
+	return sessionUri;
+}
 
 suite('Agent Host E2E — Copilot managed-settings diagnostics', function () {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -98,6 +347,407 @@ suite('Agent Host E2E — Copilot managed-settings diagnostics', function () {
 			}
 		}
 	});
+});
+
+suite('Agent Host E2E — Copilot managed plugin lifecycle', function () {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('multiple lifecycle sessions share one initialized client', async function () {
+		this.timeout(120_000);
+		await runManagedPluginTest(this.test!.title, {}, async context => {
+			context.proxy.setManagedSettings({});
+			const workspace = URI.file(context.workspace);
+			const firstSession = await createRealSession(context.client, COPILOT_CONFIG, 'managed-plugin-multi-session', context.createdSessions, workspace);
+			const secondSession = await createAdditionalCopilotSession(context.client, context.createdSessions, workspace);
+			const first = await driveTurnToCompletion(context.client, firstSession, 'turn-first-session', '/env', 1);
+			const second = await driveTurnToCompletion(context.client, secondSession, 'turn-second-session', '/env', 1);
+			assert.deepStrictEqual({
+				first: /Skills|Environment/i.test(first.responseText),
+				second: /Skills|Environment/i.test(second.responseText),
+			}, {
+				first: true,
+				second: true,
+			});
+		});
+	});
+
+	test('non-strict missing plugin lets the first message continue and holds a later message on slow installation', async function () {
+		this.timeout(180_000);
+		await runManagedPluginTest(this.test!.title, {}, async context => {
+			const plugin = managedPluginDefinition('non-strict-plugin', '1.0.0', 'non-strict-managed-skill');
+			const marketplace = await context.createMarketplace('non-strict-marketplace', [plugin]);
+			const installation = marketplace.holdNextRequest();
+			const policy = holdManagedSettingsResponse(context.proxy, managedPluginPolicy(marketplace, [plugin.name], false));
+			const session = await createRealSession(context.client, COPILOT_CONFIG, 'managed-plugin-non-strict', context.createdSessions, URI.file(context.workspace));
+			const chat = buildDefaultChatUri(session);
+			const firstTurn = driveTurnToCompletion(context.client, session, 'turn-before-policy', '/env', 1);
+			await policy.requestStarted;
+			const beforePolicy = await firstTurn;
+			policy.release();
+			const secondTurnId = 'turn-waits-for-install';
+			const secondTurn = driveTurnToCompletion(context.client, session, secondTurnId, '/env', 2);
+			await waitForTurnStarted(context.client, chat, secondTurnId);
+			await waitForInstallationStart(installation.started, secondTurn);
+			const installingWhileIdle = await waitForManagedPluginActivity(context.client, chat, managedPluginInstallingActivity);
+			assertTurnHasNotCompleted(context.client, chat, secondTurnId);
+			installation.release();
+			const afterPolicy = await secondTurn;
+			const projection = managedPluginProjection(context.client, chat);
+
+			assert.deepStrictEqual({
+				firstMessageContinuedWithoutPlugin: !beforePolicy.responseText.includes(plugin.skillName),
+				installingActivityNamesPlugin: installingWhileIdle?.includes(marketplace.pluginSpec(plugin.name)) === true,
+				laterMessageUsesPlugin: afterPolicy.responseText.includes(plugin.skillName),
+				activityCleared: projection.activities.at(-1) === undefined,
+			}, {
+				firstMessageContinuedWithoutPlugin: true,
+				installingActivityNamesPlugin: true,
+				laterMessageUsesPlugin: true,
+				activityCleared: true,
+			});
+		});
+	});
+
+	test('strict missing plugin holds the first message through slow policy and installation', async function () {
+		this.timeout(180_000);
+		await runManagedPluginTest(this.test!.title, { strict: true }, async context => {
+			const plugin = managedPluginDefinition('strict-plugin', '1.0.0', 'strict-managed-skill');
+			const marketplace = await context.createMarketplace('strict-marketplace', [plugin]);
+			const installation = marketplace.holdNextRequest();
+			const policy = holdManagedSettingsResponse(context.proxy, managedPluginPolicy(marketplace, [plugin.name], true));
+			const session = await createRealSession(context.client, COPILOT_CONFIG, 'managed-plugin-strict', context.createdSessions, URI.file(context.workspace));
+			const chat = buildDefaultChatUri(session);
+			const turnId = 'turn-strict-install';
+			const pendingTurn = driveTurnToCompletion(context.client, session, turnId, '/env', 1);
+			await policy.requestStarted;
+			assertTurnHasNotCompleted(context.client, chat, turnId);
+			policy.release();
+			await waitForInstallationStart(installation.started, pendingTurn);
+			assertTurnHasNotCompleted(context.client, chat, turnId);
+			await waitForManagedPluginActivity(context.client, chat, managedPluginInstallingActivity);
+			const whileInstalling = managedPluginProjection(context.client, chat);
+			installation.release();
+			const result = await pendingTurn;
+			const projection = managedPluginProjection(context.client, chat);
+
+			assert.deepStrictEqual({
+				initializing: activityFor(whileInstalling, managedPluginInitializingActivity) !== undefined,
+				installingNamesPlugin: activityFor(whileInstalling, managedPluginInstallingActivity)?.includes(marketplace.pluginSpec(plugin.name)) === true,
+				responseUsesPlugin: result.responseText.includes(plugin.skillName),
+				activityCleared: projection.activities.at(-1) === undefined,
+			}, {
+				initializing: true,
+				installingNamesPlugin: true,
+				responseUsesPlugin: true,
+				activityCleared: true,
+			});
+		});
+	});
+
+	test('strict already-installed plugin waits only for policy and is reused without installation', async function () {
+		this.timeout(180_000);
+		await runManagedPluginTest(this.test!.title, { strict: true }, async context => {
+			const plugin = managedPluginDefinition('strict-installed-plugin');
+			const marketplace = await context.createMarketplace('strict-installed-marketplace', [plugin]);
+			const settings = managedPluginPolicy(marketplace, [plugin.name], true);
+			context.proxy.setManagedSettings(settings);
+			const setupSession = await createRealSession(context.client, COPILOT_CONFIG, 'strict-installed-setup', context.createdSessions, URI.file(context.workspace));
+			const setup = await driveTurnToCompletion(context.client, setupSession, 'turn-install-setup', '/env', 1);
+			assertManagedSkill(setup.responseText, plugin.skillName);
+
+			const policy = holdManagedSettingsResponse(context.proxy, settings);
+			const reusedSession = await createAdditionalCopilotSession(context.client, context.createdSessions, URI.file(context.workspace));
+			const chat = buildDefaultChatUri(reusedSession);
+			const turnId = 'turn-reuse-installed';
+			const pending = driveTurnToCompletion(context.client, reusedSession, turnId, '/env', 1);
+			await policy.requestStarted;
+			assertTurnHasNotCompleted(context.client, chat, turnId);
+			policy.release();
+			const result = await pending;
+			const projection = managedPluginProjection(context.client, chat);
+
+			assert.deepStrictEqual({
+				responseUsesPlugin: result.responseText.includes(plugin.skillName),
+				initializing: activityFor(projection, managedPluginInitializingActivity) !== undefined,
+				installing: activityFor(projection, managedPluginInstallingActivity),
+			}, {
+				responseUsesPlugin: true,
+				initializing: true,
+				installing: undefined,
+			});
+		});
+	});
+
+	test('non-strict already-installed plugin never blocks or reinstalls while policy refreshes', async function () {
+		this.timeout(180_000);
+		await runManagedPluginTest(this.test!.title, {}, async context => {
+			const plugin = managedPluginDefinition('non-strict-installed-plugin');
+			const marketplace = await context.createMarketplace('non-strict-installed-marketplace', [plugin]);
+			context.proxy.setManagedSettings(managedPluginPolicy(marketplace, [plugin.name], true));
+			const setupSession = await createRealSession(context.client, COPILOT_CONFIG, 'non-strict-installed-setup', context.createdSessions, URI.file(context.workspace));
+			const setup = await driveTurnToCompletion(context.client, setupSession, 'turn-install-setup', '/env', 1);
+			assertManagedSkill(setup.responseText, plugin.skillName);
+
+			const policy = holdManagedSettingsResponse(context.proxy, managedPluginPolicy(marketplace, [plugin.name], false));
+			const reusedSession = await createAdditionalCopilotSession(context.client, context.createdSessions, URI.file(context.workspace));
+			const first = driveTurnToCompletion(context.client, reusedSession, 'turn-refresh-pending', '/env', 1);
+			await policy.requestStarted;
+			const beforeRefresh = await first;
+			policy.release();
+
+			let nextClientSeq = 2;
+			let afterRefresh: Awaited<ReturnType<typeof driveTurnToCompletion>> | undefined;
+			let reinstallObserved = false;
+			await retry(async () => {
+				afterRefresh = await driveTurnToCompletion(context.client, reusedSession, `turn-after-refresh-${nextClientSeq}`, '/env', nextClientSeq++);
+				reinstallObserved ||= activityFor(managedPluginProjection(context.client, buildDefaultChatUri(reusedSession)), managedPluginInstallingActivity) !== undefined;
+				if (!afterRefresh.responseText.includes(plugin.skillName)) {
+					throw new Error('Installed managed plugin is not active yet');
+				}
+			}, 100, 20);
+
+			assert.deepStrictEqual({
+				firstMessageContinued: /Skills|Environment/i.test(beforeRefresh.responseText),
+				laterMessageUsesPlugin: afterRefresh?.responseText.includes(plugin.skillName),
+				reinstallObserved,
+			}, {
+				firstMessageContinued: true,
+				laterMessageUsesPlugin: true,
+				reinstallObserved: false,
+			});
+		});
+	});
+
+	test('strict policy installs several missing plugins in one admission', async function () {
+		this.timeout(180_000);
+		await runManagedPluginTest(this.test!.title, { strict: true }, async context => {
+			const plugins = [
+				managedPluginDefinition('several-plugin-a'),
+				managedPluginDefinition('several-plugin-b'),
+				managedPluginDefinition('several-plugin-c'),
+			];
+			const marketplace = await context.createMarketplace('several-marketplace', plugins);
+			context.proxy.setManagedSettings(managedPluginPolicy(marketplace, plugins.map(plugin => plugin.name), true));
+			const session = await createRealSession(context.client, COPILOT_CONFIG, 'managed-plugin-several', context.createdSessions, URI.file(context.workspace));
+			const result = await driveTurnToCompletion(context.client, session, 'turn-install-several', '/env', 1);
+			assertManagedSkill(result.responseText, plugins[0].skillName);
+			const installing = activityFor(managedPluginProjection(context.client, buildDefaultChatUri(session)), managedPluginInstallingActivity);
+
+			assert.deepStrictEqual({
+				skills: plugins.map(plugin => result.responseText.includes(plugin.skillName)),
+				activitySpecs: plugins.map(plugin => installing?.includes(marketplace.pluginSpec(plugin.name)) === true),
+			}, {
+				skills: [true, true, true],
+				activitySpecs: [true, true, true],
+			});
+		});
+	});
+
+	test('strict partially-installed policy prepares only the missing plugin', async function () {
+		this.timeout(180_000);
+		await runManagedPluginTest(this.test!.title, { strict: true }, async context => {
+			const installed = managedPluginDefinition('partial-installed-plugin');
+			const missing = managedPluginDefinition('partial-missing-plugin');
+			const marketplace = await context.createMarketplace('partial-marketplace', [installed, missing]);
+			context.proxy.setManagedSettings(managedPluginPolicy(marketplace, [installed.name], true));
+			const setupSession = await createRealSession(context.client, COPILOT_CONFIG, 'managed-plugin-partial-setup', context.createdSessions, URI.file(context.workspace));
+			const setup = await driveTurnToCompletion(context.client, setupSession, 'turn-install-one', '/env', 1);
+			assertManagedSkill(setup.responseText, installed.skillName);
+
+			context.proxy.setManagedSettings(managedPluginPolicy(marketplace, [installed.name, missing.name], true));
+			const session = await createAdditionalCopilotSession(context.client, context.createdSessions, URI.file(context.workspace));
+			const result = await driveTurnToCompletion(context.client, session, 'turn-install-missing', '/env', 1);
+			const installing = activityFor(managedPluginProjection(context.client, buildDefaultChatUri(session)), managedPluginInstallingActivity);
+
+			assert.deepStrictEqual({
+				installedSkill: result.responseText.includes(installed.skillName),
+				missingSkill: result.responseText.includes(missing.skillName),
+				activityNamesInstalled: installing?.includes(marketplace.pluginSpec(installed.name)) === true,
+				activityNamesMissing: installing?.includes(marketplace.pluginSpec(missing.name)) === true,
+			}, {
+				installedSkill: true,
+				missingSkill: true,
+				activityNamesInstalled: false,
+				activityNamesMissing: true,
+			});
+		});
+	});
+
+	test('managed plugin installation failure warns and continues the same message', async function () {
+		this.timeout(180_000);
+		await runManagedPluginTest(this.test!.title, { strict: true }, async context => {
+			const plugin = managedPluginDefinition('unavailable-plugin');
+			const marketplace = await context.createMarketplace('unavailable-marketplace', [plugin]);
+			marketplace.setUnavailable(true);
+			context.proxy.setManagedSettings(managedPluginPolicy(marketplace, [plugin.name], true));
+			const session = await createRealSession(context.client, COPILOT_CONFIG, 'managed-plugin-failure', context.createdSessions, URI.file(context.workspace));
+			const chat = buildDefaultChatUri(session);
+			const turnId = 'turn-install-failure';
+			const result = await driveTurnToCompletion(context.client, session, turnId, '/env', 1);
+			if (marketplace.requestCount === 0) {
+				throw new Error(managedPluginLifecycleUnavailable);
+			}
+			const projection = managedPluginProjection(context.client, chat);
+			const failure = projection.failures[0];
+
+			assert.deepStrictEqual({
+				messageContinued: /Skills|Environment/i.test(result.responseText),
+				pluginUnavailable: !result.responseText.includes(plugin.skillName),
+				installActivityShown: activityFor(projection, managedPluginInstallingActivity) !== undefined,
+				failure: failure && {
+					turnId: failure.turnId,
+					namesPlugin: failure.content.includes(marketplace.pluginSpec(plugin.name)),
+					continuesWithCurrentSetup: /Continuing with the current setup/i.test(failure.content),
+				},
+			}, {
+				messageContinued: true,
+				pluginUnavailable: true,
+				installActivityShown: true,
+				failure: {
+					turnId,
+					namesPlugin: true,
+					continuesWithCurrentSetup: true,
+				},
+			});
+		});
+	});
+
+	test('failed managed plugin installation retries on the next message and recovers', async function () {
+		this.timeout(180_000);
+		await runManagedPluginTest(this.test!.title, { strict: true }, async context => {
+			const plugin = managedPluginDefinition('retry-plugin');
+			const marketplace = await context.createMarketplace('retry-marketplace', [plugin]);
+			marketplace.failNextRequest();
+			context.proxy.setManagedSettings(managedPluginPolicy(marketplace, [plugin.name], true));
+			const session = await createRealSession(context.client, COPILOT_CONFIG, 'managed-plugin-retry', context.createdSessions, URI.file(context.workspace));
+			const chat = buildDefaultChatUri(session);
+			const failed = await driveTurnToCompletion(context.client, session, 'turn-fails-once', '/env', 1);
+			if (marketplace.requestCount === 0) {
+				throw new Error(managedPluginLifecycleUnavailable);
+			}
+			const failedProjection = managedPluginProjection(context.client, chat);
+			const recovered = await driveTurnToCompletion(context.client, session, 'turn-retries', '/env', 2);
+			const recoveredProjection = managedPluginProjection(context.client, chat);
+
+			assert.deepStrictEqual({
+				firstContinuedWithoutPlugin: !failed.responseText.includes(plugin.skillName),
+				firstWarned: failedProjection.failures.length === 1,
+				retryUsesPlugin: recovered.responseText.includes(plugin.skillName),
+				retryInstalled: activityFor(recoveredProjection, managedPluginInstallingActivity)?.includes(marketplace.pluginSpec(plugin.name)) === true,
+			}, {
+				firstContinuedWithoutPlugin: true,
+				firstWarned: true,
+				retryUsesPlugin: true,
+				retryInstalled: true,
+			});
+		});
+	});
+
+	test('slow managed plugin update does not interrupt an active turn and applies before the next message', async function () {
+		this.timeout(240_000);
+		await runManagedPluginTest(this.test!.title, { strict: true }, async context => {
+			const v1 = managedPluginDefinition('update-plugin', '1.0.0', 'managed-update-v1');
+			const v2 = managedPluginDefinition('update-plugin', '2.0.0', 'managed-update-v2');
+			const marketplace = await context.createMarketplace('update-marketplace', [v1]);
+			const settings = managedPluginPolicy(marketplace, [v1.name], true);
+			context.proxy.setManagedSettings(settings);
+			const activeSession = await createRealSession(context.client, COPILOT_CONFIG, 'managed-plugin-update-active', context.createdSessions, URI.file(context.workspace));
+			const activeChat = buildDefaultChatUri(activeSession);
+			const installed = await driveTurnToCompletion(context.client, activeSession, 'turn-install-v1', '/env', 1);
+			assertManagedSkill(installed.responseText, v1.skillName);
+
+			const activeTurnId = 'turn-active-during-update';
+			const activeMarker = join(context.workspace, 'active-turn.ready');
+			const releaseMarker = join(context.workspace, 'active-turn.release');
+			await writeFile(join(context.workspace, 'hold-turn.cjs'), [
+				'const fs = require(\'fs\');',
+				'fs.writeFileSync(\'active-turn.ready\', \'ready\');',
+				'const complete = () => {',
+				'  if (fs.existsSync(\'active-turn.release\')) {',
+				'    watcher.close();',
+				'    process.exit(0);',
+				'  }',
+				'};',
+				'const watcher = fs.watch(\'.\', complete);',
+				'complete();',
+			].join('\n'));
+			context.client.clearReceived();
+			dispatchTurn(context.client, activeSession, activeTurnId, '!node hold-turn.cjs', 2);
+			await retry(async () => {
+				if (!existsSync(activeMarker)) {
+					throw new Error('The held turn has not started');
+				}
+			}, 100, 300);
+
+			await marketplace.publish([v2]);
+			const update = marketplace.holdNextRequest();
+			context.proxy.setManagedSettings(settings);
+			const updateSession = await createAdditionalCopilotSession(context.client, context.createdSessions, URI.file(context.workspace));
+			const updateChat = buildDefaultChatUri(updateSession);
+			await update.started;
+			await waitForManagedPluginActivity(context.client, updateChat, managedPluginUpdatingActivity);
+			const activeState = await fetchSessionWithChat(context.client, activeSession);
+			assert.strictEqual(activeState.activeTurn?.id, activeTurnId);
+			const updatingWhileActive = activityFor(managedPluginProjection(context.client, updateChat), managedPluginUpdatingActivity);
+
+			const updateTurnId = 'turn-apply-update';
+			const updatedTurn = driveTurnToCompletion(context.client, updateSession, updateTurnId, '/env', 1);
+			await waitForTurnStarted(context.client, updateChat, updateTurnId);
+			assertTurnHasNotCompleted(context.client, updateChat, updateTurnId);
+			await writeFile(releaseMarker, 'release');
+			await waitForTurnComplete(context.client, activeChat, activeTurnId);
+			assertTurnHasNotCompleted(context.client, updateChat, updateTurnId);
+			update.release();
+			const updated = await updatedTurn;
+			const projection = managedPluginProjection(context.client, updateChat);
+
+			assert.deepStrictEqual({
+				updateNamesPlugin: updatingWhileActive?.includes(marketplace.pluginSpec(v2.name)) === true,
+				nextMessageUsesV2: updated.responseText.includes(v2.skillName),
+				nextMessageStillUsesV1: updated.responseText.includes(v1.skillName),
+				activityCleared: projection.activities.at(-1) === undefined,
+			}, {
+				updateNamesPlugin: true,
+				nextMessageUsesV2: true,
+				nextMessageStillUsesV1: false,
+				activityCleared: true,
+			});
+		});
+	});
+
+	test('withdrawing a managed plugin requirement disables it after restart', async function () {
+		this.timeout(240_000);
+		await runManagedPluginTest(this.test!.title, { strict: true }, async context => {
+			const plugin = managedPluginDefinition('enforcement-plugin', '1.0.0', 'managed-enforcement-skill');
+			const marketplace = await context.createMarketplace('enforcement-marketplace', [plugin]);
+			const requiredPolicy = holdManagedSettingsResponse(context.proxy, managedPluginPolicy(marketplace, [plugin.name], true));
+			const requiredSession = await createRealSession(context.client, COPILOT_CONFIG, 'managed-plugin-required', context.createdSessions, URI.file(context.workspace));
+			const requiredTurn = driveTurnToCompletion(context.client, requiredSession, 'turn-required', '/env', 1);
+			await requiredPolicy.requestStarted;
+			requiredPolicy.release();
+			const required = await requiredTurn;
+			assertManagedSkill(required.responseText, plugin.skillName);
+			await context.client.call('disposeSession', { channel: requiredSession });
+			context.createdSessions.splice(context.createdSessions.indexOf(requiredSession), 1);
+
+			const withdrawnPolicy = holdManagedSettingsResponse(context.proxy, { forceRemoteSettingsRefresh: true });
+			context.client = await context.lease.restart();
+			const withdrawnSession = await createRealSession(context.client, COPILOT_CONFIG, 'managed-plugin-withdrawn', context.createdSessions, URI.file(context.workspace));
+			const withdrawnTurn = driveTurnToCompletion(context.client, withdrawnSession, 'turn-withdrawn', '/env', 1);
+			await withdrawnPolicy.requestStarted;
+			withdrawnPolicy.release();
+			const withdrawn = await withdrawnTurn;
+
+			assert.deepStrictEqual({
+				required: required.responseText.includes(plugin.skillName),
+				withdrawn: withdrawn.responseText.includes(plugin.skillName),
+			}, {
+				required: true,
+				withdrawn: false,
+			});
+		});
+	});
+
 });
 
 suite('Agent Host E2E — Copilot managed permissions over AHP', function () {
