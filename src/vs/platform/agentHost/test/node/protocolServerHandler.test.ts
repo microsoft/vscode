@@ -5835,6 +5835,50 @@ suite('ProtocolServerHandler', () => {
 			});
 		}
 
+		for (const release of ['unsubscribe', 'reconnect', 'grace'] as const) {
+			test(`bulk ${release} releases every chat before removing session membership`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				createSessionWithClientTools();
+				const transport = connectClient(clientId, [sessionUri]);
+				await handler.whenIdle();
+				const routingAtRemoval: string[][] = [];
+				disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+					if (envelope.action.type === ActionType.SessionActiveClientRemoved && envelope.action.clientId === clientId) {
+						routingAtRemoval.push(agentService.clientChatSubscriptions.filter(subscription => !subscription.subscribed).map(subscription => subscription.chat));
+					}
+				}));
+				if (release === 'unsubscribe') {
+					transport.simulateMessage(notification('unsubscribe', { channel: sessionUri }));
+				} else {
+					transport.simulateClose();
+					if (release === 'reconnect') {
+						const reconnected = new MockProtocolTransport();
+						server.simulateConnection(reconnected);
+						const response = waitForResponse(reconnected, 1);
+						reconnected.simulateMessage(request(1, 'reconnect', {
+							clientId,
+							lastSeenServerSeq: stateManager.serverSeq,
+							subscriptions: [],
+						}));
+						await response;
+					} else {
+						await timeout(30_001);
+					}
+				}
+
+				assert.deepStrictEqual({
+					routingAtRemoval,
+					releasedChats: agentService.clientChatSubscriptions.filter(subscription => !subscription.subscribed).map(subscription => subscription.chat),
+					membership: stateManager.getSessionState(sessionUri)?.activeClients,
+					statuses: toolStatuses(),
+				}, {
+					routingAtRemoval: [[defaultChatUri, peerChatUri]],
+					releasedChats: [defaultChatUri, peerChatUri],
+					membership: [],
+					statuses: [ToolCallStatus.Completed, ToolCallStatus.Completed],
+				});
+			}));
+		}
+
 		for (const release of ['unsubscribe', 'disconnect'] as const) {
 			for (const outcome of ['success', 'failure', 'cancelled'] as const) {
 				test(`last active subscription ${release} retains membership until a pending replacement settles with ${outcome}`, async () => {

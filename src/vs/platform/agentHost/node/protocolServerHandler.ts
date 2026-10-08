@@ -1178,23 +1178,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 
 	/** Releases chat routing absent from all live connections after a reconnect or partial disconnect. */
 	private _reconcileClientChatSubscriptions(client: IConnectedClient): void {
-		const record = this._clients.get(client.clientId);
-		const resubscribed = new Set<string>();
-		for (const connection of record?.state === 'active' ? record.connections : [client]) {
-			for (const sub of connection.subscriptions.values()) {
-				if (sub.kind === ChannelKind.State && sub.active) {
-					resubscribed.add(sub.uri);
-				}
-			}
-		}
 		for (const session of this._stateManager.getSessionUris()) {
 			const state = this._stateManager.getSessionState(session);
 			if (state && this._isActiveClient(state, client.clientId)) {
-				for (const chat of state.chats) {
-					if (!resubscribed.has(chat.resource)) {
-						this._releaseActiveClientForSession(session, client.clientId, chat.resource);
-					}
-				}
+				this._releaseClientSession(session, client.clientId);
 			}
 		}
 	}
@@ -1244,14 +1231,27 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		}
 	}
 
-	/** Releases a chat's pending client tools, retaining the session contribution while any chat remains subscribed. */
-	private _releaseActiveClientForSession(session: string, clientId: string, chatChannel: string): void {
+	/** Releases one chat's client tools without changing session membership. */
+	private _releaseClientChat(session: string, clientId: string, chatChannel: string): void {
 		this._clearClientToolCallDisconnectTimeout(clientId, chatChannel);
 		if (this._hasClientSubscription(clientId, chatChannel)) {
 			return;
 		}
 		this._agentService.setClientChatSubscription(URI.parse(chatChannel), clientId, false);
 		this._completeDisconnectedClientToolCalls(clientId, session, chatChannel);
+		// The ready dispatch can re-arm the orphan timer while completing a streaming call.
+		this._clearClientToolCallDisconnectTimeout(clientId, chatChannel);
+	}
+
+	/** Releases uncovered chats before removing the session-wide contribution. */
+	private _releaseClientSession(session: string, clientId: string): void {
+		for (const chat of this._stateManager.getSessionState(session)?.chats ?? []) {
+			this._releaseClientChat(session, clientId, chat.resource);
+		}
+		this._removeUnsubscribedActiveClient(session, clientId);
+	}
+
+	private _removeUnsubscribedActiveClient(session: string, clientId: string): void {
 		const state = this._stateManager.getSessionState(session);
 		if (!this._hasClientSubscription(clientId, session, true) && !state?.chats.some(chat => this._hasClientSubscription(clientId, chat.resource, true))) {
 			this._removeActiveClient(session, clientId);
@@ -1329,7 +1329,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		const elapsed = Date.now() - record.lastSeenAt;
 		const delay = Math.max(0, CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT - elapsed);
 		record.disconnectTimeouts.set(chatChannel, disposableTimeout(() => {
-			this._releaseActiveClientForSession(session, clientId, chatChannel);
+			this._releaseClientSession(session, clientId);
 		}, delay));
 	}
 
@@ -2852,12 +2852,11 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				return;
 			}
 			if (isAhpChatChannel(sub.uri)) {
-				this._releaseActiveClientForSession(parseRequiredSessionUriFromChatUri(sub.uri), client.clientId, sub.uri);
+				const session = parseRequiredSessionUriFromChatUri(sub.uri);
+				this._releaseClientChat(session, client.clientId, sub.uri);
+				this._removeUnsubscribedActiveClient(session, client.clientId);
 			} else {
-				const state = this._stateManager.getSessionState(sub.uri);
-				for (const chat of state?.chats ?? []) {
-					this._releaseActiveClientForSession(sub.uri, client.clientId, chat.resource);
-				}
+				this._releaseClientSession(sub.uri, client.clientId);
 			}
 		} else if (sub.kind === ChannelKind.ResourceWatch) {
 			this._agentService.onResourceWatchUnsubscribed(sub.uri);
