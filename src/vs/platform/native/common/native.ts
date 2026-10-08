@@ -85,8 +85,6 @@ export interface IOpenAgentsWindowOptions {
 	readonly folderUri?: UriComponents;
 	/** Use the invoking editor's folder only for a fresh composer, without replacing an existing session or user choice. */
 	readonly folderUriIsDefault?: boolean;
-	/** Skip implicit editor workspace and draft handoff so the Agents Window keeps its active session. Explicit targets still apply. */
-	readonly preserveActiveSession?: boolean;
 	readonly sessionResource?: UriComponents;
 	/** Session to spotlight after a contextual invitation, even when it is not opened. */
 	readonly onboardingSessionResource?: UriComponents;

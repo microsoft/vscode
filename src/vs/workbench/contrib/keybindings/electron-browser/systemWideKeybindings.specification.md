@@ -16,9 +16,6 @@ A user adds `"systemWide": true` to a keybinding entry in **`keybindings.json`**
 {
   "key": "ctrl+cmd+a",
   "command": "workbench.action.openAgentsWindow",
-  "args": {
-    "preserveActiveSession": true
-  },
   "systemWide": true
 }
 ```
@@ -37,9 +34,8 @@ While VS Code is running (even unfocused), pressing that combination runs the co
   contribution is `electron-browser`).
 - **Always on.** There is no setting to enable/disable it and no first-run dialog.
 
-The optional `preserveActiveSession` argument defaults to `false`. Set it to `true` for a
-system-wide Open Agents Window binding that should reveal the window without handing off the
-routing editor's workspace or draft. Explicit folder, session, and draft arguments still apply.
+Targetless Open Agents Window invocations reveal the window without changing its active session.
+Callers that intend to navigate provide an explicit folder, session, or draft target instead.
 
 The `systemWide` boolean is declared in the `keybindings.json` JSON schema in
 `src/vs/workbench/services/keybinding/browser/keybindingService.ts`.

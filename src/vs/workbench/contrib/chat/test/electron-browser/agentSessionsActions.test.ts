@@ -258,43 +258,10 @@ suite('OpenWorkspaceInAgentsWindowAction', () => {
 	});
 });
 
-suite('OpenAgentsWindowAction workspace defaults', () => {
+suite('OpenAgentsWindowAction targets', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	for (const scenario of [
-		{ name: 'single folder', folders: ['/one'], activeFile: undefined, expected: '/one' },
-		{ name: 'active file in a multi-root workspace', folders: ['/one', '/two'], activeFile: '/two/file.ts', expected: '/two' },
-		{ name: 'no active file in a multi-root workspace', folders: ['/one', '/two'], activeFile: undefined, expected: undefined },
-		{ name: 'active file outside the workspace', folders: ['/one', '/two'], activeFile: '/elsewhere/file.ts', expected: undefined },
-		{ name: 'empty editor window', folders: [], activeFile: '/elsewhere/file.ts', expected: undefined },
-	]) {
-		test(`infers ${scenario.name} without turning it into an explicit selection`, async () => {
-			const instantiationService = disposables.add(new TestInstantiationService());
-			instantiationService.stub(IConfigurationService, new TestConfigurationService());
-			instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({ lastFocusedWidget: undefined }));
-			const folders = scenario.folders.map((path, index) => new WorkspaceFolder({ uri: URI.file(path), name: path, index }));
-			const calls: IOpenAgentsWindowOptions[] = [];
-			instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
-				getWorkspace: () => ({ id: 'workspace', folders }),
-				getWorkspaceFolder: resource => folders.find(folder => extUri.isEqualOrParent(resource, folder.uri)) ?? null,
-			}));
-			instantiationService.stub(IEditorService, upcastPartial<IEditorService>({
-				activeEditor: scenario.activeFile ? upcastPartial<EditorInput>({ resource: URI.file(scenario.activeFile) }) : undefined,
-			}));
-			instantiationService.stub(INativeHostService, upcastPartial<INativeHostService>({
-				openAgentsWindow: async options => { calls.push(options ?? {}); },
-			}));
-
-			await instantiationService.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor, { source: AgentsWindowOpenSource.KeyboardShortcut }));
-			assert.deepStrictEqual(calls.map(call => ({
-				folder: URI.revive(call.folderUri)?.path,
-				isDefault: call.folderUriIsDefault,
-				source: call.source,
-			})), [{ folder: scenario.expected, isDefault: scenario.expected ? true : undefined, source: AgentsWindowOpenSource.KeyboardShortcut }]);
-		});
-	}
-
-	test('does not infer context when preserving the active session', async () => {
+	test('opens without inferring an editor target', async () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		const calls: IOpenAgentsWindowOptions[] = [];
@@ -302,29 +269,26 @@ suite('OpenAgentsWindowAction workspace defaults', () => {
 			openAgentsWindow: async options => { calls.push(options ?? {}); },
 		}));
 
-		await instantiationService.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor, {
-			preserveActiveSession: true,
-			source: AgentsWindowOpenSource.KeyboardShortcut,
-		}));
+		await instantiationService.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor));
 
-		assert.deepStrictEqual(calls, [{
-			preserveActiveSession: true,
-			source: AgentsWindowOpenSource.KeyboardShortcut,
-		}]);
+		assert.deepStrictEqual(calls, [{ source: AgentsWindowOpenSource.CommandPalette }]);
 	});
 
-	test('preserves explicit folder and existing-session arguments without consulting editor context', async () => {
+	test('forwards explicit targets without consulting editor context', async () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		const calls: IOpenAgentsWindowOptions[] = [];
 		instantiationService.stub(INativeHostService, upcastPartial<INativeHostService>({ openAgentsWindow: async options => { calls.push(options ?? {}); } }));
 		const explicit = { folderUri: URI.file('/explicit') };
 		const existing = { sessionResource: URI.parse('agent-host-copilot:/session') };
+		const draft = { draft: { inputText: 'Keep this prompt', attachments: '[]' } };
 		await instantiationService.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor, explicit));
 		await instantiationService.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor, existing));
+		await instantiationService.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor, draft));
 		assert.deepStrictEqual(calls, [
 			{ ...explicit, source: AgentsWindowOpenSource.CommandPalette },
 			{ ...existing, source: AgentsWindowOpenSource.CommandPalette },
+			{ ...draft, source: AgentsWindowOpenSource.CommandPalette },
 		]);
 	});
 });
