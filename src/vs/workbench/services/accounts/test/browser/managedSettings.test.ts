@@ -57,12 +57,11 @@ suite('adaptManagedSettings', () => {
 		});
 	});
 
-	test('marks permission rules as active when they are retained only in the raw response', () => {
+	test('retains permission rules for effective harness eligibility', () => {
 		assert.deepStrictEqual(adaptManagedSettings({
 			permissions: { deny: ['Shell'] },
 		}), {
-			managedSettings: {},
-			managedSettingsActive: true,
+			managedSettings: { 'permissions.deny': '["Shell"]' },
 		});
 	});
 

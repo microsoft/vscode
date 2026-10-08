@@ -279,6 +279,15 @@ export class OpenAIEndpoint extends ChatEndpoint {
 		return true;
 	}
 
+	/**
+	 * Whether this endpoint can resume a Responses API response ID.
+	 */
+	protected override canResumeResponses(responseId: string): boolean {
+		return !this.modelMetadata.zeroDataRetentionEnabled
+			&& this.supportsStatefulResponses
+			&& responseId.startsWith('resp_');
+	}
+
 	override createRequestBody(options: ICreateEndpointBodyOptions): IEndpointBody {
 		if (this.useResponsesApi) {
 			// Handle Responses API: customize the body directly

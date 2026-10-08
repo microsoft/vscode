@@ -27,6 +27,8 @@ export interface IGitHubTransport {
 	rest<T>(account: AccountHandle, token: string, request: GitHubRestRequest, signal: AbortSignal): Promise<GitHubRestResponse<T>>;
 	graphql<T>(account: AccountHandle, token: string, url: string, query: string, variables: Readonly<Record<string, unknown>>, signal: AbortSignal, priority?: RequestPriority, options?: RequestOptions): Promise<GitHubGraphQLResponse<T>>;
 	download(account: AccountHandle, token: string, request: GitHubDownloadRequest, signal: AbortSignal): Promise<GitHubDownloadResponse>;
+	/** Raises the priority of a caller's queued work without restarting dispatched requests. */
+	promote(signal: AbortSignal, priority: RequestPriority): void;
 	invalidateAccount(account: AccountHandle, reason?: unknown): void;
 	clear(): void;
 }
@@ -528,6 +530,15 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			this._logService?.trace(`[GitHubTransport] GraphQL ${operation} returned ${errors.length} error(s)`);
 			return { data: json.data, errors, observedAt: this._scheduler.now() };
 		}, options, 'graphql', onAdmitted));
+	}
+
+	promote(signal: AbortSignal, priority: RequestPriority): void {
+		for (const shared of [...this._inFlight.values(), ...this._graphQlInFlight.values()]) {
+			if (shared.waiters.hasSignal(signal)) {
+				this._queue.promote(shared.controller.signal, priority);
+			}
+		}
+		this._queue.promote(signal, priority);
 	}
 
 	invalidateAccount(account: RequestAccount, reason?: unknown): void {

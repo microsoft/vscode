@@ -1489,6 +1489,12 @@ export interface IAgent {
 	truncateChat?(chat: URI, turnId: string | undefined, context?: URI | IAgentChatContext): Promise<void>;
 
 	/**
+	 * Stops an entry of the chat's background work that this provider marked
+	 * stoppable. Resolves false when the entry is unknown or had already finished.
+	 */
+	stopBackgroundWork?(chat: URI, id: string): Promise<boolean>;
+
+	/**
 	 * Changes the working directory of an exact chat's existing provider-native
 	 * backing. Callers MUST gate this operation on
 	 * {@link IAgentHostCapabilities.workspaceConversion}; implementations that do
