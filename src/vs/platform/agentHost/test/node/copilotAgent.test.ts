@@ -1472,7 +1472,7 @@ async function disposeAgent(agent: CopilotAgent): Promise<void> {
 suite('CopilotAgent', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
-	const proxyEnvironmentKeys = ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy', 'ALL_PROXY', 'all_proxy', 'NO_PROXY', 'no_proxy'] as const;
+	const proxyEnvironmentKeys = ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy', 'ALL_PROXY', 'all_proxy', 'NO_PROXY', 'no_proxy', 'COPILOT_PROXY_KERBEROS'] as const;
 	const proxyEnvironmentKeyNames = new Set(proxyEnvironmentKeys.map(key => key.toLowerCase()));
 	const savedProxyEnvironment: NodeJS.ProcessEnv = {};
 	for (const [key, value] of Object.entries(process.env)) {
@@ -7942,6 +7942,26 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('enables Kerberos support for an inherited proxy environment', async () => {
+			process.env['HTTPS_PROXY'] = 'http://inherited-proxy.example:8080';
+			const client = new TestCopilotClient([]);
+			const { agent } = createTestAgentContext(disposables, { copilotClient: client });
+			try {
+				await agent.listChatsToMigrate();
+				const env = getCreatedClientOptions(agent).at(-1)?.env;
+
+				assert.deepStrictEqual({
+					httpsProxy: env?.['HTTPS_PROXY'],
+					kerberos: env?.['COPILOT_PROXY_KERBEROS'],
+				}, {
+					httpsProxy: 'http://inherited-proxy.example:8080',
+					kerberos: '1',
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('prefers the configured proxy over proxy environment variables', async () => {
 			const client = new TestCopilotClient([]);
 			const configuredProxy = 'http://configured-proxy.example:8080';
@@ -7983,6 +8003,7 @@ suite('CopilotAgent', () => {
 						all_proxy: createdEnv?.['all_proxy'],
 						NO_PROXY: createdEnv?.['NO_PROXY'],
 						no_proxy: createdEnv?.['no_proxy'],
+						kerberos: createdEnv?.['COPILOT_PROXY_KERBEROS'],
 					},
 					resolveProxyCalls: proxyResolver.resolveProxyCalls,
 				}, {
@@ -7997,10 +8018,32 @@ suite('CopilotAgent', () => {
 						all_proxy: undefined,
 						NO_PROXY: 'localhost,127.0.0.1,::1,::ffff:127.0.0.1',
 						no_proxy: undefined,
+						kerberos: '1',
 					},
 					resolveProxyCalls: 0,
 				});
 			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('preserves an explicit Kerberos proxy disable', async () => {
+			const previous = process.env['COPILOT_PROXY_KERBEROS'];
+			process.env['COPILOT_PROXY_KERBEROS'] = '0';
+			const { agent } = createTestAgentContext(disposables, {
+				copilotClient: new TestCopilotClient([]),
+				rootConfig: { [AgentHostProxyConfigKey.Proxy]: 'http://configured-proxy.example:8080' },
+			});
+			try {
+				await agent.listChatsToMigrate();
+
+				assert.strictEqual(getCreatedClientOptions(agent).at(-1)?.env?.['COPILOT_PROXY_KERBEROS'], '0');
+			} finally {
+				if (previous === undefined) {
+					delete process.env['COPILOT_PROXY_KERBEROS'];
+				} else {
+					process.env['COPILOT_PROXY_KERBEROS'] = previous;
+				}
 				await disposeAgent(agent);
 			}
 		});
