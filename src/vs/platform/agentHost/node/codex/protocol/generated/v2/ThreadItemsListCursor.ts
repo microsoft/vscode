@@ -4,14 +4,11 @@
 // Modified by VS Code to rewrite imports and apply repository formatting.
 // See README.md in this directory for provenance and licensing notes.
 // Regenerate: npm run codex:gen-protocol
-// Source file: v2/FsReadFileResponse.ts
+// Source file: v2/ThreadItemsListCursor.ts
+
+import type { ThreadItemsListAnchor } from "./ThreadItemsListAnchor.js";
 
 /**
- * Base64-encoded file contents returned by `fs/readFile`.
+ * Starting position for an item-history page.
  */
-export type FsReadFileResponse = {
-	/**
-	 * File contents encoded as base64.
-	 */
-	dataBase64: string,
-};
+export type ThreadItemsListCursor = string | ThreadItemsListAnchor;
