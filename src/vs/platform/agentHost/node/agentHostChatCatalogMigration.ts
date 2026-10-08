@@ -21,7 +21,11 @@ export async function migrateChatCatalogV2(
 	sessionDataService: ISessionDataService,
 	session: URI,
 	mutation?: IAgentHostDatabaseChatV2Mutation | ((candidate: IAgentHostDatabaseChatV2NormalizationCandidate) => IAgentHostDatabaseChatV2Mutation | undefined),
+	validate?: () => boolean,
 ): Promise<AgentHostDatabaseChatV2WriteResult> {
+	if (validate && !validate()) {
+		return { status: 'cancelled' };
+	}
 	const sessionKey = session.toString();
 	const [snapshot] = await database.readCatalogSnapshot([sessionKey]);
 	if (snapshot?.authorityVersion === 2) {
@@ -35,7 +39,7 @@ export async function migrateChatCatalogV2(
 		if (!snapshot.chats.some(chat => chat.chat === mutation.chat)) {
 			return { status: 'conflict' };
 		}
-		return database.updateChatV2Metadata(mutation.chat, mutation.expected, mutation.patch);
+		return database.updateChatV2Metadata(mutation.chat, mutation.expected, mutation.patch, validate);
 	}
 	const [source, legacyCatalog] = await Promise.all([
 		database.getSessionV2(sessionKey),
@@ -144,7 +148,7 @@ export async function migrateChatCatalogV2(
 			sourceRevision: source.sourceRevision,
 			payloadHash: source.payloadHash,
 			catalogRevision: legacyCatalog?.revision ?? 0,
-		}, candidate, typeof mutation === 'function' ? mutation(candidate) : mutation);
+		}, candidate, typeof mutation === 'function' ? mutation(candidate) : mutation, validate);
 	} finally {
 		sessionReference?.dispose();
 	}

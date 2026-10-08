@@ -13,17 +13,18 @@ Registration is opt-in and default-off. The activation path is available to buil
 ## Enable the real service
 
 1. Sign in to GitHub in the owning VS Code window.
-2. Enable `chat.agentHost.experimentalMissionControl.enabled`.
-3. Wait for `Mission Control ready; environmentId=...` in the Agent Host log.
-4. Create/use native sessions normally. From another compatible MC client, discover the environment, connect, authenticate with a sealed credential, and use standard AHP session operations.
+2. Set `chat.agentHost.remoteConnections` to `githubEnvironment` (the default is `devTunnel`).
+3. Enable **Allow Remote Connections** in the Agents Window title bar or the local Agent Host chat toolbar. Selecting GitHub environment in settings does not register the environment.
+4. Wait for `Mission Control ready; environmentId=...` in the Agent Host log.
+5. Create/use native sessions normally. From another compatible MC client, discover the environment, connect, authenticate with a sealed credential, and use standard AHP session operations.
 
-Registration uses `https://api.github.com`. An empty window can register the host without advertising a home-directory default. Disable the registration setting to withdraw remote access. Withdrawal disconnects relay ingress immediately; it does not delete native sessions, conversations or checkouts.
+Registration uses `https://api.github.com`. An empty window can register the host without advertising a home-directory default. Disable **Allow Remote Connections** to withdraw remote access. The sharing choice is remembered locally across restarts, not synchronized to other machines. Changing the backend turns sharing off until explicitly enabled again. Withdrawal disconnects relay ingress immediately; it does not delete native sessions, conversations or checkouts.
 
 ### Local integration testing
 
 Backend tests supply `IMissionControlOptions` directly to `MissionControlEnvironment.configure`, with a loopback HTTP `baseUrl` and `live` omitted or false. Test credentials and injected HTTP/relay implementations keep registration and authentication tests independent of the real service.
 
-The registration setting's experimental name and feature tags do not restrict availability to development builds.
+The backend setting's experimental feature tag does not restrict availability to development builds.
 
 ## Environment identity, name and ownership
 
@@ -41,17 +42,45 @@ Selection revalidates availability. An offline user-local host is not woken or r
 
 New native allocations negotiate standard `ahp-session` resources with a separate provider. Existing legacy and standard session/chat resources, SDK backings, and storage remain immutable. The client consumes exact advertised resources; MC does not impose a global Copilot alias. See the [identity contract](../../../../sessions/contrib/providers/agentHost/AGENT_HOST_SESSIONS_PROVIDER.md#identity).
 
+### Model advertisements
+
+Mission Control connections advertise model lists only for the native Copilot agent (`copilotcli`). Other agents remain advertised with their identities, capabilities and protected resources, but with empty model lists. This is an interoperability workaround for mobile clients that combine every agent's models into the picker for an existing Copilot session without switching that session's agent. Initial and subscribed root snapshots, reconnect snapshots/replay and live agent updates use the same projection; the host's authoritative catalog and local, SSH and tunnel connections remain unchanged.
+
+Existing sessions for other agents remain accessible and retain their model selection. This limits model discovery, not which agents can execute work; it does not correct a credential-specific empty Copilot catalog.
+
 ## Security and data handling
 
 The [security requirements matrix](./MISSION_CONTROL_SECURITY_REQUIREMENTS.md) links each requirement to implementation and tests. The supported boundary includes canonical-owner sealed authentication, signed control requests, lane/client-ID binding, passive mutation refusal, locally known workspace/resource grants, minimal pre-authentication state, and host-wide root-configuration exclusion. Remote windows cannot overwrite the owning machine's root settings or managed permissions.
 
-Remote owner access includes native sessions, tools, and granted workspace resources. Credentials are purpose-separated sealed-box values before WPS publication; recipient keys come from authenticated MC HTTPS rather than being trusted solely because they appeared in the relay. Private sealing keys stay host-local. This does not provide per-client/session credential sponsorship, OS confinement, or conversation end-to-end encryption.
+Live relay identity expires at the deadline returned by GitHub in `GitHub-Authentication-Token-Expiration`, not a client-supplied timeout. Supported deadlines are calendar-valid UTC timestamps in GitHub's `YYYY-MM-DD HH:MM:SS UTC` format or ISO `YYYY-MM-DDTHH:MM:SS[.sss]Z` format with up to three fractional digits. Invalid or elapsed deadlines fail authentication; an absent header does not create a deadline. Expiry stops observation and new protected work, removes subscriptions, releases active-client/tool ownership not retained by another live connection's subscriptions, and sends one lane-targeted `auth/required` notification with `reason: expired`. The client must renew its credential and subscribe again. Awaited requests cannot return protected results under an expired or replaced credential. Work already started in a provider is not rolled back, and shared provider credential sponsorship/retention remains a separate limitation.
+
+Remote owner access includes native sessions, tools, and granted workspace resources. Credentials are sealed before WPS publication using either NaCl sealed boxes or HPKE (X25519 / HKDF-SHA256 / AES-256-GCM). The host advertises independent keys for each algorithm and for each of the `auth-token` and `mcp-auth-token` purposes, allowing clients such as iOS to use HPKE while sealed-box clients remain compatible. Recipient keys come from authenticated MC HTTPS rather than being trusted solely because they appeared in the relay. Private sealing keys stay host-local. This does not provide per-client/session credential sponsorship, OS confinement, or conversation end-to-end encryption.
+
+Clients must authenticate the relay identity after each initialization before requesting session access, independently of agent-provider authentication. Unauthenticated requests return `AuthRequired` with standard `data.resources` identifying the configured GitHub identity authority, including hosts without a Copilot provider. Owner-validated identity authentication succeeds even if no agent provider accepts that resource; credentials are still forwarded to providers, and other provider/MCP resources require provider acceptance.
+
+Both algorithms use the same `copilot-sealed.v1` envelope and purpose/resource checks. MC registration/heartbeat keys and AHP root metadata identify the same recipients. Unknown or wrong-purpose key IDs return `CONFLICT` so clients can refresh trusted keys, repeat the handshake, and seal again; malformed, undecryptable, or context-mismatched values return `INVALID_PARAMS`. Private key bytes and owned plaintext buffers are scrubbed on disposal or after use. HPKE opening uses non-extractable WebCrypto private keys; their native storage is managed by the runtime and has no explicit zeroization API.
 
 Native authoritative AHP actions and selected genuine SDK metadata are mirrored to MC for history and task title/activity. Approval/input metadata may contain commands, diffs, plans and questions. The SDK adapter excludes assistant/system messages, auth/configuration, subagents, per-token deltas and routine backing shutdown events; AHP mirroring still carries authoritative conversation content.
 
 Registration accepts unbound sealed tokens for compatibility with deployed pre-sealed clients. Supplied bindings are verified; unbound envelopes remain replayable. Backend tests can require binding through `IMissionControlOptions.requireConnectionBinding`. Optional MCP resource context and the shared native provider credential store have the limitations described in the matrix. Do not infer stronger guarantees from successful transport authentication.
 
 The SDK's canonical device `remoteControl` branch is read before registration and forwarded to MC for enforcement. Failed initial reads do not register as unrestricted. The host does not introduce a second enterprise-policy parser or claim local enforcement of every predicate against a compromised MC signer.
+
+### Explicit local credential delegation
+
+The unregistered `chat.agentHost.experimentalMissionControl.useLocalCredentials` setting is a default-off testing override available in built products, including Insiders. Set it to `true` in the host owner's **local User settings** to authorize same-owner remote clients to use the desktop GitHub credential for the host's GitHub Copilot protected resource. Application user settings also apply; workspace, workspace-folder, remote-user, and default values cannot enable it. The setting is intentionally absent from the Settings UI and schema.
+
+```json
+"chat.agentHost.experimentalMissionControl.useLocalCredentials": true
+```
+
+Remote credentials are still required, decrypted, checked for purpose/resource and any supplied connection binding, and validated directly with GitHub against the registered owner. For the exact Copilot resource, the host also validates the current local credential and forwards it internally without the remote token's scopes or expiry. The local credential is never sent to the mobile client or published on the relay. Repository-specific and MCP credentials are not substituted. All providers sharing the Copilot protected resource can receive the local credential, and SDK agent work can use its broader GitHub permissions; this is not an inference-only grant.
+
+Delegation does not extend the remote lane's identity deadline. The forwarded local credential uses its own GitHub-reported expiration, when present.
+
+Changing this setting, rotating the local registration credential, signing out, or withdrawing registration closes the affected relay lanes. Reconnect the mobile client after changes. A missing, rejected, foreign-owner, or concurrently changed local credential fails authentication instead of borrowing a previous credential. Ongoing provider credential retention and per-session sponsorship remain subject to S03's shared-store limitations.
+
+This explicit host-owner delegation is a VS Code testing exception to the user-local sponsorship and control-plane separation contract (S03/S05), not the normal client-token mode or a managed-sandbox principal. Existing enterprise remote-control checks, workspace grants, and tool permissions still apply. Remove the setting or set it to `false` to restore client credentials.
 
 ## Lifecycle and mirroring
 

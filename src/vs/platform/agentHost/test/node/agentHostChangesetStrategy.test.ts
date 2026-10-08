@@ -5,18 +5,22 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
-import { Event } from '../../../../base/common/event.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { autorun, observableFromEvent, observableValue, type ISettableObservable } from '../../../../base/common/observable.js';
+import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { NullLogService } from '../../../log/common/log.js';
+import { ILogService, NullLogService } from '../../../log/common/log.js';
+import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
+import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentSession } from '../../common/agent.js';
 import { NULL_CHECKPOINT_SERVICE, type IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
-import { META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
+import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
 import { type IAgentHostChangesetOperationService } from '../../common/agentHostChangesetOperationService.js';
-import { type ChangesetDiffStrategy } from '../../common/agentHostChangesetService.js';
+import { IAgentHostChangesetService, type ChangesetDiffStrategy } from '../../common/agentHostChangesetService.js';
+import type { IAgentHostChatContributions } from '../../common/agentHostChatContributionsService.js';
 import { type IAgentHostChangesetSubscriptionService } from '../../common/agentHostChangesetSubscriptionService.js';
 import { NULL_REVIEW_SERVICE } from '../../common/agentHostReviewService.js';
 import { buildBranchChangesetUri, buildDefaultChangesetCatalog, buildFolderChangesetOwnerUri, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri } from '../../common/changesetUri.js';
@@ -25,7 +29,11 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { buildSessionDbUri } from '../../common/sessionDbUri.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, ChangesetStatus, FileEditKind, MessageKind, SessionStatus, withSessionGitState, type ISessionFileDiff, type ISessionGitState } from '../../common/state/sessionState.js';
-import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
+import { GitRepositoryRootsContribution } from '../../node/chatContributions/gitRepositoryRoots/gitRepositoryRootsContribution.js';
+import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
+import { createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { AgentHostChangesetService } from '../../node/agentHostChangesetService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
@@ -124,9 +132,10 @@ suite('AgentHostChangesetStrategy', () => {
 			},
 		};
 		const subscriptions = new Set([sessionChangeset, turnChangeset]);
+		const subscriptionChanged = disposables.add(new Emitter<string>());
 		const subscriptionService: IAgentHostChangesetSubscriptionService = {
 			_serviceBrand: undefined,
-			onDidChangeSessionSubscriptions: Event.None,
+			onDidChangeSessionSubscriptions: subscriptionChanged.event,
 			getSessionSubscriptions: () => subscriptions,
 			addSubscription: (_session, uri) => { subscriptions.add(uri); },
 			removeSubscription: (_session, uri) => { subscriptions.delete(uri); },
@@ -193,7 +202,7 @@ suite('AgentHostChangesetStrategy', () => {
 			state.addChat(session, options.peer.resource, { workingDirectories: options.peer.workingDirectories });
 			addTurn(state, options.peer.turnId, options.peer.resource);
 		}
-		return { service, state, db, diff, git, gitStates, checkpoints, results, subscriptions, gitCalls, repositoryCalls, checkpointCalls, databaseCalls };
+		return { service, state, db, diff, git, gitStates, checkpoints, results, subscriptions, gitCalls, repositoryCalls, checkpointCalls, databaseCalls, configuration, subscriptionChanged };
 	}
 
 	function nextPublication(state: AgentHostStateManager, uri: string): Promise<void> {
@@ -285,6 +294,91 @@ suite('AgentHostChangesetStrategy', () => {
 		}, { session: ready([gitOnlyDiff]), turn: ready([gitOnlyDiff]), gitCalls: 2, isolation: 'folder' });
 	});
 
+	test('subscribed session refreshes preserve checkpoint edits from default and peer chats', async () => {
+		const fixture = createFixture({
+			peer: { resource: buildChatUri(session, 'peer'), db: new TestSessionDatabase(), turnId: 'peer-turn' },
+		});
+		const edits = ['default-provider.txt', 'peer-provider.txt'].map(name => ({
+			after: { uri: URI.file(`/repo/${name}`).toString(), content: { uri: `git:/${name}` } },
+			diff: { added: 1, removed: 0 },
+		}));
+		fixture.results.git = edits;
+		await refresh(fixture);
+
+		const { publications, done } = recordSessionPublications(fixture, 1);
+		fixture.service.recomputeSubscribedChangesets(session);
+		await done;
+
+		assert.deepStrictEqual(publications, [ready(edits)]);
+	});
+
+	test('subscribed session refreshes fall back to tracked edits without checkpoints', async () => {
+		const fixture = createFixture();
+		fixture.results.baseline = undefined;
+		addEdit(fixture.db);
+		const { publications, done } = recordSessionPublications(fixture, 1);
+
+		fixture.service.recomputeSubscribedChangesets(session);
+		await done;
+
+		assert.deepStrictEqual(publications, [ready([trackedDiff()])]);
+	});
+
+	for (const owner of ['default', 'peer'] as const) {
+		for (const workingDirectories of [['file:///repo'], ['file:///repo', 'file:///other']]) {
+			test(`subscription and background refreshes preserve an active ${owner} chat edit across ${workingDirectories.length} folder(s)`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const peer = buildChatUri(session, 'peer');
+				const peerDb = new TestSessionDatabase();
+				const fixture = createFixture({
+					workingDirectories,
+					peer: owner === 'peer' ? { resource: peer, db: peerDb, turnId: 'peer-turn' } : undefined,
+				});
+				await refresh(fixture);
+				const chat = owner === 'default' ? buildDefaultChatUri(session) : peer;
+				const activeTurnId = 'active-turn';
+				fixture.state.dispatchServerAction(chat, {
+					type: ActionType.ChatTurnStarted,
+					turnId: activeTurnId,
+					startedAt: '2026-09-01T00:00:01.000Z',
+					message: { text: 'Edit another file', origin: { kind: MessageKind.User } },
+				});
+				addEdit(owner === 'default' ? fixture.db : peerDb, '/repo/active.txt', activeTurnId, 'active-edit');
+				const published = nextPublication(fixture.state, sessionChangeset);
+				fixture.service.onToolCallEditsApplied(chat, activeTurnId);
+				await published;
+				const beforeRefresh = snapshot(fixture.state, sessionChangeset);
+
+				// First subscription and background Git-state refreshes both select auto.
+				await refresh(fixture);
+				const afterSubscribe = snapshot(fixture.state, sessionChangeset);
+				const backgroundPublished = nextPublication(fixture.state, sessionChangeset);
+				fixture.service.recomputeSubscribedChangesets(session);
+				await backgroundPublished;
+				const afterBackgroundRefresh = snapshot(fixture.state, sessionChangeset);
+				const activeState = {
+					id: fixture.state.getChatState(chat)?.activeTurn?.id,
+					completed: fixture.state.getChatState(chat)?.turns.map(turn => turn.id),
+				};
+
+				fixture.state.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: activeTurnId, duration: 1 });
+				const completedDiff: ISessionFileDiff = {
+					after: { uri: URI.file('/repo/active.txt').toString(), content: { uri: 'git:/active.txt' } },
+					diff: { added: 1, removed: 0 },
+				};
+				fixture.results.git = [completedDiff, gitOnlyDiff];
+				await refresh(fixture);
+				const expectedActive = ready([trackedDiff('/repo/active.txt', owner === 'default' ? session : peer, 'active-edit')]);
+				assert.deepStrictEqual({ beforeRefresh, afterSubscribe, afterBackgroundRefresh, activeState, afterCompletion: snapshot(fixture.state, sessionChangeset) }, {
+					beforeRefresh: expectedActive,
+					afterSubscribe: expectedActive,
+					afterBackgroundRefresh: expectedActive,
+					activeState: { id: activeTurnId, completed: [owner === 'default' ? turnId : 'peer-turn'] },
+					afterCompletion: ready([completedDiff, gitOnlyDiff]),
+				});
+			}));
+		}
+	}
+
 	for (const strategies of [
 		['git', 'fileEditTracker'],
 		['fileEditTracker', 'git'],
@@ -347,6 +441,33 @@ suite('AgentHostChangesetStrategy', () => {
 			beforeRelease: { publications: [], trackerReads: 0 },
 			publications: [ready([gitOnlyDiff]), ready([trackedDiff()]), ready([gitOnlyDiff])],
 		});
+	});
+
+	test('an auto refresh queued before a turn starts uses the active turn edits', async () => {
+		const fixture = createFixture();
+		const started = new DeferredPromise<void>();
+		const release = new DeferredPromise<void>();
+		const computeGit = fixture.git.computeFileDiffsBetweenRefs;
+		fixture.git.computeFileDiffsBetweenRefs = async (directory, refs) => {
+			void started.complete();
+			await release.p;
+			return computeGit(directory, refs);
+		};
+		const { publications, done } = recordSessionPublications(fixture, 2);
+		fixture.service.refreshSessionChangeset(session, 'git');
+		await started.p;
+		fixture.service.refreshSessionChangeset(session);
+		fixture.state.dispatchServerAction(buildDefaultChatUri(session), {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'active-turn',
+			startedAt: '2026-09-01T00:00:01.000Z',
+			message: { text: 'Edit another file', origin: { kind: MessageKind.User } },
+		});
+		addEdit(fixture.db, '/repo/active.txt', 'active-turn', 'active-edit');
+		await release.complete();
+		await done;
+
+		assert.deepStrictEqual(publications, [ready([gitOnlyDiff]), ready([trackedDiff('/repo/active.txt', session, 'active-edit')])]);
 	});
 
 	test('removing an owner cancels all queued strategies', async () => {
@@ -895,7 +1016,7 @@ suite('AgentHostChangesetStrategy', () => {
 		}, { state: ready([trackedDiff()]), reads: [2, 0], git: [] });
 	});
 
-	test('restore and subscription refreshes select tracker after isolation changes', async () => {
+	test('restore and subscription refreshes preserve session checkpoints after isolation changes', async () => {
 		const fixture = createFixture();
 		addEdit(fixture.db);
 		await refresh(fixture);
@@ -909,7 +1030,7 @@ suite('AgentHostChangesetStrategy', () => {
 			turn: snapshot(fixture.state, turnChangeset),
 			gitCalls: fixture.gitCalls.length,
 			reads: [fixture.db.getAllFileEditsCalls, fixture.db.getFileEditsByTurnCalls],
-		}, { session: ready([trackedDiff()]), turn: ready([trackedDiff()]), gitCalls: 2, reads: [1, 1] });
+		}, { session: ready([gitOnlyDiff]), turn: ready([trackedDiff()]), gitCalls: 3, reads: [0, 1] });
 	});
 
 	test('main branch changes retain the persisted baseline while using the session folder', async () => {
@@ -1017,6 +1138,399 @@ suite('AgentHostChangesetStrategy', () => {
 			]);
 		});
 	}
+
+	suite('uncommitted availability', () => {
+		const uncommitted = buildUncommittedChangesetUri(session);
+
+		function createRootFixture(options: Parameters<typeof createFixture>[0] = {}) {
+			const fixture = createFixture(options);
+			const roots = new Map<string, ISettableObservable<boolean | undefined>>();
+			const resolvedRoots = new Map<string, URI | undefined>();
+			const rootState = (directory: URI) => {
+				let value = roots.get(directory.toString());
+				if (!value) {
+					value = observableValue<boolean | undefined>(roots, undefined);
+					roots.set(directory.toString(), value);
+				}
+				return value;
+			};
+			const repository = { resolve: fixture.git.getRepositoryRoot };
+			const workingTree = { compute: fixture.git.computeSessionFileDiffs };
+			const rootObservers = { count: 0 };
+			fixture.git.hasGitRoot = directory => observableFromEvent(roots, listener => {
+				rootObservers.count++;
+				const subscription = autorun(reader => {
+					rootState(directory).read(reader);
+					listener(undefined);
+				});
+				return toDisposable(() => {
+					subscription.dispose();
+					rootObservers.count--;
+				});
+			}, () => rootState(directory).get());
+			fixture.git.getRepositoryRoot = async (directory, options) => {
+				const state = rootState(directory);
+				if (state.get() === true || state.get() === false && !options?.refreshIfNone) {
+					return resolvedRoots.get(directory.toString());
+				}
+				try {
+					const root = await repository.resolve(directory, options);
+					resolvedRoots.set(directory.toString(), root);
+					state.set(root !== undefined, undefined);
+					return root;
+				} catch (error) {
+					resolvedRoots.delete(directory.toString());
+					state.set(undefined, undefined);
+					throw error;
+				}
+			};
+			fixture.git.computeSessionFileDiffs = async (directory, options) => {
+				return await fixture.git.getRepositoryRoot(directory) ? workingTree.compute(directory, options) : undefined;
+			};
+			return { ...fixture, repository, rootState, workingTree, rootObservers };
+		}
+
+		test('an invalid working-directory URI produces an error changeset instead of throwing synchronously', async () => {
+			const fixture = createRootFixture({ workingDirectories: ['foo bar:/x'] });
+			fixture.subscriptions.add(uncommitted);
+
+			await fixture.service.computeUncommittedChangeset(session);
+
+			assert.deepStrictEqual(snapshot(fixture.state, uncommitted), { status: ChangesetStatus.Error, errorType: 'computeFailed', edits: [] });
+		});
+
+		test('suppresses repeated computations and status churn after a confirmed non-repository result', async () => {
+			const fixture = createRootFixture();
+			fixture.subscriptions.add(uncommitted);
+			let computes = 0;
+			let rootLookups = 0;
+			fixture.workingTree.compute = async () => { computes++; return undefined; };
+			fixture.repository.resolve = async () => { rootLookups++; return undefined; };
+			const statuses: string[] = [];
+			disposables.add(fixture.state.onDidEmitEnvelope(envelope => {
+				if (envelope.channel === uncommitted && envelope.action.type === ActionType.ChangesetStatusChanged) {
+					statuses.push(envelope.action.status);
+				}
+			}));
+			await fixture.service.computeUncommittedChangeset(session);
+			const firstStatusCount = statuses.length;
+
+			await Promise.all(Array.from({ length: 20 }, () => fixture.service.computeUncommittedChangeset(session)));
+			fixture.service.recomputeSubscribedChangesets(session);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				computes,
+				rootLookups,
+				laterStatuses: statuses.slice(firstStatusCount),
+				state: snapshot(fixture.state, uncommitted),
+			}, {
+				computes: 0,
+				rootLookups: 1,
+				laterStatuses: [],
+				state: { status: ChangesetStatus.Error, errorType: 'computeFailed', edits: [] },
+			});
+		});
+
+		test('suppresses requests queued before the first unavailable computation settles', async () => {
+			const fixture = createRootFixture();
+			fixture.subscriptions.add(uncommitted);
+			const gate = new DeferredPromise<void>();
+			let computes = 0;
+			let rootLookups = 0;
+			fixture.workingTree.compute = async () => { computes++; return undefined; };
+			fixture.repository.resolve = async () => { rootLookups++; await gate.p; return undefined; };
+			try {
+				const first = fixture.service.computeUncommittedChangeset(session);
+				await timeout(0);
+				const queued = Array.from({ length: 10 }, () => fixture.service.computeUncommittedChangeset(session));
+				gate.complete();
+				await Promise.all([first, ...queued]);
+
+				assert.deepStrictEqual({ computes, rootLookups, state: snapshot(fixture.state, uncommitted) }, {
+					computes: 0,
+					rootLookups: 1,
+					state: { status: ChangesetStatus.Error, errorType: 'computeFailed', edits: [] },
+				});
+			} finally {
+				gate.complete();
+			}
+		});
+
+		for (const failure of ['undefined', 'exception', 'root lookup'] as const) {
+			test(`retries a transient ${failure} failure instead of marking the directory permanently unavailable`, async () => {
+				const fixture = createRootFixture();
+				fixture.subscriptions.add(uncommitted);
+				let computes = 0;
+				let rootLookups = 0;
+				fixture.repository.resolve = async directory => {
+					if (++rootLookups === 1 && failure === 'root lookup') {
+						throw new Error('Git root lookup timed out');
+					}
+					return directory;
+				};
+				fixture.workingTree.compute = async () => {
+					if (++computes === 1) {
+						if (failure === 'exception') {
+							throw new Error('Git diff failed');
+						}
+						return failure === 'root lookup' ? [gitOnlyDiff] : undefined;
+					}
+					return [gitOnlyDiff];
+				};
+				await fixture.service.computeUncommittedChangeset(session);
+				await fixture.service.computeUncommittedChangeset(session);
+
+				assert.deepStrictEqual({ computes, state: snapshot(fixture.state, uncommitted) }, {
+					computes: failure === 'root lookup' ? 1 : 2,
+					state: ready([gitOnlyDiff]),
+				});
+			});
+		}
+
+		test('retries an unavailable changeset after repository discovery becomes available', async () => {
+			const fixture = createRootFixture();
+			fixture.subscriptions.add(uncommitted);
+			let computes = 0;
+			let available = false;
+			fixture.repository.resolve = async directory => available ? directory : undefined;
+			fixture.workingTree.compute = async () => {
+				computes++;
+				return available ? [gitOnlyDiff] : undefined;
+			};
+			await fixture.service.computeUncommittedChangeset(session);
+			available = true;
+
+			const recovered = nextPublication(fixture.state, uncommitted);
+			await fixture.git.getRepositoryRoot(URI.file('/repo'), { refreshIfNone: true });
+			await recovered;
+
+			assert.deepStrictEqual({ computes, state: snapshot(fixture.state, uncommitted) }, {
+				computes: 1,
+				state: ready([gitOnlyDiff]),
+			});
+		});
+
+		test('root discovery does not duplicate a successful changeset computation', async () => {
+			const fixture = createRootFixture();
+			fixture.subscriptions.add(uncommitted);
+			let computes = 0;
+			fixture.workingTree.compute = async () => { computes++; return [gitOnlyDiff]; };
+			await fixture.service.computeUncommittedChangeset(session);
+			await fixture.git.getRepositoryRoot(URI.file('/repo'), { refreshIfNone: true });
+			await timeout(0);
+
+			assert.deepStrictEqual({ computes, state: snapshot(fixture.state, uncommitted) }, {
+				computes: 1,
+				state: ready([gitOnlyDiff]),
+			});
+		});
+
+		for (const boundary of ['start', 'end'] as const) {
+			test(`turn ${boundary} contribution recovers both chat and session changesets after git init`, async () => {
+				const fixture = createRootFixture();
+				const chat = buildDefaultChatUri(session);
+				const chatUncommitted = buildUncommittedChangesetUri(chat);
+				fixture.subscriptions.add(uncommitted);
+				fixture.subscriptions.add(chatUncommitted);
+				let initialized = false;
+				let cachedRoot: URI | undefined;
+				const diffOwners: string[] = [];
+				fixture.repository.resolve = async (directory, options) => {
+					if (!cachedRoot && options?.refreshIfNone) {
+						cachedRoot = initialized ? directory : undefined;
+					}
+					return cachedRoot;
+				};
+				fixture.workingTree.compute = async (_directory, options) => {
+					diffOwners.push(options.sessionUri);
+					return [gitOnlyDiff];
+				};
+				await fixture.service.computeUncommittedChangeset(session);
+				await fixture.service.computeUncommittedChangeset(chat);
+				initialized = true;
+				const log = new NullLogService();
+				const instantiation = disposables.add(new InstantiationService(new ServiceCollection(
+					[ILogService, log],
+					[IAgentHostGitService, fixture.git],
+					[IAgentConfigurationService, fixture.configuration],
+					[IAgentHostChangesetService, fixture.service],
+				)));
+				const contributions: IAgentHostChatContributions = disposables.add(new AgentHostChatContributions(log, instantiation));
+				disposables.add(contributions.registerContribution(GitRepositoryRootsContribution));
+				const recovered = Promise.all([nextPublication(fixture.state, uncommitted), nextPublication(fixture.state, chatUncommitted)]);
+
+				if (boundary === 'start') {
+					contributions.incomingRequest({
+						session, chat, turnChannel: chat, turnId: 'root-recovery',
+						message: { text: 'Discover repository', origin: { kind: MessageKind.User } },
+						source: 'direct', clientId: undefined,
+						clientContext: createUnknownAgentHostClientTelemetryContext(AgentHostClientType.EditorWindow),
+					});
+				} else {
+					contributions.turnEnd({ session, channel: chat, turnId: 'root-recovery', reason: { kind: 'success' } });
+				}
+				await recovered;
+
+				assert.deepStrictEqual({
+					diffOwners: [...diffOwners].sort(),
+					states: [snapshot(fixture.state, chatUncommitted), snapshot(fixture.state, uncommitted)],
+				}, { diffOwners: [chat, session].sort(), states: [ready([gitOnlyDiff]), ready([gitOnlyDiff])] });
+			});
+		}
+
+		test('changing the primary working directory permits another computation', async () => {
+			const fixture = createRootFixture();
+			fixture.subscriptions.add(uncommitted);
+			const directories: string[] = [];
+			fixture.repository.resolve = async directory => directory.toString() === 'file:///next' ? directory : undefined;
+			fixture.workingTree.compute = async directory => {
+				directories.push(directory.toString());
+				return directory.toString() === 'file:///next' ? [gitOnlyDiff] : undefined;
+			};
+			await fixture.service.computeUncommittedChangeset(session);
+			fixture.state.dispatchServerAction(session, {
+				type: ActionType.SessionWorkingDirectoryReplaced,
+				directory: 'file:///repo',
+				replacement: 'file:///next',
+			});
+
+			await fixture.service.computeUncommittedChangeset(session);
+
+			assert.deepStrictEqual({ directories, state: snapshot(fixture.state, uncommitted) }, {
+				directories: ['file:///next'],
+				state: ready([gitOnlyDiff]),
+			});
+		});
+
+		test('unavailable changesets are scoped to their owner, including peer chats', async () => {
+			const peer = buildChatUri(session, 'peer');
+			const fixture = createRootFixture({ peer: { resource: peer, db: new TestSessionDatabase(), turnId: 'peer-turn' } });
+			fixture.subscriptions.add(uncommitted);
+			fixture.subscriptions.add(buildUncommittedChangesetUri(peer));
+			const owners: string[] = [];
+			const lookups: string[] = [];
+			fixture.repository.resolve = async directory => { lookups.push(directory.toString()); return undefined; };
+			fixture.workingTree.compute = async (_directory, options) => { owners.push(options.sessionUri); return undefined; };
+
+			await fixture.service.computeUncommittedChangeset(session);
+			await fixture.service.computeUncommittedChangeset(peer);
+			await fixture.service.computeUncommittedChangeset(session);
+			await fixture.service.computeUncommittedChangeset(peer);
+
+			assert.deepStrictEqual({ owners, lookups }, { owners: [], lookups: ['file:///repo', 'file:///repo'] });
+		});
+
+		test('a new subscription retries discovery after git init without waiting for another turn', async () => {
+			const fixture = createRootFixture();
+			fixture.subscriptions.add(uncommitted);
+			let initialized = false;
+			let cachedRoot: URI | undefined;
+			const rootOptions: (boolean | undefined)[] = [];
+			fixture.repository.resolve = async (directory, options) => {
+				rootOptions.push(options?.refreshIfNone);
+				if (options?.refreshIfNone && !cachedRoot) {
+					cachedRoot = initialized ? directory : undefined;
+				}
+				return cachedRoot;
+			};
+			fixture.workingTree.compute = async () => [gitOnlyDiff];
+			await fixture.service.computeUncommittedChangeset(session);
+			fixture.subscriptions.delete(uncommitted);
+			fixture.subscriptionChanged.fire(session);
+			initialized = true;
+			fixture.subscriptions.add(uncommitted);
+
+			fixture.subscriptionChanged.fire(session);
+			await fixture.service.computeUncommittedChangeset(session);
+			await timeout(0);
+
+			assert.deepStrictEqual({ rootOptions, state: snapshot(fixture.state, uncommitted) }, {
+				rootOptions: [undefined, true],
+				state: ready([gitOnlyDiff]),
+			});
+		});
+
+		test('unsubscribe and resubscribe do not retain a late non-repository result', async () => {
+			const fixture = createRootFixture();
+			fixture.subscriptions.add(uncommitted);
+			const gate = new DeferredPromise<URI | undefined>();
+			let rootLookups = 0;
+			fixture.repository.resolve = async directory => ++rootLookups === 1 ? gate.p : directory;
+			fixture.workingTree.compute = async () => [gitOnlyDiff];
+			try {
+				const pending = fixture.service.computeUncommittedChangeset(session);
+				await timeout(0);
+				fixture.subscriptions.delete(uncommitted);
+				fixture.subscriptionChanged.fire(session);
+				fixture.subscriptions.add(uncommitted);
+				gate.complete(undefined);
+				await pending;
+
+				fixture.subscriptionChanged.fire(session);
+				await fixture.service.computeUncommittedChangeset(session);
+				await timeout(0);
+
+				assert.deepStrictEqual({ rootLookups, state: snapshot(fixture.state, uncommitted) }, {
+					rootLookups: 2,
+					state: ready([gitOnlyDiff]),
+				});
+			} finally {
+				gate.complete(undefined);
+			}
+		});
+
+		test('owner removal releases the root observer', async () => {
+			const fixture = createRootFixture();
+			fixture.subscriptions.add(uncommitted);
+			let computes = 0;
+			let rootLookups = 0;
+			fixture.repository.resolve = async () => { rootLookups++; return undefined; };
+			fixture.workingTree.compute = async () => { computes++; return undefined; };
+			await fixture.service.computeUncommittedChangeset(session);
+
+			fixture.service.onChangesetOwnerRemoved(session);
+
+			assert.deepStrictEqual({ computes, rootLookups, observers: fixture.rootObservers.count }, { computes: 0, rootLookups: 1, observers: 0 });
+		});
+
+		test('unsubscribing releases the root observer while other changeset interest remains', async () => {
+			const fixture = createRootFixture();
+			fixture.subscriptions.add(uncommitted);
+			fixture.repository.resolve = async () => undefined;
+			await fixture.service.computeUncommittedChangeset(session);
+			fixture.subscriptions.delete(uncommitted);
+
+			fixture.subscriptionChanged.fire(session);
+
+			assert.deepStrictEqual({
+				subscriptions: [...fixture.subscriptions],
+				observers: fixture.rootObservers.count,
+			}, { subscriptions: [sessionChangeset, turnChangeset], observers: 0 });
+		});
+
+		test('an in-flight unavailable result is not retained after the owner is removed', async () => {
+			const fixture = createRootFixture();
+			fixture.subscriptions.add(uncommitted);
+			const gate = new DeferredPromise<void>();
+			let computes = 0;
+			let rootLookups = 0;
+			fixture.workingTree.compute = async () => { computes++; return undefined; };
+			fixture.repository.resolve = async () => { rootLookups++; await gate.p; return undefined; };
+			try {
+				const pending = fixture.service.computeUncommittedChangeset(session);
+				await timeout(0);
+				fixture.subscriptions.delete(uncommitted);
+				fixture.service.onChangesetOwnerRemoved(session);
+				gate.complete();
+				await pending;
+
+				assert.deepStrictEqual({ computes, rootLookups, observers: fixture.rootObservers.count }, { computes: 0, rootLookups: 1, observers: 0 });
+			} finally {
+				gate.complete();
+			}
+		});
+	});
 
 	test('branch, uncommitted, and compare-turns computations remain Git-backed', async () => {
 		const fixture = createFixture();

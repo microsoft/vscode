@@ -7299,7 +7299,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				const elicitation = part as unknown as { state: IObservable<string>; title?: string | { value: string } };
 				if (elicitation.state.get() === 'pending') {
 					const title = elicitation.title;
-					desc = title ? (typeof title === 'string' ? title : title.value) : 'needs input';
+					desc = title ? (typeof title === 'string' ? title : title.value) : 'needs attention';
 				}
 			} else if (part.kind === 'planReview' && !(part as { isUsed?: boolean }).isUsed) {
 				desc = 'review the plan to continue';

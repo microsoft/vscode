@@ -523,6 +523,13 @@ export class ChatEndpoint implements IChatEndpoint {
 		return body;
 	}
 
+	/**
+	 * Whether the Responses API can resume this response on the next request.
+	 */
+	protected canResumeResponses(_responseId: string): boolean {
+		return this.modelMetadata.zeroDataRetentionEnabled !== true;
+	}
+
 	public async processResponseFromChatEndpoint(
 		telemetryService: ITelemetryService,
 		logService: ILogService,
@@ -534,7 +541,7 @@ export class ChatEndpoint implements IChatEndpoint {
 	): Promise<AsyncIterableObject<ChatCompletion>> {
 		if (this.useResponsesApi) {
 			const compactionThreshold = getResponsesApiCompactionThreshold(this._configurationService, this._expService, this);
-			return processResponseFromChatEndpoint(this._instantiationService, telemetryService, logService, response, expectedNumChoices, finishCallback, telemetryData, compactionThreshold);
+			return processResponseFromChatEndpoint(this._instantiationService, telemetryService, logService, response, expectedNumChoices, finishCallback, telemetryData, compactionThreshold, responseId => this.canResumeResponses(responseId));
 		} else if (this.useMessagesApi) {
 			return processResponseFromMessagesEndpoint(this._instantiationService, telemetryService, logService, response, finishCallback, telemetryData);
 		} else if (!this._supportsStreaming) {

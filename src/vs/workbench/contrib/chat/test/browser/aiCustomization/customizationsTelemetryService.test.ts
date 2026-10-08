@@ -8,6 +8,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import type { McpServerSource } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { CustomizationType, McpServerStatus, type ChildCustomization, type Customization } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
@@ -53,6 +54,8 @@ suite('CustomizationsTelemetryService', () => {
 					mcpServer('plugin'),
 					mcpServer('builtin'),
 					mcpServer('managed'),
+					mcpServer('user'),
+					mcpServer('account'),
 					mcpServer(undefined),
 				];
 			}
@@ -102,7 +105,7 @@ suite('CustomizationsTelemetryService', () => {
 				event('prompt', { pluginCount: 1 }),
 				event('skill', { builtinCount: 1 }),
 				event('hook', { userCount: 1 }),
-				event('mcpServer', { userCount: 1, workspaceCount: 1, pluginCount: 1, builtinCount: 2 }),
+				event('mcpServer', { userCount: 3, workspaceCount: 1, pluginCount: 1, builtinCount: 2 }),
 				event('plugin', { pluginCount: 1 }),
 			],
 		});
@@ -187,7 +190,7 @@ function directory(children: ChildCustomization[]): Customization {
 	};
 }
 
-function mcpServer(source: 'user' | 'workspace' | 'plugin' | 'builtin' | 'managed' | undefined) {
+function mcpServer(source: McpServerSource | undefined) {
 	return {
 		id: `server-${source}`,
 		name: `server-${source}`,

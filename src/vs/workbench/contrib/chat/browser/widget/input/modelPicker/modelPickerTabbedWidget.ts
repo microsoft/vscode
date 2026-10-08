@@ -412,6 +412,7 @@ export class TabbedModelPicker extends Disposable {
 				container.appendChild(welcome.element);
 				return welcome;
 			},
+			openItemDetails: item => this._openItemDetails(item),
 			delegate: {
 				onSelect: action => {
 					void action.run();
@@ -570,20 +571,23 @@ export class TabbedModelPicker extends Disposable {
 				},
 			});
 		}
-		actions.push({
-			id: 'search',
-			icon: Codicon.search,
-			tooltip: localize('chat.modelPicker.searchToggle', "Search Models"),
-			alignEnd: true,
-			checked: this._searchVisible,
-			run: () => {
-				this._searchVisible = !this._searchVisible;
-				if (this._searchVisible) {
-					context.onDidSearch();
-				}
-				this._showCurrent();
-			},
-		});
+		// With no models there is nothing to search, only the reason shown in their place.
+		if (context.models.length) {
+			actions.push({
+				id: 'search',
+				icon: Codicon.search,
+				tooltip: localize('chat.modelPicker.searchToggle', "Search Models"),
+				alignEnd: true,
+				checked: this._searchVisible,
+				run: () => {
+					this._searchVisible = !this._searchVisible;
+					if (this._searchVisible) {
+						context.onDidSearch();
+					}
+					this._showCurrent();
+				},
+			});
+		}
 		return actions;
 	}
 
@@ -862,6 +866,7 @@ export class TabbedModelPicker extends Disposable {
 		const summary = getModelConfigSummary(model, context.configurationAccess);
 		const defaultModel = this._getOrganizationDefaultForModel(model, context);
 		const defaultDescription = defaultModel && getOrganizationDefaultDescription(defaultModel.metadata.name);
+		const routingModel = isAutoModel(model) || isHydraFusionModel(model);
 		return {
 			item: action,
 			kind: ActionListItemKind.Action,
@@ -870,12 +875,15 @@ export class TabbedModelPicker extends Disposable {
 			badge: badge?.text,
 			additionalBadges: this._getOrganizationDefaultBadges(model, context),
 			ariaDescription: [ariaDescription, getModelConfigDescription(model, context.configurationAccess)].filter(Boolean).join(', '),
+			// Right Arrow on the row opens the same details as its button.
+			opensDialog: !routingModel,
 			group: { title: '', icon: action.icon ?? ThemeIcon.fromId(action.checked ? Codicon.check.id : Codicon.blank.id) },
 			hideIcon: false,
 			section,
 			className: ['chat-model-picker-model', ...(action.checked ? ['chat-model-picker-current'] : []), ...(badge ? [`chat-model-picker-badge-${badge.tone}`] : [])].join(' '),
 			toolbarLabels: true,
-			toolbarActions: isAutoModel(model) || isHydraFusionModel(model) ? undefined : [this._createDetailsAction(model, summary)],
+			toolbarActions: routingModel ? undefined : [this._createDetailsAction(model, summary)],
+			toolbarDialogActionIds: [MODEL_DETAILS_ACTION_ID],
 			tooltip: [model.metadata.name, summary, defaultDescription].filter(Boolean).join(' \u00b7 '),
 		};
 	}
@@ -889,6 +897,18 @@ export class TabbedModelPicker extends Disposable {
 				: localize('chat.modelPicker.modelDetails', "{0} Details", model.metadata.name),
 			run: () => this._showModelDetails(model, true),
 		});
+	}
+
+	/** Opens a row's details from the keyboard, as its details button does, and returns to the row on Back. */
+	private _openItemDetails(item: IActionListItem<IActionWidgetDropdownAction>): boolean {
+		const model = item.toolbarActions?.some(action => action.id === MODEL_DETAILS_ACTION_ID)
+			? this._context?.models.find(candidate => candidate.identifier === item.item?.id)
+			: undefined;
+		if (!model) {
+			return false;
+		}
+		this._showModelDetails(model, true, true);
+		return true;
 	}
 
 	private _getModelCard(model: ILanguageModelChatMetadataAndIdentifier, context: ITabbedModelPickerContext): ModelCard {
@@ -934,7 +954,7 @@ export class TabbedModelPicker extends Disposable {
 		return card;
 	}
 
-	private _showModelDetails(model: ILanguageModelChatMetadataAndIdentifier, focusConfiguration = false): void {
+	private _showModelDetails(model: ILanguageModelChatMetadataAndIdentifier, focusConfiguration = false, returnFocusToRow = false): void {
 		const context = this._context;
 		if (!context) {
 			return;
@@ -986,7 +1006,9 @@ export class TabbedModelPicker extends Disposable {
 					container.focus();
 				}
 			},
-			restoreFocus: () => this._widget.focusItemAction(this._detailsModelId ?? model.identifier, MODEL_DETAILS_ACTION_ID),
+			restoreFocus: () => returnFocusToRow
+				? this._widget.focusItem(this._detailsModelId ?? model.identifier)
+				: this._widget.focusItemAction(this._detailsModelId ?? model.identifier, MODEL_DETAILS_ACTION_ID),
 			onBack: () => {
 				this._selectionVersion++;
 				this._detailsModelId = undefined;

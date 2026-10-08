@@ -27,7 +27,7 @@ import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } 
 import type { StorageValue } from '../../../../base/parts/storage/common/storage.js';
 import type { Implementation } from '../../common/state/protocol/common/commands.js';
 import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from '../../common/agentHostClientInfo.js';
-import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
+import { AHP_UNSUPPORTED_PROTOCOL_VERSION, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { computeReconnectDelay } from '../../common/reconnectPolicy.js';
 import { AgentHostTransportFailureReason, NonReconnectableTransportError } from '../../common/state/sessionTransport.js';
 
@@ -1145,13 +1145,17 @@ suite('RemoteAgentHostService', () => {
 			client.fireConnectionState('incompatible');
 			await timeout(30_000);
 			const observations = factory.observations.slice();
+			const status = service.connections[0].status;
 			service.dispose();
-			assert.deepStrictEqual(observations, [
-				{ state: 'connecting', time: 0 },
-				{ state: 'connected', time: 0 },
-				{ state: 'reconnecting', time: 1000 },
-				{ state: 'failed', time: 3000 },
-			]);
+			assert.deepStrictEqual({ observations, status }, {
+				observations: [
+					{ state: 'connecting', time: 0 },
+					{ state: 'connected', time: 0 },
+					{ state: 'reconnecting', time: 1000 },
+					{ state: 'failed', time: 3000 },
+				],
+				status: RemoteAgentHostConnectionStatus.incompatible('Authentication failed during connection initialization.', ['1.0.0', '0.10.0', '0.9.0']),
+			});
 		}));
 
 		for (const initiallyConnected of [false, true]) {
@@ -1379,33 +1383,38 @@ suite('RemoteAgentHostService', () => {
 			assert.strictEqual(factory.createdConnectionCount, 1);
 		});
 
-		test('keeps an incompatible factory connection addressable for server upgrade', async () => {
-			const factory = createFactory();
-			const entry = cloudSandboxEntry('Cloud Sandbox', 'cloud:incompatible');
-			const client = new MockProtocolClient('cloud:incompatible');
-			factory.stage(entry, client);
-			service.reconnect(getEntryAddress(entry));
-			const wait = service.waitForConnection(getEntryAddress(entry));
-			await waitForFactoryConnection(factory, 1);
-			const changed = Event.toPromise(service.onDidChangeConnections);
-			client.connectDeferred.error(new InitialAuthenticationError(new Error('Unsupported protocol version')));
-			await changed;
-			await assert.rejects(() => wait, /Initial authentication failed/);
+		for (const authenticationFailure of [false, true]) {
+			test(`keeps an incompatible factory connection addressable for server upgrade after ${authenticationFailure ? 'authentication' : 'protocol negotiation'} failure`, async () => {
+				const factory = createFactory();
+				const entry = cloudSandboxEntry('Cloud Sandbox', 'cloud:incompatible');
+				const client = new MockProtocolClient('cloud:incompatible');
+				factory.stage(entry, client);
+				service.reconnect(getEntryAddress(entry));
+				const wait = service.waitForConnection(getEntryAddress(entry));
+				await waitForFactoryConnection(factory, 1);
+				const changed = Event.toPromise(service.onDidChangeConnections);
+				const error = authenticationFailure
+					? new InitialAuthenticationError(new Error('Unsupported protocol version'))
+					: new ProtocolError(AHP_UNSUPPORTED_PROTOCOL_VERSION, 'Unsupported protocol version', { supportedVersions: ['2.0.0'] });
+				client.connectDeferred.error(error);
+				await changed;
+				await assert.rejects(() => wait, /Unsupported protocol version/);
 
-			const upgradeResult = await service.triggerServerUpgrade('cloud:incompatible', '_vscodeUpgrade');
+				const upgradeResult = await service.triggerServerUpgrade('cloud:incompatible', '_vscodeUpgrade');
 
-			assert.deepStrictEqual({
-				status: service.connections[0].status,
-				connectedConnection: service.getConnection('cloud:incompatible'),
-				upgradeCalls: client.triggerVscodeUpgradeCalls,
-				upgradeResult,
-			}, {
-				status: RemoteAgentHostConnectionStatus.incompatible('Initial authentication failed: Unsupported protocol version', [PROTOCOL_VERSION]),
-				connectedConnection: undefined,
-				upgradeCalls: ['_vscodeUpgrade'],
-				upgradeResult: { ok: true, upgradeStarted: true },
+				assert.deepStrictEqual({
+					status: service.connections[0].status,
+					connectedConnection: service.getConnection('cloud:incompatible'),
+					upgradeCalls: client.triggerVscodeUpgradeCalls,
+					upgradeResult,
+				}, {
+					status: RemoteAgentHostConnectionStatus.incompatible(error.message, ['1.0.0', '0.10.0', '0.9.0'], authenticationFailure ? undefined : ['2.0.0']),
+					connectedConnection: undefined,
+					upgradeCalls: ['_vscodeUpgrade'],
+					upgradeResult: { ok: true, upgradeStarted: true },
+				});
 			});
-		});
+		}
 
 		test('records factory and setup stages before an entry exists and preserves failure evidence', async () => {
 			const pending = new DeferredPromise<IRemoteAgentHostCreatedConnection>();

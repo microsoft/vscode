@@ -53,6 +53,7 @@ import {
 	type URI as ProtocolURI,
 	type RootState,
 	type SessionState,
+	type SessionChatSummary,
 	type SessionSummary,
 	type TextRange,
 	type ToolCallCancelledState,
@@ -265,6 +266,12 @@ export interface IAutoModeResolvedInfo {
 	readonly predictedLabel?: string;
 	readonly confidence?: number;
 	readonly candidateModels?: readonly string[];
+	/**
+	 * Display-only sentence from the routing service explaining why
+	 * {@link chosenModel} was picked; it already names the model. Absent for
+	 * on-device selections and when the service supplied no explanation.
+	 */
+	readonly selectionReason?: string;
 }
 
 /**
@@ -2066,6 +2073,11 @@ export function isChatInSessionReadAggregate(resource: ProtocolURI, origin?: Cha
 /** Whether the {@link SessionStatus.IsArchived} flag bit is set. */
 export function isSessionStatusArchived(status: SessionStatus | undefined): boolean {
 	return status !== undefined && (status & SessionStatus.IsArchived) !== 0;
+}
+
+/** Reads the archive flag from current chat status or a legacy AHP 0.9 summary. */
+export function isSessionChatArchived(chat: SessionChatSummary & { readonly archived?: boolean }): boolean {
+	return isSessionStatusArchived(chat.status) || chat.archived === true;
 }
 
 /**

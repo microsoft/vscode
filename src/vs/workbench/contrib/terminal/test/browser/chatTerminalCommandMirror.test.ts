@@ -709,7 +709,7 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 		});
 
 		function createSnapshotMirror(output: { text: string; truncated?: boolean; lineCount?: number } | undefined): DetachedTerminalSnapshotMirror {
-			return store.add(instantiationService.createInstance(DetachedTerminalSnapshotMirror, output, () => undefined));
+			return store.add(instantiationService.createInstance(DetachedTerminalSnapshotMirror, output, () => undefined, undefined));
 		}
 
 		test('resizes the detached terminal to cols computed from the width', async () => {
@@ -1047,7 +1047,7 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 		});
 
 		function createSnapshotMirror(output: { text: string } | undefined): DetachedTerminalSnapshotMirror {
-			return store.add(instantiationService.createInstance(DetachedTerminalSnapshotMirror, output, () => undefined));
+			return store.add(instantiationService.createInstance(DetachedTerminalSnapshotMirror, output, () => undefined, undefined));
 		}
 
 		async function createLaidOutCommandMirror(): Promise<DetachedTerminalCommandMirror> {

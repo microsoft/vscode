@@ -1519,7 +1519,10 @@ export class TestContext {
 	}
 
 	private isNonFatalCliStderr(text: string): boolean {
-		return /ECONNRESET|ECONNABORTED|ECANCELED|EPIPE|SIGPIPE/.test(text)
+		// Extension download retry warnings are expected; if all retries fail, the UI test still fails.
+		text = text.replace(/^.*Failed downloading (?:vsix|sigzip)\. .*Retry again\.\.\..*$/gm, '').trim();
+		return !text
+			|| /ECONNRESET|ECONNABORTED|ECANCELED|EPIPE|SIGPIPE/.test(text)
 			|| /(^|\n)(?:\[[^\]]+\]\s*)?(?:\(node:\d+\)\s*)?(?:\[[A-Z0-9]+\]\s*)?(?:[A-Za-z]+Warning|Warning):/.test(text);
 	}
 }

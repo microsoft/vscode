@@ -469,7 +469,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	for (const protocolVersion of ['0.9.0', '0.10.0']) {
+	for (const protocolVersion of ['0.8.0', '0.9.0', '0.10.0', '1.0.0']) {
 		test(`marks the default chat read with protocol ${protocolVersion}`, async () => {
 			connection.handshakeState.set({ ...connection.handshakeState.get(), protocolVersion }, undefined);
 			const backend = URI.parse('ahp-session://tenant/read-state');
@@ -501,8 +501,8 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			}, {
 				before: false, accepted: true, read: true,
 				actions: [{
-					channel: protocolVersion === '0.9.0' ? backend.toString() : chat.toString(),
-					type: protocolVersion === '0.9.0' ? ActionType.SessionIsReadChanged : ActionType.ChatIsReadChanged
+					channel: protocolVersion === '0.8.0' ? backend.toString() : chat.toString(),
+					type: protocolVersion === '0.8.0' ? ActionType.SessionIsReadChanged : ActionType.ChatIsReadChanged
 				}],
 			});
 		});
@@ -5337,6 +5337,78 @@ suite('CloudSandboxSessionsProvider provisional sessions', () => {
 	function createSandboxProvider(store: DisposableStore, conn: MockAgentConnection, overrides?: { noConnection?: boolean; isWebPlatform?: boolean; omitHostFromWorkspaceLabel?: boolean }): CloudSandboxSessionsProvider {
 		return createProvider(store, conn, { ...overrides, ctor: CloudSandboxSessionsProvider }) as CloudSandboxSessionsProvider;
 	}
+
+	test('a repo-less provisional session stays a quick chat through host hydration, rediscovery and cache restoration', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const options = {
+			ctor: CloudSandboxSessionsProvider,
+			sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' },
+			noConnection: true,
+			storageService,
+		};
+		const provider = createProvider(disposables, connection, options);
+		assert.ok(provider instanceof CloudSandboxSessionsProvider);
+		const metadata = createSession('repo-less', {
+			session: AgentSession.uri('ahp-session', 'repo-less'),
+			provider: 'copilot',
+			_meta: { workspaceless: true },
+		});
+		provider.seedProvisionalSession(metadata);
+		const snapshot = (session: ISession) => ({
+			quickChat: session.isQuickChat?.get(),
+			external: session.isExternal?.get(),
+			workspace: session.workspace.get(),
+			chatWorkspace: session.mainChat.get().workspace.get(),
+		});
+		const provisional = snapshot(provider.getCachedSession('repo-less')!);
+		const discoveryMetadata = { ...metadata, _meta: withSessionInitiator(undefined, { name: 'vscode-agents-window' }) };
+		provider.seedSessions([discoveryMetadata], { updateExisting: true });
+		const rediscoveredProvisional = snapshot(provider.getCachedSession('repo-less')!);
+
+		connection.addSession({ ...metadata, workingDirectories: [URI.file('/scratch')] });
+		provider.setConnection(connection);
+		await timeout(0);
+		provider.publishWithheldSession('repo-less');
+		const hydrated = snapshot(provider.getSessions()[0]);
+		await storageService.flush();
+		provider.dispose();
+
+		const restored = createProvider(disposables, new MockAgentConnection(), options);
+		const restoredSnapshot = snapshot(restored.getSessions()[0]);
+		restored.seedSessions([discoveryMetadata], { updateExisting: true });
+		const expected = { quickChat: true, external: false, workspace: undefined, chatWorkspace: undefined };
+		assert.deepStrictEqual({ provisional, rediscoveredProvisional, hydrated, restored: restoredSnapshot, rediscoveredRestored: snapshot(restored.getSessions()[0]) }, {
+			provisional: expected, rediscoveredProvisional: expected, hydrated: expected, restored: expected, rediscoveredRestored: expected,
+		});
+	}));
+
+	test('uncached repo-less discovery becomes a quick chat only after host metadata identifies it', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const provider = createProvider(disposables, connection, {
+			ctor: CloudSandboxSessionsProvider,
+			sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' },
+			noConnection: true,
+		});
+		const metadata = createSession('uncached-repo-less', {
+			session: AgentSession.uri('ahp-session', 'uncached-repo-less'),
+			provider: 'copilot',
+		});
+		provider.seedSessions([metadata], { updateExisting: true });
+		const discovered = provider.getSessions()[0];
+		const beforeHydration = { quickChat: discovered.isQuickChat?.get(), workspace: discovered.workspace.get() };
+
+		connection.addSession({ ...metadata, _meta: { workspaceless: true }, workingDirectories: [URI.file('/scratch')] });
+		provider.setConnection(connection);
+		await timeout(0);
+		const hydrated = provider.getSessions()[0];
+
+		assert.deepStrictEqual({
+			beforeHydration,
+			afterHydration: { quickChat: hydrated.isQuickChat?.get(), workspace: hydrated.workspace.get() },
+		}, {
+			beforeHydration: { quickChat: false, workspace: undefined },
+			afterHydration: { quickChat: true, workspace: undefined },
+		});
+	}));
 
 	/** Force a session refresh the way the host does: a turn-complete action on a known session. */
 	async function refreshViaTurnComplete(connection: MockAgentConnection, rawId: string): Promise<void> {

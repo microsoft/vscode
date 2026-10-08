@@ -43,7 +43,7 @@ type CustomizationsDefinedClassification = {
 	owner: 'aeschli';
 	comment: 'Tracks how many customizations of each type and source are defined when a new Agent Host chat session is first used.';
 	customizationType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The bounded customization type being counted.' };
-	userCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of user-level customizations of this type.' };
+	userCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of user-level customizations of this type, including MCP servers contributed by the signed-in account.' };
 	workspaceCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of workspace-level customizations of this type.' };
 	extensionCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of extension-contributed customizations of this type.' };
 	pluginCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of plugin-contributed customizations of this type.' };
@@ -128,10 +128,10 @@ export class CustomizationsTelemetryService implements ICustomizationsTelemetryS
 					break;
 				case 'builtin':
 				case 'managed':
-				case 'account':
 					counts.mcpServer.builtinCount++;
 					break;
 				case 'user':
+				case 'account':
 					counts.mcpServer.userCount++;
 					break;
 				case undefined: {
