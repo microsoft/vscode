@@ -284,6 +284,7 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme, focus }
 				override getToolSetsForModel() { return []; }
 			}());
 			reg.defineInstance(IAgentSessionsService, new class extends mock<IAgentSessionsService>() {
+				override getSession() { return undefined; }
 				override readonly model = new class extends mock<IAgentSessionsService['model']>() {
 					override readonly onDidChangeSessions = Event.None;
 				}();

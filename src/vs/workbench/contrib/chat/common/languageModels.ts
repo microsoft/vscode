@@ -1646,10 +1646,14 @@ export class LanguageModelsService implements ILanguageModelsService {
 
 		// Find the group from the configuration service (source of truth)
 		const allGroups = this._languageModelsConfigurationService.getLanguageModelsProviderGroups();
+		const isGrouplessModel = this._modelsGroups.get(metadata.vendor)?.some(g => !g.group && g.modelIdentifiers.includes(modelId));
+		const configurationOnlyGroups = isGrouplessModel && !this._vendors.get(metadata.vendor)?.configuration
+			? allGroups.filter(g => g.vendor === metadata.vendor && g.settings?.[metadata.id] !== undefined)
+			: [];
 		let group: ILanguageModelsProviderGroup | undefined;
 
-		// First try to find a group that already has config for this model.
-		group = allGroups.find(g => g.vendor === metadata.vendor && g.settings?.[metadata.id] !== undefined);
+		// Configuration-only groups are read in order, with the last model entry winning.
+		group = configurationOnlyGroups.at(-1) ?? allGroups.find(g => g.vendor === metadata.vendor && g.settings?.[metadata.id] !== undefined);
 
 		// Otherwise find the group that actually *defines* this model. Several
 		// groups can share the same `vendor` (e.g. multiple `customendpoint`
@@ -1684,23 +1688,24 @@ export class LanguageModelsService implements ILanguageModelsService {
 		}
 
 		if (group) {
-			const existingSettings = (group.settings as IStringDictionary<IStringDictionary<unknown>> | undefined) ?? {};
-			let updatedSettings: IStringDictionary<IStringDictionary<unknown>>;
-			if (Object.keys(updatedConfig).length === 0) {
-				updatedSettings = { ...existingSettings };
-				delete updatedSettings[metadata.id];
-			} else {
-				updatedSettings = { ...existingSettings, [metadata.id]: updatedConfig };
-			}
-			const updatedGroup: ILanguageModelsProviderGroup = {
-				...group,
-				settings: Object.keys(updatedSettings).length > 0 ? updatedSettings : undefined
-			};
-			if (!updatedGroup.settings && Object.keys(updatedGroup).filter(k => k !== 'name' && k !== 'vendor' && k !== 'range' && k !== 'modelsRange' && k !== 'settings').length === 0) {
-				// Remove the group entirely if it only had model config
-				await this._languageModelsConfigurationService.removeLanguageModelsProviderGroup(group);
-			} else {
-				await this._languageModelsConfigurationService.updateLanguageModelsProviderGroup(group, updatedGroup);
+			for (const targetGroup of configurationOnlyGroups.length ? configurationOnlyGroups : [group]) {
+				const updatedSettings = { ...targetGroup.settings };
+				// Remove shadowed entries too, so resetting the winner cannot restore an older preference.
+				if (targetGroup !== group || Object.keys(updatedConfig).length === 0) {
+					delete updatedSettings[metadata.id];
+				} else {
+					updatedSettings[metadata.id] = updatedConfig;
+				}
+				const updatedGroup: ILanguageModelsProviderGroup = {
+					...targetGroup,
+					settings: Object.keys(updatedSettings).length > 0 ? updatedSettings : undefined
+				};
+				if (!updatedGroup.settings && Object.keys(updatedGroup).filter(k => k !== 'name' && k !== 'vendor' && k !== 'range' && k !== 'modelsRange' && k !== 'settings').length === 0) {
+					// Remove the group entirely if it only had model config
+					await this._languageModelsConfigurationService.removeLanguageModelsProviderGroup(targetGroup);
+				} else {
+					await this._languageModelsConfigurationService.updateLanguageModelsProviderGroup(targetGroup, updatedGroup);
+				}
 			}
 		} else if (Object.keys(updatedConfig).length > 0) {
 			// Only create a new group if there's non-default config

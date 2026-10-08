@@ -47,7 +47,7 @@ import { DELETE_AI_CUSTOMIZATION_ID } from './aiCustomizationManagement.js';
 import { getConnectorRowPresentation } from './connectorPresentation.js';
 import { ICopilotConnectorAccount, ICopilotConnectorsService, toCopilotConnectorMarketplaceEntry } from './copilotConnectorsService.js';
 import { CustomizationLocationPicker } from './customizationCreatorService.js';
-import { getPluginMarketplaceIdentifier, isPluginMarketplaceReferenceAvailableInDiscover } from './pluginCustomizationMarketplaceProvider.js';
+import { getPluginCustomizationMarketplaceSourceIdFromIdentifier, getPluginMarketplaceIdentifier, isPluginMarketplaceReferenceAvailableInDiscover } from './pluginCustomizationMarketplaceProvider.js';
 import { CustomizationMarketplaceInstallationRecordStore, CustomizationMarketplaceInstallationRecordTarget, getInstallationRecordResourceKey, ICustomizationMarketplaceInstallationRecord, toRecordedMarketplaceResource } from './customizationMarketplaceInstallationRecordStore.js';
 import { CustomizationMarketplaceSkillInstaller } from './customizationMarketplaceSkillInstaller.js';
 
@@ -163,7 +163,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		return this.installationSnapshot ??= createCustomizationMarketplaceInstallationSnapshot(this.getRelevantRecords().map(record => {
 			const resource = toRecordedMarketplaceResource(record);
 			return { resource, state: this.getRecordedInstallState(record, resource) };
-		}));
+		}), (recorded, resource) => this.isLegacyConfiguredPluginResource(recorded, resource));
 	}
 
 	private isEnabled(): boolean {
@@ -171,8 +171,8 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 	}
 
 	private isSourceEnabled(sourceId: string): boolean {
-		const source = this.customizationMarketplaceService.sources.find(source => source.id === sourceId);
-		return !!source && getVisibleCustomizationMarketplaceSources(this.configurationService, this.customizationMarketplaceService.sources).includes(source);
+		return getVisibleCustomizationMarketplaceSources(this.configurationService, this.customizationMarketplaceService.sources)
+			.some(source => source.id === sourceId);
 	}
 
 	private getInstalledMcpServer(name: string, version: string): IWorkbenchMcpServer | undefined {
@@ -449,7 +449,29 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			return account ? this.findConnectorRecord(resource.installation.name, account) : undefined;
 		}
 		const resourceKey = getCustomizationMarketplaceResourceKey(resource);
-		return [...this.recordStore.records.values()].find(record => getInstallationRecordResourceKey(record) === resourceKey && this.isRecordApplicable(record));
+		return [...this.recordStore.records.values()].find(record =>
+			this.isRecordApplicable(record) && (
+				getInstallationRecordResourceKey(record) === resourceKey ||
+				this.isLegacyConfiguredPluginRecord(record, resource)
+			));
+	}
+
+	private isLegacyConfiguredPluginRecord(record: ICustomizationMarketplaceInstallationRecord, resource: ICustomizationMarketplaceResource): boolean {
+		return this.isLegacyConfiguredPluginResource(record, resource);
+	}
+
+	private isLegacyConfiguredPluginResource(recorded: ICustomizationMarketplaceInstallationRecord | ICustomizationMarketplaceResource, resource: ICustomizationMarketplaceResource): boolean {
+		return recorded.sourceId === CustomizationMarketplaceSources.PluginMarketplaces.id &&
+			recorded.installation?.kind === 'configuredPlugin' &&
+			resource.installation?.kind === 'configuredPlugin' &&
+			recorded.identifier === resource.identifier &&
+			recorded.version === resource.version;
+	}
+
+	private getRecordSourceId(record: ICustomizationMarketplaceInstallationRecord): string {
+		return record.sourceId === CustomizationMarketplaceSources.PluginMarketplaces.id && record.installation.kind === 'configuredPlugin'
+			? getPluginCustomizationMarketplaceSourceIdFromIdentifier(record.identifier) ?? record.sourceId
+			: record.sourceId;
 	}
 
 	private isRecordApplicable(record: ICustomizationMarketplaceInstallationRecord): boolean {
@@ -576,7 +598,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		if (!this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled)) {
 			return localize('customizationMarketplace.disabled', "Enable the customization marketplace to install this resource.");
 		}
-		const sourceUnavailableMessage = this.getSourceUnavailableMessage(record.sourceId);
+		const sourceUnavailableMessage = this.getSourceUnavailableMessage(this.getRecordSourceId(record));
 		if (sourceUnavailableMessage) {
 			return sourceUnavailableMessage;
 		}
@@ -620,9 +642,9 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled) !== true) {
 			return { kind: 'unavailable', message: localize('customizationMarketplace.connectorsDisabled', "Enable the Copilot connectors experiment to connect this resource.") };
 		}
-		const recorded = this.installations.get().findByResource(resource);
-		if (recorded) {
-			return recorded.state;
+		const record = this.findRecord(resource);
+		if (record) {
+			return this.getRecordedInstallState(record, toRecordedMarketplaceResource(record));
 		}
 		if (!this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled)) {
 			return { kind: 'unavailable', message: localize('customizationMarketplace.disabled', "Enable the customization marketplace to install this resource.") };
@@ -794,7 +816,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		const token = cancelOnDispose(operationDisposables);
 		operationDisposables.add(this.lifetimeToken.onCancellationRequested(() => operationDisposables.dispose()));
 		operationDisposables.add(this.configurationService.onDidChangeConfiguration(() => {
-			if (!this.isSourceEnabled(record.sourceId)) {
+			if (!this.isSourceEnabled(this.getRecordSourceId(record))) {
 				operationDisposables.dispose();
 			}
 		}));
@@ -814,7 +836,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		try {
 			await operation;
 		} catch (error) {
-			if (token.isCancellationRequested || this.lifetimeToken.isCancellationRequested || !this.isSourceEnabled(record.sourceId)) {
+			if (token.isCancellationRequested || this.lifetimeToken.isCancellationRequested || !this.isSourceEnabled(this.getRecordSourceId(record))) {
 				throw new CancellationError();
 			}
 			throw error;
@@ -1015,10 +1037,11 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 	}
 
 	private async doRepair(resource: ICustomizationMarketplaceResource, record: ICustomizationMarketplaceInstallationRecord, token: CancellationToken): Promise<ICustomizationMarketplaceInstallationRecord> {
-		this.checkEnabled(record.sourceId, token);
+		const sourceId = this.getRecordSourceId(record);
+		this.checkEnabled(sourceId, token);
 		if (record.target.kind === 'copilotConnector' && record.installation.kind === 'copilotConnector') {
 			const target = record.target;
-			await this.runConnectorOperation(record.sourceId, operationToken => this.copilotConnectorsService.connect(target.name, operationToken), token);
+			await this.runConnectorOperation(sourceId, operationToken => this.copilotConnectorsService.connect(target.name, operationToken), token);
 			return record;
 		}
 		if (record.target.kind === 'skill') {
@@ -1030,7 +1053,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			: record.installation;
 		const target = await this.installTarget({
 			...resource,
-			sourceId: record.sourceId,
+			sourceId,
 			identifier: record.identifier,
 			version: record.version,
 			installation,

@@ -5,9 +5,9 @@
 
 import * as assert from 'assert';
 import 'mocha';
-import { ErrorCode, HubRpcConnection, type InterfaceHandlers, type JsonRpcMessage } from '@vscode/hubrpc';
+import { ErrorCode, type InterfaceHandlers, type JsonRpcMessage } from '@vscode/hubrpc';
 import { markdownEditorHost, markdownEditorRenderer } from '../preview/markdownEditorProtocol';
-import { MarkdownEditorRpcTransport } from '../preview/markdownEditorRpc';
+import { createMarkdownEditorRpcConnection, MarkdownEditorRpcTransport } from '../preview/markdownEditorRpc';
 import { RecoveringTaskQueue } from '../preview/recoveringTaskQueue';
 
 suite('Markdown editor RPC', () => {
@@ -23,8 +23,10 @@ suite('Markdown editor RPC', () => {
 		const rendererInbox = new Inbox();
 		const hostTransport = new MarkdownEditorRpcTransport('secret', value => rendererInbox.deliver(value), listener => hostInbox.subscribe(listener));
 		const rendererTransport = new MarkdownEditorRpcTransport('secret', value => hostInbox.deliver(value), listener => rendererInbox.subscribe(listener));
-		const host = HubRpcConnection.fromTransport(hostTransport);
-		const renderer = HubRpcConnection.fromTransport(rendererTransport);
+		const errors: { operation: string; error: unknown }[] = [];
+		const report = (operation: string, error: unknown) => { errors.push({ operation, error }); };
+		const host = createMarkdownEditorRpcConnection(hostTransport, report);
+		const renderer = createMarkdownEditorRpcConnection(rendererTransport, report);
 		host.register(markdownEditorHost, {
 			ready: () => { },
 			edit: () => { },
@@ -41,10 +43,19 @@ suite('Markdown editor RPC', () => {
 			addComment: () => { },
 			deleteComment: () => { },
 			highlight: () => ({ tokens: [], colorMap: [] }),
+			prepareRename: () => ({ start: 0, endExclusive: 1, placeholder: 'name' }),
+			rename: () => { },
+			cancelRename: () => { },
+			getDiagnostics: () => ({ editEpoch: 0, items: [] }),
+			completions: () => ({ items: [], incomplete: false }),
+			acceptCompletion: () => ({ offset: 0, editEpoch: 0, retrigger: false }),
+			cancelCompletions: () => { },
+			pasteImages: () => ({ offset: 0, editEpoch: 0 }),
 			...hostOverrides,
 		});
 		host.get(markdownEditorRenderer);
 		renderer.register(markdownEditorRenderer, {
+			diagnosticsChanged: () => { },
 			update: () => { },
 			codeBlockEditorProviders: () => { },
 			codeBlockEditorHostTransportMessage: () => { },
@@ -58,8 +69,68 @@ suite('Markdown editor RPC', () => {
 			...rendererOverrides,
 		});
 		disposables.push({ dispose: () => { host.close(); renderer.close(); } });
-		return { host, renderer, hostInbox, rendererInbox };
+		return { host, renderer, hostInbox, rendererInbox, errors };
 	}
+
+	test('sends presentation notifications without request IDs or acknowledgement messages', async () => {
+		const seen: unknown[] = [];
+		const { host, renderer, hostInbox, rendererInbox, errors } = pair({
+			richLinkTargets: params => { seen.push(params); },
+			codeBlockEditorDiagnostic: params => { seen.push(params); },
+		}, {
+			comments: params => { seen.push(params); },
+			highlightThemeChanged: params => { seen.push(params); },
+		});
+		renderer.get(markdownEditorHost).richLinkTargets({ hrefs: ['target'] });
+		renderer.get(markdownEditorHost).codeBlockEditorDiagnostic({ message: 'test' });
+		host.get(markdownEditorRenderer).comments({ comments: [], acceptsComments: true });
+		host.get(markdownEditorRenderer).highlightThemeChanged({});
+		await new Promise<void>(resolve => setImmediate(resolve));
+		assert.deepStrictEqual(seen, [{ hrefs: ['target'] }, { message: 'test' }, { comments: [], acceptsComments: true }, {}]);
+		assert.deepStrictEqual([...hostInbox.messages, ...rendererInbox.messages], [
+			{ channel: 'markdownEditor', messageSecret: 'secret', message: { jsonrpc: '2.0', method: 'markdown.editor.host::richLinkTargets', params: { hrefs: ['target'] } } },
+			{ channel: 'markdownEditor', messageSecret: 'secret', message: { jsonrpc: '2.0', method: 'markdown.editor.host::codeBlockEditorDiagnostic', params: { message: 'test' } } },
+			{ channel: 'markdownEditor', messageSecret: 'secret', message: { jsonrpc: '2.0', method: 'markdown.editor.renderer::comments', params: { comments: [], acceptsComments: true } } },
+			{ channel: 'markdownEditor', messageSecret: 'secret', message: { jsonrpc: '2.0', method: 'markdown.editor.renderer::highlightThemeChanged', params: {} } },
+		], 'notifications must not create request IDs or acknowledgement messages');
+		assert.deepStrictEqual(errors, []);
+	});
+
+	test('validates and authenticates notifications and reports handler failures locally', async () => {
+		let targets = 0;
+		const failure = new Error('Notification handler failed');
+		const { renderer, hostInbox, rendererInbox, errors } = pair({
+			richLinkTargets: () => { targets++; },
+			codeBlockEditorDiagnostic: () => { throw failure; },
+		});
+		const message = { jsonrpc: '2.0', method: 'markdown.editor.host::richLinkTargets', params: { hrefs: ['target'] } };
+		hostInbox.deliver({ channel: 'markdownEditor', messageSecret: 'old-secret', message });
+		await renderer.channel.sendNotification(message.method, { hrefs: [42] });
+		assert.strictEqual(targets, 0);
+		renderer.get(markdownEditorHost).richLinkTargets({ hrefs: ['valid'] });
+		renderer.get(markdownEditorHost).codeBlockEditorDiagnostic({ message: 'test' });
+		assert.strictEqual(targets, 1);
+		assert.deepStrictEqual(errors, [{ operation: 'Handle notification markdown.editor.host::codeBlockEditorDiagnostic', error: failure }]);
+		assert.deepStrictEqual(rendererInbox.messages, [], 'even failed notifications have no response');
+	});
+
+	test('reports notification delivery failures and sends after close without unhandled rejections', async () => {
+		const inbox = new Inbox();
+		const errors: unknown[] = [];
+		const connection = createMarkdownEditorRpcConnection(new MarkdownEditorRpcTransport(
+			'secret', () => Promise.resolve(false), listener => inbox.subscribe(listener),
+		), (_operation, error) => errors.push(error));
+		disposables.push({ dispose: () => connection.close() });
+		const client = connection.get(markdownEditorRenderer);
+		client.highlightThemeChanged({});
+		await new Promise<void>(resolve => setImmediate(resolve));
+		assert.strictEqual(errors.length, 1);
+		assert.match(String(errors[0]), /rejected RPC message/);
+		connection.close();
+		client.highlightThemeChanged({});
+		await new Promise<void>(resolve => setImmediate(resolve));
+		assert.strictEqual(errors.length, 2);
+	});
 
 	test('dispatches validated requests in both directions and correlates out-of-order results', async () => {
 		let finishFirst!: (value: { tokens: []; colorMap: string[] }) => void;
@@ -97,6 +168,27 @@ suite('Markdown editor RPC', () => {
 				{ runtimeId: 'one', message: { nested: ['opaque', 2] } },
 			],
 		});
+	});
+
+	test('routes rename sessions and rejects invalid offsets across RPC', async () => {
+		const seen: unknown[] = [];
+		const { renderer } = pair({
+			prepareRename: params => { seen.push(params); return { start: 2, endExclusive: 8, placeholder: 'Target' }; },
+			rename: params => { seen.push(params); },
+			cancelRename: params => { seen.push(params); },
+		});
+		const client = renderer.get(markdownEditorHost);
+		assert.deepStrictEqual(await client.prepareRename({ requestId: 4, offset: 3, editEpoch: 2 }),
+			{ start: 2, endExclusive: 8, placeholder: 'Target' });
+		await client.rename({ requestId: 4, newName: 'New target' });
+		await client.cancelRename({ requestId: 4 });
+		await assert.rejects(renderer.channel.sendRequest('markdown.editor.host::prepareRename',
+			{ requestId: 4, offset: -1, editEpoch: 2 }), { code: ErrorCode.invalidParams });
+		assert.deepStrictEqual(seen, [
+			{ requestId: 4, offset: 3, editEpoch: 2 },
+			{ requestId: 4, newName: 'New target' },
+			{ requestId: 4 },
+		]);
 	});
 
 	test('rejects malformed parameters, unknown members, and failed handlers', async () => {
@@ -200,6 +292,7 @@ suite('Markdown editor RPC', () => {
 
 class Inbox {
 	private readonly _listeners = new Set<(value: unknown) => void>();
+	readonly messages: unknown[] = [];
 
 	get size(): number {
 		return this._listeners.size;
@@ -212,6 +305,7 @@ class Inbox {
 
 	deliver(value: unknown): void {
 		const serialized: unknown = JSON.parse(JSON.stringify(value));
+		this.messages.push(serialized);
 		for (const listener of this._listeners) {
 			listener(serialized);
 		}

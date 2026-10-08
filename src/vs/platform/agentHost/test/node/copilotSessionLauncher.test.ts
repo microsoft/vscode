@@ -40,7 +40,7 @@ import { resolveCopilotMcpServerInfo, type ICopilotPluginInfo } from '../../node
 import { CopilotGitHubSessionCredentials } from '../../node/copilot/copilotGitHubCredentials.js';
 import { CopilotExtensionsReloadToolName } from '../../node/copilot/copilotExtensionTools.js';
 import type { ShellManager } from '../../node/copilot/copilotShellTools.js';
-import type { SandboxConfig } from '../../node/copilot/sandboxConfigForSdk.js';
+import type { SandboxConfig, SandboxNetworkPolicy } from '../../node/copilot/sandboxConfigForSdk.js';
 import { CopilotSessionLauncher, filterClientToolNames, getCopilotAutoTier, getCopilotReasoningEffort, isCopilotReasoningEffort, mergeByokSessionConfig, synthesizeByokSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import { buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
 import type { IAgentHostSessionOpenTelemetry } from '../../node/agentHostSessionOpenTelemetry.js';
@@ -151,7 +151,7 @@ function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettin
 suite('CopilotSessionLauncher sandbox policy', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(kind: 'create' | 'resume', reportPolicy = true, enforced = false, allowBypass = false, allowOutbound?: boolean, sandboxUpdateError?: Error, sandboxToggles?: Pick<SandboxConfig, 'sandboxMcpServers' | 'sandboxLspServers' | 'allowDevToolAccess' | 'auth'>, allowLocalNetwork?: boolean) {
+	function setup(kind: 'create' | 'resume', reportPolicy = true, enforced = false, allowBypass = false, allowOutbound?: boolean, sandboxUpdateError?: Error, sandboxToggles?: Pick<SandboxConfig, 'sandboxMcpServers' | 'sandboxLspServers' | 'allowDevToolAccess' | 'addCurrentWorkingDirectory' | 'auth'>, allowLocalNetwork?: boolean, networkHosts?: Pick<SandboxNetworkPolicy, 'allowedHosts' | 'blockedHosts'>) {
 		const manager = store.add(new AgentHostStateManager(new NullLogService()));
 		const configuration = store.add(new AgentConfigurationService(manager, new NullLogService()));
 		const owner = 'copilot:/sess-1';
@@ -200,7 +200,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 				config?.onEvent?.({
 					id: 'resolved', parentId: null, timestamp: '2026-01-01T00:00:00Z',
 					type: 'session.managed_settings_resolved', ephemeral: true,
-					data: { source: 'server', serverManaged: true, deviceManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: enforced ? ['sandbox'] : [], settings: enforced ? { sandbox: { enabled: true, allowBypass, ...sandboxOptions, ...(auth ? { auth: { ...auth } } : {}), userPolicy: { network: { ...(allowOutbound !== undefined ? { allowOutbound } : {}), ...(allowLocalNetwork !== undefined ? { allowLocalNetwork } : {}) } } } } : {} },
+					data: { source: 'server', serverManaged: true, deviceManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: enforced ? ['sandbox'] : [], settings: enforced ? { sandbox: { enabled: true, allowBypass, ...sandboxOptions, ...(auth ? { auth: { ...auth } } : {}), userPolicy: { network: { ...(allowOutbound !== undefined ? { allowOutbound } : {}), ...(allowLocalNetwork !== undefined ? { allowLocalNetwork } : {}), ...networkHosts } } } } : {} },
 				});
 			}
 			return raw;
@@ -235,6 +235,82 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 				events,
 				applied: fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.enabled),
 			}, { events: ['session.managed_settings_resolved', 'session.title_changed'], applied: [false] });
+		});
+
+		test(`${kind} applies managed denial of current working directory access`, async () => {
+			const fixture = setup(kind, true, true, false, undefined, undefined, { addCurrentWorkingDirectory: false });
+			fixture.configuration.updateRootConfig({ sandbox: { enabled: 'on', addCurrentWorkingDirectory: true } });
+			store.add(await fixture.launcher.launch(fixture.plan, testRuntime));
+			assert.deepStrictEqual(fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.addCurrentWorkingDirectory), [false]);
+		});
+
+		test(`${kind} sends managed host lists when local lists are omitted or empty`, async () => {
+			for (const localHosts of [undefined, []]) {
+				const fixture = setup(kind, true, true, false, undefined, undefined, undefined, undefined, {
+					allowedHosts: ['example.com', 'api.example.com'],
+					blockedHosts: ['malicious.com', 'phishing.com'],
+				});
+				fixture.configuration.updateRootConfig({
+					sandbox: {
+						enabled: 'on', allowNetwork: true, allowLocalNetwork: true,
+						...(localHosts ? { allowedNetworkDomains: localHosts, deniedNetworkDomains: localHosts } : {}),
+					}
+				});
+				store.add(await fixture.launcher.launch(fixture.plan, testRuntime));
+				assert.deepStrictEqual(fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.userPolicy?.network), [{
+					allowOutbound: true,
+					allowLocalNetwork: true,
+					allowedHosts: ['example.com', 'api.example.com'],
+					blockedHosts: ['malicious.com', 'phishing.com'],
+				}]);
+			}
+		});
+
+		test(`${kind} sends the managed allowlist and combined blocklists in the SDK update`, async () => {
+			const fixture = setup(kind, true, true, false, undefined, undefined, undefined, undefined, {
+				allowedHosts: ['api.example.com'],
+				blockedHosts: ['managed.blocked'],
+			});
+			fixture.configuration.updateRootConfig({
+				sandbox: {
+					enabled: 'on',
+					allowedNetworkDomains: ['*.example.com'],
+					deniedNetworkDomains: ['local.blocked'],
+				}
+			});
+			store.add(await fixture.launcher.launch(fixture.plan, testRuntime));
+			assert.deepStrictEqual(fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.userPolicy?.network), [{
+				allowedHosts: ['api.example.com'],
+				blockedHosts: ['local.blocked', 'managed.blocked'],
+			}]);
+		});
+
+		test(`${kind} ignores a disjoint local allowlist without adding a wildcard block`, async () => {
+			const fixture = setup(kind, true, true, false, undefined, undefined, undefined, undefined, {
+				allowedHosts: ['managed.example'],
+			});
+			fixture.configuration.updateRootConfig({
+				sandbox: {
+					enabled: 'on', allowedNetworkDomains: ['local.example'],
+				}
+			});
+			store.add(await fixture.launcher.launch(fixture.plan, testRuntime));
+			assert.deepStrictEqual(fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.userPolicy?.network), [{
+				allowedHosts: ['managed.example'], blockedHosts: [],
+			}]);
+		});
+
+		test(`${kind} ignores local allowed hosts when the managed allowlist is empty`, async () => {
+			const fixture = setup(kind, true, true, false, undefined, undefined, undefined, undefined, { allowedHosts: [] });
+			fixture.configuration.updateRootConfig({
+				sandbox: {
+					enabled: 'on', allowNetwork: true, allowedNetworkDomains: ['local.example'],
+				}
+			});
+			store.add(await fixture.launcher.launch(fixture.plan, testRuntime));
+			assert.deepStrictEqual(fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.userPolicy?.network), [{
+				allowOutbound: true,
+			}]);
 		});
 
 		for (const [key, field] of [
@@ -825,7 +901,7 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 					connectorCalls,
 					connectorDisplayName: connectorDisplayNames.get('connector-mail'),
 				}, {
-					featureFlags: { CONNECTORS: true, TGREP: false, CONTENT_EXCLUSION: true, copilot_swe_agent_memory_in_repo_store: false, MANAGED_MCP_SERVERS: true },
+					featureFlags: { CONNECTORS: true, TGREP: false, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false, MANAGED_MCP_SERVERS: true },
 					connectorCalls: ['capabilities', 'auth', 'accounts', 'reconcile:account-1:true', ...(reconcileError ? ['status'] : [])],
 					connectorDisplayName: 'Work IQ Mail',
 				});
@@ -1005,6 +1081,8 @@ suite('CopilotSessionLauncher shared session config', () => {
 				createInstructionDirectories: createConfigs[0].instructionDirectories,
 				createDisabledMcpServers: createConfigs[0].disabledMcpServers,
 				createHasExitPlanHandler: typeof createConfigs[0].onExitPlanModeRequest === 'function',
+				createAskUserVariant: createConfigs[0].askUserVariant,
+				createHasElicitationHandler: typeof createConfigs[0].onElicitationRequest === 'function',
 				createLargeOutput: createConfigs[0].largeOutput,
 				createManagedSettings: createConfigs[0].managedSettings,
 				createFeatureFlags: createConfigs[0].featureFlags,
@@ -1026,6 +1104,8 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumeInstructionDirectories: resumeConfigs[0].instructionDirectories,
 				resumeDisabledMcpServers: resumeConfigs[0].disabledMcpServers,
 				resumeHasExitPlanHandler: typeof resumeConfigs[0].onExitPlanModeRequest === 'function',
+				resumeAskUserVariant: resumeConfigs[0].askUserVariant,
+				resumeHasElicitationHandler: typeof resumeConfigs[0].onElicitationRequest === 'function',
 				resumeLargeOutput: resumeConfigs[0].largeOutput,
 				resumeManagedSettings: resumeConfigs[0].managedSettings,
 				resumeFeatureFlags: resumeConfigs[0].featureFlags,
@@ -1039,6 +1119,8 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumeMemory: resumeConfigs[0].memory,
 				resumeLocalMemoryStore: resumeConfigs[0].featureFlags?.copilot_swe_agent_memory_in_repo_store,
 				ephemeralMemory: createConfigs[1].memory,
+				ephemeralAskUserVariant: createConfigs[1].askUserVariant,
+				ephemeralDetachLongLivedServices: createConfigs[1].featureFlags?.DETACH_LONG_LIVED_SERVICES,
 				ephemeralLocalMemoryStore: createConfigs[1].featureFlags?.copilot_swe_agent_memory_in_repo_store,
 				ephemeralMcpServers: createConfigs[1].mcpServers,
 				ephemeralEnableSessionStore: createConfigs[1].enableSessionStore,
@@ -1079,9 +1161,11 @@ suite('CopilotSessionLauncher shared session config', () => {
 				createInstructionDirectories: [URI.joinPath(pluginDir, 'rules').fsPath],
 				createDisabledMcpServers: ['azure', 'disabled-workspace-server', 'github'],
 				createHasExitPlanHandler: true,
+				createAskUserVariant: 'elicitation',
+				createHasElicitationHandler: true,
 				createLargeOutput: { maxSizeBytes: 8192 },
 				createManagedSettings: { permissions: managedSettingsPermissions },
-				createFeatureFlags: { CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true, copilot_swe_agent_memory_in_repo_store: true },
+				createFeatureFlags: { CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: true },
 				createStreaming: true,
 				createEnableSessionStore: true,
 				createRequestExtensions: true,
@@ -1107,9 +1191,11 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumeInstructionDirectories: [URI.joinPath(pluginDir, 'rules').fsPath],
 				resumeDisabledMcpServers: ['azure', 'disabled-workspace-server', 'github'],
 				resumeHasExitPlanHandler: true,
+				resumeAskUserVariant: 'elicitation',
+				resumeHasElicitationHandler: true,
 				resumeLargeOutput: { maxSizeBytes: 8192 },
 				resumeManagedSettings: { permissions: managedSettingsPermissions },
-				resumeFeatureFlags: { CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true, copilot_swe_agent_memory_in_repo_store: true },
+				resumeFeatureFlags: { CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: true },
 				resumeStreaming: true,
 				resumeEnableSessionStore: true,
 				resumeRequestExtensions: true,
@@ -1120,6 +1206,8 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumeMemory: { enabled: true },
 				resumeLocalMemoryStore: true,
 				ephemeralMemory: { enabled: false },
+				ephemeralAskUserVariant: 'elicitation',
+				ephemeralDetachLongLivedServices: true,
 				ephemeralLocalMemoryStore: false,
 				ephemeralMcpServers: {},
 				ephemeralEnableSessionStore: false,
@@ -2023,6 +2111,8 @@ suite('CopilotSessionLauncher resume config', () => {
 	test('enables experimental mode only with HydraFusion opt-in', async () => {
 		const store = disposables.add(new DisposableStore());
 		const enabled = await buildResumeConfig(createLauncher(store, { hydraFusion: true }), { id: 'hydrafusion' });
+		const v2 = await buildResumeConfig(createLauncher(store, { hydraFusion: true, hydraFusionV2: true }), { id: 'hydrafusion' });
+		const v2WithoutHydraFusion = await buildResumeConfig(createLauncher(store, { hydraFusionV2: true }), { id: 'gpt-5' });
 		const disabled = await buildResumeConfig(createLauncher(store, { hydraFusion: false }), { id: 'gpt-5' });
 		const notOptedIn = await buildResumeConfig(createLauncher(store, {}), { id: 'gpt-5' });
 		const connectors = await buildResumeConfig(createLauncher(store, { [AgentHostMcpConnectorsEnabledConfigKey]: true }), { id: 'gpt-5' });
@@ -2031,6 +2121,8 @@ suite('CopilotSessionLauncher resume config', () => {
 			model: enabled.model,
 			enabledExperimentalMode: enabled.enableExperimentalMode,
 			enabledFeatureFlags: enabled.featureFlags,
+			v2FeatureFlags: v2.featureFlags,
+			v2WithoutHydraFusionFeatureFlags: v2WithoutHydraFusion.featureFlags,
 			disabledExperimentalMode: disabled.enableExperimentalMode,
 			disabledFeatureFlags: disabled.featureFlags,
 			defaultExperimentalMode: notOptedIn.enableExperimentalMode,
@@ -2043,15 +2135,27 @@ suite('CopilotSessionLauncher resume config', () => {
 				CONNECTORS: false,
 				TGREP: false,
 				CONTENT_EXCLUSION: true,
+				DETACH_LONG_LIVED_SERVICES: true,
 				copilot_swe_agent_memory_in_repo_store: false,
 				HYDRAFUSION: true,
 				HYDRAFUSION_ROLLOUT: true,
 			},
+			v2FeatureFlags: {
+				CONNECTORS: false,
+				TGREP: false,
+				CONTENT_EXCLUSION: true,
+				DETACH_LONG_LIVED_SERVICES: true,
+				copilot_swe_agent_memory_in_repo_store: false,
+				HYDRAFUSION: true,
+				HYDRAFUSION_ROLLOUT: true,
+				HYDRAFUSION_PLAN_V2: true,
+			},
+			v2WithoutHydraFusionFeatureFlags: { CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false },
 			disabledExperimentalMode: undefined,
-			disabledFeatureFlags: { CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true, copilot_swe_agent_memory_in_repo_store: false },
+			disabledFeatureFlags: { CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false },
 			defaultExperimentalMode: undefined,
-			defaultFeatureFlags: { CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true, copilot_swe_agent_memory_in_repo_store: false },
-			connectorFeatureFlags: { CONNECTORS: true, TGREP: false, CONTENT_EXCLUSION: true, copilot_swe_agent_memory_in_repo_store: false, MANAGED_MCP_SERVERS: true },
+			defaultFeatureFlags: { CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false },
+			connectorFeatureFlags: { CONNECTORS: true, TGREP: false, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false, MANAGED_MCP_SERVERS: true },
 		});
 	});
 
@@ -2064,8 +2168,8 @@ suite('CopilotSessionLauncher resume config', () => {
 			disabled: disabled.featureFlags,
 			enabled: enabled.featureFlags,
 		}, {
-			disabled: { CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true, copilot_swe_agent_memory_in_repo_store: false },
-			enabled: { CONNECTORS: false, TGREP: true, CONTENT_EXCLUSION: true, copilot_swe_agent_memory_in_repo_store: false },
+			disabled: { CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false },
+			enabled: { CONNECTORS: false, TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false },
 		});
 	});
 
@@ -2088,6 +2192,20 @@ suite('CopilotSessionLauncher resume config', () => {
 			localWithoutMemory: { memory: { enabled: false }, localStore: false },
 			disabled: { memory: { enabled: false }, localStore: false },
 			notOptedIn: { memory: { enabled: false }, localStore: false },
+		});
+	});
+
+	test('configures the stability-ordered system prompt feature flag', async () => {
+		const store = disposables.add(new DisposableStore());
+		const disabled = await buildResumeConfig(createLauncher(store, {}), { id: 'gpt-5' });
+		const enabled = await buildResumeConfig(createLauncher(store, { [CopilotCliConfigKey.StabilityOrderedPrompt]: true }), { id: 'gpt-5' });
+
+		assert.deepStrictEqual({
+			disabled: disabled.featureFlags,
+			enabled: enabled.featureFlags,
+		}, {
+			disabled: { CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false },
+			enabled: { CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false, STABILITY_ORDERED_SYSTEM_PROMPT_V2: true },
 		});
 	});
 

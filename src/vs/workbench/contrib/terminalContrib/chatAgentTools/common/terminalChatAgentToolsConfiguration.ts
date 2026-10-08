@@ -7,9 +7,10 @@ import type { IStringDictionary } from '../../../../../base/common/collections.j
 import type { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
 import { localize } from '../../../../../nls.js';
 import { type IConfigurationPropertySchema } from '../../../../../platform/configuration/common/configurationRegistry.js';
-import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';
+import { AgentSandboxEnabledValue, AgentSandboxSettingId, IAgentSandboxUserConfiguredPaths } from '../../../../../platform/sandbox/common/settings.js';
 import { SandboxSettingsResolutionHelper } from '../../../../../platform/sandbox/common/sandboxSettingsResolutionHelper.js';
-import { COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY, COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_AUTH_GH_KEY, COPILOT_SANDBOX_AUTH_GIT_KEY, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_SANDBOX_LSP_SERVERS_KEY, COPILOT_SANDBOX_MCP_SERVERS_KEY } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY, COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_AUTH_GH_KEY, COPILOT_SANDBOX_AUTH_GIT_KEY, COPILOT_SANDBOX_DENIED_PATHS_KEY, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_SANDBOX_LSP_SERVERS_KEY, COPILOT_SANDBOX_MCP_SERVERS_KEY, COPILOT_SANDBOX_READONLY_PATHS_KEY, COPILOT_SANDBOX_READWRITE_PATHS_KEY } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { isStringArray } from '../../../../../base/common/types.js';
 import { gitAutoApproveRules } from '../../../../../platform/terminal/common/autoApprove/gitAutoApproveRules.js';
 import { powershellAutoApproveRules } from '../../../../../platform/terminal/common/autoApprove/powershellAutoApproveRules.js';
 import { sortAutoApproveRules } from '../../../../../platform/terminal/common/autoApprove/sortAutoApproveRules.js';
@@ -672,6 +673,50 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		restricted: true,
 	},
 	[AgentSandboxSettingId.AgentSandboxUserConfiguredPaths]: {
+		managedSettingsPresentation: (read, localValue) => {
+			const managed: IAgentSandboxUserConfiguredPaths = {};
+			for (const [property, key] of [
+				['readwritePaths', COPILOT_SANDBOX_READWRITE_PATHS_KEY],
+				['readonlyPaths', COPILOT_SANDBOX_READONLY_PATHS_KEY],
+				['deniedPaths', COPILOT_SANDBOX_DENIED_PATHS_KEY],
+			] as const) {
+				const value = read(key);
+				if (value === undefined) {
+					continue;
+				}
+				let paths: unknown = value;
+				if (typeof value === 'string') {
+					try {
+						paths = JSON.parse(value);
+					} catch {
+						console.warn('Failed to parse managed sandbox filesystem paths; ignoring the presentation override.');
+						return undefined;
+					}
+				}
+				if (!isStringArray(paths)) {
+					console.warn('Managed sandbox filesystem paths must be a string array; ignoring the presentation override.');
+					return undefined;
+				}
+				managed[property] = paths;
+			}
+			if (!Object.keys(managed).length) {
+				return undefined;
+			}
+			const local: IAgentSandboxUserConfiguredPaths = {};
+			if (localValue && typeof localValue === 'object') {
+				for (const [property, paths] of Object.entries(localValue)) {
+					if ((property === 'readwritePaths' || property === 'readonlyPaths' || property === 'deniedPaths') && isStringArray(paths)) {
+						local[property] = paths;
+					}
+				}
+			}
+			const resolved = SandboxSettingsResolutionHelper.resolveFileSystemPaths(local, managed);
+			return {
+				readwritePaths: resolved.readwritePaths ?? [],
+				readonlyPaths: resolved.readonlyPaths ?? [],
+				deniedPaths: resolved.deniedPaths ?? [],
+			} satisfies Readonly<Record<string, readonly string[]>>;
+		},
 		order: 65,
 		keywords: ['Sandbox', 'sandboxing'],
 		markdownDescription: localize('agentSandbox.userConfiguredPaths', "Customize file path permissions in the sandbox."),

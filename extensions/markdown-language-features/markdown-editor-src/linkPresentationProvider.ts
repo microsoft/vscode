@@ -22,7 +22,7 @@ type WebviewLinkPresentation = LinkPresentation & { readonly isLoading?: boolean
 export class WebviewLinkPresentationProvider extends Disposable implements ILinkPresentationProvider {
 	readonly #entries = new Map<string, LinkPresentationEntry>();
 	readonly #rules: readonly { id: string; uriPattern: RegExp; kind: LinkPresentationKind }[];
-	readonly #syncTargets: (hrefs: string[]) => Promise<void>;
+	readonly #syncTargets: (hrefs: string[]) => void;
 	#syncScheduled = false;
 	#disposed = false;
 
@@ -106,11 +106,7 @@ export class WebviewLinkPresentationProvider extends Disposable implements ILink
 			if (this.#disposed) {
 				return;
 			}
-			void this.#syncTargets([...this.#entries.keys()]).catch(error => {
-				if (!this.#disposed) {
-					console.error('Markdown editor rich link target synchronization failed', error);
-				}
-			});
+			this.#syncTargets([...this.#entries.keys()]);
 		});
 	}
 }

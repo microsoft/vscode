@@ -15,8 +15,6 @@ export type ModelPickerEntryPoint =
 	| 'modelName'
 	/** The configuration readout next to the model name. */
 	| 'configuration'
-	/** The configure button in a model's hover in the flat picker. */
-	| 'hoverConfigure'
 	/** A command, keybinding, or host surface that opens the picker programmatically. */
 	| 'command';
 
@@ -34,7 +32,7 @@ type ChatModelPickerOpenedClassification = {
 	owner: 'lramos15';
 	comment: 'Reporting when a model picker surface is opened, to measure picker interactions from open to close';
 	pickerSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A random id for this picker open, used to correlate the open, change, and close events of one interaction' };
-	entryPoint: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the picker was opened: modelName, configuration, hoverConfigure, or command' };
+	entryPoint: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the picker was opened: modelName, configuration, or command' };
 	inputMethod: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The input the picker was opened with: keyboard, mouse, or unknown when opened by a command' };
 	model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model selected when the picker opened; "unknown" for models the user brought' };
 	chatSessionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the current chat session, used to correlate the picker interaction with the session.' };

@@ -12,7 +12,7 @@
  */
 
 import assert from 'assert';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -24,12 +24,13 @@ import { AhpErrorCodes } from '../../../../common/state/sessionProtocol.js';
 import { ROOT_STATE_URI } from '../../../../common/state/sessionState.js';
 import type { IServedReverseRequest } from '../../serverIntegrationTestHelpers.js';
 import { conformanceTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 export function defineClientHostedFilesystemTests(context: IAgentHostE2ETestContext): void {
 	const { config, tempDirs } = context;
 
 	function createWorkspace(prefix: string): string {
-		const workspace = mkdtempSync(join(tmpdir(), prefix));
+		const workspace = createTestDirectory(join(tmpdir(), prefix));
 		tempDirs.push(workspace);
 		return workspace;
 	}

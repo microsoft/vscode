@@ -10,6 +10,7 @@ import { RawContextKey } from '../../../../../platform/contextkey/common/context
  * session composer option, and scheduled execution. Enabled by default.
  */
 export const CHAT_AUTOMATIONS_ENABLED_SETTING = 'chat.automations.enabled';
+export const CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING = 'chat.automations.cloud.enabled';
 
 /** Per-run timeout in minutes. Hung runs are ended so they cannot block later occurrences. */
 export const CHAT_AUTOMATIONS_RUN_TIMEOUT_MINUTES_SETTING = 'chat.automations.runTimeoutMinutes';

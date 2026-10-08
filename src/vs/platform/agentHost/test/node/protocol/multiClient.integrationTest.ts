@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mkdtempSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from '../../../../../base/common/path.js';
 import type { SessionAddedParams, SessionRemovedParams } from '../../../common/state/protocol/notifications.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
@@ -27,6 +30,7 @@ suite('Protocol WebSocket — Multi-Client', function () {
 
 	let server: IServerHandle;
 	let client: TestProtocolClient;
+	let userDataDir: string;
 	const secondaryClients: TestProtocolClient[] = [];
 
 	function createSecondaryClient(): TestProtocolClient {
@@ -37,12 +41,14 @@ suite('Protocol WebSocket — Multi-Client', function () {
 
 	suiteSetup(async function () {
 		this.timeout(getAgentHostE2ETestTimeout(15_000, 60_000));
-		server = await startServer();
+		userDataDir = mkdtempSync(join(tmpdir(), 'agent-host-proto-multi-client-user-data-'));
+		server = await startServer({ userDataDir });
 	});
 
 	suiteTeardown(async function () {
 		this.timeout(getAgentHostE2ETestTimeout(20_000, 50_000));
 		await stopServer(server);
+		rmSync(userDataDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 	});
 
 	setup(async function () {

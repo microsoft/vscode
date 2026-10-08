@@ -92,7 +92,7 @@ export const sessionsConfiguration = {
 		[SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING]: {
 			type: 'boolean',
 			tags: ['preview'],
-			description: localize('sessions.list.showUnreadInCollapsedSections', "Controls whether collapsed sections in the sessions list show needs-input, CI-failure, or unread indicators for the unarchived sessions they contain."),
+			description: localize('sessions.list.showUnreadInCollapsedSections', "Controls whether collapsed sections in the sessions list show needs-attention, CI-failure, or unread indicators for the unarchived sessions they contain."),
 			default: false,
 			experiment: { mode: 'auto' }
 		},
@@ -138,7 +138,7 @@ export const sessionsConfiguration = {
 		},
 		[USE_WORKTREE_SETTING]: {
 			type: 'boolean',
-			default: true,
+			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('sessions.useWorktree', "Controls whether New Worktree is checked for a workspace that has not started a session before. Each workspace otherwise uses the choice from its last started session."),
 			experiment: {

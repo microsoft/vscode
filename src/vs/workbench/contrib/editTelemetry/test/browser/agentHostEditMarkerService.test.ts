@@ -324,6 +324,29 @@ suite('Agent Host Edit Marker Service', () => {
 		});
 	});
 
+	test('attributes Auto tiers to reloads and keeps mixed tiers apart', () => {
+		const context = createContext();
+		const correlation = context.service.createCorrelation(context.resource);
+		const source = { modelId: 'gpt-5', conversationId: 'session-1', chatSessionId: 'hashed-chat', requestId: 'turn-1', harness: 'copilotcli' };
+		context.fireMarker(marker(1, 'a', 'ab', { ...source, autoTier: 'balance' }));
+		const single = correlation.register('a', 'ab');
+		context.fireMarker(marker(2, 'ab', 'abc', { ...source, autoTier: 'balance' }));
+		context.fireMarker(marker(3, 'abc', 'abcd', { ...source, autoTier: 'intelligence' }));
+		const mixed = correlation.register('ab', 'abcd');
+
+		assert.deepStrictEqual({
+			single: correlation.getResolution?.(single)?.source?.toKey(1),
+			singleTier: correlation.getResolution?.(single)?.source?.props.$autoTier,
+			mixedSuppressed: correlation.isSuppressed(mixed),
+			mixed: correlation.getResolution?.(mixed)?.source,
+		}, {
+			single: 'source:Chat.applyEdits-$modelId:gpt-5-$autoTier:balance-$harness:copilotcli-$origin:agentHost',
+			singleTier: 'balance',
+			mixedSuppressed: true,
+			mixed: undefined,
+		});
+	});
+
 	test('preserves legacy representative selection for marker chains without chat metadata', () => {
 		const context = createContext();
 		const correlation = context.service.createCorrelation(context.resource);
@@ -813,6 +836,7 @@ suite('Agent Host Edit Marker Service', () => {
 
 function marker(sequence: number, before: string, after: string, source?: {
 	readonly modelId?: string;
+	readonly autoTier?: string;
 	readonly conversationId: string;
 	readonly chatSessionId?: string;
 	readonly requestId: string;

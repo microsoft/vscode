@@ -16,6 +16,7 @@ import { IActionListDelegate, IActionListItem } from '../../../../../../../platf
 import { IActionWidgetService } from '../../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { MenuItemAction, registerAction2 } from '../../../../../../../platform/actions/common/actions.js';
 import { IAgentHostEnablementService } from '../../../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { IManagedSettingsService, NullManagedSettingsService } from '../../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { CommandsRegistry, ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -72,6 +73,7 @@ suite('DelegationSessionPickerActionItem', () => {
 
 	function createPicker(sessionType: AgentSessionTarget, isSessionsWindow = false, initialContributions = contributions) {
 		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IManagedSettingsService, new NullManagedSettingsService());
 		const configurationService = new TestConfigurationService({
 			'chat.copilotHarnessIntroduction.mode': CopilotHarnessIntroductionMode.AfterRequest,
 		});

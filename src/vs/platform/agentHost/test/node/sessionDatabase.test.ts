@@ -1754,7 +1754,7 @@ suite('SessionDatabase', () => {
 				title: await db.getMetadata('customTitle'),
 				snapshot: await db.getCatalogSyncSnapshot(),
 			}, {
-				transitioned: true,
+				transitioned: 'applied',
 				title: 'New generation',
 				snapshot: nextGeneration,
 			});
@@ -1780,7 +1780,7 @@ suite('SessionDatabase', () => {
 				title: await db.getMetadata('customTitle'),
 				snapshot: await db.getCatalogSyncSnapshot(),
 			}, {
-				transitioned: false,
+				transitioned: 'generationMismatch',
 				title: 'Current generation',
 				snapshot: snapshot(100),
 			});

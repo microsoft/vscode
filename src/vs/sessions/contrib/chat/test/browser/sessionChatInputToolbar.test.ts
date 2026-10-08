@@ -32,7 +32,7 @@ import { IBrowserViewWorkbenchService } from '../../../../../workbench/contrib/b
 import type { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { ISessionChatPillVisibilityService, SessionChatPillKind, SessionChatPillVisibility } from '../../../../../workbench/contrib/chat/common/sessionChatPills.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
-import { GitHubResourceHoverCache } from '../../../../../workbench/contrib/github/browser/githubResourceHoverCache.js';
+import { ChatPillHoverCache } from '../../../../../workbench/browser/chatPillHover.js';
 import { ChatDropdownPillActionViewItem } from '../../../../../workbench/browser/chatDropdownPill.js';
 import { IWorkbenchGitHubService } from '../../../../../workbench/services/github/common/githubService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
@@ -52,6 +52,7 @@ import { IGitHubService } from '../../../github/browser/githubService.js';
 import { GitHubPullRequestModel } from '../../../github/browser/models/githubPullRequestModel.js';
 import { GitHubIssueModel } from '../../../github/browser/models/githubIssueModel.js';
 import { buildSessionIssueSections, buildSessionPullRequestSections, computeSessionInputPillStats, SessionChatInputToolbar } from '../../browser/sessionChatInputToolbar.js';
+import { buildSessionArtifactSections, type ISessionArtifactActions } from '../../browser/sessionArtifacts.js';
 
 suite('SessionChatInputToolbar', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -117,6 +118,7 @@ suite('SessionChatInputToolbar', () => {
 			}]),
 		});
 		const session = upcastPartial<IActiveSession>({
+			loading: constObservable(false),
 			sessionId: 'provider:session',
 			workspace: constObservable(upcastPartial<ISessionWorkspace>({ folders: [] })),
 			activeChat: constObservable(chat),
@@ -175,6 +177,7 @@ suite('SessionChatInputToolbar', () => {
 			changes: constObservable([]),
 		});
 		const session = upcastPartial<IActiveSession>({
+			loading: constObservable(false),
 			sessionId: 'provider:session',
 			workspace,
 			activeChat: constObservable(chat),
@@ -222,6 +225,7 @@ suite('SessionChatInputToolbar', () => {
 		const mainChat = createChat('chat:main');
 		const nestedChat = createChat('chat:nested');
 		const session = upcastPartial<IActiveSession>({
+			loading: constObservable(false),
 			sessionId: 'provider:session',
 			workspace,
 			mainChat: constObservable(mainChat),
@@ -241,6 +245,7 @@ suite('SessionChatInputToolbar', () => {
 			changes: constObservable([]),
 		});
 		const session = upcastPartial<IActiveSession>({
+			loading: constObservable(false),
 			sessionId: 'provider:session',
 			activeChat: constObservable(chat),
 			mainChat: constObservable(chat),
@@ -286,6 +291,7 @@ suite('SessionChatInputToolbar', () => {
 					}]),
 				});
 				const session = upcastPartial<IActiveSession>({
+					loading: constObservable(false),
 					sessionId: 'provider:session',
 					capabilities: constObservable({ supportsMultipleChats: false }),
 					resource: URI.parse('session:1'),
@@ -364,6 +370,7 @@ suite('SessionChatInputToolbar', () => {
 		const mainChat = createChat('chat:main');
 		const nestedChat = createChat('chat:nested');
 		const session = upcastPartial<IActiveSession>({
+			loading: constObservable(false),
 			sessionId: 'provider:session',
 			capabilities: constObservable({ supportsMultipleChats: true }),
 			resource: URI.parse('session:1'),
@@ -402,6 +409,47 @@ suite('SessionChatInputToolbar', () => {
 			},
 			opened: [BRANCH_CHANGES_CHANGESET_ID, SESSION_CHANGES_CHANGESET_ID],
 		});
+	});
+
+	test('uses one GitHub row presentation in dedicated, artifact, and reference collections', () => {
+		const commandService = upcastPartial<ICommandService>({});
+		const clipboardService = upcastPartial<IClipboardService>({});
+		const openerService = upcastPartial<IOpenerService>({});
+		const sessionsService = upcastPartial<ISessionsService>({});
+		const actions: ISessionArtifactActions = { recordOpen() { }, openExternal() { }, openResource() { }, openImages() { }, copy() { } };
+		const rowPresentation = (entry: IChatPillEntry) => ({
+			label: entry.label, badge: entry.badge, leading: entry.badgeBeforeLabel,
+			pillLabel: entry.pillLabel, className: entry.className,
+			ariaLabel: entry.ariaLabel, dropdownAriaLabel: entry.dropdownAriaLabel,
+			preserveLabelOnRefresh: entry.preserveLabelOnRefresh,
+		});
+		const actual = [];
+		for (const kind of [SessionArtifactKind.PullRequest, SessionArtifactKind.Issue]) {
+			const typeLabel = kind === SessionArtifactKind.PullRequest ? 'Pull Request' : 'Issue';
+			for (const title of [undefined, 'Recorded title']) {
+				const uri = URI.parse(`https://github.com/microsoft/vscode/${kind === SessionArtifactKind.PullRequest ? 'pull' : 'issues'}/123`);
+				const ref = { owner: 'microsoft', repo: 'vscode', number: 123, uri, title };
+				const dedicated = kind === SessionArtifactKind.PullRequest
+					? buildSessionPullRequestSections([{ ref, pullRequest: undefined, icon: Codicon.gitPullRequest, status: {} }], undefined, commandService, clipboardService, openerService, sessionsService)[0].entries[0]
+					: buildSessionIssueSections([{ ref, issue: undefined }], undefined, commandService, clipboardService, openerService, sessionsService)[0].entries[0];
+				const recorded = [true, false].map(isArtifact => buildSessionArtifactSections([{
+					id: 'record', kind, label: title ?? '', isArtifact, isGitHub: true, link: uri,
+				}], actions, { getUriLabel: resource => resource.toString() }, false, new Set())[0].entries[0]);
+				actual.push({
+					typeLabel, title,
+					rows: [dedicated, ...recorded].map(rowPresentation),
+				});
+			}
+		}
+		assert.deepStrictEqual(actual, ['Pull Request', 'Issue'].flatMap(typeLabel => [undefined, 'Recorded title'].map(title => ({
+			typeLabel, title,
+			rows: Array.from({ length: 3 }, () => ({
+				label: title ?? typeLabel, badge: '#123', leading: true, pillLabel: '#123',
+				className: 'chat-pill-reference', preserveLabelOnRefresh: false,
+				ariaLabel: `Open ${typeLabel} #123${title ? ': Recorded title' : ''}`,
+				dropdownAriaLabel: `#123, Open ${typeLabel}${title ? ': Recorded title' : ''}`,
+			})),
+		}))));
 	});
 
 	test('adds rich GitHub hovers only when live details are available', async () => {
@@ -486,7 +534,7 @@ suite('SessionChatInputToolbar', () => {
 			sessionsService,
 			{ recordOpen: id => recordedOpenIds.push(id) },
 		).flatMap(section => section.entries)[0];
-		const issueHoverCache = new WeakMap<IGitHubIssueRef, { readonly element: HTMLElement; readonly tabbableElements: readonly HTMLElement[] }>();
+		const issueHoverCache = store.add(new ChatPillHoverCache());
 		const cachedIssueEntry = buildSessionIssueSections(
 			[{ ref: issueRef, issue }],
 			undefined,
@@ -576,6 +624,7 @@ suite('SessionChatInputToolbar', () => {
 			pullRequest: {
 				label: pullRequestEntry?.label,
 				badge: pullRequestEntry?.badge,
+				leading: pullRequestEntry?.badgeBeforeLabel,
 				rowClassName: pullRequestEntry?.className,
 				pillHoverContentOwnsPadding: isManagedHoverTooltipHTMLElement(pullRequestEntry?.pillHover) ? pullRequestEntry.pillHover.contentOwnsPadding : undefined,
 				className: pullRequestHover?.className,
@@ -618,6 +667,7 @@ suite('SessionChatInputToolbar', () => {
 			issue: {
 				label: issueEntry?.label,
 				badge: issueEntry?.badge,
+				leading: issueEntry?.badgeBeforeLabel,
 				rowClassName: issueEntry?.className,
 				pillHoverContentOwnsPadding: isManagedHoverTooltipHTMLElement(issueEntry?.pillHover) ? issueEntry.pillHover.contentOwnsPadding : undefined,
 				className: issueHover?.className,
@@ -675,9 +725,10 @@ suite('SessionChatInputToolbar', () => {
 			pullRequest: {
 				label: 'Restore rich pill hovers',
 				badge: '#332982',
-				rowClassName: 'chat-pill-github-reference',
+				leading: true,
+				rowClassName: 'chat-pill-reference',
 				pillHoverContentOwnsPadding: true,
-				className: 'sessions-pr-hover',
+				className: 'chat-pill-hover-content sessions-pr-hover',
 				contentOrder: [
 					'sessions-pr-hover-header',
 					'sessions-pr-hover-title',
@@ -689,7 +740,7 @@ suite('SessionChatInputToolbar', () => {
 				provenanceOrder: ['sessions-pr-hover-repository', 'sessions-pr-hover-date'],
 				titleOrder: ['#text', 'sessions-pr-hover-title-tail'],
 				titleTailOrder: ['#text', 'sessions-pr-hover-reference'],
-				dropdownClassName: 'sessions-pr-hover compact',
+				dropdownClassName: 'chat-pill-hover-content sessions-pr-hover compact',
 				dropdownMatchesStandaloneContent: true,
 				dropdownExpandable: true,
 				dropdownIndicator: false,
@@ -715,7 +766,7 @@ suite('SessionChatInputToolbar', () => {
 				],
 				unresolvedLabel: 'Recorded pull request title',
 				unresolvedBadge: '#332982',
-				unresolvedRowClassName: 'chat-pill-github-reference',
+				unresolvedRowClassName: 'chat-pill-reference',
 				unresolvedAriaLabel: 'Open Pull Request #332982: Recorded pull request title',
 				unresolvedTooltip: 'Pull Request #332982: Recorded pull request title\nhttps://github.com/microsoft/vscode/pull/332982',
 				unresolvedHover: undefined,
@@ -724,9 +775,10 @@ suite('SessionChatInputToolbar', () => {
 			issue: {
 				label: 'Rich issue hover',
 				badge: '#42',
-				rowClassName: 'chat-pill-github-reference',
+				leading: true,
+				rowClassName: 'chat-pill-reference',
 				pillHoverContentOwnsPadding: true,
-				className: 'sessions-issue-hover',
+				className: 'chat-pill-hover-content sessions-issue-hover',
 				contentOrder: [
 					'sessions-issue-hover-header',
 					'sessions-issue-hover-title',
@@ -737,7 +789,7 @@ suite('SessionChatInputToolbar', () => {
 				provenanceOrder: ['sessions-issue-hover-repository', 'sessions-issue-hover-date'],
 				titleOrder: ['#text', 'sessions-issue-hover-title-tail'],
 				titleTailOrder: ['#text', 'sessions-issue-hover-reference'],
-				dropdownClassName: 'sessions-issue-hover compact',
+				dropdownClassName: 'chat-pill-hover-content sessions-issue-hover compact',
 				dropdownMatchesStandaloneContent: true,
 				dropdownPreservedOnRefresh: true,
 				dropdownUpdatedOnRefresh: true,
@@ -759,7 +811,7 @@ suite('SessionChatInputToolbar', () => {
 				author: '@octocat opened this issue',
 				unresolvedLabel: 'Recorded issue title',
 				unresolvedBadge: '#42',
-				unresolvedRowClassName: 'chat-pill-github-reference',
+				unresolvedRowClassName: 'chat-pill-reference',
 				unresolvedAriaLabel: 'Open Issue #42: Recorded issue title',
 				unresolvedTooltip: 'Issue #42: Recorded issue title\nhttps://github.com/microsoft/vscode/issues/42',
 				unresolvedHover: undefined,
@@ -795,9 +847,46 @@ suite('SessionChatInputToolbar', () => {
 		});
 	});
 
+	test('updates a connected dedicated issue status without replacing its title or controls', () => {
+		const cache = store.add(new ChatPillHoverCache());
+		const ref: IGitHubIssueRef = { owner: 'microsoft', repo: 'vscode', number: 1, uri: URI.parse('https://github.com/microsoft/vscode/issues/1') };
+		const issue: IGitHubIssue = {
+			number: 1, title: 'Original title', body: '', state: GitHubIssueState.Open,
+			stateReason: undefined, author: { login: 'author', avatarUrl: '' }, createdAt: '', updatedAt: '', closedAt: undefined,
+		};
+		const build = (updatedIssue: IGitHubIssue) => buildSessionIssueSections(
+			[{ ref, issue: updatedIssue }], undefined,
+			upcastPartial<ICommandService>({ executeCommand: async () => undefined }),
+			upcastPartial<IClipboardService>({ writeText: async () => { } }),
+			upcastPartial<IOpenerService>({ open: async () => true }),
+			upcastPartial<ISessionsService>({ setActive: () => { } }), undefined, cache,
+		)[0].entries[0].hover!;
+		const first = build(issue);
+		const content = first.content;
+		assert.ok(typeof content === 'function');
+		const element = content();
+		assert.ok(element instanceof HTMLElement);
+		mainWindow.document.body.appendChild(element);
+		store.add(toDisposable(() => element.remove()));
+		const control = first.getTabbableElements?.()[1]!;
+		control.focus();
+		const refreshed = build({ ...issue, title: 'Renamed title', state: GitHubIssueState.Closed, stateReason: GitHubIssueStateReason.Completed });
+		assert.deepStrictEqual({
+			sameDescriptor: first === refreshed,
+			sameControl: refreshed.getTabbableElements?.()[1] === control,
+			focusPreserved: mainWindow.document.activeElement === control,
+			title: element.querySelector('.sessions-issue-hover-title')?.getAttribute('title'),
+			status: element.querySelector('.sessions-issue-hover-status-label')?.textContent,
+			statusKind: element.querySelector<HTMLElement>('.sessions-issue-hover-status')?.dataset.state,
+		}, {
+			sameDescriptor: true, sameControl: true, focusPreserved: true,
+			title: 'Original title', status: 'Closed', statusKind: 'closed',
+		});
+	});
+
 	test('does not update the managed PR hover during metadata or reference identity refreshes', async () => {
 		const { instantiationService } = createServices();
-		const cache = store.add(new GitHubResourceHoverCache());
+		const cache = store.add(new ChatPillHoverCache());
 		const ref: IGitHubPullRequestRef = {
 			owner: 'microsoft', repo: 'vscode', number: 1,
 			uri: URI.parse('https://github.com/microsoft/vscode/pull/1'), recordedReferenceId: 'pr-artifact',
@@ -1007,6 +1096,7 @@ suite('SessionChatInputToolbar', () => {
 			origin: { kind: ChatOriginKind.Fork, parentChat: chat.resource },
 		});
 		const session = upcastPartial<IActiveSession>({
+			loading: constObservable(false),
 			sessionId: 'provider:session',
 			capabilities: constObservable({ supportsMultipleChats: true }),
 			resource: URI.parse('session:1'),
@@ -1080,6 +1170,7 @@ suite('SessionChatInputToolbar', () => {
 		}));
 		const chats = observableValue<readonly IChat[]>('chats', [chat, subagents[0]]);
 		const session = upcastPartial<IActiveSession>({
+			loading: constObservable(false),
 			sessionId: 'provider:session',
 			resource: URI.parse('session:1'),
 			capabilities: constObservable({ supportsMultipleChats: true }),
@@ -1169,6 +1260,7 @@ suite('SessionChatInputToolbar', () => {
 			changesets: constObservable([]),
 		});
 		const session = upcastPartial<IActiveSession>({
+			loading: constObservable(false),
 			providerId: 'local-agent-host',
 			sessionId: 'local-agent-host:session',
 			resource: URI.parse('agent-host-session:/session'),
@@ -1268,6 +1360,7 @@ suite('SessionChatInputToolbar', () => {
 					origin: { kind: ChatOriginKind.Tool, parentChat: chat.resource },
 				}));
 				const session = upcastPartial<IActiveSession>({
+					loading: constObservable(false),
 					sessionId: 'provider:session',
 					capabilities: constObservable({ supportsMultipleChats: true }),
 					resource: URI.parse('session:1'),
@@ -1532,9 +1625,9 @@ suite('SessionChatInputToolbar', () => {
 		}, {
 			entries: [
 				{ id: 'comment-1', label: 'Live issue title', description: 'Closed. https://github.com/microsoft/vscode/issues/42', removable: true },
-				{ id: 'https://github.com/microsoft/vscode/issues/43', label: 'Issue #43', description: 'https://github.com/microsoft/vscode/issues/43', removable: false },
-				{ id: 'https://github.com/microsoft/other/issues/42', label: 'Issue #42', description: 'https://github.com/microsoft/other/issues/42', removable: false },
-				{ id: 'https://github.com/other/vscode/issues/42', label: 'Issue #42', description: 'https://github.com/other/vscode/issues/42', removable: false },
+				{ id: 'https://github.com/microsoft/vscode/issues/43', label: 'Issue', description: 'https://github.com/microsoft/vscode/issues/43', removable: false },
+				{ id: 'https://github.com/microsoft/other/issues/42', label: 'Issue', description: 'https://github.com/microsoft/other/issues/42', removable: false },
+				{ id: 'https://github.com/other/vscode/issues/42', label: 'Issue', description: 'https://github.com/other/vscode/issues/42', removable: false },
 			],
 			removed: [['comment-1', 'comment-2', 'issue']],
 			copied: [uri.toString(true)],
@@ -1552,6 +1645,7 @@ suite('SessionChatInputToolbar', () => {
 		]);
 		const chat = upcastPartial<IChat>({ resource: URI.parse('chat:main'), title: constObservable('Chat'), status: constObservable(SessionStatus.Completed) });
 		const session = upcastPartial<IActiveSession>({
+			loading: constObservable(false),
 			sessionId: 'quick-chat', resource: URI.parse('session:quick-chat'), artifacts,
 			capabilities: constObservable({ supportsMultipleChats: false }),
 			chats: constObservable([chat]),
@@ -1598,6 +1692,7 @@ suite('SessionChatInputToolbar', () => {
 		})));
 		const chat = upcastPartial<IChat>({ resource: URI.parse('chat:main'), title: constObservable('Chat'), status: constObservable(SessionStatus.Completed) });
 		const session = upcastPartial<IActiveSession>({
+			loading: constObservable(false),
 			sessionId: 'quick-chat', resource: URI.parse('session:quick-chat'), artifacts,
 			capabilities: constObservable({ supportsMultipleChats: false, supportsRemoveArtifacts: true }),
 			chats: constObservable([chat]),
@@ -1669,6 +1764,7 @@ suite('SessionChatInputToolbar', () => {
 				}]);
 				const chat = upcastPartial<IChat>({ resource: URI.parse('chat:main'), title: constObservable('Chat'), status: constObservable(SessionStatus.Completed) });
 				const session = upcastPartial<IActiveSession>({
+					loading: constObservable(false),
 					sessionId: 'quick-chat', resource: URI.parse('session:quick-chat'), artifacts,
 					capabilities: constObservable({ supportsMultipleChats: false, supportsRemoveArtifacts: true }),
 					chats: constObservable([chat]),
@@ -1796,6 +1892,7 @@ suite('SessionChatInputToolbar', () => {
 			const main = chat('main');
 			const peer = chat('peer');
 			const session = upcastPartial<IActiveSession>({
+				loading: constObservable(false),
 				providerId, sessionId: 'pr-session', resource: URI.parse('custom-session://host/pr-session'), workspace,
 				artifacts: constObservable([{
 					id: 'selected-pr', chat: main.resource, kind: SessionArtifactKind.PullRequest, label: '', isArtifact: true, isGitHub: true, link: selected.uri,
@@ -1855,6 +1952,7 @@ suite('SessionChatInputToolbar', () => {
 				id: 'peer-pr', chat: peer.resource, kind: SessionArtifactKind.PullRequest, label: 'Peer PR', isArtifact: true, isGitHub: true, link: ref.uri,
 			}]);
 			const session = upcastPartial<IActiveSession>({
+				loading: constObservable(false),
 				providerId, sessionId: 'shared', resource: URI.parse('custom-session://host/shared'), workspace, artifacts,
 				mainChat: constObservable(main), chats: constObservable([main, peer]),
 				capabilities: constObservable({ supportsMultipleChats: true }),
@@ -1904,6 +2002,7 @@ suite('SessionChatInputToolbar', () => {
 		const gitHubInfo = observableValue('gitHubInfo', { owner: ref.owner, repo: ref.repo, pullRequests: [ref] });
 		const chat = upcastPartial<IChat>({ resource: URI.parse('chat:main'), title: constObservable('Chat'), status: constObservable(SessionStatus.Completed) });
 		const session = upcastPartial<IActiveSession>({
+			loading: constObservable(false),
 			sessionId: 'owning-session', resource: URI.parse('session:owning'), artifacts, capabilities,
 			chats: constObservable([chat]),
 			workspace: constObservable(upcastPartial<ISessionWorkspace>({
@@ -2006,6 +2105,7 @@ suite('SessionChatInputToolbar', () => {
 			model: upcastPartial<BrowserEditorInput['model']>({ owner: { type: 'agent', sessionId: chat.resource.toString() } }),
 		});
 		const session = upcastPartial<IActiveSession>({
+			loading: constObservable(false),
 			sessionId: 'owning-session', resource: URI.parse('session:owning'), artifacts,
 			capabilities: constObservable({ supportsMultipleChats: false, supportsRemoveArtifacts: true }),
 			chats: constObservable([chat]),

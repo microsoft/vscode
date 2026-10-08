@@ -547,16 +547,32 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	 * The environment on the returned session is the real VM, not the sentinel.
 	 */
 	async createSession(request: ICloudSandboxCreateSessionRequest, token: CancellationToken): Promise<ICloudSandboxCreatedSession> {
+		const startedAt = Date.now();
+		try {
+			const created = await this._createSession(request, token);
+			this._telemetry.reportProvisioningOutcome(token.isCancellationRequested ? 'cancelled' : 'success', Math.max(0, Date.now() - startedAt));
+			return created;
+		} catch (error) {
+			this._telemetry.reportProvisioningOutcome(isCancellationError(error) || token.isCancellationRequested ? 'cancelled' : 'failure', Math.max(0, Date.now() - startedAt));
+			throw error;
+		}
+	}
+
+	private async _createSession(request: ICloudSandboxCreateSessionRequest, token: CancellationToken): Promise<ICloudSandboxCreatedSession> {
 		const repository = parseNwo(request.repoNwo);
+		if (request.repoNwo !== undefined && !repository) {
+			throw new Error(localize('cloudSandbox.invalidRepository', "The sandbox repository must be specified as owner/name."));
+		}
 		const context = await this._request(`${this._tasksBaseUrl()}/tasks`, 'mc.taskClient.create', 'createTask', {
 			'Accept': 'application/json',
 			'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
-		}, token, CREATE_TIMEOUT_MS, {
+		}, token, CREATE_TIMEOUT_MS, session => ({
 			environment_id: CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID,
 			// Persisted for display, so replayed history shows the prompt no run was started for.
 			prompt: request.prompt,
-			...(repository && { repositories: [repository] }),
-		});
+			// Without a repository, the GitHub account login identifies the sandbox owner.
+			...(repository ? { repositories: [repository] } : { compute: { scope: session.account.label } }),
+		}));
 		if (!isSuccess(context)) {
 			// Read once: the body carries both the id to clean up and the failure message.
 			const failureBody = await asText(context).catch(() => '') ?? '';
@@ -808,12 +824,13 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		}
 	}
 
-	private async _request(url: string, callSite: string, action: CloudSandboxRequestAction, headers: Record<string, string>, token: CancellationToken, timeoutMs: number = REQUEST_TIMEOUT_MS, body?: unknown, method?: 'GET' | 'POST' | 'DELETE' | 'PATCH', onRequest?: ICloudSandboxConnectionRequest['onRequest']): Promise<IRequestContext> {
-		const accessToken = (await this._resolveGitHubSession())?.accessToken;
-		if (!accessToken) {
+	private async _request(url: string, callSite: string, action: CloudSandboxRequestAction, headers: Record<string, string>, token: CancellationToken, timeoutMs: number = REQUEST_TIMEOUT_MS, body?: Record<string, unknown> | ((session: AuthenticationSession) => Record<string, unknown>), method?: 'GET' | 'POST' | 'DELETE' | 'PATCH', onRequest?: ICloudSandboxConnectionRequest['onRequest']): Promise<IRequestContext> {
+		const session = await this._resolveGitHubSession();
+		if (!session?.accessToken) {
 			// No request is issued, so there is no request outcome to count.
 			throw new CloudSandboxAuthenticationRequiredError();
 		}
+		const accessToken = session.accessToken;
 		const started = Date.now();
 		const requestMethod = method ?? (body === undefined ? 'GET' : 'POST');
 		try {
@@ -830,7 +847,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 					...(body === undefined ? undefined : { ['Content-Type']: 'application/json' }),
 					['Authorization']: `Bearer ${accessToken}`
 				},
-				...(body === undefined ? undefined : { data: JSON.stringify(body) }),
+				...(body === undefined ? undefined : { data: JSON.stringify(typeof body === 'function' ? body(session) : body) }),
 				timeout: timeoutMs,
 				callSite,
 			}, token);
