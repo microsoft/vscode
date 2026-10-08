@@ -144,16 +144,18 @@ suite('Continue in Copilot policy recovery', () => {
 				services.stub(ILanguageModelToolsService, {});
 				services.stub(IProgressService, { withProgress: (_options, task) => task({ report: () => { } }) });
 				services.stub(IEditorGroupsService, { groups: [] });
-				services.stub(IEditorService, { openEditor: async input => {
-					if (hasKey(input, { resource: true }) && URI.isUri(input.resource)) {
-						open(input.resource);
+				services.stub(IEditorService, {
+					openEditor: async input => {
+						if (hasKey(input, { resource: true }) && URI.isUri(input.resource)) {
+							open(input.resource);
+						}
+						openStarted.complete();
+						if (scenario === 'double-click') {
+							await opening.p;
+						}
+						return undefined;
 					}
-					openStarted.complete();
-					if (scenario === 'double-click') {
-						await opening.p;
-					}
-					return undefined;
-				} });
+				});
 				const views = mockObject<IViewsService>()();
 				views.openView.resolves(upcastPartial<ChatViewPane>({
 					loadSession: async resource => {
