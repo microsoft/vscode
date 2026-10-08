@@ -32,6 +32,10 @@ export class AgentHostInitialSessionConfig extends Disposable {
 
 	get value(): ResolveSessionConfigResult | undefined { return this._value; }
 
+	isPending(sessionResource: URI, resolution: IAgentHostSessionResolution): boolean {
+		return this._value === undefined && this.isCurrent(sessionResource, resolution);
+	}
+
 	isCurrent(sessionResource: URI, resolution: IAgentHostSessionResolution): boolean {
 		const request = this._request;
 		return !!request && isEqual(request.sessionResource, sessionResource)

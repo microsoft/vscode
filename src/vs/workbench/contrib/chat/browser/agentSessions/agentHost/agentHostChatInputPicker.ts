@@ -447,9 +447,17 @@ export class AgentHostChatInputPicker extends Disposable {
 		this._register(this._widget.onDidChangeViewModel(() => {
 			this._reattach();
 		}));
+		this._register(this._agentHostService.onAgentHostExit(() => {
+			this._initialResolved = undefined;
+			this._cancelInitialResolve();
+		}));
 		this._register(this._agentHostService.onAgentHostStart(() => {
 			const sessionResource = this._widget.viewModel?.sessionResource;
 			if (sessionResource && isUntitledChatSession(sessionResource) && getLocalAgentHostSessionProvider(sessionResource)) {
+				const resolution = resolveAgentHostChatSession(sessionResource, this._provisional.get(sessionResource), this._connectionsService);
+				if (resolution && this._initialConfig.isPending(sessionResource, resolution)) {
+					return;
+				}
 				this._initialResolved = undefined;
 				this._cancelInitialResolve();
 				this._reattach();

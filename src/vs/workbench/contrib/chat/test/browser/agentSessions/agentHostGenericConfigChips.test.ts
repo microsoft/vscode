@@ -70,9 +70,10 @@ suite('AgentHostGenericConfigChips', () => {
 		const requests: Parameters<IAgentHostService['resolveSessionConfig']>[0][] = [];
 		const answers: DeferredPromise<ResolveSessionConfigResult>[] = [];
 		const restarted = disposables.add(new Emitter<void>());
+		const exited = disposables.add(new Emitter<number>());
 		const agentHost = new class extends mock<IAgentHostService>() {
 			override readonly onAgentHostStart = restarted.event;
-			override readonly onAgentHostExit = Event.None;
+			override readonly onAgentHostExit = exited.event;
 			override readonly onDidNotification = Event.None;
 			override readonly resourceUris = identityAgentHostResourceUriMapper;
 			override resolveSessionConfig(request: Parameters<IAgentHostService['resolveSessionConfig']>[0]): Promise<ResolveSessionConfigResult> {
@@ -124,10 +125,42 @@ suite('AgentHostGenericConfigChips', () => {
 		const chips = disposables.add(generic
 			? instantiation.createInstance(AgentHostGenericConfigChips, widget)
 			: instantiation.createInstance(AgentHostChatInputPicker, widget, 'mode'));
-		return { chips, connections, requests, answers, sessionResource, restarted, changed };
+		return { chips, connections, requests, answers, sessionResource, restarted, exited, changed };
 	}
 
 	for (const generic of [false, true]) {
+		test(`${generic ? 'generic' : 'dedicated'} chips preserve a pending cold-start read and refresh a settled value on restart`, async () => {
+			const rig = createUntitledChips(generic);
+			await timeout(0);
+			rig.restarted.fire();
+			await timeout(0);
+			const afterInitialStart = rig.requests.length;
+			await rig.answers[0].complete({ schema: { type: 'object', properties: {} }, values: { mode: 'interactive' } });
+			await timeout(0);
+			rig.restarted.fire();
+			await timeout(0);
+			const afterRestart = rig.requests.length;
+			await rig.answers.at(-1)?.complete({ schema: { type: 'object', properties: {} }, values: { mode: 'plan' } });
+			await timeout(0);
+			rig.connections.registerSessionResource(URI.parse('ahp-session:/restored-after-start'), AMBIENT_AGENT_HOST_AUTHORITY, 'copilotcli');
+			await timeout(0);
+			assert.deepStrictEqual({ afterInitialStart, afterRestart, afterRestoration: rig.requests.length }, {
+				afterInitialStart: 1, afterRestart: 2, afterRestoration: 2,
+			});
+		});
+
+		test(`${generic ? 'generic' : 'dedicated'} chips invalidate a pending read when the host exits before restarting`, async () => {
+			const rig = createUntitledChips(generic);
+			await timeout(0);
+			rig.exited.fire(0);
+			rig.restarted.fire();
+			await timeout(0);
+			await rig.answers[0].complete({ schema: { type: 'object', properties: {} }, values: { mode: 'stale' } });
+			await rig.answers[1].complete({ schema: { type: 'object', properties: {} }, values: { mode: 'plan' } });
+			await timeout(0);
+			assert.deepStrictEqual(rig.requests.map(request => request.provider), ['copilotcli', 'copilotcli']);
+		});
+
 		test(`${generic ? 'generic' : 'dedicated'} chips ignore 1780 unrelated restored identities and share pending reads`, async () => {
 			const rig = createUntitledChips(generic);
 			await timeout(0);
@@ -250,6 +283,7 @@ suite('AgentHostGenericConfigChips', () => {
 			declare readonly _serviceBrand: undefined;
 			override readonly onDidNotification = Event.None;
 			override readonly onAgentHostStart = Event.None;
+			override readonly onAgentHostExit = Event.None;
 
 			override getSubscription<T extends StateComponents>(_kind: T, resource: URI, _owner: string): IReference<IAgentSubscription<ComponentToState[T]>> {
 				acquired.push(resource.toString());
