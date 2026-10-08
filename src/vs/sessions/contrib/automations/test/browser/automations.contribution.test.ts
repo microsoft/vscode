@@ -13,6 +13,7 @@ import '../../browser/automations.contribution.js';
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 const automationEnabledProperty = configurationRegistry.getConfigurationProperties()[CHAT_AUTOMATIONS_ENABLED_SETTING];
+const cloudAutomationEnabledProperty = configurationRegistry.getConfigurationProperties()[CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING];
 
 suite('Automations Contribution', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -31,7 +32,7 @@ suite('Automations Contribution', () => {
 	});
 
 	test('cloud gate defaults off with machine scope and automatic config treatment', () => {
-		const property = configurationRegistry.getConfigurationProperties()[CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING];
+		const property = cloudAutomationEnabledProperty;
 		assert.deepStrictEqual({ id: CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, default: property.default, scope: property.scope, tags: property.tags, experiment: property.experiment },
 			{ id: 'chat.automations.cloud.enabled', default: false, scope: ConfigurationScope.MACHINE, tags: ['experimental', 'advanced', 'onExP'], experiment: { mode: 'auto' } });
 	});
