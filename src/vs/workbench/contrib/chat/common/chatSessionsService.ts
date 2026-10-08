@@ -17,10 +17,11 @@ import { createDecorator, ServicesAccessor } from '../../../../platform/instanti
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from './participants/chatAgents.js';
+import { IChatRequestVariableEntry } from './attachments/chatVariableEntries.js';
 import { IChatEditingSession } from './editing/chatEditingService.js';
 import { ChatRequestSource, IChatRequestModeInstructions, IChatRequestVariableData, ISerializableChatModelInputState } from './model/chatModel.js';
 import { IChatRequestOrigin } from './chatRequestOrigin.js';
-import { IChatProgress, IChatResponseErrorDetails, IChatSessionTiming } from './chatService/chatService.js';
+import { IChatProgress, IChatResponseErrorDetails, IChatSendRequestOptions, IChatSessionTiming } from './chatService/chatService.js';
 import { ChatAgentLocation } from './constants.js';
 import { Target } from './promptSyntax/promptTypes.js';
 import type { ICanvasContext } from '../../canvases/common/canvas.js';
@@ -460,8 +461,90 @@ export function getAgentHostProviderForTelemetry(sessionType: string | undefined
  */
 export const localChatSessionType = SessionType.Local;
 
+/**
+ * Provider-neutral intent for the first user message in a forked session.
+ *
+ * The session provider translates this into its own transport message only
+ * after it has performed its normal client-side message preparation.
+ */
+export interface IChatSessionInitialMessage {
+	readonly text: string;
+	/**
+	 * The original input offset at which {@link text} starts. Providers use it
+	 * solely to rebase attachment text-reference ranges after a command prefix
+	 * has been removed; it never changes resource-selection coordinates.
+	 */
+	readonly textOffset?: number;
+	/**
+	 * Context captured from the source composer before navigation or reset.
+	 * Model and agent selection deliberately do not live here: providers inherit
+	 * those from the source conversation's actual turns.
+	 */
+	readonly requestOptions?: Pick<IChatSendRequestOptions, 'attachedContext' | 'resolvedVariables'>;
+}
+
+/**
+ * Returns the composer variables that belong to an initial fork message.
+ * Text references are rebased after the fork command prefix is removed; resource
+ * selections have no text coordinate and are retained.
+ */
+export function getChatSessionInitialMessageVariables(intent: IChatSessionInitialMessage): IChatRequestVariableEntry[] {
+	const entries = [...(intent.requestOptions?.attachedContext ?? []), ...(intent.requestOptions?.resolvedVariables ?? [])];
+	const seenEntryIds = new Set<string>();
+	const variables = entries.filter(entry => {
+		if (seenEntryIds.has(entry.id)) {
+			return false;
+		}
+		seenEntryIds.add(entry.id);
+		return true;
+	});
+	const offset = intent.textOffset ?? 0;
+	if (offset === 0) {
+		return variables;
+	}
+	return variables.map(variable => {
+		const range = variable.range;
+		// A reference wholly in the removed command prefix has no equivalent
+		// position in the prompt. Keep its resource/selection attachment, but
+		// omit the textual reference rather than emitting invalid offsets.
+		if (!range || range.start < offset || range.endExclusive > offset + intent.text.length) {
+			return range ? { ...variable, range: undefined } : variable;
+		}
+		return {
+			...variable,
+			range: {
+				start: range.start - offset,
+				endExclusive: range.endExclusive - offset,
+			},
+		};
+	});
+}
+
 export interface IChatSessionForkOptions {
 	readonly title?: string;
+	readonly initialMessage?: IChatSessionInitialMessage;
+	/**
+	 * Exact last source turn to include, overriding the request-item's exclusive boundary.
+	 * Providers must preserve this selection while the operation is being prepared.
+	 */
+	readonly sourceRequestId?: string;
+}
+
+/**
+ * A provider-neutral fork failure with the client resource selected before the
+ * create request was issued. `rejected` proves that the target chat exists and
+ * its initial message was not accepted; `unknown` deliberately makes no such
+ * claim and must never be retried automatically.
+ */
+export class ChatSessionForkError extends Error {
+	constructor(
+		readonly kind: 'rejected' | 'unknown',
+		readonly target: URI,
+		override readonly cause: unknown,
+	) {
+		super(cause instanceof Error ? cause.message : String(cause));
+		this.name = 'ChatSessionForkError';
+	}
 }
 
 export interface IChatSession extends IDisposable {
@@ -528,6 +611,13 @@ export interface IChatSession extends IDisposable {
 	 * @returns The forked session item. The promise is rejected if forking fails.
 	 */
 	forkSession?: (request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken, options?: IChatSessionForkOptions) => Promise<IChatSessionItem>;
+	/**
+	 * Whether the currently connected provider supports the composed,
+	 * host-owned fork-and-initial-message operation. This is deliberately a
+	 * getter so callers consult the current connection descriptor rather than
+	 * caching capability state.
+	 */
+	supportsForkWithInitialMessage?: () => boolean;
 
 	/**
 	 * Renames the session.

@@ -38,6 +38,17 @@ A reproducible sync from `6eec1b91` must also retain the existing VS Code-only
 compatibility deltas: deprecated `SessionChatSummary.archived` and
 `ChatIsReadChanged` introduced in `0.10.0`.
 
+### Initial-message transport delta
+
+The pinned generated protocol includes `CreateChatParams.initialMessage` and
+the associated `InitialMessageRejected` typed error data. Host-facing
+`IAgentCreateChatRequestOptions.initialMessage` is deliberately not part of
+provider creation options: the host creates the provider chat first, then
+processes the message through its normal client-aware admission path. Protocol
+clients serialize a supplied initial message unchanged except that a missing
+message `model` or `agent` inherits the corresponding request option. Do not
+add top-level `model` or `agent` fields to `CreateChatParams`.
+
 ## Adding optional fields to existing types
 
 Optional protocol fields are usually backwards-compatible. Add the field in the source protocol repo, sync `protocol/**`, and add wrapper exports only when VS Code code needs them.

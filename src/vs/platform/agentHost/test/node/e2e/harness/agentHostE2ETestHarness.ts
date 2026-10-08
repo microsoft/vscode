@@ -403,6 +403,11 @@ export interface IAgentHostE2EProviderConfig {
 	readonly supportsMultipleChats: boolean;
 	/** Whether peer chats can be created with an explicit initial title. */
 	readonly supportsInitialTitle: boolean;
+	/**
+	 * Whether a fork can atomically accept its first user message through the
+	 * host-owned create-chat operation.
+	 */
+	readonly supportsForkWithInitialMessage?: boolean;
 	/** Whether model-backed multiple-chat parity scenarios have deterministic fixtures. */
 	readonly supportsMultipleChatsE2E?: boolean;
 	readonly supportsChatFork: boolean;

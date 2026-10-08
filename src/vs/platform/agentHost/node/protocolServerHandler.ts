@@ -1832,14 +1832,15 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			const defaultChat = state.defaultChat ?? buildDefaultChatUri(params.channel);
 			// The default chat is created alongside its session; creating it
 			// again is a no-op. Any other chat URI spins up an additional chat.
-			if (URI.parse(params.chat).toString() === URI.parse(defaultChat).toString()) {
+			if (URI.parse(params.chat).toString() === URI.parse(defaultChat).toString() && params.initialMessage === undefined) {
 				return null;
 			}
 			const source = params.source;
-			let options: IAgentCreateChatRequestOptions | undefined = params.title !== undefined || params.workingDirectories !== undefined
+			let options: IAgentCreateChatRequestOptions | undefined = params.title !== undefined || params.workingDirectories !== undefined || params.initialMessage !== undefined
 				? {
 					...(params.title !== undefined ? { title: params.title } : {}),
 					...(params.workingDirectories !== undefined ? { workingDirectories: params.workingDirectories.map(directory => URI.parse(directory)) } : {}),
+					...(params.initialMessage !== undefined ? { initialMessage: params.initialMessage } : {}),
 				}
 				: undefined;
 			if (source) {
@@ -1847,6 +1848,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					case ChatSourceKind.Fork:
 						options = {
 							...(params.title !== undefined ? { title: params.title } : {}),
+							...(params.initialMessage !== undefined ? { initialMessage: params.initialMessage } : {}),
 							fork: { source: URI.parse(source.chat), turnId: source.turnId },
 						};
 						break;
@@ -1868,6 +1870,13 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				URI.parse(params.channel),
 				URI.parse(params.chat),
 				options,
+				params.initialMessage === undefined
+					? undefined
+					: {
+						clientId: _client.clientId,
+						telemetryContext: _client.telemetryContext,
+						capabilityBackedFork: source?.kind === ChatSourceKind.Fork,
+					},
 			);
 			return null;
 		},

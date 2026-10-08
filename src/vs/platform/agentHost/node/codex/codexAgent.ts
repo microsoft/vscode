@@ -4275,7 +4275,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			displayName: localize('codexAgent.displayName', "Codex"),
 			description: localize('codexAgent.description', "Codex agent using session-selected model providers"),
 			capabilities: {
-				multipleChats: { fork: true, sideChat: true, initialTitle: true },
+				multipleChats: { fork: true, sideChat: true, initialTitle: true, forkWithInitialMessage: true },
 				...(this._isMultiRootEnabled() ? { multipleWorkingDirectories: { immutablePrimary: true } } : {}),
 			},
 		};

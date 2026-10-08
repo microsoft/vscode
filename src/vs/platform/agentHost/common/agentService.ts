@@ -87,6 +87,18 @@ export interface IAgentHostIpcConnectionOptions {
 /** Configuration key that controls whether AHP JSONL logs are written for agent host transports. */
 export const AgentHostAhpJsonlLoggingSettingId = 'chat.agentHost.ahpJsonlLoggingEnabled';
 
+/**
+ * Trusted connection facts retained by the protocol ingress while it asks the
+ * host to submit a create-chat initial message. This is deliberately not part
+ * of the protocol request or provider creation options.
+ */
+export interface IAgentCreateChatInitialMessageContext {
+	readonly clientId: string;
+	readonly telemetryContext: IAgentHostClientTelemetryContext;
+	/** The caller requested the capability-backed fork-and-message operation. */
+	readonly capabilityBackedFork: boolean;
+}
+
 export type AgentHostDebugLogsArtifactKind = 'archive' | 'directory';
 /** Maximum number of files in one Agent Host debug-log artifact. */
 export const AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES = 1000;
@@ -947,7 +959,7 @@ export interface IAgentService {
 	 * registers the chat in the session's catalog so subscribers observe a
 	 * `session/chatAdded` action. The `chat` URI is the client-chosen channel.
 	 */
-	createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void>;
+	createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions, initialMessageContext?: IAgentCreateChatInitialMessageContext): Promise<void>;
 
 	/** Dispose an additional chat created via {@link createChat}. */
 	disposeChat(session: URI, chat: URI): Promise<void>;
@@ -1335,7 +1347,7 @@ export interface IAgentConnection {
 	 * client-chosen chat URI (see {@link buildChatUri}). The host adds the
 	 * chat to the session's catalog and publishes `session/chatAdded`.
 	 */
-	createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void>;
+	createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions, initialMessageContext?: IAgentCreateChatInitialMessageContext): Promise<void>;
 	/** Dispose an additional chat created via {@link createChat}. */
 	disposeChat(chat: URI): Promise<void>;
 

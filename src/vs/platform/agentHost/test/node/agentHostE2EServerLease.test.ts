@@ -41,6 +41,7 @@ suite('Agent Host E2E server lease diagnostics', () => {
 			supportsSubagents: false,
 			supportsMultipleChats: false,
 			supportsInitialTitle: false,
+			supportsForkWithInitialMessage: false,
 			supportsChatFork: false,
 			supportsChatForkE2E: false,
 		});

@@ -42,6 +42,7 @@ export const CODEX_CONFIG: IAgentHostE2EProviderConfig = {
 	planModeStyle: 'input-request',
 	supportsMultipleChats: true,
 	supportsInitialTitle: true,
+	supportsForkWithInitialMessage: true,
 	supportsMultipleChatsE2E: true,
 	supportsWorkspacelessE2E: true,
 	supportsRuntimeSlashCommandsE2E: true,

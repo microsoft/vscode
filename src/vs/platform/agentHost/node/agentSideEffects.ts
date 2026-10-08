@@ -1968,8 +1968,8 @@ export class AgentSideEffects extends Disposable {
 	 * (`chatChannel` undefined) or peer chat from its inherited chat
 	 * turns, replacing the placeholder `Forked: …` title once ready.
 	 */
-	generateForkedTitle(channel: ProtocolURI, chatChannel: ProtocolURI | undefined, turns: readonly Turn[], fallbackTitle: string, sourceTitle?: string): void {
-		this._titleController.generateForkedTitle(channel, chatChannel, turns, fallbackTitle, sourceTitle);
+	generateForkedTitle(channel: ProtocolURI, chatChannel: ProtocolURI | undefined, turns: readonly Turn[], fallbackTitle: string, sourceTitle?: string, initialPrompt?: string): void {
+		this._titleController.generateForkedTitle(channel, chatChannel, turns, fallbackTitle, sourceTitle, initialPrompt);
 	}
 
 	markTitleAuto(channel: ProtocolURI, chatChannel: ProtocolURI | undefined, title: string): void {

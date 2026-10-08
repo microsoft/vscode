@@ -16,6 +16,8 @@ import { ICommandService } from '../../../../../../platform/commands/common/comm
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
@@ -27,7 +29,7 @@ import { IChatPetService } from '../../../browser/chatPetService.js';
 import { ChatSlashCommandsContribution } from '../../../browser/chatSlashCommands.js';
 import { IChatEditorOptions } from '../../../browser/widgetHosts/editor/chatEditor.js';
 import { IChatModelReference, IChatService } from '../../../common/chatService/chatService.js';
-import { IChatSession, IChatSessionItem, IChatSessionRequestHistoryItem, IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { ChatSessionForkError, getChatSessionInitialMessageVariables, IChatSession, IChatSessionItem, IChatSessionRequestHistoryItem, IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { ChatAgentLocation, SessionTypeSelectionReason } from '../../../common/constants.js';
 import { IChatModel, IChatRequestModel, ISerializableChatData } from '../../../common/model/chatModel.js';
 import { IChatRequestViewModel, IChatViewModel } from '../../../common/model/chatViewModel.js';
@@ -42,6 +44,127 @@ class TestForkConversationAction extends ForkConversationAction {
 
 suite('ForkConversationAction', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('rebases and deduplicates recovered fork prompt variables', () => {
+		const variables = getChatSessionInitialMessageVariables({
+			text: 'prompt',
+			textOffset: 13,
+			requestOptions: {
+				attachedContext: [
+					{ id: 'text', name: 'text', kind: 'generic', value: URI.parse('file:///text'), range: { start: 13, endExclusive: 19 } },
+					{ id: 'prefix', name: 'prefix', kind: 'generic', value: URI.parse('file:///prefix'), range: { start: 2, endExclusive: 7 } },
+				],
+				resolvedVariables: [
+					{ id: 'text', name: 'text', kind: 'generic', value: URI.parse('file:///text'), range: { start: 13, endExclusive: 19 } },
+					{ id: 'image', name: 'image', kind: 'generic', value: URI.parse('file:///image') },
+				],
+			},
+		});
+
+		assert.deepStrictEqual(variables.map(variable => ({ id: variable.id, range: variable.range })), [
+			{ id: 'text', range: { start: 0, endExclusive: 6 } },
+			{ id: 'prefix', range: undefined },
+			{ id: 'image', range: undefined },
+		]);
+	});
+
+	test('retains target identity and original cause for rejected and unknown prompt forks', () => {
+		const target = URI.parse('contributed:/source#fork');
+		const cause = new Error('initial message rejected');
+		const rejected = new ChatSessionForkError('rejected', target, cause);
+		const unknown = new ChatSessionForkError('unknown', target, cause);
+		assert.deepStrictEqual({
+			target: rejected.target,
+			kind: rejected.kind,
+			cause: rejected.cause,
+			unknownKind: unknown.kind,
+			unknownCause: unknown.cause,
+		}, { target, kind: 'rejected', cause, unknownKind: 'unknown', unknownCause: cause });
+	});
+
+	test('offers three fork presentations and preserves prompt syntax and offsets', async () => {
+		let forkCommand: IChatSlashCallback | undefined;
+		let forkData: IChatSlashData | undefined;
+		const commandCalls: { readonly options: unknown }[] = [];
+		const slashCommandService = new class extends mock<IChatSlashCommandService>() {
+			override registerSlashCommand(data: IChatSlashData, callback: IChatSlashCallback) {
+				if (data.command === 'fork') {
+					forkData = data;
+					forkCommand = callback;
+				}
+				return Disposable.None;
+			}
+		}();
+		const commandService = upcastPartial<ICommandService>({
+			executeCommand: async (_commandId: string, _resource: URI, options?: unknown) => {
+				commandCalls.push({ options });
+			},
+		});
+		const configurationService = new TestConfigurationService();
+		disposables.add(new ChatSlashCommandsContribution(
+			slashCommandService, commandService, new class extends mock<IChatAgentService>() { }(),
+			disposables.add(new TestInstantiationService()), new class extends mock<IAgentSessionsService>() { }(),
+			new class extends mock<IChatService>() { }(), configurationService, new class extends mock<IChatWidgetService>() { }(),
+			new class extends mock<IAgentHostService>() { }(), new class extends mock<IAgentHostUntitledProvisionalSessionService>() { }(),
+			new class extends mock<IAgentHostSessionWorkingDirectoryResolver>() { }(), new class extends mock<IWorkspaceContextService>() { }(),
+			new class extends mock<IChatPetService>() { }(), new class extends mock<IWorkbenchEnvironmentService>() { override readonly isSessionsWindow = false; }(),
+			new class extends mock<IAgentHostConnectionsService>() { }(),
+		));
+		assert.deepStrictEqual(forkData?.completionVariants?.map(variant => [variant.label, variant.insertText, variant.argumentHint, variant.executeImmediately]), [
+			['/fork', '', undefined, true],
+			['/fork <title>', '/fork ', 'title', undefined],
+			['/fork prompt <prompt>', '/fork prompt ', 'prompt', undefined],
+		]);
+
+		const resource = URI.parse('agent-host-copilot:/source');
+		assert.ok(forkCommand);
+		await forkCommand('prompt  line one\nline two', { report: () => { } }, [], ChatAgentLocation.Chat, resource, CancellationToken.None, {
+			attachedContext: [],
+		}, { input: '/fork   prompt  line one\nline two' });
+		await forkCommand('prompting title', { report: () => { } }, [], ChatAgentLocation.Chat, resource, CancellationToken.None, undefined, { input: '/fork prompting title' });
+		await forkCommand('prompt   ', { report: () => { } }, [], ChatAgentLocation.Chat, resource, CancellationToken.None, undefined, { input: '/fork prompt   ' });
+		await forkCommand('prompt legacy title', { report: () => { } }, [], ChatAgentLocation.Chat, URI.parse('contributed:/source'), CancellationToken.None, undefined, { input: '/fork prompt legacy title' });
+
+		assert.deepStrictEqual(commandCalls.map(call => call.options), [
+			{ initialMessage: { text: ' line one\nline two', textOffset: 15, requestOptions: { attachedContext: [], resolvedVariables: undefined } } },
+			{ title: 'prompting title' },
+			undefined,
+			{ title: 'prompt legacy title' },
+		]);
+	});
+
+	test('retains the created target when opening an initial-message fork fails', async () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const source = URI.parse('agent-host-copilot:/source');
+		const target = URI.parse('agent-host-copilot:/source#fork');
+		const cause = new Error('Unable to open the new chat');
+		let creations = 0;
+		let openings = 0;
+		instantiationService.stub(IChatService, upcastPartial<IChatService>({}));
+		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({}));
+		instantiationService.stub(INotificationService, new TestNotificationService());
+		instantiationService.stub(IChatSessionsService, upcastPartial<IChatSessionsService>({
+			getContentProviderSchemes: () => [source.scheme],
+			forkChatSession: async () => {
+				creations++;
+				return { resource: target, label: 'Fork', timing: { created: 0, lastRequestStarted: undefined, lastRequestEnded: undefined } };
+			},
+		}));
+		const action = new class extends ForkConversationAction {
+			protected override async _openForkedSession(): Promise<void> {
+				openings++;
+				throw cause;
+			}
+		};
+		await assert.rejects(
+			instantiationService.invokeFunction(accessor => action.run(accessor, source, { initialMessage: { text: 'new prompt' } })),
+			error => {
+				assert.ok(error instanceof ChatSessionForkError);
+				assert.deepStrictEqual({ kind: error.kind, target: error.target, cause: error.cause, creations, openings }, { kind: 'unknown', target, cause, creations: 1, openings: 1 });
+				return true;
+			},
+		);
+	});
 
 	test('trims only the fork slash command title', async () => {
 		let forkCommand: IChatSlashCallback | undefined;
@@ -134,41 +257,52 @@ suite('ForkConversationAction', () => {
 		});
 	});
 
-	test('uses the requested title in contributed pending fork identity', async () => {
-		const instantiationService = disposables.add(new TestInstantiationService());
-		const source = URI.parse('contributed:/source');
-		const calls: (object | undefined)[] = [];
-		const gates: DeferredPromise<IChatSessionItem>[] = [];
-		const started = [new DeferredPromise<void>(), new DeferredPromise<void>()];
-		instantiationService.stub(IChatService, upcastPartial<IChatService>({}));
-		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({}));
-		instantiationService.stub(IChatSessionsService, upcastPartial<IChatSessionsService>({
-			getContentProviderSchemes: () => [source.scheme],
-			sessionSupportsFork: () => true,
-			forkChatSession: async (_resource, _request, _token, options?: object) => {
-				calls.push(options);
-				const gate = new DeferredPromise<IChatSessionItem>();
-				gates.push(gate);
-				started[calls.length - 1].complete();
-				return gate.p;
-			},
-		}));
-		const action = new class extends ForkConversationAction {
-			protected override async _openForkedSession(): Promise<void> { }
-		};
+	const forkIdentityCases: { name: string; first: IForkConversationOptions; second: IForkConversationOptions }[] = [
+		{ name: 'requested title', first: { title: 'First' }, second: { title: 'Second' } },
+		{ name: 'initial prompt', first: { initialMessage: { text: 'First' } }, second: { initialMessage: { text: 'Second' } } },
+		{
+			name: 'initial attachment payload',
+			first: { initialMessage: { text: 'Same prompt', requestOptions: { attachedContext: [{ id: 'context', name: 'context', kind: 'generic', value: 'first payload' }] } } },
+			second: { initialMessage: { text: 'Same prompt', requestOptions: { attachedContext: [{ id: 'context', name: 'context', kind: 'generic', value: 'second payload' }] } } },
+		},
+	];
+	for (const scenario of forkIdentityCases) {
+		test(`uses the ${scenario.name} in contributed pending fork identity`, async () => {
+			const instantiationService = disposables.add(new TestInstantiationService());
+			const source = URI.parse('contributed:/source');
+			const calls: (object | undefined)[] = [];
+			const gates: DeferredPromise<IChatSessionItem>[] = [];
+			const started = [new DeferredPromise<void>(), new DeferredPromise<void>()];
+			instantiationService.stub(IChatService, upcastPartial<IChatService>({}));
+			instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({}));
+			instantiationService.stub(IChatSessionsService, upcastPartial<IChatSessionsService>({
+				getContentProviderSchemes: () => [source.scheme],
+				sessionSupportsFork: () => true,
+				forkChatSession: async (_resource, _request, _token, options?: object) => {
+					calls.push(options);
+					const gate = new DeferredPromise<IChatSessionItem>();
+					gates.push(gate);
+					started[calls.length - 1].complete();
+					return gate.p;
+				},
+			}));
+			const action = new class extends ForkConversationAction {
+				protected override async _openForkedSession(): Promise<void> { }
+			};
 
-		const first = instantiationService.invokeFunction(accessor => action.run(accessor, source, { title: 'First' }));
-		await started[0].p;
-		const second = instantiationService.invokeFunction(accessor => action.run(accessor, source, { title: 'Second' }));
-		await started[1].p;
-		const duplicate = instantiationService.invokeFunction(accessor => action.run(accessor, source, { title: 'First' }));
-		await timeout(0);
-		gates[0].complete({ resource: URI.parse('contributed:/fork-1'), label: 'Fork 1', timing: { created: 0, lastRequestStarted: undefined, lastRequestEnded: undefined } });
-		gates[1].complete({ resource: URI.parse('contributed:/fork-2'), label: 'Fork 2', timing: { created: 0, lastRequestStarted: undefined, lastRequestEnded: undefined } });
-		await Promise.all([first, second, duplicate]);
+			const first = instantiationService.invokeFunction(accessor => action.run(accessor, source, scenario.first));
+			await started[0].p;
+			const second = instantiationService.invokeFunction(accessor => action.run(accessor, source, scenario.second));
+			await started[1].p;
+			const duplicate = instantiationService.invokeFunction(accessor => action.run(accessor, source, scenario.first));
+			await timeout(0);
+			gates[0].complete({ resource: URI.parse('contributed:/fork-1'), label: 'Fork 1', timing: { created: 0, lastRequestStarted: undefined, lastRequestEnded: undefined } });
+			gates[1].complete({ resource: URI.parse('contributed:/fork-2'), label: 'Fork 2', timing: { created: 0, lastRequestStarted: undefined, lastRequestEnded: undefined } });
+			await Promise.all([first, second, duplicate]);
 
-		assert.deepStrictEqual(calls, [{ title: 'First' }, { title: 'Second' }]);
-	});
+			assert.deepStrictEqual(calls, [scenario.first, scenario.second]);
+		});
+	}
 
 	test('opens a fork with the current session selection reason', async () => {
 		const instantiationService = disposables.add(new TestInstantiationService());

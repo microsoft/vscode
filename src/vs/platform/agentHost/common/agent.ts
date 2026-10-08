@@ -768,6 +768,13 @@ export interface IAgentCreateChatOptions {
  */
 export interface IAgentCreateChatRequestOptions extends IAgentCreateChatOptions {
 	/**
+	 * Host-owned first user message submitted after creating the chat. This is
+	 * intentionally excluded from {@link IAgentCreateChatOptions}: providers
+	 * create the chat before the host processes this message through the normal
+	 * client-aware send path.
+	 */
+	readonly initialMessage?: Message;
+	/**
 	 * Create this new chat as a side chat branching from a turn in an existing
 	 * chat (via `/btw`). The host resolves this into {@link fork} before calling
 	 * the provider, while retaining the side-chat provenance itself.

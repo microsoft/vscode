@@ -27,7 +27,7 @@ import { parsePullRequestUrl } from '../../github/common/githubUrls.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentChatMigrationDeferred, AgentProvider, AgentSession, CLAUDE_AGENT_PROVIDER_ID, COPILOT_CLI_AGENT_PROVIDER_ID, AgentSignal, CODEX_AGENT_PROVIDER_ID, IAgent, type IAgentAdoptedWorktree, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDiscoveredChat, IAgentLegacyChat, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, type IAgentSessionChatMetadata, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
-import { type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentService } from '../common/agentService.js';
+import { type AgentHostDebugLogsArtifactKind, type IAgentCreateChatInitialMessageContext, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentService } from '../common/agentService.js';
 import { ISessionDatabase, ISessionDataService, ISessionStorageAccessCounts, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionFlushResult, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush, parseEditAttributionResource } from '../common/fileEditAttribution.js';
 import { getPersistedSessionConfigValues, getSessionPullRequestUrl, omitTransientSessionConfigValues, SessionConfigKey } from '../common/sessionConfigKeys.js';
@@ -42,7 +42,7 @@ import { AHP_CANVAS_SCHEME } from '../common/canvasUri.js';
 import type { AutomationCapabilities } from '../common/state/protocol/common/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../common/state/protocol/channels-automation/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
-import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
+import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { ChangesSummary, ChatInteractivity, ChatOriginKind, MessageAttachmentKind, PendingMessageKind, TerminalClaimKind, TerminalLifecycleStatus, type Annotation, type AnnotationEntry, type AnnotationOrigin, type AnnotationsState, type ChatOrigin, type ChatState, type Customization, type Message, type MessageAttachment, type MessageResourceAttachment, type TerminalState, type TextRange, type ToolResultTerminalContent } from '../common/state/protocol/state.js';
 import type { ChatPendingMessageSetAction, ChatTurnStartedAction, SessionConfigChangedAction } from '../common/state/protocol/actions.js';
 import { isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, readSessionCreationReference, readSessionComparisonMetadata, readSessionSpawnDepth, withSessionSpawnDepth, withSessionCreationReference, parseSessionCreationReference, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, TurnState, AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, chatStorageUri, getErrorResponsePart, isAhpChatChannel, isChatInSessionReadAggregate, isChatReadOnly, isDefaultChatUri, isSessionChatArchived, isSessionStatusArchived, isSessionStatusRead, isSubagentChatUri, isSubagentSession, needsSessionGitStateRefresh, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSessionGitData, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, withSessionExternal, withSessionGitData, withSessionGitHubState, withSessionGitState, withSessionHasWorkspaceTransitions, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless, withSessionEhcliAdopted, withSessionEhcliLastMigratedTurn, AH_META_EHCLI_LAST_TURN_DB_KEY, withSessionFolderPickerDecision, readSessionFolderPickerDecision, parseSessionFolderPickerDecision, SESSION_META_FOLDER_PICKER_KEY, getAllSessionRelatedPullRequestUrls, readSessionEhcliAdoptable, readSessionGitHubData, parseSessionGitHubData, parseSessionGitHubState, readSessionGitHubStateInput, withMigratedSessionGitHubState, withReplacedFolderGitHubState, withMostRecentRelatedSessionPullRequest, SESSION_META_GITHUB_DATA_KEY, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ISessionGitHubState, type ISessionSourceControlState, type ISessionWithDefaultChat, type SessionConfigState, type SessionSummary, type SessionSummaryMeta, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
@@ -5418,7 +5418,7 @@ export class AgentService extends Disposable implements IAgentService {
 		return provider.recoverCustomizationInstallations(session);
 	}
 
-	async createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void> {
+	async createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions, initialMessageContext?: IAgentCreateChatInitialMessageContext): Promise<void> {
 		const sessionKey = session.toString();
 		const initialPrimaryDirectory = this._stateManager.getSessionSummary(sessionKey)?.workingDirectories?.[0];
 		if (this._workspaceConversionService.isPending(this._defaultChatUri(session), true)) {
@@ -5432,9 +5432,6 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!provider) {
 			throw new Error(`[AgentService] createChat: no provider for session ${sessionKey}`);
 		}
-		if (!this._supportsChats(provider)) {
-			throw new Error(`[AgentService] createChat: provider ${provider.id} does not support multiple chats`);
-		}
 		// When forking, resolve the source chat's turns up to the fork point and
 		// mint fresh turn IDs for the new chat. The agent uses the mapping to
 		// remap per-turn data in the forked chat; the seeded turns make
@@ -5442,7 +5439,33 @@ export class AgentService extends Disposable implements IAgentService {
 		let forkedTurns: Turn[] | undefined;
 		let forkedTitle: string | undefined;
 		let forkedSourceTitle: string | undefined;
-		const { sideChat, title: requestedTitle, ...providerOptions } = options ?? {};
+		let persistForkedLocalTurnsAfterDuplicateCheck: (() => void) | undefined;
+		const { sideChat, title: requestedTitle, initialMessage, ...providerOptions } = options ?? {};
+		if (initialMessage && !initialMessageContext) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'An initial chat message requires trusted submitting-client context.');
+		}
+		if (initialMessage && initialMessage.origin?.kind !== MessageKind.User) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'An initial chat message must have user origin.');
+		}
+		// `initialMessage` remains a legacy, ungated protocol field. The
+		// capability only attests the stronger composed-operation guarantees, so
+		// derive those guarantees from the provider that actually owns this chat.
+		const capabilityBackedInitialFork = initialMessageContext?.capabilityBackedFork === true
+			&& initialMessage !== undefined
+			&& providerOptions.fork !== undefined
+			&& provider.getDescriptor().capabilities?.multipleChats?.forkWithInitialMessage === true;
+		if (chat.toString() === this._defaultChatUri(session) && initialMessage && initialMessageContext) {
+			if (capabilityBackedInitialFork) {
+				await this._chatCatalogMutationSequencer.queue(sessionKey, async () => {
+					this._throwIfInitialForkTargetExists(sessionKey, chat);
+				});
+			}
+			await this._acceptInitialMessage(sessionKey, chat, initialMessage, { ...initialMessageContext, capabilityBackedFork: capabilityBackedInitialFork });
+			return;
+		}
+		if (!this._supportsChats(provider)) {
+			throw new Error(`[AgentService] createChat: provider ${provider.id} does not support multiple chats`);
+		}
 		const explicitTitle = requestedTitle?.trim() || undefined;
 		const normalizedProviderOptions: IAgentCreateChatOptions = {
 			...providerOptions,
@@ -5519,8 +5542,15 @@ export class AgentService extends Disposable implements IAgentService {
 
 				// Carry forked host-injected local turns (`/rename`, `!command`)
 				// into the new chat so they survive reload and anchor future
-				// fork/truncate.
-				this._persistForkedLocalTurns(sessionKey, sourceChatKey, chat.toString(), slice, forkedTurns, turnIdMapping);
+				// fork/truncate. A composed fork first reserves its target in the
+				// serialized catalog path, so a rejected repeat cannot rewrite an
+				// existing target's local-turn metadata.
+				const persistForkedLocalTurns = () => this._persistForkedLocalTurns(sessionKey, sourceChatKey, chat.toString(), slice, forkedTurns!, turnIdMapping);
+				if (capabilityBackedInitialFork) {
+					persistForkedLocalTurnsAfterDuplicateCheck = persistForkedLocalTurns;
+				} else {
+					persistForkedLocalTurns();
+				}
 
 				const forkedTitlePrefix = localize('agentHost.forkedTitlePrefix', "Forked: ");
 				forkedSourceTitle = sourceState?.title || this._stateManager.getSessionState(sourceSessionKey)?.title;
@@ -5545,10 +5575,14 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 
 		const createResult = await this._chatCatalogMutationSequencer.queue(sessionKey, async () => {
+			if (capabilityBackedInitialFork) {
+				this._throwIfInitialForkTargetExists(sessionKey, chat);
+			}
 			if (this._workspaceConversionService.isPending(this._defaultChatUri(session), true)
 				|| this._stateManager.getSessionSummary(sessionKey)?.workingDirectories?.[0] !== initialPrimaryDirectory) {
 				throw new Error('The session workspace changed while preparing the new chat. Try creating the chat again.');
 			}
+			persistForkedLocalTurnsAfterDuplicateCheck?.();
 			// Create the backing chat before publishing `session/chatAdded` so
 			// subscribers only see a chat that can already receive messages.
 			const createResult = await this._createChat(provider, chat, session, createOptions);
@@ -5649,13 +5683,53 @@ export class AgentService extends Disposable implements IAgentService {
 		if (createResult?.backingSession) {
 			await this._markChatBacking(createResult.backingSession, chat);
 		}
-
-		// Refine the forked chat's placeholder `Forked: …` title into one
-		// derived from the inherited chat. Forks seed pre-existing
-		// turns, so the normal first-message/first-turn title generation never
-		// fires for them — this is the fork-time equivalent.
+		// A prompt-bearing fork must establish its one strategy-owned title path
+		// before the first new turn is admitted. Explicit titles remain user-owned.
 		if (explicitTitle === undefined && forkedTurns && forkedTurns.length > 0 && forkedTitle !== undefined) {
-			this._sideEffects.generateForkedTitle(sessionKey, chat.toString(), forkedTurns, forkedTitle, forkedSourceTitle);
+			this._sideEffects.generateForkedTitle(
+				sessionKey,
+				chat.toString(),
+				forkedTurns,
+				forkedTitle,
+				forkedSourceTitle,
+				initialMessage?.text,
+			);
+		}
+		if (initialMessage && initialMessageContext) {
+			await this._acceptInitialMessage(sessionKey, chat, initialMessage, { ...initialMessageContext, capabilityBackedFork: capabilityBackedInitialFork });
+		}
+
+	}
+
+	private _throwIfInitialForkTargetExists(session: string, chat: URI): void {
+		const state = this._stateManager.getSessionState(session);
+		const defaultChat = this._defaultChatUri(session);
+		if (chat.toString() === defaultChat || (state !== undefined && this._catalogChatsFromState(state, defaultChat).some(candidate => candidate.uri === chat.toString()))) {
+			throw new ProtocolError(AhpErrorCodes.AlreadyExists, `Chat already exists: ${chat.toString()}`);
+		}
+	}
+
+	private async _acceptInitialMessage(session: string, chat: URI, message: Message, context: IAgentCreateChatInitialMessageContext): Promise<void> {
+		const action: ChatTurnStartedAction = {
+			type: ActionType.ChatTurnStarted,
+			turnId: generateUuid(),
+			startedAt: new Date().toISOString(),
+			message,
+		};
+		try {
+			const rewritten = await this._rewriteUserMessageAttachments(session, action, context.clientId, true);
+			const rejection = this._turnService.startClientTurn(chat, rewritten, context.clientId, context.telemetryContext);
+			if (rejection) {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidRequest, rejection.message, rejection);
+			}
+		} catch (error) {
+			if (!context.capabilityBackedFork) {
+				throw error;
+			}
+			const cause = error instanceof ProtocolError
+				? { code: error.code, message: error.message, ...(error.data === undefined ? {} : { data: error.data }) }
+				: { code: JSON_RPC_INTERNAL_ERROR, message: toErrorMessage(error) };
+			throw new ProtocolError(AhpErrorCodes.InitialMessageRejected, cause.message, { chat: chat.toString(), cause });
 		}
 	}
 
@@ -8478,20 +8552,20 @@ export class AgentService extends Disposable implements IAgentService {
 	 * etc.) the original attachment is preserved so the agent still has a
 	 * chance to make use of it.
 	 */
-	private async _rewriteUserMessageAttachments<T extends ChatTurnStartedAction | ChatPendingMessageSetAction>(channel: string, action: T, clientId: string): Promise<T> {
+	private async _rewriteUserMessageAttachments<T extends ChatTurnStartedAction | ChatPendingMessageSetAction>(channel: string, action: T, clientId: string, throwOnFailure = false): Promise<T> {
 		const attachments = action.message.attachments;
 		if (!attachments?.length) {
 			return action;
 		}
 		const attachmentsRoot = this._attachmentsRoot(channel);
-		const rewritten = await Promise.all(attachments.map(a => this._rewriteSingleAttachment(a, attachmentsRoot, clientId)));
+		const rewritten = await Promise.all(attachments.map(a => this._rewriteSingleAttachment(a, attachmentsRoot, clientId, throwOnFailure)));
 		return {
 			...action,
 			message: { ...action.message, attachments: rewritten },
 		};
 	}
 
-	private async _rewriteSingleAttachment(attachment: MessageAttachment, attachmentsRoot: URI, clientId: string): Promise<MessageAttachment> {
+	private async _rewriteSingleAttachment(attachment: MessageAttachment, attachmentsRoot: URI, clientId: string, throwOnFailure: boolean): Promise<MessageAttachment> {
 		try {
 			if (attachment.type === MessageAttachmentKind.EmbeddedResource) {
 				const bytes = decodeBase64(attachment.data).buffer;
@@ -8521,6 +8595,9 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		} catch (err) {
 			this._logService.warn(`[AgentService] Failed to rewrite attachment '${attachment.label}': ${toErrorMessage(err)}`);
+			if (throwOnFailure) {
+				throw err;
+			}
 		}
 		return attachment;
 	}

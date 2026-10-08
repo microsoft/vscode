@@ -32,7 +32,7 @@ import { AgentHostClientConnectionKind } from '../../common/agentHostTelemetry.j
 import { AgentHostOTelEnabledSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelPolicyState, IAgentCreateChatRequestOptions, IAgentHostManagementService, IAgentHostOTelPolicyReadiness, IAgentHostOTelSettings } from '../../common/agentService.js';
 import { ActionEnvelope, ActionType, INotification, NotificationType } from '../../common/state/sessionActions.js';
 import { ProtocolError } from '../../common/state/sessionProtocol.js';
-import { ROOT_STATE_URI } from '../../common/state/sessionState.js';
+import { MessageAttachmentKind, MessageKind, ROOT_STATE_URI } from '../../common/state/sessionState.js';
 import { LocalAgentHostManagementConnection, LocalAgentHostServiceClient, registerAgentHostClientChannels } from '../../electron-browser/localAgentHostService.js';
 
 class CapturingNotificationService extends TestNotificationService {
@@ -133,7 +133,7 @@ suite('LocalAgentHostServiceClient events', () => {
 		assert.deepStrictEqual([beforeStart, service.clientConnectionKind], [AgentHostClientConnectionKind.Local, AgentHostClientConnectionKind.Local]);
 	});
 
-	test('routes title-only through AHP and model with title through management once', async () => {
+	test('routes title-only and prompt-bearing creation through AHP, while retaining legacy model management routing', async () => {
 		const { service, createdChats } = createService();
 		const managementChats: { session: URI; chat: URI; options: IAgentCreateChatRequestOptions }[] = [];
 		const managementService = new class extends mock<IAgentHostManagementService>() {
@@ -146,9 +146,20 @@ suite('LocalAgentHostServiceClient events', () => {
 		const session = URI.parse('agent-session://test/session');
 		const titleOnlyChat = URI.parse('agent-chat://test/session/title-only');
 		const modelChat = URI.parse('agent-chat://test/session/model');
+		const promptChat = URI.parse('agent-chat://test/session/prompt');
 
 		await service.createChat(session, titleOnlyChat, { title: 'Title only' });
 		await service.createChat(session, modelChat, { title: 'Model title', model: { id: 'model-1' } });
+		await service.createChat(session, promptChat, {
+			title: 'Prompt title',
+			model: { id: 'model-2' },
+			agent: { uri: 'agent://test/reviewer' },
+			initialMessage: {
+				text: 'Review this image',
+				origin: { kind: MessageKind.User },
+				attachments: [{ type: MessageAttachmentKind.Resource, uri: 'file:///workspace/image.png', label: 'image.png' }],
+			},
+		});
 
 		assert.deepStrictEqual({
 			protocol: createdChats,
@@ -158,6 +169,19 @@ suite('LocalAgentHostServiceClient events', () => {
 				session,
 				chat: titleOnlyChat,
 				options: { title: 'Title only' },
+			}, {
+				session,
+				chat: promptChat,
+				options: {
+					title: 'Prompt title',
+					model: { id: 'model-2' },
+					agent: { uri: 'agent://test/reviewer' },
+					initialMessage: {
+						text: 'Review this image',
+						origin: { kind: MessageKind.User },
+						attachments: [{ type: MessageAttachmentKind.Resource, uri: 'file:///workspace/image.png', label: 'image.png' }],
+					},
+				},
 			}],
 			management: [{
 				session,

@@ -80,7 +80,7 @@ import { IChatDebugService } from '../../../common/chatDebugService.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { IChatResponseFileChangesService } from '../../../browser/chatResponseFileChangesService.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { IChatSessionsService, type IChatSession, type IChatSessionHistoryItem, type IChatSessionItemController, type IChatSessionRequestHistoryItem, type IChatSessionServerRequest, type IChatSessionsExtensionPoint } from '../../../common/chatSessionsService.js';
+import { IChatSessionsService, type IChatSession, type IChatSessionForkOptions, type IChatSessionHistoryItem, type IChatSessionItemController, type IChatSessionRequestHistoryItem, type IChatSessionServerRequest, type IChatSessionsExtensionPoint } from '../../../common/chatSessionsService.js';
 import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../common/languageModels.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
@@ -6207,7 +6207,7 @@ suite('AgentHostChatContribution', () => {
 	// ---- Forking ---------------------------------------------------------
 
 	suite('forking', () => {
-		async function forkSession(initialTitle: boolean | undefined, requestedTitle: string, publishedTitle: string) {
+		async function forkSession(initialTitle: boolean | undefined, requestedTitle: string, publishedTitle: string, initialMessage?: IChatSessionForkOptions['initialMessage'], sourceSelection = false, boundary?: { turnCount?: number; sourceRequestId?: string; beforeRequestId?: string }) {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 			const backendSession = AgentSession.uri('copilot', `fork-${initialTitle === true ? 'supported' : 'legacy'}`);
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: backendSession.path });
@@ -6226,7 +6226,7 @@ suite('AgentHostChatContribution', () => {
 					displayName: 'Agent Host - Copilot',
 					description: 'test',
 					models: [],
-					capabilities: { multipleChats: { fork: true, initialTitle } },
+					capabilities: { multipleChats: { fork: true, initialTitle, ...(initialMessage ? { forkWithInitialMessage: true } : {}) } },
 				}],
 				activeSessions: 0,
 			});
@@ -6235,19 +6235,44 @@ suite('AgentHostChatContribution', () => {
 				lifecycle: SessionLifecycle.Ready,
 				defaultChat: sourceChat,
 				chats: [createDefaultChatSummary(summary, sourceChat)],
-				turns: [{
-					id: 'source-turn',
+				turns: Array.from({ length: boundary?.turnCount ?? 1 }, (_, index) => ({
+					id: index === 0 ? 'source-turn' : `source-turn-${index + 1}`,
 					state: TurnState.Complete,
-					message: { text: 'Source request', origin: { kind: MessageKind.User } },
+					message: {
+						text: 'Source request',
+						origin: { kind: MessageKind.User },
+						...(sourceSelection ? {
+							model: { id: 'source-model', config: { thinking: 'high' } },
+							agent: { uri: 'agent://source' },
+						} : {}),
+					},
 					responseParts: [],
 					usage: undefined,
-				}],
+				})),
+				...(sourceSelection ? {
+					draft: {
+						text: 'Unsaved composer draft',
+						origin: { kind: MessageKind.User },
+						model: { id: 'unsent-picker-model', config: { thinking: 'low' } },
+						agent: { uri: 'agent://unsent-picker' },
+					},
+				} : {}),
 			});
 			agentHostService.nextCreatedChatTitle = publishedTitle;
 
 			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 			disposables.add(chatSession);
-			const forkedItem = await chatSession.forkSession?.(undefined, CancellationToken.None, { title: requestedTitle });
+			const request = boundary?.beforeRequestId
+				? chatSession.history.find((item): item is IChatSessionRequestHistoryItem => item.type === 'request' && item.id === boundary.beforeRequestId)
+				: undefined;
+			if (boundary?.beforeRequestId) {
+				assert.ok(request);
+			}
+			const forkedItem = await chatSession.forkSession?.(request, CancellationToken.None, {
+				title: requestedTitle,
+				...(initialMessage ? { initialMessage } : {}),
+				...(boundary?.sourceRequestId !== undefined ? { sourceRequestId: boundary.sourceRequestId } : {}),
+			});
 
 			return {
 				call: agentHostService.createChatCalls[0],
@@ -6255,6 +6280,53 @@ suite('AgentHostChatContribution', () => {
 				sourceChat,
 			};
 		}
+
+		for (const boundary of [
+			{ turnCount: 1, sourceRequestId: 'source-turn' },
+			{ turnCount: 3, sourceRequestId: 'source-turn-2' },
+			{ turnCount: 3, sourceRequestId: 'source-turn-3' },
+		]) {
+			test(`fork prompt includes the exact preselected ${boundary.sourceRequestId} in a ${boundary.turnCount}-turn chat`, async () => {
+				const result = await forkSession(true, 'Fork', 'Fork', { text: 'what is 4+5' }, false, boundary);
+				assert.deepStrictEqual({
+					source: result.call.options?.fork?.source.toString(),
+					turnId: result.call.options?.fork?.turnId,
+					prompt: result.call.options?.initialMessage?.text,
+				}, {
+					source: result.sourceChat,
+					turnId: boundary.sourceRequestId,
+					prompt: 'what is 4+5',
+				});
+			});
+		}
+
+		test('a request-item fork still excludes the selected request', async () => {
+			const result = await forkSession(true, 'Fork', 'Fork', undefined, false, { turnCount: 3, beforeRequestId: 'source-turn-2' });
+			assert.strictEqual(result.call.options?.fork?.turnId, 'source-turn');
+		});
+
+		test('an exact source selection overrides the request-item boundary', async () => {
+			const result = await forkSession(true, 'Fork', 'Fork', { text: 'new prompt' }, false, {
+				turnCount: 3,
+				sourceRequestId: 'source-turn',
+				beforeRequestId: 'source-turn-3',
+			});
+			assert.strictEqual(result.call.options?.fork?.turnId, 'source-turn');
+		});
+
+		test('a request-item fork still rejects forking before the first request', async () => {
+			await assert.rejects(
+				forkSession(true, 'Fork', 'Fork', undefined, false, { beforeRequestId: 'source-turn' }),
+				/Cannot fork: cannot fork before the first request/,
+			);
+		});
+
+		test('a preselected source request must exist', async () => {
+			await assert.rejects(
+				forkSession(true, 'Fork', 'Fork', { text: 'new prompt' }, false, { sourceRequestId: 'missing-turn' }),
+				/Cannot fork: turn for request missing-turn not found in protocol state/,
+			);
+		});
 
 		test('forwards a requested title when the host advertises initial title support and returns the host summary label', async () => {
 			const requestedTitle = 'Requested fork title';
@@ -6292,7 +6364,73 @@ suite('AgentHostChatContribution', () => {
 			});
 		});
 
+		test('captures a multiline initial message from the actual source turn rather than the unsent composer selection', async () => {
+			const prompt = 'first line\nsecond line';
+			const prefix = '/fork prompt ';
+			const result = await forkSession(true, 'Ignored', 'Forked', {
+				text: prompt,
+				textOffset: prefix.length,
+				requestOptions: {
+					attachedContext: [upcastPartial<IChatRequestVariableEntry>({
+						id: 'source-context',
+						kind: 'string',
+						name: 'Source context',
+						value: 'captured',
+						range: { start: prefix.length, endExclusive: prefix.length + 'first line'.length },
+					})],
+					resolvedVariables: [upcastPartial<IChatRequestVariableEntry>({
+						id: 'source-context',
+						kind: 'string',
+						name: 'Source context',
+						value: 'captured',
+						range: { start: prefix.length, endExclusive: prefix.length + 'first line'.length },
+					})],
+				},
+			}, true);
 
+			const message = result.call.options?.initialMessage;
+			assert.deepStrictEqual({
+				text: message?.text,
+				model: message?.model,
+				agent: message?.agent,
+				attachments: message?.attachments,
+			}, {
+				text: prompt,
+				model: { id: 'source-model', config: { thinking: 'high' } },
+				agent: { uri: 'agent://source' },
+				attachments: [{
+					type: MessageAttachmentKind.Simple,
+					label: 'Source context',
+					modelRepresentation: 'captured',
+					range: {
+						start: { line: 0, character: 0 },
+						end: { line: 0, character: 'first line'.length },
+					},
+				}],
+			});
+		});
+
+		test('does not create a fork when initial-message preflight is already cancelled', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+				const backendSession = AgentSession.uri('copilot', 'fork-cancelled');
+				const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: backendSession.path });
+				const sourceChat = buildDefaultChatUri(backendSession.toString());
+				agentHostService.setRootState({ agents: [{ provider: 'copilot', displayName: 'Agent Host - Copilot', description: 'test', models: [], capabilities: { multipleChats: { fork: true, initialTitle: true } } }], activeSessions: 0 });
+				agentHostService.sessionStates.set(backendSession.toString(), {
+					...createSessionState({ resource: backendSession.toString(), provider: 'copilot', title: 'Source', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() }),
+					lifecycle: SessionLifecycle.Ready,
+					defaultChat: sourceChat,
+					chats: [createDefaultChatSummary({ resource: backendSession.toString(), provider: 'copilot', title: 'Source', status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() }, sourceChat)],
+					turns: [{ id: 'source-turn', state: TurnState.Complete, message: { text: 'Source', origin: { kind: MessageKind.User } }, responseParts: [], usage: undefined }],
+				});
+				const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+				disposables.add(chatSession);
+			const cts = disposables.add(new CancellationTokenSource());
+			cts.cancel();
+
+			await assert.rejects(() => chatSession.forkSession!(undefined, cts.token, { initialMessage: { text: 'Prompt' } }));
+			assert.strictEqual(agentHostService.createChatCalls.length, 0);
+		});
 	});
 
 	// ---- Multi-root customization scope ---------------------------------

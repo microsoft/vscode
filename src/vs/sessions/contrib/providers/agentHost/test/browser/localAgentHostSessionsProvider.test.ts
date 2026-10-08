@@ -633,7 +633,7 @@ class BackendSchemeTestProvider extends LocalAgentHostSessionsProvider {
 
 function createProvider(disposables: DisposableStore, agentHostService: MockAgentHostService, contributions = [
 	{ type: 'agent-host-copilotcli', name: 'copilot', displayName: 'Copilot', description: 'test', icon: undefined },
-], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; languageModelsService?: Partial<ILanguageModelsService>; languageModelIds?: string[]; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; languageModelChanges?: Event<string>; hiddenLanguageModelIds?: ReadonlySet<string>; languageModelVisibilityChanges?: Event<void>; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; visibleSessions?: IObservable<readonly (IActiveSession | undefined)[]>; activeClient?: Omit<SessionActiveClient, 'clientId'>; activeClientAgents?: IObservable<readonly AgentCustomization[]>; activeClientScope?: (sessionType: string, roots: readonly URI[]) => IAgentCustomizationScope; storageService?: IStorageService; recentWorkspacesService?: ISessionsRecentWorkspacesService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; requestWorkspaceTrust?: (uri: URI) => Promise<boolean>; workspaceTrustBarrier?: DeferredPromise<void>; workspaceTrustError?: Error; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; gitHubService?: IGitHubService; devContainerAgentHostService?: IDevContainerAgentHostService; sessionsProvidersService?: ISessionsProvidersService; pathService?: IPathService; labelService?: ILabelService; providerCtor?: typeof LocalAgentHostSessionsProvider }): LocalAgentHostSessionsProvider {
+], options?: { chatSessionsService?: Partial<IChatSessionsService>; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; acquireOrLoadSession?: (resource: URI) => Promise<IChatModelReference | undefined>; languageModelsService?: Partial<ILanguageModelsService>; languageModelIds?: string[]; lookupLanguageModel?: (modelId: string) => ILanguageModelChatMetadata | undefined; languageModelChanges?: Event<string>; hiddenLanguageModelIds?: ReadonlySet<string>; languageModelVisibilityChanges?: Event<void>; openSession?: boolean; configurationService?: IConfigurationService; activeSession?: IObservable<IActiveSession | undefined>; visibleSessions?: IObservable<readonly (IActiveSession | undefined)[]>; activeClient?: Omit<SessionActiveClient, 'clientId'>; activeClientAgents?: IObservable<readonly AgentCustomization[]>; activeClientScope?: (sessionType: string, roots: readonly URI[]) => IAgentCustomizationScope; storageService?: IStorageService; recentWorkspacesService?: ISessionsRecentWorkspacesService; isSessionsWindow?: boolean; confirmDelete?: boolean; workspaceTrusted?: boolean; requestWorkspaceTrust?: (uri: URI) => Promise<boolean>; workspaceTrustBarrier?: DeferredPromise<void>; workspaceTrustError?: Error; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; gitHubService?: IGitHubService; devContainerAgentHostService?: IDevContainerAgentHostService; sessionsProvidersService?: ISessionsProvidersService; pathService?: IPathService; labelService?: ILabelService; providerCtor?: typeof LocalAgentHostSessionsProvider }): LocalAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IAgentHostService, agentHostService);
@@ -679,6 +679,7 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 		getChatSessionContribution: (chatSessionType: string) => contributions.find(c => c.type === chatSessionType),
 		getAllChatSessionContributions: () => contributions,
 		getOrCreateChatSession: async () => ({ onWillDispose: () => ({ dispose() { } }), sessionResource: URI.from({ scheme: 'test' }), history: [], dispose() { } }),
+		...options?.chatSessionsService,
 	});
 	instantiationService.stub(IChatService, {
 		acquireOrLoadSession: options?.acquireOrLoadSession ?? (async () => undefined),
@@ -10625,6 +10626,45 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		}));
 
+		test('forkChat routes a prompt-bearing fork through Chat Sessions with the exact frontend source turn', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true } } } as AgentInfo]);
+			const calls: { resource: URI; requestId: string | undefined; text: string }[] = [];
+			const provider = createProvider(disposables, agentHost, undefined, {
+				chatSessionsService: {
+					forkChatSession: async (resource, _request, _token, options) => {
+						calls.push({ resource, requestId: options?.sourceRequestId, text: options?.initialMessage?.text ?? '' });
+						return { resource: resource.with({ fragment: 'prompt-child' }), label: 'Prompt child', timing: { created: 0, lastRequestStarted: 0, lastRequestEnded: 0 } };
+					},
+				},
+			});
+			const session = setupMultiChatSession(provider, 'multi-fork-prompt');
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-fork-prompt').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const childChat = buildChatUri(sessionUri, 'prompt-child');
+			agentHost.setSessionState('multi-fork-prompt', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, ''),
+				makeChatSummary(childChat, 'Prompt child'),
+			], { defaultChat }));
+
+			// This is an unsent source picker selection. The prompt branch must
+			// not copy it onto the host-created target.
+			provider.setModel(session.sessionId, session.resource, 'agent-host-copilotcli:unsent-picker', ChatModelSource.Chosen);
+			const createCallsBefore = agentHost.createdChats.length;
+			const forked = await provider.forkChat(session.sessionId, session.resource, 'selected-turn', {
+				initialMessage: { text: 'Use the actual source turn' },
+			});
+
+			assert.deepStrictEqual({
+				calls: calls.map(call => ({ resource: call.resource.toString(), requestId: call.requestId, text: call.text })),
+				createCalls: agentHost.createdChats.length - createCallsBefore,
+				targetModel: forked.modelId.get(),
+			}, {
+				calls: [{ resource: session.resource.toString(), requestId: 'selected-turn', text: 'Use the actual source turn' }],
+				createCalls: 0,
+				targetModel: undefined,
+			});
+		}));
+
 		test('forkChat omits an unsupported initial title and returns the host-generated peer chat', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 			agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true } } } as AgentInfo]);
 			const provider = createProvider(disposables, agentHost);
@@ -10653,7 +10693,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		}));
 
-		test('forkChat inherits the source peer chat\'s model, recorded as inherited', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		test('forkChat inherits the source peer model and agent instead of the default chat selection', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 			// A fork continues the chat it was taken from, so it starts on that chat's model rather
 			// than the session-level default it used to take, and records it as carried over rather
 			// than chosen here.
@@ -10693,7 +10733,9 @@ suite('LocalAgentHostSessionsProvider', () => {
 			const peer = session.chats.get().find(c => c.resource.fragment === 'peer-1');
 			assert.ok(peer);
 			activeSession.set({ sessionId: session.sessionId, activeChat: constObservable(peer!) } as IActiveSession, undefined);
+			provider.setModel(session.sessionId, session.resource, 'agent-host-copilotcli:default-model', ChatModelSource.Chosen);
 			provider.setModel(session.sessionId, peer!.resource, 'agent-host-copilotcli:peer-model', ChatModelSource.Chosen);
+			provider.setAgent?.(session.sessionId, { uri: 'agent://peer', name: 'peer' });
 
 			const forked = await provider.forkChat(session.sessionId, peer!.resource, 'turn-1');
 			const call = agentHost.createdChats.at(-1);
@@ -10701,7 +10743,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 			assert.deepStrictEqual({
 				forkSource: call?.options?.fork?.source.toString(),
-				// The source peer's model, not the session-level default the fork used to take.
+				defaultModelId: session.mainChat.get().modelId.get(),
 				createdModel: call?.options?.model,
 				forkedModelId: forkedChat?.modelId.get(),
 				forkedModelSource: forkedChat?.modelSource.get(),
@@ -10709,13 +10751,18 @@ suite('LocalAgentHostSessionsProvider', () => {
 					.filter(entry => entry.resource === forked.resource.toString())
 					.map(entry => entry.state.selectedModel?.identifier)
 					.filter((id): id is string => id !== undefined),
+				forkedInputModes: inputStates
+					.filter(entry => entry.resource === forked.resource.toString())
+					.map(entry => entry.state.mode?.id)
+					.filter((id): id is string => id !== undefined),
 			}, {
 				forkSource: peerChat,
+				defaultModelId: 'agent-host-copilotcli:default-model',
 				createdModel: { id: 'peer-model' },
 				forkedModelId: 'agent-host-copilotcli:peer-model',
-				// Inherited, not a choice, so `chat.defaultModel` may still seed the new chat.
 				forkedModelSource: ChatModelSource.CarriedOver,
 				forkedInputSelectedModels: ['agent-host-copilotcli:peer-model'],
+				forkedInputModes: ['agent://peer'],
 			});
 		}));
 

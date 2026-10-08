@@ -11,7 +11,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ForkConversationAction, IForkConversationOptions } from '../../../../../workbench/contrib/chat/browser/actions/chatForkActions.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { IChatSessionRequestHistoryItem } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { ChatSessionForkError, IChatSessionRequestHistoryItem } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { isAgentHostProviderId } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -46,12 +46,21 @@ registerAction2(class extends ForkConversationAction {
 				return false;
 			}
 
-			const forkOptions: IForkChatOptions | undefined = options?.title !== undefined ? { title: options.title } : undefined;
+			const forkOptions: IForkChatOptions | undefined = options?.title !== undefined || options?.initialMessage !== undefined
+				? { ...(options.title !== undefined ? { title: options.title } : {}), ...(options.initialMessage !== undefined ? { initialMessage: options.initialMessage } : {}) }
+				: undefined;
 			const newChat = await sessionsManagementService.forkChatInSession(session, sourceSessionResource, turnId, forkOptions);
-			if (options?.toSide) {
-				await sessionsService.openChatToSide(session, newChat.resource, { referenceChatResource: sourceSessionResource });
-			} else {
-				await sessionsService.openChat(session, newChat.resource);
+			try {
+				if (options?.toSide) {
+					await sessionsService.openChatToSide(session, newChat.resource, { referenceChatResource: sourceSessionResource });
+				} else {
+					await sessionsService.openChat(session, newChat.resource);
+				}
+			} catch (error) {
+				if (options?.initialMessage) {
+					throw new ChatSessionForkError('unknown', newChat.resource, error);
+				}
+				throw error;
 			}
 			logService.trace(`[AgentHostSessions] Forked conversation into new chat ${newChat.resource.toString()} in session ${session.sessionId}`);
 			return true;
@@ -69,6 +78,22 @@ registerAction2(class extends ForkConversationAction {
 			if (!parentSession) {
 				logService.error(`Parent session ${parentSessionResource.toString()} not found when forking conversation`);
 				return super._openForkedSession(instantiationService, parentSessionResource, forkedSessionResource);
+			}
+
+			// A rejected initial prompt is recovered through the base action after
+			// the host has already created a peer chat. It is not a top-level
+			// session, so opening it through the legacy session path would wait for
+			// a session row that will never appear.
+			const forkedChat = options?.initialMessage
+				? sessionsManagementService.getSessionForChatResource(forkedSessionResource)
+				: undefined;
+			if (forkedChat?.session === parentSession) {
+				if (options?.toSide) {
+					await sessionsService.openChatToSide(parentSession, forkedSessionResource, { referenceChatResource: parentSessionResource });
+				} else {
+					await sessionsService.openChat(parentSession, forkedSessionResource);
+				}
+				return;
 			}
 
 			if (!sessionsManagementService.getSession(forkedSessionResource)) {

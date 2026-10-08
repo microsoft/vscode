@@ -6712,6 +6712,37 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		const canSetInitialTitle = this._agentCapabilities.get()?.get(cached.agentProvider)?.multipleChats?.initialTitle === true;
 
+		// Prompt-bearing forks must use the Chat Sessions provider's existing
+		// fork callback. It captures and prepares the source composer exactly
+		// once, then asks the host to create and accept the first message as one
+		// operation. The legacy bare/named path below intentionally remains on
+		// the Sessions provider's direct transport behavior.
+		if (options?.initialMessage) {
+			this._keepSessionStateAlive(cached.sessionId);
+			const forked = await this._chatSessionsService.forkChatSession(
+				sourceChat,
+				undefined,
+				CancellationToken.None,
+				{
+					...(options.title !== undefined ? { title: options.title } : {}),
+					sourceRequestId: turnId,
+					initialMessage: options.initialMessage,
+				},
+			);
+			const chat = await waitForState(
+				cached.chats.map(chats => chats.find(candidate => isEqual(candidate.resource, forked.resource))),
+				(candidate): candidate is IChat => !!candidate,
+			);
+			// The host-published initial message owns the new chat's model and
+			// mode. Do not replace either with a potentially stale source picker.
+			await this._retainChatSessionModel(
+				chat.resource,
+				cached.getChatModelId(chat.resource),
+				cached.getChatMode(chat.resource)?.id,
+			);
+			return chat;
+		}
+
 		const sessionUri = cached.backendUri;
 		const newChatId = generateUuid();
 		const chatUri = URI.parse(buildChatUri(sessionUri, newChatId));

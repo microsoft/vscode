@@ -718,7 +718,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			displayName: localize('claudeAgent.displayName', "Claude"),
 			description: localize('claudeAgent.description', "Claude agent backed by the Anthropic Claude Agent SDK"),
 			capabilities: {
-				multipleChats: { fork: true, sideChat: true, initialTitle: true },
+				multipleChats: { fork: true, sideChat: true, initialTitle: true, forkWithInitialMessage: true },
 				...(this._isMultiRootEnabled() ? { multipleWorkingDirectories: { immutablePrimary: true } } : {}),
 			},
 		};

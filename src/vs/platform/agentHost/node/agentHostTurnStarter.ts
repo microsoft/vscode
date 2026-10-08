@@ -35,6 +35,8 @@ export interface ITurnStartRequest {
 	readonly clientId: string | undefined;
 	readonly clientContext: IAgentHostClientTelemetryContext;
 	readonly turnStopWatch: StopWatch;
+	/** Receives a definite admission rejection without changing queued callers' result contract. */
+	readonly onRejected?: (error: ErrorInfo) => void;
 }
 
 /**
@@ -88,6 +90,7 @@ export function startTurn(accessor: ServicesAccessor, request: ITurnStartRequest
 			reason: { kind: 'rejected', error: disposition.error },
 			clientContext: request.clientContext,
 		});
+		request.onRejected?.(disposition.error);
 		return undefined;
 	}
 
@@ -113,6 +116,7 @@ export function startTurn(accessor: ServicesAccessor, request: ITurnStartRequest
 			reason: { kind: 'rejected', error },
 			clientContext: request.clientContext,
 		});
+		request.onRejected?.(error);
 		return undefined;
 	}
 

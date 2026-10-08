@@ -1424,7 +1424,7 @@ suite('ClaudeAgent', () => {
 		const desc = agent.getDescriptor();
 		assert.deepStrictEqual(
 			{ provider: desc.provider, displayName: desc.displayName, hasDescription: desc.description.length > 0, capabilities: desc.capabilities, agentHostCapabilities: agent.agentHostCapabilities },
-			{ provider: 'claude', displayName: 'Claude', hasDescription: true, capabilities: { multipleChats: { fork: true, sideChat: true, initialTitle: true } }, agentHostCapabilities: { workspaceConversion: false } },
+			{ provider: 'claude', displayName: 'Claude', hasDescription: true, capabilities: { multipleChats: { fork: true, sideChat: true, initialTitle: true, forkWithInitialMessage: true } }, agentHostCapabilities: { workspaceConversion: false } },
 		);
 	});
 

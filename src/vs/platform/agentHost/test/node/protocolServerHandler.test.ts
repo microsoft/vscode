@@ -33,7 +33,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { type IAgent, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
-import { type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
+import { type IAgentCreateChatInitialMessageContext, type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
 import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, StopBackgroundWorkExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest } from '../../common/agentHostExtensionProtocol.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult, ResourceType } from '../../common/state/protocol/commands.js';
 import type { AutomationCapabilities, Implementation } from '../../common/state/protocol/common/commands.js';
@@ -281,10 +281,10 @@ class MockAgentService implements IAgentService {
 	async fetchAutomationRuns(_params: FetchAutomationRunsParams): Promise<FetchAutomationRunsResult> { return {}; }
 	async getCompletionTriggerCharacters(): Promise<readonly string[]> { return []; }
 	async disposeSession(_session: URI): Promise<void> { }
-	readonly createdChats: { session: string; chat: string; options?: IAgentCreateChatRequestOptions }[] = [];
+	readonly createdChats: { session: string; chat: string; options?: IAgentCreateChatRequestOptions; initialMessageContext?: IAgentCreateChatInitialMessageContext }[] = [];
 	readonly disposedChats: { session: string; chat: string }[] = [];
-	async createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void> {
-		this.createdChats.push({ session: session.toString(), chat: chat.toString(), ...(options ? { options } : {}) });
+	async createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions, initialMessageContext?: IAgentCreateChatInitialMessageContext): Promise<void> {
+		this.createdChats.push({ session: session.toString(), chat: chat.toString(), ...(options ? { options } : {}), ...(initialMessageContext ? { initialMessageContext } : {}) });
 		this._stateManager.addChat(session.toString(), chat.toString());
 	}
 	async disposeChat(session: URI, chat: URI): Promise<void> {
@@ -5295,6 +5295,62 @@ suite('ProtocolServerHandler', () => {
 					},
 				}],
 				inCatalog: true,
+			});
+		});
+
+		test('createChat forwards an initial message with the submitting client context', async () => {
+			stateManager.createSession(makeSessionSummary());
+			const transport = connectClient('client-initial-message');
+			transport.sent.length = 0;
+			const responsePromise = waitForResponse(transport, 2);
+			const message = { text: 'Start the fork', origin: { kind: MessageKind.User } };
+
+			transport.simulateMessage(request(2, 'createChat', {
+				channel: sessionUri,
+				chat: peerChat,
+				initialMessage: message,
+			}));
+			const resp = await responsePromise;
+
+			assert.deepStrictEqual({
+				result: (resp as { result: null }).result,
+				options: agentService.createdChats[0].options,
+				clientId: agentService.createdChats[0].initialMessageContext?.clientId,
+				capabilityBackedFork: agentService.createdChats[0].initialMessageContext?.capabilityBackedFork,
+			}, {
+				result: null,
+				options: { initialMessage: message },
+				clientId: 'client-initial-message',
+				capabilityBackedFork: false,
+			});
+		});
+
+		test('createChat keeps a legacy fork initial message ungated at protocol ingress', async () => {
+			stateManager.createSession(makeSessionSummary());
+			const transport = connectClient('client-legacy-fork-initial-message');
+			transport.sent.length = 0;
+			const responsePromise = waitForResponse(transport, 2);
+			const message = { text: 'Continue the legacy fork', origin: { kind: MessageKind.User } };
+
+			transport.simulateMessage(request(2, 'createChat', {
+				channel: sessionUri,
+				chat: peerChat,
+				source: { kind: ChatSourceKind.Fork, chat: buildDefaultChatUri(sessionUri), turnId: 'turn-1' },
+				initialMessage: message,
+			}));
+			const resp = await responsePromise;
+
+			assert.deepStrictEqual({
+				result: (resp as { result: null }).result,
+				options: agentService.createdChats[0].options,
+				candidateComposedFork: agentService.createdChats[0].initialMessageContext?.capabilityBackedFork,
+			}, {
+				result: null,
+				options: {
+					initialMessage: message,
+					fork: { source: URI.parse(buildDefaultChatUri(sessionUri)), turnId: 'turn-1' },
+				},
+				candidateComposedFork: true,
 			});
 		});
 

@@ -27,10 +27,16 @@ export interface IDeferredAgentHostTurn {
 export interface IAgentHostTurnService {
 	readonly _serviceBrand: undefined;
 	startTurnMessage(chat: URI, message: Message): void;
+	/**
+	 * Starts a message prepared by a connected client without manufacturing a
+	 * client action envelope or client sequence number.
+	 */
+	startClientTurnMessage(chat: URI, message: Message, clientId: string, clientContext: IAgentHostClientTelemetryContext): ErrorInfo | undefined;
+	startClientTurn(chat: URI, action: ChatTurnStartedAction, clientId: string, clientContext: IAgentHostClientTelemetryContext): ErrorInfo | undefined;
 	beginDeferredTurnMessage(chat: URI, message: Message): IDeferredAgentHostTurn;
 	continueDeferredTurnMessage(chat: URI, turn: IDeferredAgentHostTurn, message: Message): boolean;
 	failDeferredTurnMessage(chat: URI, turn: IDeferredAgentHostTurn, error: ErrorInfo): boolean;
-	handleTurnStarted(channel: ProtocolURI, action: ChatTurnStartedAction, clientId?: string, clientContextOrType?: IAgentHostClientTelemetryContext | AgentHostClientType): void;
+	handleTurnStarted(channel: ProtocolURI, action: ChatTurnStartedAction, clientId?: string, clientContextOrType?: IAgentHostClientTelemetryContext | AgentHostClientType): ErrorInfo | undefined;
 }
 
 /** Standard turn admission and provider routing shared by client- and host-authored turns. */
@@ -50,6 +56,21 @@ export class AgentHostTurnService implements IAgentHostTurnService {
 		const channel = chat.toString();
 		const action = this._dispatchTurnStarted(channel, message);
 		this.handleTurnStarted(channel, action);
+	}
+
+	startClientTurnMessage(chat: URI, message: Message, clientId: string, clientContext: IAgentHostClientTelemetryContext): ErrorInfo | undefined {
+		const action: ChatTurnStartedAction = {
+			type: ActionType.ChatTurnStarted,
+			turnId: generateUuid(),
+			startedAt: new Date().toISOString(),
+			message,
+		};
+		return this.startClientTurn(chat, action, clientId, clientContext);
+	}
+
+	startClientTurn(chat: URI, action: ChatTurnStartedAction, clientId: string, clientContext: IAgentHostClientTelemetryContext): ErrorInfo | undefined {
+		this._stateManager.dispatchServerAction(chat.toString(), action);
+		return this.handleTurnStarted(chat.toString(), action, clientId, clientContext);
 	}
 
 	beginDeferredTurnMessage(chat: URI, message: Message): IDeferredAgentHostTurn {
@@ -103,7 +124,7 @@ export class AgentHostTurnService implements IAgentHostTurnService {
 		return true;
 	}
 
-	handleTurnStarted(channel: ProtocolURI, action: ChatTurnStartedAction, clientId?: string, clientContextOrType?: IAgentHostClientTelemetryContext | AgentHostClientType): void {
+	handleTurnStarted(channel: ProtocolURI, action: ChatTurnStartedAction, clientId?: string, clientContextOrType?: IAgentHostClientTelemetryContext | AgentHostClientType): ErrorInfo | undefined {
 		const host = this._chatContributions.getHost();
 		if (!host) {
 			throw new Error('Agent Host turn routing is unavailable.');
@@ -118,6 +139,7 @@ export class AgentHostTurnService implements IAgentHostTurnService {
 			: typeof clientContextOrType === 'string'
 				? createUnknownAgentHostClientTelemetryContext(clientContextOrType)
 				: clientContextOrType;
+		let rejection: ErrorInfo | undefined;
 		const started = this._instantiationService.invokeFunction(startTurn, {
 			session: sessionChannel,
 			chat: channel,
@@ -128,9 +150,10 @@ export class AgentHostTurnService implements IAgentHostTurnService {
 			clientId,
 			clientContext,
 			turnStopWatch,
+			onRejected: error => rejection = error,
 		});
 		if (!started) {
-			return;
+			return rejection;
 		}
 		host.sendTurnMessage({
 			agent: started.agent,
@@ -143,6 +166,7 @@ export class AgentHostTurnService implements IAgentHostTurnService {
 			clientContext,
 			turnStopWatch,
 		});
+		return undefined;
 	}
 
 	private _dispatchTurnStarted(channel: ProtocolURI, message: Message): ChatTurnStartedAction {
