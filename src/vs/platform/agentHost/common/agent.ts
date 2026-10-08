@@ -282,6 +282,7 @@ export interface IAgentPluginUninstallRequest {
 
 export type AgentExtensionMode = 'disabled' | 'load_only' | 'load_and_augment' | 'unknown';
 export type AgentExtensionSource = 'user' | 'plugin';
+export type AgentCanvasExtensionSource = 'user' | 'project' | 'session' | 'plugin' | 'unknown';
 
 /** One executable agent extension discovered from the provider's persisted inventory. */
 export interface IAgentExtensionInfo {
@@ -303,6 +304,7 @@ export interface IAgentExtensionInventory {
 export interface IAgentCanvasInfo {
 	readonly canvasId: string;
 	readonly extensionId: string;
+	readonly extensionSource: AgentCanvasExtensionSource;
 	readonly extensionName?: string;
 	readonly displayName: string;
 	readonly description: string;

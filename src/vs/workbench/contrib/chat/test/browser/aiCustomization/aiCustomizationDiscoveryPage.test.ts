@@ -523,6 +523,23 @@ suite('AICustomizationDiscoveryPage', () => {
 		assert.deepStrictEqual(rows, [{ name: 'Diagram Canvas', detail: 'Canvas · GitHub Feed' }]);
 	});
 
+	test('clears the Canvas filter when Canvases becomes unavailable for the active harness', () => {
+		const fixture = createPage(
+			['agentFinder'],
+			[AICustomizationManagementSection.Canvases, AICustomizationManagementSection.Plugins],
+		);
+		fixture.page.setSearchQuery('@type:canvas diagram');
+		fixture.page.rebuildCards(new Set([AICustomizationManagementSection.Plugins]));
+
+		assert.deepStrictEqual({
+			description: fixture.container.querySelector('.customization-discovery-description')?.textContent,
+			search: fixture.page.getAccessibilityContent().split('\n\n')[1],
+		}, {
+			description: 'Find new ways to extend your agent with Plugins, MCP Servers, Skills, Instructions, Agents, and Hooks.',
+			search: 'Search: diagram',
+		});
+	});
+
 	test('pending query and source changes preserve the progress animation across the full row', async () => {
 		const fixture = createPage();
 		// Keep the 2% progress bit an integral width: WebKit rounds percentage transform reference boxes.

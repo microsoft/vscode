@@ -5,7 +5,7 @@
 
 import { vBoolean, vEnum, vObj, vOptionalProp, vString, type ValidatorType } from '../../../base/common/validation.js';
 import type { IDevContainerAgentHostConnectResult } from './devContainerAgentHost.js';
-import type { AgentExtensionMode, AgentExtensionSource } from './agent.js';
+import type { AgentCanvasExtensionSource, AgentExtensionMode, AgentExtensionSource } from './agent.js';
 import type { AgentHostDebugLogsArtifactKind, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult } from './agentService.js';
 import type { InitializeResult } from './state/protocol/common/commands.js';
 import type { McpAuthRequirement } from './state/protocol/channels-session/state.js';
@@ -88,7 +88,7 @@ export interface IAgentHostExtensionInitializeResult extends InitializeResult {
 	readonly _meta?: IAgentHostExtensionInitializeResultMeta;
 }
 
-export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true, devContainers = false, timing = false, sessionImport = false, copilotCustomizations = true): IAgentHostExtensionInitializeResultMeta {
+export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true, devContainers = false, timing = false, sessionImport = false, copilotCustomizations = false): IAgentHostExtensionInitializeResultMeta {
 	return {
 		[AgentHostSessionUrisCapabilityMetaKey]: true,
 		[AgentHostNativeImplementationMetaKey]: true,
@@ -157,6 +157,7 @@ export interface IAgentHostSessionCanvasResult {
 	readonly canvases: readonly {
 		readonly canvasId: string;
 		readonly extensionId: string;
+		readonly extensionSource: AgentCanvasExtensionSource;
 		readonly extensionName?: string;
 		readonly displayName: string;
 		readonly description: string;

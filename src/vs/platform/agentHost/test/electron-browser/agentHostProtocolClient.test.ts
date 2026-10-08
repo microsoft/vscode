@@ -2539,7 +2539,7 @@ suite('AgentHostProtocolClient', () => {
 
 	test('manages Copilot extensions and session canvases through advertised extension methods', async () => {
 		const { client, transport } = createClient();
-		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta());
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, false, false, true));
 		transport.sentMessages.length = 0;
 
 		const extensionInventory = client.listAgentExtensions();
@@ -2587,7 +2587,8 @@ suite('AgentHostProtocolClient', () => {
 			result: {
 				canvases: [{
 					canvasId: 'preview',
-					extensionId: 'user:preview',
+					extensionId: 'opaque-provider',
+					extensionSource: 'plugin',
 					extensionName: 'Preview',
 					displayName: 'Preview Canvas',
 					description: 'Interactive preview.',
@@ -2620,7 +2621,8 @@ suite('AgentHostProtocolClient', () => {
 			}],
 			canvases: [{
 				canvasId: 'preview',
-				extensionId: 'user:preview',
+				extensionId: 'opaque-provider',
+				extensionSource: 'plugin',
 				extensionName: 'Preview',
 				displayName: 'Preview Canvas',
 				description: 'Interactive preview.',
@@ -2632,7 +2634,7 @@ suite('AgentHostProtocolClient', () => {
 
 	test('does not call Copilot customization extension methods without the advertised capability', async () => {
 		const { client, transport } = createClient();
-		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, false, false, false));
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta());
 		transport.sentMessages.length = 0;
 		const session = URI.parse('copilotcli:/session-1');
 
@@ -2641,6 +2643,29 @@ suite('AgentHostProtocolClient', () => {
 		await assert.rejects(client.listSessionCanvases(session), /does not support Copilot canvas inventory/);
 		await assert.rejects(client.refreshSessionCanvases(session), /does not support Copilot canvas inventory/);
 		assert.strictEqual(transport.sentMessages.length, 0);
+	});
+
+	test('rejects invalid Canvas extension source metadata', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, false, false, true));
+		transport.sentMessages.length = 0;
+		const result = client.listSessionCanvases(URI.parse('copilotcli:/session-1'));
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: 2,
+			result: {
+				canvases: [{
+					canvasId: 'preview',
+					extensionId: 'opaque-provider',
+					extensionSource: 'opaque',
+					displayName: 'Preview Canvas',
+					description: 'Interactive preview.',
+					requiresInput: false,
+					actionCount: 0,
+				}],
+			},
+		});
+		await assert.rejects(result, /invalid canvas inventory item/);
 	});
 
 	test('removeSessionArtifact sends the VS Code extension request', async () => {

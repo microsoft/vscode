@@ -989,7 +989,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		}
 	}
 
-	private setQuery(query: CustomizationDiscoveryQuery): void {
+	private setQuery(query: CustomizationDiscoveryQuery, focus = true): void {
 		this.query = query;
 		this.resetCatalogState();
 		this.errorMessage = undefined;
@@ -1003,7 +1003,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		if (this.shouldQueryCatalog() && !this.loaded) {
 			this.searchScheduler.schedule(0);
 		}
-		this.searchWidget.focus();
+		if (focus) {
+			this.searchWidget.focus();
+		}
 	}
 
 	private resetCatalogState(): void {
@@ -1999,7 +2001,11 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	rebuildCards(visibleSectionIds: ReadonlySet<AICustomizationManagementSection>): void {
 		this.visibleSectionIds = new Set(visibleSectionIds);
 		this.updateDescription();
-		this.updateSearchActions();
+		if (!this.visibleSectionIds.has(AICustomizationManagementSection.Canvases) && this.query.types.has('canvas')) {
+			this.setQuery(this.query.withType('canvas', false), false);
+		} else {
+			this.updateSearchActions();
+		}
 		this.refreshInstalledItems();
 	}
 

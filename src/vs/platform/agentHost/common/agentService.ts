@@ -44,7 +44,7 @@ export type {
 	IAgentSteeringConsumedSignal, IMcpNotification, IActiveClient, AgentProvider, IAgentCapabilities,
 	IAgentDescriptor, AuthenticateParams, IAgentHostAuthTokenRequest, AuthenticateResult,
 	IAgentHostNetworkEndpoint, IAgentHostManagedSettingsSnapshot, IAgentPluginUninstallRequest,
-	IAgentExtensionInfo, IAgentExtensionInventory, IAgentCanvasInfo, AgentExtensionMode, AgentExtensionSource,
+	IAgentExtensionInfo, IAgentExtensionInventory, IAgentCanvasInfo, AgentCanvasExtensionSource, AgentExtensionMode, AgentExtensionSource,
 } from './agent.js';
 export {
 	AgentSession, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, COPILOT_CLI_AGENT_PROVIDER_ID, GITHUB_COPILOT_PROTECTED_RESOURCE,

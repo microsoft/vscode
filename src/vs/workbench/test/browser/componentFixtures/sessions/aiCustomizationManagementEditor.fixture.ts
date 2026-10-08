@@ -3039,6 +3039,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 				{
 					canvasId: 'diagram',
 					extensionId: 'plugin:diagram-canvas',
+					extensionSource: 'plugin',
 					extensionName: 'Diagram Canvas',
 					displayName: 'Diagram',
 					description: 'Explore an interactive architecture diagram.',
@@ -3048,6 +3049,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 				{
 					canvasId: 'review',
 					extensionId: 'project:review-dashboard',
+					extensionSource: 'project',
 					extensionName: 'Review Dashboard',
 					displayName: 'Review Dashboard',
 					description: 'Track findings and verification progress for the active project.',
@@ -3057,6 +3059,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 				{
 					canvasId: 'notes',
 					extensionId: 'user:diagram-notes',
+					extensionSource: 'user',
 					extensionName: 'Diagram Notes',
 					displayName: 'Diagram Notes',
 					description: 'Keep structured notes beside the current session.',
