@@ -143,7 +143,12 @@ suite('SessionsChatAccessibilityHelp', () => {
 				refreshHelp: content.includes('Tab reaches Refresh Environments.'),
 				hiddenHelp: content.includes('Hide in This Profile') || content.includes('Restore Host'),
 				missionControl: content.includes('Mission Control'),
-			}, { discoveryHelp: enabled, refreshHelp: enabled, hiddenHelp: false, missionControl: false });
+				sharingKeyboard: content.includes('Enter or Space to enable or disable sharing'),
+				backendSetting: content.includes('chat.agentHost.remoteConnections'),
+			}, {
+				discoveryHelp: enabled, refreshHelp: enabled, hiddenHelp: false,
+				missionControl: !hidden && !aiDisabled, sharingKeyboard: !hidden && !aiDisabled, backendSetting: !hidden && !aiDisabled,
+			});
 		});
 	}
 
