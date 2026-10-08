@@ -342,6 +342,7 @@ export class OpenAgentsWindowAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, args?: IOpenAgentsWindowOptions): Promise<void> {
 		ensureAgentModeEnabled(accessor.get(IConfigurationService));
+		// Targetless opens only reveal the window; callers that intend to navigate provide an explicit target.
 		await accessor.get(INativeHostService).openAgentsWindow({
 			...args,
 			source: args?.source ?? AgentsWindowOpenSource.CommandPalette,
