@@ -23,7 +23,8 @@ import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { filter } from '../../../../../base/common/objects.js';
-import { autorun, derived, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, IReader, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { extUri, isEqual } from '../../../../../base/common/resources.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -76,7 +77,10 @@ import { IChatTodoListService } from '../../common/tools/chatTodoListService.js'
 import { ChatRequestVariableSet, IChatRequestTranscriptContextVariableEntry, IChatRequestVariableEntry, isPastedTextArtifact, isPromptFileVariableEntry, isPromptTextVariableEntry, isWorkspaceVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatMessageRole, IChatMessage } from '../../common/languageModels.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, IResolvedNewChatSessionType, ThinkingDisplayMode } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, CONTINUE_CHAT_IN_COPILOT_ACTION_ID, IResolvedNewChatSessionType, ThinkingDisplayMode } from '../../common/constants.js';
+import { IManagedSettingsService, requiresCopilotAgentHost } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { IChatGoalSummaryService } from '../chatGoalSummaryService.js';
 import { ILanguageModelToolsService, isToolSet } from '../../common/tools/languageModelToolsService.js';
 import { IHandOff, PromptHeader } from '../../common/promptSyntax/promptFileParser.js';
@@ -429,6 +433,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private editorOverflowWidgetsDomNode: HTMLElement | undefined;
 	private editorOptions!: ChatEditorOptions;
 	private readonly readOnlyBanner: ChatReadOnlyBanner | undefined;
+	private readOnlyBannerSlot: Comment | undefined;
+	private readonly policyRequiresAgentHost: IObservable<boolean>;
+	private readonly sessionArchiveChanged: IObservable<void>;
+	private policyReadOnly = false;
 
 	private recentlyRestoredCheckpoint: boolean = false;
 	private _requestEditSnapshot: { readonly input: string; readonly attachmentIds: ReadonlySet<string> } | undefined;
@@ -632,9 +640,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IAgentHostNewSessionFolderService private readonly _agentHostNewSessionFolderService: IAgentHostNewSessionFolderService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IManagedSettingsService managedSettingsService: IManagedSettingsService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 		this._persistentContentHeight = viewOptions.persistentContentHeight ?? 0;
+		this.policyRequiresAgentHost = observableFromEvent(this, managedSettingsService.onDidChangeManagedSettings, () => requiresCopilotAgentHost(managedSettingsService));
+		this.sessionArchiveChanged = observableSignalFromEvent(this, agentSessionsService.model.onDidChangeSessions);
 
 		this.readOnlyBanner = viewOptions.isSessionsWindow
 			? undefined
@@ -1171,6 +1183,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.container.appendChild(this.readOnlyBanner.domNode);
 			}
 			this.createInput(this.container, { renderFollowups, renderStyle, renderInputToolbarBelowInput });
+		}
+
+		if (this.readOnlyBanner) {
+			this.readOnlyBannerSlot = mainWindow.document.createComment('read-only banner');
+			this.readOnlyBanner.domNode.after(this.readOnlyBannerSlot);
 		}
 
 		if (this.location === ChatAgentLocation.Chat && !isInlineChat(this)) {
@@ -2112,13 +2129,42 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		} else if (wasReadOnly) {
 			this.renderChatSuggestNextWidget();
 		}
+		this.readOnlyBanner?.setMessage(this.policyReadOnly
+			? localize('chatReadOnlyBanner.managedPolicy', "This chat is read-only because your organization requires the new Copilot experience.")
+			: undefined);
+		const resource = this.viewModel?.sessionResource;
+		this.readOnlyBanner?.setAction(this.policyReadOnly && resource ? {
+			label: this.viewModel?.model.hasRequests
+				? localize('chatReadOnlyBanner.continueInCopilot', "Move to Copilot")
+				: localize('chatReadOnlyBanner.newCopilot', "New Copilot Chat"),
+			tooltip: this.viewModel?.model.hasRequests
+				? localize('chatReadOnlyBanner.continueDescription', "Keep your conversation and draft in Copilot, then archive this chat. Nothing will be sent automatically.")
+				: localize('chatReadOnlyBanner.newDescription', "Start a new Copilot chat with your draft. Nothing will be sent automatically."),
+			run: () => this.commandService.executeCommand<void>(CONTINUE_CHAT_IN_COPILOT_ACTION_ID, {
+				$mid: MarshalledId.ChatViewContext, sessionResource: resource, inputUri: this.input.inputUri,
+			}),
+		} : undefined);
 		this.readOnlyBanner?.setVisible(readOnly && !keepInputVisible);
+		if (this.readOnlyBanner && this.readOnlyBannerSlot) {
+			if (this.policyReadOnly) {
+				this.listContainer.before(this.readOnlyBanner.domNode);
+			} else {
+				this.readOnlyBannerSlot.before(this.readOnlyBanner.domNode);
+			}
+		}
 		this.setInputVisible(!readOnly || keepInputVisible);
 		// Authoritative over the lock/unlock `editable` toggles below.
 		this._applyRendererEditable(!readOnly);
 		if (this.visible) {
 			this.listWidget?.rerender();
 		}
+	}
+
+	private updateReadOnlyState(model: IChatModel, reader: IReader): void {
+		this.sessionArchiveChanged.read(reader);
+		const archived = this.agentSessionsService.getSession(model.sessionResource)?.isArchived() === true;
+		this.policyReadOnly = !archived && getChatSessionType(model.sessionResource) === localChatSessionType && this.policyRequiresAgentHost.read(reader);
+		this.setReadOnly(archived || model.isReadOnly.read(reader) || this.policyReadOnly, !archived && !this.policyReadOnly && model.isInputBlocked.read(reader));
 	}
 
 	/**
@@ -2889,6 +2935,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this._hasPendingRequestsContextKey.set(false);
 			this._chatSessionSupportsRenameContextKey.set(false);
 			if (!this.viewOptions.isSessionsWindow) {
+				this.policyReadOnly = false;
 				this.setReadOnly(false);
 			}
 			return;
@@ -2919,7 +2966,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this.viewModel = this.instantiationService.createInstance(ChatViewModel, model, undefined);
 		if (!this.viewOptions.isSessionsWindow) {
-			this.viewModelDisposables.add(autorun(reader => this.setReadOnly(model.isReadOnly.read(reader), model.isInputBlocked.read(reader))));
+			this.viewModelDisposables.add(autorun(reader => this.updateReadOnlyState(model, reader)));
 		}
 
 		this.listWidget.setViewModel(this.viewModel);

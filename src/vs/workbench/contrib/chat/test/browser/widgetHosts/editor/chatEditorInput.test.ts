@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../../../base/common/event.js';
+import { IManagedSettingsService, NullManagedSettingsService } from '../../../../../../../platform/policy/common/copilotManagedSettings.js';
+import { AccountPolicyGateState, IAccountPolicyGateService } from '../../../../../../services/policies/common/accountPolicyService.js';
 import { DisposableStore, IReference } from '../../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
 import { constObservable } from '../../../../../../../base/common/observable.js';
@@ -46,6 +49,43 @@ import { TestContextService, TestStorageService } from '../../../../../../test/c
 suite('ChatEditorInput', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const settledPolicyGate: IAccountPolicyGateService = {
+		_serviceBrand: undefined, gateInfo: { state: AccountPolicyGateState.Inactive }, onDidChangeGateInfo: Event.None, whenInitialized: async () => { },
+	};
+
+	for (const policyKey of ['permissions.allow', 'sandbox.enabled']) {
+		for (const unavailable of [false, true]) {
+			test(`${policyKey} settles before routing explicit Local and never fall back (unavailable=${unavailable})`, async () => {
+				const ready = new DeferredPromise<void>();
+				let rules: string | boolean | undefined = undefined;
+				let localStarts = 0;
+				const selected: string[] = [];
+				const input = disposables.add(new ChatEditorInput(
+					ChatEditorInput.getNewEditorUri(), { explicitSessionType: localChatSessionType },
+					upcastPartial<IChatService>({
+						startNewLocalSession: () => { localStarts++; throw new Error('Local must not start'); },
+						acquireOrLoadSession: async resource => {
+							selected.push(getChatSessionType(resource));
+							if (unavailable) { return undefined; }
+							throw new Error('simulated unavailable provider');
+						},
+					}),
+					upcastPartial<IDialogService>({}), new TestConfigurationService(), new MockChatSessionsService(),
+					upcastPartial<IInstantiationService>({}), disposables.add(new TestStorageService()), new NullLogService(), new TestContextService(),
+					{ _serviceBrand: undefined, enabled: constObservable(!unavailable), managedSandboxEnforced: constObservable(false), managedSandboxAllowsBypass: constObservable(false) },
+					upcastPartial<IAgentHostConnectionsService>({}), NullTelemetryService, upcastPartial<IProgressService>({}),
+					new class extends NullManagedSettingsService { override getManagedSettingValue(key: string) { return key === policyKey ? rules : undefined; } }(),
+					{ ...settledPolicyGate, whenInitialized: () => ready.p },
+				));
+				const pending = input.resolve();
+				const before = [...selected];
+				rules = policyKey === 'sandbox.enabled' ? true : '["Read"]';
+				ready.complete();
+				await assert.rejects(pending, /organization requires the new Copilot experience/);
+				assert.deepStrictEqual({ before, selected, localStarts }, { before: [], selected: [SessionType.AgentHostCopilot], localStarts: 0 });
+			});
+		}
+	}
 
 	for (const throws of [false, true]) {
 		test(`reports migration restore resolution ${throws ? 'errors' : 'missing models'}`, async () => {
@@ -86,6 +126,8 @@ suite('ChatEditorInput', () => {
 				upcastPartial<IAgentHostConnectionsService>({ ambientConnection: connection }),
 				telemetry,
 				upcastPartial<IProgressService>({ withProgress: (_options, task) => task({ report() { } }) }),
+			new NullManagedSettingsService(),
+			settledPolicyGate,
 			));
 			assert.deepStrictEqual({ resolved: await input.resolve(), events }, {
 				resolved: null,
@@ -130,6 +172,8 @@ suite('ChatEditorInput', () => {
 			upcastPartial<IAgentHostConnectionsService>({}),
 			NullTelemetryService,
 			upcastPartial<IProgressService>({}),
+			new NullManagedSettingsService(),
+			settledPolicyGate,
 		));
 		input.updateModel(model);
 		return { input, prompt };
@@ -221,6 +265,8 @@ suite('ChatEditorInput', () => {
 			{ ambientConnection: undefined } as unknown as IAgentHostConnectionsService,
 			NullTelemetryService,
 			{ withProgress: (_options: unknown, task: (progress: unknown) => unknown) => task({ report() { } }) } as unknown as IProgressService,
+			new NullManagedSettingsService(),
+			settledPolicyGate,
 		);
 
 		try {
@@ -282,6 +328,8 @@ suite('ChatEditorInput', () => {
 			{ ambientConnection: undefined } as unknown as IAgentHostConnectionsService,
 			NullTelemetryService,
 			{ withProgress: (_options: unknown, task: (progress: unknown) => unknown) => task({ report() { } }) } as unknown as IProgressService,
+			new NullManagedSettingsService(),
+			settledPolicyGate,
 		);
 
 		try {
@@ -337,6 +385,8 @@ suite('ChatEditorInput', () => {
 			{ ambientConnection: undefined } as unknown as IAgentHostConnectionsService,
 			NullTelemetryService,
 			{ withProgress: (_options: unknown, task: (progress: unknown) => unknown) => task({ report() { } }) } as unknown as IProgressService,
+			new NullManagedSettingsService(),
+			settledPolicyGate,
 		);
 
 		try {
@@ -383,6 +433,8 @@ suite('ChatEditorInput', () => {
 			{ ambientConnection: undefined } as unknown as IAgentHostConnectionsService,
 			NullTelemetryService,
 			{ withProgress: (_options: unknown, task: (progress: unknown) => unknown) => task({ report() { } }) } as unknown as IProgressService,
+			new NullManagedSettingsService(),
+			settledPolicyGate,
 		);
 
 		try {
@@ -441,6 +493,8 @@ suite('ChatEditorInput', () => {
 			{ ambientConnection: undefined } as unknown as IAgentHostConnectionsService,
 			NullTelemetryService,
 			{ withProgress: (_options: unknown, task: (progress: unknown) => unknown) => task({ report() { } }) } as unknown as IProgressService,
+			new NullManagedSettingsService(),
+			settledPolicyGate,
 		);
 
 		try {
@@ -463,6 +517,8 @@ suite('ChatEditorInput', () => {
 	test('new chat replaces a current extension host Copilot CLI harness', async () => {
 		const store = disposables.add(new DisposableStore());
 		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.set(IManagedSettingsService, new NullManagedSettingsService());
+		instantiationService.set(IAccountPolicyGateService, settledPolicyGate);
 		const configurationService = new TestConfigurationService();
 		const chatSessionsService = new MockChatSessionsService();
 		chatSessionsService.setContributions([{
@@ -521,6 +577,8 @@ suite('ChatEditorInput', () => {
 
 	function createInputForCopy(store: DisposableStore, resource: URI, agentHostEnabled: boolean): ChatEditorInput {
 		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.set(IManagedSettingsService, new NullManagedSettingsService());
+		instantiationService.set(IAccountPolicyGateService, settledPolicyGate);
 		instantiationService.stub(IChatService, {});
 		instantiationService.stub(IDialogService, {});
 		instantiationService.set(IConfigurationService, new TestConfigurationService());

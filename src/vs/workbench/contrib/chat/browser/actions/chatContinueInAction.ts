@@ -6,9 +6,10 @@
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { h } from '../../../../../base/browser/dom.js';
 import { Disposable, IDisposable, markAsSingleton } from '../../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { isAbsolute } from '../../../../../base/common/path.js';
-import { basename } from '../../../../../base/common/resources.js';
+import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
@@ -38,7 +39,8 @@ import { ChatRequestParser } from '../../common/requestParser/chatRequestParser.
 import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../attachments/chatVariables.js';
 import { ChatSendResult, IChatService } from '../../common/chatService/chatService.js';
 import { ResolvedChatSessionsExtensionPoint, IChatSessionsService, SessionType } from '../../common/chatSessionsService.js';
-import { ChatAgentLocation } from '../../common/constants.js';
+import { ChatAgentLocation, CONTINUE_CHAT_IN_COPILOT_ACTION_ID, managedPolicyRequiresAgentHostMessage } from '../../common/constants.js';
+import { isChatViewTitleActionContext } from '../../common/actions/chatActions.js';
 import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/promptTypes.js';
 import { AgentSessionProviders, AgentSessionTarget, CHAT_DELEGATE_TO_AGENT_HOST_SESSION_COMMAND_ID, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName, IAgentHostDelegationRequest, isAgentHostTarget } from '../agentSessions/agentSessions.js';
 import { ISCMService } from '../../../scm/common/scm.js';
@@ -160,6 +162,82 @@ export class ContinueChatInSessionAction extends Action2 {
 		// Handled by a custom action item
 	}
 }
+
+export class ContinueChatInCopilotAction extends Action2 {
+	private readonly pending = new ResourceMap<Promise<void>>();
+
+	constructor() {
+		super({
+			id: CONTINUE_CHAT_IN_COPILOT_ACTION_ID,
+			title: localize2('chat.continueInCopilot', "Move to Copilot"),
+			precondition: ChatContextKeys.enabled,
+			f1: false,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, context: unknown): Promise<void> {
+		if (!isChatViewTitleActionContext(context)) {
+			throw new Error(localize('chat.continueInCopilot.missingSource', "The source conversation is no longer available."));
+		}
+		const widgets = accessor.get(IChatWidgetService);
+		const instantiationService = accessor.get(IInstantiationService);
+		const sessions = accessor.get(IChatSessionsService);
+		const widget = context.inputUri ? widgets.getWidgetByInputUri(context.inputUri) : widgets.getWidgetBySessionResource(context.sessionResource);
+		if (!widget?.viewModel || !isEqual(widget.viewModel.sessionResource, context.sessionResource)) {
+			throw new Error(localize('chat.continueInCopilot.missingSource', "The source conversation is no longer available."));
+		}
+		const pending = this.pending.get(context.sessionResource);
+		if (pending) {
+			return pending;
+		}
+		const sessionsService = accessor.get(IAgentSessionsService);
+		if (widget.viewModel.model.requestInProgress.get()) {
+			throw new Error(localize('chat.continueInCopilot.inProgress', "Stop the current request before continuing in Copilot."));
+		}
+		const turns = importedTurnsFromChatModel(widget.viewModel.model);
+		const input = widget.getInputState();
+		const draft = { inputText: widget.getInput(), attachments: input?.attachments ?? [], selections: input?.selections ?? [] };
+		const sidebar = isIChatViewViewContext(widget.viewContext);
+		const work = (async () => {
+			let sourceSession = sessionsService.getSession(context.sessionResource);
+			if (turns.length && !sourceSession) {
+				await sessionsService.model.resolve(getChatSessionType(context.sessionResource));
+				sourceSession = sessionsService.getSession(context.sessionResource);
+				if (!sourceSession) {
+					throw new Error(localize('chat.continueInCopilot.missingHistory', "Couldn't find this conversation in chat history. Start a new Copilot chat instead."));
+				}
+			}
+			if (sourceSession?.isArchived()) {
+				throw new Error(localize('chat.continueInCopilot.archived', "This chat is archived. Start a new Copilot chat or open an existing one from history."));
+			}
+			if (!await sessions.canResolveChatSession(SessionType.AgentHostCopilot)) {
+				throw new Error(managedPolicyRequiresAgentHostMessage());
+			}
+			const opened = await instantiationService.invokeFunction(innerAccessor => openChatSession(innerAccessor, {
+				type: SessionType.AgentHostCopilot,
+				displayName: localize('chat.continueInCopilot.provider', "Copilot"),
+				position: sidebar ? ChatSessionPosition.Sidebar : ChatSessionPosition.Editor,
+				replaceEditorForResource: sidebar ? undefined : context.sessionResource,
+				draft,
+			}, {
+				importConversation: turns.length ? { turns } : undefined,
+			}));
+			if (!opened || !widgets.getWidgetBySessionResource(opened)) {
+				throw new Error(localize('chat.continueInCopilot.notOpened', "Couldn't open the Copilot conversation. Your original conversation is still available. Try again or contact your administrator."));
+			}
+			if (turns.length && sourceSession) {
+				sourceSession.setArchived(true);
+			}
+		})();
+		this.pending.set(context.sessionResource, work);
+		try {
+			await work;
+		} finally {
+			this.pending.delete(context.sessionResource);
+		}
+	}
+}
+
 export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionViewItem {
 	constructor(
 		action: MenuItemAction,

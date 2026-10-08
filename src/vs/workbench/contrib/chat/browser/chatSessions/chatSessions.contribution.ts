@@ -44,6 +44,9 @@ import { ChatViewId } from '../chat.js';
 import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderName } from '../agentSessions/agentSessions.js';
 import { IAgentHostImportConversationStore, type IAgentHostImportConversation } from '../agentSessions/agentHost/agentHostImportConversationStore.js';
+import { IAgentHostUntitledProvisionalSessionService } from '../agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
+import { IAgentHostNewSessionFolderService } from '../agentSessions/agentHost/agentHostNewSessionFolderService.js';
+import { COPILOT_CLI_AGENT_PROVIDER_ID } from '../../../../../platform/agentHost/common/agent.js';
 import { BugIndicatingError, isCancellationError } from '../../../../../base/common/errors.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../../common/model/chatUri.js';
@@ -53,7 +56,7 @@ import { Target } from '../../common/promptSyntax/promptTypes.js';
 import { slashReg } from '../../common/requestParser/chatRequestParser.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
-import { IChatModel } from '../../common/model/chatModel.js';
+import { IChatModel, IChatModelInputState } from '../../common/model/chatModel.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
@@ -1723,7 +1726,7 @@ export enum ChatSessionPosition {
 }
 
 type NewChatSessionSendOptions = {
-	readonly prompt: string;
+	readonly prompt?: string;
 	readonly attachedContext?: IChatRequestVariableEntry[];
 	readonly initialSessionOptions?: ReadonlyChatSessionOptionsMap;
 	/**
@@ -1738,6 +1741,8 @@ export type NewChatSessionOpenOptions = {
 	readonly type: string;
 	readonly position: ChatSessionPosition;
 	readonly displayName: string;
+	/** Seed an unsent draft without replaying or submitting any request. */
+	readonly draft?: Pick<IChatModelInputState, 'inputText' | 'attachments' | 'selections'>;
 	/**
 	 * When set, the editor showing this (source) session resource is replaced
 	 * in place with the newly opened session. The source resource is resolved
@@ -1760,7 +1765,8 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 	const progressService = accessor.get(IProgressService);
 
 	// Determine resource to open
-	const sessionResource = getResourceForNewChatSession(openOptions);
+	const untitledResource = getResourceForNewChatSession(openOptions);
+	let sessionResource = untitledResource;
 	let openedSessionResource = sessionResource;
 
 	// Stash any imported ("Continue in…") conversation before the session is
@@ -1777,6 +1783,27 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 	let sessionsListSuppression: IDisposable | undefined;
 	let transitionProgress: DeferredPromise<void> | undefined;
 	try {
+		if (openOptions.draft && chatSendOptions?.importConversation?.turns.length && openOptions.type === SessionType.AgentHostCopilot) {
+			const provisional = accessor.get(IAgentHostUntitledProvisionalSessionService);
+			try {
+				const folder = accessor.get(IAgentHostNewSessionFolderService).resolveNewSessionPrimary(untitledResource);
+				if (!await provisional.getOrCreate(untitledResource, COPILOT_CLI_AGENT_PROVIDER_ID, folder)) {
+					throw new Error(localize('chat.continueInCopilot.notPrepared', "Couldn't start Copilot. Your original conversation is still available. Try again or contact your administrator."));
+				}
+				const item = await chatSessionService.createNewChatSessionItem(openOptions.type, { prompt: '', untitledResource }, CancellationToken.None);
+				if (item) {
+					sessionResource = item.resource;
+				}
+				if (!item || !provisional.get(sessionResource)) {
+					throw new Error(localize('chat.continueInCopilot.notImported', "Couldn't continue this chat in Copilot. Start a new Copilot chat instead. Your original conversation is still available in history."));
+				}
+				openedSessionResource = sessionResource;
+				chatSessionService.registerSessionResourceAlias(untitledResource, sessionResource);
+				chatSessionService.notifySessionMaterialized?.(sessionResource);
+			} finally {
+				await provisional.disposeSession(untitledResource);
+			}
+		}
 		switch (openOptions.position) {
 			case ChatSessionPosition.Sidebar: {
 				const view = await viewsService.openView(ChatViewId) as ChatViewPane;
@@ -1835,15 +1862,27 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 			}
 			default: assertNever(openOptions.position, `Unknown chat session position: ${openOptions.position}`);
 		}
+		if (openOptions.draft) {
+			const model = chatService.getSession(sessionResource);
+			if (!model) {
+				throw new Error(localize('chat.continueInCopilot.notOpened', "Couldn't open the Copilot conversation. Your original conversation is still available. Try again or contact your administrator."));
+			}
+			model.inputModel.setState(openOptions.draft);
+		}
 	} catch (e) {
-		logService.error(`Failed to open '${openOptions.type}' chat session with openOptions: ${JSON.stringify(openOptions)}`, e);
+		logService.error(`Failed to open '${openOptions.type}' chat session`, e);
+		importConversationStore.take(sessionResource);
+		importConversationStore.take(untitledResource);
 		sessionsListSuppression?.dispose();
 		transitionProgress?.complete();
+		if (openOptions.draft) {
+			throw e;
+		}
 		return undefined;
 	}
 
 	// Send initial prompt if provided
-	if (chatSendOptions) {
+	if (chatSendOptions?.prompt !== undefined) {
 		try {
 			// Set initial session options on the model before sending the request,
 			// so that the contributed session provider can read them.

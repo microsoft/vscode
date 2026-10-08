@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { IManagedSettingsService, NullManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
+import { AccountPolicyGateState, IAccountPolicyGateService } from '../../../../../services/policies/common/accountPolicyService.js';
 import { spy } from 'sinon';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
@@ -194,6 +196,8 @@ suite('ChatService', () => {
 		)));
 		instantiationService.stub(IStorageService, testDisposables.add(new TestStorageService()));
 		instantiationService.stub(IChatEntitlementService, new TestChatEntitlementService());
+		instantiationService.stub(IManagedSettingsService, new NullManagedSettingsService());
+		instantiationService.stub(IAccountPolicyGateService, { _serviceBrand: undefined, gateInfo: { state: AccountPolicyGateState.Inactive }, onDidChangeGateInfo: Event.None, whenInitialized: async () => { } });
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IUserDataProfilesService, { defaultProfile: toUserDataProfile('default', 'Default', URI.file('/test/userdata'), URI.file('/test/cache')) });
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
@@ -248,6 +252,64 @@ suite('ChatService', () => {
 		testServices.length = 0;
 	});
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const policyKey of ['permissions.ask', 'sandbox.enabled']) {
+		test(`${policyKey} blocks existing and restored Local requests without deleting history`, async () => {
+			const changes = testDisposables.add(new Emitter<void>());
+			let rules: string | boolean | undefined;
+			instantiationService.stub(IManagedSettingsService, {
+				_serviceBrand: undefined, onDidChangeManagedSettings: changes.event,
+				getManagedSettingValue: key => key === policyKey ? rules : undefined,
+			});
+			const service = createChatService();
+			const model = startSessionModel(service).object;
+			const initial = await service.sendRequest(model.sessionResource, 'history');
+			ChatSendResult.assertSent(initial);
+			await initial.data.responseCompletePromise;
+			const history: ISerializableChatData = JSON.parse(JSON.stringify(model));
+			rules = policyKey === 'sandbox.enabled' ? true : '["Shell"]';
+			changes.fire();
+			const invoke = spy(chatAgentService, 'invokeAgent');
+			testDisposables.add(toDisposable(() => invoke.restore()));
+			const existingResult = await service.sendRequest(model.sessionResource, 'blocked');
+			const queuedResult = await service.sendRequest(model.sessionResource, 'blocked queue', { queue: ChatRequestQueueKind.Queued });
+			await service.resendRequest(model.getRequests()[0]);
+			const restored = testDisposables.add(service.loadSessionFromData(history)).object;
+			const restoredResult = await service.sendRequest(restored.sessionResource, 'blocked restore');
+			const blocked = { existing: model.isInputBlocked.get(), restored: restored.isInputBlocked.get(), calls: invoke.callCount };
+			rules = policyKey === 'sandbox.enabled' ? false : '[]';
+			changes.fire();
+			assert.deepStrictEqual({
+				results: [existingResult.kind, queuedResult.kind, restoredResult.kind], blocked,
+				history: [model.getRequests().length, restored.getRequests().length],
+				unblocked: [model.isInputBlocked.get(), restored.isInputBlocked.get()],
+			}, { results: ['rejected', 'rejected', 'rejected'], blocked: { existing: true, restored: true, calls: 0 }, history: [1, 1], unblocked: [false, false] });
+		});
+
+		test(`${policyKey} resolves before Local activation and sending`, async () => {
+			const ready = new DeferredPromise<void>();
+			const changes = testDisposables.add(new Emitter<void>());
+			let rules: string | boolean | undefined = undefined;
+			instantiationService.stub(IAccountPolicyGateService, {
+				_serviceBrand: undefined, gateInfo: { state: AccountPolicyGateState.Inactive }, onDidChangeGateInfo: Event.None, whenInitialized: () => ready.p,
+			});
+			instantiationService.stub(IManagedSettingsService, {
+				_serviceBrand: undefined, onDidChangeManagedSettings: changes.event,
+				getManagedSettingValue: key => key === policyKey ? rules : undefined,
+			});
+			const service = createChatService();
+			const activate = spy(service, 'activateDefaultAgent');
+			testDisposables.add(toDisposable(() => activate.restore()));
+			const model = startSessionModel(service).object;
+			const pending = service.sendRequest(model.sessionResource, 'do not start Local');
+			const before = activate.callCount;
+			rules = policyKey === 'sandbox.enabled' ? true : '["Shell"]';
+			changes.fire();
+			ready.complete();
+			const result = await pending;
+			assert.deepStrictEqual({ before, after: activate.callCount, result: result.kind, requests: model.getRequests().length }, { before: 0, after: 0, result: 'rejected', requests: 0 });
+		});
+	}
 
 	test('propagates Agents Voice Mode input to the participant request', async () => {
 		const captured = new DeferredPromise<boolean | undefined>();

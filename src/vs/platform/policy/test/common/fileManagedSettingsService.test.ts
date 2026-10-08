@@ -219,7 +219,7 @@ suite('FileManagedSettingsService', () => {
 		});
 	}));
 
-	test('retains raw settings that are absent from the normalized bag', () => runWithFakedTimers({}, async () => {
+	test('retains permission rules in both raw and normalized settings', () => runWithFakedTimers({}, async () => {
 		const logService = new NullLogService();
 		const fileService = disposables.add(new FileService(logService));
 		const inMemoryProvider = disposables.add(new InMemoryFileSystemProvider());
@@ -239,7 +239,11 @@ suite('FileManagedSettingsService', () => {
 
 		assert.deepStrictEqual({ raw: service.rawManagedSettings, normalized: service.managedSettings }, {
 			raw,
-			normalized: {},
+			normalized: {
+				'permissions.allow': JSON.stringify(raw.permissions.allow),
+				'permissions.ask': JSON.stringify(raw.permissions.ask),
+				'permissions.deny': JSON.stringify(raw.permissions.deny),
+			},
 		});
 	}));
 
