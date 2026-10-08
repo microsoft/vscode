@@ -20,6 +20,7 @@ import { MissionControlControlVerifier, type IMissionControlSigningKey } from '.
 import { MissionControlProtocolServer, type IMissionControlSocket } from './missionControlProtocolServer.js';
 import { MissionControlAuthentication, MissionControlSealing, resolveMissionControlOwner } from './missionControlAuthentication.js';
 import { MissionControlSessionMirror } from './missionControlSessionMirror.js';
+import type { AhpJsonlLogger } from '../../common/ahpJsonlLogger.js';
 
 interface IEnvironmentResponse {
 	readonly id: string;
@@ -53,6 +54,8 @@ export interface IMissionControlEnvironmentHost {
 	readonly getIdentityApiBase?: () => string;
 	readonly onDidChangeIdentityAuthority?: Event<void>;
 	readonly createMirror?: (environmentId: string) => { readonly mirror: MissionControlSessionMirror; readonly source: IDisposable };
+	/** Creates a lane-owned wire logger, independent of the desktop client's logging setting. */
+	readonly createAhpLogger?: (clientId: string, generation: number) => AhpJsonlLogger;
 	readonly onDidChangeRemoteControlPolicy?: Event<void>;
 }
 
@@ -637,6 +640,7 @@ export class MissionControlEnvironment extends Disposable {
 			) : undefined,
 			sealing?.rootMeta,
 			this._mirror.value,
+			this._host.createAhpLogger,
 		);
 		this._server.value = server;
 		const connectionWatch = StopWatch.create(false);
