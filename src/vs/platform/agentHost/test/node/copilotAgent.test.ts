@@ -13443,6 +13443,7 @@ suite('CopilotAgent', () => {
 					{ name: 'slack-gh', status: 'connected' as const, source: 'user' as const },
 					{ name: 'plugin-server', status: 'connected' as const, source: 'plugin' as const, sourcePlugin: 'acme' },
 					{ name: 'builtin-server', status: 'connected' as const, source: 'builtin' as const },
+					{ name: 'account-server', status: 'connected' as const, source: 'account' as const },
 				];
 				session['_applyMcpServerList'](inventory);
 				const snapshot = (customizations: readonly Customization[]) => customizations
@@ -13467,7 +13468,8 @@ suite('CopilotAgent', () => {
 				}
 				replacement['_applyMcpServerList'](inventory);
 				activeClient.pluginController.removeClient('client');
-				assert.deepStrictEqual({ afterSync, afterRemoval, afterReadd, afterReplacement: snapshot(publications.at(-1) ?? []) }, {
+				assert.deepStrictEqual({ accountSource: expected.find(server => server.name === 'account-server')?.source, afterSync, afterRemoval, afterReadd, afterReplacement: snapshot(publications.at(-1) ?? []) }, {
+					accountSource: 'account',
 					afterSync: expected, afterRemoval: expected.filter(server => server.name !== 'slack-gh'), afterReadd: expected, afterReplacement: expected,
 				});
 			} finally {
