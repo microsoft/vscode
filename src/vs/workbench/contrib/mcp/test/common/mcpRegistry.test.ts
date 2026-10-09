@@ -34,6 +34,7 @@ import { IOutputService } from '../../../../services/output/common/output.js';
 import { TestLoggerService, TestStorageService, TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService } from '../../../../test/common/workbenchTestServices.js';
 import { ContributionEnablementState, EnablementModel, isContributionEnabled } from '../../../chat/common/enablement.js';
 import { McpCollisionBehavior, mcpServerCollisionBehaviorSection } from '../../common/mcpConfiguration.js';
+import { expandEnvironmentVariablesInLaunch } from '../../common/mcpEnvironmentVariableExpansion.js';
 import { McpRegistry } from '../../common/mcpRegistry.js';
 import { IMcpHostDelegate, IMcpMessageTransport } from '../../common/mcpRegistryTypes.js';
 import { IMcpSandboxService } from '../../common/mcpSandboxService.js';
@@ -96,6 +97,10 @@ class TestMcpHostDelegate implements IMcpHostDelegate {
 	priority = 0;
 
 	substituteVariables(serverDefinition: McpServerDefinition, launch: McpServerLaunch): Promise<McpServerLaunch> {
+		return Promise.resolve(launch);
+	}
+
+	expandEnvironmentVariables(serverDefinition: McpServerDefinition, launch: McpServerLaunch): Promise<McpServerLaunch> {
 		return Promise.resolve(launch);
 	}
 
@@ -532,6 +537,75 @@ suite('Workbench - MCP - Registry', () => {
 			url: 'https://interactivevalue0.example.com/mcp',
 		});
 		connection.dispose();
+	});
+
+	suite('environment variable expansion', () => {
+		const hostEnv = { TOOLS: '/opt/tools', API_KEY: 'secret', HOST: 'mcp.example.com' };
+
+		async function resolve(definition: McpServerDefinition) {
+			const delegate = new TestMcpHostDelegate();
+			const expand = sinon.stub(delegate, 'expandEnvironmentVariables').callsFake(async (def, launch) =>
+				expandEnvironmentVariablesInLaunch(launch, def.environmentVariableExpansion!, { env: hostEnv, caseInsensitive: false }));
+			store.add(registry.registerDelegate(delegate));
+			testCollection.serverDefinitions.set([definition], undefined);
+			store.add(registry.registerCollection(testCollection));
+			const connection = await registry.resolveConnection({ collectionRef: testCollection, definitionRef: definition, logger, trustNonceBearer, taskManager }) as McpServerConnection;
+			const launch = connection.launchDefinition;
+			connection.dispose();
+			return {
+				expansions: expand.callCount,
+				launch: launch.type === McpServerTransportType.HTTP
+					? { url: launch.uri.toString(true), headers: launch.headers }
+					: { command: launch.command, args: launch.args, env: launch.env },
+			};
+		}
+
+		const stdioLaunch: McpServerTransportStdio = {
+			type: McpServerTransportType.Stdio,
+			command: '${TOOLS}/server',
+			args: ['${API_KEY}', '$API_KEY', '${workspaceFolder}'],
+			env: { API_KEY: '${API_KEY}' },
+			envFile: undefined,
+			cwd: undefined,
+			sandbox: undefined,
+		};
+
+		test('expands a flagged stdio launch with the delegate', async () => {
+			assert.deepStrictEqual(await resolve({ ...baseDefinition, launch: stdioLaunch, environmentVariableExpansion: {} }), {
+				expansions: 1,
+				launch: { command: '/opt/tools/server', args: ['secret', '$API_KEY', '${workspaceFolder}'], env: { API_KEY: 'secret' } },
+			});
+		});
+
+		test('expands a flagged HTTP launch from its raw URL', async () => {
+			const url = 'https://${HOST}/mcp';
+			assert.deepStrictEqual(await resolve({
+				...baseDefinition,
+				launch: { type: McpServerTransportType.HTTP, uri: URI.parse(url), headers: [['Authorization', 'Bearer ${API_KEY}']] },
+				environmentVariableExpansion: { url },
+			}), {
+				expansions: 1,
+				launch: { url: 'https://mcp.example.com/mcp', headers: [['Authorization', 'Bearer secret']] },
+			});
+		});
+
+		test('does not call the delegate for a flagged launch without references', async () => {
+			assert.deepStrictEqual(await resolve({ ...baseDefinition, launch: { ...stdioLaunch, command: 'node', args: ['$API_KEY'], env: {} }, environmentVariableExpansion: {} }), {
+				expansions: 0,
+				launch: { command: 'node', args: ['$API_KEY'], env: {} },
+			});
+		});
+
+		test('keeps VS Code variable resolution for other sources, such as .vscode/mcp.json', async () => {
+			assert.deepStrictEqual(await resolve({
+				...baseDefinition,
+				launch: stdioLaunch,
+				variableReplacement: { section: 'mcp', target: ConfigurationTarget.WORKSPACE },
+			}), {
+				expansions: 0,
+				launch: { command: '${TOOLS}/server', args: ['${API_KEY}', '$API_KEY', '/test/workspace'], env: { API_KEY: '${API_KEY}' } },
+			});
+		});
 	});
 
 	test('resolveConnection uses user-provided launch configuration', async () => {

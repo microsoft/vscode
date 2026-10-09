@@ -52,6 +52,11 @@ export const AICustomizationManagementSection = {
 
 export type AICustomizationManagementSection = typeof AICustomizationManagementSection[keyof typeof AICustomizationManagementSection];
 
+export interface IAICustomizationMarketplaceOpenTarget {
+	readonly section: AICustomizationManagementSection;
+	readonly sourceId?: string;
+}
+
 /** Command IDs for the AI Customizations Management Editor. */
 export const AICustomizationManagementCommands = {
 	OpenEditor: 'aiCustomization.openManagementEditor',
@@ -129,9 +134,10 @@ export interface IAICustomizationWorkspaceService {
 	deleteFiles(projectRoot: URI, fileUris: URI[]): Promise<void>;
 
 	/**
-	 * Launches the AI-guided creation flow for the given customization type.
+	 * Launches the AI-guided creation flow for the given customization type,
+	 * optionally scoped to a workspace folder.
 	 */
-	generateCustomization(type: PromptsType): Promise<void>;
+	generateCustomization(type: PromptsType, workspaceFolder?: URI): Promise<void>;
 
 	/**
 	 * Whether a transient project root override is currently active.

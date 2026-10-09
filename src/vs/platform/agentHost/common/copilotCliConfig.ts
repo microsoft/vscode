@@ -31,6 +31,8 @@ export const enum CopilotCliConfigKey {
 	ClaudeAdvisor = 'claudeAdvisor',
 	/** Enable repository-size-gated tgrep indexed search for Copilot SDK sessions. Off by default. */
 	Tgrep = 'tgrep',
+	/** Offer the runtime's `search_code_subagent` tool to Copilot SDK sessions. Off by default. */
+	SearchSubagent = 'searchSubagent',
 	/** Enable the SDK cross-session store and Chronicle commands. */
 	LocalIndexEnabled = 'localIndexEnabled',
 	/** Apply Opus 4.8-tuned system-prompt overrides on Opus 4.8 models. Off by default. */
@@ -45,6 +47,8 @@ export const enum CopilotCliConfigKey {
 	ClaudeDefaultReasoningEffort = 'claudeDefaultReasoningEffort',
 	/** Enable the experimental HydraFusion synthetic model. Off by default. */
 	HydraFusion = 'hydraFusion',
+	/** Use HydraFusion v2. Off by default; requires {@link HydraFusion}. */
+	HydraFusionV2 = 'hydraFusionV2',
 	/** Enable Copilot Memory for Copilot SDK sessions. Off by default. */
 	Memory = 'memory',
 	/** Store Copilot Memory in the repository instead of GitHub's cloud memory service. Off by default; requires {@link Memory}. */
@@ -74,6 +78,8 @@ export const CopilotClaudeAdvisorEnabledSettingId = 'chat.copilot.claudeAdvisor.
 
 export const CopilotTgrepEnabledSettingId = 'chat.copilot.tgrep.enabled';
 
+export const CopilotSearchSubagentEnabledSettingId = 'chat.copilot.searchSubagent.enabled';
+
 export const CopilotLocalIndexEnabledSettingId = 'github.copilot.chat.localIndex.enabled';
 
 export const AgentHostOpus48PromptEnabledSettingId = 'chat.agentHost.opus48Prompt.enabled';
@@ -85,6 +91,9 @@ export const AgentHostToolSearchEnabledSettingId = 'chat.agentHost.copilot.toolS
 export const AgentHostToolSearchDeferThresholdSettingId = 'chat.agentHost.copilot.toolSearch.deferThreshold';
 
 export const AgentHostHydraFusionEnabledSettingId = 'chat.copilot.hydraFusion.enabled';
+
+/** `true` enables HydraFusion (v1) and `'v2'` enables HydraFusion v2; experiments assign either value. */
+export type AgentHostHydraFusionSettingValue = boolean | 'v2';
 
 export const AgentHostCopilotMemoryEnabledSettingId = 'chat.copilot.memory.enabled';
 
@@ -104,7 +113,7 @@ export const copilotSdkLogLevelSettingValues = ['info', 'trace'] as const;
 export type CopilotSdkLogLevelSetting = typeof copilotSdkLogLevelSettingValues[number];
 
 export const DEFAULT_COPILOT_RUBBER_DUCK_ENABLED = true;
-export const DEFAULT_COPILOT_SKILL_CHAR_BUDGET = 15_000;
+export const DEFAULT_COPILOT_SKILL_CHAR_BUDGET = 30_000;
 
 /** Floors valid skill character budgets and returns the default for invalid values. */
 export function normalizeSkillCharBudget(value: number | undefined): number {
@@ -172,7 +181,7 @@ export const copilotCliConfigSchema = createSchema({
 	[CopilotCliConfigKey.EnableCustomTerminalTool]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.enableCustomTerminalTool.title', "Use Agent Host Terminal Tool"),
-		description: localize('agentHost.config.enableCustomTerminalTool.description', "When enabled, Copilot SDK sessions use Agent Host's terminal tool override instead of the SDK's default terminal behavior."),
+		description: localize('agentHost.config.enableCustomTerminalTool.description', "When enabled, Copilot SDK sessions use Agent Host's terminal tool override instead of the SDK's default terminal behavior. Not supported on Windows, where sessions use the SDK's terminal and sandbox runtime."),
 		default: false,
 	}),
 	[CopilotCliConfigKey.EnableShellInitScript]: schemaProperty<boolean>({
@@ -216,6 +225,12 @@ export const copilotCliConfigSchema = createSchema({
 		description: localize('agentHost.config.tgrep.description', "When enabled, Copilot SDK sessions use tgrep indexed search for eligible large repositories. Requires a local Git repository on a non-virtual filesystem."),
 		default: false,
 	}),
+	[CopilotCliConfigKey.SearchSubagent]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.searchSubagent.title', "Search Subagent"),
+		description: localize('agentHost.config.searchSubagent.description', "When enabled, Copilot SDK sessions are offered the runtime's search subagent tool for codebase search. Applied when a session launches or resumes."),
+		default: false,
+	}),
 	[CopilotCliConfigKey.LocalIndexEnabled]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.localIndexEnabled.title', "Local Session Index"),
@@ -250,6 +265,12 @@ export const copilotCliConfigSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.hydraFusion.title', "HydraFusion"),
 		description: localize('agentHost.config.hydraFusion.description', "When enabled, Copilot SDK sessions can use the experimental HydraFusion model."),
+		default: false,
+	}),
+	[CopilotCliConfigKey.HydraFusionV2]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.hydraFusionV2.title', "HydraFusion V2"),
+		description: localize('agentHost.config.hydraFusionV2.description', "When enabled together with HydraFusion, Copilot SDK sessions use HydraFusion v2."),
 		default: false,
 	}),
 	[CopilotCliConfigKey.Memory]: schemaProperty<boolean>({

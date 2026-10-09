@@ -23,7 +23,7 @@ import { AgentHostAutoReplyEnabledConfigKey, AgentHostEditAutoApprovePatternsCon
 import '../../../../platform/agentHost/common/agentHostStarter.config.contribution.js';
 import { AgentMergeSettingId } from '../../../../platform/agentHost/common/agentMerge.js';
 import { AgentHostAhpJsonlLoggingSettingId, AgentHostAllowSignedOutWhenUsableSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
-import { AgentHostCopilotLocalMemoryEnabledSettingId, AgentHostCopilotMemoryEnabledSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotRuntimePathSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, CopilotStabilityOrderedPromptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotSkillCharBudgetSettingId, CopilotTgrepEnabledSettingId, copilotSdkLogLevelSettingValues, DEFAULT_COPILOT_SKILL_CHAR_BUDGET, normalizeSkillCharBudget } from '../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostCopilotLocalMemoryEnabledSettingId, AgentHostCopilotMemoryEnabledSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotRuntimePathSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, CopilotSearchSubagentEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, CopilotStabilityOrderedPromptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotSkillCharBudgetSettingId, CopilotTgrepEnabledSettingId, copilotSdkLogLevelSettingValues, DEFAULT_COPILOT_SKILL_CHAR_BUDGET, normalizeSkillCharBudget } from '../../../../platform/agentHost/common/copilotCliConfig.js';
 import { CopilotSemanticSearchEnabledSettingId } from '../../../../platform/agentHost/common/semanticSearchConstants.js';
 import { ChatMicrosoftAuthenticationEnabledSettingId, ChatMicrosoftAuthenticationMode, DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, mergeChatEditAutoApprovePatterns } from '../../../../platform/chat/common/chatSettings.js';
 import { reasoningEffortLevels } from '../../../../platform/agentHost/common/reasoningEffort.js';
@@ -56,7 +56,7 @@ import { IEditorResolverService, RegisteredEditorPriority } from '../../../servi
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { AddConfigurationType, AssistedTypes } from '../../mcp/browser/mcpCommandsAddConfiguration.js';
-import { McpCollisionBehavior, allDiscoverySources, discoverySourceSettingsLabel, mcpDiscoverySection, mcpEnterpriseManagedAuthIdpSection, mcpServerCollisionBehaviorSection, mcpServerSamplingSection, mcpWorkspaceRootConfig } from '../../mcp/common/mcpConfiguration.js';
+import { McpCollisionBehavior, allDiscoverySources, defaultDiscoverySourceEnablement, discoverySourceSettingsLabel, mcpDiscoverySection, mcpEnterpriseManagedAuthIdpSection, mcpServerCollisionBehaviorSection, mcpServerSamplingSection, mcpWorkspaceRootConfig } from '../../mcp/common/mcpConfiguration.js';
 import { autoApprovePolicyValue } from '../common/agentHostConfigPolicy.js';
 import { IChatVariablesService } from '../common/attachments/chatVariables.js';
 import { IChatDebugService } from '../common/chatDebugService.js';
@@ -321,13 +321,6 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			tags: ['experimental'],
 			agentsWindow: { default: true },
-		},
-		'chat.experimentalModelPicker': {
-			type: 'boolean',
-			description: nls.localize('chat.experimentalModelPicker', "When enabled, the model picker uses provider tabs and a model details page for information and configuration. Open details from a model's information button or the thinking effort and context readout in the chat input."),
-			default: false,
-			tags: ['experimental'],
-			experiment: { mode: 'auto' },
 		},
 		[ChatConfiguration.ExperimentalModePermissionsPicker]: {
 			type: 'boolean',
@@ -1634,7 +1627,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentHostCustomTerminalToolEnabledSettingId]: {
 			type: 'boolean',
-			description: nls.localize('chat.agentHost.customTerminalTool.enabled', "When enabled, Copilot SDK sessions use the Agent Host terminal tool override instead of the SDK's default terminal behavior."),
+			description: nls.localize('chat.agentHost.customTerminalTool.enabled', "When enabled, Copilot SDK sessions use the Agent Host terminal tool override instead of the SDK's default terminal behavior. Not supported on Windows, where sessions use the SDK's terminal and sandbox runtime."),
 			default: false,
 			tags: ['experimental', 'advanced'],
 			policy: {
@@ -1697,6 +1690,13 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', 'advanced'],
 			scope: ConfigurationScope.APPLICATION,
 		},
+		[CopilotSearchSubagentEnabledSettingId]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.copilot.searchSubagent.enabled', "When enabled, local Copilot Agent Host sessions are offered the Copilot runtime's search subagent tool for codebase search. Applies to sessions when they launch or resume."),
+			default: false,
+			tags: ['experimental', 'advanced'],
+			scope: ConfigurationScope.APPLICATION,
+		},
 		[AgentHostOpus48PromptEnabledSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.opus48Prompt.enabled', "When enabled, Copilot SDK sessions running a Claude Opus 4.8 model apply Opus 4.8-tuned system-prompt section overrides on top of the default system message."),
@@ -1746,7 +1746,13 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', 'advanced'],
 		},
 		[AgentHostHydraFusionEnabledSettingId]: {
-			type: 'boolean',
+			type: ['boolean', 'string'],
+			enum: [true, false, 'v2'],
+			enumDescriptions: [
+				nls.localize('chat.copilot.hydraFusion.enabled.true', "Make HydraFusion available."),
+				nls.localize('chat.copilot.hydraFusion.enabled.false', "Do not make HydraFusion available."),
+				nls.localize('chat.copilot.hydraFusion.enabled.v2', "Make HydraFusion v2 available, which plans with per-step reasoning effort and a wider set of models."),
+			],
 			markdownDescription: nls.localize('chat.copilot.hydraFusion.enabled', "When enabled, makes the experimental HydraFusion model available to local Copilot Agent Host sessions. Changing this setting restarts the local Copilot runtime."),
 			default: true,
 			experiment: { mode: 'startup' },
@@ -1938,8 +1944,8 @@ configurationRegistry.registerConfiguration({
 			type: 'object',
 			properties: Object.fromEntries(allDiscoverySources.map(k => [k, { type: 'boolean', description: discoverySourceSettingsLabel[k] }])),
 			additionalProperties: false,
-			default: Object.fromEntries(allDiscoverySources.map(k => [k, false])),
-			markdownDescription: nls.localize('mcp.discovery.enabled', "Configures discovery of Model Context Protocol servers from configuration from various other applications."),
+			default: { ...defaultDiscoverySourceEnablement },
+			markdownDescription: nls.localize('mcp.discovery.enabled', "Configures discovery of Model Context Protocol servers from configuration from various other applications. The GitHub Copilot CLI configuration is discovered by default; other applications must be enabled explicitly."),
 		},
 		[mcpWorkspaceRootConfig]: {
 			type: 'boolean',
@@ -2553,7 +2559,7 @@ configurationRegistry.registerConfiguration({
 		...customizationMarketplaceConfigurationProperties,
 		[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: {
 			type: 'boolean',
-			tags: ['experimental'],
+			tags: ['experimental', 'advanced'],
 			description: nls.localize('chat.customizations.copilotConnectors.enabled', "Enables Copilot connectors in the unified marketplace and exposes connected connector MCP servers in Chat Customizations and Copilot agent sessions."),
 			default: false,
 			scope: ConfigurationScope.APPLICATION,

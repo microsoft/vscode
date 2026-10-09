@@ -9,6 +9,7 @@ import {
 	buildWpsUrl,
 	cloudSandboxAddress,
 	CloudSandboxAuthenticationRequiredError,
+	CloudSandboxNetworkError,
 	CloudSandboxRequestError,
 	ICloudSandboxClientToken,
 	isRetryableCloudSandboxError,
@@ -69,23 +70,22 @@ suite('isRetryableCloudSandboxError', () => {
 		assert.deepStrictEqual(
 			{
 				transport: isRetryableCloudSandboxError(new Error('socket hang up')),
+				connectionNetwork: isRetryableCloudSandboxError(new CloudSandboxNetworkError('network unavailable')),
 				statusless: isRetryableCloudSandboxError(new CloudSandboxRequestError(undefined, 'no status')),
 				// Raised before any request goes out, and covers the auth provider not having
 				// registered yet — so callers bound it with their own ceiling rather than here.
 				authNotReady: isRetryableCloudSandboxError(new CloudSandboxAuthenticationRequiredError()),
 			},
-			{ transport: true, statusless: true, authNotReady: true },
+			{ transport: true, connectionNetwork: true, statusless: true, authNotReady: true },
 		);
 	});
 
 	test('an answered request is distinguishable from an unanswered one', () => {
-		// `_throwForStatus` is the sole source of CloudSandboxRequestError and always carries the
-		// replied status, so the type alone separates "Mission Control refused" from "no answer" —
-		// which is what lets a caller report a refusal rather than an inconclusive timeout.
+		// A network failure must not look like an explicit HTTP rejection.
 		assert.deepStrictEqual(
 			{
 				refused: new CloudSandboxRequestError(500, 'HTTP 500') instanceof CloudSandboxRequestError,
-				transport: new Error('Fetch timeout: 10000ms') instanceof CloudSandboxRequestError,
+				transport: new CloudSandboxNetworkError('Fetch timeout: 30000ms') instanceof CloudSandboxRequestError,
 			},
 			{ refused: true, transport: false },
 		);

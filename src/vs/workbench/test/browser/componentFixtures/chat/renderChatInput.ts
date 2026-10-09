@@ -23,7 +23,6 @@ import { OpenAgentHostAutoApprovePickerAction, OpenAgentHostModePickerAction } f
 import { SessionType } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { getNewChatSessionResource } from '../../../../contrib/chat/common/model/chatUri.js';
 import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from '../../../../contrib/chat/browser/widget/input/chatInputPart.js';
-import { TABBED_MODEL_PICKER_SETTING_ID } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerWidget.js';
 import { IChatModel } from '../../../../contrib/chat/common/model/chatModel.js';
 import { IChatViewModel } from '../../../../contrib/chat/common/model/chatViewModel.js';
 import { IArtifactSourceGroup } from '../../../../contrib/chat/common/tools/chatArtifactsService.js';
@@ -130,7 +129,6 @@ export interface ChatInputFixtureOptions {
 	readonly agentHostSessionConfig?: ResolveSessionConfigResult;
 	/** Combines the Agent Host mode and permissions controls in the composer. */
 	readonly combinedModePermissionsPicker?: boolean;
-	readonly tabbedModelPicker?: boolean;
 	/** Renders a standalone dictation / Voice Mode control in the given state. */
 	readonly voiceControl?: VoiceControlState;
 	readonly voiceInputMode?: boolean;
@@ -246,11 +244,6 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 	if (combinedModePermissionsPicker) {
 		const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
 		await configService.setUserConfiguration(ChatConfiguration.ExperimentalModePermissionsPicker, true);
-	}
-
-	if (fixtureOptions.tabbedModelPicker) {
-		const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
-		await configService.setUserConfiguration(TABBED_MODEL_PICKER_SETTING_ID, true);
 	}
 
 	container.style.width = `${width}px`;

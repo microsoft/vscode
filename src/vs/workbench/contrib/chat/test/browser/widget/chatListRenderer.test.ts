@@ -14,7 +14,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable, trackDisposable } from '../../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../../base/common/observable.js';
+import { IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
@@ -512,12 +512,12 @@ suite('ChatListRenderer', () => {
 					kind: 'data',
 					base64Value: 'aW1hZ2U=',
 					mimeType: 'image/png',
-					path: '/tool/image-call/0/generated-image.png',
+					path: '/tool/image-call/0/generated-image-42372713b8e5.png',
 				}, {
 					kind: 'data',
 					base64Value: 'aW1hZ2Uy',
 					mimeType: 'image/jpeg',
-					path: '/tool/image-call/1/generated-image.jpe',
+					path: '/tool/image-call/1/generated-image-3a13e817ce35.jpg',
 				}]);
 			});
 
@@ -550,10 +550,10 @@ suite('ChatListRenderer', () => {
 					path: part.uri.path,
 				})), [{
 					base64Value: 'aW1hZ2Ux',
-					path: '/tool/image-call-1/0/generated-image-1.png',
+					path: '/tool/image-call-1/0/generated-image-3c41e71d9ac9.png',
 				}, {
 					base64Value: 'aW1hZ2Uy',
-					path: '/tool/image-call-2/0/generated-image-2.png',
+					path: '/tool/image-call-2/0/generated-image-dc4b1335ceec.png',
 				}]);
 			});
 
@@ -590,7 +590,7 @@ suite('ChatListRenderer', () => {
 					uri: imageUri.toString(),
 					base64Value: undefined,
 				}, {
-					uri: ChatResponseResource.createUri(sessionResource, 'image-call', 1, 'generated-image-2.png').toString(),
+					uri: ChatResponseResource.createUri(sessionResource, 'image-call', 1, 'generated-image-035f45022753.png').toString(),
 					base64Value: 'aW1hZ2U=',
 				}]);
 			});
@@ -1443,6 +1443,9 @@ suite('ChatListRenderer', () => {
 			backgroundTerminal: label([backgroundTerminal('current-shell', true)]),
 			backgroundTerminals: label([backgroundTerminal('first-shell', true), backgroundTerminal('second-shell', true), { kind: 'thinking', value: 'Reviewing changes' }]),
 			backgroundTerminalComplete: label([backgroundTerminal('current-shell', false)]),
+			reportedShellCount: getPersistentActivityLabel([backgroundTerminal('current-shell', true)], inheritedBackgroundActivity, undefined, 1)?.value.replaceAll('&nbsp;', ' '),
+			reportedShellCompletion: getPersistentActivityLabel([backgroundTerminal('current-shell', true)], inheritedBackgroundActivity, undefined, 0),
+			unreportedShellCount: getPersistentActivityLabel([backgroundTerminal('current-shell', true)], inheritedBackgroundActivity, undefined, undefined)?.value.replaceAll('&nbsp;', ' '),
 			previousTurnBackgroundTerminal: getPersistentActivityLabel([
 				{ kind: 'markdownContent', content: new MarkdownString('I answered the steering question.') },
 			], inheritedBackgroundActivity)?.value.replaceAll('&nbsp;', ' '),
@@ -1476,6 +1479,9 @@ suite('ChatListRenderer', () => {
 			backgroundTerminal: '1 background command running',
 			backgroundTerminals: '2 background commands running',
 			backgroundTerminalComplete: undefined,
+			reportedShellCount: '1 background command running',
+			reportedShellCompletion: undefined,
+			unreportedShellCount: '2 background commands running',
 			previousTurnBackgroundTerminal: '1 background command running',
 			combinedBackgroundWork: '1 subagent and 1 background command running',
 			currentAndPreviousAgents: '2 subagents running',
@@ -1691,7 +1697,7 @@ suite('ChatListRenderer', () => {
 		assert.deepStrictEqual({ whileStarting, afterStarting }, { whileStarting: true, afterStarting: false });
 	});
 
-	function createPersistentProgressRenderer(options: { thinkingStyle?: ThinkingDisplayMode; progressVerbosity?: ChatProgressVerbosity; chatMode?: ChatModeKind; collapsedTools?: CollapsedToolsDisplayMode; persistentProgress?: ChatProgressAnimation; dockPlanReview?: boolean; renderFooterActions?: boolean; sessionResource?: URI; rendererOptions?: IChatListItemRendererOptions; editingSession?: IChatEditingSession; chatWidgetService?: IChatWidgetService; requestText?: string } = {}) {
+	function createPersistentProgressRenderer(options: { thinkingStyle?: ThinkingDisplayMode; progressVerbosity?: ChatProgressVerbosity; chatMode?: ChatModeKind; collapsedTools?: CollapsedToolsDisplayMode; persistentProgress?: ChatProgressAnimation; dockPlanReview?: boolean; renderFooterActions?: boolean; sessionResource?: URI; rendererOptions?: IChatListItemRendererOptions; editingSession?: IChatEditingSession; chatWidgetService?: IChatWidgetService; requestText?: string; backgroundShellCount?: IObservable<number | undefined> } = {}) {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		instantiationService.stub(ILanguageModelsService, { onDidChangeLanguageModels: Event.None, lookupLanguageModel: () => undefined });
@@ -1747,7 +1753,7 @@ suite('ChatListRenderer', () => {
 				override createSuggestionId() { return EditSuggestionId.newId(); }
 			}());
 		}
-		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true, resource: options.sessionResource }));
+		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true, resource: options.sessionResource, backgroundShellCount: options.backgroundShellCount }));
 		if (editingSession) {
 			const chatService = instantiationService.get(IChatService);
 			assert.ok(chatService instanceof MockChatService);
@@ -4548,6 +4554,67 @@ suite('ChatListRenderer', () => {
 			statuses: ['This is taking a little longer than usual'],
 		});
 	}));
+
+	for (const incremental of [false, true]) {
+		test(`persistent progress reports provider background shells instead of inactivity (incremental=${incremental})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const backgroundShellCount = observableValue<number | undefined>('backgroundShellCount', 0);
+			const { configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer({ backgroundShellCount });
+			configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, incremental);
+			renderer.renderElement(node, 0, template);
+			const progress = template.renderedParts?.find(part => part instanceof ChatWorkingProgressContentPart);
+			assert.ok(progress instanceof ChatWorkingProgressContentPart);
+			await timeout(90_000);
+			const beforeShell = progress.workingLabel;
+
+			backgroundShellCount.set(1, undefined);
+			await timeout(0);
+			const afterShell = progress.workingLabel;
+			await timeout(90_000);
+			const longRunningShell = progress.workingLabel;
+			backgroundShellCount.set(2, undefined);
+			await timeout(0);
+			const twoShells = progress.workingLabel;
+
+			const agentData: IChatSubagentToolInvocationData = { kind: 'subagent', hasStarted: true, isActive: true };
+			const agent = createSubagentTool('background-agent', agentData);
+			await agent.didExecuteTool(undefined);
+			model.acceptResponseProgress(request, agent);
+			await timeout(0);
+			const combined = progress.workingLabel;
+			backgroundShellCount.set(0, undefined);
+			await timeout(0);
+			const agentOnly = progress.workingLabel;
+			agentData.isActive = false;
+			agent.notifyToolSpecificDataChanged();
+			await timeout(0);
+			const afterBackgroundWork = progress.workingLabel;
+			await timeout(89_999);
+			const beforeDelay = progress.workingLabel;
+			await timeout(1);
+			const afterDelay = progress.workingLabel;
+
+			const sameFooter = template.value.querySelector('.chat-working-progress') === progress.domNode;
+			request.response?.complete();
+			renderer.renderElement(node, 0, template);
+			backgroundShellCount.set(1, undefined);
+			await timeout(0);
+			assert.deepStrictEqual({
+				beforeShell, afterShell, longRunningShell, twoShells, combined, agentOnly, afterBackgroundWork, beforeDelay, afterDelay,
+				sameFooter, footerAfterCompletion: !!template.value.querySelector('.chat-working-progress'),
+			}, {
+				beforeShell: 'This is taking a little longer than usual',
+				afterShell: '1 background command running',
+				longRunningShell: '1 background command running',
+				twoShells: '2 background commands running',
+				combined: '1 subagent and 2 background commands running',
+				agentOnly: '1 subagent running',
+				afterBackgroundWork: 'Working',
+				beforeDelay: 'Working',
+				afterDelay: 'This is taking a little longer than usual',
+				sameFooter: true, footerAfterCompletion: false,
+			});
+		}));
+	}
 
 	test('persistent progress waits for all foreground tools before reporting inactivity', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const setup = createPersistentProgressRenderer();
@@ -7483,6 +7550,77 @@ suite('ChatListRenderer', () => {
 				request.response?.complete();
 				renderer.renderElement(node, 0, template);
 			});
+
+			test(`compact tool summaries reserve their wrapped height after streaming and resizing (fontSize=${fontSize}, reducedMotion=${reducedMotion})`, async () => {
+				const { configurationService, container, model, request, renderer, template, node } = createPersistentProgressRenderer({ progressVerbosity: ChatProgressVerbosity.Compact });
+				configurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, false);
+				configurePersistentProgressTypography(container, fontSize);
+				container.classList.toggle('monaco-reduce-motion', reducedMotion);
+				container.style.width = '170px';
+				renderer.layout(170);
+				const title = 'Finished with 2 steps';
+				for (const pattern of ['order_header_update', 'invoice_print_address']) {
+					const tool = new ChatToolInvocation(
+						{ invocationMessage: `Searching for ${pattern}`, pastTenseMessage: `Searched for ${pattern}` },
+						{ id: 'search', displayName: 'Search', modelDescription: 'Search', source: ToolDataSource.Internal },
+						pattern, undefined, {},
+					);
+					await tool.didExecuteTool(undefined);
+					model.acceptResponseProgress(request, tool);
+				}
+				renderer.renderElement(node, 0, template);
+				const chain = template.value.querySelector<HTMLElement>('.chat-tool-chain-preview');
+				const button = chain?.querySelector<HTMLElement>(':scope > .chat-used-context-label .monaco-button');
+				const label = button?.querySelector<HTMLElement>('.monaco-button-mdlabel');
+				assert.ok(chain && button && label);
+
+				model.acceptResponseProgress(request, {
+					kind: 'thinking', id: 'reasoning',
+					value: '**Confirmed order_header_update endpoint accepted invoice_print_address**\nThe endpoint accepts the updated address.',
+				});
+				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('The update is ready.') });
+				renderer.renderElement(node, 0, template);
+				for (const animation of chain.getAnimations({ subtree: true })) {
+					if (animation instanceof CSSTransition) {
+						animation.finish();
+					}
+				}
+				await timeout(0);
+				const reasoning = template.value.querySelector<HTMLElement>('.chat-persistent-reasoning');
+				assert.ok(reasoning);
+
+				const snapshot = () => ({
+					wrapped: label.getBoundingClientRect().height > fontSize * 1.5 + 0.1,
+					titleContained: label.getBoundingClientRect().bottom <= chain.getBoundingClientRect().bottom + 0.1,
+					noHorizontalOverflow: label.scrollWidth <= label.clientWidth,
+					nextItemGap: Math.round(reasoning.getBoundingClientRect().top - label.getBoundingClientRect().bottom),
+				});
+				const widths = [170, 720, 130, 170];
+				const resized = widths.map(width => {
+					container.style.width = `${width}px`;
+					renderer.layout(width);
+					return snapshot();
+				});
+				for (let toggle = 0; toggle < 2; toggle++) {
+					button.click();
+					for (const animation of chain.getAnimations({ subtree: true })) {
+						if (animation instanceof CSSTransition) {
+							animation.finish();
+						}
+					}
+				}
+				assert.deepStrictEqual({
+					title: label.textContent,
+					resized,
+					collapsedAgain: snapshot(),
+				}, {
+					title,
+					resized: widths.map(width => ({ wrapped: width !== 720, titleContained: true, noHorizontalOverflow: true, nextItemGap: 16 })),
+					collapsedAgain: { wrapped: true, titleContained: true, noHorizontalOverflow: true, nextItemGap: 16 },
+				});
+				request.response?.complete();
+				renderer.renderElement(node, 0, template);
+			});
 		}
 	}
 
@@ -7879,6 +8017,64 @@ suite('ChatListRenderer', () => {
 
 	for (const incremental of [false, true]) {
 		for (const fontSize of [13, 20]) {
+			test(`hidden turn changes do not move the completion toolbar (incremental=${incremental}, fontSize=${fontSize})`, async () => {
+				const { instantiationService, container, configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer({
+					renderFooterActions: true,
+					sessionResource: URI.from({ scheme: SessionType.AgentHostCopilot, path: '/footer-layout' }),
+				});
+				const stats = observableValue('turnChangeStats', { files: 0, insertions: 0, deletions: 0 });
+				instantiationService.stub(IChatResponseFileChangesService, new class extends mock<IChatResponseFileChangesService>() {
+					override getChangesForRequest() { return undefined; }
+					override getChangeStatsForRequest() { return stats; }
+				}());
+				configurePersistentProgressTypography(container, fontSize);
+				configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, incremental);
+				model.acceptResponseProgress(request, {
+					kind: 'markdownContent',
+					content: new MarkdownString('**Task completed:**\n\nGenerated an image.'),
+				});
+				renderer.renderElement(node, 0, template);
+				await retry(async () => {
+					assert.strictEqual(template.value.querySelector('.chat-markdown-part p:last-child')?.textContent, 'Generated an image.');
+				}, 10, 100);
+				const progress = template.value.querySelector<HTMLElement>('.chat-working-progress');
+				assert.ok(progress);
+				const before = {
+					height: template.rowContainer.getBoundingClientRect().height,
+					footerTop: progress.getBoundingClientRect().top,
+				};
+				request.response?.complete();
+				renderer.renderElement(node, 0, template);
+				const summary = template.value.querySelector<HTMLElement>('.chat-turn-pills-part');
+				assert.ok(summary);
+				const measure = () => ({
+					height: template.rowContainer.getBoundingClientRect().height,
+					footerTop: template.footerToolbar.getElement().getBoundingClientRect().top,
+				});
+				const completed = measure();
+				const hiddenSummaryHeight = summary.getBoundingClientRect().height;
+				stats.set({ files: 1, insertions: 5, deletions: 2 }, undefined);
+				const shownSummary = summary.getBoundingClientRect();
+				const markdown = template.value.querySelector<HTMLElement>('.chat-markdown-part');
+				assert.ok(markdown);
+				const visibleSummaryGap = shownSummary.top - markdown.getBoundingClientRect().bottom;
+				stats.set({ files: 0, insertions: 0, deletions: 0 }, undefined);
+
+				assert.deepStrictEqual({
+					completed,
+					hiddenSummaryHeight,
+					showsChanges: shownSummary.height > 0,
+					visibleSummaryGap,
+					hiddenAgain: measure(),
+				}, {
+					completed: before,
+					hiddenSummaryHeight: 0,
+					showsChanges: true,
+					visibleSummaryGap: 16,
+					hiddenAgain: before,
+				});
+			});
+
 			for (const canceled of [false, true]) {
 				test(`persistent progress hands off an empty response without changing height (incremental=${incremental}, fontSize=${fontSize}, canceled=${canceled})`, () => {
 					const { container, configurationService, request, renderer, template, node } = createPersistentProgressRenderer({ renderFooterActions: true });
@@ -9735,7 +9931,8 @@ suite('ChatListRenderer', () => {
 					};
 				};
 				const beforeFinish = bounds();
-				await retry(async () => assert.ok(!imageReveal.classList.contains('revealing')), 100, 50);
+				const transitionDuration = Number(clock.effect?.getTiming().duration);
+				await retry(async () => assert.ok(!imageReveal.classList.contains('revealing')), Math.ceil(transitionDuration / 50) + 1, 50);
 				const afterFinish = bounds();
 				assert.deepStrictEqual({
 					revealStates,
@@ -9773,7 +9970,7 @@ suite('ChatListRenderer', () => {
 				keyboardAccessible: true,
 			});
 			disposables.dispose();
-		});
+		}).timeout(10_000);
 	}
 
 	test('generated image completion renders embedded and referenced images without duplicate previews or hidden placeholders', async () => {

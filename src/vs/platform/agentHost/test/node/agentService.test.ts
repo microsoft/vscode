@@ -14,6 +14,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
 import { DeferredPromise, disposableTimeout, raceTimeout, timeout } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -39,13 +40,14 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { AgentChatMigrationDeferred, AgentSession, AgentWorkingDirectoryChangedError, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agent.js';
 import { IConnectionTrackerService } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
-import { AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostArtifactToolsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostSessionCatalogEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, platformRootSchema, AgentHostDeferredTitleGenerationConfigKey, AgentHostTitleGenerationConfigKey, AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostArtifactToolsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostSessionCatalogEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
+import { resolveTitleGenerationStrategy } from '../../common/titleGenerationConfiguration.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { buildCanvasUri } from '../../common/canvasUri.js';
 import type { CanvasState } from '../../common/state/protocol/channels-canvas/state.js';
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
-import { ISessionCatalogSyncPendingSnapshot, ISessionCatalogSyncSnapshot, ISessionDatabase, ISessionDataService, SessionCatalogSyncWriteResult } from '../../common/sessionDataService.js';
+import { ISessionCatalogSyncPendingSnapshot, ISessionCatalogSyncSnapshot, ISessionDatabase, ISessionDataService, SessionCatalogSyncWriteResult, SessionCatalogSyncWriteValidator } from '../../common/sessionDataService.js';
 import { IAgentHostGitStateService, META_GITHUB_DATA_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
 import { getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY, META_CHANGESET_BRANCH, META_CHANGESET_SESSION } from '../../common/agentHostChangesetService.js';
 import { GitRefType, META_DIFF_BASE_BRANCH, type IAgentHostGitService } from '../../common/agentHostGitService.js';
@@ -54,7 +56,7 @@ import { readSessionSandboxPolicy } from '../../common/meta/agentSandboxPolicyMe
 import { getSessionSandboxConfig } from '../../node/sessionSandbox.js';
 import { buildSandboxConfigForSdk } from '../../node/copilot/sandboxConfigForSdk.js';
 import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/agentMerge.js';
-import { SessionDatabase } from '../../node/sessionDatabase.js';
+import { SessionDatabase, sessionDatabaseMigrations } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope, NotificationType, type INotification, type SessionSummaryChanges } from '../../common/state/sessionActions.js';
 import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isDefaultChatUri, isMessageRequestHiddenFromTranscript, isSessionStatusArchived, isSessionStatusRead, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubData, readSessionGitHubState, readSessionGitState, readWorkingDirectoryKeys, readWorkingDirectoryScopeIds, SESSION_META_GITHUB_DATA_KEY, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, readSessionWorkspaceless, withSessionEhcliAdoptable, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type SessionSummaryMeta, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { BackgroundWorkKind, ChatInteractivity, PendingMessageKind, type BackgroundWork, type Message, type MessageAttachment } from '../../common/state/protocol/state.js';
@@ -219,6 +221,29 @@ function catalogDataOf(row: { readonly payload: string } | undefined): AgentHost
 	}
 	const decoded = decodeAgentHostCatalogPayload(row.payload);
 	return decoded.ok ? decoded.value.data : undefined;
+}
+
+function restoredSubagentTurn(parentSession: URI, toolCallId: string, title: string): Turn {
+	return {
+		id: `turn-${toolCallId}`,
+		state: TurnState.Complete,
+		usage: undefined,
+		message: { text: 'Delegate', origin: { kind: MessageKind.User } },
+		responseParts: [{
+			kind: ResponsePartKind.ToolCall,
+			toolCall: {
+				toolCallId,
+				toolName: 'task',
+				displayName: 'Task',
+				status: ToolCallStatus.Completed,
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				invocationMessage: 'Delegating',
+				success: true,
+				pastTenseMessage: 'Delegated',
+				content: [{ type: ToolResultContentType.Subagent, resource: buildSubagentChatUri(parentSession.toString(), toolCallId), title }],
+			},
+		}],
+	};
 }
 
 async function seedVerifiedSessionV2(database: IAgentHostDatabase, sessionData: TestSessionDatabase, session: URI, external: boolean, isRead = true): Promise<void> {
@@ -4475,6 +4500,86 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('validates approval requests against host-advertised modes and preserves them on replacement', async () => {
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			registerTestAgentProvider(svc, agent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			const state = getStateManager(svc);
+			state.setSessionConfig(session.toString(), {
+				schema: {
+					type: 'object', properties: {
+						autoApprove: { type: 'string', title: 'Approvals', enum: ['default', 'assisted'], sessionMutable: true },
+						availableApprovalModes: { type: 'array', title: 'Available', readOnly: true },
+					}
+				},
+				values: { autoApprove: 'default', availableApprovalModes: ['default', 'assisted'] },
+			});
+			const results = [];
+			for (const [index, config] of [{ autoApprove: 'autoApprove' }, { availableApprovalModes: ['default', 'autoApprove'] }, { autoApprove: 'assisted' }].entries()) {
+				const response = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === index + 1));
+				svc.dispatchAction(session.toString(), { type: ActionType.SessionConfigChanged, config, replace: true }, 'client', index + 1);
+				results.push(!!(await response).rejectionReason);
+			}
+			assert.deepStrictEqual({ rejected: results, values: state.getSessionState(session.toString())?.config?.values }, {
+				rejected: [true, true, false],
+				values: { autoApprove: 'assisted', availableApprovalModes: ['default', 'assisted'] },
+			});
+		});
+
+		for (const approvalSchema of [{ sessionMutable: false }, { sessionMutable: true, readOnly: true }]) {
+			test(`rejects runtime writes to immutable approval configuration ${JSON.stringify(approvalSchema)}`, async () => {
+				const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+				const agent = new MockAgent('copilot');
+				disposables.add(toDisposable(() => agent.dispose()));
+				registerTestAgentProvider(svc, agent);
+				const session = await svc.createSession({ provider: 'copilot' });
+				const state = getStateManager(svc);
+				state.setSessionConfig(session.toString(), {
+					schema: {
+						type: 'object', properties: {
+							autoApprove: { type: 'string', title: 'Approvals', enum: ['default', 'assisted'], ...approvalSchema },
+							availableApprovalModes: { type: 'array', title: 'Available', readOnly: true },
+						}
+					},
+					values: { autoApprove: 'default', availableApprovalModes: ['default', 'assisted'] },
+				});
+				const response = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+				svc.dispatchAction(session.toString(), { type: ActionType.SessionConfigChanged, config: { autoApprove: 'assisted' } }, 'client', 1);
+				assert.deepStrictEqual({
+					rejected: !!(await response).rejectionReason, selected: state.getSessionState(session.toString())?.config?.values.autoApprove,
+				}, { rejected: true, selected: 'default' });
+			});
+		}
+
+		for (const restriction of ['unavailable', 'readOnly', 'immutable', 'allowed'] as const) {
+			test(`validates standard approvalMode runtime writes (${restriction})`, async () => {
+				const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+				const agent = new MockAgent('other');
+				disposables.add(toDisposable(() => agent.dispose()));
+				registerTestAgentProvider(svc, agent);
+				const session = await svc.createSession({ provider: 'other' });
+				const state = getStateManager(svc);
+				const available = restriction === 'unavailable' ? ['manual'] : ['manual', 'assisted'];
+				state.setSessionConfig(session.toString(), {
+					schema: {
+						type: 'object', properties: {
+							approvalMode: { type: 'string', title: 'Approvals', enum: ['manual', 'assisted', 'allow-all'], sessionMutable: restriction !== 'immutable', readOnly: restriction === 'readOnly' },
+							availableApprovalModes: { type: 'array', title: 'Available', readOnly: true },
+						}
+					},
+					values: { approvalMode: 'manual', availableApprovalModes: available },
+				});
+				const response = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+				svc.dispatchAction(session.toString(), { type: ActionType.SessionConfigChanged, config: { approvalMode: 'assisted' }, replace: true }, 'client', 1);
+				assert.deepStrictEqual({ rejected: !!(await response).rejectionReason, values: state.getSessionState(session.toString())?.config?.values }, {
+					rejected: restriction !== 'allowed',
+					values: { approvalMode: restriction === 'allowed' ? 'assisted' : 'manual', availableApprovalModes: available },
+				});
+			});
+		}
+
 		test('rejects client writes to host-owned Agent Merge controller state', async () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = new MockAgent('copilot');
@@ -5004,6 +5109,44 @@ suite('AgentService (node dispatcher)', () => {
 				localDisposables.dispose();
 				await rm(tempDir.fsPath, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 			}
+		});
+
+		test('an older client can change the title strategy after a newer client persisted one', () => {
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const configurationService = getConfigurationService(svc);
+			const resolveHostStrategy = () => resolveTitleGenerationStrategy(
+				configurationService.getRootValue(platformRootSchema, AgentHostTitleGenerationConfigKey),
+				configurationService.getRootValue(platformRootSchema, AgentHostDeferredTitleGenerationConfigKey),
+				configurationService.getRootValue(platformRootSchema, AgentHostActiveAgentTitleGenerationConfigKey),
+			);
+			const strategies: string[] = [];
+
+			svc.dispatchAction(ROOT_STATE_URI, {
+				type: ActionType.RootConfigChanged,
+				config: { [AgentHostTitleGenerationConfigKey]: 'agentReview', [AgentHostActiveAgentTitleGenerationConfigKey]: false, [AgentHostDeferredTitleGenerationConfigKey]: true },
+			}, 'new-client', 1);
+			strategies.push(resolveHostStrategy());
+
+			// Reconnecting with legacy values that already match keeps the newer strategy.
+			svc.dispatchAction(ROOT_STATE_URI, {
+				type: ActionType.RootConfigChanged,
+				config: { [AgentHostActiveAgentTitleGenerationConfigKey]: false, [AgentHostDeferredTitleGenerationConfigKey]: true },
+			}, 'old-client', 1);
+			strategies.push(resolveHostStrategy());
+
+			svc.dispatchAction(ROOT_STATE_URI, {
+				type: ActionType.RootConfigChanged,
+				config: { [AgentHostActiveAgentTitleGenerationConfigKey]: true, [AgentHostDeferredTitleGenerationConfigKey]: false },
+			}, 'old-client', 2);
+			strategies.push(resolveHostStrategy());
+
+			svc.dispatchAction(ROOT_STATE_URI, {
+				type: ActionType.RootConfigChanged,
+				config: { [AgentHostTitleGenerationConfigKey]: 'utility', [AgentHostActiveAgentTitleGenerationConfigKey]: false, [AgentHostDeferredTitleGenerationConfigKey]: false },
+			}, 'new-client', 2);
+			strategies.push(resolveHostStrategy());
+
+			assert.deepStrictEqual(strategies, ['agentReview', 'agentReview', 'activeAgent', 'utility']);
 		});
 
 		test('generates and persists an AI title after first-turn fallback title', async () => {
@@ -6329,11 +6472,11 @@ suite('AgentService (node dispatcher)', () => {
 			class FailingInitialCatalogDatabase extends TestSessionDatabase {
 				failCatalogWrite = true;
 
-				override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<SessionCatalogSyncWriteResult> {
+				override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot, validate?: SessionCatalogSyncWriteValidator): Promise<SessionCatalogSyncWriteResult> {
 					if (this.failCatalogWrite) {
 						throw new Error('initial catalog write failed');
 					}
-					return super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot);
+					return super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot, validate);
 				}
 			}
 			const sessionDatabase = new FailingInitialCatalogDatabase();
@@ -7440,6 +7583,49 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('additional worktree creation refreshes a cached non-repository after external git init', async () => {
+			const perSession = createPerSessionDataService();
+			const repository = URI.file('/workspace/repository');
+			const worktree = URI.file('/workspace/repository.worktrees/task');
+			const handle = generateUuid();
+			let repositoryInitialized = false;
+			let cachedRoot: URI | undefined;
+			const gitService: IAgentHostGitService = {
+				...createNoopGitService(),
+				getRepositoryRoot: async (_directory, options) => {
+					if (options?.refreshIfNone) {
+						cachedRoot = repositoryInitialized ? repository : undefined;
+					}
+					return cachedRoot;
+				},
+				getWorktreeRoots: async () => [repository],
+				getDefaultBranch: async () => ({ name: 'main', startPoint: 'origin/main' }),
+			};
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, gitService));
+			const agent = disposables.add(new MockAgent('copilot', {
+				multipleWorkingDirectories: { immutablePrimary: true },
+			}));
+			registerTestAgentProvider(svc, agent);
+			const primary = URI.file('/workspace/primary');
+			const session = await svc.createSession({ provider: agent.id, workingDirectories: [primary] });
+			setTestAgentHostWorktreeIsolation(svc, createTestAgentHostWorktreeIsolation({
+				createDetachedWorktree: async () => ({ handle, worktree }),
+				claimDetachedWorktree: async () => { },
+			}));
+			await gitService.getRepositoryRoot(repository);
+			repositoryInitialized = true;
+
+			const added = await svc.addSessionWorkingDirectoryForChat(session, repository, { isolation: 'worktree', prompt: 'task' });
+
+			assert.deepStrictEqual({
+				added: added.toString(),
+				directories: getStateManager(svc).getSessionSummary(session.toString())?.workingDirectories,
+			}, {
+				added: worktree.toString(),
+				directories: [primary.toString(), worktree.toString()],
+			});
+		});
+
 		test('rolls back an additional worktree when it cannot be claimed', async () => {
 			const perSession = createPerSessionDataService();
 			const repository = URI.file('/workspace/repository');
@@ -8064,11 +8250,11 @@ suite('AgentService (node dispatcher)', () => {
 			class RecordingCatalogDatabase extends TestSessionDatabase {
 				readonly catalogTitles: string[] = [];
 
-				override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<SessionCatalogSyncWriteResult> {
+				override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot, validate?: SessionCatalogSyncWriteValidator): Promise<SessionCatalogSyncWriteResult> {
 					if (values[SESSION_CUSTOM_TITLE_KEY]) {
 						this.catalogTitles.push(values[SESSION_CUSTOM_TITLE_KEY]);
 					}
-					return super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot);
+					return super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot, validate);
 				}
 			}
 
@@ -8152,9 +8338,9 @@ suite('AgentService (node dispatcher)', () => {
 			class RecordingCatalogDatabase extends TestSessionDatabase {
 				readonly catalogWrites: Readonly<Record<string, string>>[] = [];
 
-				override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<SessionCatalogSyncWriteResult> {
+				override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot, validate?: SessionCatalogSyncWriteValidator): Promise<SessionCatalogSyncWriteResult> {
 					this.catalogWrites.push({ ...values });
-					return super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot);
+					return super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot, validate);
 				}
 			}
 
@@ -8198,6 +8384,208 @@ suite('AgentService (node dispatcher)', () => {
 				titles: ['First title', 'Latest title'],
 				trailingTitleSource: 'user',
 				trailingArtifacts: '[]',
+			});
+		});
+
+		test('retains the newest source for a trailing catalog write after state eviction', async () => {
+			const catalogDatabase = new TestAgentHostOrchestratorDatabase();
+			const svc = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase,
+			));
+			registerTestAgentProvider(svc, copilotAgent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			await svc.whenCatalogReconciliationIdle();
+			const sessionKey = session.toString();
+			const internals = svc as unknown as {
+				_catalogSyncService: {
+					runExclusive(session: URI, operation: () => Promise<void>): Promise<void>;
+				};
+				_queueCatalogSync(session: URI, metadataOverrides: Readonly<Record<string, string>>): void;
+			};
+			const blockerStarted = new DeferredPromise<void>();
+			const releaseBlocker = new DeferredPromise<void>();
+			const blocker = internals._catalogSyncService.runExclusive(session, async () => {
+				blockerStarted.complete();
+				await releaseBlocker.p;
+			});
+			await blockerStarted.p;
+
+			internals._queueCatalogSync(session, {});
+			getStateManager(svc).dispatchServerAction(sessionKey, { type: ActionType.SessionTitleChanged, title: 'Newest title' });
+			getStateManager(svc).removeSession(sessionKey);
+			releaseBlocker.complete();
+			await blocker;
+			await svc.whenCatalogReconciliationIdle();
+
+			assert.strictEqual(catalogDataOf(await catalogDatabase.getSessionV2(sessionKey))?.summary, 'Newest title');
+		});
+
+		test('retains an ordered catalog mutation while background writes drain after state eviction', async () => {
+			const catalogDatabase = new TestAgentHostOrchestratorDatabase();
+			const sessionDatabase = new TestSessionDatabase();
+			const svc = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createSessionDataService(sessionDatabase), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase,
+			));
+			registerTestAgentProvider(svc, copilotAgent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			await svc.whenCatalogReconciliationIdle();
+			const sessionKey = session.toString();
+			const internals = svc as unknown as {
+				_catalogSyncService: {
+					runExclusive(session: URI, operation: () => Promise<void>): Promise<void>;
+				};
+				_queueCatalogSync(session: URI, metadataOverrides: Readonly<Record<string, string>>): void;
+				_persistOrderedListVisibleSessionState(session: URI, metadataOverrides: Readonly<Record<string, string>>): Promise<void>;
+			};
+			const blockerStarted = new DeferredPromise<void>();
+			const releaseBlocker = new DeferredPromise<void>();
+			const blocker = internals._catalogSyncService.runExclusive(session, async () => {
+				blockerStarted.complete();
+				await releaseBlocker.p;
+			});
+			await blockerStarted.p;
+
+			internals._queueCatalogSync(session, {});
+			const artifacts = JSON.stringify([{
+				id: 'ordered',
+				chat: buildDefaultChatUri(session),
+				type: SessionArtifactType.Website,
+				label: 'Ordered artifact',
+				link: 'https://example.com',
+			}]);
+			const ordered = internals._persistOrderedListVisibleSessionState(session, { [SESSION_ARTIFACTS_KEY]: artifacts });
+			getStateManager(svc).removeSession(sessionKey);
+			releaseBlocker.complete();
+			await Promise.all([blocker, ordered]);
+
+			assert.deepStrictEqual({
+				local: await sessionDatabase.getMetadata(SESSION_ARTIFACTS_KEY),
+				central: catalogDataOf(await catalogDatabase.getSessionV2(sessionKey))?._meta?.[SESSION_META_ARTIFACTS_KEY],
+			}, {
+				local: JSON.stringify([{
+					id: 'ordered',
+					chat: buildDefaultChatUri(session),
+					type: SessionArtifactType.Website,
+					label: 'Ordered artifact',
+					isArtifact: true,
+					link: 'https://example.com',
+				}]),
+				central: [{
+					id: 'ordered',
+					chat: buildDefaultChatUri(session),
+					type: SessionArtifactType.Website,
+					label: 'Ordered artifact',
+					isArtifact: true,
+					link: 'https://example.com',
+				}],
+			});
+		});
+
+		test('sequences newer queued state after an ordered catalog mutation', async () => {
+			class RecordingCatalogDatabase extends TestAgentHostOrchestratorDatabase {
+				readonly applied: Array<{ readonly summary: string | undefined; readonly isArchived: boolean; readonly sourceRevision: number; readonly sessionGeneration: string }> = [];
+
+				override async upsertSessionV2(envelope: IAgentHostDatabaseSessionV2Envelope, expectedSessionGeneration: string | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult> {
+					const result = await super.upsertSessionV2(envelope, expectedSessionGeneration);
+					if (result === 'applied') {
+						const data = catalogDataOf(envelope)!;
+						this.applied.push({
+							summary: data.summary,
+							isArchived: data.isArchived,
+							sourceRevision: envelope.sourceRevision,
+							sessionGeneration: envelope.sessionGeneration,
+						});
+					}
+					return result;
+				}
+			}
+
+			const catalogDatabase = new RecordingCatalogDatabase();
+			const sessionDatabase = new TestSessionDatabase();
+			const svc = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createSessionDataService(sessionDatabase), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase,
+			));
+			registerTestAgentProvider(svc, copilotAgent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			await svc.whenCatalogReconciliationIdle();
+			const sessionKey = session.toString();
+			const initialApplied = catalogDatabase.applied.length;
+			const internals = svc as unknown as {
+				_catalogSyncService: {
+					runExclusive(session: URI, operation: () => Promise<void>): Promise<void>;
+				};
+				_queueCatalogSync(session: URI, metadataOverrides: Readonly<Record<string, string>>): void;
+				_persistOrderedListVisibleSessionState(session: URI, metadataOverrides: Readonly<Record<string, string>>): Promise<void>;
+			};
+			const blockerStarted = new DeferredPromise<void>();
+			const releaseBlocker = new DeferredPromise<void>();
+			const blocker = internals._catalogSyncService.runExclusive(session, async () => {
+				blockerStarted.complete();
+				await releaseBlocker.p;
+			});
+			await blockerStarted.p;
+
+			internals._queueCatalogSync(session, {});
+			getStateManager(svc).dispatchServerAction(sessionKey, { type: ActionType.SessionTitleChanged, title: 'Ordered title' });
+			const ordered = internals._persistOrderedListVisibleSessionState(session, {
+				[SESSION_ARTIFACTS_KEY]: JSON.stringify([{
+					id: 'ordered',
+					chat: buildDefaultChatUri(session),
+					type: SessionArtifactType.Website,
+					label: 'Ordered artifact',
+					link: 'https://example.com',
+				}]),
+			});
+			getStateManager(svc).dispatchServerAction(sessionKey, { type: ActionType.SessionTitleChanged, title: 'Newer title' });
+			getStateManager(svc).dispatchServerAction(sessionKey, { type: ActionType.SessionIsArchivedChanged, isArchived: true });
+			releaseBlocker.complete();
+			await Promise.all([blocker, ordered]);
+			await svc.whenCatalogReconciliationIdle();
+
+			const central = await catalogDatabase.getSessionV2(sessionKey);
+			const receipt = await sessionDatabase.getCatalogSyncSnapshot();
+			assert.deepStrictEqual({
+				applied: catalogDatabase.applied.slice(initialApplied).map(({ summary, isArchived, sourceRevision }) => ({ summary, isArchived, sourceRevision })),
+				central: {
+					summary: catalogDataOf(central)?.summary,
+					isArchived: catalogDataOf(central)?.isArchived,
+					artifacts: catalogDataOf(central)?._meta?.[SESSION_META_ARTIFACTS_KEY],
+					sourceRevision: central?.sourceRevision,
+					sessionGeneration: central?.sessionGeneration,
+				},
+				receipt: receipt && {
+					state: receipt.state,
+					sourceRevision: receipt.sourceRevision,
+					sessionGeneration: receipt.sessionGeneration,
+				},
+			}, {
+				applied: [
+					{ summary: undefined, isArchived: false, sourceRevision: 1 },
+					{ summary: 'Ordered title', isArchived: false, sourceRevision: 2 },
+					{ summary: 'Newer title', isArchived: true, sourceRevision: 3 },
+				],
+				central: {
+					summary: 'Newer title',
+					isArchived: true,
+					artifacts: [{
+						id: 'ordered',
+						chat: buildDefaultChatUri(session),
+						type: SessionArtifactType.Website,
+						label: 'Ordered artifact',
+						isArtifact: true,
+						link: 'https://example.com',
+					}],
+					sourceRevision: 3,
+					sessionGeneration: central?.sessionGeneration,
+				},
+				receipt: {
+					state: 'acknowledged',
+					sourceRevision: 3,
+					sessionGeneration: central?.sessionGeneration,
+				},
 			});
 		});
 
@@ -9692,6 +10080,29 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(sessions.length, 1);
 		});
 
+		test('getSessionCount reads registry identities without provider or session database access', async () => {
+			const database = new TestAgentHostOrchestratorDatabase();
+			let databaseOpens = 0;
+			const svc = createCentralCatalogService({
+				...createSessionDataService(),
+				tryOpenDatabase: async () => {
+					databaseOpens++;
+					throw new Error('Counting must not open session databases');
+				},
+			}, database);
+			await svc.whenCatalogReconciliationIdle();
+			databaseOpens = 0;
+			const empty = await svc.getSessionCount();
+			const local = 'ahp-session:/count-local';
+			const external = 'copilotcli:/count-external';
+			await database.registerSessionV2(local, { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			await database.registerSessionV2(external, { provider: 'copilotcli', startTime: 2, source: 'discovery' }, { checkTombstone: false });
+			const registered = await svc.getSessionCount();
+			await database.tombstoneAndUnregisterSession(local);
+			const afterDelete = await svc.getSessionCount();
+			assert.deepStrictEqual({ empty, registered, afterDelete, databaseOpens }, { empty: 0, registered: 2, afterDelete: 1, databaseOpens: 0 });
+		});
+
 		test('central list uses eligible catalogs and suppresses chat backing with zero legacy reads', async () => {
 			const orchestratorDatabase = new CentralCatalogDatabase();
 			const session = AgentSession.uri('copilot', 'central-only');
@@ -9811,10 +10222,9 @@ suite('AgentService (node dispatcher)', () => {
 			 * registered and has a catalog row written from creation state, but its
 			 * provider never created a backing and no in-memory state survives.
 			 *
-			 * The provider is marked already-backfilled, as it is on any restart
-			 * after the first, so its catalog reads as readable this run. Suppression
-			 * deliberately requires that, and a fixture that skipped it would exercise
-			 * the fail-open path instead of the one under test.
+			 * The provider is marked already-backfilled by default, so its catalog
+			 * reads as readable this run. The catalog-readable argument controls
+			 * whether the fixture models completed provider initialization.
 			 */
 			async function seedCrashedProvisional(provisional: boolean, orchestratorDatabase: CentralCatalogDatabase = new CentralCatalogDatabase(), id = `crashed-${provisional ? 'provisional' : 'materialized'}`, catalogReadable = true): Promise<{ orchestratorDatabase: CentralCatalogDatabase; session: URI }> {
 				const session = AgentSession.uri('copilot', id);
@@ -10047,7 +10457,7 @@ suite('AgentService (node dispatcher)', () => {
 				assert.deepStrictEqual(listed.map(metadata => metadata.session.toString()), []);
 			});
 
-			test('suppresses a crash-orphaned session cached by a listing that raced the marker read', async () => {
+			test('waits for provisional markers before publishing a first listing', async () => {
 				// A real marker read hits SQLite, so an early listing can be computed
 				// and cached before any marker is known. The in-memory double always
 				// wins that race, so the delay is what makes this test meaningful.
@@ -10060,17 +10470,13 @@ suite('AgentService (node dispatcher)', () => {
 						return super.listProvisionalSessions();
 					}
 				}
-				const { orchestratorDatabase: slowDatabase, session } = await seedCrashedProvisional(true, new SlowMarkerReadDatabase(), 'crashed-slow-read');
+				const { orchestratorDatabase: slowDatabase } = await seedCrashedProvisional(true, new SlowMarkerReadDatabase(), 'crashed-slow-read');
 				const svc = createCentralCatalogService(createSessionDataService(), slowDatabase);
 				const agent = disposables.add(new DeferredBackingAgent('copilot'));
 				registerTestAgentProvider(svc, agent);
 				// Deferred work settles only once startup is complete *and* a first
 				// listing has been served, so mark it before awaiting below.
 				svc.markStartupComplete();
-				// The marker read is still in flight, so the listing cannot yet know
-				// this placeholder is empty and leaves it visible — failing open is
-				// deliberate, since hiding a real session costs more than showing a
-				// junk row for one listing.
 				await markerReadHasStarted;
 				const listedDuringRead = await svc.listSessions();
 
@@ -10081,12 +10487,12 @@ suite('AgentService (node dispatcher)', () => {
 					listedDuringRead: listedDuringRead.map(metadata => metadata.session.toString()),
 					listedAfterRead: listedAfterRead.map(metadata => metadata.session.toString()),
 				}, {
-					listedDuringRead: [session.toString()],
+					listedDuringRead: [],
 					listedAfterRead: [],
 				});
 			});
 
-			test('keeps a provider miss whose provider catalog is not readable yet', async () => {
+			test('hides an unconfirmed provisional row while its provider catalog is unreadable without changing restore behavior', async () => {
 				// The failure CCR identified: if a provider cannot answer yet it
 				// returns `undefined` *without throwing*, which is not evidence of
 				// absence. Mirrors Claude before its SDK is downloaded (#331648),
@@ -10110,12 +10516,12 @@ suite('AgentService (node dispatcher)', () => {
 					listed: listed.map(metadata => metadata.session.toString()),
 					restoreCode: restoreError instanceof ProtocolError ? restoreError.code : undefined,
 				}, {
-					listed: [session.toString()],
+					listed: [],
 					restoreCode: JSON_RPC_INTERNAL_ERROR,
 				});
 			});
 
-			test('retracts a published fail-open orphan when its provider catalog becomes readable', async () => {
+			test('retracts a previously published provisional orphan when its provider catalog becomes readable', async () => {
 				let catalogReadable = false;
 				class InitiallyUnreadableCatalogAgent extends DeferredBackingAgent {
 					override async listChatsToMigrate(): Promise<IAgentChatMetadata[] | typeof AgentChatMigrationDeferred> {
@@ -10131,8 +10537,8 @@ suite('AgentService (node dispatcher)', () => {
 				registerTestAgentProvider(svc, agent);
 				await waitForInitialProviderMigration(svc, agent);
 				const firstListing = await svc.listSessions();
-				publishListResult(svc, firstListing);
-				const screen = new Set(firstListing.map(metadata => metadata.session.toString()));
+				publishListResult(svc, [{ session, provider: agent.id, startTime: 10, modifiedTime: 10 }]);
+				const screen = new Set([session.toString()]);
 
 				catalogReadable = true;
 				await (svc as unknown as { _awaitInitialProviderMigrationForProvider(provider: IAgent, requireReadableCatalog: boolean): Promise<boolean> })._awaitInitialProviderMigrationForProvider(agent, true);
@@ -10153,14 +10559,14 @@ suite('AgentService (node dispatcher)', () => {
 					screen: [...screen],
 					after: afterTransition.map(metadata => metadata.session.toString()),
 				}, {
-					before: [session.toString()],
+					before: [],
 					removed: [session.toString()],
 					screen: [],
 					after: [],
 				});
 			});
 
-			test('retracts a published fail-open orphan when the marker mirror loads after the transition', async () => {
+			test('retracts a previously published orphan after loading its provisional marker', async () => {
 				// The transition is one-shot. A slow marker read models the real
 				// window: deciding from `_provisionalSessionKeys` at transition time
 				// would find it empty, drop the refresh, and leave the stale row with
@@ -10185,8 +10591,8 @@ suite('AgentService (node dispatcher)', () => {
 				const agent = disposables.add(new InitiallyUnreadableCatalogAgent('copilot'));
 				registerTestAgentProvider(svc, agent);
 				await waitForInitialProviderMigration(svc, agent);
+				publishListResult(svc, [{ session, provider: agent.id, startTime: 10, modifiedTime: 10 }]);
 				const firstListing = await svc.listSessions();
-				publishListResult(svc, firstListing);
 
 				catalogReadable = true;
 				await (svc as unknown as { _awaitInitialProviderMigrationForProvider(provider: IAgent, requireReadableCatalog: boolean): Promise<boolean> })._awaitInitialProviderMigrationForProvider(agent, true);
@@ -10200,7 +10606,7 @@ suite('AgentService (node dispatcher)', () => {
 					removed,
 					after: (await svc.listSessions()).map(metadata => metadata.session.toString()),
 				}, {
-					before: [session.toString()],
+					before: [],
 					removed: [session.toString()],
 					after: [],
 				});
@@ -10442,6 +10848,113 @@ suite('AgentService (node dispatcher)', () => {
 				const listed = await svc.listSessions();
 
 				assert.deepStrictEqual(listed.map(metadata => metadata.session.toString()), [session.toString()]);
+			});
+
+			test('hides a marked provisional row when its provider is unavailable without deleting its registration', async () => {
+				const { orchestratorDatabase, session } = await seedCrashedProvisional(true);
+				const svc = createCentralCatalogService(createSessionDataService(), orchestratorDatabase);
+				const listed = await svc.listSessions();
+
+				assert.deepStrictEqual({
+					listed: listed.map(metadata => metadata.session.toString()),
+					registered: (await orchestratorDatabase.listSessions()).map(entry => entry.session),
+					provisional: await orchestratorDatabase.listProvisionalSessions(),
+				}, { listed: [], registered: [session.toString()], provisional: [session.toString()] });
+			});
+
+			test('hides a marked provisional row when provider metadata throws', async () => {
+				class ThrowingMetadataAgent extends DeferredBackingAgent {
+					override async getChatMetadata(): Promise<IAgentChatMetadata | undefined> {
+						throw new Error('metadata failed');
+					}
+				}
+				const { orchestratorDatabase, session } = await seedCrashedProvisional(true);
+				const svc = await createCrashedService(orchestratorDatabase, createSessionDataService(), disposables.add(new ThrowingMetadataAgent('copilot')));
+				const listed = await svc.listSessions();
+				assert.deepStrictEqual({
+					listed: listed.map(metadata => metadata.session.toString()),
+					provisional: await orchestratorDatabase.listProvisionalSessions(),
+				}, { listed: [], provisional: [session.toString()] });
+			});
+
+			for (const provisional of [false, true]) {
+				test(`registry fallback is not backing confirmation (provisional: ${provisional})`, async () => {
+					let confirmed = false;
+					class RegistryFallbackAgent extends TimedExternalAgent {
+						override readonly onDidDiscoverChats = Event.None;
+						override async listChatsToMigrate(): Promise<typeof AgentChatMigrationDeferred> {
+							return AgentChatMigrationDeferred;
+						}
+						override async getChatMetadata(chat: URI, _context: URI | IAgentChatContext, _providerData?: string, options?: IAgentChatMetadataOptions): Promise<IAgentChatMetadata | undefined> {
+							return confirmed
+								? { chat, startTime: 10, modifiedTime: 10, summary: 'Confirmed conversation' }
+								: options?.registryFallback ? { chat, ...options.registryFallback } : undefined;
+						}
+					}
+					const { orchestratorDatabase, session } = await seedCrashedProvisional(provisional, new CentralCatalogDatabase(), `registry-fallback-${provisional}`, false);
+					const svc = await createCrashedService(orchestratorDatabase, createSessionDataService(), disposables.add(new RegistryFallbackAgent('copilot')));
+					const before = await svc.listSessions();
+					confirmed = true;
+					const after = await svc.listSessions();
+					assert.deepStrictEqual({
+						before: before.map(metadata => metadata.session.toString()),
+						after: after.map(metadata => metadata.session.toString()),
+					}, {
+						before: provisional ? [] : [session.toString()],
+						after: [session.toString()],
+					});
+				});
+			}
+
+			test('keeps active provisional sessions in the live overlay when metadata cannot be confirmed', async () => {
+				const { orchestratorDatabase, session } = await seedCrashedProvisional(true);
+				const svc = await createCrashedService(orchestratorDatabase);
+				const state = getTestAgentStateManager(svc);
+				state.createSession({
+					resource: session.toString(), provider: 'copilot', title: 'Active',
+					status: SessionStatus.Idle, createdAt: new Date(10).toISOString(), modifiedAt: new Date(10).toISOString(),
+				}, { emitNotification: false });
+				state.dispatchServerAction(buildDefaultChatUri(session), {
+					type: ActionType.ChatTurnStarted,
+					turnId: 'first-turn', startedAt: new Date(20).toISOString(),
+					message: { text: 'User prompt', origin: { kind: MessageKind.User } },
+				});
+				const listed = await svc.listSessions();
+				assert.deepStrictEqual(listed.map(metadata => metadata.session.toString()), [session.toString()]);
+			});
+
+			test('hides provisional rows after an interrupted initial scan and shows them when their backing is confirmed', async () => {
+				let scans = 0;
+				let confirmed = false;
+				class InterruptedCatalogAgent extends TimedExternalAgent {
+					override async listChatsToMigrate(): Promise<IAgentChatMetadata[]> {
+						scans++;
+						throw new Error('Pending response rejected since connection got disposed');
+					}
+					override async getChatMetadata(chat: URI): Promise<IAgentChatMetadata | undefined> {
+						return confirmed ? { chat, startTime: 10, modifiedTime: 10, summary: 'Real conversation' } : undefined;
+					}
+				}
+				const { orchestratorDatabase, session } = await seedCrashedProvisional(true, new CentralCatalogDatabase(), 'interrupted-provisional', false);
+				const svc = createCentralCatalogService(createSessionDataService(), orchestratorDatabase);
+				await svc.whenCatalogReconciliationIdle();
+				const agent = disposables.add(new InterruptedCatalogAgent('copilot', undefined, undefined, false));
+				registerTestAgentProvider(svc, agent);
+				await assert.rejects(waitForInitialProviderMigration(svc, agent), /connection got disposed/);
+				const first = await svc.listSessions();
+				const repeated = await svc.listSessions();
+				confirmed = true;
+				const afterConfirmation = await svc.listSessions();
+				assert.deepStrictEqual({
+					first: first.map(metadata => metadata.session.toString()),
+					repeated: repeated.map(metadata => metadata.session.toString()),
+					afterConfirmation: afterConfirmation.map(metadata => metadata.session.toString()),
+					scans,
+					provisional: await orchestratorDatabase.listProvisionalSessions(),
+				}, {
+					first: [], repeated: [], afterConfirmation: [session.toString()],
+					scans: 1, provisional: [session.toString()],
+				});
 			});
 		});
 
@@ -16922,6 +17435,7 @@ suite('AgentService (node dispatcher)', () => {
 			const calls: string[] = [];
 			const gitService = {
 				_serviceBrand: undefined,
+				hasGitRoot: createNoopGitService().hasGitRoot,
 				getCurrentBranch: async () => undefined,
 				getDefaultBranch: async () => undefined,
 				getBranch: async () => undefined,
@@ -17035,6 +17549,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('createSession infers workspace-less (and skips git overlay) when no working directory', async () => {
 			const gitService = {
 				_serviceBrand: undefined,
+				hasGitRoot: createNoopGitService().hasGitRoot,
 				getCurrentBranch: async () => undefined,
 				getDefaultBranch: async () => undefined,
 				getBranch: async () => undefined,
@@ -19499,7 +20014,7 @@ suite('AgentService (node dispatcher)', () => {
 					}
 					async ensureChatAdopted(): Promise<IAgentChatAdoptionResult> {
 						if (scenario === 'adoptionFailed') {
-							throw new ProtocolError(JSON_RPC_INTERNAL_ERROR, `adoption failed for ${session}; frontend agent-host-copilotcli:/migration-${scenario}; id migration-${scenario}`);
+							throw new ProtocolError(JSON_RPC_INTERNAL_ERROR, 'adoption failed: The argument \'path\' must be a string, Uint8Array, or URL without null bytes. Received \'/private-prefix\\x00...\'');
 						}
 						return scenario === 'declined'
 							? { adopted: false, eligible: false, reason: 'notLegacyChat' }
@@ -19533,6 +20048,9 @@ suite('AgentService (node dispatcher)', () => {
 					stage: data.stage,
 					reason: data.reason,
 					diagnosticCategory: data.diagnosticCategory,
+					provenance: data.provenance,
+					markerStatus: data.markerStatus,
+					diagnosticDetail: data.diagnosticDetail,
 					eligible: data.eligible,
 					advertisedAsAdoptable: data.advertisedAsAdoptable,
 					errorCode: data.errorCode,
@@ -19544,10 +20062,13 @@ suite('AgentService (node dispatcher)', () => {
 					stage: scenario === 'adoptionFailed' ? 'adoption' : failed ? 'restore' : scenario === 'declined' || scenario === 'settingDisabled' ? 'eligibility' : 'complete',
 					reason: scenario === 'adoptionFailed' ? 'unknown' : scenario === 'declined' ? 'notLegacyChat' : scenario === 'settingDisabled' ? 'settingDisabled' : scenario === 'skipped' || scenario === 'eligibleRestoreFailed' ? 'workingDirectoryMissing' : 'adopted',
 					diagnosticCategory: scenario === 'migrated' ? 'notApplicable' : scenario === 'settingDisabled' ? 'configurationDisabled' : scenario === 'declined' ? 'unknown' : 'needsInvestigation',
+					provenance: scenario === 'settingDisabled' ? 'notEvaluated' : scenario === 'adoptionFailed' || scenario === 'declined' ? 'unknown' : 'legacy',
+					markerStatus: scenario === 'settingDisabled' ? 'notEvaluated' : 'notReported',
+					diagnosticDetail: scenario === 'settingDisabled' ? 'settingDisabled' : scenario === 'adoptionFailed' ? 'adoptionThrew' : scenario === 'declined' ? 'providerEvidenceUnavailable' : 'legacyEligible',
 					eligible: scenario === 'adoptionFailed' || scenario === 'settingDisabled' ? undefined : scenario !== 'declined',
 					advertisedAsAdoptable: false,
 					errorCode: scenario === 'adoptionFailed' ? String(JSON_RPC_INTERNAL_ERROR) : undefined,
-					errorMessage: failed ? `${scenario === 'adoptionFailed' ? 'adoption' : 'restore'} failed for [REDACTED: session]; frontend [REDACTED: session]; id [REDACTED: session]` : undefined,
+					errorMessage: scenario === 'adoptionFailed' ? 'Migration error details redacted: invalid session identifier or argument.' : failed ? 'restore failed for [REDACTED: session]; frontend [REDACTED: session]; id [REDACTED: session]' : undefined,
 				}]);
 			});
 		}
@@ -19557,6 +20078,7 @@ suite('AgentService (node dispatcher)', () => {
 			diagnostics: IAgentChatAdoptionResult['diagnostics'];
 			advertised: boolean;
 			category: string;
+			detail?: string;
 		}[] = [
 				{ name: 'no evidence', diagnostics: undefined, advertised: false, category: 'unknown' },
 				{ name: 'explicit external origin', diagnostics: { markerStatus: 'valid', provenance: 'external', markerFromCache: false }, advertised: false, category: 'expectedExclusion' },
@@ -19567,8 +20089,26 @@ suite('AgentService (node dispatcher)', () => {
 				{ name: 'unreadable marker', diagnostics: { markerStatus: 'readError', provenance: 'unknown', markerFromCache: false, errorCode: 'EACCES', errorMessage: 'access denied: copilot:/decline-evidence (id=decline-evidence)' }, advertised: false, category: 'needsInvestigation' },
 				{ name: 'advertised legacy marker disappeared', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false }, advertised: true, category: 'needsInvestigation' },
 				{ name: 'external origin contradicts advertisement', diagnostics: { markerStatus: 'valid', provenance: 'external', markerFromCache: false }, advertised: true, category: 'needsInvestigation' },
+				{ name: 'session state root missing', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false, sessionStateRootStatus: 'missing', copilotHomeSource: 'environment' }, advertised: false, category: 'unknown', detail: 'sessionStateRootMissing' },
+				{ name: 'session directory missing', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false, sessionStateRootStatus: 'directory', sessionDirectoryStatus: 'missing' }, advertised: false, category: 'unknown', detail: 'sessionDirectoryMissing' },
+				{ name: 'marker missing with events', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false, eventsFileStatus: 'file' }, advertised: false, category: 'unknown', detail: 'markerMissingWithEvents' },
+				{ name: 'marker missing without events', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false, eventsFileStatus: 'missing' }, advertised: false, category: 'unknown', detail: 'markerMissingWithoutEvents' },
+				{ name: 'malformed identity', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false, sessionIdStatus: 'controlCharacters' }, advertised: false, category: 'needsInvestigation', detail: 'invalidSessionId' },
+				{ name: 'storage probe failed', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false, sessionDirectoryStatus: 'readError' }, advertised: false, category: 'needsInvestigation', detail: 'storageProbeFailed' },
+				{ name: 'invalid storage layout', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false, eventsFileStatus: 'directory' }, advertised: false, category: 'needsInvestigation', detail: 'storageLayoutInvalid' },
+				{ name: 'missing origin', diagnostics: { markerStatus: 'valid', provenance: 'unknown', markerFromCache: false, markerOrigin: 'missing' }, advertised: false, category: 'unknown', detail: 'originMissing' },
+				{ name: 'unrecognized origin', diagnostics: { markerStatus: 'valid', provenance: 'unknown', markerFromCache: false, markerOrigin: 'unrecognized' }, advertised: false, category: 'unknown', detail: 'originUnrecognized' },
+				{ name: 'invalid origin type', diagnostics: { markerStatus: 'valid', provenance: 'unknown', markerFromCache: false, markerOrigin: 'invalidType' }, advertised: false, category: 'unknown', detail: 'originInvalidType' },
+				{ name: 'escaped invalid marker path', diagnostics: { markerStatus: 'readError', provenance: 'unknown', markerFromCache: false, errorCode: 'ERR_INVALID_ARG_VALUE', errorMessage: 'Received "/private-prefix\\x00..."' }, advertised: false, category: 'needsInvestigation', detail: 'markerReadError' },
+				...(['vscode', 'vscode-agent-host', 'github/cli', 'github/autopilot'] as const).map(lastKnownClient => ({
+					name: `last client ${lastKnownClient} does not establish creator`,
+					diagnostics: { markerStatus: 'missing' as const, provenance: 'unknown' as const, markerFromCache: false, workspaceMetadataStatus: 'valid' as const, lastKnownClient },
+					advertised: false, category: 'unknown',
+				})),
+				{ name: 'external last client contradicts adoptable advertisement', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false, workspaceMetadataStatus: 'valid', lastKnownClient: 'github/cli' }, advertised: true, category: 'needsInvestigation' },
+				{ name: 'workspace metadata unreadable', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false, workspaceMetadataStatus: 'readError', lastKnownClient: 'unavailable' }, advertised: false, category: 'unknown' },
 			];
-		for (const { name, diagnostics, advertised, category } of declineCases) {
+		for (const { name, diagnostics, advertised, category, detail } of declineCases) {
 			test(`legacy migration decline evidence: ${name}`, async () => {
 				const events: { data: Record<string, unknown>; error: boolean }[] = [];
 				const telemetry = new class extends NullTelemetryServiceShape {
@@ -19608,12 +20148,20 @@ suite('AgentService (node dispatcher)', () => {
 					error, outcome: data.outcome, category: data.diagnosticCategory,
 					advertised: data.advertisedAsAdoptable, eligible: data.eligible,
 					markerStatus: data.markerStatus, provenance: data.provenance, markerFromCache: data.markerFromCache,
+					diagnosticDetail: detail === undefined ? undefined : data.diagnosticDetail,
+					markerOrigin: data.markerOrigin, sessionIdStatus: data.sessionIdStatus, copilotHomeSource: data.copilotHomeSource,
+					sessionStateRootStatus: data.sessionStateRootStatus, sessionDirectoryStatus: data.sessionDirectoryStatus, eventsFileStatus: data.eventsFileStatus,
+					workspaceMetadataStatus: data.workspaceMetadataStatus, lastKnownClient: data.lastKnownClient,
 					errorCode: data.eligibilityErrorCode, errorMessage: data.eligibilityErrorMessage,
 				})), [{
 					error: diagnostics?.errorMessage !== undefined, outcome: 'declined', category,
 					advertised, eligible: false,
-					markerStatus: diagnostics?.markerStatus, provenance: diagnostics?.provenance, markerFromCache: diagnostics?.markerFromCache,
-					errorCode: diagnostics?.errorCode, errorMessage: diagnostics?.errorMessage === undefined ? undefined : 'access denied: [REDACTED: session] (id=[REDACTED: session])',
+					markerStatus: diagnostics?.markerStatus ?? 'notReported', provenance: diagnostics?.provenance ?? 'unknown', markerFromCache: diagnostics?.markerFromCache,
+					diagnosticDetail: detail,
+					markerOrigin: diagnostics?.markerOrigin ?? 'notReported', sessionIdStatus: diagnostics?.sessionIdStatus ?? 'notReported', copilotHomeSource: diagnostics?.copilotHomeSource ?? 'notReported',
+					sessionStateRootStatus: diagnostics?.sessionStateRootStatus ?? 'notReported', sessionDirectoryStatus: diagnostics?.sessionDirectoryStatus ?? 'notReported', eventsFileStatus: diagnostics?.eventsFileStatus ?? 'notReported',
+					workspaceMetadataStatus: diagnostics?.workspaceMetadataStatus ?? 'notReported', lastKnownClient: diagnostics?.lastKnownClient ?? 'notReported',
+					errorCode: diagnostics?.errorCode, errorMessage: diagnostics?.errorMessage === undefined ? undefined : diagnostics.errorCode === 'ERR_INVALID_ARG_VALUE' ? 'Migration error details redacted: invalid session identifier or argument.' : 'access denied: [REDACTED: session] (id=[REDACTED: session])',
 				}]);
 			});
 		}
@@ -21056,6 +21604,930 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('persists a materialized historical subagent before workspace metadata updates', async () => {
+			const session = URI.parse('ahp-session:/materialized-historical-subagent');
+			const defaultChat = buildDefaultChatUri(session);
+			const child = buildSubagentChatUri(session.toString(), 'historical-task');
+			const origin = { kind: ChatOriginKind.Tool, chat: defaultChat, toolCallId: 'historical-task' } as const;
+			const database = disposables.add(new AgentHostDatabase(':memory:'));
+			await database.registerSessionV2(session.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			await database.updateSessionV2External([{ session: session.toString(), external: false }]);
+			await database.registerChatCatalogV2(session.toString(), {
+				defaultChat: { chat: defaultChat, order: 0 },
+				peers: [], privateDescendants: [],
+			});
+			const agent = disposables.add(new MockAgent('copilot'));
+			agent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'user', content: 'Delegate', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'assistant', content: '', toolRequests: [{ toolCallId: 'historical-task', name: 'task' }] },
+				{ type: 'tool_start', session, toolCallId: 'historical-task', toolName: 'task', displayName: 'Task', invocationMessage: 'Delegating', toolKind: 'subagent', subagentDescription: 'Historical Worker', subagentAgentName: 'explore' },
+				{ type: 'subagent_started', session, toolCallId: 'historical-task', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore' },
+				{ type: 'tool_complete', session, toolCallId: 'historical-task', result: { success: true, pastTenseMessage: 'Delegated', content: [] } },
+			];
+			const svc = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database,
+			));
+			registerTestAgentProvider(svc, agent);
+			const now = new Date().toISOString();
+			getStateManager(svc).restoreSession({
+				resource: session.toString(),
+				provider: agent.id,
+				title: 'Owner',
+				status: SessionStatus.Idle,
+				createdAt: now,
+				modifiedAt: now,
+				workingDirectories: [URI.file('/workspace/original').toString()],
+			}, []);
+			getStateManager(svc).addChat(session.toString(), child, {
+				title: 'Historical Worker',
+				turns: [{
+					id: 'materialized-turn',
+					state: TurnState.Complete,
+					message: { text: 'Existing history', origin: { kind: MessageKind.User } },
+					responseParts: [],
+					usage: undefined,
+				}],
+				origin,
+				interactivity: ChatInteractivity.ReadOnly,
+			});
+
+			await (svc as unknown as { _registerRestoredSubagentSummaries(agent: IAgent, parentSession: URI, turns: readonly Turn[]): Promise<void> })
+				._registerRestoredSubagentSummaries(agent, session, await agent.getSessionMessages(session));
+			await (svc as unknown as { _registerRestoredSubagentSummaries(agent: IAgent, parentSession: URI, turns: readonly Turn[]): Promise<void> })
+				._registerRestoredSubagentSummaries(agent, session, await agent.getSessionMessages(session));
+			await (svc as unknown as { _pinInheritedChatWorkingDirectories(session: URI, workingDirectories: readonly string[]): Promise<void> })
+				._pinInheritedChatWorkingDirectories(session, [URI.file('/workspace/original').toString()]);
+
+			const row = (await database.readChatV2(session.toString(), child)).chat;
+			assert.deepStrictEqual({
+				chatCount: getStateManager(svc).getSessionState(session.toString())?.chats.filter(chat => chat.resource === child).length,
+				turns: getStateManager(svc).getChatState(child)?.turns.map(turn => turn.id),
+				parent: row?.parentChat,
+				origin: row?.origin,
+				order: row?.order,
+				interactivity: row?.metadata?.interactivity,
+				workingDirectories: row?.workingDirectories,
+			}, {
+				chatCount: 1,
+				turns: ['materialized-turn'],
+				parent: defaultChat,
+				origin: JSON.stringify(origin),
+				order: undefined,
+				interactivity: ChatInteractivity.Hidden,
+				workingDirectories: [URI.file('/workspace/original').toString()],
+			});
+		});
+
+		test('retries historical subagent admission after legacy authority activation', async () => {
+			const session = AgentSession.uri('copilot', 'legacy-historical-subagent');
+			const defaultChat = buildDefaultChatUri(session);
+			const peer = buildChatUri(session, 'legacy-peer');
+			const latestPeer = buildChatUri(session, 'latest-peer');
+			const child = buildSubagentChatUri(session.toString(), 'historical-task');
+			const sibling = buildSubagentChatUri(session.toString(), 'historical-sibling');
+			const origin = { kind: ChatOriginKind.Tool, chat: defaultChat, toolCallId: 'historical-task' } as const;
+			const siblingOrigin = { kind: ChatOriginKind.Tool, chat: defaultChat, toolCallId: 'historical-sibling' } as const;
+			const database = disposables.add(new AgentHostDatabase(':memory:'));
+			const backing = createPerSessionDataService();
+			await database.registerRuntimeSession(session.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			await database.upsertSessionV2(catalogEnvelope(session, {
+				modifiedTime: 1,
+				summary: 'Owner',
+				isRead: false,
+				isArchived: false,
+				workingDirectories: [URI.file('/workspace/original').toString()],
+				chats: [
+					{ uri: defaultChat, order: 0, kind: 'default', summary: 'Owner' },
+					{ uri: peer, order: 1, kind: 'peer', summary: 'Legacy Peer', isRead: false },
+				],
+			}, 'generation', 1), undefined);
+			const legacyCatalog = await database.getSessionChatCatalog(session.toString());
+			await database.replaceSessionChatCatalog(session.toString(), [{
+				chat: peer,
+				order: 0,
+				isRead: false,
+				archived: false,
+			}], legacyCatalog?.revision);
+			await backing.database(session).setMetadataValues({
+				[`customChatTitle:${child}`]: 'Persisted Historical Worker',
+				[`customChatTitleSource:${child}`]: 'user',
+			});
+			const agent = disposables.add(new MockAgent('copilot'));
+			agent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'user', content: 'Delegate', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'assistant', content: '', toolRequests: [{ toolCallId: 'historical-task', name: 'task' }, { toolCallId: 'historical-sibling', name: 'task' }] },
+				{ type: 'tool_start', session, toolCallId: 'historical-task', toolName: 'task', displayName: 'Task', invocationMessage: 'Delegating', toolKind: 'subagent', subagentDescription: 'Historical Worker', subagentAgentName: 'explore' },
+				{ type: 'subagent_started', session, toolCallId: 'historical-task', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore' },
+				{ type: 'tool_complete', session, toolCallId: 'historical-task', result: { success: true, pastTenseMessage: 'Delegated', content: [] } },
+				{ type: 'tool_start', session, toolCallId: 'historical-sibling', toolName: 'task', displayName: 'Task', invocationMessage: 'Delegating', toolKind: 'subagent', subagentDescription: 'Historical Sibling', subagentAgentName: 'explore' },
+				{ type: 'subagent_started', session, toolCallId: 'historical-sibling', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore' },
+				{ type: 'tool_complete', session, toolCallId: 'historical-sibling', result: { success: true, pastTenseMessage: 'Delegated', content: [] } },
+			];
+			const svc = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, backing.service, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database,
+			));
+			registerTestAgentProvider(svc, agent);
+			const internals = svc as unknown as {
+				_catalogSyncSuppressedSessions: Set<string>;
+				_catalogSyncService: {
+					runMigrationExclusive(session: URI, operation: () => Promise<void>): Promise<void>;
+				};
+				_migrateChatCatalog(
+					session: URI,
+					token: CancellationToken,
+					mutation?: never,
+					catalogOverrideFactory?: () => Promise<object | undefined>,
+				): Promise<Awaited<ReturnType<IAgentHostDatabase['ensureChatCatalogV2']>> | undefined>;
+				_registerRestoredSubagentSummaries(agent: IAgent, parentSession: URI, turns: readonly Turn[]): Promise<void>;
+				_pinInheritedChatWorkingDirectories(session: URI, workingDirectories: readonly string[]): Promise<void>;
+			};
+			internals._catalogSyncSuppressedSessions.add(session.toString());
+			const now = new Date().toISOString();
+			getStateManager(svc).restoreSession({
+				resource: session.toString(),
+				provider: agent.id,
+				title: 'Owner',
+				status: SessionStatus.Idle,
+				createdAt: now,
+				modifiedAt: now,
+				workingDirectories: [URI.file('/workspace/original').toString()],
+			}, []);
+			const legacySource = await database.getSessionV2(session.toString());
+			if (legacySource?.payloadDirty) {
+				assert.strictEqual(await database.markSessionV2PayloadClean(session.toString(), legacySource.payloadDirty), true);
+			}
+			assert.strictEqual(await database.markSessionV2PayloadDirty(session.toString()), 1);
+
+			const blockerStarted = new DeferredPromise<void>();
+			const releaseBlocker = new DeferredPromise<void>();
+			const blocker = internals._catalogSyncService.runMigrationExclusive(session, async () => {
+				blockerStarted.complete();
+				await releaseBlocker.p;
+			});
+			await blockerStarted.p;
+			const migrationEntered = new DeferredPromise<void>();
+			const migrateChatCatalog = internals._migrateChatCatalog.bind(svc);
+			internals._migrateChatCatalog = async (resource, token, mutation, catalogOverrideFactory) => {
+				migrationEntered.complete();
+				return migrateChatCatalog(resource, token, mutation, catalogOverrideFactory);
+			};
+			const admission = internals._registerRestoredSubagentSummaries(agent, session, await agent.getSessionMessages(session));
+			await migrationEntered.p;
+			const latestLegacyCatalog = await database.getSessionChatCatalog(session.toString());
+			await database.replaceSessionChatCatalog(session.toString(), [{
+				chat: latestPeer,
+				order: 0,
+				isRead: true,
+				archived: false,
+			}], latestLegacyCatalog?.revision);
+			const centralBeforeUpdate = await database.getSessionV2(session.toString());
+			const receiptBeforeUpdate = await backing.database(session).getCatalogSyncSnapshot();
+			const latestSourceRevision = Math.max(centralBeforeUpdate?.sourceRevision ?? 0, receiptBeforeUpdate?.sourceRevision ?? 0) + 1;
+			const latestSource = catalogEnvelope(session, {
+				modifiedTime: 2,
+				summary: 'Owner',
+				isRead: false,
+				isArchived: false,
+				workingDirectories: [URI.file('/workspace/original').toString()],
+				chats: [
+					{ uri: defaultChat, order: 0, kind: 'default', summary: 'Owner' },
+					{ uri: latestPeer, order: 1, kind: 'peer', summary: 'Latest Peer', isRead: true },
+				],
+			}, 'generation', latestSourceRevision);
+			await backing.database(session).setMetadataValuesAndCatalogSyncSnapshot({}, {
+				sessionGeneration: latestSource.sessionGeneration,
+				sourceRevision: latestSource.sourceRevision,
+				projectionVersion: latestSource.payloadVersion,
+				payload: latestSource.payload,
+				payloadHash: latestSource.payloadHash,
+				state: 'pending',
+			});
+			assert.strictEqual(await database.upsertSessionV2(latestSource, latestSource.sessionGeneration), 'applied');
+			assert.strictEqual(await backing.database(session).acknowledgeCatalogSyncSnapshot({
+				sessionGeneration: latestSource.sessionGeneration,
+				sourceRevision: latestSource.sourceRevision,
+				projectionVersion: latestSource.payloadVersion,
+				payloadHash: latestSource.payloadHash,
+			}), true);
+			releaseBlocker.complete();
+			await blocker;
+			await admission;
+			internals._migrateChatCatalog = migrateChatCatalog;
+			await internals._registerRestoredSubagentSummaries(agent, session, await agent.getSessionMessages(session));
+			await internals._migrateChatCatalog(session, CancellationToken.None);
+			await internals._pinInheritedChatWorkingDirectories(session, [URI.file('/workspace/original').toString()]);
+
+			const snapshot = (await database.readCatalogSnapshot([session.toString()]))[0];
+			assert.deepStrictEqual({
+				authority: snapshot.authorityVersion,
+				payloadDirty: (await database.getSessionV2(session.toString()))?.payloadDirty,
+				publicChats: snapshot.chats.filter(chat => chat.order !== undefined).map(chat => ({
+					chat: chat.chat,
+					summary: chat.metadata?.summary,
+				})),
+				privateChats: snapshot.chats.filter(chat => chat.order === undefined).map(chat => ({
+					chat: chat.chat,
+					parent: chat.parentChat,
+					origin: chat.origin === undefined ? undefined : JSON.parse(chat.origin) as typeof origin,
+					interactivity: chat.metadata?.interactivity,
+					summary: chat.metadata?.summary,
+					titleSource: chat.metadata?.titleSource,
+					workingDirectories: chat.workingDirectories,
+				})).sort((first, second) => first.chat.localeCompare(second.chat)),
+				stateChats: getStateManager(svc).getSessionState(session.toString())?.chats
+					.filter(chat => chat.resource === child || chat.resource === sibling)
+					.map(chat => chat.resource)
+					.sort(),
+			}, {
+				authority: 2,
+				payloadDirty: 1,
+				publicChats: [
+					{ chat: defaultChat, summary: 'Owner' },
+					{ chat: latestPeer, summary: 'Latest Peer' },
+				],
+				privateChats: [
+					{
+						chat: sibling,
+						parent: defaultChat,
+						origin: siblingOrigin,
+						interactivity: ChatInteractivity.Hidden,
+						summary: 'Historical Sibling',
+						titleSource: 'auto',
+						workingDirectories: [URI.file('/workspace/original').toString()],
+					},
+					{
+						chat: child,
+						parent: defaultChat,
+						origin,
+						interactivity: ChatInteractivity.Hidden,
+						summary: 'Persisted Historical Worker',
+						titleSource: 'user',
+						workingDirectories: [URI.file('/workspace/original').toString()],
+					},
+				].sort((first, second) => first.chat.localeCompare(second.chat)),
+				stateChats: [child, sibling].sort(),
+			});
+		});
+
+		test('retries failed restored subagent admission on each workspace pin attempt', async () => {
+			const session = AgentSession.uri('copilot', 'restored-subagent-admission-retry');
+			const agent = disposables.add(new MockAgent('copilot'));
+			const svc = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+			));
+			const now = new Date().toISOString();
+			getStateManager(svc).restoreSession({
+				resource: session.toString(),
+				provider: agent.id,
+				title: 'Owner',
+				status: SessionStatus.Idle,
+				createdAt: now,
+				modifiedAt: now,
+			}, []);
+			let attempts = 0;
+			const internals = svc as unknown as {
+				_restoredSubagentAdmissionRetries: Map<string, { run(): Promise<void> }>;
+				_queueRestoredSubagentAdmissionRetry(agent: IAgent, parentSession: URI, turns: readonly Turn[]): void;
+				_registerRestoredSubagentSummaries(agent: IAgent, parentSession: URI, turns: readonly Turn[]): Promise<void>;
+				_pinInheritedChatWorkingDirectories(session: URI, workingDirectories: readonly string[]): Promise<void>;
+			};
+			internals._registerRestoredSubagentSummaries = async () => {
+				attempts++;
+				if (attempts < 3) {
+					throw new Error(`admission attempt ${attempts}`);
+				}
+			};
+
+			internals._queueRestoredSubagentAdmissionRetry(agent, session, []);
+			const initialAdmission = internals._restoredSubagentAdmissionRetries.get(session.toString());
+			assert.ok(initialAdmission);
+			await assert.rejects(initialAdmission.run(), /admission attempt 1/);
+			await assert.rejects(internals._pinInheritedChatWorkingDirectories(session, []), /admission attempt 2/);
+			await internals._pinInheritedChatWorkingDirectories(session, []);
+			assert.deepStrictEqual({
+				attempts,
+				hasPendingAdmission: internals._restoredSubagentAdmissionRetries.has(session.toString()),
+			}, {
+				attempts: 3,
+				hasPendingAdmission: false,
+			});
+		});
+
+		test('does not admit a restored subagent retry after the owner session is reloaded', async () => {
+			const session = AgentSession.uri('copilot', 'removed-restored-subagent-retry');
+			const sessionKey = session.toString();
+			const defaultChat = buildDefaultChatUri(session);
+			const child = buildSubagentChatUri(sessionKey, 'historical-task');
+			const database = disposables.add(new AgentHostDatabase(':memory:'));
+			await database.registerRuntimeSession(sessionKey, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			assert.deepStrictEqual(await database.registerChatCatalogV2(sessionKey, {
+				defaultChat: { chat: defaultChat, order: 0 },
+				peers: [],
+				privateDescendants: [],
+			}), { status: 'applied', catalogRevision: 1 });
+			const agent = disposables.add(new MockAgent('copilot'));
+			const svc = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database,
+			));
+			const stateManager = getStateManager(svc);
+			const now = new Date().toISOString();
+			const restoreOwner = (title: string) => stateManager.restoreSession({
+				resource: sessionKey,
+				provider: agent.id,
+				title,
+				status: SessionStatus.Idle,
+				createdAt: now,
+				modifiedAt: now,
+			}, []);
+			restoreOwner('Old Owner');
+			const oldTurns: Turn[] = [{
+				id: 'old-turn',
+				state: TurnState.Complete,
+				usage: undefined,
+				message: { text: 'Delegate', origin: { kind: MessageKind.User } },
+				responseParts: [{
+					kind: ResponsePartKind.ToolCall,
+					toolCall: {
+						toolCallId: 'historical-task',
+						toolName: 'task',
+						displayName: 'Task',
+						status: ToolCallStatus.Completed,
+						confirmed: ToolCallConfirmationReason.NotNeeded,
+						invocationMessage: 'Delegating',
+						success: true,
+						pastTenseMessage: 'Delegated',
+						content: [{ type: ToolResultContentType.Subagent, resource: child, title: 'Old Historical Worker' }],
+					},
+				}],
+			}];
+			const retryStarted = new DeferredPromise<void>();
+			const releaseRetry = new DeferredPromise<void>();
+			const internals = svc as unknown as {
+				_catalogSyncSuppressedSessions: Set<string>;
+				_catalogReconciliationService: { runPass(): Promise<void> };
+				_restoredSubagentAdmissionRetries: Map<string, { run(): Promise<void> }>;
+				_queueRestoredSubagentAdmissionRetry(agent: IAgent, parentSession: URI, turns: readonly Turn[]): void;
+			};
+			internals._catalogSyncSuppressedSessions.add(sessionKey);
+			internals._catalogReconciliationService.runPass = async () => {
+				retryStarted.complete();
+				await releaseRetry.p;
+			};
+			internals._queueRestoredSubagentAdmissionRetry(agent, session, oldTurns);
+			assert.strictEqual(await raceTimeout(retryStarted.p.then(() => true), 1000, () => false), true, 'Restored subagent admission retry did not start');
+			const pendingRetry = internals._restoredSubagentAdmissionRetries.get(sessionKey)?.run();
+			assert.ok(pendingRetry);
+
+			stateManager.removeSession(sessionKey);
+			restoreOwner('Reloaded Owner');
+			releaseRetry.complete();
+			assert.strictEqual(await raceTimeout(pendingRetry.then(() => true), 1000, () => false), true, 'Cancelled restored subagent admission retry did not settle');
+
+			assert.deepStrictEqual({
+				sessionTitle: stateManager.getSessionState(sessionKey)?.title,
+				publishedChild: stateManager.getSessionState(sessionKey)?.chats.some(chat => chat.resource === child),
+				persistedChild: (await database.readChatV2(sessionKey, child)).chat,
+			}, {
+				sessionTitle: 'Reloaded Owner',
+				publishedChild: false,
+				persistedChild: undefined,
+			});
+		});
+
+		test('does not persist a restored subagent after its owner is reloaded during private metadata hydration', async () => {
+			const session = AgentSession.uri('copilot', 'removed-restored-subagent-private-write');
+			const sessionKey = session.toString();
+			const defaultChat = buildDefaultChatUri(session);
+			const child = buildSubagentChatUri(sessionKey, 'historical-task');
+			const database = disposables.add(new AgentHostDatabase(':memory:'));
+			await database.registerRuntimeSession(sessionKey, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			assert.deepStrictEqual(await database.registerChatCatalogV2(sessionKey, {
+				defaultChat: { chat: defaultChat, order: 0 },
+				peers: [],
+				privateDescendants: [],
+			}), { status: 'applied', catalogRevision: 1 });
+			const backing = createPerSessionDataService();
+			const childDatabase = backing.database(URI.parse(child));
+			const metadataRead = new DeferredPromise<void>();
+			const releaseMetadataRead = new DeferredPromise<void>();
+			const getMetadata = childDatabase.getMetadata.bind(childDatabase);
+			let blockMetadataRead = true;
+			childDatabase.getMetadata = async key => {
+				if (blockMetadataRead) {
+					blockMetadataRead = false;
+					metadataRead.complete();
+					await releaseMetadataRead.p;
+				}
+				return getMetadata(key);
+			};
+			const agent = disposables.add(new MockAgent('copilot'));
+			const svc = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, backing.service, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database,
+			));
+			const stateManager = getStateManager(svc);
+			const now = new Date().toISOString();
+			const restoreOwner = (title: string) => stateManager.restoreSession({
+				resource: sessionKey,
+				provider: agent.id,
+				title,
+				status: SessionStatus.Idle,
+				createdAt: now,
+				modifiedAt: now,
+			}, []);
+			restoreOwner('Old Owner');
+			const internals = svc as unknown as {
+				_catalogSyncSuppressedSessions: Set<string>;
+				_catalogReconciliationService: { runPass(): Promise<void> };
+				_restoredSubagentAdmissionRetries: Map<string, { run(): Promise<void> }>;
+				_queueRestoredSubagentAdmissionRetry(agent: IAgent, parentSession: URI, turns: readonly Turn[]): void;
+			};
+			internals._catalogSyncSuppressedSessions.add(sessionKey);
+			internals._catalogReconciliationService.runPass = async () => { };
+			internals._queueRestoredSubagentAdmissionRetry(agent, session, [restoredSubagentTurn(session, 'historical-task', 'Old Historical Worker')]);
+			assert.strictEqual(await raceTimeout(metadataRead.p.then(() => true), 1000, () => false), true, 'Private chat metadata hydration did not start');
+			const pendingRetry = internals._restoredSubagentAdmissionRetries.get(sessionKey)?.run();
+			assert.ok(pendingRetry);
+
+			stateManager.removeSession(sessionKey);
+			restoreOwner('Reloaded Owner');
+			releaseMetadataRead.complete();
+			await pendingRetry;
+
+			assert.deepStrictEqual({
+				sessionTitle: stateManager.getSessionState(sessionKey)?.title,
+				publishedChild: stateManager.getSessionState(sessionKey)?.chats.some(chat => chat.resource === child),
+				persistedChild: (await database.readChatV2(sessionKey, child)).chat,
+			}, {
+				sessionTitle: 'Reloaded Owner',
+				publishedChild: false,
+				persistedChild: undefined,
+			});
+		});
+
+		test('does not commit a restored subagent after its owner is reloaded during catalog revision update', async () => {
+			const session = AgentSession.uri('copilot', 'removed-restored-subagent-catalog-revision');
+			const sessionKey = session.toString();
+			const defaultChat = buildDefaultChatUri(session);
+			const child = buildSubagentChatUri(sessionKey, 'historical-task');
+			const revisionUpdateStarted = new DeferredPromise<void>();
+			const releaseRevisionUpdate = new DeferredPromise<void>();
+			let blockRevisionUpdate = false;
+			const database = disposables.add(new AgentHostDatabase(':memory:', async sql => {
+				if (blockRevisionUpdate && sql.startsWith('UPDATE session_chat_catalogs SET revision')) {
+					blockRevisionUpdate = false;
+					revisionUpdateStarted.complete();
+					await releaseRevisionUpdate.p;
+				}
+			}));
+			await database.registerRuntimeSession(sessionKey, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			assert.deepStrictEqual(await database.registerChatCatalogV2(sessionKey, {
+				defaultChat: { chat: defaultChat, order: 0 },
+				peers: [],
+				privateDescendants: [],
+			}), { status: 'applied', catalogRevision: 1 });
+			blockRevisionUpdate = true;
+			const backing = createPerSessionDataService();
+			const agent = disposables.add(new MockAgent('copilot'));
+			const svc = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, backing.service, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database,
+			));
+			const stateManager = getStateManager(svc);
+			const now = new Date().toISOString();
+			const restoreOwner = (title: string) => stateManager.restoreSession({
+				resource: sessionKey,
+				provider: agent.id,
+				title,
+				status: SessionStatus.Idle,
+				createdAt: now,
+				modifiedAt: now,
+			}, []);
+			restoreOwner('Old Owner');
+			const internals = svc as unknown as {
+				_catalogSyncSuppressedSessions: Set<string>;
+				_catalogReconciliationService: { runPass(): Promise<void> };
+				_restoredSubagentAdmissionRetries: Map<string, { run(): Promise<void> }>;
+				_queueRestoredSubagentAdmissionRetry(agent: IAgent, parentSession: URI, turns: readonly Turn[]): void;
+			};
+			internals._catalogSyncSuppressedSessions.add(sessionKey);
+			internals._catalogReconciliationService.runPass = async () => { };
+			internals._queueRestoredSubagentAdmissionRetry(agent, session, [restoredSubagentTurn(session, 'historical-task', 'Old Historical Worker')]);
+			assert.strictEqual(await raceTimeout(revisionUpdateStarted.p.then(() => true), 1000, () => false), true, 'Catalog revision update did not start');
+			const pendingRetry = internals._restoredSubagentAdmissionRetries.get(sessionKey)?.run();
+			assert.ok(pendingRetry);
+
+			stateManager.removeSession(sessionKey);
+			restoreOwner('Reloaded Owner');
+			releaseRevisionUpdate.complete();
+			await pendingRetry;
+
+			const snapshot = (await database.readCatalogSnapshot([sessionKey]))[0];
+			assert.deepStrictEqual({
+				sessionTitle: stateManager.getSessionState(sessionKey)?.title,
+				publishedChild: stateManager.getSessionState(sessionKey)?.chats.some(chat => chat.resource === child),
+				persistedChild: (await database.readChatV2(sessionKey, child)).chat,
+				catalogRevision: snapshot.header?.revision,
+			}, {
+				sessionTitle: 'Reloaded Owner',
+				publishedChild: false,
+				persistedChild: undefined,
+				catalogRevision: 1,
+			});
+		});
+
+		test('does not persist or replay a restored subagent receipt after its owner is reloaded during local receipt commit', async () => {
+			const results: Array<{
+				readonly receiptPath: 'setAfterReadFailure' | 'transition';
+				readonly sessionTitle: string | undefined;
+				readonly localReceiptUnchanged: boolean;
+				readonly localTitle: string | undefined;
+				readonly centralChats: readonly string[] | undefined;
+				readonly authority: 1 | 2;
+				readonly persistedChild: boolean;
+				readonly publishedChild: boolean | undefined;
+			}> = [];
+			for (const receiptPath of ['setAfterReadFailure', 'transition'] as const) {
+				const session = AgentSession.uri('copilot', `removed-restored-subagent-local-receipt-${receiptPath}`);
+				const sessionKey = session.toString();
+				const defaultChat = buildDefaultChatUri(session);
+				const child = buildSubagentChatUri(sessionKey, 'historical-task');
+				const receiptWriteStarted = new DeferredPromise<void>();
+				const releaseReceiptWrite = new DeferredPromise<void>();
+				let blockReceiptWrite = false;
+				const sessionDatabases = new Map<string, SessionDatabase>();
+				const sessionDatabase = (resource: URI): SessionDatabase => {
+					const key = resource.toString();
+					let result = sessionDatabases.get(key);
+					if (!result) {
+						result = disposables.add(new SessionDatabase(':memory:', sessionDatabaseMigrations, async sql => {
+							if (key === sessionKey && blockReceiptWrite && sql.startsWith('INSERT INTO catalog_sync_snapshot')) {
+								blockReceiptWrite = false;
+								receiptWriteStarted.complete();
+								await releaseReceiptWrite.p;
+							}
+						}));
+						sessionDatabases.set(key, result);
+					}
+					return result;
+				};
+				const backing: ISessionDataService = {
+					...createSessionDataService(),
+					openDatabase: resource => ({ object: sessionDatabase(resource), dispose: () => { } }),
+					tryOpenDatabase: async resource => {
+						const result = sessionDatabases.get(resource.toString());
+						return result ? { object: result, dispose: () => { } } : undefined;
+					},
+				};
+				const database = disposables.add(new AgentHostDatabase(':memory:'));
+				await database.registerRuntimeSession(sessionKey, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+				const central = catalogEnvelope(session, {
+					modifiedTime: 1,
+					summary: 'Owner',
+					isRead: false,
+					isArchived: false,
+					workingDirectories: [],
+					chats: [{ uri: defaultChat, order: 0, kind: 'default', summary: 'Owner' }],
+				}, 'generation', 1);
+				assert.strictEqual(await database.upsertSessionV2(central, undefined), 'applied');
+				const localDatabase = sessionDatabase(session);
+				let originalReceipt: ISessionCatalogSyncSnapshot | undefined;
+				if (receiptPath === 'transition') {
+					assert.strictEqual(await localDatabase.setMetadataValuesAndCatalogSyncSnapshot({ customTitle: 'Original title' }, {
+						sessionGeneration: 'previous-generation',
+						sourceRevision: 1,
+						projectionVersion: central.payloadVersion,
+						payload: central.payload,
+						payloadHash: central.payloadHash,
+						state: 'pending',
+					}), 'applied');
+					assert.strictEqual(await localDatabase.acknowledgeCatalogSyncSnapshot({
+						sessionGeneration: 'previous-generation',
+						sourceRevision: 1,
+						projectionVersion: central.payloadVersion,
+						payloadHash: central.payloadHash,
+					}), true);
+					originalReceipt = await localDatabase.getCatalogSyncSnapshot();
+				}
+				blockReceiptWrite = true;
+				if (receiptPath === 'setAfterReadFailure') {
+					const getSessionV2 = database.getSessionV2.bind(database);
+					let successfulSourceRead = false;
+					database.getSessionV2 = async resource => {
+						if (successfulSourceRead) {
+							database.getSessionV2 = getSessionV2;
+							throw new Error('Injected central read failure');
+						}
+						successfulSourceRead = true;
+						return getSessionV2(resource);
+					};
+				}
+				const agent = disposables.add(new MockAgent('copilot'));
+				const svc = disposables.add(createTestAgentService(
+					new NullLogService(), fileService, backing, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+					undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database,
+				));
+				const stateManager = getStateManager(svc);
+				const now = new Date().toISOString();
+				const restoreOwner = (title: string) => stateManager.restoreSession({
+					resource: sessionKey,
+					provider: agent.id,
+					title,
+					status: SessionStatus.Idle,
+					createdAt: now,
+					modifiedAt: now,
+				}, []);
+				restoreOwner('Old Owner');
+				const internals = svc as unknown as {
+					_catalogSyncSuppressedSessions: Set<string>;
+					_catalogReconciliationService: { runPass(): Promise<void> };
+					_restoredSubagentAdmissionRetries: Map<string, { run(): Promise<void> }>;
+					_queueRestoredSubagentAdmissionRetry(agent: IAgent, parentSession: URI, turns: readonly Turn[]): void;
+				};
+				internals._catalogSyncSuppressedSessions.add(sessionKey);
+				const runReconciliation = internals._catalogReconciliationService.runPass.bind(internals._catalogReconciliationService);
+				internals._catalogReconciliationService.runPass = async () => { };
+				internals._queueRestoredSubagentAdmissionRetry(agent, session, [restoredSubagentTurn(session, 'historical-task', 'Old Historical Worker')]);
+				assert.strictEqual(await raceTimeout(receiptWriteStarted.p.then(() => true), 1000, () => false), true, `${receiptPath} receipt write did not start`);
+				const pendingRetry = internals._restoredSubagentAdmissionRetries.get(sessionKey)?.run();
+				assert.ok(pendingRetry);
+
+				stateManager.removeSession(sessionKey);
+				restoreOwner('Reloaded Owner');
+				releaseReceiptWrite.complete();
+				await pendingRetry;
+				internals._catalogReconciliationService.runPass = runReconciliation;
+				internals._catalogSyncSuppressedSessions.delete(sessionKey);
+				await runReconciliation();
+
+				const snapshot = (await database.readCatalogSnapshot([sessionKey]))[0];
+				results.push({
+					receiptPath,
+					sessionTitle: stateManager.getSessionState(sessionKey)?.title,
+					localReceiptUnchanged: JSON.stringify(await localDatabase.getCatalogSyncSnapshot()) === JSON.stringify(originalReceipt),
+					localTitle: await localDatabase.getMetadata('customTitle'),
+					centralChats: catalogDataOf(await database.getSessionV2(sessionKey))?.chats.map(chat => chat.uri),
+					authority: snapshot.authorityVersion,
+					persistedChild: (await database.readChatV2(sessionKey, child)).chat !== undefined,
+					publishedChild: stateManager.getSessionState(sessionKey)?.chats.some(chat => chat.resource === child),
+				});
+			}
+			assert.deepStrictEqual(results, [
+				{
+					receiptPath: 'setAfterReadFailure',
+					sessionTitle: 'Reloaded Owner',
+					localReceiptUnchanged: true,
+					localTitle: undefined,
+					centralChats: [buildDefaultChatUri(AgentSession.uri('copilot', 'removed-restored-subagent-local-receipt-setAfterReadFailure'))],
+					authority: 1,
+					persistedChild: false,
+					publishedChild: false,
+				},
+				{
+					receiptPath: 'transition',
+					sessionTitle: 'Reloaded Owner',
+					localReceiptUnchanged: true,
+					localTitle: 'Original title',
+					centralChats: [buildDefaultChatUri(AgentSession.uri('copilot', 'removed-restored-subagent-local-receipt-transition'))],
+					authority: 1,
+					persistedChild: false,
+					publishedChild: false,
+				},
+			]);
+		});
+
+		test('does not activate restored subagents after its legacy owner is reloaded during source hydration', async () => {
+			const session = AgentSession.uri('copilot', 'removed-restored-subagent-legacy-write');
+			const sessionKey = session.toString();
+			const defaultChat = buildDefaultChatUri(session);
+			const child = buildSubagentChatUri(sessionKey, 'historical-task');
+			const database = disposables.add(new AgentHostDatabase(':memory:'));
+			await database.registerRuntimeSession(sessionKey, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			assert.strictEqual(await database.upsertSessionV2(catalogEnvelope(session, {
+				modifiedTime: 1,
+				summary: 'Owner',
+				isRead: false,
+				isArchived: false,
+				workingDirectories: [],
+				chats: [{ uri: defaultChat, order: 0, kind: 'default', summary: 'Owner' }],
+			}, 'generation', 1), undefined), 'applied');
+			const sourceRead = new DeferredPromise<void>();
+			const releaseSourceRead = new DeferredPromise<void>();
+			const getSessionV2 = database.getSessionV2.bind(database);
+			let blockSourceRead = true;
+			database.getSessionV2 = async resource => {
+				const source = await getSessionV2(resource);
+				if (blockSourceRead) {
+					blockSourceRead = false;
+					sourceRead.complete();
+					await releaseSourceRead.p;
+				}
+				return source;
+			};
+			const backing = createPerSessionDataService();
+			backing.database(session);
+			const agent = disposables.add(new MockAgent('copilot'));
+			const svc = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, backing.service, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database,
+			));
+			const stateManager = getStateManager(svc);
+			const now = new Date().toISOString();
+			const restoreOwner = (title: string) => stateManager.restoreSession({
+				resource: sessionKey,
+				provider: agent.id,
+				title,
+				status: SessionStatus.Idle,
+				createdAt: now,
+				modifiedAt: now,
+			}, []);
+			restoreOwner('Old Owner');
+			const internals = svc as unknown as {
+				_catalogSyncSuppressedSessions: Set<string>;
+				_catalogReconciliationService: { runPass(): Promise<void> };
+				_restoredSubagentAdmissionRetries: Map<string, { run(): Promise<void> }>;
+				_queueRestoredSubagentAdmissionRetry(agent: IAgent, parentSession: URI, turns: readonly Turn[]): void;
+			};
+			internals._catalogSyncSuppressedSessions.add(sessionKey);
+			internals._catalogReconciliationService.runPass = async () => { };
+			internals._queueRestoredSubagentAdmissionRetry(agent, session, [restoredSubagentTurn(session, 'historical-task', 'Old Historical Worker')]);
+			assert.strictEqual(await raceTimeout(sourceRead.p.then(() => true), 1000, () => false), true, 'Legacy catalog source hydration did not start');
+			const pendingRetry = internals._restoredSubagentAdmissionRetries.get(sessionKey)?.run();
+			assert.ok(pendingRetry);
+
+			stateManager.removeSession(sessionKey);
+			restoreOwner('Reloaded Owner');
+			releaseSourceRead.complete();
+			await pendingRetry;
+
+			const snapshot = (await database.readCatalogSnapshot([sessionKey]))[0];
+			assert.deepStrictEqual({
+				authority: snapshot.authorityVersion,
+				centralChats: catalogDataOf(await database.getSessionV2(sessionKey))?.chats.map(chat => chat.uri),
+				persistedChild: (await database.readChatV2(sessionKey, child)).chat,
+				publishedChild: stateManager.getSessionState(sessionKey)?.chats.some(chat => chat.resource === child),
+			}, {
+				authority: 1,
+				centralChats: [defaultChat],
+				persistedChild: undefined,
+				publishedChild: false,
+			});
+		});
+
+		test('does not activate restored subagents after its owner is reloaded during legacy projection', async () => {
+			const session = AgentSession.uri('copilot', 'removed-restored-subagent-legacy-projection');
+			const sessionKey = session.toString();
+			const defaultChat = buildDefaultChatUri(session);
+			const child = buildSubagentChatUri(sessionKey, 'historical-task');
+			const projectionStarted = new DeferredPromise<void>();
+			const releaseProjection = new DeferredPromise<void>();
+			let blockProjection = false;
+			const database = disposables.add(new AgentHostDatabase(':memory:', async sql => {
+				if (blockProjection && sql.startsWith('INSERT INTO session_chats')) {
+					blockProjection = false;
+					projectionStarted.complete();
+					await releaseProjection.p;
+				}
+			}));
+			await database.registerRuntimeSession(sessionKey, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			assert.strictEqual(await database.upsertSessionV2(catalogEnvelope(session, {
+				modifiedTime: 1,
+				summary: 'Owner',
+				isRead: false,
+				isArchived: false,
+				workingDirectories: [],
+				chats: [{ uri: defaultChat, order: 0, kind: 'default', summary: 'Owner' }],
+			}, 'generation', 1), undefined), 'applied');
+			const legacyCatalog = await database.getSessionChatCatalog(sessionKey);
+			blockProjection = true;
+			const backing = createPerSessionDataService();
+			backing.database(session);
+			const agent = disposables.add(new MockAgent('copilot'));
+			const svc = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, backing.service, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database,
+			));
+			const stateManager = getStateManager(svc);
+			const now = new Date().toISOString();
+			const restoreOwner = (title: string) => stateManager.restoreSession({
+				resource: sessionKey,
+				provider: agent.id,
+				title,
+				status: SessionStatus.Idle,
+				createdAt: now,
+				modifiedAt: now,
+			}, []);
+			restoreOwner('Old Owner');
+			const internals = svc as unknown as {
+				_catalogSyncSuppressedSessions: Set<string>;
+				_catalogReconciliationService: { runPass(): Promise<void> };
+				_restoredSubagentAdmissionRetries: Map<string, { run(): Promise<void> }>;
+				_queueRestoredSubagentAdmissionRetry(agent: IAgent, parentSession: URI, turns: readonly Turn[]): void;
+			};
+			internals._catalogSyncSuppressedSessions.add(sessionKey);
+			internals._catalogReconciliationService.runPass = async () => { };
+			internals._queueRestoredSubagentAdmissionRetry(agent, session, [restoredSubagentTurn(session, 'historical-task', 'Old Historical Worker')]);
+			assert.strictEqual(await raceTimeout(projectionStarted.p.then(() => true), 1000, () => false), true, 'Legacy projection did not start');
+			const pendingRetry = internals._restoredSubagentAdmissionRetries.get(sessionKey)?.run();
+			assert.ok(pendingRetry);
+
+			stateManager.removeSession(sessionKey);
+			restoreOwner('Reloaded Owner');
+			releaseProjection.complete();
+			await pendingRetry;
+
+			const snapshot = (await database.readCatalogSnapshot([sessionKey]))[0];
+			assert.deepStrictEqual({
+				authority: snapshot.authorityVersion,
+				persistedChild: (await database.readChatV2(sessionKey, child)).chat,
+				legacyCatalog: await database.getSessionChatCatalog(sessionKey),
+				publishedChild: stateManager.getSessionState(sessionKey)?.chats.some(chat => chat.resource === child),
+			}, {
+				authority: 1,
+				persistedChild: undefined,
+				legacyCatalog,
+				publishedChild: false,
+			});
+		});
+
+		for (const ownerState of ['tombstoned', 'retired'] as const) {
+			test(`does not admit a restored historical subagent for a ${ownerState} owner`, async () => {
+				const session = AgentSession.uri('copilot', `${ownerState}-historical-subagent`);
+				const defaultChat = buildDefaultChatUri(session);
+				const child = buildSubagentChatUri(session.toString(), 'historical-task');
+				const database = disposables.add(new AgentHostDatabase(':memory:'));
+				await database.registerRuntimeSession(session.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+				await database.upsertSessionV2(catalogEnvelope(session, {
+					modifiedTime: 1,
+					summary: 'Owner',
+					isRead: false,
+					isArchived: false,
+					workingDirectories: [],
+					chats: [{ uri: defaultChat, order: 0, kind: 'default', summary: 'Owner' }],
+				}, 'generation', 1), undefined);
+				const agent = disposables.add(new MockAgent('copilot'));
+				agent.sessionMessages = [
+					{ type: 'message', session, role: 'user', messageId: 'user', content: 'Delegate', toolRequests: [] },
+					{ type: 'message', session, role: 'assistant', messageId: 'assistant', content: '', toolRequests: [{ toolCallId: 'historical-task', name: 'task' }] },
+					{ type: 'tool_start', session, toolCallId: 'historical-task', toolName: 'task', displayName: 'Task', invocationMessage: 'Delegating', toolKind: 'subagent', subagentDescription: 'Historical Worker', subagentAgentName: 'explore' },
+					{ type: 'subagent_started', session, toolCallId: 'historical-task', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore' },
+					{ type: 'tool_complete', session, toolCallId: 'historical-task', result: { success: true, pastTenseMessage: 'Delegated', content: [] } },
+				];
+				const svc = disposables.add(createTestAgentService(
+					new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+					undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database,
+				));
+				registerTestAgentProvider(svc, agent);
+				const now = new Date().toISOString();
+				getStateManager(svc).restoreSession({
+					resource: session.toString(),
+					provider: agent.id,
+					title: 'Stale Owner',
+					status: SessionStatus.Idle,
+					createdAt: now,
+					modifiedAt: now,
+				}, []);
+				if (ownerState === 'tombstoned') {
+					await database.tombstoneAndUnregisterSession(session.toString());
+				} else {
+					const identity = (await database.listSessionV2Registrations()).find(candidate => candidate.session.toString() === session.toString());
+					const catalog = await database.getSessionV2(session.toString());
+					assert.strictEqual(await database.excludeSessionV2({
+						provider: 'copilot',
+						session: session.toString(),
+						reason: 'staleExternal',
+						fingerprint: 'retired-owner',
+					}, {
+						identity,
+						catalog: catalog && {
+							sessionGeneration: catalog.sessionGeneration,
+							sourceRevision: catalog.sourceRevision,
+							payloadHash: catalog.payloadHash,
+						},
+					}), 'excluded');
+				}
+
+				await assert.rejects(
+					(svc as unknown as { _registerRestoredSubagentSummaries(agent: IAgent, parentSession: URI, turns: readonly Turn[]): Promise<void> })
+						._registerRestoredSubagentSummaries(agent, session, await agent.getSessionMessages(session)),
+					/Missing restored catalog source/,
+				);
+
+				assert.deepStrictEqual({
+					snapshot: (await database.readCatalogSnapshot([session.toString()])).length,
+					normalized: await database.readChatV2(session.toString(), child),
+					publishedChild: getStateManager(svc).getSessionState(session.toString())?.chats.some(chat => chat.resource === child),
+				}, {
+					snapshot: 0,
+					normalized: { normalized: false },
+					publishedChild: false,
+				});
+			});
+		}
+
 		test('legacy subagent reconstruction replaces only a generic restored title', async () => {
 			registerTestAgentProvider(service, copilotAgent);
 			const parent = await service.createSession({ provider: 'copilot' });
@@ -21321,6 +22793,33 @@ suite('AgentService (node dispatcher)', () => {
 			}
 
 			assert.strictEqual(getStateManager(service).getChatState(childChat.toString())?.activeTurn?.id, 'continued-turn');
+		});
+	});
+
+	// ---- stopBackgroundWork ------------------------------------------------
+
+	suite('stopBackgroundWork', () => {
+
+		test('routes to the provider that owns the chat', async () => {
+			const stopped: { chat: string; id: string }[] = [];
+			class StoppingAgent extends MockAgent {
+				async stopBackgroundWork(chat: URI, id: string): Promise<boolean> {
+					stopped.push({ chat: chat.toString(), id });
+					return true;
+				}
+			}
+			const agent = disposables.add(new StoppingAgent('copilot'));
+			registerTestAgentProvider(service, agent);
+			const session = await service.createSession({ provider: 'copilot' });
+			const chat = URI.parse(buildChatUri(session, 'peer-1'));
+
+			assert.deepStrictEqual({
+				result: await service.stopBackgroundWork(chat, 'shell:3'),
+				stopped,
+			}, {
+				result: true,
+				stopped: [{ chat: chat.toString(), id: 'shell:3' }],
+			});
 		});
 	});
 
@@ -25654,11 +27153,11 @@ suite('AgentService (node dispatcher)', () => {
 			class FailingProjectionDatabase extends TestSessionDatabase {
 				failCatalogWrite = false;
 
-				override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<SessionCatalogSyncWriteResult> {
+				override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot, validate?: SessionCatalogSyncWriteValidator): Promise<SessionCatalogSyncWriteResult> {
 					if (this.failCatalogWrite) {
 						throw new Error('catalog projection failed');
 					}
-					return super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot);
+					return super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot, validate);
 				}
 			}
 			class MultiChatAgent extends MockAgent {
@@ -26238,9 +27737,9 @@ suite('AgentService (node dispatcher)', () => {
 					return super.setMetadataValues(values);
 				}
 
-				override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<SessionCatalogSyncWriteResult> {
+				override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot, validate?: SessionCatalogSyncWriteValidator): Promise<SessionCatalogSyncWriteResult> {
 					await this.failTitleWrite(values);
-					return super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot);
+					return super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot, validate);
 				}
 			}
 			class ServerToolAgent extends MockAgent {
@@ -27715,6 +29214,29 @@ suite('AgentService (node dispatcher)', () => {
 	});
 
 	suite('session config persistence', () => {
+
+		test('workspaceless Copilot sessions resolve host approval defaults without client config', async () => {
+			const sessionDataService = createSessionDataService(new TestSessionDatabase());
+			const agent = new MockAgent('copilotcli');
+			disposables.add(toDisposable(() => agent.dispose()));
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			registerTestAgentProvider(svc, agent);
+			agent.resolveChatConfig = async () => ({
+				schema: {
+					type: 'object', properties: {
+						autoApprove: { type: 'string', title: 'Approvals', enum: ['default', 'assisted', 'autoApprove'], sessionMutable: true },
+						availableApprovalModes: { type: 'array', title: 'Available', readOnly: true },
+						effectiveApprovalMode: { type: 'string', title: 'Effective', readOnly: true },
+					}
+				},
+				values: { autoApprove: 'assisted', availableApprovalModes: ['default', 'assisted'], effectiveApprovalMode: 'assisted' },
+			});
+
+			const session = await svc.createSession({ provider: 'copilotcli' });
+			assert.deepStrictEqual(getStateManager(svc).getSessionState(session.toString())?.config?.values, {
+				autoApprove: 'assisted', availableApprovalModes: ['default', 'assisted'], effectiveApprovalMode: 'assisted',
+			});
+		});
 
 		test('restoreSession replaces persisted off with applied on when current managed policy requires sandboxing', async () => {
 			const sessionDb = disposables.add(await SessionDatabase.open(':memory:'));

@@ -7,8 +7,9 @@ import type { IReference } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Event } from '../../../../base/common/event.js';
+import { constObservable } from '../../../../base/common/observable.js';
 import type { IDetailedDiffResult, IDiffComputeService, IDiffCountResult } from '../../common/diffComputeService.js';
-import { MAX_TERMINAL_OUTPUT_BYTES, type IFileEditContent, type IFileEditRecord, type IPersistedTurnRecord, type IReviewedFileRecord, type ISessionCatalogSyncAcknowledgement, type ISessionCatalogSyncPendingSnapshot, type ISessionCatalogSyncSnapshot, type ISessionDatabase, type ISessionDataService, type SessionCatalogSyncWriteResult } from '../../common/sessionDataService.js';
+import { MAX_TERMINAL_OUTPUT_BYTES, type IFileEditContent, type IFileEditRecord, type IPersistedTurnRecord, type IReviewedFileRecord, type ISessionCatalogSyncAcknowledgement, type ISessionCatalogSyncPendingSnapshot, type ISessionCatalogSyncSnapshot, type ISessionDatabase, type ISessionDataService, type SessionCatalogSyncTransitionResult, type SessionCatalogSyncWriteResult, type SessionCatalogSyncWriteValidator } from '../../common/sessionDataService.js';
 import type { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import type { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, type ISessionGitHubState, type Message } from '../../common/state/sessionState.js';
@@ -133,8 +134,11 @@ export class TestSessionDatabase implements ISessionDatabase {
 		}
 	}
 
-	async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<SessionCatalogSyncWriteResult> {
+	async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot, validate?: SessionCatalogSyncWriteValidator): Promise<SessionCatalogSyncWriteResult> {
 		this._validateCatalogSyncSnapshot(snapshot);
+		if (validate && !validate()) {
+			return 'cancelled';
+		}
 		const existing = this._catalogSyncSnapshot;
 		if (existing && snapshot.sessionGeneration !== existing.sessionGeneration) {
 			throw new Error(`Catalog sync snapshot generation ${snapshot.sessionGeneration} does not match stored generation ${existing.sessionGeneration}`);
@@ -163,21 +167,24 @@ export class TestSessionDatabase implements ISessionDatabase {
 		return 'applied';
 	}
 
-	async transitionMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, expectedSessionGeneration: string, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<boolean> {
+	async transitionMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, expectedSessionGeneration: string, snapshot: ISessionCatalogSyncPendingSnapshot, validate?: SessionCatalogSyncWriteValidator): Promise<SessionCatalogSyncTransitionResult> {
 		this._validateCatalogSyncIdentity('expectedSessionGeneration', expectedSessionGeneration);
 		this._validateCatalogSyncSnapshot(snapshot);
 		if (snapshot.sessionGeneration === expectedSessionGeneration) {
 			throw new Error(`Catalog sync generation transition must change the session generation`);
 		}
+		if (validate && !validate()) {
+			return 'cancelled';
+		}
 		if (this._catalogSyncSnapshot?.sessionGeneration !== expectedSessionGeneration) {
-			return false;
+			return 'generationMismatch';
 		}
 		for (const [key, value] of Object.entries(values)) {
 			this.setMetadataCalls.push({ key, value });
 			this._metadata.set(key, value);
 		}
 		this._catalogSyncSnapshot = { ...snapshot, acknowledgedHash: undefined };
-		return true;
+		return 'applied';
 	}
 
 	async getCatalogSyncSnapshot(): Promise<ISessionCatalogSyncSnapshot | undefined> {
@@ -645,6 +652,7 @@ export function createNoopGitService(): import('../../common/agentHostGitService
 		getBranch: async () => undefined,
 		getRefs: async () => [],
 		getBranches: async () => [],
+		hasGitRoot: () => constObservable(undefined),
 		getRepositoryRoot: async () => undefined,
 		getWorktreeRoots: async () => [],
 		addWorktree: async () => { },

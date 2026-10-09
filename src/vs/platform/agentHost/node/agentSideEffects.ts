@@ -1530,7 +1530,7 @@ export class AgentSideEffects extends Disposable {
 			session: e.chat,
 			permissionKind: e.permissionKind,
 			permissionPath: e.permissionPath,
-			toolInput: getInlineToolInput(e.state.toolInput),
+			toolInput: e.shellCommand ?? getInlineToolInput(e.state.toolInput),
 			requestSandboxBypass: e.requestSandboxBypass,
 			shellLanguage: e.shellLanguage,
 		};
@@ -1677,6 +1677,7 @@ export class AgentSideEffects extends Disposable {
 						...this._chatContext(sessionChannel, channel),
 						clientTelemetryContext: clientContext,
 						agentMergeTurn: resumedTurn.message.origin.kind === MessageKind.SystemNotification && isAgentMergeMessage(resumedTurn.message),
+						sendStageRecorder: this._turnTracker.createProviderStageRecorder(channel, action.turnId),
 					},
 					clientId,
 					clientContext.clientType,

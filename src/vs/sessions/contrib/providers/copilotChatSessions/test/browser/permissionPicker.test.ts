@@ -19,7 +19,7 @@ import { IDialogService } from '../../../../../../platform/dialogs/common/dialog
 import { TestDialogService } from '../../../../../../platform/dialogs/test/common/testDialogService.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
-import { COPILOT_SANDBOX_ALLOW_BYPASS_KEY, IManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_SANDBOX_ALLOW_BYPASS_KEY, IManagedSettingsService, ManagedSettingsData } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { constObservable, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { AgentSandboxEnabledValue } from '../../../../../../platform/sandbox/common/settings.js';
@@ -238,6 +238,7 @@ suite('Copilot PermissionPicker', () => {
 			_serviceBrand: undefined,
 			onDidChangeManagedSettings: managedSettingsChanged.event,
 			getManagedSettingValue: key => key === COPILOT_SANDBOX_ALLOW_BYPASS_KEY ? allowBypass : undefined,
+			getManagedSettings: (): ManagedSettingsData => allowBypass === undefined ? {} : { [COPILOT_SANDBOX_ALLOW_BYPASS_KEY]: allowBypass },
 		};
 		const enablementService: IAgentHostEnablementService = {
 			_serviceBrand: undefined,
