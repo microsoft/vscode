@@ -610,7 +610,7 @@ export class ChatService extends Disposable implements IChatService {
 			historyStatus = derived<IChatSessionHistoryStatus | undefined>(reader => revoked.read(reader) ? {
 				kind: 'history',
 				message: policyBlocked.read(reader)
-					? localize('chat.agentHost.policyDisabled', "Your organization has disabled this agent. Saved sessions remain available, but this chat cannot be continued.")
+					? localize('chat.agentHost.policyDisabled', "Your organization has disabled this agent. Saved sessions remain listed, but history cannot be loaded or new messages sent while it is disabled.")
 					: localize('chat.agentHost.policyRemoved', "This agent is available again. This open chat is still read-only."),
 			} : providedHistoryStatus?.read(reader));
 		}

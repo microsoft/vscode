@@ -98,11 +98,11 @@ export class AgentHostSessionListContribution extends Disposable implements IWor
 		if (!this._agentHostEnablementService.enabled.get()) {
 			return;
 		}
-		const allowed = (rootState && !(rootState instanceof Error) ? rootState.agents : []).filter(agent => this._shouldRegisterAgent(agent.provider));
-		const incoming = new Set(allowed.map(agent => agent.provider));
+		const allowed = rootState && !(rootState instanceof Error) ? rootState.agents.filter(agent => this._shouldRegisterAgent(agent.provider)) : undefined;
+		const incoming = allowed ? new Set(allowed.map(agent => agent.provider)) : undefined;
 
 		for (const [provider] of this._agentRegistrations) {
-			if (!incoming.has(provider)) {
+			if (!this._shouldRegisterAgent(provider) || incoming?.has(provider) === false) {
 				this._agentRegistrations.deleteAndDispose(provider);
 			}
 		}
@@ -125,6 +125,9 @@ export class AgentHostSessionListContribution extends Disposable implements IWor
 					refresh: token => controller.refresh(token),
 				}));
 			}
+		}
+		if (!allowed) {
+			return;
 		}
 
 		for (const agent of allowed) {

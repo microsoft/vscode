@@ -4401,7 +4401,10 @@ suite('ChatService', () => {
 					}
 					assert.deepStrictEqual({ states, draft: ref.object.inputModel.state.get()?.inputText, requests: ref.object.getRequests().length }, { states: [false, true, true, true], draft: 'Unsent draft', requests: path === '/saved' ? 1 : 0 });
 					assert.strictEqual(ref.object.getRequests()[0], requests[0]);
-					assert.strictEqual(ref.object.historyStatus?.get()?.kind, 'history');
+					assert.deepStrictEqual(ref.object.historyStatus?.get(), {
+						kind: 'history',
+						message: 'Your organization has disabled this agent. Saved sessions remain listed, but history cannot be loaded or new messages sent while it is disabled.',
+					});
 					assert.deepStrictEqual(await service.sendRequest(resource, 'Do not send'), { kind: 'rejected', reason: 'Session is read-only' });
 				});
 			}

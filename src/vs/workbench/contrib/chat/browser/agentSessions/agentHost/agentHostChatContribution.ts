@@ -79,6 +79,9 @@ async function waitForLocalAgentHostActivation(accessor: ServicesAccessor, sessi
 	}
 
 	while (true) {
+		if (getPolicyUnavailableLocalAgentHostProviders(configurationService, environmentService.isSessionsWindow).includes(provider)) {
+			return true;
+		}
 		const rootState = agentHostService.rootState.value;
 		if (rootState instanceof Error) {
 			return false;
@@ -258,12 +261,12 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		if (!this._agentHostEnablementService.enabled.get()) {
 			return;
 		}
-		const allowed = (rootState && !(rootState instanceof Error) ? rootState.agents : []).filter(a => this._shouldRegisterAgent(a.provider));
-		const incoming = new Set(allowed.map(a => a.provider));
+		const allowed = rootState && !(rootState instanceof Error) ? rootState.agents.filter(a => this._shouldRegisterAgent(a.provider)) : undefined;
+		const incoming = allowed ? new Set(allowed.map(a => a.provider)) : undefined;
 
-		// Remove agents that are no longer present OR no longer allowed
+		// Only a valid root snapshot can remove agents that are still allowed.
 		for (const [provider] of this._agentRegistrations) {
-			if (!incoming.has(provider)) {
+			if (!this._shouldRegisterAgent(provider) || incoming?.has(provider) === false) {
 				this._agentRegistrations.deleteAndDispose(provider);
 				this._modelProviders.delete(provider);
 			}
@@ -279,6 +282,9 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			if (!this._historyRegistrations.has(provider)) {
 				this._historyRegistrations.set(provider, this._chatSessionsService.registerChatSessionContentProvider(`agent-host-${provider}`, new PolicyUnavailableAgentHostContentProvider()));
 			}
+		}
+		if (!allowed) {
+			return;
 		}
 
 		// Authenticate using protectedResources from agent info. Only auth the

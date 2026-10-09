@@ -163,6 +163,8 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 			if (cts.token.isCancellationRequested || this.input !== input) {
 				return;
 			}
+			this.showLoadingInChatWidget(nls.localize('chatEditor.loadingSession', "Loading..."));
+			store.add(toDisposable(() => this.hideLoadingInChatWidget()));
 			const resolved = await raceCancellationError(input.resolve(cts.token), cts.token);
 			if (!resolved || cts.token.isCancellationRequested || this.input !== input) {
 				return;

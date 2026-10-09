@@ -33,7 +33,7 @@ import { createTextModel } from '../../../../../../editor/test/common/testTextMo
 import { reviveChatDraft, serializeChatDraft } from '../../../common/attachments/chatDraft.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { NullManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { AgentHostProtocolClient } from '../../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import { IAgentHostResourceService } from '../../../../../../platform/agentHost/common/agentHostResourceService.js';
@@ -13492,7 +13492,12 @@ suite('AgentHostChatContribution', () => {
 					},
 					changePreference: async (key: string, value: boolean) => {
 						await configurationService.setUserConfiguration(key, value);
-						configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial({ affectsConfiguration: setting => setting === key }));
+						configurationService.onDidChangeConfigurationEmitter.fire({
+							source: ConfigurationTarget.USER,
+							affectedKeys: new Set([key]),
+							change: { keys: [key], overrides: [] },
+							affectsConfiguration: setting => setting === key,
+						});
 					},
 				};
 			}
