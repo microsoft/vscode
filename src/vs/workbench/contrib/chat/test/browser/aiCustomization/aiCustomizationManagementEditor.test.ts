@@ -39,7 +39,7 @@ import { PromptFileSource, PromptsType, Target } from '../../../common/promptSyn
 import { AICustomizationManagementSection, AICustomizationSources, type AICustomizationSource } from '../../../common/aiCustomizationWorkspaceService.js';
 import { CustomizationMigrationCategoryId, getCustomizationMigrationCategory, ICustomizationMigrationCategory } from '../../../browser/aiCustomization/customizationMigrationCategories.js';
 import type { ICustomizationHarnessService, ICustomizationSourceFolder } from '../../../common/customizationHarnessService.js';
-import type { CustomizationMigrationTargetFolders, IMigratedCustomizationsWithFailureReasonsResult } from '../../../browser/aiCustomization/customizationMigration.js';
+import type { IMigratedCustomizationsWithFailureReasonsResult } from '../../../browser/aiCustomization/customizationMigration.js';
 import type { ICustomizationMigrationCategorySummary, IInstalledCustomizationTarget } from '../../../browser/aiCustomization/aiCustomizationWelcomePage.js';
 import { AICustomizationManagementEditorInput } from '../../../browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { aiCustomizationManagementSectionRegistry, IAICustomizationManagementSectionWidget } from '../../../browser/aiCustomization/aiCustomizationManagementSectionRegistry.js';
@@ -308,8 +308,6 @@ suite('aiCustomizationManagementEditor', () => {
 		showEmbeddedMcpDetail(server: IMcpServerDetailInput, origin?: { readonly kind: 'migration' }, migrationDetail?: { readonly item: ICustomizationMigrationDashboardItem; readonly storage: PromptsStorage }): Promise<void>;
 		openMigrationCustomization(item: ICustomizationMigrationDashboardItem, storage: PromptsStorage): Promise<void>;
 		getConfiguredLocationSettingsToClear(category: ICustomizationMigrationCategory, customizations: readonly MigratableConfiguration[]): readonly string[];
-		getFileMigrationConfirmationDetail(detail: string, files: readonly MigratableConfiguration[], targetFolders: CustomizationMigrationTargetFolders): string;
-		getMcpMigrationConfirmationDetail(detail: string, servers: readonly IMcpServerCustomizationMigrationCandidate[]): string;
 		clearConfiguredLocationSettings(settingIds: readonly string[]): Promise<void>;
 		migrateSelectedCustomizations(category: ICustomizationMigrationCategory, customizations: readonly CustomizationMigrationCandidate[]): Promise<void>;
 		runCustomizationMigration(customizations: readonly MigratableConfiguration[]): Promise<IMigratedCustomizationsWithFailureReasonsResult>;
@@ -2230,14 +2228,16 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.editorPreviewDisposables.dispose();
 	});
 
-	test('confirmation details enumerate planned source and destination changes', () => {
-		const editor = createTestEditor();
-		const file: MigratableConfiguration = {
-			uri: URI.file('/workspace/.github/agents/reviewer.agent.md'),
+	test('migration confirmations omit per-item source and destination paths', async () => {
+		const editor = createTestEditor(undefined, createConfigurationServiceStub({
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
+		}));
+		const prompt: MigratableConfiguration = {
+			uri: URI.file('/workspace/.github/prompts/review.prompt.md'),
 			storage: PromptsStorage.local,
-			type: PromptsType.agent,
+			type: PromptsType.prompt,
 			source: PromptFileSource.GitHubWorkspace,
-			name: 'reviewer',
+			name: 'Review',
 		};
 		const server: IMcpServerCustomizationMigrationCandidate = {
 			type: CustomizationMigrationType.McpServers,
@@ -2248,22 +2248,40 @@ suite('aiCustomizationManagementEditor', () => {
 			targetUri: URI.file('/workspace/.mcp.json'),
 			projectedConfiguration: { type: McpServerType.LOCAL, command: 'node' },
 		};
-		const targetFolders: CustomizationMigrationTargetFolders = new Map([[
-			PromptsType.agent,
-			new Map([[PromptsStorage.local, {
-				uri: URI.file('/workspace/.agents/agents'),
-				label: '.agents/agents',
-				source: PromptsStorage.local,
-			}]]),
-		]]);
-
-		assert.deepStrictEqual({
-			file: editor.getFileMigrationConfirmationDetail('Move the file.', [file], targetFolders),
-			mcp: editor.getMcpMigrationConfirmationDetail('Move the server.', [server]),
-		}, {
-			file: 'Move the file.\n\nPlanned changes:\n• reviewer\n  From: /workspace/.github/agents/reviewer.agent.md\n  Destination: /workspace/.agents/agents/reviewer.agent.md',
-			mcp: 'Move the server.\n\nPlanned changes:\n• Server\n  From: /workspace/.vscode/mcp.json\n  To: /workspace/.mcp.json',
+		editor.selectedCustomizationMigrationTargets.set(`${PromptsType.skill}:${PromptsStorage.local}`, {
+			uri: URI.file('/workspace/.github/skills'),
+			label: '.github/skills',
+			source: PromptsStorage.local,
 		});
+		const confirmations: IConfirmation[] = [];
+		editor.dialogService = {
+			confirm: async confirmation => {
+				confirmations.push(confirmation);
+				return { confirmed: false };
+			},
+		};
+
+		await editor.migrateSelectedCustomizations(getCustomizationMigrationCategory(CustomizationMigrationCategoryId.PromptFiles), [prompt]);
+		await editor.migrateSelectedCustomizations(getCustomizationMigrationCategory(CustomizationMigrationCategoryId.McpServers), [server]);
+
+		assert.deepStrictEqual(confirmations, [
+			{
+				type: 'question',
+				message: 'Convert prompt files to skills?',
+				detail: 'This converts 1 workspace prompt files into skills.',
+				primaryButton: 'Convert to Skills',
+				checkbox: {
+					label: 'Delete original prompt files after migration',
+					checked: true,
+				},
+			},
+			{
+				type: 'question',
+				message: 'Migrate 1 MCP server to .mcp.json?',
+				detail: 'Eligible entries are removed from .vscode/mcp.json after they are written and verified in .mcp.json. Entries that cannot be migrated stay in place.',
+				primaryButton: 'Migrate',
+			},
+		]);
 		editor.editorPreviewDisposables.dispose();
 	});
 
@@ -2372,7 +2390,6 @@ suite('aiCustomizationManagementEditor', () => {
 				confirmations: [{
 					type: 'warning',
 					...confirmation,
-					detail: editor.getMcpMigrationConfirmationDetail(confirmation.detail, [server]),
 				}],
 				inProgress: false,
 				writesInProgress: false,

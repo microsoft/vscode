@@ -1756,7 +1756,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			const confirmed = await this.dialogService.confirm({
 				type: 'question',
 				message: confirmation.message,
-				detail: this.getFileMigrationConfirmationDetail(confirmation.detail, files, targetFolders),
+				detail: confirmation.detail,
 				primaryButton: confirmation.primaryButton,
 				...(confirmation.deleteOriginalsLabel ? { checkbox: { label: confirmation.deleteOriginalsLabel, checked: true } } : {}),
 			});
@@ -1820,7 +1820,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const confirmResult = await this.dialogService.confirm({
 			type: servers.some(server => Object.keys(server.removedProperties ?? {}).length > 0) ? 'warning' : 'question',
 			message: confirmation.message,
-			detail: this.getMcpMigrationConfirmationDetail(confirmation.detail, servers),
+			detail: confirmation.detail,
 			primaryButton: confirmation.primaryButton,
 		});
 		if (!confirmResult.confirmed || !this.isCustomizationMigrationSessionActive(sessionResource)) {
@@ -1865,44 +1865,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 		} else if (result.failures.length === 0) {
 			this.notificationService.warn(category.noFilesMigratedMessage);
 		}
-	}
-
-	private getFileMigrationConfirmationDetail(
-		detail: string,
-		files: readonly MigratableConfiguration[],
-		targetFolders: CustomizationMigrationTargetFolders,
-	): string {
-		const changes = files.flatMap(file => {
-			const folder = this.getEffectiveCustomizationMigrationTargetFolder(file, targetFolders);
-			if (!folder) {
-				return [];
-			}
-			const source = this.labelService.getUriLabel(file.uri, { relative: file.storage === PromptsStorage.local });
-			const destination = file.type === PromptsType.agent || file.type === PromptsType.instructions
-				? this.labelService.getUriLabel(URI.joinPath(folder.uri, basename(file.uri)), { relative: file.storage === PromptsStorage.local })
-				: this.getCustomizationMigrationFolderLabel(folder);
-			return [localize(
-				'fileMigrationConfirmationChange',
-				"• {0}\n  From: {1}\n  Destination: {2}",
-				file.name ?? basename(file.uri),
-				source,
-				destination,
-			)];
-		});
-		return changes.length
-			? localize('migrationConfirmationWithChanges', "{0}\n\nPlanned changes:\n{1}", detail, changes.join('\n'))
-			: detail;
-	}
-
-	private getMcpMigrationConfirmationDetail(detail: string, servers: readonly IMcpServerCustomizationMigrationCandidate[]): string {
-		const changes = servers.map(server => localize(
-			'mcpMigrationConfirmationChange',
-			"• {0}\n  From: {1}\n  To: {2}",
-			server.name,
-			this.labelService.getUriLabel(server.sourceUri, { relative: server.storage === PromptsStorage.local }),
-			this.labelService.getUriLabel(server.targetUri, { relative: server.storage === PromptsStorage.local }),
-		));
-		return localize('migrationConfirmationWithChanges', "{0}\n\nPlanned changes:\n{1}", detail, changes.join('\n'));
 	}
 
 	private getConfiguredLocationSettingsToClear(category: ICustomizationMigrationCategory, customizations: readonly MigratableConfiguration[]): readonly string[] {
