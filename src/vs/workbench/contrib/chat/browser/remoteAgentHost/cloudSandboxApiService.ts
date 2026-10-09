@@ -19,6 +19,7 @@ import {
 	CloudSandboxAuthenticationRequiredError,
 	CloudSandboxConnectResult,
 	CloudSandboxRequestError,
+	CloudSandboxTransportError,
 	ICloudSandboxClientToken,
 	ICloudSandboxConnectionRequest,
 	ICloudSandboxApiService,
@@ -129,10 +130,13 @@ function taskSessionStatus(state: string | undefined, logService: ILogService): 
  */
 const GITHUB_DOT_COM_API_BASE_URI = deriveGitHubEndpoints(undefined).apiBaseUri;
 
-/** Per-request timeout (ms) for credential and environment calls. */
+/** Default per-request timeout (ms) for environment metadata and task operations. */
 const REQUEST_TIMEOUT_MS = 10_000;
 
-/** Per-request timeout (ms) for discovery, whose task list is far larger than a credential mint. */
+/** Credential requests can block for a two-minute sandbox resume; allow an extra minute of headroom. */
+const CONNECT_TIMEOUT_MS = 180_000;
+
+/** Per-request timeout (ms) for discovery, which can return large task lists. */
 const DISCOVERY_TIMEOUT_MS = 30_000;
 
 /**
@@ -779,7 +783,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		const url = `${GITHUB_DOT_COM_COPILOT_API_BASE_URI}/agents/environments/${encodeURIComponent(environmentId)}${path}${toQuery(searchParams)}`;
 		return this._request(url, `mc.environmentClient.${action}`, action === 'get' ? 'getEnvironment' : action, {
 			'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
-		}, token, REQUEST_TIMEOUT_MS, undefined, undefined, onRequest);
+		}, token, action === 'get' ? REQUEST_TIMEOUT_MS : CONNECT_TIMEOUT_MS, undefined, undefined, onRequest);
 	}
 
 	/** Issue a task API request, throwing on a non-success status. */
@@ -850,7 +854,12 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 				...(body === undefined ? undefined : { data: JSON.stringify(typeof body === 'function' ? body(session) : body) }),
 				timeout: timeoutMs,
 				callSite,
-			}, token);
+			}, token).catch((error: unknown) => {
+				if (isCancellationError(error) || token.isCancellationRequested || (action !== 'connect' && action !== 'reconnect')) {
+					throw error;
+				}
+				throw new CloudSandboxTransportError(error);
+			});
 			this._telemetry.reportRequest(action, requestOutcomeForStatus(context.res.statusCode));
 			// Latency against its budget: `/connect` blocks on a compute resume, so how close a reply
 			// came to being cut off separates "Mission Control is silent" from "we stopped listening".

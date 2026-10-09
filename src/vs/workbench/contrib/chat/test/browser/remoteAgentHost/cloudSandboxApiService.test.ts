@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { DeferredPromise, raceTimeout, timeout } from '../../../../../../base/common/async.js';
 import { bufferToStream, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
@@ -306,6 +306,78 @@ suite('CloudSandboxApiService connection credentials', () => {
 	});
 
 	for (const action of ['connect', 'reconnect'] as const) {
+		test(`${action} allows a two-minute sandbox resume within its request timeout`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const credentials = clientToken('client-1');
+			let requestTimeout: number | undefined;
+			const { service } = createService(store, {
+				tasks: [], repositories: new Map(),
+				onRequest: async (_url, token, options) => {
+					requestTimeout = options.timeout;
+					assert.ok(requestTimeout !== undefined);
+					const response = await raceTimeout(timeout(120_000, token).then(() => jsonResponse(credentials)), requestTimeout);
+					if (!response) {
+						throw new Error(`Fetch timeout: ${requestTimeout}ms`);
+					}
+					return response;
+				},
+			});
+
+			const started = Date.now();
+			const result = action === 'connect'
+				? await service.connect(request, CancellationToken.None)
+				: await service.reconnect(request, 'client-1', CancellationToken.None);
+
+			assert.deepStrictEqual({ result, requestTimeout, durationMs: Date.now() - started }, {
+				result: { kind: 'token', token: credentials },
+				requestTimeout: 180_000,
+				durationMs: 120_000,
+			});
+		}));
+
+		test(`${action} remains cancellable while waiting for a sandbox resume`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const source = store.add(new CancellationTokenSource());
+			const issued = new DeferredPromise<void>();
+			const { service } = createService(store, {
+				tasks: [], repositories: new Map(),
+				onRequest: async (_url, token) => {
+					issued.complete();
+					await timeout(120_000, token);
+					return jsonResponse(clientToken('client-1'));
+				},
+			});
+
+			const connecting = action === 'connect'
+				? service.connect(request, source.token)
+				: service.reconnect(request, 'client-1', source.token);
+			const cancelled = assert.rejects(connecting, isCancellationError);
+			await issued.p;
+			await timeout(60_000);
+			source.cancel();
+			await cancelled;
+		}));
+
+		for (const cause of [new Error('Fetch timeout: 180000ms'), new TypeError('Failed to fetch')]) {
+			test(`${action} identifies a retryable transport failure: ${cause.message}`, async () => {
+				const { service } = createService(store, {
+					tasks: [], repositories: new Map(), requestError: cause,
+				});
+				const connecting = action === 'connect'
+					? service.connect(request, CancellationToken.None)
+					: service.reconnect(request, 'client-1', CancellationToken.None);
+				await assert.rejects(connecting, { name: 'CloudSandboxTransportError', message: cause.message, cause });
+			});
+		}
+
+		test(`${action} does not classify invalid credentials as a transport failure`, async () => {
+			const { service } = createService(store, {
+				tasks: [], repositories: new Map(), onRequest: () => jsonResponse({}),
+			});
+			const connecting = action === 'connect'
+				? service.connect(request, CancellationToken.None)
+				: service.reconnect(request, 'client-1', CancellationToken.None);
+			await assert.rejects(connecting, { name: 'Error', message: `Mission Control ${action} returned an incomplete token response` });
+		});
+
 		test(`${action} logs safe upstream correlation for an HTTP failure`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const logService = new TestLogService();
 			const requestId = 'ABCD:1234:5678:90AB:CDEF';
@@ -379,6 +451,23 @@ suite('CloudSandboxApiService connection credentials', () => {
 			assert.deepStrictEqual({ result, progress }, { result: { kind: 'waking', waking: { retryAfterSeconds: 5 } }, progress: ['issued', 'waking'] });
 		});
 	}
+
+	test('environment metadata reads retain the short request timeout', async () => {
+		let requestTimeout: number | undefined;
+		const { service } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: (_url, _token, options) => {
+				requestTimeout = options.timeout;
+				return jsonResponse({ id: 'env-1', status: 'online' });
+			},
+		});
+
+		const environment = await service.getEnvironment('env-1', CancellationToken.None);
+		assert.deepStrictEqual({ environment, requestTimeout }, {
+			environment: { id: 'env-1', status: 'online' },
+			requestTimeout: 10_000,
+		});
+	});
 
 	for (const header of [undefined, 'ABCD:1234:5678', 'ABCD:1234:5678:90AB:CDEF\ninjected', 'ghp_secret', 'A'.repeat(129), ['ABCD:1234:5678:90AB:CDEF', 'ABCD:1234:5678:90AB:CDEF']]) {
 		test(`omits unavailable or invalid request IDs: ${JSON.stringify(header)}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {

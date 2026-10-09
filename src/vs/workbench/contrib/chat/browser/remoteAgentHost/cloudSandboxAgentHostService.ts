@@ -24,6 +24,7 @@ import {
 	cloudSandboxAddress,
 	cloudSandboxEnvironmentId,
 	CloudSandboxEnabledSettingId,
+	CloudSandboxTransportError,
 	ICloudSandboxAgentHostService,
 	ICloudSandboxConnectOptions,
 	ICloudSandboxApiService,
@@ -43,8 +44,8 @@ import { getCloudSandboxConnectionSurface, ICloudSandboxTelemetryService, type C
 
 const LOG_PREFIX = '[CloudSandboxAgentHost]';
 
-/** Maximum number of `/connect` "waking" retries before giving up. */
-const MAX_WAKING_RETRIES = 20;
+/** Maximum number of `/connect` attempts, shared by waking responses and transport failures. */
+const MAX_CONNECT_ATTEMPTS = 20;
 
 /** Maximum number of credential refreshes while waiting for a sealed token. */
 export const MAX_SEALED_TOKEN_RETRIES = 12;
@@ -52,8 +53,8 @@ export const MAX_SEALED_TOKEN_RETRIES = 12;
 /** Delay between credential refreshes while waiting for complete credentials. */
 const SEALED_TOKEN_RETRY_DELAY_MS = 5_000;
 
-// Retain the existing twenty 30-second waking windows as the total startup ceiling.
-const CONNECTION_TIMEOUT_MS = MAX_WAKING_RETRIES * 30_000;
+/** Overall startup deadline, shared across credential attempts and the relay handshake. */
+const CONNECTION_TIMEOUT_MS = 10 * 60_000;
 const SANDBOX_RECONNECT_POLICY = {
 	...DEFAULT_RECONNECT_POLICY,
 	maxElapsedTimeMs: MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES * MIN_CREDENTIAL_REFRESH_DELAY_MS,
@@ -416,14 +417,11 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 		let establishing = false;
 		let clientId: string | undefined;
 		try {
-			// Asked once: Mission Control blocks on the compute resume before replying, so its answer
-			// already reflects that attempt and re-asking only repeats the wait. `202 waking` is the one
-			// retried case, polled inside the mint against Mission Control's own Retry-After.
 			const requestTelemetry = this._connectionFactory.getTelemetry(address);
 			const clientToken = await traceConnectionOperation(
 				event => requestTelemetry?.recordConnectionDiagnostic(event),
 				'credentials',
-				() => raceCancellationError(this._mintWithWaking(options, source.token, requestTelemetry), source.token),
+				() => raceCancellationError(this._mintWithRetries(options, source.token, requestTelemetry), source.token),
 			);
 			if (userLocalAccount !== undefined) {
 				const verifiedAccount = await this._apiService.getAccountKey();
@@ -491,24 +489,38 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 		}
 	}
 
-	/** Mint client creds, retrying (bounded) while the environment is waking. */
-	private async _mintWithWaking(options: ICloudSandboxConnectOptions, token: CancellationToken, telemetry: ICloudSandboxConnectionTelemetry | undefined): Promise<ICloudSandboxClientToken> {
-		for (let attempt = 0; attempt < MAX_WAKING_RETRIES; attempt++) {
+	/** Mint client credentials, retrying waking responses and transport failures within one attempt budget. */
+	private async _mintWithRetries(options: ICloudSandboxConnectOptions, token: CancellationToken, telemetry: ICloudSandboxConnectionTelemetry | undefined): Promise<ICloudSandboxClientToken> {
+		for (let attempt = 0; attempt < MAX_CONNECT_ATTEMPTS; attempt++) {
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
-			const result = await this._apiService.connect({ environmentId: options.environmentId, sessionId: options.sessionId, onRequest: telemetry?.createRequestObserver() }, token);
+			let result: CloudSandboxConnectResult;
+			try {
+				result = await this._apiService.connect({ environmentId: options.environmentId, sessionId: options.sessionId, onRequest: telemetry?.createRequestObserver() }, token);
+			} catch (error) {
+				if (isCancellationError(error) || token.isCancellationRequested || !(error instanceof CloudSandboxTransportError) || attempt + 1 === MAX_CONNECT_ATTEMPTS) {
+					throw error;
+				}
+				const delayMs = this._connectRetryDelay();
+				this._logService.warn(`${LOG_PREFIX} Connection request failed for environment ${options.environmentId}; retrying in ${delayMs}ms (attempt ${attempt + 1}/${MAX_CONNECT_ATTEMPTS}): ${formatConnectionDiagnosticError(getConnectionDiagnosticError(error))}`);
+				await timeout(delayMs, token);
+				continue;
+			}
 			if (result.kind === 'token') {
 				return await this._awaitSealedToken(options, result.token, token, telemetry);
 			}
-			const delayMs = this._wakingRetryDelay(result.waking.retryAfterSeconds);
-			this._logService.info(`${LOG_PREFIX} Environment ${options.environmentId} waking; retrying in ${delayMs}ms (attempt ${attempt + 1}/${MAX_WAKING_RETRIES})`);
+			if (attempt + 1 === MAX_CONNECT_ATTEMPTS) {
+				break;
+			}
+			const delayMs = this._connectRetryDelay(result.waking.retryAfterSeconds);
+			this._logService.info(`${LOG_PREFIX} Environment ${options.environmentId} waking; retrying in ${delayMs}ms (attempt ${attempt + 1}/${MAX_CONNECT_ATTEMPTS})`);
 			await timeout(delayMs, token);
 		}
 		throw new Error(`Timed out waiting for sandbox environment ${options.environmentId} to wake.`);
 	}
 
-	private _wakingRetryDelay(retryAfterSeconds: number): number {
+	private _connectRetryDelay(retryAfterSeconds = 0): number {
 		const delay = Math.max(retryAfterSeconds * 1000, SEALED_TOKEN_RETRY_DELAY_MS);
 		const withJitter = delay + Math.floor(Math.random() * Math.min(1000, delay * 0.2));
 		if (!Number.isFinite(withJitter) || withJitter >= CONNECTION_TIMEOUT_MS) {
@@ -541,7 +553,7 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 				break;
 			}
 			if (result.kind !== 'token') {
-				delayMs = this._wakingRetryDelay(result.waking.retryAfterSeconds);
+				delayMs = this._connectRetryDelay(result.waking.retryAfterSeconds);
 				continue;
 			}
 			clientToken = result.token;

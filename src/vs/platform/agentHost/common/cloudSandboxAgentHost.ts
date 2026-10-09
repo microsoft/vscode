@@ -11,6 +11,7 @@
 // to reach an agent host over one transport; it does not define a new kind of agent host.
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Event } from '../../../base/common/event.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
@@ -334,6 +335,14 @@ export class CloudSandboxAuthenticationRequiredError extends Error {
 	}
 }
 
+/** A transport failure that did not yield a complete Mission Control HTTP response. */
+export class CloudSandboxTransportError extends Error {
+	constructor(cause: unknown) {
+		super(toErrorMessage(cause), { cause });
+		this.name = 'CloudSandboxTransportError';
+	}
+}
+
 /**
  * A Mission Control request that came back with a non-success status. Carries the {@link statusCode}
  * so callers can tell a failure that may clear on its own from one that never will.
@@ -346,16 +355,8 @@ export class CloudSandboxRequestError extends Error {
 }
 
 /**
- * Whether re-issuing a failed request could plausibly succeed later. Callers that retry on a timer
- * MUST consult this, or one dead session becomes an unbounded stream of failed requests.
- *
- * Transport failures (no status), 5xx, 408 and 429 are transient; every other 4xx describes a
- * request Mission Control will reject identically however often it is repeated.
- *
- * This gates credential refresh for *live* connections, where a transient fault must not tear down
- * a working session — hence 5xx staying retryable. Opening a new connection deliberately does not
- * use it: there, any answer is final. {@link CloudSandboxAuthenticationRequiredError} is retryable
- * because it is raised before any request goes out, so callers need their own ceiling.
+ * Whether a live connection's credential refresh can be retried, subject to the caller's retry budget.
+ * Initial connections retry only transport failures, not HTTP errors.
  */
 export function isRetryableCloudSandboxError(error: unknown): boolean {
 	if (!(error instanceof CloudSandboxRequestError) || error.statusCode === undefined) {
@@ -397,12 +398,8 @@ export interface ICloudSandboxAgentHostService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Establish (or reuse) a live AHP relay connection to the given sandbox
-	 * environment. Resolves with the connection's display address once the
-	 * connection is registered with {@link IRemoteAgentHostService}.
-	 *
-	 * Retries while the environment is waking (bounded), honoring the
-	 * server-provided Retry-After delay.
+	 * Establish or reuse a live AHP relay, returning its display address after registration with {@link IRemoteAgentHostService}.
+	 * Retries waking responses and transport failures within bounded attempts and time, honoring Retry-After.
 	 */
 	connect(options: ICloudSandboxConnectOptions, token: CancellationToken): Promise<string>;
 	/** Disconnect a sandbox address and discard its staged credentials. */

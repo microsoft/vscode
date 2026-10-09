@@ -7,7 +7,7 @@ import assert from 'assert';
 import sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
-import { isCancellationError } from '../../../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -21,7 +21,9 @@ import { IAgentConnection, IAgentHostService } from '../../../../../../platform/
 import { AgentHostClientConnectionKind } from '../../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import {
 	CloudSandboxEnabledSettingId,
+	CloudSandboxAuthenticationRequiredError,
 	CloudSandboxRequestError,
+	CloudSandboxTransportError,
 	cloudSandboxAddress,
 	ICloudSandboxApiService,
 	type CloudSandboxConnectResult,
@@ -71,7 +73,7 @@ class TestCloudSandboxAgentHostService extends CloudSandboxAgentHostService {
 	}
 }
 
-type ScriptedConnectResult = CloudSandboxConnectResult | Error | (() => Promise<CloudSandboxConnectResult>);
+type ScriptedConnectResult = CloudSandboxConnectResult | Error | ((token: CancellationToken) => Promise<CloudSandboxConnectResult>);
 
 const connectionDetails = {
 	environmentOperation: 'resume', provisioningMs: 0, readinessMs: 0,
@@ -115,7 +117,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 	configurationService.setUserConfiguration(RemoteAgentHostsEnabledSettingId, true);
 	instantiationService.stub(IConfigurationService, configurationService);
 
-	const nextResult = async (request: ICloudSandboxConnectionRequest): Promise<CloudSandboxConnectResult> => {
+	const nextResult = async (request: ICloudSandboxConnectionRequest, token: CancellationToken): Promise<CloudSandboxConnectResult> => {
 		request.onRequest?.('issued');
 		// Hold the last result so a caller can keep retrying past the scripted responses.
 		const result = results[Math.min(calls, results.length - 1)];
@@ -123,7 +125,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 		if (result instanceof Error) {
 			throw result;
 		}
-		const response = typeof result === 'function' ? await result() : result;
+		const response = typeof result === 'function' ? await result(token) : result;
 		if (response.kind === 'waking') {
 			request.onRequest?.('waking');
 		}
@@ -134,7 +136,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 		override async getAccountKey(): Promise<string | undefined> { return account; }
 		override async connect(request: ICloudSandboxConnectionRequest, token: CancellationToken): Promise<CloudSandboxConnectResult> {
 			requests.push({ method: 'connect', request, token });
-			return nextResult(request);
+			return nextResult(request, token);
 		}
 		override async reconnect(request: ICloudSandboxConnectionRequest, clientId: string, token: CancellationToken): Promise<CloudSandboxConnectResult> {
 			requests.push({ method: 'reconnect', request, clientId, token });
@@ -144,7 +146,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 				}
 				return reconnectResult;
 			}
-			return nextResult(request);
+			return nextResult(request, token);
 		}
 	}());
 	instantiationService.stub(IAgentHostService, new class extends mock<IAgentHostService>() {
@@ -386,6 +388,102 @@ suite('CloudSandboxAgentHostService', () => {
 			});
 		}));
 	}
+
+	for (const { requestTimeoutMs, durationMs } of [
+		{ requestTimeoutMs: 10_000, durationMs: 150_000 },
+		{ requestTimeoutMs: 180_000, durationMs: 320_000 },
+	]) {
+		test(`continues waking after three pending responses and a ${requestTimeoutMs}ms request timeout`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			sinon.stub(Math, 'random').returns(0);
+			const waking: CloudSandboxConnectResult = { kind: 'waking', waking: { retryAfterSeconds: 5 } };
+			const fixture = createService(store, [
+				waking, waking, waking,
+				async token => {
+					await timeout(requestTimeoutMs, token);
+					throw new CloudSandboxTransportError(new Error(`Fetch timeout: ${requestTimeoutMs}ms`));
+				},
+				async token => {
+					await timeout(120_000, token);
+					return { kind: 'token', token: clientToken('copilot-sealed.v1.key.ready') };
+				},
+			]);
+			const started = Date.now();
+			const address = await fixture.service.connect({ environmentId: 'env-1', sessionId: 'session-1', name: 'Sandbox' }, CancellationToken.None);
+			fixture.service.dispose();
+			assert.deepStrictEqual({
+				address,
+				requests: fixture.requests.map(({ method, request }) => ({ method, environmentId: request.environmentId, sessionId: request.sessionId })),
+				durationMs: Date.now() - started,
+				clientId: fixture.service.clientIdAtEstablish,
+			}, {
+				address: cloudSandboxAddress('env-1'),
+				requests: Array.from({ length: 5 }, () => ({ method: 'connect', environmentId: 'env-1', sessionId: 'session-1' })),
+				durationMs,
+				clientId: 'client-1',
+			});
+		}));
+	}
+
+	test('waking responses and request timeouts share the twenty-attempt limit', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		sinon.stub(Math, 'random').returns(0);
+		const error = new CloudSandboxTransportError(new Error('Fetch timeout: 180000ms'));
+		const fixture = createService(store, [
+			{ kind: 'waking', waking: { retryAfterSeconds: 5 } },
+			error,
+		]);
+		const started = Date.now();
+		await assert.rejects(fixture.service.connect({ environmentId: 'env-1', name: 'Sandbox' }, CancellationToken.None), actual => actual === error);
+		assert.deepStrictEqual({
+			attempts: fixture.requestCalls(),
+			durationMs: Date.now() - started,
+			clientId: fixture.service.clientIdAtEstablish,
+		}, { attempts: 20, durationMs: 95_000, clientId: undefined });
+	}));
+
+	for (const { name, error } of [
+		{ name: 'cancellation', error: new CancellationError() },
+		{ name: 'missing authentication', error: new CloudSandboxAuthenticationRequiredError() },
+		{ name: 'HTTP 403', error: new CloudSandboxRequestError(403, 'Forbidden') },
+		{ name: 'HTTP 503', error: new CloudSandboxRequestError(503, 'Unavailable') },
+		{ name: 'invalid credentials', error: new Error('Mission Control connect returned an incomplete token response') },
+	]) {
+		test(`does not retry ${name} when minting credentials`, async () => {
+			const fixture = createService(store, [error]);
+			await assert.rejects(fixture.service.connect({ environmentId: 'env-1', name: 'Sandbox' }, CancellationToken.None), actual => actual === error);
+			assert.strictEqual(fixture.requestCalls(), 1);
+		});
+	}
+
+	test('cancellation during the timeout retry delay prevents another request', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const source = store.add(new CancellationTokenSource());
+		const fixture = createService(store, [
+			new CloudSandboxTransportError(new Error('Fetch timeout: 180000ms')),
+			{ kind: 'token', token: clientToken('copilot-sealed.v1.key.ready') },
+		]);
+		const cancelled = assert.rejects(fixture.service.connect({ environmentId: 'env-1', name: 'Sandbox' }, source.token), isCancellationError);
+		await timeout(1_000);
+		source.cancel();
+		await cancelled;
+		assert.deepStrictEqual({ attempts: fixture.requestCalls(), clientId: fixture.service.clientIdAtEstablish }, {
+			attempts: 1, clientId: undefined,
+		});
+	}));
+
+	test('the overall deadline bounds repeated three-minute request timeouts', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		sinon.stub(Math, 'random').returns(0);
+		const fixture = createService(store, [async token => {
+			await timeout(180_000, token);
+			throw new CloudSandboxTransportError(new Error('Fetch timeout: 180000ms'));
+		}]);
+		const started = Date.now();
+		await assert.rejects(fixture.service.connect({ environmentId: 'env-1', name: 'Sandbox' }, CancellationToken.None), /timed out after 600 seconds/);
+		assert.deepStrictEqual({
+			attempts: fixture.requestCalls(),
+			durationMs: Date.now() - started,
+			cancelled: fixture.requests.every(request => request.token.isCancellationRequested),
+			clientId: fixture.service.clientIdAtEstablish,
+		}, { attempts: 4, durationMs: 600_000, cancelled: true, clientId: undefined });
+	}));
 
 	for (const stage of ['credentials', 'connection'] as const) {
 		test(`the overall connection deadline cancels stalled ${stage} work and ignores late success`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
