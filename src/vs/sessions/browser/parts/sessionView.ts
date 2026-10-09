@@ -326,11 +326,7 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 
 		// Lay out the chat groups grid at full width so its scrollbar reaches the
 		// right edge; the chat rows and input center themselves via CSS.
-		if (view === this._groupsView) {
-			this._groupsView.layout(width, contentHeight, contentTop, left, 0);
-		} else {
-			view.layout(width, contentHeight, contentTop, left);
-		}
+		view.layout(width, contentHeight, contentTop, left);
 	}
 
 	toJSON(): object {

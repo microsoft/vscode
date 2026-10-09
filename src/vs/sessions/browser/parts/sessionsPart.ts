@@ -33,7 +33,7 @@ import { defaultProgressBarStyles } from '../../../platform/theme/browser/defaul
 import { IProgressIndicator } from '../../../platform/progress/common/progress.js';
 import { AbstractProgressScope, ScopedProgressIndicator } from '../../../workbench/services/progress/browser/progressIndicator.js';
 import { IAgentWorkbenchLayoutService } from '../workbench.js';
-import { applyAgentsPartCardStyles, getAgentsPartCardContentSize, hasInsetConnectedFramePair } from './agentsPartCard.js';
+import { applyAgentsPartCardStyles, getAgentsPartCardContentSize, getSessionsPartCardMarginRight } from './agentsPartCard.js';
 import { isPhoneLayout } from './mobile/mobileLayout.js';
 import { SessionsChatBackgroundRenderer } from '../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ISessionsChatBackgroundService } from '../../services/chatBackground/browser/chatBackgroundService.js';
@@ -489,7 +489,7 @@ export class SessionsPart extends Part {
 			this.layoutService.isVisible(Parts.SIDEBAR_PART),
 			phoneLayout,
 			compactLayout,
-			hasInsetConnectedFramePair(this.layoutService.mainContainer)
+			getSessionsPartCardMarginRight(this.layoutService.mainContainer)
 		);
 
 		// Size the content area with the reduced dimensions.

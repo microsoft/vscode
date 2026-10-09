@@ -140,6 +140,43 @@ suite('Sessions - Grid Layout', () => {
 		});
 	});
 
+	test('hides the gripper when a constrained session sash is disabled', () => {
+		const { grid, a, b } = harness();
+		const workbench = mainWindow.document.createElement('div');
+		workbench.classList.add('agent-sessions-workbench');
+		workbench.style.setProperty('--vscode-foreground', '#ffffff');
+		workbench.style.setProperty('--vscode-spacing-size20', '2px');
+		workbench.style.setProperty('--vscode-cornerRadius-circle', '50%');
+		workbench.style.setProperty('--agents-floating-panel-gap', '4px');
+		const sessionsPart = mainWindow.document.createElement('div');
+		sessionsPart.classList.add('part', 'sessionspart');
+		sessionsPart.appendChild(grid.element);
+		workbench.appendChild(sessionsPart);
+		mainWindow.document.body.appendChild(workbench);
+		store.add(toDisposable(() => workbench.remove()));
+
+		grid.reconcile([a, b], 'a');
+		const snapshot = () => {
+			const sash = grid.element.querySelector<HTMLElement>(`.monaco-sash.${GRID_GAP_SASH_CLASS}`);
+			assert.ok(sash);
+			return {
+				disabled: sash.classList.contains('disabled'),
+				gripper: mainWindow.getComputedStyle(sash, '::after').content,
+			};
+		};
+		grid.layout(400, 600, 0, 0, false, 4);
+		const resizable = snapshot();
+		grid.layout(160, 600, 0, 0, false, 4);
+		const constrained = snapshot();
+		grid.layout(400, 600, 0, 0, false, 4);
+
+		assert.deepStrictEqual({ resizable, constrained, restored: snapshot() }, {
+			resizable: { disabled: false, gripper: '""' },
+			constrained: { disabled: true, gripper: 'none' },
+			restored: { disabled: false, gripper: '""' },
+		});
+	});
+
 	test('propagates density gap changes when a single leaf keeps the same geometry', () => {
 		const { grid, a } = harness();
 		grid.reconcile([a], 'a');

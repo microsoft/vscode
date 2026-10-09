@@ -33,7 +33,7 @@ import { ComponentFixtureContext, createEditorServices, registerWorkbenchService
 import { TestProductService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { OpenInVSCodeAction, OpenInVSCodeWidgetContribution } from '../../../../browser/actions/vscodeActions.js';
 import { Menus } from '../../../../browser/menus.js';
-import { AGENTS_PART_CARD_CLASS } from '../../../../browser/parts/agentsPartCard.js';
+import { AGENTS_PART_CARD_CLASS, AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from '../../../../browser/parts/agentsPartCard.js';
 import { SessionsPart } from '../../../../browser/parts/sessionsPart.js';
 import { TitlebarPart } from '../../../../browser/parts/titlebarPart.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
@@ -84,16 +84,22 @@ function acquireWorkbenchActions() {
 export function createSessionsWorkbenchFixture(context: ComponentFixtureContext, width: number, height: number, sessionsService: ISessionsService, options: {
 	readonly sidePane?: ISerializableView;
 	readonly sidePaneWidth?: number;
+	readonly bottomPanel?: ISerializableView;
+	readonly bottomPanelHeight?: number;
 	readonly chatBackground?: ISessionsChatBackground;
 	readonly chatTabsMode?: SessionsChatTabsMode;
 	readonly connectedEditorTabs?: boolean;
+	readonly sidePaneShowTabs?: 'multiple' | 'single';
 } = {}) {
 	const { container, disposableStore, theme } = context;
 	const sidePaneVisible = !!options.sidePane;
-	container.classList.add('monaco-workbench', 'agent-sessions-workbench', 'modern-ui-tabs', 'nosidebar', 'noauxiliarybar', 'nopanel');
+	const bottomPanelVisible = !!options.bottomPanel;
+	container.classList.add('monaco-workbench', 'agent-sessions-workbench', 'modern-ui-tabs', 'nosidebar', 'noauxiliarybar', 'panel-alignment-justify');
 	container.classList.toggle('modern-ui-connected-editor-tabs', options.connectedEditorTabs !== false);
 	container.classList.toggle('noeditorpane', !sidePaneVisible);
+	container.classList.toggle('nopanel', !bottomPanelVisible);
 	container.classList.toggle('dock-detail-panel', sidePaneVisible);
+	container.classList.toggle(AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS, sidePaneVisible && options.sidePaneShowTabs !== 'single');
 	container.style.width = `${width}px`;
 	container.style.height = `${height}px`;
 
@@ -102,9 +108,16 @@ export function createSessionsWorkbenchFixture(context: ComponentFixtureContext,
 		override readonly mainContainer = container;
 		override readonly mainContainerDimension = { width, height };
 		override readonly onDidChangePartVisibility = Event.None;
-		override isVisible(part: Parts) { return part === Parts.SESSIONS_PART || part === Parts.TITLEBAR_PART || (sidePaneVisible && part === Parts.EDITOR_PART); }
+		override readonly onDidChangePanelAlignment = Event.None;
+		override isVisible(part: Parts) {
+			return part === Parts.SESSIONS_PART
+				|| part === Parts.TITLEBAR_PART
+				|| (sidePaneVisible && part === Parts.EDITOR_PART)
+				|| (bottomPanelVisible && part === Parts.PANEL_PART);
+		}
 		override isEditorPaneVisible() { return sidePaneVisible; }
 		override isModernUICompact() { return false; }
+		override getPanelAlignment() { return 'justify' as const; }
 		override getContainer() { return container; }
 	}();
 	const instantiationService = createEditorServices(disposableStore, {
@@ -203,6 +216,9 @@ export function createSessionsWorkbenchFixture(context: ComponentFixtureContext,
 	titlebar.create($('.part.titlebar'));
 	const grid = disposableStore.add(new SerializableGrid<ISerializableView>(part, { proportionalLayout: false }));
 	grid.addView(titlebar, titlebar.minimumHeight, part, Direction.Up);
+	if (options.bottomPanel) {
+		grid.addView(options.bottomPanel, options.bottomPanelHeight ?? 240, part, Direction.Down);
+	}
 	if (options.sidePane) {
 		grid.addView(options.sidePane, options.sidePaneWidth ?? 360, part, Direction.Right);
 	}

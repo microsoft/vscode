@@ -11,6 +11,8 @@
 	background-color: var(--vscode-agents-background);
 	--agents-floating-panel-gap: var(--vscode-agents-layout-floatingPanelGap);
 	--agents-part-corner-radius: var(--vscode-cornerRadius-large);
+	--agents-session-frame-inset: 0px;
+	--agents-side-pane-frame-inset: 0px;
 	--model-hover-surface-background: var(--vscode-agentsPanel-background);
 	--modern-ui-notifications-inline-inset: var(--vscode-spacing-size80);
 	--modern-ui-notifications-block-end-inset: var(--vscode-spacing-size80);
@@ -25,6 +27,14 @@
 
 .monaco-workbench.agent-sessions-workbench.modern-ui-compact:is(.hc-black, .hc-light) {
 	--agents-part-frame-border-width: var(--vscode-strokeThickness);
+}
+
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):not(.modern-ui-compact):not(.nosessionspart) {
+	--agents-session-frame-inset: var(--vscode-strokeThickness);
+}
+
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs.dock-detail-panel.agents-side-pane-multiple-tabs:not(.phone-layout):not(.modern-ui-compact):not(.noeditorpane) {
+	--agents-side-pane-frame-inset: var(--vscode-strokeThickness);
 }
 
 /* ---- Workbench Shell ---- */
@@ -167,9 +177,9 @@
 	margin-right: 0;
 }
 
-/* Both connected frames are inset one stroke; compensate so their visible gap stays token-sized. */
-.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs.dock-detail-panel:not(.phone-layout):not(.modern-ui-compact):not(.noeditorpane) .part.sessionspart.agents-part-card {
-	margin-right: calc(var(--agents-floating-panel-gap) - var(--vscode-strokeThickness) - var(--vscode-strokeThickness));
+/* Compensate for the inset session frame and any inset side-pane frame. */
+.agent-sessions-workbench.modern-ui-tabs:not(.phone-layout):not(.modern-ui-compact):not(.noeditorpane) .part.sessionspart.agents-part-card {
+	margin-right: calc(var(--agents-floating-panel-gap) - var(--agents-session-frame-inset) - var(--agents-side-pane-frame-inset));
 }
 
 .agent-sessions-workbench:not(.dock-detail-panel) .part.auxiliarybar {
@@ -199,7 +209,7 @@
 }
 
 .agent-sessions-workbench .part.panel {
-	margin: var(--agents-floating-panel-gap) 0 0 0;
+	margin: calc(var(--agents-floating-panel-gap) - var(--agents-session-frame-inset)) 0 0 0;
 	background: var(--part-background);
 	border: 1px solid var(--part-border-color, transparent);
 	border-radius: var(--agents-part-corner-radius);
@@ -275,16 +285,12 @@
  */
 .agent-sessions-workbench:not(.noeditorpane) .monaco-sash.vertical.sessions-side-pane-divider {
 	width: max(var(--vscode-sash-size), var(--agents-floating-panel-gap));
-	transform: translateX(calc((var(--vscode-sash-size) - max(var(--vscode-sash-size), var(--agents-floating-panel-gap)) - var(--agents-floating-panel-gap)) / 2));
-}
-
-.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs.dock-detail-panel:not(.phone-layout):not(.modern-ui-compact):not(.noeditorpane) .monaco-sash.vertical.sessions-side-pane-divider {
-	transform: translateX(calc((var(--vscode-sash-size) - max(var(--vscode-sash-size), var(--agents-floating-panel-gap)) - var(--agents-floating-panel-gap) + var(--vscode-strokeThickness) + var(--vscode-strokeThickness)) / 2));
+	transform: translateX(calc((var(--vscode-sash-size) - max(var(--vscode-sash-size), var(--agents-floating-panel-gap)) - var(--agents-floating-panel-gap) + var(--agents-side-pane-frame-inset) + var(--agents-side-pane-frame-inset)) / 2));
 }
 
 .agent-sessions-workbench:not(.nopanel) .monaco-split-view2.vertical:has(> .monaco-scrollable-element > .split-view-container > .split-view-view > .part.panel) > .sash-container > .monaco-sash.horizontal {
 	height: max(var(--vscode-sash-size), var(--agents-floating-panel-gap));
-	transform: translateY(calc((var(--vscode-sash-size) - max(var(--vscode-sash-size), var(--agents-floating-panel-gap)) + var(--agents-floating-panel-gap)) / 2));
+	transform: translateY(calc((var(--vscode-sash-size) - max(var(--vscode-sash-size), var(--agents-floating-panel-gap)) + var(--agents-floating-panel-gap) - var(--agents-session-frame-inset) - var(--agents-session-frame-inset)) / 2));
 }
 
 /*
@@ -307,6 +313,10 @@
 	opacity: 0.5;
 	pointer-events: none;
 	transform: translate(-50%, -50%);
+}
+
+.agent-sessions-workbench .part.sessionspart .monaco-sash.agents-grid-gap-sash.disabled::after {
+	content: none;
 }
 
 .agent-sessions-workbench .part.sessionspart .monaco-sash.agents-grid-gap-sash.vertical::after,

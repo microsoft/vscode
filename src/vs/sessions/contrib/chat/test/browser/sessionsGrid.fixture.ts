@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $ } from '../../../../../base/browser/dom.js';
+import { $, append } from '../../../../../base/browser/dom.js';
 import { Direction, ISerializableView } from '../../../../../base/browser/ui/grid/grid.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { assert } from '../../../../../base/common/assert.js';
@@ -15,7 +15,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { IChatWidgetFixtureHandle, renderChatWidget } from '../../../../../workbench/test/browser/componentFixtures/chat/chatWidget.fixture.js';
 import { renderEditorTabsFixture } from '../../../../../workbench/test/browser/componentFixtures/editor/tabs.fixture.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
-import { AgentsPartCard, getAgentsPartCardContentSize } from '../../../../browser/parts/agentsPartCard.js';
+import { AgentsPartCard, getAgentsPartCardContentSize, getSidePaneBottomFrameInset } from '../../../../browser/parts/agentsPartCard.js';
 import { AbstractChatView, ChatViewKind } from '../../../../browser/parts/chatView.js';
 import { GRID_GAP_SASH_CLASS } from '../../../../browser/parts/gridGap.js';
 import { ISessionsChatBackground } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
@@ -85,6 +85,7 @@ class FixtureChatView extends AbstractChatView {
 type MultipleChatsLayout = 'sideBySide' | 'bottomRight' | 'mixedRelated';
 
 const SIDE_PANE_WIDTH = 360;
+const BOTTOM_PANEL_HEIGHT = 240;
 const FIXTURE_CHAT_BACKGROUND = {
 	kind: 'image',
 	backgroundImage: 'linear-gradient(135deg, color-mix(in srgb, var(--vscode-textLink-foreground) 18%, transparent), transparent 55%)',
@@ -93,11 +94,12 @@ const FIXTURE_CHAT_BACKGROUND = {
 	backgroundPosition: 'left top',
 } satisfies ISessionsChatBackground;
 
-function createSidePaneFixture(context: ComponentFixtureContext): { readonly view: ISerializableView; readonly frame: HTMLElement } {
+function createSidePaneFixture(context: ComponentFixtureContext, showTabs: 'multiple' | 'single'): { readonly view: ISerializableView; readonly connectedFrame: HTMLElement; readonly pillFrame: HTMLElement } {
 	const element = $('.sessions-grid-side-pane-fixture');
 	renderEditorTabsFixture({ ...context, container: element }, {
 		modernUI: true,
 		width: SIDE_PANE_WIDTH - AgentsPartCard.BORDER_WIDTH * 2,
+		partOptions: { showTabs },
 		editors: [{ resource: URI.file('/Changes'), icon: Codicon.diffMultiple, pinned: true, active: true }],
 	});
 	const editor = element.querySelector<HTMLElement>('.part.editor');
@@ -109,7 +111,8 @@ function createSidePaneFixture(context: ComponentFixtureContext): { readonly vie
 	editorContainer.textContent = '3 files changed';
 
 	return {
-		frame,
+		connectedFrame: frame,
+		pillFrame: editor,
 		view: {
 			element,
 			minimumWidth: 240,
@@ -123,7 +126,7 @@ function createSidePaneFixture(context: ComponentFixtureContext): { readonly vie
 				editor.style.width = '100%';
 				editor.style.height = '100%';
 				const contentWidth = Math.max(0, width - AgentsPartCard.BORDER_WIDTH * 2);
-				const contentHeight = Math.max(0, height - AgentsPartCard.BORDER_WIDTH * 2);
+				const contentHeight = Math.max(0, height - AgentsPartCard.BORDER_WIDTH * 2 - getSidePaneBottomFrameInset(context.container));
 				content.style.width = `${contentWidth}px`;
 				content.style.height = `${contentHeight}px`;
 				frame.style.width = `${contentWidth}px`;
@@ -135,7 +138,28 @@ function createSidePaneFixture(context: ComponentFixtureContext): { readonly vie
 	};
 }
 
-async function renderSessionsGrid(context: ComponentFixtureContext, options: { chatTabsMode?: SessionsChatTabsMode; connectedEditorTabs?: boolean; customBackground?: boolean; maximized?: boolean; multipleChats?: MultipleChatsLayout; relatedChats?: boolean; sideBySide?: boolean; sidePanel?: boolean } = {}): Promise<void> {
+function createBottomPanelFixture(): { readonly view: ISerializableView; readonly frame: HTMLElement } {
+	const element = $('.part.panel.basepanel.bottom.sessions-grid-bottom-panel-fixture');
+	append(element, $('.content'));
+
+	return {
+		frame: element,
+		view: {
+			element,
+			minimumWidth: 300,
+			maximumWidth: Number.POSITIVE_INFINITY,
+			minimumHeight: 77,
+			maximumHeight: Number.POSITIVE_INFINITY,
+			onDidChange: Event.None,
+			layout: (_width, height) => {
+				element.style.height = `calc(${height}px - var(--agents-floating-panel-gap) + var(--agents-session-frame-inset))`;
+			},
+			toJSON: () => ({}),
+		},
+	};
+}
+
+async function renderSessionsGrid(context: ComponentFixtureContext, options: { bottomPanel?: boolean; chatTabsMode?: SessionsChatTabsMode; connectedEditorTabs?: boolean; customBackground?: boolean; maximized?: boolean; multipleChats?: MultipleChatsLayout; relatedChats?: boolean; sideBySide?: boolean; sidePaneShowTabs?: 'multiple' | 'single'; sidePanel?: boolean } = {}): Promise<void> {
 	const workspace = constObservable<ISessionWorkspace>({
 		uri: URI.parse('https://github.com/microsoft/vscode'),
 		label: 'microsoft/vscode',
@@ -202,13 +226,18 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { c
 			target.activeChat.set(chat, undefined);
 		}
 	}();
-	const sidePane = options.sidePanel ? createSidePaneFixture(context) : undefined;
+	const sidePaneShowTabs = options.sidePaneShowTabs ?? 'multiple';
+	const sidePane = options.sidePanel ? createSidePaneFixture(context, sidePaneShowTabs) : undefined;
+	const bottomPanel = options.bottomPanel ? createBottomPanelFixture() : undefined;
 	const { part, grid, layout, instantiationService } = createSessionsWorkbenchFixture(context, 1440, 900, sessionsService, {
 		sidePane: sidePane?.view,
 		sidePaneWidth: SIDE_PANE_WIDTH,
+		bottomPanel: bottomPanel?.view,
+		bottomPanelHeight: BOTTOM_PANEL_HEIGHT,
 		chatBackground: options.customBackground ? FIXTURE_CHAT_BACKGROUND : undefined,
 		chatTabsMode: options.chatTabsMode,
 		connectedEditorTabs: options.connectedEditorTabs,
+		sidePaneShowTabs,
 	});
 	const chats: FixtureChatView[] = [];
 	instantiationService.stub(IChatViewFactory, new class extends mock<IChatViewFactory>() {
@@ -239,6 +268,9 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { c
 		assert(sidePaneDivider !== undefined, 'Expected a Sessions/side-pane divider');
 		sidePaneDivider.classList.add('sessions-side-pane-divider');
 	}
+	const sidePaneFrame = sidePane
+		? options.connectedEditorTabs !== false && sidePaneShowTabs === 'multiple' ? sidePane.connectedFrame : sidePane.pillFrame
+		: undefined;
 	if (bottom) {
 		const sideBySideChats = options.multipleChats === 'sideBySide' || options.multipleChats === 'mixedRelated';
 		part.resizeSession(left.sessionId, sideBySideChats ? Direction.Right : Direction.Left, sideBySideChats ? 180 : 120);
@@ -336,13 +368,40 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { c
 		const left = bounds.reduce((candidate, current) => current.left < candidate.left ? current : candidate);
 		const right = bounds.reduce((candidate, current) => current.left > candidate.left ? current : candidate);
 		const internalGap = right.left - left.right;
-		const sideGap = sidePane.frame.getBoundingClientRect().left - Math.max(...bounds.map(bound => bound.right));
+		const sidePaneBounds = sidePaneFrame!.getBoundingClientRect();
+		const sideGap = sidePaneBounds.left - Math.max(...bounds.map(bound => bound.right));
 		assert(Math.abs(internalGap - AGENTS_FLOATING_PANEL_GAP) < 0.01 && Math.abs(sideGap - internalGap) < 0.01, 'Expected the side pane and session panels to use the same visible gap');
 		const dividerBounds = sidePaneDivider.getBoundingClientRect();
 		const dividerCenter = (dividerBounds.left + dividerBounds.right) / 2;
-		const sideGapCenter = (Math.max(...bounds.map(bound => bound.right)) + sidePane.frame.getBoundingClientRect().left) / 2;
+		const sideGapCenter = (Math.max(...bounds.map(bound => bound.right)) + sidePaneBounds.left) / 2;
 		const grip = mainWindow.getComputedStyle(sidePaneDivider, '::after');
 		assert(Math.abs(dividerCenter - sideGapCenter) < 0.01 && grip.content === '""', 'Expected the side-pane gripper to be centered in the visible gap');
+	}
+	if (bottomPanel) {
+		const bounds = sessions.map(session => part.getSessionView(session.sessionId)!.element.getBoundingClientRect());
+		const sessionBottom = Math.max(...bounds.map(bound => bound.bottom));
+		const panelBounds = bottomPanel.frame.getBoundingClientRect();
+		const panelGap = panelBounds.top - sessionBottom;
+		const panelGapCenter = (sessionBottom + panelBounds.top) / 2;
+		const horizontalDividers = Array.from(grid.element.querySelectorAll<HTMLElement>('.monaco-sash.horizontal'))
+			.filter(sash => sash.closest('.monaco-grid-view') === grid.element);
+		assert(horizontalDividers.length > 0, 'Expected a bottom-panel divider');
+		const panelDivider = horizontalDividers.reduce((candidate, sash) => {
+			const candidateBounds = candidate.getBoundingClientRect();
+			const sashBounds = sash.getBoundingClientRect();
+			const candidateDistance = Math.abs((candidateBounds.top + candidateBounds.bottom) / 2 - panelGapCenter);
+			const sashDistance = Math.abs((sashBounds.top + sashBounds.bottom) / 2 - panelGapCenter);
+			return sashDistance < candidateDistance ? sash : candidate;
+		});
+		const dividerBounds = panelDivider.getBoundingClientRect();
+		const dividerCenter = (dividerBounds.top + dividerBounds.bottom) / 2;
+		const grip = mainWindow.getComputedStyle(panelDivider, '::after');
+		assert(Math.abs(panelGap - AGENTS_FLOATING_PANEL_GAP) < 0.01, 'Expected the bottom panel and session panels to use the same visible gap');
+		assert(Math.abs(dividerCenter - panelGapCenter) < 0.01 && grip.content === '""', 'Expected the bottom-panel gripper to be centered in the visible gap');
+		if (sidePaneFrame) {
+			const sidePanePanelGap = panelBounds.top - sidePaneFrame.getBoundingClientRect().bottom;
+			assert(Math.abs(sidePanePanelGap - panelGap) < 0.01, 'Expected the bottom panel to use the same visible gap below Sessions and the side pane');
+		}
 	}
 }
 
@@ -370,6 +429,30 @@ export default defineThemedFixtureGroup({ path: 'sessions/grid/' }, {
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['The connected Changes side pane and all three fully bordered session panels use the same floating-panel gap. Every gap has a centered three-dot gripper, with no extra line or inset beside the side pane and no frame surrounding the Sessions group.'],
 		render: context => renderSessionsGrid(context, { sidePanel: true }),
+	}),
+	PillSidePanelGap: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The pill-tab Changes side pane and all three fully bordered session panels use the same floating-panel gap. Every gap has a centered three-dot gripper, with no extra line or off-ramp spacing beside the side pane and no frame surrounding the Sessions group.'],
+		render: context => renderSessionsGrid(context, { connectedEditorTabs: false, sidePanel: true }),
+	}),
+	ConnectedSingleTabSidePanelGap: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The connected single-tab Changes side pane and all three fully bordered session panels use the same floating-panel gap. Every gap has a centered three-dot gripper, with no extra line or off-center spacing beside the side pane and no frame surrounding the Sessions group.'],
+		render: context => renderSessionsGrid(context, { sidePaneShowTabs: 'single', sidePanel: true }),
+	}),
+	BottomPanelGap: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['A fully bordered bottom panel sits below the three session panels. The same floating-panel gap separates the bottom panel from the session frames, and a three-dot gripper is centered vertically in that gap without an extra divider.'],
+		render: context => renderSessionsGrid(context, { bottomPanel: true }),
+	}),
+	JustifiedPillSideAndBottomPanelGap: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['A pill-tab Changes side pane sits beside three session panels above a justified bottom panel. One consistent floating-panel gap separates every frame horizontally and vertically, and each sash gripper is centered in its gap without an extra divider.'],
+		render: context => renderSessionsGrid(context, { bottomPanel: true, connectedEditorTabs: false, sidePanel: true }),
 	}),
 	Maximized: defineComponentFixture({
 		labels: { kind: 'screenshot' },

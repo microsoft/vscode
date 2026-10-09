@@ -131,7 +131,6 @@ suite('Sessions - Session View', () => {
 			_isLeafVisible: true,
 			_centeredContentContainer: centeredContentContainer,
 			_header: { visible: true, height: 35 },
-			_gridGap: 0,
 			_groupsView: { layout: (...dimensions: number[]) => groupsLayout.push(...dimensions) },
 			_standaloneView: { get: () => undefined },
 		});
@@ -145,7 +144,7 @@ suite('Sessions - Session View', () => {
 		}, {
 			sessionSize: ['1200px', '800px'],
 			headerHostSize: ['1200px', '35px'],
-			groupsLayout: [1200, 765, 45, 20, 0],
+			groupsLayout: [1200, 765, 45, 20],
 		});
 	});
 
@@ -161,7 +160,6 @@ suite('Sessions - Session View', () => {
 			_isVisibleObs: observableValue('visible', true),
 			_centeredContentContainer: centeredContentContainer,
 			_header: header,
-			_gridGap: 0,
 			_groupsView: {
 				layout: (...dimensions: number[]) => layouts.push(dimensions),
 				setSessionVisible: () => { },
@@ -185,11 +183,11 @@ suite('Sessions - Session View', () => {
 		assert.deepStrictEqual({ beforeContents, layouts }, {
 			beforeContents: { calls: 0, headerWidth: '1200px' },
 			layouts: [
-				[1200, 765, 45, 20, 0],
-				[1200, 755, 55, 20, 0],
-				[1000, 655, 75, 40, 0],
-				[1000, 700, 30, 40, 0],
-				[1000, 700, 30, 40, 0],
+				[1200, 765, 45, 20],
+				[1200, 755, 55, 20],
+				[1000, 655, 75, 40],
+				[1000, 700, 30, 40],
+				[1000, 700, 30, 40],
 			],
 		});
 	});

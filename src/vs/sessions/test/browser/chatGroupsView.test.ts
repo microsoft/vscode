@@ -377,16 +377,11 @@ suite('Sessions - ChatGroupsView', () => {
 			hasGaps: view.element.classList.contains('chat-groups-view-has-gaps'),
 			gapSashes: view.element.querySelectorAll(`.${GRID_GAP_SASH_CLASS}`).length,
 			boundaryOverlays: view.element.querySelectorAll('.chat-groups-view-boundary-segment').length,
-			insets: Array.from(view.element.querySelectorAll<HTMLElement>('.chat-group-view')).map(group => {
-				const style = mainWindow.getComputedStyle(group);
-				return [style.borderTopWidth, style.borderRightWidth, style.borderBottomWidth, style.borderLeftWidth].join(' ');
-			}).sort(),
 			splitViews: view.element.querySelectorAll('.monaco-split-view2').length,
 		}, {
 			hasGaps: false,
 			gapSashes: 0,
 			boundaryOverlays: 0,
-			insets: ['0px 0px 0px 0px', '0px 0px 0px 0px'],
 			splitViews: 1,
 		});
 	});
@@ -406,27 +401,16 @@ suite('Sessions - ChatGroupsView', () => {
 		await view.openChatInNewGroup(secondChild.resource, firstChild.resource);
 		await view.openChatInNewGroup(unrelated.resource, secondChild.resource);
 
-		const insets = Object.fromEntries(view['_groups'].map(group => {
-			const style = mainWindow.getComputedStyle(group.view.element);
-			return [group.activeResourceId.get(), [style.borderTopWidth, style.borderRightWidth, style.borderBottomWidth, style.borderLeftWidth].join(' ')];
-		}));
 		assert.deepStrictEqual({
 			hasGaps: view.element.classList.contains('chat-groups-view-has-gaps'),
 			gapSashes: view.element.querySelectorAll(`.${GRID_GAP_SASH_CLASS}`).length,
 			boundaryOverlays: view.element.querySelectorAll('.chat-groups-view-boundary-segment').length,
 			sashes: view.element.querySelectorAll('.monaco-sash').length,
-			insets,
 		}, {
 			hasGaps: false,
 			gapSashes: 0,
 			boundaryOverlays: 0,
 			sashes: 3,
-			insets: {
-				[main.resource.toString()]: '0px 0px 0px 0px',
-				[firstChild.resource.toString()]: '0px 0px 0px 0px',
-				[secondChild.resource.toString()]: '0px 0px 0px 0px',
-				[unrelated.resource.toString()]: '0px 0px 0px 0px',
-			},
 		});
 	});
 
@@ -445,26 +429,16 @@ suite('Sessions - ChatGroupsView', () => {
 		view.splitActiveChat('bottom');
 		await timeout(0);
 
-		const insets = Object.fromEntries(view['_groups'].map(group => {
-			const style = mainWindow.getComputedStyle(group.view.element);
-			return [group.activeResourceId.get(), [style.borderTopWidth, style.borderRightWidth, style.borderBottomWidth, style.borderLeftWidth].join(' ')];
-		}));
 		assert.deepStrictEqual({
 			hasGaps: view.element.classList.contains('chat-groups-view-has-gaps'),
 			gapSashes: view.element.querySelectorAll(`.${GRID_GAP_SASH_CLASS}`).length,
 			boundaryOverlays: view.element.querySelectorAll('.chat-groups-view-boundary-segment').length,
 			splitViews: view.element.querySelectorAll('.monaco-split-view2').length,
-			insets,
 		}, {
 			hasGaps: false,
 			gapSashes: 0,
 			boundaryOverlays: 0,
 			splitViews: 2,
-			insets: {
-				[main.resource.toString()]: '0px 0px 0px 0px',
-				[child.resource.toString()]: '0px 0px 0px 0px',
-				[unrelated.resource.toString()]: '0px 0px 0px 0px',
-			},
 		});
 	});
 
@@ -483,10 +457,7 @@ suite('Sessions - ChatGroupsView', () => {
 		const snapshot = () => ({
 			hasGaps: view.element.classList.contains('chat-groups-view-has-gaps'),
 			gapSashes: view.element.querySelectorAll(`.${GRID_GAP_SASH_CLASS}`).length,
-			insets: Array.from(view.element.querySelectorAll<HTMLElement>('.chat-group-view')).map(group => {
-				const style = mainWindow.getComputedStyle(group);
-				return [style.borderTopWidth, style.borderRightWidth, style.borderBottomWidth, style.borderLeftWidth].join(' ');
-			}).sort(),
+			sashes: view.element.querySelectorAll('.monaco-sash').length,
 		});
 		const related = snapshot();
 		await sessionsService.openChat(session, unrelated.resource);
@@ -497,83 +468,17 @@ suite('Sessions - ChatGroupsView', () => {
 			related: {
 				hasGaps: false,
 				gapSashes: 0,
-				insets: ['0px 0px 0px 0px', '0px 0px 0px 0px'],
+				sashes: 1,
 			},
 			unrelatedActive: {
 				hasGaps: false,
 				gapSashes: 0,
-				insets: ['0px 0px 0px 0px', '0px 0px 0px 0px'],
+				sashes: 1,
 			},
 			restored: {
 				hasGaps: false,
 				gapSashes: 0,
-				insets: ['0px 0px 0px 0px', '0px 0px 0px 0px'],
-			},
-		});
-	});
-
-	test('recomputes floating-panel insets as split chat groups are removed', async () => {
-		const { sessionsService, view } = createHarness(disposables);
-		const main = createChat('main');
-		const secondary = createChat('secondary');
-		const tertiary = createChat('tertiary');
-		const session = new TestActiveSession([main, secondary, tertiary]);
-		view.setSession(session, options);
-		view.layout(1200, 600, 0, 0);
-		await view.openChatInNewGroup(secondary.resource);
-		await sessionsService.openChat(session, tertiary.resource);
-		view.splitActiveChat('bottom');
-		await timeout(0);
-
-		const snapshot = () => ({
-			groupCount: view.groupCount.get(),
-			hasGaps: view.element.classList.contains('chat-groups-view-has-gaps'),
-			gapSashes: view.element.querySelectorAll(`.${GRID_GAP_SASH_CLASS}`).length,
-			insets: Object.fromEntries(view['_groups'].map(group => {
-				const style = mainWindow.getComputedStyle(group.view.element);
-				return [group.resourceIds.get().join(','), [style.borderTopWidth, style.borderRightWidth, style.borderBottomWidth, style.borderLeftWidth].join(' ')];
-			})),
-		});
-		const threeGroups = snapshot();
-
-		transaction(tx => {
-			session.visibleChatTabs.set([main, secondary], tx);
-			session.activeChat.set(secondary, tx);
-		});
-		const twoGroups = snapshot();
-
-		transaction(tx => {
-			session.visibleChatTabs.set([main], tx);
-			session.activeChat.set(main, tx);
-		});
-
-		assert.deepStrictEqual({ threeGroups, twoGroups, oneGroup: snapshot() }, {
-			threeGroups: {
-				groupCount: 3,
-				hasGaps: false,
-				gapSashes: 0,
-				insets: {
-					[main.resource.toString()]: '0px 0px 0px 0px',
-					[tertiary.resource.toString()]: '0px 0px 0px 0px',
-					[secondary.resource.toString()]: '0px 0px 0px 0px',
-				},
-			},
-			twoGroups: {
-				groupCount: 2,
-				hasGaps: false,
-				gapSashes: 0,
-				insets: {
-					[main.resource.toString()]: '0px 0px 0px 0px',
-					[secondary.resource.toString()]: '0px 0px 0px 0px',
-				},
-			},
-			oneGroup: {
-				groupCount: 1,
-				hasGaps: false,
-				gapSashes: 0,
-				insets: {
-					[main.resource.toString()]: '0px 0px 0px 0px',
-				},
+				sashes: 1,
 			},
 		});
 	});
@@ -590,10 +495,7 @@ suite('Sessions - ChatGroupsView', () => {
 		const snapshot = () => ({
 			hasGaps: view.element.classList.contains('chat-groups-view-has-gaps'),
 			gapSashes: view.element.querySelectorAll(`.${GRID_GAP_SASH_CLASS}`).length,
-			insets: Array.from(view.element.querySelectorAll<HTMLElement>('.chat-group-view')).map(group => {
-				const style = mainWindow.getComputedStyle(group);
-				return [style.borderTopWidth, style.borderRightWidth, style.borderBottomWidth, style.borderLeftWidth].join(' ');
-			}).sort(),
+			sashes: view.element.querySelectorAll('.monaco-sash').length,
 		});
 		const setChatTabsMode = async (mode: SessionsChatTabsMode) => {
 			await configurationService.setUserConfiguration(SESSIONS_CHAT_TABS_SETTING, mode);
@@ -614,17 +516,17 @@ suite('Sessions - ChatGroupsView', () => {
 			multiple: {
 				hasGaps: false,
 				gapSashes: 0,
-				insets: ['0px 0px 0px 0px', '0px 0px 0px 0px'],
+				sashes: 1,
 			},
 			single: {
 				hasGaps: false,
 				gapSashes: 0,
-				insets: ['0px 0px 0px 0px', '0px 0px 0px 0px'],
+				sashes: 1,
 			},
 			restored: {
 				hasGaps: false,
 				gapSashes: 0,
-				insets: ['0px 0px 0px 0px', '0px 0px 0px 0px'],
+				sashes: 1,
 			},
 		});
 	});
