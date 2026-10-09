@@ -393,7 +393,9 @@ suite('AgentHostSessionInputPills', () => {
 		harness.instantiationService.stub(ICommandService, harness.instantiationService.get(ICommandService), 'executeCommand', executeCommand);
 		harness.visibility.toggle(SessionChatPillKind.Subagents);
 		const singleLabels = harness.labels();
-		harness.dropdown('Running');
+		const singleEntry = harness.dropdown('1 Subagent').find(item => item.label === children[0].title);
+		assert.ok(singleEntry);
+		singleEntry.select();
 		await timeout(0);
 		harness.connection.setState(StateComponents.Session, { ...session, chats: children });
 		const multipleLabels = harness.labels();
@@ -405,7 +407,7 @@ suite('AgentHostSessionInputPills', () => {
 		}
 
 		assert.deepStrictEqual({ singleLabels, multipleLabels, opened }, {
-			singleLabels: ['Running'],
+			singleLabels: ['1 Subagent'],
 			multipleLabels: ['3 Subagents'],
 			opened: [children[0], ...children].map(child => [
 				getSubagentEditorResource({ chatResource: child.resource, parentSessionResource: harness.sessionResource.toString() }),
@@ -493,7 +495,7 @@ suite('AgentHostSessionInputPills', () => {
 			activeLabels: ['2 Subagents'],
 			filteredLabels: [],
 			restoredLabels: ['3 Subagents'],
-			siblingLabels: ['Other chat worker'],
+			siblingLabels: ['1 Subagent'],
 			subagentLabels: [],
 			inputFocusedAfterRemoval: true,
 			releasedSubscriptions: true,
