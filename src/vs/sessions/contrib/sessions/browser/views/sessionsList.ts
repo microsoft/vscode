@@ -1007,6 +1007,7 @@ function approvalRowHeightFor(info: IAgentSessionApprovalInfo | undefined, maxLi
 interface ICompactInputNeededPresentationOptions {
 	readonly compact?: () => boolean;
 	readonly deriveStatusFromMainChat?: boolean;
+	readonly showMetadataWhileActive?: (session: ISession) => boolean;
 	readonly collapsedSessionIds?: IObservable<ReadonlySet<string>>;
 	readonly aggregateChatApprovals?: boolean;
 }
@@ -2923,7 +2924,8 @@ class SessionsAccessibilityProvider {
 		return derived(this, reader => {
 			const title = this.options?.getComparisonAttemptLabel?.(element) ?? element.title.read(reader);
 			const mainChat = element.mainChat.read(reader);
-			const updatedAt = mainChat.status.read(reader) === SessionStatus.InProgress ? undefined : mainChat.updatedAt.read(reader);
+			const showMetadataWhileActive = this.options?.showMetadataWhileActive?.(element);
+			const updatedAt = showMetadataWhileActive ? element.updatedAt.read(reader) : mainChat.status.read(reader) === SessionStatus.InProgress ? undefined : mainChat.updatedAt.read(reader);
 			let label: string;
 			if (this.options?.includeQuickChatInAriaLabel && element.isQuickChat?.read(reader)) {
 				label = updatedAt ? localize('sessionItemQuickChatAria', "{0}, chat, updated {1}", title, fromNow(updatedAt, true)) : localize('sessionItemQuickChatWithoutTimeAria', "{0}, chat", title);
@@ -2955,8 +2957,7 @@ class SessionsAccessibilityProvider {
 			const workspaceLabel = workspace ? getWorkspaceBadgeLabel(workspace) : undefined;
 			if (
 				this.options &&
-				status !== SessionStatus.InProgress &&
-				status !== SessionStatus.NeedsInput &&
+				(showMetadataWhileActive || (status !== SessionStatus.InProgress && status !== SessionStatus.NeedsInput)) &&
 				workspaceLabel &&
 				(
 					this.options.grouping() !== SessionsGrouping.Workspace ||
@@ -6664,6 +6665,7 @@ export class SessionsFlatList extends Disposable {
 					grouping: () => SessionsGrouping.Date,
 					isPinned: session => this._sessionsListModelService.isSessionPinned(session),
 					includeQuickChatInAriaLabel: !useCompactQuickChatRows,
+					showMetadataWhileActive: this.options.showMetadataWhileActive,
 				}),
 				identityProvider: {
 					getId: (element: SessionListItem) => (element as ISession).resource.toString(),

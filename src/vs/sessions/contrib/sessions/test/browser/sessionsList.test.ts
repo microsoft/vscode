@@ -3768,6 +3768,41 @@ suite('Sessions - SessionsList', () => {
 	});
 
 	suite('session row spacing', () => {
+		for (const status of [SessionStatus.InProgress, SessionStatus.NeedsInput]) {
+			test(`flat-list active metadata matches its accessible label when enabled (${status})`, () => {
+				const source = createTestSession('Cloud run', { workspaceLabel: 'owner/repo', status });
+				const updatedAt = observableValue('historyUpdatedAt', new Date(Date.now() - 60_000));
+				const session = { ...source.session, updatedAt };
+				const results = [true, false].map(enabled => {
+					const harness = createListHarness(disposables, [session]);
+					const container = harness.createContainer();
+					const list = harness.store.add(harness.instantiationService.createInstance(SessionsFlatList, container, {
+						onSessionOpen: () => { },
+						showMetadataWhileActive: () => enabled,
+					}));
+					list.setSessions([session]);
+					list.layout(300, 400);
+					const row = container.querySelector<HTMLElement>('.monaco-list-row')!;
+					const label = row.getAttribute('aria-label')!;
+					const time = row.querySelector('.session-time')?.textContent;
+					updatedAt.set(new Date(Date.now() - 3_600_000), undefined);
+					const updatedLabel = row.getAttribute('aria-label')!;
+					const updatedTime = row.querySelector('.session-time')?.textContent;
+					return {
+						repository: label.includes('in owner/repo'),
+						matchesVisibleTime: !!time && label.includes(`updated ${time}`),
+						updatedRepository: updatedLabel.includes('in owner/repo'),
+						matchesUpdatedVisibleTime: !!updatedTime && updatedLabel.includes(`updated ${updatedTime}`),
+						timeChanged: time !== updatedTime,
+					};
+				});
+				assert.deepStrictEqual(results, [
+					{ repository: true, matchesVisibleTime: true, updatedRepository: true, matchesUpdatedVisibleTime: true, timeChanged: true },
+					{ repository: false, matchesVisibleTime: status === SessionStatus.NeedsInput, updatedRepository: false, matchesUpdatedVisibleTime: status === SessionStatus.NeedsInput, timeChanged: false },
+				]);
+			});
+		}
+
 		test('reserves spacing only in the main sessions list', () => {
 			const sessions = [
 				createTestSession('First').session,
