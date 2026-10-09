@@ -675,36 +675,44 @@ suite('Dev Container Agent Host Main Service', () => {
 		});
 	});
 
-	test('prepares implicit Compose using the resolved launcher environment, not process.env or the workspace .env', async () => {
-		const directory = await mkdtemp(join(process.cwd(), '.build', 'dev-container-sandbox-env-'));
-		try {
-			const configPath = join(directory, '.devcontainer', 'devcontainer.json');
-			const overrideDirectory = join(directory, 'override');
-			await mkdir(join(directory, '.devcontainer'));
-			await mkdir(overrideDirectory);
-			await writeFile(configPath, JSON.stringify({ dockerComposeFile: [], service: 'workspace' }));
-			await writeFile(join(directory, 'shell-compose.yml'), 'version: "3.8"\nservices:\n  workspace:\n    image: test-image\n');
-			await writeFile(join(directory, '.env'), 'COMPOSE_FILE=dotenv-compose.yml\n');
-			const environment = { COMPOSE_FILE: 'shell-compose.yml', PATH: '/shell/bin' };
-			const service = store.add(new TestDevContainerAgentHostMainService('', false, undefined, environment, false));
-			service.inheritedEnvironment = { COMPOSE_FILE: 'inherited-compose.yml' };
-			service.sandboxConfigurationOutput = JSON.stringify({ configuration: { configFilePath: URI.file(configPath).toJSON(), service: 'workspace', dockerComposeFile: [] } });
-			const prepared = await service.prepareRealSandboxConfiguration(directory, overrideDirectory);
-			assert.deepStrictEqual({
-				args: prepared.args,
-				environment: prepared.environment,
-				configuration: JSON.parse(await readFile(join(overrideDirectory, 'devcontainer.json'), 'utf8')),
-			}, {
-				args: ['--config', URI.file(configPath).fsPath, '--override-config', join(overrideDirectory, 'devcontainer.json')],
-				environment: { ...environment, COMPOSE_FILE: [join(directory, 'shell-compose.yml'), join(overrideDirectory, 'compose.json')].join(delimiter) },
-				configuration: { dockerComposeFile: [], service: 'workspace' },
-			});
-			assert.deepStrictEqual(service.devContainerArgs, [['read-configuration', '--log-level', 'debug', '--workspace-folder', directory]]);
-			assert.deepStrictEqual(await service.resolveDevContainerEnvironment(), environment);
-		} finally {
-			await rm(directory, { recursive: true, force: true });
-		}
-	});
+	for (const { platform, expectedPath } of [
+		{ platform: 'linux', expectedPath: '/shell/bin' },
+		{ platform: 'darwin', expectedPath: '/shell/bin:/usr/local/bin' },
+		{ platform: 'win32', expectedPath: '/shell/bin' },
+	] satisfies { platform: NodeJS.Platform; expectedPath: string }[]) {
+		test(`prepares implicit Compose using the resolved launcher environment, not process.env or the workspace .env (${platform})`, async () => {
+			const directory = await mkdtemp(join(process.cwd(), '.build', 'dev-container-sandbox-env-'));
+			try {
+				const configPath = join(directory, '.devcontainer', 'devcontainer.json');
+				const overrideDirectory = join(directory, 'override');
+				await mkdir(join(directory, '.devcontainer'));
+				await mkdir(overrideDirectory);
+				await writeFile(configPath, JSON.stringify({ dockerComposeFile: [], service: 'workspace' }));
+				await writeFile(join(directory, 'shell-compose.yml'), 'version: "3.8"\nservices:\n  workspace:\n    image: test-image\n');
+				await writeFile(join(directory, '.env'), 'COMPOSE_FILE=dotenv-compose.yml\n');
+				const environment = { COMPOSE_FILE: 'shell-compose.yml', PATH: '/shell/bin' };
+				const resolvedEnvironment = { ...environment, PATH: expectedPath };
+				const service = store.add(new TestDevContainerAgentHostMainService('', false, undefined, environment, false));
+				service.platform = platform;
+				service.inheritedEnvironment = { COMPOSE_FILE: 'inherited-compose.yml' };
+				service.sandboxConfigurationOutput = JSON.stringify({ configuration: { configFilePath: URI.file(configPath).toJSON(), service: 'workspace', dockerComposeFile: [] } });
+				const prepared = await service.prepareRealSandboxConfiguration(directory, overrideDirectory);
+				assert.deepStrictEqual({
+					args: prepared.args,
+					environment: prepared.environment,
+					configuration: JSON.parse(await readFile(join(overrideDirectory, 'devcontainer.json'), 'utf8')),
+				}, {
+					args: ['--config', URI.file(configPath).fsPath, '--override-config', join(overrideDirectory, 'devcontainer.json')],
+					environment: { ...resolvedEnvironment, COMPOSE_FILE: [join(directory, 'shell-compose.yml'), join(overrideDirectory, 'compose.json')].join(delimiter) },
+					configuration: { dockerComposeFile: [], service: 'workspace' },
+				});
+				assert.deepStrictEqual(service.devContainerArgs, [['read-configuration', '--log-level', 'debug', '--workspace-folder', directory]]);
+				assert.deepStrictEqual(await service.resolveDevContainerEnvironment(), resolvedEnvironment);
+			} finally {
+				await rm(directory, { recursive: true, force: true });
+			}
+		});
+	}
 
 	test('keeps the implicit Compose environment scoped to sandbox startup, exec and relay', async () => {
 		const directory = await mkdtemp(join(process.cwd(), '.build', 'dev-container-sandbox-launch-'));
