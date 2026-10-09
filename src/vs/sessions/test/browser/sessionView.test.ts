@@ -148,6 +148,50 @@ suite('Sessions - Session View', () => {
 		});
 	});
 
+	test('deduplicates effective child sizes while respecting header and visibility changes', () => {
+		const layouts: number[][] = [];
+		const header = { visible: true, height: 35 };
+		const element = document.createElement('div');
+		const centeredContentContainer = document.createElement('div');
+		const view: SessionView = Object.assign(Object.create(SessionView.prototype), {
+			element,
+			_isPartVisible: true,
+			_isLeafVisible: true,
+			_isVisibleObs: observableValue('visible', true),
+			_centeredContentContainer: centeredContentContainer,
+			_header: header,
+			_groupsView: {
+				layout: (...dimensions: number[]) => layouts.push(dimensions),
+				setSessionVisible: () => { },
+			},
+			_standaloneView: { get: () => undefined },
+		});
+		view.layoutContainer(1200, 800, 10, 20);
+		const beforeContents = { calls: layouts.length, headerWidth: centeredContentContainer.style.width };
+		view.layoutContents();
+		view.layout(1200, 800, 10, 20);
+		header.height = 45;
+		view.layoutContents();
+		view.setVisible(false);
+		view.layout(1000, 700, 30, 40);
+		view.setVisible(true);
+		view.layoutContents();
+		header.visible = false;
+		view.layoutContents();
+		view.layout(1000, 0, 30, 40);
+		view.layout(1000, 700, 30, 40);
+		assert.deepStrictEqual({ beforeContents, layouts }, {
+			beforeContents: { calls: 0, headerWidth: '1200px' },
+			layouts: [
+				[1200, 765, 45, 20],
+				[1200, 755, 55, 20],
+				[1000, 655, 75, 40],
+				[1000, 700, 30, 40],
+				[1000, 700, 30, 40],
+			],
+		});
+	});
+
 	test('preserves the new-session composer while an uncreated draft is activated', () => {
 		const createdViews: TestNewSessionView[] = [];
 		const forwardedInstantiationServices: (IInstantiationService | undefined)[] = [];
@@ -158,6 +202,8 @@ suite('Sessions - Session View', () => {
 		mainWindow.document.body.appendChild(contentContainer);
 		disposables.add(toDisposable(() => contentContainer.remove()));
 		const groupsElement = document.createElement('div');
+		const groupsInput = document.createElement('textarea');
+		groupsElement.appendChild(groupsInput);
 		const isCreated = observableValue<boolean>('isCreated', false);
 		const requestInProgress = observableValue('requestInProgress', false);
 		const preparationProgress = observableValue<ISessionPreparationProgress | undefined>('preparationProgress', undefined);
@@ -181,6 +227,7 @@ suite('Sessions - Session View', () => {
 			_groupsView: {
 				element: groupsElement,
 				setSession: (activeSession: IActiveSession | undefined) => shownSessions.push(activeSession),
+				focus: () => groupsInput.focus(),
 			},
 			_standaloneView: standaloneView,
 			_scopedInstantiationService: scopedInstantiationService,
@@ -245,6 +292,7 @@ suite('Sessions - Session View', () => {
 			preparationViewsDisposed: preparationViews.every(view => view.disposed),
 			disposedAfterCreation: createdViews[0].disposed,
 			finalElement: contentContainer.firstElementChild,
+			focusedAfterCreation: mainWindow.document.activeElement === groupsInput,
 			shownSessions,
 			forwardedInstantiationServices,
 			sameHostVisibility: forwardedOptions[0].hostVisible === hostVisible,
@@ -257,9 +305,50 @@ suite('Sessions - Session View', () => {
 			preparationViewsDisposed: true,
 			disposedAfterCreation: true,
 			finalElement: groupsElement,
+			focusedAfterCreation: true,
 			shownSessions: [undefined, undefined, session],
 			forwardedInstantiationServices: [scopedInstantiationService],
 			sameHostVisibility: true,
+		});
+	});
+
+	test('preserves external focus when creation replaces the preparation view', () => {
+		const store = disposables.add(new DisposableStore());
+		const { instantiationService, chatViews } = createSessionViewTestServices(store);
+		const requestInProgress = observableValue('requestInProgress', false);
+		const preparationProgress = observableValue<ISessionPreparationProgress | undefined>('preparationProgress', undefined);
+		const session = createTestActiveSession('draft', false, {
+			isNewSessionRequestInProgress: requestInProgress,
+			preparationProgress,
+		});
+		const view = store.add(instantiationService.createInstance(SessionView));
+		const externalControl = document.createElement('button');
+		mainWindow.document.body.append(view.element, externalControl);
+		store.add(toDisposable(() => {
+			view.element.remove();
+			externalControl.remove();
+		}));
+
+		view.openSession(session, {});
+		view.focus();
+		requestInProgress.set(true, undefined);
+		preparationProgress.set({ message: 'Preparing', cancel: () => { } }, undefined);
+		const preparationView = chatViews.at(-1)!;
+		const showedPreparationView = view.element.contains(preparationView.element);
+		externalControl.focus();
+		session.isCreated.set(true, undefined);
+		const createdView = chatViews.at(-1)!;
+
+		assert.deepStrictEqual({
+			showedPreparationView,
+			preparationViewDisposed: preparationView.disposed,
+			showsCreatedSession: createdView !== preparationView && view.element.contains(createdView.element),
+			externalFocusPreserved: mainWindow.document.activeElement === externalControl,
+		}, {
+			showedPreparationView: true,
+			preparationViewDisposed: true,
+			showsCreatedSession: true,
+			externalFocusPreserved: true,
 		});
 	});
 

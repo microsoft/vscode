@@ -9,7 +9,7 @@
 
 import assert from 'assert';
 import { execSync } from 'child_process';
-import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from 'fs';
+import { chmodSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from 'fs';
 import { homedir, tmpdir, userInfo } from 'os';
 import { fileURLToPath } from 'url';
 import { timeout } from '../../../../../../base/common/async.js';
@@ -29,18 +29,20 @@ import {
 	type ChatInputRequestedAction, type ChatToolCallReadyAction,
 	type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallStartAction,
 } from '../../../../common/state/sessionActions.js';
+import type { AhpNotification } from '../../../../common/state/sessionProtocol.js';
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
 import type { SessionMode } from '../../../../common/agentHostSchema.js';
 import { AgentHostSessionResidencyLimitEnvVar } from '../../../../common/agentService.js';
-import { CapiReplayMode, type ICapiReplayResponse } from './capiReplayProxy.js';
+import { CapiReplayMode, type ICapiReplayResponse, type IReplayVerificationOptions } from './capiReplayProxy.js';
 import {
 	fetchSessionWithChat, getActionEnvelope, getAgentHostE2ETestTimeout, isActionNotification, IServerHandle, killServer, stopServer, TestProtocolClient,
 } from '../../serverIntegrationTestHelpers.js';
 import { defaultAgentHostTarget, type IAgentHostTarget } from './agentHostTarget.js';
 import { createProviderSession, dispatchTurn, dispatchTurnWithAttachments } from '../../providerIntegrationTestHelpers.js';
-import { AgentHostUpdateSnapshotsEnvVar, AhpSnapshotScenario, type IAhpSnapshotOptions } from './ahpSnapshot.js';
+import { AgentHostUpdateSnapshotsEnvVar, AhpSnapshotScenario, waitForChatUnreadAfterTurn, type IAhpSnapshotOptions } from './ahpSnapshot.js';
 import { normalizeShellToolNameForCapture } from './shellToolNames.js';
 import { preserveAgentHostE2ELogs } from './agentHostE2EDiagnostics.js';
+import { createTestDirectory } from './testDirectories.js';
 
 // #region Record/replay
 
@@ -104,20 +106,19 @@ function clearReadOnlyAttributes(dir: string): void {
 	}
 }
 
-/**
- * Initializes a git repository for a test, with an identity and no background
- * maintenance.
- *
- * `gc.auto 0` matters on Windows: an auto-triggered `git gc` runs in the
- * background and can still hold handles under `.git` when the test finishes,
- * which makes the temp-directory cleanup fail for a reason unrelated to the
- * behavior under test. Tests here never create enough objects to need gc.
- */
-export function initTestGitRepo(cwd: string): void {
-	execSync('git init', { cwd });
-	execSync('git config user.name "Agent Host Test"', { cwd });
-	execSync('git config user.email "agent-host-test@example.com"', { cwd });
-	execSync('git config gc.auto 0', { cwd });
+/** Initializes a test repository without background Git maintenance that can retain filesystem handles during teardown. */
+export function initTestGitRepo(cwd: string, options?: { readonly bare: boolean }): void {
+	execSync(options?.bare ? 'git init --bare -q' : 'git init', { cwd });
+	const git = options?.bare ? 'git --git-dir=.' : 'git';
+	execSync(`${git} config user.name "Agent Host Test"`, { cwd });
+	execSync(`${git} config user.email "agent-host-test@example.com"`, { cwd });
+	disableTestGitMaintenance(cwd, options);
+}
+
+export function disableTestGitMaintenance(cwd: string, options?: { readonly bare: boolean }): void {
+	const git = options?.bare ? 'git --git-dir=.' : 'git';
+	execSync(`${git} config gc.auto 0`, { cwd });
+	execSync(`${git} config maintenance.auto false`, { cwd });
 }
 
 export async function removeTempDirs(tempDirs: string[]): Promise<void> {
@@ -145,7 +146,7 @@ export async function removeTempDirs(tempDirs: string[]): Promise<void> {
 		if (Date.now() >= deadline) {
 			throw new AggregateError(
 				Array.from(errors.values()),
-				`Failed to remove Agent Host E2E temporary directories: ${pendingDirs.join(', ')}`,
+				`Failed to remove Agent Host E2E temporary directories: ${Array.from(errors, ([dir, error]) => `${dir}: ${error.message}`).join('; ')}`,
 			);
 		}
 		await timeout(500);
@@ -451,7 +452,7 @@ export async function runAhpSnapshotTest(
 	options?: IAhpSnapshotOptions,
 ): Promise<void> {
 	const scenario = AhpSnapshotScenario.load(test);
-	const workingDirectory = mkdtempSync(join(tmpdir(), 'ahp-snapshot-'));
+	const workingDirectory = createTestDirectory(join(tmpdir(), 'ahp-snapshot-'));
 	tempDirs.push(workingDirectory);
 	const sessionUri = await createRealSession(c, config, scenario.clientId, trackingList, URI.file(workingDirectory));
 	await scenario.run(c, sessionUri, options);
@@ -541,8 +542,12 @@ export interface IDrivenTurnResult {
 	responseText: string;
 }
 
-export async function driveTurnToCompletion(c: TestProtocolClient, session: string, turnId: string, text: string, clientSeq: number): Promise<IDrivenTurnResult> {
-	return driveTurn(c, buildDefaultChatUri(session), turnId, clientSeq, () => dispatchTurn(c, session, turnId, text, clientSeq));
+export interface IDriveTurnOptions {
+	expectUnread?: boolean;
+}
+
+export async function driveTurnToCompletion(c: TestProtocolClient, session: string, turnId: string, text: string, clientSeq: number, options?: IDriveTurnOptions): Promise<IDrivenTurnResult> {
+	return driveTurn(c, buildDefaultChatUri(session), turnId, clientSeq, () => dispatchTurn(c, session, turnId, text, clientSeq), ChatInputResponseKind.Accept, getAcceptedAnswers, options);
 }
 
 export async function driveChatTurnToCompletion(c: TestProtocolClient, chat: string, turnId: string, text: string, clientSeq: number): Promise<IDrivenTurnResult> {
@@ -583,7 +588,7 @@ export async function driveTurnWithAnswersToCompletion(c: TestProtocolClient, se
 	return driveTurn(c, buildDefaultChatUri(session), turnId, clientSeq, () => dispatchTurn(c, session, turnId, text, clientSeq), ChatInputResponseKind.Accept, getAnswers);
 }
 
-async function driveTurn(c: TestProtocolClient, chat: string, turnId: string, clientSeq: number, dispatch: () => void, inputResponse = ChatInputResponseKind.Accept, answerProvider = getAcceptedAnswers): Promise<IDrivenTurnResult> {
+async function driveTurn(c: TestProtocolClient, chat: string, turnId: string, clientSeq: number, dispatch: () => void, inputResponse = ChatInputResponseKind.Accept, answerProvider = getAcceptedAnswers, options?: IDriveTurnOptions): Promise<IDrivenTurnResult> {
 	c.clearReceived();
 	dispatch();
 
@@ -591,6 +596,7 @@ async function driveTurn(c: TestProtocolClient, chat: string, turnId: string, cl
 	let nextClientSeq = clientSeq + 1;
 	let sawInputRequest = false;
 	let sawPendingConfirmation = false;
+	let terminalNotification!: AhpNotification;
 
 	while (true) {
 		const notification = await c.waitForNotification(n => {
@@ -654,7 +660,12 @@ async function driveTurn(c: TestProtocolClient, chat: string, turnId: string, cl
 
 		const action = getActionEnvelope(notification).action as { turnId: string };
 		assert.strictEqual(action.turnId, turnId);
+		terminalNotification = notification;
 		break;
+	}
+
+	if (options?.expectUnread !== false) {
+		await waitForChatUnreadAfterTurn(c, chat, getActionEnvelope(terminalNotification).serverSeq);
 	}
 
 	return { sawInputRequest, sawPendingConfirmation, responseText: getMarkdownResponseText(c) };
@@ -898,7 +909,7 @@ export class AgentHostE2EServerLease {
 
 	constructor(
 		private readonly _config: IAgentHostE2EProviderConfig,
-		startOptions: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly target?: IAgentHostTarget } = {},
+		startOptions: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly target?: IAgentHostTarget; readonly env?: Readonly<Record<string, string>> } = {},
 	) {
 		this._target = startOptions.target ?? defaultAgentHostTarget;
 		this._startOptions = {
@@ -910,6 +921,7 @@ export class AgentHostE2EServerLease {
 				// Keep replay deterministic when tests run inside a Copilot app process
 				// that has local experimental CLI tools enabled.
 				COPILOT_CLI_ENABLED_FEATURE_FLAGS: '',
+				...startOptions.env,
 			},
 		};
 		// Server reuse is a replay-only optimization: recording writes one fixture
@@ -920,7 +932,7 @@ export class AgentHostE2EServerLease {
 	}
 
 	private _createDataDirectories() {
-		const homeDir = mkdtempSync(join(tmpdir(), 'vscode-agent-host-e2e-'));
+		const homeDir = createTestDirectory(join(tmpdir(), 'vscode-agent-host-e2e-'));
 		this._dataDirs.push(homeDir);
 		const codexHomeDir = join(homeDir, '.codex');
 		mkdirSync(codexHomeDir);
@@ -1160,7 +1172,7 @@ export class AgentHostE2EServerLease {
 	 * Dispose the test's sessions and verify replay, reusing a healthy shared server.
 	 * Pass `forceRestart` after a failed test to isolate the next test without obscuring the original failure.
 	 */
-	async release(createdSessions: string[], forceRestart = false): Promise<void> {
+	async release(createdSessions: string[], forceRestart = false, verification?: IReplayVerificationOptions): Promise<void> {
 		const client = this._client;
 		const cleanupErrors: Error[] = [];
 		const recordCleanupError = (error: unknown) => {
@@ -1214,7 +1226,7 @@ export class AgentHostE2EServerLease {
 			// Surface this test's strict replay failures but keep the server (and
 			// its cached SDK client) alive for the next test.
 			try {
-				this._server?.capiReplay?.assertNoReplayMismatches();
+				this._server?.capiReplay?.assertNoReplayMismatches(verification);
 			} catch (error) {
 				recordCleanupError(error);
 				try {
@@ -1240,7 +1252,7 @@ export class AgentHostE2EServerLease {
 				if (forceRestart) {
 					await this._server?.capiReplay?.close();
 				} else {
-					await this._server?.capiReplay?.stop();
+					await this._server?.capiReplay?.stop(verification);
 				}
 			} catch (error) {
 				recordCleanupError(error);

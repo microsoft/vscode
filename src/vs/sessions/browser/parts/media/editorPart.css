@@ -15,8 +15,8 @@
 	border-right-width: 0;
 	border-top-right-radius: 0;
 	border-bottom-right-radius: 0;
-	border-top-left-radius: 8px;
-	border-bottom-left-radius: 8px;
+	border-top-left-radius: var(--agents-part-corner-radius, var(--vscode-cornerRadius-large));
+	border-bottom-left-radius: var(--agents-part-corner-radius, var(--vscode-cornerRadius-large));
 	box-sizing: border-box;
 	overflow: hidden;
 }
@@ -44,6 +44,10 @@
 	border-color: transparent;
 }
 
+.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs.dock-detail-panel:not(.phone-layout) .part.editor.editor-tabs-multiple:not(.modal-editor-part)::after {
+	content: none;
+}
+
 .monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs.dock-detail-panel:not(.phone-layout) .part.editor.editor-tabs-multiple:not(.modal-editor-part) > .content .editor-group-container {
 	position: relative;
 }
@@ -53,14 +57,15 @@
 	position: absolute;
 	inset: 0;
 	border: var(--vscode-strokeThickness) solid var(--modern-ui-connected-tab-border);
-	border-radius: calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness));
+	border-width: var(--agents-part-frame-border-width, var(--vscode-strokeThickness));
+	border-radius: max(0px, calc(var(--agents-part-corner-radius, var(--vscode-cornerRadius-large)) - var(--vscode-strokeThickness)));
 	box-sizing: border-box;
 	pointer-events: none;
 	z-index: 10;
 }
 
-.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs.dock-detail-panel:not(.phone-layout) .part.editor.editor-tabs-multiple:not(.modal-editor-part) > .content .editor-group-container > .title.tabs .tab.active.connected-tab-top-row:not(.connected-tab-upper-row) > .tab-fill {
-	border-top-color: var(--modern-ui-connected-tab-border);
+:is(.hc-black, .hc-light).monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs.dock-detail-panel:not(.phone-layout) .part.editor.editor-tabs-multiple:not(.modal-editor-part) > .content .editor-group-container::after {
+	border-color: var(--vscode-agentsPanel-border, var(--vscode-contrastBorder));
 }
 
 .monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs.dock-detail-panel:not(.phone-layout) .part.editor.editor-tabs-multiple:not(.modal-editor-part) > .content .editor-group-container > .title.tabs .tab:first-child > .tab-fill,

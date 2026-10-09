@@ -16,7 +16,6 @@ import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelSc
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { agentFinderMcpRegistryManifest, getAgentFinderMcpServerUrl } from '../../../../../platform/agentFinder/common/agentFinderMcpRegistry.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -346,32 +345,6 @@ suite('McpWorkbenchService', () => {
 			missing,
 			opened: openedEditors.length,
 		}, { name: gallery.name, gallery: true, missing: undefined, opened: 0 });
-	});
-
-	test('resolves a version-pinned feed MCP server independently of the configured gallery', async () => {
-		const { service, galleryService } = await createFixture([]);
-		const gallery = createGallery('io.example/tools');
-		const lookup = sinon.stub(galleryService, 'getMcpServer').resolves(gallery);
-		const server = await service.getMcpServerFromAgentFinder(gallery.name, gallery.version);
-		assert.deepStrictEqual({
-			name: server?.name,
-			gallery: server?.gallery === gallery,
-			url: lookup.firstCall?.args[0],
-			manifest: lookup.firstCall?.args[1],
-		}, {
-			name: gallery.name,
-			gallery: true,
-			url: getAgentFinderMcpServerUrl(gallery.name, gallery.version),
-			manifest: agentFinderMcpRegistryManifest,
-		});
-	});
-
-	test('rejects feed MCP records with a mismatched identity or invalid version', async () => {
-		const { service, galleryService } = await createFixture([]);
-		const lookup = sinon.stub(galleryService, 'getMcpServer').resolves(createGallery('io.example/other'));
-		await assert.rejects(service.getMcpServerFromAgentFinder('io.example/tools', '1.0.0'), /different MCP server/);
-		await assert.rejects(service.getMcpServerFromAgentFinder('io.example/tools', '../latest'), /installation source is invalid/);
-		assert.strictEqual(lookup.callCount, 1);
 	});
 
 	test('does not return an MCP install candidate resolved from a superseded registry', async () => {

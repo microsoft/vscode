@@ -49,7 +49,7 @@ export class SessionBackgroundActivitiesControl extends Disposable {
 				id: subagent.resource.toString(),
 				title: subagent.title.read(reader),
 				isActive: isActiveSessionStatus(subagent.status.read(reader)),
-				open: () => { void this._sessionsService.openChat(currentSession, subagent.resource); },
+				open: () => this._sessionsService.openChatToSide(currentSession, subagent.resource, { referenceChatResource: currentChat.resource }),
 			}));
 		});
 		this._pillData = createSessionSubagentsPillData(subagents, visibility.subagents);

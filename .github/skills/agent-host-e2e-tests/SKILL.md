@@ -11,6 +11,8 @@ These tests run the whole agent host end-to-end (real server, real bundled provi
 
 It documents the mental model, the fixture format, every config flag, and a symptom→cause→fix troubleshooting table. This skill is only the *workflows*; the README is the source of truth for *how it works*.
 
+When validating an upstream provider/runtime fix, use [ci-artifact-testing](../ci-artifact-testing/SKILL.md) to check for a compatible CI artifact before building locally. Run the same strict replay against the bundled baseline and candidate; preserve the test assertions and existing cross-platform validation requirements.
+
 ## Core invariants
 
 1. **Replay is default and strict.** No env var serves committed fixtures without a token or network. An unrecorded request is a hard cache miss.
@@ -39,7 +41,8 @@ Keep this section curated. Add or refine a principle only when root-cause analys
 - **Assert primary outcomes before secondary effects.** A hook, notification, assistant response, or persisted record can be downstream of the behavior under test. First prove the actual tool result or external side effect succeeded.
 - **Do not confuse replay success with execution success.** Replay controls model traffic; live tools, MCP servers, hooks, commands, and filesystem operations can still fail. Recorded assistant text is not an oracle for those operations.
 - **Synchronize on observable state, never elapsed time.** Use protocol notifications or exact state polling instead of sleeps, timeout increases, or existence-only checks.
-- **Respect scope and lifecycle.** Readiness can belong to a specific chat, session, provider process, or workspace. Materialize and observe the same scope the operation will use, drain work before teardown, and clean up owned resources.
+- **Respect scope and lifecycle.** Readiness can belong to a specific chat, session, provider process, or workspace. Materialize and observe the same scope the operation will use, drain work before teardown, and clean up owned resources. Keep temporary workspaces outside instruction-bearing ancestors: changing their location can inject unrelated repository customizations into a provider's model request.
+- **Separate storage semantics from device latency.** RAM-backed files can retain real SQLite transactions, close/reopen, and host-restart behavior; keep required disk-backed lifecycle coverage separately. Compare unchanged workloads on the same worker and inspect phase timings, not just pass counts, before attributing a timeout to physical storage.
 - **Centralize recurring lifecycle barriers.** If several tests need the same multi-step prerequisite, encode it in a shared helper so tests cannot choose a weaker intermediate condition.
 - **Gate genuine nondeterminism narrowly.** Use record-only or provider/platform gates only for behavior that cannot replay deterministically or is unsupported; never use a gate to hide an unexplained failure.
 

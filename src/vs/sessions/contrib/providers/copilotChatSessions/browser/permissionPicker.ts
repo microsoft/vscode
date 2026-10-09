@@ -38,6 +38,7 @@ import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTe
  * `AgentHostPermissionPickerDelegate` in the agent-host folder).
  */
 export interface IPermissionPickerDelegate {
+	readonly isPolicyRestricted?: () => boolean;
 	/**
 	 * If provided, the picker's trigger label reactively tracks this. If
 	 * omitted, the picker manages its own internal state and starts at
@@ -176,7 +177,7 @@ export class PermissionPicker extends Disposable {
 		// (`chat.permissions.default`) whenever it is (re-)rendered. If enterprise
 		// policy disables global auto-approval, clamp to Default regardless of the
 		// configured default so we never show an elevated level the user can't pick.
-		const policyRestricted = this.configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
+		const policyRestricted = this._isPolicyRestricted();
 		const configuredDefault = this.configurationService.getValue<string>(ChatConfiguration.DefaultPermissionLevel);
 		const initialLevel = isChatPermissionLevel(configuredDefault) ? configuredDefault : ChatPermissionLevel.Default;
 		this._currentLevel = policyRestricted ? ChatPermissionLevel.Default : initialLevel;
@@ -266,6 +267,16 @@ export class PermissionPicker extends Disposable {
 		return slot;
 	}
 
+	focus(): void {
+		this._triggerElement?.focus();
+	}
+
+	setFocusable(focusable: boolean): void {
+		if (this._triggerElement) {
+			this._triggerElement.tabIndex = focusable ? 0 : -1;
+		}
+	}
+
 	showPicker(): void {
 		this._showPicker();
 	}
@@ -298,7 +309,7 @@ export class PermissionPicker extends Disposable {
 	}
 
 	private _getActionItems(): IActionListItem<IPermissionItem>[] {
-		const policyRestricted = this.configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
+		const policyRestricted = this._isPolicyRestricted();
 
 		const levels = this._delegate.availableLevels ?? DEFAULT_PERMISSION_LEVELS;
 		const items: IActionListItem<IPermissionItem>[] = levels.map(level => {
@@ -374,7 +385,7 @@ export class PermissionPicker extends Disposable {
 	private async _selectItem(item: IPermissionItem, isCurrentContext?: () => boolean): Promise<void> {
 		this.actionWidgetService.hide();
 		if (item.level) {
-			const policyRestricted = this.configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
+			const policyRestricted = this._isPolicyRestricted();
 			if (!this._isResolving() && !(policyRestricted && item.level !== ChatPermissionLevel.Default)) {
 				await this._selectLevel(item.level, isCurrentContext);
 			}
@@ -459,12 +470,16 @@ export class PermissionPicker extends Disposable {
 		return this._delegate.isResolving?.get() ?? false;
 	}
 
+	protected _isPolicyRestricted(): boolean {
+		return this._delegate.isPolicyRestricted?.() ?? this.configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
+	}
+
 	protected async _selectLevel(level: ChatPermissionLevel, isCurrentContext?: () => boolean): Promise<void> {
 		const confirmed = await maybeConfirmElevatedPermissionLevel(level, this.dialogService, this.storageService, {
 			defaultSettingKey: this._delegate.defaultSettingKey,
 			levelLabel: this._getPermissionLevelMeta(level).label,
 		});
-		const policyRestricted = this.configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
+		const policyRestricted = this._isPolicyRestricted();
 		if (!confirmed || isCurrentContext?.() === false || (policyRestricted && level !== ChatPermissionLevel.Default)) {
 			reportNewChatPickerClosed(this.telemetryService, {
 				id: 'NewChatPermissionPicker',
@@ -531,8 +546,7 @@ export class PermissionPicker extends Disposable {
 	}
 
 	private _isSandboxToggleAvailable(): boolean {
-		return this.configurationService.getValue<boolean>(ChatConfiguration.PermissionsSandboxToggleEnabled) === true
-			&& this._delegate.isSandboxToggleApplicable?.() === true
+		return this._delegate.isSandboxToggleApplicable?.() === true
 			&& this._delegate.setSandboxEnabled !== undefined
 			&& this._delegate.getSandboxToggleSettingId?.() !== undefined;
 	}
@@ -555,8 +569,7 @@ export class PermissionPicker extends Disposable {
 
 	private _affectsSandboxToggle(event: IConfigurationChangeEvent): boolean {
 		const settingId = this._delegate.getSandboxToggleSettingId?.();
-		return event.affectsConfiguration(ChatConfiguration.PermissionsSandboxToggleEnabled)
-			|| (settingId !== undefined && event.affectsConfiguration(settingId))
+		return (settingId !== undefined && event.affectsConfiguration(settingId))
 			|| this._delegate.sandboxToggleConfigurationKeys?.some(key => event.affectsConfiguration(key)) === true;
 	}
 

@@ -105,12 +105,20 @@ suite('Pull Request Actions', () => {
 			createPullRequestReviewThreadsModelReference: () => ({ object: reviewThreadsModel, dispose: () => { } }),
 		});
 		const model = store.add(new SessionPullRequestPresentationModel(
-			constObservable([{
-				owner: 'microsoft',
-				repo: 'vscode',
-				number: 1,
-				uri: URI.parse('https://github.com/microsoft/vscode/pull/1'),
-			}]),
+			constObservable([
+				{
+					owner: 'microsoft',
+					repo: 'vscode',
+					number: 1,
+					uri: URI.parse('https://github.com/microsoft/vscode/pull/1'),
+				},
+				{
+					owner: 'other',
+					repo: 'project',
+					number: 2,
+					uri: URI.parse('https://github.com/other/project/pull/2'),
+				},
+			]),
 			constObservable({
 				enabled: true,
 				actions: {
@@ -121,16 +129,17 @@ suite('Pull Request Actions', () => {
 				},
 			}),
 			gitHubService,
+			ref => ref.repo === 'vscode',
 		));
 
 		assert.deepStrictEqual({
-			entryIcon: model.pullRequests.get()[0].icon?.id,
-			ciStatus: model.pullRequests.get()[0].ciStatus,
+			entryIcons: model.pullRequests.get().map(entry => entry.icon?.id),
+			ciStatuses: model.pullRequests.get().map(entry => entry.ciStatus),
 			summaryIcon: model.icon.get().id,
 		}, {
-			entryIcon: Codicon.gitPullRequest.id,
-			ciStatus: GitHubCIOverallStatus.Failure,
-			summaryIcon: Codicon.gitPullRequest.id,
+			entryIcons: [Codicon.gitPullRequest.id, Codicon.gitPullRequestError.id],
+			ciStatuses: [GitHubCIOverallStatus.Failure, GitHubCIOverallStatus.Failure],
+			summaryIcon: Codicon.gitPullRequestError.id,
 		});
 	});
 

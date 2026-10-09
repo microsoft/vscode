@@ -56,6 +56,14 @@ export class RequestDebugInformation {
 	) { }
 }
 
+/**
+ * In-memory turn metadata holding the raw CAPI `X-GitHub-Copilot-Request-Te` value of the model
+ * call that produced the turn's response (normally the final call). Never persisted; telemetry only.
+ */
+export class TurnResponseGitHubCopilotRequestTe {
+	constructor(readonly value: string | undefined) { }
+}
+
 export class Turn {
 
 	private _references: readonly PromptReference[] = [];

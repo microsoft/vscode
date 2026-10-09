@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
@@ -247,6 +248,32 @@ suite('CloudSandboxCredentialRefresher', () => {
 		);
 	}));
 
+	test('a late periodic refresh cannot replace a newer host-recovery credential', () => runWithFakedTimers<void>({ useFakeTimers: true, startTime: START_TIME }, async () => {
+		const response = new DeferredPromise<CloudSandboxConnectResult>();
+		const started = new DeferredPromise<void>();
+		const creds: ICloudSandboxCreds = { token: tokenExpiringIn(2, START_TIME) };
+		const replacement = tokenExpiringIn(40, START_TIME, { access_token: 'recovery-token', host_encryption_key: REPLACEMENT_HOST_KEY });
+		const telemetry = new RecordingTelemetry();
+		const api = new class extends mock<ICloudSandboxApiService>() {
+			override reconnect(): Promise<CloudSandboxConnectResult> {
+				started.complete();
+				return response.p;
+			}
+		}();
+		const owner = new DisposableStore();
+		try {
+			owner.add(new CloudSandboxCredentialRefresher('cloudsandbox:env_1', { environmentId: 'env_1' }, 'client-1', creds, new CloudSandboxCredentialRefreshState(), api, telemetry, new NullLogService()));
+			await started.p;
+			creds.token = replacement;
+			response.complete({ kind: 'token', token: tokenExpiringIn(40, START_TIME, { access_token: 'stale-token' }) });
+			await timeout(1);
+			assert.strictEqual(creds.token, replacement);
+			assert.deepStrictEqual(telemetry.stops, []);
+		} finally {
+			owner.dispose();
+		}
+	}));
+
 	test('a refreshed token without a sealed GitHub token keeps the previous one', () => runWithFakedTimers<void>({ useFakeTimers: true, startTime: START_TIME }, async () => {
 		const result = await runRefresher(
 			() => ({ kind: 'token', token: tokenExpiringIn(40, Date.now(), { access_token: 'fresh' }) }),
@@ -434,6 +461,51 @@ suite('CloudSandboxCredentialRefresher recovery', () => {
 		assert.deepStrictEqual({ calls: credentials.callCount, token: creds.token.access_token }, { calls: 1, token: 'shared' });
 	}));
 
+	test('connection repair waits for a retry-after and shares the scheduled refresh', async () => {
+		const clock = sinon.useFakeTimers({ now: START_TIME, toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+		try {
+			const response = new DeferredPromise<CloudSandboxConnectResult>();
+			let requests = 0;
+			const { refresher, credentials, creds } = createRefresher(tokenExpiringIn(0, START_TIME), () => {
+				if (++requests === 1) {
+					throw new CloudSandboxRequestError(429, 'rate limited', 45);
+				}
+				return response.p;
+			});
+			await assert.rejects(refresher.refreshConnectionCredentials(), /usable future expiry/);
+			let outcome = 'pending';
+			const recovery = refresher.refreshConnectionCredentials().then(() => { outcome = 'ready'; }, () => { outcome = 'rejected'; });
+			await clock.tickAsync(44_999);
+			const beforeRetry = { outcome, calls: credentials.callCount };
+			await clock.tickAsync(1);
+			await response.complete({ kind: 'token', token: tokenExpiringIn(40, Date.now(), { access_token: 'shared' }) });
+			await recovery;
+			assert.deepStrictEqual({ beforeRetry, outcome, calls: credentials.callCount, token: creds.token.access_token }, {
+				beforeRetry: { outcome: 'pending', calls: 1 }, outcome: 'ready', calls: 2, token: 'shared',
+			});
+			refresher.dispose();
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('concurrent retry waits can use a newly refreshed short-lived ticket', () => runWithFakedTimers({ useFakeTimers: true, startTime: START_TIME }, async () => {
+		let requests = 0;
+		const { refresher, credentials, creds } = createRefresher(tokenExpiringIn(0, START_TIME), () => {
+			if (++requests === 1) {
+				throw new CloudSandboxRequestError(503, 'unavailable');
+			}
+			return { kind: 'token', token: tokenExpiringIn(0.5, Date.now(), { access_token: 'fresh' }) };
+		});
+		await assert.rejects(refresher.refreshConnectionCredentials(), /usable future expiry/);
+		const first = refresher.refreshConnectionCredentials();
+		const second = refresher.refreshConnectionCredentials();
+		await timeout(30_000);
+		await Promise.all([first, second]);
+		refresher.dispose();
+		assert.deepStrictEqual({ calls: credentials.callCount, token: creds.token.access_token }, { calls: 2, token: 'fresh' });
+	}));
+
 	for (const { name, step } of [
 		{ name: 'transient rejection', step: () => Promise.reject(new CloudSandboxRequestError(503, 'unavailable')) },
 		{ name: 'permanent rejection', step: () => Promise.reject(new CloudSandboxRequestError(403, 'forbidden')) },
@@ -447,7 +519,13 @@ suite('CloudSandboxCredentialRefresher recovery', () => {
 				step,
 			);
 			await assert.rejects(refresher.refreshConnectionCredentials(), /could not be refreshed|usable future expiry/);
-			await assert.rejects(refresher.refreshConnectionCredentials(), /stopped or waiting to retry/);
+			if (name === 'permanent rejection') {
+				await assert.rejects(refresher.refreshConnectionCredentials(), /stopped/);
+			} else {
+				const cancelled = assert.rejects(refresher.refreshConnectionCredentials(), isCancellationError);
+				refresher.dispose();
+				await cancelled;
+			}
 			refresher.dispose();
 			assert.strictEqual(credentials.callCount, 1);
 		}));
@@ -460,10 +538,10 @@ suite('CloudSandboxCredentialRefresher recovery', () => {
 		);
 		await refresher.refreshConnectionCredentials();
 		await timeout(29_999);
-		await assert.rejects(refresher.refreshConnectionCredentials(), /waiting to retry/);
+		const recovery = refresher.refreshConnectionCredentials();
 		const beforeDeadline = credentials.callCount;
 		await timeout(1);
-		await refresher.refreshConnectionCredentials();
+		await recovery;
 		refresher.dispose();
 
 		assert.deepStrictEqual({ beforeDeadline, calls: credentials.callCount }, { beforeDeadline: 1, calls: 2 });
@@ -484,10 +562,10 @@ suite('CloudSandboxCredentialRefresher recovery', () => {
 				});
 				await assert.rejects(refresher.ensureUnexpiredCredentials(), /usable future expiry/);
 				await timeout(retryAfterSeconds * 1000 - 1);
-				await assert.rejects(refresher.ensureUnexpiredCredentials(), /waiting to retry/);
+				const recovery = refresher.ensureUnexpiredCredentials();
 				const callsBeforeDeadline = credentials.callCount;
 				await timeout(1);
-				await refresher.ensureUnexpiredCredentials();
+				await recovery;
 				refresher.dispose();
 				assert.deepStrictEqual({ callsBeforeDeadline, calls: credentials.callCount }, { callsBeforeDeadline: 1, calls: 2 });
 			}));
@@ -544,9 +622,10 @@ suite('CloudSandboxCredentialRefresher recovery', () => {
 		);
 		await assert.rejects(refresher.ensureUnexpiredCredentials(), /usable future expiry/);
 		await timeout(29_999);
-		await assert.rejects(refresher.ensureUnexpiredCredentials(), /waiting to retry/);
+		const stopped = assert.rejects(refresher.ensureUnexpiredCredentials(), /stopped|usable future expiry/);
 		const callsBeforeRetry = credentials.callCount;
 		await timeout(30_000 * MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES);
+		await stopped;
 		await assert.rejects(refresher.ensureUnexpiredCredentials(), /stopped/);
 		refresher.dispose();
 
@@ -565,8 +644,9 @@ suite('CloudSandboxCredentialRefresher recovery', () => {
 		test(`rejects unusable credentials during recovery: ${name}`, () => runWithFakedTimers({ useFakeTimers: true, startTime: START_TIME }, async () => {
 			const { refresher, credentials } = createRefresher(tokenExpiringIn(0, START_TIME), () => result);
 			await assert.rejects(refresher.ensureUnexpiredCredentials(), /usable future expiry/);
-			await assert.rejects(refresher.ensureUnexpiredCredentials(), /waiting to retry/);
+			const cancelled = assert.rejects(refresher.ensureUnexpiredCredentials(), isCancellationError);
 			refresher.dispose();
+			await cancelled;
 
 			assert.strictEqual(credentials.callCount, 1);
 		}));

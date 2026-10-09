@@ -10,8 +10,14 @@ import { ConfigKey, IConfigurationService } from '../../../../platform/configura
 import { IChatModelInformation, ModelSupportedEndpoint } from '../../../../platform/endpoint/common/endpointProvider';
 import { CacheType, CustomDataPartMimeTypes } from '../../../../platform/endpoint/common/endpointTypes';
 import { ChatEndpoint } from '../../../../platform/endpoint/node/chatEndpoint';
+import { ILogService } from '../../../../platform/log/common/logService';
+import { IResponseDelta } from '../../../../platform/networking/common/fetch';
 import { ICreateEndpointBodyOptions, IEndpointBody, IMakeChatRequestOptions } from '../../../../platform/networking/common/networking';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
+import { TelemetryData } from '../../../../platform/telemetry/common/telemetryData';
+import { createFakeStreamResponse } from '../../../../platform/test/node/fetcher';
 import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
+import { ThinkingDataInMessage } from '../../../../platform/thinking/common/thinking';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
@@ -19,7 +25,7 @@ import { createExtensionUnitTestingServices } from '../../../test/node/services'
 import { OpenAIEndpoint } from '../openAIEndpoint';
 
 // Test fixtures for thinking content
-const createThinkingMessage = (thinkingId: string, thinkingText: string): Raw.ChatMessage => ({
+const createThinkingMessage = (thinkingId: string | undefined, thinkingText: string | string[]): Raw.ChatMessage => ({
 	role: Raw.ChatRole.Assistant,
 	content: [
 		{
@@ -88,6 +94,12 @@ const createStatefulMarkerMessage = (modelId: string, marker: string): Raw.ChatM
 		}
 	}]
 });
+
+class StatelessOpenAIEndpoint extends OpenAIEndpoint {
+	protected override get supportsStatefulResponses(): boolean {
+		return false;
+	}
+}
 
 describe('OpenAIEndpoint - Reasoning Properties', () => {
 	let modelMetadata: IChatModelInformation;
@@ -238,6 +250,29 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 
 			// OpenRouter expects the reasoning echoed back under `reasoning`.
 			expect(messages[0].reasoning).toBe('The user asked me to analyze the project. I should call the read_file tool.');
+		});
+
+		it.each([undefined, ''])('issue #338819: emits reasoning text without a provider ID (%s)', thinkingId => {
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				{ ...modelMetadata, supported_endpoints: [ModelSupportedEndpoint.ChatCompletions] },
+				'test-api-key',
+				'https://api.example.com/v1/chat/completions');
+			const body = endpoint.createRequestBody(createTestOptions([
+				createThinkingMessage(thinkingId, ['Read the file.\n', 'Then explain it.'])
+			]));
+			const [message] = body.messages as ThinkingDataInMessage[];
+
+			expect({
+				id: message.cot_id,
+				summary: message.cot_summary,
+				reasoning: message.reasoning_content,
+				alias: message.reasoning,
+			}).toEqual({
+				id: undefined,
+				summary: undefined,
+				reasoning: 'Read the file.\nThen explain it.',
+				alias: 'Read the file.\nThen explain it.',
+			});
 		});
 
 		it('issue #312746: does not emit reasoning_content / reasoning when the model does not support thinking', () => {
@@ -574,6 +609,37 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 			expect(response.type === ChatFetchResponseType.Failed && response.reason).toBe('{"code":0,"message":"something broke","metadata":{"code":"server_error"}}');
 		});
 
+		it('sends full history instead of a post-marker slice when the stateful marker is not a Responses ID', () => {
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				modelMetadata,
+				'test-api-key',
+				'https://api.openai.com/v1/responses');
+			const messages: Raw.ChatMessage[] = [
+				{
+					role: Raw.ChatRole.User,
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'before marker' }]
+				},
+				createStatefulMarkerMessage(modelMetadata.id, 'gen-not-a-responses-id'),
+				{
+					role: Raw.ChatRole.User,
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'after marker' }]
+				}
+			];
+
+			const body = endpoint.createRequestBody({
+				...createTestOptions(messages),
+				ignoreStatefulMarker: false,
+			});
+
+			expect({
+				previousResponseId: body.previous_response_id,
+				inputCount: body.input?.length,
+			}).toEqual({
+				previousResponseId: undefined,
+				inputCount: 2,
+			});
+		});
+
 		it('keeps store and marker reuse disabled for ordinary OpenAI BYOK ZDR Responses requests', () => {
 			const endpoint = instaService.createInstance(OpenAIEndpoint,
 				{
@@ -602,6 +668,49 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 
 			expect(body.previous_response_id).toBeUndefined();
 			expect(body.store).toBe(false);
+		});
+
+		it.each([
+			{ zeroDataRetentionEnabled: true, supportsStatefulResponses: true, responseId: 'resp_123', expectedMarker: undefined },
+			{ zeroDataRetentionEnabled: false, supportsStatefulResponses: false, responseId: 'resp_123', expectedMarker: undefined },
+			{ zeroDataRetentionEnabled: false, supportsStatefulResponses: true, responseId: 'response_123', expectedMarker: undefined },
+			{ zeroDataRetentionEnabled: false, supportsStatefulResponses: true, responseId: 'resp_123', expectedMarker: 'resp_123' },
+		])('publishes a stateful marker only when the endpoint can resume the response', async ({ zeroDataRetentionEnabled, supportsStatefulResponses, responseId, expectedMarker }) => {
+			const Endpoint = supportsStatefulResponses ? OpenAIEndpoint : StatelessOpenAIEndpoint;
+			const endpoint = instaService.createInstance(Endpoint,
+				{
+					...modelMetadata,
+					vendor: 'OpenAI',
+					zeroDataRetentionEnabled,
+				},
+				'test-api-key',
+				'https://api.openai.com/v1/responses');
+			const response = createFakeStreamResponse(`data: ${JSON.stringify({
+				type: 'response.completed',
+				response: {
+					id: responseId,
+					model: modelMetadata.id,
+					created_at: 123,
+					usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0 },
+					output: [],
+				},
+			})}\n\n`);
+			const deltas: IResponseDelta[] = [];
+			const stream = await endpoint.processResponseFromChatEndpoint(
+				accessor.get(ITelemetryService),
+				accessor.get(ILogService),
+				response,
+				1,
+				async (_text, _index, delta) => {
+					deltas.push(delta);
+					return undefined;
+				},
+				TelemetryData.createAndMarkAsIssued(),
+			);
+
+			for await (const _ of stream) { }
+
+			expect(deltas.at(-1)?.statefulMarker).toBe(expectedMarker);
 		});
 	});
 

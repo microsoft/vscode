@@ -484,7 +484,8 @@ export class SessionsPart extends Part {
 			height,
 			this.agentWorkbenchLayoutService.isEditorPaneVisible(),
 			this.layoutService.isVisible(Parts.SIDEBAR_PART),
-			isPhoneLayout(this.layoutService)
+			isPhoneLayout(this.layoutService),
+			this.layoutService.isModernUICompact()
 		);
 
 		// Size the content area with the reduced dimensions.

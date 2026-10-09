@@ -15,6 +15,7 @@ import { IAgentConnection } from '../../../../../platform/agentHost/common/agent
 import { supportsAgentHostDetachedWorktrees } from '../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { withAgentDevContainerWorktreeMetadata } from '../../../../../platform/agentHost/common/meta/agentDevContainerWorktreeMeta.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { findDevContainerSample, getDevContainerSampleUrl } from '../../../../../platform/agentHost/common/devContainerSamples.js';
 import { AgentCustomization } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { ILanguageModelChatMetadata } from '../../../../../workbench/contrib/chat/common/languageModels.js';
@@ -89,6 +90,9 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 
 	override createNewSession(workspaceUri: URI, sessionTypeId: string, options?: ISessionsProviderCreateSessionOptions): ISession {
 		const session = super.createNewSession(workspaceUri, sessionTypeId, options);
+		if (findDevContainerSample(workspaceUri)) {
+			this.preferDevContainer(session.sessionId, { required: true });
+		}
 		this._resolveDevContainerAvailability(session.sessionId, workspaceUri);
 		return session;
 	}
@@ -160,6 +164,10 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 		if (!this._getNewSession(sessionId)) {
 			throw new Error(`Cannot configure unknown new session '${sessionId}'.`);
 		}
+		const workspace = this._getNewSession(sessionId)?.session.workspace.get()?.uri;
+		if (!enabled && workspace && findDevContainerSample(workspace)) {
+			throw new Error(localize('devContainerSample.containerRequired', "Dev Container samples must run in a container."));
+		}
 		if (enabled && !this._devContainerAvailableDrafts.has(sessionId)) {
 			throw new Error(`Cannot enable Dev Container execution for unavailable session '${sessionId}'.`);
 		}
@@ -176,7 +184,8 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 
 	private _enableDevContainer(sessionId: string): void {
 		this._devContainerDrafts.add(sessionId);
-		if (this._baseConfigurationService.getValue<boolean>(DevContainerWorktreeEnabledSettingId) === true) {
+		const workspace = this._getNewSession(sessionId)?.session.workspace.get()?.uri;
+		if (this._baseConfigurationService.getValue<boolean>(DevContainerWorktreeEnabledSettingId) === true && !(workspace && findDevContainerSample(workspace))) {
 			return;
 		}
 		const normalizeIsolation = (async () => {
@@ -254,9 +263,12 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 		if (!sourceWorkspace) {
 			throw new Error(localize('devContainerAgentHost.workspaceRequired', "Dev Container sessions require a workspace."));
 		}
+		const sample = findDevContainerSample(sourceWorkspace);
 		const trusted = await support.trustRequestService.requestResourcesTrust({
 			uri: sourceWorkspace,
-			message: localize('devContainerAgentHost.trustFolder', "Starting the Dev Container can run lifecycle commands from this workspace."),
+			message: sample
+				? localize('devContainerSample.trust', "Starting this sample clones {0} into a Docker volume and runs its Dev Container lifecycle commands.", getDevContainerSampleUrl(sample))
+				: localize('devContainerAgentHost.trustFolder', "Starting the Dev Container can run lifecycle commands from this workspace."),
 		});
 		if (!trusted) {
 			throw new WorkspaceNotTrustedError();
@@ -268,7 +280,7 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 		const sourceConfig = await this.whenSessionConfigResolved(sessionId, token);
 		let devContainerWorkspace = sourceWorkspace;
 		let detachedWorktree: { readonly handle: string; readonly worktree: URI; readonly connection: IAgentConnection } | undefined;
-		if (sourceConfig.values[SessionConfigKey.Isolation] === 'worktree') {
+		if (!sample && sourceConfig.values[SessionConfigKey.Isolation] === 'worktree') {
 			progress(localize('devContainerAgentHost.preparingWorktree', "Preparing worktree for Dev Container"));
 			await raceCancellationError(draft.waitForEagerCreate(), token);
 			if (token.isCancellationRequested) {
@@ -343,12 +355,12 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 				await detachedWorktree.connection.claimDetachedWorktree!(detachedWorktree.handle);
 			}
 			let targetConfig = await targetProvider.whenSessionConfigResolved(replacement.sessionId, token);
-			if (detachedWorktree) {
+			if (detachedWorktree || (sample && targetConfig.schema.properties[SessionConfigKey.Isolation])) {
 				await raceCancellationError(targetProvider.setSessionConfigValue(replacement.sessionId, SessionConfigKey.Isolation, 'folder'), replacementToken);
 				targetConfig = await targetProvider.whenSessionConfigResolved(replacement.sessionId, token);
 			}
 			for (const [property, value] of Object.entries(sourceConfig.values)) {
-				if (detachedWorktree && property === SessionConfigKey.Isolation) {
+				if ((detachedWorktree || sample) && property === SessionConfigKey.Isolation) {
 					continue;
 				}
 				const targetProperty = targetConfig.schema.properties[property];

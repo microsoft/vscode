@@ -319,14 +319,14 @@ function parseFileEdit(fileEdit: FileEdit, mapDiffUri?: AgentHostUriMapper): IPa
 		return undefined;
 	}
 	const map = (uri: URI | undefined): URI | undefined => uri ? (mapDiffUri ? mapDiffUri(uri) : uri) : undefined;
-	const mapContent = (uri: URI | undefined): URI | undefined =>
-		uri ? (mapDiffUri ? mapDiffUri(uri, { contentRef: true }) : uri) : undefined;
+	const mapContent = (uri: URI | undefined, fileUri: URI | undefined): URI | undefined =>
+		uri ? (mapDiffUri ? mapDiffUri(uri, { contentRef: true, fileUri }) : uri) : undefined;
 	return {
 		kind: normalized.kind,
 		afterUri: map(normalized.afterUri),
 		beforeUri: map(normalized.beforeUri),
-		beforeContentUri: mapContent(normalized.beforeContentUri),
-		afterContentUri: mapContent(normalized.afterContentUri),
+		beforeContentUri: mapContent(normalized.beforeContentUri, normalized.beforeUri),
+		afterContentUri: mapContent(normalized.afterContentUri, normalized.afterUri),
 		insertions: fileEdit.diff?.added ?? 0,
 		deletions: fileEdit.diff?.removed ?? 0,
 	};

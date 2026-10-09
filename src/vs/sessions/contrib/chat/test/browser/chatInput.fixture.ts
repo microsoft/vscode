@@ -15,6 +15,7 @@ import { AgentHostChatInputState, RETRY_CHAT_PREPARATION_COMMAND } from '../../.
 import { IChatInputNotification, IChatInputNotificationService } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationService.js';
 import { SessionType } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { renderChatInput } from '../../../../../workbench/test/browser/componentFixtures/chat/renderChatInput.js';
+import { shortNameModels } from '../../../../../workbench/test/browser/componentFixtures/chat/chatInput.fixture.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -24,6 +25,7 @@ import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbenc
 // `.interactive-input-part` padding (32px each side) that the `isSessionsWindow`
 // layout path accounts for is available without a layering violation.
 import '../../browser/media/chatView.css';
+import '../../browser/media/chatInput.css';
 
 /**
  * Wraps the fixture context in `.agent-sessions-workbench > .part.sessionspart`, returning the sessions part as the input container by default.
@@ -116,14 +118,25 @@ const responsiveModel: ILanguageModelChatMetadataAndIdentifier = {
 		maxInputTokens: 128000,
 		maxOutputTokens: 4096,
 		isDefaultForLocation: { [ChatAgentLocation.Chat]: true },
+		// The widest readout a model can show, a thinking effort and a context size, so
+		// the resize cycles squeeze both halves of the picker.
 		configurationSchema: {
 			properties: {
-				effort: {
+				reasoningEffort: {
 					type: 'string',
+					title: 'Thinking Effort',
 					group: 'navigation',
-					enum: ['low', 'medium', 'high'],
-					enumItemLabels: ['Low', 'Medium', 'Max 1M'],
-					default: 'high',
+					enum: ['low', 'medium', 'high', 'max'],
+					enumItemLabels: ['Low', 'Medium', 'High', 'Max'],
+					default: 'max',
+				},
+				contextSize: {
+					type: 'number',
+					title: 'Context Size',
+					group: 'tokens',
+					enum: [128000, 1000000],
+					enumItemLabels: ['128K', '1M'],
+					default: 1000000,
 				},
 			},
 		},
@@ -141,6 +154,44 @@ const responsiveResizeCycles = [
 ];
 
 export default defineThemedFixtureGroup({ path: 'sessions/chat/input/' }, {
+	SessionsWindowVoicePickerSpacing: defineComponentFixture({
+		virtualTime: { enabled: false },
+		render: async context => {
+			const sessionsContext = sessionsWindowContext(context);
+			const chatView = document.createElement('div');
+			chatView.classList.add('chat-view-chat', 'experimental-session-composer');
+			sessionsContext.container.appendChild(chatView);
+			await renderChatInput({ ...sessionsContext, container: chatView }, {
+				models: shortNameModels,
+				isSessionsWindow: true,
+				voiceInputMode: true,
+				width: 800,
+			});
+			const model = chatView.querySelector<HTMLElement>('.model-picker-config');
+			const voice = chatView.querySelector<HTMLElement>('.chat-voice-input-mode');
+			assert(!!model && !!voice && model.checkVisibility() && voice.checkVisibility());
+			const gap = voice.getBoundingClientRect().left - model.getBoundingClientRect().right;
+			assert(gap === 8, `The model configuration and voice control must be separated by the same 8px as the empty composer, got ${gap}px.`);
+		},
+	}),
+	SessionsWindowModelConfiguration: defineComponentFixture({
+		virtualTime: { enabled: false },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderChatInput(sessionsWindowContext(context), {
+			models: shortNameModels,
+			isSessionsWindow: true,
+			width: 800,
+		}),
+	}),
+	SessionsWindowModelConfigurationCompact: defineComponentFixture({
+		virtualTime: { enabled: false },
+		render: context => renderChatInput(sessionsWindowContext(context), {
+			models: shortNameModels,
+			isSessionsWindow: true,
+			width: 800,
+			resizeWidths: [240],
+		}),
+	}),
 	CodexWriterLock: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['A lock icon precedes the title This chat is open in another app above the Agents chat input. The body first explains that the other app has locked the chat and must release it before continuing here. On a separate line it reads Quit the other app (e.g. ChatGPT, Codex CLI), then retry. There is one Retry button, no dismiss action, an editable draft, and a disabled Send button. The text area and the rest of the composer have the same background color.'],
@@ -200,7 +251,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/input/' }, {
 	}),
 	ResponsiveModelResizeCycleCompact: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The Agents active-session chat input shows its compact model codicon centered with equal padding inside a 22-pixel square control while the model configuration remains visible.'],
+		expectedVisualDescriptions: ['The Agents active-session chat input shows its compact model codicon centered with equal padding inside a 22-pixel square control, with the model configuration readout hidden.'],
 		virtualTime: { enabled: false },
 		render: context => renderChatInput(sessionsWindowContext(context), {
 			isSessionsWindow: true,

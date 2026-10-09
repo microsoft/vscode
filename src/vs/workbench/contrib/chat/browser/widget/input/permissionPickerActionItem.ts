@@ -9,7 +9,6 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../../base/common/observable.js';
-import { isWindows } from '../../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
@@ -42,6 +41,7 @@ export interface IExtensionPermissionState {
 }
 
 export interface IPermissionPickerDelegate {
+	readonly isPolicyRestricted?: () => boolean;
 	readonly currentPermissionLevel: IObservable<ChatPermissionLevel>;
 	readonly setPermissionLevel: (level: ChatPermissionLevel) => void;
 	/**
@@ -150,10 +150,6 @@ function sanitizeIdSegment(value: string): string {
 	return value.replace(/[^a-zA-Z0-9_-]/g, '_');
 }
 
-function getLocalSandboxEnabledSettingId(): AgentSandboxSettingId.AgentSandboxEnabled | AgentSandboxSettingId.AgentSandboxWindowsEnabled {
-	return isWindows ? AgentSandboxSettingId.AgentSandboxWindowsEnabled : AgentSandboxSettingId.AgentSandboxEnabled;
-}
-
 export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 
 	private readonly _onDidDispose = this._register(new Emitter<void>());
@@ -177,7 +173,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 		@IStorageService storageService: IStorageService,
 		@IHoverService private readonly hoverService: IHoverService,
 	) {
-		const isAutoApprovePolicyRestricted = () => configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
+		const isAutoApprovePolicyRestricted = () => delegate.isPolicyRestricted?.() ?? configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
 		const actionProvider: IActionWidgetDropdownActionProvider = {
 			getActions: () => {
 				// If the active session contributes its own permission items, surface those instead
@@ -320,8 +316,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 				this.hide();
 			}
 			const settingId = this.getSandboxToggleSettingId();
-			const affectsSandboxToggle = e.affectsConfiguration(ChatConfiguration.PermissionsSandboxToggleEnabled)
-				|| (settingId !== undefined && e.affectsConfiguration(settingId))
+			const affectsSandboxToggle = (settingId !== undefined && e.affectsConfiguration(settingId))
 				|| this.delegate.sandboxToggleConfigurationKeys?.some(key => e.affectsConfiguration(key)) === true;
 			if (affectsSandboxToggle && this.element) {
 				this.renderLabel(this.element);
@@ -367,20 +362,11 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 	private getSandboxToggleSettingId(): string | undefined {
 		return this.delegate.getSandboxToggleSettingId
 			? this.delegate.getSandboxToggleSettingId()
-			: getLocalSandboxEnabledSettingId();
+			: AgentSandboxSettingId.AgentSandboxEnabled;
 	}
 
-	private isSandboxToggleSettingEnabled(): boolean {
-		return this.configurationService.getValue<boolean>(ChatConfiguration.PermissionsSandboxToggleEnabled) === true;
-	}
-
-	/**
-	 * Whether the sandbox toggle should surface for the current harness: the
-	 * experimental setting must be on and the delegate must opt in.
-	 */
 	private isSandboxToggleAvailable(): boolean {
-		return this.isSandboxToggleSettingEnabled()
-			&& this.delegate.isSandboxToggleApplicable?.() === true
+		return this.delegate.isSandboxToggleApplicable?.() === true
 			&& this.getSandboxToggleSettingId() !== undefined;
 	}
 

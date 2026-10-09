@@ -35,6 +35,18 @@ export interface IAgentPluginAutomation {
 	readonly blueprint: IAutomationBlueprint;
 }
 
+export type CopilotCliPluginInstallSource =
+	| { readonly kind: 'github'; readonly repository: string; readonly ref?: string; readonly sha?: string; readonly path?: string }
+	| { readonly kind: 'url'; readonly url: string; readonly ref?: string; readonly sha?: string; readonly path?: string }
+	| { readonly kind: 'local'; readonly path: string };
+
+export interface ICopilotCliPluginInstallation {
+	readonly name: string;
+	readonly marketplace: string;
+	readonly directSourceId?: string;
+	readonly source?: CopilotCliPluginInstallSource;
+}
+
 export interface IAgentPlugin {
 	readonly uri: URI;
 	readonly format: PluginFormat;
@@ -58,6 +70,8 @@ export interface IAgentPlugin {
 	readonly automations: IObservable<readonly IAgentPluginAutomation[]>;
 	/** Set when the plugin was installed from a marketplace repository. */
 	readonly fromMarketplace?: IMarketplacePlugin;
+	/** Set when the Copilot SDK owns this plugin installation. */
+	readonly copilotCliInstallation?: ICopilotCliPluginInstallation;
 }
 
 export interface IAgentPluginService {

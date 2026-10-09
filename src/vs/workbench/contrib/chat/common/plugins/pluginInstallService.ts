@@ -6,6 +6,7 @@
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IMarketplaceReference } from './marketplaceReference.js';
 import { IMarketplacePlugin } from './pluginMarketplaceService.js';
 
 export const IPluginInstallService = createDecorator<IPluginInstallService>('pluginInstallService');
@@ -66,6 +67,9 @@ export interface IPluginInstallService {
 	 */
 	installPlugin(plugin: IMarketplacePlugin, token?: CancellationToken): Promise<void>;
 
+	/** Validates policy and obtains user trust for a marketplace before installing from it. */
+	ensureMarketplaceTrusted(reference: IMarketplaceReference, token?: CancellationToken): Promise<boolean>;
+
 	/**
 	 * Removes the exact installed plugin entry and performs best-effort source cleanup.
 	 * Returns `false` when no installed entry matches the URI.
@@ -97,14 +101,15 @@ export interface IPluginInstallService {
 	validatePluginSource(source: string): string | undefined;
 
 	/**
-	 * Pulls the latest changes for an already-cloned marketplace repository.
+	 * Updates an installed plugin and replaces its installed URI when the source location changes.
 	 */
-	updatePlugin(plugin: IMarketplacePlugin): Promise<boolean>;
+	updatePlugin(plugin: IMarketplacePlugin, silent?: boolean, token?: CancellationToken): Promise<boolean>;
 
 	/**
 	 * Updates all installed plugins. First pulls each unique marketplace
 	 * repository, then updates non-relative-path plugins individually
-	 * (git pull, npm install, pip install, etc.).
+	 * (git pull, npm install, pip install, etc.). Git sources are refreshed
+	 * even when their source descriptors have not changed.
 	 */
 	updateAllPlugins(options: IUpdateAllPluginsOptions, token: CancellationToken): Promise<IUpdateAllPluginsResult>;
 

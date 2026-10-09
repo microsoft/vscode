@@ -8,6 +8,7 @@ import { $, addDisposableListener, EventType, scheduleAtNextAnimationFrame } fro
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { timeout } from '../../../../../base/common/async.js';
+import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
@@ -159,6 +160,48 @@ suite('SpotlightOverlay', () => {
 		assert.deepStrictEqual(fired, ['skip', 'back', 'next']);
 	});
 
+	test('primary actions and cancellation remain clickable above an expanded picker', () => {
+		const container = createContainer();
+		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver));
+		const target = createTarget(container, 100, 100, 80, 30);
+		const pickerBlocker = $('div');
+		pickerBlocker.style.cssText = 'position: fixed; inset: 0; z-index: 2576;';
+		container.appendChild(pickerBlocker);
+		overlay.show(target, content({ isLastStep: true, nextButtonLabel: 'Use Copilot', showEndTour: true }), { targetOverlayVisible: true, allowTargetInteraction: true });
+
+		const buttons = getButtons(container);
+		const hitTest = (button: HTMLElement) => {
+			const rect = button.getBoundingClientRect();
+			return button.contains(mainWindow.document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2));
+		};
+		assert.deepStrictEqual({
+			labels: buttons.map(button => button.textContent),
+			clickable: buttons.map(hitTest),
+			pickerClickable: mainWindow.document.elementFromPoint(10, 10) === pickerBlocker,
+		}, {
+			labels: ['End Tour', 'Back', 'Use Copilot'],
+			clickable: [true, true, true],
+			pickerClickable: true,
+		});
+	});
+
+	test('disables a pending primary action and resets it for the next step', () => {
+		const container = createContainer();
+		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver));
+		const target = createTarget(container, 100, 100, 80, 30);
+		let actions = 0;
+		disposables.add(overlay.onDidClickNext(() => actions++));
+		overlay.show(target, content());
+		const [, , primary] = getButtons(container);
+		overlay.setPrimaryActionEnabled(false);
+		primary.click();
+		assert.deepStrictEqual({ actions, disabled: primary.getAttribute('aria-disabled') }, { actions: 0, disabled: 'true' });
+
+		overlay.show(target, content());
+		primary.click();
+		assert.deepStrictEqual({ actions, disabled: primary.getAttribute('aria-disabled') }, { actions: 1, disabled: 'false' });
+	});
+
 	test('advanceOnTargetClick hides Next and advances when the target is clicked', async () => {
 		const container = createContainer();
 		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver as unknown as typeof ResizeObserver));
@@ -244,6 +287,49 @@ suite('SpotlightOverlay', () => {
 		});
 	});
 
+	for (const activation of ['click', 'Enter', 'Space'] as const) {
+		test(`uses the control activation event for ${activation} without advancing twice or restoring stale focus`, async () => {
+			const container = createContainer();
+			const previous = $('input');
+			const destination = $('input');
+			container.append(previous, destination);
+			previous.focus();
+			const button = disposables.add(new Button(container, defaultButtonStyles));
+			button.label = 'New Session';
+			const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver));
+			const events: string[] = [];
+			disposables.add(button.onDidClick(() => {
+				events.push('action');
+				destination.focus();
+			}));
+			disposables.add(overlay.onDidClickNext(source => {
+				events.push(source);
+				overlay.dispose();
+			}));
+			overlay.show(button.element, content({ isLastStep: true, nextButtonLabel: 'Understood' }), {
+				advanceOnTargetClick: true,
+				hideNext: false,
+				onDidActivateTarget: Event.map(button.onDidClick, () => undefined),
+			});
+			if (activation === 'click') {
+				button.element.click();
+			} else {
+				button.element.dispatchEvent(new KeyboardEvent('keydown', {
+					key: activation === 'Enter' ? 'Enter' : ' ',
+					keyCode: activation === 'Enter' ? 13 : 32,
+					bubbles: true, cancelable: true,
+				}));
+			}
+			await timeout(0);
+			const destinationFocused = mainWindow.document.activeElement === destination;
+			button.element.click();
+			await timeout(0);
+			assert.deepStrictEqual({ events, destinationFocused }, {
+				events: ['action', 'target', 'action'], destinationFocused: true,
+			});
+		});
+	}
+
 	test('advanceOnly consumes mouse and keyboard activation while keeping the acknowledgment available', () => {
 		const container = createContainer();
 		const target = disposables.add(new Button(container, defaultButtonStyles));
@@ -256,6 +342,7 @@ suite('SpotlightOverlay', () => {
 		overlay.show(target.element, content({ canGoBack: false, isLastStep: true, nextButtonLabel: 'Understood' }), {
 			advanceOnTargetClick: 'advanceOnly',
 			hideNext: false,
+			onDidActivateTarget: Event.map(target.onDidClick, () => undefined),
 		});
 		const next = getButtons(container).at(-1)!;
 		const visibleButtons = getButtons(container).filter(button => button.style.display !== 'none').map(button => button.textContent);

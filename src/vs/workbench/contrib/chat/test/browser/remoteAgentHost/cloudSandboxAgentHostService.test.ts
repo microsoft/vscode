@@ -7,16 +7,22 @@ import assert from 'assert';
 import sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
-import { isCancellationError } from '../../../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { AgentHostProtocolClient, InitialAuthenticationError, type IAgentHostProtocolClientOptions } from '../../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
-import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { WebPubSubRelayTransport, type IWebPubSubRelayTransportOptions } from '../../../../../../platform/agentHost/browser/webPubSubRelayTransport.js';
+import { AgentHostTransportFailureReason, NonReconnectableTransportError, type IProtocolTransport } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
+import { IAgentConnection, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostClientConnectionKind } from '../../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import {
+	CloudSandboxAuthenticationRequiredError,
 	CloudSandboxEnabledSettingId,
+	CloudSandboxNetworkError,
 	CloudSandboxRequestError,
 	cloudSandboxAddress,
 	ICloudSandboxApiService,
@@ -29,6 +35,7 @@ import { IRemoteAgentHostConnectionFactory, IRemoteAgentHostConnectionInfo, IRem
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import { IPowerService } from '../../../../../services/power/common/powerService.js';
 import { isWeb } from '../../../../../../base/common/platform.js';
 import { IConnectionDiagnosticEvent } from '../../../../../../platform/agentHost/common/connectionDiagnostics.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -69,8 +76,13 @@ class TestCloudSandboxAgentHostService extends CloudSandboxAgentHostService {
 type ScriptedConnectResult = CloudSandboxConnectResult | Error | (() => Promise<CloudSandboxConnectResult>);
 
 const connectionDetails = {
+	environmentOperation: 'resume', provisioningMs: 0, readinessMs: 0,
+	preparationMs: 0, connectionMs: 0,
+	environmentKind: 'cloud',
 	surface: isWeb ? 'editorWeb' : 'editorDesktop', source: 'existing', credentialRequests: 0, wakingResponses: 0, transportAttempts: 0,
 	credentialsMs: 0, relayMs: 0, protocolMs: 0, authenticationMs: 0, restorationMs: 0,
+	firstFailurePhase: undefined, firstFailureCode: undefined,
+	credentialFailures: 0, relayFailures: 0, protocolFailures: 0, authenticationFailures: 0, restorationFailures: 0,
 };
 
 function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T }, 'add'>, results: readonly ScriptedConnectResult[], waitForConnection?: () => Promise<IRemoteAgentHostConnectionInfo>, isSessionsWindow = false) {
@@ -82,12 +94,23 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 	const started = new DeferredPromise<void>();
 	let ready = new DeferredPromise<IRemoteAgentHostConnectionInfo>();
 	const events: { eventName: string; data?: ITelemetryData }[] = [];
+	const warnings: string[] = [];
 	const removed: string[] = [];
 	const instantiationService = store.add(new TestInstantiationService());
+	let reconnectResult: CloudSandboxConnectResult | Error | Promise<CloudSandboxConnectResult> | undefined;
+	const accountChanged = store.add(new Emitter<string | undefined>());
+	let account: string | undefined = 'account-a';
+	let ownEnvironment: string | undefined;
 	const telemetry = store.add(new CloudSandboxTelemetryService(new class extends mock<ITelemetryService>() {
 		override publicLog2(eventName: string, data?: ITelemetryData): void { events.push({ eventName, data }); }
 	}()));
 	instantiationService.stub(ICloudSandboxTelemetryService, telemetry);
+	const powerSuspend = store.add(new Emitter<void>());
+	const powerResume = store.add(new Emitter<void>());
+	instantiationService.stub(IPowerService, new class extends mock<IPowerService>() {
+		override readonly onDidSuspend = powerSuspend.event;
+		override readonly onDidResume = powerResume.event;
+	}());
 
 	const configurationService = new TestConfigurationService();
 	configurationService.setUserConfiguration(CloudSandboxEnabledSettingId, true);
@@ -109,14 +132,25 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 		return response;
 	};
 	instantiationService.stub(ICloudSandboxApiService, new class extends mock<ICloudSandboxApiService>() {
+		override readonly onDidChangeAccount = accountChanged.event;
+		override async getAccountKey(): Promise<string | undefined> { return account; }
 		override async connect(request: ICloudSandboxConnectionRequest, token: CancellationToken): Promise<CloudSandboxConnectResult> {
 			requests.push({ method: 'connect', request, token });
 			return nextResult(request);
 		}
 		override async reconnect(request: ICloudSandboxConnectionRequest, clientId: string, token: CancellationToken): Promise<CloudSandboxConnectResult> {
 			requests.push({ method: 'reconnect', request, clientId, token });
+			if (reconnectResult !== undefined) {
+				if (reconnectResult instanceof Error) {
+					throw reconnectResult;
+				}
+				return reconnectResult;
+			}
 			return nextResult(request);
 		}
+	}());
+	instantiationService.stub(IAgentHostService, new class extends mock<IAgentHostService>() {
+		override async getMissionControlEnvironmentId(): Promise<string | undefined> { return ownEnvironment; }
 	}());
 	instantiationService.stub(IRemoteAgentHostService, new class extends mock<IRemoteAgentHostService>() {
 		override readonly onDidChangeConnections = Event.None;
@@ -152,8 +186,13 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 	instantiationService.stub(IWorkbenchEnvironmentService, new class extends mock<IWorkbenchEnvironmentService>() {
 		override readonly logsHome = URI.file('/logs');
 		override readonly isSessionsWindow = isSessionsWindow;
+		override readonly isBuilt = true;
 	}());
-	instantiationService.stub(ILogService, new NullLogService());
+	instantiationService.stub(ILogService, new class extends NullLogService {
+		override warn(message: string): void {
+			warnings.push(message);
+		}
+	}());
 
 	return {
 		service: store.add(instantiationService.createInstance(TestCloudSandboxAgentHostService)),
@@ -165,6 +204,13 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 		requestCalls: () => calls,
 		requests,
 		events,
+		powerSuspend,
+		powerResume,
+		setReconnectResult: (value: CloudSandboxConnectResult | Error | Promise<CloudSandboxConnectResult>) => { reconnectResult = value; },
+		entries: () => factory?.entries.get() ?? [],
+		changeAccount(value: string | undefined): void { account = value; accountChanged.fire(value); },
+		setOwnEnvironment(value: string): void { ownEnvironment = value; },
+		warnings,
 		removed,
 		started: started.p,
 		setState(state: 'reconnecting' | 'connected'): void {
@@ -190,6 +236,113 @@ suite('CloudSandboxAgentHostService', () => {
 
 	teardown(() => sinon.restore());
 
+	test('user-local connect refuses the owning native host instead of relaying to itself', async () => {
+		const fixture = createService(store, [{ kind: 'token', token: clientToken('copilot-sealed.v1.key.box') }]);
+		fixture.setOwnEnvironment('native-self');
+		await assert.rejects(fixture.service.connect({ environmentId: 'native-self', name: 'Self', environmentKind: 'user-local' }, CancellationToken.None), /local IPC/);
+		assert.deepStrictEqual({ requests: fixture.requestCalls(), entries: fixture.entries().length }, { requests: 0, entries: 0 });
+	});
+
+	test('a user-local ticket from a replaced account is cancelled before staging', async () => {
+		const minted = new DeferredPromise<CloudSandboxConnectResult>();
+		const started = new DeferredPromise<void>();
+		const fixture = createService(store, [async () => { started.complete(); return minted.p; }]);
+		const operation = fixture.service.connect({ environmentId: 'native', name: 'Native', environmentKind: 'user-local' }, CancellationToken.None);
+		await started.p;
+		fixture.changeAccount('account-b');
+		minted.complete({ kind: 'token', token: clientToken('copilot-sealed.v1.key.box') });
+		await assert.rejects(operation, isCancellationError);
+		assert.strictEqual(fixture.entries().length, 0);
+	});
+
+	test('signout withdraws staged user-local credentials and its remote connection', async () => {
+		const fixture = createService(store, [{ kind: 'token', token: clientToken('copilot-sealed.v1.key.box') }]);
+		fixture.service.connectThroughFactory = true;
+		const operation = fixture.service.connect({ environmentId: 'native', name: 'Native', environmentKind: 'user-local' }, CancellationToken.None);
+		await fixture.started;
+		fixture.settle();
+		await operation;
+		assert.strictEqual(fixture.entries().length, 1);
+		fixture.changeAccount(undefined);
+		await timeout(0);
+		assert.strictEqual(fixture.entries().length, 0);
+	});
+
+	test('factory recovery reuses unchanged sealed credentials while installing the fresh WPS ticket', () => runWithFakedTimers({}, async () => {
+		const key = { key_id: 'key', use: 'auth-token', algorithm: 'x25519-sealedbox', public_key: 'public' };
+		const initial = { ...clientToken('copilot-sealed.v1.key.box'), host_encryption_key: key };
+		const fixture = createService(store, [{ kind: 'token', token: initial }]);
+		fixture.service.connectThroughFactory = true;
+		const connecting = fixture.service.connect({ environmentId: 'sandbox', name: 'Sandbox', environmentKind: 'user-local' }, CancellationToken.None);
+		await fixture.started;
+		fixture.settle();
+		await connecting;
+		fixture.instantiationService.stubInstance(AgentHostProtocolClient, new class extends mock<AgentHostProtocolClient>() {
+			override readonly onDidChangeConnectionState = Event.None;
+			override readonly onDidConnectionDiagnostic = Event.None;
+		}());
+		const spy = sinon.spy(fixture.instantiationService, 'createInstance');
+		store.add(toDisposable(() => spy.restore()));
+		const factory = fixture.getFactory();
+		const entry = fixture.entries()[0];
+		const created = await factory.createConnection(entry, { userInitiated: true });
+		assert.ok(created.transportDisposable);
+		store.add(created.transportDisposable);
+		const call = spy.getCalls().find(call => call.args[0] === AgentHostProtocolClient);
+		assert.ok(call);
+		const options = call.args[3] as IAgentHostProtocolClientOptions;
+		assert.ok(options.prepareReconnect);
+		assert.ok(options.resolveInitialAuthentication);
+		assert.deepStrictEqual({
+			budget: options.reconnectPolicy?.maxElapsedTimeMs,
+			suspend: options.onDidSuspend === fixture.powerSuspend.event,
+			resume: options.onDidResume === fixture.powerResume.event,
+		}, { budget: 120_000, suspend: true, resume: true });
+		fixture.setReconnectResult({ kind: 'token', token: { ...clientToken(undefined), access_token: 'fresh-ticket' } });
+		await options.prepareReconnect();
+		const makeTransport = call.args[2] as () => IProtocolTransport;
+		const transport = store.add(makeTransport());
+		const transportCall = spy.getCalls().find(call => call.args[0] === WebPubSubRelayTransport);
+		assert.ok(transportCall);
+		const transportOptions = transportCall.args[1] as IWebPubSubRelayTransportOptions;
+		assert.strictEqual(transport.clientConnectionKind, AgentHostClientConnectionKind.MissionControl);
+		assert.strictEqual(new URL(transportOptions.url).searchParams.get('access_token'), 'fresh-ticket');
+		assert.deepStrictEqual(await options.resolveInitialAuthentication(), { resource: 'https://api.github.com', token: initial.encrypted_github_token });
+		await timeout(30_000);
+		fixture.setReconnectResult({ kind: 'token', token: { ...clientToken(undefined), host_encryption_key: { ...key, key_id: 'different' } } });
+		await assert.rejects(options.prepareReconnect(), /could not be refreshed/);
+		fixture.setReconnectResult(new CloudSandboxRequestError(404, 'Environment not found'));
+		await timeout(30_000);
+		await assert.rejects(options.prepareReconnect(), error => error instanceof NonReconnectableTransportError && error.reason === AgentHostTransportFailureReason.HostNotRunning);
+		assert.strictEqual(fixture.entries().length, 0);
+		const clientCreations = spy.getCalls().filter(call => call.args[0] === AgentHostProtocolClient).length;
+		await assert.rejects(factory.createConnection(entry, { userInitiated: false }), /No cloud sandbox connection is staged/);
+		assert.strictEqual(spy.getCalls().filter(call => call.args[0] === AgentHostProtocolClient).length, clientCreations);
+		const stagingFactory = factory as IRemoteAgentHostConnectionFactory & {
+			stageConfiguration(options: ICloudSandboxConnectOptions, token: ICloudSandboxClientToken): void;
+		};
+		const addressOptions: ICloudSandboxConnectOptions = { environmentId: 'sandbox', name: 'Sandbox', environmentKind: 'user-local' };
+		stagingFactory.stageConfiguration(addressOptions, initial);
+		const replacement = await factory.createConnection(entry, { userInitiated: true });
+		assert.ok(replacement.transportDisposable);
+		store.add(replacement.transportDisposable);
+		const replacementCall = spy.getCalls().filter(call => call.args[0] === AgentHostProtocolClient).at(-1);
+		assert.ok(replacementCall);
+		const replacementOptions = replacementCall.args[3] as IAgentHostProtocolClientOptions;
+		assert.ok(replacementOptions.prepareReconnect);
+		const late = new DeferredPromise<CloudSandboxConnectResult>();
+		fixture.setReconnectResult(late.p);
+		const pending = replacementOptions.prepareReconnect();
+		stagingFactory.stageConfiguration(addressOptions, { ...initial, access_token: 'newer-staging' });
+		late.error(new CloudSandboxRequestError(404, 'Old environment ticket refused'));
+		await assert.rejects(pending, isCancellationError);
+		assert.strictEqual(fixture.entries().length, 1);
+		created.transportDisposable.dispose();
+		replacement.transportDisposable.dispose();
+		transport.dispose();
+		fixture.service.dispose();
+	}));
+
 	for (const isSessionsWindow of [false, true]) {
 		test(`wires protocol diagnostics and real window identity for ${isSessionsWindow ? 'Agents' : 'Editor'}`, () => runWithFakedTimers({}, async () => {
 			const fixture = createService(store, [{ kind: 'token', token: clientToken('copilot-sealed.v1.key.payload') }], undefined, isSessionsWindow);
@@ -200,7 +353,9 @@ suite('CloudSandboxAgentHostService', () => {
 				onDidConnectionDiagnostic: diagnostics.event,
 			});
 			const createInstance = sinon.spy(fixture.instantiationService, 'createInstance');
-			const connecting = fixture.service.connect({ environmentId: 'env-1', name: 'Sandbox', connectionSource: 'created' }, CancellationToken.None);
+			const provisioningStartedAt = Date.now();
+			await timeout(100);
+			const connecting = fixture.service.connect({ environmentId: 'env-1', name: 'Sandbox', connectionSource: 'created', provisioningStartedAt }, CancellationToken.None);
 			await fixture.started;
 			const factory = fixture.getFactory();
 			const created = await factory.createConnection(factory.entries.get()[0], { userInitiated: true });
@@ -223,6 +378,8 @@ suite('CloudSandboxAgentHostService', () => {
 				events: [{
 					eventName: 'cloudSandboxConnectionOutcome', data: {
 						...connectionDetails, operation: 'connect', outcome: 'success', stage: 'authentication', durationMs: 50,
+						environmentOperation: 'provision', provisioningMs: 100, readinessMs: 150,
+						connectionMs: 50,
 						surface: isSessionsWindow ? (isWeb ? 'agentsWeb' : 'agentsDesktop') : connectionDetails.surface, source: 'created',
 						credentialRequests: 1, transportAttempts: 1, relayMs: 20, authenticationMs: 30,
 					},
@@ -243,6 +400,9 @@ suite('CloudSandboxAgentHostService', () => {
 			const failed = assert.rejects(fixture.service.connect({ environmentId: 'env-1', name: 'Sandbox' }, CancellationToken.None), /timed out after 600 seconds/);
 			await timeout(600_000);
 			await failed;
+			assert.deepStrictEqual(fixture.warnings, [
+				`[CloudSandboxAgentHost] Connection timeout: environmentId=env-1 sessionId=none clientId=${stage === 'credentials' ? 'none' : 'client-1'} stage=${stage} durationMs=600000`,
+			]);
 			await tokenResponse.complete({ kind: 'token', token: clientToken('copilot-sealed.v1.key.late') });
 			await ready.complete({ address: cloudSandboxAddress('env-1'), name: 'Sandbox', status: RemoteAgentHostConnectionStatus.connected });
 			await timeout(0);
@@ -253,24 +413,179 @@ suite('CloudSandboxAgentHostService', () => {
 				outcomes: fixture.events.filter(event => event.eventName === 'cloudSandboxConnectionOutcome').map(event => event.data),
 			}, {
 				entries: [], sealed: undefined,
-				outcomes: [{ ...connectionDetails, operation: 'connect', outcome: 'failure', stage, durationMs: 600_000, credentialRequests: 1, credentialsMs: stage === 'credentials' ? 600_000 : 0 }],
+				outcomes: [{ ...connectionDetails, operation: 'connect', outcome: 'failure', stage, durationMs: 600_000, readinessMs: 600_000, preparationMs: stage === 'credentials' ? 600_000 : 0, connectionMs: stage === 'connection' ? 600_000 : 0, credentialRequests: 1, credentialsMs: stage === 'credentials' ? 600_000 : 0 }],
 			});
 		}));
 	}
 
-	test('one-second pending responses retain the existing credential-readiness window without extra polling', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	for (const wakingResponses of [0, 13, 19, 25]) {
+		test(`retries an unanswered credential request after ${wakingResponses} waking responses`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const requestTimes: number[] = [];
+			const waking: CloudSandboxConnectResult = { kind: 'waking', waking: { retryAfterSeconds: 1 } };
+			const fixture = createService(store, [
+				...Array.from({ length: wakingResponses }, () => waking),
+				async () => {
+					requestTimes.push(Date.now());
+					await timeout(30_000);
+					throw new CloudSandboxNetworkError('Fetch timeout: 30000ms');
+				},
+				async () => {
+					requestTimes.push(Date.now());
+					return { kind: 'token', token: clientToken('copilot-sealed.v1.key.ready') };
+				},
+			]);
+			const address = await fixture.service.connect({ environmentId: 'env-1', sessionId: 'session-1', name: 'Sandbox' }, CancellationToken.None);
+			fixture.service.dispose();
+			assert.deepStrictEqual({
+				address,
+				requests: fixture.requestCalls(),
+				methods: [...new Set(fixture.requests.map(request => request.method))],
+				preservedScope: fixture.requests.every(({ request, token }) => request.environmentId === 'env-1' && request.sessionId === 'session-1' && token === fixture.requests[0].token),
+				retryDelayMs: requestTimes[1] - requestTimes[0],
+				ready: fixture.service.sealedTokenAtEstablish,
+			}, {
+				address: cloudSandboxAddress('env-1'), requests: wakingResponses + 2, methods: ['connect'],
+				preservedScope: true, retryDelayMs: 60_000, ready: 'copilot-sealed.v1.key.ready',
+			});
+		}));
+	}
+
+	test('repeated unanswered requests stop at the overall connection deadline', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const started = Date.now();
-		const fixture = createService(store, [async () => Date.now() - started < 60_000
-			? { kind: 'waking', waking: { retryAfterSeconds: 1 } }
-			: { kind: 'token', token: clientToken('copilot-sealed.v1.key.ready') }]);
+		const fixture = createService(store, [async () => {
+			await timeout(30_000);
+			throw new CloudSandboxNetworkError('Fetch timeout: 30000ms');
+		}]);
+		await assert.rejects(fixture.service.connect({ environmentId: 'env-1', name: 'Sandbox' }, CancellationToken.None), /timed out after 600 seconds/);
+		const elapsed = Date.now() - started;
+		await timeout(60_000);
+		assert.deepStrictEqual({
+			elapsed, requests: fixture.requestCalls(), ready: fixture.service.sealedTokenAtEstablish,
+		}, { elapsed: 600_000, requests: 10, ready: undefined });
+	}));
+
+	test('cancelling the network retry wait prevents another credential request', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const source = store.add(new CancellationTokenSource());
+		const fixture = createService(store, [
+			new CloudSandboxNetworkError('network unavailable'),
+			{ kind: 'token', token: clientToken('copilot-sealed.v1.key.ready') },
+		]);
+		const connecting = assert.rejects(fixture.service.connect({ environmentId: 'env-1', name: 'Sandbox' }, source.token), isCancellationError);
+		await timeout(15_000);
+		source.cancel();
+		await connecting;
+		await timeout(30_000);
+		assert.deepStrictEqual({
+			requests: fixture.requestCalls(), ready: fixture.service.sealedTokenAtEstablish,
+		}, { requests: 1, ready: undefined });
+	}));
+
+	for (const failure of [
+		new CloudSandboxAuthenticationRequiredError(),
+		new CancellationError(),
+		new Error('Unexpected credential response'),
+		...[400, 401, 403, 404, 408, 409, 429, 500, 503].map(status => new CloudSandboxRequestError(status, `HTTP ${status}`)),
+	]) {
+		test(`does not retry a credential failure with an explicit response or no network classification: ${failure.message}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const fixture = createService(store, [
+				failure,
+				{ kind: 'token', token: clientToken('copilot-sealed.v1.key.ready') },
+			]);
+			await assert.rejects(fixture.service.connect({ environmentId: 'env-1', name: 'Sandbox' }, CancellationToken.None), error => error === failure);
+			assert.deepStrictEqual({
+				requests: fixture.requestCalls(), ready: fixture.service.sealedTokenAtEstablish,
+			}, { requests: 1, ready: undefined });
+		}));
+	}
+
+	for (const readyAfterMs of [60_000, 590_000]) {
+		test(`one-second pending responses can reach readiness after ${readyAfterMs}ms without exhausting a poll count`, () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 1000 }, async () => {
+			const started = Date.now();
+			const requestTimes: number[] = [];
+			const fixture = createService(store, [async () => {
+				requestTimes.push(Date.now());
+				return Date.now() - started < readyAfterMs
+					? { kind: 'waking', waking: { retryAfterSeconds: 1 } }
+					: { kind: 'token', token: clientToken('copilot-sealed.v1.key.ready') };
+			}]);
+			await fixture.service.connect({ environmentId: 'env-1', name: 'Sandbox' }, CancellationToken.None);
+			const elapsed = Date.now() - started;
+			fixture.service.dispose();
+			assert.deepStrictEqual({
+				ready: fixture.service.sealedTokenAtEstablish,
+				withinReadinessWindow: elapsed >= readyAfterMs && elapsed < readyAfterMs + 1200,
+				moreThanTwentyRequests: fixture.requestCalls() > 20,
+				serverPacing: requestTimes.slice(1).every((time, index) => time - requestTimes[index] >= 1000 && time - requestTimes[index] < 1200),
+			}, { ready: 'copilot-sealed.v1.key.ready', withinReadinessWindow: true, moreThanTwentyRequests: true, serverPacing: true });
+		}));
+	}
+
+	for (const responseDelayMs of [0, 20_000]) {
+		test(`pending responses stop at the connection deadline with ${responseDelayMs}ms request latency`, () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 1000 }, async () => {
+			const started = Date.now();
+			const fixture = createService(store, [async () => {
+				if (responseDelayMs > 0) {
+					await timeout(responseDelayMs);
+				}
+				return { kind: 'waking', waking: { retryAfterSeconds: 1 } };
+			}]);
+			await assert.rejects(fixture.service.connect({ environmentId: 'env-1', name: 'Sandbox' }, CancellationToken.None), /timed out after 600 seconds/);
+			const elapsed = Date.now() - started;
+			const requestsAtDeadline = fixture.requestCalls();
+			await timeout(60_000);
+			assert.deepStrictEqual({
+				elapsed,
+				moreThanTwentyRequests: requestsAtDeadline > 20,
+				stopped: fixture.requestCalls() === requestsAtDeadline,
+				ready: fixture.service.sealedTokenAtEstablish,
+			}, { elapsed: 600_000, moreThanTwentyRequests: true, stopped: true, ready: undefined });
+		}));
+	}
+
+	for (const retryAfterSeconds of [600, 900, 3_000_000]) {
+		test(`a ${retryAfterSeconds}s server delay reaches the connection deadline without retrying early`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const started = Date.now();
+			const fixture = createService(store, [
+				{ kind: 'waking', waking: { retryAfterSeconds } },
+				{ kind: 'token', token: clientToken('copilot-sealed.v1.key.ready') },
+			]);
+			await assert.rejects(fixture.service.connect({ environmentId: 'env-1', name: 'Sandbox' }, CancellationToken.None), /timed out after 600 seconds/);
+			const elapsed = Date.now() - started;
+			await timeout(60_000);
+			assert.deepStrictEqual({
+				elapsed, requests: fixture.requestCalls(), ready: fixture.service.sealedTokenAtEstablish,
+			}, { elapsed: 600_000, requests: 1, ready: undefined });
+		}));
+	}
+
+	test('cancelling a pending wake prevents another credential request', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const source = store.add(new CancellationTokenSource());
+		const fixture = createService(store, [
+			{ kind: 'waking', waking: { retryAfterSeconds: 45 } },
+			{ kind: 'token', token: clientToken('copilot-sealed.v1.key.ready') },
+		]);
+		const connecting = assert.rejects(fixture.service.connect({ environmentId: 'env-1', name: 'Sandbox' }, source.token), isCancellationError);
+		await timeout(5000);
+		source.cancel();
+		await connecting;
+		await timeout(60_000);
+		assert.deepStrictEqual({
+			requests: fixture.requestCalls(), ready: fixture.service.sealedTokenAtEstablish,
+		}, { requests: 1, ready: undefined });
+	}));
+
+	test('a zero-second server delay cannot cause a busy polling loop', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const started = Date.now();
+		const fixture = createService(store, [
+			{ kind: 'waking', waking: { retryAfterSeconds: 0 } },
+			{ kind: 'token', token: clientToken('copilot-sealed.v1.key.ready') },
+		]);
 		await fixture.service.connect({ environmentId: 'env-1', name: 'Sandbox' }, CancellationToken.None);
 		const elapsed = Date.now() - started;
 		fixture.service.dispose();
 		assert.deepStrictEqual({
-			ready: fixture.service.sealedTokenAtEstablish,
-			withinReadinessWindow: elapsed >= 60_000 && elapsed < 66_000,
-			boundedRequests: fixture.requestCalls() <= 13,
-		}, { ready: 'copilot-sealed.v1.key.ready', withinReadinessWindow: true, boundedRequests: true });
+			requests: fixture.requestCalls(), paced: elapsed >= 1000 && elapsed < 1200,
+		}, { requests: 2, paced: true });
 	}));
 
 	for (const missingSealedToken of [false, true]) {
@@ -329,8 +644,9 @@ suite('CloudSandboxAgentHostService', () => {
 		});
 		const createInstance = sinon.spy(fixture.instantiationService, 'createInstance');
 		const factory = fixture.getFactory();
+		const entry = factory.entries.get()[0];
 		async function createConnection(userInitiated: boolean) {
-			const created = await factory.createConnection(factory.entries.get()[0], { userInitiated });
+			const created = await factory.createConnection(entry, { userInitiated });
 			assert.ok(created.transportDisposable);
 			store.add(created.transportDisposable);
 			store.add(created.connection);
@@ -411,9 +727,9 @@ suite('CloudSandboxAgentHostService', () => {
 		);
 		await fixture.prepareReconnect();
 		await fixture.redial();
-		await assert.rejects(fixture.prepareReconnect(), /waiting to retry/);
+		const recovery = fixture.prepareReconnect();
 		await timeout(30_000);
-		await fixture.prepareReconnect();
+		await recovery;
 		await fixture.finish();
 
 		assert.deepStrictEqual(fixture.refreshTimes.map(time => time - start), [0, 30_000]);
@@ -465,9 +781,9 @@ suite('CloudSandboxAgentHostService', () => {
 			fixture.setState('connected');
 			await fixture.prepareReconnect();
 			await fixture.prepareReconnect();
-			await assert.rejects(fixture.prepareAuthentication(), /waiting to retry/);
+			const authenticating = fixture.prepareAuthentication();
 			await timeout(30_000);
-			await fixture.prepareAuthentication();
+			await authenticating;
 			const authentication = await fixture.resolveAuthentication();
 
 			assert.deepStrictEqual({ token: authentication?.token, refreshes }, {
@@ -523,10 +839,9 @@ suite('CloudSandboxAgentHostService', () => {
 
 	test('preserves a permanent refresh stop across automatic client replacements', () => runWithFakedTimers({}, async () => {
 		const fixture = await createRecoveryFixture(async () => { throw new CloudSandboxRequestError(404, 'environment gone'); });
-		await assert.rejects(fixture.prepareReconnect(), /usable future expiry/);
+		await assert.rejects(fixture.prepareReconnect(), error => error instanceof NonReconnectableTransportError && error.reason === AgentHostTransportFailureReason.HostNotRunning);
 		for (let redial = 0; redial < 2; redial++) {
-			await fixture.redial();
-			await assert.rejects(fixture.prepareReconnect(), /stopped/);
+			await assert.rejects(fixture.redial(), /No cloud sandbox connection is staged/);
 			await timeout(60_000);
 		}
 		await fixture.finish();
@@ -546,8 +861,9 @@ suite('CloudSandboxAgentHostService', () => {
 		await timeout(180_001);
 		const callsBeforeReplacement = fixture.refreshCalls();
 		await fixture.redial();
-		await assert.rejects(fixture.prepareReconnect(), /waiting to retry/);
+		const recovery = assert.rejects(fixture.prepareReconnect(), /stopped|usable future expiry/);
 		await timeout(90_000);
+		await recovery;
 		await assert.rejects(fixture.prepareReconnect(), /stopped/);
 		await fixture.redial();
 		await assert.rejects(fixture.prepareReconnect(), /stopped/);
@@ -567,14 +883,21 @@ suite('CloudSandboxAgentHostService', () => {
 
 	test('preserves the refresh backoff deadline across automatic client replacement', () => runWithFakedTimers({}, async () => {
 		const start = Date.now();
-		const fixture = await createRecoveryFixture(async () => { throw new CloudSandboxRequestError(503, 'unavailable'); });
+		let refreshes = 0;
+		const fixture = await createRecoveryFixture(async () => {
+			if (++refreshes === 1) {
+				throw new CloudSandboxRequestError(503, 'unavailable');
+			}
+			return { kind: 'token', token: clientToken('copilot-sealed.v1.key.refreshed') };
+		});
 		await assert.rejects(fixture.prepareReconnect(), /usable future expiry/);
 		await timeout(10_000);
 		await fixture.redial();
-		await assert.rejects(fixture.prepareReconnect(), /waiting to retry/);
+		const recovery = fixture.prepareReconnect();
 		await timeout(19_999);
 		const callsBeforeRetry = fixture.refreshCalls();
 		await timeout(2);
+		await recovery;
 		await fixture.finish();
 		await timeout(60_000);
 
@@ -714,6 +1037,58 @@ suite('CloudSandboxAgentHostService', () => {
 		const options: ICloudSandboxConnectOptions = { environmentId: 'env-1', name: 'Sandbox' };
 		const sealedToken: CloudSandboxConnectResult = { kind: 'token', token: clientToken('copilot-sealed.v1.key.payload') };
 
+		test('a later independent dial does not reuse the original provisioning provenance or start time', () => runWithFakedTimers({}, async () => {
+			const fixture = createService(store, [sealedToken]);
+			fixture.service.connectThroughFactory = true;
+			const provisioningStartedAt = Date.now();
+			await timeout(1000);
+			const connecting = fixture.service.connect({ ...options, connectionSource: 'created', provisioningStartedAt }, CancellationToken.None);
+			await fixture.started;
+			await timeout(100);
+			fixture.settle();
+			await connecting;
+			const factory = fixture.getFactory();
+			const entry = factory.entries.get()[0];
+			factory.getConnectionObserver?.(entry)('failed');
+			await timeout(5000);
+			const nextObserver = factory.getConnectionObserver?.(entry);
+			await timeout(200);
+			nextObserver?.('connected');
+			fixture.service.dispose();
+			assert.deepStrictEqual(fixture.events.filter(event => event.eventName === 'cloudSandboxConnectionOutcome').map(event => event.data), [
+				{
+					...connectionDetails, operation: 'connect', source: 'created', outcome: 'success', stage: 'connection',
+					environmentOperation: 'provision', provisioningMs: 1000, readinessMs: 1100,
+					durationMs: 100, connectionMs: 100, credentialRequests: 1,
+				},
+				{
+					...connectionDetails, operation: 'connect', outcome: 'success', stage: 'connection',
+					readinessMs: 200, durationMs: 200, connectionMs: 200,
+				},
+			]);
+		}));
+
+		test('separates a blocking credential response from connection setup without requiring a waking response', () => runWithFakedTimers({}, async () => {
+			const fixture = createService(store, [async () => {
+				await timeout(2000);
+				return sealedToken;
+			}]);
+			fixture.service.connectThroughFactory = true;
+			const connecting = fixture.service.connect(options, CancellationToken.None);
+			await fixture.started;
+			await timeout(5000);
+			fixture.settle();
+			await connecting;
+			fixture.service.dispose();
+			assert.deepStrictEqual(fixture.events, [{
+				eventName: 'cloudSandboxConnectionOutcome', data: {
+					...connectionDetails, operation: 'connect', outcome: 'success', stage: 'connection', durationMs: 7000,
+					readinessMs: 7000,
+					preparationMs: 2000, connectionMs: 5000, credentialRequests: 1, credentialsMs: 2000,
+				},
+			}]);
+		}));
+
 		test('includes waking and credential waiting through AHP readiness, and excludes ready reuse', () => runWithFakedTimers({}, async () => {
 			const started = Date.now();
 			const fixture = createService(store, [
@@ -736,9 +1111,9 @@ suite('CloudSandboxAgentHostService', () => {
 			await fixture.service.connect(options, CancellationToken.None);
 			const durationMs = Date.now() - started;
 			fixture.service.dispose();
-			assert.deepStrictEqual({ calls: fixture.requestCalls(), events: fixture.events, withinExpectedWindow: durationMs >= 12_000 && durationMs < 13_000 }, {
+			assert.deepStrictEqual({ calls: fixture.requestCalls(), events: fixture.events, withinExpectedWindow: durationMs >= 9_000 && durationMs < 9_400 }, {
 				calls: 3,
-				events: [{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'connect', outcome: 'success', stage: 'connection', durationMs, credentialRequests: 3, wakingResponses: 1, credentialsMs: durationMs - 5000 } }],
+				events: [{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'connect', outcome: 'success', stage: 'connection', durationMs, readinessMs: durationMs, preparationMs: durationMs - 5000, connectionMs: 5000, credentialRequests: 3, wakingResponses: 1, credentialsMs: durationMs - 5000 } }],
 				withinExpectedWindow: true,
 			});
 		}));
@@ -754,7 +1129,7 @@ suite('CloudSandboxAgentHostService', () => {
 			await Promise.all([first, second]);
 			fixture.service.dispose();
 			assert.deepStrictEqual(fixture.events, [
-				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'connect', outcome: 'success', stage: 'connection', durationMs: 3000, credentialRequests: 2 } },
+				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'connect', outcome: 'success', stage: 'connection', durationMs: 3000, readinessMs: 3000, connectionMs: 3000, credentialRequests: 2 } },
 			]);
 		}));
 
@@ -775,8 +1150,8 @@ suite('CloudSandboxAgentHostService', () => {
 			fixture.service.dispose();
 			assert.deepStrictEqual(fixture.events, [
 				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'connect', outcome: 'success', stage: 'connection', durationMs: 0, credentialRequests: 1 } },
-				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'recover', outcome: 'success', stage: 'credentials', durationMs: 3000, credentialRequests: 1 } },
-				{ eventName: 'cloudSandboxConnectionHealth', data: { connectedMs: 2000, unexpectedDisconnects: 1, receivedFrames: 0 } },
+				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'recover', environmentOperation: 'recover', outcome: 'success', stage: 'credentials', durationMs: 3000, readinessMs: 3000, preparationMs: 2000, connectionMs: 1000, credentialRequests: 1, firstFailurePhase: 'credentials', credentialFailures: 1 } },
+				{ eventName: 'cloudSandboxConnectionHealth', data: { environmentKind: 'cloud', connectedMs: 2000, unexpectedDisconnects: 1, receivedFrames: 0 } },
 			]);
 		}));
 
@@ -797,8 +1172,8 @@ suite('CloudSandboxAgentHostService', () => {
 			fixture.service.dispose();
 			assert.deepStrictEqual(fixture.events, [
 				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'connect', outcome: 'success', stage: 'connection', durationMs: 0, credentialRequests: 1 } },
-				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'recover', outcome: 'failure', stage: 'connection', durationMs: 2000, credentialRequests: 1 } },
-				{ eventName: 'cloudSandboxConnectionHealth', data: { connectedMs: 1000, unexpectedDisconnects: 1, receivedFrames: 0 } },
+				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'recover', environmentOperation: 'recover', outcome: 'failure', stage: 'connection', durationMs: 2000, readinessMs: 2000, connectionMs: 2000, credentialRequests: 1 } },
+				{ eventName: 'cloudSandboxConnectionHealth', data: { environmentKind: 'cloud', connectedMs: 1000, unexpectedDisconnects: 1, receivedFrames: 0 } },
 			]);
 		}));
 
@@ -810,7 +1185,7 @@ suite('CloudSandboxAgentHostService', () => {
 			await assert.rejects(fixture.service.connect(options, CancellationToken.None));
 			fixture.service.dispose();
 			assert.deepStrictEqual(fixture.events, [
-				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'connect', outcome: 'failure', stage: 'credentials', durationMs: 1700, credentialRequests: 1, credentialsMs: 1700 } },
+				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'connect', outcome: 'failure', stage: 'credentials', durationMs: 1700, readinessMs: 1700, preparationMs: 1700, credentialRequests: 1, credentialsMs: 1700, firstFailurePhase: 'credentials', credentialFailures: 1 } },
 			]);
 		}));
 
@@ -824,7 +1199,7 @@ suite('CloudSandboxAgentHostService', () => {
 			await connecting;
 			fixture.service.dispose();
 			assert.deepStrictEqual(fixture.events, [
-				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'connect', outcome: 'failure', stage: 'connection', durationMs: 2400, credentialRequests: 1 } },
+				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'connect', outcome: 'failure', stage: 'connection', durationMs: 2400, readinessMs: 2400, connectionMs: 2400, credentialRequests: 1 } },
 			]);
 		}));
 
@@ -841,7 +1216,7 @@ suite('CloudSandboxAgentHostService', () => {
 			await connecting;
 			fixture.service.dispose();
 			assert.deepStrictEqual(fixture.events, [
-				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'connect', outcome: 'cancelled', stage: 'credentials', durationMs: 1100, credentialRequests: 1, credentialsMs: 1100 } },
+				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'connect', outcome: 'cancelled', stage: 'credentials', durationMs: 1100, readinessMs: 1100, preparationMs: 1100, credentialRequests: 1, credentialsMs: 1100 } },
 			]);
 		}));
 
@@ -857,7 +1232,7 @@ suite('CloudSandboxAgentHostService', () => {
 			await connecting;
 			fixture.service.dispose();
 			assert.deepStrictEqual(fixture.events, [
-				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'connect', outcome: 'cancelled', stage: 'connection', durationMs: 1200, credentialRequests: 1 } },
+				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'connect', outcome: 'cancelled', stage: 'connection', durationMs: 1200, readinessMs: 1200, connectionMs: 1200, credentialRequests: 1 } },
 			]);
 		}));
 	});
@@ -921,18 +1296,23 @@ suite('CloudSandboxAgentHostService', () => {
 		});
 	});
 
-	test('retains the credential retry limit when the environment keeps reporting waking', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('retains the credential retry limit and delay when the environment keeps reporting waking', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const started = Date.now();
 		const { service, requestCalls } = createService(store, [
 			{ kind: 'token', token: clientToken(undefined) },
-			{ kind: 'waking', waking: { retryAfterSeconds: 5 } },
+			{ kind: 'waking', waking: { retryAfterSeconds: 1 } },
 		]);
 
 		await service.connect({ environmentId: 'env-1', name: 'Sandbox' }, CancellationToken.None);
+		const elapsed = Date.now() - started;
 		service.dispose();
 
-		assert.deepStrictEqual({ calls: requestCalls(), sealed: service.sealedTokenAtEstablish }, {
+		assert.deepStrictEqual({
+			calls: requestCalls(), sealed: service.sealedTokenAtEstablish, preservedDelay: elapsed >= 55_000 && elapsed < 66_000,
+		}, {
 			calls: MAX_SEALED_TOKEN_RETRIES + 1,
 			sealed: undefined,
+			preservedDelay: true,
 		});
 	}));
 });

@@ -14,9 +14,12 @@ import { localize } from '../../../../nls.js';
 import { getHighestPriorityPullRequestIcon } from '../../../../workbench/common/chatPullRequest.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISessionChatCustomization } from '../../../../workbench/contrib/chat/common/sessionChatCustomizations.js';
+import type { IChatBackgroundShell } from '../../../../workbench/contrib/chat/common/sessionChatPills.js';
+import { ICanvas as ISessionCanvas } from '../../../../workbench/contrib/canvases/common/canvas.js';
 
 export { getHighestPriorityPullRequestIcon };
 export { type ISessionChatCustomization, SessionCustomizationKind } from '../../../../workbench/contrib/chat/common/sessionChatCustomizations.js';
+export { type ICanvas as ISessionCanvas } from '../../../../workbench/contrib/canvases/common/canvas.js';
 
 export interface ISessionType {
 	/** Unique identifier (e.g., 'copilot-cli', 'copilot-cloud', 'agent-host-claude'). */
@@ -48,7 +51,7 @@ export interface ISessionType {
 	 * is not usable yet. Absent when selecting the type cannot make progress.
 	 */
 	readonly initializationOnSelection?: {
-		/** Whether the provider already has non-GitHub authentication for initialization. */
+		/** Whether the provider can discover or use its own authentication without GitHub. */
 		readonly canInitializeWithoutGitHub: boolean;
 	};
 }
@@ -119,7 +122,7 @@ export function getSessionStatusMessage(status: SessionStatus, description: IMar
 		case SessionStatus.InProgress:
 			return description ?? localize('working', "Working...");
 		case SessionStatus.NeedsInput:
-			return description ?? localize('needsInput', "Input needed");
+			return description ?? localize('needsInput', "Attention needed");
 		case SessionStatus.Error:
 			return description ?? localize('failed', "Failed");
 		default:
@@ -146,6 +149,8 @@ export interface ISessionPreparationProgress {
 export const enum ChatInteractivity {
 	/** The user can send messages to the chat (default when unspecified). */
 	Full = 'full',
+	/** The user can compose a draft, but must connect before sending it. */
+	DraftOnly = 'draft-only',
 	/** The chat is visible but read-only — the user can watch but not send messages. */
 	ReadOnly = 'read-only',
 	/** The chat is an internal worker that should not be shown in the UI at all. */
@@ -181,6 +186,10 @@ export interface ISessionGitRepository {
 	readonly hasGitHubRemote?: boolean;
 	/** Upstream tracking branch name (e.g. `origin/feature`). */
 	readonly upstreamBranchName?: string;
+	/** Default branch of the repository's `origin` remote (e.g. `main`). */
+	readonly defaultBranchName?: string;
+	/** Remote-tracking branch of {@link defaultBranchName} (e.g. `origin/main`). */
+	readonly defaultRemoteBranchName?: string;
 	/** Number of commits the upstream branch is ahead of the local branch. */
 	readonly incomingChanges?: number;
 	/** Number of commits the local branch is ahead of the upstream branch. */
@@ -629,30 +638,6 @@ export interface IChatCapabilities {
 /** Capabilities assumed for a chat that does not advertise its own. */
 export const DEFAULT_CHAT_CAPABILITIES: IChatCapabilities = { canRename: true, canArchive: false, canDelete: true };
 
-/** Availability of a live canvas source. */
-export const enum SessionCanvasAvailability {
-	Ready = 'ready',
-	Unavailable = 'unavailable',
-}
-
-/** A model-opened canvas owned by one chat. */
-export interface ISessionCanvas {
-	/** Stable canvas identity within its owning chat. */
-	readonly resource: URI;
-	/** Stable provider-supplied instance identifier. */
-	readonly instanceId: string;
-	/** Display title. */
-	readonly title: string;
-	/** Optional provider status text. */
-	readonly status?: string;
-	/** Monotonic instance revision. */
-	readonly revision: number;
-	/** Whether the current source can be resolved. */
-	readonly availability: SessionCanvasAvailability;
-	/** Resolve the current HTTP(S) source for this revision. */
-	resolveSource(): Promise<URI>;
-}
-
 /**
  * Whether a chat's model is the chat's own or one put there on its behalf. This is the only
  * question model selection asks of it: `chat.defaultModel` seeds a chat that has no model of its
@@ -691,6 +676,15 @@ export interface IChat {
 	/** Changesets produced by the chat. `undefined` means they have not been published yet. */
 	readonly changesets: IObservable<readonly ISessionChangeset[] | undefined>;
 	/**
+	 * Compact summary of the changes associated with the chat, available without
+	 * loading the chat's details or changesets (e.g. for session lists). The
+	 * scope is provider-defined: a provider may report only the chat's own
+	 * changes, or a cumulative scope such as the whole session for a session's
+	 * main chat, so consumers must not assume the counts are chat-local.
+	 * Providers that cannot determine this omit the observable.
+	 */
+	readonly changesSummary?: IObservable<ISessionChangesSummary | undefined>;
+	/**
 	 * File changes produced by the chat's **last turn** only (as opposed to the
 	 * cumulative chat {@link changes}). Derived from the chat's live output
 	 * stream so consumers — e.g. the chat input status pills — can reflect just
@@ -704,8 +698,10 @@ export interface IChat {
 	 * output stream. Providers that cannot determine this omit the observable.
 	 */
 	readonly customizations?: IObservable<readonly ISessionChatCustomization[]>;
-	/** Live model-opened canvases owned by this chat. */
-	readonly canvases?: IObservable<readonly ISessionCanvas[]>;
+	/** Server-published live canvases owned by this chat; undefined while membership is unknown. */
+	readonly canvases?: IObservable<readonly ISessionCanvas[] | undefined>;
+	/** Active background shells, including commands started in earlier turns. */
+	readonly backgroundShells?: IObservable<readonly IChatBackgroundShell[]>;
 	/** Checkpoints associated with the chat. */
 	readonly checkpoints: IObservable<IChatCheckpoints | undefined>;
 	/** Currently selected model identifier. */
@@ -728,6 +724,7 @@ export interface IChat {
 	 * not distinguish read-only chats report {@link ChatInteractivity.Full}.
 	 *
 	 * - {@link ChatInteractivity.Full}: the user can send messages (default).
+	 * - {@link ChatInteractivity.DraftOnly}: the composer is editable, but sending is disabled.
 	 * - {@link ChatInteractivity.ReadOnly}: the chat is shown but the composer is
 	 *   hidden (e.g. an agent-team worker chat the user can watch but not steer).
 	 * - {@link ChatInteractivity.Hidden}: the chat is an internal worker that
@@ -776,6 +773,19 @@ export function getChatCapabilities(chat: IChat, session: ISession | undefined, 
  * A session groups one or more chats together.
  * All {@link ISessionData} fields are propagated from the primary (first) chat.
  */
+export interface ISessionApplication {
+	readonly id: string;
+	readonly label: string;
+}
+
+export interface ISessionEnvironment {
+	/** Stable identity, independent of the environment's display name. */
+	readonly id: string;
+	readonly label: string;
+	/** Remote environments appear in the filter menu only while connected. */
+	readonly isConnected?: IObservable<boolean>;
+}
+
 export interface ISession {
 	/** Globally unique session ID (`providerId:localId`). */
 	readonly sessionId: string;
@@ -785,6 +795,12 @@ export interface ISession {
 	readonly providerId: string;
 	/** Session type ID (e.g., 'copilot-cli', 'copilot-cloud', 'local'). */
 	readonly sessionType: string;
+	/** Harness identity, independent of the session's routing type. */
+	readonly harness: string;
+	/** Provider-assigned environment identity: local, cloud, or a remote host identifier. */
+	readonly environment: string;
+	/** Creation provenance, which may hydrate after the session is discovered. */
+	readonly application: IObservable<ISessionApplication>;
 	/** Icon for this session. */
 	readonly icon: ThemeIcon;
 	/** When the session was created. */
@@ -903,7 +919,7 @@ export interface ISessionCapabilities {
 	readonly supportsImport?: boolean;
 	/** Whether recorded artifacts can be removed from this session. */
 	readonly supportsRemoveArtifacts?: boolean;
-	/** Whether this session can expose model-opened canvases. */
+	/** Whether the owning provider permits presenting server-published canvases for this session. */
 	readonly supportsCanvases?: boolean;
 	/** Whether this session supports multiple chats. */
 	readonly supportsMultipleChats: boolean;
@@ -1180,6 +1196,8 @@ export function sessionGitRepositoryEqual(a: ISessionGitRepository | undefined, 
 		&& a.hasGitRemote === b.hasGitRemote
 		&& a.hasGitHubRemote === b.hasGitHubRemote
 		&& a.upstreamBranchName === b.upstreamBranchName
+		&& a.defaultBranchName === b.defaultBranchName
+		&& a.defaultRemoteBranchName === b.defaultRemoteBranchName
 		&& a.incomingChanges === b.incomingChanges
 		&& a.outgoingChanges === b.outgoingChanges
 		&& a.uncommittedChanges === b.uncommittedChanges

@@ -26,7 +26,9 @@ import { IAgentConfigurationService } from '../../node/agentConfigurationService
 import { IAgentHostAuthenticationController, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
+import { IAgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
 import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
+import { IAgentHostPeerChatPersistenceService } from '../../node/agentHostPeerChatStore.js';
 import { IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { NullByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { registerAgentHostCoreServices, registerAgentHostHostServices } from '../../node/agentHostServices.js';
@@ -178,7 +180,9 @@ suite('Agent Host service registrations', () => {
 			IRequestService,
 			IInstantiationService,
 			IAgentHostStateManager,
+			IAgentHostPeerChatPersistenceService,
 			IAgentConfigurationService,
+			IAgentHostManagedSettingsService,
 			IAgentHostAuthenticationService,
 			IAgentHostAuthenticationController,
 			IAgentHostGitHubEndpointService,
@@ -203,7 +207,9 @@ suite('Agent Host service registrations', () => {
 			IRequestService,
 			IInstantiationService,
 			IAgentHostStateManager,
+			IAgentHostPeerChatPersistenceService,
 			IAgentConfigurationService,
+			IAgentHostManagedSettingsService,
 			IAgentHostAuthenticationService,
 			IAgentHostAuthenticationController,
 			IAgentHostGitHubEndpointService,

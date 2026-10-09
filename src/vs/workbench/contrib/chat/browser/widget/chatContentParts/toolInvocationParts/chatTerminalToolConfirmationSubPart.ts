@@ -507,6 +507,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			if (doComplete) {
 				IChatToolInvocation.confirmWith(toolInvocation, {
 					type: toolConfirmKind,
+					...(toolConfirmKind === ToolConfirmKind.Denied || toolConfirmKind === ToolConfirmKind.Skipped ? { source: 'user' as const } : {}),
 					...(selectedOption ? { selectedButton: selectedOption.id, selectedButtonKind: selectedOption.kind } : {}),
 				});
 				if (!isTouchClick) {

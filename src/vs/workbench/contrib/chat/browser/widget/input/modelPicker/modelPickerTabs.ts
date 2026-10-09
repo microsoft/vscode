@@ -24,6 +24,8 @@ const PROVIDER_DESTINATION_PREFIX = 'provider:';
 export interface IModelPickerProviderPlaceholder {
 	readonly vendor: string;
 	readonly label: string;
+	/** Shown in place of the provider's icon when the reason is not specific to it, e.g. Restricted Mode. */
+	readonly icon?: ThemeIcon;
 	/** Why there are no models, shown under the provider name. */
 	readonly message: string;
 	/** Optional call to action, e.g. "Sign in". */
@@ -82,12 +84,16 @@ export function getModelProviderLabel(
  * Splits models into one destination per provider: the built-in one first, then each
  * provider the user added, by name. Models with their own row, Auto by default, are left
  * out, and empty providers are dropped so the common case yields no tab bar.
+ *
+ * @param keepBuiltIn Keeps the built-in destination even with nothing to select, for a
+ * plan whose curated models still need to name the upgrade that would unlock them.
  */
 export function buildModelPickerDestinations(
 	models: readonly ILanguageModelChatMetadataAndIdentifier[],
 	languageModelsService: ILanguageModelsService,
 	placeholders: readonly IModelPickerProviderPlaceholder[] = [],
 	hasOwnRow: (model: ILanguageModelChatMetadataAndIdentifier) => boolean = isAutoModel,
+	keepBuiltIn = false,
 ): IModelPickerDestination[] {
 	const builtInModels: ILanguageModelChatMetadataAndIdentifier[] = [];
 	const userModels: ILanguageModelChatMetadataAndIdentifier[] = [];
@@ -109,7 +115,7 @@ export function buildModelPickerDestinations(
 	// the upgrade that would unlock them.
 	const hasOwnRowModel = models.some(hasOwnRow);
 	const destinations: IModelPickerDestination[] = [];
-	if (builtInModels.length || builtInPlaceholders.length || hasOwnRowModel) {
+	if (builtInModels.length || builtInPlaceholders.length || hasOwnRowModel || keepBuiltIn) {
 		destinations.push({
 			id: MODEL_PICKER_BUILT_IN_DESTINATION,
 			label: builtInLabel,
