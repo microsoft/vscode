@@ -901,7 +901,7 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 			const entry = this._readCachedClient(cell);
 			return entry ? {
 				copilotSku: entry.copilotSku,
-				...(entry.trackingId ? { 'common.copilotTrackingId': entry.trackingId } : {}),
+				...(entry.trackingId ? { copilotTrackingId: entry.trackingId } : {}),
 			} : undefined;
 		};
 	}

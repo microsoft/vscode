@@ -514,7 +514,7 @@ suite('AgentHostTelemetryReporter', () => {
 		await reporter.toolCallDetails({
 			provider: 'copilot', session, chat, turnId: 'a1b2c3d4-0000-4000-8000-000000000000', clientType: AgentHostClientType.EditorWindow, model: 'gpt-x', responseType: 'success',
 			clientContext: { ...createUnknownAgentHostClientTelemetryContext(AgentHostClientType.EditorWindow), machineId: 'client-machine-id', devDeviceId: 'client-dev-device-id' },
-			telemetryContext: { copilotSku: 'sku-a', 'common.copilotTrackingId': 'analytics-a' },
+			telemetryContext: { copilotSku: 'sku-a', copilotTrackingId: 'analytics-a' },
 			toolCounts: {}, availableTools: ['grep', 'edit'],
 			turnIndex: 2, turnDuration: 1200, messageCharLen: 11,
 			numRequests: 1, totalToolCalls: 0, parallelToolCallRounds: 0, parallelToolCallsTotal: 0,
@@ -676,7 +676,7 @@ suite('AgentHostTelemetryReporter', () => {
 		reporter.toolApproval({
 			provider: 'copilot', session, turnId: 'turn-2',
 			clientContext: { ...createUnknownAgentHostClientTelemetryContext(AgentHostClientType.EditorWindow), machineId: 'client-machine-id', devDeviceId: 'client-dev-device-id' },
-			telemetryContext: { copilotSku: 'sku-a', 'common.copilotTrackingId': 'analytics-a' },
+			telemetryContext: { copilotSku: 'sku-a', copilotTrackingId: 'analytics-a' },
 			toolId: 'bash', toolSourceKind: 'internal',
 			confirmKind: 'userAction',
 			decisionSource: 'human_response',

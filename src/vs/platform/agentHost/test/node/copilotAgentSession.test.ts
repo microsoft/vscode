@@ -7694,7 +7694,7 @@ suite('CopilotAgentSession', () => {
 	});
 
 	test('does not attribute a background subagent model call to a replacement root turn', async () => {
-		const context = { copilotSku: 'sku-a', 'common.copilotTrackingId': 'analytics-a' };
+		const context = { copilotSku: 'sku-a', copilotTrackingId: 'analytics-a' };
 		const { session, mockSession } = await createAgentSession(disposables, { telemetryContext: context });
 		session.resetTurnState('turn-1');
 		mockSession.fire('subagent.started', {
@@ -16644,7 +16644,7 @@ Use the attached image as context.
 			const peerChatUri = URI.parse(buildChatUri(sessionUri, 'peer-1'));
 			const { session, mockSession, signals } = await createAgentSession(disposables, {
 				telemetryService,
-				telemetryContext: { copilotSku: 'sku-a', 'common.copilotTrackingId': 'analytics-a' },
+				telemetryContext: { copilotSku: 'sku-a', copilotTrackingId: 'analytics-a' },
 				sessionUri,
 				chatChannelUri: peerChatUri,
 				resource: peerChatUri,
@@ -16717,8 +16717,8 @@ Use the attached image as context.
 					copilotSku: 'sku-a',
 				}],
 				modelCalls: [
-					{ turnId: 'turn-tool-details', modelCallId: 'api-tools', context: { copilotSku: 'sku-a', 'common.copilotTrackingId': 'analytics-a' } },
-					{ turnId: 'turn-tool-details', modelCallId: 'api-final', context: { copilotSku: 'sku-a', 'common.copilotTrackingId': 'analytics-a' } },
+					{ turnId: 'turn-tool-details', modelCallId: 'api-tools', context: { copilotSku: 'sku-a', copilotTrackingId: 'analytics-a' } },
+					{ turnId: 'turn-tool-details', modelCallId: 'api-final', context: { copilotSku: 'sku-a', copilotTrackingId: 'analytics-a' } },
 				],
 			});
 		});

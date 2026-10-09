@@ -1423,7 +1423,7 @@ export interface IAgentPendingMessageSender {
 export interface IAgentTelemetryContext {
 	readonly copilotSku: string | undefined;
 	/** Analytics ID from the same account discovery as the SKU, without an additional hash. */
-	readonly 'common.copilotTrackingId'?: string;
+	readonly copilotTrackingId?: string;
 }
 
 export interface IAgentSessionPlan {

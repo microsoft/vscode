@@ -13,38 +13,6 @@
 > Node runtime service construction is documented separately in [`node/serviceBootstrapping.md`](node/serviceBootstrapping.md).
 > Host startup timings, process-lifetime correlation, and session workload counts are documented in [`PERFORMANCE.md`](PERFORMANCE.md).
 
-## Copilot account telemetry
-
-Copilot-backed events enrich their captured `IAgentTelemetryContext` with
-`copilotSku` and `common.copilotTrackingId` from the same token-scoped
-`/copilot_internal/user` discovery cache. The tracking ID is the nonempty
-`analytics_tracking_id`, matching the workbench common property without an
-additional hash. It is not an alias for the SDK's optional `copilot_tracking_id`
-or the extension's `common.tid`; those retain their existing contracts.
-
-The context covers SDK forwarding and shared turn/tool reporters, including
-`copilotSdk/response.success`, `languageModelToolInvoked`, `chat.toolApproval`,
-`toolCallDetails`, and `agentHost.turnCompleted`. Point-in-time events use a
-provider-scoped reader, not a process-wide account property. Captured contexts
-stop supplying account metadata after credential replacement, rejection, cache
-expiry, or disposal; unavailable IDs are omitted. Enrichment makes no additional
-network requests and does not change telemetry consent or restricted routing.
-
-SDK event enrichment uses the originating turn's captured context retained
-with model-call correlation, never the account current at notification arrival.
-Events without a retained model-call context omit both account fields,
-including unmatched errors and notifications for unknown or disposed sessions.
-User-initiated responses use the same bounded correlation wait as agent-initiated
-responses so the first model call can receive its context when notifications
-arrive before model completion. Background subagent calls are not attributed to
-a replacement root turn.
-
-SKU remains discovery metadata, not the backend's authorization result.
-Account correlation cannot eliminate differences between discovery snapshots
-or replace server-side tracing of unexpected authorization. Validate the
-ingested `common.copilottrackingid` property and coverage after rollout; local
-telemetry logs only establish client emission.
-
 > **Status: COMPLETE** (2026-07-01) All waves A–D and gates G-B1, G-C1, G-C2, G-D1 are done. Codex, Claude, and Copilot all use the unified orchestrator path.
 >
 > Codex advertises `multipleChats: { fork: true, sideChat: true }`. Model-backed peer, fork, and side-chat parity scenarios run in deterministic replay.

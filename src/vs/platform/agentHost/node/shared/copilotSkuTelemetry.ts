@@ -16,9 +16,18 @@ export function captureCopilotTelemetryContext(apiService: ICopilotApiService, t
 			}
 			return capturedContext ? capturedContext()?.copilotSku : apiService.getCachedCopilotSku?.(token);
 		},
-		get 'common.copilotTrackingId'() {
-			// __GDPR__COMMON__ "common.copilotTrackingId" : { "endPoint": "GoogleAnalyticsID", "classification": "EndUserPseudonymizedInformation", "purpose": "BusinessInsight", "comment": "The anonymized Copilot analytics tracking ID from the operation's account discovery response." }
-			return token && isCurrent() ? capturedContext?.()?.['common.copilotTrackingId'] : undefined;
+		get copilotTrackingId() {
+			return token && isCurrent() ? capturedContext?.()?.copilotTrackingId : undefined;
 		},
 	};
+}
+
+/** Maps account context to telemetry property names only at emission time. */
+export function toCopilotTelemetryData(context: IAgentTelemetryContext | undefined): { copilotSku: string | undefined; 'common.copilotTrackingId'?: string } | undefined {
+	if (!context) {
+		return undefined;
+	}
+	const { copilotSku, copilotTrackingId } = context;
+	// __GDPR__COMMON__ "common.copilotTrackingId" : { "endPoint": "GoogleAnalyticsID", "classification": "EndUserPseudonymizedInformation", "purpose": "BusinessInsight", "comment": "The anonymized Copilot analytics tracking ID from the operation's account discovery response." }
+	return { copilotSku, ...(copilotTrackingId ? { 'common.copilotTrackingId': copilotTrackingId } : {}) };
 }

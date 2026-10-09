@@ -12,9 +12,9 @@ suite('ModelCallTurnCorrelation', () => {
 
 	test('retains the original account context with bounded history and explicit cleanup', () => {
 		const correlation = new ModelCallTurnCorrelation({ cacheLimit: 2 });
-		const original = { copilotSku: 'sku-a', 'common.copilotTrackingId': 'analytics-a' };
+		const original = { copilotSku: 'sku-a', copilotTrackingId: 'analytics-a' };
 		correlation.recordTelemetryContext('call-1', original);
-		correlation.recordTelemetryContext('call-1', { copilotSku: 'sku-b', 'common.copilotTrackingId': 'analytics-b' });
+		correlation.recordTelemetryContext('call-1', { copilotSku: 'sku-b', copilotTrackingId: 'analytics-b' });
 		const retained = correlation.getTelemetryContext('call-1');
 		correlation.recordTelemetryContext('call-2', original);
 		correlation.recordTelemetryContext('call-3', original);

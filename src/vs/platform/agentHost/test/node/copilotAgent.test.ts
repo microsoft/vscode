@@ -2777,7 +2777,7 @@ suite('CopilotAgent', () => {
 					sessionId: 'sdk-session', restricted: false,
 					event: { kind: 'response.success', properties: { modelCallId: 'call', initiatorType }, metrics: {} },
 				});
-				correlation.recordTelemetryContext('call', { copilotSku: 'sku-a', 'common.copilotTrackingId': 'analytics-a' });
+				correlation.recordTelemetryContext('call', { copilotSku: 'sku-a', copilotTrackingId: 'analytics-a' });
 				correlation.record('call', 'turn');
 				const event = await received.p;
 				assert.deepStrictEqual({

@@ -14,7 +14,7 @@ import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js
 import { NullLogService } from '../../../../log/common/log.js';
 import { IProductService } from '../../../../product/common/productService.js';
 import product from '../../../../product/common/product.js';
-import { captureCopilotTelemetryContext } from '../../../node/shared/copilotSkuTelemetry.js';
+import { captureCopilotTelemetryContext, toCopilotTelemetryData } from '../../../node/shared/copilotSkuTelemetry.js';
 
 // #region Test Helpers
 
@@ -132,6 +132,28 @@ suite('CopilotApiService', () => {
 	suite('account telemetry context', () => {
 		teardown(() => sinon.restore());
 
+		test('maps account properties only at emission without leaking internal names or refreshing credentials', async () => {
+			let requests = 0;
+			let current = true;
+			const service = createService(async () => {
+				requests++;
+				return userResponse({ access_type_sku: 'sku-a', analytics_tracking_id: 'analytics-a' });
+			});
+			const context = captureCopilotTelemetryContext(service, 'token-a', () => current);
+			const undiscovered = toCopilotTelemetryData(context);
+			await service.resolveCopilotSku('token-a');
+			const emitted = toCopilotTelemetryData(context);
+			current = false;
+			const invalidated = toCopilotTelemetryData(context);
+			assert.deepStrictEqual({ undiscovered, emitted, invalidated, absent: toCopilotTelemetryData(undefined), requests }, {
+				undiscovered: { copilotSku: undefined },
+				emitted: { copilotSku: 'sku-a', 'common.copilotTrackingId': 'analytics-a' },
+				invalidated: { copilotSku: undefined },
+				absent: undefined,
+				requests: 1,
+			});
+		});
+
 		test('captures late discovery without extra requests and isolates tokens and credential generations', async () => {
 			const discovery = new DeferredPromise<Response>();
 			let requests = 0;
@@ -146,10 +168,10 @@ suite('CopilotApiService', () => {
 			const after = { ...context };
 			current = false;
 			assert.deepStrictEqual({ before, after, obsolete: { ...context }, other: { ...other }, requests }, {
-				before: { copilotSku: undefined, 'common.copilotTrackingId': undefined },
-				after: { copilotSku: 'sku-a', 'common.copilotTrackingId': 'analytics-a' },
-				obsolete: { copilotSku: undefined, 'common.copilotTrackingId': undefined },
-				other: { copilotSku: undefined, 'common.copilotTrackingId': undefined },
+				before: { copilotSku: undefined, copilotTrackingId: undefined },
+				after: { copilotSku: 'sku-a', copilotTrackingId: 'analytics-a' },
+				obsolete: { copilotSku: undefined, copilotTrackingId: undefined },
+				other: { copilotSku: undefined, copilotTrackingId: undefined },
 				requests: 1,
 			});
 		});
@@ -171,8 +193,8 @@ suite('CopilotApiService', () => {
 			await service.resolveCopilotSku('token-a');
 			service.dispose();
 			assert.deepStrictEqual({ first, refreshed, expired, disposed: read() }, {
-				first: { copilotSku: 'sku-1', 'common.copilotTrackingId': 'analytics-1' },
-				refreshed: { copilotSku: 'sku-2', 'common.copilotTrackingId': 'analytics-2' },
+				first: { copilotSku: 'sku-1', copilotTrackingId: 'analytics-1' },
+				refreshed: { copilotSku: 'sku-2', copilotTrackingId: 'analytics-2' },
 				expired: undefined,
 				disposed: undefined,
 			});
@@ -192,7 +214,7 @@ suite('CopilotApiService', () => {
 			await service.resolveCopilotSku('token-a');
 			assert.deepStrictEqual({ rejectedContext, old: oldContext(), fresh: service.captureCopilotTelemetryContext('token-a')() }, {
 				rejectedContext: undefined, old: undefined,
-				fresh: { copilotSku: 'sku-a', 'common.copilotTrackingId': 'analytics-a' },
+				fresh: { copilotSku: 'sku-a', copilotTrackingId: 'analytics-a' },
 			});
 		});
 

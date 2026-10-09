@@ -100,7 +100,7 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 				forwarder.forward({
 					sessionId: 'sdk-session', restricted: false,
 					event: { kind, properties: {}, metrics: {}, copilot_tracking_id: runtimeId },
-				}, 'turn-1', undefined, { copilotSku: 'sku-a', 'common.copilotTrackingId': 'analytics-a' });
+				}, 'turn-1', undefined, { copilotSku: 'sku-a', copilotTrackingId: 'analytics-a' });
 			}
 		}
 		assert.deepStrictEqual(telemetryService.events.map(({ eventName, data }) => ({
