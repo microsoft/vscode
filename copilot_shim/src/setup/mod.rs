@@ -504,11 +504,32 @@ impl InstallReporter for FileReporter {
 	}
 }
 
+/// How often the first-use install may rewrite its download line. Screen readers announce every rewrite.
+#[cfg_attr(not(windows), allow(dead_code))]
+const CONSOLE_PROGRESS_INTERVAL: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// Whether the download line should be rewritten: when the download starts and finishes, and otherwise at most once per
+/// [`CONSOLE_PROGRESS_INTERVAL`]. `last` is when the line was last written and the byte count it showed.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn should_show_download_progress(
+	last: Option<(Instant, u64)>,
+	now: Instant,
+	current: u64,
+	total: u64,
+) -> bool {
+	match last {
+		None => true,
+		Some((_, shown)) if shown == current => false,
+		Some(_) if current >= total => true,
+		Some((shown_at, _)) => now.duration_since(shown_at) >= CONSOLE_PROGRESS_INTERVAL,
+	}
+}
+
 /// Reports progress in the terminal for the first-use install.
 #[cfg_attr(not(windows), allow(dead_code))]
 struct ConsoleReporter {
 	last_phase: Option<InstallPhase>,
-	last_percent: Option<u64>,
+	last_progress: Option<(Instant, u64)>,
 }
 
 impl InstallReporter for ConsoleReporter {
@@ -518,7 +539,7 @@ impl InstallReporter for ConsoleReporter {
 				eprintln!();
 			}
 			self.last_phase = Some(phase);
-			self.last_percent = None;
+			self.last_progress = None;
 			match phase {
 				InstallPhase::Resolving => {
 					eprintln!("Finding the latest GitHub Copilot CLI release...")
@@ -529,9 +550,10 @@ impl InstallReporter for ConsoleReporter {
 			}
 		}
 		if phase == InstallPhase::Downloading && total > 0 {
-			let percent = current.saturating_mul(100) / total;
-			if self.last_percent != Some(percent) {
-				self.last_percent = Some(percent);
+			let now = Instant::now();
+			if should_show_download_progress(self.last_progress, now, current, total) {
+				self.last_progress = Some((now, current));
+				let percent = current.saturating_mul(100) / total;
 				eprint!(
 					"\rDownloading GitHub Copilot CLI... {} MB of {} MB ({percent}%)",
 					current / 1_048_576,
@@ -568,7 +590,7 @@ where
 			let mut outcome = policy_outcome.unwrap_or_else(|| {
 				let mut reporter = ConsoleReporter {
 					last_phase: None,
-					last_percent: None,
+					last_progress: None,
 				};
 				install_cli(target, &mut reporter)
 			});
@@ -1037,6 +1059,23 @@ mod tests {
 				("unsupported", 1),
 				("error", 1),
 			]
+		);
+	}
+
+	#[test]
+	fn download_progress_is_shown_at_the_start_the_end_and_every_interval() {
+		let start = Instant::now();
+		let soon = start + std::time::Duration::from_secs(1);
+		let later = start + CONSOLE_PROGRESS_INTERVAL;
+		assert_eq!(
+			[
+				should_show_download_progress(None, start, 0, 100),
+				should_show_download_progress(Some((start, 0)), soon, 30, 100),
+				should_show_download_progress(Some((start, 0)), later, 60, 100),
+				should_show_download_progress(Some((start, 0)), soon, 100, 100),
+				should_show_download_progress(Some((soon, 100)), later, 100, 100),
+			],
+			[true, false, true, true, false]
 		);
 	}
 }
