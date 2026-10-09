@@ -418,6 +418,20 @@ suite('CloudSandboxSessionHandler', () => {
 		});
 	}));
 
+	test('cold truncated history remains readable with an explicit incomplete-conversation warning', async () => {
+		const handler = createHandler(async () => ({ ...recordedHistory(), truncated: true }));
+		const session = await handler.provideChatSessionContent(resource, CancellationToken.None);
+		assert.deepStrictEqual({
+			prompts: session.history.filter(item => item.type === 'request').map(item => item.prompt),
+			warnings: session.history.flatMap(item => item.type === 'response' ? item.parts.filter(part => part.kind === 'warning').map(part => part.content.value) : []),
+			readOnly: session.isReadOnly?.get(), status: session.historyStatus?.get(),
+		}, {
+			prompts: ['custom-chat:/opaque-main'],
+			warnings: ['This conversation is incomplete. Its recorded history ends mid-response, so the last exchange may be missing.'],
+			readOnly: true, status: undefined,
+		});
+	});
+
 	for (const failure of ['truncated', 'missing session', 'missing chat', 'absent'] as const) {
 		test(`retains cached messages when a successful refresh response is ${failure}`, async () => {
 			const history = recordedHistory();

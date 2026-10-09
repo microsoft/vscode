@@ -3666,10 +3666,12 @@ suite('ChatService', () => {
 				const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
 				const first: IChatSessionHistoryItem[] = [
 					{ type: 'request', id: 'one', prompt: 'Hello', participant: remoteScheme, modelId: 'raw-model' },
-					{ type: 'response', participant: remoteScheme, parts: [
-						{ kind: 'usage', promptTokens: 100, completionTokens: 20 },
-						{ kind: 'markdownContent', content: new MarkdownString('Response') },
-					] },
+					{
+						type: 'response', participant: remoteScheme, parts: [
+							{ kind: 'usage', promptTokens: 100, completionTokens: 20 },
+							{ kind: 'markdownContent', content: new MarkdownString('Response') },
+						]
+					},
 				];
 				const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event, preserveHistoryItemIdentity });
 				const service = createChatService();
@@ -3690,12 +3692,14 @@ suite('ChatService', () => {
 				for (const revision of [1, 2]) {
 					updated = [
 						{ type: 'request', id: 'one', prompt: 'Hello', participant: remoteScheme, modelId: `live-model-${revision}` },
-						{ type: 'response', participant: remoteScheme, details: `Live model ${revision}`, parts: [
-							{ kind: 'autoModeResolution', resolved: { id: 'first', name: `First model ${revision}` } },
-							{ kind: 'autoModeResolution', resolved: { id: 'second', name: `Second model ${revision}` } },
-							{ kind: 'usage', promptTokens: 120, completionTokens: 27, actualModelId: `live-model-${revision}` },
-							{ kind: 'markdownContent', content: new MarkdownString('Response') },
-						] },
+						{
+							type: 'response', participant: remoteScheme, details: `Live model ${revision}`, parts: [
+								{ kind: 'autoModeResolution', resolved: { id: 'first', name: `First model ${revision}` } },
+								{ kind: 'autoModeResolution', resolved: { id: 'second', name: `Second model ${revision}` } },
+								{ kind: 'usage', promptTokens: 120, completionTokens: 27, actualModelId: `live-model-${revision}` },
+								{ kind: 'markdownContent', content: new MarkdownString('Response') },
+							]
+						},
 					];
 					changes.fire(updated);
 				}
