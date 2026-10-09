@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableMap, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -32,7 +32,7 @@ suite('MainThreadChatDebug', () => {
 			override async $getAvailableDebugSessionResources() { fetches++; return []; }
 		};
 		const customer = store.add(new MainThreadChatDebug(SingleProxyRPCProtocol(proxy), service, new class extends mock<IChatService>() { }));
-		const registrations: Map<number, DisposableStore> = Reflect.get(customer, '_providerDisposables');
+		const registrations: DisposableMap<number, DisposableStore> = Reflect.get(customer, '_providerDisposables');
 		const resources: Map<number, URI> = Reflect.get(customer, '_activeSessionResources');
 		const providers: Set<object> = Reflect.get(service, '_providers');
 		const fetchers: Set<object> = Reflect.get(service, '_availableSessionsFetchers');
