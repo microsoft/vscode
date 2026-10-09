@@ -712,6 +712,83 @@ suite('customizationMigration', () => {
 		});
 	});
 
+	test('retries a prompt migration after rolling back a conflicting target', async () => {
+		const sourceUri = URI.file('/home/test/shared.prompt.md');
+		const customizations: IPromptPath[] = [
+			{ uri: sourceUri, name: 'Shared', storage: PromptsStorage.local, type: PromptsType.prompt, source: PromptFileSource.ConfigWorkspace },
+			{ uri: sourceUri, name: 'Shared', storage: PromptsStorage.user, type: PromptsType.prompt, source: PromptFileSource.ConfigPersonal },
+		];
+		const workspaceSkillRoot: ICustomizationSourceFolder = { uri: URI.file('/workspace/.github/skills'), label: '.github/skills', source: PromptsStorage.local };
+		const userSkillRoot: ICustomizationSourceFolder = { uri: URI.file('/home/test/.copilot/skills'), label: '~/.copilot/skills', source: PromptsStorage.user };
+		const targetFolders: CustomizationMigrationTargetFolders = new Map([
+			[PromptsType.skill, new Map([[PromptsStorage.local, workspaceSkillRoot], [PromptsStorage.user, userSkillRoot]])],
+		]);
+
+		const fileService = store.add(new FileService(new NullLogService()));
+		const fileSystemProvider = store.add(new InMemoryFileSystemProvider());
+		store.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
+		await fileService.writeFile(sourceUri, VSBuffer.fromString('---\nname: Shared\n---\nShared body'));
+		const workspaceSkillUri = createSkillFileUri(workspaceSkillRoot.uri, 'shared');
+		const userSkillUri = createSkillFileUri(userSkillRoot.uri, 'shared');
+		await fileService.writeFile(userSkillUri, VSBuffer.fromString('Existing content'));
+
+		const failedResult = await migrateCustomizations(customizations, targetFolders, fileService);
+		const afterFailure = {
+			sourceExists: await fileService.exists(sourceUri),
+			workspaceSkillFolderExists: await fileService.exists(dirname(workspaceSkillUri)),
+			userTargetContent: (await fileService.readFile(userSkillUri)).value.toString(),
+		};
+
+		await fileService.del(dirname(userSkillUri), { recursive: true });
+		const retriedResult = await migrateCustomizations(customizations, targetFolders, fileService);
+
+		assert.deepStrictEqual({
+			failedResult,
+			afterFailure,
+			retriedResult: {
+				...retriedResult,
+				migratedCustomizations: retriedResult.migratedCustomizations.map(customization => ({ uri: customization.uri.path, type: customization.type })),
+				migratedSources: retriedResult.migratedSources.map(source => ({ uri: source.uri.path, storage: source.storage })),
+			},
+			afterRetry: {
+				sourceExists: await fileService.exists(sourceUri),
+				workspaceTargetExists: await fileService.exists(workspaceSkillUri),
+				userTargetExists: await fileService.exists(userSkillUri),
+			},
+		}, {
+			failedResult: {
+				migratedCount: 0,
+				failedCustomizationFileNames: ['shared.prompt.md'],
+				unsupportedHeaderKeys: [],
+				migratedCustomizations: [],
+				migratedSources: [],
+			},
+			afterFailure: {
+				sourceExists: true,
+				workspaceSkillFolderExists: false,
+				userTargetContent: 'Existing content',
+			},
+			retriedResult: {
+				migratedCount: 2,
+				failedCustomizationFileNames: [],
+				unsupportedHeaderKeys: [],
+				migratedCustomizations: [
+					{ uri: workspaceSkillUri.path, type: PromptsType.skill },
+					{ uri: userSkillUri.path, type: PromptsType.skill },
+				],
+				migratedSources: [
+					{ uri: sourceUri.path, storage: PromptsStorage.local },
+					{ uri: sourceUri.path, storage: PromptsStorage.user },
+				],
+			},
+			afterRetry: {
+				sourceExists: false,
+				workspaceTargetExists: true,
+				userTargetExists: true,
+			},
+		});
+	});
+
 	test('preserves a name conflict target when rollback also fails', async () => {
 		const sourceUri = URI.file('/home/test/shared.prompt.md');
 		const customizations: IPromptPath[] = [
@@ -731,7 +808,7 @@ suite('customizationMigration', () => {
 		const workspaceSkillUri = createSkillFileUri(workspaceSkillRoot.uri, 'shared');
 		const userSkillUri = createSkillFileUri(userSkillRoot.uri, 'shared');
 		await fileService.writeFile(userSkillUri, VSBuffer.fromString('Existing content'));
-		fileSystemProvider.deleteFailureResource = workspaceSkillUri;
+		fileSystemProvider.deleteFailureResource = dirname(workspaceSkillUri);
 
 		const migrationErrors: Error[] = [];
 		const failureReasons: FileCustomizationMigrationFailureReason[] = [];

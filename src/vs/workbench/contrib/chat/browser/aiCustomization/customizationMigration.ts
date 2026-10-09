@@ -256,6 +256,14 @@ export async function migrateCustomizations(
 					await fileService.copy(sourceFolder, stagingFolder, false);
 					await fileService.move(stagingFolder, targetSkillFolder, false);
 					writtenTargetUris.push(targetSkillFolder);
+				} else if (customization.type === PromptsType.prompt) {
+					const targetSkillFolder = dirname(targetUri);
+					const stagingFolder = URI.joinPath(targetFolder.uri, `.migration-${generateUuid()}`);
+					writtenTargetUris.push(stagingFolder);
+					await fileService.createFolder(stagingFolder);
+					await fileService.createFile(URI.joinPath(stagingFolder, SKILL_FILENAME), VSBuffer.fromString(migratedContent), { overwrite: false });
+					await fileService.move(stagingFolder, targetSkillFolder, false);
+					writtenTargetUris.push(targetSkillFolder);
 				} else {
 					await fileService.createFolder(dirname(targetUri));
 					await fileService.createFile(targetUri, VSBuffer.fromString(migratedContent), { overwrite: false });
