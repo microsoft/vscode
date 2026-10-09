@@ -9205,6 +9205,121 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		function seedDisconnectedApprovalReport(agent: CopilotAgent, stateManager: AgentHostStateManager): URI {
+			const session = URI.parse('ahp-session:/policy-refresh');
+			const now = new Date().toISOString();
+			stateManager.createSession({
+				resource: session.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle,
+				createdAt: now, modifiedAt: now, workingDirectories: [URI.file('/workspace').toString()],
+			});
+			stateManager.setSessionConfig(session.toString(), {
+				schema: { type: 'object', properties: {} },
+				values: { autoApprove: 'assisted', effectiveApprovalMode: 'assisted', availableApprovalModes: ['default', 'assisted', 'autoApprove'] },
+			});
+			chatScopes(agent).set('ahp-chat:/policy-refresh-chat', session);
+			chatScopes(agent).set('ahp-chat:/policy-refresh-peer', session);
+			return session;
+		}
+
+		test('refreshes disconnected approval reports after restarting the runtime without resuming chats', async () => {
+			const client = new StopCountingClient([]);
+			const { agent, configurationService, stateManager } = createTestAgentContext(disposables, {
+				copilotClient: client,
+				rootConfig: { [AgentHostAutoApprovePolicyRestrictedConfigKey]: true },
+			});
+			let sessionStarts = 0;
+			client.createSession = client.resumeSession = async () => {
+				sessionStarts++;
+				throw new Error('Unexpected session start');
+			};
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.listChatsToMigrate();
+				const session = seedDisconnectedApprovalReport(agent, stateManager);
+				let disconnected = false;
+				setLiveChatStub(agent, 'old-sdk-backing', {
+					resourceUri: session,
+					dispose: () => { disconnected = true; },
+				});
+				const unrestricted = client.managedSettingsResolution;
+				client.managedSettingsResolution = {
+					...unrestricted,
+					resolved: {
+						...unrestricted.resolved,
+						settings: { permissions: { disableAssistedPermissionsMode: true } },
+					},
+				};
+				configurationService.updateRootConfig({ [AgentHostAutoApprovePolicyRestrictedConfigKey]: false });
+				await timeout(0);
+				await agent.refreshModels();
+				await timeout(0);
+
+				const restricted = configurationService.getSessionConfigValues(session.toString());
+				client.managedSettingsResolution = unrestricted;
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
+				await timeout(0);
+				await agent.refreshModels();
+				await timeout(0);
+
+				assert.deepStrictEqual({
+					restricted,
+					revoked: configurationService.getSessionConfigValues(session.toString()),
+					workingDirectories: client.managedSettingsRequests.map(request => request.workingDirectory),
+					disconnected,
+					sessionStarts,
+				}, {
+					restricted: { autoApprove: 'assisted', effectiveApprovalMode: 'assisted', availableApprovalModes: ['default', 'autoApprove'] },
+					revoked: { autoApprove: 'assisted', effectiveApprovalMode: 'assisted', availableApprovalModes: ['default', 'assisted', 'autoApprove'] },
+					workingDirectories: [URI.file('/workspace').fsPath, URI.file('/workspace').fsPath],
+					disconnected: true,
+					sessionStarts: 0,
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		for (const invalidation of ['new client', 'resumed chat', 'removed session'] as const) {
+			test(`discards a disconnected approval report superseded by a ${invalidation}`, async () => {
+				const client = new StopCountingClient([]);
+				const { agent, configurationService, stateManager } = createTestAgentContext(disposables, { copilotClient: client });
+				const pending = new DeferredPromise<ManagedSettingsResolveResult>();
+				const started = new DeferredPromise<void>();
+				try {
+					await agent.authenticate('https://api.github.com', 'token');
+					await agent.listChatsToMigrate();
+					const session = seedDisconnectedApprovalReport(agent, stateManager);
+					client.resolveManagedSettings = () => {
+						started.complete();
+						return pending.p;
+					};
+					configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
+					await started.p;
+					if (invalidation === 'new client') {
+						client.resolveManagedSettings = async () => client.managedSettingsResolution;
+						configurationService.updateRootConfig({ [AgentHostAutoApprovePolicyRestrictedConfigKey]: true });
+						await timeout(0);
+						await agent.refreshModels();
+					} else if (invalidation === 'resumed chat') {
+						setLiveChatStub(agent, 'resumed-sdk-backing', { resourceUri: session });
+						configurationService.updateSessionConfig(session.toString(), { availableApprovalModes: ['default'] });
+					} else {
+						stateManager.removeSession(session.toString());
+					}
+					await pending.complete({
+						...client.managedSettingsResolution,
+						resolved: { ...client.managedSettingsResolution.resolved, settings: { permissions: { disableAssistedPermissionsMode: false } } },
+					});
+					await timeout(0);
+					assert.deepStrictEqual(configurationService.getSessionConfigValues(session.toString())?.availableApprovalModes,
+						invalidation === 'removed session' ? undefined : ['default']);
+				} finally {
+					await pending.complete(client.managedSettingsResolution);
+					await disposeAgent(agent);
+				}
+			});
+		}
+
 		for (const localIndexEnabled of [false, true]) {
 			test(`restarts idle sessions when local indexing changes to ${localIndexEnabled}`, async () => {
 				const client = new StopCountingClient([]);

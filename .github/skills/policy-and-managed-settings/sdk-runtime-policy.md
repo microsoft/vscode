@@ -83,6 +83,9 @@ Explicit and remembered approval preferences are normalized after schema discove
 before prewarming a backend; they must not be irreversibly clamped before discovery.
 Defaults are only startup preferences; no additional durable pre-override
 restoration state is maintained. Restart to apply changed managed settings.
+A client restart refreshes selectable modes for already-loaded chats even while
+their SDK sessions remain disconnected, without resuming them or sending a prompt.
+The last runtime-reported applied mode is not overwritten by this preview.
 
 **Simple rule:** an explicitly configured valid new mode restriction replaces the
 legacy blanket mode policy on the supported Copilot Agent Host; otherwise the old

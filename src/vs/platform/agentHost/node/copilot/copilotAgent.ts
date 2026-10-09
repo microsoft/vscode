@@ -14,7 +14,7 @@ import { CancellationError, getErrorCode, getErrorMessage } from '../../../../ba
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { StringSHA1 } from '../../../../base/common/hash.js';
 import { Disposable, DisposableMap, DisposableResourceMap, DisposableSet, DisposableStore, type IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { ResourceMap } from '../../../../base/common/map.js';
+import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { equals } from '../../../../base/common/objects.js';
 import { autorun, observableValue, observableValueOpts, type IObservable, type IReader, type ISettableObservable } from '../../../../base/common/observable.js';
@@ -2925,6 +2925,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._clientGeneration++;
 			this._clientConnectorAuthentication = { connectorsEnabled: startupConfig.copilotConnectors, enterpriseHost: startupConfig.enterpriseHost, token: gitHubToken };
 			this._clientStarting = undefined;
+			void this._refreshDisconnectedApprovalModes(client, this._clientGeneration);
 			return client;
 		};
 		const clientStarting = (async () => {
@@ -4865,6 +4866,30 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const agentUri = URI.parse(agent.uri);
 		const alternativeAgentUri = rebaseUnder(agentUri, provisional.workingDirectory, workingDirectory);
 		return alternativeAgentUri ? { uri: alternativeAgentUri.toString() } : undefined;
+	}
+
+	private async _refreshDisconnectedApprovalModes(client: CopilotClient, generation: number): Promise<void> {
+		await Promise.all([...new ResourceSet([...this._chatScopes.values()])].map(async session => {
+			try {
+				const key = session.toString();
+				const values = this._configurationService.getSessionConfigValues(key);
+				if (!values || !Array.isArray(values.availableApprovalModes) || this._findSessionChat(session)) {
+					return;
+				}
+				const workingDirectory = this._configurationService.getEffectiveWorkingDirectories(key)?.[0];
+				const resolved = await this.resolveChatConfig({ config: values, workingDirectory: workingDirectory ? URI.parse(workingDirectory) : undefined });
+				if (this._shutdownPromise || this._client !== client || this._clientGeneration !== generation || this._findSessionChat(session)) {
+					return;
+				}
+				const current = this._configurationService.getSessionConfigValues(key);
+				if (current && !equals(current.availableApprovalModes, resolved.values.availableApprovalModes)) {
+					// Keep the last applied mode until a resumed runtime reports its actual selection.
+					this._configurationService.updateSessionConfig(key, { availableApprovalModes: resolved.values.availableApprovalModes });
+				}
+			} catch (error) {
+				this._logService.error(`[Copilot] Failed to refresh disconnected approval modes for ${session.toString()}`, error);
+			}
+		}));
 	}
 
 	async resolveChatConfig(params: IAgentResolveChatConfigParams): Promise<ResolveSessionConfigResult> {
