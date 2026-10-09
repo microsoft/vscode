@@ -17,7 +17,7 @@ export class AutomationsClient implements IAutomationsClient {
 	list(repository: RepositoryRef, signal: AbortSignal, options?: ListAutomationsOptions): Promise<PaginatedResponse<ListRepoAutomationsResponse>> {
 		return this._client.request({
 			method: 'GET',
-			path: queryPath(`${repositoryPath(repository)}/v2`, { ...options, ...pagination(options) }),
+			path: queryPath(`${repositoryPath(repository)}/automations/v2`, { ...options, ...pagination(options) }),
 			expectedStatus: [200],
 		}, signal, response => paginated(response, parseListAutomationsResponse(response.data)));
 	}
@@ -33,7 +33,7 @@ export class AutomationsClient implements IAutomationsClient {
 	create(repository: RepositoryRef, request: CreateAutomationRequest, signal: AbortSignal): Promise<AutomationDetail> {
 		return this._client.request({
 			method: 'POST',
-			path: repositoryPath(repository),
+			path: `${repositoryPath(repository)}/automations`,
 			body: request,
 			expectedStatus: [201],
 		}, signal, response => parseAutomationDetail(response.data));
@@ -98,7 +98,7 @@ export class AutomationsClient implements IAutomationsClient {
 }
 
 function automationPath(repository: RepositoryRef, automationId: string): string {
-	return `${repositoryPath(repository)}/${pathSegment(automationId)}`;
+	return `${repositoryPath(repository)}/automations/${pathSegment(automationId)}`;
 }
 
 const parseOwnership = parse.oneOf('user', 'repository');

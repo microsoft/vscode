@@ -21,14 +21,16 @@ export function encodePathSegments(path: string): string {
 /** Appends query parameters, repeating array values and omitting undefined entries. */
 export function queryPath(path: string, parameters: Readonly<Record<string, string | number | boolean | readonly string[] | readonly number[] | undefined>>): string {
 	const query = new URLSearchParams();
-	for (const [key, value] of Object.entries(parameters)) {
-		if (value !== undefined) {
-			for (const item of Array.isArray(value) ? value : [value]) {
-				if (typeof item === 'number' && !Number.isFinite(item)) {
-					throw new GitHubRequestError('Invalid numeric API query parameter', 'validation');
-				}
-				query.append(key, String(item));
+	for (const key of Object.keys(parameters)) {
+		const value = parameters[key];
+		if (value === undefined) {
+			continue;
+		}
+		for (const item of Array.isArray(value) ? value : [value]) {
+			if (typeof value === 'number' && !Number.isFinite(value)) {
+				throw new GitHubRequestError('Invalid numeric API query parameter', 'validation');
 			}
+			query.append(key, String(item));
 		}
 	}
 	return query.size ? `${path}?${query}` : path;
