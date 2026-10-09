@@ -74,13 +74,21 @@ suite('Chat implicit custom editor context', () => {
 			get activeEditor() { return activeEditorPane?.input; },
 		});
 		const implicitContext = store.add(new ChatImplicitContexts());
-		const widget = upcastPartial<IChatWidget>({
-			location: ChatAgentLocation.Chat,
-			input: upcastPartial<ChatInputPart>({ implicitContext }),
-		});
+		const widgets: IChatWidget[] = [];
+		const widgetAdded = store.add(new Emitter<IChatWidget>());
+		function addWidget(context = store.add(new ChatImplicitContexts())) {
+			const widget = upcastPartial<IChatWidget>({
+				location: ChatAgentLocation.Chat,
+				input: upcastPartial<ChatInputPart>({ implicitContext: context }),
+			});
+			widgets.push(widget);
+			widgetAdded.fire(widget);
+			return context;
+		}
+		addWidget(implicitContext);
 		instantiation.stub(IChatWidgetService, {
-			getWidgetsByLocations: location => location === ChatAgentLocation.Chat ? [widget] : [],
-			onDidAddWidget: Event.None,
+			getWidgetsByLocations: location => location === ChatAgentLocation.Chat ? widgets : [],
+			onDidAddWidget: widgetAdded.event,
 		});
 		instantiation.stub(IChatService, { onDidSubmitRequest: Event.None });
 		instantiation.stub(IChatEditingService, { editingSessionsObs: constObservable([]) });
@@ -88,12 +96,13 @@ suite('Chat implicit custom editor context', () => {
 		instantiation.stub(IChatContextService, { contextForResource: options.contextForResource ?? (async () => undefined) });
 
 		function createEditor() {
-			const webview = upcastPartial<IOverlayWebview>({ onMessage: Event.None, dispose: () => { } });
+			const messages = store.add(new Emitter<{ message: unknown; transfer?: readonly ArrayBuffer[] }>());
+			const webview = upcastPartial<IOverlayWebview>({ onMessage: messages.event, dispose: () => { } });
 			const input = store.add(instantiation.createInstance(CustomEditorInput, {
 				resource: model.uri, viewType: 'test.richMarkdown', webviewTitle: undefined, preferredName: 'document.md', iconPath: undefined,
 			}, webview, {}));
 			const navigation = store.add(new TestNavigation(model));
-			return { input, navigation };
+			return { input, navigation, messages };
 		}
 
 		function activate(input: CustomEditorInput | undefined) {
@@ -105,7 +114,7 @@ suite('Chat implicit custom editor context', () => {
 		activate(editor.input);
 		const contribution = store.add(instantiation.createInstance(ChatImplicitContextContribution));
 		const values = () => implicitContext.values.map(value => ({ value: value.value, isSelection: value.isSelection }));
-		return { ...editor, createEditor, activate, model, codeModel, codeSelection, values, implicitContext, contribution };
+		return { ...editor, createEditor, activate, addWidget, model, codeModel, codeSelection, values, implicitContext, contribution };
 	}
 
 	test('navigation becoming available supplies source selection instead of the previous code editor', async () => {
@@ -128,15 +137,15 @@ suite('Chat implicit custom editor context', () => {
 		const fixture = setupContext();
 		fixture.input.navigation = fixture.navigation;
 		fixture.navigation.updateSelection(new Selection(3, 5, 2, 1));
-		await timeout(0);
+		await timeout(510);
 		assert.deepStrictEqual(fixture.values(), [{
 			value: { uri: fixture.model.uri, range: new Selection(3, 5, 2, 1) }, isSelection: true,
 		}]);
 		fixture.navigation.updateSelection(new Selection(2, 1, 2, 1));
-		await timeout(0);
+		await timeout(510);
 		assert.deepStrictEqual(fixture.values(), [{ value: fixture.model.uri, isSelection: false }]);
 		fixture.navigation.updateSelection(undefined);
-		await timeout(0);
+		await timeout(510);
 		assert.deepStrictEqual(fixture.values(), [{ value: fixture.model.uri, isSelection: false }]);
 	});
 
@@ -197,10 +206,11 @@ suite('Chat implicit custom editor context', () => {
 		await timeout(0);
 		pending = new DeferredPromise();
 		fixture.navigation.updateSelection(new Selection(2, 1, 2, 5));
+		await timeout(510);
 		const previous = pending;
 		pending = undefined;
 		fixture.navigation.updateSelection(new Selection(3, 1, 3, 5));
-		await timeout(0);
+		await timeout(510);
 		await previous.complete(undefined);
 		await timeout(0);
 		assert.deepStrictEqual(fixture.values(), [{
@@ -209,6 +219,7 @@ suite('Chat implicit custom editor context', () => {
 
 		pending = new DeferredPromise();
 		fixture.navigation.updateSelection(new Selection(2, 1, 2, 5));
+		await timeout(510);
 		const previousEditor = pending;
 		pending = undefined;
 		fixture.activate(undefined);
@@ -227,12 +238,57 @@ suite('Chat implicit custom editor context', () => {
 		await timeout(0);
 		pending = new DeferredPromise();
 		fixture.navigation.updateSelection(new Selection(2, 1, 2, 5));
+		await timeout(510);
 		fixture.contribution.dispose();
 		await pending.complete(undefined);
 		pending = undefined;
 		fixture.navigation.updateSelection(new Selection(3, 1, 3, 5));
 		await timeout(0);
 		assert.deepStrictEqual(fixture.values(), [{ value: fixture.model.uri, isSelection: false }]);
+	});
+
+	test('coalesces selection, content, language and webview events into one provider request', async () => {
+		let calls = 0;
+		const fixture = setupContext({ contextForResource: async () => { calls++; return undefined; } });
+		fixture.input.navigation = fixture.navigation;
+		await timeout(0);
+		calls = 0;
+		for (let i = 0; i < 10; i++) {
+			fixture.model.setValue(`Edit ${i}`);
+			fixture.navigation.updateSelection(new Selection(1, 1, 1, 5));
+			fixture.messages.fire({ message: { selectionChanged: true } });
+		}
+		fixture.model.setLanguage('plaintext');
+		await timeout(250);
+		assert.strictEqual(calls, 0);
+		await timeout(260);
+		assert.deepStrictEqual({ calls, values: fixture.values() }, {
+			calls: 1,
+			values: [{ value: { uri: fixture.model.uri, range: new Selection(1, 1, 1, 5) }, isSelection: true }],
+		});
+	});
+
+	test('adding a widget during a pending full refresh updates both old and new widgets', async () => {
+		let pending: DeferredPromise<StringChatContextValue | undefined> | undefined;
+		const fixture = setupContext({ contextForResource: () => pending?.p ?? Promise.resolve(undefined) });
+		fixture.input.navigation = fixture.navigation;
+		await timeout(0);
+		pending = new DeferredPromise();
+		fixture.navigation.updateSelection(new Selection(2, 1, 2, 5));
+		await timeout(510);
+		const oldRefresh = pending;
+		pending = undefined;
+		const added = fixture.addWidget();
+		await timeout(0);
+		await oldRefresh.complete(undefined);
+		await timeout(0);
+		assert.deepStrictEqual({
+			existing: fixture.implicitContext.getLocations(),
+			added: added.getLocations(),
+		}, {
+			existing: [{ uri: fixture.model.uri, range: new Selection(2, 1, 2, 5) }],
+			added: [{ uri: fixture.model.uri, range: new Selection(2, 1, 2, 5) }],
+		});
 	});
 });
 

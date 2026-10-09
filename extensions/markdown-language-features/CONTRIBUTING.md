@@ -88,6 +88,8 @@ Keep navigation independent of editing mode. Breadcrumb previews must preserve f
 
 Chat also consumes this per-panel navigation selection as implicit context, including in the Agents window. It attaches a range in the underlying Markdown document, not rendered HTML, and respects the existing implicit-context settings and ignored-file checks. A collapsed or cleared selection falls back to the document URI. No separate Markdown chat bridge is needed. Workbench regression coverage lives in `src/vs/workbench/contrib/chat/test/browser/attachments/chatImplicitContext.test.ts`.
 
+Selection, document, and webview changes share a 500 ms debounce before refreshing chat context, matching code-editor behavior. Navigation availability changes refresh immediately, and registering a chat widget refreshes existing widgets as well so a superseded asynchronous refresh cannot leave them stale.
+
 ### Running tests
 
 You can run the VS Code extension tests by running the `Markdown Extension Tests` target in VS Code. This will run the tests under `./src/test`

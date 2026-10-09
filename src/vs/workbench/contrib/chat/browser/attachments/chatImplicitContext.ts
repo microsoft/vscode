@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -74,15 +75,17 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 
 				const customEditor = this.findActiveCustomEditor();
 				if (customEditor) {
+					const update = activeEditorDisposables.add(new RunOnceScheduler(() => this.updateImplicitContext(), 500));
+					activeEditorDisposables.add(customEditor.webview.onMessage(() => update.schedule()));
 					const navigationDisposables = activeEditorDisposables.add(new DisposableStore());
 					activeEditorDisposables.add(Event.runAndSubscribe(customEditor.onDidChangeNavigation, () => {
+						update.cancel();
 						navigationDisposables.clear();
 						const navigation = customEditor.navigation;
 						if (navigation) {
-							const update = () => this.updateImplicitContext();
-							navigationDisposables.add(navigation.onDidChangeSelection(update));
-							navigationDisposables.add(navigation.model.onDidChangeContent(update));
-							navigationDisposables.add(navigation.model.onDidChangeLanguage(update));
+							navigationDisposables.add(navigation.onDidChangeSelection(() => update.schedule()));
+							navigationDisposables.add(navigation.model.onDidChangeContent(() => update.schedule()));
+							navigationDisposables.add(navigation.model.onDidChangeLanguage(() => update.schedule()));
 						}
 						this.updateImplicitContext();
 					}));
@@ -114,7 +117,7 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 						500)(() => this.updateImplicitContext()));
 				}
 				const webviewEditor = this.findActiveWebviewEditor();
-				if (webviewEditor) {
+				if (webviewEditor && !customEditor) {
 					activeEditorDisposables.add(Event.debounce((webviewEditor.input as WebviewInput).webview.onMessage, () => undefined, 500)(() => {
 						this.updateImplicitContext();
 					}));
@@ -315,7 +318,11 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 			return;
 		}
 
-		const widgets = updateWidget ? [updateWidget] : [...this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat), ...this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.EditorInline)];
+		const widgets = new Set([
+			...this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat),
+			...this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.EditorInline),
+			...(updateWidget ? [updateWidget] : []),
+		]);
 		for (const widget of widgets) {
 			if (!widget.input.implicitContext) {
 				continue;
