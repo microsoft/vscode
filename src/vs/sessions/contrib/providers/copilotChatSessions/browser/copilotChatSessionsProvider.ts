@@ -2659,7 +2659,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				const currentStatus = existing.status.get();
 				const completedAt = existing.lastTurnEnd.get()?.getTime();
 				const localCompletion = existing instanceof AgentSessionAdapter ? existing.lastObservedLocalCompletion : undefined;
-				if ((previousStatus === SessionStatus.InProgress || completedAt !== undefined && completedAt > (previousEnd ?? existing.createdAt.getTime()))
+				if ((previousStatus === SessionStatus.InProgress || completedAt !== undefined && (previousEnd === undefined || completedAt > previousEnd))
 					&& (localCompletion === undefined || completedAt !== undefined && completedAt > localCompletion)
 					&& currentStatus !== SessionStatus.InProgress
 					&& currentStatus !== SessionStatus.Untitled

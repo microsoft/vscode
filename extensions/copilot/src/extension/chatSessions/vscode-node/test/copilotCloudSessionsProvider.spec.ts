@@ -462,6 +462,27 @@ describe('cloud session visibility', () => {
 			});
 		});
 
+		it('bounds published exact tasks to the LRU while preserving ordinary discovery', async () => {
+			fetchSessionList.mockResolvedValue([session('ordinary')]);
+			vi.spyOn(TaskApiBackend.prototype, 'fetchSession').mockImplementation(async taskId => session(taskId));
+			const provider = createProvider();
+			await provider.provideChatSessionItems(CancellationToken.None);
+			const resolve = vi.mocked(vscode.commands.registerCommand).mock.calls.find(([id]) => id === 'github.copilot.chat.cloudSessions.resolveTask')![1];
+			const sizes: number[] = [];
+			for (let i = 0; i < 52; i++) {
+				await resolve(vscode.Uri.parse(`copilot-cloud-agent:/task/exact-${i}`));
+				sizes.push((await provider.provideChatSessionItems(CancellationToken.None)).length);
+			}
+			const items = await provider.provideChatSessionItems(CancellationToken.None);
+			expect({
+				sizes,
+				labels: items.map(item => item.label),
+			}).toEqual({
+				sizes: Array.from({ length: 52 }, (_, i) => 1 + Math.min(i + 1, 50)),
+				labels: ['ordinary', ...Array.from({ length: 50 }, (_, i) => `exact-${i + 2}`)],
+			});
+		});
+
 		it('rejects malformed task resources and discards hydration after an account change', async () => {
 			const pending = new DeferredPromise<CloudSessionData>();
 			const fetchSession = vi.spyOn(TaskApiBackend.prototype, 'fetchSession').mockReturnValue(pending.p);

@@ -934,15 +934,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				throw new Error(l10n.t('Could not resolve cloud task {0}.', taskId));
 			}
 			this.explicitlyResolvedSessions.set(taskId, item);
-			this.sessionItemsRequestGeneration++;
-			this.chatSessionItemsPromise = undefined;
-			if (this.cachedSessionItems) {
-				this.cachedSessionItems = [
-					...this.cachedSessionItems.filter(existing => existing.resource.toString() !== item.resource.toString()),
-					item,
-				];
-			}
-			this._onDidChangeChatSessionItems.fire();
+			this.refresh();
 		}));
 		this._register(vscode.commands.registerCommand(OPEN_PULL_REQUEST_FOR_TASK_COMMAND_ID, (sessionItemOrResource?: vscode.ChatSessionItem | vscode.Uri) => this.handleOpenPullRequestForTaskCommand(sessionItemOrResource)));
 	}
