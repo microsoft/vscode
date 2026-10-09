@@ -289,7 +289,7 @@ export class CustomizationMigrationDashboard extends Disposable {
 	}
 
 	showOverview(overview: ICustomizationMigrationDashboardOverview): void {
-		const focusedKey = this.pendingFocus ?? this.getFocusedKey();
+		const focusedKey = this.getFocusToRestore();
 		this.pendingFocus = undefined;
 		const migrationGroups = this.getMigrationGroups(overview);
 		this.allMigrationsComplete = migrationGroups.length === 0 && !overview.hasIgnoredGroups;
@@ -388,6 +388,14 @@ export class CustomizationMigrationDashboard extends Disposable {
 	private getFocusedKey(): string | undefined {
 		const active = DOM.getActiveElement();
 		return [...this.focusTargets].find(([, element]) => element === active)?.[0];
+	}
+
+	private getFocusToRestore(): string | typeof focusPreferredTarget | undefined {
+		const active = DOM.getActiveElement();
+		if (active && active !== this.element.ownerDocument.body && !this.element.contains(active)) {
+			return undefined;
+		}
+		return this.pendingFocus ?? this.getFocusedKey();
 	}
 
 	private renderHeader(title: string, description: string, hasIgnoredGroups = false, migrateWithAgent?: () => void): HTMLElement {

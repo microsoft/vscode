@@ -246,6 +246,8 @@
 	font-size: var(--vscode-fontSize-body2);
 	overflow-wrap: anywhere;
 	white-space: pre-line;
+	-webkit-user-select: text;
+	user-select: text;
 }
 
 .customization-migration-dashboard :focus-visible {
