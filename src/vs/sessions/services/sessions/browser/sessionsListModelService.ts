@@ -6,6 +6,7 @@
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { ThemeIcon, themeColorFromId } from '../../../../base/common/themables.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -45,6 +46,11 @@ export interface ISessionsListModelService {
 
 	/** Fires when a session's pinned or sort state changes. */
 	readonly onDidChange: Event<ISessionListModelChangeEvent>;
+
+	// -- View mode --
+
+	readonly inboxViewEnabled: IObservable<boolean>;
+	setInboxViewEnabled(enabled: boolean): void;
 
 	// -- Pinning --
 
@@ -110,10 +116,13 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 	private static readonly RETIRED_CHAT_ORDER_KEY = 'sessionsListControl.chatOrder';
 	private static readonly LEGACY_READ_SESSIONS_KEY = 'sessionsListControl.readSessions';
 	private static readonly READ_MIGRATION_DONE_KEY = 'sessionsListControl.readMigrationDone';
+	private static readonly INBOX_VIEW_KEY = 'sessionsViewPane.inbox';
 	private static readonly UNREAD_DEFAULT_CUTOFF = new Date('2026-05-12T00:00:00.000Z');
 
 	private readonly _onDidChange = this._register(new Emitter<ISessionListModelChangeEvent>());
 	readonly onDidChange: Event<ISessionListModelChangeEvent> = this._onDidChange.event;
+	private readonly _inboxViewEnabled = observableValue(this, false);
+	readonly inboxViewEnabled: IObservable<boolean> = this._inboxViewEnabled;
 
 	private readonly _pinnedSessionIds: Set<string>;
 	private readonly _sortOverrides: Record<SessionSortMode, Map<string, number>>;
@@ -131,6 +140,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		this._sortOverrides = this.loadSortOverrides();
 		this._updatedDefaultPlacements = this.loadUpdatedDefaultPlacements();
 		this.storageService.remove(SessionsListModelService.RETIRED_CHAT_ORDER_KEY, StorageScope.PROFILE);
+		this._inboxViewEnabled.set(this.storageService.getBoolean(SessionsListModelService.INBOX_VIEW_KEY, StorageScope.PROFILE, false), undefined);
 		const legacyRead = this.loadSet(SessionsListModelService.LEGACY_READ_SESSIONS_KEY);
 		this._legacyReadSessionIds = legacyRead.size > 0 ? legacyRead : undefined;
 		this._migratedReadSessionIds = this.loadSet(SessionsListModelService.READ_MIGRATION_DONE_KEY);
@@ -146,6 +156,16 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		this._register(this.sessionsManagementService.onDidDeleteSession(session => {
 			this.deleteSession(session);
 		}));
+	}
+
+	// -- View mode --
+
+	setInboxViewEnabled(enabled: boolean): void {
+		if (this._inboxViewEnabled.get() === enabled) {
+			return;
+		}
+		this._inboxViewEnabled.set(enabled, undefined);
+		this.storageService.store(SessionsListModelService.INBOX_VIEW_KEY, enabled, StorageScope.PROFILE, StorageTarget.USER);
 	}
 
 	// -- Legacy read-state migration --

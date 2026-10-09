@@ -95,6 +95,21 @@ suite('SessionsListModelService', () => {
 		);
 	});
 
+	test('persists Inbox View state', () => {
+		service.setInboxViewEnabled(true);
+		const restored = disposables.add(instantiationService.createInstance(SessionsListModelService));
+
+		assert.deepStrictEqual({
+			enabled: service.inboxViewEnabled.get(),
+			stored: storageService.getBoolean('sessionsViewPane.inbox', StorageScope.PROFILE),
+			restored: restored.inboxViewEnabled.get(),
+		}, {
+			enabled: true,
+			stored: true,
+			restored: true,
+		});
+	});
+
 	// -- Pinning --
 
 	test('pinSession marks session as pinned', () => {

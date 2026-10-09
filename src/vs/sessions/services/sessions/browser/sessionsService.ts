@@ -7,7 +7,7 @@ import { disposableTimeout, raceCancellation, raceTimeout } from '../../../../ba
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, autorun, observableValue, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -19,7 +19,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { localize } from '../../../../nls.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, SessionStatus } from '../common/session.js';
-import { IActiveSession, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, inheritableSessionTarget, IRecentlyOpenedSessions, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent } from '../common/sessionsManagement.js';
+import { IActiveSession, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, inheritableSessionTarget, IRecentlyOpenedSessions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, IToggleSessionStickinessEvent } from '../common/sessionsManagement.js';
 import { IChatMovedEvent } from '../common/sessionsProvider.js';
 import { ISessionsProvidersService } from './sessionsProvidersService.js';
 import { ensureSessionWorktreesTrusted } from './worktreeTrust.js';
@@ -37,6 +37,9 @@ import { ISessionOpenTelemetryAttempt, ISessionOpenTelemetryService, SessionOpen
 import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { Direction } from '../../../../base/browser/ui/grid/grid.js';
 import { ISessionGridState, isSessionGridState, projectSessionGrid } from './sessionGridState.js';
+import { ISessionsListModelService } from './sessionsListModelService.js';
+import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { ChatQuestionCarouselData } from '../../../../workbench/contrib/chat/common/model/chatProgressTypes/chatQuestionCarouselData.js';
 
 const ACTIVE_SESSION_STATES_KEY = 'agentSessions.activeSessionStates';
 const SESSION_GRID_STATE_KEY = 'agentSessions.gridState';
@@ -448,6 +451,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 	/** The in-flight foreground send's "keep newest chat active" follow. */
 	private readonly _sendFollow = this._register(new MutableDisposable<DisposableStore>());
+	private readonly _inboxRedirect = this._register(new MutableDisposable());
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -455,6 +459,8 @@ export class SessionsService extends Disposable implements ISessionsService {
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ISessionsListModelService private readonly sessionsListModelService: ISessionsListModelService,
+		@IChatService private readonly chatService: IChatService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
 		@ICustomViewService private readonly customViewService: ICustomViewService,
@@ -567,7 +573,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		// While a foreground send materialises new chats, keep the newest chat
 		// active in the visible slot so the user sees the chat being sent.
 		this._register(this.sessionsManagementService.onWillSendRequest(session => this._startSendFollow(session)));
-		this._register(this.sessionsManagementService.onDidSendRequest(() => this._sendFollow.clear()));
+		this._register(this.sessionsManagementService.onDidSendRequest(event => this._handleDidSendRequest(event)));
 
 		// Drive the part: reconcile the grid and move focus into the active
 		// session whenever the visible sessions or the active session change.
@@ -599,6 +605,26 @@ export class SessionsService extends Disposable implements ISessionsService {
 			this._cancelRestore();
 			this._startOpenSession();
 		}));
+	}
+
+	private _handleDidSendRequest(event: ISendRequestSentEvent): void {
+		this._sendFollow.clear();
+		if (!this.sessionsListModelService.inboxViewEnabled.get() || event.isNewSession || event.isNewChat) {
+			return;
+		}
+		if (this.activeSession.get()?.sessionId !== event.session.sessionId) {
+			return;
+		}
+		this._scheduleInboxRedirect(event.session.sessionId);
+	}
+
+	private _scheduleInboxRedirect(sessionId: string): void {
+		this._inboxRedirect.value = disposableTimeout(() => {
+			if (!this.sessionsListModelService.inboxViewEnabled.get() || this.activeSession.get()?.sessionId !== sessionId) {
+				return;
+			}
+			this.openNewSession({ cancelRestore: true }).catch(onUnexpectedError);
+		}, 0);
 	}
 
 	private _onDidReplaceSession(from: ISession, to: ISession): void {
@@ -690,6 +716,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 	private _activeSessionViewListeners(activeSession: IActiveSession): IDisposable {
 		const disposables = new DisposableStore();
+		disposables.add(this._watchQuestionCarouselCompletion(activeSession));
 		const initialChatResource = activeSession.activeChat.get()?.resource;
 		let pendingRestoredChatResource: URI | undefined;
 		this._pendingRestoredChatResources.delete(activeSession.resource);
@@ -836,6 +863,44 @@ export class SessionsService extends Disposable implements ISessionsService {
 				}
 				onUnexpectedError(error);
 			});
+		}));
+
+		return disposables;
+	}
+
+	private _watchQuestionCarouselCompletion(activeSession: IActiveSession): IDisposable {
+		const disposables = new DisposableStore();
+		const modelListener = disposables.add(new MutableDisposable<DisposableStore>());
+		const watched = new Set<ChatQuestionCarouselData>();
+		let disposed = false;
+		disposables.add(toDisposable(() => disposed = true));
+
+		disposables.add(autorun(reader => {
+			const activeChat = activeSession.activeChat.read(reader);
+			this.chatService.chatModels.read(reader);
+			const model = this.chatService.getSession(activeChat.resource);
+			const listener = new DisposableStore();
+			modelListener.value = listener;
+			if (!model) {
+				return;
+			}
+			const scan = () => {
+				for (const request of model.getRequests()) {
+					for (const part of request.response?.response.value ?? []) {
+						if (!(part instanceof ChatQuestionCarouselData) || part.isUsed || watched.has(part)) {
+							continue;
+						}
+						watched.add(part);
+						void part.completion.p.then(({ answers }) => {
+							if (!disposed && answers !== undefined) {
+								this._scheduleInboxRedirect(activeSession.sessionId);
+							}
+						});
+					}
+				}
+			};
+			scan();
+			listener.add(model.onDidChange(scan));
 		}));
 
 		return disposables;

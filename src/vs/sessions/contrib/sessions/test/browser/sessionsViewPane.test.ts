@@ -17,7 +17,8 @@ import { Workbench } from '../../../../browser/workbench.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { AICustomizationShortcutsWidget } from '../../browser/aiCustomizationShortcutsWidget.js';
-import { getCustomizationsPresentation, SessionsView } from '../../browser/views/sessionsView.js';
+import { getCustomizationsPresentation, getSessionsInboxEmptyLabel, getSessionsViewTitle, SessionsView } from '../../browser/views/sessionsView.js';
+import { SessionsInboxEmptyState } from '../../browser/views/sessionsList.js';
 import '../../browser/media/sessionsViewPane.css';
 
 const registerEditorTabHeightClass = Reflect.get(Workbench.prototype, 'registerEditorTabHeightClass') as (this: {
@@ -59,6 +60,26 @@ suite('Sessions - SessionsViewPane', () => {
 			phone: 'hidden',
 			aiDisabled: 'hidden',
 			aiHidden: 'hidden',
+		});
+	});
+
+	test('uses Inbox title and empty-state copy only in Inbox View', () => {
+		assert.deepStrictEqual({
+			standardTitle: getSessionsViewTitle(false),
+			inboxTitle: getSessionsViewTitle(true),
+			empty: getSessionsInboxEmptyLabel(SessionsInboxEmptyState.Empty),
+			emptyAfterPinned: getSessionsInboxEmptyLabel(SessionsInboxEmptyState.EmptyAfterPinned),
+			running: getSessionsInboxEmptyLabel(SessionsInboxEmptyState.Running),
+			runningAfterPinned: getSessionsInboxEmptyLabel(SessionsInboxEmptyState.RunningAfterPinned),
+			notEmpty: getSessionsInboxEmptyLabel(SessionsInboxEmptyState.NotEmpty),
+		}, {
+			standardTitle: 'Sessions',
+			inboxTitle: 'Inbox',
+			empty: 'Inbox empty',
+			emptyAfterPinned: 'Inbox empty',
+			running: 'Waiting for agents to respond',
+			runningAfterPinned: 'Waiting for agents to respond',
+			notEmpty: undefined,
 		});
 	});
 

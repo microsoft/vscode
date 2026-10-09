@@ -57,6 +57,7 @@ import { IActiveSession, ISessionsManagementService } from '../../../../services
 import { ChatInteractivity, IChat, ISession, ISessionPreparationProgress, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { SessionsChatBackgroundRenderer, SessionsChatBackgroundReplica } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ISessionsChatBackground } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../../common/layoutConstants.js';
@@ -2171,6 +2172,7 @@ suite('Sessions - Chat View', () => {
 			new class extends mock<ILogService>() { }(),
 			new class extends mock<ISessionsManagementService>() { }(),
 			sessionsService,
+			new class extends mock<ISessionsListModelService>() { }(),
 			new class extends mock<IStorageService>() { }(),
 		));
 

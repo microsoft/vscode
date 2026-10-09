@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationError, errorHandler } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -105,7 +105,13 @@ suite('Sessions - New chat user-perceived TTFP', () => {
 		return { input, sourceOwner };
 	}
 
-	function createSend(h: ReturnType<typeof createHarness>, newSession: boolean, dispatch: (options: ISendRequestOptions) => Promise<void>) {
+	function createSend(
+		h: ReturnType<typeof createHarness>,
+		newSession: boolean,
+		dispatch: (options: ISendRequestOptions) => Promise<void>,
+		inboxViewEnabled = false,
+		navigation?: string[],
+	) {
 		type Send = (query: string, attachments?: IChatRequestVariableEntry[], background?: boolean, interaction?: NewChatUserInteraction) => Promise<boolean>;
 		const owner = {
 			send: Reflect.get(newSession ? NewChatWidget.prototype : NewChatInSessionWidget.prototype, '_send') as Send,
@@ -115,18 +121,44 @@ suite('Sessions - New chat user-perceived TTFP', () => {
 			_comparisonSelection: { enabled: constObservable(false) },
 			_workspacePicker: { clearAttachedContext: () => { }, showPicker: () => { } },
 			_pendingBackgroundSends: { set: () => { }, deleteAndDispose: () => { } },
+			_inboxRedirect: disposables.add(new MutableDisposable()),
 			agentFeedbackService: { removeFeedback: () => { } },
 			_getWorkspaceRoots: () => [],
+			sessionsListModelService: { inboxViewEnabled: constObservable(inboxViewEnabled) },
 			newSessionComposerService: { notifyWillSendRequest: () => { } },
+			sessionsService: {
+				openNewChatInSession: async () => { navigation?.push('newChatInSession'); return undefined; },
+				openNewSession: async () => { navigation?.push('newSession'); return { session: undefined, trustDeclined: false }; },
+			},
 			sessionsManagementService: {
 				sendNewChatRequest: (_session: ISession, options: ISendRequestOptions) => dispatch(options),
 				sendRequest: (_session: ISession, _chat: IChat, options: ISendRequestOptions) => dispatch(options),
 			},
-			notificationService: { error: () => { } },
+			notificationService: { error: () => { }, info: () => { } },
 			logService: { error: () => { } },
 		};
 		return (request: INewChatInputSendRequest) => owner.send(request.query, request.attachments, request.background, request.userInteraction);
 	}
+
+	test('Inbox View sends a peer chat in the background and returns to the new-session composer', async () => {
+		const h = createHarness(false);
+		const navigation: string[] = [];
+		let sentOptions: ISendRequestOptions | undefined;
+		const result = await createSend(h, false, async options => { sentOptions = options; }, true, navigation)({
+			query: 'continue in the background',
+		});
+		await timeout(1);
+
+		assert.deepStrictEqual({
+			result,
+			background: sentOptions?.background,
+			navigation,
+		}, {
+			result: true,
+			background: true,
+			navigation: ['newChatInSession', 'newSession'],
+		});
+	});
 
 	for (const newSession of [true, false]) {
 		test(`${newSession ? 'new-session' : 'peer-chat'} queued responses are excluded even when they later make progress`, async () => {

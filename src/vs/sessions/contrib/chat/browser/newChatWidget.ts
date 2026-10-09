@@ -37,6 +37,7 @@ import { IActiveSession, ICreateNewSessionOptions, ISessionsManagementService, W
 import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../services/sessions/common/session.js';
 import { IOpenNewSessionResult, ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsListModelService } from '../../../services/sessions/browser/sessionsListModelService.js';
 import { isAllowSignedOutWhenUsableEnabled, shouldShowGitHubWorkspaceGroupSignIn } from '../../../browser/sessionsAuthGate.js';
 import { AGENTIC_SIGN_IN_COMMAND_ID, FOCUS_NEW_SESSION_HARNESS_PICKER_COMMAND_ID, FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
@@ -210,6 +211,7 @@ export class NewChatWidget extends Disposable {
 		@ILogService private readonly logService: ILogService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
+		@ISessionsListModelService private readonly sessionsListModelService: ISessionsListModelService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@ISessionsRecentWorkspacesService private readonly recentWorkspacesService: ISessionsRecentWorkspacesService,
 		@IAquariumService private readonly aquariumService: IAquariumService,
@@ -1759,6 +1761,8 @@ export class NewChatWidget extends Disposable {
 			this._workspacePicker.showPicker();
 			return false;
 		}
+		const inboxViewEnabled = this.sessionsListModelService.inboxViewEnabled.get();
+		const startInBackground = background === true || inboxViewEnabled;
 		const feedbackItems = [...this._feedbackItems.get()];
 		const workspaceRoots = this._getWorkspaceRoots(session);
 		const request = buildNewSessionPrompt(query, feedbackItems, workspaceRoots);
@@ -1780,11 +1784,11 @@ export class NewChatWidget extends Disposable {
 		// have no workspace, so they re-seed via openQuickChat instead.
 		const wasQuickChat = this._isQuickChatComposer.get();
 		const folderUri = wasQuickChat ? undefined : this._workspacePicker.selectedFolderUri;
-		const reseedFolderUri = background ? folderUri : undefined;
+		const reseedFolderUri = startInBackground ? folderUri : undefined;
 		const sendOptions = {
 			query: request,
 			attachedContext: requestContext.size > 0 ? [...requestContext.values()] : undefined,
-			background,
+			background: startInBackground || undefined,
 			...(userInteraction ? { onDidCreateResponse: userInteraction.onDidCreateResponse } : {}),
 		};
 		const clearFeedback = () => {
@@ -1801,7 +1805,7 @@ export class NewChatWidget extends Disposable {
 		// for the next one, so several can be in flight at once. Each is tracked
 		// separately, keyed by the options object it was started with, so one
 		// send's outcome never clears another's comments.
-		if (background) {
+		if (startInBackground) {
 			this._pendingBackgroundSends.set(sendOptions, Event.once(
 				Event.filter(this.sessionsManagementService.onDidSendRequest, event => event.options === sendOptions)
 			)(() => {
@@ -1825,7 +1829,7 @@ export class NewChatWidget extends Disposable {
 			return false;
 		}
 
-		if (!background) {
+		if (!startInBackground) {
 			clearFeedback();
 			restoreWorkspace();
 		}
@@ -1837,11 +1841,14 @@ export class NewChatWidget extends Disposable {
 		// immediately — providers are multi-new-session aware, so the graduating
 		// session and this new draft coexist. This restores the
 		// session-type/model pickers for the next message.
-		if (background) {
+		if (startInBackground) {
 			if (wasQuickChat) {
 				this._openQuickChat();
 			} else if (reseedFolderUri) {
 				await this._createNewSession(reseedFolderUri);
+			}
+			if (inboxViewEnabled) {
+				this.notificationService.info(localize('newSession.startedInBackground', "New session started in the background."));
 			}
 		}
 		return true;

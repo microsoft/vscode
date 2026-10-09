@@ -87,10 +87,14 @@
 		left: var(--vscode-spacing-size40);
 		right: var(--vscode-spacing-size40);
 		width: auto;
-		border-radius: var(--vscode-cornerRadius-small);
+		border-radius:
+			var(--vscode-cornerRadius-small)
+			var(--vscode-cornerRadius-small)
+			calc(var(--vscode-cornerRadius-small) + var(--vscode-spacing-size20))
+			calc(var(--vscode-cornerRadius-small) + var(--vscode-spacing-size20));
 
 		> .monaco-tl-row {
-			border-radius: inherit;
+			border-radius: var(--vscode-cornerRadius-small);
 		}
 	}
 
@@ -319,6 +323,10 @@
 
 		.session-icon {
 			line-height: 16px;
+		}
+
+		&.suppress-in-progress-status-icon .session-icon {
+			display: none;
 		}
 
 		.session-title-row {
@@ -757,8 +765,8 @@
 
 	}
 
-	.monaco-list-row:is(:hover, .hovered) .session-item:not(.quick-chat):not(.renaming) .session-compact-hover-description,
-	.monaco-list:focus-within .monaco-list-row.focused .session-item:not(.quick-chat):not(.renaming) .session-compact-hover-description {
+	.monaco-list-row:is(:hover, .hovered) .session-item:not(.renaming) .session-compact-hover-description,
+	.monaco-list:focus-within .monaco-list-row.focused .session-item:not(.renaming) .session-compact-hover-description {
 		display: flex;
 	}
 
@@ -1164,6 +1172,10 @@
 		white-space: nowrap;
 		opacity: 0.8;
 	}
+
+	&.inbox-empty .session-placeholder-label {
+		padding-left: 0;
+	}
 }
 
 /* Folders show-more/show-less: align with workspace section headers. */
@@ -1269,6 +1281,7 @@
 		border-radius: var(--vscode-cornerRadius-small);
 		justify-content: center;
 	}
+
 }
 
 .monaco-list-row:is(:hover, .hovered) .session-section .session-section-toolbar,

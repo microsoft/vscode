@@ -67,15 +67,15 @@ import { ISessionsListModelService, SessionsListModelService } from '../../../..
 import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IChat, ISession } from '../../../../services/sessions/common/session.js';
+import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionComparisonService } from '../../../../services/sessions/common/sessionComparison.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { buildTestSession, ITestChat, ITestChatSpec, ITestSession, ITestSessionSpec } from '../../../../services/sessions/test/common/testSessionBuilder.js';
 import { BlockedSessionReason, BlockedSessions } from '../../../blockedSessions/browser/blockedSessions.js';
 import { NEW_SESSION_ACTION_ID } from '../../../chat/common/constants.js';
 import { NEW_SESSION_BUTTON_STYLE_SETTING, NEW_SESSION_BUTTON_STYLE_TREATMENT, NewSessionActionViewItemContribution, type NewSessionButtonStyle } from '../../browser/sessionsActions.js';
-import { SessionChatItem, SessionsGrouping, SessionsList, SessionsListItemReference, SessionsSorting } from '../../browser/views/sessionsList.js';
-import { renderSessionsHeader } from '../../browser/views/sessionsView.js';
+import { SessionChatItem, SessionsGrouping, SessionsInboxEmptyState, SessionsList, SessionsListItemReference, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { getSessionsInboxEmptyLabel, getSessionsViewTitle, renderSessionsHeader, SessionsRunningSection } from '../../browser/views/sessionsView.js';
 import { SessionsArchiveActionsContribution, getSessionsArchiveActionConstructors } from '../../browser/views/sessionsViewActions.js';
 import { TestSessionsList } from './testSessionsList.js';
 
@@ -740,14 +740,27 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 
 	let listParent = container;
 	let navigationContainer: HTMLElement | undefined;
+	let inboxEmptyLabel: HTMLElement | undefined;
+	let runningSectionParent: HTMLElement | undefined;
+	let runningSessionIds: readonly string[] = [];
 	if (header) {
-		container.classList.add('agent-sessions-viewpane', 'agent-sessions-section');
-		const content = DOM.append(container, DOM.$('.agent-sessions-content'));
+		container.classList.add('agent-sessions-viewpane');
+		const sessionsContainer = view.inbox ? DOM.append(container, DOM.$('.agent-sessions-container')) : container;
+		runningSectionParent = view.inbox ? sessionsContainer : undefined;
+		const sessionsSection = view.inbox ? DOM.append(sessionsContainer, DOM.$('.agent-sessions-section')) : container;
+		if (!view.inbox) {
+			sessionsSection.classList.add('agent-sessions-section');
+		}
+		const content = DOM.append(sessionsSection, DOM.$('.agent-sessions-content'));
 		navigationContainer = DOM.append(content, DOM.$('.agent-sessions-navigation-container'));
 		const sessionsHeaderContainer = DOM.append(content, DOM.$('.agent-sessions-header-container'));
 		disposableStore.add(instantiationService.createInstance(NewSessionActionViewItemContribution));
 		const renderedHeader = renderSessionsHeader(sessionsHeaderContainer, false, instantiationService, contextKeyService, disposableStore);
 		renderedHeader.toolbar?.refresh();
+		renderedHeader.label.textContent = getSessionsViewTitle(view.inbox === true);
+		if (view.inbox) {
+			inboxEmptyLabel = DOM.append(content, DOM.$('.agent-sessions-inbox-empty-label'));
+		}
 		listParent = content;
 	}
 	const listHost = DOM.append(listParent, DOM.$(header ? '.agent-sessions-control-container' : 'div'));
@@ -776,16 +789,46 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 	if (view.showArchived ?? state.sessions.some(spec => spec.isArchived)) {
 		list.setExcludeArchived(false);
 	}
-	list.layout(height, width);
+	if (runningSectionParent) {
+		const runningSpecs = state.sessions.filter(session => session.status === SessionStatus.InProgress && !session.isArchived);
+		runningSessionIds = runningSpecs.map(session => session.id);
+		const runningSessions = runningSpecs.map(session => sessions.get(session.id)!.session);
+		const runningSection = disposableStore.add(instantiationService.createInstance(
+			SessionsRunningSection,
+			runningSectionParent,
+			constObservable(runningSessions),
+			() => view.compact ?? false,
+			() => { },
+			() => { },
+			undefined,
+		));
+		runningSection.layout(width);
+		if (view.expanded?.some(row => hasKey(row, { section: true }) && row.section === 'running')) {
+			runningSectionParent.querySelector<HTMLElement>('.agent-sessions-running-header')?.click();
+		}
+	}
+	if (inboxEmptyLabel) {
+		const state = list.getInboxEmptyState();
+		const emptyLabel = state === SessionsInboxEmptyState.EmptyAfterPinned || state === SessionsInboxEmptyState.RunningAfterPinned
+			? undefined
+			: getSessionsInboxEmptyLabel(state);
+		inboxEmptyLabel.textContent = emptyLabel ?? '';
+		inboxEmptyLabel.classList.toggle('visible', emptyLabel !== undefined);
+	}
+	list.layout(view.inbox ? listHost.offsetHeight : height, width);
 	if (view.collapsed === 'all') {
 		list.collapseAllSections();
 	} else {
 		for (const row of view.collapsed ?? []) {
-			setCollapsed(list, resolve(row), true);
+			if (!(hasKey(row, { section: true }) && row.section === 'running')) {
+				setCollapsed(list, resolve(row), true);
+			}
 		}
 	}
 	for (const row of view.expanded ?? []) {
-		setCollapsed(list, resolve(row), false);
+		if (!(hasKey(row, { section: true }) && row.section === 'running')) {
+			setCollapsed(list, resolve(row), false);
+		}
 	}
 
 	if (header) {
@@ -793,7 +836,16 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 	}
 
 	await timeout(SETTLE_DELAY);
-	applyInteraction(context, list, interaction, resolve, getSession, groupIds);
+	const runningHeaderHovered = interaction.hovered && hasKey(interaction.hovered, { section: true }) && interaction.hovered.section === 'running';
+	const runningSessionHovered = interaction.hovered && hasKey(interaction.hovered, { session: true }) && runningSessionIds.includes(interaction.hovered.session);
+	applyInteraction(context, list, runningHeaderHovered || runningSessionHovered ? { ...interaction, hovered: undefined } : interaction, resolve, getSession, groupIds);
+	if (runningHeaderHovered) {
+		runningSectionParent?.querySelector('.agent-sessions-running-header')?.classList.add('hovered');
+	}
+	if (runningSessionHovered) {
+		const index = runningSessionIds.indexOf(interaction.hovered.session);
+		runningSectionParent?.querySelectorAll('.agent-sessions-running-list .monaco-list-row')[index]?.classList.add('hovered');
+	}
 	await timeout(SETTLE_DELAY);
 
 	return { list, container, listHost, instantiationService, sessions, resolve };

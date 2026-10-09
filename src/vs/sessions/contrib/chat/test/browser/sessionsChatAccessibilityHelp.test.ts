@@ -349,7 +349,11 @@ suite('SessionsChatAccessibilityHelp', () => {
 				defaults: content.includes('Last 7 Days is the default') && content.includes('Show in External Section') && content.includes('This option is off by default'),
 				submenuChoices: content.includes('Current choices are checked inside the submenus'),
 				viewActions: content.includes('Inbox View, Compact View, and Collapse All Groups are available from the Sessions More Actions menu')
-					&& content.includes('Inbox View hides running sessions and shows the remaining sessions in one newest-first list'),
+					&& content.includes('Inbox View changes the section title to Inbox')
+					&& content.includes('An empty inbox says Inbox empty, or Waiting for agents to respond'),
+				inboxSend: content.includes('When Inbox View is enabled, Enter and Send also start new sessions in the background')
+					&& content.includes('active chat or submitting answers to an agent')
+					&& content.includes('A collapsed section at the bottom of the Inbox reports how many sessions are running'),
 				applicationDefaults: content.includes('On This Computer and remote hosts, applications other than VS Code are hidden by default') && content.includes('Slack and Teams applications in Cloud are also hidden by default'),
 				vscodeChoice: content.includes('VS Code is always offered for each available environment, even before you create a session there'),
 				importAction: content.includes('use Import in its row toolbar, before Archive or Mark as Done'),
@@ -359,9 +363,9 @@ suite('SessionsChatAccessibilityHelp', () => {
 		});
 
 		assert.deepStrictEqual(snapshots, [
-			{ filter: true, defaults: true, submenuChoices: true, viewActions: true, applicationDefaults: true, vscodeChoice: true, importAction: true, section: false, keyboard: false },
-			{ filter: true, defaults: true, submenuChoices: true, viewActions: true, applicationDefaults: true, vscodeChoice: true, importAction: true, section: false, keyboard: false },
-			{ filter: true, defaults: true, submenuChoices: true, viewActions: true, applicationDefaults: true, vscodeChoice: true, importAction: true, section: true, keyboard: true },
+			{ filter: true, defaults: true, submenuChoices: true, viewActions: true, inboxSend: true, applicationDefaults: true, vscodeChoice: true, importAction: true, section: false, keyboard: false },
+			{ filter: true, defaults: true, submenuChoices: true, viewActions: true, inboxSend: true, applicationDefaults: true, vscodeChoice: true, importAction: true, section: false, keyboard: false },
+			{ filter: true, defaults: true, submenuChoices: true, viewActions: true, inboxSend: true, applicationDefaults: true, vscodeChoice: true, importAction: true, section: true, keyboard: true },
 		]);
 	});
 
