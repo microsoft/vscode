@@ -121,9 +121,8 @@ export async function createManagedPluginMarketplace(
 		}));
 		for (const plugin of definitions) {
 			const pluginDirectory = join(sourceDirectory, 'plugins', plugin.name);
-			await mkdir(join(pluginDirectory, '.github', 'plugin'), { recursive: true });
 			await mkdir(join(pluginDirectory, 'skills', plugin.skillName), { recursive: true });
-			await writeFile(join(pluginDirectory, '.github', 'plugin', 'plugin.json'), JSON.stringify({
+			await writeFile(join(pluginDirectory, 'plugin.json'), JSON.stringify({
 				name: plugin.name,
 				version: plugin.version,
 			}));

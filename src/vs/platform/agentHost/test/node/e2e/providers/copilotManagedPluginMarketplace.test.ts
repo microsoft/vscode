@@ -120,9 +120,11 @@ suite('Copilot managed plugin marketplace fixture', () => {
 			await execFileAsync('git', ['pull', '--ff-only'], { cwd: checkout });
 
 			assert.deepStrictEqual({
+				manifest: JSON.parse(await readFile(join(checkout, 'plugins', 'gated-plugin', 'plugin.json'), 'utf8')),
 				version: await readFile(join(checkout, 'plugins', 'gated-plugin', 'VERSION'), 'utf8'),
 				skill: (await readFile(join(checkout, 'plugins', 'gated-plugin', 'skills', 'updated-gated-skill', 'SKILL.md'), 'utf8')).replace(/\r\n/g, '\n'),
 			}, {
+				manifest: { name: 'gated-plugin', version: '2.0.0' },
 				version: '2.0.0',
 				skill: '---\nname: updated-gated-skill\ndescription: Managed plugin skill updated-gated-skill.\n---\n\nManaged plugin skill updated-gated-skill.',
 			});

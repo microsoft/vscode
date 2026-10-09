@@ -33,23 +33,6 @@ An administrator can disable identity capture while the runtime inherits an expl
     --grep "managed identity denial"
   ```
 
-### Copilot Agent Host sessions do not prepare organization-managed plugins
-
-An administrator can require plugins that must be available before an Agent Host message runs. The bundled Copilot runtime resolves the organization policy, but its Agent Host sessions do not install, update, activate, or withdraw the required plugins. Messages therefore continue without required tools, and a delayed policy response can prevent session creation instead of applying strict or best-effort admission.
-
-- Tests: the ten desired-behavior cases under `Agent Host E2E — Copilot managed plugin lifecycle`; the separate multiple-session control remains enabled normally.
-- Scope: Copilot SDK `1.0.19-preview.0` / runtime `1.0.95-0`; reproduced in local strict replay on macOS. The expected-failure markers remain enabled on all platforms.
-- Expected: default admission lets an in-flight message continue and prepares plugins before a later message; strict admission waits for fresh policy and preparation; failures name the plugin, warn, continue, and retry on the next message; updates wait until the next message; withdrawn requirements stop applying after restart.
-- Observed: the runtime either makes no request to the configured marketplace or exceeds its 3.5-second managed-settings query deadline while the deterministic test holds the policy response. No desired-behavior assertion is relaxed.
-- Tracking: #340558. Core CLI admission landed in [github/copilot-agent-runtime#24246](https://github.com/github/copilot-agent-runtime/pull/24246), and structured progress landed in [github/copilot-agent-runtime#25300](https://github.com/github/copilot-agent-runtime/pull/25300); the remaining Agent Host session gap has no separate upstream issue.
-- Gate: strict expected-failure markers accept only the missing-preparation sentinel or the bounded managed-settings query timeout. Marketplace traffic, activity/warning content, turn ordering, plugin activation, retry/update/withdrawal behavior, setup/teardown failures, and unexpected passes remain failures.
-- Reproduce:
-
-  ```bash
-  ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/e2e/providers/copilotManagedSettingsAgentHostE2E.integrationTest.ts \
-    --grep "Copilot managed plugin lifecycle"
-  ```
-
 ### Historical binary Git changeset content loses non-UTF-8 bytes
 
 A user can inspect both sides of an agent's binary-file change through the changeset's content references. The current working file preserves its bytes, but reading the historical Git-blob reference converts invalid UTF-8 bytes into replacement characters, so binary content cannot be recovered exactly.
