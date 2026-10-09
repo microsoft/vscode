@@ -90,6 +90,10 @@ Host-wide diagnostic log channels are not advertised on Mission Control ingress.
 
 A single ordered publisher and bounded reassembly/queue/lane limits preserve live protocol ordering. Replacement connections have distinct generations; stale predecessor frames/closures are fenced. Request-form compatibility for `dispatchAction` and `unsubscribe` shares the native notification path and does not make arbitrary notifications successful requests.
 
+Clients can advertise receive support with `{ "kind": "capabilities", "accepts": ["batch"] }` on their configured per-client `to-host` group. The host accepts this framing control only from the registered WPS owner on an existing client lane; it is not an AHP request and does not authenticate session access. Support is scoped to that lane and resets on lane replacement or host relay recovery. Clients should advertise after joining their receive groups and re-advertise after each successful initialize/reconnect response. An updated `accepts` list replaces the previous list.
+
+For supporting clients, the ordered publisher packs adjacent already-queued raw AHP messages with the same destination group and host generation into `{ "kind": "batch", "items": [...], "generation": ... }`, with at most 256 items and 900 KiB of serialized envelope bytes. It adds no batching delay. Single messages and oversized payloads retain the message/chunk framing, and closures and mirror events remain ordering barriers. Each published batch uses one WPS acknowledgement; queue limits still account for the original queued frames and bytes.
+
 Independent AHP/SDK spools use durable ingest acknowledgements and bounded failure/truncation signals. Signed backfill replays retained AHP frames exactly. SDK sequence ranges are reserved durably before publication; native journal cursors advance only after durable SDK acknowledgement. AHP process-restart epochs/spool durability and complete pre-registration history remain deferred. Native titles are synchronized through the runtime naming API, not fabricated SDK events.
 
 ## Diagnostics and telemetry

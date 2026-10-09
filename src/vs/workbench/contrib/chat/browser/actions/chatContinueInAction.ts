@@ -277,13 +277,23 @@ export class ContinueChatInCopilotAction extends Action2 {
 					if (!item || !provisional.get(sessionResource)) {
 						throw new Error(continueInCopilotFailedMessage());
 					}
-					sessions.registerSessionResourceAlias(untitledResource, sessionResource);
-					sessions.notifySessionMaterialized?.(sessionResource);
 				} finally {
 					await provisional.disposeSession(untitledResource);
 				}
 			}
-			ensureSourceVisible();
+			try {
+				ensureSourceVisible();
+			} catch (error) {
+				if (turns.length) {
+					await sessions.deleteChatSessionItem(sessionResource, CancellationToken.None);
+					provisional.releaseSession(sessionResource);
+				}
+				throw error;
+			}
+			if (turns.length) {
+				sessions.registerSessionResourceAlias(untitledResource, sessionResource);
+				sessions.notifySessionMaterialized?.(sessionResource);
+			}
 			const opened = await instantiationService.invokeFunction(innerAccessor => openChatSession(innerAccessor, { ...openOptions, sessionResource }));
 			const destination = opened && chatService.getSession(opened);
 			if (!opened || !destination || !widgets.getWidgetBySessionResource(opened)) {
