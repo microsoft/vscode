@@ -10777,7 +10777,7 @@ suite('AgentService (node dispatcher)', () => {
 			for (const provisional of [false, true]) {
 				test(`registry fallback is not backing confirmation (provisional: ${provisional})`, async () => {
 					let confirmed = false;
-					class RegistryFallbackAgent extends DeferredBackingAgent {
+					class RegistryFallbackAgent extends TimedExternalAgent {
 						override readonly onDidDiscoverChats = Event.None;
 						override async listChatsToMigrate(): Promise<typeof AgentChatMigrationDeferred> {
 							return AgentChatMigrationDeferred;
