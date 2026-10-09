@@ -12,12 +12,79 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { IDebugSession, IInstructionBreakpoint } from '../../common/debug.js';
-import { DebugModel, ExceptionBreakpoint, FunctionBreakpoint, Thread } from '../../common/debugModel.js';
+import { DebugModel, ExceptionBreakpoint, ExpressionContainer, FunctionBreakpoint, Thread, Variable } from '../../common/debugModel.js';
 import { MockDebugStorage } from './mockDebug.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 
 suite('DebugModel', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('Lazy variables', () => {
+		function createVariable(variables: IDebugSession['variables']) {
+			const session = upcastPartial<IDebugSession>({ variables });
+			const parent = new ExpressionContainer(session, 1, 1, 'parent');
+			return new Variable(session, 1, parent, 2, 'lazyThrow', undefined, '<lazy>', 0, 0, undefined, { lazy: true });
+		}
+
+		test('displays a lazy Variables error and permits retry', async () => {
+			let fail = true;
+			const variable = createVariable(async () => {
+				if (fail) {
+					throw new Error('Cannot evaluate variable');
+				}
+				return { seq: 1, type: 'response', request_seq: 1, success: true, command: 'variables', body: { variables: [{ name: 'resolved', value: '42', variablesReference: 0 }] } };
+			});
+			await variable.evaluateLazy();
+			assert.deepStrictEqual({ value: variable.value, reference: variable.reference, lazy: variable.presentationHint?.lazy }, { value: 'Cannot evaluate variable', reference: 2, lazy: true });
+			fail = false;
+			await variable.evaluateLazy();
+			assert.deepStrictEqual({ value: variable.value, reference: variable.reference, lazy: variable.presentationHint?.lazy }, { value: '42', reference: 0, lazy: undefined });
+		});
+
+		for (const staleFailure of [true, false]) {
+			test(`ignores stale lazy evaluation completions (stale failure: ${staleFailure})`, async () => {
+				const requests = [new DeferredPromise<DebugProtocol.VariablesResponse>(), new DeferredPromise<DebugProtocol.VariablesResponse>()];
+				let request = 0;
+				const variable = createVariable(() => requests[request++].p);
+				const first = variable.evaluateLazy();
+				const second = variable.evaluateLazy();
+				const response: DebugProtocol.VariablesResponse = { seq: 1, type: 'response', request_seq: 1, success: true, command: 'variables', body: { variables: [{ name: 'resolved', value: '42', variablesReference: 0 }] } };
+				if (staleFailure) {
+					await requests[1].complete(response);
+				} else {
+					await requests[1].error(new Error('Current failure'));
+				}
+				await second;
+				if (staleFailure) {
+					await requests[0].error(new Error('Stale failure'));
+				} else {
+					await requests[0].complete(response);
+				}
+				await first;
+				assert.deepStrictEqual({ value: variable.value, reference: variable.reference, lazy: variable.presentationHint?.lazy }, staleFailure ? { value: '42', reference: 0, lazy: undefined } : { value: 'Current failure', reference: 2, lazy: true });
+			});
+		}
+
+		test('preserves sibling variables when automatic lazy expansion fails', async () => {
+			const session = upcastPartial<IDebugSession>({
+				autoExpandLazyVariables: true,
+				variables: async reference => {
+					if (reference === 2) {
+						throw new Error('Cannot evaluate variable');
+					}
+					return { seq: 1, type: 'response', request_seq: 1, success: true, command: 'variables', body: { variables: [{ name: 'lazy', value: '<lazy>', variablesReference: 2, presentationHint: { lazy: true } }, { name: 'sibling', value: '42', variablesReference: 0 }] } };
+				}
+			});
+			const parent = new ExpressionContainer(session, 1, 1, 'parent');
+			assert.deepStrictEqual((await parent.getChildren()).map(v => [v.name, v.value]), [['lazy', 'Cannot evaluate variable'], ['sibling', '42']]);
+		});
+
+		test('does not replace a value when the lazy response has no variable', async () => {
+			const variable = createVariable(async () => ({ seq: 1, type: 'response', request_seq: 1, success: true, command: 'variables', body: { variables: [] } }));
+			await variable.evaluateLazy();
+			assert.strictEqual(variable.value, '<lazy>');
+		});
+	});
 
 	suite('FunctionBreakpoint', () => {
 		test('Id is saved', () => {
